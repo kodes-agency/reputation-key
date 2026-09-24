@@ -5,8 +5,19 @@
  * fence while `apply` commits the Inbox-owned mutation and receipt. The
  * callback shape makes that lifetime explicit without exposing Review tables,
  * Drizzle transactions, or provider-controlled content to Inbox.
+ *
+ * The two shapes below deliberately mirror Review's own
+ * `ReplyObservationAuthority` port (ADR 0008 §1: a consuming context declares
+ * the boundary it needs in its OWN `application/ports/`, and reaches the
+ * producing context only through that port). Sharing one type would make
+ * Inbox's application layer import a Review type directly, which is the
+ * boundary violation the ADR exists to prevent, and would let a Review-side
+ * change to the permit reach Inbox without either side deciding to accept it.
+ * They are expected to drift: the two comments about `rating` already do.
  */
 
+// The fence Inbox asks Review to hold, named on Inbox's side (ADR 0008).
+// fallow-ignore-next-line code-duplication
 export type ReplyObservationExpectation = Readonly<{
   organizationId: string
   propertyId: string
@@ -22,6 +33,8 @@ export type ReplyObservationExpectation = Readonly<{
   occurredAt: Date
 }>
 
+// What Inbox accepts inside that fence, named on Inbox's side (ADR 0008).
+// fallow-ignore-next-line code-duplication
 export type CurrentReplyObservationPermit = Readonly<{
   authority: 'review.current-google-reply-observation.v1'
   organizationId: string
