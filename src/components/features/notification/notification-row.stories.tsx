@@ -10,6 +10,7 @@ import {
   longPropertyNameNotification,
   makeNotification,
   notificationFixtures,
+  type NotificationFixtureOverrides,
 } from './notification.stories.fixtures'
 import { NotificationRow } from './notification-row'
 import type { NotificationRowActions } from './types'
@@ -85,113 +86,108 @@ async function expectMenuSettled(canvasElement: HTMLElement) {
 }
 
 /**
+ * The copy stories are all pinned the same way: the sentences the row now
+ * says, and — where the story exists because the old wording was wrong — the
+ * phrasing that must not survive anywhere in the row. Only the fixture and
+ * those facts differ, so the assertions are written once here. Every fixture
+ * is unread, the state this copy is written for and the factory's default.
+ */
+type RowCopySpec = Readonly<{
+  notification: NotificationFixtureOverrides
+  says: ReadonlyArray<RegExp | string>
+  neverSays?: RegExp
+}> &
+  Omit<NonNullable<Story['args']>, 'notification'>
+
+const rowSays = ({ notification, says, neverSays, ...args }: RowCopySpec): Story => ({
+  args: { ...args, notification: makeNotification(notification) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    for (const sentence of says) {
+      expect(canvas.getByText(sentence)).toBeInTheDocument()
+    }
+    if (neverSays) expect(canvasElement.textContent).not.toMatch(neverSays)
+  },
+})
+
+/**
  * Why the item is open again. The reopen fact's closed reason replaces the
  * generic "needs another look"; the manager's free-text explanation beside it
  * never leaves Inbox.
  */
-export const ReopenedSaysWhy: Story = {
-  args: {
-    notification: makeNotification({
-      id: '20000000-0000-4000-8000-000000000031',
-      type: 'inbox.reopened',
-      status: 'unread',
-      payload: {
-        propertyName: 'Riverside Hotel',
-        platform: 'google',
-        reopenReason: 'provider_reply_deleted',
-      },
-    }),
+export const ReopenedSaysWhy: Story = rowSays({
+  notification: {
+    id: '20000000-0000-4000-8000-000000000031',
+    type: 'inbox.reopened',
+    payload: {
+      propertyName: 'Riverside Hotel',
+      platform: 'google',
+      reopenReason: 'provider_reply_deleted',
+    },
   },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    expect(
-      canvas.getByText(/The published reply was removed from Google\./),
-    ).toBeInTheDocument()
-    expect(canvasElement.textContent).not.toMatch(/needs another look/)
-  },
-}
+  says: [/The published reply was removed from Google\./],
+  neverSays: /needs another look/,
+})
 
 /**
  * A reminder says by when, on the READER's clock. Two managers responsible for
  * one item need not share a timezone, so the row formats the stored instant
  * with the format it already resolves rather than reading a frozen label.
  */
-export const ResponseTargetSaysByWhen: Story = {
-  args: {
-    notification: makeNotification({
-      id: '20000000-0000-4000-8000-000000000032',
-      type: 'inbox.response_target_halfway',
-      status: 'unread',
-      payload: {
-        propertyName: 'Riverside Hotel',
-        targetDueAt: '2026-09-29T12:00:00.000Z',
-      },
-    }),
-    format: { locale: 'en-US', timeZone: 'America/New_York' },
+export const ResponseTargetSaysByWhen: Story = rowSays({
+  notification: {
+    id: '20000000-0000-4000-8000-000000000032',
+    type: 'inbox.response_target_halfway',
+    payload: {
+      propertyName: 'Riverside Hotel',
+      targetDueAt: '2026-09-29T12:00:00.000Z',
+    },
   },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    expect(canvas.getByText(/Target time Tue, Sep 29, 08:00\./)).toBeInTheDocument()
-    // The product's term is "target time"; "due" is not a word it uses.
-    expect(canvasElement.textContent).not.toMatch(/\bdue\b/i)
-  },
-}
+  format: { locale: 'en-US', timeZone: 'America/New_York' },
+  says: [/Target time Tue, Sep 29, 08:00\./],
+  // The product's term is "target time"; "due" is not a word it uses.
+  neverSays: /\bdue\b/i,
+})
 
 /**
  * A guest portal that guests cannot reach at all, and what to do about it.
  * The notice used to say only that it "may need attention".
  */
-export const PortalOffline: Story = {
-  args: {
-    notification: makeNotification({
-      id: '20000000-0000-4000-8000-000000000033',
-      type: 'portal.health_attention',
-      status: 'unread',
-      payload: {
-        propertyName: 'Harbour Lodge',
-        portalHealthStatus: 'unavailable',
-        portalHealthReason: 'public_address_unavailable',
-      },
-    }),
+export const PortalOffline: Story = rowSays({
+  notification: {
+    id: '20000000-0000-4000-8000-000000000033',
+    type: 'portal.health_attention',
+    payload: {
+      propertyName: 'Harbour Lodge',
+      portalHealthStatus: 'unavailable',
+      portalHealthReason: 'public_address_unavailable',
+    },
   },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    expect(
-      canvas.getByText(/Guest portal is offline at Harbour Lodge/),
-    ).toBeInTheDocument()
-    expect(canvasElement.textContent).not.toMatch(/may need attention/)
-  },
-}
+  says: [/Guest portal is offline at Harbour Lodge/],
+  neverSays: /may need attention/,
+})
 
 /**
  * Which month, whose goal, and which way it went — the three facts that tell
  * one Portal's monthly result from its nine siblings'.
  */
-export const GoalResultNamesItsMonth: Story = {
-  args: {
-    notification: makeNotification({
-      id: '20000000-0000-4000-8000-000000000034',
-      type: 'goal.result_revised',
-      status: 'unread',
-      payload: {
-        propertyName: 'Harbour Lodge',
-        goalName: 'Lobby QR scans',
-        goalMonth: '2026-10',
-        goalSubjectKind: 'portal',
-        goalOutcome: 'not_met',
-      },
-    }),
+export const GoalResultNamesItsMonth: Story = rowSays({
+  notification: {
+    id: '20000000-0000-4000-8000-000000000034',
+    type: 'goal.result_revised',
+    payload: {
+      propertyName: 'Harbour Lodge',
+      goalName: 'Lobby QR scans',
+      goalMonth: '2026-10',
+      goalSubjectKind: 'portal',
+      goalOutcome: 'not_met',
+    },
   },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    expect(
-      canvas.getByText('October goal no longer met: Lobby QR scans at Harbour Lodge'),
-    ).toBeInTheDocument()
-    expect(
-      canvas.getByText(/This Portal goal no longer meets its target\./),
-    ).toBeInTheDocument()
-  },
-}
+  says: [
+    'October goal no longer met: Lobby QR scans at Harbour Lodge',
+    /This Portal goal no longer meets its target\./,
+  ],
+})
 
 /** Urgent + unread: pill, unread dot, rating glyphs, waiting age, accent CTA. */
 export const UrgentUnread: Story = {
