@@ -59,12 +59,17 @@ const databaseUuidSchema = z
   .string()
   .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu)
 
+/** The Property source-epoch scope both provider-snapshot run facts are keyed by. */
+const reviewSnapshotRunScope = {
+  organizationId: z.string().trim().min(1).max(255),
+  propertyId: databaseUuidSchema,
+  sourceEpoch: z.number().int().safe().nonnegative(),
+  runId: databaseUuidSchema,
+} as const
+
 const reviewGoogleReputationSnapshotVerifiedSchema = z
   .object({
-    organizationId: z.string().trim().min(1).max(255),
-    propertyId: databaseUuidSchema,
-    sourceEpoch: z.number().int().safe().nonnegative(),
-    runId: databaseUuidSchema,
+    ...reviewSnapshotRunScope,
     reviewCount: z.number().int().safe().min(0).max(10_000),
     averageRating: z.number().finite().min(0).max(5).nullable(),
     evaluatedAt: z.iso.datetime(),
@@ -101,10 +106,7 @@ const reviewGoogleReputationSnapshotVerifiedSchema = z
  */
 const reviewPropertyHistoryImportFinishedSchema = z
   .object({
-    organizationId: z.string().trim().min(1).max(255),
-    propertyId: databaseUuidSchema,
-    sourceEpoch: z.number().int().safe().nonnegative(),
-    runId: databaseUuidSchema,
+    ...reviewSnapshotRunScope,
     outcome: z.enum(['completed', 'failed']),
     reviewsObserved: z.number().int().safe().min(0).max(10_000),
     failureReason: z

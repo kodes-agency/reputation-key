@@ -485,6 +485,21 @@ async function recordVerifiedSnapshotFact(tx: Tx, run: RunRow): Promise<void> {
 }
 
 /**
+ * Everything the transaction that completes a run records: the verified
+ * provider aggregate, and — when this run is the one that ends the Property's
+ * first history import — that import's own terminal fact.
+ *
+ * The import question is asked BEFORE the verified fact is written, because
+ * that fact is the very proof `endsFirstHistoryImport` reads to decide the
+ * history is already listed.
+ */
+async function recordCompletionFacts(tx: Tx, run: RunRow): Promise<void> {
+  const endsImport = await endsFirstHistoryImport(tx, run, 'completed')
+  await recordVerifiedSnapshotFact(tx, run)
+  if (endsImport) await recordHistoryImportFinished(tx, run, { outcome: 'completed' })
+}
+
+/**
  * The first conflict this page trips, in the order the failure taxonomy ranks
  * them: a changed provider aggregate outranks a malformed one, which outranks a
  * blown review cap, which outranks a blown page cap. Null means the page is
@@ -1456,11 +1471,7 @@ export const createReviewProviderSnapshotRepository = (
               .limit(1)
           : []
       const done = more.length === 0
-      // Read before the verified fact is written: that fact is the very proof
-      // `endsFirstHistoryImport` reads to decide the history is already listed.
-      const endsImport = done && (await endsFirstHistoryImport(tx, run, 'completed'))
-      if (done) await recordVerifiedSnapshotFact(tx, run)
-      if (endsImport) await recordHistoryImportFinished(tx, run, { outcome: 'completed' })
+      if (done) await recordCompletionFacts(tx, run)
       const updated = await tx
         .update(reviewProviderSnapshotRuns)
         .set(
