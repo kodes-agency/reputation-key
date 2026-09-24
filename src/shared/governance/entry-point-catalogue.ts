@@ -101,6 +101,7 @@ export type SystemAction =
   | 'system:notification.insert_goal'
   | 'system:notification.insert_portal'
   | 'system:notification.insert_property_responsibility'
+  | 'system:notification.insert_review_import'
   | 'system:notification.email_urgent'
   | 'system:notification.email_mandatory'
   | 'system:notification.email_digest'
@@ -471,6 +472,15 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'notification.property-outbox-consumers',
     'system:notification.insert_property_responsibility',
     'property.create',
+    'property',
+  ),
+  // The import summary is decided at the Property whose history was imported,
+  // and gated on the import capability itself: an Organization that cannot run
+  // a Google import has no import to be told about.
+  consumer(
+    'notification.review-import-outbox-consumers',
+    'system:notification.insert_review_import',
+    'property.import_gbp_v2',
     'property',
   ),
   consumer(

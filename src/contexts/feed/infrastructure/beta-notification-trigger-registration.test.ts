@@ -10,6 +10,7 @@ import { registerWorkflowNotificationConsumers } from './workflow-outbox-consume
 import { registerPortalNotificationConsumers } from './portal-outbox-consumers'
 import { registerPropertyNotificationConsumers } from './property-outbox-consumers'
 import { registerIntegrationNotificationConsumers } from './integration-outbox-consumers'
+import { registerReviewImportNotificationConsumers } from './review-import-outbox-consumers'
 import { registerBulkAssignmentNotificationConsumer } from './bulk-assignment-outbox-consumers'
 import { registerAssignmentReleaseNotificationConsumer } from './assignment-release-outbox-consumers'
 import { registerEscalationResolutionNotificationConsumer } from './escalation-resolution-outbox-consumers'
@@ -128,6 +129,17 @@ describe('registered durable notification matrix', () => {
       googleConnectionProperties: {
         findGoogleNotificationAnchor: vi.fn(async () => null),
       },
+      logger: fakes.logger,
+      receipts,
+    })
+
+    registerReviewImportNotificationConsumers(consumerRegistry, {
+      queue: fakes.queue,
+      userLookup: fakes.userLookup,
+      responsibleManagers: fakes.responsibleManagers,
+      inboxItemLookup: fakes.inboxItemLookup,
+      importInitiators: { findPropertyImportInitiator: vi.fn(async () => null) },
+      displayNames: fakes.displayNames,
       logger: fakes.logger,
       receipts,
     })

@@ -73,6 +73,7 @@ import {
   inboxResponseTargetReminderDue,
 } from '#/contexts/inbox/domain/events'
 import {
+  reviewPropertyHistoryImportFinished,
   reviewReplyApproved,
   reviewReplyPublicationCancelled,
   reviewReplyPublished,
@@ -107,6 +108,10 @@ import { registerWorkflowNotificationConsumers } from './workflow-outbox-consume
 import { registerPortalNotificationConsumers } from './portal-outbox-consumers'
 import { registerPropertyNotificationConsumers } from './property-outbox-consumers'
 import { registerIntegrationNotificationConsumers } from './integration-outbox-consumers'
+import {
+  registerReviewImportNotificationConsumers,
+  type PropertyImportInitiatorLookup,
+} from './review-import-outbox-consumers'
 import { registerBulkAssignmentNotificationConsumer } from './bulk-assignment-outbox-consumers'
 import { registerAssignmentReleaseNotificationConsumer } from './assignment-release-outbox-consumers'
 import { registerEscalationResolutionNotificationConsumer } from './escalation-resolution-outbox-consumers'
@@ -147,6 +152,7 @@ const REVIEW = reviewId('4d1f0c1e-2b7a-4c55-9a51-000000000004')
 const REPLY = replyId('4d1f0c1e-2b7a-4c55-9a51-000000000005')
 const NOTE = inboxNoteId('4d1f0c1e-2b7a-4c55-9a51-000000000006')
 const CONNECTION = googleConnectionId('4d1f0c1e-2b7a-4c55-9a51-000000000007')
+const SNAPSHOT_RUN = '4d1f0c1e-2b7a-4c55-9a51-000000000013'
 const INVITATION = invitationId('4d1f0c1e-2b7a-4c55-9a51-000000000008')
 const REPORT_REFERENCE = '4d1f0c1e-2b7a-4c55-9a51-000000000009'
 const CLOSURE_LINEAGE = '4d1f0c1e-2b7a-4c55-9a51-00000000000a'
@@ -414,6 +420,17 @@ const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
       sourceAggregateVersion: OCCURRED_AT.toISOString(),
       occurredAt: OCCURRED_AT,
     }),
+  'review.property_history_import.finished': () =>
+    reviewPropertyHistoryImportFinished({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      sourceEpoch: 0,
+      runId: SNAPSHOT_RUN,
+      outcome: 'completed',
+      reviewsObserved: 260,
+      failureReason: null,
+      occurredAt: OCCURRED_AT,
+    }),
   'integration.google_account.reauthorization_required': () =>
     integrationGoogleAccountReauthorizationRequired({
       connectionId: CONNECTION,
@@ -499,6 +516,7 @@ type RouteDeps = ReturnType<typeof createNotificationConsumerDeps> &
         >
       >
     }
+    importInitiators: PropertyImportInitiatorLookup
   }>
 
 /** Reads that find nothing, for tests that never run a handler. */
@@ -521,6 +539,7 @@ function inertRouteDeps(): RouteDeps {
       findRecipientsOfNotice: vi.fn(async () => []),
     },
     emails: { cancelQueuedForNotifications: vi.fn(async () => 0) },
+    importInitiators: { findPropertyImportInitiator: vi.fn(async () => null) },
   }
 }
 
@@ -544,6 +563,7 @@ function registerNotificationRoutes(
   registerPortalHealthNotificationConsumer(registry, deps)
   registerPropertyNotificationConsumers(registry, deps)
   registerIntegrationNotificationConsumers(registry, deps)
+  registerReviewImportNotificationConsumers(registry, deps)
   return registry
 }
 
@@ -802,6 +822,9 @@ function currentRouteDeps(): RouteDeps {
       findRecipientsOfNotice: vi.fn(async () => []),
     },
     emails: { cancelQueuedForNotifications: vi.fn(async () => 1) },
+    importInitiators: {
+      findPropertyImportInitiator: vi.fn(async () => RECIPIENT as string),
+    },
   }
 }
 
@@ -931,6 +954,21 @@ const NO_NOTICE: Readonly<
         occurredAt: OCCURRED_AT,
       }),
     status: 'applied',
+  },
+  // A stopped import RepKey retries by itself reaches nobody.
+  'review.property_history_import.finished': {
+    fact: () =>
+      reviewPropertyHistoryImportFinished({
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        sourceEpoch: 0,
+        runId: SNAPSHOT_RUN,
+        outcome: 'failed',
+        reviewsObserved: 3,
+        failureReason: 'temporary',
+        occurredAt: OCCURRED_AT,
+      }),
+    status: 'obsolete',
   },
   'portal.health.changed': {
     fact: () =>
