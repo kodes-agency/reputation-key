@@ -33,6 +33,15 @@ browser-visible job; child batches are worker checkpoints.
 A Property Google binding remains Property-owned. Business Profile Performance is
 returned with source/retrieval metadata and never persisted.
 
+Who asked for an import stays here. The import request rows are Integration's
+alone, so the public API answers one identifier-only question about them:
+`imports.findInitiator(organizationId, propertyId)` — the initiator of the
+FIRST import that produced a Property, so a later relink does not take credit
+for the history the original brought in. Feed addresses the import-finished
+notice with it (ADR 0046, amended 2026-09-24). `null` is a normal answer: those
+rows are purged 30 days after the import becomes terminal, and the notice falls
+back to the Property's responsible managers.
+
 ## Runtime
 
 Provider calls require a current connection, capability approval, execution

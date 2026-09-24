@@ -41,6 +41,20 @@ disconnected, or one Google lists after that history was listed in full, is
 published after the cutoff, are measured
 (`docs/operations/inbox-response-targets.md`).
 
+The end of that first import is itself a fact:
+`review.property_history_import.finished`, written by the transaction that
+makes a snapshot run terminal — `failLockedRun`, and the completion branch of
+`applyDeletionBatch` — carrying identifiers, the unique reviews the run had
+listed, and, on failure, one of four closed reasons
+(`application/historical-import-outcome.ts`). It is what Feed announces in
+place of the per-review flood PR #597 suppressed (ADR 0046, amended
+2026-09-24). Which run ends the import needs no new column: the run's epoch has
+a history cutoff, no earlier epoch of the Property has one, and no completed
+run has listed that history yet — the verified reputation fact each completed
+run writes is that proof, read before this run writes its own. A failure also
+requires the run's own origin to be `historical_onboarding`, so an ordinary
+poll failing on an imported Property is not the import failing.
+
 An internal Reply moves from draft through approval and a numbered publication
 cycle. Provider acknowledgement enters `pending_observation`; only an exact current
 Google Reply Observation proves publication. Publication authorizations, attempts,
