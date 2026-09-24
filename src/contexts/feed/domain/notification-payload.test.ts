@@ -93,6 +93,7 @@ describe('parseNotificationPayload', () => {
       reauthorizationCause: 'provider_revoked',
       publishFailureCause: 'google_reauthorization_required',
       reopenReason: 'provider_reply_deleted',
+      publicationCancellationCause: 'source_changed',
       portalHealthStatus: 'unavailable',
       portalHealthReason: 'public_address_unavailable',
     }
