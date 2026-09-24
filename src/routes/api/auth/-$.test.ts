@@ -24,7 +24,7 @@ import { resolve } from 'node:path'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /** The better-auth release BLOCKED_RAW_WRITE_ENDPOINTS was verified against. */
-const VERIFIED_BETTER_AUTH_VERSION = '1.7.3'
+const VERIFIED_BETTER_AUTH_VERSION = '1.7.5'
 
 const mocks = vi.hoisted(() => ({
   check: vi.fn(),
@@ -201,10 +201,10 @@ describe('auth catch-all blocked raw write endpoints', () => {
   // asserted against our handler, never against better-auth's route table.
   // The dependency is therefore pinned exactly, and this fails on any move so
   // the paths get re-verified deliberately. All 12 paths were confirmed present
-  // in 1.7.3 (the 1.6.23 -> 1.7.3 organization route table adds only the
-  // read route /organization/get-organization); when this fails, re-check the
-  // org plugin route files under dist/plugins/organization plus
-  // /sign-up/email, then move VERIFIED_BETTER_AUTH_VERSION.
+  // in 1.7.5, whose organization route table (36 paths) and core account routes
+  // are identical to 1.7.3's; when this fails, re-check the org plugin route
+  // files under dist/plugins/organization plus /sign-up/email, then move
+  // VERIFIED_BETTER_AUTH_VERSION.
   it('pins the better-auth version the refusal paths were verified against', () => {
     const root = resolve(import.meta.dirname, '../../../..')
     const manifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as {
