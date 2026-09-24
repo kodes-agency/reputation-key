@@ -367,8 +367,12 @@ async function codec(): Promise<SerovalCodec> {
       toJSONAsync: SerovalCodec['toJSONAsync']
       fromCrossJSON: SerovalCodec['fromCrossJSON']
     }
+    // `ssr/client`, not the package root: router-core 1.171.32 stopped
+    // re-exporting the seroval plugins from its index and now publishes them
+    // on the `./ssr/client` subpath only. Reading the root gave `undefined`
+    // and every server-function call in the suite died on the spread.
     const routerCore = (await import(
-      pathToFileURL(join(dirname(routerCorePkg), 'dist/esm/index.js')).href
+      pathToFileURL(join(dirname(routerCorePkg), 'dist/esm/ssr/client.js')).href
     )) as {
       defaultSerovalPlugins: unknown[]
       makeSerovalPlugin: (adapter: unknown) => unknown
