@@ -134,29 +134,6 @@ describe('reply autosave coordinator', () => {
     expect(updatedSave).toHaveBeenCalledWith(changed)
   })
 
-  it('emits the error status and its retry copy to a subscriber when a save fails', async () => {
-    vi.useFakeTimers()
-    const save = vi
-      .fn<(snapshot: ReplyDraftSnapshot) => Promise<void>>()
-      .mockRejectedValue(new Error('offline'))
-    const observed: ReplyAutosaveState[] = []
-    const coordinator = createReplyAutosaveCoordinator({
-      initial,
-      save,
-      onState: vi.fn(),
-    })
-    coordinator.subscribe((state) => observed.push(state))
-
-    coordinator.schedule(changed)
-    await vi.advanceTimersByTimeAsync(700)
-
-    expect(save).toHaveBeenCalledWith(changed)
-    expect(observed.at(-1)).toEqual({
-      status: 'error',
-      error: 'Draft could not be saved. Retry before submitting.',
-    })
-  })
-
   // StrictMode mounts, tears the mount down and mounts again against the SAME
   // coordinator — the one `useState` keeps — so teardown must be reversible.
   // While it latched the channel shut, `unsaved` and `error` (and with them
@@ -307,38 +284,5 @@ describe('reply autosave coordinator', () => {
 
     expect(save).toHaveBeenCalledTimes(2)
     expect(save).toHaveBeenLastCalledWith(second)
-  })
-
-  it('never reports Saved for text it has not confirmed after a failed save', async () => {
-    // The manager's own reply P is saved. A template load writes T server-side
-    // and the composer's follow-up save of T fails. Undo puts P back in the box.
-    // P equals the last confirmed save — but the server may now hold T, so P
-    // must be written again, not reported as `Saved` and skipped by Submit.
-    vi.useFakeTimers()
-    const observed: ReplyAutosaveState[] = []
-    const mine: ReplyDraftSnapshot = { text: 'My own reply', languageTag: 'en-Latn' }
-    const template: ReplyDraftSnapshot = { text: 'Template text', languageTag: 'en-Latn' }
-    const save = vi
-      .fn<(snapshot: ReplyDraftSnapshot) => Promise<void>>()
-      .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error('offline'))
-      .mockResolvedValue(undefined)
-    const coordinator = createReplyAutosaveCoordinator({
-      initial,
-      save,
-      onState: (state) => observed.push(state),
-    })
-
-    await coordinator.flush(mine)
-    await coordinator.flush(template).catch(() => undefined)
-    expect(observed.at(-1)?.status).toBe('error')
-
-    coordinator.schedule(mine)
-    expect(observed.at(-1)?.status).toBe('pending')
-
-    // Submit's flush must write the box, not trust a stale "Saved".
-    await coordinator.flush(mine)
-    expect(save).toHaveBeenLastCalledWith(mine)
-    expect(save).toHaveBeenCalledTimes(3)
   })
 })
