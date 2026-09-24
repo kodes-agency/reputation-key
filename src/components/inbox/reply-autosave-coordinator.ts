@@ -141,6 +141,18 @@ export function createReplyAutosaveCoordinator(
     schedule(snapshot: ReplyDraftSnapshot, eligible = true) {
       cancelTimer()
       pending = null
+      // A failed save that is still on screen keeps saying so. `schedule` runs
+      // on every keystroke AND on every language change, and it repainted the
+      // head unconditionally — so picking a language after a failure replaced
+      // `Draft could not be saved` with a bare `Not saved` and took
+      // `Retry save` (gated on `status === 'error'`) with it, while the
+      // coordinator still held the unsaved snapshot and `flush` still refused.
+      //
+      // Once the text moves on, the failed snapshot is no longer what anyone
+      // wants written, so it is dropped and the new save speaks for itself.
+      if (failed && same(snapshot, failed)) {
+        return emit('error', 'Draft could not be saved. Retry before submitting.')
+      }
       if (!eligible) return emit('unsaved')
       if (same(snapshot, lastSaved)) return emit('saved')
       emit('pending')
