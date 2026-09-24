@@ -15,7 +15,7 @@ import { canonicalizeRfc8785 } from './merchant-ai-notice-contract'
 describe('OpenAI private-beta provider profile', () => {
   it('pins the exact SDK, snapshot request shape, transport, evidence, and price facts', () => {
     expect(OPENAI_PROVIDER_DEPLOYMENT_CONTRACT_V1).toEqual({
-      sdkVersion: '7.4.0',
+      sdkVersion: '7.20.0',
       dispatcherVersion: 'undici@8.10.0',
       runtime: {
         nodeImage:

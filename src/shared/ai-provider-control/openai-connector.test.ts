@@ -61,11 +61,11 @@ function pinnedSdkHeaders(): Record<string, string> {
     accept: 'application/json',
     authorization: 'Bearer test-key',
     'content-type': 'application/json',
-    'user-agent': 'OpenAI/JS 7.4.0',
+    'user-agent': 'OpenAI/JS 7.20.0',
     'x-stainless-arch': process.arch,
     'x-stainless-lang': 'js',
     'x-stainless-os': process.platform === 'darwin' ? 'MacOS' : 'Linux',
-    'x-stainless-package-version': '7.4.0',
+    'x-stainless-package-version': '7.20.0',
     'x-stainless-retry-count': '0',
     'x-stainless-runtime': 'node',
     'x-stainless-runtime-version': process.version,
@@ -374,7 +374,7 @@ describe('one-shot OpenAI fetch boundary', () => {
     ],
     [
       'user agent',
-      { ...pinnedSdkHeaders(), 'user-agent': 'OpenAI/JS 7.4.1' },
+      { ...pinnedSdkHeaders(), 'user-agent': 'OpenAI/JS 7.20.1' },
       'https://api.openai.com/v1/responses',
     ],
     [
@@ -811,7 +811,7 @@ function providerResponse(
 }
 
 describe('official OpenAI SDK connector integration', () => {
-  it('passes exact attested bytes through SDK 7.4 and returns parsed output with bounded usage', async () => {
+  it('passes exact attested bytes through SDK 7.20 and returns parsed output with bounded usage', async () => {
     let expectedBody = Buffer.alloc(0)
     const outbound = vi.fn(async (_url: string | URL | Request, init?: RequestInit) => {
       expect(String(_url)).toBe('https://api.openai.com/v1/responses')

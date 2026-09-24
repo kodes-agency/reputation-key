@@ -67,7 +67,7 @@ const sha256 = (domain: string, value: unknown): string =>
     .digest('hex')
 
 describe('PR5 immutable AI execution catalogues', () => {
-  it('pins the sole OpenAI SDK 7.4.0 deployment contract without fallback or stateful features', () => {
+  it('pins the sole OpenAI SDK 7.20.0 deployment contract without fallback or stateful features', () => {
     expect(AI_PROVIDER_DEPLOYMENT_PROFILE).toMatchObject({
       profileVersion: 'private-beta-global-v1',
       region: 'global',
@@ -78,7 +78,7 @@ describe('PR5 immutable AI execution catalogues', () => {
       store: false,
       responseApiVersion: 'responses-v1',
       deploymentContract: {
-        sdkVersion: '7.4.0',
+        sdkVersion: '7.20.0',
         endpoint: 'https://api.openai.com/v1/responses',
         runtime: {
           nodeImage:
