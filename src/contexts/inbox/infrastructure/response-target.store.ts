@@ -187,6 +187,39 @@ async function insertSchedulableReminders(
   )
 }
 
+/**
+ * Land one measured snapshot beside its Handling Cycle and schedule the
+ * reminders it still has time for. Google Reviews and private feedback differ
+ * only in how the snapshot was resolved: the row they write, and the fact that
+ * the reminders follow it in the same transaction, are one decision.
+ */
+async function insertMeasuredTarget(
+  tx: Tx,
+  cycle: HandlingCycle,
+  snapshot: ResponseTargetSnapshot,
+  createdAt: Date,
+): Promise<void> {
+  await tx.insert(inboxHandlingCycleResponseTargets).values({
+    inboxItemId: cycle.inboxItemId,
+    cycleNumber: cycle.cycleNumber,
+    organizationId: cycle.organizationId,
+    propertyId: cycle.propertyId,
+    sourceType: cycle.sourceType,
+    sourceId: cycle.sourceId,
+    sourceRevision: cycle.sourceRevision,
+    targetKind: snapshot.targetKind,
+    performanceEligibility: snapshot.eligibility,
+    durationMinutes: snapshot.durationMinutes,
+    policySource: snapshot.policySource,
+    policyVersion: snapshot.policyVersion,
+    startAt: snapshot.startAt,
+    dueAt: snapshot.dueAt,
+    createdAt,
+    updatedAt: createdAt,
+  })
+  await insertSchedulableReminders(tx, cycle, snapshot, createdAt)
+}
+
 /** Insert the immutable source-specific target beside its Handling Cycle. */
 export async function insertResponseTargetForHandlingCycle(
   tx: Tx,
@@ -252,25 +285,7 @@ export async function insertResponseTargetForHandlingCycle(
       ),
       startAt,
     })
-    await tx.insert(inboxHandlingCycleResponseTargets).values({
-      inboxItemId: cycle.inboxItemId,
-      cycleNumber: cycle.cycleNumber,
-      organizationId: cycle.organizationId,
-      propertyId: cycle.propertyId,
-      sourceType: cycle.sourceType,
-      sourceId: cycle.sourceId,
-      sourceRevision: cycle.sourceRevision,
-      targetKind: snapshot.targetKind,
-      performanceEligibility: snapshot.eligibility,
-      durationMinutes: snapshot.durationMinutes,
-      policySource: snapshot.policySource,
-      policyVersion: snapshot.policyVersion,
-      startAt: snapshot.startAt,
-      dueAt: snapshot.dueAt,
-      createdAt,
-      updatedAt: createdAt,
-    })
-    await insertSchedulableReminders(tx, cycle, snapshot, createdAt)
+    await insertMeasuredTarget(tx, cycle, snapshot, createdAt)
     return
   }
 
@@ -321,25 +336,7 @@ export async function insertResponseTargetForHandlingCycle(
     }),
     startAt: cycle.openedAt,
   })
-  await tx.insert(inboxHandlingCycleResponseTargets).values({
-    inboxItemId: cycle.inboxItemId,
-    cycleNumber: cycle.cycleNumber,
-    organizationId: cycle.organizationId,
-    propertyId: cycle.propertyId,
-    sourceType: cycle.sourceType,
-    sourceId: cycle.sourceId,
-    sourceRevision: cycle.sourceRevision,
-    targetKind: snapshot.targetKind,
-    performanceEligibility: snapshot.eligibility,
-    durationMinutes: snapshot.durationMinutes,
-    policySource: snapshot.policySource,
-    policyVersion: snapshot.policyVersion,
-    startAt: snapshot.startAt,
-    dueAt: snapshot.dueAt,
-    createdAt,
-    updatedAt: createdAt,
-  })
-  await insertSchedulableReminders(tx, cycle, snapshot, createdAt)
+  await insertMeasuredTarget(tx, cycle, snapshot, createdAt)
 }
 
 type StopReason = 'private_feedback_handled' | 'guest_withdrawn'

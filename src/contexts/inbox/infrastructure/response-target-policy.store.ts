@@ -83,6 +83,31 @@ const versionConflict = (currentPolicyVersion: number | null) =>
     currentPolicyVersion,
   })
 
+/**
+ * The optimistic-concurrency step both policy writes share, read from the row
+ * they have just locked FOR UPDATE: the caller's expected version must match
+ * what is stored — and `null` must mean the row is still absent — before the
+ * successor version is handed out. Every refusal is the same conflict the
+ * caller reloads on, so the two writes cannot disagree about what a stale
+ * editor sees.
+ */
+const nextPolicyVersion = (
+  current: Readonly<{ policyVersion: number }> | undefined,
+  expectedPolicyVersion: number | null,
+): number => {
+  if (!current && expectedPolicyVersion !== null) {
+    throw versionConflict(null)
+  }
+  if (current && current.policyVersion !== expectedPolicyVersion) {
+    throw versionConflict(current.policyVersion)
+  }
+  const nextVersion = current ? current.policyVersion + 1 : 1
+  if (!Number.isSafeInteger(nextVersion)) {
+    throw inboxError('revision_conflict', 'Response Target policy version exhausted')
+  }
+  return nextVersion
+}
+
 export const createResponseTargetPolicyStore = (
   db: Database,
 ): ResponseTargetPolicyStore => ({
@@ -205,19 +230,7 @@ export const createResponseTargetPolicyStore = (
           )
           .for('update')
           .limit(1)
-        if (!current && command.expectedPolicyVersion !== null) {
-          throw versionConflict(null)
-        }
-        if (current && current.policyVersion !== command.expectedPolicyVersion) {
-          throw versionConflict(current.policyVersion)
-        }
-        const nextVersion = current ? current.policyVersion + 1 : 1
-        if (!Number.isSafeInteger(nextVersion)) {
-          throw inboxError(
-            'revision_conflict',
-            'Response Target policy version exhausted',
-          )
-        }
+        const nextVersion = nextPolicyVersion(current, command.expectedPolicyVersion)
         // Omitted keeps the stored pair, `null` clears it, an object sets it.
         const lowRatingColumns =
           command.lowRating === undefined
@@ -335,19 +348,7 @@ export const createResponseTargetPolicyStore = (
           )
           .for('update')
           .limit(1)
-        if (!current && command.expectedPolicyVersion !== null) {
-          throw versionConflict(null)
-        }
-        if (current && current.policyVersion !== command.expectedPolicyVersion) {
-          throw versionConflict(current.policyVersion)
-        }
-        const nextVersion = current ? current.policyVersion + 1 : 1
-        if (!Number.isSafeInteger(nextVersion)) {
-          throw inboxError(
-            'revision_conflict',
-            'Response Target policy version exhausted',
-          )
-        }
+        const nextVersion = nextPolicyVersion(current, command.expectedPolicyVersion)
         const values = {
           enabled: command.durationMinutes !== null,
           durationMinutes: command.durationMinutes,
