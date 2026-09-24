@@ -30,14 +30,38 @@ import { properties } from './property.schema'
 // ── Notification types ──────────────────────────────────────────────
 // Kept as varchar, not enum, so new types can be added without migration.
 
+/**
+ * Who a notification row belongs to. Every notification table below is keyed
+ * by the same three columns — its own id, the person, and the Organization the
+ * answer is held in — and a table that spelled them differently would not be
+ * reachable by the delivery reads that join on them. Builders, not shared
+ * column instances: each table needs its own, like `createdAtColumn()`.
+ */
+const recipientColumns = () => ({
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: varchar('user_id', { length: 255 }).notNull(),
+  organizationId: varchar('organization_id', { length: 255 }).notNull(),
+})
+
+/**
+ * One answer for a (category, channel) pair: whether it is on, and how often
+ * it is sent. The per-Property preference and the per-person default it falls
+ * back to must offer exactly the same answers, or resolution could not compare
+ * them; sharing the columns is what keeps that true.
+ */
+const categoryChannelColumns = () => ({
+  category: varchar('category', { length: 40 }).notNull(),
+  channel: varchar('channel', { length: 16 }).notNull(),
+  enabled: boolean('enabled').notNull().default(true),
+  cadence: varchar('cadence', { length: 16 }).notNull().default('daily'),
+})
+
 // ── In-app notifications ────────────────────────────────────────────
 
 export const notifications = pgTable(
   'notifications',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    userId: varchar('user_id', { length: 255 }).notNull(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    ...recipientColumns(),
     // Null only for Organization-scoped mandatory account/security notices.
     propertyId: uuid('property_id'),
     type: varchar('type', { length: 64 }).notNull(),
@@ -428,14 +452,9 @@ export const notificationDigestBatchMembers = pgTable(
 export const notificationPreferences = pgTable(
   'notification_preferences',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    userId: varchar('user_id', { length: 255 }).notNull(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    ...recipientColumns(),
     propertyId: uuid('property_id').notNull(),
-    category: varchar('category', { length: 40 }).notNull(),
-    channel: varchar('channel', { length: 16 }).notNull(),
-    enabled: boolean('enabled').notNull().default(true),
-    cadence: varchar('cadence', { length: 16 }).notNull().default('daily'),
+    ...categoryChannelColumns(),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },
@@ -488,9 +507,7 @@ export const notificationPreferences = pgTable(
 export const notificationUserSettings = pgTable(
   'notification_user_settings',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    userId: varchar('user_id', { length: 255 }).notNull(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    ...recipientColumns(),
     locale: varchar('locale', { length: 35 }).notNull().default('en'),
     timezone: varchar('timezone', { length: 64 }).notNull().default('UTC'),
     quietHoursStart: time('quiet_hours_start'),
@@ -521,9 +538,7 @@ export const notificationUserSettings = pgTable(
 export const notificationPropertyDeliveryWindows = pgTable(
   'notification_property_delivery_windows',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    userId: varchar('user_id', { length: 255 }).notNull(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    ...recipientColumns(),
     propertyId: uuid('property_id').notNull(),
     quietHoursStart: time('quiet_hours_start'),
     quietHoursEnd: time('quiet_hours_end'),
@@ -563,13 +578,8 @@ export const notificationPropertyDeliveryWindows = pgTable(
 export const notificationCategoryDefaults = pgTable(
   'notification_category_defaults',
   {
-    id: uuid('id').primaryKey().defaultRandom(),
-    userId: varchar('user_id', { length: 255 }).notNull(),
-    organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    category: varchar('category', { length: 40 }).notNull(),
-    channel: varchar('channel', { length: 16 }).notNull(),
-    enabled: boolean('enabled').notNull().default(true),
-    cadence: varchar('cadence', { length: 16 }).notNull().default('daily'),
+    ...recipientColumns(),
+    ...categoryChannelColumns(),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
   },

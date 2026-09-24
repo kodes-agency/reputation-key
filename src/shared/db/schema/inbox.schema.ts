@@ -559,6 +559,19 @@ export const inboxFeedbackHandlingOutcomes = pgTable(
 )
 
 /**
+ * What every Response Target policy row records about its last write: the
+ * version an editor's expected-version check is answered from, and who wrote
+ * it. Both policy tables are edited through the same optimistic-concurrency
+ * step, so a table that stamped itself differently could not be edited by it.
+ */
+const policyStampColumns = () => ({
+  policyVersion: bigint('policy_version', { mode: 'number' }).notNull(),
+  updatedBy: varchar('updated_by', { length: 255 }).notNull(),
+  createdAt: createdAtColumn(),
+  updatedAt: updatedAtColumn(),
+})
+
+/**
  * Current Organization policy for each Inbox-owned Response Target family.
  * Earlier cycles never consult this row again: every cycle snapshots the
  * resolved duration/source/version in `inbox_handling_cycle_response_targets`.
@@ -577,10 +590,7 @@ export const inboxResponseTargetOrganizationPolicies = pgTable(
      */
     lowRatingThreshold: integer('low_rating_threshold'),
     lowRatingDurationMinutes: integer('low_rating_duration_minutes'),
-    policyVersion: bigint('policy_version', { mode: 'number' }).notNull(),
-    updatedBy: varchar('updated_by', { length: 255 }).notNull(),
-    createdAt: createdAtColumn(),
-    updatedAt: updatedAtColumn(),
+    ...policyStampColumns(),
   },
   (t) => [
     primaryKey({
@@ -622,10 +632,7 @@ export const inboxPrivateFeedbackTargetPropertyOverrides = pgTable(
     propertyId: uuid('property_id').notNull(),
     enabled: boolean('enabled').notNull(),
     durationMinutes: integer('duration_minutes'),
-    policyVersion: bigint('policy_version', { mode: 'number' }).notNull(),
-    updatedBy: varchar('updated_by', { length: 255 }).notNull(),
-    createdAt: createdAtColumn(),
-    updatedAt: updatedAtColumn(),
+    ...policyStampColumns(),
   },
   (t) => [
     primaryKey({
