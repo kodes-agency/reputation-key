@@ -3,9 +3,7 @@ import type { Action } from '#/components/hooks/use-action'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { submitForm } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
-import { Input } from '#/components/ui/input'
-import { Label } from '#/components/ui/label'
-import { FieldError } from '#/components/ui/field'
+import { FormNumberField } from '#/components/forms/form-number-field'
 import {
   Card,
   CardContent,
@@ -38,58 +36,6 @@ type OrganizationPolicy =
   ResponseTargetPolicySettings['organization']['googleReviewResponse']
 
 /**
- * Just the surface a number control touches on a TanStack Form field. Named
- * structurally rather than through the form's generic field type, which would
- * make this component's props depend on the whole form shape.
- */
-type NumberFieldApi = Readonly<{
-  state: Readonly<{
-    value: number
-    meta: Readonly<{ errors: Array<{ message?: string } | undefined> }>
-  }>
-  handleBlur: () => void
-  handleChange: (value: number) => void
-}>
-
-/**
- * A whole-number control bound to one form field. All three target inputs are
- * the same control with a different label and range; a cleared or non-numeric
- * control reads as NaN, which the schema names and the input must not show.
- */
-function NumberField({
-  id,
-  label,
-  min,
-  max,
-  field,
-}: Readonly<{
-  id: string
-  label: string
-  min: number
-  max: number
-  field: NumberFieldApi
-}>) {
-  return (
-    <div className="grid gap-1.5">
-      <Label htmlFor={id}>{label}</Label>
-      <Input
-        id={id}
-        type="number"
-        min={min}
-        max={max}
-        value={Number.isNaN(field.state.value) ? '' : field.state.value}
-        onBlur={field.handleBlur}
-        onChange={(event) => field.handleChange(event.target.valueAsNumber)}
-        aria-invalid={field.state.meta.errors.length > 0}
-      />
-      {field.state.meta.errors.length > 0 ? (
-        <FieldError errors={field.state.meta.errors} />
-      ) : null}
-    </div>
-  )
-}
-
-/**
  * Google reviews only. A low-rated review is the work that goes wrong fastest,
  * so an Organization may give it a shorter target and therefore an earlier
  * halfway and target-time reminder. Off leaves one clock for every review,
@@ -119,7 +65,7 @@ function LowRatingTargetFields({
             <div className="mt-3 grid gap-3 sm:grid-cols-[9rem_9rem] sm:items-end">
               <form.Field name="lowRatingThreshold">
                 {(field) => (
-                  <NumberField
+                  <FormNumberField
                     id="low-rating-threshold"
                     label="At or below (stars)"
                     min={1}
@@ -130,7 +76,7 @@ function LowRatingTargetFields({
               </form.Field>
               <form.Field name="lowRatingHours">
                 {(field) => (
-                  <NumberField
+                  <FormNumberField
                     id="low-rating-hours"
                     label="Within (hours)"
                     min={1}
@@ -220,7 +166,7 @@ function TargetPolicyForm({
       </div>
       <form.Field name="durationHours">
         {(field) => (
-          <NumberField
+          <FormNumberField
             id={`${policy.targetKind}-hours`}
             label="Hours"
             min={1}
