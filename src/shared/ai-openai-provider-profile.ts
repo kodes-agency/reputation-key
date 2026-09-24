@@ -63,7 +63,7 @@ export const OPENAI_PROVIDER_PRIMARY_SOURCES_V1 = Object.freeze({
   safetyIdentifiers:
     'https://developers.openai.com/api/docs/guides/safety-best-practices',
   pricing: 'https://developers.openai.com/api/docs/pricing',
-  sdk: 'https://github.com/openai/openai-node/tree/v7.4.0',
+  sdk: 'https://github.com/openai/openai-node/tree/v7.20.0',
 })
 
 export const OPENAI_NORMALIZED_EVIDENCE_CLAIMS_V1 = Object.freeze({
@@ -189,7 +189,7 @@ export const AI_SERVICE_DRAIN_SECONDS_V1 = 130
 export const AI_SERVICE_HANDLER_DRAIN_TIMEOUT_MILLIS_V1 = 115_000
 
 export const OPENAI_PROVIDER_DEPLOYMENT_CONTRACT_V1 = Object.freeze({
-  sdkVersion: '7.4.0',
+  sdkVersion: '7.20.0',
   dispatcherVersion: 'undici@8.10.0',
   runtime: Object.freeze({
     nodeImage:
