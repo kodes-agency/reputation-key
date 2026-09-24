@@ -836,6 +836,77 @@ const isGoalResultRevisionRecipient = async (
   )
 }
 
+/** Current responsibility for the Property the notice belongs to. */
+const isStillResponsibleForProperty = (
+  deps: Deps,
+  { organizationId, propertyId, userId }: PropertyScopedRequest,
+) => deps.responsibleManagers.isEligibleForProperty(organizationId, propertyId, userId)
+
+/** Every audience kind that a Property-less job may never satisfy. */
+type PropertyScopedAudienceKind = Exclude<
+  NotificationAudience['kind'],
+  'affected_organization_user' | 'account_admin' | 'organization_account_admin'
+>
+
+/**
+ * One resolver per Property-scoped kind. A plain record, not the `Map` the
+ * parse boundary uses: `kind` here has already been through
+ * `parseNotificationAudience`, so no attacker-supplied string reaches the
+ * lookup, and the mapped type makes a missing kind a compile error.
+ *
+ * The three item kinds and `property_operator` each state the standing they
+ * share — current responsibility for the Property — rather than reaching it
+ * through a fallthrough that read as if it applied to every kind above.
+ */
+const PROPERTY_SCOPED_RESOLVERS: {
+  readonly [Kind in PropertyScopedAudienceKind]: (
+    deps: Deps,
+    request: PropertyScopedRequest,
+    audience: AudienceOfKind<Kind>,
+  ) => Promise<NotificationAudienceDecision>
+} = {
+  responsible_scope: (deps, request, audience) =>
+    isResponsibleScopeRecipient(deps, request, audience.scope),
+  reply_approver: isReplyApproverRecipient,
+  responsibility_gap: (deps, request, audience) =>
+    isResponsibilityGapRecipient(deps, request, audience.scope),
+  escalation_resolution: isEscalationResolutionRecipient,
+  handling_cycle: isHandlingCycleRecipient,
+  bulk_handling_cycle: isBulkHandlingCycleRecipient,
+  response_target_reminder: isResponseTargetReminderRecipient,
+  portal_health: isPortalHealthRecipient,
+  goal_completion: isGoalCompletionRecipient,
+  goal_result_revision: isGoalResultRevisionRecipient,
+  inbox_assignee: async (deps, request, audience) =>
+    (await isStillInboxAssignee(deps, request, audience.inboxItemId)) &&
+    (await isStillResponsibleForProperty(deps, request)),
+  inbox_note_author: async (deps, request, audience) =>
+    (await isStillNoteAuthor(deps, request, request.userId, audience.inboxItemId)) &&
+    (await isStillResponsibleForProperty(deps, request)),
+  bulk_inbox_assignee: async (deps, request, audience) =>
+    (await isStillAssigneeOfEvery(deps, request, audience.inboxItemIds)) &&
+    (await isStillResponsibleForProperty(deps, request)),
+  property_operator: (deps, request) => isStillResponsibleForProperty(deps, request),
+}
+
+type PropertyScopedResolver = (
+  deps: Deps,
+  request: PropertyScopedRequest,
+  audience: AudienceOfKind<PropertyScopedAudienceKind>,
+) => Promise<NotificationAudienceDecision>
+
+const resolvePropertyScopedAudience = (
+  deps: Deps,
+  request: PropertyScopedRequest,
+  audience: AudienceOfKind<PropertyScopedAudienceKind>,
+): Promise<NotificationAudienceDecision> => {
+  // The table above is exhaustive over the kinds, so the entry exists and is
+  // the one for this `kind`. Indexing it with the union only yields a union of
+  // resolvers, which TypeScript cannot pair back with the narrowed audience.
+  const resolve = PROPERTY_SCOPED_RESOLVERS[audience.kind] as PropertyScopedResolver
+  return resolve(deps, request, audience)
+}
+
 /**
  * Re-check delivery authority at worker execution time. A queued recipient is
  * a candidate, never a durable permission: responsibility, membership, access,
@@ -874,50 +945,5 @@ export const createNotificationAudienceAuthorizer =
     // cannot use an Organization-null scope to bypass its current authority.
     if (propertyId === null) return false
     const request: PropertyScopedRequest = { organizationId, propertyId, userId }
-    switch (audience.kind) {
-      case 'responsible_scope':
-        return isResponsibleScopeRecipient(deps, request, audience.scope)
-      case 'reply_approver':
-        return isReplyApproverRecipient(deps, request, audience)
-      case 'responsibility_gap':
-        return isResponsibilityGapRecipient(deps, request, audience.scope)
-      case 'escalation_resolution':
-        return isEscalationResolutionRecipient(deps, request, audience)
-      case 'handling_cycle':
-        return isHandlingCycleRecipient(deps, request, audience)
-      case 'bulk_handling_cycle':
-        return isBulkHandlingCycleRecipient(deps, request, audience)
-      case 'response_target_reminder':
-        return isResponseTargetReminderRecipient(deps, request, audience)
-      case 'portal_health':
-        return isPortalHealthRecipient(deps, request, audience)
-      case 'goal_completion':
-        return isGoalCompletionRecipient(deps, request, audience)
-      case 'goal_result_revision':
-        return isGoalResultRevisionRecipient(deps, request, audience)
-      case 'inbox_assignee':
-        if (!(await isStillInboxAssignee(deps, request, audience.inboxItemId))) {
-          return false
-        }
-        break
-      case 'inbox_note_author':
-        if (!(await isStillNoteAuthor(deps, request, userId, audience.inboxItemId))) {
-          return false
-        }
-        break
-      case 'bulk_inbox_assignee':
-        if (!(await isStillAssigneeOfEvery(deps, request, audience.inboxItemIds))) {
-          return false
-        }
-        break
-      case 'property_operator':
-        break
-    }
-    // The assignee kinds and `property_operator` all additionally require
-    // current responsibility for the Property.
-    return deps.responsibleManagers.isEligibleForProperty(
-      organizationId,
-      propertyId,
-      userId,
-    )
+    return resolvePropertyScopedAudience(deps, request, audience)
   }
