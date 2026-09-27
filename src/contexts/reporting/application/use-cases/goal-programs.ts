@@ -34,6 +34,11 @@ import {
   type GoalSubject,
 } from '../../domain/goal-program'
 import type { PermissionAuthorityContext } from '#/shared/domain/permissions'
+import {
+  classifySelections,
+  resolveAssignmentOutcomes,
+  type GoalAssignmentChangeOutcome,
+} from '../goal-assignment-selection'
 
 export type GoalActor = Readonly<{
   organizationId: string
@@ -113,24 +118,6 @@ export class GoalProgramError extends Error {
     this.name = 'GoalProgramError'
   }
 }
-
-export type GoalAssignmentChangeOutcomeCode =
-  | 'added'
-  | 'removed'
-  | 'already_assigned'
-  | 'not_assigned'
-  | 'duplicate'
-  | 'conflicting_operations'
-  | 'invalid_subject'
-  | 'overlap'
-  | 'last_assignment_required'
-
-export type GoalAssignmentChangeOutcome = Readonly<{
-  operation: 'add' | 'remove'
-  source: 'explicit' | 'all_current_portals'
-  subject: GoalSubject
-  outcome: GoalAssignmentChangeOutcomeCode
-}>
 
 export type GoalAssignmentChangeResult = Readonly<{
   programId: string
@@ -943,47 +930,10 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
         throw new GoalProgramError('assignment_limit_exceeded')
       }
 
-      type Selection = Readonly<{
-        operation: 'add' | 'remove'
-        source: GoalAssignmentChangeOutcome['source']
-        subject: GoalSubject
-      }>
-      const selections: readonly Selection[] = [
-        ...input.add.map((subject): Selection => ({
-          operation: 'add',
-          source: 'explicit',
-          subject,
-        })),
-        ...currentPortalIds.map((portalId): Selection => ({
-          operation: 'add',
-          source: 'all_current_portals',
-          subject: { kind: 'portal', portalId },
-        })),
-        ...input.remove.map((subject): Selection => ({
-          operation: 'remove',
-          source: 'explicit',
-          subject,
-        })),
-      ]
-      const operationByIdentity = new Map<string, Set<Selection['operation']>>()
-      for (const selection of selections) {
-        const identity = goalSubjectIdentity(selection.subject)
-        const operations = operationByIdentity.get(identity) ?? new Set()
-        operations.add(selection.operation)
-        operationByIdentity.set(identity, operations)
-      }
-      const seen = new Set<string>()
-      const preliminary = selections.map((selection) => {
-        const identity = goalSubjectIdentity(selection.subject)
-        const occurrence = `${selection.operation}:${identity}`
-        const outcome =
-          operationByIdentity.get(identity)?.size === 2
-            ? ('conflicting_operations' as const)
-            : seen.has(occurrence)
-              ? ('duplicate' as const)
-              : null
-        seen.add(occurrence)
-        return { ...selection, identity, outcome }
+      const preliminary = classifySelections({
+        add: input.add,
+        remove: input.remove,
+        currentPortalIds,
       })
       const ownership = await Promise.all(
         preliminary.map((selection) =>
@@ -1035,52 +985,12 @@ export function createGoalProgramService(deps: GoalProgramDependencies) {
               subjects: additionsToCheck,
             })
       const overlapping = new Set(conflictingSubjects.map(goalSubjectIdentity))
-      const nextByIdentity = new Map(currentByIdentity)
-      let changed = false
-      let outcomes: GoalAssignmentChangeOutcome[] = preliminary.map(
-        (selection, index): GoalAssignmentChangeOutcome => {
-          const result = (
-            outcome: GoalAssignmentChangeOutcomeCode,
-          ): GoalAssignmentChangeOutcome => ({
-            operation: selection.operation,
-            source: selection.source,
-            subject: selection.subject,
-            outcome,
-          })
-          if (selection.outcome) {
-            return result(selection.outcome)
-          }
-          if (!ownership[index]) {
-            return result('invalid_subject')
-          }
-          if (selection.operation === 'add') {
-            if (nextByIdentity.has(selection.identity)) {
-              return result('already_assigned')
-            }
-            if (overlapping.has(selection.identity)) {
-              return result('overlap')
-            }
-            nextByIdentity.set(selection.identity, selection.subject)
-            changed = true
-            return result('added')
-          }
-          if (!nextByIdentity.has(selection.identity)) {
-            return result('not_assigned')
-          }
-          nextByIdentity.delete(selection.identity)
-          changed = true
-          return result('removed')
-        },
-      )
-
-      if (nextByIdentity.size === 0) {
-        outcomes = outcomes.map((outcome) =>
-          outcome.outcome === 'removed'
-            ? { ...outcome, outcome: 'last_assignment_required' }
-            : outcome,
-        )
-        changed = false
-      }
+      const { outcomes, nextByIdentity, changed } = resolveAssignmentOutcomes({
+        selections: preliminary,
+        ownership,
+        currentByIdentity,
+        overlapping,
+      })
       if (nextByIdentity.size > MAX_GOAL_ASSIGNMENT_SELECTIONS) {
         throw new GoalProgramError('assignment_limit_exceeded')
       }
