@@ -7,6 +7,7 @@ import {
   createGuestNetworkPressureRecord,
 } from '../domain/networkPressure'
 import { trace } from '#/shared/observability/trace'
+import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 
 export const createGuestNetworkPressureStore = (
   db: Database,
@@ -68,9 +69,9 @@ export const createGuestNetworkPressureStore = (
 
           const record = createGuestNetworkPressureRecord({
             id: idGen(),
-            organizationId: input.organizationId,
-            propertyId: input.propertyId,
-            portalId: input.portalId,
+            organizationId: organizationId(input.organizationId),
+            propertyId: propertyId(input.propertyId),
+            portalId: portalId(input.portalId),
             pseudonym: input.pseudonym,
             action: input.action,
             observedAt: input.observedAt,

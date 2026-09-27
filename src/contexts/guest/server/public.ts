@@ -36,7 +36,13 @@ import {
   applyGuestPublicResponsePrivacy,
   guestPublicResponseValidator,
 } from './public-response-privacy.server'
-import { organizationId, portalId, portalLinkId, propertyId } from '#/shared/domain/ids'
+import {
+  guestResponseId,
+  organizationId,
+  portalId,
+  portalLinkId,
+  propertyId,
+} from '#/shared/domain/ids'
 import type { RateLimitResult } from '#/shared/rate-limit/middleware'
 export type { PublicPortalLoaderData } from '../application/dto/public-portal.dto'
 
@@ -74,9 +80,9 @@ async function resolveBoundSession(
     return denyWithoutEnumeration()
   }
   const scope: GuestResponseScope = {
-    organizationId: portal.organizationId,
-    propertyId: portal.propertyId,
-    portalId: portal.portal.id,
+    organizationId: organizationId(portal.organizationId),
+    propertyId: propertyId(portal.propertyId),
+    portalId: portalId(portal.portal.id),
   }
   const requestHeaders = (await headersFromContext()) ?? new Headers()
   const origin = requestHeaders.get('origin')
@@ -724,10 +730,10 @@ export const moderateGuestResponseFn = createServerFn({ method: 'POST' })
           return await useCases.responseLifecycle.moderate(
             {
               organizationId: actor.organizationId,
-              propertyId: data.propertyId,
-              portalId: data.portalId,
+              propertyId: propertyId(data.propertyId),
+              portalId: portalId(data.portalId),
             },
-            data.responseId,
+            guestResponseId(data.responseId),
             data.action,
           )
         } catch (error) {

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest'
 import { getPortalResponseIntegritySummary } from './get-portal-response-integrity-summary'
+import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 
 describe('getPortalResponseIntegritySummary', () => {
   it('delegates one tenant/Property/Portal-scoped half-open period', async () => {
@@ -17,9 +18,9 @@ describe('getPortalResponseIntegritySummary', () => {
 
     await expect(
       getSummary({
-        organizationId: 'org-1',
-        propertyId: 'property-1',
-        portalId: 'portal-1',
+        organizationId: organizationId('org-1'),
+        propertyId: propertyId('property-1'),
+        portalId: portalId('portal-1'),
         startAt,
         endAt,
       }),
@@ -49,9 +50,9 @@ describe('getPortalResponseIntegritySummary', () => {
 
     await expect(
       getSummary({
-        organizationId: 'org-1',
-        propertyId: 'property-1',
-        portalId: 'portal-1',
+        organizationId: organizationId('org-1'),
+        propertyId: propertyId('property-1'),
+        portalId: portalId('portal-1'),
         startAt: at,
         endAt: at,
       }),

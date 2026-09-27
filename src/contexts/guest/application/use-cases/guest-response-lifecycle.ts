@@ -39,10 +39,13 @@ import type {
 } from '../ports/guest-response-command-store.port'
 import {
   feedbackId,
+  guestResponseId,
   organizationId,
   portalId,
   propertyId,
   ratingId,
+  type GuestResponseId,
+  type GuestSessionId,
   type OrganizationId,
   type PortalId,
   type PropertyId,
@@ -227,7 +230,7 @@ export function guestResponseLifecycle(
     resolvePrimaryStaffAttribution: ResolvePrimaryStaffAttribution
   }>,
 ) {
-  const getState = async (scope: GuestResponseScope, sessionId: string) => {
+  const getState = async (scope: GuestResponseScope, sessionId: GuestSessionId) => {
     const now = deps.clock()
     const response = await deps.repo.findForSession(scope, sessionId, now)
     return response ? toView(response, now) : null
@@ -436,7 +439,7 @@ export function guestResponseLifecycle(
 
     submit: async (
       scope: GuestResponseScope,
-      sessionId: string,
+      sessionId: GuestSessionId,
       input: GuestResponseInput,
       experience: GuestResponseExperienceInput,
       sessionExpiresAt?: Date,
@@ -469,7 +472,7 @@ export function guestResponseLifecycle(
       const submitted = unwrap(
         submitResponse(
           createResponse({
-            id: deps.idGen(),
+            id: guestResponseId(deps.idGen()),
             ...scope,
             sessionId,
             sessionExpiresAt: bindingExpiresAt,
@@ -500,7 +503,7 @@ export function guestResponseLifecycle(
 
     addPrivateFeedback: async (
       scope: GuestResponseScope,
-      sessionId: string,
+      sessionId: GuestSessionId,
       input: Readonly<{ text: string; textConsent: boolean }>,
     ): Promise<GuestResponseView> => {
       const now = deps.clock()
@@ -537,7 +540,7 @@ export function guestResponseLifecycle(
 
     withdrawPrivateFeedback: async (
       scope: GuestResponseScope,
-      sessionId: string,
+      sessionId: GuestSessionId,
     ): Promise<GuestResponseView> => {
       const current = await deps.repo.findForSession(scope, sessionId, deps.clock())
       if (!current) throw new GuestResponseLifecycleError('response_not_found')
@@ -571,7 +574,7 @@ export function guestResponseLifecycle(
     // double-counting or leaving the originally submitted value stale.
     correct: async (
       scope: GuestResponseScope,
-      sessionId: string,
+      sessionId: GuestSessionId,
       input: GuestResponseInput,
     ): Promise<GuestResponseView> => {
       const current = await deps.repo.findForSession(scope, sessionId, deps.clock())
@@ -601,7 +604,7 @@ export function guestResponseLifecycle(
      */
     changeIntegrity: async (
       scope: GuestResponseScope,
-      responseId: string,
+      responseId: GuestResponseId,
       input: Readonly<{
         outcome: GuestResponseIntegrityOutcome
         reasonCode: string
@@ -630,7 +633,7 @@ export function guestResponseLifecycle(
 
     withdraw: async (
       scope: GuestResponseScope,
-      sessionId: string,
+      sessionId: GuestSessionId,
     ): Promise<GuestResponseView> => {
       const current = await deps.repo.findForSession(scope, sessionId, deps.clock())
       if (!current) throw new GuestResponseLifecycleError('response_not_found')
@@ -651,7 +654,7 @@ export function guestResponseLifecycle(
 
     moderate: async (
       scope: GuestResponseScope,
-      responseId: string,
+      responseId: GuestResponseId,
       action: 'quarantine' | 'delete',
     ): Promise<GuestResponseView> => {
       const current = await deps.repo.findById(scope, responseId)

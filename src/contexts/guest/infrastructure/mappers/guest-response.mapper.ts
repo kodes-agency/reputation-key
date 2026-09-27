@@ -6,6 +6,14 @@ import {
 } from '#/shared/db/schema/guest.schema'
 import type { GuestResponse, GuestResponseStatus } from '../../domain/guest-response'
 import type { GuestResponseIntegrityOutcome } from '../../domain/guest-response-integrity'
+import {
+  guestResponseId,
+  guestSessionId,
+  organizationId,
+  portalId,
+  propertyId,
+  unbrand,
+} from '#/shared/domain/ids'
 
 type ResponseRow = typeof guestResponses.$inferSelect
 type ResponseInsert = typeof guestResponses.$inferInsert
@@ -20,11 +28,11 @@ export function guestResponseFromRow(
   experience: ExperienceSnapshotRow | null = null,
 ): GuestResponse {
   return {
-    id: row.id,
-    organizationId: row.organizationId,
-    propertyId: row.propertyId,
-    portalId: row.portalId,
-    sessionId: binding?.sessionId ?? null,
+    id: guestResponseId(row.id),
+    organizationId: organizationId(row.organizationId),
+    propertyId: propertyId(row.propertyId),
+    portalId: portalId(row.portalId),
+    sessionId: binding ? guestSessionId(binding.sessionId) : null,
     sessionExpiresAt: binding?.expiresAt ?? null,
     status: row.status as GuestResponseStatus,
     integrityOutcome: row.integrityOutcome as GuestResponseIntegrityOutcome,
@@ -84,10 +92,10 @@ export function guestResponseToInsertRow(
   updatedAt: Date,
 ): ResponseInsert {
   return {
-    id: response.id,
-    organizationId: response.organizationId,
-    propertyId: response.propertyId,
-    portalId: response.portalId,
+    id: unbrand(response.id),
+    organizationId: unbrand(response.organizationId),
+    propertyId: unbrand(response.propertyId),
+    portalId: unbrand(response.portalId),
     status: response.status,
     integrityOutcome: response.integrityOutcome,
     integrityReasonCode: response.integrityReasonCode,

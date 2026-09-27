@@ -6,6 +6,8 @@ import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   feedbackId,
+  guestResponseId,
+  guestSessionId,
   organizationId,
   portalId,
   propertyId,
@@ -33,8 +35,8 @@ const db = getDb()
 const ORG = organizationId('org-guest-response-command-store')
 const PROPERTY = propertyId('51000000-0000-4000-8000-000000000001')
 const PORTAL = portalId('51000000-0000-4000-8000-000000000002')
-const RESPONSE = '51000000-0000-4000-8000-000000000003'
-const SESSION = '51000000-0000-4000-8000-000000000004'
+const RESPONSE = guestResponseId('51000000-0000-4000-8000-000000000003')
+const SESSION = guestSessionId('51000000-0000-4000-8000-000000000004')
 const STAFF_PARTICIPANT = '51000000-0000-4000-8000-000000000005'
 const STAFF_PARTICIPANT_REPLACEMENT = '51000000-0000-4000-8000-000000000006'
 const STAFF_PARTICIPATION = '51000000-0000-4000-8000-000000000007'

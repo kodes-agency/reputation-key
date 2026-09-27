@@ -73,9 +73,9 @@ export const recordScanFn = createServerFn({ method: 'POST' })
         const headers = await headersFromContext()
         const portal = await useCases.getPublicPortal({ token: data.token })
         const scope = {
-          organizationId: portal.organizationId,
-          propertyId: portal.propertyId,
-          portalId: portal.portal.id,
+          organizationId: organizationId(portal.organizationId),
+          propertyId: propertyId(portal.propertyId),
+          portalId: portalId(portal.portal.id),
         }
         const session = useCases.guestSessions.verify(headers?.get('cookie') ?? '', scope)
         if (!session || !useCases.guestSessions.verifyCsrf(session, data.csrfNonce)) {
@@ -238,9 +238,9 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
             acceptLanguage: requestHeaders?.get('accept-language') ?? null,
           })
           const scope = {
-            organizationId: portal.organizationId,
-            propertyId: portal.propertyId,
-            portalId: portal.portal.id,
+            organizationId: organizationId(portal.organizationId),
+            propertyId: propertyId(portal.propertyId),
+            portalId: portalId(portal.portal.id),
           }
           // One instant for every decision on this read.
           const now = clock()

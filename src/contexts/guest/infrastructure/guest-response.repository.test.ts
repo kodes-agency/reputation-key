@@ -3,15 +3,22 @@ import type { SQL } from 'drizzle-orm'
 import { PgDialect } from 'drizzle-orm/pg-core'
 import type { Database } from '#/shared/db'
 import { createGuestResponseRepository } from './repositories/guest-response.repository'
+import {
+  guestResponseId,
+  guestSessionId,
+  organizationId,
+  portalId,
+  propertyId,
+} from '#/shared/domain/ids'
 
 const REPOSITORY_NOW = new Date('2026-08-16T12:00:00.000Z')
 const repository = (db: Database) =>
   createGuestResponseRepository(db, () => REPOSITORY_NOW)
 
 const scope = {
-  organizationId: 'org-1',
-  propertyId: 'property-1',
-  portalId: 'portal-1',
+  organizationId: organizationId('org-1'),
+  propertyId: propertyId('property-1'),
+  portalId: portalId('portal-1'),
 }
 
 function selectDatabase(rows: readonly unknown[]) {
@@ -90,7 +97,7 @@ describe('createGuestResponseRepository', () => {
     ])
 
     await expect(
-      repository(db).findForSession(scope, 'session-1', submittedAt),
+      repository(db).findForSession(scope, guestSessionId('session-1'), submittedAt),
     ).resolves.toEqual({
       id: 'response-1',
       ...scope,
@@ -139,7 +146,7 @@ describe('createGuestResponseRepository', () => {
 
   it('returns null when the scoped response is absent', async () => {
     await expect(
-      repository(selectDatabase([]).db).findById(scope, 'missing'),
+      repository(selectDatabase([]).db).findById(scope, guestResponseId('missing')),
     ).resolves.toBeNull()
   })
 
@@ -162,7 +169,10 @@ describe('createGuestResponseRepository', () => {
     ])
 
     await expect(
-      repository(db).findSnippetsForOrg('org-1', ['response-1', 'response-2']),
+      repository(db).findSnippetsForOrg(
+        organizationId('org-1'),
+        ['response-1', 'response-2'].map(guestResponseId),
+      ),
     ).resolves.toEqual([
       { id: 'response-1', comment: null, ratingValue: 5 },
       { id: 'response-2', comment: 'Shared comment', ratingValue: null },
@@ -183,7 +193,7 @@ describe('createGuestResponseRepository', () => {
     const { db, chain, getWhereCondition } = selectDatabase(rows)
 
     await expect(
-      repository(db).findEligibleSnippetIdsForOrg('org-1', {
+      repository(db).findEligibleSnippetIdsForOrg(organizationId('org-1'), {
         ratingMin: 4,
         textQuery: 'breakfast',
       }),
