@@ -42,6 +42,7 @@ const KNOWN_PLACEHOLDERS: ReadonlySet<string> = new Set([
   'xxxxxxxx.apps.googleusercontent.com',
   'GOCSPX-xxxxxxxxxxxxxxxxxxxx',
   'dev-only-salt-not-for-production',
+  'dev-only-portal-token-secret-32b',
 ])
 
 /** Substring markers — catch variants of the documented placeholder shapes. */
@@ -63,6 +64,7 @@ const SECRET_FIELDS = [
   'ENCRYPTION_KEY',
   'OAUTH_STATE_SECRET',
   'GUEST_SESSION_SALT',
+  'PORTAL_TOKEN_HASH_SECRET',
   'REVIEW_PROVIDER_SUBJECT_HMAC_KEYS',
   'REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS',
   'NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS',

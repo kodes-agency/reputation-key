@@ -674,7 +674,7 @@ export async function applyClosedBetaImageDeployment(
 }
 
 const COMMAND = 'ops:deploy-ci-images'
-const USAGE = `pnpm ${COMMAND} [--sha <source-revision>] [--apply]`
+const USAGE = 'pnpm ops deploy-ci-images [--sha <source-revision>] [--apply]'
 
 function parseCommandArgs(argv: readonly string[]): {
   revision: string | undefined
