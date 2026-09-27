@@ -5,7 +5,6 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { propertyId as toPropertyId } from '#/shared/domain/ids'
 import {
   GoalProgramError,
   type GoalActor,
@@ -24,68 +23,6 @@ export {
   changeGoalProgramAssignmentsSchema,
   createGoalProgramSchema,
 } from '../application/dto/goal-program.dto'
-import type { GoalProgramBundle } from '../application/ports/goal-program.repository'
-import type { GoalSubject } from '../domain/goal-program'
-import { canForContext } from '#/shared/domain/permissions'
-
-export function scopeGoalProgramsForMember<
-  Assignment extends Readonly<{ id: string; subject: GoalSubject }>,
-  Result extends Readonly<{ assignmentId: string }>,
-  Program extends Readonly<{
-    assignments: readonly Assignment[]
-    results: readonly Result[]
-  }>,
->(
-  programs: readonly Program[],
-  visiblePortalIds: readonly string[],
-  visibleGroupIds: readonly string[],
-): Array<
-  Program &
-    Readonly<{
-      assignments: readonly Assignment[]
-      results: readonly Result[]
-    }>
-> {
-  const portalSet = new Set(visiblePortalIds)
-  const groupSet = new Set(visibleGroupIds)
-  return programs.flatMap((bundle) => {
-    const assignments = bundle.assignments.filter(({ subject }) => {
-      if (subject.kind === 'property') return true
-      if (subject.kind === 'portal') return portalSet.has(subject.portalId)
-      return groupSet.has(subject.portalGroupId)
-    })
-    if (assignments.length === 0) return []
-    const assignmentIds = new Set(assignments.map(({ id }) => id))
-    return [
-      {
-        ...bundle,
-        assignments,
-        results: bundle.results.filter(({ assignmentId }) =>
-          assignmentIds.has(assignmentId),
-        ),
-      },
-    ]
-  })
-}
-
-async function scopeProgramsForRequest(
-  programs: readonly GoalProgramBundle[],
-  ctx: Awaited<ReturnType<typeof resolveTenantContext>>,
-  propertyId: string,
-): Promise<readonly GoalProgramBundle[]> {
-  if (canForContext(ctx, 'goal.create')) return programs
-  const container = getContainer()
-  const visiblePortalIds = await container.identityPublicApi.people.getAssignedPortals(
-    { userId: ctx.userId, propertyId: toPropertyId(propertyId) },
-    ctx,
-  )
-  const visibleGroupIds =
-    await container.portalPublicApi.portalGroup.findGroupIdsByPortalIds(
-      ctx.organizationId,
-      visiblePortalIds,
-    )
-  return scopeGoalProgramsForMember(programs, visiblePortalIds, visibleGroupIds)
-}
 
 const requestActor = (ctx: Awaited<ReturnType<typeof resolveTenantContext>>): GoalActor =>
   ctx
@@ -135,14 +72,13 @@ async function withGoalPrograms<T>(
     programs: GoalProgramRequestApi,
     policy: GoalExecutionPolicy,
     actor: GoalActor,
-    ctx: Awaited<ReturnType<typeof resolveTenantContext>>,
   ) => Promise<T>,
 ): Promise<T> {
   const ctx = await resolveTenantContext(await headersFromContext())
   const programs = getContainer().goalPublicApi.programs
   const policy = requestPolicy(ctx)
   try {
-    return await run(programs, policy, requestActor(ctx), ctx)
+    return await run(programs, policy, requestActor(ctx))
   } catch (error) {
     if (error instanceof GoalProgramError) {
       throwContextError('GoalProgramError', error, goalProgramStatus(error))
@@ -208,12 +144,7 @@ export const getGoalProgram = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalPrograms(async (programs, policy, actor, ctx) => {
-          const program = await programs.get(policy, data, actor)
-          const [visible] = await scopeProgramsForRequest([program], ctx, data.propertyId)
-          if (!visible) throw new GoalProgramError('not_found')
-          return visible
-        }),
+        withGoalPrograms((programs, policy, actor) => programs.get(policy, data, actor)),
       'GET',
       'goal.getGoalProgram',
     ),
@@ -224,12 +155,9 @@ export const listGoalPrograms = createServerFn({ method: 'GET' })
   .handler(
     tracedHandler(
       async ({ data }) =>
-        withGoalPrograms(async (programApi, policy, actor, ctx) => {
-          const programs = await programApi.list(policy, data.propertyId, actor)
-          return {
-            programs: await scopeProgramsForRequest(programs, ctx, data.propertyId),
-          }
-        }),
+        withGoalPrograms(async (programs, policy, actor) => ({
+          programs: await programs.list(policy, data.propertyId, actor),
+        })),
       'GET',
       'goal.listGoalPrograms',
     ),

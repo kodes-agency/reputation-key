@@ -11,8 +11,6 @@ const mocks = vi.hoisted(() => ({
   list: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
-  getAssignedPortals: vi.fn(),
-  findGroupIdsByPortalIds: vi.fn(),
 }))
 
 vi.mock('#/composition', () => ({
@@ -26,12 +24,6 @@ vi.mock('#/composition', () => ({
         get: mocks.get,
         list: mocks.list,
       },
-    },
-    identityPublicApi: {
-      people: { getAssignedPortals: mocks.getAssignedPortals },
-    },
-    portalPublicApi: {
-      portalGroup: { findGroupIdsByPortalIds: mocks.findGroupIdsByPortalIds },
     },
   }),
 }))
@@ -50,10 +42,9 @@ import {
   createGoalProgram,
   createGoalProgramSchema,
   changeGoalProgramAssignmentsSchema,
-  scopeGoalProgramsForMember,
+  getGoalProgram,
   listGoalPrograms,
 } from './goal-programs'
-import type { GoalSubject } from '../domain/goal-program'
 
 const START_KEY = Symbol.for('tanstack-start:start-storage-context')
 function withStartContext<T>(fn: () => Promise<T>): Promise<T> {
@@ -84,8 +75,6 @@ describe('canonical Goal Program server functions', () => {
     vi.clearAllMocks()
     mocks.resolveTenantContext.mockResolvedValue(actor)
     mocks.requireExecutionAllowed.mockResolvedValue(undefined)
-    mocks.getAssignedPortals.mockResolvedValue([])
-    mocks.findGroupIdsByPortalIds.mockResolvedValue([])
   })
 
   it('validates and forwards one program with many canonical subjects', async () => {
@@ -124,46 +113,36 @@ describe('canonical Goal Program server functions', () => {
     ).rejects.toMatchObject({ code: 'forbidden' })
   })
 
-  it('returns the canonical Goal Program bundle list unchanged', async () => {
-    const programs = [{ program: { id: 'program-1' } }]
-    mocks.list.mockResolvedValue(programs)
-
-    await withStartContext(() => listGoalPrograms({ data: { propertyId: PROPERTY_ID } }))
-    expect(mocks.list).toHaveBeenCalledWith(expect.any(Object), PROPERTY_ID, actor)
-  })
-
-  it('scopes Goal Programs from current permissions rather than the raw role label', async () => {
+  it('forwards Goal Program reads to Reporting, which scopes them', async () => {
     const assignedOnlyActor = {
       ...actor,
       effectivePermissions: new Set(['goal.read']),
       scopeByPermission: new Map([['goal.read', 'assigned-properties']]),
     }
     mocks.resolveTenantContext.mockResolvedValue(assignedOnlyActor)
-    mocks.list.mockResolvedValue([])
-
-    await withStartContext(() => listGoalPrograms({ data: { propertyId: PROPERTY_ID } }))
-
-    expect(mocks.getAssignedPortals).toHaveBeenCalledOnce()
-    expect(mocks.findGroupIdsByPortalIds).toHaveBeenCalledOnce()
-
-    vi.clearAllMocks()
-    const managerAuthorityUnderStaffLabel = {
-      ...actor,
-      role: 'Member' as const,
-      effectivePermissions: new Set(['goal.read', 'goal.create']),
-      scopeByPermission: new Map([
-        ['goal.read', 'organization'],
-        ['goal.create', 'organization'],
-      ]),
+    const program = { program: { id: 'program-1' }, assignments: [], results: [] }
+    mocks.get.mockResolvedValue(program)
+    mocks.list.mockResolvedValue([program])
+    const identity = {
+      propertyId: PROPERTY_ID,
+      programId: '00000000-0000-4000-8000-000000000004',
     }
-    mocks.resolveTenantContext.mockResolvedValue(managerAuthorityUnderStaffLabel)
-    mocks.requireExecutionAllowed.mockResolvedValue(undefined)
-    mocks.list.mockResolvedValue([])
 
+    // The container offers no People or Portal lookups, so any scoping left in
+    // the server function would fail these calls.
+    await withStartContext(() => getGoalProgram({ data: identity }))
     await withStartContext(() => listGoalPrograms({ data: { propertyId: PROPERTY_ID } }))
 
-    expect(mocks.getAssignedPortals).not.toHaveBeenCalled()
-    expect(mocks.findGroupIdsByPortalIds).not.toHaveBeenCalled()
+    expect(mocks.get).toHaveBeenCalledWith(
+      expect.any(Object),
+      identity,
+      assignedOnlyActor,
+    )
+    expect(mocks.list).toHaveBeenCalledWith(
+      expect.any(Object),
+      PROPERTY_ID,
+      assignedOnlyActor,
+    )
   })
 
   it('rejects empty subjects and count targets are left to domain validation', () => {
@@ -225,43 +204,5 @@ describe('canonical Goal Program server functions', () => {
         reason: 'No operation',
       }).success,
     ).toBe(false)
-  })
-
-  it('returns only the assignments and results a Member may see', () => {
-    const bundle = (subjects: GoalSubject[]) => ({
-      program: { id: JSON.stringify(subjects) },
-      assignments: subjects.map((subject, index) => ({
-        id: `assignment-${index}`,
-        subject,
-      })),
-      results: subjects.map((_, index) => ({
-        id: `result-${index}`,
-        assignmentId: `assignment-${index}`,
-      })),
-    })
-    const visible = scopeGoalProgramsForMember(
-      [
-        bundle([
-          { kind: 'property', propertyId: PROPERTY_ID },
-          { kind: 'portal', portalId: 'portal-visible' },
-          { kind: 'portal', portalId: 'portal-hidden' },
-        ]),
-        bundle([{ kind: 'portal_group', portalGroupId: 'group-visible' }]),
-        bundle([{ kind: 'portal_group', portalGroupId: 'group-hidden' }]),
-      ],
-      ['portal-visible'],
-      ['group-visible'],
-    )
-
-    expect(visible).toHaveLength(2)
-    expect(visible[0]?.assignments.map(({ subject }) => subject)).toEqual([
-      { kind: 'property', propertyId: PROPERTY_ID },
-      { kind: 'portal', portalId: 'portal-visible' },
-    ])
-    expect(visible[0]?.results.map(({ id }) => id)).toEqual(['result-0', 'result-1'])
-    expect(visible[1]?.assignments[0]?.subject).toEqual({
-      kind: 'portal_group',
-      portalGroupId: 'group-visible',
-    })
   })
 })
