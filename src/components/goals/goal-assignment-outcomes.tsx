@@ -3,14 +3,18 @@ import type {
   GoalSubject,
 } from '#/contexts/reporting/application/public-api'
 import { goalSubjectKey } from './goal-subject-picker'
+import { goalRevisionStartDate } from './goal-revision-start'
 
 export function GoalAssignmentOutcomes({
   outcomes,
   effectiveFrom,
+  propertyTimezone,
   subjectLabel,
 }: Readonly<{
   outcomes: readonly GoalAssignmentChangeOutcome[]
   effectiveFrom: Date | null
+  /** The zone the version was cut in: `effectiveFrom` starts a month there. */
+  propertyTimezone: string
   subjectLabel: (subject: GoalSubject) => string
 }>) {
   return (
@@ -18,7 +22,7 @@ export function GoalAssignmentOutcomes({
       <h3 className="text-sm font-medium">Assignment results</h3>
       {effectiveFrom ? (
         <p className="text-xs text-muted-foreground">
-          Scheduled from {effectiveFrom.toLocaleDateString()}.
+          {`Scheduled from ${goalRevisionStartDate({ effectiveFrom, propertyTimezone })} (${propertyTimezone}).`}
         </p>
       ) : null}
       <ul className="space-y-1 text-sm">

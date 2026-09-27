@@ -12,11 +12,13 @@ const VERSION_ID = '40000000-0000-4000-8000-000000000001'
 
 type ChangeInput = Parameters<typeof changeGoalProgramAssignments>[0]
 
+// The change starts with the next full month in Sofia: 1 September 00:00 there,
+// which is still 31 August in UTC and in any browser further west.
 const changeAssignmentsMock = fn(async (input: ChangeInput) => ({
   programId: input.data.programId,
   previousVersion: input.data.expectedVersion,
   currentVersion: input.data.expectedVersion + 1,
-  effectiveFrom: new Date('2026-09-01T00:00:00.000Z'),
+  effectiveFrom: new Date('2026-08-31T21:00:00.000Z'),
   selectedAt: new Date('2026-08-27T08:00:00.000Z'),
   selectedCurrentPortalCount: 2,
   outcomes: [
@@ -51,6 +53,7 @@ const meta: Meta<typeof GoalProgramAssignmentsDialog> = {
     property: { id: PROPERTY_ID, name: 'Riverside Hotel' },
     programId: PROGRAM_ID,
     currentVersion: 3,
+    propertyTimezone: 'Europe/Sofia',
     assignments: [
       {
         id: '50000000-0000-4000-8000-000000000001',
@@ -108,6 +111,8 @@ export const PointInTimeBulkChange: Story = {
       }),
     )
     await expect(await dialog.findByText('Lobby QR — will be added')).toBeVisible()
-    await expect(dialog.getByText(/Scheduled from/)).toBeVisible()
+    await expect(
+      dialog.getByText('Scheduled from Sep 1, 2026 (Europe/Sofia).'),
+    ).toBeVisible()
   },
 }
