@@ -8,6 +8,7 @@
 import { sql, type SQL } from 'drizzle-orm'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import type { Database } from '#/shared/db'
+import { csvCell } from '#/shared/security/csv-cell'
 import type {
   OrganizationExportContributor,
   OrganizationExportEntry,
@@ -120,12 +121,6 @@ function sortRecords(
   })
 }
 
-function csvField(value: ExportScalar | undefined): string {
-  if (value === null || value === undefined) return ''
-  const text = String(value)
-  return /[",\r\n]/u.test(text) ? `"${text.replaceAll('"', '""')}"` : text
-}
-
 function csvSummary(type: string, record: ExportRecord): readonly ExportScalar[] {
   return [
     type,
@@ -178,7 +173,7 @@ function csvEntry(payload: PortalOrganizationExportPayload): OrganizationExportE
   const lines = [
     CSV_HEADER.join(','),
     ...collectionsOf(payload).flatMap(([type, records]) =>
-      records.map((record) => csvSummary(type, record).map(csvField).join(',')),
+      records.map((record) => csvSummary(type, record).map(csvCell).join(',')),
     ),
   ]
   return {

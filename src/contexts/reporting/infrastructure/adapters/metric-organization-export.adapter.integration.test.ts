@@ -116,13 +116,13 @@ async function seedFixture(): Promise<Fixture> {
     'review_solicitation_analytics_only',
   ])
 
-  // A superseded adjust followed by the current replace tip.
+  // A superseded negative adjust followed by the current replace tip.
   await lease.pool.query(
     `INSERT INTO metric_corrections (
        id, reading_id, source_event_id, kind, reason, actor_type, actor_id,
        exact_delta, event_at, recorded_at
      ) VALUES ($1, $2, $3, 'adjust', 'first correction', 'system', 'metric-consumer',
-               1, TIMESTAMPTZ '2026-08-27T11:00:00Z', TIMESTAMPTZ '2026-08-27T11:00:00Z')`,
+               -1, TIMESTAMPTZ '2026-08-27T11:00:00Z', TIMESTAMPTZ '2026-08-27T11:00:00Z')`,
     [
       fixture.rootCorrectionId,
       fixture.exportedReadingId,
@@ -273,6 +273,13 @@ describe.sequential('Metric Organization Export contributor', () => {
       { id: fixture.rootCorrectionId, is_correction_head: false },
       { id: fixture.headCorrectionId, is_correction_head: true },
     ])
+    // PostgreSQL numeric arrives as a decimal string; the spreadsheet formula
+    // guard must leave the negative delta a number in the CSV view.
+    const correctionsCsv = decode(
+      first.entries.find(({ path }) => path === 'metric/corrections.csv')!.bytes,
+    )
+    expect(correctionsCsv).toContain(',metric-consumer,-1.0000000000,,false,')
+    expect(correctionsCsv).not.toContain("'-1")
 
     const reputation = JSON.parse(
       decode(

@@ -1,6 +1,7 @@
 import { sql, type SQL } from 'drizzle-orm'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import type { Database } from '#/shared/db'
+import { csvCell } from '#/shared/security/csv-cell'
 // Cross-context adapter implementation: CONTEXT.md "Dependency rules" lets an
 // `infrastructure/adapters/**` file import the foreign `application/ports/**`
 // contract it implements, and nothing else from Identity.
@@ -223,12 +224,6 @@ function enrichReadingCatalogue(row: Record<string, unknown>): Record<string, un
   }
 }
 
-function csvField(value: ExportScalar | undefined): string {
-  if (value === null || value === undefined) return ''
-  const text = String(value)
-  return /[",\r\n]/u.test(text) ? `"${text.replaceAll('"', '""')}"` : text
-}
-
 function csvEntry(family: ExportFamily): OrganizationExportEntry {
   const header = family.collections.reduce<readonly string[]>(
     (columns, collection) => [
@@ -243,7 +238,7 @@ function csvEntry(family: ExportFamily): OrganizationExportEntry {
       collection.records.map((record) =>
         header
           .map((column) =>
-            csvField(column === 'record_type' ? collection.recordType : record[column]),
+            csvCell(column === 'record_type' ? collection.recordType : record[column]),
           )
           .join(','),
       ),

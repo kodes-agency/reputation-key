@@ -70,6 +70,10 @@ describe('Organization Export contract', () => {
     expect(
       first.manifest.entries.every((entry) => /^[a-f0-9]{64}$/.test(entry.sha256)),
     ).toBe(true)
+    // The recipient is told why some CSV text starts with an apostrophe.
+    expect(Buffer.from(first.entries[0].bytes).toString('utf8')).toContain(
+      "is prefixed with ' so it opens as text",
+    )
   })
 
   it('requires one explicit contribution from every bounded context', async () => {
@@ -233,5 +237,48 @@ describe('Organization Export contract', () => {
         contributors: invalid,
       }),
     ).rejects.toThrow(/invalid JSON/)
+  })
+
+  it.each([
+    ['a formula-leading cell', 'id,name\norg-1,=1+1\n'],
+    ['malformed CSV quoting', 'id,name\norg-1,"Example\n'],
+  ])('rejects %s before an archive is created', async (_label, csv) => {
+    // A spreadsheet evaluates such a cell when the recipient opens the file;
+    // every contributor must write cells through the shared encoder.
+    const invalid = contributors().map((contributor) =>
+      contributor.context === 'identity'
+        ? {
+            ...contributor,
+            contribute: async () => ({
+              context: 'identity' as const,
+              coverage: 'complete' as const,
+              omissionCodes: [],
+              entries: [
+                {
+                  path: 'identity/organization.csv',
+                  mediaType: 'text/csv' as const,
+                  classification: 'tenant_visible' as const,
+                  bytes: Buffer.from(csv),
+                },
+                {
+                  path: 'identity/organization.json',
+                  mediaType: 'application/json' as const,
+                  classification: 'tenant_visible' as const,
+                  bytes: Buffer.from('{"id":"org-1","name":"=1+1"}\n'),
+                },
+              ],
+            }),
+          }
+        : contributor,
+    )
+
+    await expect(
+      buildOrganizationExportBundle({
+        organizationId: 'org-1',
+        requestId: 'request-1',
+        asOf: AS_OF,
+        contributors: invalid,
+      }),
+    ).rejects.toThrow(/CSV is not formula-safe: identity\/organization\.csv/)
   })
 })

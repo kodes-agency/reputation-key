@@ -1,6 +1,7 @@
 import { sql, type SQL } from 'drizzle-orm'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import type { Database } from '#/shared/db'
+import { csvCell } from '#/shared/security/csv-cell'
 // Cross-context adapter implementation: CONTEXT.md "Dependency rules" lets an
 // `infrastructure/adapters/**` file import the foreign `application/ports/**`
 // contract it implements, and nothing else from Identity.
@@ -90,12 +91,6 @@ async function readRows(
   return result.rows as Record<string, unknown>[]
 }
 
-function csvField(value: ExportScalar | undefined): string {
-  if (value === null || value === undefined) return ''
-  const text = String(value)
-  return /[",\r\n]/u.test(text) ? `"${text.replaceAll('"', '""')}"` : text
-}
-
 function csvEntry(records: readonly ExportRecord[]): OrganizationExportEntry {
   const header = ['record_type', ...MILESTONE_COLUMNS]
   const lines = [
@@ -103,7 +98,7 @@ function csvEntry(records: readonly ExportRecord[]): OrganizationExportEntry {
     ...records.map((record) =>
       header
         .map((column) =>
-          csvField(
+          csvCell(
             column === 'record_type' ? 'setup_checklist_milestone' : record[column],
           ),
         )
