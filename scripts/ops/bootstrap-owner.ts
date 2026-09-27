@@ -3,8 +3,12 @@
 // §3) and the sign-up endpoint is refused at the edge (routes/api/auth/$.ts),
 // so a fresh environment — every environment starts from an empty database —
 // has no first inviter without this command. It is the one operator-authored
-// account: it refuses to run once any user or Organization exists, so it can
-// never become a back door into a populated cell.
+// account: it refuses to run once any Organization or membership exists, or any
+// user other than the lone owner an interrupted run of this command left
+// behind (which it resumes), so it can never become a back door into a
+// populated cell (bootstrapState). Everything after the Better Auth sign-up
+// commits in one transaction, so no run leaves an Organization without its
+// owner.
 //
 // The initial password is read from stdin (never an argument, never printed);
 // the owner changes it at /settings/security or through the reset flow.
@@ -25,13 +29,17 @@ import { readFileSync } from 'node:fs'
 import { hashPassword } from 'better-auth/crypto'
 import { and, eq, sql } from 'drizzle-orm'
 import { getAuth } from '../../src/shared/auth/auth'
-import { getDb } from '../../src/shared/db'
+import { getDb, type Database } from '../../src/shared/db'
 import { account, member, organization, user } from '../../src/shared/db/schema/auth'
 import {
   parseBetterAuthResponse,
   signUpResponseSchema,
 } from '../../src/contexts/identity/infrastructure/adapters/better-auth-schemas'
 import { bootstrapAllowlistReport } from '../../src/shared/ops/bootstrap-owner-allowlist'
+import {
+  bootstrapState,
+  type BootstrapSnapshot,
+} from '../../src/shared/ops/bootstrap-owner-state'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
 import { runOperatorCommand } from './operator-command'
 
@@ -85,6 +93,75 @@ function slugFor(name: string): string {
   return slug || 'organization'
 }
 
+async function readBootstrapSnapshot(db: Database): Promise<BootstrapSnapshot> {
+  const [{ users }] = await db.select({ users: sql<number>`count(*)::int` }).from(user)
+  const [{ organizations }] = await db
+    .select({ organizations: sql<number>`count(*)::int` })
+    .from(organization)
+  const [{ members }] = await db
+    .select({ members: sql<number>`count(*)::int` })
+    .from(member)
+  const [soleUser] =
+    users === 1
+      ? await db.select({ id: user.id, email: user.email }).from(user).limit(1)
+      : []
+  return { users, organizations, members, soleUser: soleUser ?? null }
+}
+
+async function signUpOwner(input: Parsed, password: string): Promise<string> {
+  const signUp = await getAuth().api.signUpEmail({
+    body: { name: input.name, email: input.email, password },
+  })
+  return parseBetterAuthResponse(
+    signUpResponseSchema,
+    signUp,
+    'registration_failed',
+    `Could not create the owner account ${input.email}`,
+  ).user.id
+}
+
+/**
+ * Everything after the sign-up, in one transaction: a failure leaves only the
+ * signed-up user, which a re-run resumes. A resumed run's arguments win, like
+ * its password.
+ */
+async function completeOwnerBootstrap(
+  db: Database,
+  input: Parsed,
+  userId: string,
+  password: string,
+): Promise<string> {
+  const now = new Date()
+  const passwordHash = await hashPassword(password)
+  const organizationId = randomUUID()
+  await db.transaction(async (tx) => {
+    await tx
+      .update(user)
+      .set({ name: input.name, emailVerified: true, updatedAt: now })
+      .where(eq(user.id, userId))
+    const [credential] = await tx
+      .update(account)
+      .set({ password: passwordHash, updatedAt: now })
+      .where(and(eq(account.userId, userId), eq(account.providerId, 'credential')))
+      .returning({ id: account.id })
+    if (!credential) throw new Error(`Credential account missing for ${input.email}`)
+    await tx.insert(organization).values({
+      id: organizationId,
+      name: input.organizationName,
+      slug: slugFor(input.organizationName),
+      createdAt: now,
+    })
+    await tx.insert(member).values({
+      id: randomUUID(),
+      userId,
+      organizationId,
+      role: 'owner',
+      createdAt: now,
+    })
+  })
+  return organizationId
+}
+
 async function main(): Promise<void> {
   const argv = process.argv.slice(2)
   const input = parse(argv)
@@ -100,23 +177,15 @@ async function main(): Promise<void> {
     },
     async (ctx, _args, io) => {
       const db = getDb()
-      const [{ users }] = await db
-        .select({ users: sql<number>`count(*)::int` })
-        .from(user)
-      const [{ organizations }] = await db
-        .select({ organizations: sql<number>`count(*)::int` })
-        .from(organization)
-      if (users > 0 || organizations > 0) {
-        throw new Error(
-          `${COMMAND_NAME} runs only on an empty database (users=${users}, organizations=${organizations}); invite further accounts from the app`,
-        )
-      }
+      const state = bootstrapState(await readBootstrapSnapshot(db), input.email)
+      if (state.kind === 'refuse') throw new Error(`${COMMAND_NAME} ${state.reason}`)
       if (ctx.dryRun) {
         io.out(
           JSON.stringify(
             {
               action: 'would_bootstrap_owner',
               email: input.email,
+              ownerAccount: state.kind === 'resume' ? 'reuse' : 'create',
               organizationName: input.organizationName,
               slug: slugFor(input.organizationName),
               role: 'owner',
@@ -133,41 +202,9 @@ async function main(): Promise<void> {
       }
 
       const password = readPasswordFromStdin()
-      const signUp = await getAuth().api.signUpEmail({
-        body: { name: input.name, email: input.email, password },
-      })
-      const userId = parseBetterAuthResponse(
-        signUpResponseSchema,
-        signUp,
-        'registration_failed',
-        `Could not create the owner account ${input.email}`,
-      ).user.id
-      const now = new Date()
-      await db
-        .update(user)
-        .set({ emailVerified: true, updatedAt: now })
-        .where(eq(user.id, userId))
-      const [credential] = await db
-        .update(account)
-        .set({ password: await hashPassword(password), updatedAt: now })
-        .where(and(eq(account.userId, userId), eq(account.providerId, 'credential')))
-        .returning({ id: account.id })
-      if (!credential) throw new Error(`Credential account missing for ${input.email}`)
-
-      const organizationId = randomUUID()
-      await db.insert(organization).values({
-        id: organizationId,
-        name: input.organizationName,
-        slug: slugFor(input.organizationName),
-        createdAt: now,
-      })
-      await db.insert(member).values({
-        id: randomUUID(),
-        userId,
-        organizationId,
-        role: 'owner',
-        createdAt: now,
-      })
+      const userId =
+        state.kind === 'resume' ? state.userId : await signUpOwner(input, password)
+      const organizationId = await completeOwnerBootstrap(db, input, userId, password)
       io.out(
         JSON.stringify(
           {
@@ -175,6 +212,7 @@ async function main(): Promise<void> {
             organizationId,
             userId,
             email: input.email,
+            ownerAccount: state.kind === 'resume' ? 'reused' : 'created',
             role: 'owner',
             ...bootstrapAllowlistReport(process.env, organizationId),
             next: 'sign in at /login with the initial password and change it at /settings/security',
