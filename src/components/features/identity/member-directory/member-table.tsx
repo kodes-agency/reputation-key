@@ -29,6 +29,10 @@ export interface MemberRow {
   rawRole: string
 }
 
+/**
+ * The route's Actions report their own outcome (toasts); a refusal still rejects
+ * the call, so each command settles the promise rather than leaking it.
+ */
 type Props = Readonly<{
   members: ReadonlyArray<MemberRow>
   currentUserId: string
@@ -83,12 +87,12 @@ export function MemberTable({
                   role={member.role}
                   memberName={member.name}
                   onRoleChange={(newRole) =>
-                    updateRoleAction({
+                    void updateRoleAction({
                       data: {
                         memberId: member.id,
                         role: newRole,
                       },
-                    })
+                    }).catch(() => undefined)
                   }
                   isPending={updateRoleAction.isPending}
                 />
@@ -102,7 +106,11 @@ export function MemberTable({
                   <RemoveMemberDialog
                     memberName={member.name}
                     memberEmail={member.email}
-                    onRemove={() => removeMemberAction({ data: { memberId: member.id } })}
+                    onRemove={() =>
+                      void removeMemberAction({ data: { memberId: member.id } }).catch(
+                        () => undefined,
+                      )
+                    }
                     isPending={removeMemberAction.isPending}
                   />
                 ) : null}

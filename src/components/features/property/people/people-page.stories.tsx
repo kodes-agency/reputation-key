@@ -70,6 +70,62 @@ export const Directory: Story = {
   },
 }
 
+/**
+ * A refused archive is shown by the list's banner from the Action's own error,
+ * so the row only settles the promise: an unsettled one surfaced as an
+ * unhandled rejection, which the browser logs and the test runner fails on.
+ */
+const archiveRefusals: Error[] = []
+
+export const ArchiveRefused: Story = {
+  args: {
+    ...seededArgs,
+    tab: 'staff',
+    // A plain function, not `fn()`: the spy attaches its own handler to every
+    // promise it returns, which would mark the rejection handled.
+    archiveParticipationMutation: Object.assign(
+      async () => {
+        // globalThis: in this file `Error` is the error-state story.
+        const refusal = new globalThis.Error(
+          'This participation changed. Reload and try again.',
+        )
+        archiveRefusals.push(refusal)
+        throw refusal
+      },
+      { isPending: false, error: null, isSuccess: false, data: null },
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    archiveRefusals.length = 0
+    const unhandled: unknown[] = []
+    const record = (event: PromiseRejectionEvent) => {
+      event.preventDefault()
+      unhandled.push(event.reason)
+    }
+    window.addEventListener('unhandledrejection', record)
+    try {
+      await userEvent.click(
+        within(canvasElement).getByRole('button', {
+          name: 'Archive staff participation for Alice Adams',
+        }),
+      )
+      await userEvent.click(
+        await within(document.body).findByRole('button', {
+          name: 'Archive participation',
+        }),
+      )
+      expect(archiveRefusals).toHaveLength(1)
+      // `unhandledrejection` is dispatched from a task queued after the
+      // microtask checkpoint, so wait out two task turns before reading it.
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      await new Promise((resolve) => setTimeout(resolve, 0))
+      expect(unhandled).toEqual([])
+    } finally {
+      window.removeEventListener('unhandledrejection', record)
+    }
+  },
+}
+
 export const PortalsDenied: Story = {
   args: { ...seededArgs, portals: [], portalsDenied: true, tab: 'staff' },
   play: async ({ canvasElement }) => {
