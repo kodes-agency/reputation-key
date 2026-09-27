@@ -23,6 +23,7 @@ import {
 } from '../domain/guest-response-integrity'
 import { primaryStaffAttributionEquals } from '#/shared/domain/primary-staff-attribution'
 import type { Clock } from '#/shared/domain/clock'
+import { ratingId } from '#/shared/domain/ids'
 
 class GuestCommandConflict extends Error {}
 
@@ -82,7 +83,7 @@ function integrityFactsMatch(
     return false
   }
   const commonMatches =
-    fact.ratingId === response.id &&
+    fact.ratingId === ratingId(response.id) &&
     fact.organizationId === response.organizationId &&
     fact.propertyId === response.propertyId &&
     fact.portalId === response.portalId
@@ -112,7 +113,7 @@ function initialIntegrityFactsMatch(
   if (ratingFacts.length !== 1) return false
   const fact = ratingFacts[0]!
   return (
-    fact.ratingId === response.id &&
+    fact.ratingId === ratingId(response.id) &&
     fact.organizationId === response.organizationId &&
     fact.propertyId === response.propertyId &&
     fact.portalId === response.portalId &&

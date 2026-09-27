@@ -3,6 +3,7 @@ import {
   GUEST_NETWORK_PRESSURE_ACTIONS,
   createGuestNetworkPressureRecord,
 } from './networkPressure'
+import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 
 const OBSERVED_AT = new Date('2026-08-27T23:59:59.000Z')
 
@@ -19,9 +20,9 @@ describe('Guest network pressure', () => {
       expect(
         createGuestNetworkPressureRecord({
           id: '82000000-0000-4000-8000-000000000001',
-          organizationId: 'org-network-pressure',
-          propertyId: '82000000-0000-4000-8000-000000000002',
-          portalId: '82000000-0000-4000-8000-000000000003',
+          organizationId: organizationId('org-network-pressure'),
+          propertyId: propertyId('82000000-0000-4000-8000-000000000002'),
+          portalId: portalId('82000000-0000-4000-8000-000000000003'),
           pseudonym: 'a'.repeat(64),
           action,
           observedAt: OBSERVED_AT,
@@ -42,9 +43,9 @@ describe('Guest network pressure', () => {
   it('rejects values that could become raw addresses, content, or unscoped identities', () => {
     const valid = {
       id: '82000000-0000-4000-8000-000000000001',
-      organizationId: 'org-network-pressure',
-      propertyId: '82000000-0000-4000-8000-000000000002',
-      portalId: '82000000-0000-4000-8000-000000000003',
+      organizationId: organizationId('org-network-pressure'),
+      propertyId: propertyId('82000000-0000-4000-8000-000000000002'),
+      portalId: portalId('82000000-0000-4000-8000-000000000003'),
       pseudonym: 'a'.repeat(64),
       action: 'rating' as const,
       observedAt: OBSERVED_AT,
@@ -55,8 +56,8 @@ describe('Guest network pressure', () => {
         ...valid,
         pseudonym: '203.0.113.20',
       }),
-      createGuestNetworkPressureRecord({ ...valid, organizationId: ' ' }),
-      createGuestNetworkPressureRecord({ ...valid, portalId: '' }),
+      createGuestNetworkPressureRecord({ ...valid, organizationId: organizationId(' ') }),
+      createGuestNetworkPressureRecord({ ...valid, portalId: portalId('') }),
       createGuestNetworkPressureRecord({
         ...valid,
         observedAt: new Date('invalid'),

@@ -1,4 +1,10 @@
 import type { GuestResponse } from './guest-response'
+import type {
+  GuestResponseId,
+  OrganizationId,
+  PortalId,
+  PropertyId,
+} from '#/shared/domain/ids'
 
 export type GuestResponseIntegrityOutcome =
   'accepted' | 'filtered_automatically' | 'under_review'
@@ -7,10 +13,10 @@ export type GuestResponseIntegrityDecisionSource =
   'system' | 'automatic' | 'reviewer' | 'migration'
 
 export type GuestResponseIntegrityDecision = Readonly<{
-  responseId: string
-  organizationId: string
-  propertyId: string
-  portalId: string
+  responseId: GuestResponseId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  portalId: PortalId
   revision: number
   previousOutcome: GuestResponseIntegrityOutcome | null
   outcome: GuestResponseIntegrityOutcome

@@ -19,6 +19,13 @@ import {
 } from './private-feedback-text'
 import { unicodeCodePointLength } from '#/shared/domain/unicode'
 import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
+import type {
+  GuestResponseId,
+  GuestSessionId,
+  OrganizationId,
+  PortalId,
+  PropertyId,
+} from '#/shared/domain/ids'
 
 export type GuestResponseStatus =
   'pending' | 'submitted' | 'corrected' | 'moderated' | 'deleted' | 'expired'
@@ -42,12 +49,12 @@ export type GuestResponseExperienceSnapshot = Readonly<{
 }>
 
 export interface GuestResponse {
-  readonly id: string
-  readonly organizationId: string
-  readonly propertyId: string
-  readonly portalId: string
+  readonly id: GuestResponseId
+  readonly organizationId: OrganizationId
+  readonly propertyId: PropertyId
+  readonly portalId: PortalId
   /** Present only while the independent recovery binding is still retained. */
-  readonly sessionId: string | null
+  readonly sessionId: GuestSessionId | null
   readonly sessionExpiresAt: Date | null
   readonly status: GuestResponseStatus
   /** Metric eligibility is independent from content moderation/lifecycle status. */
@@ -109,11 +116,11 @@ export const DEFAULT_RESPONSE_SESSION_WINDOW_MS = 24 * 60 * 60 * 1000
 export const PRIVATE_FEEDBACK_RETENTION_MS = 90 * 24 * 60 * 60 * 1000
 
 export function createResponse(params: {
-  id: string
-  organizationId: string
-  propertyId: string
-  portalId: string
-  sessionId: string
+  id: GuestResponseId
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  portalId: PortalId
+  sessionId: GuestSessionId
   sessionExpiresAt: Date
   retentionDeadline: Date
   experienceSnapshot: GuestResponseExperienceSnapshot

@@ -22,6 +22,7 @@ import {
 import type { GuestResponseRepository } from '../../application/ports/guest-response.repository'
 import { guestResponseFromRow } from '../mappers/guest-response.mapper'
 import type { Clock } from '#/shared/domain/clock'
+import { guestResponseId } from '#/shared/domain/ids'
 
 export const createGuestResponseRepository = (
   db: Database,
@@ -207,7 +208,7 @@ export const createGuestResponseRepository = (
           ),
         )
       return rows.map((row) => ({
-        id: row.id,
+        id: guestResponseId(row.id),
         comment: row.textConsent && row.status !== 'moderated' ? row.comment : null,
         ratingValue: row.responseConsent ? row.ratingValue : null,
         feedbackSubmissionRevision: row.feedbackSubmissionRevision,
@@ -255,7 +256,7 @@ export const createGuestResponseRepository = (
           ),
         )
         .where(and(...conditions))
-      return rows.map((row) => row.id)
+      return rows.map((row) => guestResponseId(row.id))
     },
 
     summarizePortalIntegrity: async (scope, startAt, endAt) => {

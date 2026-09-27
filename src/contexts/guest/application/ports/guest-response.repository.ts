@@ -1,13 +1,20 @@
 import type { GuestResponse } from '../../domain/guest-response'
+import type {
+  GuestResponseId,
+  GuestSessionId,
+  OrganizationId,
+  PortalId,
+  PropertyId,
+} from '#/shared/domain/ids'
 
 export type GuestResponseScope = Readonly<{
-  organizationId: string
-  propertyId: string
-  portalId: string
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  portalId: PortalId
 }>
 
 export type GuestResponseSnippet = Readonly<{
-  id: string
+  id: GuestResponseId
   comment: string | null
   ratingValue: number | null
   feedbackSubmissionRevision?: number | null
@@ -29,10 +36,13 @@ export type PortalResponseIntegritySummary = Readonly<{
 export type GuestResponseRepository = Readonly<{
   findForSession(
     scope: GuestResponseScope,
-    sessionId: string,
+    sessionId: GuestSessionId,
     asOf: Date,
   ): Promise<GuestResponse | null>
-  findById(scope: GuestResponseScope, responseId: string): Promise<GuestResponse | null>
+  findById(
+    scope: GuestResponseScope,
+    responseId: GuestResponseId,
+  ): Promise<GuestResponse | null>
   /**
    * Org-scoped snippet read for cross-context lookups (inbox item rendering).
    *
@@ -45,8 +55,8 @@ export type GuestResponseRepository = Readonly<{
    * inbox item must render as unavailable rather than as an empty comment.
    */
   findSnippetForOrg(
-    organizationId: string,
-    responseId: string,
+    organizationId: OrganizationId,
+    responseId: GuestResponseId,
   ): Promise<Readonly<{
     comment: string | null
     ratingValue: number | null
@@ -54,17 +64,17 @@ export type GuestResponseRepository = Readonly<{
   }> | null>
   /** Batched equivalent used by inbox list enrichment. */
   findSnippetsForOrg(
-    organizationId: string,
-    responseIds: ReadonlyArray<string>,
+    organizationId: OrganizationId,
+    responseIds: ReadonlyArray<GuestResponseId>,
   ): Promise<ReadonlyArray<GuestResponseSnippet>>
   /**
    * Tenant- and consent-scoped ids matching inbox content filters. Text and
    * rating predicates may only inspect fields the guest consented to share.
    */
   findEligibleSnippetIdsForOrg(
-    organizationId: string,
+    organizationId: OrganizationId,
     filter: GuestResponseContentFilter,
-  ): Promise<ReadonlyArray<string>>
+  ): Promise<ReadonlyArray<GuestResponseId>>
   /** Current integrity outcomes for rating responses in a half-open business period. */
   summarizePortalIntegrity(
     scope: GuestResponseScope,

@@ -5,6 +5,13 @@ import type {
   GuestResponseScope,
 } from '../ports/guest-response.repository'
 import {
+  guestSessionId,
+  organizationId,
+  portalId,
+  propertyId,
+  type GuestSessionId,
+} from '#/shared/domain/ids'
+import {
   GuestResponseLifecycleError,
   guestResponseLifecycle,
   isQualifiedGuestResponse,
@@ -22,9 +29,9 @@ const STAFF_ATTRIBUTION = {
 } as const
 
 const scope: GuestResponseScope = {
-  organizationId: 'org-1',
-  propertyId: '00000000-0000-4000-8000-000000000001',
-  portalId: '00000000-0000-4000-8000-000000000002',
+  organizationId: organizationId('org-1'),
+  propertyId: propertyId('00000000-0000-4000-8000-000000000001'),
+  portalId: portalId('00000000-0000-4000-8000-000000000002'),
 }
 
 const experience = (privateFeedbackThreshold = 3) => ({
@@ -268,7 +275,7 @@ function harness(clock: () => Date = () => new Date('2026-08-09T12:00:00Z')) {
     ...rawLifecycle,
     submit: (
       candidateScope: GuestResponseScope,
-      sessionId: string,
+      sessionId: GuestSessionId,
       input: Parameters<typeof rawLifecycle.submit>[2],
       privateFeedbackThreshold = 3,
       sessionExpiresAt?: Date,
@@ -296,7 +303,7 @@ function harness(clock: () => Date = () => new Date('2026-08-09T12:00:00Z')) {
 describe('guest response lifecycle', () => {
   it('copies initial Staff attribution through later correction facts without re-resolving', async () => {
     const test = harness()
-    const sessionId = '00000000-0000-4000-8000-000000000099'
+    const sessionId = guestSessionId('00000000-0000-4000-8000-000000000099')
 
     await test.lifecycle.submit(scope, sessionId, { rating: 5, responseConsent: true }, 3)
     test.setStaffAttribution({
@@ -322,7 +329,7 @@ describe('guest response lifecycle', () => {
 
   it('pins exact session expiry separately from the 24-month fact deadline', async () => {
     const { lifecycle, repo } = harness()
-    const sessionId = '00000000-0000-4000-8000-000000000003'
+    const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
     const sessionExpiresAt = new Date('2026-08-10T12:00:00.000Z')
 
     await lifecycle.submit(
@@ -353,7 +360,7 @@ describe('guest response lifecycle', () => {
 
   it('rejects expired or overlong recovery bindings', async () => {
     const { lifecycle } = harness()
-    const sessionId = '00000000-0000-4000-8000-000000000003'
+    const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
     for (const expiresAt of [
       new Date('2026-08-09T12:00:00.000Z'),
       new Date('2026-08-10T12:00:00.001Z'),
@@ -382,7 +389,7 @@ describe('guest response lifecycle', () => {
     await expect(
       rawLifecycle.submit(
         scope,
-        '00000000-0000-4000-8000-000000000003',
+        guestSessionId('00000000-0000-4000-8000-000000000003'),
         { rating: 5, responseConsent: true },
         { ...experience(), ...override } as Parameters<typeof rawLifecycle.submit>[3],
       ),
@@ -394,7 +401,7 @@ describe('guest response lifecycle', () => {
     const { rawLifecycle, repo, outbox } = harness()
     const receipt = await rawLifecycle.submit(
       scope,
-      '00000000-0000-4000-8000-000000000003',
+      guestSessionId('00000000-0000-4000-8000-000000000003'),
       { rating: 5, responseConsent: true },
       experience(),
       undefined,
@@ -420,7 +427,7 @@ describe('guest response lifecycle', () => {
     const { lifecycle } = harness()
     const submitted = await lifecycle.submit(
       scope,
-      '00000000-0000-4000-8000-000000000003',
+      guestSessionId('00000000-0000-4000-8000-000000000003'),
       {
         rating: 5,
         responseConsent: true,
@@ -430,22 +437,22 @@ describe('guest response lifecycle', () => {
     expect(submitted.correctionAvailable).toBe(true)
     const corrected = await lifecycle.correct(
       scope,
-      '00000000-0000-4000-8000-000000000003',
+      guestSessionId('00000000-0000-4000-8000-000000000003'),
       { rating: 4 },
     )
     expect(corrected.status).toBe('corrected')
     expect(corrected.correctionAvailable).toBe(false)
     await expect(
-      lifecycle.correct(scope, '00000000-0000-4000-8000-000000000003', {
+      lifecycle.correct(scope, guestSessionId('00000000-0000-4000-8000-000000000003'), {
         rating: 3,
       }),
     ).rejects.toMatchObject({ code: 'already_submitted' })
     await expect(
-      lifecycle.withdraw(scope, '00000000-0000-4000-8000-000000000099'),
+      lifecycle.withdraw(scope, guestSessionId('00000000-0000-4000-8000-000000000099')),
     ).rejects.toBeInstanceOf(GuestResponseLifecycleError)
     const withdrawn = await lifecycle.withdraw(
       scope,
-      '00000000-0000-4000-8000-000000000003',
+      guestSessionId('00000000-0000-4000-8000-000000000003'),
     )
     expect(withdrawn).toMatchObject({ status: 'deleted', rating: null })
     expect('text' in withdrawn).toBe(false)
@@ -454,7 +461,7 @@ describe('guest response lifecycle', () => {
   it('stops advertising correction at the exact one-hour boundary plus one millisecond', async () => {
     let now = new Date('2026-08-09T12:00:00.000Z')
     const { lifecycle } = harness(() => now)
-    const sessionId = '00000000-0000-4000-8000-000000000003'
+    const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
     await lifecycle.submit(scope, sessionId, { rating: 5, responseConsent: true })
 
     now = new Date('2026-08-09T13:00:00.000Z')
@@ -470,23 +477,34 @@ describe('guest response lifecycle', () => {
 
   it('rejects another tenant without revealing the response', async () => {
     const { lifecycle } = harness()
-    const sessionId = '00000000-0000-4000-8000-000000000003'
+    const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
     await lifecycle.submit(scope, sessionId, { rating: 5, responseConsent: true })
     await expect(
-      lifecycle.withdraw({ ...scope, organizationId: 'org-2' }, sessionId),
+      lifecycle.withdraw(
+        { ...scope, organizationId: organizationId('org-2') },
+        sessionId,
+      ),
     ).rejects.toMatchObject({ code: 'response_not_found' })
   })
 
   it('treats legacy manager delete as moderation and preserves the numeric rating', async () => {
     const { lifecycle, repo, outbox } = harness()
-    await lifecycle.submit(scope, '00000000-0000-4000-8000-000000000003', {
-      rating: 1,
-      responseConsent: true,
-    })
-    await lifecycle.addPrivateFeedback(scope, '00000000-0000-4000-8000-000000000003', {
-      text: 'Abusive text',
-      textConsent: true,
-    })
+    await lifecycle.submit(
+      scope,
+      guestSessionId('00000000-0000-4000-8000-000000000003'),
+      {
+        rating: 1,
+        responseConsent: true,
+      },
+    )
+    await lifecycle.addPrivateFeedback(
+      scope,
+      guestSessionId('00000000-0000-4000-8000-000000000003'),
+      {
+        text: 'Abusive text',
+        textConsent: true,
+      },
+    )
 
     const responseId = repo.responses[0]!.id
     const moderated = await lifecycle.moderate(scope, responseId, 'delete')
@@ -502,7 +520,7 @@ describe('guest response lifecycle', () => {
   it('excludes an anomaly from metrics, preserves its rating, and restores the corrected value', async () => {
     let now = new Date('2026-08-09T12:00:00.000Z')
     const { lifecycle, repo, outbox } = harness(() => now)
-    const sessionId = '00000000-0000-4000-8000-000000000003'
+    const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
     await lifecycle.submit(scope, sessionId, { rating: 2, responseConsent: true })
     const responseId = repo.responses[0]!.id
     const original = outbox.byTag('guest.rating.submitted')[0]!
@@ -563,7 +581,7 @@ describe('guest response lifecycle', () => {
 // metric handlers consume (portal.rating, portal.feedback). These pin the
 // producer: without them both metrics silently read 0 again.
 describe('guest response lifecycle — submitted facts', () => {
-  const sessionId = '00000000-0000-4000-8000-000000000003'
+  const sessionId = guestSessionId('00000000-0000-4000-8000-000000000003')
 
   it('records rating then feedback facts from the two staged commands', async () => {
     const { lifecycle, outbox, repo } = harness()

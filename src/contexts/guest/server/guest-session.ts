@@ -12,6 +12,7 @@ import type {
   RateLimiter,
   RateLimitResult,
 } from '#/shared/rate-limit/middleware'
+import { guestSessionId, organizationId, portalId, propertyId } from '#/shared/domain/ids'
 
 export type GuestSessionScope = Readonly<{
   organizationId: string
@@ -118,11 +119,11 @@ export function createGuestSessionManager(
   return {
     issue: (scope, guestLocale) => {
       const session = createSession({
-        sessionId: randomId(),
+        sessionId: guestSessionId(randomId()),
         csrfNonce: randomId(),
-        organizationId: scope.organizationId,
-        propertyId: scope.propertyId,
-        portalId: scope.portalId,
+        organizationId: organizationId(scope.organizationId),
+        propertyId: propertyId(scope.propertyId),
+        portalId: portalId(scope.portalId),
         tokenVersion: 0,
         guestLocale,
         now: input.clock(),
@@ -179,11 +180,11 @@ export function createGuestSessionManager(
           return null
         }
         const session: GuestSession = {
-          sessionId: payload.sid,
+          sessionId: guestSessionId(payload.sid),
           csrfNonce: payload.csrf,
-          organizationId: payload.org,
-          propertyId: payload.property,
-          portalId: payload.portal,
+          organizationId: organizationId(payload.org),
+          propertyId: propertyId(payload.property),
+          portalId: portalId(payload.portal),
           tokenVersion: 0,
           issuedAt: new Date(payload.issued),
           expiresAt: new Date(payload.expires),

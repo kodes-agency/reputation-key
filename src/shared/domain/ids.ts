@@ -136,6 +136,16 @@ export function badgeId(id: string): BadgeId {
   return id as BadgeId
 }
 
+export type GuestResponseId = Brand<string, 'GuestResponseId'>
+export function guestResponseId(id: string): GuestResponseId {
+  return id as GuestResponseId
+}
+
+export type GuestSessionId = Brand<string, 'GuestSessionId'>
+export function guestSessionId(id: string): GuestSessionId {
+  return id as GuestSessionId
+}
+
 /** Safely strip brand from a branded ID type for use at infrastructure boundaries. */
 export function unbrand<T extends string>(branded: T): string {
   return String(branded)

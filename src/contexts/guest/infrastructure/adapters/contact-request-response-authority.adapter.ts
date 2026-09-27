@@ -1,6 +1,7 @@
 import type { ContactRequestResponseAuthorityPort } from '../../application/ports/contact-request-response-authority.port'
 import type { GuestResponseRepository } from '../../application/ports/guest-response.repository'
 import type { ContactRequestSessionAuthorityPort } from '../../application/ports/contact-request-session-authority.port'
+import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 
 type ContactRequestResponseAuthorityDeps = Readonly<{
   sessions: ContactRequestSessionAuthorityPort
@@ -17,7 +18,11 @@ export const createContactRequestResponseAuthorityAdapter = (
     }
 
     const response = await deps.responses.findForSession(
-      input.scope,
+      {
+        organizationId: organizationId(input.scope.organizationId),
+        propertyId: propertyId(input.scope.propertyId),
+        portalId: portalId(input.scope.portalId),
+      },
       session.sessionId,
       input.at,
     )

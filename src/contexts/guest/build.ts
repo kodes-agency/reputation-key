@@ -29,8 +29,11 @@ import {
 } from './application/use-cases/guest-response-lifecycle'
 import { createGuestSessionManager } from './server/guest-session'
 import {
+  guestResponseId,
+  organizationId,
   qualifiedScanId,
   scanEventId,
+  unbrand,
   type FeedbackId,
   type OrganizationId,
 } from '#/shared/domain/ids'
@@ -177,12 +180,17 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
   // ARC-03-T11: the two named Guest capabilities the composition root consumes.
   // Both used to be Guest repository reach-throughs from the root.
   const snippets = Object.freeze({
-    findResponseSnippetsByIds: (ids: ReadonlyArray<string>, organizationId: string) =>
-      guestResponseRepo.findSnippetsForOrg(organizationId, ids),
-    findEligibleResponseIds: (
-      organizationId: string,
-      filter: GuestResponseContentFilter,
-    ) => guestResponseRepo.findEligibleSnippetIdsForOrg(organizationId, filter),
+    // The exposed signature stays string-in/string-out: composition.ts wires
+    // this into Inbox's FeedbackId-branded lookup port (ARC-03-T11) and must
+    // not be forced to change. Branding is internal, right at the repository call.
+    findResponseSnippetsByIds: (ids: ReadonlyArray<string>, orgId: string) =>
+      guestResponseRepo
+        .findSnippetsForOrg(organizationId(orgId), ids.map(guestResponseId))
+        .then((rows) => rows.map((row) => ({ ...row, id: unbrand(row.id) }))),
+    findEligibleResponseIds: (orgId: string, filter: GuestResponseContentFilter) =>
+      guestResponseRepo
+        .findEligibleSnippetIdsForOrg(organizationId(orgId), filter)
+        .then((ids) => ids.map(unbrand)),
     findLegacyFeedbackSnippetsByIds: (
       ids: ReadonlyArray<FeedbackId>,
       organizationId: OrganizationId,
