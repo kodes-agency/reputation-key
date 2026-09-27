@@ -1,8 +1,31 @@
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId, reviewId, userId } from '#/shared/domain/ids'
 import { MERCHANT_AI_NOTICE_VERSION } from '#/shared/merchant-ai-notice-contract'
-import { parseCanonicalReplyLanguageTag } from '#/shared/ai-review-language-catalogue'
+import {
+  LANGUAGE_CATALOGUE_DIGEST,
+  mapReviewLanguageMetadata,
+  parseCanonicalReplyLanguageTag,
+} from '#/shared/ai-review-language-catalogue'
+import { AI_SOURCE_CANONICALIZER_PROFILE_V1 } from '#/shared/ai-operation-profiles'
+import { AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST } from '#/shared/ai-language-script-consistency'
+import { AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST } from '#/shared/ai-reply-language-verifier'
+import {
+  AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
+  AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
+} from '#/shared/ai-reply-output-leakage'
+import {
+  AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
+  AI_REPLY_TEMPLATE_CATALOGUE_VERSION,
+} from '#/shared/ai-reply-template-catalogue'
+import { AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST } from '#/shared/ai-zh-orthography-verifier'
+import { encodeCanonicalAiReviewSource } from '#/shared/ai-review-source-contract'
 import type { AiOperationId } from '../../domain/types'
+import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
+import type {
+  AiOperationState,
+  AiOperationStorePort,
+} from '../ports/ai-operation-store.port'
+import { aiRequestFingerprint, aiReviewSourceProvenance } from '../ai-workflow-support'
 import type { GenerateReplySuggestionDependencies } from './generate-reply-suggestion'
 vi.mock('#/shared/ai-review-language-catalogue', async (importOriginal) => {
   const actual =
@@ -855,5 +878,335 @@ describe('generate reply suggestion', () => {
       harness.mocks.acquire,
       harness.mocks.generateReply,
     )
+  })
+})
+
+// ── Characterization: the branches the use case settles before provider work ──
+
+type MerchantAuthorization = NonNullable<
+  Awaited<ReturnType<AiAuthorizationPort['readMerchantAuthorization']>>
+>
+type Harness = ReturnType<typeof createHarness>
+
+/** Answer the first authorization read with a changed copy of the harness default. */
+function authorizeOnceAs(
+  harness: Harness,
+  change: (authorization: MerchantAuthorization) => MerchantAuthorization | null,
+): void {
+  const read = vi.mocked(harness.mocks.readMerchantAuthorization)
+  const base = read.getMockImplementation()
+  if (base === undefined) throw new Error('the harness authorization read is not mocked')
+  read.mockImplementationOnce(async (input) => {
+    const authorization = await base(input)
+    return authorization === null ? null : change(authorization)
+  })
+}
+
+/** The harness claim seen through the port, so a test can answer any claim outcome. */
+const portClaim = (harness: Harness) =>
+  vi.mocked(harness.mocks.claim as unknown as AiOperationStorePort['claim'])
+
+const REFUSED_AUTHORIZATIONS: ReadonlyArray<
+  readonly [
+    string,
+    (authorization: MerchantAuthorization) => MerchantAuthorization | null,
+  ]
+> = [
+  ['no merchant authorization', () => null],
+  ['an authorization that is not enabled', (a) => ({ ...a, state: 'disabled' })],
+  ['an authorization without a lineage', (a) => ({ ...a, authorizationLineageId: null })],
+  [
+    'an authorization for another source epoch',
+    (a) => ({ ...a, authorizedSourceEpoch: 3 }),
+  ],
+  [
+    'an authorization without reply drafting',
+    (a) => ({ ...a, capabilities: ['review_analysis'] }),
+  ],
+  [
+    'another reply-drafting runtime profile',
+    (a) => ({
+      ...a,
+      capabilityRuntimeProfileVersions: {
+        ...a.capabilityRuntimeProfileVersions,
+        reply_drafting: 'reply-drafting-runtime-v0',
+      },
+    }),
+  ],
+]
+
+describe('generate reply suggestion: refusals before provider work', () => {
+  it.each(REFUSED_AUTHORIZATIONS)(
+    'answers not_authorized for %s',
+    async (_label, change) => {
+      const harness = createHarness()
+      authorizeOnceAs(harness, change)
+
+      await expect(harness.generate(INPUT)).resolves.toEqual({
+        status: 'unavailable',
+        code: 'not_authorized',
+        retryAfterEpochMillis: null,
+      })
+      expectNoAiExecution(
+        harness.mocks.readHeads,
+        harness.mocks.claim,
+        harness.mocks.acquire,
+        harness.mocks.generateReply,
+      )
+    },
+  )
+
+  it('answers not_authorized while the Property processing profile is unavailable', async () => {
+    const harness = createHarness()
+    vi.mocked(harness.mocks.readProcessingProfile).mockResolvedValueOnce({
+      status: 'policy_unavailable',
+    })
+
+    await expect(harness.generate(INPUT)).resolves.toEqual({
+      status: 'unavailable',
+      code: 'not_authorized',
+      retryAfterEpochMillis: null,
+    })
+    expectNoAiExecution(harness.mocks.readHeads, harness.mocks.claim)
+  })
+
+  it('answers policy_unavailable when the execution stop fence is not fully open', async () => {
+    const harness = createHarness()
+    vi.mocked(harness.mocks.readHeads).mockResolvedValueOnce([])
+
+    await expect(harness.generate(INPUT)).resolves.toEqual({
+      status: 'unavailable',
+      code: 'policy_unavailable',
+      retryAfterEpochMillis: null,
+    })
+    expectNoAiExecution(harness.mocks.claim, harness.mocks.acquire)
+  })
+
+  it('answers policy_unavailable when the operation claim conflicts', async () => {
+    const harness = createHarness()
+    portClaim(harness).mockResolvedValueOnce({ status: 'conflict' })
+
+    await expect(harness.generate(INPUT)).resolves.toEqual({
+      status: 'unavailable',
+      code: 'policy_unavailable',
+      retryAfterEpochMillis: null,
+    })
+    expectNoAiExecution(
+      harness.mocks.acquire,
+      harness.mocks.claimExecution,
+      harness.mocks.generateReply,
+    )
+  })
+
+  it.each([
+    'succeeded',
+    'succeeded_pending_delivery',
+  ] as const satisfies ReadonlyArray<AiOperationState>)(
+    'answers completed_without_delivery for an operation already %s',
+    async (state) => {
+      const harness = createHarness()
+      portClaim(harness).mockImplementationOnce(async (request) => ({
+        status: 'replayed',
+        operation: {
+          id: OPERATION_ID,
+          identity: request.identity,
+          binding: request.binding,
+          idempotencyKey: request.idempotencyKey,
+          requestFingerprint: request.requestFingerprint,
+          sourceProvenance: request.sourceProvenance,
+          state,
+          executionAttempt: 1,
+          executionPermitId: null,
+          nextAttemptAtEpochMillis: null,
+          failureCode: null,
+          createdAtEpochMillis: NOW,
+          updatedAtEpochMillis: NOW,
+          expiresAtEpochMillis: NOW + 15 * 60_000,
+        },
+      }))
+
+      await expect(harness.generate(INPUT)).resolves.toEqual({
+        status: 'unavailable',
+        code: 'completed_without_delivery',
+        retryAfterEpochMillis: null,
+      })
+      expectNoAiExecution(
+        harness.mocks.acquire,
+        harness.mocks.claimExecution,
+        harness.mocks.generateReply,
+      )
+    },
+  )
+})
+
+describe('generate reply suggestion: review-language metadata', () => {
+  it.each([
+    [
+      { status: 'language_not_supported', reason: 'unsupported_group' },
+      'language_not_supported',
+    ],
+    [{ status: 'policy_unavailable' }, 'policy_unavailable'],
+  ] as const)('refuses %o metadata without a template request', async (mapped, code) => {
+    const harness = createHarness({ propertyReplyLanguage: 'bg-Cyrl-BG' })
+    vi.mocked(mapReviewLanguageMetadata).mockReturnValueOnce(mapped)
+
+    await expect(harness.generate(INPUT)).resolves.toEqual({
+      status: 'unavailable',
+      code,
+      retryAfterEpochMillis: null,
+    })
+    expectNoAiExecution(
+      harness.mocks.resolveReplyLanguage,
+      harness.mocks.readDefaultReplyLanguage,
+    )
+  })
+
+  it('serves a requested template for unsupported metadata in the property language', async () => {
+    const harness = createHarness({ propertyReplyLanguage: 'bg-Cyrl-BG' })
+    vi.mocked(mapReviewLanguageMetadata).mockReturnValueOnce({
+      status: 'language_not_supported',
+      reason: 'unsupported_group',
+    })
+
+    await expect(harness.generate({ ...INPUT, templateOnly: true })).resolves.toEqual({
+      status: 'fallback',
+      kind: 'local_safe_template',
+      reason: 'language_undetermined',
+      languageSource: 'property_default',
+      replyText:
+        'Благодарим ви, че споделихте този положителен отзив. Радваме се, че преживяването ви е било приятно.',
+      concreteLanguageTag: 'bg-Cyrl-BG',
+    })
+    expectNoAiExecution(
+      harness.mocks.resolveReplyLanguage,
+      harness.mocks.readMerchantAuthorization,
+    )
+  })
+
+  it('refuses a requested template for unsupported metadata without a property language', async () => {
+    const harness = createHarness()
+    vi.mocked(mapReviewLanguageMetadata).mockReturnValueOnce({
+      status: 'language_not_supported',
+      reason: 'unsupported_group',
+    })
+
+    await expect(harness.generate({ ...INPUT, templateOnly: true })).resolves.toEqual({
+      status: 'unavailable',
+      code: 'target_language_unavailable',
+      retryAfterEpochMillis: null,
+    })
+  })
+
+  it('refuses an unavailable language verifier unless a template was requested', async () => {
+    const refused = createHarness({
+      propertyReplyLanguage: 'bg-Cyrl-BG',
+      replyLanguage: { status: 'policy_unavailable' },
+    })
+    const templated = createHarness({
+      propertyReplyLanguage: 'bg-Cyrl-BG',
+      replyLanguage: { status: 'policy_unavailable' },
+    })
+
+    await expect(refused.generate(INPUT)).resolves.toEqual({
+      status: 'unavailable',
+      code: 'policy_unavailable',
+      retryAfterEpochMillis: null,
+    })
+    await expect(
+      templated.generate({ ...INPUT, templateOnly: true }),
+    ).resolves.toMatchObject({
+      status: 'fallback',
+      reason: 'language_undetermined',
+      languageSource: 'property_default',
+      concreteLanguageTag: 'bg-Cyrl-BG',
+    })
+  })
+})
+
+describe('generate reply suggestion: operation binding', () => {
+  // The identity and binding feed the RFC 8785 request fingerprint that makes
+  // a claim idempotent, so any change to a field, a key or a null here is a
+  // different operation. Spelled out field by field, independently of the use
+  // case's own builders.
+  it('claims exactly this identity, binding and request fingerprint for a fixed input', async () => {
+    const harness = createHarness()
+
+    await expect(harness.generate(INPUT)).resolves.toMatchObject({ status: 'ready' })
+
+    const identity = {
+      subjectKind: 'property',
+      command: 'reply',
+      capability: 'reply_drafting',
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      actorId: ACTOR_USER_ID,
+      systemPrincipal: null,
+      reviewId: REVIEW_ID,
+      sourceEpoch: 2,
+      sourceRevision: 5,
+      tone: 'professional',
+      reviewedAtEpochMillis: NOW - 1_000,
+      baseReplyStateRevision: 3,
+    }
+    const binding = {
+      authorizationLineageId: LINEAGE_ID,
+      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+      noticeDigest: SHA,
+      capabilityFence: {
+        capability: 'reply_drafting',
+        replyDraftingEpoch: 7,
+        baseReplyStateRevision: 3,
+      },
+      sourceEpoch: 2,
+      evaluatedLanguage: 'en-Latn',
+      concreteReplyLanguage: parseCanonicalReplyLanguageTag('en-Latn'),
+      languageCatalogueDigest: LANGUAGE_CATALOGUE_DIGEST,
+      replyLanguageVerifierDigest: AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST,
+      languageScriptConsistencyDigest: AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST,
+      zhOrthographyVerifierDigest: AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST,
+      sourceRevision: 5,
+      reviewedAtEpochMillis: NOW - 1_000,
+      propertyProfileVersion: 3,
+      replyBrandProfileVersion: 7,
+      replyBrandDisplayNameDigest: BRAND_DISPLAY_NAME_DIGEST,
+      routingPolicyVersion: 1,
+      sourcePolicyId: AI_SOURCE_CANONICALIZER_PROFILE_V1.sourcePolicyId,
+      sourceCanonicalizerDigest:
+        AI_SOURCE_CANONICALIZER_PROFILE_V1.sourceCanonicalizerDigest,
+      redactionProfileVersion: 'gbp-review-global-v1',
+      outputLeakageProfileVersion: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
+      outputLeakageProfileDigest: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
+      replyTemplateCatalogueVersion: AI_REPLY_TEMPLATE_CATALOGUE_VERSION,
+      replyTemplateCatalogueDigest: AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
+      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      operationProfileVersion: 'reply-suggestion-v1',
+      capabilityRuntimeProfileVersion: 'reply-drafting-runtime-v1',
+      aiSubjectHmacKeyVersion: null,
+      stopFence: {
+        globalControlId: '72000000-0000-4000-8000-000000000111',
+        globalGeneration: 1,
+        providerControlId: '72000000-0000-4000-8000-000000000112',
+        providerGeneration: 1,
+        capabilityControlId: '72000000-0000-4000-8000-000000000113',
+        capabilityGeneration: 1,
+      },
+    }
+    const sourceProvenance = aiReviewSourceProvenance(
+      encodeCanonicalAiReviewSource({
+        text: 'A thoughtful review.',
+        rating: 5,
+        languageCode: 'en-US',
+        reviewedAtEpochMillis: NOW - 1_000,
+      }).bytes,
+    )
+    const request = harness.mocks.claim.mock.calls[0]?.[0]
+    expect(request?.identity).toStrictEqual(identity)
+    expect(request?.binding).toStrictEqual(binding)
+    expect(request?.sourceProvenance).toStrictEqual(sourceProvenance)
+    expect(request?.requestFingerprint).toBe(
+      aiRequestFingerprint({ identity, binding, sourceProvenance }),
+    )
+    expect(request?.idempotencyKey).toBe('reply-suggestion-test-key')
+    expect(request?.expiresAtEpochMillis).toBe(NOW + 15 * 60_000)
   })
 })
