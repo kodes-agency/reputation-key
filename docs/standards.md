@@ -344,7 +344,7 @@ Co-located context files in the source tree:
 
 ## Related
 
-- ADR 0010: Activity Context BullMQ Delivery
+- ADR 0056: Operational Action History integrity claims (§ Merged from ADR 0010 — outbox-backed Recent Activity delivery)
 - Events master union: `src/shared/events/events.ts`
 - Outbox commit + delivery: `src/shared/outbox/commit.ts`, `src/shared/outbox/relay.ts`, `src/shared/outbox/dispatcher.ts`
 - Layer guide: `src/contexts/CONTEXT.md`
