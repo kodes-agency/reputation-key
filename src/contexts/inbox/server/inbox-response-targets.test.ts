@@ -9,7 +9,7 @@
 // therefore on the arguments forwarded to the use case and on the errors that
 // do propagate; DTO parsing is covered directly in inbox-server.test.ts.
 
-import { AsyncLocalStorage } from 'node:async_hooks'
+import { withStartContext } from '#/shared/testing/tanstack-start-als'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -51,13 +51,6 @@ import {
   getResponseTargetPolicySettingsFn,
   setResponseTargetPolicyFn,
 } from './inbox-response-targets'
-
-const START_KEY = Symbol.for('tanstack-start:start-storage-context')
-function withStartContext<T>(fn: () => Promise<T>): Promise<T> {
-  const global = globalThis as Record<symbol, AsyncLocalStorage<unknown> | undefined>
-  global[START_KEY] ??= new AsyncLocalStorage()
-  return global[START_KEY].run({ startOptions: {} }, fn)
-}
 
 const PROPERTY_ID = '750e8400-e29b-41d4-a716-446655440000'
 

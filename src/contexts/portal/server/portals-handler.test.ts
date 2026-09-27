@@ -3,22 +3,8 @@
 // Verifies the full chain: input → auth resolution → use case → return.
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { AsyncLocalStorage } from 'node:async_hooks'
+import { withStartContext } from '#/shared/testing/tanstack-start-als'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
-
-// ── TanStack Start context setup ──────────────────────────────────
-// createServerFn's middleware chain reads startOptions from a global ALS.
-// In tests (no server runtime), we must seed it before invoking handlers.
-const START_KEY = Symbol.for('tanstack-start:start-storage-context')
-function ensureStartALS(): AsyncLocalStorage<unknown> {
-  const g = globalThis as Record<symbol, AsyncLocalStorage<unknown> | undefined>
-  if (!g[START_KEY]) g[START_KEY] = new AsyncLocalStorage()
-  return g[START_KEY]!
-}
-/** Wraps a server-fn call so the TanStack Start middleware chain can read startOptions. */
-function withStartContext<T>(fn: () => Promise<T>): Promise<T> {
-  return ensureStartALS().run({ startOptions: {} }, fn)
-}
 
 // Stable mock functions so we can control return values per-test.
 const mocks = vi.hoisted(() => ({

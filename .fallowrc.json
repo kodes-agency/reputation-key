@@ -20,14 +20,40 @@
     "scripts/generate-ai-unicode-case-folding.ts",
     "scripts/generate-ai-zh-orthography-table.ts",
     "scripts/seed-demo-reviews.ts",
-    "scripts/ops/bootstrap-owner.ts",
-    "scripts/ops/triage-beta-feedback.ts",
-    "scripts/ops/feedback-issue.ts",
-    "scripts/ops/feedback-sync.ts",
-    "scripts/ops/feedback-layout.ts",
+    "scripts/adr-index.mjs",
     "scripts/test-db-setup.ts",
     "vite.config.ts",
     "drizzle.config.ts"
+  ],
+  "dynamicallyLoaded": [
+    "server/plugins/*.ts",
+    "scripts/ops/ai-approve-enrollment.ts",
+    "scripts/ops/ai-execution-control.ts",
+    "scripts/ops/bootstrap-owner.ts",
+    "scripts/ops/deploy-ci-images.ts",
+    "scripts/ops/disconnect-connection.ts",
+    "scripts/ops/enqueue-purge.ts",
+    "scripts/ops/enqueue-refresh.ts",
+    "scripts/ops/feedback-issue.ts",
+    "scripts/ops/feedback-layout.ts",
+    "scripts/ops/feedback-sync.ts",
+    "scripts/ops/gbp-subscribe.ts",
+    "scripts/ops/inspect-decision.ts",
+    "scripts/ops/permit-start-deadline-backfill.ts",
+    "scripts/ops/privacy-request.ts",
+    "scripts/ops/property-erase.ts",
+    "scripts/ops/provision-google-admission-role.ts",
+    "scripts/ops/quarantine-redrive.ts",
+    "scripts/ops/queue-quarantine.ts",
+    "scripts/ops/rebuild-metric-projection.ts",
+    "scripts/ops/rebuild-projection.ts",
+    "scripts/ops/recover-recent-activity.ts",
+    "scripts/ops/repair-partial-offboarding.ts",
+    "scripts/ops/reparse-review-translations.ts",
+    "scripts/ops/report-organization-lifecycle.ts",
+    "scripts/ops/restore-preflight.ts",
+    "scripts/ops/restore-verify.ts",
+    "scripts/ops/triage-beta-feedback.ts"
   ],
   "ignorePatterns": [
     "src/routeTree.gen.ts",
@@ -68,15 +94,7 @@
       "exports": ["INBOX_ESCALATION_HISTORY_KINDS"]
     },
     {
-      "file": "src/contexts/inbox/infrastructure/repositories/inbox-handling-cutover.repository.ts",
-      "exports": ["INBOX_CUTOVER_OUTCOME_ELIGIBILITIES", "INBOX_CUTOVER_TARGET_STATES"]
-    },
-    {
       "file": "src/contexts/integration/application/google-provider-contract.ts",
-      "exports": ["GOOGLE_PROVIDER_ROUTE_CATALOG_VERSION"]
-    },
-    {
-      "file": "src/contexts/integration/application/public-api.ts",
       "exports": ["GOOGLE_PROVIDER_ROUTE_CATALOG_VERSION"]
     },
     {
@@ -90,13 +108,6 @@
     {
       "file": "src/shared/ai-property-trend-contract.ts",
       "exports": ["encodeCanonicalAiPropertyTrendSource"]
-    },
-    {
-      "file": "src/shared/db/schema/context-organization-lifecycle-receipts.schema.ts",
-      "exports": [
-        "CONTEXT_LIFECYCLE_RECEIPT_OUTCOMES",
-        "CONTEXT_LIFECYCLE_RECEIPT_PHASES"
-      ]
     },
     {
       "file": "src/shared/testing/inbox-replay-fixtures.ts",
@@ -140,24 +151,13 @@
         "GOOGLE_PERFORMANCE_ERROR_CODES",
         "PROPERTY_PERFORMANCE_PRESETS",
         "goalMonthlyResultClosed",
-        "goalMonthlyResultReconciled",
-        "goalMonthlyResultRevised",
         "isGooglePerformanceErrorCode",
         "isPropertyPerformancePreset"
       ]
     },
     {
       "file": "src/contexts/guest/application/public-api.ts",
-      "exports": [
-        "guestFeedbackRetracted",
-        "guestQualifiedScanRecorded",
-        "guestQualifiedScanRetracted",
-        "guestRatingRetracted"
-      ]
-    },
-    {
-      "file": "src/contexts/identity/application/public-api.ts",
-      "exports": ["identityOrganizationLifecycleChanged"]
+      "exports": ["guestFeedbackRetracted"]
     },
     {
       "file": "src/contexts/identity/server/organizations.query.ts",
@@ -166,24 +166,6 @@
     {
       "file": "src/contexts/identity/server/organizations.registration.ts",
       "exports": ["setActiveOrganization"]
-    },
-    {
-      "file": "src/contexts/inbox/application/inbox-handling-cutover.ts",
-      "exports": [
-        "INBOX_HANDLING_CUTOVER_REPORT_VERSION",
-        "INBOX_LEGACY_CLASSIFICATIONS",
-        "INBOX_LEGACY_REASON_CODES"
-      ]
-    },
-    {
-      "file": "src/contexts/inbox/application/public-api.ts",
-      "exports": [
-        "INBOX_HANDLING_CUTOVER_REPORT_VERSION",
-        "INBOX_HISTORY_KINDS",
-        "INBOX_LEGACY_CLASSIFICATIONS",
-        "INBOX_LEGACY_REASON_CODES",
-        "classifyInboxLegacyRelationship"
-      ]
     },
     {
       "file": "src/contexts/inbox/domain/handling-history.ts",
@@ -195,19 +177,7 @@
     },
     {
       "file": "src/contexts/integration/application/public-api.ts",
-      "exports": [
-        "GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION",
-        "GOOGLE_REPLY_PUBLICATION_SYSTEM_PERMISSION_DIGEST",
-        "GOOGLE_REPLY_PUBLICATION_SYSTEM_PRINCIPAL",
-        "GOOGLE_REVIEW_SYNC_SYSTEM_PERMISSION_DIGEST",
-        "GOOGLE_REVIEW_SYNC_SYSTEM_PRINCIPAL",
-        "createGoogleReplyPublicationAuthorizer",
-        "createGoogleReviewSyncAuthorizer"
-      ]
-    },
-    {
-      "file": "src/contexts/feed/application/public-api.ts",
-      "exports": ["NOTIFICATION_CATEGORIES", "notificationScopeForType"]
+      "exports": ["GOOGLE_PROVIDER_ROUTE_CATALOGUE_VERSION"]
     },
     {
       "file": "src/contexts/portal/server/portals.ts",
@@ -219,16 +189,7 @@
     },
     {
       "file": "src/contexts/review/application/public-api.ts",
-      "exports": [
-        "GOOGLE_PROPERTY_IMPORT_SYNC_INITIATOR_ID",
-        "reviewGoogleReputationSnapshotVerified",
-        "reviewReplyObserved",
-        "reviewReplyPublicationRequested"
-      ]
-    },
-    {
-      "file": "src/contexts/identity/infrastructure/adapters/staff-organization-lifecycle.adapter.ts",
-      "exports": ["STAFF_PURGE_ORDER_NOTE"]
+      "exports": ["reviewReplyPublicationRequested"]
     },
     {
       "file": "src/shared/db/schema/property-erase.schema.ts",
@@ -277,10 +238,6 @@
       "exports": ["isActivityError", "isLeaderboardError", "isMetricError"]
     },
     {
-      "file": "src/contexts/feed/server/activity.ts",
-      "exports": ["getOrgActivityFn"]
-    },
-    {
       "file": "src/contexts/inbox/server/inbox-queries.ts",
       "exports": ["stampLastInboxViewFn"]
     },
@@ -294,7 +251,7 @@
     },
     {
       "file": "src/contexts/integration/server/google-connections.ts",
-      "exports": ["connectGoogle", "updateConnectionVisibility"]
+      "exports": ["updateConnectionVisibility"]
     },
     {
       "file": "src/contexts/property/server/properties.ts",
@@ -396,14 +353,6 @@
     "dev-dependencies-in-production": "off"
   },
   "overrides": [
-    {
-      "files": [
-        "src/contexts/portal/infrastructure/repositories/link-resolver.repository.ts"
-      ],
-      "rules": {
-        "unused-files": "off"
-      }
-    },
     {
       "files": [],
       "rules": {

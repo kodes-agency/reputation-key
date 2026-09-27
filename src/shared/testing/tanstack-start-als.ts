@@ -1,6 +1,7 @@
 // Test helper: invoke TanStack Start server functions outside a server runtime.
 // createServerFn's middleware chain reads startOptions from a global ALS
-// (see the server-fn handler invocation tests, e.g. goal/server/goals-handler.test.ts).
+// (see the server-fn handler invocation tests, e.g.
+// reporting/server/goal-programs.test.ts and the other *-handler.test.ts files).
 // In tests, seed the ALS before invoking the fn.
 import { AsyncLocalStorage } from 'node:async_hooks'
 
