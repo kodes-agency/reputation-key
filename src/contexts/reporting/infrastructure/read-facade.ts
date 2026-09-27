@@ -22,7 +22,7 @@
 
 import { and, count, eq, gte, gt, inArray, isNotNull, lt, or, sql } from 'drizzle-orm'
 import type { SQL } from 'drizzle-orm'
-import type { Database } from '#/shared/db'
+import type { Database, Tx } from '#/shared/db'
 import {
   metricCorrections,
   metricReadings,
@@ -309,14 +309,14 @@ function isPgStatementTimeout(err: unknown): boolean {
 export async function withStatementTimeout<T>(
   db: Database,
   budgetMs: number,
-  read: (tx: Database) => Promise<T>,
+  read: (tx: Tx) => Promise<T>,
 ): Promise<T> {
   try {
     return await db.transaction(async (tx) => {
       await tx.execute(
         sql`SELECT set_config('statement_timeout', ${String(budgetMs)}, true)`,
       )
-      return await read(tx as unknown as Database)
+      return await read(tx)
     })
   } catch (err) {
     if (isPgStatementTimeout(err)) {

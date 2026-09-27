@@ -2,7 +2,7 @@
 // skips `.validator()`, so these tests assert the gate, the scope forwarded to
 // the use case, and the errors that propagate.
 
-import { AsyncLocalStorage } from 'node:async_hooks'
+import { withStartContext } from '#/shared/testing/tanstack-start-als'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
@@ -40,13 +40,6 @@ vi.mock('#/shared/observability/traced-server-fn', () => ({
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { dashboardError } from '../domain/dashboard-errors'
 import { getPropertySetupFn, listPropertySetupSummariesFn } from './property-setup'
-
-const START_KEY = Symbol.for('tanstack-start:start-storage-context')
-function withStartContext<T>(fn: () => Promise<T>): Promise<T> {
-  const global = globalThis as Record<symbol, AsyncLocalStorage<unknown> | undefined>
-  global[START_KEY] ??= new AsyncLocalStorage()
-  return global[START_KEY].run({ startOptions: {} }, fn)
-}
 
 const ORG_ID = '00000000-0000-4000-8000-0000000000e1'
 const PROPERTY_ID = '00000000-0000-4000-8000-0000000000e2'

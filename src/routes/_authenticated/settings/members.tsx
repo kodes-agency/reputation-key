@@ -13,7 +13,10 @@ import { can } from '#/shared/domain/permissions'
 import { hasRole } from '#/shared/domain/roles'
 import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 import { PageHeader } from '#/components/layout/page-header'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import {
+  actionErrorMessage,
+  useActionMutation,
+} from '#/components/hooks/use-action-mutation'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
 import {
@@ -111,18 +114,27 @@ function MembersSettingsRoute() {
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
     onSuccess: async () => setInviteOpen(false),
   })
+  // The tables have no inline error surface, so these report a refusal (the
+  // resend rate limit, the last Account Admin) by toast. The invite form shows
+  // its own banner, so inviteMutation does not: that would report it twice.
   const updateRoleMutation = useActionMutation(updateMemberRole, {
     successMessage: 'Role updated',
+    errorMessage: actionErrorMessage,
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
   })
   const removeMemberMutation = useActionMutation(removeMember, {
     successMessage: 'Member removed',
+    errorMessage: actionErrorMessage,
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
   })
   const resendMutation = useActionMutation(resendInvitation, {
+    successMessage: 'Invitation resent',
+    errorMessage: actionErrorMessage,
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
   })
   const cancelMutation = useActionMutation(cancelInvitation, {
+    successMessage: 'Invitation cancelled',
+    errorMessage: actionErrorMessage,
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
   })
   // NOT useSuspenseQuery. The identity container installs a fail-closed

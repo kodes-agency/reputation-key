@@ -23,7 +23,6 @@ import type {
   PropertyId,
 } from '#/shared/domain/ids'
 import type { MetricKey } from '#/shared/domain/metric-keys'
-import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
 import { trace } from '#/shared/observability/trace'
 import type { AttributionQuality } from '../domain/attribution-quality'
@@ -50,7 +49,6 @@ export type RecordPortalMetricDeps = Readonly<{
     portalId: PortalId,
     asOf: Date,
   ) => Promise<{ portalGroupId: PortalGroupId } | null>
-  logger: Pick<LoggerPort, 'warn'>
 }>
 
 export type PortalMetricHandlerOptions<E extends PortalMetricEvent> = Readonly<{
@@ -66,35 +64,38 @@ export type PortalMetricHandlerOptions<E extends PortalMetricEvent> = Readonly<{
   sourceReceiptConsumer?: string
 }>
 
+/**
+ * The Portal's group as of occurredAt (ADR 0040). A null result is event-time
+ * truth: the Portal was in no group then. A lookup failure propagates so durable
+ * delivery retries the fact instead of storing a null group as permanent truth.
+ * Nothing is written before this point and the readings commit with their
+ * receipt atomically, so the retry is idempotent. (#306 degraded a failure to a
+ * null group while delivery was still in-process, with no retry to fall back on.)
+ */
+async function eventTimePortalGroup<E extends PortalMetricEvent>(
+  options: readonly PortalMetricHandlerOptions<E>[],
+  deps: RecordPortalMetricDeps,
+  event: E,
+): Promise<PortalGroupId | null> {
+  const capturedGroup = options[0]?.portalGroupId
+  if (capturedGroup) return capturedGroup(event)
+  if (!event.portalId) return null
+  const group = await deps.findGroupForPortal(
+    event.organizationId,
+    event.portalId,
+    event.occurredAt,
+  )
+  return group?.portalGroupId ?? null
+}
+
 async function recordPortalMetrics<E extends PortalMetricEvent>(
   options: readonly PortalMetricHandlerOptions<E>[],
   deps: RecordPortalMetricDeps,
   event: E,
 ): Promise<void> {
-  let portalGroupId: PortalGroupId | null = null
-  // Portal facts carry portalId, so tenant/Portal attribution is exact. Group
-  // membership is enrichment; lookup failure must not discard the reading.
+  // Portal facts carry portalId, so tenant/Portal attribution is exact.
   const attributionQuality: AttributionQuality = 'exact'
-  const capturedGroup = options[0]?.portalGroupId
-  if (capturedGroup) {
-    portalGroupId = capturedGroup(event)
-  } else if (event.portalId) {
-    try {
-      portalGroupId =
-        (
-          await deps.findGroupForPortal(
-            event.organizationId,
-            event.portalId,
-            event.occurredAt,
-          )
-        )?.portalGroupId ?? null
-    } catch (err) {
-      deps.logger.warn(
-        { err, event: event._tag, metricKeys: options.map((item) => item.metricKey) },
-        'metric: portal-group lookup failed — recording Portal metrics with a null group',
-      )
-    }
-  }
+  const portalGroupId = await eventTimePortalGroup(options, deps, event)
 
   const sourceReceiptConsumer = options[0]?.sourceReceiptConsumer
   if (options.some((option) => option.sourceReceiptConsumer !== sourceReceiptConsumer)) {

@@ -20,6 +20,7 @@
 import { sql, type SQL } from 'drizzle-orm'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import type { Database } from '#/shared/db'
+import { csvCell } from '#/shared/security/csv-cell'
 // Cross-context adapter implementing a foreign port — src/contexts/CONTEXT.md
 // "Dependency rules" permits infrastructure/adapters/** to reach application/ports/**.
 import type {
@@ -95,12 +96,6 @@ async function readRows(
   return normalizeRows(result.rows as Record<string, unknown>[])
 }
 
-function csvField(value: ExportScalar | undefined): string {
-  if (value === null || value === undefined) return ''
-  const text = String(value)
-  return /[",\r\n]/u.test(text) ? `"${text.replaceAll('"', '""')}"` : text
-}
-
 /**
  * One CSV per file group. The header is the ordered union of the declared
  * columns of every collection in that group, so a record that has no value for
@@ -116,7 +111,7 @@ function csvEntry(
     ['record_type', ...columns].join(','),
     ...collections.flatMap(({ recordType, records }) =>
       records.map((record) =>
-        [csvField(recordType), ...columns.map((column) => csvField(record[column]))].join(
+        [csvCell(recordType), ...columns.map((column) => csvCell(record[column]))].join(
           ',',
         ),
       ),

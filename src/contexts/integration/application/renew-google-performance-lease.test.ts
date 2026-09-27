@@ -104,3 +104,86 @@ describe('renew Google Performance authorization lease', () => {
     ).resolves.toEqual({ ok: false })
   })
 })
+
+// The browser only ever learns `{ ok: false }` (ADR 0050 clears the panel at
+// once), so the operator record is the only place a broken lease runtime can
+// show up. It carries no lease handle, principal digest or provider content.
+describe('renew Google Performance authorization lease: operator record', () => {
+  const renewWith = (
+    renew: Parameters<typeof createRenewGooglePerformanceLease>[0]['renew'],
+  ) => {
+    const logger = { warn: vi.fn() }
+    const service = createRenewGooglePerformanceLease({
+      authorize: vi.fn(async () => ({ ok: true as const, snapshot, accessToken: null })),
+      renew,
+      clock: () => new Date('2026-08-12T10:00:50.000Z'),
+      logger,
+    })
+    return {
+      logger,
+      run: () =>
+        service({ propertyId: snapshot.propertyId, leaseRef: lease.leaseRef, actor }),
+    }
+  }
+  const neverCarriesTheLease = (calls: ReadonlyArray<unknown>) => {
+    const recorded = JSON.stringify(calls)
+    expect(recorded).not.toContain(lease.leaseRef)
+    expect(recorded).not.toContain(snapshot.principalHmac)
+  }
+
+  it.each(['runtime_unavailable', 'malformed'] as const)(
+    'records a %s renewal, which means the lease runtime is broken',
+    async (code) => {
+      const test = renewWith(vi.fn(async () => ({ ok: false as const, code })))
+
+      await expect(test.run()).resolves.toEqual({ ok: false })
+      expect(test.logger.warn).toHaveBeenCalledOnce()
+      expect(test.logger.warn).toHaveBeenCalledWith(
+        { surface: 'google-performance', stage: 'renew_lease', code },
+        'Google performance lease renewal failed',
+      )
+      neverCarriesTheLease(test.logger.warn.mock.calls)
+    },
+  )
+
+  it('records a renewal that threw with the error name and message only', async () => {
+    const test = renewWith(
+      vi.fn(async () => {
+        throw new TypeError('lease store connection closed')
+      }),
+    )
+
+    await expect(test.run()).resolves.toEqual({ ok: false })
+    expect(test.logger.warn).toHaveBeenCalledOnce()
+    expect(test.logger.warn).toHaveBeenCalledWith(
+      {
+        surface: 'google-performance',
+        stage: 'renew_lease',
+        err: { name: 'TypeError', message: 'lease store connection closed' },
+      },
+      'Google performance lease renewal failed',
+    )
+    neverCarriesTheLease(test.logger.warn.mock.calls)
+  })
+
+  it.each([
+    'expired',
+    'not_found',
+    'principal_mismatch',
+    'authorization_denied',
+    'authorization_changed',
+    'concurrent_update',
+  ] as const)('says nothing for an expected %s refusal', async (code) => {
+    const test = renewWith(vi.fn(async () => ({ ok: false as const, code })))
+
+    await expect(test.run()).resolves.toEqual({ ok: false })
+    expect(test.logger.warn).not.toHaveBeenCalled()
+  })
+
+  it('says nothing for a renewed lease', async () => {
+    const test = renewWith(vi.fn(async () => ({ ok: true as const, lease })))
+
+    await expect(test.run()).resolves.toEqual({ ok: true, lease })
+    expect(test.logger.warn).not.toHaveBeenCalled()
+  })
+})

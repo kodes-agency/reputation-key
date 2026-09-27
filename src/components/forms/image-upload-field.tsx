@@ -68,9 +68,23 @@ export function ImageUploadField({
 
   return (
     <div className="flex flex-col gap-2">
+      {/* The file input is the field's one keyboard stop; the surfaces after it
+          are mouse and drag conveniences. It is visually hidden, so it comes
+          first as the `peer` whose focus rings the surface. Outside the
+          surfaces, it stays mounted (and focused) when an upload swaps the
+          empty circle for the preview. */}
+      <input
+        ref={fileInputRef}
+        aria-label="Upload image"
+        type="file"
+        accept={acceptedTypes.join(',')}
+        className="peer sr-only"
+        onChange={handleFileInputChange}
+        disabled={disabled || uploading}
+      />
       {variant === 'circle' && imageUrl ? (
         <div
-          className="relative size-24 mx-auto cursor-pointer group"
+          className="relative size-24 mx-auto cursor-pointer group rounded-md peer-focus-visible:ring-[3px] peer-focus-visible:ring-ring/50"
           onClick={handleClick}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
@@ -112,16 +126,6 @@ export function ImageUploadField({
           onRemove={handleRemove}
         />
       )}
-
-      <input
-        ref={fileInputRef}
-        aria-label="Upload image"
-        type="file"
-        accept={acceptedTypes.join(',')}
-        className="sr-only"
-        onChange={handleFileInputChange}
-        disabled={disabled || uploading}
-      />
     </div>
   )
 }

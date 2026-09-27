@@ -1740,14 +1740,15 @@ export async function enqueueReviewSync(data: {
 
 /** A queued publish-reply job, optionally delayed (deterministic "queued
  * protected work" for the disconnect test — the delay guarantees the job is
- * still waiting when the disconnect lands). */
+ * still waiting when the disconnect lands). The id lets the spec promote the
+ * job and wait for it to settle instead of sleeping past the delay. */
 export async function enqueuePublishReply(data: {
   replyId: string
   organizationId: string
   initiatorUserId: string
   delayMs?: number
-}): Promise<void> {
-  await fixtureQueue('default').add(
+}): Promise<{ jobId: string }> {
+  const job = await fixtureQueue('default').add(
     'publish-reply',
     {
       replyId: data.replyId,
@@ -1758,6 +1759,46 @@ export async function enqueuePublishReply(data: {
       delay: data.delayMs ?? 0,
       removeOnComplete: { count: 100 },
       removeOnFail: { count: 50 },
+    },
+  )
+  if (!job.id) throw new Error('publish-reply fixture job was enqueued without an id')
+  return { jobId: job.id }
+}
+
+/** Move a delayed fixture job to waiting, so the worker takes it now. */
+export async function promoteFixtureJob(name: string, jobId: string): Promise<void> {
+  const job = await fixtureQueue(name).getJob(jobId)
+  if (!job) throw new Error(`fixture job ${jobId} is not on the ${name} queue`)
+  await job.promote()
+}
+
+/**
+ * Wait until the worker has settled a fixture job. BullMQ stamps `finishedOn`
+ * only on completion or on a failure with no attempts left, so a job waiting
+ * out a retry backoff is not settled yet.
+ */
+export async function waitForFixtureJobSettled(
+  name: string,
+  jobId: string,
+  description: string,
+): Promise<void> {
+  const queue = fixtureQueue(name)
+  await waitFor(
+    async () => {
+      const job = await queue.getJob(jobId)
+      return job?.finishedOn ? job : null
+    },
+    {
+      description,
+      diagnose: async () => {
+        const job = await queue.getJob(jobId)
+        if (!job) return { state: 'missing' }
+        return {
+          state: await job.getState(),
+          attemptsMade: job.attemptsMade,
+          failedReason: job.failedReason,
+        }
+      },
     },
   )
 }

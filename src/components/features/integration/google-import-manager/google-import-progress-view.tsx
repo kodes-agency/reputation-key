@@ -14,6 +14,7 @@ import {
   CollapsibleTrigger,
 } from '#/components/ui/collapsible'
 import { StatCard } from '#/components/features/shared/stat-card'
+import { useHydrated } from '#/components/hooks/use-hydrated'
 import { GoogleImportProgressItems } from './google-import-progress-items'
 import {
   importProgressPercent,
@@ -167,6 +168,11 @@ export function GoogleImportProgressView({
 function ImportProgressMeter({ progress }: Readonly<{ progress: ImportProgressDto }>) {
   const percent = importProgressPercent(progress)
   const queued = progress.status === 'queued'
+  // The viewer's clock exists only in the browser. Printed on the server, the
+  // time came out in the container's zone and hydration printed the viewer's,
+  // which React rejects as a mismatch (#418); so it joins the caption once
+  // hydrated, and a client-side visit shows it from the first render.
+  const hydrated = useHydrated()
   return (
     <div>
       <div
@@ -194,8 +200,9 @@ function ImportProgressMeter({ progress }: Readonly<{ progress: ImportProgressDt
         {queued
           ? 'Queued · the import worker picks this up within seconds'
           : `${percent}% complete`}
-        {' · Last updated '}
-        {new Date(progress.updatedAt).toLocaleTimeString()}
+        {hydrated
+          ? ` · Last updated ${new Date(progress.updatedAt).toLocaleTimeString()}`
+          : null}
       </p>
     </div>
   )

@@ -28,6 +28,7 @@ export type PortalMetricAttribution = Readonly<{
 
 export type PortalWorkflowMetricDeps = Readonly<{
   recordMetric: RecordMetric
+  /** Null when the Portal is missing or attributed elsewhere; throws on lookup failure. */
   resolveAttribution: (
     organizationId: OrganizationId,
     portalId: PortalId,
@@ -59,9 +60,13 @@ async function buildCommonInput(
     | 'sourceReceipt'
   >
 > {
-  const resolved = await deps
-    .resolveAttribution(event.organizationId, event.portalId, event.occurredAt)
-    .catch(() => null)
+  // A lookup failure propagates so durable delivery retries the fact (ADR 0040);
+  // only a resolved attribution that disagrees with the event is unresolved.
+  const resolved = await deps.resolveAttribution(
+    event.organizationId,
+    event.portalId,
+    event.occurredAt,
+  )
 
   const exact =
     resolved !== null &&

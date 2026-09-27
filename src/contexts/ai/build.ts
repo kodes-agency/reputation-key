@@ -1,4 +1,5 @@
 import type { OrganizationId } from '#/shared/domain/ids'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { Database } from '#/shared/db'
 import type { Redis } from 'ioredis'
 import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
@@ -104,6 +105,11 @@ export type AiContextBuildInput = Readonly<{
   enqueuePropertyTrend?: RegisterAiConsumersInput['enqueuePropertyTrend']
   /** Hands one waiting review to the worker's on-demand analysis job. */
   enqueueReviewAnalysisNow?: RequestReviewAnalysisNowDependencies['enqueueReviewAnalysisNow']
+  /**
+   * Records Review Analysis backlog entries whose attempt threw. Optional so
+   * existing constructions keep working; without it the drain says nothing.
+   */
+  logger?: Pick<LoggerPort, 'warn'>
   idGen: () => string
   nowEpochMillis: () => number
 }>
@@ -177,6 +183,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     backlog,
     analyzeReviewEvent,
     nowEpochMillis,
+    logger: input.logger,
   })
   const readReviewAnalysisProgress = createReadReviewAnalysisProgress({
     authorization,

@@ -1,6 +1,7 @@
 import { sql, type SQL } from 'drizzle-orm'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import type { Database } from '#/shared/db'
+import { csvCell } from '#/shared/security/csv-cell'
 // Identity's own contributor implements the same port the sixteen foreign
 // contributors implement, so this file stays the reference shape for them.
 import type {
@@ -79,12 +80,6 @@ async function readRows(
   return normalizeRows(result.rows as Record<string, unknown>[])
 }
 
-function csvField(value: ExportScalar | undefined): string {
-  if (value === null || value === undefined) return ''
-  const text = String(value)
-  return /[",\r\n]/u.test(text) ? `"${text.replaceAll('"', '""')}"` : text
-}
-
 function csvSummary(type: string, record: ExportRecord): readonly ExportScalar[] {
   const id =
     record.id ??
@@ -138,7 +133,7 @@ function csvEntry(payload: IdentityOrganizationExportPayload): OrganizationExpor
   const lines = [
     header.join(','),
     ...collections.flatMap(([type, records]) =>
-      records.map((record) => csvSummary(type, record).map(csvField).join(',')),
+      records.map((record) => csvSummary(type, record).map(csvCell).join(',')),
     ),
   ]
   return {

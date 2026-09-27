@@ -8,8 +8,10 @@ import {
   AuthedRouterDecorator,
   withRole,
 } from '../../../../.storybook/AuthedRouterDecorator'
+import type { Action } from '#/components/hooks/use-action'
 import { MERCHANT_AI_NOTICE } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import type { MerchantAiSnapshot } from '#/contexts/identity/application/public-api'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import {
   AI_CONSENT_ACKNOWLEDGEMENT,
   consentToAi,
@@ -83,14 +85,37 @@ const SERVED_NOTICE = {
 }
 // Anchored: the trends description itself mentions review analysis.
 const CAPABILITY_LABELS = [/^review analysis/i, /^reply drafting/i, /^property trends/i]
-// What the server says when the notice changed between reading and consenting.
+// What the server says when the notice changed between reading and consenting:
+// a 409 refusal, whose sentence the section shows as written.
 const NOTICE_CHANGED =
   'The AI data-use notice changed. Reload it, review it, and confirm again.'
+
+/**
+ * The route hands the commands down as useActionMutation Actions: callable, with
+ * the mutation's own state beside. The wrapper calls through to the spy, so a
+ * story still reads what was sent, and never marks the spy itself in flight.
+ */
+function asAction<TInput>(
+  run: (input: TInput) => Promise<MerchantAiSnapshot>,
+  state: Readonly<{ isPending?: boolean }> = {},
+): Action<TInput, MerchantAiSnapshot> {
+  return Object.assign((input: TInput) => run(input), {
+    isPending: state.isPending ?? false,
+    error: null,
+    isSuccess: false,
+    data: null,
+  })
+}
 
 const enableAction = fn(async (_input: { data: { acknowledgement: unknown } }) => enabled)
 const refusedEnableAction = fn(
   async (_input: { data: { acknowledgement: unknown } }): Promise<MerchantAiSnapshot> => {
-    throw new Error(NOTICE_CHANGED)
+    throw new ServerFunctionError(
+      'MerchantAiAuthorizationError',
+      NOTICE_CHANGED,
+      'notice_mismatch',
+      409,
+    )
   },
 )
 const changeAction = fn(async (input: ChangeActionInput) => ({
@@ -110,7 +135,6 @@ const revokeAction = fn(async (_input: { data: Record<string, unknown> }) => ({
   },
   stateVersion: enabled.stateVersion + 1,
 }))
-const changedAction = fn((_snapshot: MerchantAiSnapshot) => undefined)
 
 const meta = {
   title: 'Settings/MerchantAiPropertyAuthorization',
@@ -128,10 +152,9 @@ const meta = {
   args: {
     property,
     notice: MERCHANT_AI_NOTICE,
-    enable: enableAction,
-    change: changeAction,
-    revoke: revokeAction,
-    onChanged: changedAction,
+    enable: asAction(enableAction),
+    change: asAction(changeAction),
+    revoke: asAction(revokeAction),
   },
 } satisfies Meta<typeof MerchantAiPropertyAuthorization>
 
@@ -142,7 +165,6 @@ export const AwaitingConsent: Story = {
   args: { snapshot: disabled },
   play: async ({ canvasElement }) => {
     enableAction.mockClear()
-    changedAction.mockClear()
     const canvas = within(canvasElement)
     await expect(canvas.queryByLabelText(/password/i)).not.toBeInTheDocument()
     await expect(
@@ -155,8 +177,6 @@ export const AwaitingConsent: Story = {
     // Consent names the notice that was on screen, not a password.
     expect(enableAction.mock.calls[0]?.[0].data.acknowledgement).toEqual(SERVED_NOTICE)
     expect(await canvas.findByText('On')).toBeInTheDocument()
-    // The surrounding section hears about the accepted command and refreshes.
-    expect(changedAction).toHaveBeenCalledWith(enabled)
     // The next consent is acknowledged afresh.
     expect(
       canvas.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
@@ -164,13 +184,12 @@ export const AwaitingConsent: Story = {
   },
 }
 
-// A refused consent says why, leaves AI off and asks for the acknowledgement
-// again; nothing tells the surrounding section that anything changed.
+// A refused consent says why, in the server's words, leaves AI off and asks for
+// the acknowledgement again.
 export const ConsentRefused: Story = {
-  args: { snapshot: disabled, enable: refusedEnableAction },
+  args: { snapshot: disabled, enable: asAction(refusedEnableAction) },
   play: async ({ canvasElement }) => {
     refusedEnableAction.mockClear()
-    changedAction.mockClear()
     const canvas = within(canvasElement)
     await consentToAi(canvasElement)
     await waitFor(() => expect(refusedEnableAction).toHaveBeenCalledOnce())
@@ -180,7 +199,24 @@ export const ConsentRefused: Story = {
       canvas.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
     ).not.toBeChecked()
     expect(canvas.getByRole('button', { name: /^enable ai features$/i })).toBeDisabled()
-    expect(changedAction).not.toHaveBeenCalled()
+  },
+}
+
+// The route owns the commands and reports them in flight: while one runs,
+// nothing can be consented to, re-selected or turned off a second time.
+export const CommandInFlight: Story = {
+  args: { snapshot: enabled, revoke: asAction(revokeAction, { isPending: true }) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByRole('button', { name: /turn off ai features/i }),
+    ).toBeDisabled()
+    await expect(
+      canvas.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
+    ).toBeDisabled()
+    for (const label of CAPABILITY_LABELS) {
+      await expect(canvas.getByRole('checkbox', { name: label })).toBeDisabled()
+    }
   },
 }
 

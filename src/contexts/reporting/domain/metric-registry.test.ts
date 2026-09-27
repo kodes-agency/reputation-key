@@ -8,6 +8,7 @@ import {
   isScopeAllowed,
   evaluateInsufficientData,
   isGamificationViolation,
+  METRIC_DEFINITIONS,
 } from './metric-registry'
 
 function makeVersion(
@@ -182,6 +183,19 @@ describe('MetricRegistry', () => {
         permittedConsumers: ['dashboard', 'goal'],
       })
       expect(isGamificationViolation(v)).toBe(false)
+    })
+  })
+
+  describe('catalogue', () => {
+    it('permits no retired consumer on any version', () => {
+      // Badge and Leaderboard are retired contexts (root CONTEXT.md). Re-admitting
+      // either as a metric consumer needs its own review, not a re-seed of old data.
+      const retired: readonly string[] = ['badge', 'leaderboard']
+      const permitted = METRIC_DEFINITIONS.flatMap(({ versions }) =>
+        versions.flatMap((version) => version.permittedConsumers),
+      )
+
+      expect(permitted.filter((consumer) => retired.includes(consumer))).toEqual([])
     })
   })
 })

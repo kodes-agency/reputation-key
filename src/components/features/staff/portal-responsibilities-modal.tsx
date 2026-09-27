@@ -132,7 +132,9 @@ export function PortalResponsibilitiesModal({
             Cancel
           </Button>
           <Button
-            onClick={handleSave}
+            // A refusal stays in the banner with the dialog open (handleSave
+            // closes only on success); settling keeps it from escaping the click.
+            onClick={() => void handleSave().catch(() => undefined)}
             disabled={!primaryPortalId || !hasChanges || updateAction.isPending}
           >
             {updateAction.isPending ? 'Saving…' : 'Save responsibilities'}

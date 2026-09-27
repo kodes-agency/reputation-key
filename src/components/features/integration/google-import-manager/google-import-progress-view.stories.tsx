@@ -249,6 +249,8 @@ export const Processing: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '50')
+    // The browser has the viewer's clock, so the caption carries the time.
+    await expect(canvas.getByText(/50% complete · Last updated/)).toBeVisible()
     const retries = canvas.getAllByRole('button', { name: /retry/i })
     await userEvent.click(retries[0]!)
     await expect(canvas.getByRole('status')).toHaveTextContent(/retry requested/i)

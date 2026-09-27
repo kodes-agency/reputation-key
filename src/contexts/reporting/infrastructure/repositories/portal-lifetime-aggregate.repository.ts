@@ -270,10 +270,9 @@ export const createPortalLifetimeAggregateRepository = (
   async inspect(scope) {
     return trace('metric.portalLifetime.inspect', async () =>
       db.transaction(async (tx) => {
-        const database = tx as unknown as Database
-        await lockPortalLifetimeAggregate(database, scope)
-        const current = await readPortalLifetimeAggregateForUpdate(database, scope)
-        const retained = await readEffectiveValues(database, scope, {
+        await lockPortalLifetimeAggregate(tx, scope)
+        const current = await readPortalLifetimeAggregateForUpdate(tx, scope)
+        const retained = await readEffectiveValues(tx, scope, {
           fromLocalDate: current.sealedThroughLocalDate,
           toLocalDate: null,
         })
@@ -293,10 +292,9 @@ export const createPortalLifetimeAggregateRepository = (
   async rebuild(scope) {
     return trace('metric.portalLifetime.rebuild', async () =>
       db.transaction(async (tx) => {
-        const database = tx as unknown as Database
-        await lockPortalLifetimeAggregate(database, scope)
-        const before = await readPortalLifetimeAggregateForUpdate(database, scope)
-        const retained = await readEffectiveValues(database, scope, {
+        await lockPortalLifetimeAggregate(tx, scope)
+        const before = await readPortalLifetimeAggregateForUpdate(tx, scope)
+        const retained = await readEffectiveValues(tx, scope, {
           fromLocalDate: before.sealedThroughLocalDate,
           toLocalDate: null,
         })
@@ -311,7 +309,7 @@ export const createPortalLifetimeAggregateRepository = (
           projectionRevision: before.projectionRevision + 1,
           lastRebuiltAt: at,
         }
-        await writePortalLifetimeAggregate(database, scope, after, {
+        await writePortalLifetimeAggregate(tx, scope, after, {
           lastRebuiltAt: at,
         })
         return reconciliation(scope, before, after)
@@ -325,9 +323,8 @@ export const createPortalLifetimeAggregateRepository = (
     }
     return trace('metric.portalLifetime.sealThrough', async () =>
       db.transaction(async (tx) => {
-        const database = tx as unknown as Database
-        await lockPortalLifetimeAggregate(database, scope)
-        const before = await readPortalLifetimeAggregateForUpdate(database, scope)
+        await lockPortalLifetimeAggregate(tx, scope)
+        const before = await readPortalLifetimeAggregateForUpdate(tx, scope)
         if (
           before.sealedThroughLocalDate !== null &&
           throughLocalDate < before.sealedThroughLocalDate
@@ -337,7 +334,7 @@ export const createPortalLifetimeAggregateRepository = (
         const newlySealed =
           throughLocalDate === before.sealedThroughLocalDate
             ? emptyPortalLifetimeValues()
-            : await readEffectiveValues(database, scope, {
+            : await readEffectiveValues(tx, scope, {
                 fromLocalDate: before.sealedThroughLocalDate,
                 toLocalDate: throughLocalDate,
               })
@@ -345,7 +342,7 @@ export const createPortalLifetimeAggregateRepository = (
           before.sealedValues,
           newlySealed,
         )
-        const retained = await readEffectiveValues(database, scope, {
+        const retained = await readEffectiveValues(tx, scope, {
           fromLocalDate: throughLocalDate,
           toLocalDate: null,
         })
@@ -358,7 +355,7 @@ export const createPortalLifetimeAggregateRepository = (
           lastRebuiltAt: at,
           lastSealedAt: at,
         }
-        await writePortalLifetimeAggregate(database, scope, after, {
+        await writePortalLifetimeAggregate(tx, scope, after, {
           lastRebuiltAt: at,
           lastSealedAt: at,
         })

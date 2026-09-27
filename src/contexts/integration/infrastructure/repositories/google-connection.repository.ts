@@ -112,36 +112,6 @@ export const createGoogleConnectionRepository = (
     })
   },
 
-  updateTokensAndStatus: async (
-    orgId,
-    id,
-    accessToken,
-    refreshToken,
-    expiresAt,
-    status,
-  ) => {
-    return trace('googleConnection.updateTokensAndStatus', async () => {
-      await db
-        .update(googleConnections)
-        .set({
-          encryptedAccessToken: accessToken,
-          encryptedRefreshToken: refreshToken,
-          tokenExpiresAt: expiresAt,
-          status,
-          credentialGeneration: sql`${googleConnections.credentialGeneration} + 1`,
-          accessVersion: sql`${googleConnections.accessVersion} + 1`,
-          updatedAt: clock(),
-        })
-        .where(
-          and(
-            eq(googleConnections.organizationId, orgId),
-            eq(googleConnections.id, id),
-            eq(googleConnections.credentialUseState, 'active'),
-          ),
-        )
-    })
-  },
-
   updateStatus: async (orgId, id, status) => {
     return trace('googleConnection.updateStatus', async () => {
       await db

@@ -286,53 +286,56 @@ silently lost.
 
 ### GitHub merge and production-environment controls
 
-**Re-verified 2026-08-21 against the live API: `main` has NO branch protection.**
+**Read back 2026-09-27 22:12 UTC against the live API (GET only):**
 
 ```
-GET /repos/kodes-agency/reputation-key/rulesets            -> []
 GET /repos/kodes-agency/reputation-key/branches/main/protection
-   -> 404 {"message":"Branch not protected"}
+   -> required_status_checks: strict true, contexts check, docker, e2e,
+      secrets, audit, Analyze (javascript-typescript) (all GitHub Actions)
+      enforce_admins true; required_linear_history true
+      allow_force_pushes false; allow_deletions false
+      required_pull_request_reviews absent; required_conversation_resolution false
+GET /repos/kodes-agency/reputation-key/rulesets
+   -> []
+GET /repos/kodes-agency/reputation-key/environments
+   -> "reputation-key / google-closed-beta", "reputation-key / staging":
+      protection_rules [], deployment_branch_policy null, can_admins_bypass true
 ```
 
-The ruleset described below (`20890731`, `main-required-pull-request-and-ci`)
-**does not exist**. Either it was never created, or it was deleted after the
-2026-08-15 readback. This section previously asserted it as verified fact, and
-`.github/workflows/ci.yml` contradicted it in a comment ("main carries no
-branch protection"). The workflow comment was the accurate one.
+**What is enforced.** A pull request cannot merge until those six checks pass
+on a branch that is up to date with `main`, and a direct push is rejected unless
+its commit already carries them. Admins are included: `enforce_admins` has been
+on since 2026-09-06, when a direct push was shown to fail with
+`GH006 … required status checks are expected` (`LEAN_TRANSFORMATION_PLAN.md`,
+"Review is reinstated"). History must stay linear, and `main` cannot be
+force-pushed or deleted. `check`, `docker` and `e2e` are `always()` aggregates
+over `static`/`test-unit`/`test-integration`/`artifacts`, `docker-images` and
+`e2e-shard`, so those jobs gate through them. `audit` is the Fallow workflow's
+job, not the dependency-audit step; `Analyze (javascript-typescript)` is CodeQL.
 
-**Consequence, stated plainly: every "hard gate" in this repository is
-advisory.** `check`, `docker`, `secrets`, `storybook`, `storybook-test`, `e2e`,
-`audit` and `Analyze (javascript-typescript)` all run, and all report, but
-nothing prevents a merge while they are red, and nothing prevents a direct push
-to `main`. Any reasoning elsewhere in this repo that treats a passing check as
-a _precondition_ for merge is reasoning about a control that is not enabled.
+**What is not enforced.** Each of these is a repository-owner decision:
 
-The intended posture — recorded here as intent, NOT as fact — was:
+- no pull-request or review requirement, and no conversation resolution;
+- not required checks: `security` and `control-vs-ceremony` (`review.yml`; see
+  "The AI review workflow is not a gate" above), `storybook-test`, and
+  `simulate` (`simulation.yml`);
+- no ruleset, so no "code scanning results" rule: CodeQL blocks a PR only when
+  analysis fails, not on a new alert;
+- neither environment has protection rules or a branch policy, and both allow
+  admin bypass, so neither gates a deployment. The `production` environment
+  (ID `19948405265`) that this section used to describe no longer exists.
 
-- pull request required, one approval, stale-review dismissal, Code Owner
-  review where applicable, approval after the last push, resolved threads;
-- squash-only merge; branch deletion and non-fast-forward updates denied;
-- required checks `check`, `docker`, `secrets`, `storybook`, `storybook-test`,
-  `e2e`, `audit`, `Analyze (javascript-typescript)`, with strict branch
-  freshness;
-- `simulate` is absent from that list and should be added — it is the only
-  check that caught the 126-orphan fixture defect, it is a 5-minute job with a
-  paths filter, and it currently gates nothing;
-- GitHub environment `production` (ID `19948405265`) targeting protected
-  branches with a reviewer and self-review prevention. Note this one depends on
-  "protected branches" existing, so it cannot be doing anything today either.
-  A previous readback reported `can_admins_bypass: true`, which would need
-  disabling before it is a hard release control.
-
-Enabling this is a repository-owner action and a workflow change, so it is left
-as an explicit decision rather than assumed.
+This section previously reported (readback 2026-08-21) that `main` had no
+branch protection and every gate was advisory. `LEAN_TRANSFORMATION_PLAN.md`
+records that by 2026-09-06 protection with these checks was in place but
+`enforce_admins` was false, so pushes bypassed it until then.
 
 **Lesson for this section specifically:** a platform readback is evidence with
 an expiry date, not a permanent fact. Recording one as "Verified <date>" and
 then reading it later as a standing guarantee is how a repository ends up
 believing it has controls it does not have. Release validation must query
 GitHub again and compare the exact rule/check set; the same applies to the
-environment, which does not by itself prove a Railway deployment uses it.
+environments, which do not by themselves prove a Railway deployment uses them.
 
 ### eslint-plugin-security triage (deliberate deviations)
 

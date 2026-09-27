@@ -232,6 +232,20 @@
       "when": 1791300000000,
       "tag": "0033_notification_resolved_at",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1791400000000,
+      "tag": "0033_portal_groups_drop_stray_cascade_fk",
+      "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1791500000000,
+      "tag": "0034_notification_property_scope_indexes",
+      "breakpoints": true
     }
   ]
 }

@@ -70,13 +70,17 @@ The root SELECTS implementations and configuration and returns one complete
 container. Entry points choose its options and the registrations they run. The
 root:
 
-- resolves configuration once and injects it (no context or entry point re-reads
-  ambient configuration — see
-  [`src/shared/architecture/ambient-runtime-read-authority.ts`](../../src/shared/architecture/ambient-runtime-read-authority.ts));
+- resolves configuration once and injects it; routes and contexts never read
+  `process.env` (an ESLint `no-restricted-syntax` selector on `src/routes/**` and
+  `src/contexts/**` in [`eslint.config.js`](../../eslint.config.js), which
+  replaced the ambient-read authority module and its test in WP1.2);
 - consumes **named capability groups** from each context, never a context's
   private wiring (`docs/standards.md` §3.1);
-- names every cross-context seam as an application-owned port with a contract
-  test (`src/shared/architecture/named-cross-context-seams.test.ts`);
+- connects contexts only through the target's `application/public-api.ts` or a
+  consumer-owned application port (ESLint `local/cross-context-public-api`,
+  exercised by
+  [`src/shared/architecture/cross-context-public-api.test.ts`](../../src/shared/architecture/cross-context-public-api.test.ts));
+  the named-seam contract registry (ARC-03-T9) was retired in WP1.2;
 - selects the framework and provider adapters — the request context and the
   authenticated session are injected ports, not direct calls.
 

@@ -38,6 +38,10 @@ export interface InvitationRow {
   status: string
 }
 
+/**
+ * The route's Actions report their own outcome (toasts); a refusal still rejects
+ * the call, so each click settles the promise rather than leaking it.
+ */
 type Props = Readonly<{
   invitations: ReadonlyArray<InvitationRow>
   resendAction: Action<{ data: { invitationId: string } }>
@@ -81,7 +85,11 @@ export function InvitationTable({ invitations, resendAction, cancelAction }: Pro
                         variant="outline"
                         size="sm"
                         disabled={resendAction.isPending}
-                        onClick={() => resendAction({ data: { invitationId: inv.id } })}
+                        onClick={() =>
+                          void resendAction({ data: { invitationId: inv.id } }).catch(
+                            () => undefined,
+                          )
+                        }
                       >
                         Resend
                       </Button>
@@ -109,7 +117,9 @@ export function InvitationTable({ invitations, resendAction, cancelAction }: Pro
                             <AlertDialogCancel>Keep invitation</AlertDialogCancel>
                             <AlertDialogAction
                               onClick={() =>
-                                cancelAction({ data: { invitationId: inv.id } })
+                                void cancelAction({
+                                  data: { invitationId: inv.id },
+                                }).catch(() => undefined)
                               }
                               disabled={cancelAction.isPending}
                               className="bg-destructive text-white hover:bg-destructive/90"

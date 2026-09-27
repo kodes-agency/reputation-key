@@ -191,6 +191,13 @@ export const connectGoogleAccount = (deps: ConnectGoogleAccountDeps) => {
         return await deps.commandStore.reconnectGoogleAccount({
           organizationId: ctx.organizationId,
           connectionId: googleConnectionId(facts.connectionId),
+          // The versions loadAuthorizedTarget just re-proved; the write is
+          // fenced on them so nothing that commits in between is overwritten.
+          expected: {
+            lifecycleVersion: facts.expectedLifecycleVersion,
+            accessVersion: facts.expectedAccessVersion,
+            credentialGeneration: facts.expectedCredentialGeneration,
+          },
           googleSubject: oauthResult.identity.googleSubject,
           googleAccountEmail: oauthResult.identity.email,
           encryptedAccessToken,

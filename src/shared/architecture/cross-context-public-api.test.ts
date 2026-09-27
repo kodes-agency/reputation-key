@@ -127,4 +127,36 @@ describe('BQC-5.1: cross-context public-api rule', () => {
     )
     expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
   })
+
+  it('flags inline import types of a foreign context domain', async () => {
+    const messages = await lintSnippet(
+      `export type Gate = import('#/contexts/property/domain/processing-routing').ProcessingRouting\n`,
+      'src/contexts/review/application/use-cases/sample.ts',
+    )
+    expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
+  })
+
+  it('flags relative inline import types crossing into a foreign context', async () => {
+    const messages = await lintSnippet(
+      `export type Gate = import('../../property/domain/processing-routing').ProcessingRouting\n`,
+      'src/contexts/review/application/sample.ts',
+    )
+    expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
+  })
+
+  it('flags typeof inline imports of foreign context infrastructure', async () => {
+    const messages = await lintSnippet(
+      `export type Purge = typeof import('#/contexts/review/infrastructure/source-content-purge')\n`,
+      'src/contexts/property/application/sample.ts',
+    )
+    expect(hitsRule(messages), JSON.stringify(messages)).toBe(true)
+  })
+
+  it('allows inline import types of a foreign public-api', async () => {
+    const messages = await lintSnippet(
+      `export type IsActive = import('#/contexts/property/application/public-api').PropertyLifecyclePublicApi['isPropertyActive']\n`,
+      'src/contexts/portal/application/use-cases/sample.ts',
+    )
+    expect(hitsRule(messages), JSON.stringify(messages)).toBe(false)
+  })
 })

@@ -109,7 +109,9 @@ export function initialGuestResponseIntegrityDecision(
   }
 }
 
-export function isRatingMetricEligible(response: GuestResponse): boolean {
+export function isRatingMetricEligible(
+  response: GuestResponse,
+): response is GuestResponse & { readonly rating: number } {
   return (
     response.integrityOutcome === 'accepted' &&
     response.rating !== null &&

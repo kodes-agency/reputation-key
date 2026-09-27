@@ -1,13 +1,5 @@
-import { AsyncLocalStorage } from 'node:async_hooks'
+import { withStartContext } from '#/shared/testing/tanstack-start-als'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-
-const START_KEY = Symbol.for('tanstack-start:start-storage-context')
-
-function withStartContext<T>(fn: () => Promise<T>): Promise<T> {
-  const global = globalThis as Record<symbol, AsyncLocalStorage<unknown> | undefined>
-  global[START_KEY] ??= new AsyncLocalStorage()
-  return global[START_KEY].run({ startOptions: {} }, fn)
-}
 
 const mocks = vi.hoisted(() => ({
   list: vi.fn(),

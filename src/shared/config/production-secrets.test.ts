@@ -5,8 +5,12 @@
 // examples). Detection is exact-match + marker + low-entropy heuristics; the
 // error names offending FIELDS only — never the matched values.
 
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, it, expect } from 'vitest'
 import { assertProductionSecrets, findPlaceholderSecrets } from './production-secrets'
+
+const ENV_EXAMPLE = resolve(import.meta.dirname, '../../../.env.example')
 
 const REAL = {
   NODE_ENV: 'production',
@@ -21,6 +25,8 @@ const REAL = {
   OAUTH_STATE_SECRET:
     '4e6f0a3c5b7d9e2f4a6c8b1d3e5f7a9c0e2b4d6f8a1c3e5b7d9f0a2c4e6f8a0b2c4d',
   GUEST_SESSION_SALT: 'f4a6c8b1d3e5f7a9c0e2b4d6',
+  PORTAL_TOKEN_HASH_SECRET:
+    'c3e5b7d9f0a2c4e6f8a0b2c4d6e8f1a3b5c7d9e0f2a4c6e8b1d3f5a7c9e0b2d4',
   REVIEW_PROVIDER_SUBJECT_HMAC_KEYS:
     'v1:9f4c2e7a1b8d4e6f0a3c5b7d9e2f4a6c8b1d3e5f7a9c0e2b4d6f8a1c3e5b7d9f0',
   NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS:
@@ -52,6 +58,7 @@ describe('findPlaceholderSecrets (BQC-7.6)', () => {
         'abababababababababababababababababababababababababababababababab',
       ],
       ['GUEST_SESSION_SALT', 'dev-only-salt-not-for-production'],
+      ['PORTAL_TOKEN_HASH_SECRET', 'dev-only-portal-token-secret-32b'],
       ['REVIEW_PROVIDER_SUBJECT_HMAC_KEYS', `v1:${'11'.repeat(32)}`],
       ['REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS', `initial:${'22'.repeat(32)}`],
       ['NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS', `v1:${'33'.repeat(32)}`],
@@ -102,6 +109,19 @@ describe('assertProductionSecrets (BQC-7.6)', () => {
     expect((caught as Error).message).not.toContain(secret)
   })
 
+  it('refuses the Portal token secret placeholder, naming the field not the value', () => {
+    const secret = 'dev-only-portal-token-secret-32b'
+    let caught: unknown
+    try {
+      assertProductionSecrets({ ...REAL, PORTAL_TOKEN_HASH_SECRET: secret })
+    } catch (e) {
+      caught = e
+    }
+    expect(caught).toBeInstanceOf(Error)
+    expect((caught as Error).message).toContain('values: PORTAL_TOKEN_HASH_SECRET.')
+    expect((caught as Error).message).not.toContain(secret)
+  })
+
   it('passes in production with a real secret set', () => {
     expect(() => assertProductionSecrets(REAL)).not.toThrow()
   })
@@ -121,5 +141,27 @@ describe('assertProductionSecrets (BQC-7.6)', () => {
     expect(() =>
       assertProductionSecrets({ ...allPlaceholders, NODE_ENV: 'development' }),
     ).not.toThrow()
+  })
+})
+
+describe('.env.example secrets (BQC-7.6)', () => {
+  // A secret added to env.ts and .env.example but not to the guard's field
+  // list boots production on a public value when the example is copied into a
+  // deployment (PORTAL_TOKEN_HASH_SECRET was missed exactly this way).
+  it('flags every active example secret', () => {
+    const secrets = readFileSync(ENV_EXAMPLE, 'utf8')
+      .split('\n')
+      .flatMap((line) => {
+        const match = /^([A-Z][A-Z0-9_]*)=(.+)$/.exec(line.trim())
+        if (!match || !/SECRET|SALT|TOKEN|_KEYS?$/.test(match[1])) return []
+        return [[match[1], match[2]] as const]
+      })
+    expect(secrets.map(([key]) => key)).toContain('PORTAL_TOKEN_HASH_SECRET')
+    for (const [key, value] of secrets) {
+      expect(
+        findPlaceholderSecrets({ NODE_ENV: 'production', [key]: value }),
+        `${key} in .env.example must be flagged`,
+      ).toEqual([key])
+    }
   })
 })

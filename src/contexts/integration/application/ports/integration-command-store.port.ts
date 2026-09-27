@@ -32,12 +32,21 @@ export type ConnectGoogleAccountCommand = Readonly<{
 
 /**
  * Reconnect (same org): tokens + status→active + visibility update +
- * google_account.connected fact in one transaction. Throws
- * `connection_not_found` when the row vanished — records NO fact.
+ * google_account.connected fact in one transaction. Applies only to the exact
+ * lifecycle, access and credential versions the OAuth ceremony was approved
+ * against, so a disconnect, departure fence or other grant that committed
+ * after the ceremony re-proved its target is never overwritten. Throws
+ * `oauth_failed` when those versions moved and `connection_not_found` when the
+ * row vanished — either way records NO fact.
  */
 export type ReconnectGoogleAccountCommand = Readonly<{
   organizationId: OrganizationId
   connectionId: GoogleConnectionId
+  expected: Readonly<{
+    lifecycleVersion: number
+    accessVersion: number
+    credentialGeneration: number
+  }>
   encryptedAccessToken: string
   googleSubject: string
   googleAccountEmail: string | null
@@ -53,6 +62,12 @@ export type ReconnectGoogleAccountCommand = Readonly<{
  * Disconnect: status→disconnected + identifier/secret redaction +
  * google_account.disconnected fact in one transaction.
  * Throws `connection_not_found` when the row vanished — records NO fact.
+ *
+ * Deliberately not fenced on the credential or lifecycle versions it read: a
+ * token refresh that commits meanwhile must not make a disconnect fail. It is
+ * idempotent instead: a connection an overlapping disconnect already finished
+ * is returned as it is, with NO second fact, and a governed disconnect still
+ * inside its cleanup window is left to its attempt (`invalid_transition`).
  */
 export type DisconnectGoogleAccountCommand = Readonly<{
   organizationId: OrganizationId

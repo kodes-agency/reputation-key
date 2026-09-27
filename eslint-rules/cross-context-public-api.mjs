@@ -88,6 +88,13 @@ export default {
           check(node.source, node.source.value)
         }
       },
+      // Inline type-position imports: `import('…').T` and `typeof import('…')`.
+      // typescript-estree 8 carries the specifier on `source`.
+      TSImportType(node) {
+        if (node.source?.type === 'Literal' && typeof node.source.value === 'string') {
+          check(node.source, node.source.value)
+        }
+      },
     }
   },
 }
