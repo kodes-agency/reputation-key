@@ -4,15 +4,16 @@
 import { createFileRoute, Link, useLoaderData, useSearch } from '@tanstack/react-router'
 import { z } from 'zod/v4'
 import { AuthCard } from '#/components/layout/auth-layout'
-import { REFUSAL_COPY } from '#/shared/auth/capability-refusal-category'
+import {
+  CAPABILITY_REFUSAL_CATEGORIES,
+  REFUSAL_COPY,
+} from '#/shared/auth/capability-refusal-category'
 import { getAccountAccessRemovalFn } from '#/contexts/feed/server/notifications'
 
-const unavailableSearch = z.object({
+export const unavailableSearch = z.object({
   feature: z.string().optional(),
   reason: z.literal('workspace_access').optional(),
-  category: z
-    .enum(['not_in_beta', 'needs_admin_enablement', 'temporarily_unavailable'])
-    .optional(),
+  category: z.enum(CAPABILITY_REFUSAL_CATEGORIES).optional(),
   propertyId: z.string().optional(),
 })
 

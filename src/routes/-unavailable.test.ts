@@ -1,5 +1,10 @@
 import { describe, expect, it, vi } from 'vitest'
-import { resolveUnavailableAccountState, unavailablePageContent } from './unavailable'
+import { CAPABILITY_REFUSAL_CATEGORIES } from '#/shared/auth/capability-refusal-category'
+import {
+  resolveUnavailableAccountState,
+  unavailablePageContent,
+  unavailableSearch,
+} from './unavailable'
 
 describe('unavailable route presentation', () => {
   it('gives an account without a workspace a recovery path instead of beta-disable copy', () => {
@@ -93,6 +98,31 @@ describe('unavailable route presentation', () => {
       guidance: null,
       link: { label: 'Back to properties', to: '/properties' },
     })
+  })
+
+  it('does not send an Organization-allowlist refusal to Property settings', () => {
+    // Even with a property in the URL: no setting there can enable it.
+    expect(
+      unavailablePageContent({
+        feature: 'Google property import',
+        category: 'not_enabled_for_organization',
+        propertyId: 'property-1',
+      }),
+    ).toEqual({
+      title: 'Google property import is not enabled for your organization yet',
+      description:
+        'Beta features are switched on per organization by the RepKey team, not from Settings. Contact support to have it enabled.',
+      guidance: null,
+      link: { label: 'Back to properties', to: '/properties' },
+    })
+  })
+
+  it('accepts every refusal category in the URL', () => {
+    // The route's search schema once hardcoded three categories; a fourth
+    // would have been stripped and the page fallen back to generic copy.
+    for (const category of CAPABILITY_REFUSAL_CATEGORIES) {
+      expect(unavailableSearch.parse({ category }).category).toBe(category)
+    }
   })
 
   it('explains a temporarily unavailable capability without linking to settings', () => {

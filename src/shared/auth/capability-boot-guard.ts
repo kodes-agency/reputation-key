@@ -18,7 +18,8 @@
 //   4. Eagerly initializes the global policy store and records the
 //      capability-policy version + effective beta manifest at startup —
 //      capabilities only, never tenant/org identifiers, plus whether the
-//      auth rate-limit hatch is in effect.
+//      auth rate-limit hatch is in effect and the Organization allowlist's
+//      shape (all / N listed / none).
 //
 // This guard does not run in the web server. serverDir scanning is off under
 // TanStack Start, so vite.config.ts registers nitro plugins by explicit list —
@@ -41,6 +42,7 @@ import {
   assertE2EOverrideIdentity,
   assertE2ERateLimitBypassIdentity,
   createEnvCapabilityPolicyStore,
+  describeOrgAllowlist,
   initCapabilityPolicyStore,
   isE2ERateLimitBypassAuthorized,
   isKillSwitchAll,
@@ -50,6 +52,7 @@ import {
   parseKilledCapabilities,
   type Capability,
   type CapabilityPolicyEnv,
+  type OrgAllowlistMode,
 } from './beta-capabilities'
 
 export type { CapabilityPolicyEnv }
@@ -66,6 +69,11 @@ export type CapabilityBootManifest = Readonly<{
   blockedCapabilities: ReadonlyArray<Capability>
   e2eGlobalOverrides: ReadonlyArray<Capability>
   /**
+   * Which Organizations controlled-beta capabilities are open to: every one,
+   * a count of listed IDs, or none. The shape only — never an ID.
+   */
+  orgAllowlist: OrgAllowlistMode
+  /**
    * Review §5.1: whether the E2E hatch has stood the auth brute-force
    * limiters down in this process — the health signal the hatch never had.
    */
@@ -79,7 +87,8 @@ export type CapabilityBootLogger = Readonly<{
 
 /**
  * Build the effective beta manifest for startup logging. Contains capability
- * posture only — allowlisted/suspended org IDs are deliberately excluded.
+ * posture only — allowlisted/suspended org IDs are deliberately excluded; the
+ * allowlist appears as its shape (mode and count).
  */
 export function buildCapabilityBootManifest(
   env: CapabilityPolicyEnv,
@@ -93,6 +102,7 @@ export function buildCapabilityBootManifest(
     coreCapabilities: listCoreCapabilities(),
     blockedCapabilities: listBlockedCapabilities(),
     e2eGlobalOverrides: parseE2EGlobalOverrides(env),
+    orgAllowlist: describeOrgAllowlist(env),
     authRateLimitBypass: isE2ERateLimitBypassAuthorized(env),
     ...(identity ? { e2eExecutionIdentity: identity } : {}),
   }
