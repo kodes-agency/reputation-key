@@ -31,6 +31,7 @@ import { stampLastInboxView } from './application/use-cases/stamp-last-inbox-vie
 import { getInboxItemDetail } from './application/use-cases/get-inbox-item-detail'
 import { getInboxQueueCounts } from './application/use-cases/get-inbox-queue-counts'
 import { getInboxPropertyCounts } from './application/use-cases/get-inbox-property-counts'
+import { getReviewInboxItemIds } from './application/use-cases/get-review-inbox-item-ids'
 import { getInboxNotes } from './application/use-cases/get-inbox-notes'
 import { getInboxItemHistory } from './application/use-cases/get-inbox-item-history'
 import { rebuildInboxProjection } from './application/use-cases/rebuild-inbox-projection'
@@ -178,6 +179,10 @@ export function wireUseCases(input: WireInput): InboxContextApi['internal']['use
       staffPublicApi: input.staffPublicApi,
       replyLookup: input.replyLookup,
     }),
+    getReviewInboxItemIds: getReviewInboxItemIds({
+      repo: input.inboxRepo,
+      staffPublicApi: input.staffPublicApi,
+    }),
     rebuildInboxProjection: rebuildInboxProjection({
       repo: input.inboxRepo,
       commandStore: input.commandStore,
@@ -263,6 +268,7 @@ export function projectInboxRequestApi(
     getInboxItemHistory: useCases.getInboxItemHistory,
     getInboxQueueCounts: useCases.getInboxQueueCounts,
     getInboxPropertyCounts: useCases.getInboxPropertyCounts,
+    getReviewInboxItemIds: useCases.getReviewInboxItemIds,
     markFeedbackHandled: useCases.markFeedbackHandled,
     correctFeedbackHandlingOutcome: useCases.correctFeedbackHandlingOutcome,
     getGoogleReviewTargetAnalytics: useCases.getGoogleReviewTargetAnalytics,

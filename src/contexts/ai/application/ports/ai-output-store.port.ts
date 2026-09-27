@@ -49,11 +49,19 @@ export type AiTrendSupportingReview = Readonly<{
   reviewId: ReviewId
   window: 'baseline' | 'current'
   localDate: string
-  /** Content-free navigation target. The Review remains the access authority. */
+  /**
+   * Retained because the persisted evidence format requires it; it is not a
+   * working route. Delivery resolves the Inbox Item that opens the Review
+   * instead (`withSupportingReviewItems`).
+   */
   href: string
 }>
 
-export type AiTrendEvidence = Readonly<{
+/**
+ * Stored evidence carries `AiTrendSupportingReview`; what reaches a manager
+ * carries the delivery view of it (`AiTrendReportView`).
+ */
+export type AiTrendEvidence<SupportingReview = AiTrendSupportingReview> = Readonly<{
   definitionVersion: string
   definitionDigest: string
   renderProfileVersion: string
@@ -64,7 +72,7 @@ export type AiTrendEvidence = Readonly<{
   current: AiTrendWindowEvidence
   modelLineage: readonly AiTrendModelLineage[]
   selectedSignals: readonly AiTrendSelectedSignalEvidence[]
-  supportingReviews: readonly AiTrendSupportingReview[]
+  supportingReviews: readonly SupportingReview[]
 }>
 
 export type AiTrendReport = Readonly<{
@@ -98,7 +106,7 @@ export type AiProviderCompletion = Readonly<{
   completedAtEpochMillis: number
 }>
 
-export type AiTrendReportRead =
+export type AiTrendReportRead<SupportingReview = AiTrendSupportingReview> =
   | Readonly<{ status: 'disabled' }>
   | Readonly<{
       status: 'preparing'
@@ -113,7 +121,7 @@ export type AiTrendReportRead =
       reviewAnalysisEpoch: number
       propertyTrendsEpoch: number
       propertyProfileVersion: number
-      evidence?: AiTrendEvidence
+      evidence?: AiTrendEvidence<SupportingReview>
     }>
   | Readonly<{
       status: 'insufficient_data' | 'no_material_change'
@@ -124,7 +132,7 @@ export type AiTrendReportRead =
       dueLocalDate: string
       terminalAnalysisSequence: number
       aggregateRevision: number
-      evidence: AiTrendEvidence
+      evidence: AiTrendEvidence<SupportingReview>
       updating: boolean
     }>
   | Readonly<{
@@ -138,7 +146,7 @@ export type AiTrendReportRead =
       aggregateRevision: number
       reportProfileVersion: string
       report: AiTrendReport
-      evidence: AiTrendEvidence
+      evidence: AiTrendEvidence<SupportingReview>
       updating: boolean
       generatedAtEpochMillis: number
     }>

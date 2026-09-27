@@ -56,6 +56,7 @@ import type { GetInboxNotes } from './application/use-cases/get-inbox-notes'
 import type { GetInboxItemHistory } from './application/use-cases/get-inbox-item-history'
 import type { GetInboxQueueCounts } from './application/use-cases/get-inbox-queue-counts'
 import type { GetInboxPropertyCounts } from './application/use-cases/get-inbox-property-counts'
+import type { GetReviewInboxItemIds } from './application/use-cases/get-review-inbox-item-ids'
 import type { RebuildInboxProjection } from './application/use-cases/rebuild-inbox-projection'
 import type { StartReviewHandlingCycle } from './application/use-cases/start-review-handling-cycle'
 import type { MarkFeedbackHandled } from './application/use-cases/mark-feedback-handled'
@@ -141,6 +142,7 @@ type InboxUseCases = Readonly<{
   getInboxItemHistory: GetInboxItemHistory
   getInboxQueueCounts: GetInboxQueueCounts
   getInboxPropertyCounts: GetInboxPropertyCounts
+  getReviewInboxItemIds: GetReviewInboxItemIds
   rebuildInboxProjection: RebuildInboxProjection
   startReviewHandlingCycle: StartReviewHandlingCycle
   markFeedbackHandled: MarkFeedbackHandled
@@ -171,6 +173,7 @@ type InboxRequestApi = Readonly<
     | 'getInboxItemHistory'
     | 'getInboxQueueCounts'
     | 'getInboxPropertyCounts'
+    | 'getReviewInboxItemIds'
     | 'markFeedbackHandled'
     | 'correctFeedbackHandlingOutcome'
     | 'getGoogleReviewTargetAnalytics'

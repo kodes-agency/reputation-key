@@ -143,6 +143,7 @@ const setup = (
         ? storedDetail.item
         : null,
     findBySource: async () => null,
+    findActiveReviewItemIds: async () => new Map(),
     findFilteredPaginated: async () => ({
       items: [],
       nextCursor: null,

@@ -415,6 +415,68 @@ describe('inbox repository — active Handling Cycle authority', () => {
   )
 })
 
+describe('inbox repository — active Review item ids', () => {
+  const repo = createInboxRepository(db, stubPorts)
+  const rawRepo = createProductionInboxRepository(db, stubPorts, repositoryRuntime)
+
+  it('maps each requested Review at the Property to its active item', async () => {
+    const first = makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) })
+    const second = makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) })
+    await repo.create(first, ORG_A)
+    await repo.create(second, ORG_A)
+    const withoutItem = reviewId(crypto.randomUUID())
+
+    const itemIds = await repo.findActiveReviewItemIds(ORG_A, PROP_A, [
+      reviewId(first.sourceId),
+      reviewId(second.sourceId),
+      withoutItem,
+    ])
+
+    expect(itemIds).toEqual(
+      new Map([
+        [first.sourceId, first.id],
+        [second.sourceId, second.id],
+      ]),
+    )
+  })
+
+  it('leaves out another Property, private feedback, and an orphan projection', async () => {
+    const elsewhere = makeInboxItem({
+      propertyId: PROP_A_2,
+      sourceId: reviewId(crypto.randomUUID()),
+    })
+    const feedback = makeInboxItem({
+      sourceType: 'feedback',
+      sourceId: feedbackId(crypto.randomUUID()),
+    })
+    const orphan = makeInboxItem({
+      sourceId: reviewId(crypto.randomUUID()),
+      rating: null,
+      snippet: null,
+      reviewerName: null,
+    })
+    await repo.create(elsewhere, ORG_A)
+    await repo.create(feedback, ORG_A)
+    await rawRepo.create(orphan, ORG_A)
+
+    const itemIds = await repo.findActiveReviewItemIds(ORG_A, PROP_A, [
+      reviewId(elsewhere.sourceId),
+      reviewId(feedback.sourceId),
+      reviewId(orphan.sourceId),
+    ])
+
+    // The orphan is exactly what `findById` hides, so a link to it could not open.
+    expect(itemIds.size).toBe(0)
+    await expect(repo.findById(orphan.id, ORG_A)).resolves.toBeNull()
+  })
+
+  it('answers an empty lookup without a Review', async () => {
+    await expect(repo.findActiveReviewItemIds(ORG_A, PROP_A, [])).resolves.toEqual(
+      new Map(),
+    )
+  })
+})
+
 describe('inbox repository — status transitions', () => {
   const repo = createInboxRepository(db, stubPorts)
 
@@ -1408,6 +1470,16 @@ describe('inbox repository — tenant isolation', () => {
 
     const found = await repo.findBySource('review', item.sourceId as string, ORG_B)
     expect(found).toBeNull()
+  })
+
+  it('findActiveReviewItemIds returns nothing for different org', async () => {
+    const item = makeInboxItem({ sourceId: reviewId(crypto.randomUUID()) })
+    await repo.create(item, ORG_A)
+
+    const itemIds = await repo.findActiveReviewItemIds(ORG_B, PROP_A, [
+      reviewId(item.sourceId),
+    ])
+    expect(itemIds.size).toBe(0)
   })
 
   it('findFilteredPaginated returns empty for different org', async () => {
