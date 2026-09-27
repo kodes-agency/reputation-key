@@ -135,6 +135,10 @@ import {
   type CurrentUserParticipationAuthorityDatabase,
 } from './infrastructure/repositories/current-user-participation-authority'
 import { createPrimaryStaffAttributionResolver } from './infrastructure/primary-staff-attribution'
+import { submitBetaFeedback } from './application/use-cases/submit-beta-feedback'
+import { listMyBetaFeedback } from './application/use-cases/list-my-beta-feedback'
+import { BetaFeedbackTriageRepository } from './infrastructure/beta-feedback-triage.repository'
+import { deliverBetaFeedback } from './infrastructure/adapters/beta-feedback-sentry-delivery.adapter'
 
 /** Exactly the reactivation probes composition must supply, or none at all. */
 export type OrganizationReactivationProbeBindings = OrganizationReactivationReadinessDeps
@@ -212,6 +216,8 @@ type IdentityContextDeps = Readonly<{
   invitationExpiresInMs: number
   /** Logger supplied by the process composition boundary. */
   logger: LoggerPort
+  /** Keys the content-free beta-feedback telemetry pseudonyms. */
+  betaFeedbackHmacSecret: string
   /**
    * BQC-2.2/2.7 capability-policy wiring. Identity owns the persisted policy
    * store (readiness), the least-privilege admin ops, and the operator audit
@@ -601,6 +607,25 @@ function buildPeopleSurface(
     publicApi: Object.freeze({ ...facts, management }),
     decideUserParticipationAuthority,
   } as const
+}
+
+/**
+ * A reporter's own beta-feedback requests. Requests reach the triage
+ * repository only through these; its operator workflow stays with scripts/ops.
+ */
+function buildBetaFeedbackRequests(deps: IdentityContextDeps) {
+  const store = BetaFeedbackTriageRepository.create(deps.db)
+  const hmacSecret = deps.betaFeedbackHmacSecret
+  return Object.freeze({
+    submit: submitBetaFeedback({
+      store,
+      deliver: deliverBetaFeedback,
+      clock: deps.clock,
+      idGen: deps.idGen,
+      hmacSecret,
+    }),
+    listMine: listMyBetaFeedback({ store, hmacSecret }),
+  })
 }
 
 export const buildIdentityContext = (deps: IdentityContextDeps) => {
@@ -996,5 +1021,8 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     // commands, content-free operator diagnostics, and only fully bound
     // maintenance services; partial contributor sets remain non-executable.
     lifecycle: organizationLifecycleRuntime,
+    /** Beta-feedback reporting for the signed-in reporter. Request-facing, but
+     * kept off `publicApi`, which other contexts receive. */
+    betaFeedback: buildBetaFeedbackRequests(deps),
   } as const
 }

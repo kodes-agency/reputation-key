@@ -61,7 +61,9 @@ imports only `#/contexts/identity/application/public-api`.
 Server functions for Organizations, settings, invitations, registration, policy,
 feedback, and Staff Participation live in `server/`. Application code owns use
 cases and ports; Drizzle, Better Auth, storage, and lifecycle implementations stay
-under `infrastructure/`.
+under `infrastructure/`. Beta-feedback requests reach the triage store only
+through the build's `betaFeedback` capability (`submit`, `listMine`); the
+operator triage workflow stays with `scripts/ops`.
 
 Identity produces identifier-minimal Organization, invitation, member, merchant-AI,
 and lifecycle facts through the durable outbox. It subscribes to no foreign events.

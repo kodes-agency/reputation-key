@@ -2,10 +2,6 @@ import { betaFeedbackPseudonym } from '#/contexts/identity/application/beta-feed
 import { throwContextError } from '#/shared/auth/server-errors'
 import type { RateLimiter } from '#/shared/rate-limit/middleware'
 
-// Re-exported so the existing server-side consumers (and their module mocks)
-// keep a single import site; the derivation itself now lives in application/.
-export { betaFeedbackPseudonym }
-
 const ACTOR_LIMIT = Object.freeze({
   maxRequests: 5,
   windowSeconds: 60 * 60,
