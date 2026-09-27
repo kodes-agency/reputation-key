@@ -48,12 +48,14 @@ import { createMetricOrganizationExportAdapter } from './infrastructure/adapters
 import { createMetricOrganizationLifecycleAdapter } from './infrastructure/adapters/metric-organization-lifecycle.adapter'
 
 import { createGoalProgramSubjectReader } from './infrastructure/adapters/goal-program-subject-reader'
+import { createGoalProgramVisibilityAdapter } from './infrastructure/adapters/goal-program-visibility.adapter'
 import { createGoalProgramRepository } from './infrastructure/repositories/goal-program.repository'
 import {
   createGoalProgramService,
   type GoalExecutionPolicy,
   type GoalProgramRequestApi,
 } from './application/use-cases/goal-programs'
+import { withGoalProgramVisibility } from './application/use-cases/goal-program-visibility'
 import type { GoalProgramRepository } from './application/ports/goal-program.repository'
 import { createMonthlyResultNotificationFactsLookup } from './infrastructure/adapters/monthly-result-notification-facts.lookup'
 import { reconcileMetricCorrection } from './application/use-cases/reconcile-metric-correction'
@@ -272,6 +274,12 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
       id: input.idGen,
       now: input.clock,
     })
+  const goalProgramVisibility = createGoalProgramVisibilityAdapter(
+    createStaffPortalResolverAdapter(input.staffPublicApi),
+    input.portalGroupApi,
+  )
+  const readGoalPrograms = (policy: GoalExecutionPolicy) =>
+    withGoalProgramVisibility(buildGoalPrograms(policy), goalProgramVisibility)
   const registerOutboxConsumers = (
     consumerRegistry: ConsumerRegistry,
     policy: GoalExecutionPolicy,
@@ -292,8 +300,8 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     changeAssignments: (policy, ...args) =>
       buildGoalPrograms(policy).changeAssignments(...args),
     changeStatus: (policy, ...args) => buildGoalPrograms(policy).changeStatus(...args),
-    get: (policy, ...args) => buildGoalPrograms(policy).get(...args),
-    list: (policy, ...args) => buildGoalPrograms(policy).list(...args),
+    get: (policy, ...args) => readGoalPrograms(policy).get(...args),
+    list: (policy, ...args) => readGoalPrograms(policy).list(...args),
   })
 
   return {
