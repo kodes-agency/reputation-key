@@ -354,14 +354,6 @@
   },
   "overrides": [
     {
-      "files": [
-        "src/contexts/portal/infrastructure/repositories/link-resolver.repository.ts"
-      ],
-      "rules": {
-        "unused-files": "off"
-      }
-    },
-    {
       "files": [],
       "rules": {
         "unused-files": "off",
