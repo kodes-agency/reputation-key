@@ -192,7 +192,7 @@ describe('delayed/system policy contract (BQC-2.5)', () => {
     expect(capabilityForSystemAction('system:notification.email_digest')).toBe(
       'notification.send_email',
     )
-    expect(capabilityForSystemAction('system:metric.refresh')).toBe('none')
+    expect(capabilityForSystemAction('system:metric.record')).toBe('none')
     expect(capabilityForSystemAction('system:inbox.update')).toBe('inbox.use')
     expect(capabilityForSystemAction('system:inbox.project_guest_feedback')).toBe(
       'portal.read',
