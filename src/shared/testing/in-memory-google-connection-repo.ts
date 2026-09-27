@@ -126,28 +126,6 @@ export const createInMemoryGoogleConnectionRepo = (): InMemoryGoogleConnectionRe
       return true
     },
 
-    updateTokensAndStatus: async (
-      orgId,
-      id,
-      encryptedAccessToken,
-      encryptedRefreshToken,
-      tokenExpiresAt,
-      status,
-    ) => {
-      const existing = store.get(id as string)
-      if (!existing || !byOrg(orgId)(existing)) return
-      store.set(id as string, {
-        ...existing,
-        encryptedAccessToken,
-        encryptedRefreshToken,
-        tokenExpiresAt,
-        status,
-        credentialGeneration: existing.credentialGeneration + 1,
-        accessVersion: existing.accessVersion + 1,
-        updatedAt: new Date(),
-      })
-    },
-
     updateReconnection: async (
       orgId,
       id,
