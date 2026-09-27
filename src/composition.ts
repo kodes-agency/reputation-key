@@ -442,6 +442,7 @@ function buildContainer(
     db,
     outboxRepo,
     redis,
+    logger: getLogger(),
     idGen: randomUUID,
     nowEpochMillis: () => clock().getTime(),
     reviewSources: review.publicApi.aiReviewSource,
