@@ -955,6 +955,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       authorize,
       renew: deps.providerAuthorizationLeases.renew,
       clock: deps.clock,
+      logger: deps.logger,
     })
   }
 

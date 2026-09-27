@@ -1,4 +1,5 @@
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
   AI_ADMISSION_RATE_PER_MINUTE,
   AI_ON_DEMAND_ANALYSIS_INTERACTIVE_HEADROOM,
@@ -45,6 +46,12 @@ export type DrainReviewAnalysisBacklogDependencies = Readonly<{
     input: AnalyzeReviewEventInput,
   ) => Promise<AnalyzeReviewEventResult>
   nowEpochMillis: () => number
+  /**
+   * Records an entry whose attempt threw. Optional so existing constructions
+   * keep working; without it the drain behaves exactly as before and says
+   * nothing.
+   */
+  logger?: Pick<LoggerPort, 'warn'>
 }>
 
 type EntryOutcome =
@@ -136,7 +143,24 @@ export function createDrainReviewAnalysisBacklog(
         organizationId: entry.organizationId,
       })
       return { kind: 'completed' }
-    } catch {
+    } catch (error) {
+      // The entry comes back after the delay whatever went wrong, so this line
+      // is the only place an operator can see which entry keeps failing
+      // (`attempts` counts its reschedules) and why. Identifiers only (AI
+      // invariant 12): the shared logger reduces an Error to its name and
+      // code, and a thrown value that is not an Error is left out.
+      dependencies.logger?.warn(
+        {
+          ...(error instanceof Error ? { err: error } : {}),
+          eventEnvelopeId: entry.eventEnvelopeId,
+          organizationId: entry.organizationId,
+          propertyId: entry.propertyId,
+          reviewId: entry.reviewId,
+          attempts: entry.attempts,
+          lane,
+        },
+        'AI review analysis backlog entry failed',
+      )
       const now = dependencies.nowEpochMillis()
       await dependencies.backlog
         .reschedule({

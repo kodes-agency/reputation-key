@@ -70,6 +70,7 @@ function harness(
         })),
   )
   const complete = vi.fn(input.complete ?? (async () => true))
+  const warn = vi.fn()
   const admission: AdmissionStub = {
     start:
       input.start ??
@@ -88,8 +89,9 @@ function harness(
     grantKeyring,
     admission,
     fetch: fetchMock as unknown as typeof fetch,
+    logger: { warn },
   })
-  return { gateway, fetchMock, complete }
+  return { gateway, fetchMock, complete, warn }
 }
 
 const execute = (
@@ -315,7 +317,7 @@ describe('Google egress gateway dispatch evidence: a request left', () => {
   })
 
   it('keeps answered and the status when completion fails after a 404', async () => {
-    const { gateway, complete } = harness({
+    const { gateway, complete, warn } = harness({
       fetch: async () => new Response('{}', { status: 404 }),
       complete: async () => false,
     })
@@ -330,10 +332,24 @@ describe('Google egress gateway dispatch evidence: a request left', () => {
     expect(complete).toHaveBeenCalledWith(
       expect.objectContaining({ outcome: 'provider_4xx' }),
     )
+    // The admission service refused the completion without throwing, so the
+    // record names the hop and the evidence but carries no error.
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledWith(
+      {
+        surface: 'google-egress-gateway',
+        stage: 'admission-complete',
+        routeKey: DESCRIPTOR.routeKey,
+        outcome: 'provider_4xx',
+        dispatch: 'answered',
+        providerStatus: 404,
+      },
+      'Google admission completion failed',
+    )
   })
 
   it('keeps unknown when completion throws after fetch threw', async () => {
-    const { gateway } = harness({
+    const { gateway, warn } = harness({
       fetch: async () => {
         throw new TypeError('connection reset')
       },
@@ -348,5 +364,25 @@ describe('Google egress gateway dispatch evidence: a request left', () => {
       dispatch: 'unknown',
       retryAfterMs: 0,
     })
+    expect(warn).toHaveBeenCalledTimes(1)
+    expect(warn).toHaveBeenCalledWith(
+      {
+        surface: 'google-egress-gateway',
+        stage: 'admission-complete',
+        routeKey: DESCRIPTOR.routeKey,
+        outcome: 'transport_error',
+        dispatch: 'unknown',
+        err: { name: 'Error', message: 'completion hop unavailable' },
+      },
+      'Google admission completion failed',
+    )
+  })
+
+  it('records nothing when the admission completes after the call', async () => {
+    const { gateway, complete, warn } = harness()
+
+    await expect(execute(gateway)).resolves.toMatchObject({ ok: true, status: 200 })
+    expect(complete).toHaveBeenCalledWith(expect.objectContaining({ outcome: 'success' }))
+    expect(warn).not.toHaveBeenCalled()
   })
 })
