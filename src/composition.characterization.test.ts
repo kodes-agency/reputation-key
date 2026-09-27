@@ -270,6 +270,7 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
     ])
     expect(Object.keys(container.integrationWorkerRuntime).sort()).toEqual([
       'processImportItem',
+      'reconcileProviderRecovery',
       'registerOutboxConsumers',
       'sweepImportLifecycle',
     ])
