@@ -256,7 +256,7 @@ export function guestResponseLifecycle(
         guestRatingSubmitted({
           ratingId: ratingId(response.id),
           ...scopeIds,
-          value: response.rating!,
+          value: response.rating,
           occurredAt,
           staffAttribution: response.staffAttribution,
         }),
@@ -297,7 +297,7 @@ export function guestResponseLifecycle(
         guestRatingSubmitted({
           ratingId: ratingId(corrected.id),
           ...scopeIds,
-          value: corrected.rating!,
+          value: corrected.rating,
           supersedesSourceEventId: previous.ratingSourceEventId,
           occurredAt,
           staffAttribution: corrected.staffAttribution,
@@ -388,7 +388,10 @@ export function guestResponseLifecycle(
       portalId: portalId(changed.portalId),
       propertyId: propertyId(changed.propertyId),
     }
-    if (wasEligible) {
+    // The two are proven to differ above, so branching on `isEligible`
+    // (rather than `wasEligible`) narrows `changed.rating` to `number` in the
+    // submitted-fact branch below without a non-null assertion.
+    if (!isEligible) {
       if (!previous.ratingSourceEventId) {
         throw new GuestResponseLifecycleError('response_unavailable')
       }
@@ -406,7 +409,7 @@ export function guestResponseLifecycle(
       guestRatingSubmitted({
         ratingId: ratingId(changed.id),
         ...scopeIds,
-        value: changed.rating!,
+        value: changed.rating,
         supersedesSourceEventId: previous.ratingSourceEventId,
         occurredAt: ratingMetricOccurredAt(changed),
         staffAttribution: changed.staffAttribution,
