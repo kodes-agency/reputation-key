@@ -2,7 +2,7 @@
 // Per architecture: "Pure unit, no setup, no mocks. Run in milliseconds."
 
 import { describe, it, expect } from 'vitest'
-import { isValidEmail, isValidVisibility } from './rules'
+import { isGovernedDisconnectInFlight, isValidEmail, isValidVisibility } from './rules'
 
 // ── isValidEmail ──────────────────────────────────────────────────
 
@@ -99,4 +99,56 @@ describe('isValidVisibility', () => {
       expect(_assigned).toBe('private')
     }
   })
+})
+
+// ── isGovernedDisconnectInFlight ──────────────────────────────────
+
+describe('isGovernedDisconnectInFlight', () => {
+  const NOW = new Date('2026-06-01T12:00:00.000Z')
+  const at = (offsetMs: number) => new Date(NOW.getTime() + offsetMs)
+
+  it('holds a disconnecting connection while its cleanup window is open', () => {
+    expect(
+      isGovernedDisconnectInFlight(
+        { status: 'disconnecting', cleanupMaterialDeadlineAt: at(1) },
+        NOW,
+      ),
+    ).toBe(true)
+  })
+
+  it.each([
+    ['closes at', at(0)],
+    ['has passed', at(-1)],
+  ])(
+    'releases a disconnecting connection whose window %s the deadline',
+    (_, deadline) => {
+      expect(
+        isGovernedDisconnectInFlight(
+          { status: 'disconnecting', cleanupMaterialDeadlineAt: deadline },
+          NOW,
+        ),
+      ).toBe(false)
+    },
+  )
+
+  it('releases a disconnecting connection that carries no cleanup deadline', () => {
+    expect(
+      isGovernedDisconnectInFlight(
+        { status: 'disconnecting', cleanupMaterialDeadlineAt: null },
+        NOW,
+      ),
+    ).toBe(false)
+  })
+
+  it.each(['active', 'reauth_required', 'disconnected'] as const)(
+    'never holds a %s connection, whatever its deadline',
+    (status) => {
+      expect(
+        isGovernedDisconnectInFlight(
+          { status, cleanupMaterialDeadlineAt: at(60_000) },
+          NOW,
+        ),
+      ).toBe(false)
+    },
+  )
 })

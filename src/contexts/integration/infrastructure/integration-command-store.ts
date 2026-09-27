@@ -12,6 +12,7 @@ import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { integrationError } from '../domain/errors'
+import { isGovernedDisconnectInFlight } from '../domain/rules'
 import { uniqueViolationError } from '../application/ports/google-connection.repository'
 import {
   googleConnectionFromRow,
@@ -46,25 +47,32 @@ type GoogleConnectionUpdateSet = {
   [K in keyof GoogleConnectionInsert]?: GoogleConnectionInsert[K] | SQL
 }
 
+type ConnectionKey = Readonly<{ organizationId: string; connectionId: string }>
+
+/** The tenant-scoped row for (organizationId, connectionId). */
+function connectionRow(command: ConnectionKey) {
+  return and(
+    eq(googleConnections.organizationId, command.organizationId),
+    eq(googleConnections.id, command.connectionId),
+  )
+}
+
 /**
  * Update the google_connections row for (organizationId, connectionId)
  * inside the command transaction (single source for the guarded connection
- * updates, BQC-5.9 E16). Callers chain .returning(...) as needed.
+ * updates, BQC-5.9 E16). `guard` narrows the match further. Callers chain
+ * .returning(...) as needed.
  */
 function updateConnectionRow(
   tx: Tx,
-  command: Readonly<{ organizationId: string; connectionId: string }>,
+  command: ConnectionKey,
   set: GoogleConnectionUpdateSet,
+  guard?: SQL,
 ) {
   return tx
     .update(googleConnections)
     .set(set)
-    .where(
-      and(
-        eq(googleConnections.organizationId, command.organizationId),
-        eq(googleConnections.id, command.connectionId),
-      ),
-    )
+    .where(and(connectionRow(command), guard))
 }
 
 async function completeOAuthExchangeAttempt(
@@ -144,29 +152,50 @@ export const createAtomicIntegrationCommandStore = (
         try {
           updated = await db.transaction(async (tx) => {
             const now = clock()
-            const rows = await updateConnectionRow(tx, command, {
-              googleSubject: command.googleSubject,
-              googleAccountEmail: command.googleAccountEmail,
-              encryptedAccessToken: command.encryptedAccessToken,
-              encryptedRefreshToken: command.encryptedRefreshToken,
-              tokenExpiresAt: command.tokenExpiresAt,
-              scopes: [...command.scopes],
-              status: 'active',
-              visibility: command.visibility,
-              credentialUseState: 'active',
-              credentialAuthorizedBy: command.event.userId,
-              credentialAuthorizedAt: command.event.occurredAt,
-              cleanupMaterialDeadlineAt: null,
-              lifecycleVersion: sql`${googleConnections.lifecycleVersion} + 1`,
-              accessVersion: sql`${googleConnections.accessVersion} + 1`,
-              credentialGeneration: sql`${googleConnections.credentialGeneration} + 1`,
-              updatedAt: now,
-            }).returning()
+            const rows = await updateConnectionRow(
+              tx,
+              command,
+              {
+                googleSubject: command.googleSubject,
+                googleAccountEmail: command.googleAccountEmail,
+                encryptedAccessToken: command.encryptedAccessToken,
+                encryptedRefreshToken: command.encryptedRefreshToken,
+                tokenExpiresAt: command.tokenExpiresAt,
+                scopes: [...command.scopes],
+                status: 'active',
+                visibility: command.visibility,
+                credentialUseState: 'active',
+                credentialAuthorizedBy: command.event.userId,
+                credentialAuthorizedAt: command.event.occurredAt,
+                cleanupMaterialDeadlineAt: null,
+                lifecycleVersion: sql`${googleConnections.lifecycleVersion} + 1`,
+                accessVersion: sql`${googleConnections.accessVersion} + 1`,
+                credentialGeneration: sql`${googleConnections.credentialGeneration} + 1`,
+                updatedAt: now,
+              },
+              // Only the exact row the OAuth ceremony was approved against: a
+              // disconnect or departure fence that committed after the
+              // ceremony re-proved its target must not be undone here.
+              and(
+                eq(googleConnections.lifecycleVersion, command.expected.lifecycleVersion),
+                eq(googleConnections.accessVersion, command.expected.accessVersion),
+                eq(
+                  googleConnections.credentialGeneration,
+                  command.expected.credentialGeneration,
+                ),
+              ),
+            ).returning()
             if (!rows[0]) {
-              throw integrationError(
-                'connection_not_found',
-                'Google connection not found',
-              )
+              const [current] = await tx
+                .select({ id: googleConnections.id })
+                .from(googleConnections)
+                .where(connectionRow(command))
+                .limit(1)
+              // The same refusal the use case gives when it sees the change
+              // first, so the exchange claim is released rather than lost.
+              throw current
+                ? integrationError('oauth_failed', 'Google connection authority changed')
+                : integrationError('connection_not_found', 'Google connection not found')
             }
             await completeOAuthExchangeAttempt(tx, {
               attemptId: command.exchangeAttemptId,
@@ -190,19 +219,33 @@ export const createAtomicIntegrationCommandStore = (
 
     disconnectGoogleAccount: async (command: DisconnectGoogleAccountCommand) => {
       return trace('integration.commandStore.disconnectGoogleAccount', async () => {
-        const redacted = await db.transaction(async (tx) => {
+        const connection = await db.transaction(async (tx) => {
           const now = clock()
-          const statusRows = await updateConnectionRow(tx, command, {
-            status: 'disconnected',
-            lifecycleVersion: sql`${googleConnections.lifecycleVersion} + 1`,
-            updatedAt: now,
-          }).returning({ id: googleConnections.id })
-          if (!statusRows[0]) {
+          // Held until commit, so a governed revoke, a reconnect or another
+          // disconnect of this row cannot change it between these checks and
+          // the write.
+          const [current] = await tx
+            .select()
+            .from(googleConnections)
+            .where(connectionRow(command))
+            .for('update')
+            .limit(1)
+          if (!current) {
             throw integrationError('connection_not_found', 'Google connection not found')
+          }
+          // An overlapping disconnect already committed: there is nothing left
+          // to redact, and a second fact would send the admins a second notice.
+          if (current.status === 'disconnected') return current
+          if (isGovernedDisconnectInFlight(current, now)) {
+            throw integrationError(
+              'invalid_transition',
+              'Google disconnect is already in progress',
+            )
           }
           // BQC-1.7: remove provider identifiers and secret material — the
           // row stays as a content-free audit fact.
-          const redactedRows = await updateConnectionRow(tx, command, {
+          const [redacted] = await updateConnectionRow(tx, command, {
+            status: 'disconnected',
             encryptedAccessToken: 'redacted',
             encryptedRefreshToken: 'redacted',
             googleSubject: null,
@@ -210,17 +253,18 @@ export const createAtomicIntegrationCommandStore = (
             scopes: [],
             credentialUseState: 'none',
             cleanupMaterialDeadlineAt: null,
+            lifecycleVersion: sql`${googleConnections.lifecycleVersion} + 1`,
             accessVersion: sql`${googleConnections.accessVersion} + 1`,
             credentialGeneration: sql`${googleConnections.credentialGeneration} + 1`,
             updatedAt: now,
           }).returning()
-          if (!redactedRows[0]) {
+          if (!redacted) {
             throw integrationError('connection_not_found', 'Google connection not found')
           }
           await insertOutboxRow(tx, command.event)
-          return redactedRows[0]
+          return redacted
         })
-        return googleConnectionFromRow(redacted)
+        return googleConnectionFromRow(connection)
       })
     },
 

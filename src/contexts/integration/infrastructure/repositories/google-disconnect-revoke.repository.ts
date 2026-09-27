@@ -640,7 +640,23 @@ export const createGoogleDisconnectRevokeRepository = (
             }
           }
           const connection = await redactConnection(tx, attempt, outcome, input.now)
-          if (!connection) continue
+          if (!connection) {
+            // The connection moved on without this attempt (a disconnect that
+            // finished it after the window, a reconnect, a closure fence), and
+            // whoever moved it recorded their own fact. Left open, the attempt
+            // would be revisited on every sweep, refuse the next governed
+            // disconnect of this connection as concurrent, and hold purge
+            // readiness closed. Close it with what is known about the revoke.
+            await updateAttempt(tx, {
+              ...attempt,
+              state: outcome,
+              credentialBinding: null,
+              terminalAt: input.now,
+              outcomeCode: 'reconciled_connection_changed',
+              updatedAt: input.now,
+            })
+            continue
+          }
           const event = integrationGoogleAccountDisconnected({
             connectionId: googleConnectionId(attempt.connectionId),
             organizationId: organizationId(attempt.organizationId),

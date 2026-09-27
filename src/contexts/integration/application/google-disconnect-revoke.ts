@@ -55,7 +55,9 @@ export type GoogleDisconnectRevokeStore = Readonly<{
   /**
    * Bounded recovery over attempts whose provider-send window elapsed. It
    * never retries a revoke: an unstarted permit proves not-sent; any started
-   * permit is conservatively recorded as ambiguous before local redaction.
+   * permit is conservatively recorded as ambiguous before local redaction. An
+   * attempt whose connection has already moved on is closed with that outcome
+   * and neither redacts nor records a fact; the counts cover redactions only.
    */
   reconcileElapsed(input: Readonly<{ now: Date; limit: number }>): Promise<
     Readonly<{
