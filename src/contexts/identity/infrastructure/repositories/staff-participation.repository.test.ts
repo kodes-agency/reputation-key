@@ -11,6 +11,10 @@ const PROPERTY_A = 'db000000-0000-4000-8000-000000000001'
 const PROPERTY_B = 'db000000-0000-4000-8000-000000000002'
 const PARTICIPATION = 'db000000-0000-4000-8000-000000000011'
 const PARTICIPANT = 'db000000-0000-4000-8000-000000000010'
+const SECOND_PARTICIPATION = 'db000000-0000-4000-8000-000000000013'
+const SECOND_PARTICIPANT = 'db000000-0000-4000-8000-000000000012'
+const THIRD_PARTICIPATION = 'db000000-0000-4000-8000-000000000015'
+const THIRD_PARTICIPANT = 'db000000-0000-4000-8000-000000000014'
 const PORTAL_A = 'db000000-0000-4000-8000-000000000021'
 const PORTAL_B = 'db000000-0000-4000-8000-000000000022'
 const PORTAL_C = 'db000000-0000-4000-8000-000000000023'
@@ -129,6 +133,31 @@ const createFixture = (repo: ReturnType<typeof createStaffParticipationRepositor
     participant: participant(),
     participation: participation(),
   })
+
+/** Another active Staff Participation at Property A, for primary conflicts. */
+const createColleague = (
+  repo: ReturnType<typeof createStaffParticipationRepository>,
+  ids: Readonly<{ participantId: string; participationId: string; name: string }>,
+) =>
+  repo.createParticipantWithParticipation({
+    participant: { ...participant(), id: ids.participantId, displayName: ids.name },
+    participation: {
+      ...participation(),
+      id: ids.participationId,
+      staffParticipantId: ids.participantId,
+      displayName: ids.name,
+    },
+  })
+
+const primaryFor = (staffParticipationId: string, portalId: string, at: Date) => ({
+  organizationId: ORG_A,
+  propertyId: PROPERTY_A,
+  staffParticipationId,
+  selections: [{ portalId, kind: 'primary' as const }],
+  actorId: 'manager',
+  at,
+  expectedRevision: 1,
+})
 
 describe('staff participation repository', () => {
   it('creates a participant without a login and isolates tenant reads', async () => {
@@ -370,5 +399,77 @@ describe('staff participation repository', () => {
     )
     expect(new Date(history.rows[0].effective_to)).toEqual(CHANGE)
     expect(history.rows[0].end_reason).toBe('participation_archived')
+  })
+
+  it('refuses a primary Portal another participation holds, until it is released', async () => {
+    const repo = createStaffParticipationRepository(getDb())
+    await createFixture(repo)
+    await createColleague(repo, {
+      participantId: SECOND_PARTICIPANT,
+      participationId: SECOND_PARTICIPATION,
+      name: 'Blair',
+    })
+    const held = await repo.replaceResponsibilities(
+      primaryFor(PARTICIPATION, PORTAL_A, START),
+    )
+
+    await expect(
+      repo.replaceResponsibilities(primaryFor(SECOND_PARTICIPATION, PORTAL_A, CHANGE)),
+    ).rejects.toMatchObject({ _tag: 'StaffError', code: 'responsibility_conflict' })
+    await expect(repo.listActiveResponsibilities(ORG_A, PARTICIPATION)).resolves.toEqual(
+      held.responsibilities,
+    )
+    await expect(
+      repo.listActiveResponsibilities(ORG_A, SECOND_PARTICIPATION),
+    ).resolves.toEqual([])
+    await expect(repo.findById(ORG_A, SECOND_PARTICIPATION)).resolves.toMatchObject({
+      revision: 1,
+    })
+
+    await repo.replaceResponsibilities({
+      ...primaryFor(PARTICIPATION, PORTAL_C, CHANGE),
+      expectedRevision: held.revision,
+    })
+    const reassigned = await repo.replaceResponsibilities(
+      primaryFor(SECOND_PARTICIPATION, PORTAL_A, CHANGE),
+    )
+    expect(reassigned.responsibilities).toEqual([
+      expect.objectContaining({ portalId: PORTAL_A, kind: 'primary' }),
+    ])
+  })
+
+  it('lets exactly one of two concurrent assignments take a primary Portal', async () => {
+    const repo = createStaffParticipationRepository(getDb())
+    await createColleague(repo, {
+      participantId: SECOND_PARTICIPANT,
+      participationId: SECOND_PARTICIPATION,
+      name: 'Blair',
+    })
+    await createColleague(repo, {
+      participantId: THIRD_PARTICIPANT,
+      participationId: THIRD_PARTICIPATION,
+      name: 'Casey',
+    })
+
+    const outcomes = await Promise.allSettled([
+      repo.replaceResponsibilities(primaryFor(SECOND_PARTICIPATION, PORTAL_A, CHANGE)),
+      repo.replaceResponsibilities(primaryFor(THIRD_PARTICIPATION, PORTAL_A, CHANGE)),
+    ])
+
+    expect(outcomes.filter(({ status }) => status === 'fulfilled')).toHaveLength(1)
+    expect(
+      outcomes.flatMap((outcome) =>
+        outcome.status === 'rejected' ? [outcome.reason] : [],
+      ),
+    ).toEqual([
+      expect.objectContaining({ _tag: 'StaffError', code: 'responsibility_conflict' }),
+    ])
+    const primaries = await pool.query(
+      `SELECT staff_participation_id FROM portal_responsibilities
+       WHERE organization_id = $1 AND portal_id = $2 AND kind = 'primary'
+         AND effective_to IS NULL`,
+      [ORG_A, PORTAL_A],
+    )
+    expect(primaries.rows).toHaveLength(1)
   })
 })

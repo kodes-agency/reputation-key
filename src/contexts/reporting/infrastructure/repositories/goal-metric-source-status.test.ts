@@ -211,9 +211,6 @@ describe.sequential('Goal metric durable source status (integration)', () => {
     await onRatingSubmittedDurably({
       recordMetrics: project,
       findGroupForPortal: async () => ({ portalGroupId: GROUP }),
-      logger: {
-        warn: () => {},
-      },
     })({
       _tag: 'guest.rating.submitted',
       eventId: SUBMITTED_EVENT,

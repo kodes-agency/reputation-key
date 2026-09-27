@@ -39,7 +39,6 @@ import { recordMetric, recordMetrics } from '../../application/use-cases/record-
 import { createMetricRegistryRepository } from './metric-registry.repository'
 import { createPropertyLocalDateResolver } from './property-local-date'
 import { onQualifiedScanRecordedDurably } from '../record-portal-metric'
-import { createMockLogger } from '#/shared/testing/mock-logger'
 import { createConsumerRegistry } from '#/shared/outbox/consumer-registry'
 import { registerPublicReputationMetricConsumers } from '../public-reputation-outbox-consumers'
 import { registerMetricCorrectionConsumer } from '../correction-outbox-consumers'
@@ -309,7 +308,6 @@ describe.sequential('metricCommandStore (integration)', () => {
         return outcome
       },
       findGroupForPortal: async () => null,
-      logger: createMockLogger(),
     })
 
     await handler(sourceEvent)

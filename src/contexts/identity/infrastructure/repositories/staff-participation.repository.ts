@@ -1,4 +1,4 @@
-import { and, asc, eq, gt, inArray, isNull, lte, or, sql } from 'drizzle-orm'
+import { and, asc, eq, gt, inArray, isNull, lte, ne, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   portalResponsibilities,
@@ -10,7 +10,10 @@ import { portals } from '#/shared/db/schema/portal.schema'
 import { staffError } from '../../domain/people-errors'
 import type { StaffParticipation } from '../../domain/staff-participation'
 import type { PortalResponsibility } from '../../domain/portal-responsibility'
-import type { StaffParticipationRepository } from '../../application/ports/staff-participation.repository'
+import type {
+  ResponsibilitySelection,
+  StaffParticipationRepository,
+} from '../../application/ports/staff-participation.repository'
 
 const participationSelection = {
   id: staffParticipations.id,
@@ -113,6 +116,75 @@ function responsibilityFromRow(
     createdBy: row.createdBy,
     endReason: row.endReason,
   }
+}
+
+type ResponsibilityTx = Parameters<Parameters<Database['transaction']>[0]>[0]
+
+const PRIMARY_HELD_MESSAGE =
+  'another staff member already has this as their primary portal'
+
+/** PostgreSQL constraints that keep a Portal to one active primary responsibility. */
+const PRIMARY_RESPONSIBILITY_CONSTRAINTS: ReadonlySet<string> = new Set([
+  'pr_unique_active_primary', // unique index, SQLSTATE 23505
+  'pr_no_overlapping_primary_intervals', // exclusion constraint, SQLSTATE 23P01
+])
+
+/**
+ * Refuse a new primary Portal that another participation holds; the holder
+ * must release it first. The lock waits out a concurrent release of that row.
+ */
+async function assertPrimaryPortalsUnheld(
+  tx: ResponsibilityTx,
+  input: Readonly<{ organizationId: string; staffParticipationId: string }>,
+  selections: readonly ResponsibilitySelection[],
+): Promise<void> {
+  const primaryPortalIds = selections
+    .filter((selection) => selection.kind === 'primary')
+    .map((selection) => selection.portalId)
+  if (primaryPortalIds.length === 0) return
+  const [held] = await tx
+    .select({ portalId: portalResponsibilities.portalId })
+    .from(portalResponsibilities)
+    .where(
+      and(
+        eq(portalResponsibilities.organizationId, input.organizationId),
+        inArray(portalResponsibilities.portalId, primaryPortalIds),
+        eq(portalResponsibilities.kind, 'primary'),
+        isNull(portalResponsibilities.effectiveTo),
+        ne(portalResponsibilities.staffParticipationId, input.staffParticipationId),
+      ),
+    )
+    .for('update')
+  if (held) {
+    throw staffError('responsibility_conflict', PRIMARY_HELD_MESSAGE, {
+      portalId: held.portalId,
+    })
+  }
+}
+
+/** True when the error, or a cause drizzle wrapped it in, names such a constraint. */
+function violatesPrimaryResponsibility(
+  error: unknown,
+  seen: ReadonlySet<unknown> = new Set(),
+): boolean {
+  if (typeof error !== 'object' || error === null || seen.has(error)) return false
+  const { constraint, cause } = error as { constraint?: unknown; cause?: unknown }
+  return (
+    (typeof constraint === 'string' &&
+      PRIMARY_RESPONSIBILITY_CONSTRAINTS.has(constraint)) ||
+    violatesPrimaryResponsibility(cause, new Set([...seen, error]))
+  )
+}
+
+/**
+ * A concurrent assignment can take the Portal after the check and before the
+ * insert, which the constraints then refuse. Report it as the same conflict.
+ */
+function rethrowPrimaryConflict(error: unknown): never {
+  if (violatesPrimaryResponsibility(error)) {
+    throw staffError('responsibility_conflict', PRIMARY_HELD_MESSAGE)
+  }
+  throw error
 }
 
 export const createStaffParticipationRepository = (
@@ -323,147 +395,154 @@ export const createStaffParticipationRepository = (
   },
 
   replaceResponsibilities: async (input) =>
-    db.transaction(async (tx) => {
-      await tx.execute(sql`
-        SELECT id FROM staff_participations
-        WHERE organization_id = ${input.organizationId}
-          AND property_id = ${input.propertyId}
-          AND id = ${input.staffParticipationId}
-          AND status = 'active'
-        FOR UPDATE
-      `)
-      const [participation] = await tx
-        .select({
-          id: staffParticipations.id,
-          revision: staffParticipations.revision,
-        })
-        .from(staffParticipations)
-        .where(
-          and(
-            eq(staffParticipations.organizationId, input.organizationId),
-            eq(staffParticipations.propertyId, input.propertyId),
-            eq(staffParticipations.id, input.staffParticipationId),
-            eq(staffParticipations.status, 'active'),
-          ),
-        )
-        .limit(1)
-      if (!participation) {
-        throw staffError('participation_not_found', 'active participation not found')
-      }
-      if (participation.revision !== input.expectedRevision) {
-        throw staffError('revision_conflict', 'staff participation changed; reload it')
-      }
-
-      const portalIds = input.selections.map((selection) => selection.portalId)
-      if (portalIds.length > 0) {
-        const ownedPortals = await tx
-          .select({ id: portals.id })
-          .from(portals)
+    db
+      .transaction(async (tx) => {
+        await tx.execute(sql`
+          SELECT id FROM staff_participations
+          WHERE organization_id = ${input.organizationId}
+            AND property_id = ${input.propertyId}
+            AND id = ${input.staffParticipationId}
+            AND status = 'active'
+          FOR UPDATE
+        `)
+        const [participation] = await tx
+          .select({
+            id: staffParticipations.id,
+            revision: staffParticipations.revision,
+          })
+          .from(staffParticipations)
           .where(
             and(
-              eq(portals.organizationId, input.organizationId),
-              eq(portals.propertyId, input.propertyId),
-              inArray(portals.id, portalIds),
-              isNull(portals.deletedAt),
+              eq(staffParticipations.organizationId, input.organizationId),
+              eq(staffParticipations.propertyId, input.propertyId),
+              eq(staffParticipations.id, input.staffParticipationId),
+              eq(staffParticipations.status, 'active'),
             ),
           )
-        if (ownedPortals.length !== new Set(portalIds).size) {
-          throw staffError(
-            'invalid_input',
-            'one or more portals are outside the property',
-          )
+          .limit(1)
+        if (!participation) {
+          throw staffError('participation_not_found', 'active participation not found')
         }
-      }
-
-      const currentRows = await tx
-        .select()
-        .from(portalResponsibilities)
-        .where(
-          and(
-            eq(portalResponsibilities.organizationId, input.organizationId),
-            eq(portalResponsibilities.staffParticipationId, input.staffParticipationId),
-            isNull(portalResponsibilities.effectiveTo),
-          ),
-        )
-        .orderBy(asc(portalResponsibilities.kind), asc(portalResponsibilities.portalId))
-      const keyFor = (value: { portalId: string; kind: string }) =>
-        `${value.portalId}:${value.kind}`
-      const currentByKey = new Map(currentRows.map((row) => [keyFor(row), row]))
-      const desiredByKey = new Map(
-        input.selections.map((selection) => [keyFor(selection), selection]),
-      )
-      const idsToEnd = currentRows
-        .filter((row) => !desiredByKey.has(keyFor(row)))
-        .map((row) => row.id)
-      const selectionsToInsert = [...desiredByKey.entries()]
-        .filter(([key]) => !currentByKey.has(key))
-        .map(([, selection]) => selection)
-
-      if (idsToEnd.length === 0 && selectionsToInsert.length === 0) {
-        return {
-          responsibilities: currentRows.map(responsibilityFromRow),
-          revision: participation.revision,
+        if (participation.revision !== input.expectedRevision) {
+          throw staffError('revision_conflict', 'staff participation changed; reload it')
         }
-      }
 
-      if (idsToEnd.length > 0) {
-        await tx
-          .update(portalResponsibilities)
-          .set({ effectiveTo: input.at, endReason: 'responsibility_reassigned' })
+        const portalIds = input.selections.map((selection) => selection.portalId)
+        if (portalIds.length > 0) {
+          const ownedPortals = await tx
+            .select({ id: portals.id })
+            .from(portals)
+            .where(
+              and(
+                eq(portals.organizationId, input.organizationId),
+                eq(portals.propertyId, input.propertyId),
+                inArray(portals.id, portalIds),
+                isNull(portals.deletedAt),
+              ),
+            )
+          if (ownedPortals.length !== new Set(portalIds).size) {
+            throw staffError(
+              'invalid_input',
+              'one or more portals are outside the property',
+            )
+          }
+        }
+
+        const currentRows = await tx
+          .select()
+          .from(portalResponsibilities)
           .where(
             and(
               eq(portalResponsibilities.organizationId, input.organizationId),
               eq(portalResponsibilities.staffParticipationId, input.staffParticipationId),
-              inArray(portalResponsibilities.id, idsToEnd),
               isNull(portalResponsibilities.effectiveTo),
             ),
           )
-      }
-
-      if (selectionsToInsert.length > 0) {
-        await tx.insert(portalResponsibilities).values(
-          selectionsToInsert.map((selection) => ({
-            organizationId: input.organizationId,
-            propertyId: input.propertyId,
-            portalId: selection.portalId,
-            staffParticipationId: input.staffParticipationId,
-            kind: selection.kind,
-            effectiveFrom: input.at,
-            createdBy: input.actorId,
-          })),
+          .orderBy(asc(portalResponsibilities.kind), asc(portalResponsibilities.portalId))
+        const keyFor = (value: { portalId: string; kind: string }) =>
+          `${value.portalId}:${value.kind}`
+        const currentByKey = new Map(currentRows.map((row) => [keyFor(row), row]))
+        const desiredByKey = new Map(
+          input.selections.map((selection) => [keyFor(selection), selection]),
         )
-      }
+        const idsToEnd = currentRows
+          .filter((row) => !desiredByKey.has(keyFor(row)))
+          .map((row) => row.id)
+        const selectionsToInsert = [...desiredByKey.entries()]
+          .filter(([key]) => !currentByKey.has(key))
+          .map(([, selection]) => selection)
 
-      const nextRevision = participation.revision + 1
-      const [revised] = await tx
-        .update(staffParticipations)
-        .set({ revision: nextRevision, updatedAt: input.at })
-        .where(
-          and(
-            eq(staffParticipations.organizationId, input.organizationId),
-            eq(staffParticipations.id, input.staffParticipationId),
-            eq(staffParticipations.revision, input.expectedRevision),
-          ),
-        )
-        .returning({ revision: staffParticipations.revision })
-      if (!revised) {
-        throw staffError('revision_conflict', 'staff participation changed; reload it')
-      }
+        if (idsToEnd.length === 0 && selectionsToInsert.length === 0) {
+          return {
+            responsibilities: currentRows.map(responsibilityFromRow),
+            revision: participation.revision,
+          }
+        }
 
-      const activeRows = await tx
-        .select()
-        .from(portalResponsibilities)
-        .where(
-          and(
-            eq(portalResponsibilities.organizationId, input.organizationId),
-            eq(portalResponsibilities.staffParticipationId, input.staffParticipationId),
-            isNull(portalResponsibilities.effectiveTo),
-          ),
-        )
-        .orderBy(asc(portalResponsibilities.kind), asc(portalResponsibilities.portalId))
-      return {
-        responsibilities: activeRows.map(responsibilityFromRow),
-        revision: revised.revision,
-      }
-    }),
+        await assertPrimaryPortalsUnheld(tx, input, selectionsToInsert)
+
+        if (idsToEnd.length > 0) {
+          await tx
+            .update(portalResponsibilities)
+            .set({ effectiveTo: input.at, endReason: 'responsibility_reassigned' })
+            .where(
+              and(
+                eq(portalResponsibilities.organizationId, input.organizationId),
+                eq(
+                  portalResponsibilities.staffParticipationId,
+                  input.staffParticipationId,
+                ),
+                inArray(portalResponsibilities.id, idsToEnd),
+                isNull(portalResponsibilities.effectiveTo),
+              ),
+            )
+        }
+
+        if (selectionsToInsert.length > 0) {
+          await tx.insert(portalResponsibilities).values(
+            selectionsToInsert.map((selection) => ({
+              organizationId: input.organizationId,
+              propertyId: input.propertyId,
+              portalId: selection.portalId,
+              staffParticipationId: input.staffParticipationId,
+              kind: selection.kind,
+              effectiveFrom: input.at,
+              createdBy: input.actorId,
+            })),
+          )
+        }
+
+        const nextRevision = participation.revision + 1
+        const [revised] = await tx
+          .update(staffParticipations)
+          .set({ revision: nextRevision, updatedAt: input.at })
+          .where(
+            and(
+              eq(staffParticipations.organizationId, input.organizationId),
+              eq(staffParticipations.id, input.staffParticipationId),
+              eq(staffParticipations.revision, input.expectedRevision),
+            ),
+          )
+          .returning({ revision: staffParticipations.revision })
+        if (!revised) {
+          throw staffError('revision_conflict', 'staff participation changed; reload it')
+        }
+
+        const activeRows = await tx
+          .select()
+          .from(portalResponsibilities)
+          .where(
+            and(
+              eq(portalResponsibilities.organizationId, input.organizationId),
+              eq(portalResponsibilities.staffParticipationId, input.staffParticipationId),
+              isNull(portalResponsibilities.effectiveTo),
+            ),
+          )
+          .orderBy(asc(portalResponsibilities.kind), asc(portalResponsibilities.portalId))
+        return {
+          responsibilities: activeRows.map(responsibilityFromRow),
+          revision: revised.revision,
+        }
+      })
+      .catch(rethrowPrimaryConflict),
 })
