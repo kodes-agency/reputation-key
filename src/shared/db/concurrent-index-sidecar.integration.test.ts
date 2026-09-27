@@ -24,15 +24,29 @@ const METRIC_PROPERTY_SPEC = specFor('metric_readings_property_idx')
 const METRIC_PORTAL_SPEC = specFor('metric_readings_portal_only_idx')
 const METRIC_GROUP_SPEC = specFor('metric_readings_group_only_idx')
 
-type PlanNode = Readonly<{
-  'Node Type'?: string
-  'Index Name'?: string
-  'Relation Name'?: string
-  Plans?: readonly PlanNode[]
+type IndexCatalogRow = Readonly<{
+  indexdef: string
+  indisvalid: boolean
+  indisready: boolean
 }>
 
-function flattenPlan(node: PlanNode): readonly PlanNode[] {
-  return [node, ...(node.Plans ?? []).flatMap(flattenPlan)]
+// The index as PostgreSQL recorded it. Asserting the catalogue rather than an
+// EXPLAIN plan keeps these tests deterministic: on a table holding a couple of
+// test rows the planner's choice depends on statistics, not on whether the
+// index exists (CI chose another path and failed an earlier plan-shape
+// version of this test).
+async function readIndex(
+  pool: TestLease['pool'],
+  name: string,
+): Promise<IndexCatalogRow | null> {
+  const result = await pool.query<IndexCatalogRow>(
+    `SELECT pg_get_indexdef(x.indexrelid) AS indexdef, x.indisvalid, x.indisready
+       FROM pg_index x
+       JOIN pg_class c ON c.oid = x.indexrelid
+      WHERE c.relname = $1`,
+    [name],
+  )
+  return result.rows[0] ?? null
 }
 
 describe('review_provider_snapshot_runs completed-property index sidecar', () => {
@@ -98,24 +112,14 @@ describe('review_provider_snapshot_runs completed-property index sidecar', () =>
     )
     expect(rows.rows).toEqual([{ property_id: propertyId }])
 
-    // Plan shape: property-setup.repository.ts's synced_properties CTE filters
-    // on exactly this (organization_id, state = 'completed') predicate: it
-    // must be served by an index, not a sequential scan of every
-    // organization's rows.
-    const plan = await lease.pool.query<{ 'QUERY PLAN': readonly [{ Plan: PlanNode }] }>(
-      `EXPLAIN (FORMAT JSON) SELECT property_id FROM review_provider_snapshot_runs
-        WHERE organization_id = $1 AND state = 'completed'`,
-      [organizationId],
-    )
-    const nodes = flattenPlan(plan.rows[0]['QUERY PLAN'][0].Plan)
-    expect(nodes.some((node) => node['Index Name'] === SPEC.name)).toBe(true)
-    expect(
-      nodes.some(
-        (node) =>
-          node['Node Type'] === 'Seq Scan' &&
-          node['Relation Name'] === 'review_provider_snapshot_runs',
-      ),
-    ).toBe(false)
+    // Catalogue shape: property-setup.repository.ts's synced_properties CTE
+    // filters on (organization_id, state = 'completed'); the index must lead
+    // with organization_id and be partial on the completed state, and the
+    // CONCURRENTLY build must have left it valid and ready.
+    const index = await readIndex(lease.pool, SPEC.name)
+    expect(index).toMatchObject({ indisvalid: true, indisready: true })
+    expect(index?.indexdef).toMatch(/\(organization_id, property_id, source_epoch\)/)
+    expect(index?.indexdef).toMatch(/WHERE .*state.*'completed'/)
   })
 })
 
@@ -193,43 +197,22 @@ describe('metric_readings property/portal/group index sidecar (database-04)', ()
       })
     }
 
-    // Plan shape: a Portal/Portal Group/Property delete's FK cascade check is
-    // exactly this bare `WHERE <column> = $1` shape, with no organization_id
-    // predicate available to use any of the org-prefixed indexes instead.
-    // `column` is always one of the three literal SQL fragments below, never
-    // request input.
+    // Catalogue shape: a Portal/Portal Group/Property delete's FK cascade
+    // check is a bare `WHERE <column> = $1`, with no organization_id
+    // predicate to use the org-prefixed indexes, so each FK column needs its
+    // own valid, ready single-column index.
     const checks: readonly [
       column: 'property_id' | 'portal_id' | 'group_id',
-      value: string,
       indexName: string,
     ][] = [
-      ['property_id', propertyId, METRIC_PROPERTY_SPEC.name],
-      ['portal_id', portalId, METRIC_PORTAL_SPEC.name],
-      ['group_id', groupId, METRIC_GROUP_SPEC.name],
+      ['property_id', METRIC_PROPERTY_SPEC.name],
+      ['portal_id', METRIC_PORTAL_SPEC.name],
+      ['group_id', METRIC_GROUP_SPEC.name],
     ]
-    for (const [column, value, indexName] of checks) {
-      const query =
-        column === 'property_id'
-          ? 'EXPLAIN (FORMAT JSON) SELECT id FROM metric_readings WHERE property_id = $1'
-          : column === 'portal_id'
-            ? 'EXPLAIN (FORMAT JSON) SELECT id FROM metric_readings WHERE portal_id = $1'
-            : 'EXPLAIN (FORMAT JSON) SELECT id FROM metric_readings WHERE group_id = $1'
-      const plan = await lease.pool.query<{
-        'QUERY PLAN': readonly [{ Plan: PlanNode }]
-      }>(query, [value])
-      const nodes = flattenPlan(plan.rows[0]['QUERY PLAN'][0].Plan)
-      expect(
-        nodes.some((node) => node['Index Name'] === indexName),
-        column,
-      ).toBe(true)
-      expect(
-        nodes.some(
-          (node) =>
-            node['Node Type'] === 'Seq Scan' &&
-            node['Relation Name'] === 'metric_readings',
-        ),
-        column,
-      ).toBe(false)
+    for (const [column, indexName] of checks) {
+      const index = await readIndex(lease.pool, indexName)
+      expect(index, column).toMatchObject({ indisvalid: true, indisready: true })
+      expect(index?.indexdef, column).toContain(`(${column})`)
     }
   })
 })
