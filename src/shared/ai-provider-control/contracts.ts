@@ -13,7 +13,6 @@ import type { AiGatewayRoute } from '#/shared/ai-openai-request-contract'
 import type { PreparedAiInvocation } from './prepared-invocation'
 export type { PreparedAiInvocation } from './prepared-invocation'
 export {
-  OPENAI_KNOWN_MODEL_SNAPSHOTS,
   OPENAI_MODEL_SNAPSHOT,
   OPENAI_PROMPT_VERSIONS,
   type AiGatewayRoute,

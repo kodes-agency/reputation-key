@@ -222,10 +222,6 @@
       "exports": ["createInboxItem", "CreateInboxItemInput"]
     },
     {
-      "file": "src/contexts/*/infrastructure/adapters/db-user-lookup.adapter.ts",
-      "exports": ["createDbUserLookupAdapter"]
-    },
-    {
       "file": "src/contexts/integration/application/use-cases/handle-gbp-notification.ts",
       "exports": ["handleGbpNotification"]
     },
