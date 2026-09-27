@@ -6,7 +6,7 @@
 // the guest-action time is `metricReadings.eventAt`; every period below is
 // bounded on that business timestamp.
 
-import type { Database } from '#/shared/db'
+import type { Database, Tx } from '#/shared/db'
 import { metricCorrections, metricReadings } from '#/shared/db/schema'
 import {
   and,
@@ -57,13 +57,13 @@ function metricPortalWhere(
 
 async function withStatementTimeout<T>(
   db: Database,
-  read: (tx: Database) => Promise<T>,
+  read: (tx: Tx) => Promise<T>,
 ): Promise<T> {
   return db.transaction(async (tx) => {
     await tx.execute(
       sql`SELECT set_config('statement_timeout', ${String(METRIC_PORTAL_READ_BUDGET_MS)}, true)`,
     )
-    return read(tx as unknown as Database)
+    return read(tx)
   })
 }
 

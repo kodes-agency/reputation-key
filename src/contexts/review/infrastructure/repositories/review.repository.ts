@@ -24,7 +24,7 @@ import {
   isNotNull,
   sql,
 } from 'drizzle-orm'
-import type { Database } from '#/shared/db'
+import type { Database, Tx } from '#/shared/db'
 import { reviews, reviewProviderSubjects } from '#/shared/db/schema/review.schema'
 import type { ReviewRepository } from '../../application/ports/review.repository'
 import type { Review, ReviewPlatform, StarRating } from '../../domain/types'
@@ -53,13 +53,13 @@ const INSIGHTS_READ_BUDGET_MS = 5_000
 async function withStatementTimeout<T>(
   db: Database,
   budgetMs: number,
-  read: (transaction: Database) => Promise<T>,
+  read: (transaction: Tx) => Promise<T>,
 ): Promise<T> {
   return db.transaction(async (transaction) => {
     await transaction.execute(
       sql`SELECT set_config('statement_timeout', ${String(budgetMs)}, true)`,
     )
-    return read(transaction as unknown as Database)
+    return read(transaction)
   })
 }
 

@@ -1,5 +1,5 @@
 import { and, desc, eq, gte, inArray, isNotNull, lte, sql } from 'drizzle-orm'
-import type { Database } from '#/shared/db'
+import type { Database, Tx } from '#/shared/db'
 import {
   aiPropertyAggregateContributionAspects,
   aiPropertyAggregateContributions,
@@ -82,14 +82,14 @@ function isPgStatementTimeout(error: unknown): boolean {
 async function withStatementTimeout<T>(
   db: Database,
   budgetMs: number,
-  read: (transaction: Database) => Promise<T>,
+  read: (transaction: Tx) => Promise<T>,
 ): Promise<T> {
   try {
     return await db.transaction(async (transaction) => {
       await transaction.execute(
         sql`SELECT set_config('statement_timeout', ${String(budgetMs)}, true)`,
       )
-      return read(transaction as unknown as Database)
+      return read(transaction)
     })
   } catch (error) {
     if (isPgStatementTimeout(error)) {

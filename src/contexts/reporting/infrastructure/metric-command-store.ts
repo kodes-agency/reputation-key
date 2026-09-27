@@ -413,7 +413,7 @@ async function recordMetricEntry(
 
   if (expectedPortalLifetimeFact && command.reading.portalId) {
     await applyPortalLifetimeChanges(
-      tx as unknown as Database,
+      tx,
       {
         organizationId: command.reading.organizationId,
         propertyId: command.reading.propertyId,
@@ -568,7 +568,7 @@ async function retractMetricEntry(
         throw new Error('Portal lifetime source reading has no Property-local date')
       }
       await applyPortalLifetimeChanges(
-        tx as unknown as Database,
+        tx,
         {
           organizationId: command.organizationId,
           propertyId: command.propertyId,

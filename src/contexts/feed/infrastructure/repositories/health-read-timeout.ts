@@ -8,7 +8,7 @@
 // caller that has gone.
 
 import { sql } from 'drizzle-orm'
-import type { Database } from '#/shared/db'
+import type { Database, Tx } from '#/shared/db'
 
 /**
  * Statement timeout for the notification health reads (gap count and
@@ -69,7 +69,7 @@ export function assertStatementTimeoutMs(statementTimeoutMs: number): void {
 export async function withHealthReadTimeout<T>(
   db: Database,
   statementTimeoutMs: number,
-  read: (transaction: Database) => Promise<T>,
+  read: (transaction: Tx) => Promise<T>,
 ): Promise<T> {
   assertStatementTimeoutMs(statementTimeoutMs)
   try {
@@ -78,7 +78,7 @@ export async function withHealthReadTimeout<T>(
         await transaction.execute(
           sql`SELECT set_config('statement_timeout', ${String(statementTimeoutMs)}, true)`,
         )
-        return read(transaction as unknown as Database)
+        return read(transaction)
       },
       { accessMode: 'read only' },
     )
