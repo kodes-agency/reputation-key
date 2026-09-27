@@ -25,11 +25,11 @@ never product authority merely because it predates this document.
 
 Every event `_tag` follows `context.entity.verb`:
 
-| Segment   | Rule                                                                                                                                                                       | Example     |
-| --------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
-| `context` | Bounded context name (activity, ai, badge, dashboard, goal, guest, identity, inbox, integration, leaderboard, metric, notification, portal, property, review, staff, team) | `review`    |
-| `entity`  | Domain entity name (can contain underscores for multi-word: `portal_link`, `google_account`)                                                                               | `reply`     |
-| `verb`    | Past-tense action (can contain underscores: `status_changed`, `visibility_changed`)                                                                                        | `published` |
+| Segment   | Rule                                                                                                                                        | Example     |
+| --------- | ------------------------------------------------------------------------------------------------------------------------------------------- | ----------- |
+| `context` | Bounded context name (ai, feed, guest, identity, inbox, integration, portal, property, reporting, review); see grandfathered prefixes below | `review`    |
+| `entity`  | Domain entity name (can contain underscores for multi-word: `portal_link`, `google_account`)                                                | `reply`     |
+| `verb`    | Past-tense action (can contain underscores: `status_changed`, `visibility_changed`)                                                         | `published` |
 
 **Shorthand:** When `context === entity`, omit the entity segment: `review.created` (not `review.review.created`).
 
@@ -45,9 +45,18 @@ Every event `_tag` follows `context.entity.verb`:
 | `review-link.clicked`       | `guest.review_link.clicked`             | Hyphen→underscore, context prefix |
 | `member.role-changed`       | `identity.member.role_changed`          | Hyphen→underscore                 |
 | `inbox.status.changed`      | `inbox.inbox_item.status_changed`       | Add entity segment                |
-| `portal_link.created`       | `portal.portal_link.created`            | Three-segment format              |
 | `google_account.connected`  | `integration.google_account.connected`  | Add context prefix                |
 | `property_import.completed` | `integration.property_import.completed` | Add context prefix                |
+
+**Grandfathered prefixes.** Some persisted tags predate the current context names
+and keep them: `goal.*` and `metric.*` (Reporting; context names before WP3.4) and
+`portal_group.*`, `portal_link.*` and `portal_link_category.*` (Portal; the
+standard form would be `portal.portal_link.*`). They are stored in
+`outbox.event_type` and keyed in `src/shared/events/schema-registrations.ts`, so
+renaming one is a data migration, not a find-and-replace. Do not model new events
+on them. Retired context names are not valid prefixes: `activity` and
+`notification` (now `feed`), `dashboard` (now `reporting`), `staff` (now
+`identity`), and `team`, `badge` and `leaderboard` (deleted 2026-09-06).
 
 ### 1.2 Type naming
 
