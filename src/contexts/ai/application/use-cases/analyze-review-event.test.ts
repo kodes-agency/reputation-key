@@ -18,8 +18,12 @@ import type { AiOperationId } from '../../domain/types'
 import {
   AI_REVIEW_LANGUAGE_ICU_VERSION,
   AI_REVIEW_LANGUAGE_UNICODE_VERSION,
+  LANGUAGE_CATALOGUE_DIGEST,
 } from '#/shared/ai-review-language-catalogue'
 import { AI_REVIEW_LANGUAGE_REGION_NODE_VERSION } from '#/shared/generated/ai-review-language-canonical-regions-v1'
+import { AI_SOURCE_CANONICALIZER_PROFILE_V1 } from '#/shared/ai-operation-profiles'
+import { encodeCanonicalAiReviewSource } from '#/shared/ai-review-source-contract'
+import { aiRequestFingerprint, aiReviewSourceProvenance } from '../ai-workflow-support'
 
 /**
  * `mapReviewLanguageMetadata` fails closed unless the process matches the pinned
@@ -903,5 +907,91 @@ describe('analyze review event', () => {
         expect(harness.mocks.analyzeReview).not.toHaveBeenCalled()
       },
     )
+  })
+})
+
+describe('analyze review event: operation binding', () => {
+  beforeEach(withPinnedLanguageRuntime)
+
+  // The identity and binding feed the RFC 8785 request fingerprint that makes
+  // a claim idempotent, so any change to a field, a key or a null here is a
+  // different operation. Spelled out field by field, independently of the use
+  // case's own builders.
+  it('claims exactly this identity, binding and request fingerprint for a fixed event', async () => {
+    const harness = createHarness()
+
+    await expect(harness.analyze(input)).resolves.toEqual({ status: 'completed' })
+
+    const identity = {
+      subjectKind: 'property',
+      command: 'analysis',
+      capability: 'review_analysis',
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      actorId: null,
+      systemPrincipal: 'review_event_consumer',
+      reviewId: REVIEW_ID,
+      originEventId: input.eventEnvelopeId,
+      subjectHmac: SHA,
+      subjectHmacKeyVersion: 'ai-subject-hmac-v1',
+      sourceEpoch: 2,
+      sourceRevision: 5,
+      reviewedAtEpochMillis: NOW - 1_000,
+      analysisSequence: 7,
+    }
+    const binding = {
+      authorizationLineageId: LINEAGE_ID,
+      noticeVersion: MERCHANT_AI_NOTICE_VERSION,
+      noticeDigest: SHA,
+      capabilityFence: { capability: 'review_analysis', reviewAnalysisEpoch: 1 },
+      sourceEpoch: 2,
+      evaluatedLanguage: 'en-Latn',
+      concreteReplyLanguage: null,
+      languageCatalogueDigest: LANGUAGE_CATALOGUE_DIGEST,
+      replyLanguageVerifierDigest: null,
+      languageScriptConsistencyDigest: null,
+      zhOrthographyVerifierDigest: null,
+      sourceRevision: 5,
+      reviewedAtEpochMillis: NOW - 1_000,
+      propertyProfileVersion: 3,
+      routingPolicyVersion: 1,
+      sourcePolicyId: AI_SOURCE_CANONICALIZER_PROFILE_V1.sourcePolicyId,
+      sourceCanonicalizerDigest:
+        AI_SOURCE_CANONICALIZER_PROFILE_V1.sourceCanonicalizerDigest,
+      redactionProfileVersion: 'gbp-review-global-v1',
+      outputLeakageProfileVersion: null,
+      outputLeakageProfileDigest: null,
+      replyTemplateCatalogueVersion: null,
+      replyTemplateCatalogueDigest: null,
+      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      operationProfileVersion: 'review-analysis-v2',
+      capabilityRuntimeProfileVersion: 'review-analysis-runtime-v1',
+      aiSubjectHmacKeyVersion: 'ai-subject-hmac-v1',
+      stopFence: {
+        globalControlId: '71000000-0000-4000-8000-000000000111',
+        globalGeneration: 1,
+        providerControlId: '71000000-0000-4000-8000-000000000112',
+        providerGeneration: 1,
+        capabilityControlId: '71000000-0000-4000-8000-000000000113',
+        capabilityGeneration: 1,
+      },
+    }
+    const provenance = aiReviewSourceProvenance(
+      encodeCanonicalAiReviewSource({
+        text: 'The kitchen made several guests sick.',
+        rating: 1,
+        languageCode: 'en-US',
+        reviewedAtEpochMillis: NOW - 1_000,
+      }).bytes,
+    )
+    const request = harness.mocks.claim.mock.calls[0]?.[0]
+    expect(request?.identity).toStrictEqual(identity)
+    expect(request?.binding).toStrictEqual(binding)
+    expect(request?.sourceProvenance).toStrictEqual(provenance)
+    expect(request?.requestFingerprint).toBe(
+      aiRequestFingerprint({ identity, binding, provenance }),
+    )
+    expect(request?.idempotencyKey).toBe(`analysis:${input.eventEnvelopeId}`)
+    expect(request?.expiresAtEpochMillis).toBe(NOW + 24 * 60 * 60 * 1_000)
   })
 })
