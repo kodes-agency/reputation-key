@@ -9,17 +9,21 @@ import {
 } from '#/shared/db/schema/beta-feedback-triage.schema'
 import type { MaskedLayout } from '#/shared/beta-feedback-layout'
 import type {
-  BetaFeedbackReportView,
   BetaFeedbackRouteKey,
   BetaFeedbackViewport,
 } from '#/shared/beta-feedback-contract'
 import {
   assertBetaFeedbackTriageTransition,
-  type BetaFeedbackTriageSnapshot,
   type BetaFeedbackTriageState,
   type BetaFeedbackTriageTransition,
 } from '../domain/betaFeedbackTriage'
 import { identityBetaFeedbackOutcomeReached } from '../domain/events'
+import type {
+  BetaFeedbackReporterItem,
+  BetaFeedbackSubmissionStore,
+  BetaFeedbackTriageRecord,
+  PreparedBetaFeedbackTriage,
+} from '../application/ports/beta-feedback-submission.port'
 import type { BetaFeedbackReporter } from './beta-feedback-reporter'
 
 /** The transaction handle drizzle hands the callback; narrower than Database. */
@@ -27,51 +31,6 @@ type TriageTx = Parameters<Parameters<Database['transaction']>[0]>[0]
 
 type TriageRow = typeof betaFeedbackTriage.$inferSelect
 type TriageTransitionRow = typeof betaFeedbackTriageTransitions.$inferSelect
-
-export type PreparedBetaFeedbackTriage = Readonly<{
-  reference: string
-  organizationPseudonym: string
-  actorPseudonym: string
-  feedbackType: 'bug' | 'suggestion'
-  impactCode:
-    | 'cannot_complete'
-    | 'workaround_available'
-    | 'small_issue'
-    | 'important'
-    | 'helpful'
-    | 'nice_to_have'
-  routeKey: BetaFeedbackRouteKey
-  viewport: BetaFeedbackViewport
-  reporterRole: 'AccountAdmin' | 'PropertyManager' | 'Member'
-  clientErrorEventId: string | null
-  attachmentKind: 'none' | 'masked_layout_v1'
-  attachmentCapturedAt: Date | null
-  attachmentExpiresAt: Date | null
-  /** Present exactly when attachmentKind is masked_layout_v1. */
-  maskedLayout: MaskedLayout | null
-  now: Date
-}>
-
-export type BetaFeedbackTriageRecord = BetaFeedbackTriageSnapshot &
-  Readonly<{
-    organizationPseudonym: string
-    actorPseudonym: string
-    feedbackType: 'bug' | 'suggestion'
-    impactCode: PreparedBetaFeedbackTriage['impactCode']
-    routeKey: BetaFeedbackRouteKey
-    viewport: BetaFeedbackViewport
-    reporterRole: PreparedBetaFeedbackTriage['reporterRole']
-    clientErrorEventId: string | null
-    deliveryFailureCode: string | null
-    providerReference: string | null
-    attachmentKind: 'none' | 'masked_layout_v1'
-    attachmentCapturedAt: Date | null
-    attachmentExpiresAt: Date | null
-    createdAt: Date
-    updatedAt: Date
-  }>
-
-export type BetaFeedbackReporterItem = BetaFeedbackReportView
 
 export type BetaFeedbackTriageQueueItem = Omit<
   BetaFeedbackTriageRecord,
@@ -162,8 +121,10 @@ function isExactTransitionReplay(
 /**
  * Identity-owned, content-free workflow repository. Report bodies and
  * attachment bytes are deliberately absent from every method signature.
+ * Requests reach only its BetaFeedbackSubmissionStore slice, through the
+ * Identity beta-feedback use cases; the rest is the operator workflow.
  */
-export class BetaFeedbackTriageRepository {
+export class BetaFeedbackTriageRepository implements BetaFeedbackSubmissionStore {
   private constructor(private readonly db: Database) {}
 
   static create(db: Database): BetaFeedbackTriageRepository {
@@ -338,9 +299,9 @@ export class BetaFeedbackTriageRepository {
    * narrower than the internal queue: no severity, owner queue, privacy or
    * security classification crosses back to the person who reported.
    */
-  // Reached only through the container, so the changed-files audit cannot see
-  // the edge. `fallow dead-code --type-aware --symbol-impact` resolves it:
-  // direct consumer identity/server/beta-feedback.ts, distance 1.
+  // Reached only through the BetaFeedbackSubmissionStore port, so the
+  // changed-files audit cannot see the edge: the consumer is
+  // application/use-cases/list-my-beta-feedback.ts.
   // fallow-ignore-next-line unused-class-member
   async listForActor(
     actorPseudonym: string,

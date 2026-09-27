@@ -110,6 +110,10 @@ import type { SourceContentPurge } from '#/contexts/review/application/public-ap
 import type { PortalPublicDisplayNameDefaultPublicApi } from '#/contexts/portal/application/public-api'
 import { googleConnectionId, propertyId } from '#/shared/domain/ids'
 import type { HandleGbpNotificationDeps } from './application/use-cases/handle-gbp-notification'
+import {
+  reconcileGoogleProviderRecovery,
+  type ReconcileGoogleProviderRecovery,
+} from './application/use-cases/reconcile-google-provider-recovery'
 import { createProviderAuthorizationInvalidationFanout } from '#/shared/provider-ephemeral/authorization-invalidation'
 
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
@@ -326,6 +330,8 @@ export type IntegrationContextApi = Readonly<{
     registerOutboxConsumers: (consumerRegistry: ConsumerRegistry) => void
     processImportItem: GoogleImportV2Processor['process'] | null
     sweepImportLifecycle: ReturnType<typeof createGoogleImportV2Lifecycle>['sweep'] | null
+    /** One bounded pass of both provider recovery stores; counts only. */
+    reconcileProviderRecovery: ReconcileGoogleProviderRecovery
   }>
   /** ARC-03-T12: the named provider capabilities the Review build consumes. */
   reviewSync: Readonly<{
@@ -1419,6 +1425,12 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       registerOutboxConsumers,
       processImportItem: useCases.processGoogleImportV2Item,
       sweepImportLifecycle: useCases.sweepGoogleImportV2Lifecycle,
+      // The permit sweep's recovery pass, on the stores this build already
+      // holds, including a composition-provided disconnect store.
+      reconcileProviderRecovery: reconcileGoogleProviderRecovery({
+        exchangeRecovery: googleOAuthExchangeRecovery,
+        disconnectRevoke: googleDisconnectRevokeStore,
+      }),
     }),
     // ARC-03-T12: the two provider capabilities the Review context consumes.
     // The root forwards this named group instead of reaching into `internal`.

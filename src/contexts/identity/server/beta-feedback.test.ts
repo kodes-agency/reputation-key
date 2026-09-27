@@ -10,27 +10,14 @@ const mocks = vi.hoisted(() => ({
   listForActor: vi.fn(),
   markDelivered: vi.fn(),
   markFailed: vi.fn(),
+  container: undefined as unknown,
 }))
 
 const FEEDBACK_REFERENCE = '00000000-0000-4000-8000-0000000000f1'
 const NOW = new Date('2026-08-28T08:00:00.000Z')
 
 vi.mock('#/composition', () => ({
-  getContainer: () => ({
-    rateLimiter: { check: vi.fn() },
-    identityRequestSecurity: {
-      betaFeedbackHmacSecret: 'feedback-secret',
-    },
-    db: {},
-    idGen: () => FEEDBACK_REFERENCE,
-    clock: () => NOW,
-    betaFeedbackTriageRepo: {
-      prepare: mocks.prepareTriage,
-      listForActor: mocks.listForActor,
-      markDelivered: mocks.markDelivered,
-      markFailed: mocks.markFailed,
-    },
-  }),
+  getContainer: () => mocks.container,
 }))
 vi.mock('#/shared/auth/headers', () => ({
   headersFromContext: vi.fn(async () => new Headers({ cookie: 'session=current' })),
@@ -46,10 +33,16 @@ vi.mock('#/shared/observability/traced-server-fn', () => ({
 }))
 vi.mock('./beta-feedback-rate-limit.server', () => ({
   enforceBetaFeedbackRateLimit: mocks.enforceRateLimit,
+}))
+vi.mock('../application/beta-feedback-pseudonym', () => ({
   betaFeedbackPseudonym: mocks.pseudonym,
 }))
 
 import { listMyBetaFeedbackHandler, submitBetaFeedbackHandler } from './beta-feedback'
+import { submitBetaFeedback } from '../application/use-cases/submit-beta-feedback'
+import { listMyBetaFeedback } from '../application/use-cases/list-my-beta-feedback'
+import { deliverBetaFeedback } from '../infrastructure/adapters/beta-feedback-sentry-delivery.adapter'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import {
   createExecutionPolicy,
   initExecutionPolicy,
@@ -61,6 +54,31 @@ import {
   type CapabilityPolicyStore,
 } from '#/shared/auth/beta-capabilities'
 import { initPermissionTable } from '#/shared/auth/permissions'
+
+// The Identity beta-feedback capability as the build wires it: the real use
+// cases and Sentry seam (telemetry is mocked) over a mocked triage store.
+const triageStore = {
+  prepare: mocks.prepareTriage,
+  listForActor: mocks.listForActor,
+  markDelivered: mocks.markDelivered,
+  markFailed: mocks.markFailed,
+}
+mocks.container = {
+  rateLimiter: { check: vi.fn() },
+  identityRequestSecurity: {
+    betaFeedbackHmacSecret: 'feedback-secret',
+  },
+  identityBetaFeedback: {
+    submit: submitBetaFeedback({
+      store: triageStore,
+      deliver: deliverBetaFeedback,
+      clock: () => NOW,
+      idGen: () => FEEDBACK_REFERENCE,
+      hmacSecret: 'feedback-secret',
+    }),
+    listMine: listMyBetaFeedback({ store: triageStore, hmacSecret: 'feedback-secret' }),
+  },
+}
 
 const actor = {
   organizationId: 'private-organization-id',
@@ -303,6 +321,29 @@ describe('submit beta feedback server function', () => {
       withStartContext(() => submitBetaFeedbackHandler({ data: bug })),
     ).rejects.toMatchObject({ name: 'AuthError', status: 403 })
     expect(mocks.enforceRateLimit).not.toHaveBeenCalled()
+    expect(mocks.captureFeedback).not.toHaveBeenCalled()
+  })
+
+  it('passes the rate-limit refusal through as its own 429', async () => {
+    // The limiter throws an already-mapped `FeedbackError`; it must not be
+    // re-mapped to the 503 a failed delivery gets.
+    mocks.enforceRateLimit.mockRejectedValue(
+      new ServerFunctionError(
+        'FeedbackError',
+        'Please wait before sending more beta feedback.',
+        'rate_limited',
+        429,
+      ),
+    )
+
+    await expect(
+      withStartContext(() => submitBetaFeedbackHandler({ data: bug })),
+    ).rejects.toMatchObject({
+      name: 'FeedbackError',
+      code: 'rate_limited',
+      status: 429,
+    })
+    expect(mocks.prepareTriage).not.toHaveBeenCalled()
     expect(mocks.captureFeedback).not.toHaveBeenCalled()
   })
 

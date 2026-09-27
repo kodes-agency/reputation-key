@@ -18,15 +18,23 @@ describe('Google provider recovery runtime', () => {
       schedule: 'every:300000',
       registration: 'enabled',
     })
-    expect(bootstrap).toMatch(
-      /createGoogleOAuthExchangeRecoveryRepository\(\s*container\.db,?\s*\)/u,
+    // The sweep consumes Integration's named worker capability; bootstrap
+    // builds no recovery repository of its own.
+    expect(bootstrap).not.toContain('createGoogleOAuthExchangeRecoveryRepository')
+    expect(bootstrap).not.toContain('createGoogleDisconnectRevokeRepository')
+    const sweep = bootstrap.slice(
+      bootstrap.indexOf(
+        'container.jobRegistry.register(PERMIT_START_DEADLINE_SWEEP_JOB_NAME',
+      ),
+      bootstrap.indexOf("'Google provider recovery sweep completed'"),
     )
-    expect(bootstrap).toMatch(
-      /createGoogleDisconnectRevokeRepository\(\s*container\.db,?\s*\)/u,
+    expect(sweep).toMatch(
+      /integrationWorkerRuntime\.reconcileProviderRecovery\(\{\s*now: container\.clock\(\),\s*limit: 100,?\s*\}\)/u,
     )
-    expect(bootstrap).toContain('oauthExchangeRecovery.expire({ now, limit: 100 })')
-    expect(bootstrap).toContain(
-      'disconnectRevokeRecovery.reconcileElapsed({ now, limit: 100 })',
+    // That capability runs both stores the build holds (see
+    // reconcile-google-provider-recovery.test.ts for the delegation).
+    expect(source('src/contexts/integration/build.ts')).toMatch(
+      /reconcileProviderRecovery: reconcileGoogleProviderRecovery\(\{\s*exchangeRecovery: googleOAuthExchangeRecovery,\s*disconnectRevoke: googleDisconnectRevokeStore,?\s*\}\)/u,
     )
   })
 

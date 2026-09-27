@@ -42,7 +42,6 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'alertDispatcher',
   'assetStorage',
   'backgroundQueue',
-  'betaFeedbackTriageRepo',
   'cache',
   // ARC-03-T8: the policy trio is container-owned. Building a container no
   // longer installs it process-wide; one entry point binds one container.
@@ -62,6 +61,9 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'guestPublicApi',
   'handleResendEvent',
   'idGen',
+  // The reporter's beta-feedback requests; the triage repository itself is
+  // never on the container.
+  'identityBetaFeedback',
   'identityLifecycleRuntime',
   'identityPort',
   'identityPublicApi',
@@ -268,6 +270,7 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
     ])
     expect(Object.keys(container.integrationWorkerRuntime).sort()).toEqual([
       'processImportItem',
+      'reconcileProviderRecovery',
       'registerOutboxConsumers',
       'sweepImportLifecycle',
     ])

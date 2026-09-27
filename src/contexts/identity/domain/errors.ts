@@ -36,3 +36,30 @@ export const identityError = createErrorFactory<
 /** Type guard — lets server functions detect IdentityError at catch time. */
 export const isIdentityError = (e: unknown): e is IdentityError =>
   typeof e === 'object' && e !== null && (e as { _tag?: string })._tag === 'IdentityError'
+
+export type BetaFeedbackErrorCode = 'temporarily_unavailable'
+
+/**
+ * A beta-feedback report the request path could not complete. The report is
+ * durably recorded as failed, so the reporter is asked to try again. The wire
+ * error is `FeedbackError`; the tag differs so this guard never matches an
+ * already-mapped `FeedbackError` server error such as the rate limit's 429.
+ */
+export type BetaFeedbackError = Readonly<{
+  _tag: 'BetaFeedbackError'
+  code: BetaFeedbackErrorCode
+  message: string
+  context?: Readonly<Record<string, unknown>>
+}>
+
+/** Smart constructor — the only way to build a BetaFeedbackError. */
+export const betaFeedbackError = createErrorFactory<
+  BetaFeedbackError['_tag'],
+  BetaFeedbackError['code']
+>('BetaFeedbackError')
+
+/** Type guard — lets the beta-feedback server functions map a BetaFeedbackError. */
+export const isBetaFeedbackError = (e: unknown): e is BetaFeedbackError =>
+  typeof e === 'object' &&
+  e !== null &&
+  (e as { _tag?: string })._tag === 'BetaFeedbackError'

@@ -107,4 +107,16 @@ describe('Identity public API', () => {
     expect(Object.isFrozen(api.requests)).toBe(true)
     expect(Object.isFrozen(api.requests.merchantAiAuthorization)).toBe(true)
   })
+
+  it('exposes beta feedback as its own frozen request capability, off publicApi', () => {
+    // Other contexts receive publicApi; only the reporter's two requests
+    // reach the triage store, never its operator workflow.
+    expect(Object.keys(container.identityBetaFeedback).sort()).toEqual([
+      'listMine',
+      'submit',
+    ])
+    expect(Object.isFrozen(container.identityBetaFeedback)).toBe(true)
+    expect(container.identityPublicApi).not.toHaveProperty('betaFeedback')
+    expect(container).not.toHaveProperty('betaFeedbackTriageRepo')
+  })
 })

@@ -1,32 +1,13 @@
-import type { BetaFeedbackInput } from '#/shared/beta-feedback-contract'
 import {
   classifyBetaFeedbackRoute,
   formatBetaFeedbackMessage,
 } from '#/shared/beta-feedback-contract'
-import type { Role } from '#/shared/domain/roles'
 import { captureObservabilityFeedback } from '#/shared/observability/telemetry'
-import { betaFeedbackPseudonym } from './beta-feedback-rate-limit.server'
-
-type Input = Readonly<{
-  data: BetaFeedbackInput
-  actor: Readonly<{
-    userId: string
-    organizationId: string
-    role: Role
-  }>
-  hmacSecret: string
-  reference: string
-}>
-
-export type BetaFeedbackDeliveryResult =
-  | Readonly<{ status: 'delivered'; providerReference: string }>
-  | Readonly<{
-      status: 'failed'
-      failureCode: 'monitoring_unavailable' | 'monitoring_invalid_reference'
-    }>
+import { betaFeedbackPseudonym } from '../../application/beta-feedback-pseudonym'
+import type { BetaFeedbackDelivery } from '../../application/ports/beta-feedback-submission.port'
 
 /** Server-only Sentry delivery seam; never enters the browser module graph. */
-export function deliverBetaFeedback(input: Input): BetaFeedbackDeliveryResult {
+export const deliverBetaFeedback: BetaFeedbackDelivery = (input) => {
   const providerReference = captureObservabilityFeedback({
     message: formatBetaFeedbackMessage(input.data),
     source: 'repkey-native-beta-feedback',
