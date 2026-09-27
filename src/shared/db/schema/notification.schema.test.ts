@@ -12,7 +12,7 @@ function indexColumns(table: PgTable, name: string): readonly string[] {
   )
   if (!found) throw new Error(`missing index ${name}`)
   return found.config.columns.map((column) =>
-    'name' in column ? column.name : String(column),
+    'name' in column && typeof column.name === 'string' ? column.name : String(column),
   )
 }
 
