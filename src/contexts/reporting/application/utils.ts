@@ -43,7 +43,9 @@ export function computeTrend(current: number, prior: number): number | null {
   return Number.isFinite(result) ? Math.round(result) : null
 }
 
-const MIN_RATING_COMPARISON_SAMPLE = 10
+/** Ratings each period needs before a comparison is shown. The Fleet summary's
+ *  SQL rating-drop count reads the same value, so the two cannot drift. */
+export const MIN_RATING_COMPARISON_SAMPLE = 10
 export const RATING_DROP_THRESHOLD = 0.3
 
 /** Absolute star delta, available only for statistically usable periods. */
