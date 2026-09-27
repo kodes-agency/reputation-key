@@ -8,6 +8,8 @@
 //      (the store inserts the use-case-assigned id explicitly).
 //   3. Qualified Scan delivery commits its reading and consumer receipt exactly
 //      once, while a missing source event commits neither.
+//   4. A retraction never reaches another Organization's reading, even one
+//      sharing every other coordinate of the command.
 
 import { randomUUID } from 'node:crypto'
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
@@ -65,6 +67,12 @@ const MISSING_SOURCE_EVENT_ID = '4f000000-0000-4000-8000-000000000022'
 const QUALIFIED_SCAN_ID = qualifiedScanId('4f000000-0000-4000-8000-000000000023')
 const ACCESS_ARTIFACT_ID = portalAccessArtifactId('4f000000-0000-4000-8000-000000000024')
 const QUALIFIED_AT = new Date('2026-09-01T12:00:00.000Z')
+// A second tenant, so the organization predicates are exercised.
+const OTHER_ORG_ID = organizationId('org-metriccmd-0000-0000-0000-000000000002')
+const OTHER_PROP_ID = propertyId('4d000000-0000-0000-0000-000000000002')
+const OTHER_PORTAL_ID = portalId('4f000000-0000-4000-8000-000000000002')
+const OTHER_READING_ID = metricReadingId('4e000000-0000-0000-0000-000000000002')
+const TENANT_IDS: readonly string[] = [ORG_ID, OTHER_ORG_ID]
 
 let pool: Pool
 const db = getDb()
@@ -116,16 +124,71 @@ async function truncateAll(p: Pool) {
   await p.query(
     `DELETE FROM metric_corrections
      WHERE reading_id IN (
-       SELECT id FROM metric_readings WHERE organization_id = $1
+       SELECT id FROM metric_readings WHERE organization_id = ANY($1)
      )`,
-    [ORG_ID],
+    [TENANT_IDS],
   )
   await p.query(
-    'DELETE FROM portal_metric_lifetime_aggregates WHERE organization_id = $1',
-    [ORG_ID],
+    'DELETE FROM portal_metric_lifetime_aggregates WHERE organization_id = ANY($1)',
+    [TENANT_IDS],
   )
-  await p.query('DELETE FROM metric_readings WHERE organization_id = $1', [ORG_ID])
-  await p.query('DELETE FROM outbox_events WHERE organization_id = $1', [ORG_ID])
+  await p.query('DELETE FROM metric_readings WHERE organization_id = ANY($1)', [
+    TENANT_IDS,
+  ])
+  await p.query('DELETE FROM outbox_events WHERE organization_id = ANY($1)', [TENANT_IDS])
+}
+
+/** One tenant's Organization, Property and published Portal. */
+async function seedTenantPortal(
+  p: Pool,
+  tenant: Readonly<{
+    orgId: string
+    propId: string
+    portalId: string
+    label: string
+    slug: string
+  }>,
+) {
+  await p.query(
+    `INSERT INTO organization (id, name, slug, "createdAt")
+     VALUES ($1, $2, $3, NOW())
+     ON CONFLICT (id) DO UPDATE SET
+       name = EXCLUDED.name,
+       slug = EXCLUDED.slug`,
+    [tenant.orgId, `${tenant.label} Org`, `${tenant.slug}-org`],
+  )
+  await p.query(
+    `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+     ON CONFLICT (id) DO UPDATE SET
+       organization_id = EXCLUDED.organization_id,
+       name = EXCLUDED.name,
+       slug = EXCLUDED.slug,
+       timezone = EXCLUDED.timezone,
+       updated_at = EXCLUDED.updated_at`,
+    [
+      tenant.propId,
+      tenant.orgId,
+      `${tenant.label} Property`,
+      `${tenant.slug}-prop`,
+      'UTC',
+    ],
+  )
+  await p.query(
+    `INSERT INTO portals (
+       id, organization_id, property_id, entity_type, entity_id, name, slug,
+       publication_state, created_at, updated_at
+     ) VALUES ($1, $2, $3, 'property', $4, $5, $6, 'published', NOW(), NOW())
+     ON CONFLICT (id) DO NOTHING`,
+    [
+      tenant.portalId,
+      tenant.orgId,
+      tenant.propId,
+      tenant.propId,
+      `${tenant.label} Portal`,
+      `${tenant.slug}-portal`,
+    ],
+  )
 }
 
 beforeAll(async () => {
@@ -143,42 +206,26 @@ beforeAll(async () => {
     ORG_ID,
   ])
   await pool.query('DELETE FROM staff_participants WHERE organization_id = $1', [ORG_ID])
-  await pool.query('DELETE FROM portals WHERE id = $1', [PORTAL_ID])
-  await pool.query('DELETE FROM properties WHERE id = $1', [PROP_ID])
-  await pool.query(
-    `INSERT INTO organization (id, name, slug, "createdAt")
-     VALUES ($1, $2, $3, NOW())
-     ON CONFLICT (id) DO UPDATE SET
-       name = EXCLUDED.name,
-       slug = EXCLUDED.slug`,
-    [ORG_ID, 'Metric Cmd Org', 'metriccmd-org'],
-  )
-  await pool.query(
-    `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-     ON CONFLICT (id) DO UPDATE SET
-       organization_id = EXCLUDED.organization_id,
-       name = EXCLUDED.name,
-       slug = EXCLUDED.slug,
-       timezone = EXCLUDED.timezone,
-       updated_at = EXCLUDED.updated_at`,
-    [PROP_ID, ORG_ID, 'Metric Cmd Property', 'metriccmd-prop', 'UTC'],
-  )
-  await pool.query(
-    `INSERT INTO portals (
-       id, organization_id, property_id, entity_type, entity_id, name, slug,
-       publication_state, created_at, updated_at
-     ) VALUES ($1, $2, $3, 'property', $4, $5, $6, 'published', NOW(), NOW())
-     ON CONFLICT (id) DO NOTHING`,
-    [
-      PORTAL_ID,
-      ORG_ID,
-      PROP_ID,
-      String(PROP_ID),
-      'Metric Cmd Portal',
-      'metriccmd-portal',
-    ],
-  )
+  await pool.query('DELETE FROM portals WHERE id = ANY($1)', [
+    [PORTAL_ID, OTHER_PORTAL_ID],
+  ])
+  await pool.query('DELETE FROM properties WHERE id = ANY($1)', [
+    [PROP_ID, OTHER_PROP_ID],
+  ])
+  await seedTenantPortal(pool, {
+    orgId: ORG_ID,
+    propId: PROP_ID,
+    portalId: PORTAL_ID,
+    label: 'Metric Cmd',
+    slug: 'metriccmd',
+  })
+  await seedTenantPortal(pool, {
+    orgId: OTHER_ORG_ID,
+    propId: OTHER_PROP_ID,
+    portalId: OTHER_PORTAL_ID,
+    label: 'Metric Cmd Other',
+    slug: 'metriccmd-other',
+  })
   await pool.query(
     `INSERT INTO staff_participants
        (id, organization_id, display_name, status, revision, created_by,
@@ -219,9 +266,13 @@ afterAll(async () => {
     ORG_ID,
   ])
   await pool.query('DELETE FROM staff_participants WHERE organization_id = $1', [ORG_ID])
-  await pool.query('DELETE FROM portals WHERE id = $1', [PORTAL_ID])
-  await pool.query('DELETE FROM properties WHERE id = $1', [PROP_ID])
-  await deleteTestOrganizations(pool, [ORG_ID])
+  await pool.query('DELETE FROM portals WHERE id = ANY($1)', [
+    [PORTAL_ID, OTHER_PORTAL_ID],
+  ])
+  await pool.query('DELETE FROM properties WHERE id = ANY($1)', [
+    [PROP_ID, OTHER_PROP_ID],
+  ])
+  await deleteTestOrganizations(pool, TENANT_IDS)
   await pool.end()
 })
 
@@ -906,5 +957,52 @@ describe.sequential('metricCommandStore (integration)', () => {
         effectiveTo: null,
       },
     })
+  })
+
+  it("never retracts another organization's reading that shares every other coordinate", async () => {
+    const store = createAtomicMetricCommandStore(db, randomUUID)
+    const otherReading = makeReading({
+      id: OTHER_READING_ID,
+      definitionVersionId: '11111111-1111-4111-8111-111111111303',
+      metricKey: 'portal.rating_average',
+      organizationId: OTHER_ORG_ID,
+      propertyId: OTHER_PROP_ID,
+      portalId: OTHER_PORTAL_ID,
+      value: 4,
+      sourceEventId: 'guest-rating-source-other-tenant',
+      sourcePolicy: 'first_party_guest_gateway_metric',
+      retentionClass: 'guest_gateway_24_month',
+    })
+    await store.recordMetric({
+      reading: otherReading,
+      event: recordedEvent(otherReading),
+    })
+
+    // Property, Portal, definition and superseded source all name the other
+    // tenant's reading; only the organization is the caller's own.
+    await expect(
+      store.retractMetric({
+        organizationId: ORG_ID,
+        propertyId: OTHER_PROP_ID,
+        portalId: OTHER_PORTAL_ID,
+        definitionVersionId: otherReading.definitionVersionId,
+        sourceEventId: 'guest-rating-retracted-other-tenant',
+        supersedesSourceEventId: otherReading.sourceEventId,
+        occurredAt: new Date('2026-06-01T12:30:00.000Z'),
+        staffAttribution: null,
+      }),
+    ).resolves.toEqual({ status: 'source_reading_not_found' })
+
+    const corrections = await pool.query(
+      'SELECT id FROM metric_corrections WHERE reading_id = $1',
+      [OTHER_READING_ID],
+    )
+    expect(corrections.rows).toHaveLength(0)
+    const correctedFacts = await pool.query(
+      `SELECT id FROM outbox_events
+       WHERE organization_id = ANY($1) AND event_type = 'metric.corrected'`,
+      [TENANT_IDS],
+    )
+    expect(correctedFacts.rows).toHaveLength(0)
   })
 })
