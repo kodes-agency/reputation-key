@@ -362,7 +362,7 @@ function buildContainer(
     invalidationOwnerGen: () => randomBytes(32).toString('base64url'),
     jobQueue: infra.jobQueue,
     propertyApi: property.publicApi,
-    propertyBindingApi: property.publicApi,
+    propertyBindingApi: property.googleBinding,
     enqueueReviewSync: (data, options) =>
       review.publicApi.syncAdmission.addSyncJob(data, options),
     enqueueTargetedReviewFetch: (data, options) =>

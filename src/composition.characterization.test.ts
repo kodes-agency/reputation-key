@@ -204,6 +204,29 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
     ])
   })
 
+  it('keeps the Property Google-binding store off the Property public API', () => {
+    // Every server function can reach propertyPublicApi; binding state changes
+    // only through Integration's propertyBindingApi or the audited
+    // management.disconnectPropertyGoogleBinding use case.
+    for (const member of [
+      'readInternal',
+      'readByLocationIds',
+      'readSummary',
+      'readReceipt',
+      'createBoundProperty',
+      'relink',
+      'disconnect',
+      'scrubProviderIdentity',
+      'releaseRetention',
+      'releaseRetentionFromEvent',
+      'sweepReleasedExpired',
+      'countUnreleasedExpired',
+      'cleanupOrganization',
+    ]) {
+      expect(container.propertyPublicApi).not.toHaveProperty(member)
+    }
+  })
+
   it('exposes exact frozen Integration capabilities by workflow', () => {
     expect(Object.keys(container.integrationPublicApi).sort()).toEqual([
       'connections',

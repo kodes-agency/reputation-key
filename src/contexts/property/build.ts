@@ -134,7 +134,6 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
   } as const
 
   const propertyFactsApi = {
-    ...bindingApi,
     propertyExists: async (orgId: OrganizationId, pid: PropertyId) => {
       const p = await deps.repo.findById(orgId, pid)
       return p !== null
@@ -256,9 +255,14 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
 
   return {
     publicApi,
+    /** The Google-binding lifecycle store (`PropertyGoogleBindingPublicApi`).
+     * Integration's import and connection lifecycle are the only other holders,
+     * so it is its own capability and never part of `publicApi`: the audited
+     * request path is `management.disconnectPropertyGoogleBinding`. */
+    googleBinding: bindingApi,
     worker: Object.freeze({
       registerOutboxConsumers: (consumerRegistry: ConsumerRegistry) =>
-        registerPropertyRetentionConsumer(consumerRegistry, publicApi),
+        registerPropertyRetentionConsumer(consumerRegistry, bindingApi),
     }),
     /** ARC-03-T11: the named member-authority capability. Replaces the root's
      * Property responsible-manager repository reach-through. */

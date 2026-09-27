@@ -12,6 +12,23 @@ import {
 } from '#/shared/domain/ids'
 import { buildTestProperty } from '#/shared/testing/fixtures'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import { createConsumerRegistry } from '#/shared/outbox/consumer-registry'
+import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { clearEventSchemas } from '#/shared/events/schema-registry'
+import type { PropertyGoogleBindingStore } from './application/ports/property-google-binding.port'
+import { createPropertyGoogleBindingStore } from './infrastructure/property-google-binding-store'
+
+// Pass-through, so one test can hand the build a stub binding store.
+vi.mock('./infrastructure/property-google-binding-store', async (importOriginal) => {
+  const actual =
+    await importOriginal<
+      typeof import('./infrastructure/property-google-binding-store')
+    >()
+  return {
+    ...actual,
+    createPropertyGoogleBindingStore: vi.fn(actual.createPropertyGoogleBindingStore),
+  }
+})
 
 vi.mock('#/shared/observability/logger', () => ({
   getLogger: () => ({
@@ -38,6 +55,25 @@ const createStubStaffApi = (): StaffPublicApi => ({
 })
 
 const identityManagerFacts = { listActiveManagers: async () => [] }
+
+// Keyed by the store type, so a new binding method must be listed here.
+const GOOGLE_BINDING_MEMBERS = Object.keys({
+  readInternal: true,
+  readByLocationIds: true,
+  readSummary: true,
+  readReceipt: true,
+  createBoundProperty: true,
+  relink: true,
+  disconnect: true,
+  scrubProviderIdentity: true,
+  releaseRetention: true,
+  releaseRetentionFromEvent: true,
+  sweepReleasedExpired: true,
+  countUnreleasedExpired: true,
+  cleanupOrganization: true,
+} satisfies Record<keyof PropertyGoogleBindingStore, true>) as Array<
+  keyof PropertyGoogleBindingStore
+>
 const runtimeDeps = {
   idGen: () => '81000000-0000-4000-8000-000000000099',
   logger: {
@@ -63,6 +99,7 @@ describe('PropertyPublicApi', () => {
     // never reach the request-facing surface: the lifecycle contributor owns an
     // irreversible purge phase that must stay unreachable by default.
     expect(Object.keys(context).sort()).toEqual([
+      'googleBinding',
       'internal',
       'publicApi',
       'responsibility',
@@ -75,8 +112,71 @@ describe('PropertyPublicApi', () => {
     expect(Object.keys(context.internal).sort()).toEqual(['repos', 'useCases'])
     expect(context.worker.registerOutboxConsumers).toBeTypeOf('function')
     expect(context.publicApi.management).toBeDefined()
-    expect(context.publicApi).toHaveProperty('readInternal')
-    expect(context.publicApi).toHaveProperty('createBoundProperty')
+  })
+
+  it('keeps the Google-binding store its own capability, off publicApi', () => {
+    const context = buildPropertyContext({
+      db: {} as never,
+      repo: createInMemoryPropertyRepo(),
+      clock: () => new Date('2026-08-28T00:00:00.000Z'),
+      ...runtimeDeps,
+      staffPublicApi: createStubStaffApi(),
+      identityManagerFacts,
+    })
+
+    // publicApi reaches every consuming context and every server function;
+    // create/relink/disconnect must reach only Integration.
+    expect(Object.keys(context.googleBinding).sort()).toEqual(
+      [...GOOGLE_BINDING_MEMBERS].sort(),
+    )
+    for (const member of GOOGLE_BINDING_MEMBERS) {
+      expect(context.googleBinding[member]).toBeTypeOf('function')
+      expect(context.publicApi).not.toHaveProperty(member)
+    }
+    expect(Object.isFrozen(context.googleBinding)).toBe(true)
+  })
+
+  it('hands the retention consumer the Google-binding capability', async () => {
+    const releaseRetentionFromEvent = vi.fn().mockResolvedValue('applied')
+    vi.mocked(createPropertyGoogleBindingStore).mockReturnValueOnce({
+      releaseRetentionFromEvent,
+    } as unknown as PropertyGoogleBindingStore)
+    const context = buildPropertyContext({
+      db: {} as never,
+      repo: createInMemoryPropertyRepo(),
+      clock: () => new Date('2026-08-28T00:00:00.000Z'),
+      ...runtimeDeps,
+      staffPublicApi: createStubStaffApi(),
+      identityManagerFacts,
+    })
+    const registry = createConsumerRegistry()
+    context.worker.registerOutboxConsumers(registry)
+    const [consumer] = registry.listFor('integration.property_import.retention_released')
+    const org = '00000000-0000-4000-8000-000000000001'
+
+    clearEventSchemas()
+    registerAllEventSchemas()
+    try {
+      await expect(
+        consumer!.handler({
+          eventId: '30000000-0000-4000-8000-000000000001',
+          eventType: 'integration.property_import.retention_released',
+          eventVersion: 1,
+          payload: {
+            organizationId: org,
+            idempotencyKeys: ['40000000-0000-4000-8000-000000000001'],
+          },
+          organizationId: org,
+          propertyId: null,
+          sourceContext: 'integration',
+          sourceAggregateId: 'import-parent-1',
+          recordedAt: '2026-08-10T12:00:00.000Z',
+        }),
+      ).resolves.toEqual({ status: 'applied' })
+    } finally {
+      clearEventSchemas()
+    }
+    expect(releaseRetentionFromEvent).toHaveBeenCalledOnce()
   })
 
   it('propertyExists returns true when repo has the property', async () => {

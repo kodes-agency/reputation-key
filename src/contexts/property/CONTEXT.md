@@ -13,7 +13,8 @@ Property lookups.
 - A Property belongs to one Organization. Portal, Staff Participation, Property
   access, Goal, Review, and Guest records retain their own context ownership.
 - Integration changes Google binding state only through
-  `PropertyGoogleBindingPublicApi`.
+  `PropertyGoogleBindingPublicApi`, which the build returns as its own
+  `googleBinding` capability and never on `publicApi`.
 - Identity and Staff supply membership, role, Property access, and linked
   participation eligibility. Responsible Manager assignment is notification
   routing, not authorization or participation.
