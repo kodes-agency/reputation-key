@@ -4,7 +4,7 @@
 // internal state (not a prop) so it is exercised via an in-flight upload story.
 
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, within } from 'storybook/test'
+import { expect, fn, userEvent, within } from 'storybook/test'
 import { ImageUploadField } from './image-upload-field'
 
 const meta: Meta<typeof ImageUploadField> = {
@@ -97,9 +97,13 @@ export const CircleWithPreview: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // circle branch renders an accessible "Remove image" button.
-    await expect(
-      canvas.getByRole('button', { name: /remove image/i }),
-    ).toBeInTheDocument()
+    const remove = canvas.getByRole('button', { name: /remove image/i })
+    await expect(remove).toBeInTheDocument()
+    // The hidden file input is the keyboard stop for choosing a new image, just
+    // before Remove; its focus rings the preview (the surface is not a button).
+    remove.focus()
+    await userEvent.tab({ shift: true })
+    await expect(canvas.getByLabelText('Upload image')).toHaveFocus()
   },
 }
 

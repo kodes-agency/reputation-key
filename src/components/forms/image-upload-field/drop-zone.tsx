@@ -46,6 +46,9 @@ export function DropZone({
       aria-disabled={disabled || uploading}
       className={cn(
         'relative flex items-center justify-center overflow-hidden border-2 border-dashed transition-colors',
+        // ImageUploadField renders its hidden file input just before this
+        // surface, as the `peer`: the input's keyboard focus shows here.
+        'peer-focus-visible:border-ring peer-focus-visible:ring-[3px] peer-focus-visible:ring-ring/50',
         dragOver ? 'border-primary bg-primary/5' : 'border-border',
         !disabled && !uploading ? 'cursor-pointer' : 'cursor-not-allowed opacity-50',
         variant === 'rect' && imageUrl ? 'h-48' : variant === 'rect' ? 'h-32' : 'h-32',
