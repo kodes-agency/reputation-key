@@ -5,14 +5,35 @@
 // BullMQ admission. It must use the committed publication cycle as both the
 // stale-intent fence and the deterministic publish-job identity.
 
+import type { Job } from 'bullmq'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { integrationGoogleAccountDisconnected } from '#/contexts/integration/domain/events'
+import {
+  createEnvCapabilityPolicyStore,
+  initCapabilityPolicyStore,
+  resetCapabilityPolicyStore,
+} from '#/shared/auth/beta-capabilities'
+import {
+  capabilityForSystemAction,
+  createDelayedExecutionPolicy,
+  initDelayedExecutionPolicy,
+  resetDelayedExecutionPolicy,
+} from '#/shared/auth/system-execution-policy'
+import { googleConnectionId, organizationId } from '#/shared/domain/ids'
+import type { DomainEvent } from '#/shared/events/events'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
+import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue'
+import { gateDispatcherConsumer } from '#/shared/jobs/delayed-execution-gate'
+import type { OutboxRepository } from '#/shared/outbox'
 import {
   createConsumerRegistry,
   type ConsumerRegistry,
   type ConsumerEvent,
 } from '#/shared/outbox/consumer-registry'
+import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
+import { buildConsumerEvent } from '#/shared/outbox/envelope'
+import { toOutboxEvent } from '#/shared/outbox/event-adapter'
 import type { Reply } from '../domain/types'
 import {
   handleGoogleAccountDisconnected,
@@ -274,6 +295,127 @@ describe('google account disconnected durable consumer', () => {
       handleGoogleAccountDisconnected(subject as never, disconnected()),
     ).rejects.toThrow('db down')
     expect(subject.receipts.insertReceipt).not.toHaveBeenCalled()
+  })
+})
+
+// The dispatcher authorizes each consumer under its own catalogue row, and a
+// terminal denial records an obsolete receipt that is never retried. The
+// disconnect fact names no Property (the connection is the Organization's), so
+// the Property-scoped publish row denied this consumer `missing_scope` before
+// it ran and every publication on a revoked connection stayed in flight. The
+// tests above hand the handler an envelope directly and never met the gate;
+// these start from Integration's own constructor and the real delayed policy.
+describe('google account disconnected consumer authorization', () => {
+  const ORGANIZATION = 'org-publication-recovery'
+  const CONNECTION = 'conn-1'
+
+  const produced = () =>
+    integrationGoogleAccountDisconnected({
+      connectionId: googleConnectionId(CONNECTION),
+      organizationId: organizationId(ORGANIZATION),
+      userId: null,
+      occurredAt: NOW,
+    })
+
+  /** The envelope the relay builds from the fact's outbox row. */
+  const delivered = (fact: DomainEvent): ConsumerEvent => {
+    const row = toOutboxEvent(fact)
+    return buildConsumerEvent({
+      id: fact.eventId,
+      eventType: row.eventType,
+      eventVersion: row.eventVersion ?? 1,
+      payload: JSON.parse(JSON.stringify(row.payload)),
+      organizationId: row.organizationId,
+      propertyId: row.propertyId ?? null,
+      sourceContext: row.sourceContext,
+      sourceAggregateId: row.sourceAggregateId,
+      recordedAt: NOW,
+    })
+  }
+
+  beforeEach(() => {
+    // Every capability is granted, so the gate judges only the scope the
+    // delivered fact carries.
+    initCapabilityPolicyStore(
+      createEnvCapabilityPolicyStore({ BETA_ALLOWLIST_ORGS: ORGANIZATION }),
+    )
+    initDelayedExecutionPolicy(
+      createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
+    )
+  })
+
+  afterEach(() => {
+    resetDelayedExecutionPolicy()
+    resetCapabilityPolicyStore()
+  })
+
+  it('runs under its own ungated, Organization-scoped catalogue row', () => {
+    registerReplyPublicationConsumers(consumerRegistry, deps() as never)
+
+    const registrations = consumerRegistry.listFor(
+      'integration.google_account.disconnected',
+    )
+    expect(registrations).toHaveLength(1)
+    const row = ENTRY_POINT_CATALOGUE.find(
+      (candidate) =>
+        candidate.kind === 'consumer' && candidate.name === registrations[0]!.module,
+    )
+
+    expect(row).toEqual({
+      kind: 'consumer',
+      name: 'review.connection-lifecycle',
+      action: 'system:review.cancel_connection_publications',
+      capability: 'none',
+      resourceScope: 'organization',
+      externalEffect: false,
+    })
+    expect(capabilityForSystemAction(row!.action)).toBe('none')
+  })
+
+  it('is allowed by the delayed execution gate for the fact its producer writes', async () => {
+    registerReplyPublicationConsumers(consumerRegistry, deps() as never)
+    const envelope = delivered(produced())
+    const [registration] = consumerRegistry.listFor(envelope.eventType)
+
+    const outcome = await gateDispatcherConsumer(
+      registration!.consumerName,
+      registration!.module,
+      envelope,
+    )
+
+    expect(envelope.propertyId).toBeNull()
+    expect(outcome.decision.reason).toBe('allowed')
+  })
+
+  it('cancels the connection publications when the dispatcher delivers that fact', async () => {
+    const subject = deps()
+    registerReplyPublicationConsumers(consumerRegistry, subject as never)
+    const fact = produced()
+    const envelope = delivered(fact)
+    // The dispatcher writes a receipt itself only for a terminal gate denial.
+    const gateDenials = vi.fn(async () => undefined)
+    const repo = {
+      hasReceipt: async () => false,
+      insertReceipt: gateDenials,
+    } as unknown as OutboxRepository
+
+    await createDispatcherHandler(repo, { consumers: consumerRegistry })({
+      id: envelope.eventId,
+      name: envelope.eventType,
+      data: envelope,
+    } as unknown as Job)
+
+    expect(gateDenials.mock.calls).toEqual([])
+    expect(subject.cancelPublicationsForConnection).toHaveBeenCalledWith({
+      organizationId: ORGANIZATION,
+      connectionId: CONNECTION,
+      cause: 'disconnect',
+    })
+    expect(subject.receipts.insertReceipt).toHaveBeenCalledWith(
+      fact.eventId,
+      ON_GOOGLE_ACCOUNT_DISCONNECTED_CONSUMER,
+      'applied',
+    )
   })
 })
 

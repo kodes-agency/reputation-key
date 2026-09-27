@@ -78,6 +78,7 @@ export type SystemAction =
   | 'system:review.discovery_sweep'
   | 'system:review.purge'
   | 'system:review.reconcile'
+  | 'system:review.cancel_connection_publications'
   | 'system:reply.publish'
   | 'system:metric.refresh'
   | 'system:metric.record'
@@ -339,6 +340,15 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:reply.publish',
     'property.publish_reply',
     'property',
+  ),
+  // Cancelling a disconnected connection's reply publications is cleanup:
+  // ungated, because a denied consumer is never retried, and scoped to the
+  // Organization, because the disconnect fact carries no Property.
+  consumer(
+    'review.connection-lifecycle',
+    'system:review.cancel_connection_publications',
+    'none',
+    'organization',
   ),
   consumer(
     'portal.health-outbox-consumers',
