@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import type { Redis } from 'ioredis'
 import {
   PROVIDER_REDIS_FORBIDDEN_COMMANDS,
+  PROVIDER_REDIS_INSPECTION_COMMANDS,
   validateProviderEphemeralRedisUrls,
   verifyProviderEphemeralRedisRuntime,
 } from './runtime-verification'
@@ -176,5 +177,42 @@ describe('provider ephemeral Redis readiness', () => {
       ok: false,
       code: 'persistence_command_allowed',
     })
+  })
+
+  // The integration test proves the provider Redis ACL grants every command on
+  // PROVIDER_REDIS_INSPECTION_COMMANDS. That only protects Google connect if
+  // the list is what the inspection really issues — an unlisted command could
+  // be denied in production and read as `inspection_unavailable`, which is how
+  // INFO failed every connect attempt on closed-beta-v2.
+  it('issues only the commands PROVIDER_REDIS_INSPECTION_COMMANDS names', async () => {
+    const issued: string[] = []
+    const head = (parts: readonly unknown[]) =>
+      parts
+        .slice(0, 2)
+        .map((part) => String(part).toUpperCase())
+        .join(' ')
+    const base = redisWith()
+    const redis = redisWith({
+      config: vi.fn(async (...args: unknown[]) => {
+        issued.push(head(['CONFIG', ...args]))
+        return (base.config as unknown as () => Promise<unknown>)()
+      }) as never,
+      info: vi.fn(async () => {
+        issued.push('INFO')
+        return (base.info as unknown as () => Promise<unknown>)()
+      }) as never,
+      call: vi.fn(async (...args: unknown[]) => {
+        issued.push(head(args))
+        return (base.call as unknown as (...a: unknown[]) => Promise<unknown>)(...args)
+      }) as never,
+    })
+
+    await expect(verifyProviderEphemeralRedisRuntime(redis)).resolves.toMatchObject({
+      ok: true,
+    })
+    const listed = new Set(
+      PROVIDER_REDIS_INSPECTION_COMMANDS.map((command) => head(command)),
+    )
+    expect(new Set(issued)).toEqual(listed)
   })
 })

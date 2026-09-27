@@ -1,5 +1,19 @@
 import type { Redis } from 'ioredis'
 
+/**
+ * Every command verifyProviderEphemeralRedisRuntime issues. The provider Redis
+ * ACL (services/google-provider-redis/entrypoint.sh) must grant each: a denied
+ * one surfaces only as `inspection_unavailable`, which refuses every Google
+ * connect. provider-redis-acl.integration.test.ts loads the real ACL and
+ * checks this list against it; the unit test keeps the list honest.
+ */
+export const PROVIDER_REDIS_INSPECTION_COMMANDS = [
+  ['CONFIG', 'GET', 'appendonly', 'save', 'maxmemory', 'maxmemory-policy'],
+  ['INFO'],
+  ['ACL', 'WHOAMI'],
+  ['ACL', 'DRYRUN', 'default', 'PING'],
+] as const
+
 export const PROVIDER_REDIS_FORBIDDEN_COMMANDS = [
   ['SAVE'],
   ['BGSAVE'],
