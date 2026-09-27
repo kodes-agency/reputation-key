@@ -3,6 +3,7 @@
 
 import { createFileRoute, Link, redirect } from '@tanstack/react-router'
 import { queryOptions, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
+import { z } from 'zod/v4'
 import { getSession } from '#/shared/auth/auth.functions'
 import { identityKeys } from '#/shared/queries/query-keys'
 import { clearTenantCacheAfterTenantChange } from '#/shared/queries/tenant-cache-transition'
@@ -33,17 +34,25 @@ const invitationsQuery = queryOptions({
   staleTime: 30_000,
 })
 
+/**
+ * The emailed link names one invitation. Anything the router parsed into
+ * something else (a repeated key's array, a number, `true`, an empty value)
+ * reads as no invitation: the pending list. Non-empty string, as the server's
+ * acceptInvitationInputSchema takes it.
+ */
+export const acceptInvitationSearch = z.object({
+  id: z.string().min(1).optional().catch(undefined),
+})
+
 export const Route = createFileRoute('/accept-invitation')({
+  validateSearch: acceptInvitationSearch,
   staleTime: 30_000,
-  beforeLoad: async ({ location }) => {
+  beforeLoad: async ({ search }) => {
     const session = await getSession()
     if (!session) {
-      const invitationId = new URL(location.href, 'http://repkey.local').searchParams.get(
-        'id',
-      )
       throw redirect({
         to: '/join',
-        search: { invitationId: invitationId ?? undefined },
+        search: { invitationId: search.id },
       })
     }
   },
@@ -54,7 +63,7 @@ export const Route = createFileRoute('/accept-invitation')({
 })
 
 function AcceptInvitationRoute() {
-  const search = Route.useSearch() as { id?: string }
+  const { id } = Route.useSearch()
   const { data: invitations } = useSuspenseQuery(invitationsQuery)
   const queryClient = useQueryClient()
   const acceptInvitationFn = useActionMutation(acceptInvitation, {
@@ -64,7 +73,7 @@ function AcceptInvitationRoute() {
 
   return (
     <AcceptInvitationPage
-      invitationId={search.id}
+      invitationId={id}
       invitations={invitations}
       acceptInvitation={acceptInvitationFn}
       joiningNotice={
