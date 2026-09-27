@@ -1,6 +1,7 @@
 import { sql, type SQL } from 'drizzle-orm'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import type { Database } from '#/shared/db'
+import { csvCell } from '#/shared/security/csv-cell'
 // Cross-context adapter contract: src/contexts/CONTEXT.md "Dependency rules"
 // lets a foreign infrastructure/adapters/** module import the Identity port it
 // implements, and nothing else from Identity.
@@ -198,10 +199,11 @@ async function readRows(
   return sortAiExportRows(result.rows as Record<string, unknown>[], sortKey)
 }
 
-function csvField(value: ExportValue | undefined): string {
-  if (value === null || value === undefined) return ''
-  const text = typeof value === 'object' ? canonicalizeRfc8785(value) : String(value)
-  return /[",\r\n]/u.test(text) ? `"${text.replaceAll('"', '""')}"` : text
+/** A nested value fills its one cell as canonical JSON, which never starts a formula. */
+function csvValue(value: ExportValue | undefined): string {
+  return csvCell(
+    typeof value === 'object' && value !== null ? canonicalizeRfc8785(value) : value,
+  )
 }
 
 const REVIEW_ANALYSIS_COLUMNS = [
@@ -331,7 +333,7 @@ export function buildAiExportEntries(
     const lines = [
       file.columns.join(','),
       ...records.map((record) =>
-        file.columns.map((column) => csvField(record[column])).join(','),
+        file.columns.map((column) => csvValue(record[column])).join(','),
       ),
     ]
     const document: AiOrganizationExportDocument = {

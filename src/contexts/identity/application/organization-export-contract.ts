@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { TextDecoder } from 'node:util'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { isFormulaSafeCsv } from '#/shared/security/csv-cell'
 import {
   ORGANIZATION_LIFECYCLE_CONTEXTS,
   validateLifecycleEvidenceRef,
@@ -72,6 +73,11 @@ function validateEntryEncoding(entry: OrganizationExportEntry): void {
       throw new Error(`Organization Export entry contains invalid JSON: ${entry.path}`)
     }
   }
+  // The recipient opens these files in a spreadsheet. Every contributor writes
+  // its cells with `csvCell`; this refuses one that did not.
+  if (entry.mediaType === 'text/csv' && !isFormulaSafeCsv(text)) {
+    throw new Error(`Organization Export CSV is not formula-safe: ${entry.path}`)
+  }
 }
 
 function sha256(bytes: Uint8Array): string {
@@ -105,6 +111,7 @@ function readmeEntry(asOf: Date): OrganizationExportEntry {
         `As of: ${asOf.toISOString()}`,
         '',
         'CSV files are human-readable views. JSON files are the lossless export authority.',
+        "CSV text that would start a spreadsheet formula (=, +, -, @, tab, carriage return) is prefixed with ' so it opens as text; numbers are unchanged.",
         'coverage.json records complete, empty, and intentionally omitted context contributions.',
         'manifest.json binds every other file by SHA-256.',
         '',
