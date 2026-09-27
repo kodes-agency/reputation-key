@@ -269,6 +269,48 @@ describe('connectGoogleAccount', () => {
     })
   })
 
+  it('refuses a reconnect that loses the race to a disconnect and keeps it disconnected', async () => {
+    const { useCase, connectionRepo, outbox } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const target = buildTestGoogleConnection({
+      googleSubject: 'google-subject-123',
+      status: 'reauth_required',
+    })
+    connectionRepo.seed([target])
+    const findSubject = connectionRepo.findByGoogleIdentityGlobal
+    // Another AccountAdmin disconnects the connection after this ceremony has
+    // re-proved its target and before it commits.
+    ;(
+      connectionRepo as { findByGoogleIdentityGlobal: typeof findSubject }
+    ).findByGoogleIdentityGlobal = async (identity) => {
+      await connectionRepo.updateStatus(ctx.organizationId, target.id, 'disconnected')
+      await connectionRepo.redactForDisconnect(ctx.organizationId, target.id)
+      return findSubject(identity)
+    }
+
+    await expect(
+      useCase(
+        {
+          ...input('organization'),
+          connectionMode: 'reauth',
+          targetConnectionId: target.id,
+        },
+        ctx,
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) =>
+        isIntegrationError(error) && (error as { code: string }).code === 'oauth_failed',
+    )
+    await expect(
+      connectionRepo.findById(ctx.organizationId, target.id),
+    ).resolves.toMatchObject({
+      status: 'disconnected',
+      googleSubject: null,
+      encryptedRefreshToken: 'redacted',
+    })
+    expect(outbox.byTag('integration.google_account.connected')).toEqual([])
+  })
+
   it('does not let a new ceremony adopt an existing same-organization subject', async () => {
     const { useCase, connectionRepo, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })

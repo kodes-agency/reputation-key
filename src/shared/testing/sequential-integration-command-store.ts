@@ -4,15 +4,19 @@
 
 import { createRecordedOutbox, type RecordedOutbox } from './recorded-outbox'
 import { integrationError } from '#/contexts/integration/domain/errors'
+import { isGovernedDisconnectInFlight } from '#/contexts/integration/domain/rules'
 import type { GoogleConnectionRepository } from '#/contexts/integration/application/ports/google-connection.repository'
 import type { IntegrationCommandStore } from '#/contexts/integration/application/ports/integration-command-store.port'
 
 export function createSequentialIntegrationCommandStore(deps: {
   connectionRepo: GoogleConnectionRepository
   outbox?: RecordedOutbox
+  /** Decides whether a governed disconnect's cleanup window is still open. */
+  clock?: () => Date
 }): IntegrationCommandStore {
   const outbox = deps.outbox ?? createRecordedOutbox()
   const recordAndEmit = outbox.record
+  const clock = deps.clock ?? (() => new Date())
 
   return {
     connectGoogleAccount: async (command) => {
@@ -21,6 +25,20 @@ export function createSequentialIntegrationCommandStore(deps: {
     },
 
     reconnectGoogleAccount: async (command) => {
+      const current = await deps.connectionRepo.findById(
+        command.organizationId,
+        command.connectionId,
+      )
+      if (!current) {
+        throw integrationError('connection_not_found', 'Google connection not found')
+      }
+      if (
+        current.lifecycleVersion !== command.expected.lifecycleVersion ||
+        current.accessVersion !== command.expected.accessVersion ||
+        current.credentialGeneration !== command.expected.credentialGeneration
+      ) {
+        throw integrationError('oauth_failed', 'Google connection authority changed')
+      }
       await deps.connectionRepo.updateReconnection(
         command.organizationId,
         command.connectionId,
@@ -46,6 +64,20 @@ export function createSequentialIntegrationCommandStore(deps: {
     },
 
     disconnectGoogleAccount: async (command) => {
+      const current = await deps.connectionRepo.findById(
+        command.organizationId,
+        command.connectionId,
+      )
+      if (!current) {
+        throw integrationError('connection_not_found', 'Google connection not found')
+      }
+      if (current.status === 'disconnected') return current
+      if (isGovernedDisconnectInFlight(current, clock())) {
+        throw integrationError(
+          'invalid_transition',
+          'Google disconnect is already in progress',
+        )
+      }
       await deps.connectionRepo.updateStatus(
         command.organizationId,
         command.connectionId,
