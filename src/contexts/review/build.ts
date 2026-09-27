@@ -16,9 +16,12 @@ import type {
   PropertyPublicationScopePort,
   ReviewPropertyPublicationLifecycle,
 } from './application/ports/property-publication-scope.port'
-import type { ReviewRepository } from './application/ports/review.repository'
+import type {
+  ReviewLookups,
+  ReviewRepository,
+} from './application/ports/review.repository'
 import type { ReviewObservationRepository } from './application/ports/review-observation.repository'
-import type { ReplyRepository } from './application/ports/reply.repository'
+import type { ReplyLookups, ReplyRepository } from './application/ports/reply.repository'
 import type { ReplyTemplateRepository } from './application/ports/reply-template.repository'
 import type { FindAmbiguousPublicationReconciliationCandidates } from './application/ports/publication-reconciliation-maintenance.port'
 import type { ReplyCommandStore } from './application/ports/reply-command-store.port'
@@ -252,11 +255,12 @@ export type ReviewContextApi = Readonly<{
   /**
    * ARC-03-T12: narrow cross-context read lookups Review publishes. They
    * satisfy the Inbox-owned lookup source contracts and the Dashboard's review
-   * stats dep port; the repositories themselves stay context-private.
+   * stats dep port. Each is a frozen object of named reads, so neither the
+   * type nor the runtime value hands another context a repository write.
    */
   lookups: Readonly<{
-    reply: ReplyRepository
-    review: ReviewRepository
+    reply: ReplyLookups
+    review: ReviewLookups
     servingStats: ReviewServingStats
   }>
   internal: Readonly<{
@@ -720,12 +724,23 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     }),
     /**
      * ARC-03-T12: narrow cross-context read lookups Review publishes for the
-     * Inbox projection. They satisfy the Inbox-owned lookup source contracts;
-     * the repositories themselves stay context-private.
+     * Inbox projection. Named reads, not the repositories: the repositories are
+     * object literals of arrow functions, so detaching these methods is safe,
+     * and a spread of a lookup can no longer carry a write across the boundary.
      */
     lookups: Object.freeze({
-      reply: replyRepo,
-      review: reviewRepo,
+      reply: Object.freeze({
+        findByReviewId: replyRepo.findByReviewId,
+        findMilestonesByReviewIds: replyRepo.findMilestonesByReviewIds,
+        findStatesByReviewIds: replyRepo.findStatesByReviewIds,
+        findReviewIdsByReplyStage: replyRepo.findReviewIdsByReplyStage,
+      }),
+      review: Object.freeze({
+        findById: reviewRepo.findById,
+        findByIds: reviewRepo.findByIds,
+        findByOrganizationId: reviewRepo.findByOrganizationId,
+        findByPropertyId: reviewRepo.findByPropertyId,
+      }),
       servingStats,
     }),
     internal: {

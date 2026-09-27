@@ -178,3 +178,15 @@ export type ReplyRepository = Readonly<{
     organizationId: OrganizationId,
   ): Promise<void>
 }>
+
+/**
+ * The read-only reply slice Review publishes through `lookups.reply`
+ * (ARC-03-T12). Other contexts get these four reads and nothing that writes.
+ */
+export type ReplyLookups = Pick<
+  ReplyRepository,
+  | 'findByReviewId'
+  | 'findMilestonesByReviewIds'
+  | 'findStatesByReviewIds'
+  | 'findReviewIdsByReplyStage'
+>
