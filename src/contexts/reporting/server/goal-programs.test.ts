@@ -1,4 +1,4 @@
-import { AsyncLocalStorage } from 'node:async_hooks'
+import { withStartContext } from '#/shared/testing/tanstack-start-als'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { GoalExecutionPolicy } from '../application/use-cases/goal-programs'
 
@@ -54,13 +54,6 @@ import {
   listGoalPrograms,
 } from './goal-programs'
 import type { GoalSubject } from '../domain/goal-program'
-
-const START_KEY = Symbol.for('tanstack-start:start-storage-context')
-function withStartContext<T>(fn: () => Promise<T>): Promise<T> {
-  const global = globalThis as Record<symbol, AsyncLocalStorage<unknown> | undefined>
-  global[START_KEY] ??= new AsyncLocalStorage()
-  return global[START_KEY].run({ startOptions: {} }, fn)
-}
 
 const ORG_ID = '00000000-0000-4000-8000-000000000001'
 const PROPERTY_ID = '00000000-0000-4000-8000-000000000002'
