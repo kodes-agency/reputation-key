@@ -742,6 +742,62 @@ describe.sequential('integrationCommandStore (integration)', () => {
     await expect(disconnectedFacts()).resolves.toEqual([{ id: event.eventId }])
   })
 
+  it('reconcileElapsed closes an attempt whose row a later disconnect finished, without another fact', async () => {
+    // The attempt's window closed without a settle, so a disconnect finished
+    // the row locally; the attempt has nothing left to redact.
+    await seedDispatchingDisconnect(new Date(NOW.getTime() - 1))
+    const local = disconnectedEvent()
+    await createAtomicIntegrationCommandStore(db, () => NOW).disconnectGoogleAccount({
+      organizationId: ORG_ID,
+      connectionId: CONN_ID,
+      event: local,
+    })
+    const connectionBefore = await pool.query(
+      'SELECT * FROM google_connections WHERE id = $1',
+      [CONN_ID],
+    )
+    const revoke = createGoogleDisconnectRevokeRepository(db)
+
+    // Counts stay counts of redactions; the closed attempt is only visited.
+    await expect(revoke.reconcileElapsed({ now: NOW, limit: 10 })).resolves.toEqual({
+      visited: 1,
+      confirmedNotSent: 0,
+      cleanupAmbiguous: 0,
+    })
+
+    const attempt = await pool.query(
+      `SELECT payload->>'state' AS state,
+              payload->>'outcomeCode' AS outcome_code,
+              payload->>'terminalAt' AS terminal_at,
+              payload->>'credentialBinding' AS credential_binding
+         FROM idempotency_receipts
+        WHERE scope = 'google_disconnect_revoke' AND key = $1`,
+      [DISCONNECT_ATTEMPT_ID],
+    )
+    // Its cleanup permit is not on record, so whether Google received the
+    // revoke is unknown: the attempt closes as ambiguous, never as not-sent.
+    expect(attempt.rows).toEqual([
+      {
+        state: 'cleanup_ambiguous',
+        outcome_code: 'reconciled_connection_changed',
+        terminal_at: NOW.toISOString(),
+        credential_binding: null,
+      },
+    ])
+    const connectionAfter = await pool.query(
+      'SELECT * FROM google_connections WHERE id = $1',
+      [CONN_ID],
+    )
+    expect(connectionAfter.rows).toEqual(connectionBefore.rows)
+    await expect(disconnectedFacts()).resolves.toEqual([{ id: local.eventId }])
+    // A closed attempt is not visited again.
+    await expect(revoke.reconcileElapsed({ now: NOW, limit: 10 })).resolves.toEqual({
+      visited: 0,
+      confirmedNotSent: 0,
+      cleanupAmbiguous: 0,
+    })
+  })
+
   it('updateConnectionVisibility commits the update + fact in one transaction', async () => {
     const store = createAtomicIntegrationCommandStore(db, () => NOW)
     await store.connectGoogleAccount({
