@@ -167,7 +167,7 @@ rather than "may this role do it?" (ADR 0049). Never merge them into `can()`.
 
 ## Client/Server Boundary
 
-TanStack Start builds **two bundles** — client and server. Server-only code that leaks into the client bundle **crashes hydration**: Vite externalizes Node builtins, and accessing them in the browser throws (`Module "crypto" has been externalized for browser compatibility`) before React hydrates — every page renders but nothing is interactive. This has bitten us twice (ADR 0012, ADR 0015).
+TanStack Start builds **two bundles** — client and server. Server-only code that leaks into the client bundle **crashes hydration**: Vite externalizes Node builtins, and accessing them in the browser throws (`Module "crypto" has been externalized for browser compatibility`) before React hydrates — every page renders but nothing is interactive. This has bitten us twice (both recorded in ADR 0015, which absorbed the former ADR 0012 Nitro dev-mode exclusion).
 
 ### What is server-only (must never run in the browser)
 
@@ -200,33 +200,26 @@ Node builtins (`crypto`, `async_hooks`, `fs`, `stream`, …), the packages `pg` 
 ## Architecture Decisions
 
 See [`docs/adr/README.md`](docs/adr/README.md) for the exhaustive ADR index and
-supersession authority. Key active/superseding ADRs:
+supersession authority. Key ADRs by area; **Replaces** names retired numbers whose
+decisions now live in that ADR, so an old citation can be followed:
 
-| ADR  | Title                                                                 | Context                                      |
-| ---- | --------------------------------------------------------------------- | -------------------------------------------- |
-| 0001 | Dynamic Access Control via Better-auth                                | Identity & Authorization                     |
-| 0002 | Section-Based Navigation                                              | Navigation Architecture                      |
-| 0003 | Review as a Separate Bounded Context                                  | Reviews, Google Integration                  |
-| 0004 | Inbox as a Separate Bounded Context                                   | Unified Inbox, Reviews, Feedback             |
-| 0005 | GBP Review API Path and Error Model Fix                               | Google Integration, Error Model              |
-| 0006 | Staff as a Separate Bounded Context                                   | Identity, Staff Management                   |
-| 0007 | Dashboard as a Read-Only Aggregation                                  | Reporting, Dashboard Read Models             |
-| 0008 | Cross-Context Data Access Rules                                       | Architecture, Bounded Context Boundaries     |
-| 0009 | Permission Model                                                      | Architecture, Authorization                  |
-| 0010 | Activity Context: BullMQ Event Delivery                               | Activity Context, Event Delivery             |
-| 0011 | Notification Context: BullMQ Event Delivery                           | Notification Context, Event Delivery         |
-| 0012 | Nitro Vite Plugin — Dev-Mode Exclusion                                | Dev Tooling, Vite Config, TanStack Start     |
-| 0015 | Import Protection — Server-Only Code Leak                             | Dev Tooling, Client/Server Boundary          |
-| 0016 | Active Property URL Query Param                                       | Navigation, Property Context                 |
-| 0017 | Injectable Clock                                                      | Testability, Time-Dependent Logic            |
-| 0018 | Injectable Container                                                  | Testability, Simulation Isolation            |
-| 0019 | Simulation Harness & Deterministic Backends                           | Testability, Simulation                      |
-| 0039 | People, Access, and Attribution Are Separate Effective-Dated Concepts | People, Access, Attribution                  |
-| 0052 | Beta People, Access, Attribution, and Manager Responsibility          | Canonical Beta People Model, Team Quarantine |
-| 0053 | Production Redis Workload Isolation                                   | Cache/Queue Runtime Boundaries               |
-| 0055 | Stable Review Identity and Inbox Handling Cycles                      | Review, Reply, Inbox, Retention              |
-| 0056 | Operational Action History Integrity Claims                           | Activity, Audit, Honest Claims               |
-| 0058 | Dedicated Railway Projects and IaC-Owned Source Promotion             | Railway release isolation and source control |
+| ADR  | Title                                                        | Context                                      | Replaces                      |
+| ---- | ------------------------------------------------------------ | -------------------------------------------- | ----------------------------- |
+| 0007 | Dashboard as a Read-Only Aggregation                         | Reporting, Dashboard Read Models             | —                             |
+| 0008 | Cross-Context Data Access Rules                              | Architecture, Bounded Context Boundaries     | —                             |
+| 0015 | Import Protection — Server-Only Code Leak                    | Dev Tooling, Client/Server Boundary          | 0012                          |
+| 0016 | Active Property URL Query Param                              | Navigation, Property Context                 | —                             |
+| 0017 | Injectable Clock                                             | Testability, Time-Dependent Logic            | —                             |
+| 0019 | Simulation Harness & Deterministic Backends                  | Testability, Simulation                      | 0018                          |
+| 0030 | Identifier-Only Domain Events and Outbox Payloads            | Domain Events, Outbox                        | —                             |
+| 0033 | Authorization Policy                                         | Authorization, Execution Policy              | 0009                          |
+| 0046 | Notification Policy                                          | Feed, Notifications                          | 0011, 0022                    |
+| 0052 | Beta People, Access, Attribution, and Manager Responsibility | Canonical Beta People Model, Team Quarantine | 0039; 0006 as Staff authority |
+| 0053 | Production Redis Workload Posture                            | Cache/Queue Runtime Boundaries               | —                             |
+| 0055 | Stable Review Identity and Inbox Handling Cycles             | Review, Reply, Inbox, Retention              | 0003, 0004                    |
+| 0056 | Operational Action History Integrity Claims                  | Activity, Audit, Honest Claims               | 0010, 0045                    |
+| 0057 | Inbox Queues                                                 | Inbox Workspace                              | —                             |
+| 0058 | AI Admission Lanes and Paced Review Analysis                 | AI, Review Analysis                          | —                             |
 
 ## Key Files
 
