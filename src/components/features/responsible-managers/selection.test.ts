@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { reconcileResponsibleManagerSelection } from './responsible-manager-selection'
+import { reconcileResponsibleManagerSelection } from './selection'
 
 describe('responsible manager draft reconciliation', () => {
   it('adopts a refreshed server selection when the local selection is clean', () => {
