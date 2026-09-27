@@ -71,7 +71,7 @@ export type {
   GoalResultsMatrixEvidence,
   GoalResultsMatrixRow,
 } from './goal-results-matrix'
-export type { GoalAssignmentChangeOutcome } from './use-cases/goal-programs'
+export type { GoalAssignmentChangeOutcome } from './goal-assignment-selection'
 export { GoalProgramError } from './use-cases/goal-programs'
 export type {
   GoalMonthlyResultClosed,
