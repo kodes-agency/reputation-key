@@ -49,8 +49,8 @@ const STAFF_EFFECTIVE_FROM = new Date('2026-08-01T00:00:00.000Z')
 const OTHER_ORG = organizationId('org-guest-response-command-store-other')
 const OTHER_PROPERTY = propertyId('51000000-0000-4000-8000-000000000021')
 const OTHER_PORTAL = portalId('51000000-0000-4000-8000-000000000022')
-const OTHER_RESPONSE = '51000000-0000-4000-8000-000000000023'
-const OTHER_SESSION = '51000000-0000-4000-8000-000000000024'
+const OTHER_RESPONSE = guestResponseId('51000000-0000-4000-8000-000000000023')
+const OTHER_SESSION = guestSessionId('51000000-0000-4000-8000-000000000024')
 
 const createAtomicGuestResponseCommandStore = (
   database: Parameters<typeof createAtomicGuestResponseCommandStoreFactory>[0],
