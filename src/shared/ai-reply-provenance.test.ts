@@ -7,7 +7,7 @@ import {
   type AiReplyProvenancePayloadV1,
   type AiReplyProvenancePayloadV2,
   type AiReplyProvenancePayloadV3,
-} from './provenance'
+} from './ai-reply-provenance'
 import {
   AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
   AI_PERSONALIZED_REPLY_PROFILE_VERSION,
@@ -138,6 +138,59 @@ describe('AI reply provenance', () => {
         keys.privateKey,
       ),
     ).toThrow(z.ZodError)
+  })
+
+  it('verifies a fixed V3 token shaped exactly like route-preparer.ts signs, from the same module', () => {
+    // Before the ai-provider-control/provenance.ts <-> ai-reply-provenance.ts
+    // merge, src/shared/ai-provider-control/route-preparer.ts (the only
+    // production signer) called the OTHER copy of signAiReplyProvenance, and
+    // this suite only ever exercised the copy nothing in production called.
+    // This test pins the exact field set and digests route-preparer.ts's
+    // reply-suggestion handler builds, so a change to either function is
+    // proven compatible with the real production payload shape, signed and
+    // verified through the one module both now share.
+    const keys = generateKeyPairSync('ed25519')
+    const fixedPayload: AiReplyProvenancePayloadV3 = {
+      version: 'ai-reply-provenance-v3',
+      kid: 'route-preparer-fixed-v1',
+      operationId: '20000000-0000-4000-8000-000000000010',
+      actorId: 'actor_fixed_01',
+      organizationId: 'organization_fixed_01',
+      propertyId: '20000000-0000-4000-8000-000000000020',
+      reviewId: 'review_fixed_01',
+      requestBindingHmac: 'B'.repeat(43),
+      sourceEpoch: 3,
+      sourceRevision: 2,
+      baseReplyStateRevision: 1,
+      replyDraftingEpoch: 4,
+      propertyProfileVersion: 5,
+      providerDeploymentProfileVersion: 'private-beta-global-v1',
+      operationProfileVersion: 'reply-suggestion-v1',
+      replyProfileVersion: AI_PERSONALIZED_REPLY_PROFILE_VERSION,
+      replyProfileDigest: AI_PERSONALIZED_REPLY_PROFILE_DIGEST,
+      replyBrandProfileVersion: 9,
+      replyBrandDisplayNameDigest: 'b'.repeat(64),
+      modelSnapshot: 'gpt-5.4-mini-2026-03-17',
+      promptVersion: 'reply-suggestion-prompt-v1',
+      outputLeakageProfileVersion: 'gbp-reply-output-leakage-v1',
+      outputLeakageProfileDigest: 'c'.repeat(64),
+      concreteLanguageTag: 'bg-Cyrl',
+      templateGroup: 'bg-Cyrl',
+      renderedSuggestionDigest: 'd'.repeat(64),
+      tokenExpiresAtEpochMillis: 1_780_000_600_000,
+      draftExpiresAtEpochMillis: 1_780_001_200_000,
+    }
+
+    const token = signAiReplyProvenance(fixedPayload, keys.privateKey)
+
+    expect(token).toMatch(/^rk_ai_reply_v3\./u)
+    expect(
+      verifyAiReplyProvenance(token, new Map([[fixedPayload.kid, keys.publicKey]])),
+    ).toEqual(fixedPayload)
+    const otherKeys = generateKeyPairSync('ed25519')
+    expect(
+      verifyAiReplyProvenance(token, new Map([[fixedPayload.kid, otherKeys.publicKey]])),
+    ).toBeNull()
   })
 
   it('admits personalized provenance only for the approved English and Bulgarian profiles', () => {
