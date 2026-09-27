@@ -1,6 +1,18 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  createEnvCapabilityPolicyStore,
+  initCapabilityPolicyStore,
+  resetCapabilityPolicyStore,
+} from '#/shared/auth/beta-capabilities'
+import {
+  createDelayedExecutionPolicy,
+  initDelayedExecutionPolicy,
+  resetDelayedExecutionPolicy,
+} from '#/shared/auth/system-execution-policy'
+import { ENTRY_POINT_CATALOGUE } from '#/shared/governance/entry-point-catalogue'
+import { gateDispatcherConsumer } from '#/shared/jobs/delayed-execution-gate'
 import type { ConsumerEvent } from '#/shared/outbox/consumer-registry'
-import type { OutboxRepository } from '#/shared/outbox'
+import { createConsumerRegistry, type OutboxRepository } from '#/shared/outbox'
 import { DISPATCH_JOB_OPTIONS } from '#/shared/outbox/dispatch-job-options'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import {
@@ -8,6 +20,7 @@ import {
   AI_BACKFILL_OPERATION_HORIZON_MILLIS,
   type AnalyzeReviewEventResult,
 } from '../application/use-cases/analyze-review-event'
+import policySource from '../domain/catalogues/ai-private-beta-policy-v1.json'
 import {
   AI_PROPERTY_TREND_GENERATION_CONSUMER,
   AI_REVIEW_ANALYSIS_ENROLLMENT_CONSUMER,
@@ -15,6 +28,7 @@ import {
   handleAiAuthorizationLifecycleChanged,
   handleAiPropertyTrendGenerationRequested,
   handleAiReviewEvent,
+  registerAiConsumers,
   type RegisterAiConsumersInput,
 } from './outbox-consumers'
 
@@ -107,6 +121,23 @@ function harness(result: AnalyzeReviewEventResult) {
     applyAiAuthorizationLifecycle,
     insertReceipt,
     enqueue,
+  }
+}
+
+function trendEvent(): ConsumerEvent {
+  return {
+    eventId: EVENT_ID,
+    eventType: 'ai.property_trend.generation_requested',
+    eventVersion: 1,
+    payload: {
+      scheduleId: '71000000-0000-4000-8000-000000000204',
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+    },
+    organizationId: ORGANIZATION_ID,
+    propertyId: PROPERTY_ID,
+    sourceContext: 'ai',
+    sourceAggregateId: '71000000-0000-4000-8000-000000000204',
   }
 }
 
@@ -329,23 +360,9 @@ describe('AI review outbox consumer', () => {
 
   it('enqueues the exact scheduled trend and records its receipt', async () => {
     const test = harness({ status: 'completed' })
-    const trendEvent: ConsumerEvent = {
-      eventId: EVENT_ID,
-      eventType: 'ai.property_trend.generation_requested',
-      eventVersion: 1,
-      payload: {
-        scheduleId: '71000000-0000-4000-8000-000000000204',
-        organizationId: ORGANIZATION_ID,
-        propertyId: PROPERTY_ID,
-      },
-      organizationId: ORGANIZATION_ID,
-      propertyId: PROPERTY_ID,
-      sourceContext: 'ai',
-      sourceAggregateId: '71000000-0000-4000-8000-000000000204',
-    }
 
     await expect(
-      handleAiPropertyTrendGenerationRequested(test.dependencies, trendEvent),
+      handleAiPropertyTrendGenerationRequested(test.dependencies, trendEvent()),
     ).resolves.toEqual({ status: 'applied' })
     expect(test.enqueuePropertyTrend).toHaveBeenCalledWith(
       '71000000-0000-4000-8000-000000000204',
@@ -501,5 +518,130 @@ describe('AI authorization lifecycle consumer', () => {
     await expect(
       handleAiAuthorizationLifecycleChanged(test.dependencies, merchantAiChangedEvent()),
     ).resolves.toEqual({ status: 'duplicate' })
+  })
+})
+
+// The dispatcher authorizes each consumer under its own catalogue row, and a
+// terminal denial records an obsolete receipt that is never retried. Every AI
+// consumer used to share the trends row, so stopping trends (ai.detect_trends)
+// lost Review Analysis and enrollment deliveries for good, while stopping
+// analysis (ai.analyze) left the analysis consumer running.
+describe('AI consumer authorization', () => {
+  const platformCapabilityOf = (id: string): string | undefined =>
+    policySource.capabilities.find((capability) => capability.id === id)
+      ?.platformCapability
+
+  const registrations = () => {
+    const registry = createConsumerRegistry()
+    registerAiConsumers(registry, harness({ status: 'completed' }).dependencies)
+    return [...new Set(registry.list().map(({ eventType }) => eventType))].flatMap(
+      (eventType) => registry.listFor(eventType),
+    )
+  }
+
+  /** The reason the real delayed policy gives one consumer under a capability stop. */
+  const gateUnderStop = async (
+    stopped: string,
+    consumerName: string,
+    envelope: ConsumerEvent,
+  ): Promise<string> => {
+    initCapabilityPolicyStore(
+      createEnvCapabilityPolicyStore({
+        BETA_ALLOWLIST_ORGS: ORGANIZATION_ID,
+        BETA_CAPABILITIES_OFF: stopped,
+      }),
+    )
+    const registration = registrations().find(
+      (candidate) =>
+        candidate.eventType === envelope.eventType &&
+        candidate.consumerName === consumerName,
+    )
+    const outcome = await gateDispatcherConsumer(
+      consumerName,
+      registration!.module,
+      envelope,
+    )
+    return outcome.decision.reason
+  }
+
+  beforeEach(() => {
+    initDelayedExecutionPolicy(
+      createDelayedExecutionPolicy({ refreshPolicy: async () => {} }),
+    )
+  })
+
+  afterEach(() => {
+    resetDelayedExecutionPolicy()
+    resetCapabilityPolicyStore()
+  })
+
+  it('gates each consumer on the platform capability of the AI capability it serves', () => {
+    // Enrollment is ungated: it records the merchant's enable, disable or
+    // revoke, which no stop may lose, and the provider work it leads to is
+    // gated on ai.analyze further on.
+    const served: Readonly<Record<string, string | undefined>> = {
+      [AI_REVIEW_ANALYSIS_CONSUMER]: platformCapabilityOf('review_analysis'),
+      [AI_PROPERTY_TREND_GENERATION_CONSUMER]: platformCapabilityOf('property_trends'),
+      [AI_REVIEW_ANALYSIS_ENROLLMENT_CONSUMER]: 'none',
+    }
+    const routes = registrations().map(({ eventType, consumerName, module }) => ({
+      route: `${eventType} → ${consumerName}`,
+      consumerName,
+      gate: ENTRY_POINT_CATALOGUE.find(
+        (row) => row.kind === 'consumer' && row.name === module,
+      )?.capability,
+    }))
+
+    expect(new Set(routes.map(({ consumerName }) => consumerName))).toEqual(
+      new Set(Object.keys(served)),
+    )
+    expect(
+      routes
+        .filter(({ consumerName, gate }) => gate !== served[consumerName])
+        .map(({ route, gate }) => `${route}: ${gate}`),
+    ).toEqual([])
+  })
+
+  it('keeps analysing reviews and recording enrollment while trends are stopped', async () => {
+    const stopped = 'ai.detect_trends'
+
+    expect({
+      analysis: await gateUnderStop(
+        stopped,
+        AI_REVIEW_ANALYSIS_CONSUMER,
+        event('review.created'),
+      ),
+      enrollment: await gateUnderStop(
+        stopped,
+        AI_REVIEW_ANALYSIS_ENROLLMENT_CONSUMER,
+        merchantAiChangedEvent(),
+      ),
+      trends: await gateUnderStop(
+        stopped,
+        AI_PROPERTY_TREND_GENERATION_CONSUMER,
+        trendEvent(),
+      ),
+    }).toEqual({
+      analysis: 'allowed',
+      enrollment: 'allowed',
+      trends: 'capability_disabled',
+    })
+  })
+
+  it('stops Review Analysis, but not enrollment, when analysis is stopped', async () => {
+    const stopped = 'ai.analyze'
+
+    expect({
+      analysis: await gateUnderStop(
+        stopped,
+        AI_REVIEW_ANALYSIS_CONSUMER,
+        event('review.created'),
+      ),
+      enrollment: await gateUnderStop(
+        stopped,
+        AI_REVIEW_ANALYSIS_ENROLLMENT_CONSUMER,
+        merchantAiChangedEvent(),
+      ),
+    }).toEqual({ analysis: 'capability_disabled', enrollment: 'allowed' })
   })
 })

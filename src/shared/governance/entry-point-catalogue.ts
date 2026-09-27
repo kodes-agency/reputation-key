@@ -91,6 +91,8 @@ export type SystemAction =
   | 'system:ai.review_analysis_enrollment_sweep'
   | 'system:ai.review_analysis_backlog_drain'
   | 'system:ai.review_analysis_on_demand'
+  | 'system:ai.review_analysis_event'
+  | 'system:ai.review_analysis_enrollment'
   | 'system:permit.start_deadline_fence'
   | 'system:property.import_claim_reap'
   | 'system:goal.reconcile'
@@ -512,7 +514,31 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'property.import_gbp_v2',
     'organization',
   ),
-  consumer('ai.outbox-consumers', 'system:ai.trend', 'ai.detect_trends', 'property'),
+  // AI consumers are gated per capability, so one capability's stop never
+  // obsoletes another's deliveries: Review Analysis on ai.analyze, like the
+  // jobs that run the same analysis, and trend generation on ai.detect_trends.
+  consumer(
+    'ai.review-analysis-consumers',
+    'system:ai.review_analysis_event',
+    'ai.analyze',
+    'property',
+  ),
+  // Enrollment records a merchant's enable, disable or revoke: ungated,
+  // because a denied consumer is never retried and that record must survive
+  // any stop. The provider work it leads to is gated on ai.analyze by the
+  // analysis consumer and the backlog-drain job.
+  consumer(
+    'ai.review-analysis-enrollment',
+    'system:ai.review_analysis_enrollment',
+    'none',
+    'property',
+  ),
+  consumer(
+    'ai.property-trend-consumers',
+    'system:ai.trend',
+    'ai.detect_trends',
+    'property',
+  ),
   consumer('activity.outbox-consumers', 'system:activity.record', 'none', 'organization'),
   // Its own action: 'system:goal.maintain' is the tenant-cross hourly sweep.
   consumer(

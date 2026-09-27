@@ -277,26 +277,26 @@ export function registerAiConsumers(
     registerConsumer({
       eventType: 'identity.merchant_ai.changed',
       consumerName: 'ai.enroll-review-analysis',
-      module: 'ai.outbox-consumers',
+      module: 'ai.review-analysis-enrollment',
       handler: (event) => handleAiAuthorizationLifecycleChanged(dependencies, event),
     })
   }
   registerConsumer({
     eventType: 'review.created',
     consumerName: 'ai.analyze-review-event',
-    module: 'ai.outbox-consumers',
+    module: 'ai.review-analysis-consumers',
     handler: (event) => handleAiReviewEvent(dependencies, event),
   })
   registerConsumer({
     eventType: 'review.updated',
     consumerName: 'ai.analyze-review-event',
-    module: 'ai.outbox-consumers',
+    module: 'ai.review-analysis-consumers',
     handler: (event) => handleAiReviewEvent(dependencies, event),
   })
   registerConsumer({
     eventType: 'review.source_transitioned',
     consumerName: 'ai.analyze-review-event',
-    module: 'ai.outbox-consumers',
+    module: 'ai.review-analysis-consumers',
     handler: (event) => handleAiReviewEvent(dependencies, event),
   })
   // The first-enablement Review Analysis enrollment replay. Registered ONLY here:
@@ -308,13 +308,13 @@ export function registerAiConsumers(
   registerConsumer({
     eventType: 'ai.review_analysis.backfill_requested',
     consumerName: 'ai.analyze-review-event',
-    module: 'ai.outbox-consumers',
+    module: 'ai.review-analysis-consumers',
     handler: (event) => handleAiReviewEvent(dependencies, event),
   })
   registerConsumer({
     eventType: 'ai.property_trend.generation_requested',
     consumerName: 'ai.generate-property-trend',
-    module: 'ai.outbox-consumers',
+    module: 'ai.property-trend-consumers',
     handler: (event) => handleAiPropertyTrendGenerationRequested(dependencies, event),
   })
 }
