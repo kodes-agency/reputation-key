@@ -17,6 +17,7 @@
 //   - entries here are exempt from model-vs-catalog comparison.
 
 import { readFileSync } from 'node:fs'
+import { CONCURRENT_INDEX_REGISTRY } from '../concurrent-index-registry'
 
 export type DbOnlyConstructKind =
   | 'trigger'
@@ -80,7 +81,20 @@ function readConstructsSql(): string {
   return readFileSync(CONSTRUCTS_SQL, 'utf8')
 }
 
+/**
+ * Indexes built by the CONCURRENTLY autocommit sidecar
+ * (`../concurrent-index-sidecar.ts`) instead of the transactional migrator —
+ * derived from the sidecar's own registry, so extending that registry never
+ * needs a second hand-maintained entry here.
+ */
+const CONCURRENT_INDEX_SIDECAR_CONSTRUCTS: readonly DbOnlyConstruct[] =
+  CONCURRENT_INDEX_REGISTRY.map((spec) => ({
+    name: spec.name,
+    kind: spec.hasPredicate ? 'partial-index' : 'index',
+  }))
+
 export const DB_ONLY_CONSTRUCTS: readonly DbOnlyConstruct[] = Object.freeze([
   ...parse(readConstructsSql()),
   ...UNPARSED_CONSTRUCTS,
+  ...CONCURRENT_INDEX_SIDECAR_CONSTRUCTS,
 ])
