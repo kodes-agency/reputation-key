@@ -45,6 +45,12 @@ async function expectControlledUnavailable(
   const copy = REFUSAL_COPY[category]
   await expect(page.getByText(copy.title(feature))).toBeVisible()
   await expect(page.getByText(copy.description)).toBeVisible()
+  if (copy.next === null) {
+    // No setting can lift this refusal, so none may be offered.
+    await expect(page.getByRole('link', { name: 'Open property settings' })).toHaveCount(
+      0,
+    )
+  }
 }
 
 /**
@@ -386,8 +392,14 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await signIn(page, seed.lockedManagerEmail, seed.lockedManagerPassword, BASE_ORIGIN)
 
     for (const [url, feature, category] of [
-      [`/properties/${seed.p3PropertyId}/portals`, 'Portals', 'needs_admin_enablement'],
-      [`/properties/${seed.p3PropertyId}/goals`, 'Goals', 'needs_admin_enablement'],
+      // Org B is dark because the allowlist does not name it: an operator
+      // input, so the page must not offer Property settings as the fix.
+      [
+        `/properties/${seed.p3PropertyId}/portals`,
+        'Portals',
+        'not_enabled_for_organization',
+      ],
+      [`/properties/${seed.p3PropertyId}/goals`, 'Goals', 'not_enabled_for_organization'],
     ] as const satisfies readonly (readonly [
       string,
       string,
