@@ -2,27 +2,15 @@ import type { OrganizationId, PropertyId, ReviewId, UserId } from '#/shared/doma
 import {
   AI_OPERATION_PROFILES,
   AI_PROVIDER_DEPLOYMENT_PROFILE,
-  AI_SOURCE_CANONICALIZER_PROFILE_V1,
 } from '#/shared/ai-operation-profiles'
 import {
-  LANGUAGE_CATALOGUE_DIGEST,
   mapReviewLanguageMetadata,
   parseCanonicalReplyLanguageTag,
   type ConcreteReplyLanguage,
   type EvaluatedReviewLanguage,
 } from '#/shared/ai-review-language-catalogue'
-import { AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST } from '#/shared/ai-language-script-consistency'
+import type { ConcreteReplyLanguageResult } from '#/shared/ai-reply-language-verifier'
 import {
-  AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST,
-  type ConcreteReplyLanguageResult,
-} from '#/shared/ai-reply-language-verifier'
-import {
-  AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
-  AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
-} from '#/shared/ai-reply-output-leakage'
-import {
-  AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
-  AI_REPLY_TEMPLATE_CATALOGUE_VERSION,
   resolveAiReplyTemplate,
   type ReplyTone,
 } from '#/shared/ai-reply-template-catalogue'
@@ -30,22 +18,20 @@ import {
   AI_PERSONALIZED_REPLY_LANGUAGES,
   AI_PERSONALIZED_REPLY_PROFILE_VERSION,
 } from '#/shared/ai-personalized-reply-contract'
-import { AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST } from '#/shared/ai-zh-orthography-verifier'
 import { encodeCanonicalAiReviewSource } from '#/shared/ai-review-source-contract'
 import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
 import type { PortalAiReplyBrandProfilePublicApi } from '#/contexts/portal/application/public-api'
 import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
 import type { AiControlPort } from '../ports/ai-control.port'
 import type { AiInferencePort } from '../ports/ai-inference.port'
-import type { AiOperationStorePort } from '../ports/ai-operation-store.port'
+import type {
+  AiOperationState,
+  AiOperationStorePort,
+} from '../ports/ai-operation-store.port'
 import type { AiOutputStorePort } from '../ports/ai-output-store.port'
 import type { AiAdmissionPort } from '../ports/ai-admission.port'
 import type { PropertyProcessingProfilePort } from '../ports/property-processing-profile.port'
-import type {
-  AiExecutionBinding,
-  AiOperationId,
-  AiOperationIdentity,
-} from '../../domain/types'
+import type { AiOperationId } from '../../domain/types'
 import type { AiErrorCode } from '../../domain/errors'
 import {
   aiRequestFingerprint,
@@ -53,6 +39,7 @@ import {
   aiReviewSourceProvenance,
   resolveAiExecutionStopFence,
 } from '../ai-workflow-support'
+import { replyExecutionBinding, replyOperationIdentity } from '../ai-operation-binding'
 
 const REPLY_OPERATION_PROFILE_VERSION = 'reply-suggestion-v1' as const
 /**
@@ -352,6 +339,185 @@ async function isReplySuggestionStillCurrent(
     : 'source_changed'
 }
 
+type ReviewObservation = Extract<
+  Awaited<ReturnType<AiReviewSourcePort['readForAi']>>,
+  { status: 'available' }
+>['observation']
+
+type MerchantAuthorization = NonNullable<
+  Awaited<ReturnType<AiAuthorizationPort['readMerchantAuthorization']>>
+>
+
+type ReplyDraftingAuthorization = MerchantAuthorization &
+  Readonly<{ authorizationLineageId: string }>
+
+type SuggestionLanguage =
+  // Answered without provider work: a local template or a refusal.
+  | Readonly<{ kind: 'settled'; result: GenerateReplySuggestionResult }>
+  // A personalized draft in this language may be requested from the provider.
+  | Readonly<{
+      kind: 'draftable'
+      reviewText: string
+      evaluatedLanguage: EvaluatedReviewLanguage
+      concreteReplyLanguage: ConcreteReplyLanguage
+    }>
+
+const settledWith = (result: GenerateReplySuggestionResult): SuggestionLanguage => ({
+  kind: 'settled',
+  result,
+})
+
+/**
+ * A local template in a target language chosen without a review language, or
+ * the refusal when the Property has none that resolves.
+ */
+async function templateWithoutReviewLanguage(
+  dependencies: Pick<GenerateReplySuggestionDependencies, 'propertyReplyLanguages'>,
+  input: GenerateReplySuggestionInput,
+  rating: ReviewObservation['rating'],
+  reason: Extract<FallbackResult['reason'], 'no_review_text' | 'language_undetermined'>,
+): Promise<GenerateReplySuggestionResult> {
+  const target = await resolveTargetReplyLanguage(dependencies, input, null)
+  return target === null
+    ? unavailable('target_language_unavailable')
+    : localFallback(input, target.language, rating, {
+        reason,
+        languageSource: target.languageSource,
+      })
+}
+
+/**
+ * Decides the draft's language before any AI authorization is read. A review
+ * without text, metadata or text in no supported language, an explicit
+ * template request, and a target language with no personalized profile each
+ * settle here with a local template or a refusal; only a target language that
+ * can be personalized goes on to provider work.
+ */
+async function resolveSuggestionLanguage(
+  dependencies: Pick<
+    GenerateReplySuggestionDependencies,
+    'propertyReplyLanguages' | 'resolveReplyLanguage'
+  >,
+  input: GenerateReplySuggestionInput,
+  observation: ReviewObservation,
+): Promise<SuggestionLanguage> {
+  if (observation.text === null) {
+    return settledWith(
+      await templateWithoutReviewLanguage(
+        dependencies,
+        input,
+        observation.rating,
+        'no_review_text',
+      ),
+    )
+  }
+  const reviewText = observation.text
+  const evaluatedLanguage = mapReviewLanguageMetadata(observation.languageCode)
+  if (evaluatedLanguage.status !== 'supported') {
+    if (!input.templateOnly) {
+      return settledWith(
+        unavailable(
+          evaluatedLanguage.status === 'language_not_supported'
+            ? 'language_not_supported'
+            : 'policy_unavailable',
+        ),
+      )
+    }
+    return settledWith(
+      await templateWithoutReviewLanguage(
+        dependencies,
+        input,
+        observation.rating,
+        'language_undetermined',
+      ),
+    )
+  }
+
+  const reviewLanguage = await dependencies.resolveReplyLanguage({
+    text: reviewText,
+    evaluatedLanguage: evaluatedLanguage.language,
+  })
+  if (reviewLanguage.status !== 'resolved') {
+    const canUseTemplate =
+      input.templateOnly ||
+      (reviewLanguage.status === 'language_not_supported' &&
+        reviewLanguage.reason !== 'metadata_language_mismatch')
+    if (!canUseTemplate) {
+      return settledWith(
+        unavailable(
+          reviewLanguage.status === 'language_not_supported'
+            ? 'language_not_supported'
+            : 'policy_unavailable',
+        ),
+      )
+    }
+    return settledWith(
+      await templateWithoutReviewLanguage(
+        dependencies,
+        input,
+        observation.rating,
+        'language_undetermined',
+      ),
+    )
+  }
+
+  const target = await resolveTargetReplyLanguage(
+    dependencies,
+    input,
+    reviewLanguage.language,
+  )
+  if (target === null) return settledWith(unavailable('target_language_unavailable'))
+  if (input.templateOnly) {
+    return settledWith(
+      localFallback(input, target.language, observation.rating, {
+        reason: 'template_requested',
+        languageSource: target.languageSource,
+      }),
+    )
+  }
+  if (!PERSONALIZED_LANGUAGE_SET.has(target.language.templateGroup)) {
+    return settledWith(
+      localFallback(input, target.language, observation.rating, {
+        reason: 'language_not_personalized',
+        languageSource: target.languageSource,
+      }),
+    )
+  }
+  return {
+    kind: 'draftable',
+    reviewText,
+    evaluatedLanguage: evaluatedLanguage.language,
+    concreteReplyLanguage: target.language,
+  }
+}
+
+/**
+ * The AccountAdmin authorization a personalized draft may run under: enabled,
+ * with a lineage, for the source epoch the manager saw, and granting reply
+ * drafting on this runtime profile.
+ */
+function isReplyDraftingAuthorized(
+  authorization: MerchantAuthorization | null,
+  input: Pick<GenerateReplySuggestionInput, 'expectedSourceEpoch'>,
+): authorization is ReplyDraftingAuthorization {
+  return (
+    authorization !== null &&
+    authorization.state === 'enabled' &&
+    authorization.authorizationLineageId !== null &&
+    authorization.authorizedSourceEpoch === input.expectedSourceEpoch &&
+    authorization.capabilities.includes('reply_drafting') &&
+    authorization.capabilityRuntimeProfileVersions.reply_drafting ===
+      PROFILE.capabilityRuntimeProfileVersion
+  )
+}
+
+/**
+ * A claimed operation that already produced its draft. The draft is
+ * session-ephemeral and never stored, so it cannot be delivered again.
+ */
+const hasProducedDraft = (state: AiOperationState): boolean =>
+  state === 'succeeded' || state === 'succeeded_pending_delivery'
+
 export function createGenerateReplySuggestion(
   dependencies: GenerateReplySuggestionDependencies,
 ): (input: GenerateReplySuggestionInput) => Promise<GenerateReplySuggestionResult> {
@@ -377,79 +543,9 @@ export function createGenerateReplySuggestion(
     }
 
     const observation = source.observation
-    if (observation.text === null) {
-      const target = await resolveTargetReplyLanguage(dependencies, input, null)
-      return target === null
-        ? unavailable('target_language_unavailable')
-        : localFallback(input, target.language, observation.rating, {
-            reason: 'no_review_text',
-            languageSource: target.languageSource,
-          })
-    }
-
-    const reviewText = observation.text
-    const evaluatedLanguage = mapReviewLanguageMetadata(observation.languageCode)
-    if (evaluatedLanguage.status !== 'supported') {
-      if (!input.templateOnly) {
-        return unavailable(
-          evaluatedLanguage.status === 'language_not_supported'
-            ? 'language_not_supported'
-            : 'policy_unavailable',
-        )
-      }
-      const target = await resolveTargetReplyLanguage(dependencies, input, null)
-      return target === null
-        ? unavailable('target_language_unavailable')
-        : localFallback(input, target.language, observation.rating, {
-            reason: 'language_undetermined',
-            languageSource: target.languageSource,
-          })
-    }
-
-    const reviewLanguage = await dependencies.resolveReplyLanguage({
-      text: reviewText,
-      evaluatedLanguage: evaluatedLanguage.language,
-    })
-    if (reviewLanguage.status !== 'resolved') {
-      const canUseTemplate =
-        input.templateOnly ||
-        (reviewLanguage.status === 'language_not_supported' &&
-          reviewLanguage.reason !== 'metadata_language_mismatch')
-      if (!canUseTemplate) {
-        return unavailable(
-          reviewLanguage.status === 'language_not_supported'
-            ? 'language_not_supported'
-            : 'policy_unavailable',
-        )
-      }
-      const target = await resolveTargetReplyLanguage(dependencies, input, null)
-      return target === null
-        ? unavailable('target_language_unavailable')
-        : localFallback(input, target.language, observation.rating, {
-            reason: 'language_undetermined',
-            languageSource: target.languageSource,
-          })
-    }
-
-    const target = await resolveTargetReplyLanguage(
-      dependencies,
-      input,
-      reviewLanguage.language,
-    )
-    if (target === null) return unavailable('target_language_unavailable')
-    const targetReplyLanguage = target.language
-    if (input.templateOnly) {
-      return localFallback(input, targetReplyLanguage, observation.rating, {
-        reason: 'template_requested',
-        languageSource: target.languageSource,
-      })
-    }
-    if (!PERSONALIZED_LANGUAGE_SET.has(targetReplyLanguage.templateGroup)) {
-      return localFallback(input, targetReplyLanguage, observation.rating, {
-        reason: 'language_not_personalized',
-        languageSource: target.languageSource,
-      })
-    }
+    const language = await resolveSuggestionLanguage(dependencies, input, observation)
+    if (language.kind === 'settled') return language.result
+    const { reviewText, concreteReplyLanguage } = language
 
     const [authorization, runtime, brandProfile] = await Promise.all([
       dependencies.authorization.readMerchantAuthorization(input),
@@ -460,13 +556,7 @@ export function createGenerateReplySuggestion(
       ),
     ])
     if (
-      authorization === null ||
-      authorization.state !== 'enabled' ||
-      authorization.authorizationLineageId === null ||
-      authorization.authorizedSourceEpoch !== input.expectedSourceEpoch ||
-      !authorization.capabilities.includes('reply_drafting') ||
-      authorization.capabilityRuntimeProfileVersions.reply_drafting !==
-        PROFILE.capabilityRuntimeProfileVersion ||
+      !isReplyDraftingAuthorized(authorization, input) ||
       runtime.status !== 'available'
     ) {
       return unavailable('not_authorized')
@@ -497,57 +587,25 @@ export function createGenerateReplySuggestion(
       replyBrandDisplayName: brandProfile.displayName,
       replyBrandDisplayNameDigest: brandProfile.displayNameDigest,
     }
-    const identity: AiOperationIdentity = {
-      subjectKind: 'property',
-      command: 'reply',
-      capability: 'reply_drafting',
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      actorId: input.actorUserId,
-      systemPrincipal: null,
-      reviewId: input.reviewId,
-      sourceEpoch: input.expectedSourceEpoch,
-      sourceRevision: input.expectedSourceRevision,
-      tone: input.tone,
-      reviewedAtEpochMillis: observation.reviewedAtEpochMillis,
+    const identity = replyOperationIdentity(
+      input,
+      observation.reviewedAtEpochMillis,
       baseReplyStateRevision,
-    }
-    const binding: AiExecutionBinding = {
+    )
+    const binding = replyExecutionBinding({
+      input,
+      authorization,
       authorizationLineageId: authorization.authorizationLineageId,
-      noticeVersion: authorization.noticeVersion,
-      noticeDigest: authorization.noticeDigest,
-      capabilityFence: {
-        capability: 'reply_drafting',
-        replyDraftingEpoch,
-        baseReplyStateRevision,
-      },
-      sourceEpoch: input.expectedSourceEpoch,
-      evaluatedLanguage: evaluatedLanguage.language.group,
-      concreteReplyLanguage: targetReplyLanguage,
-      languageCatalogueDigest: LANGUAGE_CATALOGUE_DIGEST,
-      replyLanguageVerifierDigest: AI_REPLY_LANGUAGE_VERIFIER_PROFILE_DIGEST,
-      languageScriptConsistencyDigest: AI_LANGUAGE_SCRIPT_CONSISTENCY_PROFILE_DIGEST,
-      zhOrthographyVerifierDigest: AI_ZH_ORTHOGRAPHY_PROFILE_DIGEST,
-      sourceRevision: input.expectedSourceRevision,
+      operationProfile: PROFILE,
+      evaluatedLanguage: language.evaluatedLanguage.group,
+      concreteReplyLanguage,
       reviewedAtEpochMillis: observation.reviewedAtEpochMillis,
-      propertyProfileVersion: profile.profileVersion,
-      replyBrandProfileVersion: brandProfile.version,
-      replyBrandDisplayNameDigest: brandProfile.displayNameDigest,
-      routingPolicyVersion: profile.routingPolicyVersion,
-      sourcePolicyId: AI_SOURCE_CANONICALIZER_PROFILE_V1.sourcePolicyId,
-      sourceCanonicalizerDigest:
-        AI_SOURCE_CANONICALIZER_PROFILE_V1.sourceCanonicalizerDigest,
-      redactionProfileVersion: authorization.redactionProfileFamily,
-      outputLeakageProfileVersion: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_VERSION,
-      outputLeakageProfileDigest: AI_REPLY_OUTPUT_LEAKAGE_PROFILE_DIGEST,
-      replyTemplateCatalogueVersion: AI_REPLY_TEMPLATE_CATALOGUE_VERSION,
-      replyTemplateCatalogueDigest: AI_REPLY_TEMPLATE_CATALOGUE_DIGEST,
-      providerDeploymentProfileVersion: authorization.providerDeploymentProfileVersion,
-      operationProfileVersion: PROFILE.profileVersion,
-      capabilityRuntimeProfileVersion: PROFILE.capabilityRuntimeProfileVersion!,
-      aiSubjectHmacKeyVersion: null,
+      profile,
+      brandProfile,
+      replyDraftingEpoch,
+      baseReplyStateRevision,
       stopFence,
-    }
+    })
     const requestFingerprint = aiRequestFingerprint({
       identity,
       binding,
@@ -563,10 +621,7 @@ export function createGenerateReplySuggestion(
       expiresAtEpochMillis: nowEpochMillis + 15 * 60 * 1_000,
     })
     if (claimed.status === 'conflict') return unavailable('policy_unavailable')
-    if (
-      claimed.operation.state === 'succeeded' ||
-      claimed.operation.state === 'succeeded_pending_delivery'
-    ) {
+    if (hasProducedDraft(claimed.operation.state)) {
       return unavailable('completed_without_delivery')
     }
     const expectedAttempt = claimed.operation.executionAttempt + 1
@@ -690,7 +745,7 @@ export function createGenerateReplySuggestion(
         provenanceToken: response.result.provenanceToken,
         expiresAtEpochMillis: response.result.expiresAtEpochMillis,
         baseReplyStateRevision,
-        concreteLanguageTag: targetReplyLanguage.tag,
+        concreteLanguageTag: concreteReplyLanguage.tag,
       }
     } finally {
       await dependencies.admission.release({ admissionId: admission.admissionId })
