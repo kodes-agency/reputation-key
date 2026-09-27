@@ -40,10 +40,14 @@ type StandardValidator = Readonly<{
 
 const mocks = vi.hoisted(() => ({
   readPropertyAiTrend: vi.fn(),
+  getReviewInboxItemIds: vi.fn(),
+  decide: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
   headersFromContext: vi.fn(),
 }))
+
+const NOW = new Date('2026-08-20T09:00:00.000Z')
 
 /** Declared HTTP method, captured from the module's own createServerFn call. */
 const seam = vi.hoisted(() => ({ method: null as string | null }))
@@ -87,6 +91,8 @@ vi.mock('#/shared/observability/logger', async (importOriginal) => {
 vi.mock('#/composition', () => ({
   getContainer: () => ({
     aiPublicApi: { readPropertyTrend: mocks.readPropertyAiTrend },
+    inboxPublicApi: { getReviewInboxItemIds: mocks.getReviewInboxItemIds },
+    clock: () => NOW,
   }),
 }))
 vi.mock('#/shared/auth/headers', () => ({
@@ -97,11 +103,20 @@ vi.mock('#/shared/auth/middleware', () => ({
 }))
 vi.mock('#/shared/auth/execution-policy', async (importOriginal) => {
   const actual = await importOriginal<typeof ExecutionPolicyModule>()
-  return { ...actual, requireExecutionAllowed: mocks.requireExecutionAllowed }
+  return {
+    ...actual,
+    requireExecutionAllowed: mocks.requireExecutionAllowed,
+    getExecutionPolicy: () => ({ decide: mocks.decide }),
+  }
 })
 
 import { getPropertyAiTrendFn } from './property-trend'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
+import {
+  EXECUTION_POLICY_VERSION,
+  type ExecutionDecision,
+} from '#/shared/auth/execution-policy'
+import { inboxItemId, reviewId } from '#/shared/domain/ids'
 
 // ── Sourced fixtures ────────────────────────────────────────────────
 // The report profile version is read off the compiled operation catalogue, never
@@ -179,12 +194,66 @@ const rejection = async (promise: Promise<unknown>): Promise<unknown> => {
   return outcome.error
 }
 
+const inboxReadDecision = (
+  allowed: boolean,
+  reason: ExecutionDecision['reason'],
+): ExecutionDecision => ({
+  allowed,
+  reason,
+  action: 'inbox.read',
+  policyVersion: EXECUTION_POLICY_VERSION,
+})
+
+const CITED_REVIEW = reviewId('00000000-0000-4000-8000-000000000021')
+const UNOPENED_REVIEW = reviewId('00000000-0000-4000-8000-000000000022')
+const CITED_ITEM = inboxItemId('00000000-0000-4000-8000-000000000031')
+
+/** A ready trend citing two Reviews, stored with the evidence format's href. */
+const readyCitingReviews = (): AiTrendReportRead => ({
+  status: 'ready',
+  ...NEVER_EDITED_EPOCHS,
+  dueLocalDate: '2026-08-20',
+  terminalAnalysisSequence: 1,
+  aggregateRevision: 1,
+  reportProfileVersion: TREND_PROFILE.profileVersion,
+  report: {
+    signalKey: 'aspect.service.negative.down',
+    direction: 'improving',
+    changeMagnitudeBasisPoints: 1_500,
+    supportingReviewCount: 2,
+    headline: 'Review signals improved',
+    sentences: ['Service complaints fell from 30.0% to 15.0%'],
+    summary: 'Service complaints fell from 30.0% to 15.0%.',
+  },
+  evidence: {
+    ...EVIDENCE,
+    supportingReviews: [
+      {
+        reviewId: CITED_REVIEW,
+        window: 'current',
+        localDate: '2026-08-02',
+        href: `/properties/${PROPERTY_ID}/reviews?reviewId=${CITED_REVIEW}`,
+      },
+      {
+        reviewId: UNOPENED_REVIEW,
+        window: 'baseline',
+        localDate: '2026-07-01',
+        href: `/properties/${PROPERTY_ID}/reviews?reviewId=${UNOPENED_REVIEW}`,
+      },
+    ],
+  },
+  updating: false,
+  generatedAtEpochMillis: 0,
+})
+
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.headersFromContext.mockResolvedValue(new Headers())
   mocks.resolveTenantContext.mockResolvedValue(ACTOR)
   mocks.requireExecutionAllowed.mockResolvedValue(undefined)
   mocks.readPropertyAiTrend.mockResolvedValue({ status: 'disabled' })
+  mocks.decide.mockResolvedValue(inboxReadDecision(true, 'allowed'))
+  mocks.getReviewInboxItemIds.mockResolvedValue(new Map())
 })
 
 describe('getPropertyAiTrendFn — tenant + gate wiring', () => {
@@ -259,8 +328,8 @@ describe('getPropertyAiTrendFn — read-model states reach the client intact', (
 
     const result = await call()
 
-    // The server function is a pass-through: it must not reshape, re-key or
-    // default any field of the read model.
+    // Apart from resolving supporting reviews (none here), the server function
+    // must not reshape, re-key or default any field of the read model.
     expect(result).toEqual(read)
     expect(result).toMatchObject({
       reportProfileVersion: TREND_PROFILE.profileVersion,
@@ -318,6 +387,92 @@ describe('getPropertyAiTrendFn — read-model states reach the client intact', (
       }
     },
   )
+})
+
+describe('getPropertyAiTrendFn — supporting reviews open in the Inbox', () => {
+  it('names the Inbox Item that opens each supporting review for this viewer', async () => {
+    mocks.readPropertyAiTrend.mockResolvedValue(readyCitingReviews())
+    mocks.getReviewInboxItemIds.mockResolvedValue(new Map([[CITED_REVIEW, CITED_ITEM]]))
+
+    const result = await call()
+
+    // Opening a Review is an Inbox read: the policy is asked for it as this
+    // viewer at this Property, then the Inbox for exactly the cited Reviews.
+    expect(mocks.decide).toHaveBeenCalledWith({
+      principal: { kind: 'user', ctx: ACTOR },
+      action: 'inbox.read',
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+      executionKind: 'interactive',
+      now: NOW,
+    })
+    expect(mocks.getReviewInboxItemIds).toHaveBeenCalledWith(
+      { propertyId: PROPERTY_ID, reviewIds: [CITED_REVIEW, UNOPENED_REVIEW] },
+      ACTOR,
+    )
+    expect(result).toMatchObject({
+      status: 'ready',
+      evidence: {
+        supportingReviews: [
+          {
+            reviewId: CITED_REVIEW,
+            window: 'current',
+            localDate: '2026-08-02',
+            inboxItemId: CITED_ITEM,
+          },
+          {
+            reviewId: UNOPENED_REVIEW,
+            window: 'baseline',
+            localDate: '2026-07-01',
+            inboxItemId: null,
+          },
+        ],
+      },
+    })
+    // The stored href never opened the Review (no route reads `reviewId`).
+    expect(JSON.stringify(result)).not.toContain('reviewId=')
+  })
+
+  it('offers no link and asks the Inbox nothing when the policy refuses inbox.read', async () => {
+    mocks.readPropertyAiTrend.mockResolvedValue(readyCitingReviews())
+    mocks.decide.mockResolvedValue(inboxReadDecision(false, 'scope_denied'))
+
+    const result = await call()
+
+    // A refusal degrades the links, never the trend the viewer may read.
+    expect(mocks.getReviewInboxItemIds).not.toHaveBeenCalled()
+    expect(result).toMatchObject({
+      status: 'ready',
+      evidence: {
+        supportingReviews: [{ inboxItemId: null }, { inboxItemId: null }],
+      },
+    })
+  })
+
+  it('asks neither the policy nor the Inbox when the trend cites no Review', async () => {
+    mocks.readPropertyAiTrend.mockResolvedValue({
+      status: 'preparing',
+      ...NEVER_EDITED_EPOCHS,
+    })
+
+    await call()
+
+    expect(mocks.decide).not.toHaveBeenCalled()
+    expect(mocks.getReviewInboxItemIds).not.toHaveBeenCalled()
+  })
+
+  it('masks a failed Inbox read as a generic 500 and leaks no detail', async () => {
+    mocks.readPropertyAiTrend.mockResolvedValue(readyCitingReviews())
+    mocks.getReviewInboxItemIds.mockRejectedValue(
+      new Error('select from inbox_items failed: connection terminated'),
+    )
+
+    const error = await rejection(call())
+
+    expect(error).toBeInstanceOf(ServerFunctionError)
+    expect(error).toMatchObject({ name: 'InternalError', status: 500 })
+    expect((error as Error).message).not.toContain('inbox_items')
+  })
 })
 
 describe('getPropertyAiTrendFn — failure surfaces', () => {

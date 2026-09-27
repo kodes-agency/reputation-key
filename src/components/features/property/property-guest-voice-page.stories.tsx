@@ -8,11 +8,11 @@ import type {
   AiPropertyInsightComparedAspect,
   AiPropertyInsightsPresetReady,
   AiPropertyInsightsRead,
-  AiTrendReportRead,
+  AiTrendReportView,
 } from '#/contexts/ai/application/public-api'
 import type { getPropertyAiTrendFn } from '#/contexts/ai/server/property-trend'
 import type { AspectPolarityV1, AspectTaxonomyV1Id } from '#/shared/aspect-taxonomy'
-import { reviewId } from '#/shared/domain/ids'
+import { inboxItemId, reviewId } from '#/shared/domain/ids'
 import { PropertyGuestVoicePage } from './property-guest-voice-page'
 
 const PROPERTY_ID = '11111111-1111-4111-8111-111111111111'
@@ -177,7 +177,8 @@ const provisional: AiPropertyInsightsPresetReady = {
 
 const firstReviewId = reviewId('rev-00000000-0000-4000-8000-000000000001')
 const secondReviewId = reviewId('rev-00000000-0000-4000-8000-000000000002')
-const readyTrend: Extract<AiTrendReportRead, { status: 'ready' }> = {
+const firstInboxItemId = inboxItemId('22222222-2222-4222-8222-222222222222')
+const readyTrend: Extract<AiTrendReportView, { status: 'ready' }> = {
   status: 'ready',
   sourceEpoch: 1,
   reviewAnalysisEpoch: 1,
@@ -226,13 +227,14 @@ const readyTrend: Extract<AiTrendReportRead, { status: 'ready' }> = {
         reviewId: firstReviewId,
         window: 'current',
         localDate: '2026-09-08',
-        href: `/properties/${PROPERTY_ID}/reviews?reviewId=${firstReviewId}`,
+        inboxItemId: firstInboxItemId,
       },
+      // No Inbox item this viewer may open: shown as text, not a link.
       {
         reviewId: secondReviewId,
         window: 'baseline',
         localDate: '2026-08-02',
-        href: `/properties/${PROPERTY_ID}/reviews?reviewId=${secondReviewId}`,
+        inboxItemId: null,
       },
     ],
   },
@@ -275,8 +277,12 @@ export const ReadyWithComparison: Story = {
     })
     expect(supportingReview).toHaveAttribute(
       'href',
-      expect.stringContaining(`reviewId=${firstReviewId}`),
+      `/properties/${PROPERTY_ID}/reviews?itemId=${firstInboxItemId}`,
     )
+    expect(canvas.getByText('Previous period · 2 Aug 2026')).toBeVisible()
+    expect(
+      canvas.queryByRole('link', { name: /Open supporting review from 2 Aug 2026/ }),
+    ).not.toBeInTheDocument()
     expect(canvas.getByText('Based on 120 reviews · 96 analysed')).toBeVisible()
 
     const topics = canvas.getByRole('table', { name: 'Topics' })

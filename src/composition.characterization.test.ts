@@ -138,6 +138,8 @@ const EXPECTED_INBOX_PUBLIC_API_KEYS = [
   'getLastVisitCount',
   'getPrivateFeedbackTargetAnalytics',
   'getResponseTargetPolicySettings',
+  // Guest voice's supporting reviews open the Inbox Item for each cited Review.
+  'getReviewInboxItemIds',
   'markFeedbackHandled',
   'resolveEscalation',
   'setResponseTargetPolicy',

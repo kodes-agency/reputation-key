@@ -5,7 +5,7 @@ import type {
   ReviewAspectPolarity,
 } from '#/contexts/inbox/application/ports/ai-review-insights.port'
 import type { InboxItem } from '#/contexts/inbox/domain/types'
-import { unbrandAll } from '#/shared/domain/ids'
+import { reviewId, unbrandAll } from '#/shared/domain/ids'
 
 /**
  * Stand-in star rating for the `available` review branch of `findDetailById`,
@@ -179,6 +179,18 @@ export function createInMemoryInboxRepo(): InboxRepository & {
           i.sourceId === sourceId &&
           i.organizationId === orgId,
       ) ?? null,
+    findActiveReviewItemIds: async (orgId, propertyId, reviewIds) =>
+      new Map(
+        items
+          .filter(
+            (i) =>
+              i.organizationId === orgId &&
+              i.propertyId === propertyId &&
+              i.sourceType === 'review' &&
+              reviewIds.includes(reviewId(i.sourceId)),
+          )
+          .map((i) => [reviewId(i.sourceId), i.id]),
+      ),
     findFilteredPaginated: async (filters, orgId, cursor, limit = 50) => {
       let filtered = matching(filters, orgId)
       const direction = filters.sort === 'oldest' ? 1 : -1

@@ -89,6 +89,16 @@ export type InboxRepository = Readonly<{
     sourceId: string,
     orgId: OrganizationId,
   ): Promise<InboxItem | null>
+  /**
+   * Active Review Inbox Item ids at one Property, keyed by Review id. An
+   * active read: a Review whose projection has no current Handling Cycle head
+   * is absent, exactly as `findById` would not find its item.
+   */
+  findActiveReviewItemIds(
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+    reviewIds: ReadonlyArray<ReviewId>,
+  ): Promise<ReadonlyMap<ReviewId, InboxItemId>>
   findFilteredPaginated(
     filters: InboxFilters,
     orgId: OrganizationId,
