@@ -122,6 +122,7 @@ function GoalDetailRoute() {
                 property={{ id: propertyId, name: propData.property.name }}
                 programId={program.id}
                 currentVersion={version.version}
+                propertyTimezone={version.propertyTimezone}
                 assignments={currentAssignments}
                 groups={subjectNames.groups}
                 portals={subjectNames.portals}

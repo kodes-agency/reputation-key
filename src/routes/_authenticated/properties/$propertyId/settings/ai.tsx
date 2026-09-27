@@ -1,5 +1,5 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
+import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { MerchantAiPropertyAuthorization } from '#/components/features/settings/merchant-ai-property-authorization'
 import { ReviewAnalysisProgressCard } from '#/components/features/property/settings/review-analysis-progress-card'
@@ -38,7 +38,6 @@ export const Route = createFileRoute(
 
 function PropertyAiSettings() {
   const { propertyId } = Route.useParams()
-  const queryClient = useQueryClient()
   const { data: propertyData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: authorization } = useSuspenseQuery(
     merchantAiAuthorizationQuery(propertyId),
@@ -76,11 +75,6 @@ function PropertyAiSettings() {
           enable={enable}
           change={change}
           revoke={revoke}
-          onChanged={() =>
-            void queryClient.invalidateQueries({
-              queryKey: aiKeys.reviewAnalysisProgress(propertyId),
-            })
-          }
         />
       ) : null}
       <ReviewAnalysisProgressCard progress={progress} />
