@@ -69,7 +69,7 @@
 
 | Threat                                        | Mitigation                                                                                                                                                                                                                                                                                                                        | Status                                         |
 | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
-| Error responses leak internals                | `redactError()` strips stack traces, DB details, PII; tagged errors only                                                                                                                                                                                                                                                          | ✅ Enforced                                    |
+| Error responses leak internals                | `throwContextError` maps each tagged error once, sending its code and authored message and only logging its context; `catchUntagged` logs any untagged failure and returns a generic 500 `InternalError`; production error boundaries render a generic message. No text scrubbing runs (residual risk 5)                          | ✅ Enforced                                    |
 | Logs contain secrets/PII                      | Pino structured logging; redaction patterns for tokens, emails, cookies                                                                                                                                                                                                                                                           | ✅ Module exists                               |
 | Review text in outbox events                  | Identifier-only payloads per ADR 0030; content stripped by adapter                                                                                                                                                                                                                                                                | ✅ Enforced                                    |
 | CSP bypass via injection                      | Default-deny CSP; inline styles only (Vite requirement); no inline scripts                                                                                                                                                                                                                                                        | ✅ Enforced                                    |
@@ -114,6 +114,15 @@
    retention, attachment deletion within 30 days, alert receipt, and supported-
    device inspection remain external release evidence. SDK Replay and ordinary
    screenshots remain prohibited.
+5. **Error message text** — no runtime scrubber rewrites error messages. A
+   tagged error's authored message reaches the client, so a message must never
+   interpolate user content or secrets; that is a review rule, not a check.
+   Better Auth `APIError`s surface the library's own message or a status-keyed
+   fallback. One known pass-through: invited registration
+   (`src/contexts/identity/application/use-cases/register-invited-user.ts`)
+   wraps a failed sign-up, or a failure to reconcile it, in `registration_failed`
+   with the cause's own message, which can put PostgreSQL driver text on that
+   invitation-gated route.
 
 ## OWASP ASVS 5.0 mapping
 
