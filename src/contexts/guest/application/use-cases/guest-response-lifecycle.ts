@@ -48,6 +48,7 @@ import {
   type PropertyId,
 } from '#/shared/domain/ids'
 import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
+import { assertNever } from '#/shared/domain/assert'
 
 export type ResolvePrimaryStaffAttribution = (
   input: Readonly<{
@@ -95,6 +96,28 @@ export type GuestResponseView = Readonly<{
   feedbackWithdrawnAt: string | null
   deletedAt: string | null
 }>
+
+/**
+ * Whether the session's response admits a qualified follow-up action (a fresh
+ * response on a shared device, a Google Review selection, a secondary-link
+ * selection): it holds a durable private rating and was not withdrawn. The
+ * switch is exhaustive, so a new status must decide here.
+ */
+export function isQualifiedGuestResponse(view: GuestResponseView | null): boolean {
+  if (view === null) return false
+  switch (view.status) {
+    case 'deleted':
+      return false
+    case 'pending':
+    case 'submitted':
+    case 'corrected':
+    case 'moderated':
+    case 'expired':
+      return view.rating !== null
+    default:
+      return assertNever('isQualifiedGuestResponse', view.status)
+  }
+}
 
 export class GuestResponseLifecycleError extends Error {
   constructor(readonly code: string) {

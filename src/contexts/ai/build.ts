@@ -47,8 +47,6 @@ import {
   createRequestReviewAnalysisNow,
   type RequestReviewAnalysisNowDependencies,
 } from './application/use-cases/request-review-analysis-now'
-import { createAiOrganizationExportContributor } from './infrastructure/adapters/ai-organization-export.adapter'
-import { createAiOrganizationLifecycleContributor } from './infrastructure/adapters/ai-organization-lifecycle.adapter'
 import type { ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import {
   AI_REVIEW_ANALYSIS_CONSUMER,
@@ -295,20 +293,6 @@ export const buildAiContext = (input: AiContextBuildInput) => {
         calendar,
         reviewSources: input.reviewSources,
       }),
-    }),
-    // LIF-01: the Organization Export contribution the Identity bundle builder
-    // demands from this context. It is exposed here and never on `publicApi`:
-    // the three AI capabilities stay dark, and contributing an export must not
-    // make any of them reachable from a request surface.
-    lifecycle: Object.freeze({
-      organizationExportContributor: createAiOrganizationExportContributor(input.db),
-      // LIF-01-T12/T13/T14: the three destructive lifecycle phases. Exposing
-      // the contributor does NOT arm it — the coordinator that calls `purge`
-      // is composed only under an explicitly reviewed composition, and none of
-      // this reaches a request surface.
-      organizationLifecycleContributor: createAiOrganizationLifecycleContributor(
-        input.db,
-      ),
     }),
     worker: Object.freeze({
       registerOutboxConsumers,

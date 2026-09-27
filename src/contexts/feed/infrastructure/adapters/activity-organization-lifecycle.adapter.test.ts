@@ -65,12 +65,16 @@ describe('Activity Organization lifecycle contributor', () => {
     )
     expect(routes).toEqual([])
 
-    // Returned beside publicApi, never inside it.
+    // Built once, by the composition-owned contributor set, never by a build.
     expect(
       readFileSync(join(process.cwd(), 'src/contexts/feed/build.ts'), 'utf8'),
-    ).toContain(
-      'organizationLifecycleContributor: createActivityOrganizationLifecycleContributor(',
-    )
+    ).not.toContain('createActivityOrganizationLifecycleContributor')
+    expect(
+      readFileSync(
+        join(process.cwd(), 'src/composition/organization-export-contributors.ts'),
+        'utf8',
+      ),
+    ).toContain('createActivityOrganizationLifecycleContributor(db)')
   })
 })
 

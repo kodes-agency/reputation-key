@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { GuestResponse } from '../../domain/guest-response'
+import type { GuestResponse, GuestResponseStatus } from '../../domain/guest-response'
 import type {
   GuestResponseRepository,
   GuestResponseScope,
@@ -7,6 +7,8 @@ import type {
 import {
   GuestResponseLifecycleError,
   guestResponseLifecycle,
+  isQualifiedGuestResponse,
+  type GuestResponseView,
 } from './guest-response-lifecycle'
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
@@ -870,5 +872,55 @@ describe('guest response lifecycle — submitted facts', () => {
     expect(outbox.byTag('guest.feedback.submitted')).toMatchObject([
       { responseRevision: 2 },
     ])
+  })
+})
+
+describe('isQualifiedGuestResponse', () => {
+  // Keyed by every status, so a new status fails typecheck until it decides.
+  const RATED_RESPONSE_QUALIFIES: Record<GuestResponseStatus, boolean> = {
+    pending: true,
+    submitted: true,
+    corrected: true,
+    moderated: true,
+    expired: true,
+    deleted: false,
+  }
+  const STATUSES = Object.keys(RATED_RESPONSE_QUALIFIES) as GuestResponseStatus[]
+
+  function view(status: GuestResponseStatus, rating: number | null): GuestResponseView {
+    return {
+      status,
+      rating,
+      hasPrivateFeedback: false,
+      privateFeedbackEligible: false,
+      submittedAt: null,
+      correctedAt: null,
+      correctionDeadline: null,
+      correctionAvailable: false,
+      responseWithdrawalDeadline: null,
+      responseWithdrawalAvailable: false,
+      feedbackSubmittedAt: null,
+      feedbackWithdrawalDeadline: null,
+      feedbackWithdrawalAvailable: false,
+      feedbackWithdrawnAt: null,
+      deletedAt: null,
+    }
+  }
+
+  it('denies a session that has no response', () => {
+    expect(isQualifiedGuestResponse(null)).toBe(false)
+  })
+
+  it.each(STATUSES)('qualifies a rated %s response unless it was withdrawn', (status) => {
+    expect(isQualifiedGuestResponse(view(status, 1))).toBe(
+      RATED_RESPONSE_QUALIFIES[status],
+    )
+    expect(isQualifiedGuestResponse(view(status, 5))).toBe(
+      RATED_RESPONSE_QUALIFIES[status],
+    )
+  })
+
+  it.each(STATUSES)('denies an unrated %s response', (status) => {
+    expect(isQualifiedGuestResponse(view(status, null))).toBe(false)
   })
 })

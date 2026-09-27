@@ -54,18 +54,15 @@ describe('buildFeedContext', () => {
     )
     expect(context.publicApi.getFeedHead).toBe(context.notification.publicApi.getFeedHead)
 
+    // LIF-01: the Organization export and lifecycle contributors are built by
+    // composition/organization-export-contributors.ts, never by this build.
     const activity = context.activity
-    expect(activity.organizationExportContributor.context).toBe('activity')
-    expect(activity.publicApi).not.toHaveProperty('organizationExportContributor')
-    expect(activity.organizationLifecycleContributor.context).toBe('activity')
-    expect(activity.organizationLifecycleContributor.prepareClosing).toBeTypeOf(
-      'function',
-    )
-    expect(activity.organizationLifecycleContributor.verifyPurgeReadiness).toBeTypeOf(
-      'function',
-    )
-    expect(activity.organizationLifecycleContributor.purge).toBeTypeOf('function')
-    expect(activity.publicApi).not.toHaveProperty('organizationLifecycleContributor')
+    for (const surface of [activity, context.notification]) {
+      expect(surface).not.toHaveProperty('organizationExportContributor')
+      expect(surface).not.toHaveProperty('organizationLifecycleContributor')
+      expect(surface.publicApi).not.toHaveProperty('organizationExportContributor')
+      expect(surface.publicApi).not.toHaveProperty('organizationLifecycleContributor')
+    }
     expect(Object.keys(activity.worker).sort()).toEqual([
       'projectRecentActivity',
       'registerOutboxConsumers',

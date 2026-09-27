@@ -25,8 +25,6 @@ import { createAtomicPropertyCommandStore } from './infrastructure/property-comm
 import { createPropertyGoogleBindingStore } from './infrastructure/property-google-binding-store'
 import { createPropertyLifecycleCommandStore } from './infrastructure/property-lifecycle-command-store'
 import { registerPropertyRetentionConsumer } from './infrastructure/outbox-consumers'
-import { createPropertyOrganizationExportContributor } from './infrastructure/adapters/property-organization-export.adapter'
-import { createPropertyOrganizationLifecycleContributor } from './infrastructure/adapters/property-organization-lifecycle.adapter'
 import { createPropertyResponsibleManagerRepository } from './infrastructure/repositories/property-responsible-manager.repository'
 import {
   listPropertyResponsibleManagers,
@@ -265,19 +263,6 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
     /** ARC-03-T11: the named member-authority capability. Replaces the root's
      * Property responsible-manager repository reach-through. */
     responsibility: createPropertyResponsibilityRuntime(responsibleManagerRepo),
-    /** LIF-01: the Property-owned Organization Export contributor. It stays
-     * out of `publicApi` on purpose — an export slice is lifecycle
-     * composition input, not a product capability any request-facing surface
-     * may reach. */
-    organizationExportContributor: createPropertyOrganizationExportContributor(deps.db),
-    /** LIF-01-T12/T13/T14: the Property-owned Organization lifecycle
-     * contributor. Like the export slice it stays out of `publicApi`: the
-     * purge phase must remain unreachable by default, and it may only ever be
-     * reached through an explicitly reviewed composition of the lifecycle
-     * coordinator, never through a request-facing surface. */
-    organizationLifecycleContributor: createPropertyOrganizationLifecycleContributor(
-      deps.db,
-    ),
     internal: {
       repos: { responsibleManagerRepo } as const,
       useCases,

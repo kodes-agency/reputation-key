@@ -9,7 +9,7 @@ import type {
   FleetOverviewProjectionRow,
 } from '../ports/fleet-overview-projection.port'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import { RATING_DROP_THRESHOLD } from '../utils'
+import { MIN_RATING_COMPARISON_SAMPLE, RATING_DROP_THRESHOLD } from '../utils'
 
 const NOW = new Date('2025-06-15T12:00:00Z')
 const ORG = organizationId('org-test')
@@ -100,8 +100,8 @@ function projection(
           (sum, item) =>
             sum +
             item.needsAttention +
-            (item.reviewCount >= 10 &&
-            item.priorReviewCount >= 10 &&
+            (item.reviewCount >= MIN_RATING_COMPARISON_SAMPLE &&
+            item.priorReviewCount >= MIN_RATING_COMPARISON_SAMPLE &&
             item.avgRating !== null &&
             item.priorAvgRating !== null &&
             item.priorAvgRating - item.avgRating >= RATING_DROP_THRESHOLD
