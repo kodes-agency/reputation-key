@@ -11,7 +11,10 @@ import {
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortals } from '#/contexts/portal/server/portals'
 import type { GoalSubject } from '#/contexts/reporting/application/public-api'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import {
+  actionErrorMessage,
+  useActionMutation,
+} from '#/components/hooks/use-action-mutation'
 import { goalKeys, portalKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
@@ -64,8 +67,11 @@ function GoalDetailRoute() {
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data } = useSuspenseQuery(goalQuery(propertyId, goalId))
   const { data: subjectNames } = useSuspenseQuery(subjectNamesQuery(propertyId))
+  // Pause, Resume and End have no inline error surface, so a refusal (an
+  // invalid transition) is reported by toast.
   const mutation = useActionMutation(changeGoalProgramStatus, {
     successMessage: 'Goal status updated',
+    errorMessage: actionErrorMessage,
     invalidateKeys: [goalKeys.all],
   })
   const { program, version, versions, assignments } = data
@@ -76,15 +82,18 @@ function GoalDetailRoute() {
     (left, right) => right.periodStart.getTime() - left.periodStart.getTime(),
   )
   const canManage = can(ctx.role, 'goal.update')
-  const updateStatus = (status: 'active' | 'paused' | 'ended') =>
-    mutation({
+  // The toast above reports a refusal; settling here keeps it from escaping the
+  // click as an unhandled rejection.
+  const updateStatus = (status: 'active' | 'paused' | 'ended') => {
+    void mutation({
       data: {
         propertyId,
         programId: goalId,
         status,
         reason: status === 'ended' ? 'Ended by manager' : `Goal ${status}`,
       },
-    })
+    }).catch(() => undefined)
+  }
   const dateFormatter = new Intl.DateTimeFormat('en-US', {
     dateStyle: 'medium',
     timeZone: version.propertyTimezone,

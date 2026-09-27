@@ -110,14 +110,16 @@ export function StaffParticipationRow({
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction
                     disabled={archiveAction.isPending}
+                    // The list's banner shows a refusal from the Action's error;
+                    // settling here keeps it from escaping as an unhandled one.
                     onClick={() =>
-                      archiveAction({
+                      void archiveAction({
                         data: {
                           staffParticipationId: participation.id,
                           reason: 'Archived from property People page',
                           expectedRevision: participation.revision,
                         },
-                      })
+                      }).catch(() => undefined)
                     }
                   >
                     {archiveAction.isPending ? 'Archiving…' : 'Archive participation'}

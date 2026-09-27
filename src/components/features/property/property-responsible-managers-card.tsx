@@ -62,14 +62,16 @@ export function PropertyResponsibleManagersCard({
   )
   const dirty = !sameIds(sorted(selected), serverSelection)
 
-  const save = async () => {
-    await updateAction({
+  // The banner shows a refusal from the Action's own error; settling here keeps
+  // it from escaping the click as an unhandled rejection.
+  const save = () => {
+    void updateAction({
       data: {
         propertyId,
         managerUserIds: sorted(selected),
         expectedRevision: state.revision,
       },
-    })
+    }).catch(() => undefined)
   }
 
   return (
