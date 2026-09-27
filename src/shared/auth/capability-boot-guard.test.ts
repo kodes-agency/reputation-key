@@ -168,6 +168,22 @@ describe('BQC-0.3 capability boot guard (SPEC-P0-03)', () => {
       expect(manifest.e2eGlobalOverrides).toEqual(['portal.write'])
     })
 
+    it('records the Organization allowlist shape, so a dark environment shows at boot', () => {
+      // Without this, an environment whose allowlist names no current
+      // Organization looked healthy until someone clicked a gated feature.
+      expect(buildCapabilityBootManifest({ NODE_ENV: 'test' }).orgAllowlist).toEqual({
+        mode: 'none',
+      })
+      expect(
+        buildCapabilityBootManifest({ NODE_ENV: 'test', BETA_ALLOWLIST_ORGS: 'a,b' })
+          .orgAllowlist,
+      ).toEqual({ mode: 'listed', count: 2 })
+      expect(
+        buildCapabilityBootManifest({ NODE_ENV: 'test', BETA_ALLOWLIST_ORGS: '*' })
+          .orgAllowlist,
+      ).toEqual({ mode: 'all' })
+    })
+
     it('records no tenant identifiers', () => {
       const manifest = buildCapabilityBootManifest({
         NODE_ENV: 'test',

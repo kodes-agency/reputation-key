@@ -106,6 +106,14 @@ instead of copying `local.env` into each new worktree. The web server listens on
 the port of `BETTER_AUTH_URL`, so a second stack can run on another origin; add
 its callback to the OAuth client's redirect URIs if it uses real Google.
 
+**Beta features for an Organization you create by hand.** The seeded local
+admin joins the allowlisted e2e Organization, so Google import, Portals, Goals,
+AI and notification email work out of the box. An Organization you create
+yourself is not on `BETA_ALLOWLIST_ORGS` and every one of those refuses with
+"not enabled for your organization yet". Add its ID to the list in `local.env`.
+Avoid `*` on a stack you also run e2e against: it lights up the deliberately
+dark "locked" Organization those tests rely on.
+
 **Real Google - `local.env` + `REPKEY_LOCAL_GOOGLE=real`.** To connect a real
 Google account and import real locations from this stack, copy
 `local.env.example` to `local.env` (gitignored) and set the real OAuth

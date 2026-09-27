@@ -83,6 +83,60 @@ export type CapabilityPolicyStore = Readonly<{
   isPropertySuspended: (propertyId: string) => boolean
 }>
 
+// ── Organization allowlist ──────────────────────────────────────────
+
+/**
+ * The value that admits every Organization in the environment. It exists
+ * because the list names Organization IDs, and every fresh database mints new
+ * ones: without it each reset, new cell or local stack silently darkens all
+ * controlled-beta capabilities for the Organization someone just created. It
+ * is still an explicit operator input (ADR 0032, amended 2026-09-27) and
+ * widens only the allowlist question — the kill switch, suspension and blocked
+ * fates are decided before it and still win.
+ */
+const ALLOWLIST_ALL_ORGS = '*'
+
+type ParsedOrgAllowlist = Readonly<{ all: boolean; orgIds: ReadonlySet<string> }>
+
+/** One reading of BETA_ALLOWLIST_ORGS for the store, the manifest and operators. */
+function parseOrgAllowlist(raw: string | undefined): ParsedOrgAllowlist {
+  const entries = (raw ?? '')
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  return {
+    all: entries.includes(ALLOWLIST_ALL_ORGS),
+    orgIds: new Set(entries.filter((entry) => entry !== ALLOWLIST_ALL_ORGS)),
+  }
+}
+
+/**
+ * The allowlist's shape, safe to record: a mode and a count, never an ID —
+ * the startup manifest carries no tenant identifiers.
+ */
+export type OrgAllowlistMode =
+  | Readonly<{ mode: 'all' }>
+  | Readonly<{ mode: 'listed'; count: number }>
+  | Readonly<{ mode: 'none' }>
+
+export function describeOrgAllowlist(
+  env: Pick<CapabilityPolicyEnv, 'BETA_ALLOWLIST_ORGS'>,
+): OrgAllowlistMode {
+  const parsed = parseOrgAllowlist(env.BETA_ALLOWLIST_ORGS)
+  if (parsed.all) return { mode: 'all' }
+  if (parsed.orgIds.size === 0) return { mode: 'none' }
+  return { mode: 'listed', count: parsed.orgIds.size }
+}
+
+/** Whether controlled-beta capabilities are open to this Organization here. */
+export function isOrgInAllowlist(
+  env: Pick<CapabilityPolicyEnv, 'BETA_ALLOWLIST_ORGS'>,
+  organizationId: string,
+): boolean {
+  const parsed = parseOrgAllowlist(env.BETA_ALLOWLIST_ORGS)
+  return parsed.all || parsed.orgIds.has(organizationId)
+}
+
 // ── Default in-memory policy store ──────────────────────────────────
 
 /**
@@ -93,7 +147,9 @@ export type CapabilityPolicyStore = Readonly<{
  *   disables ALL capabilities; a comma-separated list disables exactly those
  *   capabilities (e.g. property.connect_gbp,property.publish_reply stops
  *   Google sync/import/publish). Empty/absent = none off.
- * - BETA_ALLOWLIST_ORGS — comma-separated org IDs allowed to use non-core capabilities
+ * - BETA_ALLOWLIST_ORGS — comma-separated Organization IDs (not slugs) allowed to
+ *   use controlled-beta capabilities, or `*` for every Organization in this
+ *   environment. Absent/empty admits none. See parseOrgAllowlist.
  * - BETA_E2E_GLOBAL_CAPABILITIES — comma-separated non-core capabilities forced ON
  *   globally for E2E/CI only (never blocked capabilities). Used so Playwright
  *   can exercise register/login without changing production beta posture.
@@ -103,12 +159,7 @@ export function createEnvCapabilityPolicyStore(
 ): CapabilityPolicyStore {
   const killAll = isKillSwitchAll(env)
   const killedCapabilities = new Set(parseKilledCapabilities(env))
-  const allowlistedOrgs = new Set(
-    (env.BETA_ALLOWLIST_ORGS ?? '')
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean),
-  )
+  const orgAllowlist = parseOrgAllowlist(env.BETA_ALLOWLIST_ORGS)
   const suspendedOrgs = new Set(
     (env.BETA_SUSPENDED_ORGS ?? '')
       .split(',')
@@ -143,7 +194,7 @@ export function createEnvCapabilityPolicyStore(
       // Blocked capabilities are never allowlisted
       if (BLOCKED_CAPABILITIES.has(cap)) return false
       // Non-core: check the allowlist
-      return allowlistedOrgs.has(orgId)
+      return orgAllowlist.all || orgAllowlist.orgIds.has(orgId)
     },
     isPropertyAllowlisted: (_propertyId, _cap) => {
       // Property-level allowlisting deferred to future DB-backed implementation

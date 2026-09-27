@@ -17,9 +17,12 @@ const DENY_CASES = [
     category: 'not_in_beta',
   },
   {
+    // Only an operator can change the Organization allowlist. Sending the
+    // reader to Property settings — where nothing can fix it — cost every
+    // tester a detour before anyone checked the environment.
     reason: 'org_not_allowlisted',
     capability: 'goal.use',
-    category: 'needs_admin_enablement',
+    category: 'not_enabled_for_organization',
   },
   {
     reason: 'property_not_allowlisted',
@@ -101,6 +104,16 @@ describe('capability refusal category', () => {
     expect(REFUSAL_COPY.needs_admin_enablement.title('Goals')).toBe(
       'Goals is not enabled for this workspace',
     )
+
+    expect(REFUSAL_COPY.not_enabled_for_organization).toMatchObject({
+      tooltip: 'Not enabled for your organization',
+      description:
+        'Beta features are switched on per organization by the RepKey team, not from Settings. Contact support to have it enabled.',
+      next: null,
+    })
+    expect(
+      REFUSAL_COPY.not_enabled_for_organization.title('Google property import'),
+    ).toBe('Google property import is not enabled for your organization yet')
 
     expect(REFUSAL_COPY.temporarily_unavailable).toMatchObject({
       tooltip: 'Temporarily unavailable',

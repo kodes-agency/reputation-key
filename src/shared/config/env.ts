@@ -273,8 +273,11 @@ const baseEnvSchema = z.object({
   // (e.g. property.connect_gbp,property.publish_reply stops Google
   // sync/import/publish). Empty/absent = none off.
   BETA_CAPABILITIES_OFF: z.string().optional(),
-  // Allowlist of org slugs/IDs permitted in the beta cohort (B0.5/B0.6).
-  // Empty/absent = all verified orgs admitted.
+  // Organizations admitted to controlled-beta capabilities (ADR 0032):
+  // comma-separated Organization IDs — not slugs — or `*` for every
+  // Organization in this environment. Empty/absent admits NONE: every
+  // controlled-beta capability (Google import, Portals, Goals, AI, email
+  // notifications) refuses. Set it on web AND worker; both evaluate it.
   BETA_ALLOWLIST_ORGS: z.string().optional(),
   // Comma-separated non-core capabilities forced globally ON (E2E/CI only).
   // Must never enable blocked capabilities. Example:

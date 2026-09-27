@@ -39,7 +39,7 @@ const DARK: ReadonlyArray<
     capability: 'portal.write',
     reason: 'org_not_allowlisted',
     label: 'Portals',
-    category: 'needs_admin_enablement',
+    category: 'not_enabled_for_organization',
   },
   {
     capability: 'portal.upload',
@@ -51,19 +51,19 @@ const DARK: ReadonlyArray<
     capability: 'portal.read',
     reason: 'org_not_allowlisted',
     label: 'Portals',
-    category: 'needs_admin_enablement',
+    category: 'not_enabled_for_organization',
   },
   {
     capability: 'goal.use',
     reason: 'org_not_allowlisted',
     label: 'Goals',
-    category: 'needs_admin_enablement',
+    category: 'not_enabled_for_organization',
   },
   {
     capability: 'ai.analyze',
     reason: 'org_not_allowlisted',
     label: 'AI',
-    category: 'needs_admin_enablement',
+    category: 'not_enabled_for_organization',
   },
 ]
 

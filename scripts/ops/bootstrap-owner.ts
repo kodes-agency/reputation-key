@@ -9,6 +9,10 @@
 // The initial password is read from stdin (never an argument, never printed);
 // the owner changes it at /settings/security or through the reset flow.
 //
+// Both outputs report controlled-beta coverage (bootstrapAllowlistReport): a
+// brand-new Organization is exactly the one an explicit BETA_ALLOWLIST_ORGS
+// list does not name yet.
+//
 // Usage:
 //   printf '%s' "$INITIAL_PASSWORD" | pnpm ops bootstrap-owner \
 //     owner@example.com "Owner Name" "Organization Name" \
@@ -27,6 +31,7 @@ import {
   parseBetterAuthResponse,
   signUpResponseSchema,
 } from '../../src/contexts/identity/infrastructure/adapters/better-auth-schemas'
+import { bootstrapAllowlistReport } from '../../src/shared/ops/bootstrap-owner-allowlist'
 import { positionalArgs } from '../../src/shared/ops/operator-command'
 import { runOperatorCommand } from './operator-command'
 
@@ -115,6 +120,7 @@ async function main(): Promise<void> {
               organizationName: input.organizationName,
               slug: slugFor(input.organizationName),
               role: 'owner',
+              ...bootstrapAllowlistReport(process.env),
             },
             null,
             2,
@@ -170,6 +176,7 @@ async function main(): Promise<void> {
             userId,
             email: input.email,
             role: 'owner',
+            ...bootstrapAllowlistReport(process.env, organizationId),
             next: 'sign in at /login with the initial password and change it at /settings/security',
           },
           null,
