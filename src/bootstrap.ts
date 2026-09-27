@@ -561,8 +561,9 @@ export async function bootstrap(
       )
     },
   )
-  // Drain-only rolling compatibility. Current producers enqueue only the
-  // canonical name, but already-persisted queue items must remain processable.
+  // Drain-only rolling compatibility. Nothing enqueues either name any more
+  // (see project-recent-activity.job.ts), but already-persisted queue items
+  // must remain processable.
   container.jobRegistry.register(
     LEGACY_INSERT_ACTIVITY_LOG_JOB_NAME,
     async (job): Promise<void> => {
