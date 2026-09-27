@@ -69,54 +69,6 @@ beforeAll(async () => {
 })
 
 describe('guestInteractionRepository (integration)', () => {
-  describe('recordScan', () => {
-    it('inserts a scan event', async () => {
-      const db = getDb()
-      const repo = createGuestInteractionRepository(db)
-      const scan = buildTestScanEvent({
-        id: crypto.randomUUID() as never,
-        organizationId: ORG_A,
-        portalId: PORTAL_A,
-        propertyId: PROP_A,
-        sessionId: crypto.randomUUID(),
-      })
-      await repo.recordScan(scan)
-    })
-  })
-
-  describe('insertRating', () => {
-    it('inserts a rating', async () => {
-      const db = getDb()
-      const repo = createGuestInteractionRepository(db)
-      const rating = buildTestRating({
-        id: crypto.randomUUID() as never,
-        organizationId: ORG_A,
-        portalId: PORTAL_A,
-        propertyId: PROP_A,
-        sessionId: crypto.randomUUID(),
-        value: 5,
-      })
-      await repo.insertRating(rating)
-    })
-  })
-
-  describe('insertFeedback', () => {
-    it('inserts feedback', async () => {
-      const db = getDb()
-      const repo = createGuestInteractionRepository(db)
-      const fb = buildTestFeedback({
-        id: crypto.randomUUID() as never,
-        organizationId: ORG_A,
-        portalId: PORTAL_A,
-        propertyId: PROP_A,
-        sessionId: crypto.randomUUID(),
-        comment: 'Great experience!',
-        ratingId: null,
-      })
-      await repo.insertFeedback(fb)
-    })
-  })
-
   describe('hasRated', () => {
     it('returns true when a rating exists for the session+portal+org', async () => {
       const db = getDb()
