@@ -19,6 +19,8 @@ describe('Inbox ARC-03 runtime dependency injection', () => {
   it('keeps persistence clocks composition-owned', () => {
     for (const file of [
       'src/contexts/inbox/infrastructure/inbox-command-store.ts',
+      'src/contexts/inbox/infrastructure/inbox-command-guards.ts',
+      'src/contexts/inbox/infrastructure/inbox-escalation-history.ts',
       'src/contexts/inbox/infrastructure/repositories/inbox-view.repository.ts',
       'src/contexts/inbox/infrastructure/repositories/inbox.repository.ts',
     ]) {

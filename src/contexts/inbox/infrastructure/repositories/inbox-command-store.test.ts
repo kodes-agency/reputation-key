@@ -55,9 +55,9 @@ import { createReviewRepository } from '#/contexts/review/infrastructure/reposit
 import { createReplyRepository } from '#/contexts/review/infrastructure/repositories/reply.repository'
 import {
   createAtomicInboxCommandStore as createProductionInboxCommandStore,
-  readInboxEscalationHistory,
   type InboxCommandAuthority,
 } from '../inbox-command-store'
+import { readInboxEscalationHistory } from '../inbox-escalation-history'
 import { createReviewSourceLookupAdapter } from '../adapters/review-source-lookup.adapter'
 import { createReplyLookupAdapter } from '../adapters/reply-lookup.adapter'
 import { rebuildInboxProjection } from '../../application/use-cases/rebuild-inbox-projection'
