@@ -45,4 +45,38 @@ export const CONCURRENT_INDEX_REGISTRY: readonly ConcurrentIndexSpec[] = Object.
       ON "review_provider_snapshot_runs" ("organization_id", "property_id", "source_epoch")
       WHERE "state" = 'completed'`,
   },
+  // database-04: metric_readings' three single-column FKs (property_id
+  // cascade, portal_id cascade, group_id set null) are each checked with a
+  // bare `WHERE <column> = $1` that no existing index can serve — every index
+  // on the table is organization_id-prefixed. A Portal, Portal Group, or
+  // Property delete therefore forces a full scan of what is expected to be
+  // the largest, fastest-growing table in the system for each FK's cascade
+  // check, in addition to whatever the tenant FK already does.
+  {
+    name: 'metric_readings_property_idx',
+    table: 'metric_readings',
+    columns: ['property_id'],
+    unique: false,
+    hasPredicate: false,
+    createSql: `CREATE INDEX CONCURRENTLY "metric_readings_property_idx"
+      ON "metric_readings" ("property_id")`,
+  },
+  {
+    name: 'metric_readings_portal_only_idx',
+    table: 'metric_readings',
+    columns: ['portal_id'],
+    unique: false,
+    hasPredicate: false,
+    createSql: `CREATE INDEX CONCURRENTLY "metric_readings_portal_only_idx"
+      ON "metric_readings" ("portal_id")`,
+  },
+  {
+    name: 'metric_readings_group_only_idx',
+    table: 'metric_readings',
+    columns: ['group_id'],
+    unique: false,
+    hasPredicate: false,
+    createSql: `CREATE INDEX CONCURRENTLY "metric_readings_group_only_idx"
+      ON "metric_readings" ("group_id")`,
+  },
 ])

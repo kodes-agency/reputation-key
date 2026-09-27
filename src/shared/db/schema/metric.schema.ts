@@ -100,6 +100,16 @@ export const metricReadings = pgTable(
       t.occurredAt,
     ),
     index('metric_readings_org_group_idx').on(t.organizationId, t.groupId),
+    // metric_readings_property_idx / _portal_only_idx / _group_only_idx
+    // (database-04) are intentionally absent here: propertyId/portalId/groupId
+    // each carry a single-column FK whose cascade/set-null check is a bare
+    // `WHERE <column> = $1` with no organization_id predicate available, so
+    // none of the organization_id-prefixed indexes above can serve it. This
+    // table is expected to be the largest, fastest-growing in the system, so
+    // these are built by src/shared/db/concurrent-index-sidecar.ts with
+    // CREATE INDEX CONCURRENTLY instead of the transactional migrator, and
+    // registered as DB-only constructs in
+    // src/shared/db/schema/db-only-constructs.ts.
     index('metric_readings_recorded_at_idx').on(t.occurredAt),
     index('metric_readings_version_event_idx').on(t.definitionVersionId, t.eventAt),
     check(
