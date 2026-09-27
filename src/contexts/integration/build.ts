@@ -128,7 +128,6 @@ import { createGoogleReviewPushReferenceStore } from './infrastructure/google-re
 import { createGbpReviewPushReceiptStore } from './infrastructure/gbp-review-push-receipt.store'
 import { createGoogleReviewPushTargetResolver } from './infrastructure/adapters/google-review-push-target-resolver.adapter'
 import type { GooglePerformanceDependencyDescriptor } from '#/shared/architecture/google-performance-live-boundary'
-import { createIntegrationOrganizationExportContributor } from './infrastructure/adapters/integration-organization-export.adapter'
 import { createIntegrationOrganizationLifecycleContributor } from './infrastructure/adapters/integration-organization-lifecycle.adapter'
 import { createGoogleOrganizationClosureProvider } from './infrastructure/adapters/google-organization-closure-provider.adapter'
 import { sameRecordEntries } from '#/shared/domain/record-entries'
@@ -1389,16 +1388,13 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       }),
     }),
     lifecycle: Object.freeze({
-      // LIF-01: the Organization Export contribution the Identity bundle builder
-      // demands from this context. It is exposed here, beside the other
-      // Organization-lifecycle capabilities, and never on `publicApi` — nothing
-      // about exporting is reachable from a request surface.
-      organizationExportContributor: createIntegrationOrganizationExportContributor(
-        deps.db,
-      ),
-      // LIF-01-T12/T13/T14: the three destructive lifecycle phases. Exposing
-      // the contributor does NOT arm it — the coordinator that calls `purge`
-      // is composed only under an explicitly reviewed composition, and nothing
+      // LIF-01-T12/T13/T14: the three destructive lifecycle phases. This is the
+      // `integration` argument to buildOrganizationLifecycleContributors
+      // (composition/organization-export-contributors.ts): unlike the other
+      // contributors it is not a pure `(db)`, because revoking Google
+      // credentials and subscriptions needs the provider port wired here.
+      // Exposing it does NOT arm it — the coordinator that calls `purge` is
+      // composed only under an explicitly reviewed composition, and nothing
       // here reaches a request surface.
       organizationLifecycleContributor: createIntegrationOrganizationLifecycleContributor(
         {

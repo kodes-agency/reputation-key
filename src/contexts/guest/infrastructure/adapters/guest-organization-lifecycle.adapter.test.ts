@@ -17,6 +17,13 @@ describe('Guest Organization lifecycle contributor', () => {
     )
     expect(publicApiBlock).not.toContain('organizationLifecycleContributor')
     expect(publicApiBlock).not.toContain('LifecycleContributor')
-    expect(build).toContain('organizationLifecycleContributor')
+    // Built once, by the composition-owned contributor set, never by a build.
+    expect(build).not.toContain('createGuestOrganizationLifecycleContributor')
+    expect(
+      readFileSync(
+        join(process.cwd(), 'src/composition/organization-export-contributors.ts'),
+        'utf8',
+      ),
+    ).toContain('createGuestOrganizationLifecycleContributor(db)')
   })
 })
