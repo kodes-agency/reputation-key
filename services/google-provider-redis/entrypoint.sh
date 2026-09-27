@@ -52,10 +52,17 @@ printf '%s' "$cert_pem" > "$runtime_dir/server.pem"
 printf '%s' "$key_pem" > "$runtime_dir/server-key.pem"
 
 password_sha256=$(printf '%s' "$password" | sha256sum | cut -d ' ' -f 1)
+# Redis applies ACL rules left to right, and INFO, CONFIG GET and the ACL
+# subcommands the app's inspection needs are all @dangerous. Grant them AFTER
+# -@dangerous or it revokes them: `+info -@dangerous` denied INFO, which the
+# inspection reads before handing out Google OAuth state, so every Google
+# connect failed with inspection_unavailable. The list the app needs is
+# PROVIDER_REDIS_INSPECTION_COMMANDS; provider-redis-acl.integration.test.ts
+# loads these exact rules into a real Redis and checks it.
 {
   printf '%s\n' 'user default off'
   printf 'user %s on #%s ~provider-ephemeral:* ~google-provider:* ~oauth-callback:* ~google-admission:* ' "$username" "$password_sha256"
-  printf '%s\n' '+@read +@write +@scripting +auth +hello +ping +echo +quit +select +info -@dangerous +config|get +acl|whoami +acl|dryrun -client -save -bgsave -bgrewriteaof -config|set -module|load -function|load -migrate -dump -restore -replicaof -slaveof -sync -psync -shutdown -flushall -flushdb -keys'
+  printf '%s\n' '+@read +@write +@scripting +auth +hello +ping +echo +quit +select -@dangerous +info +config|get +acl|whoami +acl|dryrun -client -save -bgsave -bgrewriteaof -config|set -module|load -function|load -migrate -dump -restore -replicaof -slaveof -sync -psync -shutdown -flushall -flushdb -keys'
 } > "$runtime_dir/users.acl"
 
 chown -R redis:redis "$runtime_dir"
