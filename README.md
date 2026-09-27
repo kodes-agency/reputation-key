@@ -68,7 +68,7 @@ CI runs `pnpm db:migrate-deploy` (`.github/workflows/ci.yml`, Predeploy migratio
 | `pnpm start:worker` | Run built worker                                                                          |
 | `pnpm test:unit`    | Run unit tests                                                                            |
 | `pnpm test:e2e`     | Run Playwright E2E tests                                                                  |
-| `pnpm typecheck`    | TypeScript check (src/services/e2e + the release scripts project)                         |
+| `pnpm typecheck`    | TypeScript check: src + e2e, tooling (`tsconfig.scripts.json`), project-coverage guard    |
 | `pnpm lint`         | ESLint + filename/component-boundary checks                                               |
 | `pnpm lint:ci`      | `lint` + test-quality, Google provider identifier and runtime-environment contract checks |
 | `pnpm format`       | Prettier format                                                                           |
@@ -201,7 +201,7 @@ Install hooks after cloning: `pnpm install` (the `prepare` script registers Husk
 
 ```
 src/
-├── contexts/       # Bounded business domains; Team is retained only as a quarantined migration package
+├── contexts/       # Bounded business domains (ten packages; see root CONTEXT.md)
 │   └── <name>/    # Each has: domain/, application/, infrastructure/, server/
 ├── components/     # React UI
 │   ├── ui/        # shadcn primitives
@@ -215,13 +215,12 @@ src/
 │   ├── config/    # Zod-validated env schema
 │   ├── db/        # Drizzle ORM, pool, schema/, migrations
 │   ├── domain/    # Brand types, IDs, roles, permissions, clock, Result
-│   ├── events/    # Event bus, master DomainEvent union
+│   ├── events/    # Master DomainEvent union and outbox schema registrations
 │   ├── jobs/      # BullMQ queue, worker, registry
 │   ├── hooks/     # usePermissions
 │   ├── observability/ # Pino logger, request tracing (tracedHandler)
 │   ├── rate-limit/ # Rate limiting middleware
-│   ├── testing/   # In-memory port fakes, test fixtures
-│   └── fn/        # pipe and other utilities
+│   └── testing/   # In-memory port fakes, test fixtures
 ├── routes/         # TanStack Router file-based routes
 │   └── _authenticated/ # Protected routes with layout shell
 ├── hooks/          # Low-level utility hooks (use-as-ref, use-lazy-ref)
