@@ -58,20 +58,20 @@ CI runs `pnpm db:migrate-deploy` (`.github/workflows/ci.yml`, Predeploy migratio
 
 ## Scripts
 
-| Command             | Description                                                       |
-| ------------------- | ----------------------------------------------------------------- |
-| `pnpm dev`          | Start dev server on :3000                                         |
-| `pnpm local:up`     | Inner loop: services in Compose, web (HMR) + worker on the host   |
-| `pnpm local:down`   | Remove the local services and their volumes                       |
-| `pnpm build`        | Build the web, worker, and migration bundles                      |
-| `pnpm start`        | Run built web server                                              |
-| `pnpm start:worker` | Run built worker                                                  |
-| `pnpm test:unit`    | Run unit tests                                                    |
-| `pnpm test:e2e`     | Run Playwright E2E tests                                          |
-| `pnpm typecheck`    | TypeScript check (src/services/e2e + the release scripts project) |
-| `pnpm lint`         | ESLint + filename/component-boundary checks                       |
-| `pnpm lint:ci`      | `lint` + test-quality + Google/AI artifact gates                  |
-| `pnpm format`       | Prettier format                                                   |
+| Command             | Description                                                                               |
+| ------------------- | ----------------------------------------------------------------------------------------- |
+| `pnpm dev`          | Start dev server on :3000                                                                 |
+| `pnpm local:up`     | Inner loop: services in Compose, web (HMR) + worker on the host                           |
+| `pnpm local:down`   | Remove the local services and their volumes                                               |
+| `pnpm build`        | Build the web, worker, and migration bundles                                              |
+| `pnpm start`        | Run built web server                                                                      |
+| `pnpm start:worker` | Run built worker                                                                          |
+| `pnpm test:unit`    | Run unit tests                                                                            |
+| `pnpm test:e2e`     | Run Playwright E2E tests                                                                  |
+| `pnpm typecheck`    | TypeScript check (src/services/e2e + the release scripts project)                         |
+| `pnpm lint`         | ESLint + filename/component-boundary checks                                               |
+| `pnpm lint:ci`      | `lint` + test-quality, Google provider identifier and runtime-environment contract checks |
+| `pnpm format`       | Prettier format                                                                           |
 
 ### Local stacks
 
@@ -191,11 +191,9 @@ is green; CI has already run the same stack, so deploying is not a test step.
 
 ### Git hooks
 
-Husky is configured with two gates:
-
-- **pre-commit** — runs `lint-staged` (eslint --fix + prettier --write on staged files)
-- **pre-push** — runs `pnpm typecheck`, plus the Google/AI artifact attestation
-  gates when the push touches their hash-pinned inputs
+Husky runs one gate: **pre-commit** — `lint-staged` (eslint --fix + prettier
+--write on staged files). There is no pre-push hook (retired 2026-09-03 as a
+duplicate of CI); `pnpm typecheck` and `pnpm lint:ci` run in CI.
 
 Install hooks after cloning: `pnpm install` (the `prepare` script registers Husky automatically).
 
