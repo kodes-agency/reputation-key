@@ -80,14 +80,6 @@ export type GoogleConnectionRepository = Readonly<{
     encryptedRefreshToken: string,
     tokenExpiresAt: Date,
   ) => Promise<boolean>
-  updateTokensAndStatus: (
-    orgId: OrganizationId,
-    id: GoogleConnectionId,
-    encryptedAccessToken: string,
-    encryptedRefreshToken: string,
-    tokenExpiresAt: Date,
-    status: GoogleConnectionStatus,
-  ) => Promise<void>
   updateReconnection: (
     orgId: OrganizationId,
     id: GoogleConnectionId,

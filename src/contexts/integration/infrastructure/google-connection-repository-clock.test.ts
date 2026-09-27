@@ -49,14 +49,6 @@ describe('Google connection repository time authority', () => {
       'refresh-2',
       expiresAt,
     )
-    await repository.updateTokensAndStatus(
-      ORG,
-      CONNECTION,
-      'access-3',
-      'refresh-3',
-      expiresAt,
-      'active',
-    )
     await repository.updateStatus(ORG, CONNECTION, 'degraded')
     await repository.redactForDisconnect(ORG, CONNECTION)
     await repository.updateVisibility(ORG, CONNECTION, 'organization')
@@ -74,8 +66,8 @@ describe('Google connection repository time authority', () => {
       'owner@example.com',
     )
 
-    expect(clock).toHaveBeenCalledTimes(6)
-    expect(updateSets).toHaveLength(6)
+    expect(clock).toHaveBeenCalledTimes(5)
+    expect(updateSets).toHaveLength(5)
     for (const values of updateSets) {
       expect(values.updatedAt).toBe(NOW)
     }
