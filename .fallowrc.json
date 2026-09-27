@@ -90,7 +90,7 @@
       "exports": ["ORGANIZATION_LIFECYCLE_RECEIPT_PHASES"]
     },
     {
-      "file": "src/contexts/inbox/infrastructure/inbox-command-store.ts",
+      "file": "src/contexts/inbox/infrastructure/inbox-escalation-history.ts",
       "exports": ["INBOX_ESCALATION_HISTORY_KINDS"]
     },
     {
