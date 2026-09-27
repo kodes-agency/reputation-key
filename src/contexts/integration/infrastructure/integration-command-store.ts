@@ -49,14 +49,6 @@ type GoogleConnectionUpdateSet = {
 
 type ConnectionKey = Readonly<{ organizationId: string; connectionId: string }>
 
-/** The tenant-scoped row for (organizationId, connectionId). */
-function connectionRow(command: ConnectionKey) {
-  return and(
-    eq(googleConnections.organizationId, command.organizationId),
-    eq(googleConnections.id, command.connectionId),
-  )
-}
-
 /**
  * Update the google_connections row for (organizationId, connectionId)
  * inside the command transaction (single source for the guarded connection
@@ -72,7 +64,13 @@ function updateConnectionRow(
   return tx
     .update(googleConnections)
     .set(set)
-    .where(and(connectionRow(command), guard))
+    .where(
+      and(
+        eq(googleConnections.organizationId, command.organizationId),
+        eq(googleConnections.id, command.connectionId),
+        guard,
+      ),
+    )
 }
 
 async function completeOAuthExchangeAttempt(
@@ -189,7 +187,12 @@ export const createAtomicIntegrationCommandStore = (
               const [current] = await tx
                 .select({ id: googleConnections.id })
                 .from(googleConnections)
-                .where(connectionRow(command))
+                .where(
+                  and(
+                    eq(googleConnections.organizationId, command.organizationId),
+                    eq(googleConnections.id, command.connectionId),
+                  ),
+                )
                 .limit(1)
               // The same refusal the use case gives when it sees the change
               // first, so the exchange claim is released rather than lost.
@@ -227,7 +230,12 @@ export const createAtomicIntegrationCommandStore = (
           const [current] = await tx
             .select()
             .from(googleConnections)
-            .where(connectionRow(command))
+            .where(
+              and(
+                eq(googleConnections.organizationId, command.organizationId),
+                eq(googleConnections.id, command.connectionId),
+              ),
+            )
             .for('update')
             .limit(1)
           if (!current) {
