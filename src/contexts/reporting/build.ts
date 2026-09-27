@@ -207,7 +207,6 @@ function buildMetricModule(input: ReportingContextBuildInput) {
       recordMetrics: recordBatch,
       retractMetrics: retractBatch,
       findGroupForPortal,
-      logger: input.logger,
     })
     registerPublicReputationMetricConsumers(consumerRegistry, {
       recordMetric: record,

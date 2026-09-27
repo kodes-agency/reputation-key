@@ -19,7 +19,6 @@ const consumerRegistry = {
 } as unknown as ConsumerRegistry
 
 import { registerGuestMetricConsumers } from './guest-outbox-consumers'
-import { createMockLogger } from '#/shared/testing/mock-logger'
 
 const common = {
   organizationId: 'org-1',
@@ -38,7 +37,6 @@ describe('Guest metric durable consumers', () => {
       recordMetrics,
       retractMetrics,
       findGroupForPortal: vi.fn().mockResolvedValue(null),
-      logger: createMockLogger(),
     })
 
     const registrations = mocks.registerConsumer.mock.calls.map(([value]) => value)
@@ -146,7 +144,6 @@ describe('Guest metric durable consumers', () => {
       recordMetrics,
       retractMetrics,
       findGroupForPortal,
-      logger: createMockLogger(),
     })
     const registrations = mocks.registerConsumer.mock.calls.map(([value]) => value)
     const recorded = registrations.find(
@@ -220,7 +217,6 @@ describe('Guest metric durable consumers', () => {
       recordMetrics,
       retractMetrics: vi.fn().mockResolvedValue([{ status: 'retracted' }]),
       findGroupForPortal: vi.fn().mockResolvedValue(null),
-      logger: createMockLogger(),
     })
     const registration = mocks.registerConsumer.mock.calls[0]![0]
 
@@ -238,6 +234,31 @@ describe('Guest metric durable consumers', () => {
     ).rejects.toThrow('database unavailable')
   })
 
+  it('fails the delivery when the event-time group lookup fails, so it is retried', async () => {
+    const lookupFailure = new Error('portal group lookup unavailable')
+    const recordMetrics = vi.fn().mockResolvedValue([{ status: 'recorded' }])
+    registerGuestMetricConsumers(consumerRegistry, {
+      recordMetrics,
+      retractMetrics: vi.fn().mockResolvedValue([{ status: 'retracted' }]),
+      findGroupForPortal: vi.fn().mockRejectedValue(lookupFailure),
+    })
+    const registration = mocks.registerConsumer.mock.calls[0]![0]
+
+    await expect(
+      registration.handler({
+        eventId: 'evt-scan',
+        eventType: 'guest.scan.recorded',
+        eventVersion: 2,
+        payload: { ...common, scanId: 'scan-1', scanSource: 'qr' },
+        organizationId: common.organizationId,
+        propertyId: common.propertyId,
+        sourceContext: 'guest',
+        sourceAggregateId: 'scan-1',
+      }),
+    ).rejects.toBe(lookupFailure)
+    expect(recordMetrics).not.toHaveBeenCalled()
+  })
+
   it.each([
     { eventVersion: 1, sourceField: { source: 'qr' as const } },
     { eventVersion: 2, sourceField: { scanSource: 'nfc' as const } },
@@ -249,7 +270,6 @@ describe('Guest metric durable consumers', () => {
         recordMetrics,
         retractMetrics: vi.fn().mockResolvedValue([{ status: 'retracted' }]),
         findGroupForPortal: vi.fn().mockResolvedValue(null),
-        logger: createMockLogger(),
       })
       const registration = mocks.registerConsumer.mock.calls[0]![0]
 

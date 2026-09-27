@@ -181,6 +181,25 @@ describe('Portal governed workflow metric handlers', () => {
     expect(deps.readings[0]).toMatchObject({ attributionQuality: 'unresolved' })
   })
 
+  it('propagates a failed attribution lookup so durable delivery retries the fact', async () => {
+    const lookupFailure = new Error('portal attribution lookup unavailable')
+    const deps = {
+      ...makeDeps(),
+      resolveAttribution: vi.fn().mockRejectedValue(lookupFailure),
+    }
+
+    await expect(
+      onContentReviewCompleted(deps)({
+        ...common,
+        _tag: 'portal.content_review.completed',
+        eventId: 'lookup-failure-event',
+        reviewId: 'review-cycle-1',
+        revision: 1,
+      }),
+    ).rejects.toBe(lookupFailure)
+    expect(deps.recordMetric).not.toHaveBeenCalled()
+  })
+
   it('passes an insufficient destination sample without converting it to zero', async () => {
     const deps = makeDeps()
 
