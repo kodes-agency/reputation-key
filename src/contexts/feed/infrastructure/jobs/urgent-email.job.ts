@@ -44,7 +44,10 @@ import type { EmailSenderPort } from '../../application/ports/email-sender.port'
 import type { NotificationRecipientStanding } from '../../application/notification-recipient-standing'
 import type { NotificationPropertyScopeResolver } from '../repositories/notification-property-scope.repository'
 import type { NotificationOrganizationScopeResolver } from '../repositories/notification-organization-scope.repository'
-import { deliveryTiming } from '../../domain/notification-delivery-policy'
+import {
+  deliveryTiming,
+  isPropertyAnchoredNotice,
+} from '../../domain/notification-delivery-policy'
 import { isStaleQueuedEmail, STALE_EMAIL_REASON } from '../../domain/email-freshness'
 import {
   isStillActionable,
@@ -66,6 +69,7 @@ import {
   assertPreferencesLink,
   mailClassForCategory,
   PREFERENCES_PATH,
+  preferencesPageUnsubscribeHeaders,
   requiresPreferencesLink,
   unsubscribeHeaders,
 } from './preferences-link'
@@ -490,12 +494,18 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       preferencesUrl,
       priority: entry.priority,
     })
-    const oneClickUrl = requiresPreferencesLink(mailClass)
-      ? deps.oneClickUnsubscribeUrl({ kind: 'email', id: entry.id as string })
-      : ''
+    const headers =
+      preferencesUrl !== null && isPropertyAnchoredNotice(notification.type)
+        ? preferencesPageUnsubscribeHeaders(preferencesUrl)
+        : unsubscribeHeaders(
+            mailClass,
+            requiresPreferencesLink(mailClass)
+              ? deps.oneClickUnsubscribeUrl({ kind: 'email', id: entry.id as string })
+              : '',
+          )
     return {
       email,
-      headers: unsubscribeHeaders(mailClass, oneClickUrl),
+      headers,
       // A notice whose copy asks the reader to answer says where, and the
       // header has to agree with it.
       replyTo: notificationReplyTo(notification.type),
@@ -577,7 +587,10 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     )
     // The one-click link names only this row, which retention deletes after
     // 90 days; what it stands for is kept before the mail leaves.
-    if (requiresPreferencesLink(mailClassForCategory(entry.category))) {
+    if (
+      requiresPreferencesLink(mailClassForCategory(entry.category)) &&
+      !isPropertyAnchoredNotice(notification.type)
+    ) {
       await deps.emailRepo.recordEmailUnsubscribeScope(emailId, orgId, deps.clock())
     }
     await sendAndRecord(ids, entry, recipient, email, headers, replyTo)
