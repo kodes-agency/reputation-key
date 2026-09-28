@@ -250,11 +250,16 @@ const enqueueEmailEntry = async (
  * back the first, already-sent entry. Read, it sits outside that key: each
  * event gets its own row, its own `${id}:email` idempotency key and its own
  * email, and turning in-app back on does not resurface it as unread.
+ *
+ * Nobody read it, so it carries no `readAt`. That is what keeps an actionable
+ * anchor's email going out: the pre-send check holds back a notice its reader
+ * read, and a read time here would have claimed a reading that never happened
+ * (`isStillActionable`).
  */
 const asEmailOnlyAnchor = (notification: DomainNotification): DomainNotification => ({
   ...notification,
   status: 'read',
-  readAt: notification.createdAt,
+  readAt: null,
 })
 
 // ── Use case ────────────────────────────────────────────────────────
@@ -295,9 +300,11 @@ export const insertNotification =
     // facts (so a row of three notes now reads "…3 notes added"). No second
     // email: the original queue entry still stands for the same resource —
     // except for a mandatory notice, which is mailed once per event
-    // (`isMandatoryRepeat`). In-app only — an email-only recipient has no
-    // unread row to absorb into, and their anchor is stored read (step 3) so
-    // the database cannot absorb into it either.
+    // (`isMandatoryRepeat`). A settled row is not absorbed into: its work is
+    // done and its email sent or cancelled, so a repeat is a new request and
+    // falls through to a row and an email of its own. In-app only — an
+    // email-only recipient has no unread row to absorb into, and their anchor
+    // is stored read (step 3) so the database cannot absorb into it either.
     if (inAppEnabled) {
       const existing = await deps.notificationRepo.findUnreadByUserTypeResource(
         input.userId,
@@ -308,10 +315,11 @@ export const insertNotification =
       )
       if (existing) {
         const coalesced = applyCoalescence(existing, result.value.payload, deps.clock())
-        // The bump only lands on a row that is still unread. When a read or
-        // dismiss committed after the lookup, the event is not the user's old
-        // news: it falls through to a fresh unread row (step 3), whose upsert
-        // re-coalesces atomically if yet another unread row appeared meanwhile.
+        // The bump only lands on a row that is still waiting. When a read,
+        // dismiss or settlement committed after the lookup, the event is not
+        // the user's old news: it falls through to a fresh unread row (step 3),
+        // whose upsert re-coalesces atomically if yet another waiting row
+        // appeared meanwhile.
         if (await deps.notificationRepo.refreshUnread(coalesced)) {
           if (emailEnabled && isMandatoryRepeat(coalesced, input)) {
             await enqueueEmailEntry(

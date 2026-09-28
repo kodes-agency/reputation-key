@@ -12,11 +12,13 @@ const row = (
     type: NotificationType
     status: 'unread' | 'read' | 'dismissed'
     resolvedAt: Date | null
+    readAt: Date | null
   }> = {},
 ) => ({
   type: 'reply.pending_approval' as NotificationType,
   status: 'unread' as const,
   resolvedAt: null,
+  readAt: over.status === 'read' ? new Date('2026-09-23T08:00:00Z') : null,
   ...over,
 })
 
@@ -98,6 +100,22 @@ describe('whether a queued email still has work to announce', () => {
 
   it('holds back an actionable notice the reader already read', () => {
     expect(isStillActionable(row({ status: 'read' }))).toBe(false)
+  })
+
+  it('sends an email-only anchor, which is stored read but nobody read', () => {
+    expect(isStillActionable(row({ status: 'read', readAt: null }))).toBe(true)
+  })
+
+  it('holds back an email-only anchor whose work was settled', () => {
+    expect(
+      isStillActionable(
+        row({
+          status: 'read',
+          readAt: null,
+          resolvedAt: new Date('2026-09-23T09:00:00Z'),
+        }),
+      ),
+    ).toBe(false)
   })
 
   it('holds back an actionable notice the reader dismissed', () => {

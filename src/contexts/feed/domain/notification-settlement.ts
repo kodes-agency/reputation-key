@@ -78,19 +78,31 @@ export const settledNotificationTypes = (
 /** What the still-actionable predicate needs of a stored row. */
 export type ActionableNotificationState = Pick<
   Notification,
-  'type' | 'status' | 'resolvedAt'
+  'type' | 'status' | 'resolvedAt' | 'readAt'
 >
+
+/**
+ * An email-only recipient's anchor: stored read so it stays out of ADR 0046
+ * r.2's unread key, but never read by anybody, so it has no read time. Its
+ * email is the only way its reader hears of the work.
+ */
+export const isEmailOnlyAnchor = (
+  notification: Pick<Notification, 'status' | 'readAt'>,
+): boolean => notification.status === 'read' && notification.readAt === null
 
 /**
  * Whether a queued email still has work to announce, asked immediately before
  * the provider call by both the immediate path and the digest.
  *
  * A notice that reports an outcome always sends. An actionable one sends only
- * while its work is still waiting: unresolved, and neither read nor dismissed.
+ * while its work is still waiting: unresolved, and neither read nor dismissed
+ * by its reader. An email-only anchor counts as unread: its read status is
+ * storage, not a reading.
  */
 export const isStillActionable = (notification: ActionableNotificationState): boolean =>
   !isActionableNotificationType(notification.type) ||
-  (notification.status === 'unread' && notification.resolvedAt === null)
+  (notification.resolvedAt === null &&
+    (notification.status === 'unread' || isEmailOnlyAnchor(notification)))
 
 /** The reason a queued email is cancelled because its work was settled. */
 export const SETTLED_EMAIL_REASON = 'work_settled' as const

@@ -102,6 +102,7 @@ export type NotificationOverrides = Partial<{
   body: string | null
   status: Notification['status']
   resolvedAt: Date | null
+  readAt: Date | null
 }>
 
 export function buildNotification(overrides: NotificationOverrides = {}): Notification {
@@ -126,7 +127,14 @@ export function buildNotification(overrides: NotificationOverrides = {}): Notifi
     coalescedCount: 1,
     coalescedLatestAt: null,
     resolvedAt: overrides.resolvedAt ?? null,
-    readAt: null,
+    // A read row was read by somebody, at some time; only an email-only
+    // anchor is stored read with no read time (`isEmailOnlyAnchor`).
+    readAt:
+      overrides.readAt !== undefined
+        ? overrides.readAt
+        : overrides.status === 'read'
+          ? NOW
+          : null,
     createdAt: NOW,
     updatedAt: NOW,
   }

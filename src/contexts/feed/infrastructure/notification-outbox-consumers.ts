@@ -15,7 +15,7 @@
 //      (same technique as integration.property-import-dispatch).
 //   3. Behind that, `insertNotification` itself is convergent: the partial
 //      unique index `notifications_unread_resource_unique` on
-//      (user_id, type, resource_id) WHERE status='unread' plus the repository's
+//      (user_id, type, resource_id) over unread, unsettled rows plus the repository's
 //      `onConflictDoUpdate` mean a raced replay UPDATES the unread row rather
 //      than inserting a second one. It is not free, though — the conflict
 //      branch bumps `coalesced_count`, which is user-visible (the copy says how

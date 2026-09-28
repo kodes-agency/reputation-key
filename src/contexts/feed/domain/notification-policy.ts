@@ -7,7 +7,9 @@
 // - At most one UNREAD row per (user, type, resource); a repeat event bumps
 //   count/latest instead of stacking a row (r.2). `applyCoalescence` is that
 //   bump, and the partial unique index
-//   `notifications_unread_resource_unique` is its database backstop.
+//   `notifications_unread_resource_unique` is its database backstop. A
+//   settled row is outside both: its work is done, so a repeat is a new
+//   request with a row and an email of its own, never a bump.
 //
 // The lookup half of r.2 is a DB query (`findUnreadByUserTypeResource`), not an
 // in-memory scan: an earlier draft of this file carried a `shouldCoalesce` over
@@ -165,10 +167,6 @@ export function applyCoalescence(
     payload,
     coalescedCount,
     coalescedLatestAt: now,
-    // A repeat event asks for the work again — a second reply submitted on a
-    // resource whose first was approved. The row is waiting once more, so the
-    // settled marker it may carry is dropped rather than silencing it.
-    resolvedAt: null,
     updatedAt: now,
   }
 }

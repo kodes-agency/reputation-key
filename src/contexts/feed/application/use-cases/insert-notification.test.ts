@@ -469,7 +469,7 @@ describe('insertNotification', () => {
 
     expect(deps.notificationRepo.findUnreadByUserTypeResource).not.toHaveBeenCalled()
     expect(deps.notificationRepo.insert).toHaveBeenCalledWith(
-      expect.objectContaining({ status: 'read', readAt: NOW }),
+      expect.objectContaining({ status: 'read', readAt: null }),
     )
     expect(deps.emailRepo.insert).toHaveBeenCalledOnce()
   })
