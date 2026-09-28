@@ -52,13 +52,11 @@ export const createExpireReviewProviderSourceHandler =
 export const createSweepReviewProviderTombstonesHandler =
   (dependencies: Dependencies) => async (job: Job<ReviewProviderLifecycleSweepJobData>) =>
     trace('job.sweepReviewProviderTombstones', async () => {
-      const input = parseSweepData(job.data)
-      const result = await dependencies.repository.sweepExpiredTombstones(input)
-      if (result.nextReviewId != null) {
-        await dependencies.enqueueTombstoneContinuation({
-          ...job.data,
-          afterReviewId: result.nextReviewId,
-        })
-      }
-      return result
+      // Validate stale queue payloads, then drain them harmlessly. Nothing
+      // seeds this sweep, and it stays quarantined until a reviewed cutover:
+      // the setup checklist, Property setup and Inbox response targets still
+      // read the completed snapshot runs sweepExpiredTombstones would delete.
+      parseSweepData(job.data)
+      void dependencies
+      return { status: 'quarantined' as const, deleted: 0, nextReviewId: null }
     })

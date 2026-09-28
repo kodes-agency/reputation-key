@@ -698,6 +698,8 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     },
     { timeoutMs: 300_000 },
   ),
+  // Quarantined until a reviewed cutover: the setup checklist, Property setup and
+  // Inbox response targets still read the completed snapshot runs it deletes.
   job(
     'sweep-review-provider-tombstones',
     'src/contexts/review/infrastructure/jobs/review-provider-lifecycle-sweeps.job.ts',
@@ -706,7 +708,7 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       capability: 'none',
       action: 'system:review.purge',
       schedule: 'none',
-      registration: 'enabled',
+      registration: 'quarantined',
     },
     { timeoutMs: 300_000 },
   ),

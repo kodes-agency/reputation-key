@@ -37,28 +37,30 @@ describe('Review provider lifecycle sweep jobs', () => {
     expect(deps.enqueueExpiryContinuation).not.toHaveBeenCalled()
   })
 
-  it('sweeps tombstones at equality without inventing a continuation', async () => {
+  it('drains a valid tombstone sweep job without deleting subjects or snapshot runs', async () => {
     const deps = makeDeps()
     const handler = createSweepReviewProviderTombstonesHandler(deps as never)
-    await handler({
-      data: { beforeOrAtEpochMillis: cutoff, afterReviewId: null, limit: 100 },
-    } as never)
-    expect(deps.repository.sweepExpiredTombstones).toHaveBeenCalledWith({
-      beforeOrAt: new Date(cutoff),
-      afterReviewId: null,
-      limit: 100,
-    })
+    await expect(
+      handler({
+        data: { beforeOrAtEpochMillis: cutoff, afterReviewId: null, limit: 100 },
+      } as never),
+    ).resolves.toEqual({ status: 'quarantined', deleted: 0, nextReviewId: null })
+    expect(deps.repository.sweepExpiredTombstones).not.toHaveBeenCalled()
     expect(deps.enqueueTombstoneContinuation).not.toHaveBeenCalled()
   })
 
   it.each([0, 101])('rejects an out-of-bounds batch size %s', async (limit) => {
     const deps = makeDeps()
-    const handler = createExpireReviewProviderSourceHandler(deps as never)
+    const job = {
+      data: { beforeOrAtEpochMillis: cutoff, afterReviewId: null, limit },
+    } as never
     await expect(
-      handler({
-        data: { beforeOrAtEpochMillis: cutoff, afterReviewId: null, limit },
-      } as never),
+      createExpireReviewProviderSourceHandler(deps as never)(job),
+    ).rejects.toThrow('Invalid Review provider lifecycle sweep bounds')
+    await expect(
+      createSweepReviewProviderTombstonesHandler(deps as never)(job),
     ).rejects.toThrow('Invalid Review provider lifecycle sweep bounds')
     expect(deps.repository.expireRawSourceBatch).not.toHaveBeenCalled()
+    expect(deps.repository.sweepExpiredTombstones).not.toHaveBeenCalled()
   })
 })

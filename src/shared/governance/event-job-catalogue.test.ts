@@ -1,15 +1,20 @@
-// Static guards on what the event/job catalogue promises (wiring-09).
+// Static guards on what the event/job catalogue promises (wiring-09, wiring-04).
 //
-// Readiness proves every catalogued consumer is registered. Nothing proved the
-// other end: that production code still emits the fact a consumer waits for.
-// These guards scan production source for it, and make a family without a
-// producer say why in the catalogue.
+// Readiness proves every catalogued consumer and enabled job has a registered
+// handler. Nothing proved the other end: that production code still emits the
+// fact a consumer waits for, or enqueues a job no scheduler fires. These guards
+// scan production source for it, and make a row without a producer say why.
 
 import { readFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { walk } from '#/shared/testing/source-tree'
-import { EVENT_FAMILY_ROWS, type EventFamilyRow } from './event-job-catalogue'
+import {
+  EVENT_FAMILY_ROWS,
+  JOB_FAMILY_ROWS,
+  type EventFamilyRow,
+  type JobFamilyRow,
+} from './event-job-catalogue'
 
 const ROOT = process.cwd()
 
@@ -150,5 +155,88 @@ describe('event families with durable consumers', () => {
       .filter((row) => !row.consumed || row.producers.length > 0)
 
     expect(stale, 'drop the producerless marker from these rows').toEqual([])
+  })
+})
+
+// ── Job families ────────────────────────────────────────────────────
+
+/** Job names a file enqueues: `.add(<name>, …)` calls and bulk `{ name: <name> }` entries. */
+const enqueuedJobs = (file: SourceFile): ReadonlySet<string> =>
+  new Set(
+    [...file.text.matchAll(/(?:\.add\(|\bname:)\s*(?:'([^']+)'|([A-Za-z_$][\w$]*))\s*,/g)]
+      .map(([, literal, name]) => literal ?? constantValue(file, name ?? ''))
+      .filter((jobName): jobName is string => jobName !== undefined),
+  )
+
+const ENQUEUES: ReadonlyArray<Readonly<{ path: string; jobs: ReadonlySet<string> }>> =
+  SOURCES.map((file) => ({ path: file.path, jobs: enqueuedJobs(file) }))
+
+/** Files other than the family's own processor that enqueue it by name. */
+const jobProducersOf = (row: JobFamilyRow): ReadonlyArray<string> =>
+  ENQUEUES.filter(
+    (file) => file.path !== row.processor && file.jobs.has(row.jobName),
+  ).map((file) => file.path)
+
+/**
+ * Enabled on-demand families the enqueue scan cannot see, each naming the
+ * module that says where its jobs come from and text that must appear there.
+ */
+const UNSCANNED_JOB_PRODUCERS: Readonly<
+  Record<string, Readonly<{ module: string; evidence: string }>>
+> = {
+  // enqueueImmediateEmail chooses the job name per email.
+  'urgent-email': {
+    module: 'src/contexts/feed/build.ts',
+    evidence: 'immediateEmailDispatch(data.propertyId)',
+  },
+  'mandatory-email': {
+    module: 'src/contexts/feed/build.ts',
+    evidence: 'immediateEmailDispatch(data.propertyId)',
+  },
+  // Rolling drain only: nothing enqueues either name any more, and the job
+  // module says when both handlers can go.
+  'project-recent-activity': {
+    module: 'src/contexts/feed/infrastructure/jobs/project-recent-activity.job.ts',
+    evidence: 'drain-only BullMQ handlers',
+  },
+  'insert-activity-log': {
+    module: 'src/contexts/feed/infrastructure/jobs/project-recent-activity.job.ts',
+    evidence: 'Rolling-deployment drain identifier only',
+  },
+}
+
+describe('enabled job families without a schedule', () => {
+  const onDemand = JOB_FAMILY_ROWS.filter(
+    (row) => row.registration === 'enabled' && row.schedule === 'none',
+  )
+
+  it('are enqueued outside their own processor, or listed with their producer', () => {
+    const unproduced = onDemand
+      .filter(
+        (row) =>
+          jobProducersOf(row).length === 0 && !(row.jobName in UNSCANNED_JOB_PRODUCERS),
+      )
+      .map((row) => row.jobName)
+
+    expect(
+      unproduced,
+      'enqueue these jobs, schedule them, quarantine them, or name their producer',
+    ).toEqual([])
+  })
+
+  it('list only rows the scan cannot see, with evidence where they point', () => {
+    const invalid = Object.entries(UNSCANNED_JOB_PRODUCERS)
+      .map(([jobName, { module, evidence }]) => {
+        const row = onDemand.find((candidate) => candidate.jobName === jobName)
+        return {
+          jobName,
+          onDemand: row !== undefined,
+          scanned: row === undefined ? [] : jobProducersOf(row),
+          evidenced: SOURCE_BY_PATH.get(module)?.text.includes(evidence) ?? false,
+        }
+      })
+      .filter((entry) => !entry.onDemand || entry.scanned.length > 0 || !entry.evidenced)
+
+    expect(invalid, 'drop or correct these UNSCANNED_JOB_PRODUCERS entries').toEqual([])
   })
 })
