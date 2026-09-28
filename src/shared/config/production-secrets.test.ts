@@ -153,8 +153,13 @@ describe('.env.example secrets (BQC-7.6)', () => {
       .split('\n')
       .flatMap((line) => {
         const match = /^([A-Z][A-Z0-9_]*)=(.+)$/.exec(line.trim())
-        if (!match || !/SECRET|SALT|TOKEN|_KEYS?$/.test(match[1])) return []
-        return [[match[1], match[2]] as const]
+        if (!match) return []
+        const name = match[1]
+        // A secret-bearing name contains SECRET/SALT/TOKEN anywhere, or ends
+        // in _KEY/_KEYS (two tests, so the anchor applies to the suffix only).
+        const isSecretName = /SECRET|SALT|TOKEN/.test(name) || /_KEYS?$/.test(name)
+        if (!isSecretName) return []
+        return [[name, match[2]] as const]
       })
     expect(secrets.map(([key]) => key)).toContain('PORTAL_TOKEN_HASH_SECRET')
     for (const [key, value] of secrets) {
