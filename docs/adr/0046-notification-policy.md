@@ -32,9 +32,12 @@ Rules:
    delivery/event evidence; event ID is not the uniqueness key. This is an
    in-app rule: a recipient with in-app off gets a read email-only anchor per
    event, so each event is emailed (amended 2026-09-22, pending product
-   confirmation; see the Feed CONTEXT.md). A mandatory notice coalesces in-app
-   too, but is still emailed once per event: the repeat's email is anchored
-   on the unread row and keyed on its own event (amended 2026-09-22).
+   confirmation; see the Feed CONTEXT.md). The anchor has no read time,
+   because nobody read it (amended 2026-09-28). Only a row whose work still
+   waits holds the unread key: a settled row gives it up (amended
+   2026-09-28). A mandatory notice coalesces in-app too, but is still emailed
+   once per event: the repeat's email is anchored on the unread row and keyed
+   on its own event (amended 2026-09-22).
 3. Use the user IANA timezone with Organization fallback and test DST. Quiet
    hours and the urgent bypass are the user's too, with an optional
    per-Property override (amended 2026-09-23).
@@ -52,8 +55,12 @@ retry must send the same content under it; its date label comes from the
 batch's local date, not the retry's clock. If the content changes before a
 retry, a batch the provider refused outright (a rate or quota limit) on every
 attempt is retired and its members are re-sent in a new batch under a new key.
-Any other batch may already have been accepted, so it fails closed rather than
-mail twice. Each attempt is recorded as started before the provider call, so
+Any other batch may already have been accepted, so it is never re-keyed: its
+retry re-sends the exact provider request stored when it was frozen, under the
+same key, even when a line was read or settled since. It closes unsent only
+when the recipient's authorization, standing, preference, address suppression
+or address changed, or every member was settled elsewhere (amended
+2026-09-28). Each attempt is recorded as started before the provider call, so
 an attempt whose worker never reported back counts as possibly accepted, and
 no later refusal makes the batch look safe to re-key.
 
@@ -63,12 +70,12 @@ only as `provider_state = 'delivery_delayed'`; the row stays `accepted`, so it
 is never sent twice. A provider `failed` after acceptance is terminal. A
 permanent bounce, a complaint, or a provider `suppressed` stops mail to that
 ADDRESS: it is recorded in a durable suppression list keyed by an HMAC of
-the normalized address under a server secret, outside queue retention and
-across Organizations, and checked before every send. The provider's own list
-is mirrored: `suppression.added` records an address, and `suppression.removed`
-is the only way one leaves. A transient or undetermined bounce ends only its
-message. Suppressions made locally (a disabled preference) never count as the
-provider refusing the recipient.
+the normalized address under a dedicated server secret (amended 2026-09-28),
+outside queue retention and across Organizations, and checked before every
+send. The provider's own list is mirrored: `suppression.added` records an
+address, and `suppression.removed` is the only way one leaves. A transient or
+undetermined bounce ends only its message. Suppressions made locally (a
+disabled preference) never count as the provider refusing the recipient.
 
 Delivery is authorized twice. The audience authorizer admits a recipient
 when the notification is inserted, and the queued email keeps that audience
@@ -76,8 +83,9 @@ descriptor (identifiers only). Immediately before a Property-scoped send,
 urgent or digest, the recipient's standing is rechecked: still an eligible
 manager for the Property, and for a responsible-scope, Portal-health or
 AccountAdmin audience still responsible or still an AccountAdmin. A row that
-fails is suppressed as `recipient_ineligible`. Standing is not freshness: the
-send never asks whether the item that raised the notice has moved on.
+fails is suppressed as `recipient_ineligible`. Standing is not freshness:
+whether the item that raised the notice has moved on is a separate question,
+asked of the context that owns the work (amended 2026-09-28).
 
 Queued email has a maximum age. Rows are queued even while outbound email is
 dark for their Organization or Property, because the capability gates the
@@ -208,13 +216,19 @@ their review (`source_changed`), or a different reply already live on Google
 reply was on its way.
 
 `reply.publication_cancelled` is now a live type, category `urgent_operational`
-and deliberately NOT in `URGENT_TYPES` — nothing reached Google, so no
-cancellation is worth breaking quiet hours for. Its copy is chosen by the
+and deliberately NOT in `URGENT_TYPES` — a cancellation only stops RepKey
+sending, so none is worth breaking quiet hours for. Its copy is chosen by the
 event's own closed cause, because each cause asks for a different next step:
 reconnect Google, nothing to do at this Property, write a reply to the new
-review, or look at what is already live. The notice never says "your": it goes
-to the reply's author AND to the AccountAdmins, who are the people who can
-approve it again — the same audience `reply.pending_approval` asks.
+review, or look at what is already live. Only a cause that cancels cycles
+never dispatched (`disconnect`, `policy`) may say the reply never went out;
+`source_changed` and `provider_truth` can stop a cycle Google may already
+hold, so they say what RepKey did and ask the reader to check Google (amended
+2026-09-28). The notice never says "your": it goes to the reply's author AND
+to the people who can approve it again, the same audience
+`reply.pending_approval` asks — the Property's responsible managers who may
+approve, and the AccountAdmins only when none of them can. The author is
+removed before that fallback is considered (amended 2026-09-28).
 
 For the `policy` cause only, an approver who is no longer eligible for the
 Property is left out at fan-out: a policy cancellation is exactly what taking
@@ -224,7 +238,9 @@ every approver is kept. The author's own notice carries the `property_operator`
 audience, whose delivery check re-tests Property eligibility anyway.
 
 The fact carries `authorId` (identifier only, nullable) from this date. Facts
-recorded before it reach the approvers alone.
+recorded before it reach the approvers alone. The author is whoever last
+submitted the reply, or its creator when no submitter was recorded (amended
+2026-09-28).
 
 ## Amended 2026-09-24 — a deliberate Google disconnect tells the other admins
 
@@ -245,6 +261,8 @@ has no Property preference row that could opt it into email, and the email
 queue's own scope CHECK refuses it — which is exactly why it can be scoped
 honestly. `integration.reauthorization_required` still anchors itself on an
 arbitrary Property because it is urgent_operational and therefore mailed.
+With no active Property to anchor it, it falls back to this Organization
+shape, in the bell only (amended 2026-09-28).
 
 That needed a new audience kind. `account_admin` is Property-scoped: the
 delivery authorizer refuses a Property-less job under it, which is why the
@@ -266,7 +284,9 @@ the work simply stopped being anyone's while the queue still showed it open.
 
 The release now records one grouped close fact,
 `inbox.inbox_items.assignments_released`, in the same transaction as the rows
-it describes, and `inbox.assignments_released` is delivered from it — ONE
+it describes, counting and anchored on the OPEN items released only; a
+Property where only closed items were released gets no group (amended
+2026-09-28). `inbox.assignments_released` is delivered from it — ONE
 notice per Property, never one per item, because a departing manager can leave
 dozens behind and the news is the gap, not each item. It goes to the
 Property's responsible managers (AccountAdmins when none is eligible), less
@@ -353,7 +373,8 @@ moves:
   it amends.
 - **An edit that reopens a CLOSED cycle** (`inbox.handling_cycle.reopened`) is
   `inbox.reopened` and stays `urgent_operational`. Somebody had considered
-  that item finished, so being told is the point.
+  that item finished, so being told is the point. Until 2026-09-28 the code
+  could not produce it; see that amendment.
 
 `review.created` is NOT raised to urgent in exchange. Urgency for an
 unanswered review comes from its Inbox Response Target — the reminders at the
@@ -429,27 +450,29 @@ standing, never the state of the work. Three rules close that:
    closed, a responsible manager chosen again — retires every recipient's
    still-waiting row for its (type, resource) and cancels the mail queued
    behind them as `cancelled` / `work_settled`. Mail the provider may already
-   hold is left alone. A grouped reopen is the one actionable type no fact
-   settles: it stands for many items and is filed under the first of them, so
-   one closed cycle would retire a notice the rest are still waiting behind.
-   Its own audience already re-counts the items that still stand.
+   hold is left alone. A grouped reopen stands for many items and is filed
+   under the first of them, so one closed cycle must not retire it by
+   resource; it is settled by row id once none of its items still stands
+   (amended 2026-09-28).
 2. **Resolved is not read.** Settling stamps `notifications.resolved_at` and
    leaves `status`, because docs/BETA.md says read is not resolved. A settled
    row leaves the unread count and the Unread tab, keeps its place in the
-   feed, and shows a "Done" marker. A repeat event on the resource clears the
-   marker: the work is being asked for again. The bell's count therefore means
-   "work still waiting for you".
+   feed, and shows a "Done" marker. A repeat event on the resource is a new
+   request: a new row with its own email, while the settled row keeps its
+   marker (amended 2026-09-28). The bell's count therefore means "work still
+   waiting for you".
 3. **Freshness is checked before the provider effect.** Immediate mail and the
    digest both apply `isStillActionable` to the row they are about to render:
    an actionable notice is mailed only while it is unsettled, unread and
-   undismissed, and is otherwise retired as `work_no_longer_waiting`. A notice
-   that reports an outcome is unaffected — that news is owed whether or not
-   the reader saw it in the app first.
+   undismissed (an email-only anchor counts as unread), and while the work
+   itself still waits (amended 2026-09-28), and is otherwise retired as
+   `work_no_longer_waiting`. A notice that reports an outcome is unaffected —
+   that news is owed whether or not the reader saw it in the app first.
 
 Settling routes are part of the executable trigger matrix, under `settles`
 rather than `notifications`: they announce nothing, carry no audience, and do
 not count as a type's one announcing trigger. A settling route may only retire
-an actionable type.
+an actionable type, or a retractable warning (amended 2026-09-28).
 
 ## Amended 2026-09-24 — the responsible scope is asked first, admins are the fallback
 
@@ -468,11 +491,14 @@ and never that it had been dealt with.
   check and the pre-send standing check ask both, because either can end alone.
 - `inbox.escalated` follows the item's own scope — the Property's responsible
   managers for a review, the Portal's for private feedback — with AccountAdmins
-  as the fallback the responsible-recipient resolver already provides.
+  as the fallback the responsible-recipient resolver already provides. The
+  escalating manager is removed before that fallback is considered (amended
+  2026-09-28).
 - `inbox.escalation_resolved` additionally reaches the AccountAdmins who were
   told it was raised, and only them: the evidence is Feed's own rows for
-  (`inbox.escalated`, that item), read whatever their state. An admin who was
-  never told is not told now, and one who is no longer an AccountAdmin is
+  (`inbox.escalated`, that item), read whatever their state, that arrived at
+  or after the item's current escalation (amended 2026-09-28). An admin who
+  was never told is not told now, and one who is no longer an AccountAdmin is
   dropped.
 
 ## Amended 2026-09-24 — notes and rework reach the people doing the work
@@ -497,7 +523,9 @@ never told the item had moved on.
   `property_operator` — they are no longer the assignee but may still act on
   the Property). It never names who holds it now. An eligibility-loss release
   produces no assignment fact and therefore stays silent, and a claim tells
-  nobody, because the claimant is both actor and previous holder.
+  nobody, because the claimant is both actor and previous holder. A bulk
+  reassignment tells each previous holder once per Property (amended
+  2026-09-28).
 
 ## Amended 2026-09-24 — nobody is asked to fix the gap they just opened
 
@@ -519,9 +547,9 @@ the AccountAdmins when none is eligible.
 Still open (I17): grouping one offboarding's fallout into a single notice per
 recipient that names the affected Properties and Portals. That notice belongs
 to the Organization, not to any one Property, and invariant 6 of the Feed
-CONTEXT admits exactly one non-mandatory Organization-scoped type — a second
-one needs its own ADR and a CHECK change, plus a grouped upstream fact that
-spans the Property and Portal release paths.
+CONTEXT admits only the non-mandatory Organization-scoped types it names —
+another one needs its own ADR and a CHECK change, plus a grouped upstream fact
+that spans the Property and Portal release paths.
 
 ## Amended 2026-09-24 — one summary when a Property's review history is imported
 
@@ -567,22 +595,239 @@ flood this amendment exists to replace, in a different costume.
 import ended.** An Inbox item is projected asynchronously from `review.created`,
 so at the instant the snapshot run becomes terminal the items the notice is
 about may not exist yet; a count taken there would say "0 still need a reply"
-about 260 that do. Feed reads it through `InboxItemLookupPort` at fan-out time
-and the copy is present-tense to match. It counts open Handling Cycle heads
-rather than measured Response Targets, because performance eligibility decides
-what the analytics measure and imported history is exactly what that excludes.
-The count remains a best-effort detail: a read that fails costs the sentence its
-second number, never the notice.
+about 260 that do. Reading it at fan-out time does not close that race on its
+own — the projections, and the reply observations that close items, can still
+be in flight when the finished fact is consumed — so the summary first waits
+for them (amended 2026-09-28): see that amendment. Feed reads the count
+through `InboxItemLookupPort` and the copy is present-tense to match. It counts
+open Handling Cycle heads rather than measured Response Targets, because
+performance eligibility decides what the analytics measure and imported
+history is exactly what that excludes. The count remains a best-effort detail:
+a read that fails, or a wait that runs out, costs the sentence its second
+number, never the notice.
 
 **Recipients**, in order: whoever asked for the import
 (`gbp_import_requests.initiated_by`, answered by the Integration context's
-public API), then the Property's responsible managers, then the AccountAdmins.
+public API) while they are still eligible for the Property (amended
+2026-09-28), then the Property's responsible managers, then the AccountAdmins.
 Each carries the audience that re-decides it at delivery, so somebody who has
 since lost the Property hears nothing. The initiator is a normal `null`: those
 request rows are purged 30 days after the import becomes terminal.
 
 The notice opens the Inbox at that Property's open queue, because that is the
 work it is about.
+
+## Amended 2026-09-28 — a notice follows its work and the person waiting on it
+
+A second review of notifications found the rules above sound but leaky at the
+edges: a request raised again after its first notice was settled reached
+nobody by email; a notice written seconds after its work was done still asked
+for it, urgent email included; several notices that ask for work never
+settled; and some outcomes went to people who had moved on while the person
+waiting heard nothing. What changed:
+
+**A settled row leaves the coalescing slot.** r.2 coalesces into the one row
+still asking its reader for something, so `notifications_unread_resource_unique`
+(migration 0036), the coalescing lookup and the upsert now cover rows that are
+unread AND unsettled. A repeat on a settled resource is a new request: a new
+row with its own `${id}:email` and its own email. The settled row keeps its
+"Done" marker. Reviving the settled row and mailing it under an event key was
+rejected: it needed a wider email-queue unique index, and the racing-upsert
+path could not tell that a revival had happened.
+
+**An email-only anchor has no read time.** It is stored `status = 'read'` with
+`read_at` NULL, because nobody read it; `isEmailOnlyAnchor` is exactly that
+shape, and `isStillActionable` treats it as unread. Settlement stamps anchors
+too, so their queued email is cancelled once the work is done. Anchors stored
+before this date keep `read_at = created_at`, so an actionable email still
+queued behind one is retired one last time; that is transient and has no data
+migration.
+
+**A fourth settlement rule: the work is asked, not only the row.** The
+2026-09-24 rules above settle the rows that exist when the settling fact is
+handled, and the insert job runs later on the shared default queue, so a
+notice could be written after the fact that settles it. Freshness is now
+asked, per type, of the context that owns the work — Inbox for escalations
+and Handling Cycles, Review for replies (through `ReplyWorkStateLookupPort`),
+Portal for Health, Property and Portal for responsibility, Identity for the
+Organization lifecycle — at three moments:
+
+- before a notice is written: finished work settles the delivery as obsolete,
+  with no row and no email;
+- before its immediate email or digest line leaves: finished work retires it
+  as `work_no_longer_waiting`;
+- before a settling fact retires a type: only types whose work is done now
+  are retired, so a resubmitted approval, a re-escalation or an item open
+  again keeps its notice.
+
+A type whose owner cannot answer is neither held back nor retired. Two gaps
+are known: Integration exposes no connection status to Feed, so a reconnect
+notice written after its reconnect was settled would stand (unlikely, since a
+reconnect is an OAuth ceremony); and a notice written after
+`property.archived` was handled is not gated at insert, though its email is
+still held by the active-Property checks.
+
+**More notices settle.** The actionable list now also holds `review.created`,
+`review.updated`, `feedback.created`, `integration.reauthorization_required`
+and `portal.health_attention`. The settling facts are:
+
+- `inbox.handling_cycle.closed`, for any close reason — replied, handled
+  privately, withdrawn by the guest — settles the item's arrival, revision,
+  reopen and Response Target notices. An arrival is therefore no longer
+  mailed or put in a digest once its reader has read it in-app, and one whose
+  item is already closed when its notice would be written is not written.
+  The same fact settles a grouped reopen by row id once none of its cycles is
+  still its item's open head, read back from the bulk-reopen fact; the grouped
+  email is recounted at send, and retired when nothing is left. A grouped row
+  that coalesced a second bulk reopen is not settled in-app; outbox retention
+  (30 days) bounds that.
+- A Google reconnect settles "Reconnect Google". So does a deliberate
+  disconnect: the connection was removed on purpose, and asking every admin
+  to restore it would contradict the admin who removed it.
+- Portal Health moving into an interval that needs nobody settles its notice;
+  a move to a different actionable reason keeps it waiting.
+- `review.reply.publication_cancelled` settles `reply.publish_failed`: the
+  reply is back in draft and there is nothing left to retry. The failure is
+  also mailed only while the reply is still `publish_failed`.
+- `property.archived` settles, by Property rather than by resource, every
+  notice still asking for work there and cancels its mail. The Google
+  reconnect request is left: the connection is the Organization's. A Restore
+  unsettles nothing.
+- A cancelled purge (`identity.organization_lifecycle.changed` back to
+  `active`) takes back `account.organization_purge_pending`, the first
+  RETRACTABLE type: it asks for no work, so reading it never holds its
+  mandatory email back, but once it is no longer true it stops standing and
+  its queued mail is cancelled as `purge_cancelled`.
+- A report reaching the outcome it last reached (accepted, reproducing,
+  accepted) is not announced again.
+
+A close handled while its item is already open again leaves the item's
+notices waiting on purpose: the item still needs work.
+
+**A guest edit of an answered review reopens it.** The 2026-09-24 amendment
+promised `inbox.reopened` for an edit on a CLOSED cycle, but Inbox emitted
+every material revision as an opening, and Review read the old owner reply,
+still live under the edited review, as a new reply answering it, so the new
+cycle closed at once and the notice was dropped. The owner decided that a
+reply written for revision N does not answer revision N+1:
+
+- Review: a live reply whose text equals the previous head's, recorded in the
+  same source epoch at an earlier revision, is carried over, not added. It
+  resolves `unchanged` and raises no `review.reply.observed`. A changed reply,
+  one first seen at the new revision, or a RepKey reply confirmed for it still
+  answers the edit.
+- Inbox: a material revision landing on a closed Review cycle is a `reopened`
+  transition with reason `material_revision_changed`; on an open cycle it
+  stays an opening.
+- Feed delivers it as `inbox.reopened`, urgent, to the cycle's responsible
+  recipients: "The guest changed their review after it was handled." The
+  reply to the edit closes the cycle and settles the notice.
+
+A source-epoch carry (Archive/Restore, a Google relink, a reconnect) is not an
+edit. `review.updated` now reaches the Inbox after one: the carry moves the
+head in place, and a real guest edit after it opens a cycle and is announced
+like any other.
+
+**Reply outcomes go to whoever submitted the reply.** Approved, rejected,
+published, publish failed and publication cancelled are addressed to the
+fact's `authorId`, which is now the reply's author as `domain/reply-author.ts`
+defines it: whoever last submitted it (`replies.submitted_by`, migration 0037),
+else its creator for replies submitted before that was recorded. The creator
+who handed the item on is no longer told. "Nobody is told about their own
+action" now compares the decider with the submitter. An edit-and-republish
+keeps the submitter, so its publication outcome still reaches them.
+
+**Who else is told.**
+
+- A cancelled publication: see the corrected 2026-09-24 amendment. On a
+  Property that is no longer active it tells nobody, the author included:
+  nothing there can be approved or published. The admin who deliberately
+  disconnected Google is still told about their own disconnect, because the
+  fact names no actor.
+- A Google disconnect cancels only publication cycles never dispatched
+  (`requested`, `authorized`), the rule a Property Archive already used. A
+  `sending` or `pending_observation` cycle may already be live; the publish
+  worker and the reconciliation sweep settle it, ending in the
+  `reply.publish_failed` "unconfirmed" notice when no read can prove it.
+- An escalation: the escalating manager is removed before the AccountAdmin
+  fallback, so a scope that names only them reaches the other AccountAdmins
+  (audience `account_admin`); an empty scope keeps its `responsible_scope`
+  recovery, and an escalation that reaches nobody logs a warning. Its
+  resolution's handling tier follows the scope the escalation went to — the
+  Portal's managers for private feedback, no manager for feedback with no
+  known Portal — and the admins "who were told" are those with an
+  `inbox.escalated` row whose latest arrival,
+  `COALESCE(coalesced_latest_at, created_at)`, is at or after the item's
+  current `escalated_at`.
+- A bulk reassignment, a take-over included, tells each previous holder once
+  per Property with the new grouped type `inbox.bulk_unassigned`
+  (`workflow_collaboration`, audience `property_operator`, opens the
+  Property's open queue, never names the new holder). A per-item
+  `inbox.unassigned` could not be used: the trigger matrix admits one
+  announcing trigger per type, and a bulk command notifies once per recipient
+  per Property. A bulk release stays silent, as a single one does.
+- A grouped assignment notice stands for the items still assigned to its
+  recipient and states their count at delivery, as a grouped reopen does.
+- `integration.reauthorization_required` with no active Property to anchor it
+  goes to the AccountAdmins' bell at Organization scope (audience
+  `organization_account_admin`, resource `integration`, no email); migration
+  0035 adds that fifth branch to `notifications_mandatory_scope_check`. With
+  an anchor nothing changes: that one Property's urgent_operational row still
+  decides its email and quiet hours. Its email, and that of any type
+  delivered through a Property it never names, links to the preferences page
+  without `List-Unsubscribe-Post`: no one-click unsubscribe, and no unsubscribe
+  scope recorded, alone or as a digest line.
+- The admin who clears a Property's responsible managers is the actor of the
+  gap that opens and is not asked to fill it; a queued gap email is sent only
+  while its recipient is still an AccountAdmin.
+- A member who leaves still gets the mandatory access notice, as a
+  confirmation: "You left the organization". It is the one notice about the
+  reader's own action. `identity.member.removed` carries an optional
+  `removedBy` (additive at version 1), and Feed's payload keeps only a
+  `leftOrganization` flag, never the actor (r.8).
+
+**The import summary waits for the Inbox.** Reading the unanswered count at
+fan-out did not avoid the race the 2026-09-24 amendment describes. The summary
+now asks whether any `review.created`, `review.updated` or
+`review.reply.observed` recorded for the Property before the finished fact
+still lacks its Inbox receipt, and while one does it throws, so the dispatch
+retries (about 30 seconds, doubling). Large imports therefore log retrying
+consumer errors; that is expected. After 15 minutes
+(`REVIEW_IMPORT_SUMMARY_SETTLE_HORIZON_MS`) it sends the notice without the
+unanswered number rather than a wrong one. The summary, and a
+report outcome, no longer says "This happened N times" after coalescing; each
+states how it ended.
+
+**`goal.result_revised` is keyed by event.** Its jobs were keyed by head
+revision, so a later correction shared the first one's job and its own
+delivery was left for the repair sweep to replay, minutes later. Keyed by
+event id like every other durable route, each correction owns its job, and
+late corrections that agree with the head coalesce into the reader's one
+unread row (r.2).
+
+**Reading and clearing act on what the reader sees.** "Mark all read" and
+"Clear all" touch only rows the reader's feed shows: Properties they can
+still reach (`notification.read`), plus Organization notices, less
+categories they switched off in-app. Hidden rows stay untouched and come
+back unread if access returns. The in-app list hides a Property notice whose
+in-app preference resolves off — the Property's row, else the person's
+category default, else the versioned default — and never hides a mandatory,
+urgent_operational or Organization notice. In the browser, "unread" means
+still waiting: a settled row counts in no badge and sits under "Earlier".
+
+**Digests and quiet hours.** A frozen digest the provider may already hold is
+re-sent exactly as frozen (the stored request, migration 0038; see the
+corrected digest paragraph above): one stale line surprises less than losing
+the day's digest. It waits out quiet hours without touching its members. A
+quiet-hours hold on an immediate email schedules its own release for the
+minute the window ends; the hourly sweep is only the fallback.
+
+**The suppression list has its own key.** Refused addresses are keyed with
+`NOTIFICATION_EMAIL_SUPPRESSION_KEY` when it is set. `BETTER_AUTH_SECRET`, the
+old key, is honoured as retired, and an entry moves to the new key the first
+time it matches. Until the new key is set, rotating `BETTER_AUTH_SECRET`
+after an account incident empties the list; after that it does not. Rotating
+the dedicated key always does.
 
 ## Consequences
 
@@ -591,7 +836,9 @@ work it is about.
   in-app recipients. For email-only recipients only durable idempotency does:
   each event is its own email, and deliveries of one resource under different
   event ids are not merged. Mandatory mail is never merged: a second role
-  change or purge-pending notice is a second email.
+  change or purge-pending notice is a second email. A request raised again
+  after its notice was settled is a new row and a new email (amended
+  2026-09-28).
 - Recognition email requires explicit opt-in and arrives in the daily digest.
 - Provider/capability admission remains the outbound activation authority for
   every optional message. Mandatory account/security mail is admitted by the
