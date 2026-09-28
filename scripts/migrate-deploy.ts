@@ -9,6 +9,10 @@
 //      Idempotent: creates only missing tables/columns.
 //   2. Drizzle journal track — applies the baseline, DB-only constructs, and
 //      control-plane seed. `pnpm db:migrate` uses the same journal bookkeeping.
+//   3. Concurrent-index sidecar (src/shared/db/concurrent-index-sidecar.ts) —
+//      advisory-locked CREATE INDEX CONCURRENTLY outside Drizzle's
+//      transaction, for indexes on tables too large to hold a share lock for
+//      a plain journaled CREATE INDEX (database-03).
 //
 // SINGLE EXECUTION: a PostgreSQL session-level advisory lock
 // (pg_advisory_lock, key = sha256('repkey-migrate-deploy')[:8]) serializes
@@ -45,6 +49,7 @@ import { drizzle } from 'drizzle-orm/node-postgres'
 import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { authorizeDeployMigrationRuntime } from '../src/shared/db/deploy-migration-runtime'
 import { initializeReviewProviderSubjectKeyInventoryFromEnvironment } from '../src/contexts/review/infrastructure/provider-subject-key-initializer'
+import { buildRegisteredConcurrentIndexes } from '../src/shared/db/concurrent-index-sidecar'
 
 // dist-worker/migrate-deploy.js (built) and scripts/migrate-deploy.ts (tsx)
 // both sit one level below the app root.
@@ -117,6 +122,20 @@ async function main(): Promise<void> {
       // and control-plane seed.
       await migrate(migrationDb, { migrationsFolder: MIGRATIONS_FOLDER })
       log('drizzle track applied')
+
+      // 3. Autocommit-only concurrent-index sidecar. The migrator's
+      // transaction above has already committed, so this connection is back
+      // to autocommit — the only mode CREATE INDEX CONCURRENTLY accepts.
+      const concurrentIndexes = await buildRegisteredConcurrentIndexes(client)
+      log('concurrent index sidecar', { results: concurrentIndexes })
+      const failedIndexes = concurrentIndexes.filter((result) => !result.ok)
+      if (failedIndexes.length > 0) {
+        throw new Error(
+          `Concurrent index sidecar denied: ${failedIndexes
+            .map((result) => `${result.name} (${result.code})`)
+            .join(', ')}`,
+        )
+      }
 
       await initializeReviewProviderSubjectKeyInventoryFromEnvironment({
         db: migrationDb,

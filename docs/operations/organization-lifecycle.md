@@ -249,7 +249,8 @@ Do not change a family to `enabled` merely because its handler exists. Lifecycle
 advancement requires all 17 unique context contributors plus independently
 reviewed support authorization. Export generation requires all 17 unique export
 contributors, encrypted private storage, a dedicated retrieval-secret binding,
-and durable recovery of a post-upload/pre-completion crash. Export
+durable recovery of a post-upload/pre-completion crash, and the bundle builder's
+formula-safe CSV check (see Organization Export below). Export
 deletion additionally requires a live absence-verification drill. A partial set
 is reported as missing contexts and remains non-executable; it is never
 converted to `no_data` by composition.
@@ -285,6 +286,16 @@ contributor from each of the 17 contexts must return `complete`, `no_data`, or
 `omitted` at a fixed `as_of`. `complete` requires a human-readable CSV and a
 lossless JSON file; omission requires a content-free code. Paths, encodings,
 classifications, duplicates, and forbidden path components are validated.
+
+The recipient opens the CSV files in a spreadsheet, and a spreadsheet evaluates
+a cell whose text starts a formula even when RFC 4180 quoting keeps it in its
+own cell (OWASP CSV Injection). Every contributor therefore writes its cells
+with `csvCell` (`src/shared/security/csv-cell.ts`), which prefixes `'` to text
+starting with `=`, `+`, `-`, `@`, TAB or CR unless the whole cell is a decimal
+number, so a Member-chosen name or a Staff display name opens as text. The
+builder refuses any `text/csv` entry that still has such a cell or malformed
+quoting. `README.md` explains the prefix to the recipient; the JSON files keep
+the exact value.
 
 The deterministic `organization-export/v1` ZIP contains:
 
@@ -368,9 +379,15 @@ no "release to nobody": choosing a successor is an accountability decision.
   store, which is what closes the race between two admins leaving at once.
 - The worklist is re-read AFTER the transfers are applied, so a responsibility
   created during the hand-over blocks the leave instead of being abandoned.
-- The responsibility facts are composed (`memberOffboarding`). ABSENT IS
-  FAIL-CLOSED: with no adapter bound, leave refuses. A leave that cannot see
-  the worklist would silently strand everything on it.
+- The responsibility facts come from a composed `memberOffboarding` adapter.
+  ABSENT IS FAIL-CLOSED: with no adapter bound, leave refuses. A leave that
+  cannot see the worklist would silently strand everything on it.
+- Production does NOT compose `memberOffboarding` today, so self-service leave
+  always refuses and removal by an AccountAdmin is the supported path out of an
+  Organization. Identity publishes this as
+  `offboardingFacts.selfServiceLeaveAvailable` (false), and Settings → Members
+  says leaving on your own is not available in this beta instead of reading the
+  worklist.
 - `identity.leave_org` is capability-gated as usual. A closure request sets
   no Organization suspension, so it does not by itself stop a leave.
 

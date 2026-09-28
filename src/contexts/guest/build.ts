@@ -29,8 +29,11 @@ import {
 } from './application/use-cases/guest-response-lifecycle'
 import { createGuestSessionManager } from './server/guest-session'
 import {
+  guestResponseId,
+  organizationId,
   qualifiedScanId,
   scanEventId,
+  unbrand,
   type FeedbackId,
   type OrganizationId,
 } from '#/shared/domain/ids'
@@ -47,8 +50,6 @@ import { createGuestNetworkPseudonymHasher } from './server/hash-ip.server'
 import { createContactRequestResponseAuthorityAdapter } from './infrastructure/adapters/contact-request-response-authority.adapter'
 import { createContactRequestManagerAuthorityAdapter } from './infrastructure/adapters/contact-request-manager-authority.adapter'
 import { createContactRequestRetentionRepository } from './infrastructure/repositories/contact-request.repository'
-import { createGuestOrganizationExportContributor } from './infrastructure/adapters/guest-organization-export.adapter'
-import { createGuestOrganizationLifecycleContributor } from './infrastructure/adapters/guest-organization-lifecycle.adapter'
 import { contactRequestRetentionSweep } from './application/use-cases/contact-request-retention'
 
 type GuestContextDeps = Readonly<{
@@ -179,12 +180,17 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
   // ARC-03-T11: the two named Guest capabilities the composition root consumes.
   // Both used to be Guest repository reach-throughs from the root.
   const snippets = Object.freeze({
-    findResponseSnippetsByIds: (ids: ReadonlyArray<string>, organizationId: string) =>
-      guestResponseRepo.findSnippetsForOrg(organizationId, ids),
-    findEligibleResponseIds: (
-      organizationId: string,
-      filter: GuestResponseContentFilter,
-    ) => guestResponseRepo.findEligibleSnippetIdsForOrg(organizationId, filter),
+    // The exposed signature stays string-in/string-out: composition.ts wires
+    // this into Inbox's FeedbackId-branded lookup port (ARC-03-T11) and must
+    // not be forced to change. Branding is internal, right at the repository call.
+    findResponseSnippetsByIds: (ids: ReadonlyArray<string>, orgId: string) =>
+      guestResponseRepo
+        .findSnippetsForOrg(organizationId(orgId), ids.map(guestResponseId))
+        .then((rows) => rows.map((row) => ({ ...row, id: unbrand(row.id) }))),
+    findEligibleResponseIds: (orgId: string, filter: GuestResponseContentFilter) =>
+      guestResponseRepo
+        .findEligibleSnippetIdsForOrg(organizationId(orgId), filter)
+        .then((ids) => ids.map(unbrand)),
     findLegacyFeedbackSnippetsByIds: (
       ids: ReadonlyArray<FeedbackId>,
       organizationId: OrganizationId,
@@ -210,21 +216,5 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
       managerAuthority: contactRequestManagerAuthority,
       retentionSweep: contactRequestRetention,
     }),
-    /** LIF-01: the Guest-owned Organization Export contributor. It stays out
-     * of `publicApi` on purpose — Guest is a dark context, and an export slice
-     * is lifecycle composition input, not a product capability any
-     * request-facing surface may reach. The contributor does not read Contact
-     * Request, so wiring it here activates nothing. */
-    organizationExportContributor: createGuestOrganizationExportContributor(deps.db),
-    /** LIF-01-T12/T13/T14: the Guest-owned Organization lifecycle
-     * contributor. Like the export slice it stays out of `publicApi`: the
-     * purge phase must remain unreachable by default, and it may only ever be
-     * reached through an explicitly reviewed composition of the lifecycle
-     * coordinator, never through a request-facing surface. Its Closing phase
-     * mutates nothing and it never reads Contact Request content, so wiring it
-     * here activates nothing. */
-    organizationLifecycleContributor: createGuestOrganizationLifecycleContributor(
-      deps.db,
-    ),
   } as const
 }

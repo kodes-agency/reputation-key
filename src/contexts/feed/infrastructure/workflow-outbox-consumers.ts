@@ -19,6 +19,7 @@ import {
   type PropertyId,
   type UserId,
 } from '#/shared/domain/ids'
+import { assertNever } from '#/shared/domain/assert'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
 import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
@@ -866,6 +867,8 @@ export async function handleWorkflowNotificationEvent(
     case 'review.reply.publication_cancelled':
       await enqueuePublicationCancelledNotifications(deps, parsed)
       break
+    default:
+      assertNever('handleWorkflowNotificationEvent', parsed)
   }
 
   await deps.receipts.insertReceipt(

@@ -13,16 +13,23 @@ import {
   MAX_RATING,
   MIN_RATING,
 } from './guest-response'
+import {
+  guestResponseId,
+  guestSessionId,
+  organizationId,
+  portalId,
+  propertyId,
+} from '#/shared/domain/ids'
 
 describe('GuestResponse', () => {
   const NOW = new Date('2026-01-15T12:00:00Z')
 
   const baseParams = {
-    id: 'resp-1',
-    organizationId: 'org-1',
-    propertyId: 'prop-1',
-    portalId: 'portal-1',
-    sessionId: 'session-1',
+    id: guestResponseId('resp-1'),
+    organizationId: organizationId('org-1'),
+    propertyId: propertyId('prop-1'),
+    portalId: portalId('portal-1'),
+    sessionId: guestSessionId('session-1'),
     sessionExpiresAt: new Date('2026-01-16T12:00:00Z'),
     retentionDeadline: new Date('2026-04-15T12:00:00Z'),
     staffAttribution: null,

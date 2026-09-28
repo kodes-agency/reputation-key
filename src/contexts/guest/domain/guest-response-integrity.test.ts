@@ -13,6 +13,13 @@ import {
   ratingMetricOccurredAt,
   type GuestResponseInitialIntegrityAssessment,
 } from './guest-response-integrity'
+import {
+  guestResponseId,
+  guestSessionId,
+  organizationId,
+  portalId,
+  propertyId,
+} from '#/shared/domain/ids'
 
 const NOW = new Date('2026-01-15T12:00:00Z')
 const LATER = new Date('2026-01-15T13:00:00Z')
@@ -20,11 +27,11 @@ const LATER = new Date('2026-01-15T13:00:00Z')
 function response(): GuestResponse {
   return submitResponse(
     createResponse({
-      id: 'resp-1',
-      organizationId: 'org-1',
-      propertyId: 'prop-1',
-      portalId: 'portal-1',
-      sessionId: 'session-1',
+      id: guestResponseId('resp-1'),
+      organizationId: organizationId('org-1'),
+      propertyId: propertyId('prop-1'),
+      portalId: portalId('portal-1'),
+      sessionId: guestSessionId('session-1'),
       sessionExpiresAt: new Date('2026-01-16T12:00:00Z'),
       retentionDeadline: new Date('2028-01-15T12:00:00Z'),
       staffAttribution: null,
@@ -49,11 +56,11 @@ function pendingResponse(
   integrityAssessment?: GuestResponseInitialIntegrityAssessment,
 ): GuestResponse {
   return createResponse({
-    id: 'resp-pending',
-    organizationId: 'org-1',
-    propertyId: 'prop-1',
-    portalId: 'portal-1',
-    sessionId: 'session-pending',
+    id: guestResponseId('resp-pending'),
+    organizationId: organizationId('org-1'),
+    propertyId: propertyId('prop-1'),
+    portalId: portalId('portal-1'),
+    sessionId: guestSessionId('session-pending'),
     sessionExpiresAt: new Date('2026-01-16T12:00:00Z'),
     retentionDeadline: new Date('2028-01-15T12:00:00Z'),
     staffAttribution: null,
@@ -98,11 +105,11 @@ describe('Guest Response integrity', () => {
     }
     const filtered = submitResponse(
       createResponse({
-        id: 'resp-filtered',
-        organizationId: 'org-1',
-        propertyId: 'prop-1',
-        portalId: 'portal-1',
-        sessionId: 'session-filtered',
+        id: guestResponseId('resp-filtered'),
+        organizationId: organizationId('org-1'),
+        propertyId: propertyId('prop-1'),
+        portalId: portalId('portal-1'),
+        sessionId: guestSessionId('session-filtered'),
         sessionExpiresAt: new Date('2026-01-16T12:00:00Z'),
         retentionDeadline: new Date('2028-01-15T12:00:00Z'),
         staffAttribution: null,

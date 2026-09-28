@@ -1,3 +1,4 @@
+import { APIError } from 'better-auth'
 import { describe, expect, it, vi } from 'vitest'
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createSequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
@@ -247,6 +248,180 @@ describe('registerInvitedUser', () => {
     expect(fixture.logger.error).toHaveBeenCalledWith(
       { err: expect.any(Error) },
       '[identity] invited registration post-accept hook failed',
+    )
+  })
+})
+
+/**
+ * An invitee is unauthenticated, and whatever this use case throws reaches
+ * their browser verbatim as the registration_failed message. A driver or query
+ * error's text names constraints, SQL and bound parameters, so only a fixed
+ * message may leave — a known refusal the invitee can act on gets its own
+ * fixed copy, and the operator gets the cause by name and code in the log.
+ */
+describe('registerInvitedUser sign-up failures', () => {
+  const REGISTRATION_FAILED = 'Registration failed. Please try again.'
+
+  /** What pg raises on a constraint race: the message names the constraint. */
+  const uniqueViolation = () =>
+    Object.assign(
+      new Error('duplicate key value violates unique constraint "user_email_unique"'),
+      { name: 'error', code: '23505' },
+    )
+
+  /** Drizzle's wrapper puts the SQL and its bound parameters in the message. */
+  const failedQuery = () =>
+    Object.assign(
+      new Error(
+        'Failed query: select "value" from "verification" where "verification"."email" = $1\nparams: manager@example.com',
+      ),
+      {
+        name: 'DrizzleQueryError',
+        cause: Object.assign(new Error('terminating connection'), { code: '57P01' }),
+      },
+    )
+
+  const rejection = async (fixture: ReturnType<typeof setup>) =>
+    fixture.useCase(fixture.input).then(
+      () => {
+        throw new Error('expected the registration to be refused')
+      },
+      (error: unknown) => error,
+    )
+
+  it('returns a fixed message, never the text of an unexpected sign-up failure', async () => {
+    const fixture = setup()
+    fixture.signUp.mockRejectedValueOnce(uniqueViolation())
+
+    const error = await rejection(fixture)
+
+    expect(error).toMatchObject({
+      _tag: 'IdentityError',
+      code: 'registration_failed',
+      message: REGISTRATION_FAILED,
+    })
+    expect((error as Error).message).not.toContain('user_email_unique')
+  })
+
+  it('returns a fixed message when the reconciliation read itself fails', async () => {
+    const fixture = setup()
+    fixture.signUp.mockRejectedValueOnce(new Error('socket hang up'))
+    fixture.reconcile.mockRejectedValueOnce(failedQuery())
+
+    const error = await rejection(fixture)
+
+    expect(error).toMatchObject({
+      code: 'registration_failed',
+      message: REGISTRATION_FAILED,
+    })
+    expect((error as Error).message).not.toMatch(/Failed query|manager@example\.com/u)
+  })
+
+  it.each([
+    [
+      'USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL',
+      'UNPROCESSABLE_ENTITY',
+      'User already exists. Use another email.',
+      'An account already exists for this email. Sign in, then open your invitation link again.',
+    ],
+    [
+      'USER_ALREADY_EXISTS',
+      'UNPROCESSABLE_ENTITY',
+      'User already exists.',
+      'An account already exists for this email. Sign in, then open your invitation link again.',
+    ],
+    [
+      'PASSWORD_TOO_SHORT',
+      'BAD_REQUEST',
+      'Password too short',
+      'That password is too short. Choose a longer one.',
+    ],
+    [
+      'PASSWORD_TOO_LONG',
+      'BAD_REQUEST',
+      'Password too long',
+      'That password is too long. Choose a shorter one.',
+    ],
+    ['INVALID_EMAIL', 'BAD_REQUEST', 'Invalid email', 'Enter a valid email address.'],
+  ] as const)(
+    'keeps a clear, fixed message for the %s refusal the invitee can act on',
+    async (code, status, providerMessage, expected) => {
+      const fixture = setup()
+      fixture.signUp.mockRejectedValueOnce(
+        APIError.from(status, { code, message: providerMessage }),
+      )
+      fixture.reconcile.mockResolvedValueOnce({ kind: 'compensated' })
+
+      await expect(fixture.useCase(fixture.input)).rejects.toMatchObject({
+        _tag: 'IdentityError',
+        code: 'registration_failed',
+        message: expected,
+      })
+    },
+  )
+
+  it.each(['FAILED_TO_CREATE_USER', 'constructor'])(
+    'gives an unrecognized provider refusal (%s) the fixed generic message',
+    async (code) => {
+      const fixture = setup()
+      fixture.signUp.mockRejectedValueOnce(
+        APIError.from('UNPROCESSABLE_ENTITY', {
+          code,
+          message: 'relation "user" is gone',
+        }),
+      )
+
+      await expect(fixture.useCase(fixture.input)).rejects.toMatchObject({
+        code: 'registration_failed',
+        message: REGISTRATION_FAILED,
+      })
+    },
+  )
+
+  it('logs the cause by name and code only — no email, password or message text', async () => {
+    const fixture = setup()
+    fixture.signUp.mockRejectedValueOnce(
+      Object.assign(uniqueViolation(), {
+        message: 'Key (email)=(manager@example.com) already exists',
+      }),
+    )
+
+    await rejection(fixture)
+
+    expect(fixture.logger.error).toHaveBeenCalledWith(
+      {
+        registrationVerificationId: '10000000-0000-4000-8000-000000000001',
+        signUpError: { name: 'error', code: '23505' },
+        recoveryOutcome: 'awaiting_provider',
+      },
+      '[identity] invited registration sign-up failed',
+    )
+    const logged = JSON.stringify(fixture.logger.error.mock.calls)
+    expect(logged).not.toMatch(/manager@example\.com|safe-password|Key \(email\)/u)
+  })
+
+  it('logs a failed reconciliation by name and its driver code', async () => {
+    const fixture = setup()
+    fixture.signUp.mockRejectedValueOnce(
+      APIError.from('UNPROCESSABLE_ENTITY', {
+        code: 'FAILED_TO_CREATE_USER',
+        message: 'Failed to create user',
+      }),
+    )
+    fixture.reconcile.mockRejectedValueOnce(failedQuery())
+
+    await rejection(fixture)
+
+    expect(fixture.logger.error).toHaveBeenCalledWith(
+      {
+        registrationVerificationId: '10000000-0000-4000-8000-000000000001',
+        signUpError: { name: 'APIError', code: 'FAILED_TO_CREATE_USER' },
+        reconciliationError: { name: 'DrizzleQueryError', code: '57P01' },
+      },
+      '[identity] invited registration sign-up failed',
+    )
+    expect(JSON.stringify(fixture.logger.error.mock.calls)).not.toMatch(
+      /Failed query|manager@example\.com/u,
     )
   })
 })

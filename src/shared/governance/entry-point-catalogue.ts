@@ -71,15 +71,14 @@ export type SystemAction =
   | 'system:portal.health_reconcile'
   | 'system:portal.responsibility_reannounce'
   | 'system:portal.destination_revalidate'
-  | 'system:property.import'
   | 'system:property.import_v2'
   | 'system:review.sync'
   | 'system:review.refresh_sweep'
   | 'system:review.discovery_sweep'
   | 'system:review.purge'
   | 'system:review.reconcile'
+  | 'system:review.cancel_connection_publications'
   | 'system:reply.publish'
-  | 'system:metric.refresh'
   | 'system:metric.record'
   | 'system:metric.record_guest_analytics'
   | 'system:metric.record_public_reputation'
@@ -90,11 +89,11 @@ export type SystemAction =
   | 'system:ai.review_analysis_enrollment_sweep'
   | 'system:ai.review_analysis_backlog_drain'
   | 'system:ai.review_analysis_on_demand'
+  | 'system:ai.review_analysis_event'
+  | 'system:ai.review_analysis_enrollment'
   | 'system:permit.start_deadline_fence'
   | 'system:property.import_claim_reap'
   | 'system:goal.reconcile'
-  | 'system:goal.spawn'
-  | 'system:goal.progress'
   | 'system:goal.maintain'
   | 'system:activity.record'
   | 'system:notification.insert'
@@ -105,7 +104,6 @@ export type SystemAction =
   | 'system:notification.email_urgent'
   | 'system:notification.email_mandatory'
   | 'system:notification.email_digest'
-  | 'system:notification.delivery_event'
   | 'system:notification.reconcile'
   | 'system:notification.settle'
   | 'system:inbox.update'
@@ -340,6 +338,15 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'property.publish_reply',
     'property',
   ),
+  // Cancelling a disconnected connection's reply publications is cleanup:
+  // ungated, because a denied consumer is never retried, and scoped to the
+  // Organization, because the disconnect fact carries no Property.
+  consumer(
+    'review.connection-lifecycle',
+    'system:review.cancel_connection_publications',
+    'none',
+    'organization',
+  ),
   consumer(
     'portal.health-outbox-consumers',
     'system:portal.health_reconcile',
@@ -502,7 +509,31 @@ const CONSUMER_ROWS: ReadonlyArray<EntryPointRow> = [
     'property.import_gbp_v2',
     'organization',
   ),
-  consumer('ai.outbox-consumers', 'system:ai.trend', 'ai.detect_trends', 'property'),
+  // AI consumers are gated per capability, so one capability's stop never
+  // obsoletes another's deliveries: Review Analysis on ai.analyze, like the
+  // jobs that run the same analysis, and trend generation on ai.detect_trends.
+  consumer(
+    'ai.review-analysis-consumers',
+    'system:ai.review_analysis_event',
+    'ai.analyze',
+    'property',
+  ),
+  // Enrollment records a merchant's enable, disable or revoke: ungated,
+  // because a denied consumer is never retried and that record must survive
+  // any stop. The provider work it leads to is gated on ai.analyze by the
+  // analysis consumer and the backlog-drain job.
+  consumer(
+    'ai.review-analysis-enrollment',
+    'system:ai.review_analysis_enrollment',
+    'none',
+    'property',
+  ),
+  consumer(
+    'ai.property-trend-consumers',
+    'system:ai.trend',
+    'ai.detect_trends',
+    'property',
+  ),
   consumer('activity.outbox-consumers', 'system:activity.record', 'none', 'organization'),
   // Its own action: 'system:goal.maintain' is the tenant-cross hourly sweep.
   consumer(

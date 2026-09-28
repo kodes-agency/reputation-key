@@ -39,15 +39,19 @@ import type {
 } from '../ports/guest-response-command-store.port'
 import {
   feedbackId,
+  guestResponseId,
   organizationId,
   portalId,
   propertyId,
   ratingId,
+  type GuestResponseId,
+  type GuestSessionId,
   type OrganizationId,
   type PortalId,
   type PropertyId,
 } from '#/shared/domain/ids'
 import type { PrimaryStaffAttributionSnapshot } from '#/shared/domain/primary-staff-attribution'
+import { assertNever } from '#/shared/domain/assert'
 
 export type ResolvePrimaryStaffAttribution = (
   input: Readonly<{
@@ -95,6 +99,28 @@ export type GuestResponseView = Readonly<{
   feedbackWithdrawnAt: string | null
   deletedAt: string | null
 }>
+
+/**
+ * Whether the session's response admits a qualified follow-up action (a fresh
+ * response on a shared device, a Google Review selection, a secondary-link
+ * selection): it holds a durable private rating and was not withdrawn. The
+ * switch is exhaustive, so a new status must decide here.
+ */
+export function isQualifiedGuestResponse(view: GuestResponseView | null): boolean {
+  if (view === null) return false
+  switch (view.status) {
+    case 'deleted':
+      return false
+    case 'pending':
+    case 'submitted':
+    case 'corrected':
+    case 'moderated':
+    case 'expired':
+      return view.rating !== null
+    default:
+      return assertNever('isQualifiedGuestResponse', view.status)
+  }
+}
 
 export class GuestResponseLifecycleError extends Error {
   constructor(readonly code: string) {
@@ -227,7 +253,7 @@ export function guestResponseLifecycle(
     resolvePrimaryStaffAttribution: ResolvePrimaryStaffAttribution
   }>,
 ) {
-  const getState = async (scope: GuestResponseScope, sessionId: string) => {
+  const getState = async (scope: GuestResponseScope, sessionId: GuestSessionId) => {
     const now = deps.clock()
     const response = await deps.repo.findForSession(scope, sessionId, now)
     return response ? toView(response, now) : null
@@ -256,7 +282,7 @@ export function guestResponseLifecycle(
         guestRatingSubmitted({
           ratingId: ratingId(response.id),
           ...scopeIds,
-          value: response.rating!,
+          value: response.rating,
           occurredAt,
           staffAttribution: response.staffAttribution,
         }),
@@ -297,7 +323,7 @@ export function guestResponseLifecycle(
         guestRatingSubmitted({
           ratingId: ratingId(corrected.id),
           ...scopeIds,
-          value: corrected.rating!,
+          value: corrected.rating,
           supersedesSourceEventId: previous.ratingSourceEventId,
           occurredAt,
           staffAttribution: corrected.staffAttribution,
@@ -388,7 +414,10 @@ export function guestResponseLifecycle(
       portalId: portalId(changed.portalId),
       propertyId: propertyId(changed.propertyId),
     }
-    if (wasEligible) {
+    // The two are proven to differ above, so branching on `isEligible`
+    // (rather than `wasEligible`) narrows `changed.rating` to `number` in the
+    // submitted-fact branch below without a non-null assertion.
+    if (!isEligible) {
       if (!previous.ratingSourceEventId) {
         throw new GuestResponseLifecycleError('response_unavailable')
       }
@@ -406,7 +435,7 @@ export function guestResponseLifecycle(
       guestRatingSubmitted({
         ratingId: ratingId(changed.id),
         ...scopeIds,
-        value: changed.rating!,
+        value: changed.rating,
         supersedesSourceEventId: previous.ratingSourceEventId,
         occurredAt: ratingMetricOccurredAt(changed),
         staffAttribution: changed.staffAttribution,
@@ -433,7 +462,7 @@ export function guestResponseLifecycle(
 
     submit: async (
       scope: GuestResponseScope,
-      sessionId: string,
+      sessionId: GuestSessionId,
       input: GuestResponseInput,
       experience: GuestResponseExperienceInput,
       sessionExpiresAt?: Date,
@@ -466,7 +495,7 @@ export function guestResponseLifecycle(
       const submitted = unwrap(
         submitResponse(
           createResponse({
-            id: deps.idGen(),
+            id: guestResponseId(deps.idGen()),
             ...scope,
             sessionId,
             sessionExpiresAt: bindingExpiresAt,
@@ -497,7 +526,7 @@ export function guestResponseLifecycle(
 
     addPrivateFeedback: async (
       scope: GuestResponseScope,
-      sessionId: string,
+      sessionId: GuestSessionId,
       input: Readonly<{ text: string; textConsent: boolean }>,
     ): Promise<GuestResponseView> => {
       const now = deps.clock()
@@ -534,7 +563,7 @@ export function guestResponseLifecycle(
 
     withdrawPrivateFeedback: async (
       scope: GuestResponseScope,
-      sessionId: string,
+      sessionId: GuestSessionId,
     ): Promise<GuestResponseView> => {
       const current = await deps.repo.findForSession(scope, sessionId, deps.clock())
       if (!current) throw new GuestResponseLifecycleError('response_not_found')
@@ -568,7 +597,7 @@ export function guestResponseLifecycle(
     // double-counting or leaving the originally submitted value stale.
     correct: async (
       scope: GuestResponseScope,
-      sessionId: string,
+      sessionId: GuestSessionId,
       input: GuestResponseInput,
     ): Promise<GuestResponseView> => {
       const current = await deps.repo.findForSession(scope, sessionId, deps.clock())
@@ -598,7 +627,7 @@ export function guestResponseLifecycle(
      */
     changeIntegrity: async (
       scope: GuestResponseScope,
-      responseId: string,
+      responseId: GuestResponseId,
       input: Readonly<{
         outcome: GuestResponseIntegrityOutcome
         reasonCode: string
@@ -627,7 +656,7 @@ export function guestResponseLifecycle(
 
     withdraw: async (
       scope: GuestResponseScope,
-      sessionId: string,
+      sessionId: GuestSessionId,
     ): Promise<GuestResponseView> => {
       const current = await deps.repo.findForSession(scope, sessionId, deps.clock())
       if (!current) throw new GuestResponseLifecycleError('response_not_found')
@@ -648,7 +677,7 @@ export function guestResponseLifecycle(
 
     moderate: async (
       scope: GuestResponseScope,
-      responseId: string,
+      responseId: GuestResponseId,
       action: 'quarantine' | 'delete',
     ): Promise<GuestResponseView> => {
       const current = await deps.repo.findById(scope, responseId)

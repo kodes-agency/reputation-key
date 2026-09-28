@@ -52,7 +52,10 @@ name: Review
 #     security job actually reported green through four runs in which nothing
 #     was reviewed, which is how the requirement was found.
 #
-# REMAINING ACTIVATION STEP: add `review` to the branch's required status checks.
+# NOT A REQUIRED CHECK, BY DECISION (2026-09-28): `security` and
+# `control-vs-ceremony` stay informational (docs/operations/security-ci-policy.md,
+# "The AI review workflow is not a gate"). A bot approving a bot's work protects
+# nothing, and a lapsed credential must never block every merge.
 
 on:
   pull_request:

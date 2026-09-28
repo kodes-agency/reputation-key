@@ -1,0 +1,14 @@
+-- portal_groups carried two independent foreign keys into properties: this
+-- inline single-column CASCADE (property_id -> properties.id) plus the
+-- composite tenant FK portal_groups_property_tenant_fk
+-- (organization_id, property_id -> properties.organization_id, properties.id)
+-- ON DELETE RESTRICT. PostgreSQL does not guarantee which FK trigger fires
+-- first: an organization purge (property-organization-lifecycle.adapter.ts's
+-- scrubTenantRows, run concurrently with Portal's own receipted purge step)
+-- could hit this CASCADE path first and silently erase a "childless"
+-- portal_groups row before Portal's purge ever ran for it, defeating the
+-- RESTRICT contract every other FK into portal_groups already relies on.
+--
+-- Drop the stray CASCADE constraint. The composite RESTRICT FK is the only
+-- intended path and is left untouched (database-01).
+ALTER TABLE "portal_groups" DROP CONSTRAINT "portal_groups_property_id_properties_id_fk";

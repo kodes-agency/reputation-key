@@ -9,7 +9,8 @@ import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import type {
   AiPropertyInsightsRead,
-  AiTrendReportRead,
+  AiTrendReportView,
+  AiTrendSupportingReviewView,
 } from '#/contexts/ai/application/public-api'
 import type { getPropertyAiTrendFn } from '#/contexts/ai/server/property-trend'
 import type { DashboardRange } from '#/shared/dashboard-range'
@@ -92,7 +93,56 @@ function formatSupportingReviewDate(localDate: string): string {
   return SUPPORTING_REVIEW_DATE.format(new Date(`${localDate}T00:00:00.000Z`))
 }
 
-function TrendHeadline({ trend }: Readonly<{ trend: AiTrendReportRead | undefined }>) {
+function SupportingReview({
+  propertyId,
+  review,
+}: Readonly<{ propertyId: string; review: AiTrendSupportingReviewView }>) {
+  const date = formatSupportingReviewDate(review.localDate)
+  const label = `${review.window === 'current' ? 'Current period' : 'Previous period'} · ${date}`
+  // No item this viewer may open: the evidence stays readable, without a dead link.
+  if (review.inboxItemId === null) {
+    return (
+      <span className="inline-flex min-h-11 items-center rounded-md border px-3 text-sm text-muted-foreground">
+        {label}
+      </span>
+    )
+  }
+  return (
+    <Link
+      to="/properties/$propertyId/reviews"
+      params={{ propertyId }}
+      search={{ itemId: review.inboxItemId }}
+      aria-label={`Open supporting review from ${date} in the inbox`}
+      className="inline-flex min-h-11 items-center rounded-md border px-3 text-sm text-link underline-offset-4 hover:bg-muted/40 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+    >
+      {label}
+    </Link>
+  )
+}
+
+export function TrendSupportingReviews({
+  propertyId,
+  reviews,
+}: Readonly<{ propertyId: string; reviews: readonly AiTrendSupportingReviewView[] }>) {
+  if (reviews.length === 0) return null
+  return (
+    <div className="flex flex-col gap-2">
+      <p className="text-sm text-muted-foreground">Supporting reviews</p>
+      <ul className="flex flex-wrap gap-2">
+        {reviews.slice(0, 5).map((review) => (
+          <li key={review.reviewId}>
+            <SupportingReview propertyId={propertyId} review={review} />
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function TrendHeadline({
+  trend,
+  propertyId,
+}: Readonly<{ trend: AiTrendReportView | undefined; propertyId: string }>) {
   if (trend?.status !== 'ready') return null
   const sentence =
     trend.report.sentences?.[0] ?? trend.report.summary ?? trend.report.headline
@@ -106,28 +156,10 @@ function TrendHeadline({ trend }: Readonly<{ trend: AiTrendReportRead | undefine
       >
         {text}
       </h2>
-      {trend.evidence.supportingReviews.length > 0 ? (
-        <div className="flex flex-col gap-2">
-          <p className="text-sm text-muted-foreground">Supporting reviews</p>
-          <ul className="flex flex-wrap gap-2">
-            {trend.evidence.supportingReviews.slice(0, 5).map((review) => {
-              const date = formatSupportingReviewDate(review.localDate)
-              return (
-                <li key={review.reviewId}>
-                  <a
-                    href={review.href}
-                    aria-label={`Open supporting review from ${date} in the inbox`}
-                    className="inline-flex min-h-11 items-center rounded-md border px-3 text-sm text-link underline-offset-4 hover:bg-muted/40 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
-                  >
-                    {review.window === 'current' ? 'Current period' : 'Previous period'} ·{' '}
-                    {date}
-                  </a>
-                </li>
-              )
-            })}
-          </ul>
-        </div>
-      ) : null}
+      <TrendSupportingReviews
+        propertyId={propertyId}
+        reviews={trend.evidence.supportingReviews}
+      />
     </section>
   )
 }
@@ -236,7 +268,7 @@ export function PropertyGuestVoicePage({
         <GuestVoiceState result={result} range={range} propertyId={propertyId} />
       ) : (
         <div className="flex flex-col gap-6">
-          <TrendHeadline trend={trend.data} />
+          <TrendHeadline trend={trend.data} propertyId={propertyId} />
           <PropertyGuestVoiceBasis result={result} />
           <section aria-labelledby="guest-voice-topics" className="flex flex-col gap-4">
             <div className="flex flex-col gap-1">

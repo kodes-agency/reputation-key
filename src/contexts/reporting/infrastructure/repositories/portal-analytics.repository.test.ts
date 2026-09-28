@@ -377,9 +377,6 @@ describe('governed Portal analytics repository (integration)', () => {
     await onScanRecordedDurably({
       recordMetrics: project,
       findGroupForPortal: async () => null,
-      logger: {
-        warn: () => {},
-      },
     })({
       _tag: 'guest.scan.recorded',
       eventId: SOURCE_EVENTS.scanAtomic,

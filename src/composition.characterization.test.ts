@@ -42,7 +42,6 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'alertDispatcher',
   'assetStorage',
   'backgroundQueue',
-  'betaFeedbackTriageRepo',
   'cache',
   // ARC-03-T8: the policy trio is container-owned. Building a container no
   // longer installs it process-wide; one entry point binds one container.
@@ -62,6 +61,9 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'guestPublicApi',
   'handleResendEvent',
   'idGen',
+  // The reporter's beta-feedback requests; the triage repository itself is
+  // never on the container.
+  'identityBetaFeedback',
   'identityLifecycleRuntime',
   'identityPort',
   'identityPublicApi',
@@ -136,6 +138,8 @@ const EXPECTED_INBOX_PUBLIC_API_KEYS = [
   'getLastVisitCount',
   'getPrivateFeedbackTargetAnalytics',
   'getResponseTargetPolicySettings',
+  // Guest voice's supporting reviews open the Inbox Item for each cited Review.
+  'getReviewInboxItemIds',
   'markFeedbackHandled',
   'resolveEscalation',
   'setResponseTargetPolicy',
@@ -204,6 +208,29 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
     ])
   })
 
+  it('keeps the Property Google-binding store off the Property public API', () => {
+    // Every server function can reach propertyPublicApi; binding state changes
+    // only through Integration's propertyBindingApi or the audited
+    // management.disconnectPropertyGoogleBinding use case.
+    for (const member of [
+      'readInternal',
+      'readByLocationIds',
+      'readSummary',
+      'readReceipt',
+      'createBoundProperty',
+      'relink',
+      'disconnect',
+      'scrubProviderIdentity',
+      'releaseRetention',
+      'releaseRetentionFromEvent',
+      'sweepReleasedExpired',
+      'countUnreleasedExpired',
+      'cleanupOrganization',
+    ]) {
+      expect(container.propertyPublicApi).not.toHaveProperty(member)
+    }
+  })
+
   it('exposes exact frozen Integration capabilities by workflow', () => {
     expect(Object.keys(container.integrationPublicApi).sort()).toEqual([
       'connections',
@@ -216,7 +243,6 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
       'disconnect',
       'list',
       'resume',
-      'updateVisibility',
     ])
     expect(Object.keys(container.integrationPublicApi.oauth).sort()).toEqual([
       'admitPreState',
@@ -236,7 +262,6 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
       'cancelImportsForOrganization',
       'cancelImportsForUser',
       'finalizePropertyDeletion',
-      'organizationExportContributor',
       'organizationLifecycleContributor',
       'prepareConnectorDeparture',
       'preparePropertyDeletion',
@@ -246,6 +271,7 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
     ])
     expect(Object.keys(container.integrationWorkerRuntime).sort()).toEqual([
       'processImportItem',
+      'reconcileProviderRecovery',
       'registerOutboxConsumers',
       'sweepImportLifecycle',
     ])

@@ -6,6 +6,8 @@ import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   feedbackId,
+  guestResponseId,
+  guestSessionId,
   organizationId,
   portalId,
   propertyId,
@@ -33,8 +35,8 @@ const db = getDb()
 const ORG = organizationId('org-guest-response-command-store')
 const PROPERTY = propertyId('51000000-0000-4000-8000-000000000001')
 const PORTAL = portalId('51000000-0000-4000-8000-000000000002')
-const RESPONSE = '51000000-0000-4000-8000-000000000003'
-const SESSION = '51000000-0000-4000-8000-000000000004'
+const RESPONSE = guestResponseId('51000000-0000-4000-8000-000000000003')
+const SESSION = guestSessionId('51000000-0000-4000-8000-000000000004')
 const STAFF_PARTICIPANT = '51000000-0000-4000-8000-000000000005'
 const STAFF_PARTICIPANT_REPLACEMENT = '51000000-0000-4000-8000-000000000006'
 const STAFF_PARTICIPATION = '51000000-0000-4000-8000-000000000007'
@@ -43,6 +45,12 @@ const PORTAL_RESPONSIBILITY = '51000000-0000-4000-8000-000000000009'
 const PORTAL_RESPONSIBILITY_REPLACEMENT = '51000000-0000-4000-8000-000000000010'
 const NOW = new Date('2026-08-25T12:00:00.000Z')
 const STAFF_EFFECTIVE_FROM = new Date('2026-08-01T00:00:00.000Z')
+// A second tenant whose response the cross-tenant commands below aim at.
+const OTHER_ORG = organizationId('org-guest-response-command-store-other')
+const OTHER_PROPERTY = propertyId('51000000-0000-4000-8000-000000000021')
+const OTHER_PORTAL = portalId('51000000-0000-4000-8000-000000000022')
+const OTHER_RESPONSE = guestResponseId('51000000-0000-4000-8000-000000000023')
+const OTHER_SESSION = guestSessionId('51000000-0000-4000-8000-000000000024')
 
 const createAtomicGuestResponseCommandStore = (
   database: Parameters<typeof createAtomicGuestResponseCommandStoreFactory>[0],
@@ -108,25 +116,40 @@ function response(): GuestResponse {
   }
 }
 
-function facts(): readonly [
+/** The same submission, owned by the second tenant. */
+function otherTenantResponse(): GuestResponse {
+  return {
+    ...response(),
+    id: OTHER_RESPONSE,
+    organizationId: OTHER_ORG,
+    propertyId: OTHER_PROPERTY,
+    portalId: OTHER_PORTAL,
+    sessionId: OTHER_SESSION,
+  }
+}
+
+function facts(
+  owner: GuestResponse = response(),
+): readonly [
   ReturnType<typeof guestRatingSubmitted>,
   ReturnType<typeof guestFeedbackSubmitted>,
 ] {
+  const scope = {
+    organizationId: organizationId(owner.organizationId),
+    propertyId: propertyId(owner.propertyId),
+    portalId: portalId(owner.portalId),
+  }
   return [
     guestRatingSubmitted({
-      ratingId: ratingId(RESPONSE),
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      portalId: PORTAL,
+      ratingId: ratingId(owner.id),
+      ...scope,
       value: 2,
       occurredAt: NOW,
     }),
     guestFeedbackSubmitted({
-      feedbackId: feedbackId(RESPONSE),
-      ratingId: ratingId(RESPONSE),
-      organizationId: ORG,
-      propertyId: PROPERTY,
-      portalId: PORTAL,
+      feedbackId: feedbackId(owner.id),
+      ratingId: ratingId(owner.id),
+      ...scope,
       responseRevision: 1,
       occurredAt: NOW,
     }),
@@ -153,6 +176,28 @@ beforeAll(async () => {
     ) VALUES (
       ${PORTAL}, ${ORG}, ${PROPERTY}, 'property', ${PROPERTY},
       'Guest Command Portal', 'guest-command-portal', 'published'
+    ) ON CONFLICT (id) DO NOTHING
+  `)
+  await db.execute(sql`
+    INSERT INTO organization (id, name, slug, "createdAt")
+    VALUES (${OTHER_ORG}, 'Guest Response Command Store Other', ${OTHER_ORG}, now())
+    ON CONFLICT (id) DO NOTHING
+  `)
+  await db.execute(sql`
+    INSERT INTO properties (id, organization_id, name, slug, timezone)
+    VALUES (
+      ${OTHER_PROPERTY}, ${OTHER_ORG}, 'Guest Command Other Property',
+      'guest-command-other-property', 'UTC'
+    )
+    ON CONFLICT (id) DO NOTHING
+  `)
+  await db.execute(sql`
+    INSERT INTO portals (
+      id, organization_id, property_id, entity_type, entity_id, name, slug,
+      publication_state
+    ) VALUES (
+      ${OTHER_PORTAL}, ${OTHER_ORG}, ${OTHER_PROPERTY}, 'property', ${OTHER_PROPERTY},
+      'Guest Command Other Portal', 'guest-command-other-portal', 'published'
     ) ON CONFLICT (id) DO NOTHING
   `)
   await db.execute(sql`
@@ -189,8 +234,12 @@ beforeAll(async () => {
 })
 
 beforeEach(async () => {
-  await db.execute(sql`DELETE FROM guest_responses WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM outbox_events WHERE organization_id = ${ORG}`)
+  await db.execute(
+    sql`DELETE FROM guest_responses WHERE organization_id IN (${ORG}, ${OTHER_ORG})`,
+  )
+  await db.execute(
+    sql`DELETE FROM outbox_events WHERE organization_id IN (${ORG}, ${OTHER_ORG})`,
+  )
   await db.execute(sql`
     DELETE FROM portal_responsibilities
     WHERE id = ${PORTAL_RESPONSIBILITY_REPLACEMENT}::uuid
@@ -203,18 +252,73 @@ beforeEach(async () => {
 })
 
 afterAll(async () => {
-  await db.execute(sql`DELETE FROM guest_responses WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM outbox_events WHERE organization_id = ${ORG}`)
+  await db.execute(
+    sql`DELETE FROM guest_responses WHERE organization_id IN (${ORG}, ${OTHER_ORG})`,
+  )
+  await db.execute(
+    sql`DELETE FROM outbox_events WHERE organization_id IN (${ORG}, ${OTHER_ORG})`,
+  )
   await db.execute(
     sql`DELETE FROM portal_responsibilities WHERE organization_id = ${ORG}`,
   )
   await db.execute(sql`DELETE FROM staff_participations WHERE organization_id = ${ORG}`)
   await db.execute(sql`DELETE FROM staff_participants WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM portals WHERE organization_id = ${ORG}`)
-  await db.execute(sql`DELETE FROM properties WHERE organization_id = ${ORG}`)
-  await deleteTestOrganizations(db, [ORG])
+  await db.execute(
+    sql`DELETE FROM portals WHERE organization_id IN (${ORG}, ${OTHER_ORG})`,
+  )
+  await db.execute(
+    sql`DELETE FROM properties WHERE organization_id IN (${ORG}, ${OTHER_ORG})`,
+  )
+  await deleteTestOrganizations(db, [ORG, OTHER_ORG])
   clearEventSchemas()
 })
+
+/** Commit the second tenant's response through the store, as a real submission does. */
+async function commitOtherTenantResponse(
+  store: ReturnType<typeof createAtomicGuestResponseCommandStore>,
+) {
+  const submissionFacts = facts(otherTenantResponse())
+  await expect(
+    store.commitSubmitted(otherTenantResponse(), submissionFacts),
+  ).resolves.toBe('applied')
+  return submissionFacts
+}
+
+/** The second tenant's response, feedback and integrity as its submission left them. */
+async function expectOtherTenantResponseUntouched(
+  submissionFacts: ReturnType<typeof facts>,
+) {
+  const rows = await db.execute(sql`
+    SELECT r.status, r.rating, r.integrity_outcome, r.integrity_revision,
+           r.rating_source_event_id, r.feedback_source_event_id,
+           f.body AS response_text
+    FROM guest_responses r
+    LEFT JOIN guest_response_private_feedback f ON f.response_id = r.id
+    WHERE r.id = ${OTHER_RESPONSE}
+  `)
+  expect(rows.rows).toEqual([
+    {
+      status: 'submitted',
+      rating: 2,
+      integrity_outcome: 'accepted',
+      integrity_revision: 1,
+      rating_source_event_id: submissionFacts[0].eventId,
+      feedback_source_event_id: submissionFacts[1].eventId,
+      response_text: 'Please contact the front desk.',
+    },
+  ])
+  const decisions = await db.execute(sql`
+    SELECT revision FROM guest_response_integrity_decisions
+    WHERE response_id = ${OTHER_RESPONSE}
+  `)
+  expect(decisions.rows).toEqual([{ revision: 1 }])
+  const retractions = await db.execute(sql`
+    SELECT id FROM outbox_events
+    WHERE organization_id IN (${ORG}, ${OTHER_ORG})
+      AND event_type IN ('guest.rating.retracted', 'guest.feedback.retracted')
+  `)
+  expect(retractions.rows).toHaveLength(0)
+}
 
 describe.sequential('atomic Guest response submission', () => {
   it('keeps the original Primary Staff snapshot through reassignment and correction', async () => {
@@ -1205,5 +1309,89 @@ describe.sequential('atomic Guest response submission', () => {
       'guest.feedback.retracted',
       'guest.rating.retracted',
     ])
+  })
+
+  it("never changes the integrity of another organization's response", async () => {
+    const store = createAtomicGuestResponseCommandStore(db)
+    const [otherRating, otherFeedback] = await commitOtherTenantResponse(store)
+    // Response, Property, Portal and lineage all name the other tenant's
+    // response; only the organization is the caller's own.
+    const crossTenant: GuestResponse = {
+      ...otherTenantResponse(),
+      organizationId: ORG,
+      ratingSourceEventId: otherRating.eventId,
+      feedbackSourceEventId: otherFeedback.eventId,
+    }
+    const reviewedAt = new Date('2026-08-25T12:10:00.000Z')
+    const excluded = changeGuestResponseIntegrity(
+      crossTenant,
+      {
+        outcome: 'under_review',
+        reasonCode: 'traffic_velocity_anomaly',
+        source: 'automatic',
+        actorId: 'guest-integrity-v1',
+      },
+      reviewedAt,
+    )
+    if ('code' in excluded) throw new Error(excluded.code)
+    const retraction = guestRatingRetracted({
+      ratingId: ratingId(OTHER_RESPONSE),
+      organizationId: ORG,
+      propertyId: OTHER_PROPERTY,
+      portalId: OTHER_PORTAL,
+      supersedesSourceEventId: otherRating.eventId,
+      occurredAt: reviewedAt,
+    })
+
+    await expect(
+      store.commitIntegrityChanged(crossTenant, excluded.response, excluded.decision, [
+        retraction,
+      ]),
+    ).resolves.toBe('conflict')
+
+    await expectOtherTenantResponseUntouched([otherRating, otherFeedback])
+  })
+
+  it("never withdraws another organization's response", async () => {
+    const store = createAtomicGuestResponseCommandStore(db)
+    const [otherRating, otherFeedback] = await commitOtherTenantResponse(store)
+    const deletedAt = new Date('2026-08-25T12:45:00.000Z')
+    const crossTenantWithdrawal: GuestResponse = {
+      ...otherTenantResponse(),
+      organizationId: ORG,
+      status: 'deleted',
+      rating: null,
+      text: null,
+      responseConsent: false,
+      textConsent: false,
+      deletedAt,
+      ratingSourceEventId: otherRating.eventId,
+      feedbackSourceEventId: otherFeedback.eventId,
+    }
+    const retractions = [
+      guestRatingRetracted({
+        ratingId: ratingId(OTHER_RESPONSE),
+        organizationId: ORG,
+        propertyId: OTHER_PROPERTY,
+        portalId: OTHER_PORTAL,
+        supersedesSourceEventId: otherRating.eventId,
+        occurredAt: deletedAt,
+      }),
+      guestFeedbackRetracted({
+        feedbackId: feedbackId(OTHER_RESPONSE),
+        organizationId: ORG,
+        propertyId: OTHER_PROPERTY,
+        portalId: OTHER_PORTAL,
+        supersedesSourceEventId: otherFeedback.eventId,
+        responseRevision: 1,
+        occurredAt: deletedAt,
+      }),
+    ]
+
+    await expect(store.commitWithdrawn(crossTenantWithdrawal, retractions)).resolves.toBe(
+      'conflict',
+    )
+
+    await expectOtherTenantResponseUntouched([otherRating, otherFeedback])
   })
 })

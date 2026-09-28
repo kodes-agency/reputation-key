@@ -639,6 +639,12 @@ export const reviewProviderSnapshotRuns = pgTable(
     uniqueIndex('review_provider_snapshot_one_active_idx')
       .on(t.organizationId, t.propertyId, t.sourceEpoch)
       .where(sql`${t.state} IN ('scanning', 'confirming', 'deleting')`),
+    // review_provider_snapshot_runs_completed_property_idx (database-03) is
+    // intentionally absent here: this table is expected to be one of the
+    // largest and fastest-growing in the system, so it is built by
+    // src/shared/db/concurrent-index-sidecar.ts with CREATE INDEX
+    // CONCURRENTLY instead of the transactional migrator, and registered as a
+    // DB-only construct in src/shared/db/schema/db-only-constructs.ts.
     check(
       'review_provider_snapshot_runs_state_valid',
       sql`${t.state} IN ('scanning', 'confirming', 'deleting', 'completed', 'failed')`,

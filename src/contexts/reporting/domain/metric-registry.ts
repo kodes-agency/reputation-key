@@ -1,9 +1,8 @@
 // POST-BETA-3 PB3.0-PB3.1: Governed metric registry.
 //
 // Per ADR 0041: a centralized, code-reviewed registry is the ONLY route
-// from source facts to goals, badges, leaderboards, and governed
-// dashboard metrics. Application code references a version ID, not an
-// ad-hoc formula.
+// from source facts to Goal Programs and governed reporting. Application
+// code references a version ID, not an ad-hoc formula.
 //
 // Rules:
 // - Material rule changes create a new version; they never mutate historical meaning.
@@ -22,14 +21,7 @@ export type SourcePolicyClass =
   | 'manager_confirmed_recognition'
 export type MetricScope = 'property' | 'portal_group' | 'portal'
 export type PermittedConsumer =
-  | 'dashboard'
-  | 'goal'
-  | 'badge'
-  | 'leaderboard'
-  | 'recognition'
-  | 'notification'
-  | 'export'
-  | 'portal_analytics'
+  'dashboard' | 'goal' | 'recognition' | 'notification' | 'export' | 'portal_analytics'
 
 export type InsufficientDataBehavior = 'unavailable' | 'quarantine'
 
@@ -165,8 +157,8 @@ export function evaluateInsufficientData(
 
 /**
  * Architectural constraint: certain source classes are NEVER eligible
- * for goals, badges, or leaderboards — even if they appear in a metric
- * definition's permitted consumers.
+ * for Goals — even if they appear in a metric definition's permitted
+ * consumers.
  *
  * Per ADRs 0041/0043: review-solicitation and Google-restricted sources
  * cannot enter staff gamification by any code path.
@@ -271,7 +263,7 @@ export const METRIC_DEFINITIONS = Object.freeze([
         minimumSample: 1,
         insufficientDataBehavior: 'unavailable',
         sourcePolicyAllowlist: ['first_party_workflow'],
-        permittedConsumers: ['dashboard', 'goal', 'badge', 'leaderboard', 'notification'],
+        permittedConsumers: ['dashboard', 'goal', 'notification'],
         employmentDecisionEligible: false,
         correctionBehavior: 'append_delta',
         fairnessReviewStatus: 'approved_for_consumers',
@@ -336,7 +328,7 @@ export const METRIC_DEFINITIONS = Object.freeze([
         minimumSample: 1,
         insufficientDataBehavior: 'unavailable',
         sourcePolicyAllowlist: ['first_party_workflow'],
-        permittedConsumers: ['dashboard', 'goal', 'badge', 'leaderboard', 'notification'],
+        permittedConsumers: ['dashboard', 'goal', 'notification'],
         employmentDecisionEligible: false,
         correctionBehavior: 'append_delta',
         fairnessReviewStatus: 'approved_for_consumers',
@@ -401,7 +393,7 @@ export const METRIC_DEFINITIONS = Object.freeze([
         minimumSample: 5,
         insufficientDataBehavior: 'unavailable',
         sourcePolicyAllowlist: ['first_party_workflow'],
-        permittedConsumers: ['dashboard', 'goal', 'badge', 'leaderboard', 'notification'],
+        permittedConsumers: ['dashboard', 'goal', 'notification'],
         employmentDecisionEligible: false,
         correctionBehavior: 'append_delta',
         fairnessReviewStatus: 'approved_for_consumers',

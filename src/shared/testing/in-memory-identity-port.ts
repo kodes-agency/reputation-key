@@ -88,12 +88,6 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
       const org = organizations.get(DEFAULT_TEST_ORG_ID)
       return org ?? null
     },
-    async listUserOrganizations(
-      _headers: Headers,
-    ): Promise<ReadonlyArray<OrganizationRecord>> {
-      return Array.from(organizations.values())
-    },
-
     async setActiveOrganization(
       _headers: Headers,
       organizationId: string,

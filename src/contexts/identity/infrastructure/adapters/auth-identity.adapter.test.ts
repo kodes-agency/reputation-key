@@ -17,7 +17,6 @@ const mockGetSession = vi.fn()
 const mockOnAcceptInvitation = vi.fn().mockResolvedValue(undefined)
 const mockListInvitations = vi.fn()
 const mockListUserInvitations = vi.fn()
-const mockListOrganizations = vi.fn()
 const mockSetActiveOrganization = vi.fn()
 const FIXED_NOW = new Date('2026-08-28T12:00:00.000Z')
 const adapterDeps = {
@@ -40,7 +39,6 @@ vi.mock('#/shared/auth/auth', () => ({
       listMembers: mockListMembers,
       listInvitations: mockListInvitations,
       listUserInvitations: mockListUserInvitations,
-      listOrganizations: mockListOrganizations,
       setActiveOrganization: mockSetActiveOrganization,
       getSession: mockGetSession,
     },

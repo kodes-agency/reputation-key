@@ -116,7 +116,7 @@ END`
  * neither fill the bound nor push allowed rows out of it.
  */
 const readSendableImmediateEmailRows = async (
-  db: Database,
+  db: Pick<Database, 'execute'>,
   isEmailDeliveryAllowed: IsEmailDeliveryAllowed,
   window: NotificationDeliveryLagWindow,
 ): Promise<ReadonlyArray<ImmediateEmailAcceptanceRow>> => {
@@ -194,7 +194,7 @@ const readSendableImmediateEmailRows = async (
 
 /** Durable source facts whose base consumer receipt is still absent (bounded). */
 const readSourceReceiptPending = async (
-  db: Database,
+  db: Pick<Database, 'execute'>,
   window: NotificationDeliveryLagWindow,
 ): Promise<PendingRow | undefined> => {
   const result = await db.execute<PendingRow>(sql`
@@ -222,7 +222,7 @@ const readSourceReceiptPending = async (
 
 /** Redis-accepted deliveries still without their materialization receipt (bounded). */
 const readMaterializationPending = async (
-  db: Database,
+  db: Pick<Database, 'execute'>,
   window: NotificationDeliveryLagWindow,
 ): Promise<MaterializationPendingRow | undefined> => {
   const result = await db.execute<MaterializationPendingRow>(sql`

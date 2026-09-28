@@ -10,7 +10,6 @@ import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { getContainer } from '#/composition'
 import { disconnectGoogleInputSchema } from '../application/dto/disconnect-google.dto'
-import { updateConnectionVisibilityInputSchema } from '../application/dto/update-connection-visibility.dto'
 import { isIntegrationError } from '../domain/errors'
 import { toGoogleConnectionDto } from '../application/dto/google-connection.dto'
 import { integrationErrorStatus } from './error-helpers'
@@ -62,35 +61,6 @@ export const disconnectGoogle = createServerFn({ method: 'POST' })
       },
       'POST',
       'integration.disconnectGoogle',
-    ),
-  )
-
-// ── updateConnectionVisibility ──────────────────────────────────────
-
-export const updateConnectionVisibility = createServerFn({ method: 'POST' })
-  .validator(updateConnectionVisibilityInputSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'integration.manage' })
-
-        try {
-          const { integrationPublicApi } = getContainer()
-          const connection = await integrationPublicApi.connections.updateVisibility(
-            data,
-            ctx,
-          )
-          return { connection: toGoogleConnectionDto(connection) }
-        } catch (e) {
-          if (isIntegrationError(e))
-            throwContextError('IntegrationError', e, integrationErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
-      'POST',
-      'integration.updateConnectionVisibility',
     ),
   )
 

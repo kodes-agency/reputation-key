@@ -151,6 +151,61 @@ function redemptionAccepted(
   return result.ok
 }
 
+type GatewayLogger = Readonly<{
+  warn: (fields: Readonly<Record<string, unknown>>, message: string) => void
+}>
+
+type CompletionAttempt = Readonly<{ completed: boolean; error?: unknown }>
+
+/**
+ * Settles the admission once the call is over and reports whether it did.
+ *
+ * A failure here reaches the caller only as `admission_denied` (see `execute`),
+ * and nothing else records it: the admission service answers `false` silently
+ * for a missing grant record or a permit whose revision moved, and a throwing
+ * hop (Redis, the permit authority) is swallowed here. That is the blind spot
+ * the start branch records from 2026-09-02, so the operator gets the stage,
+ * the outcome and what the call proved, never the admission or permit
+ * identifier. `err` is present only when the hop threw.
+ */
+async function completeAdmission(
+  admission: Pick<GoogleExecutionAdmissionService, 'complete'>,
+  logger: GatewayLogger | undefined,
+  input: Readonly<{
+    admissionId: string
+    routeKey: string
+    outcome: GoogleProviderOutcome
+    retryAfterMs: number | null
+    evidence: DispatchEvidence
+  }>,
+): Promise<boolean> {
+  const attempt = await admission
+    .complete({
+      admissionId: input.admissionId,
+      outcome: input.outcome,
+      retryAfterMs: input.retryAfterMs,
+    })
+    .then(
+      (completed): CompletionAttempt => ({ completed }),
+      (error: unknown): CompletionAttempt => ({ completed: false, error }),
+    )
+  if (attempt.completed) return true
+  logger?.warn(
+    {
+      surface: 'google-egress-gateway',
+      stage: 'admission-complete',
+      routeKey: input.routeKey,
+      outcome: input.outcome,
+      ...input.evidence,
+      ...(attempt.error instanceof Error
+        ? { err: { name: attempt.error.name, message: attempt.error.message } }
+        : {}),
+    },
+    'Google admission completion failed',
+  )
+  return false
+}
+
 export function createGoogleEgressGateway(
   deps: Readonly<{
     nowMs: () => number
@@ -164,9 +219,7 @@ export function createGoogleEgressGateway(
      * Optional so existing constructions keep working; without it this behaves
      * exactly as before and simply says nothing.
      */
-    logger?: Readonly<{
-      warn: (fields: Readonly<Record<string, unknown>>, message: string) => void
-    }>
+    logger?: GatewayLogger
   }>,
 ): GoogleEgressGateway {
   return Object.freeze({
@@ -361,13 +414,13 @@ export function createGoogleEgressGateway(
         ...evidence,
         retryAfterMs: 0,
       }
-      const completed = await deps.admission
-        .complete({
-          admissionId: started.grant.admissionId,
-          outcome,
-          retryAfterMs,
-        })
-        .catch(() => false)
+      const completed = await completeAdmission(deps.admission, deps.logger, {
+        admissionId: started.grant.admissionId,
+        routeKey: compiled.admission.routeKey,
+        outcome,
+        retryAfterMs,
+        evidence,
+      })
       // The code stays `admission_denied` for existing callers, but once fetch
       // was invoked Google may already have answered (or received) the request,
       // so the evidence reports what happened rather than implying a refusal

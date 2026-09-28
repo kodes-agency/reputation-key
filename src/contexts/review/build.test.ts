@@ -95,6 +95,29 @@ describe('Review context build', () => {
     expect(Object.isFrozen(api.organizationLifecycle)).toBe(true)
     expect(Object.keys(api.publicApi)).not.toContain('organizationLifecycle')
   })
+
+  it('publishes only named reads through lookups, never a repository write', () => {
+    const { api } = setup()
+
+    expect(Object.keys(api.lookups.reply).sort()).toEqual([
+      'findByReviewId',
+      'findMilestonesByReviewIds',
+      'findReviewIdsByReplyStage',
+      'findStatesByReviewIds',
+    ])
+    expect(Object.keys(api.lookups.review).sort()).toEqual([
+      'findById',
+      'findByIds',
+      'findByOrganizationId',
+      'findByPropertyId',
+    ])
+    expect(Object.isFrozen(api.lookups.reply)).toBe(true)
+    expect(Object.isFrozen(api.lookups.review)).toBe(true)
+    // A spread is what once carried upsert/deleteById across to Inbox.
+    expect({ ...api.lookups.reply }).not.toHaveProperty('upsert')
+    expect({ ...api.lookups.reply }).not.toHaveProperty('deleteById')
+    expect({ ...api.lookups.review }).not.toHaveProperty('upsert')
+  })
 })
 
 describe('Review queue admission', () => {

@@ -12,9 +12,13 @@ export const portalGroups = pgTable(
   {
     id: uuid('id').primaryKey().defaultRandom(),
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
-    propertyId: uuid('property_id')
-      .notNull()
-      .references(() => properties.id, { onDelete: 'cascade' }),
+    // No inline `.references()` here: the composite `portal_groups_property_tenant_fk`
+    // below is the only FK path into `properties`. An inline single-column
+    // CASCADE used to exist alongside it, racing the composite RESTRICT FK's
+    // trigger with no guaranteed firing order — an org purge could hit the
+    // CASCADE path first and silently erase a portal_groups row before
+    // Portal's own receipted purge ran for it (database-01).
+    propertyId: uuid('property_id').notNull(),
     name: varchar('name', { length: 100 }).notNull(),
     sortKey: varchar('sort_key', { length: 255 }),
     createdAt: createdAtColumn(),

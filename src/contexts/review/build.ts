@@ -16,9 +16,12 @@ import type {
   PropertyPublicationScopePort,
   ReviewPropertyPublicationLifecycle,
 } from './application/ports/property-publication-scope.port'
-import type { ReviewRepository } from './application/ports/review.repository'
+import type {
+  ReviewLookups,
+  ReviewRepository,
+} from './application/ports/review.repository'
 import type { ReviewObservationRepository } from './application/ports/review-observation.repository'
-import type { ReplyRepository } from './application/ports/reply.repository'
+import type { ReplyLookups, ReplyRepository } from './application/ports/reply.repository'
 import type { ReplyTemplateRepository } from './application/ports/reply-template.repository'
 import type { FindAmbiguousPublicationReconciliationCandidates } from './application/ports/publication-reconciliation-maintenance.port'
 import type { ReplyCommandStore } from './application/ports/reply-command-store.port'
@@ -92,7 +95,6 @@ import {
   approveReply,
   rejectReply,
   deleteReply,
-  getReply,
   retryPublish,
   editPublishedReply,
 } from './application/use-cases/reply-operations'
@@ -198,7 +200,6 @@ export type ReviewContextApi = Readonly<{
         editPublished: ReturnType<typeof editPublishedReply>
         reject: ReturnType<typeof rejectReply>
         delete: ReturnType<typeof deleteReply>
-        get: ReturnType<typeof getReply>
         retryPublish: ReturnType<typeof retryPublish>
         /** D5: read-only "Check Google again"; never authorizes or enqueues. */
         checkPublication: CheckReplyPublication
@@ -252,11 +253,12 @@ export type ReviewContextApi = Readonly<{
   /**
    * ARC-03-T12: narrow cross-context read lookups Review publishes. They
    * satisfy the Inbox-owned lookup source contracts and the Dashboard's review
-   * stats dep port; the repositories themselves stay context-private.
+   * stats dep port. Each is a frozen object of named reads, so neither the
+   * type nor the runtime value hands another context a repository write.
    */
   lookups: Readonly<{
-    reply: ReplyRepository
-    review: ReviewRepository
+    reply: ReplyLookups
+    review: ReviewLookups
     servingStats: ReviewServingStats
   }>
   internal: Readonly<{
@@ -279,7 +281,6 @@ export type ReviewContextApi = Readonly<{
       editPublishedReply: ReturnType<typeof editPublishedReply>
       rejectReply: ReturnType<typeof rejectReply>
       deleteReply: ReturnType<typeof deleteReply>
-      getReply: ReturnType<typeof getReply>
       retryPublish: ReturnType<typeof retryPublish>
       checkReplyPublication: CheckReplyPublication
       listReplyTemplates: ListReplyTemplates
@@ -557,7 +558,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     approveReply: approveReply(replyDeps),
     rejectReply: rejectReply(replyDeps),
     deleteReply: deleteReply(replyDeps),
-    getReply: getReply(replyDeps),
     retryPublish: retryPublish(replyDeps),
     checkReplyPublication: checkReplyPublication({
       replyRepo,
@@ -674,7 +674,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         editPublished: useCases.editPublishedReply,
         reject: useCases.rejectReply,
         delete: useCases.deleteReply,
-        get: useCases.getReply,
         retryPublish: useCases.retryPublish,
         checkPublication: useCases.checkReplyPublication,
         listTemplates: useCases.listReplyTemplates,
@@ -720,12 +719,23 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     }),
     /**
      * ARC-03-T12: narrow cross-context read lookups Review publishes for the
-     * Inbox projection. They satisfy the Inbox-owned lookup source contracts;
-     * the repositories themselves stay context-private.
+     * Inbox projection. Named reads, not the repositories: the repositories are
+     * object literals of arrow functions, so detaching these methods is safe,
+     * and a spread of a lookup can no longer carry a write across the boundary.
      */
     lookups: Object.freeze({
-      reply: replyRepo,
-      review: reviewRepo,
+      reply: Object.freeze({
+        findByReviewId: replyRepo.findByReviewId,
+        findMilestonesByReviewIds: replyRepo.findMilestonesByReviewIds,
+        findStatesByReviewIds: replyRepo.findStatesByReviewIds,
+        findReviewIdsByReplyStage: replyRepo.findReviewIdsByReplyStage,
+      }),
+      review: Object.freeze({
+        findById: reviewRepo.findById,
+        findByIds: reviewRepo.findByIds,
+        findByOrganizationId: reviewRepo.findByOrganizationId,
+        findByPropertyId: reviewRepo.findByPropertyId,
+      }),
       servingStats,
     }),
     internal: {

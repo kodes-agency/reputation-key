@@ -19,7 +19,6 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   inboxAssignmentHistory,
-  inboxEscalationHistory,
   inboxHandlingCycleHeads,
   inboxHandlingCycleTransitions,
   inboxHandlingCycles,
@@ -31,35 +30,26 @@ import type { DomainEvent } from '#/shared/events/events'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import {
   inboxItemId,
-  feedbackId,
   organizationId,
   propertyId,
-  reviewId,
   userId,
   type OrganizationId,
   type UserId,
 } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import type { Permission } from '#/shared/domain/permissions'
-import type {
-  HandlingCycleHead,
-  HandlingCycleTransition,
-  InboxItem,
-} from '../domain/types'
+import type { HandlingCycleHead, InboxItem } from '../domain/types'
 import { inboxError } from '../domain/errors'
 import {
   inboxAssignmentsReleased,
   inboxBulkAssignmentCompleted,
   inboxBulkReopenCompleted,
-  inboxHandlingCycleClosed,
-  inboxHandlingCycleOpened,
-  inboxHandlingCycleReopened,
   inboxItemAssigned,
   inboxItemStatusChanged,
   inboxItemUnassigned,
   type InboxBulkReopenedCycle,
 } from '../domain/events'
-import { inboxItemFromRow, inboxItemToInsertRow } from './mappers/inbox.mapper'
+import { inboxItemToInsertRow } from './mappers/inbox.mapper'
 import { inboxNoteFromRow, inboxNoteToInsertRow } from './mappers/inbox-note.mapper'
 import {
   cycleInsert,
@@ -74,7 +64,6 @@ import {
 import type {
   ApplyReceiptStatus,
   ApplyReplyObservedCommand,
-  ApplyReviewProjectionCommand,
   ApplyReviewSourceTransitionedCommand,
   ApplySourceCreatedCommand,
   BulkReopenGovernance,
@@ -86,13 +75,11 @@ import type { CurrentReplyObservationPermit } from '../application/ports/reply-o
 import type {
   CurrentReviewInboxProjectionPermit,
   ReviewCycleTargetAnchor,
-  ReviewInboxProjectionRevisionPermit,
 } from '../application/ports/review-response-target-authority.port'
 import type {
   InboxAssignmentRelease,
   InboxAssignmentReleaseReason,
   InboxItemBulkStatusChanged,
-  InboxItemCreated,
 } from '../domain/events'
 import {
   cancelPrivateFeedbackTarget,
@@ -102,6 +89,28 @@ import {
 } from './response-target.store'
 import { assertManualReopenPermitted } from '../domain/handling-outcome-authority'
 import { selectSourceUnavailableCloseReasons } from './handling-cycle-transitions.read'
+import {
+  assertObservationMatchesItem,
+  assertReviewProjectionCommand,
+  assignmentAuthorityKey,
+  bulkAssignmentReason,
+  handlingCycleHeadFromRow,
+  itemFromRow,
+  lifecycleFactFor,
+  matchesLockedBulkAssignState,
+  matchesLockedBulkReopenState,
+  normalizeCreationAnchor,
+  projectionTargetAnchor,
+  sourceCommandPermission,
+  webActorId,
+  type LifecycleFactMarks,
+  type PersistedHead,
+  type PersistedItem,
+} from './inbox-command-guards'
+import {
+  appendEscalationHistory,
+  readCurrentCycleNumber,
+} from './inbox-escalation-history'
 
 export type InboxCommandAuthorityPrincipal = Readonly<{
   userId: string
@@ -121,28 +130,7 @@ export type InboxCommandAuthority = (
   }>,
 ) => Promise<Readonly<{ allowed: true }> | Readonly<{ allowed: false; reason: string }>>
 
-const sourceCommandPermission = (sourceType: InboxItem['sourceType']): Permission =>
-  sourceType === 'review' ? 'review.read' : 'feedback.handle'
-
 const UUID_TEXT = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
-
-const assignmentAuthorityKey = (
-  propertyIdValue: string,
-  sourceType: (typeof inboxItems.$inferSelect)['sourceType'],
-): string => `${propertyIdValue}\u0000${sourceType}`
-
-const webActorId = (event: DomainEvent | null): string | null => {
-  if (
-    event === null ||
-    !('source' in event) ||
-    event.source !== 'web' ||
-    !('userId' in event) ||
-    typeof event.userId !== 'string'
-  ) {
-    return null
-  }
-  return event.userId
-}
 
 async function insertReceiptRow(
   tx: Tx,
@@ -172,28 +160,6 @@ async function reserveReceiptRow(
   return rows.length === 1
 }
 
-type PersistedItem = typeof inboxItems.$inferSelect
-
-const itemFromRow = (row: PersistedItem): InboxItem => ({
-  ...inboxItemFromRow(row),
-  propertyName: null,
-})
-
-type PersistedHead = typeof inboxHandlingCycleHeads.$inferSelect
-
-const handlingCycleHeadFromRow = (row: PersistedHead): HandlingCycleHead => ({
-  inboxItemId: inboxItemId(row.inboxItemId),
-  organizationId: organizationId(row.organizationId),
-  propertyId: propertyId(row.propertyId),
-  sourceType: row.sourceType,
-  sourceId:
-    row.sourceType === 'review' ? reviewId(row.sourceId) : feedbackId(row.sourceId),
-  currentCycleNumber: row.currentCycleNumber,
-  currentSourceRevision: row.currentSourceRevision,
-  stateRevision: row.stateRevision,
-  status: row.status,
-})
-
 /**
  * A withdrawn, purged or ineligible private-feedback source can never be
  * handled, so it cannot be reopened either. Runs inside the same locked
@@ -210,58 +176,6 @@ async function assertManualReopenHonest(tx: Tx, head: HandlingCycleHead): Promis
     }),
   })
   if (decision.isErr()) throw decision.error
-}
-
-/**
- * What a transition's command adds to its fact: the bulk reopen it belongs
- * to, or that the command also created the item.
- */
-type LifecycleFactMarks = Readonly<{ bulkId?: string; openedWithItem?: boolean }>
-
-const lifecycleFactFor = (
-  transition: HandlingCycleTransition,
-  marks: LifecycleFactMarks = {},
-): DomainEvent => {
-  const scope = {
-    inboxItemId: transition.inboxItemId,
-    cycleNumber: transition.cycleNumber,
-    stateRevision: transition.stateRevision,
-    organizationId: transition.organizationId,
-    propertyId: transition.propertyId,
-    sourceType: transition.sourceType,
-    sourceId: transition.sourceId,
-    sourceRevision: transition.sourceRevision,
-    actorType: transition.actorType,
-    userId: transition.actorUserId,
-    triggerEventId: transition.triggerEventId,
-    occurredAt: transition.transitionedAt,
-  }
-  if (transition.kind === 'closed') {
-    return inboxHandlingCycleClosed({
-      ...scope,
-      closeReason: transition.transitionReason as Parameters<
-        typeof inboxHandlingCycleClosed
-      >[0]['closeReason'],
-      source: transition.actorType === 'user' ? 'web' : 'import',
-    })
-  }
-  if (transition.kind === 'reopened') {
-    return inboxHandlingCycleReopened({
-      ...scope,
-      reopenReason: transition.transitionReason as Parameters<
-        typeof inboxHandlingCycleReopened
-      >[0]['reopenReason'],
-      bulkId: marks.bulkId ?? null,
-      source: transition.actorType === 'user' ? 'web' : 'import',
-    })
-  }
-  return inboxHandlingCycleOpened({
-    ...scope,
-    openReason: transition.transitionReason as Parameters<
-      typeof inboxHandlingCycleOpened
-    >[0]['openReason'],
-    openedWithItem: marks.openedWithItem ?? false,
-  })
 }
 
 async function insertNextHandlingCycleDecision(
@@ -300,170 +214,6 @@ async function insertNextHandlingCycleDecision(
       decision.transitions.map((transition) => transitionInsert(transition, createdAt)),
     )
   return decision.transitions.map((transition) => lifecycleFactFor(transition, marks))
-}
-
-const normalizeCreationAnchor = (
-  item: InboxItem,
-  anchor: HandlingCycleCreationAnchor | ReviewCycleCreationAnchor,
-): HandlingCycleCreationAnchor =>
-  'materialReviewRevision' in anchor
-    ? {
-        sourceRevision: anchor.materialReviewRevision,
-        openedReason:
-          item.sourceType === 'review' ? 'review_observed' : 'legacy_backfill',
-        actorType: 'provider',
-        triggerEventId: null,
-        openedAt: item.createdAt,
-      }
-    : anchor
-
-const projectionTargetAnchor = (
-  revision: import('../application/ports/review-response-target-authority.port').ReviewInboxProjectionRevisionPermit,
-): import('../application/ports/review-response-target-authority.port').ReviewCycleTargetAnchor => ({
-  reviewAuthority: revision,
-  targetStart: { basis: 'review_provenance' },
-})
-
-/** Review's current-projection permit must describe exactly the item being written. */
-function matchesReviewProjectionAuthority(
-  item: InboxItem,
-  projection: CurrentReviewInboxProjectionPermit,
-): boolean {
-  return (
-    projection.authority === 'review.current-inbox-projection.v1' &&
-    projection.organizationId === item.organizationId &&
-    projection.propertyId === item.propertyId &&
-    projection.reviewId === item.sourceId &&
-    projection.platform === 'google' &&
-    item.platform === projection.platform &&
-    item.sourceDate.getTime() === projection.sourceDate.getTime() &&
-    Number.isSafeInteger(projection.sourceEpoch) &&
-    projection.sourceEpoch >= 0 &&
-    Number.isSafeInteger(projection.currentMaterialReviewRevision) &&
-    projection.currentMaterialReviewRevision >= 1
-  )
-}
-
-/** The creation fact must name the same item this projection materializes. */
-function matchesProjectionCreationFact(fact: InboxItemCreated, item: InboxItem): boolean {
-  return (
-    fact.inboxItemId === item.id &&
-    fact.organizationId === item.organizationId &&
-    fact.propertyId === item.propertyId &&
-    fact.sourceType === 'review' &&
-    fact.sourceId === item.sourceId &&
-    fact.occurredAt.getTime() === item.createdAt.getTime()
-  )
-}
-
-/**
- * A projected item holds no provider content and no Inbox-owned workflow state:
- * rating/snippet/reviewer name stay with Review, and assignment or status
- * changes only ever arrive through their own commands.
- */
-function isContentFreeUnhandledReviewItem(item: InboxItem): boolean {
-  return (
-    item.sourceType === 'review' &&
-    item.status === 'open' &&
-    item.rating === null &&
-    item.snippet === null &&
-    item.reviewerName === null &&
-    item.assignedTo === null
-  )
-}
-
-/** An erasure instant is present exactly when the source content is no longer active. */
-function hasConsistentProjectionSourceState(
-  projection: CurrentReviewInboxProjectionPermit,
-): boolean {
-  const active = projection.sourceContentState === 'active'
-  const erasedAt = projection.sourceContentErasedAt
-  if (active && erasedAt !== null) return false
-  if (!active && !(erasedAt instanceof Date)) return false
-  if (erasedAt instanceof Date && !Number.isFinite(erasedAt.getTime())) return false
-  return (
-    Number.isFinite(projection.sourceDate.getTime()) && projection.revisions.length > 0
-  )
-}
-
-/**
- * One entry of the attested revision history: same scope as the item, dense
- * 1-based numbering, non-decreasing observation instants, and a start instant
- * present exactly when the revision was measured.
- */
-function isValidProjectionRevision(
-  revision: ReviewInboxProjectionRevisionPermit,
-  item: InboxItem,
-  projection: CurrentReviewInboxProjectionPermit,
-  index: number,
-  previousObservedAt: number,
-): boolean {
-  return (
-    revision.authority === 'review.inbox-projection-revision.v1' &&
-    revision.organizationId === item.organizationId &&
-    revision.propertyId === item.propertyId &&
-    revision.reviewId === item.sourceId &&
-    revision.sourceEpoch === projection.sourceEpoch &&
-    revision.materialReviewRevision === index + 1 &&
-    Number.isFinite(revision.observedAt.getTime()) &&
-    revision.observedAt.getTime() >= previousObservedAt &&
-    (revision.eligibility === 'measured' ||
-      revision.eligibility === 'historical_onboarding' ||
-      revision.eligibility === 'legacy_unknown') &&
-    (revision.eligibility === 'measured') ===
-      revision.responseTargetStartAt instanceof Date &&
-    !(
-      revision.responseTargetStartAt instanceof Date &&
-      !Number.isFinite(revision.responseTargetStartAt.getTime())
-    )
-  )
-}
-
-function assertReviewProjectionCommand(command: ApplyReviewProjectionCommand): void {
-  const { fact, item, projection } = command
-  const validSourceState =
-    projection.sourceContentState === 'active' ||
-    projection.sourceContentState === 'source_expired' ||
-    projection.sourceContentState === 'provider_deleted'
-  if (
-    !isContentFreeUnhandledReviewItem(item) ||
-    !matchesReviewProjectionAuthority(item, projection) ||
-    !matchesProjectionCreationFact(fact, item) ||
-    !validSourceState ||
-    !Number.isFinite(command.now.getTime())
-  ) {
-    throw inboxError(
-      'invalid_input',
-      'Review Inbox projection authority does not match the projection command',
-    )
-  }
-  if (!hasConsistentProjectionSourceState(projection)) {
-    throw inboxError('invalid_input', 'Review Inbox projection source state is invalid')
-  }
-  let previousObservedAt = Number.NEGATIVE_INFINITY
-  for (const [index, revision] of projection.revisions.entries()) {
-    if (
-      !isValidProjectionRevision(revision, item, projection, index, previousObservedAt)
-    ) {
-      throw inboxError(
-        'invalid_input',
-        'Review Inbox projection revision history is invalid',
-      )
-    }
-    previousObservedAt = revision.observedAt.getTime()
-  }
-  const erasedAt = projection.sourceContentErasedAt
-  if (
-    projection.revisions.at(-1)?.materialReviewRevision !==
-      projection.currentMaterialReviewRevision ||
-    item.createdAt.getTime() !== projection.revisions[0].observedAt.getTime() ||
-    (erasedAt instanceof Date && erasedAt.getTime() < previousObservedAt)
-  ) {
-    throw inboxError(
-      'invalid_input',
-      'Review Inbox projection head does not match its revision history',
-    )
-  }
 }
 
 /**
@@ -592,33 +342,6 @@ async function updateItemRow(
   return updated
 }
 
-/**
- * Resolve the source Handling Cycle that owns a human assignment decision.
- *
- * This read intentionally happens before the Inbox item compare-and-swap and
- * does not lock the head. Cycle commands lock head -> item. If one of
- * those commands commits first, the item revision CAS rejects this command;
- * if this command wins the item row, the cycle observed here is the cycle in
- * which the assignment decision occurred.
- */
-async function readCurrentCycleNumber(tx: Tx, item: InboxItem): Promise<number | null> {
-  const rows = await tx
-    .select({ currentCycleNumber: inboxHandlingCycleHeads.currentCycleNumber })
-    .from(inboxHandlingCycleHeads)
-    .where(
-      and(
-        eq(inboxHandlingCycleHeads.inboxItemId, item.id),
-        eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
-        eq(inboxHandlingCycleHeads.propertyId, item.propertyId),
-        eq(inboxHandlingCycleHeads.sourceType, item.sourceType),
-        eq(inboxHandlingCycleHeads.sourceId, item.sourceId),
-      ),
-    )
-    .limit(1)
-  const cycleNumber = rows[0]?.currentCycleNumber
-  return Number.isSafeInteger(cycleNumber) && cycleNumber >= 1 ? cycleNumber : null
-}
-
 async function currentAssignmentCycleNumber(
   tx: Tx,
   item: InboxItem,
@@ -631,118 +354,6 @@ async function currentAssignmentCycleNumber(
     )
   }
   return cycleNumber
-}
-
-export const INBOX_ESCALATION_HISTORY_KINDS = ['escalated', 'resolved'] as const
-
-export type InboxEscalationHistoryKind = (typeof INBOX_ESCALATION_HISTORY_KINDS)[number]
-
-export type InboxEscalationHistoryEntry = Readonly<{
-  inboxItemId: string
-  resultingCommandRevision: number
-  handlingCycleNumber: number | null
-  kind: InboxEscalationHistoryKind
-  actorUserId: string | null
-  occurredAt: Date
-}>
-
-/**
- * `recorded` — every escalation decision on this item is present below.
- * `legacy_unknown` — the item carries escalation flags written before
- * migration 0169, so its earlier decisions have no actor and no time that this
- * system can honestly name. It is never back-filled with an invented value.
- */
-export type InboxEscalationProvenance = 'recorded' | 'legacy_unknown'
-
-export type InboxEscalationHistoryView = Readonly<{
-  provenance: InboxEscalationProvenance
-  currentlyEscalated: boolean
-  entries: readonly InboxEscalationHistoryEntry[]
-}>
-
-/**
- * Append one escalation decision keyed by the command revision it produced.
- *
- * `handlingCycleNumber` is read after the item compare-and-swap has taken the
- * row lock, so the cycle recorded here is the cycle the decision landed in.
- * It stays nullable: an item whose Handling Cycle head is still awaiting
- * repair must still be able to record that it was escalated.
- */
-async function appendEscalationHistory(
-  tx: Tx,
-  item: InboxItem,
-  row: InboxItem,
-  decision: Readonly<{
-    kind: InboxEscalationHistoryKind
-    actorUserId: string
-    occurredAt: Date
-  }>,
-): Promise<void> {
-  const handlingCycleNumber = await readCurrentCycleNumber(tx, item)
-  await tx.insert(inboxEscalationHistory).values({
-    inboxItemId: row.id,
-    resultingCommandRevision: row.commandRevision,
-    organizationId: item.organizationId,
-    propertyId: item.propertyId,
-    handlingCycleNumber,
-    kind: decision.kind,
-    actorUserId: decision.actorUserId,
-    occurredAt: decision.occurredAt,
-  })
-}
-
-/**
- * Read the complete escalation history of one Inbox item.
- *
- * Escalation is an independent workflow dimension (ADR 0055): this read grants
- * no access and never reports a status. An item whose flags predate migration
- * 0169 is still readable — it is reported as `legacy_unknown` so a manager
- * sees "escalated, provenance unknown" instead of a fabricated actor/time.
- */
-export async function readInboxEscalationHistory(
-  db: Database,
-  item: Readonly<{ id: string; organizationId: string }>,
-): Promise<InboxEscalationHistoryView> {
-  const [heads, rows] = await Promise.all([
-    db
-      .select({
-        isEscalated: inboxItems.isEscalated,
-        escalatedAt: inboxItems.escalatedAt,
-        escalationResolvedAt: inboxItems.escalationResolvedAt,
-      })
-      .from(inboxItems)
-      .where(
-        and(
-          eq(inboxItems.id, item.id),
-          eq(inboxItems.organizationId, item.organizationId),
-        ),
-      )
-      .limit(1),
-    db
-      .select()
-      .from(inboxEscalationHistory)
-      .where(eq(inboxEscalationHistory.inboxItemId, item.id))
-      .orderBy(
-        inboxEscalationHistory.occurredAt,
-        inboxEscalationHistory.resultingCommandRevision,
-      ),
-  ])
-  const head = heads[0]
-  if (!head) throw inboxError('not_found', 'Inbox item was not found')
-  const entries = rows.map((row) => ({
-    inboxItemId: row.inboxItemId,
-    resultingCommandRevision: row.resultingCommandRevision,
-    handlingCycleNumber: row.handlingCycleNumber,
-    kind: row.kind as InboxEscalationHistoryKind,
-    actorUserId: row.actorUserId,
-    occurredAt: row.occurredAt,
-  }))
-  const everEscalated = head.escalatedAt !== null || head.escalationResolvedAt !== null
-  return {
-    provenance: everEscalated && entries.length === 0 ? 'legacy_unknown' : 'recorded',
-    currentlyEscalated: head.isEscalated && head.escalationResolvedAt === null,
-    entries,
-  }
 }
 
 /** Canonical projection lock order: Handling Cycle head first, then the Inbox row. */
@@ -992,24 +603,6 @@ async function convergeProjectedItemRow(
     throw inboxError(
       'not_found',
       'Review Inbox item vanished during projection convergence',
-    )
-  }
-}
-
-/** Review's observation permit must have been issued for this exact Inbox item. */
-function assertObservationMatchesItem(
-  observation: CurrentReplyObservationPermit,
-  item: InboxItem,
-): void {
-  if (
-    observation.authority !== 'review.current-google-reply-observation.v1' ||
-    observation.organizationId !== item.organizationId ||
-    observation.propertyId !== item.propertyId ||
-    observation.reviewId !== item.sourceId
-  ) {
-    throw inboxError(
-      'invalid_input',
-      'Review observation permit does not match the Inbox item',
     )
   }
 }
@@ -1469,40 +1062,6 @@ async function scrubTransitionedItemRow(
   }
 }
 
-/** Under the bulk lock, both rows must still be exactly what the command was planned against. */
-function matchesLockedBulkAssignState(
-  item: InboxItem,
-  row: PersistedItem | undefined,
-  head: PersistedHead | undefined,
-): boolean {
-  if (row === undefined || head === undefined) return false
-  return (
-    row.organizationId === item.organizationId &&
-    row.propertyId === item.propertyId &&
-    row.sourceType === item.sourceType &&
-    row.sourceId === item.sourceId &&
-    row.status === item.status &&
-    row.assignedTo === item.assignedTo &&
-    row.commandRevision === item.commandRevision &&
-    head.organizationId === item.organizationId &&
-    head.propertyId === item.propertyId &&
-    head.sourceType === item.sourceType &&
-    head.sourceId === item.sourceId &&
-    head.status === item.status
-  )
-}
-
-/** Assignment-history reason for one bulk transition. */
-function bulkAssignmentReason(
-  assignedTo: UserId | null,
-  previousAssignee: UserId | null,
-  actorId: UserId,
-): 'release' | 'claim' | 'assign' | 'reassign' {
-  if (assignedTo === null) return 'release'
-  if (previousAssignee !== null) return 'reassign'
-  return assignedTo === actorId ? 'claim' : 'assign'
-}
-
 type AppliedBulkAssignment =
   | Readonly<{ outcome: 'unchanged' }>
   | Readonly<{
@@ -1583,31 +1142,6 @@ async function applyBulkAssignmentToItem(
   })
   await insertOutboxRow(tx, fact)
   return { outcome, previousAssignee }
-}
-
-/**
- * Under the bulk lock, both rows must still be exactly the closed state the
- * command was planned against; anything else is this item's revision conflict.
- */
-function matchesLockedBulkReopenState(
-  item: InboxItem,
-  itemRow: PersistedItem,
-  headRow: PersistedHead,
-): boolean {
-  return (
-    itemRow.organizationId === item.organizationId &&
-    itemRow.propertyId === item.propertyId &&
-    itemRow.sourceType === item.sourceType &&
-    itemRow.sourceId === item.sourceId &&
-    itemRow.commandRevision === item.commandRevision &&
-    itemRow.status === 'closed' &&
-    headRow.organizationId === item.organizationId &&
-    headRow.propertyId === item.propertyId &&
-    headRow.sourceType === item.sourceType &&
-    headRow.sourceId === item.sourceId &&
-    headRow.status === 'closed' &&
-    itemRow.status === headRow.status
-  )
 }
 
 /**

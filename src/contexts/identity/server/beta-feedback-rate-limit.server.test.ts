@@ -1,9 +1,7 @@
 import { describe, expect, it, vi } from 'vitest'
 import type { RateLimiter } from '#/shared/rate-limit/middleware'
-import {
-  betaFeedbackPseudonym,
-  enforceBetaFeedbackRateLimit,
-} from './beta-feedback-rate-limit.server'
+import { betaFeedbackPseudonym } from '../application/beta-feedback-pseudonym'
+import { enforceBetaFeedbackRateLimit } from './beta-feedback-rate-limit.server'
 
 function limiterWith(results: ReadonlyArray<boolean>): RateLimiter & {
   check: ReturnType<typeof vi.fn>

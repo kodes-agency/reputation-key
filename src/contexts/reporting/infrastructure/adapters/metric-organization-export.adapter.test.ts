@@ -96,6 +96,34 @@ describe('Metric Organization Export contributor', () => {
     ).rejects.toThrow(/snapshot window is unavailable/)
   })
 
+  it('keeps a negative correction delta a number in the spreadsheet view', async () => {
+    // PostgreSQL numeric arrives from a raw query as a decimal string; the
+    // formula guard must not turn it into text.
+    const correction: Row = {
+      id: '30000000-0000-4000-8000-000000000002',
+      reading_id: READING_ROW.id,
+      kind: 'adjust',
+      reason: 'first correction',
+      actor_type: 'system',
+      actor_id: 'metric-consumer',
+      exact_delta: '-1.0000000000',
+      replacement_value: null,
+      is_correction_head: true,
+      supersedes_correction_id: null,
+      event_at: '2026-08-27T11:00:00.000000Z',
+      recorded_at: '2026-08-27T11:00:00.000000Z',
+    }
+    const contribution = await createMetricOrganizationExportAdapter(
+      fakeDatabase({ readings: [READING_ROW], corrections: [correction] }),
+    ).contribute({ organizationId: 'org-metric-export', requestId: 'a', asOf: AS_OF })
+
+    const csv = Buffer.from(
+      contribution.entries.find(({ path }) => path === 'metric/corrections.csv')!.bytes,
+    ).toString('utf8')
+    expect(csv).toContain(',metric-consumer,-1.0000000000,,true,')
+    expect(csv).not.toContain("'-1")
+  })
+
   it('refuses a row that lost a declared column instead of shipping a silent gap', async () => {
     const withoutSourcePolicy = Object.fromEntries(
       Object.entries(READING_ROW).filter(([column]) => column !== 'source_policy'),

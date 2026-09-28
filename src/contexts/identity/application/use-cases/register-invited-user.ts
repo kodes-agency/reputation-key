@@ -7,6 +7,7 @@ import type { RegistrationAuthIds } from '#/shared/domain/registration-auth-ids'
 import type {
   InvitedRegistrationStore,
   PreparedInvitedRegistration,
+  ReconcileInvitedRegistrationResult,
 } from '../ports/invited-registration-store.port'
 
 export type RegisterInvitedUserInput = Readonly<{
@@ -93,9 +94,115 @@ type SignUpRecovery =
   | Readonly<{ kind: 'accepted'; organizationId: OrganizationId }>
 
 /**
+ * What an invitee sees when their account could not be created. They are
+ * unauthenticated and this message reaches their browser verbatim, so it is
+ * fixed: a driver, query or provider error's own text can name constraints,
+ * SQL and bound parameters.
+ */
+const REGISTRATION_FAILED_MESSAGE = 'Registration failed. Please try again.'
+
+const ACCOUNT_EXISTS_MESSAGE =
+  'An account already exists for this email. Sign in, then open your invitation link again.'
+
+/**
+ * Sign-up refusals the invitee can act on, keyed by the reason code Better Auth
+ * puts on its refusal (`APIError.body.code`). Each gets fixed copy of our own:
+ * the provider's wording is not ours to show, and its "use another email" is
+ * wrong advice for an invitation bound to one address.
+ */
+const ACTIONABLE_SIGN_UP_REFUSALS: ReadonlyMap<string, string> = new Map([
+  ['USER_ALREADY_EXISTS', ACCOUNT_EXISTS_MESSAGE],
+  ['USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL', ACCOUNT_EXISTS_MESSAGE],
+  ['PASSWORD_TOO_SHORT', 'That password is too short. Choose a longer one.'],
+  ['PASSWORD_TOO_LONG', 'That password is too long. Choose a shorter one.'],
+  ['INVALID_EMAIL', 'Enter a valid email address.'],
+])
+
+// Names are class-like identifiers (`APIError`, `DrizzleQueryError`); codes are
+// reason words or SQLSTATEs (`PASSWORD_TOO_LONG`, `23505`). Anything else is
+// dropped rather than logged: both come from an `unknown` rejection, and a
+// free-form value could carry the invitee's email.
+const CONTENT_FREE_ERROR_NAME = /^[A-Za-z][A-Za-z0-9_]{0,63}$/u
+const CONTENT_FREE_ERROR_CODE = /^[A-Za-z0-9_]{1,64}$/u
+
+type ErrorIdentity = Readonly<{ name: string | null; code: string | null }>
+
+/** What recovery found after a failed sign-up — content-free either way. */
+type SignUpRecoveryFinding =
+  | Readonly<{
+      recoveryOutcome: Exclude<
+        ReconcileInvitedRegistrationResult['kind'],
+        'ready_to_accept' | 'accepted'
+      >
+    }>
+  | Readonly<{ reconciliationError: ErrorIdentity }>
+
+/** The reason code on a Better Auth refusal, read structurally from `unknown`. */
+function providerRefusalCode(error: unknown): string | null {
+  if (!(error instanceof Error) || error.name !== 'APIError' || !('body' in error)) {
+    return null
+  }
+  const body: unknown = error.body
+  return typeof body === 'object' &&
+    body !== null &&
+    'code' in body &&
+    typeof body.code === 'string'
+    ? body.code
+    : null
+}
+
+const ownCode = (value: unknown): unknown =>
+  typeof value === 'object' && value !== null && 'code' in value ? value.code : undefined
+
+/**
+ * A rejection's name and code for the operator log. The code is the provider's
+ * refusal code, else the error's own, else its cause's — a query wrapper
+ * carries the driver's SQLSTATE on `cause`.
+ */
+function errorIdentity(error: unknown): ErrorIdentity {
+  if (!(error instanceof Error)) return { name: null, code: null }
+  const code = providerRefusalCode(error) ?? ownCode(error) ?? ownCode(error.cause)
+  const codeText =
+    typeof code === 'number' && Number.isSafeInteger(code) ? String(code) : code
+  return {
+    name: CONTENT_FREE_ERROR_NAME.test(error.name) ? error.name : null,
+    code:
+      typeof codeText === 'string' && CONTENT_FREE_ERROR_CODE.test(codeText)
+        ? codeText
+        : null,
+  }
+}
+
+/**
+ * Log a sign-up that could not complete — by name and code only, with what
+ * recovery found — and build the error the invitee sees: fixed copy for a
+ * refusal they can act on, the fixed generic message for anything else.
+ */
+function invitedSignUpFailure(
+  deps: RegisterInvitedUserDeps,
+  verificationId: string,
+  signUpError: unknown,
+  finding: SignUpRecoveryFinding,
+): ReturnType<typeof identityError> {
+  deps.logger.error(
+    {
+      registrationVerificationId: verificationId,
+      signUpError: errorIdentity(signUpError),
+      ...finding,
+    },
+    '[identity] invited registration sign-up failed',
+  )
+  const refusal = providerRefusalCode(signUpError)
+  const actionable =
+    refusal === null ? undefined : ACTIONABLE_SIGN_UP_REFUSALS.get(refusal)
+  return identityError('registration_failed', actionable ?? REGISTRATION_FAILED_MESSAGE)
+}
+
+/**
  * Reconcile a failed sign-up against the verification record. Either the
  * provider committed exactly the preallocated records and the saga resumes,
- * or the invitation was already accepted, or the original failure surfaces.
+ * or the invitation was already accepted, or the failure surfaces — as fixed
+ * copy, never as the underlying error's own text.
  */
 async function recoverFromSignUpFailure(
   deps: RegisterInvitedUserDeps,
@@ -104,37 +211,38 @@ async function recoverFromSignUpFailure(
   error: unknown,
 ): Promise<SignUpRecovery> {
   const recoveryNow = deps.clock()
+  let recovery: ReconcileInvitedRegistrationResult
   try {
-    const recovery = await deps.registrationStore.reconcile({
+    recovery = await deps.registrationStore.reconcile({
       verificationId: prepared.verificationId,
       now: recoveryNow,
       nextRecoveryAt: new Date(recoveryNow.getTime() + 5 * 60 * 1_000),
     })
-    if (recovery.kind === 'ready_to_accept') {
-      return {
-        kind: 'resume',
-        registration: recovery.registration,
-        acceptorEmail: recovery.acceptorEmail,
-        createdUserId: recovery.registration.authIds.userId,
-      }
-    }
-    if (recovery.kind === 'accepted') {
-      await runPostAcceptHook(deps, {
-        userId: recovery.userId,
-        organizationId: recovery.organizationId as string,
-        propertyIds: recovery.propertyIds,
-        displayName: input.name,
-      })
-      return { kind: 'accepted', organizationId: recovery.organizationId }
-    }
-    throw error
-  } catch (recoveryError) {
-    const cause = recoveryError === error ? error : recoveryError
-    throw identityError(
-      'registration_failed',
-      cause instanceof Error ? cause.message : 'Registration failed',
-    )
+  } catch (reconciliationError) {
+    throw invitedSignUpFailure(deps, prepared.verificationId, error, {
+      reconciliationError: errorIdentity(reconciliationError),
+    })
   }
+  if (recovery.kind === 'ready_to_accept') {
+    return {
+      kind: 'resume',
+      registration: recovery.registration,
+      acceptorEmail: recovery.acceptorEmail,
+      createdUserId: recovery.registration.authIds.userId,
+    }
+  }
+  if (recovery.kind === 'accepted') {
+    await runPostAcceptHook(deps, {
+      userId: recovery.userId,
+      organizationId: recovery.organizationId as string,
+      propertyIds: recovery.propertyIds,
+      displayName: input.name,
+    })
+    return { kind: 'accepted', organizationId: recovery.organizationId }
+  }
+  throw invitedSignUpFailure(deps, prepared.verificationId, error, {
+    recoveryOutcome: recovery.kind,
+  })
 }
 
 /**

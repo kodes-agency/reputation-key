@@ -1,6 +1,8 @@
-// Feed activity surface — BullMQ worker job handler
-// Consumes jobs from the 'default' queue with name 'project-recent-activity'.
-// Per architecture (ADR 0010): "Worker consumes jobs, calls projectRecentActivity use case."
+// Feed activity surface — drain-only BullMQ handlers on the 'default' queue for
+// the retired Recent Activity accelerator. Nothing has enqueued
+// 'project-recent-activity' since the in-process event bus was deleted (WP3.1,
+// ec76dc15f); Recent Activity is delivered by the `activity.recent-activity`
+// outbox consumer (ADR 0056, "Merged from ADR 0010").
 
 import type {
   ProjectRecentActivityDeps,
@@ -11,8 +13,13 @@ import type { Job } from 'bullmq'
 
 export const PROJECT_RECENT_ACTIVITY_JOB_NAME = 'project-recent-activity'
 /**
- * Rolling-deployment drain identifier only. No producer may enqueue it after
- * migration 0160; bootstrap retains the handler until old queue depth is zero.
+ * Rolling-deployment drain identifier only. Nothing has enqueued it since
+ * 2026-08-28, when 7ba8f44be renamed the job to 'project-recent-activity' with
+ * the former migration 0160_recent_activity_identifiers (squashed into
+ * 0000_baseline on 2026-09-06, so that number no longer names a file). Remove
+ * both drain handlers once no job of either name is waiting, delayed or failed
+ * on the 'default' queue in any environment; zero counts from
+ * `pnpm ops queue status default --operator <id>` are sufficient proof.
  */
 export const LEGACY_INSERT_ACTIVITY_LOG_JOB_NAME = 'insert-activity-log'
 

@@ -52,6 +52,11 @@ interfaces from Property, Portal, Staff, Review, Inbox, and Guest; none of their
 are imported. Metric-to-Goal and Metric-to-Dashboard collaboration is internal and follows
 the normal domain/application/infrastructure layer rules.
 
+`getDashboardDataFn` is the one server function no route calls: the Property dashboard
+moved to `getPropertyOverviewFn`. It stays because the dashboard-governance and
+review-expiry e2e specs call it by export name to prove the governed read (grant
+filtering, reply redaction, expired-Review exclusion).
+
 The unified `buildReportingContext` returns one public interface, one combined outbox
 registration function, Goal maintenance, metric maintenance, and named lifecycle/export
 contributors. Root composition may continue exposing capability-specific aliases such as

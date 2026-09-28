@@ -19,6 +19,7 @@ import type { GuestResponseScope } from '../application/ports/guest-response.rep
 import {
   CORRECTION_WINDOW_MS,
   GuestResponseLifecycleError,
+  isQualifiedGuestResponse,
   RESPONSE_WITHDRAWAL_WINDOW_MS,
   type GuestResponseInput,
   type GuestResponseView,
@@ -36,7 +37,13 @@ import {
   applyGuestPublicResponsePrivacy,
   guestPublicResponseValidator,
 } from './public-response-privacy.server'
-import { organizationId, portalId, portalLinkId, propertyId } from '#/shared/domain/ids'
+import {
+  guestResponseId,
+  organizationId,
+  portalId,
+  portalLinkId,
+  propertyId,
+} from '#/shared/domain/ids'
 import type { RateLimitResult } from '#/shared/rate-limit/middleware'
 export type { PublicPortalLoaderData } from '../application/dto/public-portal.dto'
 
@@ -74,9 +81,9 @@ async function resolveBoundSession(
     return denyWithoutEnumeration()
   }
   const scope: GuestResponseScope = {
-    organizationId: portal.organizationId,
-    propertyId: portal.propertyId,
-    portalId: portal.portal.id,
+    organizationId: organizationId(portal.organizationId),
+    propertyId: propertyId(portal.propertyId),
+    portalId: portalId(portal.portal.id),
   }
   const requestHeaders = (await headersFromContext()) ?? new Headers()
   const origin = requestHeaders.get('origin')
@@ -440,9 +447,7 @@ export const startNewGuestResponseFn = createServerFn({ method: 'POST' })
           bound.scope,
           bound.session.sessionId,
         )
-        if (!response?.rating || response.status === 'deleted') {
-          return denyWithoutEnumeration()
-        }
+        if (!isQualifiedGuestResponse(response)) return denyWithoutEnumeration()
         const issued = bound.useCases.guestSessions.issue(bound.scope)
         setResponseHeader('Set-Cookie', [...issued.cookies])
         return { csrfNonce: issued.session.csrfNonce }
@@ -564,9 +569,7 @@ export const selectGoogleReviewFn = createServerFn({ method: 'POST' })
           bound.scope,
           bound.session.sessionId,
         )
-        if (!response?.rating || response.status === 'deleted') {
-          return denyWithoutEnumeration()
-        }
+        if (!isQualifiedGuestResponse(response)) return denyWithoutEnumeration()
         const googleReview = bound.portal.reviewGateway.googleReview
         if (googleReview.status !== 'available') return denyWithoutEnumeration()
         const qualified = await rateLimit(
@@ -622,9 +625,7 @@ export const selectSecondaryLinkFn = createServerFn({ method: 'POST' })
           bound.scope,
           bound.session.sessionId,
         )
-        if (!response?.rating || response.status === 'deleted') {
-          return denyWithoutEnumeration()
-        }
+        if (!isQualifiedGuestResponse(response)) return denyWithoutEnumeration()
         const qualified = await rateLimit(
           'secondary',
           bound.session.sessionId,
@@ -724,10 +725,10 @@ export const moderateGuestResponseFn = createServerFn({ method: 'POST' })
           return await useCases.responseLifecycle.moderate(
             {
               organizationId: actor.organizationId,
-              propertyId: data.propertyId,
-              portalId: data.portalId,
+              propertyId: propertyId(data.propertyId),
+              portalId: portalId(data.portalId),
             },
-            data.responseId,
+            guestResponseId(data.responseId),
             data.action,
           )
         } catch (error) {

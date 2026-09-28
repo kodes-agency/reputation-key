@@ -26,8 +26,6 @@ import {
 } from '#/contexts/integration/infrastructure/jobs/google-import-claim-reaper.job'
 import { createGoogleImportV2ClaimReaper } from '#/contexts/integration/application/google-import-v2-claim-reaper'
 import { createGoogleImportV2Store } from '#/contexts/integration/infrastructure/google-import-v2-store'
-import { createGoogleOAuthExchangeRecoveryRepository } from '#/contexts/integration/infrastructure/repositories/google-oauth-exchange-recovery.repository'
-import { createGoogleDisconnectRevokeRepository } from '#/contexts/integration/infrastructure/repositories/google-disconnect-revoke.repository'
 import {
   createRecoverInvitedRegistrationsHandler,
   JOB_NAME as RECOVER_INVITED_REGISTRATIONS_JOB,
@@ -476,24 +474,21 @@ export async function bootstrap(
       clock: container.clock,
     }),
   })
-  const oauthExchangeRecovery = createGoogleOAuthExchangeRecoveryRepository(container.db)
-  const disconnectRevokeRecovery = createGoogleDisconnectRevokeRepository(container.db)
   container.jobRegistry.register(PERMIT_START_DEADLINE_SWEEP_JOB_NAME, async (job) => {
     await permitStartDeadlineSweep(job)
-    const now = container.clock()
-    const [oauth, revoke] = await Promise.all([
-      oauthExchangeRecovery.expire({ now, limit: 100 }),
-      disconnectRevokeRecovery.reconcileElapsed({ now, limit: 100 }),
-    ])
+    const recovery = await container.integrationWorkerRuntime.reconcileProviderRecovery({
+      now: container.clock(),
+      limit: 100,
+    })
     // Counts only: no tenant, connection, attempt, permit, credential binding,
     // provider response, or outcome payload reaches observability.
     logger.info(
       {
         job: PERMIT_START_DEADLINE_SWEEP_JOB_NAME,
-        oauthExchangeAttemptsExpired: oauth.expired,
-        disconnectAttemptsVisited: revoke.visited,
-        disconnectConfirmedNotSent: revoke.confirmedNotSent,
-        disconnectCleanupAmbiguous: revoke.cleanupAmbiguous,
+        oauthExchangeAttemptsExpired: recovery.oauthExchangeAttemptsExpired,
+        disconnectAttemptsVisited: recovery.disconnectAttemptsVisited,
+        disconnectConfirmedNotSent: recovery.disconnectConfirmedNotSent,
+        disconnectCleanupAmbiguous: recovery.disconnectCleanupAmbiguous,
       },
       'Google provider recovery sweep completed',
     )
@@ -561,8 +556,9 @@ export async function bootstrap(
       )
     },
   )
-  // Drain-only rolling compatibility. Current producers enqueue only the
-  // canonical name, but already-persisted queue items must remain processable.
+  // Drain-only rolling compatibility. Nothing enqueues either name any more
+  // (see project-recent-activity.job.ts), but already-persisted queue items
+  // must remain processable.
   container.jobRegistry.register(
     LEGACY_INSERT_ACTIVITY_LOG_JOB_NAME,
     async (job): Promise<void> => {

@@ -137,6 +137,12 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
     expect(ctx.worker.sweepImportLifecycle).toBe(
       ctx.internal.useCases.sweepGoogleImportV2Lifecycle,
     )
+    expect(Object.keys(ctx.worker).sort()).toEqual([
+      'processImportItem',
+      'reconcileProviderRecovery',
+      'registerOutboxConsumers',
+      'sweepImportLifecycle',
+    ])
 
     expect(Object.isFrozen(ctx.publicApi)).toBe(true)
     expect(Object.isFrozen(ctx.publicApi.connections)).toBe(true)

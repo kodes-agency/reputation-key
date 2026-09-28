@@ -24,6 +24,8 @@ type Props = Readonly<{
   property: Readonly<{ id: string; name: string }>
   programId: string
   currentVersion: number
+  /** The current version's zone; a change starts with the next full month there. */
+  propertyTimezone: string
   assignments: readonly GoalSubjectAssignment[]
   groups: readonly Readonly<{
     id: string
@@ -119,6 +121,7 @@ export function GoalProgramAssignmentsDialog(props: Props) {
         <GoalAssignmentOutcomes
           outcomes={mutation.data.outcomes}
           effectiveFrom={mutation.data.effectiveFrom}
+          propertyTimezone={props.propertyTimezone}
           subjectLabel={(subject) =>
             goalAssignmentSubjectLabel(
               subject,

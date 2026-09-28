@@ -236,10 +236,12 @@ export function registerReplyPublicationConsumers(
     module: 'review.outbox-consumers',
     handler: (event) => handleReplyPublicationRequested(deps, event),
   })
+  // Not the publish row: the disconnect fact carries no Property, so a
+  // Property-scoped gate would deny this cleanup before it ran.
   registerConsumer({
     eventType: 'integration.google_account.disconnected',
     consumerName: 'review.on-google-account-disconnected',
-    module: 'review.outbox-consumers',
+    module: 'review.connection-lifecycle',
     handler: (event) => handleGoogleAccountDisconnected(deps, event),
   })
   registerConsumer({

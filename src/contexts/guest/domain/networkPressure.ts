@@ -1,3 +1,5 @@
+import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
+
 const DAY_MS = 24 * 60 * 60 * 1000
 
 export const GUEST_NETWORK_PRESSURE_RETENTION_MS = 7 * DAY_MS
@@ -13,9 +15,9 @@ export type GuestNetworkPressureAction = (typeof GUEST_NETWORK_PRESSURE_ACTIONS)
 
 export type GuestNetworkPressureRecord = Readonly<{
   id: string
-  organizationId: string
-  propertyId: string
-  portalId: string
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  portalId: PortalId
   pseudonym: string
   action: GuestNetworkPressureAction
   observedAt: Date

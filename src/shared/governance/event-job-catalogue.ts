@@ -1,8 +1,10 @@
 // EventJobCatalogue — BQC-3.1.
 //
 // Runtime catalogue for durable event routing and governed BullMQ families.
-// Event rows name the event type and expected durable consumers. Job rows own
-// retry, timeout, scheduling, capability, action, and registration policy.
+// Event rows name the event type and expected durable consumers; a consumed
+// family that nothing emits is listed, with its reason, in
+// producerless-event-families.ts. Job rows own retry, timeout, scheduling,
+// capability, action, and registration policy.
 //
 // A missing expected consumer fails worker readiness and dispatcher delivery.
 // A missing or unknown job family fails readiness or enqueue policy.
@@ -659,6 +661,8 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     },
     { timeoutMs: 300_000 },
   ),
+  // Quarantined until a reviewed cutover: the setup checklist, Property setup and
+  // Inbox response targets still read the completed snapshot runs it deletes.
   job(
     'sweep-review-provider-tombstones',
     'src/contexts/review/infrastructure/jobs/review-provider-lifecycle-sweeps.job.ts',
@@ -667,7 +671,7 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       capability: 'none',
       action: 'system:review.purge',
       schedule: 'none',
-      registration: 'enabled',
+      registration: 'quarantined',
     },
     { timeoutMs: 300_000 },
   ),

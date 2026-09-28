@@ -29,9 +29,16 @@ own source review, inbox, property, portal, identity, or goal state.
 ## Model
 
 Recent Activity is a privacy-filtered operational projection, not an event log
-or source-content archive. Operational Action History is append-oriented,
+or source-content archive. As of 2026-09-28 no manager screen reads it: the
+projection is kept because the Organization export and recovery read it (with
+90-day replay facts), and whether it gets a UI or is re-graded is an open
+product decision. Do not remove the projection or its consumer before that
+decision; the unused `getActivityTimeline` plumbing in the inbox bundle is
+cleanup for after the in-flight inbox work lands. Operational Action History is append-oriented,
 organization-scoped evidence with restricted list/export access and legal-hold
-handling.
+handling. `listOperationalActionHistoryFn` and `exportOperationalActionHistoryFn`
+are that restricted AccountAdmin API and have no UI on purpose
+(`docs/operations/operational-action-history.md`, "Access and export").
 
 Notifications are mutable delivery records. Copy is rendered from typed
 payloads at read/send time so in-app rows, urgent email, and digests cannot

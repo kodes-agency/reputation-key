@@ -24,9 +24,9 @@ const isoDateSchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'expected YYYY-MM-
 
 const isoDateTimeSchema = z.string().min(1)
 
-export const BETA_LOCAL_EVIDENCE_VERSION = 'beta-local-1' as const
+const BETA_LOCAL_EVIDENCE_VERSION = 'beta-local-1' as const
 
-export const BETA_LOCAL_REQUIRED_GATE_IDS = [
+const BETA_LOCAL_REQUIRED_GATE_IDS = [
   'security-privacy',
   'local-scale-recovery',
   'source-lifecycle',

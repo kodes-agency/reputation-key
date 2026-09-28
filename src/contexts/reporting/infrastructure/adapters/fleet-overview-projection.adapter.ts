@@ -15,7 +15,10 @@ import type {
   FleetOverviewProjectionRow,
 } from '../../application/ports/fleet-overview-projection.port'
 import { FLEET_PAGE_SIZE } from '../../application/ports/fleet-overview-projection.port'
-import { RATING_DROP_THRESHOLD } from '../../application/utils'
+import {
+  MIN_RATING_COMPARISON_SAMPLE,
+  RATING_DROP_THRESHOLD,
+} from '../../application/utils'
 import { DASHBOARD_READ_BUDGET_MS, withStatementTimeout } from '../read-facade'
 
 const FRESHNESS_WINDOW_MS = 48 * 60 * 60 * 1_000
@@ -413,8 +416,8 @@ export const createFleetOverviewProjectionAdapter = (
                 0
               ) AS overall_avg_rating,
               count(*) FILTER (
-                WHERE review_count >= 10
-                  AND prior_review_count >= 10
+                WHERE review_count >= ${MIN_RATING_COMPARISON_SAMPLE}
+                  AND prior_review_count >= ${MIN_RATING_COMPARISON_SAMPLE}
                   AND prior_avg_rating - avg_rating >= ${RATING_DROP_THRESHOLD}
               ) AS rating_drop_total
             FROM readings

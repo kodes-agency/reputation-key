@@ -4,6 +4,8 @@ import type {
   MerchantAiSnapshot,
 } from '#/contexts/identity/application/public-api'
 import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
+import type { Action } from '#/components/hooks/use-action'
+import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
 import type { MerchantAiPropertyOption } from './merchant-ai-settings-content'
 import { MerchantAiAuthorizationCard } from './merchant-ai-authorization-card'
 import { toggleAiCapability } from './merchant-ai-capability-selection'
@@ -31,21 +33,18 @@ export type MerchantAiChangeInput = Readonly<{
   }
 }>
 
+/**
+ * The commands arrive as the caller's Actions, so their success toasts and cache
+ * invalidation stay where they were built and in-flight state is read from them.
+ */
 export type MerchantAiPropertyAuthorizationProps = Readonly<{
   property: MerchantAiPropertyOption
   snapshot: MerchantAiSnapshot
   notice: MerchantAiNoticeDto
-  enable: (input: MerchantAiEnableInput) => Promise<MerchantAiSnapshot>
-  change: (input: MerchantAiChangeInput) => Promise<MerchantAiSnapshot>
-  revoke: (input: MerchantAiRevokeInput) => Promise<MerchantAiSnapshot>
-  /** Told about every accepted command, so a surrounding page can refresh. */
-  onChanged?: (snapshot: MerchantAiSnapshot) => void
+  enable: Action<MerchantAiEnableInput, MerchantAiSnapshot>
+  change: Action<MerchantAiChangeInput, MerchantAiSnapshot>
+  revoke: Action<MerchantAiRevokeInput, MerchantAiSnapshot>
 }>
-
-function mutationErrorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim()) return error.message
-  return 'The AI setting could not be saved. Reload the property and try again.'
-}
 
 /**
  * One property's AI authorization: the capability choice, consent against the
@@ -59,12 +58,14 @@ export function MerchantAiPropertyAuthorization({
   enable,
   change,
   revoke,
-  onChanged,
 }: MerchantAiPropertyAuthorizationProps) {
   const [snapshot, setSnapshot] = useState(initialSnapshot)
   const [acknowledged, setAcknowledged] = useState(false)
-  const [pending, setPending] = useState(false)
+  // The refusal stays local rather than read from the Actions' `error`: the
+  // caller owns them and keeps them across this section's state-version remount,
+  // and an Action has no reset, so an old refusal would outlive a later success.
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const pending = enable.isPending || change.isPending || revoke.isPending
   const [selectedCapabilities, setSelectedCapabilities] = useState<
     ReadonlyArray<CurrentMerchantAiCapability>
   >(
@@ -116,19 +117,18 @@ export function MerchantAiPropertyAuthorization({
   })
 
   const run = async (operation: () => Promise<MerchantAiSnapshot>) => {
-    setPending(true)
     setErrorMessage(null)
     try {
       const next = await operation()
       setSnapshot(next)
       setSelectedCapabilities(next.capabilities)
-      onChanged?.(next)
     } catch (error) {
-      setErrorMessage(mutationErrorMessage(error))
+      // The server's sentence for a refusal (a changed notice, a stale state
+      // version); a generic one for a failure it never wrote for a reader.
+      setErrorMessage(actionErrorMessage(error))
     } finally {
       // Every consent is its own acknowledgement: the next one is asked again.
       setAcknowledged(false)
-      setPending(false)
     }
   }
 

@@ -35,7 +35,6 @@ import {
   listMembersResponseSchema,
   listInvitationsResponseSchema,
   listUserInvitationsResponseSchema,
-  listOrganizationsResponseSchema,
   betterAuthOrganizationSchema,
 } from './better-auth-schemas'
 import { runWithRegistrationAuthIds } from '#/shared/auth/registration-user-id'
@@ -253,19 +252,6 @@ export const createBetterAuthIdentityAdapter = (
         'getFullOrganization response did not match expected schema',
       )
       return toOrganizationRecord(org)
-    },
-
-    async listUserOrganizations(
-      headers: Headers,
-    ): Promise<ReadonlyArray<OrganizationRecord>> {
-      const result = await auth.api.listOrganizations({ headers })
-      const orgs = parseBetterAuthResponse(
-        listOrganizationsResponseSchema,
-        result,
-        'org_setup_failed',
-        'listOrganizations response did not match expected schema',
-      )
-      return orgs.map(toOrganizationRecord)
     },
 
     async setActiveOrganization(headers: Headers, organizationId: string): Promise<void> {

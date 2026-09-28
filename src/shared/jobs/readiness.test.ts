@@ -95,6 +95,11 @@ describe('assertJobReadiness (BQC-3.6)', () => {
         registration: 'quarantined',
       },
       {
+        jobName: 'sweep-review-provider-tombstones',
+        capability: 'none',
+        registration: 'quarantined',
+      },
+      {
         jobName: 'purge-expired-reviews',
         capability: 'none',
         registration: 'quarantined',

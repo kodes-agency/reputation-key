@@ -26,6 +26,24 @@ type Props = Readonly<{
   onEditResponsibilities: () => void
 }>
 
+// Pinned, because the page is server-rendered in the container's zone and
+// hydrated in the viewer's: the runtime's own zone and locale printed two
+// different days, which React rejects as a hydration mismatch (#418).
+const participationDateFormat = new Intl.DateTimeFormat('en-US', {
+  dateStyle: 'medium',
+  timeZone: 'UTC',
+})
+
+/**
+ * A participation boundary as a calendar date, or nothing when it is not a real
+ * instant: `format` throws on an Invalid Date, and one bad row must not take the
+ * People page down (the guard `formatReviewedAt` uses for the same reason).
+ */
+function formatParticipationDate(value: string | Date): string | null {
+  const date = value instanceof Date ? value : new Date(value)
+  return Number.isFinite(date.getTime()) ? participationDateFormat.format(date) : null
+}
+
 export function StaffParticipationRow({
   participation,
   canManageResponsibilities,
@@ -40,9 +58,9 @@ export function StaffParticipationRow({
         <div className="min-w-40">
           <p className="font-medium">{participation.displayName}</p>
           <p className="text-xs text-muted-foreground">
-            {new Date(participation.startedAt).toLocaleDateString()} –{' '}
+            {formatParticipationDate(participation.startedAt)} –{' '}
             {participation.endedAt
-              ? new Date(participation.endedAt).toLocaleDateString()
+              ? formatParticipationDate(participation.endedAt)
               : 'Present'}
           </p>
         </div>
@@ -92,14 +110,16 @@ export function StaffParticipationRow({
                   <AlertDialogCancel>Cancel</AlertDialogCancel>
                   <AlertDialogAction
                     disabled={archiveAction.isPending}
+                    // The list's banner shows a refusal from the Action's error;
+                    // settling here keeps it from escaping as an unhandled one.
                     onClick={() =>
-                      archiveAction({
+                      void archiveAction({
                         data: {
                           staffParticipationId: participation.id,
                           reason: 'Archived from property People page',
                           expectedRevision: participation.revision,
                         },
-                      })
+                      }).catch(() => undefined)
                     }
                   >
                     {archiveAction.isPending ? 'Archiving…' : 'Archive participation'}

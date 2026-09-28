@@ -208,13 +208,6 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'PUBLIC-TOKEN',
   },
   {
-    file: 'src/contexts/portal/infrastructure/repositories/link-resolver.repository.ts',
-    symbol: 'resolveLinkById',
-    reason:
-      'Unauthenticated guest resolution uses the unguessable link UUID as its capability token and discovers tenant scope from the resolved row.',
-    category: 'PUBLIC-TOKEN',
-  },
-  {
     file: 'src/contexts/portal/infrastructure/repositories/portal-approved-destination.repository.ts',
     symbol: 'listDueForNetworkRevalidation',
     reason:

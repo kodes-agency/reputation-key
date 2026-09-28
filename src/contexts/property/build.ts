@@ -17,7 +17,6 @@ import type {
   UserId,
 } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { createProperty } from './application/use-cases/create-property'
 import { updateProperty } from './application/use-cases/update-property'
 import { listProperties } from './application/use-cases/list-properties'
 import { getProperty } from './application/use-cases/get-property'
@@ -25,15 +24,12 @@ import { createAtomicPropertyCommandStore } from './infrastructure/property-comm
 import { createPropertyGoogleBindingStore } from './infrastructure/property-google-binding-store'
 import { createPropertyLifecycleCommandStore } from './infrastructure/property-lifecycle-command-store'
 import { registerPropertyRetentionConsumer } from './infrastructure/outbox-consumers'
-import { createPropertyOrganizationExportContributor } from './infrastructure/adapters/property-organization-export.adapter'
-import { createPropertyOrganizationLifecycleContributor } from './infrastructure/adapters/property-organization-lifecycle.adapter'
 import { createPropertyResponsibleManagerRepository } from './infrastructure/repositories/property-responsible-manager.repository'
 import {
   listPropertyResponsibleManagers,
   updatePropertyResponsibleManagers,
 } from './application/use-cases/property-responsible-managers'
 import { isEligiblePropertyManager } from './application/property-manager-eligibility'
-import { propertyId } from '#/shared/domain/ids'
 import {
   archiveProperty,
   disconnectPropertyGoogleBinding,
@@ -44,6 +40,7 @@ type PropertyContextDeps = Readonly<{
   db: Database
   repo: PropertyRepository
   clock: () => Date
+  /** Unused since createProperty was deleted; drop it with the composition argument. */
   idGen: () => string
   staffPublicApi: StaffPublicApi
   identityManagerFacts: IdentityManagerFactsPublicApi
@@ -51,7 +48,6 @@ type PropertyContextDeps = Readonly<{
 }>
 
 export const buildPropertyContext = (deps: PropertyContextDeps) => {
-  const idGen = () => propertyId(deps.idGen())
   // BQC-3.5: every property state mutation + fact commits atomically here.
   const commandStore = createAtomicPropertyCommandStore(deps.db)
   const bindingApi = createPropertyGoogleBindingStore(deps.db)
@@ -82,12 +78,6 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
   } as const
 
   const useCases = {
-    createProperty: createProperty({
-      propertyRepo: deps.repo,
-      commandStore,
-      idGen,
-      clock: deps.clock,
-    }),
     updateProperty: updateProperty({
       propertyRepo: deps.repo,
       staffPublicApi: deps.staffPublicApi,
@@ -136,7 +126,6 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
   } as const
 
   const propertyFactsApi = {
-    ...bindingApi,
     propertyExists: async (orgId: OrganizationId, pid: PropertyId) => {
       const p = await deps.repo.findById(orgId, pid)
       return p !== null
@@ -258,26 +247,18 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
 
   return {
     publicApi,
+    /** The Google-binding lifecycle store (`PropertyGoogleBindingPublicApi`).
+     * Integration's import and connection lifecycle are the only other holders,
+     * so it is its own capability and never part of `publicApi`: the audited
+     * request path is `management.disconnectPropertyGoogleBinding`. */
+    googleBinding: bindingApi,
     worker: Object.freeze({
       registerOutboxConsumers: (consumerRegistry: ConsumerRegistry) =>
-        registerPropertyRetentionConsumer(consumerRegistry, publicApi),
+        registerPropertyRetentionConsumer(consumerRegistry, bindingApi),
     }),
     /** ARC-03-T11: the named member-authority capability. Replaces the root's
      * Property responsible-manager repository reach-through. */
     responsibility: createPropertyResponsibilityRuntime(responsibleManagerRepo),
-    /** LIF-01: the Property-owned Organization Export contributor. It stays
-     * out of `publicApi` on purpose — an export slice is lifecycle
-     * composition input, not a product capability any request-facing surface
-     * may reach. */
-    organizationExportContributor: createPropertyOrganizationExportContributor(deps.db),
-    /** LIF-01-T12/T13/T14: the Property-owned Organization lifecycle
-     * contributor. Like the export slice it stays out of `publicApi`: the
-     * purge phase must remain unreachable by default, and it may only ever be
-     * reached through an explicitly reviewed composition of the lifecycle
-     * coordinator, never through a request-facing surface. */
-    organizationLifecycleContributor: createPropertyOrganizationLifecycleContributor(
-      deps.db,
-    ),
     internal: {
       repos: { responsibleManagerRepo } as const,
       useCases,

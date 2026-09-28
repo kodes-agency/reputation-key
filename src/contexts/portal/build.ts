@@ -37,8 +37,6 @@ import { createPortalHealthRepository } from './infrastructure/repositories/port
 import { createPortalAiReplyBrandProfileAuthority } from './infrastructure/ai-reply-brand-profile-authority'
 import type { StoragePort } from './application/ports/storage.port'
 import { createPortalTokenCodec } from './infrastructure/adapters/portal-token-codec'
-import { createPortalOrganizationExportContributor } from './infrastructure/adapters/portal-organization-export.adapter'
-import { createPortalOrganizationLifecycleContributor } from './infrastructure/adapters/portal-organization-lifecycle.adapter'
 import { createPortal } from './application/use-cases/create-portal'
 import { updatePortal } from './application/use-cases/update-portal'
 import { rollbackPortalPublication } from './application/use-cases/rollback-portal-publication'
@@ -629,19 +627,5 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     /** ARC-03-T11: Portal-owned storage capability shared with live Identity
      * profile assets. The adapter remains private to composition. */
     uploads: Object.freeze({ storage }),
-    /** LIF-01: the Portal-owned Organization Export contributor. It stays out
-     * of `publicApi` on purpose — Portal is a dark context, and an export
-     * slice is lifecycle composition input, not a product capability any
-     * request-facing surface may reach. */
-    organizationExportContributor: createPortalOrganizationExportContributor(deps.db),
-    /** LIF-01-T12/T13/T14: the Portal-owned Organization lifecycle
-     * contributor. Like the export slice it stays out of `publicApi`: the
-     * purge phase must remain unreachable by default, and it may only ever be
-     * reached through an explicitly reviewed composition of the lifecycle
-     * coordinator, never through a request-facing surface. Making Portals
-     * unavailable is a stop, so wiring it here activates nothing. */
-    organizationLifecycleContributor: createPortalOrganizationLifecycleContributor(
-      deps.db,
-    ),
   } as const
 }

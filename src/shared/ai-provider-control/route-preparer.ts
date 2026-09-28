@@ -80,7 +80,7 @@ import {
   type DerivedDescriptorFacts,
 } from './prepared-invocation'
 import { derivePropertySafetyIdentifier } from './safety-identifier'
-import { digestRenderedReply, signAiReplyProvenance } from './provenance'
+import { digestRenderedReply, signAiReplyProvenance } from '#/shared/ai-reply-provenance'
 import { digestAiReplyBrandDisplayName } from '#/shared/ai-reply-brand-profile.server'
 const analysisOutputSchema = AI_ANALYSIS_V2_OUTPUT_SCHEMA
 const personalizedReplySchema = AI_PERSONALIZED_REPLY_OUTPUT_SCHEMA

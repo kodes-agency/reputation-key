@@ -149,3 +149,12 @@ export type ReviewRepository = Readonly<{
    */
   countExpiredBeforeAcrossTenants(date: Date): Promise<number>
 }>
+
+/**
+ * The read-only review slice Review publishes through `lookups.review`
+ * (ARC-03-T12). Other contexts get these four reads and nothing that writes.
+ */
+export type ReviewLookups = Pick<
+  ReviewRepository,
+  'findById' | 'findByIds' | 'findByOrganizationId' | 'findByPropertyId'
+>

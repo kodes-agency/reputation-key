@@ -78,9 +78,6 @@ export const listInvitationsResponseSchema = z.array(betterAuthInvitationSchema)
 /** listUserInvitations response — array of invitations (may include org info). */
 export const listUserInvitationsResponseSchema = z.array(betterAuthInvitationSchema)
 
-/** listOrganizations response — array of organizations directly. */
-export const listOrganizationsResponseSchema = z.array(betterAuthOrganizationSchema)
-
 // ── Parser helper ───────────────────────────────────────────────────
 
 /** Parse a better-auth API response through a Zod schema.

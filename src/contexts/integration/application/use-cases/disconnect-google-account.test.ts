@@ -25,7 +25,11 @@ const setup = () => {
     connectionRepo,
     oauth,
     encryption,
-    commandStore: createSequentialIntegrationCommandStore({ connectionRepo, outbox }),
+    commandStore: createSequentialIntegrationCommandStore({
+      connectionRepo,
+      outbox,
+      clock: () => FIXED_TIME,
+    }),
     clock: () => FIXED_TIME,
     logger: createMockLogger(),
   }
@@ -115,6 +119,109 @@ describe('disconnectGoogleAccount', () => {
       connection,
     )
     expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(0)
+  })
+
+  it('returns the connection an overlapping disconnect committed first, without a second fact', async () => {
+    const { baseDeps, connectionRepo, outbox } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const connection = buildTestGoogleConnection({ status: 'active' })
+    connectionRepo.seed([connection])
+    const overlapping = disconnectGoogleAccount(baseDeps)
+    const useCase = disconnectGoogleAccount({
+      ...baseDeps,
+      // The other request reads, commits and records its fact while this one
+      // is still unsubscribing, after both saw the connection active.
+      unsubscribeFromNotifications: async () => {
+        await overlapping({ connectionId: connection.id as string }, ctx)
+      },
+    })
+
+    await expect(
+      useCase({ connectionId: connection.id as string }, ctx),
+    ).resolves.toMatchObject({
+      status: 'disconnected',
+      encryptedRefreshToken: 'redacted',
+    })
+    expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(1)
+  })
+
+  it('still disconnects when a token refresh commits between its read and its write', async () => {
+    const { baseDeps, connectionRepo, outbox } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const connection = buildTestGoogleConnection({ status: 'active' })
+    connectionRepo.seed([connection])
+    const useCase = disconnectGoogleAccount({
+      ...baseDeps,
+      // A background refresh rotates the credential after the disconnect read
+      // it. The disconnect is not fenced on the generation it read: it wins.
+      unsubscribeFromNotifications: async () => {
+        await connectionRepo.updateTokens(
+          ctx.organizationId,
+          connection.id,
+          {
+            lifecycleVersion: connection.lifecycleVersion,
+            credentialGeneration: connection.credentialGeneration,
+          },
+          'enc:access-token-2',
+          'enc:refresh-token-2',
+          new Date('2026-12-31T23:59:59Z'),
+        )
+      },
+    })
+
+    await expect(
+      useCase({ connectionId: connection.id as string }, ctx),
+    ).resolves.toMatchObject({
+      status: 'disconnected',
+      encryptedAccessToken: 'redacted',
+      encryptedRefreshToken: 'redacted',
+    })
+    expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(1)
+  })
+
+  it('leaves a disconnect in flight to its governed attempt and records nothing', async () => {
+    const { useCase, connectionRepo, outbox } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const inFlight = buildTestGoogleConnection({
+      status: 'disconnecting',
+      credentialUseState: 'cleanup_only',
+      cleanupMaterialDeadlineAt: new Date(FIXED_TIME.getTime() + 30_000),
+      lifecycleVersion: 2,
+    })
+    connectionRepo.seed([inFlight])
+
+    await expect(useCase({ connectionId: inFlight.id as string }, ctx)).rejects.toSatisfy(
+      (error: unknown) =>
+        isIntegrationError(error) &&
+        (error as { code: string }).code === 'invalid_transition',
+    )
+    // The governed attempt still owns the row, so its settle can redact it.
+    await expect(connectionRepo.findById(ctx.organizationId, inFlight.id)).resolves.toBe(
+      inFlight,
+    )
+    expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(0)
+  })
+
+  it('finishes a disconnecting connection locally once its cleanup window has closed', async () => {
+    const { useCase, connectionRepo, outbox } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const stranded = buildTestGoogleConnection({
+      status: 'disconnecting',
+      credentialUseState: 'cleanup_only',
+      cleanupMaterialDeadlineAt: new Date(FIXED_TIME.getTime() - 1),
+      lifecycleVersion: 2,
+    })
+    connectionRepo.seed([stranded])
+
+    await expect(
+      useCase({ connectionId: stranded.id as string }, ctx),
+    ).resolves.toMatchObject({
+      status: 'disconnected',
+      credentialUseState: 'none',
+      encryptedRefreshToken: 'redacted',
+      cleanupMaterialDeadlineAt: null,
+    })
+    expect(outbox.byTag('integration.google_account.disconnected')).toHaveLength(1)
   })
 
   it('fails closed on import cancellation before provider or connection mutation', async () => {

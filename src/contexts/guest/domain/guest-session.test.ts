@@ -7,16 +7,17 @@ import {
   buildClearCookieHeader,
   SESSION_COOKIE_NAME,
 } from './guest-session'
+import { guestSessionId, organizationId, portalId, propertyId } from '#/shared/domain/ids'
 
 describe('GuestSession', () => {
   const NOW = new Date('2026-01-15T12:00:00Z')
 
   const baseParams = {
-    sessionId: 'sess-1',
+    sessionId: guestSessionId('sess-1'),
     csrfNonce: 'csrf-1',
-    portalId: 'portal-1',
-    organizationId: 'org-1',
-    propertyId: 'prop-1',
+    portalId: portalId('portal-1'),
+    organizationId: organizationId('org-1'),
+    propertyId: propertyId('prop-1'),
     tokenVersion: 1,
     now: NOW,
   }

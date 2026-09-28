@@ -1,10 +1,16 @@
 import { describe, expect, it, vi } from 'vitest'
-import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  portalGroupId,
+  portalId,
+  propertyId,
+  ratingId,
+} from '#/shared/domain/ids'
 import {
   makeDurablePortalMetricRetractionHandler,
   makeDurableRecordMetricHandler,
+  onRatingSubmittedDurably,
 } from './record-portal-metric'
-import { createMockLogger } from '#/shared/testing/mock-logger'
 
 const event = {
   _tag: 'guest.rating.submitted',
@@ -59,7 +65,6 @@ describe('durable Portal metric recording', () => {
       makeDurableRecordMetricHandler(option)({
         recordMetrics,
         findGroupForPortal: vi.fn().mockResolvedValue(null),
-        logger: createMockLogger(),
       })(event),
     ).rejects.toThrow('superseded metric source reading is not available')
   })
@@ -77,9 +82,97 @@ describe('durable Portal metric recording', () => {
       makeDurableRecordMetricHandler(option)({
         recordMetrics,
         findGroupForPortal: vi.fn().mockResolvedValue(null),
-        logger: createMockLogger(),
       })(event),
     ).resolves.toBeUndefined()
+  })
+})
+
+describe('event-time Portal Group attribution', () => {
+  const ratingEvent = {
+    _tag: 'guest.rating.submitted' as const,
+    eventId: 'rating-event-1',
+    correlationId: null,
+    ratingId: ratingId('00000000-0000-4000-8000-000000000003'),
+    organizationId: event.organizationId,
+    propertyId: event.propertyId,
+    portalId: event.portalId,
+    value: 4,
+    occurredAt: event.occurredAt,
+  }
+
+  it('propagates a failed group lookup so durable delivery retries the fact', async () => {
+    const lookupFailure = new Error('portal group lookup unavailable')
+    const recordMetrics = vi.fn().mockResolvedValue([{ status: 'recorded' }])
+
+    await expect(
+      makeDurableRecordMetricHandler(option)({
+        recordMetrics,
+        findGroupForPortal: vi.fn().mockRejectedValue(lookupFailure),
+      })(event),
+    ).rejects.toBe(lookupFailure)
+    expect(recordMetrics).not.toHaveBeenCalled()
+  })
+
+  it('records no reading of a rating fanout when the group lookup fails', async () => {
+    const lookupFailure = new Error('portal group lookup unavailable')
+    const recordMetrics = vi.fn().mockResolvedValue([{ status: 'recorded' }])
+
+    await expect(
+      onRatingSubmittedDurably({
+        recordMetrics,
+        findGroupForPortal: vi.fn().mockRejectedValue(lookupFailure),
+      })(ratingEvent),
+    ).rejects.toBe(lookupFailure)
+    expect(recordMetrics).not.toHaveBeenCalled()
+  })
+
+  it('records a Portal in no group at event time as an exact null group', async () => {
+    const recordMetrics = vi.fn().mockResolvedValue([{ status: 'recorded' }])
+    const findGroupForPortal = vi.fn().mockResolvedValue(null)
+
+    await makeDurableRecordMetricHandler(option)({
+      recordMetrics,
+      findGroupForPortal,
+    })(event)
+
+    expect(findGroupForPortal).toHaveBeenCalledWith(
+      event.organizationId,
+      event.portalId,
+      event.occurredAt,
+    )
+    expect(recordMetrics).toHaveBeenCalledWith({
+      readings: [
+        expect.objectContaining({ portalGroupId: null, attributionQuality: 'exact' }),
+      ],
+    })
+  })
+
+  it('records every rating fanout reading under the group resolved at event time', async () => {
+    const groupId = portalGroupId('00000000-0000-4000-8000-000000000004')
+    const recordMetrics = vi
+      .fn()
+      .mockResolvedValue([
+        { status: 'recorded' },
+        { status: 'recorded' },
+        { status: 'recorded' },
+      ])
+
+    await onRatingSubmittedDurably({
+      recordMetrics,
+      findGroupForPortal: vi.fn().mockResolvedValue({ portalGroupId: groupId }),
+    })(ratingEvent)
+
+    expect(recordMetrics).toHaveBeenCalledWith({
+      readings: [
+        expect.objectContaining({ portalGroupId: groupId, attributionQuality: 'exact' }),
+        expect.objectContaining({ portalGroupId: groupId, attributionQuality: 'exact' }),
+        expect.objectContaining({ portalGroupId: groupId, attributionQuality: 'exact' }),
+      ],
+      sourceReceipt: {
+        eventId: ratingEvent.eventId,
+        consumerName: 'metric.guest-analytics',
+      },
+    })
   })
 })
 

@@ -73,6 +73,7 @@ export type InboxPublicApi = Readonly<{
   getInboxItemHistory: import('./use-cases/get-inbox-item-history').GetInboxItemHistory
   getInboxQueueCounts: import('./use-cases/get-inbox-queue-counts').GetInboxQueueCounts
   getInboxPropertyCounts: import('./use-cases/get-inbox-property-counts').GetInboxPropertyCounts
+  getReviewInboxItemIds: import('./use-cases/get-review-inbox-item-ids').GetReviewInboxItemIds
   markFeedbackHandled: import('./use-cases/mark-feedback-handled').MarkFeedbackHandled
   correctFeedbackHandlingOutcome: import('./use-cases/correct-feedback-handling-outcome').CorrectFeedbackHandlingOutcome
   getGoogleReviewTargetAnalytics: import('./use-cases/get-response-targets').GetGoogleReviewTargetAnalytics

@@ -7,12 +7,19 @@
 // This module defines the session contract and cookie attributes.
 // The actual signing/encryption is handled by the server runtime.
 
+import type {
+  GuestSessionId,
+  OrganizationId,
+  PortalId,
+  PropertyId,
+} from '#/shared/domain/ids'
+
 export interface GuestSession {
-  readonly sessionId: string
+  readonly sessionId: GuestSessionId
   readonly csrfNonce: string
-  readonly portalId: string
-  readonly organizationId: string
-  readonly propertyId: string
+  readonly portalId: PortalId
+  readonly organizationId: OrganizationId
+  readonly propertyId: PropertyId
   readonly tokenVersion: number
   readonly issuedAt: Date
   readonly expiresAt: Date
@@ -35,11 +42,11 @@ export const SESSION_COOKIE_NAME = 'rk_guest_session'
 const DEFAULT_SESSION_DURATION_MS = 24 * 60 * 60 * 1000
 
 export function createSession(params: {
-  sessionId: string
+  sessionId: GuestSessionId
   csrfNonce: string
-  portalId: string
-  organizationId: string
-  propertyId: string
+  portalId: PortalId
+  organizationId: OrganizationId
+  propertyId: PropertyId
   tokenVersion: number
   campaignMediumHint?: string
   guestLocale?: 'en' | 'bg' | null

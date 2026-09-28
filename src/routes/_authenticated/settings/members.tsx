@@ -13,7 +13,10 @@ import { can } from '#/shared/domain/permissions'
 import { hasRole } from '#/shared/domain/roles'
 import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 import { PageHeader } from '#/components/layout/page-header'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import {
+  actionErrorMessage,
+  useActionMutation,
+} from '#/components/hooks/use-action-mutation'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
 import {
@@ -42,24 +45,16 @@ import { identityKeys } from '#/shared/queries/query-keys'
 import { propertiesQuery } from '#/routes/-queries/route-queries'
 import { LeaveOrganizationDialog } from '#/components/features/people/leave-organization-dialog'
 import {
+  getSelfServiceLeaveAvailabilityFn,
   leaveOrganizationFn,
-  listOutstandingResponsibilitiesFn,
 } from '#/contexts/identity/server/organization-leave-fns'
+import { outstandingResponsibilitiesQuery } from './-leave-organization-queries'
 
 const authRoute = getRouteApi('/_authenticated')
 const membersQuery = queryOptions({
   queryKey: identityKeys.members(),
   queryFn: () => listMembers(),
   staleTime: 30_000,
-})
-
-// LIF-01-T21: the transfer worklist a departing member must clear. Read
-// separately from the member list because it is about the CALLER, not about
-// the directory, and it must be fresh at the moment they open the dialog.
-const outstandingResponsibilitiesQuery = queryOptions({
-  queryKey: identityKeys.outstandingResponsibilities(),
-  queryFn: () => listOutstandingResponsibilitiesFn(),
-  staleTime: 0,
 })
 
 const invitationsQuery = queryOptions({
@@ -75,9 +70,12 @@ export const Route = createFileRoute('/_authenticated/settings/members')({
   },
   loader: async ({ context }) => {
     const { role } = context as AuthRouteContext
-    const [memberResult, invitationsResult] = await Promise.all([
+    const [memberResult, invitationsResult, leaveAvailability] = await Promise.all([
       context.queryClient.ensureQueryData(membersQuery),
       context.queryClient.ensureQueryData(invitationsQuery),
+      // Whether self-service leave is composed at all. When it is not, the
+      // worklist read is never issued and the page says why.
+      getSelfServiceLeaveAvailabilityFn(),
     ])
     // An inviter may only assign roles at or below their own privilege level.
     const allowedRoles: ReadonlyArray<BetaInteractiveRole> = hasRole(role, 'AccountAdmin')
@@ -87,6 +85,7 @@ export const Route = createFileRoute('/_authenticated/settings/members')({
       members: memberResult.members,
       invitations: invitationsResult.invitations,
       allowedRoles,
+      selfServiceLeaveAvailable: leaveAvailability.available,
     }
   },
   // Members/invitations change only on mutation; refetch on invalidation.
@@ -95,7 +94,7 @@ export const Route = createFileRoute('/_authenticated/settings/members')({
 })
 
 function MembersSettingsRoute() {
-  const { allowedRoles } = Route.useLoaderData()
+  const { allowedRoles, selfServiceLeaveAvailable } = Route.useLoaderData()
   const { data: memberResult } = useSuspenseQuery(membersQuery)
   const { data: invitationsResult } = useSuspenseQuery(invitationsQuery)
   const members = memberResult.members
@@ -111,18 +110,27 @@ function MembersSettingsRoute() {
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
     onSuccess: async () => setInviteOpen(false),
   })
+  // The tables have no inline error surface, so these report a refusal (the
+  // resend rate limit, the last Account Admin) by toast. The invite form shows
+  // its own banner, so inviteMutation does not: that would report it twice.
   const updateRoleMutation = useActionMutation(updateMemberRole, {
     successMessage: 'Role updated',
+    errorMessage: actionErrorMessage,
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
   })
   const removeMemberMutation = useActionMutation(removeMember, {
     successMessage: 'Member removed',
+    errorMessage: actionErrorMessage,
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
   })
   const resendMutation = useActionMutation(resendInvitation, {
+    successMessage: 'Invitation resent',
+    errorMessage: actionErrorMessage,
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
   })
   const cancelMutation = useActionMutation(cancelInvitation, {
+    successMessage: 'Invitation cancelled',
+    errorMessage: actionErrorMessage,
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
   })
   // NOT useSuspenseQuery. The identity container installs a fail-closed
@@ -130,14 +138,14 @@ function MembersSettingsRoute() {
   // this read THROWS by design. Suspending the route on it meant one deliberately
   // fenced capability took down the whole members page — the directory,
   // invitations and role management with it — which is what the accessibility
-  // and shell suites caught on /settings/members.
+  // and shell suites caught on /settings/members. Where nothing is composed it
+  // is not issued at all (`selfServiceLeaveAvailable` is false).
   //
   // `undefined` (still loading) and an error both surface as a null worklist,
   // which the dialog treats as "unknown" and refuses to leave on.
-  const { data: outstandingResult, isError: outstandingUnavailable } = useQuery({
-    ...outstandingResponsibilitiesQuery,
-    retry: false,
-  })
+  const { data: outstandingResult, isError: outstandingUnavailable } = useQuery(
+    outstandingResponsibilitiesQuery(selfServiceLeaveAvailable),
+  )
   const leaveMutation = useActionMutation(leaveOrganizationFn, {
     successMessage: 'You have left this organization',
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
@@ -224,6 +232,7 @@ function MembersSettingsRoute() {
             }
             candidates={successorCandidates}
             isSoleAccountAdmin={isSoleAccountAdmin}
+            selfServiceLeaveAvailable={selfServiceLeaveAvailable}
             leaveOrganization={leaveMutation}
           />
         </section>

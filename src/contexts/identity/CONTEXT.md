@@ -46,6 +46,9 @@ adapter; no other context reads its tables directly.
   AccountAdmin. Purging is irreversible and Closed is terminal.
 - Exports are deterministic, encrypted, time-bounded, and assembled from exactly one
   contribution per stable data-owner slot; raw retrieval tokens are never stored.
+  No CSV cell may start a spreadsheet formula: contributors write cells with
+  `csvCell`, and the bundle builder refuses a CSV that does not pass
+  `isFormulaSafeCsv`.
 - A Merchant AI decision deferral ("not now") is a per-Property marker, not consent:
   it records no evidence, notice or epoch, is refused while AI is enabled, keeps the
   first deferral on a repeat, and is deleted in the same transaction as an enable.
@@ -61,10 +64,24 @@ imports only `#/contexts/identity/application/public-api`.
 Server functions for Organizations, settings, invitations, registration, policy,
 feedback, and Staff Participation live in `server/`. Application code owns use
 cases and ports; Drizzle, Better Auth, storage, and lifecycle implementations stay
-under `infrastructure/`.
+under `infrastructure/`. Beta-feedback requests reach the triage store only
+through the build's `betaFeedback` capability (`submit`, `listMine`); the
+operator triage workflow stays with `scripts/ops`.
 
-Identity produces identifier-minimal Organization, invitation, member, merchant-AI,
-and lifecycle facts through the durable outbox. It subscribes to no foreign events.
+Three `server/policy-admin.ts` functions have no UI caller on purpose:
+
+- `explainPolicyDecisionFn` is the live, read-only policy and capability-refusal
+  diagnostic for an operator holding `policy.admin`;
+  `scripts/ops/report-capability-refusal.ts` is its local-stack twin (#403/#408).
+- `grantPropertyAccessFn` and `revokePropertyAccessFn` are the operator surface for
+  changing a PropertyManager's Property scope after invitation; there is no access UI.
+  Follow-up: a grant requires `reason` and `ticketRef` but persists neither (a revoke
+  keeps its `reason` as `revoke_reason`).
+
+Identity produces identifier-minimal invitation, member, merchant-AI, and Organization
+lifecycle facts through the durable outbox. It subscribes to no foreign events.
+`identity.organization.created` is legacy: nothing has emitted it since `/register` was
+deleted, and Recent Activity keeps projecting and replaying the facts recorded before.
 
 ## Lifecycle and export compatibility
 

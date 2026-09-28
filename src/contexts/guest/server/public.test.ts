@@ -309,7 +309,7 @@ describe('guest response server-fn gates', () => {
   it('reveals the Google action only after this signed session has a rating', () => {
     const fn = slice('selectGoogleReviewFn')
     const receipt = fn.indexOf('responseLifecycle.getState')
-    const ratingGate = fn.indexOf('if (!response?.rating')
+    const ratingGate = fn.indexOf('if (!isQualifiedGuestResponse(response))')
     const metric = fn.indexOf('trackReviewLinkClick')
     expect(receipt).toBeGreaterThan(-1)
     expect(ratingGate).toBeGreaterThan(receipt)
@@ -326,7 +326,7 @@ describe('guest response server-fn gates', () => {
   it('records secondary destinations only through a rated explicit mutation', () => {
     const fn = slice('selectSecondaryLinkFn')
     const receipt = fn.indexOf('responseLifecycle.getState')
-    const ratingGate = fn.indexOf('if (!response?.rating')
+    const ratingGate = fn.indexOf('if (!isQualifiedGuestResponse(response))')
     const selection = fn.indexOf('resolveLinkAndTrack')
     expect(receipt).toBeGreaterThan(-1)
     expect(ratingGate).toBeGreaterThan(receipt)
@@ -377,7 +377,7 @@ describe('guest response server-fn gates', () => {
   it('rotates shared-device recovery only after a durable rating', () => {
     const fn = slice('startNewGuestResponseFn')
     const current = fn.indexOf('responseLifecycle.getState')
-    const ratingGate = fn.indexOf('if (!response?.rating')
+    const ratingGate = fn.indexOf('if (!isQualifiedGuestResponse(response))')
     const issue = fn.indexOf('guestSessions.issue')
     const cookie = fn.indexOf("setResponseHeader('Set-Cookie'")
 

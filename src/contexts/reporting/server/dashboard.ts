@@ -15,24 +15,9 @@ import { propertyId, portalId } from '#/shared/domain/ids'
 import { isDashboardError } from '../domain/dashboard-errors'
 import { standardErrorStatus as dashboardErrorStatus } from '#/shared/http/status'
 import { assertDashboardPropertyAccessible } from './assert-property-access'
-import type { DashboardData } from '../domain/dashboard-types'
+import { hideReplyWorkflowWithoutAuthority } from './reply-workflow-redaction'
 
 import { resolvePropertyPeriod } from './resolve-property-period'
-
-function hideReplyWorkflowWithoutAuthority(
-  canManageReplies: boolean,
-  dashboard: DashboardData,
-): DashboardData {
-  if (canManageReplies) return dashboard
-  return {
-    ...dashboard,
-    replyPerformance: { replyRate: 0, avgReplyHours: null },
-    recentReviews: dashboard.recentReviews.map((review) => ({
-      ...review,
-      replyStatus: 'none' as const,
-    })),
-  }
-}
 
 export const getDashboardDataFn = createServerFn({ method: 'GET' })
   .validator(getDashboardDataDto)

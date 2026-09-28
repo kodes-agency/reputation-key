@@ -24,7 +24,6 @@ import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { createBetterAuthIdentityAdapter } from '#/contexts/identity/infrastructure/adapters/auth-identity.adapter'
 import { createTanstackRequestContext } from '#/shared/auth/tanstack-request-context'
 import { createBetterAuthSessionPort } from '#/shared/auth/better-auth-session'
-import { BetaFeedbackTriageRepository } from '#/contexts/identity/infrastructure/beta-feedback-triage.repository'
 import {
   bindProcessPolicies,
   registerProcessPolicyColdBoot,
@@ -95,7 +94,6 @@ function buildContainer(
 ) {
   const { enableJobs = false } = options ?? {}
   const db = options?.db ?? getDb()
-  const betaFeedbackTriageRepo = BetaFeedbackTriageRepository.create(db)
   const pool = options?.pool ?? getPool()
   const logger = getLogger()
   const redis = options && 'redis' in options ? options.redis : getRedis()
@@ -225,6 +223,7 @@ function buildContainer(
     baseUrl: env.BETTER_AUTH_URL,
     invitationExpiresInMs: INVITATION_EXPIRY_SECONDS * 1000,
     logger,
+    betaFeedbackHmacSecret: env.BETTER_AUTH_SECRET,
     policy: buildIdentityPolicyDeps({
       env,
       propertyBelongsToOrganization: (orgId, pid) =>
@@ -362,7 +361,7 @@ function buildContainer(
     invalidationOwnerGen: () => randomBytes(32).toString('base64url'),
     jobQueue: infra.jobQueue,
     propertyApi: property.publicApi,
-    propertyBindingApi: property.publicApi,
+    propertyBindingApi: property.googleBinding,
     enqueueReviewSync: (data, options) =>
       review.publicApi.syncAdmission.addSyncJob(data, options),
     enqueueTargetedReviewFetch: (data, options) =>
@@ -443,6 +442,7 @@ function buildContainer(
     db,
     outboxRepo,
     redis,
+    logger: getLogger(),
     idGen: randomUUID,
     nowEpochMillis: () => clock().getTime(),
     reviewSources: review.publicApi.aiReviewSource,
@@ -657,7 +657,6 @@ function buildContainer(
     })
 
   return {
-    betaFeedbackTriageRepo,
     db,
     pool,
     logger,
@@ -765,6 +764,7 @@ function buildContainer(
       invitationRateLimitHmacSecret: env.BETTER_AUTH_SECRET,
       betaFeedbackHmacSecret: env.BETTER_AUTH_SECRET,
     }),
+    identityBetaFeedback: identity.betaFeedback,
     // BQC-2.7: least-privilege policy administration operations.
     policyAdmin: identity.policy.admin,
     portalPublicApi: portal.publicApi,

@@ -135,6 +135,28 @@ describe('Organization lifecycle command store (real PostgreSQL)', () => {
     await lease.release()
   })
 
+  it('provisions an active authority in the Organization insert itself', async () => {
+    // The organization_lifecycle_authority_provision trigger on Better Auth's
+    // Organization table is the only provisioning path; no command writes it.
+    const fixture = await seedFixture()
+
+    const provisioned = await lease.pool.query(
+      `SELECT state, revision, last_actor_id, last_reason_code
+       FROM organization_lifecycle_authority
+       WHERE organization_id = $1`,
+      [fixture.organizationId],
+    )
+
+    expect(provisioned.rows).toEqual([
+      {
+        state: 'active',
+        revision: 0,
+        last_actor_id: 'system:organization',
+        last_reason_code: 'provisioned',
+      },
+    ])
+  })
+
   it('co-commits the recoverable lifecycle revision and minimal fact', async () => {
     const fixture = await seedFixture()
     const store = createOrganizationLifecycleCommandStore(db)

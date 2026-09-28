@@ -41,7 +41,6 @@ import {
   connectGoogleAccount,
   disconnectGoogleAccount,
   listGoogleConnections,
-  updateConnectionVisibility,
   refreshGoogleToken,
   getGoogleAuthUrl,
   manageNotifications,
@@ -110,6 +109,10 @@ import type { SourceContentPurge } from '#/contexts/review/application/public-ap
 import type { PortalPublicDisplayNameDefaultPublicApi } from '#/contexts/portal/application/public-api'
 import { googleConnectionId, propertyId } from '#/shared/domain/ids'
 import type { HandleGbpNotificationDeps } from './application/use-cases/handle-gbp-notification'
+import {
+  reconcileGoogleProviderRecovery,
+  type ReconcileGoogleProviderRecovery,
+} from './application/use-cases/reconcile-google-provider-recovery'
 import { createProviderAuthorizationInvalidationFanout } from '#/shared/provider-ephemeral/authorization-invalidation'
 
 import type { VersionedHmacKeyring } from '#/shared/security/versioned-hmac-keyring'
@@ -128,7 +131,6 @@ import { createGoogleReviewPushReferenceStore } from './infrastructure/google-re
 import { createGbpReviewPushReceiptStore } from './infrastructure/gbp-review-push-receipt.store'
 import { createGoogleReviewPushTargetResolver } from './infrastructure/adapters/google-review-push-target-resolver.adapter'
 import type { GooglePerformanceDependencyDescriptor } from '#/shared/architecture/google-performance-live-boundary'
-import { createIntegrationOrganizationExportContributor } from './infrastructure/adapters/integration-organization-export.adapter'
 import { createIntegrationOrganizationLifecycleContributor } from './infrastructure/adapters/integration-organization-lifecycle.adapter'
 import { createGoogleOrganizationClosureProvider } from './infrastructure/adapters/google-organization-closure-provider.adapter'
 import { sameRecordEntries } from '#/shared/domain/record-entries'
@@ -272,7 +274,6 @@ export type IntegrationContextApi = Readonly<{
       resume: ReturnType<typeof connectGoogleAccount>['resume']
       disconnect: ReturnType<typeof disconnectGoogleAccount>
       list: ReturnType<typeof listGoogleConnections>
-      updateVisibility: ReturnType<typeof updateConnectionVisibility>
     }>
     oauth: Readonly<{
       getAuthorizationUrl: ReturnType<typeof getGoogleAuthUrl>
@@ -327,6 +328,8 @@ export type IntegrationContextApi = Readonly<{
     registerOutboxConsumers: (consumerRegistry: ConsumerRegistry) => void
     processImportItem: GoogleImportV2Processor['process'] | null
     sweepImportLifecycle: ReturnType<typeof createGoogleImportV2Lifecycle>['sweep'] | null
+    /** One bounded pass of both provider recovery stores; counts only. */
+    reconcileProviderRecovery: ReconcileGoogleProviderRecovery
   }>
   /** ARC-03-T12: the named provider capabilities the Review build consumes. */
   reviewSync: Readonly<{
@@ -360,7 +363,6 @@ export type IntegrationContextApi = Readonly<{
       resumeGoogleAccountConnection: ReturnType<typeof connectGoogleAccount>['resume']
       disconnectGoogleAccount: ReturnType<typeof disconnectGoogleAccount>
       listGoogleConnections: ReturnType<typeof listGoogleConnections>
-      updateConnectionVisibility: ReturnType<typeof updateConnectionVisibility>
       refreshGoogleToken: ReturnType<typeof refreshGoogleToken>
       prepareGoogleConnectorDeparture: ReturnType<typeof prepareGoogleConnectorDeparture>
       googleImportDiscovery: ReturnType<typeof createGoogleImportDiscovery> | null
@@ -956,6 +958,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       authorize,
       renew: deps.providerAuthorizationLeases.renew,
       clock: deps.clock,
+      logger: deps.logger,
     })
   }
 
@@ -1023,12 +1026,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       connectionRepo,
     }),
 
-    updateConnectionVisibility: updateConnectionVisibility({
-      connectionRepo,
-      commandStore,
-      clock: deps.clock,
-    }),
-
     refreshGoogleToken: refreshGoogleTokenUseCase,
 
     prepareGoogleConnectorDeparture: prepareGoogleConnectorDeparture({
@@ -1077,7 +1074,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       resume: useCases.resumeGoogleAccountConnection,
       disconnect: useCases.disconnectGoogleAccount,
       list: useCases.listGoogleConnections,
-      updateVisibility: useCases.updateConnectionVisibility,
     }),
     oauth: Object.freeze({
       getAuthorizationUrl: useCases.getGoogleAuthUrl,
@@ -1389,16 +1385,13 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       }),
     }),
     lifecycle: Object.freeze({
-      // LIF-01: the Organization Export contribution the Identity bundle builder
-      // demands from this context. It is exposed here, beside the other
-      // Organization-lifecycle capabilities, and never on `publicApi` — nothing
-      // about exporting is reachable from a request surface.
-      organizationExportContributor: createIntegrationOrganizationExportContributor(
-        deps.db,
-      ),
-      // LIF-01-T12/T13/T14: the three destructive lifecycle phases. Exposing
-      // the contributor does NOT arm it — the coordinator that calls `purge`
-      // is composed only under an explicitly reviewed composition, and nothing
+      // LIF-01-T12/T13/T14: the three destructive lifecycle phases. This is the
+      // `integration` argument to buildOrganizationLifecycleContributors
+      // (composition/organization-export-contributors.ts): unlike the other
+      // contributors it is not a pure `(db)`, because revoking Google
+      // credentials and subscriptions needs the provider port wired here.
+      // Exposing it does NOT arm it — the coordinator that calls `purge` is
+      // composed only under an explicitly reviewed composition, and nothing
       // here reaches a request surface.
       organizationLifecycleContributor: createIntegrationOrganizationLifecycleContributor(
         {
@@ -1422,6 +1415,12 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       registerOutboxConsumers,
       processImportItem: useCases.processGoogleImportV2Item,
       sweepImportLifecycle: useCases.sweepGoogleImportV2Lifecycle,
+      // The permit sweep's recovery pass, on the stores this build already
+      // holds, including a composition-provided disconnect store.
+      reconcileProviderRecovery: reconcileGoogleProviderRecovery({
+        exchangeRecovery: googleOAuthExchangeRecovery,
+        disconnectRevoke: googleDisconnectRevokeStore,
+      }),
     }),
     // ARC-03-T12: the two provider capabilities the Review context consumes.
     // The root forwards this named group instead of reaching into `internal`.

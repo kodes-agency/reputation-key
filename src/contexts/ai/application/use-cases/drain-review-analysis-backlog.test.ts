@@ -54,12 +54,14 @@ function harness(
     readProgress: vi.fn(),
     hasPendingForReview: vi.fn(),
   } satisfies AiReviewAnalysisBacklogPort
+  const logger = { warn: vi.fn() }
   const drainer = createDrainReviewAnalysisBacklog({
     backlog,
     analyzeReviewEvent,
     nowEpochMillis: () => NOW,
+    logger,
   })
-  return { drainer, backlog, analyzeReviewEvent }
+  return { drainer, backlog, analyzeReviewEvent, logger }
 }
 
 describe('drainReviewAnalysisBacklog', () => {
@@ -153,7 +155,9 @@ describe('drainReviewAnalysisBacklog', () => {
   })
 
   it('reschedules a provider retry and a thrown attempt without losing the entry', async () => {
-    const entries = [entry(1), entry(2, { propertyId: PROPERTY_B })]
+    const thrown = entry(2, { propertyId: PROPERTY_B, attempts: 4 })
+    const entries = [entry(1), thrown]
+    const failure = new Error('store unavailable')
     let call = 0
     const test = harness(entries, () => {
       call += 1
@@ -164,7 +168,7 @@ describe('drainReviewAnalysisBacklog', () => {
           code: 'provider_unavailable',
         }
       }
-      throw new Error('store unavailable')
+      throw failure
     })
 
     await expect(test.drainer.drain()).resolves.toMatchObject({
@@ -178,6 +182,52 @@ describe('drainReviewAnalysisBacklog', () => {
       expect.objectContaining({ nextAttemptAtEpochMillis: NOW + 60_000 }),
     )
     expect(test.backlog.complete).not.toHaveBeenCalled()
+    // Only the thrown attempt is recorded, by identifier; the provider retry
+    // is an ordinary outcome and says nothing.
+    expect(test.logger.warn).toHaveBeenCalledOnce()
+    expect(test.logger.warn).toHaveBeenCalledWith(
+      {
+        err: failure,
+        eventEnvelopeId: thrown.eventEnvelopeId,
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_B,
+        reviewId: thrown.reviewId,
+        attempts: 4,
+        lane: 'background',
+      },
+      'AI review analysis backlog entry failed',
+    )
+  })
+
+  it('says nothing for entries that settle, retry or wait for their lane', async () => {
+    const entries = [entry(1), entry(2), entry(3, { propertyId: PROPERTY_B })]
+    const test = harness(entries, (index) => {
+      if (index === 0) return { status: 'completed' }
+      if (index === 1) {
+        return {
+          status: 'retry',
+          retryAtEpochMillis: NOW + 8_000,
+          code: 'provider_unavailable',
+        }
+      }
+      return { status: 'retry', retryAtEpochMillis: NOW + 40_000, code: 'admission_busy' }
+    })
+
+    await expect(test.drainer.drain()).resolves.toMatchObject({ failed: 0 })
+    expect(test.logger.warn).not.toHaveBeenCalled()
+  })
+
+  it('records a thrown non-Error by identifier only, never the thrown value', async () => {
+    const test = harness([entry(1)], () => ({ status: 'completed' }))
+    test.analyzeReviewEvent.mockRejectedValueOnce('Guest wrote: the room was cold')
+
+    await expect(test.drainer.drain()).resolves.toMatchObject({ failed: 1 })
+    expect(test.logger.warn).toHaveBeenCalledOnce()
+    expect(test.logger.warn).toHaveBeenCalledWith(
+      expect.not.objectContaining({ err: expect.anything() }),
+      'AI review analysis backlog entry failed',
+    )
+    expect(JSON.stringify(test.logger.warn.mock.calls)).not.toContain('room was cold')
   })
 
   it('runs an on-demand review on the interactive lane with headroom for drafts', async () => {
@@ -196,6 +246,35 @@ describe('drainReviewAnalysisBacklog', () => {
         lane: 'interactive',
         admissionHeadroom: AI_ON_DEMAND_ANALYSIS_INTERACTIVE_HEADROOM,
       }),
+    )
+  })
+
+  it('records an on-demand attempt that threw on the interactive lane', async () => {
+    const requested = entry(1, { priority: 'interactive', attempts: 2 })
+    const failure = new Error('operation store unavailable')
+    const test = harness([requested], () => {
+      throw failure
+    })
+
+    await expect(
+      test.drainer.drainReview({
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_A,
+        reviewId: requested.reviewId,
+      }),
+    ).resolves.toEqual({ status: 'failed' })
+    expect(test.logger.warn).toHaveBeenCalledOnce()
+    expect(test.logger.warn).toHaveBeenCalledWith(
+      {
+        err: failure,
+        eventEnvelopeId: requested.eventEnvelopeId,
+        organizationId: ORGANIZATION_ID,
+        propertyId: PROPERTY_A,
+        reviewId: requested.reviewId,
+        attempts: 2,
+        lane: 'interactive',
+      },
+      'AI review analysis backlog entry failed',
     )
   })
 

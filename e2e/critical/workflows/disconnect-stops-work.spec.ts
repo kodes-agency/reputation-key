@@ -32,6 +32,8 @@ import {
   getReviewById,
   getReplyById,
   enqueuePublishReply,
+  promoteFixtureJob,
+  waitForFixtureJobSettled,
   callServerFn,
   waitFor,
 } from '../../helpers/fixtures'
@@ -41,6 +43,8 @@ const seed = requireE2eSeedState()
 const ACCOUNT = `e2e-dis-${e2eRunId}`
 const ACCOUNT_NAME = `accounts/${ACCOUNT}`
 const LOCATION = `${ACCOUNT_NAME}/locations/dis-loc`
+// Longer than the test timeout: the job cannot fire until the spec promotes it.
+const PUBLISH_HOLD_MS = 10 * 60_000
 
 test.describe('Critical workflow: disconnect stops queued protected work', () => {
   test.beforeEach(async () => {
@@ -48,7 +52,8 @@ test.describe('Critical workflow: disconnect stops queued protected work', () =>
   })
 
   test('queued publish dies at the claim guard after disconnect', async ({ page }) => {
-    test.setTimeout(90_000)
+    // Room for the job-settled wait's 90s worker budget after the setup.
+    test.setTimeout(180_000)
     await gbpStubControl.putScope({
       account: {
         name: ACCOUNT_NAME,
@@ -121,14 +126,15 @@ test.describe('Critical workflow: disconnect stops queued protected work', () =>
 
     await signIn(page)
 
-    // Queue the protected work with a delay — enqueued right before the
-    // disconnect, so it is provably still waiting when the disconnect
-    // decision lands (claim guard test, not a race).
-    await enqueuePublishReply({
+    // Queue the protected work held behind a delay no run can outlast, so it
+    // is provably still waiting when the disconnect decision lands (claim
+    // guard test, not a race). It is released only once the disconnect is
+    // confirmed below.
+    const { jobId } = await enqueuePublishReply({
       replyId,
       organizationId: seed.organizationId,
       initiatorUserId: admin!.id,
-      delayMs: 5_000,
+      delayMs: PUBLISH_HOLD_MS,
     })
 
     // Disconnect through the real server fn (item 7 allows UI or server fn —
@@ -167,15 +173,27 @@ test.describe('Critical workflow: disconnect stops queued protected work', () =>
     // report-only and the schema now restricts deletion of an observed Review,
     // so the bounded purge this step relied on no longer removes anything. What
     // item 7 actually demands is that queued protected work STOPS, which the
-    // zero-provider-upsert assertion below is the real guard for: the
-    // connection_disconnected gate in the token provider is what enforces it
-    // now that the reply row outlives the disconnect.
+    // zero-provider-upsert assertion below checks.
     expect(await getReviewById(reviewId)).not.toBeNull()
     expect(await getReplyById(replyId)).not.toBeNull()
 
-    // Drain window: the delayed job fires now — the claim guard must kill it
-    // (reply purged / publication cancelled) with ZERO provider upserts.
-    await page.waitForTimeout(6_000)
+    // Release the held job now that the disconnect is committed, and read the
+    // PUTs only after the worker has settled it — never while it may still be
+    // waiting to run.
+    //
+    // NOTE (gap, not closed here): seedApprovedReply writes a cycle-0 reply
+    // with no reply_publication_authorizations row, so the claim
+    // (markPublicationSending) cannot succeed and the job stops before the
+    // provider path. Zero PUTs therefore holds whether or not that path
+    // refuses a disconnected connection. Proving the refusal needs a claimable
+    // authorized reply and a fenced job (as seedAmbiguousReply seeds its
+    // authorization), then a publish_failed/terminal row.
+    await promoteFixtureJob('default', jobId)
+    await waitForFixtureJobSettled(
+      'default',
+      jobId,
+      'held publish-reply job settled after the disconnect',
+    )
     const puts = await gbpStubControl.calls({ method: 'PUT', pathPrefix: LOCATION })
     expect(puts).toHaveLength(0)
   })

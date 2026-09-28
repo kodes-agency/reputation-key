@@ -86,11 +86,15 @@ describe('Notification Organization lifecycle contributor', () => {
     )
     expect(routes).toEqual([])
 
-    // Returned beside publicApi, never inside it.
+    // Built once, by the composition-owned contributor set, never by a build.
     const build = readFileSync(join(process.cwd(), 'src/contexts/feed/build.ts'), 'utf8')
-    expect(build).toContain(
-      'organizationLifecycleContributor: createNotificationOrganizationLifecycleContributor(',
-    )
+    expect(build).not.toContain('createNotificationOrganizationLifecycleContributor')
+    expect(
+      readFileSync(
+        join(process.cwd(), 'src/composition/organization-export-contributors.ts'),
+        'utf8',
+      ),
+    ).toContain('createNotificationOrganizationLifecycleContributor(db)')
   })
 })
 

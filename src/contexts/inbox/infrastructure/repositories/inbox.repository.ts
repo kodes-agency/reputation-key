@@ -51,7 +51,7 @@ import type {
   ReviewId,
   UserId,
 } from '#/shared/domain/ids'
-import { reviewId, feedbackId, propertyId } from '#/shared/domain/ids'
+import { reviewId, feedbackId, inboxItemId, propertyId } from '#/shared/domain/ids'
 import { inboxItemFromRow, inboxItemToInsertRow } from '../mappers/inbox.mapper'
 import { trace } from '#/shared/observability/trace'
 import { inboxError } from '../../domain/errors'
@@ -344,6 +344,30 @@ export const createInboxRepository = (
           )
           .limit(1)
         return rows[0] ? withDefaults(rows[0]) : null
+      })
+    },
+
+    findActiveReviewItemIds: async (
+      orgId: OrganizationId,
+      pid: PropertyId,
+      reviewIds: ReadonlyArray<ReviewId>,
+    ) => {
+      return trace('inbox.findActiveReviewItemIds', async () => {
+        if (reviewIds.length === 0) return new Map<ReviewId, InboxItemId>()
+        const rows = await db
+          .select({ id: inboxItems.id, sourceId: inboxItems.sourceId })
+          .from(inboxItems)
+          .leftJoin(inboxHandlingCycleHeads, activeHandlingCycleJoin)
+          .where(
+            and(
+              hasActiveHandlingAuthority,
+              eq(inboxItems.organizationId, orgId),
+              eq(inboxItems.propertyId, pid),
+              eq(inboxItems.sourceType, 'review'),
+              inboxSourceIdMatchesAny(reviewIds),
+            ),
+          )
+        return new Map(rows.map((row) => [reviewId(row.sourceId), inboxItemId(row.id)]))
       })
     },
 

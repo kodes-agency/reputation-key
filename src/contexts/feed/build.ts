@@ -34,8 +34,6 @@ import {
   releaseOperationalActionHistoryLegalHold,
 } from './application/use-cases/operational-action-history-lifecycle'
 import { createActivityProjectionRuntime } from './application/activity-projection-runtime'
-import { createActivityOrganizationExportContributor } from './infrastructure/adapters/activity-organization-export.adapter'
-import { createActivityOrganizationLifecycleContributor } from './infrastructure/adapters/activity-organization-lifecycle.adapter'
 
 import type { Queue } from 'bullmq'
 import {
@@ -137,8 +135,6 @@ import {
   registerIdentityAccountNotificationConsumers,
   registerOrganizationPurgePendingNoticeConsumer,
 } from './infrastructure/identity-account-outbox-consumers'
-import { createNotificationOrganizationExportContributor } from './infrastructure/adapters/notification-organization-export.adapter'
-import { createNotificationOrganizationLifecycleContributor } from './infrastructure/adapters/notification-organization-lifecycle.adapter'
 import { createNotificationOrganizationScopeResolver } from './infrastructure/repositories/notification-organization-scope.repository'
 import { createNotificationUserSettings } from './infrastructure/notification-user-settings'
 import type { NotificationQuietHoursInput } from './application/dto/notification-preference.dto'
@@ -217,19 +213,6 @@ const buildActivityFeed = (input: ActivityBuildInput) => {
   // function exposes query APIs and durable outbox-consumer registration.
   return {
     publicApi,
-    // LIF-01-T8: Activity's Organization Export contribution. It is published
-    // as its own named seam rather than through publicApi because the export is
-    // an Identity-orchestrated lifecycle capability, not a manager-facing read —
-    // a dark capability must not become reachable by being wired here.
-    organizationExportContributor: createActivityOrganizationExportContributor(input.db),
-    // LIF-01-T12/T13/T14: Activity's Organization lifecycle contribution, on
-    // its own named seam for the same reason as the export contributor. Binding
-    // it here does NOT make purge reachable — the coordinator still refuses to
-    // run without all seventeen contributors plus independently reviewed
-    // support authorization, and its worker schedule stays quarantined.
-    organizationLifecycleContributor: createActivityOrganizationLifecycleContributor(
-      input.db,
-    ),
     // ARC-03-T12: Activity owns its projection end to end. The container used
     // to hand bootstrap the recent-activity REPOSITORY so the worker could
     // assemble this itself.
@@ -822,23 +805,6 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
 
   return {
     publicApi,
-    // LIF-01-T8: Notification's Organization Export contribution. It is
-    // published as its own named seam rather than through publicApi because the
-    // export is an Identity-orchestrated lifecycle capability, not a
-    // manager-facing read.
-    organizationExportContributor: createNotificationOrganizationExportContributor(
-      input.db,
-    ),
-    // LIF-01-T12/T13/T14: Notification's Organization lifecycle contribution,
-    // on its own named seam for the same reason as the export contributor.
-    // Closing stops delivery, which is the highest-risk external effect in the
-    // whole closure. Binding it here does NOT make purge reachable — the
-    // coordinator still refuses to run without all seventeen contributors plus
-    // independently reviewed support authorization, and its worker schedule
-    // stays quarantined.
-    organizationLifecycleContributor: createNotificationOrganizationLifecycleContributor(
-      input.db,
-    ),
     worker: Object.freeze({ registerOutboxConsumers }),
     // ARC-03-T12: one named delivery capability replaces the root's reach into
     // Notification's private repository trio and loose handlers.

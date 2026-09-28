@@ -1,13 +1,7 @@
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
-import {
-  AI_OPERATION_PROFILES,
-  AI_SOURCE_CANONICALIZER_PROFILE_V1,
-} from '#/shared/ai-operation-profiles'
+import { AI_OPERATION_PROFILES } from '#/shared/ai-operation-profiles'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
-import {
-  LANGUAGE_CATALOGUE_DIGEST,
-  mapReviewLanguageMetadata,
-} from '#/shared/ai-review-language-catalogue'
+import { mapReviewLanguageMetadata } from '#/shared/ai-review-language-catalogue'
 import { encodeCanonicalAiReviewSource } from '#/shared/ai-review-source-contract'
 import type { AiReviewSourcePort } from '#/contexts/review/application/public-api'
 import type { AnalysisResult } from '#/shared/ai-gateway-transport-contract'
@@ -34,8 +28,6 @@ import type { PropertyProcessingProfilePort } from '../ports/property-processing
 import type { AiSubjectHmacPort } from '../ports/ai-subject-hmac.port'
 import {
   DERIVATIVE_RETENTION_MILLIS,
-  type AiExecutionBinding,
-  type AiOperationIdentity,
   type AiPropertyProfileResult,
 } from '../../domain/types'
 import {
@@ -46,6 +38,10 @@ import {
   aiReviewSourceProvenance,
   resolveAiExecutionStopFence,
 } from '../ai-workflow-support'
+import {
+  analysisExecutionBinding,
+  analysisOperationIdentity,
+} from '../ai-operation-binding'
 
 const PROFILE = AI_OPERATION_PROFILES.find(
   (candidate) => candidate.profileVersion === 'review-analysis-v2',
@@ -621,56 +617,23 @@ export function createAnalyzeReviewEvent(
     // review needs one, so a deferring caller queues it for its lane instead.
     if (input.execution === 'defer') return { status: 'deferred' }
     const subject = dependencies.subjectHmac.sign(input.reviewId)
-    const identity: AiOperationIdentity = {
-      subjectKind: 'property',
-      command: 'analysis',
-      capability: 'review_analysis',
-      organizationId: input.organizationId,
-      propertyId: input.propertyId,
-      actorId: null,
-      systemPrincipal: 'review_event_consumer',
-      reviewId: input.reviewId,
-      originEventId: input.eventEnvelopeId,
-      subjectHmac: subject.digest,
-      subjectHmacKeyVersion: subject.keyVersion,
-      sourceEpoch: input.sourceEpoch,
-      sourceRevision: input.sourceRevision,
-      reviewedAtEpochMillis: observation.reviewedAtEpochMillis,
-      analysisSequence: input.analysisSequence,
-    }
-    const binding: AiExecutionBinding = {
-      authorizationLineageId: authorization.authorizationLineageId,
-      noticeVersion: authorization.noticeVersion,
-      noticeDigest: authorization.noticeDigest,
-      capabilityFence: {
-        capability: 'review_analysis',
-        reviewAnalysisEpoch,
-      },
-      sourceEpoch: input.sourceEpoch,
+    const identity = analysisOperationIdentity(
+      input,
+      subject,
+      observation.reviewedAtEpochMillis,
+    )
+    const binding = analysisExecutionBinding({
+      input,
+      authorization,
+      authorizationLineageId,
+      operationProfile: PROFILE,
+      reviewAnalysisEpoch,
       evaluatedLanguage: language.language.group,
-      concreteReplyLanguage: null,
-      languageCatalogueDigest: LANGUAGE_CATALOGUE_DIGEST,
-      replyLanguageVerifierDigest: null,
-      languageScriptConsistencyDigest: null,
-      zhOrthographyVerifierDigest: null,
-      sourceRevision: input.sourceRevision,
       reviewedAtEpochMillis: observation.reviewedAtEpochMillis,
-      propertyProfileVersion: profile.profileVersion,
-      routingPolicyVersion: profile.routingPolicyVersion,
-      sourcePolicyId: AI_SOURCE_CANONICALIZER_PROFILE_V1.sourcePolicyId,
-      sourceCanonicalizerDigest:
-        AI_SOURCE_CANONICALIZER_PROFILE_V1.sourceCanonicalizerDigest,
-      redactionProfileVersion: authorization.redactionProfileFamily,
-      outputLeakageProfileVersion: null,
-      outputLeakageProfileDigest: null,
-      replyTemplateCatalogueVersion: null,
-      replyTemplateCatalogueDigest: null,
-      providerDeploymentProfileVersion: authorization.providerDeploymentProfileVersion,
-      operationProfileVersion: PROFILE.profileVersion,
-      capabilityRuntimeProfileVersion: PROFILE.capabilityRuntimeProfileVersion!,
-      aiSubjectHmacKeyVersion: subject.keyVersion,
+      profile,
+      subjectHmacKeyVersion: subject.keyVersion,
       stopFence,
-    }
+    })
     const requestFingerprint = aiRequestFingerprint({ identity, binding, provenance })
     const claimed = await dependencies.operations.claim({
       identity,

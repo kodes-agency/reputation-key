@@ -30,9 +30,12 @@ binds the exact Portal snapshot/configuration/locale evidence observed by the
 Guest. Corrections and withdrawals are append-only and source-addressed.
 
 A Qualified Scan is a server-verified QR/NFC Access Artifact observation, accepted
-once per signed session and Portal in a rolling 24-hour window. Network Pressure
-Records are seven-day, content-free, daily-rotating pseudonymous admission facts,
-not Guest identity or analytics attribution.
+once per signed session and Portal in a rolling 24-hour window. Its correction path
+is reserved: `GuestObservationStore.retractQualifiedScan` appends
+`guest.qualified_scan.retracted`, which Reporting's guest analytics consumes, but no
+use case calls it yet, so nothing emits the fact. Network Pressure Records are
+seven-day, content-free, daily-rotating pseudonymous admission facts, not Guest
+identity or analytics attribution.
 
 A Contact Request is a separate consented aggregate, encrypted for exactly 30 days
 and backend-only until its approval and handling requirements are met.

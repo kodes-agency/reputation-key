@@ -67,7 +67,6 @@ import {
 } from './application/dto/merchant-ai-notice.dto'
 import { getMemberRole } from './infrastructure/repositories/manager-membership.repository'
 import {
-  grantPropertyAccess,
   revokeAllPropertyAccessForUser,
   hasActiveGrant,
 } from './infrastructure/repositories/property-access-grant.repository'
@@ -135,6 +134,10 @@ import {
   type CurrentUserParticipationAuthorityDatabase,
 } from './infrastructure/repositories/current-user-participation-authority'
 import { createPrimaryStaffAttributionResolver } from './infrastructure/primary-staff-attribution'
+import { submitBetaFeedback } from './application/use-cases/submit-beta-feedback'
+import { listMyBetaFeedback } from './application/use-cases/list-my-beta-feedback'
+import { BetaFeedbackTriageRepository } from './infrastructure/beta-feedback-triage.repository'
+import { deliverBetaFeedback } from './infrastructure/adapters/beta-feedback-sentry-delivery.adapter'
 
 /** Exactly the reactivation probes composition must supply, or none at all. */
 export type OrganizationReactivationProbeBindings = OrganizationReactivationReadinessDeps
@@ -212,6 +215,8 @@ type IdentityContextDeps = Readonly<{
   invitationExpiresInMs: number
   /** Logger supplied by the process composition boundary. */
   logger: LoggerPort
+  /** Keys the content-free beta-feedback telemetry pseudonyms. */
+  betaFeedbackHmacSecret: string
   /**
    * BQC-2.2/2.7 capability-policy wiring. Identity owns the persisted policy
    * store (readiness), the least-privilege admin ops, and the operator audit
@@ -248,51 +253,14 @@ type IdentityContextDeps = Readonly<{
    * command refuses, because a leave that cannot see the worklist would
    * silently strand every responsibility on it. AccountAdmin-initiated
    * `removeMember` is unaffected — it releases rather than transfers.
+   * Whether it was supplied is published as
+   * `offboardingFacts.selfServiceLeaveAvailable`.
    */
   memberOffboarding?: MemberOffboarding
   organizationLifecycle?: IdentityOrganizationLifecycleComposition
 }>
 
-/**
- * Build the container-scoped post-acceptance capability used by the Better
- * Auth Identity adapter. Property selections from the durable invitation are
- * access grants only; Staff participation remains a separate manager command.
- * Each Property is failure-isolated so one stale selection cannot suppress a
- * valid sibling grant, while retry/concurrency converges on the active row.
- */
-export function createInvitationPropertyAccessProvisioner(
-  deps: Readonly<{
-    db: Database
-    clock: Clock
-    logger: Pick<LoggerPort, 'warn'>
-  }>,
-): IdentityPort['runOnAcceptInvitation'] {
-  return async ({ organizationId: orgId, userId, propertyIds }) => {
-    for (const propertyId of propertyIds) {
-      const input = { organizationId: orgId, propertyId, userId } as const
-      try {
-        if (await hasActiveGrant(deps.db, { ...input, at: deps.clock() })) continue
-        try {
-          await grantPropertyAccess(deps.db, {
-            ...input,
-            source: 'invitation',
-            createdBy: `invitation:${userId}`,
-          })
-        } catch (error) {
-          // A concurrent/retried acceptance may have won the unique race.
-          // Suppress only after a fresh authority read proves convergence.
-          const active = await hasActiveGrant(deps.db, {
-            ...input,
-            at: deps.clock(),
-          })
-          if (!active) throw error
-        }
-      } catch (error) {
-        deps.logger.warn({ err: error }, 'Failed to provision invited property access')
-      }
-    }
-  }
-}
+export { createInvitationPropertyAccessProvisioner } from './infrastructure/invitation-property-access-provisioner'
 
 type ContributorReadiness = Readonly<{
   contributorsConfigured: boolean
@@ -601,6 +569,25 @@ function buildPeopleSurface(
     publicApi: Object.freeze({ ...facts, management }),
     decideUserParticipationAuthority,
   } as const
+}
+
+/**
+ * A reporter's own beta-feedback requests. Requests reach the triage
+ * repository only through these; its operator workflow stays with scripts/ops.
+ */
+function buildBetaFeedbackRequests(deps: IdentityContextDeps) {
+  const store = BetaFeedbackTriageRepository.create(deps.db)
+  const hmacSecret = deps.betaFeedbackHmacSecret
+  return Object.freeze({
+    submit: submitBetaFeedback({
+      store,
+      deliver: deliverBetaFeedback,
+      clock: deps.clock,
+      idGen: deps.idGen,
+      hmacSecret,
+    }),
+    listMine: listMyBetaFeedback({ store, hmacSecret }),
+  })
 }
 
 export const buildIdentityContext = (deps: IdentityContextDeps) => {
@@ -940,6 +927,9 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
   })
   const offboardingFacts = Object.freeze({
     listOutstanding: memberOffboarding.listOutstanding,
+    // Derived from the wiring, never configured separately: it can only be
+    // true when a real adapter replaced the fail-closed default above.
+    selfServiceLeaveAvailable: deps.memberOffboarding !== undefined,
   })
   const publicApi = Object.freeze({
     managerFacts,
@@ -996,5 +986,8 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     // commands, content-free operator diagnostics, and only fully bound
     // maintenance services; partial contributor sets remain non-executable.
     lifecycle: organizationLifecycleRuntime,
+    /** Beta-feedback reporting for the signed-in reporter. Request-facing, but
+     * kept off `publicApi`, which other contexts receive. */
+    betaFeedback: buildBetaFeedbackRequests(deps),
   } as const
 }

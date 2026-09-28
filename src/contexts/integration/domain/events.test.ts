@@ -7,7 +7,6 @@ import {
   integrationGoogleAccountConnected,
   integrationGoogleAccountDisconnected,
   integrationGoogleAccountReauthorizationRequired,
-  integrationGoogleConnectionVisibilityChanged,
   integrationGoogleReviewPushAccepted,
   integrationPropertyImportRequested,
   integrationPropertyImportRetentionReleased,
@@ -98,42 +97,6 @@ describe('integrationGoogleAccountDisconnected', () => {
   })
 })
 
-// ── integrationGoogleConnectionVisibilityChanged ───────────────────────────────
-
-describe('integrationGoogleConnectionVisibilityChanged', () => {
-  it('sets _tag to "google_connection.visibility_changed"', () => {
-    const event = integrationGoogleConnectionVisibilityChanged({
-      connectionId: googleConnectionId('conn-1'),
-      organizationId: organizationId('org-1'),
-      visibility: 'organization',
-      occurredAt: now,
-    })
-    expect(event._tag).toBe('integration.google_connection.visibility_changed')
-  })
-
-  it('preserves all payload fields', () => {
-    const event = integrationGoogleConnectionVisibilityChanged({
-      connectionId: googleConnectionId('conn-1'),
-      organizationId: organizationId('org-1'),
-      visibility: 'private',
-      occurredAt: now,
-    })
-    expect(event.connectionId).toBe(googleConnectionId('conn-1'))
-    expect(event.organizationId).toBe(organizationId('org-1'))
-    expect(event.visibility).toBe('private')
-  })
-
-  it('sets occurredAt as a Date', () => {
-    const event = integrationGoogleConnectionVisibilityChanged({
-      connectionId: googleConnectionId('conn-1'),
-      organizationId: organizationId('org-1'),
-      visibility: 'organization',
-      occurredAt: now,
-    })
-    expect(event.occurredAt).toBeInstanceOf(Date)
-  })
-})
-
 describe('integrationPropertyImportRetentionReleased', () => {
   it('creates a bounded identifier-only release event', () => {
     const idempotencyKeys = ['40000000-0000-4000-8000-000000000001']
@@ -203,13 +166,6 @@ describe('correlation', () => {
         connectionId,
         organizationId: organization,
         cause: 'member_removed',
-        occurredAt: now,
-        correlationId,
-      }),
-      integrationGoogleConnectionVisibilityChanged({
-        connectionId,
-        organizationId: organization,
-        visibility: 'organization',
         occurredAt: now,
         correlationId,
       }),
