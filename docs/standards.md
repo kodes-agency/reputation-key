@@ -334,6 +334,8 @@ Clean → proceed. A newly-orphaned export/file → remove it, but **confirm rea
 
 **File-length ratchet** (`pnpm check:file-length`, run by `lint:ci`): a production module under `src/contexts`, `src/shared`, `src/routes`, `scripts` or `server` may hold at most 800 counted lines, counted as ESLint `max-lines` counts them (blank and comment-only lines are free). The modules already past it are grandfathered in `scripts/ci/file-length.baseline.json` and may not grow. Split them one per change and lower the baseline with `pnpm check:file-length --write-baseline`; never raise an entry to get a change through. `src/components` keeps its stricter ESLint limit (300).
 
+**Unchecked-index ratchet** (`pnpm check:unchecked-indexed-access`, run by `lint:ci`): `tsconfig.json` does not set `noUncheckedIndexedAccess` yet, so this gate type-checks the repository with it and fails when a file gains an index-access diagnostic beyond `scripts/ci/unchecked-indexed-access.baseline.json`. Guard new reads (`?.`, `??`, an explicit check) instead of raising an entry, and lower the baseline with `pnpm check:unchecked-indexed-access --write-baseline` as files are fixed. When the baseline is empty, set the flag in `tsconfig.json` and delete the gate.
+
 ---
 
 ## Documentation map

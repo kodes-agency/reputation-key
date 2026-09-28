@@ -70,7 +70,7 @@ CI runs `pnpm db:migrate-deploy` (`.github/workflows/ci.yml`, Predeploy migratio
 | `pnpm test:e2e`     | Run Playwright E2E tests                                                                  |
 | `pnpm typecheck`    | TypeScript check: src + e2e, tooling (`tsconfig.scripts.json`), project-coverage guard    |
 | `pnpm lint`         | ESLint + filename/component-boundary checks                                               |
-| `pnpm lint:ci`      | `lint` + test-quality, Google identifier, runtime-environment, file-length ratchet checks |
+| `pnpm lint:ci`      | `lint` + test-quality, Google identifier, runtime-environment, file-length/index ratchets |
 | `pnpm format`       | Prettier format                                                                           |
 
 ### Local stacks
