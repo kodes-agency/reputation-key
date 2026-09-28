@@ -522,6 +522,34 @@ export const AppliesACategoryToEveryProperty: Story = {
   },
 }
 
+/**
+ * Email the Property in view cannot send is not applied everywhere. The email
+ * save used to go out anyway, the server refused it for the missing
+ * `notification.send_email` capability, and the page said "Could not apply to
+ * every property" although in-app had already been applied to all of them.
+ */
+export const ApplyToAllLeavesUnavailableEmailAlone: Story = {
+  args: { emailAvailability: 'unavailable' },
+  play: async ({ canvasElement }) => {
+    updatePreferenceMock.mockClear()
+    const canvas = within(canvasElement)
+
+    await userEvent.click(
+      canvas.getByRole('button', {
+        name: 'Workflow and collaboration: Apply to all my properties',
+      }),
+    )
+
+    await waitFor(() => expect(updatePreferenceMock).toHaveBeenCalledOnce())
+    expect(updatePreferenceMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ channel: 'in_app', applyToAllProperties: true }),
+    })
+    expect(updatePreferenceMock).not.toHaveBeenCalledWith({
+      data: expect.objectContaining({ channel: 'email' }),
+    })
+  },
+}
+
 /** A property with no row of its own shows what it inherits, not a blank. */
 export const InheritedDefaultIsWhatANewPropertyGets: Story = {
   args: {

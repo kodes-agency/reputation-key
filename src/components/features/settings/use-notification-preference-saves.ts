@@ -14,6 +14,10 @@ import {
   type PreferencePatch,
   type PreferenceValues,
 } from './notification-preference-saves'
+import {
+  applyEverywhereInOrder,
+  applyEverywhereNotice,
+} from './notification-apply-everywhere'
 
 export type PreferenceUpdate = Readonly<{
   data: Readonly<
@@ -32,6 +36,8 @@ type Options = Readonly<{
   preferences: readonly NotificationPreference[]
   /** What a property with no row of its own inherits. */
   categoryDefaults: readonly NotificationCategoryDefault[]
+  /** Whether the Property in view may send email; "Apply to all" skips it otherwise. */
+  emailAllowed: boolean
   updatePreference: Action<PreferenceUpdate, NotificationPreference>
 }>
 
@@ -49,6 +55,7 @@ export function useNotificationPreferenceSaves({
   propertyId,
   preferences,
   categoryDefaults,
+  emailAllowed,
   updatePreference,
 }: Options) {
   const [runner] = useState(createSerialRunner)
@@ -117,7 +124,7 @@ export function useNotificationPreferenceSaves({
    * does not have to visit thirty properties to be sure.
    */
   const applyToAll = async (category: ConfigurableNotificationCategory) => {
-    for (const channel of ['in_app', 'email'] as const) {
+    const outcome = await applyEverywhereInOrder(emailAllowed, (channel) => {
       const key = preferenceRowKey(propertyId, category, channel)
       const values = applyPreferencePatch(
         category,
@@ -125,24 +132,21 @@ export function useNotificationPreferenceSaves({
         latest.current.get(key) ?? stored(category, channel),
         {},
       )
-      try {
-        await runner.run(key, () =>
-          updatePreference({
-            data: {
-              propertyId,
-              category,
-              channel,
-              applyToAllProperties: true,
-              ...values,
-            },
-          }),
-        )
-      } catch {
-        toast.error('Could not apply to every property')
-        return
-      }
-    }
-    toast.success('Applied to every property')
+      return runner.run(key, () =>
+        updatePreference({
+          data: {
+            propertyId,
+            category,
+            channel,
+            applyToAllProperties: true,
+            ...values,
+          },
+        }),
+      )
+    })
+    const notice = applyEverywhereNotice(outcome)
+    if (notice.tone === 'error') toast.error(notice.message)
+    else toast.success(notice.message)
   }
 
   return { preferenceFor, savePreference, applyToAll } as const
