@@ -47,6 +47,7 @@ import {
   resolveResponsibleRecipients,
 } from '../application/responsible-recipients'
 import { resolveReplyApprovalRecipients } from '../application/reply-approval-recipients'
+import { resolveEscalationRecipients } from '../application/escalation-recipients'
 import type { ReplyApprovalAuthorityPort } from '../application/ports/reply-approval-authority.port'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
 import type { NotificationAudience } from '../application/notification-audience'
@@ -148,15 +149,6 @@ export type WorkflowNotificationConsumerDeps = Readonly<{
 type WorkflowNotificationDeliveryDeps = Omit<WorkflowNotificationConsumerDeps, 'receipts'>
 
 /**
- * Nobody is told about their own action: they already know what they did.
- * A system actor (`null`) excludes nobody.
- */
-const excludingActor = (
-  recipients: readonly UserId[],
-  actorId: UserId | null,
-): readonly UserId[] => recipients.filter((recipientId) => recipientId !== actorId)
-
-/**
  * Who this assignment is news to.
  *
  * The new assignee, unless they claimed it themselves. And, on a manual
@@ -224,10 +216,9 @@ async function enqueueAssignmentNotification(
 }
 
 /**
- * An escalation goes to the people who own the item's work — the Property's
- * responsible managers for a review, the Portal's for private feedback — and
- * to the AccountAdmins only when that scope has nobody (I5.3). It used to go
- * to every AccountAdmin in the Organization regardless.
+ * An escalation goes to the people who own the item's work, and to the
+ * AccountAdmins when nobody there but the escalating actor can answer it
+ * (I5.3, `resolveEscalationRecipients`).
  */
 async function enqueueEscalationNotifications(
   deps: WorkflowNotificationDeliveryDeps,
@@ -237,21 +228,20 @@ async function enqueueEscalationNotifications(
     event.inboxItemId,
     event.organizationId,
   )
-  const candidates = facts
-    ? await resolveInboxResponsibleRecipients(deps, event.organizationId, facts)
-    : await deps.userLookup.findByRole(event.organizationId, 'AccountAdmin')
-  const audience = facts
-    ? inboxNotificationAudience(facts)
-    : ({ kind: 'account_admin' } as const)
-  if (candidates.length === 0) {
+  const { recipients, audience } = await resolveEscalationRecipients(
+    deps,
+    event.organizationId,
+    facts,
+    event.userId,
+  )
+  if (recipients.length === 0) {
+    // A request for help that reaches nobody must at least leave a trace.
     deps.logger.warn(
       { correlationId: event.correlationId ?? undefined },
-      'notification escalation delivery: no recipients found, skipping',
+      'notification escalation delivery: nobody besides the escalating actor, skipping',
     )
     return
   }
-  const recipients = excludingActor(candidates, event.userId)
-  if (recipients.length === 0) return
 
   // Escalating is a person's judgement call; the notice names their role.
   const payload = await buildInboxItemPayload(deps, {
