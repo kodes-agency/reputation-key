@@ -6,6 +6,7 @@ import {
   createFakeJobLogger,
   createResendSenderAnswering,
   RESEND_NETWORK_FAILURE,
+  waitingWorkState,
 } from './test-fixtures'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import type { NotificationDeliveryOutcome } from '../../domain/notification-delivery-policy'
@@ -108,6 +109,7 @@ function fakeDeps() {
       async (_organizationId: string): Promise<'none' | 'optional' | 'all'> => 'none',
     ),
     isRecipientEligible: vi.fn(async () => true),
+    workState: waitingWorkState(),
     logger: createFakeJobLogger(),
     clock: () => NOW,
     baseUrl: BASE_URL,

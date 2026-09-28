@@ -26,6 +26,7 @@ import {
   createRecipientStandingMemo,
   type NotificationRecipientStanding,
 } from '../../application/notification-recipient-standing'
+import type { NotificationWorkState } from '../../application/notification-work-state'
 import type {
   NotificationEmail,
   PersonalDeliveryWindow,
@@ -54,6 +55,8 @@ export type DigestEntryDeps = Readonly<{
   authorizeScope: ScheduledScopeAuthorizer
   /** The recipient's current membership, access and responsibility. */
   isRecipientEligible: NotificationRecipientStanding
+  /** Whether the work each line asks for is still waiting. */
+  workState: Pick<NotificationWorkState, 'isWaiting'>
 }>
 
 export type RecipientContext = Readonly<{
@@ -335,6 +338,26 @@ export async function loadItems(
 }
 
 /**
+ * Whether a line still asks for waiting work: the row must be unsettled, and
+ * the work itself still waiting, because a row written after the fact that
+ * settles it was never settled.
+ */
+async function stillWaiting(
+  deps: DigestEntryDeps,
+  ctx: RecipientContext,
+  item: DigestItem,
+): Promise<DigestItem | null> {
+  if (!isStillActionable(item.notification)) return null
+  const waiting = await deps.workState.isWaiting({
+    organizationId: ctx.orgId,
+    type: item.notification.type,
+    resourceId: item.notification.resourceId,
+    audience: item.entry.recipientAudience,
+  })
+  return waiting ? item : null
+}
+
+/**
  * A digest gathers up to a day of rows, so the work a line asks for may have
  * been done in between: the reopen handled, the escalation resolved, the
  * approval decided. Those lines are retired with a visible reason rather than
@@ -347,8 +370,9 @@ async function settledWork(
 ): Promise<readonly DigestItem[]> {
   const waiting: DigestItem[] = []
   for (const item of items) {
-    if (isStillActionable(item.notification)) {
-      waiting.push(item)
+    const current = await stillWaiting(deps, ctx, item)
+    if (current) {
+      waiting.push(current)
       continue
     }
     await deps.emailRepo.markSuppressed(

@@ -20,6 +20,7 @@ import {
   NOTIFICATION_SETTLEMENT_CONSUMERS,
   registerNotificationSettlementConsumers,
 } from './notification-settlement-outbox-consumers'
+import { waitingWorkState } from './jobs/test-fixtures'
 
 const ORG = 'organization-settlement'
 const PROPERTY = propertyId('93000000-0000-4000-8000-000000000001')
@@ -49,6 +50,7 @@ const makeDeps = () => ({
   inboxItemLookup: {
     findInboxItemByReviewId: vi.fn(async (): Promise<InboxItemId | null> => ITEM),
   },
+  workState: waitingWorkState(),
   clock: () => NOW,
   logger: createMockLogger(),
   receipts: { insertReceipt: vi.fn(async () => undefined) },

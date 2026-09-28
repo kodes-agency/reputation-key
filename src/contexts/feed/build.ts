@@ -48,9 +48,11 @@ import { createOneClickUnsubscribeRepository } from './infrastructure/repositori
 import { createNotificationDbUserLookupAdapter } from './infrastructure/adapters/notification-db-user-lookup.adapter'
 import type { ResponsibleManagerLookupPort } from './application/ports/responsible-manager-lookup.port'
 import type { ReplyApprovalAuthorityPort } from './application/ports/reply-approval-authority.port'
+import type { ReplyWorkStateLookupPort } from './application/ports/reply-work-state.port'
 import type { FeedbackPortalLookupPort } from './application/ports/feedback-portal-lookup.port'
 import { createNotificationAudienceAuthorizer } from './application/notification-audience'
 import { createNotificationRecipientStanding } from './application/notification-recipient-standing'
+import { createNotificationWorkState } from './application/notification-work-state'
 import { createNotificationOrganizationEmailStopReader } from './infrastructure/repositories/notification-organization-email-stop.repository'
 import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-item-lookup.adapter'
 import { createDisplayNameLookupAdapter } from './infrastructure/adapters/display-name-lookup.adapter'
@@ -280,6 +282,8 @@ type NotificationBuildInput = Readonly<{
   responsibleManagers: ResponsibleManagerLookupPort
   /** Identity-owned `reply.manage` authority, for routing approval requests. */
   replyApproval: ReplyApprovalAuthorityPort
+  /** Review-owned reply status, so a notice never asks for a decided reply. */
+  replyStates: ReplyWorkStateLookupPort
   /** Guest-owned source attribution; Notification never reads Guest tables. */
   feedbackPortalLookup: FeedbackPortalLookupPort
   googleConnectionProperties: GoogleConnectionPropertyLookup
@@ -352,6 +356,14 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     portalHealthLookup: input.portalHealthLookup,
     monthlyResultFacts: input.monthlyResultFacts,
     organizationAccountAuthority,
+  })
+  // Asked before a notice is written, before its email leaves, and before a
+  // settling fact retires it: the owners' answer to "is the work still waiting".
+  const workState = createNotificationWorkState({
+    escalationResolutions,
+    inboxItemLookup,
+    replyStates: input.replyStates,
+    responsibleManagers: input.responsibleManagers,
   })
   // Asked when an email is queued, and again before it is sent.
   const organizationEmailStop = createNotificationOrganizationEmailStopReader(input.db)
@@ -711,6 +723,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       notifications: notificationRepo,
       emails: emailRepo,
       inboxItemLookup,
+      workState,
       clock: input.clock,
       logger: input.logger,
       receipts: input.outboxRepo,
@@ -814,6 +827,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
         handleResendEvent,
         authorizeAudience,
         recipientStanding,
+        workState,
         deliverySettlement,
         reconcileMissingNotificationsHandler: reconcileMissingNotificationsHandler(),
       },

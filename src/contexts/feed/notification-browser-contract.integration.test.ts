@@ -69,6 +69,7 @@ function feedPublicApi() {
       logger,
       responsibleManagers: {} as never,
       replyApproval: {} as never,
+      replyStates: {} as never,
       feedbackPortalLookup: {} as never,
       googleConnectionProperties: {} as never,
       propertyImportInitiators: {} as never,

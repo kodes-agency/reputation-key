@@ -42,6 +42,7 @@ import type { NotificationRepositoryPort } from '../../application/ports/notific
 import type { UserLookupPort } from '../../application/ports/notification-user-lookup.port'
 import type { EmailSenderPort } from '../../application/ports/email-sender.port'
 import type { NotificationRecipientStanding } from '../../application/notification-recipient-standing'
+import type { NotificationWorkState } from '../../application/notification-work-state'
 import type { NotificationPropertyScopeResolver } from '../repositories/notification-property-scope.repository'
 import type { NotificationOrganizationScopeResolver } from '../repositories/notification-organization-scope.repository'
 import { deliveryTiming } from '../../domain/notification-delivery-policy'
@@ -119,6 +120,8 @@ export type UrgentEmailDeps = Readonly<{
   organizationEmailStop: NotificationOrganizationEmailStopPort
   /** The recipient's current membership, access and responsibility. */
   isRecipientEligible: NotificationRecipientStanding
+  /** Whether the work the notice asks for is still waiting. */
+  workState: Pick<NotificationWorkState, 'isWaiting'>
   logger: LoggerPort
   clock: () => Date
   /** `env.BETTER_AUTH_URL`. Injected, never read from env inside the job. */
@@ -519,6 +522,18 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     // notice that asks for work is mailed only while the work is still
     // waiting — unsettled, unread and undismissed.
     if (!isStillActionable(notification)) {
+      await suppress(ids, NOT_ACTIONABLE_EMAIL_REASON)
+      return
+    }
+    // The row may have been written after the fact that settles it, which
+    // then found nothing to settle: ask the work itself.
+    const waiting = await deps.workState.isWaiting({
+      organizationId: orgId,
+      type: notification.type,
+      resourceId: notification.resourceId,
+      audience: entry.recipientAudience,
+    })
+    if (!waiting) {
       await suppress(ids, NOT_ACTIONABLE_EMAIL_REASON)
       return
     }

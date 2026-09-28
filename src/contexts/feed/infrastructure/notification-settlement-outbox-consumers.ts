@@ -27,6 +27,7 @@ import { isRecordPayload, requiredString } from './outbox-payload-fields'
 import type { NotificationRepositoryPort } from '../application/ports/notification-repository.port'
 import type { NotificationEmailRepositoryPort } from '../application/ports/notification-email-repository.port'
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
+import type { NotificationWorkState } from '../application/notification-work-state'
 import {
   SETTLED_EMAIL_REASON,
   settledNotificationTypes,
@@ -105,6 +106,11 @@ export type NotificationSettlementConsumerDeps = Readonly<{
   notifications: Pick<NotificationRepositoryPort, 'settleUnreadForResource'>
   emails: Pick<NotificationEmailRepositoryPort, 'cancelQueuedForNotifications'>
   inboxItemLookup: Pick<InboxItemLookupPort, 'findInboxItemByReviewId'>
+  /**
+   * Whether each type's work is really finished now. A fact handled late must
+   * not retire a request made again since, which coalesced into the same row.
+   */
+  workState: Pick<NotificationWorkState, 'finished'>
   clock: () => Date
   logger: LoggerPort
   receipts: Pick<OutboxRepository, 'insertReceipt'>
@@ -203,10 +209,20 @@ export async function handleNotificationSettlementEvent(
     return { status: 'obsolete' }
   }
 
+  const types = await deps.workState.finished({
+    organizationId: orgId,
+    resourceId,
+    types: settledNotificationTypes(route.fact),
+  })
+  if (types.length === 0) {
+    await deps.receipts.insertReceipt(event.eventId, route.consumerName, 'applied')
+    return { status: 'applied' }
+  }
+
   const resolvedAt = deps.clock()
   const settled = await deps.notifications.settleUnreadForResource({
     organizationId: orgId,
-    types: settledNotificationTypes(route.fact),
+    types,
     resourceId,
     resolvedAt,
   })

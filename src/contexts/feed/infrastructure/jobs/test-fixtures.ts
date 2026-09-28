@@ -32,6 +32,10 @@ import {
   type ResendSendResult,
 } from '../adapters/resend-email.adapter'
 import type { DigestItem } from './digest-assembly'
+import type {
+  NotificationWorkDecision,
+  NotificationWorkState,
+} from '../../application/notification-work-state'
 
 const NOW = new Date('2026-08-21T08:00:00.000Z')
 const ORG = 'org-1'
@@ -211,3 +215,17 @@ export const createFakeJobLogger = (): FakeJobLogger => {
   logger.child.mockReturnValue(logger)
   return logger as unknown as FakeJobLogger
 }
+
+/**
+ * Work that is always still waiting, and settling facts that always finish
+ * it: the state every test assumes unless it is about the work itself.
+ */
+export const waitingWorkState = () => ({
+  isWaiting: vi.fn(
+    async (_subject: Parameters<NotificationWorkState['isWaiting']>[0]) =>
+      true as NotificationWorkDecision,
+  ),
+  finished: vi.fn(
+    async ({ types }: Parameters<NotificationWorkState['finished']>[0]) => types,
+  ),
+})

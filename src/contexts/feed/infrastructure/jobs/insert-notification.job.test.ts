@@ -10,6 +10,7 @@ import {
   parseOutboxNotificationDelivery,
   withOutboxNotificationDelivery,
 } from '../outbox-notification-delivery'
+import { waitingWorkState } from './test-fixtures'
 
 const data: InsertNotificationJobData = {
   userId: userId('user-1'),
@@ -29,6 +30,7 @@ const data: InsertNotificationJobData = {
 const buildDeps = (authorized = true) => ({
   ...buildFakeInsertNotificationDeps(),
   authorizeAudience: vi.fn().mockResolvedValue(authorized),
+  workState: waitingWorkState(),
 })
 
 const durableData = async (): Promise<InsertNotificationJobData> => {
