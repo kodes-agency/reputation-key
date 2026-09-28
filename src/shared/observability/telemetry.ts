@@ -99,6 +99,7 @@ export interface ErrorCaptureContext {
     | 'bullmq-worker'
     | 'bullmq-job'
     | 'alert-dispatcher'
+    | 'email-provider'
   readonly trigger?:
     | 'SIGTERM'
     | 'SIGINT'

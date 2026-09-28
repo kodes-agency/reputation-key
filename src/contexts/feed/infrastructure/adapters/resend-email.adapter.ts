@@ -19,6 +19,7 @@
 // live key. Production callers use the zero-arg form.
 import { Resend } from 'resend'
 import { maskEmail } from '#/shared/observability/pii'
+import { captureObservabilityException } from '#/shared/observability/telemetry'
 import { warnOnceOnSenderMisalignment } from '#/shared/email'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type {
@@ -81,6 +82,22 @@ export type ResendEmailAdapterDependencies = Readonly<{
   clientFactory?: () => ResendEmailClient
 }>
 
+/**
+ * The provider refused our credentials (401) or our sending domain (403) —
+ * a revoked or rotated API key, a lapsed domain verification. Every message
+ * is refused alike, and refusals are never retried, so the jobs complete
+ * normally and the refusal-rate alert waits for a count a small Organization
+ * may never reach. The first one goes to the error monitor.
+ */
+const SENDER_REFUSAL_STATUS_CODES: ReadonlySet<number> = new Set([401, 403])
+
+class EmailProviderRefusedSender extends Error {
+  constructor(statusCode: number) {
+    super(`Email provider refused the sender (${statusCode})`)
+    this.name = 'EmailProviderRefusedSender'
+  }
+}
+
 // No cast: the SDK's declared `send` must stay assignable to the narrowed
 // surface, so a change in what it can answer fails compilation here.
 const buildClient = (config: ResendEmailAdapterConfig): ResendEmailClient =>
@@ -136,6 +153,11 @@ export const createResendEmailAdapter = (
           { toPrefix: maskEmail(params.to), providerCode, statusCode, classification },
           'Email provider rejected message',
         )
+        if (statusCode !== null && SENDER_REFUSAL_STATUS_CODES.has(statusCode)) {
+          captureObservabilityException(new EmailProviderRefusedSender(statusCode), {
+            source: 'email-provider',
+          })
+        }
         return {
           kind: 'rejected' as const,
           classification,
