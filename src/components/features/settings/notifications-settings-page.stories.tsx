@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type {
@@ -489,6 +490,52 @@ export const OnePropertyCanOverrideTheWindow: Story = {
     expect(updateQuietHoursMock).toHaveBeenCalledWith({
       data: { propertyId: PROPERTY_ID, follow: true },
     })
+  },
+}
+
+/**
+ * Picking another Property shows that Property's own answer. The card used to
+ * keep the first Property's mode, so a Property whose override sends email at
+ * any hour read "Follows your quiet hours", and saving the bypass on a
+ * Property without one stored an override that ended quiet hours there.
+ */
+export const SwitchingPropertyShowsItsOwnOverride: Story = {
+  args: {
+    userSettings: { ...userSettings, quietHoursStart: '22:00', quietHoursEnd: '07:00' },
+    propertyWindows: [
+      {
+        ...override,
+        propertyId: OTHER_PROPERTY_ID,
+        quietHoursStart: null,
+        quietHoursEnd: null,
+      } as unknown as NotificationPropertyDeliveryWindow,
+    ],
+  },
+  render: function SwitchingProperty(args) {
+    const [propertyId, setPropertyId] = useState(args.propertyId)
+    return (
+      <NotificationsSettingsPage
+        {...args}
+        propertyId={propertyId}
+        setPropertyId={setPropertyId}
+      />
+    )
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByRole('button', { name: 'Use different hours here' })).toBeVisible()
+
+    await userEvent.click(canvas.getByRole('combobox', { name: /^Property:/ }))
+    await userEvent.click(
+      await within(document.body).findByRole('option', { name: 'Second Property' }),
+    )
+
+    await waitFor(() =>
+      expect(
+        canvas.getByRole('button', { name: 'Follow my quiet hours here' }),
+      ).toBeVisible(),
+    )
+    expect(canvas.queryByText(/Follows your quiet hours/)).toBeNull()
   },
 }
 
