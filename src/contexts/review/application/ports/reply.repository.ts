@@ -134,12 +134,13 @@ export type ReplyRepository = Readonly<{
     attempt: PublicationAttemptReference,
   ): Promise<Date | null>
   /**
-   * BQC-3.8: replies in an active publication state
-   * (requested/authorized/sending/pending_observation) for the given reviews —
-   * the rows the disconnect/policy cancellation flow must cancel. Bounded by
-   * the caller's review batch.
+   * BQC-3.8: replies of the given reviews whose publication cycle was never
+   * dispatched (requested/authorized) — the rows a disconnect may cancel. A
+   * sending or pending_observation cycle may already be on Google, so it stays
+   * with the worker and the reconciliation sweep, exactly as the
+   * Property-archive cancellation leaves it. Bounded by the caller's batch.
    */
-  findPublicationActiveByReviewIds(
+  findUndispatchedPublicationsByReviewIds(
     reviewIds: ReadonlyArray<ReviewId>,
     organizationId: OrganizationId,
   ): Promise<ReadonlyArray<Reply>>

@@ -513,6 +513,9 @@ async function enqueuePublishFailedNotification(
     inboxItemId: inboxItem,
     orgId: event.organizationId,
     publishOutcome: event.outcome,
+    // A manager cannot retry past a lapsed Google grant any more than the
+    // author could, so they need the reconnect cause too.
+    publishFailureCause: event.cause ?? null,
   })
   await Promise.all(
     recipients.map((recipientId) =>

@@ -2,7 +2,7 @@
 //
 // The disconnect/policy flow resolves the connection's reviews exactly like
 // the source-content purge (google_connection_id equality within the org),
-// then cancels every publication-active reply (requested/authorized/sending)
+// then cancels every never-dispatched reply (requested/authorized)
 // through the command store: one batch transaction, one
 // review.reply.publication_cancelled fact per reply. Rows whose publication
 // moved on — or that the purge already deleted — are skipped by the store
@@ -117,7 +117,7 @@ function makeDeps(opts: {
     findByConnection: vi.fn().mockImplementation(async () => reviewsQueue.shift() ?? []),
   } as unknown as ReviewRepository
   const replyRepo = {
-    findPublicationActiveByReviewIds: vi.fn(async () => opts.activeReplies ?? []),
+    findUndispatchedPublicationsByReviewIds: vi.fn(async () => opts.activeReplies ?? []),
   } as unknown as ReplyRepository
   const commandStore = {
     cancelPublications: vi.fn(async () => opts.cancelResult ?? 0),
@@ -151,7 +151,7 @@ describe('cancelPublicationsForConnection', () => {
       null,
       500,
     )
-    expect(deps.replyRepo.findPublicationActiveByReviewIds).toHaveBeenCalledWith(
+    expect(deps.replyRepo.findUndispatchedPublicationsByReviewIds).toHaveBeenCalledWith(
       [reviewId(REVIEW_1), reviewId(REVIEW_2)],
       ORG_ID,
     )
@@ -182,7 +182,7 @@ describe('cancelPublicationsForConnection', () => {
     })
 
     expect(result).toEqual({ reviewsScanned: 0, cancelled: 0, batches: 0 })
-    expect(deps.replyRepo.findPublicationActiveByReviewIds).not.toHaveBeenCalled()
+    expect(deps.replyRepo.findUndispatchedPublicationsByReviewIds).not.toHaveBeenCalled()
     expect(deps.commandStore.cancelPublications).not.toHaveBeenCalled()
   })
 

@@ -325,8 +325,8 @@ export const createReplyRepository = (
       return rows[0]?.attemptStartedAt ?? null
     }),
 
-  findPublicationActiveByReviewIds: async (reviewIds, organizationId) => {
-    return trace('reply.findPublicationActiveByReviewIds', async () => {
+  findUndispatchedPublicationsByReviewIds: async (reviewIds, organizationId) => {
+    return trace('reply.findUndispatchedPublicationsByReviewIds', async () => {
       if (reviewIds.length === 0) return []
       const rows = await db
         .select()
@@ -335,12 +335,8 @@ export const createReplyRepository = (
           and(
             inArray(replies.reviewId, [...reviewIds]),
             eq(replies.organizationId, organizationId),
-            inArray(replies.publicationState, [
-              'requested',
-              'authorized',
-              'sending',
-              'pending_observation',
-            ]),
+            // A claimed or provider-accepted cycle may already be on Google.
+            inArray(replies.publicationState, ['requested', 'authorized']),
           ),
         )
       return rows.map(replyFromRow)

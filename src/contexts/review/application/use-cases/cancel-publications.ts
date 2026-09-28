@@ -1,11 +1,15 @@
 // Review context — cancel in-flight reply publications for a Google connection (BQC-3.8).
 //
 // Triggered by integration.google_account.disconnected (and available to
-// future policy cancellations): every reply of the connection's reviews that
-// sits in an ACTIVE publication state (requested/authorized/sending) is
-// cancelled — publication_state → 'cancelled', status → 'draft', one
+// future policy cancellations): every reply of the connection's reviews whose
+// publication cycle was never dispatched (requested/authorized) is cancelled —
+// publication_state → 'cancelled', status → 'draft', one
 // review.reply.publication_cancelled fact per reply, committed per batch in
-// ONE transaction by the reply command store.
+// ONE transaction by the reply command store. A sending or pending_observation
+// cycle may already be live on Google: telling its approvers it was "returned
+// to draft, approve it again" would be false and could post it twice, so the
+// worker and the reconciliation sweep end it, with the accurate "not confirmed
+// on Google" notice when no read can prove it.
 //
 // Resolution mirrors the source-content purge (reviews.google_connection_id
 // equality within the organization), keyset-bounded so a large connection
@@ -80,7 +84,7 @@ export const cancelPublicationsForConnection =
       const propertyByReviewId = new Map<string, PropertyId>(
         reviews.map((r) => [r.id as string, r.propertyId]),
       )
-      const active = await deps.replyRepo.findPublicationActiveByReviewIds(
+      const active = await deps.replyRepo.findUndispatchedPublicationsByReviewIds(
         reviews.map((r) => r.id),
         input.organizationId,
       )

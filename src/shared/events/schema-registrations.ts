@@ -992,6 +992,10 @@ const invitationCanceledSchema = z.object({
 const memberRemovedSchema = z.object({
   organizationId: z.string(),
   userId: z.string(),
+  // Additive at version 1: leaving records this same fact with the member as
+  // its own actor, and Feed must not tell a member who left that an
+  // administrator removed them. Rows recorded before it was kept lack it.
+  removedBy: z.string().optional(),
 })
 
 // BQC-3.5: memberRoleChangedSchema gains `memberUserId` IN PLACE at version 1.

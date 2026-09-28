@@ -167,12 +167,19 @@ const renderOrganizationRoleChanged = (): RenderedNotification =>
     'You received this because what your account may do in an organization on Reputation Key changed.',
   )
 
-const renderOrganizationAccessRemoved = (): RenderedNotification =>
-  accountNotice(
-    'Organization access removed',
-    'Your account no longer has access to this organization. If this seems unexpected, contact an account administrator.',
-    'You received this because your access to an organization on Reputation Key ended.',
-  )
+/** A member who left is told they left, not that an administrator acted. */
+const renderOrganizationAccessRemoved = (p: NotificationPayload): RenderedNotification =>
+  p.leftOrganization === true
+    ? accountNotice(
+        'You left the organization',
+        'Your account no longer has access to this organization. To come back, ask an account administrator to invite you again.',
+        'You received this because you left an organization on Reputation Key.',
+      )
+    : accountNotice(
+        'Organization access removed',
+        'Your account no longer has access to this organization. If this seems unexpected, contact an account administrator.',
+        'You received this because your access to an organization on Reputation Key ended.',
+      )
 
 /**
  * LIF-01 program bullet 5. Purge Pending has no timer: support begins the
@@ -312,9 +319,12 @@ const renderReplyPublishFailed = (p: NotificationPayload): RenderedNotification 
 }
 
 /**
- * An approved reply that was cancelled before Google saw it. Each cause takes
- * a different next step, so the cause decides the whole sentence: reconnect,
- * nothing to do here, write a new reply, or just look. The title never says
+ * An approved reply whose publication RepKey stopped. Each cause takes a
+ * different next step, so the cause decides the whole sentence: reconnect,
+ * nothing to do here, write a new reply, or just look. A disconnect or a
+ * policy stop only ever cancels a cycle that never went out, so only those
+ * say so; a guest edit or a different live reply can stop one Google may
+ * already hold, so neither claims it was not sent. The title never says
  * "your" — the same notice goes to the approvers who have to act on it.
  */
 const PUBLICATION_CANCELLATION_BODIES = {
@@ -323,9 +333,9 @@ const PUBLICATION_CANCELLATION_BODIES = {
   policy:
     'This property can no longer publish to Google, so it was never sent. The draft is saved.',
   source_changed:
-    'The guest changed their review, so the approved text was never sent. Open it to write a reply to the new review.',
+    'The guest changed their review, so RepKey stopped publishing the approved text. Open it to check what Google shows, then reply to the new review.',
   provider_truth:
-    'A different reply is already live on Google, so this one was never sent. Open it to check.',
+    'A different reply is live on Google, so this one is not. Open it to check.',
 } as const
 
 const renderReplyPublicationCancelled = (
@@ -336,7 +346,7 @@ const renderReplyPublicationCancelled = (
     title: `Reply returned to draft${atProperty(p)}`,
     body:
       cause === undefined
-        ? 'It was never sent to Google. Open it to see where it stands.'
+        ? 'Open it to see where it stands.'
         : PUBLICATION_CANCELLATION_BODIES[cause],
     actionLabel: cause === 'source_changed' ? 'Open review' : 'Open reply',
     summary: factsAt(p, 'review', 'returned to draft'),
@@ -592,9 +602,10 @@ const renderPropertyResponsibilityNeeded = (
  * The Google connection belongs to the Organization. The Property its notice
  * is filed under is only a delivery anchor, so the copy never names it.
  *
- * When Google refused the grant itself, updates and replies have already
- * stopped, so the copy says so and leads with the one action that restores
- * them.
+ * A connection that needs reauthorization admits no sync or reply, whatever
+ * the cause, so every version says updates and replies are paused. When
+ * Google refused the grant itself, the copy leads with the one action that
+ * restores them; when the admin whose grant backed it left, it says why.
  */
 const renderIntegrationReauthorizationRequired = (
   p: NotificationPayload,
@@ -608,7 +619,10 @@ const renderIntegrationReauthorizationRequired = (
       }
     : {
         title: 'Google connection needs attention',
-        body: 'Reconnect the account to keep Google review updates and replies working.',
+        body:
+          p.reauthorizationCause === undefined
+            ? 'Review updates and replies are paused until Google is reconnected.'
+            : 'The person who connected Google is no longer an account admin here, so review updates and replies are paused. Reconnect Google to restart them.',
         actionLabel: 'Review connection',
         summary: 'Google connection needs attention',
       }
