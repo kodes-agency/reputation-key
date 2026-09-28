@@ -379,9 +379,15 @@ no "release to nobody": choosing a successor is an accountability decision.
   store, which is what closes the race between two admins leaving at once.
 - The worklist is re-read AFTER the transfers are applied, so a responsibility
   created during the hand-over blocks the leave instead of being abandoned.
-- The responsibility facts are composed (`memberOffboarding`). ABSENT IS
-  FAIL-CLOSED: with no adapter bound, leave refuses. A leave that cannot see
-  the worklist would silently strand everything on it.
+- The responsibility facts come from a composed `memberOffboarding` adapter.
+  ABSENT IS FAIL-CLOSED: with no adapter bound, leave refuses. A leave that
+  cannot see the worklist would silently strand everything on it.
+- Production does NOT compose `memberOffboarding` today, so self-service leave
+  always refuses and removal by an AccountAdmin is the supported path out of an
+  Organization. Identity publishes this as
+  `offboardingFacts.selfServiceLeaveAvailable` (false), and Settings → Members
+  says leaving on your own is not available in this beta instead of reading the
+  worklist.
 - `identity.leave_org` is capability-gated as usual. A closure request sets
   no Organization suspension, so it does not by itself stop a leave.
 

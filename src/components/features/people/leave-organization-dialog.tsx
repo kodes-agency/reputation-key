@@ -63,6 +63,14 @@ export type LeaveOrganizationDialogProps = Readonly<{
   candidates: readonly LeaveCandidate[]
   /** True when the caller is the only AccountAdmin left. */
   isSoleAccountAdmin: boolean
+  /**
+   * Identity's `selfServiceLeaveAvailable` composition fact. False means no
+   * responsibility facts are composed, so a leave can never pass the
+   * transfer-first check: that is a standing state of this beta, not an
+   * outage, and the section says so instead of offering a leave that the
+   * dialog would then call a transient failure.
+   */
+  selfServiceLeaveAvailable: boolean
   leaveOrganization: AnyAction
 }>
 
@@ -95,9 +103,21 @@ export function LeaveOrganizationDialog({
   outstanding,
   candidates,
   isSoleAccountAdmin,
+  selfServiceLeaveAvailable,
   leaveOrganization,
 }: LeaveOrganizationDialogProps) {
   const [assignments, setAssignments] = useState<ReadonlyMap<string, string>>(new Map())
+
+  // No trigger and no confirm: with nothing composed there is no leave to
+  // start, and removal by an AccountAdmin is the supported way out.
+  if (!selfServiceLeaveAvailable) {
+    return (
+      <p className="text-muted-foreground text-sm" data-testid="leave-not-offered">
+        Leaving on your own isn't available in this beta — ask an account administrator to
+        remove you.
+      </p>
+    )
+  }
 
   const assign = (key: string, toUserId: string) => {
     // Immutable: a new Map per change, never a mutation of the held one.

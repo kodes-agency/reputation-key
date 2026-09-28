@@ -71,6 +71,34 @@ export const listOutstandingResponsibilitiesFn = createServerFn({
   ),
 )
 
+/**
+ * Whether this deployment composes self-service leave at all. The members page
+ * reads it so it can say "not available in this beta" instead of issuing the
+ * worklist read above, which is fenced by design when nothing is composed.
+ *
+ * Deliberately NOT capability-gated: the page's loader awaits it, and a
+ * refusal here would take the directory and invitations down with it. It
+ * names no tenant data and decides nothing — the worklist read and the leave
+ * command keep their own gates.
+ */
+export const selfServiceLeaveAvailabilityHandler = createServerOnlyFn(async () => {
+  await resolveTenantContext(await headersFromContext())
+  return {
+    available:
+      getContainer().identityPublicApi.offboardingFacts.selfServiceLeaveAvailable,
+  }
+})
+
+export const getSelfServiceLeaveAvailabilityFn = createServerFn({
+  method: 'GET',
+}).handler(
+  tracedHandler(
+    selfServiceLeaveAvailabilityHandler,
+    'GET',
+    'identity.getSelfServiceLeaveAvailability',
+  ),
+)
+
 export const leaveOrganizationHandler = createServerOnlyFn(
   async ({ data }: Readonly<{ data: LeaveOrganizationDto }>) => {
     const ctx = await resolveTenantContext(await headersFromContext())
