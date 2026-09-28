@@ -20,6 +20,7 @@ import {
   NOTIFICATION_SETTLEMENT_CONSUMERS,
   registerNotificationSettlementConsumers,
 } from './notification-settlement-outbox-consumers'
+import { noGroupedReopens, waitingWorkState } from './jobs/test-fixtures'
 
 const ORG = 'organization-settlement'
 const PROPERTY = propertyId('93000000-0000-4000-8000-000000000001')
@@ -39,16 +40,21 @@ type CancelArgs = Parameters<
 
 const makeDeps = () => ({
   notifications: {
+    settleUnreadForProperty: vi.fn(
+      async (): Promise<ReadonlyArray<NotificationId>> => [],
+    ),
     settleUnreadForResource: vi.fn(
       async (_input: SettleInput): Promise<ReadonlyArray<NotificationId>> => [SETTLED],
     ),
   },
+  groupedReopens: noGroupedReopens(),
   emails: {
     cancelQueuedForNotifications: vi.fn(async (..._args: CancelArgs) => 1),
   },
   inboxItemLookup: {
     findInboxItemByReviewId: vi.fn(async (): Promise<InboxItemId | null> => ITEM),
   },
+  workState: waitingWorkState(),
   clock: () => NOW,
   logger: createMockLogger(),
   receipts: { insertReceipt: vi.fn(async () => undefined) },
@@ -150,7 +156,7 @@ describe('a settling fact retires the notices that asked for the work', () => {
     })
   })
 
-  it('retires the reopen and the target reminders when the cycle closes', async () => {
+  it('retires the arrival, the reopen and the target reminders when the cycle closes', async () => {
     const deps = makeDeps()
 
     await handleNotificationSettlementEvent(
@@ -160,6 +166,9 @@ describe('a settling fact retires the notices that asked for the work', () => {
 
     expect(deps.notifications.settleUnreadForResource.mock.calls[0]?.[0]).toMatchObject({
       types: [
+        'review.created',
+        'review.updated',
+        'feedback.created',
         'inbox.reopened',
         'inbox.response_target_halfway',
         'inbox.response_target_passed',

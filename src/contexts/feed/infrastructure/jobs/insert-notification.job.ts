@@ -13,6 +13,7 @@ import type {
   NotificationAudienceAuthorizer,
 } from '../../application/notification-audience'
 import { parseNotificationAudience } from '../../application/notification-audience'
+import type { NotificationWorkState } from '../../application/notification-work-state'
 import {
   parseOutboxNotificationDelivery,
   type OutboxNotificationDelivery,
@@ -54,6 +55,8 @@ const withItemCount = (
 type InsertNotificationJobDeps = InsertNotificationDeps &
   Readonly<{
     authorizeAudience: NotificationAudienceAuthorizer
+    /** Whether the work the notice asks for is still waiting (ADR 0046). */
+    workState: Pick<NotificationWorkState, 'isWaiting'>
     deliverySettlement?: NotificationDeliverySettlement
   }>
 
@@ -94,6 +97,14 @@ export const createInsertNotificationHandler = (deps: InsertNotificationJobDeps)
           throw new Error('outbox notification delivery settlement is unavailable')
         }
 
+        const settleObsolete = async (): Promise<void> => {
+          if (!delivery) return
+          await deps.deliverySettlement!.settleObsolete(
+            { organizationId: job.data.organizationId },
+            delivery,
+          )
+        }
+
         const decision = await deps.authorizeAudience({
           userId: job.data.userId,
           organizationId: job.data.organizationId,
@@ -101,16 +112,25 @@ export const createInsertNotificationHandler = (deps: InsertNotificationJobDeps)
           audience,
         })
         if (decision === false) {
-          if (delivery) {
-            await deps.deliverySettlement!.settleObsolete(
-              { organizationId: job.data.organizationId },
-              delivery,
-            )
-          }
+          await settleObsolete()
           logger.info(
             { audienceKind: audience.kind },
             'Notification suppressed: recipient is no longer eligible',
           )
+          return
+        }
+        // The settling fact may already have been handled: it retires only
+        // rows that exist, and this job runs on a slower queue. A notice for
+        // finished work would stand unsettled forever and mail its request.
+        const work = await deps.workState.isWaiting({
+          organizationId: job.data.organizationId,
+          type: job.data.type,
+          resourceId: job.data.resourceId,
+          audience,
+        })
+        if (work === false) {
+          await settleObsolete()
+          logger.info('Notification suppressed: its work is already done')
           return
         }
 

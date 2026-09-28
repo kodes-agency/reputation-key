@@ -17,6 +17,7 @@ import { registerEscalationResolutionNotificationConsumer } from './escalation-r
 import { registerGoalNotificationConsumer } from './goal-outbox-consumers'
 import { registerHandlingCycleNotificationConsumers } from './handling-cycle-outbox-consumers'
 import { registerNotificationSettlementConsumers } from './notification-settlement-outbox-consumers'
+import { noGroupedReopens, waitingWorkState } from './jobs/test-fixtures'
 import { registerResponseTargetNotificationConsumer } from './response-target-outbox-consumers'
 import { registerPortalHealthNotificationConsumer } from './portal-health-outbox-consumers'
 import {
@@ -81,9 +82,14 @@ describe('registered durable notification matrix', () => {
     })
     registerHandlingCycleNotificationConsumers(consumerRegistry, { ...fakes, receipts })
     registerNotificationSettlementConsumers(consumerRegistry, {
-      notifications: { settleUnreadForResource: vi.fn(async () => []) },
+      notifications: {
+        settleUnreadForResource: vi.fn(async () => []),
+        settleUnreadForProperty: vi.fn(async () => []),
+      },
+      groupedReopens: noGroupedReopens(),
       emails: { cancelQueuedForNotifications: vi.fn(async () => 0) },
       inboxItemLookup: fakes.inboxItemLookup,
+      workState: waitingWorkState(),
       clock: fakes.clock,
       logger: fakes.logger,
       receipts,

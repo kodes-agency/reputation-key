@@ -42,10 +42,13 @@ async function noticeFor(removedBy: typeof MEMBER) {
   expect(fakes.jobs).toHaveLength(1)
   const data = fakes.jobs[0]!.data as InsertNotificationJobData
   expect(data.userId).toBe(MEMBER)
-  return renderNotification(
-    'account.organization_access_removed',
-    parseNotificationPayload(data.payload ?? {}),
-  )
+  return {
+    rendered: renderNotification(
+      'account.organization_access_removed',
+      parseNotificationPayload(data.payload ?? {}),
+    ),
+    payload: data.payload ?? {},
+  }
 }
 
 // Leaving is recorded as identity.member.removed with the member as its own
@@ -57,14 +60,31 @@ describe('the access-removed notice after a member leaves', () => {
   })
 
   it('tells a member who left that they left', async () => {
-    const rendered = await noticeFor(MEMBER)
+    const { rendered } = await noticeFor(MEMBER)
 
     expect(rendered.title).toBe('You left the organization')
     expect(rendered.body).not.toContain('contact an account administrator')
   })
 
   it('keeps the removal copy when an administrator removed them', async () => {
-    const rendered = await noticeFor(ADMIN)
+    const { rendered } = await noticeFor(ADMIN)
+
+    expect(rendered.title).toBe('Organization access removed')
+  })
+
+  // A repeat removal folds into the unread notice and its payload is merged as
+  // `old || new` (ADR 0046 r.2). Left on their own, re-invited, then removed by
+  // an administrator: unless the removal writes the flag as false, the merged
+  // notice keeps the earlier `leftOrganization: true` and says "You left".
+  it('reads as a removal when an administrator removal folds into a self-leave notice', async () => {
+    const left = await noticeFor(MEMBER)
+    const removed = await noticeFor(ADMIN)
+    const merged = { ...left.payload, ...removed.payload }
+
+    const rendered = renderNotification(
+      'account.organization_access_removed',
+      parseNotificationPayload(merged),
+    )
 
     expect(rendered.title).toBe('Organization access removed')
   })

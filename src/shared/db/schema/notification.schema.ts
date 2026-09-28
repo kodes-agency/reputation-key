@@ -94,11 +94,14 @@ export const notifications = pgTable(
     updatedAt: updatedAtColumn(),
   },
   (t) => [
-    // ADR 0046 r.2: at most one UNREAD row per (user, type, resource).
-    // Replaces the event-ID-keyed uniqueness, which made every event a new row.
+    // ADR 0046 r.2: at most one row per (user, type, resource) still asking
+    // its reader for something — unread and unsettled. Replaces the
+    // event-ID-keyed uniqueness, which made every event a new row. A settled
+    // row stays unread (read is not resolved) but leaves the slot, so the next
+    // request on the resource gets a row and an email of its own.
     uniqueIndex('notifications_unread_resource_unique')
       .on(t.userId, t.type, t.resourceId)
-      .where(sql`status = 'unread'`),
+      .where(sql`status = 'unread' AND resolved_at IS NULL`),
     // Query: unread count + list by user
     index('notifications_user_status_idx').on(t.userId, t.status, t.createdAt),
     // Query: list by org (admin views)

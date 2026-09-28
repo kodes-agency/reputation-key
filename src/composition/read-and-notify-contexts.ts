@@ -162,6 +162,14 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
       replyApproval: {
         canApproveReplies: input.identity.publicApi.managerFacts.canApproveReplies,
       },
+      // Review owns the reply: Feed asks where the RepKey-authored one stands
+      // before it asks anybody to approve or retry it.
+      replyStates: {
+        findReplyStatus: async (rid, orgId) =>
+          (await input.review.lookups.reply.findStatesByReviewIds([rid], orgId)).find(
+            (state) => state.source === 'internal',
+          )?.status ?? null,
+      },
       feedbackPortalLookup: {
         findPortalId: (orgId, sourceId) =>
           input.guest.publicApi.findPortalIdForFeedback(orgId, sourceId),

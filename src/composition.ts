@@ -774,6 +774,9 @@ function buildContainer(
       preferenceRepo: notification.delivery.repos.preferenceRepo,
       // Rechecked immediately before every Property-scoped email is sent.
       recipientStanding: notification.delivery.recipientStanding,
+      // Whether the work a notice asks for still waits: asked before it is
+      // written and again before its email is sent.
+      workState: notification.delivery.workState,
     }),
     handleResendEvent: notification.delivery.handleResendEvent,
     notificationAudienceAuthorizer: notification.delivery.authorizeAudience,

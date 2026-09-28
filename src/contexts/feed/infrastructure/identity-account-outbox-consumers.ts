@@ -141,7 +141,13 @@ export async function handleIdentityAccountNotificationEvent(
     payload: event.payload,
   })
   const recipientId = unbrand(recipient)
-  const payload = leftOnTheirOwn(event) ? { leftOrganization: true } : undefined
+  // Written on every removal, true or false: a repeat removal folds into the unread
+  // notice and its payload merges as `old || new`, so an omitted flag would let
+  // an earlier self-leave survive an administrator's later removal.
+  const payload =
+    route.notificationType === 'account.organization_access_removed'
+      ? { leftOrganization: leftOnTheirOwn(event) }
+      : undefined
 
   await deps.queue.add(
     INSERT_NOTIFICATION_JOB_NAME,

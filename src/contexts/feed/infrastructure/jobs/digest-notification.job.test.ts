@@ -7,6 +7,7 @@ import {
   createFakeJobLogger,
   createResendSenderAnswering,
   RESEND_NETWORK_FAILURE,
+  waitingWorkState,
 } from './test-fixtures'
 import {
   organizationId,
@@ -200,6 +201,7 @@ function baseDeps(options: Options = {}) {
     isRecipientEligible: vi.fn(
       async (_input: { propertyId: string; audience: unknown }, _memo?: unknown) => true,
     ),
+    workState: waitingWorkState(),
     baseUrl: BASE_URL,
     activeOneClickUnsubscribeKeyVersion: vi.fn(
       () => options.activeUnsubscribeKeyVersion ?? 'v1',

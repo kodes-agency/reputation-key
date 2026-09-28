@@ -44,8 +44,9 @@ export type NotificationFeedScope = Omit<NotificationFeedQuery, 'filter' | 'limi
 export type NotificationRepositoryPort = Readonly<{
   /**
    * Insert the unread row. Conflicts resolve on the ADR 0046 r.2 partial
-   * unique key (user, type, resource) WHERE status = 'unread' — the row's
-   * rendered copy and payload win.
+   * unique key (user, type, resource) over rows still waiting — unread and
+   * unsettled — so the row's rendered copy and payload win, and a settled row
+   * is never revived.
    */
   insert(notification: Notification): Promise<Notification>
 
@@ -110,6 +111,19 @@ export type NotificationRepositoryPort = Readonly<{
     }>,
   ): Promise<ReadonlyArray<NotificationId>>
 
+  /**
+   * The same, for every resource on one Property: the settling fact finishes
+   * all of a Property's work at once (it was archived).
+   */
+  settleUnreadForProperty(
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      types: ReadonlyArray<NotificationType>
+      resolvedAt: Date
+    }>,
+  ): Promise<ReadonlyArray<NotificationId>>
+
   markRead(
     id: NotificationId,
     userId: UserId,
@@ -125,7 +139,11 @@ export type NotificationRepositoryPort = Readonly<{
     updatedAt: Date,
   ): Promise<void>
 
-  /** Find a user's existing unread notification for a type+resource (dedup). */
+  /**
+   * Find a user's notification for a type+resource that is still waiting on
+   * them — unread and unsettled (dedup). A settled row is done, so it is not
+   * one to coalesce into.
+   */
   findUnreadByUserTypeResource(
     userId: UserId,
     orgId: OrganizationId,

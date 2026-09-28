@@ -167,6 +167,10 @@ const PORTAL_PROPERTY_LIFECYCLE_OUTBOX =
 const PORTAL_HEALTH_OUTBOX =
   'src/contexts/portal/infrastructure/portal-health-outbox-consumers.ts'
 
+/** A Feed route that retires notices rather than raising them (ADR 0046). */
+const settles = (name: string): EventConsumerRef =>
+  durable(name, NOTIFICATION_SETTLEMENT_OUTBOX)
+
 const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('review.created', [
     durable('inbox.on-review-created', INBOX_OUTBOX),
@@ -205,10 +209,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('review.reply.approved', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('notification.on-review-reply-approved', NOTIFICATION_WORKFLOW_OUTBOX),
-    durable(
-      'notification.settle-on-review-reply-approved',
-      NOTIFICATION_SETTLEMENT_OUTBOX,
-    ),
+    settles('notification.settle-on-review-reply-approved'),
   ]),
   ev('review.reply.publication_requested', [
     durable('review.on-reply-publication-requested', REVIEW_OUTBOX),
@@ -216,19 +217,13 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('review.reply.rejected', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('notification.on-review-reply-rejected', NOTIFICATION_WORKFLOW_OUTBOX),
-    durable(
-      'notification.settle-on-review-reply-rejected',
-      NOTIFICATION_SETTLEMENT_OUTBOX,
-    ),
+    settles('notification.settle-on-review-reply-rejected'),
   ]),
   ev('review.reply.published', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
     durable('notification.on-review-reply-published', NOTIFICATION_WORKFLOW_OUTBOX),
-    durable(
-      'notification.settle-on-review-reply-published',
-      NOTIFICATION_SETTLEMENT_OUTBOX,
-    ),
+    settles('notification.settle-on-review-reply-published'),
     durable('inbox.on-reply-published', INBOX_OUTBOX),
   ]),
   ev('review.reply.observed', [durable('inbox.on-reply-observed', INBOX_OUTBOX)]),
@@ -241,6 +236,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       'notification.on-review-reply-publication_cancelled',
       NOTIFICATION_WORKFLOW_OUTBOX,
     ),
+    settles('notification.settle-on-review-reply-publication-cancelled'),
   ]),
   ev('review.reply.updated', [durable('activity.recent-activity', ACTIVITY_OUTBOX)]),
 ]
@@ -270,10 +266,7 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
       'notification.on-inbox-escalation-resolved',
       NOTIFICATION_ESCALATION_RESOLUTION_OUTBOX,
     ),
-    durable(
-      'notification.settle-on-inbox-escalation-resolved',
-      NOTIFICATION_SETTLEMENT_OUTBOX,
-    ),
+    settles('notification.settle-on-inbox-escalation-resolved'),
   ]),
   ev('inbox.inbox_note.added', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
@@ -301,10 +294,7 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
     ),
   ]),
   ev('inbox.handling_cycle.closed', [
-    durable(
-      'notification.settle-on-inbox-handling-cycle-closed',
-      NOTIFICATION_SETTLEMENT_OUTBOX,
-    ),
+    settles('notification.settle-on-inbox-handling-cycle-closed'),
   ]),
   ev('inbox.handling_cycle.reopened', [
     durable(
@@ -373,6 +363,7 @@ const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       'notification.on-identity-organization-purge-pending',
       NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
     ),
+    settles('notification.settle-on-organization-purge-cancelled'),
   ]),
 ]
 
@@ -393,6 +384,7 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
     durable('inbox.on-property-archived', INBOX_PROPERTY_LIFECYCLE_OUTBOX),
     durable('review.on-property-archived', REVIEW_OUTBOX),
+    settles('notification.settle-on-property-archived'),
   ]),
   ev('property.restored', [
     durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX),
@@ -411,10 +403,7 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
     ),
   ]),
   ev('property.responsible_managers.updated', [
-    durable(
-      'notification.settle-on-property-responsibility-restored',
-      NOTIFICATION_SETTLEMENT_OUTBOX,
-    ),
+    settles('notification.settle-on-property-responsibility-restored'),
   ]),
 ]
 
@@ -438,14 +427,12 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
   ]),
   ev('portal.responsible_managers.updated', [
     durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX),
-    durable(
-      'notification.settle-on-portal-responsibility-restored',
-      NOTIFICATION_SETTLEMENT_OUTBOX,
-    ),
+    settles('notification.settle-on-portal-responsibility-restored'),
   ]),
   ev('portal.health.changed', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('notification.on-portal-health-changed', NOTIFICATION_PORTAL_HEALTH_OUTBOX),
+    settles('notification.settle-on-portal-health-recovered'),
   ]),
   ev('portal.property_brand_profile.updated', []),
   ev('portal.property_brand_content.updated', []),
@@ -510,6 +497,7 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('integration.google_account.connected', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
+    settles('notification.settle-on-google-account-connected'),
   ]),
   ev('integration.google_account.disconnected', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
@@ -519,6 +507,7 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
       'notification.on-google-account-disconnected',
       NOTIFICATION_INTEGRATION_OUTBOX,
     ),
+    settles('notification.settle-on-google-account-disconnected'),
   ]),
   ev('integration.google_account.reauthorization_required', [
     durable(

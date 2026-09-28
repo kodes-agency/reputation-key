@@ -19,7 +19,7 @@
 //     removed member must not learn more about a workspace by being removed
 //     from it than they knew while inside it.
 
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { notifications } from '#/shared/db/schema/notification.schema'
 import type { UserId } from '#/shared/domain/ids'
@@ -41,12 +41,20 @@ export type AccountAccessRemovalReader = Readonly<{
 /** The one type this read admits. */
 const ACCESS_REMOVED_NOTIFICATION_TYPE = 'account.organization_access_removed'
 
+// When the row's latest removal happened. A second removal from the same
+// Organization folds into the first one's unread row (ADR 0046 r.2), which
+// keeps its `created_at` and stamps only `coalesced_latest_at`.
+const latestRemovalAt =
+  sql<Date>`COALESCE(${notifications.coalescedLatestAt}, ${notifications.createdAt})`.mapWith(
+    notifications.createdAt,
+  )
+
 export const createAccountAccessRemovalReader = (
   db: Database,
 ): AccountAccessRemovalReader => ({
   findLatestForUser: async (userId) => {
     const rows = await db
-      .select({ createdAt: notifications.createdAt, payload: notifications.payload })
+      .select({ removedAt: latestRemovalAt, payload: notifications.payload })
       .from(notifications)
       .where(
         and(
@@ -56,12 +64,12 @@ export const createAccountAccessRemovalReader = (
       )
       // Someone may have been removed from more than one Organization over
       // time, and only the latest removal explains why they are here now.
-      .orderBy(desc(notifications.createdAt))
+      .orderBy(desc(latestRemovalAt))
       .limit(1)
     const latest = rows[0]
     if (!latest) return null
     return {
-      removedAt: latest.createdAt,
+      removedAt: latest.removedAt,
       left: parseNotificationPayload(latest.payload).leftOrganization === true,
     }
   },

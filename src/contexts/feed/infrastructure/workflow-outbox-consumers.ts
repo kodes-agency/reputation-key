@@ -32,7 +32,6 @@ import type {
 import type {
   ReplyPublishFailureOutcome,
   ReviewReplyApproved,
-  ReviewReplyPublicationCancelled,
   ReviewReplyPublished,
   ReviewReplyPublishFailed,
   ReviewReplyRejected,
@@ -48,8 +47,13 @@ import {
 } from '../application/responsible-recipients'
 import { resolveReplyApprovalRecipients } from '../application/reply-approval-recipients'
 import type { ReplyApprovalAuthorityPort } from '../application/ports/reply-approval-authority.port'
+import type { ActivePropertyLookup } from '../application/ports/active-property.port'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
 import type { NotificationAudience } from '../application/notification-audience'
+import {
+  enqueuePublicationCancelledNotifications,
+  type DurableReplyPublicationCancelled,
+} from './publication-cancelled-notifications'
 import {
   isRecordPayload,
   nullableString as nullablePayloadString,
@@ -112,16 +116,6 @@ type DurableReplyRejected = Omit<ReviewReplyRejected, 'reason' | 'hasReason'> &
 type DurableReplyPublishFailed = Omit<ReviewReplyPublishFailed, 'outcome'> &
   Readonly<{ outcome: ReplyPublishFailureOutcome | null }>
 
-/**
- * The durable cancellation fact. `authorId` is absent on facts recorded
- * before it existed, and null when the reply has no known author.
- */
-type DurableReplyPublicationCancelled = Omit<
-  ReviewReplyPublicationCancelled,
-  'authorId'
-> &
-  Readonly<{ authorId: UserId | null }>
-
 type WorkflowEvent =
   | InboxItemAssigned
   | InboxItemEscalated
@@ -140,6 +134,8 @@ export type WorkflowNotificationConsumerDeps = Readonly<{
   inboxItemLookup: InboxItemLookupPort
   /** Who may act on an approval request, asked at fan-out and again at send. */
   replyApproval: ReplyApprovalAuthorityPort
+  /** Whether the Property is still inside the workspace. */
+  activeProperty: ActivePropertyLookup
   clock: () => Date
   logger: LoggerPort
   receipts: Pick<OutboxRepository, 'insertReceipt'>
@@ -540,87 +536,6 @@ async function enqueuePublishFailedNotification(
 
 /** Named in every malformed-payload failure these routes raise. */
 const SUBJECT = 'workflow notification'
-/**
- * A publication that was cancelled after approval is silent everywhere else:
- * the reply is back in draft, and the author was last told it was queued to
- * publish to Google. So the author hears it, and so do the AccountAdmins, who
- * are the people who can approve it again (the same audience
- * `reply.pending_approval` asks).
- *
- * A `policy` cancellation is what a Property Archive or a lost authority looks
- * like from here, so the approvers it took that authority from are left out:
- * telling them to re-approve something they can no longer touch is noise. The
- * other three causes take nobody's authority, so every approver is kept.
- * The author's own notice is audienced `property_operator`, which the delivery
- * check re-tests against the Property either way.
- */
-async function enqueuePublicationCancelledNotifications(
-  deps: WorkflowNotificationDeliveryDeps,
-  event: DurableReplyPublicationCancelled,
-): Promise<void> {
-  const admins = await deps.userLookup.findByRole(event.organizationId, 'AccountAdmin')
-  const approvers =
-    event.cause === 'policy'
-      ? (
-          await Promise.all(
-            admins.map(async (adminId) =>
-              (await deps.responsibleManagers.isEligibleForProperty(
-                event.organizationId,
-                event.propertyId,
-                adminId,
-              ))
-                ? adminId
-                : null,
-            ),
-          )
-        ).filter((adminId): adminId is UserId => adminId !== null)
-      : admins
-  const recipients = [
-    ...new Set(event.authorId === null ? approvers : [event.authorId, ...approvers]),
-  ]
-  if (recipients.length === 0) {
-    deps.logger.warn(
-      { correlationId: event.correlationId ?? undefined },
-      'notification publication-cancelled delivery: no recipients found, skipping',
-    )
-    return
-  }
-
-  const inboxItem = await deps.inboxItemLookup.findInboxItemByReviewId(
-    event.reviewId,
-    event.organizationId,
-  )
-  if (!inboxItem) return
-
-  const payload = await buildInboxItemPayload(deps, {
-    inboxItemId: inboxItem,
-    orgId: event.organizationId,
-    publicationCancellationCause: event.cause,
-  })
-  await Promise.all(
-    recipients.map((recipientId) =>
-      deps.queue.add(
-        INSERT_NOTIFICATION_JOB_NAME,
-        {
-          userId: recipientId,
-          organizationId: event.organizationId,
-          propertyId: event.propertyId,
-          type: 'reply.publication_cancelled',
-          resourceType: 'inbox_item',
-          resourceId: inboxItem,
-          eventId: event.eventId,
-          payload,
-          audience:
-            recipientId === event.authorId
-              ? { kind: 'property_operator' }
-              : { kind: 'account_admin' },
-        },
-        { jobId: `${event.eventId}-${recipientId}` },
-      ),
-    ),
-  )
-}
-
 const requiredString = (payload: Readonly<Record<string, unknown>>, key: string) =>
   requiredPayloadString(payload, key, SUBJECT)
 

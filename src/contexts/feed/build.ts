@@ -48,10 +48,17 @@ import { createOneClickUnsubscribeRepository } from './infrastructure/repositori
 import { createNotificationDbUserLookupAdapter } from './infrastructure/adapters/notification-db-user-lookup.adapter'
 import type { ResponsibleManagerLookupPort } from './application/ports/responsible-manager-lookup.port'
 import type { ReplyApprovalAuthorityPort } from './application/ports/reply-approval-authority.port'
+import type { ReplyWorkStateLookupPort } from './application/ports/reply-work-state.port'
 import type { FeedbackPortalLookupPort } from './application/ports/feedback-portal-lookup.port'
 import { createNotificationAudienceAuthorizer } from './application/notification-audience'
 import { createNotificationRecipientStanding } from './application/notification-recipient-standing'
-import { createNotificationOrganizationEmailStopReader } from './infrastructure/repositories/notification-organization-email-stop.repository'
+import { createGroupedReopenStore } from './infrastructure/repositories/notification-grouped-reopen.repository'
+import { createActivePropertyLookup } from './infrastructure/repositories/active-property'
+import { createNotificationWorkState } from './application/notification-work-state'
+import {
+  createNotificationOrganizationEmailStopReader,
+  createNotificationOrganizationLifecycleStateReader,
+} from './infrastructure/repositories/notification-organization-email-stop.repository'
 import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-item-lookup.adapter'
 import { createDisplayNameLookupAdapter } from './infrastructure/adapters/display-name-lookup.adapter'
 import { createEscalationResolutionLookupAdapter } from './infrastructure/adapters/escalation-resolution-lookup.adapter'
@@ -279,6 +286,8 @@ type NotificationBuildInput = Readonly<{
   responsibleManagers: ResponsibleManagerLookupPort
   /** Identity-owned `reply.manage` authority, for routing approval requests. */
   replyApproval: ReplyApprovalAuthorityPort
+  /** Review-owned reply status, so a notice never asks for a decided reply. */
+  replyStates: ReplyWorkStateLookupPort
   /** Guest-owned source attribution; Notification never reads Guest tables. */
   feedbackPortalLookup: FeedbackPortalLookupPort
   googleConnectionProperties: GoogleConnectionPropertyLookup
@@ -353,6 +362,16 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     monthlyResultFacts: input.monthlyResultFacts,
     organizationAccountAuthority,
   })
+  // Asked before a notice is written, before its email leaves, and before a
+  // settling fact retires it: the owners' answer to "is the work still waiting".
+  const workState = createNotificationWorkState({
+    escalationResolutions,
+    inboxItemLookup,
+    replyStates: input.replyStates,
+    portalHealthLookup: input.portalHealthLookup,
+    organizationState: createNotificationOrganizationLifecycleStateReader(input.db),
+    responsibleManagers: input.responsibleManagers,
+  })
   // Asked when an email is queued, and again before it is sent.
   const organizationEmailStop = createNotificationOrganizationEmailStopReader(input.db)
   // Asked again immediately before every Property-scoped email is sent.
@@ -411,6 +430,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     responsibleManagers: input.responsibleManagers,
     replyApproval: input.replyApproval,
     inboxItemLookup,
+    activeProperty: createActivePropertyLookup(input.db),
     clock: input.clock,
     logger: input.logger,
   }
@@ -704,8 +724,10 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     // they announced retire their notices and cancel the mail behind them.
     registerNotificationSettlementConsumers(consumerRegistry, {
       notifications: notificationRepo,
+      groupedReopens: createGroupedReopenStore(input.db),
       emails: emailRepo,
       inboxItemLookup,
+      workState,
       clock: input.clock,
       logger: input.logger,
       receipts: input.outboxRepo,
@@ -810,6 +832,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
         handleResendEvent,
         authorizeAudience,
         recipientStanding,
+        workState,
         deliverySettlement,
         reconcileMissingNotificationsHandler: reconcileMissingNotificationsHandler(),
       },

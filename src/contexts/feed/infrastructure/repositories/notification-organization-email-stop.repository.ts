@@ -27,3 +27,18 @@ export const createNotificationOrganizationEmailStopReader =
       row ? { state: row.state, reactivationRequired: row.reactivation_required } : null,
     )
   }
+
+/**
+ * The lifecycle state alone, for the one notice that is only true in one of
+ * them: the final deletion warning, which a cancelled purge takes back.
+ */
+export const createNotificationOrganizationLifecycleStateReader =
+  (db: Pick<Database, 'execute'>) =>
+  async (organizationId: string): Promise<string | null> => {
+    const result = await db.execute<Pick<LifecycleRow, 'state'>>(sql`
+      SELECT state
+        FROM organization_lifecycle_authority
+       WHERE organization_id = ${organizationId}
+    `)
+    return result.rows[0]?.state ?? null
+  }

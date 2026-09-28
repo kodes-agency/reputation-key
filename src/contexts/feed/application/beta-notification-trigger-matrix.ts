@@ -4,7 +4,7 @@ import {
   type NotificationType,
 } from '../domain/notification-types'
 import { classifyNotification } from '../domain/notification-delivery-policy'
-import { isActionableNotificationType } from '../domain/notification-settlement'
+import { isSettleableNotificationType } from '../domain/notification-settlement'
 import type { NotificationAudience } from './notification-audience'
 
 export type RegisteredNotificationConsumer = Readonly<{
@@ -310,6 +310,11 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     'reply.publish_failed',
   ]),
   settles(
+    'review.reply.publication_cancelled',
+    'notification.settle-on-review-reply-publication-cancelled',
+    ['reply.publish_failed'],
+  ),
+  settles(
     'inbox.inbox_item.escalation_resolved',
     'notification.settle-on-inbox-escalation-resolved',
     ['inbox.escalated'],
@@ -317,7 +322,14 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
   settles(
     'inbox.handling_cycle.closed',
     'notification.settle-on-inbox-handling-cycle-closed',
-    ['inbox.reopened', 'inbox.response_target_halfway', 'inbox.response_target_passed'],
+    [
+      'review.created',
+      'review.updated',
+      'feedback.created',
+      'inbox.reopened',
+      'inbox.response_target_halfway',
+      'inbox.response_target_passed',
+    ],
   ),
   {
     ...settles(
@@ -336,6 +348,53 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ),
     eventCondition: 'assignmentCount > 0',
   },
+  {
+    ...settles(
+      'portal.health.changed',
+      'notification.settle-on-portal-health-recovered',
+      ['portal.health_attention'],
+    ),
+    // The complement of the announcing route's condition.
+    eventCondition:
+      'status === healthy || reason not in actionable automatic Health reasons',
+  },
+  // An archived Property is outside the workspace: every notice asking for
+  // work on it is finished, whatever resource it points at.
+  settles('property.archived', 'notification.settle-on-property-archived', [
+    'review.created',
+    'review.updated',
+    'feedback.created',
+    'reply.pending_approval',
+    'reply.publish_failed',
+    'inbox.escalated',
+    'inbox.reopened',
+    'inbox.bulk_reopened',
+    'inbox.response_target_halfway',
+    'inbox.response_target_passed',
+    'property.responsibility_needed',
+    'portal.responsibility_needed',
+    'portal.health_attention',
+  ]),
+  {
+    ...settles(
+      'identity.organization_lifecycle.changed',
+      'notification.settle-on-organization-purge-cancelled',
+      ['account.organization_purge_pending'],
+    ),
+    // A purge called off before the irreversible step takes its warning back.
+    eventCondition: 'state === active',
+  },
+  settles(
+    'integration.google_account.connected',
+    'notification.settle-on-google-account-connected',
+    ['integration.reauthorization_required'],
+  ),
+  // A deliberate disconnect answers the reconnect request the other way.
+  settles(
+    'integration.google_account.disconnected',
+    'notification.settle-on-google-account-disconnected',
+    ['integration.reauthorization_required'],
+  ),
 ] as const satisfies ReadonlyArray<BetaNotificationTriggerMatrixRow>
 
 export const BETA_DARK_NOTIFICATION_TYPES =
@@ -390,9 +449,9 @@ const matrixRowViolations = (
       )
       continue
     }
-    // Only a notice that asks for work can be finished by a fact. Settling an
-    // outcome notice would hide news the reader is owed.
-    if (!isActionableNotificationType(type as NotificationType)) {
+    // Only a notice that asks for work can be finished by a fact, or a warning
+    // taken back. Settling an outcome notice would hide news the reader is owed.
+    if (!isSettleableNotificationType(type as NotificationType)) {
       violations.push(
         `notification trigger ${row.eventType} settles ${type}, which asks its reader for nothing`,
       )

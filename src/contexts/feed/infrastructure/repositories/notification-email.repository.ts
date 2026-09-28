@@ -1,7 +1,7 @@
 // Feed notification surface — Drizzle repository adapter for notification email queue
 // Per architecture: factory pattern `createXxxRepository(db)` returning port interface.
 
-import { and, asc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   notificationDigestBatches,
@@ -390,7 +390,7 @@ export const createNotificationEmailRepository = (
     providerMessageId: string,
     acceptedAt: Date,
   ): Promise<void> => {
-    await db
+    const accepted = await db
       .update(notificationEmailQueue)
       .set({
         status: 'accepted',
@@ -407,6 +407,30 @@ export const createNotificationEmailRepository = (
         and(
           scope(id, orgId, propertyId),
           inArray(notificationEmailQueue.status, [...SENDABLE]),
+        ),
+      )
+      .returning({ id: notificationEmailQueue.id })
+    if (accepted.length > 0) return
+    // Settlement or a bounce cascade retired the row while this send was at
+    // the provider. The retirement stands — it is terminal (ADR 0046 r.6) —
+    // but the mail went out, so the acceptance is recorded beside it: without
+    // the message id a later bounce or complaint for it matches no row, and
+    // the address is never suppressed.
+    await db
+      .update(notificationEmailQueue)
+      .set({
+        providerMessageId,
+        providerState: 'accepted',
+        acceptedAt,
+        sentAt: acceptedAt,
+        updatedAt: acceptedAt,
+      })
+      .where(
+        and(
+          scope(id, orgId, propertyId),
+          inArray(notificationEmailQueue.status, ['cancelled', 'suppressed']),
+          isNotNull(notificationEmailQueue.attemptedAt),
+          isNull(notificationEmailQueue.providerMessageId),
         ),
       )
   },

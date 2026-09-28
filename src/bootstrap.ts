@@ -681,6 +681,7 @@ async function registerNotificationJobs(
     emailIdGen: () => notificationEmailId(crypto.randomUUID()),
     logger: container.logger,
     authorizeAudience: container.notificationAudienceAuthorizer,
+    workState: container.notificationWorkerRuntime.workState,
     deliverySettlement: container.notificationDeliverySettlement,
     organizationEmailStop: notificationOrganizationEmailStop,
     enqueueImmediateEmail: container.jobQueue
@@ -762,6 +763,7 @@ async function registerNotificationJobs(
     authorizeScope: authorizeUrgentNotification,
     organizationEmailStop: notificationOrganizationEmailStop,
     isRecipientEligible: container.notificationWorkerRuntime.recipientStanding,
+    workState: container.notificationWorkerRuntime.workState,
     baseUrl: notifBaseUrl,
     oneClickUnsubscribeUrl: notificationUnsubscribeUrl,
   })
@@ -808,6 +810,7 @@ async function registerNotificationJobs(
       'system:notification.email_mandatory',
     ),
     isRecipientEligible: container.notificationWorkerRuntime.recipientStanding,
+    workState: container.notificationWorkerRuntime.workState,
     baseUrl: notifBaseUrl,
     activeOneClickUnsubscribeKeyVersion: notificationUnsubscribeKeyVersion,
     oneClickUnsubscribeUrl: notificationUnsubscribeUrl,
