@@ -498,7 +498,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['notifications.emailDeliveryEnabled'],
     emitted: true,
     description:
-      '1 when notification.send_email is globally enabled. 0 = outbound email is capability-dark, so a pending email backlog is EXPECTED and notification.email-stalled deliberately stays silent. Read this before concluding email is broken. A per-org allowlist grant is not globally enumerable and does not flip this to 1.',
+      '1 when notification.send_email is open to every Organization: globally enabled, or BETA_ALLOWLIST_ORGS=* and not killed. Then any overdue row in pending_overdue is late mail and notification.email-stalled pages on it. 0 = only some Organizations are admitted (by name, or none): rows queued while a scope was dark are EXPECTED backlog, and email-stalled judges only attempted_stuck. A per-org allowlist grant is not globally enumerable and does not flip this to 1.',
   }),
   def({
     name: 'notification.email.pending_overdue',
@@ -508,7 +508,7 @@ export const METRIC_DEFINITIONS: readonly MetricDefinition[] = [
     snapshotPath: ['notifications.pendingOverdueCount'],
     emitted: true,
     description:
-      'Queued notification emails still sendable — pending, held for quiet hours (delayed), or a transient failure under the retry budget — past their due time (the later of next_attempt_at and not_before, else created_at). Rows for a Property that is no longer active are held, not overdue.',
+      'Queued notification emails still sendable — pending, held for quiet hours (delayed), or a transient failure under the retry budget — past their due time (the later of next_attempt_at and not_before; unscheduled, created_at, or 25h after it for a daily-digest row, which waits for the next 08:00 window). Counted only in scopes whose notification.send_email decision allows sending now; rows for a Property that is no longer active are held, not overdue.',
   }),
   def({
     name: 'notification.email.oldest_pending_overdue_age_ms',

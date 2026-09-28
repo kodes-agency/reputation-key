@@ -16,11 +16,10 @@
 
 import { DEFAULT_LEASE_DURATION_MS, type OutboxRepository } from '#/shared/outbox'
 import type { Database } from '#/shared/db'
-import { and, eq, sql, type SQL } from 'drizzle-orm'
+import { eq, sql, type SQL } from 'drizzle-orm'
 import { outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { reviews, replies } from '#/shared/db/schema/review.schema'
 import { reviewSyncState } from '#/shared/db/schema/review-sync.schema'
-import { properties } from '#/shared/db/schema/property.schema'
 import {
   notificationDigestBatchMembers,
   notificationEmailQueue,
@@ -59,18 +58,19 @@ export type HealthMetricsDeps = Readonly<{
    */
   gbpPushEnabled?: boolean
   /**
-   * `notification.send_email` is globally enabled. Absent = treated as
-   * disabled — outbound email is capability-dark, so a pending email backlog
-   * is EXPECTED and must not page. A readiness fact the database cannot
-   * answer, so the composition root supplies it (same shape as
-   * gbpPushEnabled).
+   * `notification.send_email` is open to every Organization — globally
+   * enabled, or `BETA_ALLOWLIST_ORGS=*`. Absent = treated as closed: with
+   * only some Organizations admitted, a pending email backlog is EXPECTED
+   * (rows queue while a scope is dark) and must not page. A readiness fact
+   * the database cannot answer, so the composition root supplies it (same
+   * shape as gbpPushEnabled).
    */
   emailDeliveryEnabled?: boolean
   /**
    * The current scoped `notification.send_email` decision — the same one
-   * Feed's delivery-lag evidence reads. The touched-row stall gauge counts
-   * only scopes that may send now: a dark scope's held and retrying rows are
-   * never processed. Absent = every scope counts.
+   * Feed's delivery-lag evidence reads. The overdue and touched-row gauges
+   * count only scopes that may send now: a dark scope's queued, held and
+   * retrying rows are never processed. Absent = every scope counts.
    */
   isEmailDeliveryAllowed?: IsEmailDeliveryAllowed
   /**
@@ -228,17 +228,20 @@ export type HealthSnapshot = Readonly<{
    */
   notifications: Readonly<{
     /**
-     * `notification.send_email` is globally enabled. When false, outbound
-     * email is intentionally dark and a pending backlog is the EXPECTED
-     * state, not a fault — the stalled alert stays silent on it (see
-     * attemptedStuckCount for the case that is a fault regardless).
+     * `notification.send_email` is open to every Organization: globally
+     * enabled, or `BETA_ALLOWLIST_ORGS=*` and not killed. When false, only
+     * some Organizations are admitted and rows queued while a scope was dark
+     * are the EXPECTED backlog of a newly admitted one — the stalled alert
+     * stays silent on untouched rows (see attemptedStuckCount for the case
+     * that is a fault regardless).
      */
     emailDeliveryEnabled: boolean
     /**
      * Still-sendable email rows — pending, held for quiet hours (`delayed`),
-     * or a transient failure under the retry budget — whose due time
-     * (the later of next_attempt_at and not_before, else created_at) has
-     * already passed.
+     * or a transient failure under the retry budget — whose due time has
+     * already passed, in a scope that may send now. Due is the later of
+     * next_attempt_at and not_before; unscheduled, it is created_at, or the
+     * next digest window for a daily row.
      */
     pendingOverdueCount: number
     /** Age of the oldest overdue sendable row (null when none is overdue). */
@@ -248,8 +251,8 @@ export type HealthSnapshot = Readonly<{
      * retry (attempted_at set) or a quiet-hours hold (`delayed`). Unlike the
      * count above this cannot be explained by a dark capability — the path
      * reached the row and left it unsent. It is the honest break signal for a
-     * per-org-allowlisted tenant, whose grant the global emailDeliveryEnabled
-     * flag cannot see. (Every attempt moves a row out of `pending`, so
+     * tenant admitted by name, whose grant the emailDeliveryEnabled flag
+     * cannot see. (Every attempt moves a row out of `pending`, so
      * counting pending rows alone left this permanently zero.) Counted only
      * where the path would still send: a scope the `notification.send_email`
      * decision allows now, on an active Property or Organization-scoped — a
@@ -656,37 +659,40 @@ async function readNotificationEmailMetrics(
   isEmailDeliveryAllowed: IsEmailDeliveryAllowed,
 ): Promise<NotificationEmailMetrics> {
   const q = notificationEmailQueue
-  const { dueAt, overdue } = emailDueClauses()
-
   const result = await db
-    .select({
-      overdue: sql<number>`count(*) FILTER (WHERE ${overdue})::int`,
-      oldest_overdue_age_ms: sql<number | null>`
-        EXTRACT(EPOCH FROM (NOW() - MIN(${dueAt}) FILTER (WHERE ${overdue}))) * 1000
-      `,
-      ...emailOutcomeAggregates(),
-    })
+    .select(emailOutcomeAggregates())
     .from(q)
     .leftJoin(
       notificationDigestBatchMembers,
       eq(notificationDigestBatchMembers.notificationEmailId, q.id),
     )
-  const stuck = await readTouchedEmailStall(db, isEmailDeliveryAllowed)
+  const overdue = await readSendableEmailOverdue(db, isEmailDeliveryAllowed)
 
-  const row = result[0]
   return {
     emailDeliveryEnabled,
-    pendingOverdueCount: row?.overdue ?? 0,
-    oldestPendingOverdueAgeMs: roundedAge(row?.oldest_overdue_age_ms),
-    ...stuck,
-    emailOutcomes: toEmailOutcomes(row),
+    ...overdue,
+    emailOutcomes: toEmailOutcomes(result[0]),
   }
 }
+
+/**
+ * An unscheduled daily-digest row goes out in its recipient's next 08:00–09:00
+ * local window, which can be a day away — due at created_at, every row queued
+ * after the window closed read as overdue two hours later. A day to the next
+ * window plus an hour for its width and a DST day. Mirrors Feed's digest
+ * window (shared cannot import the context); a scheduled row (a retry, a
+ * quiet-hours hold) keeps its own schedule.
+ */
+const DAILY_DIGEST_WAIT = sql`INTERVAL '25 hours'`
 
 /** The due-time, overdue and touched predicates over `notification_email_queue`. */
 function emailDueClauses() {
   const q = notificationEmailQueue
-  const dueAt = sql`COALESCE(GREATEST(${q.nextAttemptAt}, ${q.notBefore}), ${q.createdAt})`
+  const dueAt = sql`COALESCE(
+    GREATEST(${q.nextAttemptAt}, ${q.notBefore}),
+    CASE WHEN ${q.cadence} = 'daily' AND ${q.attemptedAt} IS NULL
+      THEN ${q.createdAt} + ${DAILY_DIGEST_WAIT} ELSE ${q.createdAt} END
+  )`
   // The delivery path's own "still sendable" set (dueForCadence, minus its
   // time gates): a transient failure under the budget is a scheduled retry.
   const sendable = sql`(
@@ -711,43 +717,44 @@ function emailDueClauses() {
 }
 
 /**
- * The touched overdue rows (attemptedStuckCount), judged only where the
- * delivery path would still send them: a scope whose `notification.send_email`
- * decision allows it now, on an active Property (the orphan sweep's own set)
- * or Organization-scoped. Nothing ever processes a held or retrying row in a
- * scope that went dark — de-allowlisted, suspended, killed, archived — so
- * there it is not a stall. Read per scope (bounded by the scope count) and
- * judged in-process: the decision is process policy, not a table.
+ * The overdue rows (pendingOverdueCount) and the touched subset
+ * (attemptedStuckCount), judged only where the delivery path would still send
+ * them: a scope whose `notification.send_email` decision allows it now, on an
+ * active Property (the orphan sweep's own set) or Organization-scoped. Nothing
+ * ever processes a queued, held or retrying row in a scope that went dark —
+ * de-allowlisted, suspended, killed, archived — so there it is not late mail.
+ * Read per scope (bounded by the scope count) and judged in-process: the
+ * decision is process policy, not a table.
  */
-async function readTouchedEmailStall(
+async function readSendableEmailOverdue(
   db: Database,
   isEmailDeliveryAllowed: IsEmailDeliveryAllowed,
 ): Promise<
-  Pick<NotificationEmailMetrics, 'attemptedStuckCount' | 'oldestAttemptedStuckAgeMs'>
+  Pick<
+    NotificationEmailMetrics,
+    | 'pendingOverdueCount'
+    | 'oldestPendingOverdueAgeMs'
+    | 'attemptedStuckCount'
+    | 'oldestAttemptedStuckAgeMs'
+  >
 > {
   const q = notificationEmailQueue
-  const { dueAt, touched } = emailDueClauses()
+  const { dueAt, overdue, touched } = emailDueClauses()
   const scopes = await db
     .select({
       organizationId: q.organizationId,
       propertyId: q.propertyId,
-      attempted: sql<number>`count(*)::int`,
-      oldest_attempted_age_ms: sql<number | null>`
+      overdue: sql<number>`count(*)::int`,
+      oldest_overdue_age_ms: sql<number | null>`
         EXTRACT(EPOCH FROM (NOW() - MIN(${dueAt}))) * 1000
+      `,
+      attempted: sql<number>`count(*) FILTER (WHERE ${touched})::int`,
+      oldest_attempted_age_ms: sql<number | null>`
+        EXTRACT(EPOCH FROM (NOW() - MIN(${dueAt}) FILTER (WHERE ${touched}))) * 1000
       `,
     })
     .from(q)
-    .leftJoin(
-      properties,
-      and(
-        eq(properties.id, q.propertyId),
-        eq(properties.organizationId, q.organizationId),
-      ),
-    )
-    .where(
-      sql`${touched} AND (${q.propertyId} IS NULL
-        OR (${properties.deletedAt} IS NULL AND ${properties.lifecycleState} = 'active'))`,
-    )
+    .where(overdue)
     .groupBy(q.organizationId, q.propertyId)
 
   const sendable = scopes.filter((scope) =>
@@ -756,13 +763,22 @@ async function readTouchedEmailStall(
       propertyId: scope.propertyId,
     }),
   )
-  const ages = sendable
-    .map((scope) => roundedAge(scope.oldest_attempted_age_ms))
-    .filter((age): age is number => age !== null)
   return {
+    pendingOverdueCount: sendable.reduce((sum, scope) => sum + scope.overdue, 0),
+    oldestPendingOverdueAgeMs: oldestAge(sendable.map((s) => s.oldest_overdue_age_ms)),
     attemptedStuckCount: sendable.reduce((sum, scope) => sum + scope.attempted, 0),
-    oldestAttemptedStuckAgeMs: ages.length === 0 ? null : Math.max(...ages),
+    oldestAttemptedStuckAgeMs: oldestAge(
+      sendable.map((scope) => scope.oldest_attempted_age_ms),
+    ),
   }
+}
+
+/** The largest of per-scope ages (null when no scope has one). */
+function oldestAge(values: ReadonlyArray<number | null | undefined>): number | null {
+  const ages = values
+    .map((value) => roundedAge(value))
+    .filter((age): age is number => age !== null)
+  return ages.length === 0 ? null : Math.max(...ages)
 }
 
 /** An aggregate epoch-arithmetic age, rounded (null when the FILTER matched nothing). */
