@@ -20,8 +20,8 @@ export const AI_BACKLOG_CLAIM_LEASE_MILLIS = 3 * 60_000
 /**
  * Provider calls one drain runs at once. It equals an organization's
  * background in-flight budget, so one organization's import can use the whole
- * drain, and it is the number of analyses the drain has always run together
- * against the worker's database pool.
+ * drain. It stays below the worker's database pool: an analysis holds a client
+ * only for one short transaction at a time, never across its provider call.
  */
 export const AI_BACKLOG_DRAIN_CONCURRENCY = AI_ADMISSION_IN_FLIGHT.organization.background
 /** Entries claimed per round: a property's in-flight share, for up to three properties. */

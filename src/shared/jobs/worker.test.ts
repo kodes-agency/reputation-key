@@ -6,6 +6,7 @@
 // lease, and default-queue concurrency equalled the pool max.
 
 import { describe, expect, it } from 'vitest'
+import { AI_BACKLOG_DRAIN_CONCURRENCY } from '#/contexts/ai/application/use-cases/drain-review-analysis-backlog'
 import { GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS } from '#/contexts/integration/application/ports/google-import-v2-store.port'
 import { POOL_MAX_CONNECTIONS } from '#/shared/db/pool'
 import {
@@ -50,5 +51,14 @@ describe('worker concurrency / connection-pool budget', () => {
     // Background sweeps are single-client, so the spare pool must cover at
     // least one of them concurrently with a saturated default queue.
     expect(BACKGROUND_QUEUE_CONCURRENCY).toBeGreaterThan(0)
+  })
+
+  // One Review Analysis backlog drain runs several analyses inside a single
+  // background job. Each holds a client only for one short transaction at a
+  // time, never across its provider call, but settlements of one property
+  // queue on its advisory lock while holding theirs. At the pool max, a burst
+  // of them would hold every client.
+  it('runs fewer analyses in one backlog drain than the pool has clients', () => {
+    expect(AI_BACKLOG_DRAIN_CONCURRENCY).toBeLessThan(POOL_MAX_CONNECTIONS)
   })
 })

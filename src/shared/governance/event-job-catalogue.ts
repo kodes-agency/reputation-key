@@ -620,7 +620,7 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       queue: 'background',
       capability: 'ai.analyze',
       action: 'system:ai.review_analysis_backlog_drain',
-      schedule: 'every:10000',
+      schedule: 'every:5000',
       registration: 'enabled',
     },
     { retryBackoff: 'fixed:5000', timeoutMs: 120_000 },

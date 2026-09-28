@@ -48,9 +48,9 @@ the capacity a draft needs.
 
 | Scope        | Interactive / min | Background / min | Interactive in flight | Background in flight |
 | ------------ | ----------------- | ---------------- | --------------------- | -------------------- |
-| Global       | 8                 | 120              | 8                     | 12                   |
-| Organization | 4                 | 60               | 4                     | 4                    |
-| Property     | 3                 | 60               | 2                     | 4                    |
+| Global       | 8                 | 150              | 8                     | 16                   |
+| Organization | 4                 | 120              | 4                     | 8                    |
+| Property     | 3                 | 120              | 2                     | 8                    |
 
 Rates are sliding one-minute windows. An in-flight slot is held until release
 or a 90-second lease, which outlives the 70-second provider deadline. An
@@ -59,9 +59,11 @@ clicking through reviews cannot exhaust the lane drafts use.
 
 The background lane is sized against the provider account, because drafts no
 longer share it: the pinned model allows 500 requests and 500,000 tokens a
-minute, and an analysis counts about 1,700 tokens against that (about 600 input
+minute, and an analysis counts about 1,600 tokens against that (about 600 input
 tokens plus the 1,024-token output ceiling the provider reserves). Both global
-lanes together stay under half of either limit, which a unit test pins.
+lanes together stay under half of either limit, which a unit test pins. A
+property may use its organization's whole background budget, so one import runs
+as fast as the account allows.
 
 The table lives in `src/contexts/ai/domain/admission-lanes.ts`. Tuning changes
 that file and this table together.
@@ -83,10 +85,12 @@ retry and a repeated click reuse it, and any finished answer rotates it.
    work in `ai_review_analysis_backlog`. A live review whose background lane is
    busy is queued the same way. The origin event is receipted when its row is
    written; the row is the durable authority for the remaining work.
-2. A recurring drain (every 10 seconds, background queue) claims rounds of at
+2. A recurring drain (every 5 seconds, background queue) claims rounds of at
    most the property background in-flight share per property, newest review
-   first, and runs each entry through the ordinary analysis use case, four at
-   a time. It keeps claiming rounds while they settle work, for up to 20
+   first, and runs each entry through the ordinary analysis use case, eight at
+   a time. Eight stays below the worker's ten-client database pool, which a
+   unit test pins: an analysis holds a client only for one short transaction
+   at a time, never across its provider call. It keeps claiming rounds while they settle work, for up to 20
    seconds, and one drain runs per worker at a time. A busy lane parks the
    property's remaining entries at the lane's retry time without asking again.
    Any settled outcome deletes the entry. A claim expires after three minutes.
@@ -106,7 +110,7 @@ retry and a repeated click reuse it, and any finished answer rotates it.
 ## Consequences
 
 - An import's history starts analysing within seconds of AI being switched on
-  and runs at up to sixty reviews a minute per property. The newest reviews,
+  and runs at up to 120 reviews a minute per property. The newest reviews,
   the ones a manager is likeliest to answer, come first, and the one on screen
   is analysed within seconds.
 - Admission refusals are cheap and harmless, so callers may ask again at the
@@ -127,7 +131,9 @@ retry and a repeated click reuse it, and any finished answer rotates it.
   five-minute enrollment sweep before the replay opened, the 30-second drain
   tick, three admissions a minute per property with one-at-a-time draining,
   and the sweep again before the enrollment was recorded caught up. The
-  background lane now admits 120 / 60 / 60 a minute (property in flight 4),
-  the drain runs every 10 seconds in parallel rounds, the enrollment opens on
-  delivery and closes when its last review settles, and the sweep runs every
-  minute as recovery.
+  background lane now admits 150 / 120 / 120 a minute (organization and
+  property in flight 8, global 16), the drain runs every 5 seconds in parallel
+  rounds of eight, the enrollment opens on delivery and closes when its last
+  review settles, and the sweep runs every minute as recovery. Measured on the
+  first step of this change (4 at a time, 60 a minute): 18 reviews went from
+  about 11 minutes to 18 seconds.
