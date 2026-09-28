@@ -37,7 +37,7 @@
 //           ambiguous, due at the next rung of the 72-hour read ladder.
 //   3. POST-CALL RACE GUARD — re-reads the reply before the local ack:
 //      row missing (purged by the disconnect cascade) or
-//      publication_state='cancelled' (disconnect won the race) → return
+//      publication_state='cancelled' (a cancellation won the race) → return
 //      WITHOUT marking. The local truth is cancelled; provider-side cleanup
 //      of the orphaned Google-visible reply is out of scope.
 //   4. successful write response → persist provider outcome as
@@ -211,8 +211,8 @@ async function loadPublishTarget(
 }
 
 /**
- * BQC-3.8 POST-CALL RACE GUARD: the disconnect cascade (cancellation + purge)
- * or a re-authorization may have run while the Google call was in flight. In
+ * BQC-3.8 POST-CALL RACE GUARD: the disconnect purge, a cancellation or a
+ * re-authorization may have run while the Google call was in flight. In
  * every one of those cases the local truth wins and the provider result is not
  * acknowledged.
  */
