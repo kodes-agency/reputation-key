@@ -246,10 +246,6 @@
       "exports": ["createOrganizationFn"]
     },
     {
-      "file": "src/contexts/integration/server/google-connections.ts",
-      "exports": ["updateConnectionVisibility"]
-    },
-    {
       "file": "src/contexts/property/server/properties.ts",
       "exports": ["createProperty", "updateProperty"]
     },

@@ -243,7 +243,6 @@ describe('composition characterization (BQC-5.2 parity baseline)', () => {
       'disconnect',
       'list',
       'resume',
-      'updateVisibility',
     ])
     expect(Object.keys(container.integrationPublicApi.oauth).sort()).toEqual([
       'admitPreState',

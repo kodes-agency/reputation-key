@@ -13,7 +13,6 @@ import type { IntegrationErrorCode } from '../domain/errors'
 import { throwContextError } from '#/shared/auth/server-errors'
 import { connectGoogleInputSchema } from '../application/dto/connect-google.dto'
 import { disconnectGoogleInputSchema } from '../application/dto/disconnect-google.dto'
-import { updateConnectionVisibilityInputSchema } from '../application/dto/update-connection-visibility.dto'
 import { googleAuthUrlInputSchema } from '../application/dto/google-auth-url.dto'
 
 describe('Google OAuth server boundary', () => {
@@ -192,56 +191,6 @@ describe('disconnectGoogleInputSchema', () => {
   it('rejects empty connectionId', () => {
     const result = disconnectGoogleInputSchema.safeParse({
       connectionId: '',
-    })
-    expect(result.success).toBe(false)
-  })
-})
-
-// ── updateConnectionVisibility input validation ───────────────────
-
-describe('updateConnectionVisibilityInputSchema', () => {
-  it('rejects a transition back to private visibility', () => {
-    const result = updateConnectionVisibilityInputSchema.safeParse({
-      connectionId: 'conn-123',
-      visibility: 'private',
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('accepts valid input with visibility "organization"', () => {
-    const result = updateConnectionVisibilityInputSchema.safeParse({
-      connectionId: 'conn-123',
-      visibility: 'organization',
-    })
-    expect(result.success).toBe(true)
-  })
-
-  it('rejects missing connectionId', () => {
-    const result = updateConnectionVisibilityInputSchema.safeParse({
-      visibility: 'organization',
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects empty connectionId', () => {
-    const result = updateConnectionVisibilityInputSchema.safeParse({
-      connectionId: '',
-      visibility: 'organization',
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects missing visibility', () => {
-    const result = updateConnectionVisibilityInputSchema.safeParse({
-      connectionId: 'conn-123',
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects invalid visibility value', () => {
-    const result = updateConnectionVisibilityInputSchema.safeParse({
-      connectionId: 'conn-123',
-      visibility: 'public',
     })
     expect(result.success).toBe(false)
   })

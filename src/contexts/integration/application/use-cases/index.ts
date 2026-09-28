@@ -22,13 +22,6 @@ export {
 } from './list-google-connections'
 
 export {
-  updateConnectionVisibility,
-  type UpdateConnectionVisibilityDeps,
-  type UpdateConnectionVisibility,
-  type UpdateConnectionVisibilityInput,
-} from './update-connection-visibility'
-
-export {
   refreshGoogleToken,
   type RefreshGoogleTokenDeps,
   type RefreshGoogleToken,
