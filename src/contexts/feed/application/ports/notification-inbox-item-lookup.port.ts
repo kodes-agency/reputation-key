@@ -140,4 +140,17 @@ export type InboxItemLookupPort = Readonly<{
     propertyId: string,
     orgId: OrganizationId,
   ): Promise<number>
+
+  /**
+   * Whether a review fact recorded for this Property at or before `recordedAt`
+   * has yet to reach the Inbox: its item not projected, or a reply
+   * observation not yet applied. Until it has, the open count above is not
+   * an answer about that moment — too low for items still coming, too high
+   * for replies still waiting to close theirs.
+   */
+  hasPendingReviewProjections(
+    propertyId: string,
+    orgId: OrganizationId,
+    recordedAt: Date,
+  ): Promise<boolean>
 }>

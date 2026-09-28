@@ -15,6 +15,7 @@ import {
   inboxResponseTargetReminders,
 } from '#/shared/db/schema/inbox.schema'
 import { properties } from '#/shared/db/schema/property.schema'
+import { eventConsumerReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
 import {
   feedbackId,
   inboxItemId,
@@ -142,6 +143,24 @@ const findWaitingSince = async (
   return rows[0]?.startAt ?? null
 }
 
+// The review facts that move an Inbox item's open count, and the Inbox
+// consumers that apply them (inbox/infrastructure/outbox-consumers.ts). Named
+// here as strings: Feed reads their receipts, it does not import Inbox.
+const REVIEW_PROJECTION_EVENT_TYPES = [
+  'review.created',
+  'review.updated',
+  'review.reply.observed',
+]
+const REVIEW_PROJECTION_CONSUMERS = [
+  'inbox.on-review-created',
+  'inbox.on-review-updated',
+  'inbox.on-reply-observed',
+]
+const inList = (values: ReadonlyArray<string>) =>
+  sql.join(
+    values.map((value) => sql`${value}`),
+    sql`, `,
+  )
 export const createInboxItemLookupAdapter = (
   db: Database,
   feedbackPortalLookup: FeedbackPortalLookupPort,
@@ -258,6 +277,37 @@ export const createInboxItemLookupAdapter = (
         ),
       )
     return rows[0]?.open ?? 0
+  },
+
+  async hasPendingReviewProjections(
+    property: string,
+    orgId: OrganizationId,
+    recordedAt: Date,
+  ): Promise<boolean> {
+    // A fact is settled once the Inbox consumer wrote its receipt, whether it
+    // applied it or judged it obsolete. Only the last hour is read: dispatch
+    // retries end well inside it, so an older fact without a receipt is stuck
+    // rather than in flight, and the bound keeps the org/created_at index
+    // from walking the Organization's whole history.
+    const at = recordedAt.toISOString()
+    const pending = await db.execute<{ pending: boolean }>(sql`
+      SELECT EXISTS (
+        SELECT 1
+          FROM ${outboxEvents} AS fact
+         WHERE fact.organization_id = ${unbrand(orgId)}
+           AND fact.created_at <= ${at}::timestamptz
+           AND fact.created_at > ${at}::timestamptz - interval '1 hour'
+           AND fact.property_id = ${property}
+           AND fact.event_type IN (${inList(REVIEW_PROJECTION_EVENT_TYPES)})
+           AND NOT EXISTS (
+             SELECT 1
+               FROM ${eventConsumerReceipts} AS receipt
+              WHERE receipt.event_id = fact.id
+                AND receipt.consumer_name IN (${inList(REVIEW_PROJECTION_CONSUMERS)})
+           )
+      ) AS pending
+    `)
+    return pending.rows[0]?.pending === true
   },
 
   async findResponseTargetReminderNotificationFacts(
