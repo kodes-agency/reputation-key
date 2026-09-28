@@ -28,18 +28,35 @@ export const AI_ADMISSION_RATE_WINDOW_MILLIS = 60_000
  */
 export const AI_ADMISSION_LEASE_MILLIS = 90_000
 
-/** Admissions per sliding minute. */
+/**
+ * The provider account's per-minute limits for the pinned model, read from its
+ * rate-limit headers on 2026-09-28. The provider counts a request's output
+ * ceiling against the token limit before it answers.
+ */
+export const AI_PROVIDER_ACCOUNT_LIMITS_PER_MINUTE = Object.freeze({
+  requests: 500,
+  tokens: 500_000,
+})
+
+/**
+ * Admissions per sliding minute. The background lane is sized against the
+ * provider account, not against drafts, which have their own lane: an analysis
+ * counts about 1,600 tokens (its input plus the 1,024-token output ceiling),
+ * and both global lanes together stay under half of either account limit. One
+ * property may use its organization's whole background budget, so a single
+ * import runs as fast as the account allows.
+ */
 export const AI_ADMISSION_RATE_PER_MINUTE: ScopeBudget = Object.freeze({
-  global: Object.freeze({ interactive: 8, background: 12 }),
-  organization: Object.freeze({ interactive: 4, background: 6 }),
-  property: Object.freeze({ interactive: 3, background: 3 }),
+  global: Object.freeze({ interactive: 8, background: 150 }),
+  organization: Object.freeze({ interactive: 4, background: 120 }),
+  property: Object.freeze({ interactive: 3, background: 120 }),
 })
 
 /** Concurrent provider calls. */
 export const AI_ADMISSION_IN_FLIGHT: ScopeBudget = Object.freeze({
-  global: Object.freeze({ interactive: 8, background: 12 }),
-  organization: Object.freeze({ interactive: 4, background: 4 }),
-  property: Object.freeze({ interactive: 2, background: 2 }),
+  global: Object.freeze({ interactive: 8, background: 16 }),
+  organization: Object.freeze({ interactive: 4, background: 8 }),
+  property: Object.freeze({ interactive: 2, background: 8 }),
 })
 
 /**

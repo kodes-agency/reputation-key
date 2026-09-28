@@ -4,9 +4,9 @@ import type { DrainReviewAnalysisBacklogResult } from '../../application/use-cas
 
 /**
  * Recurring drain of Review Analysis waiting for the background lane
- * (ADR 0058). Each tick claims a bounded, per-property share, so a long
- * history can never fan out into the queue; the admission lanes decide how
- * much of that share actually runs.
+ * (ADR 0058). Each tick claims bounded, per-property rounds for a bounded
+ * time, so a long history can never fan out into the queue; the admission
+ * lanes decide how much of each round actually runs.
  */
 export const DRAIN_REVIEW_ANALYSIS_BACKLOG_JOB_NAME = 'ai-review-analysis-backlog-drain'
 

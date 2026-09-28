@@ -5,7 +5,14 @@ import type {
   ConsumerResult,
   OutboxRepository,
 } from '#/shared/outbox'
-import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  propertyId,
+  reviewId,
+  type OrganizationId,
+  type PropertyId,
+} from '#/shared/domain/ids'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
   AI_ANALYSIS_OPERATION_HORIZON_MILLIS,
   AI_BACKFILL_OPERATION_HORIZON_MILLIS,
@@ -82,6 +89,16 @@ export type RegisterAiConsumersInput = Readonly<{
   applyAiAuthorizationLifecycle?: (
     input: AiAuthorizationLifecycleTrigger,
   ) => Promise<AiAuthorizationLifecycleApplyResult>
+  /**
+   * Opens a freshly queued enrollment's replay on delivery, so an import's
+   * history starts analysing when AI is switched on rather than at the next
+   * enrollment sweep. Optional; the sweep opens it too.
+   */
+  advanceEnrollment?: (
+    input: Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>,
+  ) => Promise<unknown>
+  /** Records an enrollment that could not be advanced on delivery. */
+  logger?: Pick<LoggerPort, 'warn'>
 }>
 
 function dispositionFor(
@@ -223,6 +240,30 @@ export async function handleAiPropertyTrendGenerationRequested(
   return { status: 'applied' }
 }
 
+/**
+ * The enrollment intent and this consumer's receipt are already committed, so
+ * a failure here loses nothing: the enrollment sweep opens the replay instead.
+ * Identifiers only.
+ */
+async function advanceEnrollmentOnDelivery(
+  dependencies: RegisterAiConsumersInput,
+  scope: Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>,
+): Promise<void> {
+  if (!dependencies.advanceEnrollment) return
+  try {
+    await dependencies.advanceEnrollment(scope)
+  } catch (error) {
+    dependencies.logger?.warn(
+      {
+        ...(error instanceof Error ? { err: error } : {}),
+        organizationId: scope.organizationId,
+        propertyId: scope.propertyId,
+      },
+      'AI review analysis enrollment advance failed',
+    )
+  }
+}
+
 export async function handleAiAuthorizationLifecycleChanged(
   dependencies: RegisterAiConsumersInput,
   event: ConsumerEvent,
@@ -258,6 +299,12 @@ export async function handleAiAuthorizationLifecycleChanged(
     correlationId: payload.correlationId ?? event.correlationId ?? null,
     occurredAt,
   })
+  if (result.status === 'applied' && result.enrollment.status === 'queued') {
+    await advanceEnrollmentOnDelivery(dependencies, {
+      organizationId: organizationId(payload.organizationId),
+      propertyId: propertyId(payload.propertyId),
+    })
+  }
   return {
     status:
       result.status === 'obsolete'

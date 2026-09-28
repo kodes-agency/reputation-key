@@ -3,6 +3,7 @@ import { organizationId, propertyId } from '#/shared/domain/ids'
 import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
 import type { AiControlPort } from '../ports/ai-control.port'
 import type {
+  ReviewAnalysisEnrollmentEvidence,
   ReviewAnalysisEnrollmentHead,
   ReviewAnalysisEnrollmentStorePort,
 } from '../ports/ai-review-analysis-enrollment.port'
@@ -62,11 +63,38 @@ function authorization(
   }
 }
 
+function evidence(
+  overrides: Partial<ReviewAnalysisEnrollmentEvidence> = {},
+): ReviewAnalysisEnrollmentEvidence {
+  return {
+    id: ENROLLMENT_ID,
+    organizationId: ORGANIZATION_ID,
+    propertyId: PROPERTY_ID,
+    fence: HEAD.fence,
+    state: 'queued',
+    triggerEventEnvelopeId: '5c2a4d8e-8c8e-4d5f-9a8b-1f2e3d4c5b6a',
+    snapshotRevisionCount: 17,
+    snapshotRevisionSetDigest: 'c'.repeat(64),
+    snapshotCapturedAtEpochMillis: NOW.getTime(),
+    safetyCeiling: 10_000,
+    assistedApprovalRequired: false,
+    assistedApproval: null,
+    enrolledRevisionCount: 0,
+    caughtUpEligibleRevisionCount: null,
+    caughtUpAnalysisSequence: null,
+    caughtUpRevisionSetDigest: null,
+    caughtUpAtEpochMillis: null,
+    terminalReason: null,
+    ...overrides,
+  }
+}
+
 function harness(
   options: Readonly<{
     currentAuthorization?: ReturnType<typeof authorization> | null
     controlsEnabled?: boolean
     reconcileStatus?: Awaited<ReturnType<ReviewAnalysisEnrollmentStorePort['reconcile']>>
+    currentEnrollment?: ReviewAnalysisEnrollmentEvidence | null
   }> = {},
 ) {
   const readMerchantAuthorization = vi.fn(async () =>
@@ -130,7 +158,7 @@ function harness(
       throw new Error('not used')
     },
     markSuperseded,
-    readCurrent: async () => null,
+    readCurrent: async () => options.currentEnrollment ?? null,
   }
   return {
     advance: createAdvanceReviewAnalysisEnrollments({
@@ -215,5 +243,91 @@ describe('advance Review Analysis first-enablement enrollment', () => {
     expect(result.enrollmentsCaughtUp).toBe(1)
     expect(result.replaysStarted).toBe(0)
     expect(result.revisionsPinned).toBe(0)
+  })
+})
+
+describe('advance one Property enrollment now', () => {
+  const scope = { organizationId: ORGANIZATION_ID, propertyId: PROPERTY_ID }
+
+  it('opens a queued enrollment with the checks the sweep makes', async () => {
+    const test = harness({ currentEnrollment: evidence() })
+
+    await expect(test.advance.advanceProperty(scope)).resolves.toEqual({
+      status: 'replay_started',
+      runId: '43f914cd-f05d-4434-a377-031840236e67',
+      pinnedRevisionCount: 17,
+    })
+    expect(test.readMerchantAuthorization).toHaveBeenCalledWith(scope)
+    expect(test.readHeads).toHaveBeenCalled()
+    expect(test.reconcile).toHaveBeenCalledWith({
+      enrollmentId: ENROLLMENT_ID,
+      organizationId: ORGANIZATION_ID,
+      expectedFence: HEAD.fence,
+      correlationId: ENROLLMENT_ID,
+      occurredAt: NOW,
+    })
+  })
+
+  it('records a running enrollment caught up once its replay has settled', async () => {
+    const test = harness({
+      currentEnrollment: evidence({ state: 'running', enrolledRevisionCount: 17 }),
+      reconcileStatus: {
+        status: 'caught_up',
+        eligibleRevisionCount: 17,
+        caughtUpAnalysisSequence: 57,
+        revisionSetDigest: 'c'.repeat(64),
+      },
+    })
+
+    await expect(test.advance.advanceProperty(scope)).resolves.toMatchObject({
+      status: 'caught_up',
+    })
+  })
+
+  it.each([
+    ['no enrollment', null],
+    ['a caught-up enrollment', evidence({ state: 'caught_up' })],
+    ['a superseded enrollment', evidence({ state: 'superseded' })],
+    ['a stalled enrollment', evidence({ state: 'stalled' })],
+    [
+      'an enrollment awaiting assisted approval',
+      evidence({ state: 'awaiting_assisted_approval', assistedApprovalRequired: true }),
+    ],
+  ] as const)('leaves a Property with %s alone', async (_case, currentEnrollment) => {
+    const test = harness({ currentEnrollment })
+
+    await expect(test.advance.advanceProperty(scope)).resolves.toEqual({
+      status: 'not_actionable',
+    })
+    expect(test.readMerchantAuthorization).not.toHaveBeenCalled()
+    expect(test.reconcile).not.toHaveBeenCalled()
+  })
+
+  it('keeps a queued enrollment queued while provider execution is dark', async () => {
+    const test = harness({ currentEnrollment: evidence(), controlsEnabled: false })
+
+    await expect(test.advance.advanceProperty(scope)).resolves.toEqual({
+      status: 'runtime_blocked',
+    })
+    expect(test.reconcile).not.toHaveBeenCalled()
+  })
+
+  it('retires an enrollment whose authorization moved on', async () => {
+    const test = harness({
+      currentEnrollment: evidence(),
+      currentAuthorization: authorization({ stateVersion: 5 }),
+    })
+
+    await expect(test.advance.advanceProperty(scope)).resolves.toEqual({
+      status: 'fence_moved',
+      marked: true,
+    })
+    expect(test.markSuperseded).toHaveBeenCalledWith(
+      expect.objectContaining({
+        enrollmentId: ENROLLMENT_ID,
+        reason: 'authorization_changed',
+      }),
+    )
+    expect(test.reconcile).not.toHaveBeenCalled()
   })
 })

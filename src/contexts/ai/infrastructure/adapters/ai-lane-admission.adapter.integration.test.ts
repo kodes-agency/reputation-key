@@ -113,11 +113,15 @@ describe('AI lane admission adapter (real Redis)', () => {
 
   it('counts admissions over a sliding minute', async () => {
     const cap = AI_ADMISSION_RATE_PER_MINUTE.property.background
+    // Spread the whole cap across the first half of one window, whatever its size.
+    const spacing = Math.floor(AI_ADMISSION_RATE_WINDOW_MILLIS / 2 / cap)
     for (let index = 0; index < cap; index += 1) {
-      const claim = await acquire('background', NOW + index * 1_000)
+      const claim = await acquire('background', NOW + index * spacing)
       if (claim.ok) await admission.release({ admissionId: claim.admissionId })
     }
-    expect((await acquire('background', NOW + 30_000)).ok).toBe(false)
+    expect(
+      (await acquire('background', NOW + AI_ADMISSION_RATE_WINDOW_MILLIS / 2)).ok,
+    ).toBe(false)
 
     await expect(
       acquire('background', NOW + AI_ADMISSION_RATE_WINDOW_MILLIS + 1),

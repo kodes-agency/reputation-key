@@ -3,11 +3,10 @@ import { useQuery } from '@tanstack/react-query'
 import { reviewAnalysisShare } from '#/components/features/property/settings/review-analysis-progress-card'
 import { Badge } from '#/components/ui/badge'
 import { aiKeys } from '#/shared/queries/query-keys'
+import { reviewAnalysisProgressRefetchInterval } from '#/shared/queries/review-analysis-progress-polling'
 import type { PropertySetupFns, SetupImportedProperty } from './property-setup-contract'
 
 const numberFormat = new Intl.NumberFormat('en')
-/** History is read a few reviews a minute (ADR 0058); poll gently while it moves. */
-const ANALYSING_POLL_MS = 15_000
 
 function AnalysisRow({
   property,
@@ -21,8 +20,7 @@ function AnalysisRow({
     queryFn: () =>
       getReviewAnalysisProgress({ data: { propertyId: property.propertyId } }),
     staleTime: 10_000,
-    refetchInterval: (query) =>
-      query.state.data?.status === 'analysing' ? ANALYSING_POLL_MS : false,
+    refetchInterval: reviewAnalysisProgressRefetchInterval,
   })
   const data = progress.data
   const counted = data && data.status !== 'disabled' ? data : null

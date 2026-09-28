@@ -35,8 +35,9 @@ and output lineage pin authorization, source, policy, model, and lifecycle fence
 
 ## Runtime
 
-Identity's merchant-AI fact drives one durable lifecycle command. The unconditional
-five-minute enrollment sweep recovers first-enablement intent; outbox receipts and
+Identity's merchant-AI fact drives one durable lifecycle command, which opens a
+freshly queued enrollment's replay on delivery. The unconditional one-minute
+enrollment sweep recovers first-enablement intent; outbox receipts and
 operation state, not BullMQ delivery or in-process callbacks, are recovery
 authority.
 
@@ -44,8 +45,10 @@ Provider calls are admitted once per lane before an execution attempt is
 claimed (ADR 0058): interactive work (reply drafts, on-demand analysis) and
 background work (history) have independent global, organization and property
 buckets. Historical and backfill analysis events queue their provider work in
-`ai_review_analysis_backlog`, which a 30-second drain empties newest review
-first; a review opened in the Inbox is analysed ahead of the queue.
+`ai_review_analysis_backlog`, which a 5-second drain empties newest review
+first, eight analyses at a time, and records an enrollment caught up as soon as
+its last review settles; a review opened in the Inbox is analysed ahead of the
+queue.
 `readReviewAnalysisProgress` reports queued, running, analysed and
 not-analysable counts. Reply Draft provider output remains session-ephemeral until an explicit,
 atomically revalidated adoption creates Review-owned draft content.

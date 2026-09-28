@@ -102,12 +102,12 @@ describe('job operational catalogue', () => {
       action: 'system:ai.review_analysis_enrollment_sweep',
       capability: 'none',
       posture: 'active',
-      schedule: 'every:300000',
+      schedule: 'every:60000',
       queue: 'background',
     })
     expect(schedule).toMatchObject({
       schedulerId: 'ai-review-analysis-enrollment-sweep-recurring',
-      repeat: { every: 300_000 },
+      repeat: { every: 60_000 },
     })
   })
 

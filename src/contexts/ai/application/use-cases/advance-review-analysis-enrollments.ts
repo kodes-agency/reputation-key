@@ -1,8 +1,10 @@
+import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
 import type { AiControlPort } from '../ports/ai-control.port'
 import type {
   ReviewAnalysisEnrollmentFence,
   ReviewAnalysisEnrollmentHead,
+  ReviewAnalysisEnrollmentReconcileResult,
   ReviewAnalysisEnrollmentStorePort,
 } from '../ports/ai-review-analysis-enrollment.port'
 import { resolveAiExecutionStopFence } from '../ai-workflow-support'
@@ -22,8 +24,27 @@ export type AdvanceReviewAnalysisEnrollmentSweepResult = Readonly<{
   batchFull: boolean
 }>
 
+/** What advancing one enrollment did. */
+export type ReviewAnalysisEnrollmentAdvance =
+  /** The authorization moved past the enrollment's fence; `marked` when this call retired it. */
+  | Readonly<{ status: 'fence_moved'; marked: boolean }>
+  /** Provider execution is dark, so the intent stays queued. */
+  | Readonly<{ status: 'runtime_blocked' }>
+  /** The Property has no queued or running enrollment. */
+  | Readonly<{ status: 'not_actionable' }>
+  | ReviewAnalysisEnrollmentReconcileResult
+
 export type AdvanceReviewAnalysisEnrollments = Readonly<{
   sweep: () => Promise<AdvanceReviewAnalysisEnrollmentSweepResult>
+  /**
+   * Advance one Property's current enrollment now rather than at the next
+   * sweep: open its replay as soon as the intent is committed, and record it
+   * caught up as soon as its last replayed review settles. The checks are the
+   * sweep's own; the sweep stays the recovery path.
+   */
+  advanceProperty: (
+    input: Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>,
+  ) => Promise<ReviewAnalysisEnrollmentAdvance>
 }>
 
 export type AdvanceReviewAnalysisEnrollmentDependencies = Readonly<{
@@ -32,6 +53,11 @@ export type AdvanceReviewAnalysisEnrollmentDependencies = Readonly<{
   enrollments: ReviewAnalysisEnrollmentStorePort
   nowEpochMillis: () => number
 }>
+
+type EnrollmentTarget = Pick<
+  ReviewAnalysisEnrollmentHead,
+  'id' | 'organizationId' | 'propertyId' | 'fence'
+>
 
 function matchesFence(
   authorization: NonNullable<
@@ -52,13 +78,13 @@ function matchesFence(
 
 function supersessionReason(
   authorization: Awaited<ReturnType<AiAuthorizationPort['readMerchantAuthorization']>>,
-  head: ReviewAnalysisEnrollmentHead,
+  target: EnrollmentTarget,
 ): 'authorization_changed' | 'source_epoch_changed' | null {
   if (authorization === null) return 'authorization_changed'
-  if (authorization.authorizedSourceEpoch !== head.fence.sourceEpoch) {
+  if (authorization.authorizedSourceEpoch !== target.fence.sourceEpoch) {
     return 'source_epoch_changed'
   }
-  return matchesFence(authorization, head.fence) ? null : 'authorization_changed'
+  return matchesFence(authorization, target.fence) ? null : 'authorization_changed'
 }
 
 /**
@@ -70,6 +96,45 @@ function supersessionReason(
 export function createAdvanceReviewAnalysisEnrollments(
   dependencies: AdvanceReviewAnalysisEnrollmentDependencies,
 ): AdvanceReviewAnalysisEnrollments {
+  async function advance(
+    target: EnrollmentTarget,
+  ): Promise<ReviewAnalysisEnrollmentAdvance> {
+    const authorization = await dependencies.authorization.readMerchantAuthorization({
+      organizationId: target.organizationId,
+      propertyId: target.propertyId,
+    })
+    const moved = supersessionReason(authorization, target)
+    if (moved !== null) {
+      const marked = await dependencies.enrollments.markSuperseded({
+        enrollmentId: target.id,
+        organizationId: target.organizationId,
+        expectedFence: target.fence,
+        reason: moved,
+        occurredAt: new Date(dependencies.nowEpochMillis()),
+      })
+      return { status: 'fence_moved', marked }
+    }
+
+    // Non-null and enabled by matchesFence above.
+    const current = authorization!
+    const stopFence = await resolveAiExecutionStopFence(dependencies.control, {
+      providerDeploymentProfileVersion: current.providerDeploymentProfileVersion,
+      capability: 'review_analysis',
+    })
+    if (stopFence === null) return { status: 'runtime_blocked' }
+
+    return dependencies.enrollments.reconcile({
+      enrollmentId: target.id,
+      organizationId: target.organizationId,
+      expectedFence: target.fence,
+      // Enrollment ids are UUIDs and are content-free. Reusing the durable
+      // authority id makes every replay generation traceable without
+      // introducing a non-recoverable random correlation in the sweep.
+      correlationId: target.id,
+      occurredAt: new Date(dependencies.nowEpochMillis()),
+    })
+  }
+
   return {
     async sweep() {
       const heads = await dependencies.enrollments.listActionable(
@@ -88,48 +153,18 @@ export function createAdvanceReviewAnalysisEnrollments(
       }
 
       for (const head of heads) {
-        const authorization = await dependencies.authorization.readMerchantAuthorization({
-          organizationId: head.organizationId,
-          propertyId: head.propertyId,
-        })
-        const moved = supersessionReason(authorization, head)
-        if (moved !== null) {
-          const superseded = await dependencies.enrollments.markSuperseded({
-            enrollmentId: head.id,
-            organizationId: head.organizationId,
-            expectedFence: head.fence,
-            reason: moved,
-            occurredAt: new Date(dependencies.nowEpochMillis()),
-          })
-          if (superseded) counts.enrollmentsSuperseded += 1
-          continue
-        }
-
-        // Non-null and enabled by matchesFence above.
-        const current = authorization!
-        const stopFence = await resolveAiExecutionStopFence(dependencies.control, {
-          providerDeploymentProfileVersion: current.providerDeploymentProfileVersion,
-          capability: 'review_analysis',
-        })
-        if (stopFence === null) {
-          counts.runtimeBlocked += 1
-          continue
-        }
-
-        const result = await dependencies.enrollments.reconcile({
-          enrollmentId: head.id,
-          organizationId: head.organizationId,
-          expectedFence: head.fence,
-          // Enrollment ids are UUIDs and are content-free. Reusing the durable
-          // authority id makes every replay generation traceable without
-          // introducing a non-recoverable random correlation in the sweep.
-          correlationId: head.id,
-          occurredAt: new Date(dependencies.nowEpochMillis()),
-        })
+        const result = await advance(head)
         switch (result.status) {
+          case 'fence_moved':
+            if (result.marked) counts.enrollmentsSuperseded += 1
+            break
+          case 'runtime_blocked':
+            counts.runtimeBlocked += 1
+            break
+          case 'not_actionable':
           case 'awaiting_assisted_approval':
-            // `listActionable` excludes this state. Preserve the explicit
-            // outcome defensively if approval is concurrently invalidated.
+            // `listActionable` excludes both. Preserve the explicit outcome
+            // defensively if approval is concurrently invalidated.
             break
           case 'waiting_for_replay':
             counts.waitingForReplay += 1
@@ -151,6 +186,17 @@ export function createAdvanceReviewAnalysisEnrollments(
       }
 
       return counts
+    },
+
+    async advanceProperty(input) {
+      const current = await dependencies.enrollments.readCurrent(input)
+      if (
+        current === null ||
+        (current.state !== 'queued' && current.state !== 'running')
+      ) {
+        return { status: 'not_actionable' }
+      }
+      return advance(current)
     },
   }
 }

@@ -30,9 +30,10 @@ export function reviewAnalysisShare(
 }
 
 /**
- * Review Analysis is paced (ADR 0058): an import's history is read a few
- * reviews a minute, newest first. This card says how far it has got, so an
- * empty insight or a missing topic chip reads as "not yet", not "broken".
+ * Review Analysis is paced (ADR 0058): an import's history is read newest
+ * first, up to a minute's background budget per property. This card says how
+ * far it has got, so an empty insight or a missing topic chip reads as "not
+ * yet", not "broken".
  */
 export function ReviewAnalysisProgressCard({ progress }: Props) {
   if (progress === undefined) {

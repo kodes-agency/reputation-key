@@ -184,6 +184,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     analyzeReviewEvent,
     nowEpochMillis,
     logger: input.logger,
+    advanceEnrollment: advanceReviewAnalysisEnrollments.advanceProperty,
   })
   const readReviewAnalysisProgress = createReadReviewAnalysisProgress({
     authorization,
@@ -238,9 +239,11 @@ export const buildAiContext = (input: AiContextBuildInput) => {
       enqueuePropertyTrend: input.enqueuePropertyTrend,
       analyzeReviewEvent,
       applyAiAuthorizationLifecycle,
+      advanceEnrollment: advanceReviewAnalysisEnrollments.advanceProperty,
       receipts: input.outboxRepo,
       backlog,
       nowEpochMillis,
+      logger: input.logger,
     })
   }
 

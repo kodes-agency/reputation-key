@@ -1,7 +1,7 @@
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import {
-  AI_ADMISSION_RATE_PER_MINUTE,
+  AI_ADMISSION_IN_FLIGHT,
   AI_ON_DEMAND_ANALYSIS_INTERACTIVE_HEADROOM,
   type AiAdmissionLane,
 } from '../../domain/admission-lanes'
@@ -17,10 +17,21 @@ import {
 
 /** How long a drainer owns a claimed entry before another may take it. */
 export const AI_BACKLOG_CLAIM_LEASE_MILLIS = 3 * 60_000
-/** Entries claimed per tick across all properties. */
-const AI_BACKLOG_DRAIN_LIMIT = 24
-/** Properties drained at once; entries of one property run one after another. */
-const AI_BACKLOG_DRAIN_CONCURRENCY = 4
+/**
+ * Provider calls one drain runs at once. It equals an organization's
+ * background in-flight budget, so one organization's import can use the whole
+ * drain. It stays below the worker's database pool: an analysis holds a client
+ * only for one short transaction at a time, never across its provider call.
+ */
+export const AI_BACKLOG_DRAIN_CONCURRENCY = AI_ADMISSION_IN_FLIGHT.organization.background
+/** Entries claimed per round: a property's in-flight share, for up to three properties. */
+const AI_BACKLOG_DRAIN_ROUND_LIMIT = 3 * AI_ADMISSION_IN_FLIGHT.property.background
+/**
+ * A drain keeps claiming rounds for this long, then leaves the rest to the
+ * next tick. It stays under the worker's 25-second shutdown budget, so a
+ * deploy rarely interrupts a round.
+ */
+export const AI_BACKLOG_DRAIN_TIME_BUDGET_MILLIS = 20_000
 /** Spacing after an unexpected failure, so a poisoned entry cannot spin. */
 const FAILURE_RETRY_DELAY_MILLIS = 60_000
 const DEFERRED_RETRY_DELAY_MILLIS = 30_000
@@ -40,6 +51,11 @@ export type RequestReviewAnalysisResult =
   | Readonly<{ status: 'not_pending' }>
   | Readonly<{ status: 'failed' }>
 
+type PropertyScope = Readonly<{
+  organizationId: OrganizationId
+  propertyId: PropertyId
+}>
+
 export type DrainReviewAnalysisBacklogDependencies = Readonly<{
   backlog: AiReviewAnalysisBacklogPort
   analyzeReviewEvent: (
@@ -52,6 +68,12 @@ export type DrainReviewAnalysisBacklogDependencies = Readonly<{
    * nothing.
    */
   logger?: Pick<LoggerPort, 'warn'>
+  /**
+   * Advances the Property's first-enablement enrollment once some of its
+   * analyses settle, so it is recorded caught up when its last review settles
+   * rather than at the next enrollment sweep. Optional; the sweep does it too.
+   */
+  advanceEnrollment?: (scope: PropertyScope) => Promise<unknown>
 }>
 
 type EntryOutcome =
@@ -60,34 +82,58 @@ type EntryOutcome =
   | Readonly<{ kind: 'busy'; retryAtEpochMillis: number }>
   | Readonly<{ kind: 'failed' }>
 
-function groupByProperty(
-  entries: ReadonlyArray<AiReviewAnalysisBacklogEntry>,
-): ReadonlyArray<ReadonlyArray<AiReviewAnalysisBacklogEntry>> {
-  const groups = new Map<string, AiReviewAnalysisBacklogEntry[]>()
-  for (const entry of entries) {
-    const group = groups.get(entry.propertyId) ?? []
-    group.push(entry)
-    groups.set(entry.propertyId, group)
-  }
-  return [...groups.values()]
+type DrainCounts = {
+  claimed: number
+  completed: number
+  rescheduled: number
+  waitingForLane: number
+  failed: number
 }
 
-async function inBatches<T>(
+const NOTHING_DRAINED: DrainReviewAnalysisBacklogResult = Object.freeze({
+  claimed: 0,
+  completed: 0,
+  rescheduled: 0,
+  waitingForLane: 0,
+  failed: 0,
+})
+
+/**
+ * Run `task` over `items` with at most `concurrency` in flight, in order. The
+ * first failure stops new work, lets the running tasks finish, then rejects.
+ */
+async function forEachConcurrently<T>(
   items: ReadonlyArray<T>,
   concurrency: number,
-  run: (item: T) => Promise<void>,
+  task: (item: T) => Promise<void>,
 ): Promise<void> {
-  for (let index = 0; index < items.length; index += concurrency) {
-    await Promise.all(items.slice(index, index + concurrency).map(run))
+  const queue = items.values()
+  const state: { failure: Readonly<{ error: unknown }> | null } = { failure: null }
+  async function worker(): Promise<void> {
+    while (state.failure === null) {
+      const next = queue.next()
+      if (next.done) return
+      try {
+        await task(next.value)
+      } catch (error) {
+        state.failure = { error }
+      }
+    }
   }
+  await Promise.all(
+    Array.from({ length: Math.min(concurrency, items.length) }, () => worker()),
+  )
+  if (state.failure !== null) throw state.failure.error
 }
 
 /**
- * Drain Review Analysis waiting in the backlog (ADR 0058). Each tick claims a
+ * Drain Review Analysis waiting in the backlog (ADR 0058). Each round claims a
  * bounded, per-property share of the newest waiting reviews and runs them
- * through the ordinary analysis use case in their lane. A busy lane returns
- * the property's remaining entries to the queue at the lane's retry time
- * without asking again; any settled outcome removes the entry.
+ * through the ordinary analysis use case in their lane, a few at a time; the
+ * drain keeps claiming rounds while they settle work, up to its time budget.
+ * A busy lane returns the property's remaining entries to the queue at the
+ * lane's retry time without asking again; any settled outcome removes the
+ * entry.
  */
 export function createDrainReviewAnalysisBacklog(
   dependencies: DrainReviewAnalysisBacklogDependencies,
@@ -174,43 +220,112 @@ export function createDrainReviewAnalysisBacklog(
     }
   }
 
+  /**
+   * Catch-up is recorded from the settlement ledger, so a failure here loses
+   * nothing: the enrollment sweep records it instead. Identifiers only.
+   */
+  async function advanceEnrollments(scopes: Iterable<PropertyScope>): Promise<void> {
+    if (!dependencies.advanceEnrollment) return
+    for (const scope of scopes) {
+      try {
+        await dependencies.advanceEnrollment(scope)
+      } catch (error) {
+        dependencies.logger?.warn(
+          {
+            ...(error instanceof Error ? { err: error } : {}),
+            organizationId: scope.organizationId,
+            propertyId: scope.propertyId,
+          },
+          'AI review analysis enrollment advance failed',
+        )
+      }
+    }
+  }
+
+  /**
+   * One round: claim the ready share and run it. `parked` carries each
+   * property lane found busy, with its retry time, across the drain's rounds.
+   * Returns how many entries this round claimed and settled.
+   */
+  async function drainRound(
+    parked: Map<string, number>,
+    counts: DrainCounts,
+  ): Promise<Readonly<{ claimed: number; completed: number }>> {
+    const entries = await dependencies.backlog.claimReady({
+      nowEpochMillis: dependencies.nowEpochMillis(),
+      leaseMillis: AI_BACKLOG_CLAIM_LEASE_MILLIS,
+      perProperty: AI_ADMISSION_IN_FLIGHT.property.background,
+      limit: AI_BACKLOG_DRAIN_ROUND_LIMIT,
+    })
+    const settled = new Map<string, PropertyScope>()
+    let completed = 0
+    await forEachConcurrently(entries, AI_BACKLOG_DRAIN_CONCURRENCY, async (entry) => {
+      const lane = entry.priority
+      const laneKey = `${entry.propertyId}:${lane}`
+      const parkedUntil = parked.get(laneKey)
+      const now = dependencies.nowEpochMillis()
+      if (parkedUntil !== undefined && parkedUntil > now) {
+        // The lane is full for this property: park the entry at the lane's
+        // retry time instead of asking again.
+        counts.waitingForLane += 1
+        await dependencies.backlog.reschedule({
+          eventEnvelopeId: entry.eventEnvelopeId,
+          organizationId: entry.organizationId,
+          nextAttemptAtEpochMillis: parkedUntil,
+          nowEpochMillis: now,
+        })
+        return
+      }
+      const outcome = await run(entry, lane)
+      if (outcome.kind === 'completed') {
+        counts.completed += 1
+        completed += 1
+        settled.set(entry.propertyId, {
+          organizationId: entry.organizationId,
+          propertyId: entry.propertyId,
+        })
+      } else if (outcome.kind === 'rescheduled') {
+        counts.rescheduled += 1
+      } else if (outcome.kind === 'failed') {
+        counts.failed += 1
+      } else {
+        counts.waitingForLane += 1
+        parked.set(
+          laneKey,
+          Math.max(parked.get(laneKey) ?? 0, outcome.retryAtEpochMillis),
+        )
+      }
+    })
+    counts.claimed += entries.length
+    await advanceEnrollments(settled.values())
+    return { claimed: entries.length, completed }
+  }
+
+  // One drain per process at a time: a tick that lands while an earlier drain
+  // is still working leaves the backlog to it.
+  let draining = false
+
   return Object.freeze({
     async drain(): Promise<DrainReviewAnalysisBacklogResult> {
-      const entries = await dependencies.backlog.claimReady({
-        nowEpochMillis: dependencies.nowEpochMillis(),
-        leaseMillis: AI_BACKLOG_CLAIM_LEASE_MILLIS,
-        perProperty: AI_ADMISSION_RATE_PER_MINUTE.property.background,
-        limit: AI_BACKLOG_DRAIN_LIMIT,
-      })
-      const counts = { completed: 0, rescheduled: 0, waitingForLane: 0, failed: 0 }
-      await inBatches(
-        groupByProperty(entries),
-        AI_BACKLOG_DRAIN_CONCURRENCY,
-        async (group) => {
-          for (const [index, entry] of group.entries()) {
-            const outcome = await run(entry, entry.priority)
-            if (outcome.kind === 'completed') counts.completed += 1
-            else if (outcome.kind === 'rescheduled') counts.rescheduled += 1
-            else if (outcome.kind === 'failed') counts.failed += 1
-            else {
-              // The lane is full for this property: park the rest of its share
-              // at the lane's retry time instead of asking again.
-              counts.waitingForLane += group.length - index
-              const now = dependencies.nowEpochMillis()
-              for (const rest of group.slice(index + 1)) {
-                await dependencies.backlog.reschedule({
-                  eventEnvelopeId: rest.eventEnvelopeId,
-                  organizationId: rest.organizationId,
-                  nextAttemptAtEpochMillis: outcome.retryAtEpochMillis,
-                  nowEpochMillis: now,
-                })
-              }
-              return
-            }
-          }
-        },
-      )
-      return { claimed: entries.length, ...counts }
+      if (draining) return NOTHING_DRAINED
+      draining = true
+      try {
+        const startedAt = dependencies.nowEpochMillis()
+        const counts: DrainCounts = { ...NOTHING_DRAINED }
+        const parked = new Map<string, number>()
+        let round: Readonly<{ claimed: number; completed: number }>
+        do {
+          round = await drainRound(parked, counts)
+          // Stop once a round settles nothing: the backlog is empty, or every
+          // lane it reached is busy or failing and has its retry time.
+        } while (
+          round.completed > 0 &&
+          dependencies.nowEpochMillis() - startedAt < AI_BACKLOG_DRAIN_TIME_BUDGET_MILLIS
+        )
+        return counts
+      } finally {
+        draining = false
+      }
     },
 
     /**
@@ -232,7 +347,12 @@ export function createDrainReviewAnalysisBacklog(
       })
       if (entry === null) return { status: 'not_pending' }
       const outcome = await run(entry, 'interactive')
-      if (outcome.kind === 'completed') return { status: 'completed' }
+      if (outcome.kind === 'completed') {
+        await advanceEnrollments([
+          { organizationId: entry.organizationId, propertyId: entry.propertyId },
+        ])
+        return { status: 'completed' }
+      }
       if (outcome.kind === 'failed') return { status: 'failed' }
       return { status: 'waiting', retryAtEpochMillis: outcome.retryAtEpochMillis }
     },

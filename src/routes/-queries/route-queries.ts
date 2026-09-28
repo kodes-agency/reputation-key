@@ -22,6 +22,7 @@ import { queryOptions } from '@tanstack/react-query'
 import { listProperties, getProperty } from '#/contexts/property/server/properties'
 import { listMembers } from '#/contexts/identity/server/organizations'
 import { aiKeys, identityKeys, propertyKeys } from '#/shared/queries/query-keys'
+import { reviewAnalysisProgressRefetchInterval } from '#/shared/queries/review-analysis-progress-polling'
 // Structural property data consumed by the app shell and sibling routes.
 // Rarely changes; 5-min staleTime.
 
@@ -66,9 +67,7 @@ export function reviewAnalysisProgressQuery(propertyId: string) {
     queryKey: aiKeys.reviewAnalysisProgress(propertyId),
     queryFn: () => getReviewAnalysisProgressFn({ data: { propertyId } }),
     staleTime: 10_000,
-    // While history is being read the counts move every few seconds.
-    refetchInterval: (query) =>
-      query.state.data?.status === 'analysing' ? 15_000 : false,
+    refetchInterval: reviewAnalysisProgressRefetchInterval,
   })
 }
 
