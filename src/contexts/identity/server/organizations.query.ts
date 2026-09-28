@@ -117,24 +117,3 @@ export const listMembers = createServerFn({ method: 'GET' }).handler(
     'identity.listMembers',
   ),
 )
-
-// ── List user's organizations ──────────────────────────────────────
-
-export const listUserOrganizations = createServerFn({ method: 'GET' }).handler(
-  tracedHandler(
-    async () => {
-      try {
-        const headers = await headersFromContext()
-        const { identityPort } = getContainer()
-
-        const organizations = await identityPort.listUserOrganizations(headers)
-
-        return { organizations }
-      } catch (e) {
-        throw catchUntagged(e)
-      }
-    },
-    'GET',
-    'identity.listUserOrganizations',
-  ),
-)

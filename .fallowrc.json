@@ -160,10 +160,6 @@
       "exports": ["guestFeedbackRetracted"]
     },
     {
-      "file": "src/contexts/identity/server/organizations.query.ts",
-      "exports": ["listUserOrganizations"]
-    },
-    {
       "file": "src/contexts/identity/server/organizations.registration.ts",
       "exports": ["setActiveOrganization"]
     },
