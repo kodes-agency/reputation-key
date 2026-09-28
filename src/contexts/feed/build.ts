@@ -297,6 +297,8 @@ type NotificationBuildInput = Readonly<{
   propertyAccess: PropertyAccessLookup
   /** Server secret refused email addresses are keyed with (never stored). */
   emailAddressKey: string
+  /** Keys refused addresses may still be stored under while they move. */
+  retiredEmailAddressKeys?: readonly string[]
 }>
 
 const buildNotificationFeed = (input: NotificationBuildInput) => {
@@ -314,6 +316,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   )
   const emailRepo = createNotificationEmailRepository(input.db, {
     emailAddressKey: input.emailAddressKey,
+    retiredEmailAddressKeys: input.retiredEmailAddressKeys,
   })
   const prefRepo = createNotificationPreferenceRepository(input.db)
   const oneClickUnsubscribeRepo = createOneClickUnsubscribeRepository(input.db)

@@ -69,7 +69,10 @@ import {
   GOOGLE_PROVIDER_ENDPOINTS,
 } from './composition/provider-runtime'
 import { buildInfrastructure } from './composition/infrastructure'
-import { buildReadAndNotifyContexts } from './composition/read-and-notify-contexts'
+import {
+  buildReadAndNotifyContexts,
+  notificationEmailAddressKeys,
+} from './composition/read-and-notify-contexts'
 import type { CreateContainerOptions } from './composition/container-options'
 import { buildOperationalReadout } from './composition/operational-readout'
 import { reportAlertToObservability } from './composition/alert-reporter'
@@ -628,9 +631,7 @@ function buildContainer(
     integration,
     inbox,
     reviewServingStats: review.lookups.servingStats,
-    // Parsed key material, like identityRequestSecurity's pseudonym secrets:
-    // the same required, stable server secret, domain-separated in Feed.
-    notificationEmailAddressKey: env.BETTER_AUTH_SECRET,
+    ...notificationEmailAddressKeys(env),
   })
   const { activity, notification } = feed
 

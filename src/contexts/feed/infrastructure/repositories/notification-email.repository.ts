@@ -174,13 +174,19 @@ export type NotificationEmailRepositoryOptions = Readonly<{
    * suppression methods throw rather than guess.
    */
   emailAddressKey?: string
+  /** Keys refused addresses may still be stored under while they move. */
+  retiredEmailAddressKeys?: readonly string[]
 }>
 
 export const createNotificationEmailRepository = (
   db: Database,
   options: NotificationEmailRepositoryOptions = {},
 ) => ({
-  ...createNotificationEmailSuppressionStore(db, options.emailAddressKey),
+  ...createNotificationEmailSuppressionStore(
+    db,
+    options.emailAddressKey,
+    options.retiredEmailAddressKeys,
+  ),
   ...createNotificationUnsubscribeScopeStore(db),
   ...createNotificationDigestBatchStore(db),
 
