@@ -19,6 +19,7 @@ import {
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import type { NotificationType } from '../domain/notification-types'
 import { handleNotificationSettlementEvent } from './notification-settlement-outbox-consumers'
+import { noGroupedReopens } from './jobs/test-fixtures'
 
 const ORG = 'organization-newer-request'
 const PROPERTY = propertyId('94000000-0000-4000-8000-000000000001')
@@ -35,6 +36,7 @@ const makeDeps = (stillWaiting: ReadonlyArray<NotificationType>) => ({
       SETTLED,
     ]),
   },
+  groupedReopens: noGroupedReopens(),
   emails: { cancelQueuedForNotifications: vi.fn(async () => 1) },
   inboxItemLookup: { findInboxItemByReviewId: vi.fn(async () => ITEM) },
   workState: {

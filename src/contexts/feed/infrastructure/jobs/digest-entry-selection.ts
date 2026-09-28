@@ -26,7 +26,10 @@ import {
   createRecipientStandingMemo,
   type NotificationRecipientStanding,
 } from '../../application/notification-recipient-standing'
-import type { NotificationWorkState } from '../../application/notification-work-state'
+import {
+  withStandingItemCount,
+  type NotificationWorkState,
+} from '../../application/notification-work-state'
 import type {
   NotificationEmail,
   PersonalDeliveryWindow,
@@ -338,9 +341,10 @@ export async function loadItems(
 }
 
 /**
- * Whether a line still asks for waiting work: the row must be unsettled, and
- * the work itself still waiting, because a row written after the fact that
- * settles it was never settled.
+ * Whether a line still asks for waiting work, and the notice as it should be
+ * rendered: the row must be unsettled, and the work itself still waiting,
+ * because a row written after the fact that settles it was never settled. A
+ * grouped line says how many of its items still wait.
  */
 async function stillWaiting(
   deps: DigestEntryDeps,
@@ -348,13 +352,14 @@ async function stillWaiting(
   item: DigestItem,
 ): Promise<DigestItem | null> {
   if (!isStillActionable(item.notification)) return null
-  const waiting = await deps.workState.isWaiting({
+  const work = await deps.workState.isWaiting({
     organizationId: ctx.orgId,
     type: item.notification.type,
     resourceId: item.notification.resourceId,
     audience: item.entry.recipientAudience,
   })
-  return waiting ? item : null
+  if (work === false) return null
+  return { ...item, notification: withStandingItemCount(item.notification, work) }
 }
 
 /**

@@ -229,3 +229,9 @@ export const waitingWorkState = () => ({
     async ({ types }: Parameters<NotificationWorkState['finished']>[0]) => types,
   ),
 })
+
+/** No grouped reopen waiting on any Property: nothing for a closed cycle to settle there. */
+export const noGroupedReopens = () => ({
+  findWaiting: vi.fn(async () => []),
+  settle: vi.fn(async () => []),
+})

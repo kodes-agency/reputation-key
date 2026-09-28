@@ -84,7 +84,7 @@ const stillWaiting: SQL = and(
 // an email-only recipient's anchor, which is stored read but was never read
 // (`isEmailOnlyAnchor`). Its queued email is still owed until the work is
 // done, so settlement has to reach it to cancel that email.
-const awaitingSettlement: SQL = and(
+export const awaitingSettlement: SQL = and(
   isNull(notifications.resolvedAt),
   or(
     eq(notifications.status, 'unread'),

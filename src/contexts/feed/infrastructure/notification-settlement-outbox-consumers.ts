@@ -33,6 +33,10 @@ import type { InboxItemLookupPort } from '../application/ports/notification-inbo
 import type { NotificationWorkState } from '../application/notification-work-state'
 import { isActionablePortalHealthReason } from '../application/portal-health-notification'
 import {
+  settleGroupedReopens,
+  type GroupedReopenSettlementDeps,
+} from './grouped-reopen-settlement'
+import {
   PURGE_CANCELLED_EMAIL_REASON,
   SETTLED_EMAIL_REASON,
   settledNotificationTypes,
@@ -101,6 +105,7 @@ export const NOTIFICATION_SETTLEMENT_CONSUMERS = [
     consumerName: 'notification.settle-on-inbox-handling-cycle-closed',
     fact: 'handling_cycle.closed',
     resource: 'inbox_item',
+    settlesGroupedReopens: true,
   },
   // A selection change says what the scope is left with. Only one that leaves
   // somebody responsible closes the gap; one that leaves nobody opens a new
@@ -155,6 +160,8 @@ export const NOTIFICATION_SETTLEMENT_CONSUMERS = [
     onlyWhen?: SettlingCondition
     /** Why the queued mail is cancelled, when it is not finished work. */
     emailReason?: string
+    /** Also settle the Property's grouped reopens with nothing left open. */
+    settlesGroupedReopens?: boolean
   }>
 >
 
@@ -168,7 +175,8 @@ export type NotificationSettlementConsumerDeps = Readonly<{
    * Whether each type's work is really finished now. A fact handled late must
    * not retire a request made again since, which coalesced into the same row.
    */
-  workState: Pick<NotificationWorkState, 'finished'>
+  workState: Pick<NotificationWorkState, 'finished' | 'isWaiting'>
+  groupedReopens: GroupedReopenSettlementDeps['groupedReopens']
   clock: () => Date
   logger: LoggerPort
   receipts: Pick<OutboxRepository, 'insertReceipt'>
@@ -256,6 +264,39 @@ async function resolveResource(
   }
 }
 
+/**
+ * Retire the still-waiting notices about one resource whose work is finished
+ * now, and cancel the mail queued behind them.
+ */
+async function settleResource(
+  deps: NotificationSettlementConsumerDeps,
+  route: SettlementRoute,
+  target: Readonly<{ orgId: OrganizationId; resourceId: string; resolvedAt: Date }>,
+): Promise<Readonly<{ settled: number; cancelled: number }>> {
+  const { orgId, resourceId, resolvedAt } = target
+  const types = await deps.workState.finished({
+    organizationId: orgId,
+    resourceId,
+    types: settledNotificationTypes(route.fact),
+  })
+  if (types.length === 0) return { settled: 0, cancelled: 0 }
+
+  const settled = await deps.notifications.settleUnreadForResource({
+    organizationId: orgId,
+    types,
+    resourceId,
+    resolvedAt,
+  })
+  if (settled.length === 0) return { settled: 0, cancelled: 0 }
+  const cancelled = await deps.emails.cancelQueuedForNotifications(
+    settled,
+    orgId,
+    'emailReason' in route ? route.emailReason : SETTLED_EMAIL_REASON,
+    resolvedAt,
+  )
+  return { settled: settled.length, cancelled }
+}
+
 export async function handleNotificationSettlementEvent(
   deps: NotificationSettlementConsumerDeps,
   event: ConsumerEvent,
@@ -275,35 +316,25 @@ export async function handleNotificationSettlementEvent(
     return { status: 'obsolete' }
   }
 
-  const types = await deps.workState.finished({
-    organizationId: orgId,
-    resourceId,
-    types: settledNotificationTypes(route.fact),
-  })
-  if (types.length === 0) {
-    await deps.receipts.insertReceipt(event.eventId, route.consumerName, 'applied')
-    return { status: 'applied' }
-  }
-
   const resolvedAt = deps.clock()
-  const settled = await deps.notifications.settleUnreadForResource({
-    organizationId: orgId,
-    types,
-    resourceId,
-    resolvedAt,
-  })
-  if (settled.length > 0) {
-    const cancelled = await deps.emails.cancelQueuedForNotifications(
-      settled,
-      orgId,
-      'emailReason' in route ? route.emailReason : SETTLED_EMAIL_REASON,
-      resolvedAt,
-    )
+  const settled = await settleResource(deps, route, { orgId, resourceId, resolvedAt })
+  // A grouped reopen is filed under one of its items, so no resource reaches
+  // it: each closed cycle asks about the Property's grouped reopens instead.
+  const grouped =
+    'settlesGroupedReopens' in route
+      ? await settleGroupedReopens(deps, {
+          organizationId: orgId,
+          propertyId: propertyId(field(payload, 'propertyId')),
+          resolvedAt,
+        })
+      : 0
+  if (settled.settled + grouped > 0) {
     deps.logger.info(
       {
         correlationId: event.correlationId ?? undefined,
-        settled: settled.length,
-        cancelled,
+        settled: settled.settled,
+        grouped,
+        cancelled: settled.cancelled,
         fact: route.fact,
       },
       'Notices settled because their work is done',

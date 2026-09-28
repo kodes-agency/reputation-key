@@ -52,6 +52,7 @@ import type { ReplyWorkStateLookupPort } from './application/ports/reply-work-st
 import type { FeedbackPortalLookupPort } from './application/ports/feedback-portal-lookup.port'
 import { createNotificationAudienceAuthorizer } from './application/notification-audience'
 import { createNotificationRecipientStanding } from './application/notification-recipient-standing'
+import { createGroupedReopenStore } from './infrastructure/repositories/notification-grouped-reopen.repository'
 import { createNotificationWorkState } from './application/notification-work-state'
 import {
   createNotificationOrganizationEmailStopReader,
@@ -726,6 +727,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     // they announced retire their notices and cancel the mail behind them.
     registerNotificationSettlementConsumers(consumerRegistry, {
       notifications: notificationRepo,
+      groupedReopens: createGroupedReopenStore(input.db),
       emails: emailRepo,
       inboxItemLookup,
       workState,

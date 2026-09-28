@@ -119,7 +119,7 @@ import { registerEscalationResolutionNotificationConsumer } from './escalation-r
 import { registerGoalNotificationConsumer } from './goal-outbox-consumers'
 import { registerHandlingCycleNotificationConsumers } from './handling-cycle-outbox-consumers'
 import { registerNotificationSettlementConsumers } from './notification-settlement-outbox-consumers'
-import { waitingWorkState } from './jobs/test-fixtures'
+import { noGroupedReopens, waitingWorkState } from './jobs/test-fixtures'
 import { registerResponseTargetNotificationConsumer } from './response-target-outbox-consumers'
 import { registerPortalHealthNotificationConsumer } from './portal-health-outbox-consumers'
 import {
@@ -527,6 +527,7 @@ type RouteDeps = ReturnType<typeof createNotificationConsumerDeps> &
     }
     importInitiators: PropertyImportInitiatorLookup
     workState: ReturnType<typeof waitingWorkState>
+    groupedReopens: ReturnType<typeof noGroupedReopens>
   }>
 
 /** Reads that find nothing, for tests that never run a handler. */
@@ -551,6 +552,7 @@ function inertRouteDeps(): RouteDeps {
     emails: { cancelQueuedForNotifications: vi.fn(async () => 0) },
     importInitiators: { findPropertyImportInitiator: vi.fn(async () => null) },
     workState: waitingWorkState(),
+    groupedReopens: noGroupedReopens(),
   }
 }
 

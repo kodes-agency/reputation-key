@@ -152,6 +152,34 @@ describe('whether the work a notice asks for still waits', () => {
     }
   })
 
+  it('counts the cycles of a grouped reopen that are still their item head', async () => {
+    const ref = {
+      inboxItemId: ITEM,
+      sourceType: 'review',
+      sourceId: REVIEW,
+      cycleNumber: 2,
+      sourceRevision: 1,
+      stateRevision: 4,
+    }
+    const audience = {
+      kind: 'bulk_handling_cycle',
+      cycles: [ref, { ...ref, inboxItemId: 'item-moved-on', stateRevision: 3 }],
+      actorUserId: null,
+    }
+
+    await expect(ask(build(), 'inbox.bulk_reopened', ITEM, audience)).resolves.toEqual({
+      itemCount: 1,
+    })
+    await expect(
+      ask(
+        build({ cycle: cycle({ status: 'closed' }) }),
+        'inbox.bulk_reopened',
+        ITEM,
+        audience,
+      ),
+    ).resolves.toBe(false)
+  })
+
   it('keeps a Portal Health notice waiting only while Health still needs a person', async () => {
     await expect(ask(build(), 'portal.health_attention', PORTAL)).resolves.toBe(true)
     await expect(

@@ -11,7 +11,7 @@ import { notificationId, type NotificationId } from '#/shared/domain/ids'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { isStillActionable } from '../domain/notification-settlement'
 import { handleNotificationSettlementEvent } from './notification-settlement-outbox-consumers'
-import { waitingWorkState } from './jobs/test-fixtures'
+import { noGroupedReopens, waitingWorkState } from './jobs/test-fixtures'
 
 const ORG = 'organization-purge-cancelled'
 const SETTLED = notificationId('98000000-0000-4000-8000-000000000005')
@@ -24,6 +24,7 @@ const makeDeps = () => ({
       SETTLED,
     ]),
   },
+  groupedReopens: noGroupedReopens(),
   emails: { cancelQueuedForNotifications: vi.fn(async () => 1) },
   inboxItemLookup: { findInboxItemByReviewId: vi.fn(async () => null) },
   workState: waitingWorkState(),

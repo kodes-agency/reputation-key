@@ -26,7 +26,7 @@ import {
   type OrganizationId,
 } from '#/shared/domain/ids'
 import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
-import type { NotificationType } from '../domain/notification-types'
+import type { Notification, NotificationType } from '../domain/notification-types'
 import type { EscalationResolutionLookupPort } from './ports/escalation-resolution-lookup.port'
 import type {
   HandlingCycleNotificationFacts,
@@ -38,17 +38,25 @@ import type {
 } from './ports/reply-work-state.port'
 import type { ResponsibleManagerLookupPort } from './ports/responsible-manager-lookup.port'
 import { isActionablePortalHealthReason } from './portal-health-notification'
+import { parseNotificationAudience, type HandlingCycleRef } from './notification-audience'
 
 export type NotificationWorkSubject = Readonly<{
   organizationId: OrganizationId
   type: NotificationType
   resourceId: string
-  /** The audience the notice was queued under. */
+  /**
+   * The audience the notice was queued under. A grouped reopen's work is the
+   * cycles its audience names; nothing else reads it.
+   */
   audience?: unknown
 }>
 
-/** `false`: the work is done. `true`: it still waits, or cannot be checked. */
-export type NotificationWorkDecision = boolean
+/**
+ * `false`: the work is done. `true`: it still waits, or this type's work
+ * cannot be checked. `{ itemCount }`: a grouped notice, and how many of its
+ * items still wait.
+ */
+export type NotificationWorkDecision = boolean | Readonly<{ itemCount: number }>
 
 export type NotificationWorkState = Readonly<{
   /** Asked before a notice is written and again before its email leaves. */
@@ -124,6 +132,36 @@ const replyStill =
     return current === status
   }
 
+/** The cycle is still its item's exact open head: nobody has handled it since. */
+export const isExactHead = (
+  cycle: HandlingCycleRef,
+  facts: HandlingCycleNotificationFacts | null,
+): boolean =>
+  facts !== null &&
+  facts.sourceType === cycle.sourceType &&
+  facts.sourceId === cycle.sourceId &&
+  facts.currentCycleNumber === cycle.cycleNumber &&
+  facts.currentSourceRevision === cycle.sourceRevision &&
+  facts.stateRevision === cycle.stateRevision &&
+  facts.status === 'open'
+
+/**
+ * A grouped reopen stands for the cycles its audience names, and counts only
+ * those still their item's open head, so a mail sent hours later says how
+ * many are really left.
+ */
+const groupStillOpen: WorkCheck = async (deps, { organizationId, audience }) => {
+  const parsed = parseNotificationAudience(audience)
+  if (parsed?.kind !== 'bulk_handling_cycle') return null
+  const current = await Promise.all(
+    parsed.cycles.map(async (cycle) =>
+      isExactHead(cycle, await cycleOf(deps, organizationId, cycle.inboxItemId)),
+    ),
+  )
+  const itemCount = current.filter(Boolean).length
+  return itemCount === 0 ? false : { itemCount }
+}
+
 /**
  * Any Health interval that still gives a manager something to fix keeps the
  * notice: a different actionable reason is still the Portal needing them. A
@@ -169,6 +207,7 @@ const WORK_CHECKS: Readonly<Partial<Record<NotificationType, WorkCheck>>> = {
   'inbox.reopened': itemStillOpen,
   'inbox.response_target_halfway': itemStillOpen,
   'inbox.response_target_passed': itemStillOpen,
+  'inbox.bulk_reopened': groupStillOpen,
   'portal.health_attention': healthStillNeedsAttention,
   'account.organization_purge_pending': purgeStillPending,
   'property.responsibility_needed': propertyStillUnstaffed,
@@ -197,3 +236,15 @@ export const createNotificationWorkState = (
     })
   },
 })
+
+/**
+ * A grouped notice mailed hours after it was written says how many of its
+ * items still wait, not how many its command touched.
+ */
+export const withStandingItemCount = (
+  notification: Notification,
+  work: NotificationWorkDecision,
+): Notification =>
+  typeof work === 'object'
+    ? { ...notification, payload: { ...notification.payload, itemCount: work.itemCount } }
+    : notification

@@ -20,7 +20,7 @@ import {
   NOTIFICATION_SETTLEMENT_CONSUMERS,
   registerNotificationSettlementConsumers,
 } from './notification-settlement-outbox-consumers'
-import { waitingWorkState } from './jobs/test-fixtures'
+import { noGroupedReopens, waitingWorkState } from './jobs/test-fixtures'
 
 const ORG = 'organization-settlement'
 const PROPERTY = propertyId('93000000-0000-4000-8000-000000000001')
@@ -44,6 +44,7 @@ const makeDeps = () => ({
       async (_input: SettleInput): Promise<ReadonlyArray<NotificationId>> => [SETTLED],
     ),
   },
+  groupedReopens: noGroupedReopens(),
   emails: {
     cancelQueuedForNotifications: vi.fn(async (..._args: CancelArgs) => 1),
   },

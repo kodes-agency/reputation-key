@@ -91,10 +91,10 @@ const SETTLED_BY: Readonly<Record<SettlingFact, ReadonlyArray<NotificationType>>
   // it and every Response Target reminder about it are answered — whether it
   // was replied to, handled privately or withdrawn by the guest.
   // `inbox.bulk_reopened` is
-  // deliberately absent — one grouped notice stands for many items and is
-  // filed under the first of them, so closing that one item would retire a
-  // notice the rest are still waiting behind. Its own audience already
-  // re-counts the items that still stand, at delivery.
+  // absent here: one grouped notice stands for many items and is filed under
+  // the first of them, so closing that one item must not retire a notice the
+  // rest are still waiting behind. The same fact settles it by its own rule,
+  // once none of its items still stands (`grouped-reopen-settlement.ts`).
   'handling_cycle.closed': [
     'review.created',
     'review.updated',

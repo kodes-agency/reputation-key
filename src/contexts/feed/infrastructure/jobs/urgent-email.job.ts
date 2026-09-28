@@ -42,7 +42,10 @@ import type { NotificationRepositoryPort } from '../../application/ports/notific
 import type { UserLookupPort } from '../../application/ports/notification-user-lookup.port'
 import type { EmailSenderPort } from '../../application/ports/email-sender.port'
 import type { NotificationRecipientStanding } from '../../application/notification-recipient-standing'
-import type { NotificationWorkState } from '../../application/notification-work-state'
+import {
+  withStandingItemCount,
+  type NotificationWorkState,
+} from '../../application/notification-work-state'
 import type { NotificationPropertyScopeResolver } from '../repositories/notification-property-scope.repository'
 import type { NotificationOrganizationScopeResolver } from '../repositories/notification-organization-scope.repository'
 import { deliveryTiming } from '../../domain/notification-delivery-policy'
@@ -527,13 +530,13 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     }
     // The row may have been written after the fact that settles it, which
     // then found nothing to settle: ask the work itself.
-    const waiting = await deps.workState.isWaiting({
+    const work = await deps.workState.isWaiting({
       organizationId: orgId,
       type: notification.type,
       resourceId: notification.resourceId,
       audience: entry.recipientAudience,
     })
-    if (!waiting) {
+    if (work === false) {
       await suppress(ids, NOT_ACTIONABLE_EMAIL_REASON)
       return
     }
@@ -541,7 +544,7 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     if (recipient === null) return
 
     const { email, headers, replyTo } = composeEmail(
-      notification,
+      withStandingItemCount(notification, work),
       entry,
       ids,
       mandatory,

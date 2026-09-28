@@ -13,7 +13,7 @@ import { notificationId, propertyId, type NotificationId } from '#/shared/domain
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { isStillActionable } from '../domain/notification-settlement'
 import { handleNotificationSettlementEvent } from './notification-settlement-outbox-consumers'
-import { waitingWorkState } from './jobs/test-fixtures'
+import { noGroupedReopens, waitingWorkState } from './jobs/test-fixtures'
 
 const ORG = 'organization-recovery'
 const PROPERTY = propertyId('97000000-0000-4000-8000-000000000001')
@@ -29,6 +29,7 @@ const makeDeps = () => ({
       SETTLED,
     ]),
   },
+  groupedReopens: noGroupedReopens(),
   emails: { cancelQueuedForNotifications: vi.fn(async () => 1) },
   inboxItemLookup: { findInboxItemByReviewId: vi.fn(async () => null) },
   workState: waitingWorkState(),
