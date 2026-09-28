@@ -39,6 +39,67 @@ const SHARED_BROWSER = [
 const SHARED_SERVER = [...SHARED_BROWSER, 'shared-auth']
 const SHARED_ALL = [...SHARED_SERVER, 'shared-db', 'shared-events']
 
+// `no-restricted-syntax` selector sets. Flat config replaces a rule's options
+// instead of merging them, so a block that shares files with another must list
+// every selector set those files need.
+const WALL_CLOCK_READS = [
+  {
+    selector: "NewExpression[callee.name='Date'][arguments.length=0]",
+    message:
+      'BQC-5.3: domain must receive time as a parameter (CONTEXT.md/ADR 0017) — inject now: Date instead of new Date().',
+  },
+  {
+    selector: "CallExpression[callee.object.name='Date'][callee.property.name='now']",
+    message:
+      'BQC-5.3: domain must receive time as a parameter (CONTEXT.md/ADR 0017) — inject now: Date instead of Date.now().',
+  },
+]
+const AMBIENT_CONFIG_READS = [
+  {
+    selector:
+      "MemberExpression[object.object.name='process'][object.property.name='env']",
+    message:
+      'Read configuration through the container, not process.env — routes and contexts receive config as a dependency.',
+  },
+]
+
+// `no-restricted-imports` bans every src/** file gets from the global block.
+// A block that sets its own `no-restricted-imports` replaces those options, so
+// it must spread back each ban its files still need.
+// drizzle-orm outside infrastructure/ and shared/db/ — use repository ports.
+const DRIZZLE_IMPORTS = {
+  group: ['drizzle-orm/**', 'drizzle-orm'],
+  message:
+    'Drizzle imports are only allowed in infrastructure/ and shared/db/schema/. Use repository ports instead.',
+}
+// React outside routes/, components/, integrations/ — business logic must be
+// framework-free.
+const REACT_IMPORTS = {
+  group: [
+    'react',
+    'react-dom',
+    'react/jsx-runtime',
+    'react-dom/client',
+    'react/jsx-dev-runtime',
+  ],
+  importNames: [
+    'default',
+    'createElement',
+    'useState',
+    'useEffect',
+    'useCallback',
+    'useMemo',
+    'useRef',
+    'Component',
+    'PureComponent',
+    'useContext',
+    'useReducer',
+    'useLayoutEffect',
+  ],
+  message:
+    'React imports are only allowed in routes/, components/, and integrations/. Business logic must be framework-free.',
+}
+
 export default tseslint.config(
   js.configs.recommended,
   ...tseslint.configs.recommended,
@@ -516,40 +577,7 @@ export default tseslint.config(
       'no-restricted-imports': [
         'error',
         {
-          patterns: [
-            // drizzle-orm outside infrastructure/ and shared/db/ — use repository ports
-            {
-              group: ['drizzle-orm/**', 'drizzle-orm'],
-              message:
-                'Drizzle imports are only allowed in infrastructure/ and shared/db/schema/. Use repository ports instead.',
-            },
-            // React outside routes/, components/, integrations/ — business logic must be framework-free
-            {
-              group: [
-                'react',
-                'react-dom',
-                'react/jsx-runtime',
-                'react-dom/client',
-                'react/jsx-dev-runtime',
-              ],
-              importNames: [
-                'default',
-                'createElement',
-                'useState',
-                'useEffect',
-                'useCallback',
-                'useMemo',
-                'useRef',
-                'Component',
-                'PureComponent',
-                'useContext',
-                'useReducer',
-                'useLayoutEffect',
-              ],
-              message:
-                'React imports are only allowed in routes/, components/, and integrations/. Business logic must be framework-free.',
-            },
-          ],
+          patterns: [DRIZZLE_IMPORTS, REACT_IMPORTS],
         },
       ],
     },
@@ -625,6 +653,8 @@ export default tseslint.config(
               message:
                 'Import from the feature barrel (e.g., "#/components/features/identity"), not from sub-folders. See src/components/CONTEXT.md.',
             },
+            // React is allowed here; direct database access still is not.
+            DRIZZLE_IMPORTS,
           ],
         },
       ],
@@ -678,6 +708,8 @@ export default tseslint.config(
               message:
                 'BQC-5.1: domain must not import runtime infrastructure (bullmq/ioredis). Domain is pure.',
             },
+            DRIZZLE_IMPORTS,
+            REACT_IMPORTS,
           ],
         },
       ],
@@ -729,6 +761,8 @@ export default tseslint.config(
               message:
                 'BQC-5.1: application must not import bullmq/ioredis directly — depend on a port or the shared/jobs wiring surface.',
             },
+            DRIZZLE_IMPORTS,
+            REACT_IMPORTS,
           ],
         },
       ],
@@ -756,6 +790,8 @@ export default tseslint.config(
               message:
                 'shared/events may only import context domain event modules (the master union). Other domain imports belong in the context itself.',
             },
+            DRIZZLE_IMPORTS,
+            REACT_IMPORTS,
           ],
         },
       ],
@@ -765,24 +801,12 @@ export default tseslint.config(
   // BQC-5.3: domain decisions must be runtime-neutral — time is a
   // parameter (CONTEXT.md / ADR 0017). No ambient wall-clock reads in
   // domain code; callers inject `now`/`asOf`. (Test files are exempt via
-  // the test-files override below.)
+  // the test-files override below.) Context domain code gets its selectors
+  // from the block after the process.env one.
   {
-    files: ['src/contexts/*/domain/**/*.{ts,tsx}', 'src/shared/domain/**/*.{ts,tsx}'],
+    files: ['src/shared/domain/**/*.{ts,tsx}'],
     rules: {
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector: "NewExpression[callee.name='Date'][arguments.length=0]",
-          message:
-            'BQC-5.3: domain must receive time as a parameter (CONTEXT.md/ADR 0017) — inject now: Date instead of new Date().',
-        },
-        {
-          selector:
-            "CallExpression[callee.object.name='Date'][callee.property.name='now']",
-          message:
-            'BQC-5.3: domain must receive time as a parameter (CONTEXT.md/ADR 0017) — inject now: Date instead of Date.now().',
-        },
-      ],
+      'no-restricted-syntax': ['error', ...WALL_CLOCK_READS],
     },
   },
 
@@ -794,15 +818,17 @@ export default tseslint.config(
   {
     files: ['src/routes/**/*.{ts,tsx}', 'src/contexts/**/*.{ts,tsx}'],
     rules: {
-      'no-restricted-syntax': [
-        'error',
-        {
-          selector:
-            "MemberExpression[object.object.name='process'][object.property.name='env']",
-          message:
-            'Read configuration through the container, not process.env — routes and contexts receive config as a dependency.',
-        },
-      ],
+      'no-restricted-syntax': ['error', ...AMBIENT_CONFIG_READS],
+    },
+  },
+
+  // Context domain code is under both bans. This block must follow the
+  // process.env one, which would otherwise replace the wall-clock selectors
+  // (src/shared/architecture/ambient-reads-eslint-rule.test.ts).
+  {
+    files: ['src/contexts/*/domain/**/*.{ts,tsx}'],
+    rules: {
+      'no-restricted-syntax': ['error', ...WALL_CLOCK_READS, ...AMBIENT_CONFIG_READS],
     },
   },
 
