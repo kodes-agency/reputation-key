@@ -585,6 +585,18 @@ export const inboxHandlingCycleClosed = (
   }
 }
 
+/**
+ * Why closed work is open again: a manager's reason, the provider reply that
+ * answered it being removed or replaced, or the guest editing an answered
+ * Review (`material_revision_changed`) — a reply written for the old revision
+ * does not answer the new one.
+ */
+export type HandlingCycleReopenReason =
+  | ManualReopenReason
+  | 'provider_reply_deleted'
+  | 'provider_reply_diverged'
+  | 'material_revision_changed'
+
 export type InboxHandlingCycleReopened = Readonly<{
   _tag: 'inbox.handling_cycle.reopened'
   eventId: string
@@ -599,7 +611,7 @@ export type InboxHandlingCycleReopened = Readonly<{
   actorType: HandlingCycleActorType
   userId: UserId | null
   triggerEventId: string | null
-  reopenReason: ManualReopenReason | 'provider_reply_deleted' | 'provider_reply_diverged'
+  reopenReason: HandlingCycleReopenReason
   /** The bulk reopen command this belongs to; its completion fact covers it. */
   bulkId: string | null
   source: 'web' | 'import'
@@ -610,8 +622,7 @@ export type InboxHandlingCycleReopened = Readonly<{
 export const inboxHandlingCycleReopened = (
   args: HandlingCycleFactScope &
     Readonly<{
-      reopenReason:
-        ManualReopenReason | 'provider_reply_deleted' | 'provider_reply_diverged'
+      reopenReason: HandlingCycleReopenReason
       bulkId?: string | null
       source?: 'web' | 'import'
       correlationId?: string | null

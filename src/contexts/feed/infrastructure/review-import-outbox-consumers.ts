@@ -17,6 +17,14 @@
 //     became terminal the items it is about may not exist yet; a count taken
 //     then would say "0 still need a reply" about 260 that do. The copy is
 //     present-tense for the same reason.
+//
+//     Reading it here only moves the race: this fact is dispatched alongside
+//     the import's last review facts, and a reply observation that overtook
+//     its item waits out a retry backoff before it closes that item. So the
+//     count waits until every review fact recorded before this one has
+//     reached the Inbox, retrying the dispatch meanwhile. Past a horizon the
+//     notice goes out without the number: a stuck projection is somebody
+//     else's alarm, and a wrong number is worse than none.
 
 import {
   organizationId,
@@ -57,12 +65,26 @@ export type ReviewImportNotificationConsumerDeps = PropertyPayloadDeps &
   Readonly<{
     queue: NotificationJobEnqueuePort
     userLookup: Pick<UserLookupPort, 'findByRole'>
-    responsibleManagers: Pick<ResponsibleManagerLookupPort, 'findForProperty'>
-    inboxItemLookup: Pick<InboxItemLookupPort, 'countOpenReviewItemsForProperty'>
+    responsibleManagers: Pick<
+      ResponsibleManagerLookupPort,
+      'findForProperty' | 'isEligibleForProperty'
+    >
+    inboxItemLookup: Pick<
+      InboxItemLookupPort,
+      'countOpenReviewItemsForProperty' | 'hasPendingReviewProjections'
+    >
     importInitiators: PropertyImportInitiatorLookup
     logger: LoggerPort
     receipts: Pick<OutboxRepository, 'insertReceipt'>
+    clock: () => Date
   }>
+
+/**
+ * How long the summary waits for the import's review facts to reach the Inbox.
+ * The dispatch retries at about 30 s, 1, 2, 4 and 8 minutes, so this covers
+ * five waits; a projection still missing after that is stuck, not in flight.
+ */
+export const REVIEW_IMPORT_SUMMARY_SETTLE_HORIZON_MS = 15 * 60_000
 
 type ImportFinished = Readonly<{
   organizationId: OrganizationId
@@ -109,9 +131,11 @@ type Recipients = Readonly<{
 }>
 
 /**
- * The person who asked, else the Property's responsible managers, else the
- * AccountAdmins. Each answer carries the audience that re-decides it at
- * delivery, so somebody who has since lost the Property hears nothing.
+ * The person who asked while still eligible, else the Property's responsible
+ * managers, else the AccountAdmins. Each answer carries the audience that
+ * re-decides it at delivery, so somebody who has since lost the Property hears
+ * nothing. The initiator is checked here as well: delivery would drop an
+ * initiator who was removed or demoted, and nobody else would hear either.
  */
 async function resolveRecipients(
   deps: ReviewImportNotificationConsumerDeps,
@@ -121,7 +145,14 @@ async function resolveRecipients(
     fact.organizationId,
     fact.propertyId,
   )
-  if (initiator !== null) {
+  if (
+    initiator !== null &&
+    (await deps.responsibleManagers.isEligibleForProperty(
+      fact.organizationId,
+      fact.propertyId,
+      userId(initiator),
+    ))
+  ) {
     return { userIds: [userId(initiator)], audience: { kind: 'property_operator' } }
   }
   const managers = await deps.responsibleManagers.findForProperty(
@@ -144,13 +175,57 @@ async function resolveRecipients(
 }
 
 /**
+ * Whether the count may be taken now. `wait` throws, so the dispatch retries
+ * this event; `skip` sends the notice without the number.
+ */
+async function settlement(
+  deps: ReviewImportNotificationConsumerDeps,
+  fact: ImportFinished,
+  recordedAt: Date | null,
+): Promise<'count' | 'wait' | 'skip'> {
+  // An envelope from before recordedAt existed has nothing to wait against.
+  if (recordedAt === null) return 'count'
+  const pending = await deps.inboxItemLookup.hasPendingReviewProjections(
+    unbrand(fact.propertyId),
+    fact.organizationId,
+    recordedAt,
+  )
+  if (!pending) return 'count'
+  const waited = deps.clock().getTime() - recordedAt.getTime()
+  return waited < REVIEW_IMPORT_SUMMARY_SETTLE_HORIZON_MS ? 'wait' : 'skip'
+}
+
+/**
  * How many of the Property's review items are still open. A read that fails
  * costs the sentence its second number, never the notice.
  */
 async function countUnanswered(
   deps: ReviewImportNotificationConsumerDeps,
   fact: ImportFinished,
+  recordedAt: Date | null,
 ): Promise<number | null> {
+  let decision: 'count' | 'wait' | 'skip'
+  try {
+    decision = await settlement(deps, fact, recordedAt)
+  } catch (err) {
+    deps.logger.warn(
+      { err },
+      'notification payload: import projection check failed, degrading copy',
+    )
+    return null
+  }
+  if (decision === 'wait') {
+    throw new Error(
+      'Review history import summary is waiting: the import is still reaching the Inbox',
+    )
+  }
+  if (decision === 'skip') {
+    deps.logger.warn(
+      { propertyId: fact.propertyId },
+      'notification payload: import projections never settled, degrading copy',
+    )
+    return null
+  }
   try {
     return await deps.inboxItemLookup.countOpenReviewItemsForProperty(
       unbrand(fact.propertyId),
@@ -189,7 +264,13 @@ export async function handleNotificationReviewHistoryImportFinished(
   } else {
     const [where, unanswered] = await Promise.all([
       buildPropertyPayload(deps, fact.organizationId, fact.propertyId),
-      fact.outcome === 'completed' ? countUnanswered(deps, fact) : null,
+      fact.outcome === 'completed'
+        ? countUnanswered(
+            deps,
+            fact,
+            event.recordedAt === undefined ? null : new Date(event.recordedAt),
+          )
+        : null,
     ])
     const payload = {
       ...where,

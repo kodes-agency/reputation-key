@@ -65,6 +65,14 @@ function parse(event: ConsumerEvent): IntegrationGoogleAccountReauthorizationReq
   }
 }
 
+/**
+ * Every AccountAdmin is told Google needs reconnecting. The notice anchors on
+ * one of the Organization's active Properties, because it is urgent mail and
+ * the email path is Property-scoped (ADR 0046). Google can need reconnecting
+ * before any Property is active — the first import is exactly when a token is
+ * first used — so without an anchor it falls back to the Organization, in the
+ * bell only: an in-app notice beats a fact that reached nobody.
+ */
 export async function handleNotificationGoogleReauthorizationRequired(
   deps: IntegrationNotificationConsumerDeps,
   event: ConsumerEvent,
@@ -78,39 +86,37 @@ export async function handleNotificationGoogleReauthorizationRequired(
   if (!anchorPropertyId) {
     deps.logger.warn(
       { correlationId: fact.correlationId ?? undefined },
-      'Google reauthorization notification has no Property delivery scope',
+      'Google reauthorization notification has no active Property; notifying in-app only',
+    )
+  }
+  const recipients = await deps.userLookup.findByRole(fact.organizationId, 'AccountAdmin')
+  if (recipients.length === 0) {
+    deps.logger.warn(
+      { correlationId: fact.correlationId ?? undefined },
+      'Google reauthorization notification has no AccountAdmin recipients',
     )
   } else {
-    const recipients = await deps.userLookup.findByRole(
-      fact.organizationId,
-      'AccountAdmin',
-    )
-    if (recipients.length === 0) {
-      deps.logger.warn(
-        { correlationId: fact.correlationId ?? undefined },
-        'Google reauthorization notification has no AccountAdmin recipients',
-      )
-    } else {
-      await Promise.all(
-        recipients.map((recipientId) =>
-          deps.queue.add(
-            INSERT_NOTIFICATION_JOB_NAME,
-            {
-              userId: recipientId,
-              organizationId: fact.organizationId,
-              propertyId: propertyId(anchorPropertyId),
-              type: 'integration.reauthorization_required',
-              resourceType: 'integration',
-              resourceId: fact.connectionId,
-              eventId: fact.eventId,
-              payload: { reauthorizationCause: fact.cause },
-              audience: { kind: 'account_admin' },
-            },
-            { jobId: `${fact.eventId}-${recipientId}` },
-          ),
+    await Promise.all(
+      recipients.map((recipientId) =>
+        deps.queue.add(
+          INSERT_NOTIFICATION_JOB_NAME,
+          {
+            userId: recipientId,
+            organizationId: fact.organizationId,
+            propertyId: anchorPropertyId ? propertyId(anchorPropertyId) : null,
+            type: 'integration.reauthorization_required',
+            resourceType: 'integration',
+            resourceId: fact.connectionId,
+            eventId: fact.eventId,
+            payload: { reauthorizationCause: fact.cause },
+            audience: anchorPropertyId
+              ? { kind: 'account_admin' }
+              : { kind: 'organization_account_admin' },
+          },
+          { jobId: `${fact.eventId}-${recipientId}` },
         ),
-      )
-    }
+      ),
+    )
   }
   await deps.receipts.insertReceipt(
     event.eventId,

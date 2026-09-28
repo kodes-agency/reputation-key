@@ -126,6 +126,32 @@ export const ORGANIZATION_INFORMATIONAL_TYPES: ReadonlySet<NotificationType> = n
 ])
 
 /**
+ * Property-scoped types that fall back to the Organization when there is no
+ * Property to carry them. `integration.reauthorization_required` anchors on a
+ * Property so it can be mailed, but Google can need reconnecting before the
+ * Organization has an active Property — between connecting Google and the
+ * first successful import, or with every Property archived. Then it lands in
+ * the bell at Organization scope, email off, instead of reaching nobody.
+ */
+export const ORGANIZATION_FALLBACK_TYPES: ReadonlySet<NotificationType> = new Set([
+  'integration.reauthorization_required',
+])
+
+/**
+ * Whether this notice is held at the Organization: its family always is, or
+ * it is a fallback type that arrived without a Property.
+ */
+export function isOrganizationScopedNotice(
+  type: NotificationType,
+  propertyId: string | null,
+): boolean {
+  return (
+    notificationScopeForType(type) === 'organization' ||
+    (propertyId === null && ORGANIZATION_FALLBACK_TYPES.has(type))
+  )
+}
+
+/**
  * Mandatory account/security notices belong to the Organization, as do the
  * few informational notices above. Every other active family remains
  * Property-scoped. Keeping this derived from the category map and one explicit

@@ -762,6 +762,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       displayNames,
       logger: input.logger,
       receipts: input.outboxRepo,
+      clock: input.clock,
     })
   }
 

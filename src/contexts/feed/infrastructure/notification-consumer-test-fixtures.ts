@@ -99,6 +99,7 @@ export const createNotificationConsumerDeps = (): FakeNotificationConsumerDeps =
     findWaitingSince: vi.fn(async () => null),
     findNoteAuthors: vi.fn(async () => []),
     countOpenReviewItemsForProperty: vi.fn(async () => 0),
+    hasPendingReviewProjections: vi.fn(async () => false),
   } as unknown as MockedPort<InboxItemLookupPort>
 
   const displayNames = {

@@ -21,7 +21,7 @@ import type {
 } from '../../domain/notification-types'
 import {
   classifyNotification,
-  notificationScopeForType,
+  isOrganizationScopedNotice,
 } from '../../domain/notification-delivery-policy'
 import {
   applyCoalescence,
@@ -92,8 +92,9 @@ const resolveChannelPreferences = async (
   // therefore no preference row. ADR 0046 rule 1 says missing rows resolve
   // through versioned defaults — so in-app follows the category default, and
   // email is off outright: there is no row that could ever opt it in, and the
-  // email queue's own scope CHECK would refuse it.
-  if (notificationScopeForType(input.type) === 'organization') {
+  // email queue's own scope CHECK would refuse it. A Property-scoped type that
+  // fell back to the Organization for want of a Property is decided the same.
+  if (isOrganizationScopedNotice(input.type, input.propertyId)) {
     return {
       inAppEnabled: getDefaultEnabled(category, 'in_app'),
       emailEnabled: false,

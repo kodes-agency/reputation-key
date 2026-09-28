@@ -253,6 +253,25 @@ function findOpenedReasonViolation(
 }
 
 /**
+ * Whether the next cycle opens new work or reopens work someone had finished.
+ * A source-advancing reason on an OPEN cycle supersedes work nobody handled,
+ * so it is an opening. A guest edit landing on a CLOSED Review cycle is a
+ * reopen: the reply written for the old revision does not answer the new one,
+ * and whoever considered the item finished has to be told (ADR 0046). A new
+ * private-feedback occurrence stays an opening — the guest wrote again, which
+ * is new work rather than finished work coming back.
+ */
+function nextCycleTransitionKind(
+  input: CreateNextHandlingCycleInput,
+): Extract<HandlingCycleTransition['kind'], 'opened' | 'reopened'> {
+  if (input.openedReason === 'feedback_submitted') return 'opened'
+  if (input.openedReason === 'material_revision_changed') {
+    return input.current.status === 'closed' ? 'reopened' : 'opened'
+  }
+  return 'reopened'
+}
+
+/**
  * Decide the next append-only cycle and CAS head. Manual reopen deliberately
  * permits another cycle on the same source revision; a material-change trigger
  * must advance it.
@@ -334,11 +353,7 @@ export function createNextHandlingCycle(
     sourceType: current.sourceType,
     sourceId: current.sourceId,
     sourceRevision: input.sourceRevision,
-    kind:
-      input.openedReason === 'material_revision_changed' ||
-      input.openedReason === 'feedback_submitted'
-        ? 'opened'
-        : 'reopened',
+    kind: nextCycleTransitionKind(input),
     transitionReason:
       input.openedReason === 'manual_reopen' ? manualReopenReason! : input.openedReason,
     actorType: input.actorType,

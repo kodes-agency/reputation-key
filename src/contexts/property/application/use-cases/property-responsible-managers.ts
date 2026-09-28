@@ -100,6 +100,8 @@ export const updatePropertyResponsibleManagers =
     const responsibilityNeededEvent = propertyResponsibilityNeeded({
       organizationId: property.organizationId,
       propertyId: property.id,
+      // The admin clearing the list opened the gap; the fan-out drops them.
+      actorUserId: ctx.userId,
       occurredAt: at,
     })
     const updated = await deps.managerRepo.replace({

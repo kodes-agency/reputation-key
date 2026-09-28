@@ -142,6 +142,7 @@ describe('registered durable notification matrix', () => {
       displayNames: fakes.displayNames,
       logger: fakes.logger,
       receipts,
+      clock: () => new Date(),
     })
 
     expect(() =>
