@@ -46,8 +46,27 @@ export const RETIRED_SCHEDULER_JOB_NAMES = Object.freeze([
 export const JOB_OPERATIONAL_QUEUE_CONCURRENCY = Object.freeze({
   default: 4,
   background: 3,
-  'domain-events': 20,
+  // The peak the dispatcher has always reached: the old limiter below released
+  // ten domain events at once at the top of every second.
+  'domain-events': 10,
 } as const)
+
+export type JobQueueRateLimit = Readonly<{ max: number; duration: number }>
+
+/**
+ * Job starts per window, per worker. BullMQ's limiter releases up to `max`
+ * jobs at the start of each window, then idles until it resets. `null` leaves
+ * a queue bounded by its concurrency alone. Domain events are short database
+ * work fanned out by the relay: under ten a second, a 96-review import left the
+ * dispatcher idle 97% of the time and its inbox items about 30 seconds late.
+ */
+export const JOB_OPERATIONAL_QUEUE_RATE_LIMIT: Readonly<
+  Record<keyof typeof JOB_OPERATIONAL_QUEUE_CONCURRENCY, JobQueueRateLimit | null>
+> = Object.freeze({
+  default: Object.freeze({ max: 10, duration: 1_000 }),
+  background: Object.freeze({ max: 10, duration: 1_000 }),
+  'domain-events': null,
+})
 
 function ownerFor(row: JobFamilyRow): string {
   const context = /src\/contexts\/([^/]+)\//.exec(row.processor)?.[1]

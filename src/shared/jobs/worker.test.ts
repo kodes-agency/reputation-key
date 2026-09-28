@@ -12,9 +12,11 @@ import { POOL_MAX_CONNECTIONS } from '#/shared/db/pool'
 import {
   BACKGROUND_QUEUE_CONCURRENCY,
   DEFAULT_QUEUE_CONCURRENCY,
+  DOMAIN_EVENTS_QUEUE_CONCURRENCY,
   JOB_LOCK_DURATION_MS,
   JOB_STALLED_INTERVAL_MS,
   WORST_CASE_POOL_CLIENTS_PER_JOB,
+  jobQueueRateLimit,
 } from './worker'
 
 describe('BullMQ lock/stall ordering', () => {
@@ -60,5 +62,31 @@ describe('worker concurrency / connection-pool budget', () => {
   // of them would hold every client.
   it('runs fewer analyses in one backlog drain than the pool has clients', () => {
     expect(AI_BACKLOG_DRAIN_CONCURRENCY).toBeLessThan(POOL_MAX_CONNECTIONS)
+  })
+})
+
+describe('job-start rate limits', () => {
+  // BullMQ's limiter releases a window's jobs at once and then idles. With
+  // short domain events that idle dominated: a 96-review import dispatched
+  // exactly ten events a second and left the dispatcher idle 97% of the time.
+  it('leaves domain-event dispatch bounded by its concurrency alone', () => {
+    expect(jobQueueRateLimit('domain-events')).toBeNull()
+  })
+
+  it('keeps the limit the default and background queues always had', () => {
+    for (const queue of ['default', 'background']) {
+      expect(jobQueueRateLimit(queue)).toEqual({ max: 10, duration: 1_000 })
+    }
+  })
+
+  it('gives a queue the catalogue does not name the default limit', () => {
+    expect(jobQueueRateLimit('some-test-queue')).toEqual(jobQueueRateLimit('default'))
+  })
+
+  // Without the limiter the dispatcher runs at its concurrency continuously.
+  // Ten is the peak it always reached: the old limiter released ten events at
+  // once at the top of every second.
+  it('dispatches no more domain events at once than the pool has clients', () => {
+    expect(DOMAIN_EVENTS_QUEUE_CONCURRENCY).toBeLessThanOrEqual(POOL_MAX_CONNECTIONS)
   })
 })

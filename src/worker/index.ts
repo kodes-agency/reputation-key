@@ -27,6 +27,7 @@ import {
   BACKGROUND_QUEUE_CONCURRENCY,
   createJobWorker,
   DEFAULT_QUEUE_CONCURRENCY,
+  DOMAIN_EVENTS_QUEUE_CONCURRENCY,
 } from '#/shared/jobs/worker'
 
 import { assertConfiguredJobRedisRuntime } from '#/shared/jobs/redis-runtime'
@@ -351,7 +352,7 @@ async function main() {
     createDispatcherHandler(container.outboxRepo, {
       consumers: container.consumerRegistry,
     }),
-    20,
+    DOMAIN_EVENTS_QUEUE_CONCURRENCY,
     quarantineQueue,
   )
 

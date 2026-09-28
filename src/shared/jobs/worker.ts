@@ -23,7 +23,11 @@ import type { JobHandler } from './registry'
 import { Redis } from 'ioredis'
 import { getJobRedisUrl } from './redis-topology'
 import type { JobRuntimeObservationSink } from './runtime-observations'
-import { JOB_OPERATIONAL_QUEUE_CONCURRENCY } from './operational-catalogue'
+import {
+  JOB_OPERATIONAL_QUEUE_CONCURRENCY,
+  JOB_OPERATIONAL_QUEUE_RATE_LIMIT,
+  type JobQueueRateLimit,
+} from './operational-catalogue'
 
 export type { Job }
 export type { JobHandler }
@@ -79,6 +83,22 @@ export const DEFAULT_QUEUE_CONCURRENCY = JOB_OPERATIONAL_QUEUE_CONCURRENCY.defau
 /** Background queue concurrency — single-client maintenance sweeps. */
 export const BACKGROUND_QUEUE_CONCURRENCY = JOB_OPERATIONAL_QUEUE_CONCURRENCY.background
 
+/** Domain-event dispatch concurrency: the relay's fan-out to durable consumers. */
+export const DOMAIN_EVENTS_QUEUE_CONCURRENCY =
+  JOB_OPERATIONAL_QUEUE_CONCURRENCY['domain-events']
+
+/**
+ * The job-start limit a worker runs under: its queue's catalogue row, or the
+ * default queue's for a queue the catalogue does not name.
+ */
+export function jobQueueRateLimit(queueName: string): JobQueueRateLimit | null {
+  return Object.hasOwn(JOB_OPERATIONAL_QUEUE_RATE_LIMIT, queueName)
+    ? JOB_OPERATIONAL_QUEUE_RATE_LIMIT[
+        queueName as keyof typeof JOB_OPERATIONAL_QUEUE_RATE_LIMIT
+      ]
+    : JOB_OPERATIONAL_QUEUE_RATE_LIMIT.default
+}
+
 function isQuarantineRedrive(data: unknown): boolean {
   if (typeof data !== 'object' || data === null || Array.isArray(data)) return false
   const metadata = (data as Record<string, unknown>).redriveMetadata
@@ -118,6 +138,7 @@ export function createJobWorker<T>(
   if (!redisUrl) return undefined
 
   const logger = getLogger()
+  const rateLimit = jobQueueRateLimit(name)
 
   // BullMQ Worker requires maxRetriesPerRequest=null for blocking connections.
   // Cannot share the caching Redis client which uses maxRetriesPerRequest=3.
@@ -168,10 +189,7 @@ export function createJobWorker<T>(
     // lease must expire before BullMQ hands the job to a stalled recovery.
     lockDuration: JOB_LOCK_DURATION_MS,
     stalledInterval: JOB_STALLED_INTERVAL_MS,
-    limiter: {
-      max: 10,
-      duration: 1000,
-    },
+    ...(rateLimit === null ? {} : { limiter: { ...rateLimit } }),
   })
 
   // EventEmitter's `error` event throws when it has no listener. BullMQ also
