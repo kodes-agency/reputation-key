@@ -19,7 +19,7 @@
     "local:up": "AI_PROVIDER_STUB_UNSCRIPTED=respond scripts/e2e/stack-services.sh && set -a && . ./e2e/stack.env && set +a && tsx scripts/local/host-stack.ts",
     "local:down": "pnpm e2e:stack:down",
     "lint": "eslint . && node scripts/check-architecture-boundary-controls.mjs && node scripts/check-filenames.mjs && node scripts/check-component-boundaries.mjs && pnpm check:product-state-consistency",
-    "lint:ci": "pnpm lint && node scripts/check-test-quality.mjs && node scripts/check-google-provider-identifiers.mjs && pnpm check:runtime-environment-contract",
+    "lint:ci": "pnpm lint && node scripts/check-test-quality.mjs && node scripts/check-google-provider-identifiers.mjs && pnpm check:runtime-environment-contract && pnpm check:file-length && pnpm check:unchecked-indexed-access",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
@@ -63,6 +63,8 @@
     "check:typescript-project-coverage": "tsx scripts/ci/check-typescript-project-coverage.ts",
     "check:product-state-consistency": "tsx scripts/ci/check-product-state-consistency.ts",
     "check:runtime-environment-contract": "tsx scripts/ci/check-runtime-environment-contract.ts",
+    "check:file-length": "tsx scripts/ci/check-file-length.ts",
+    "check:unchecked-indexed-access": "tsx scripts/ci/check-unchecked-indexed-access.ts",
     "ops": "tsx scripts/ops/index.ts",
     "db:baseline": "tsx scripts/db-baseline.ts",
     "db:reset": "tsx scripts/db-reset.ts"
