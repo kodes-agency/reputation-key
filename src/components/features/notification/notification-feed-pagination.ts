@@ -2,6 +2,7 @@ import { queryOptions, type QueryClient, type QueryKey } from '@tanstack/react-q
 import { httpStatus } from '#/shared/security/expected-refusal'
 import {
   isNewerFeedPosition,
+  isStillWaiting,
   type NotificationFeedCursor,
   type NotificationFeedHead,
   type NotificationView,
@@ -123,18 +124,17 @@ function isHistoryDetached(
  *
  *  - the head is the whole feed (`hasMore` off), so nothing below it exists
  *    and every history row is either shown by the head or gone;
- *  - the rows on screen hold more unread than the Organization-wide unread
- *    count, so some of them were read, dismissed or muted since loading: the
- *    "New" rows a badge of 0 would contradict.
+ *  - the rows on screen hold more still-waiting rows than the badge counts
+ *    (a settled row counts in neither), so some of them were read,
+ *    dismissed or muted since loading: the "New" rows a badge of 0 would
+ *    contradict.
  */
 function isHistoryStale(
   head: NotificationFeedHead,
   pages: ReadonlyArray<NotificationPage>,
 ): boolean {
   if (!head.page.hasMore) return true
-  const unread = mergeNotificationHeadWithHistory(head.page, pages).filter(
-    (row) => row.status === 'unread',
-  )
+  const unread = mergeNotificationHeadWithHistory(head.page, pages).filter(isStillWaiting)
   return unread.length > head.unreadCount
 }
 

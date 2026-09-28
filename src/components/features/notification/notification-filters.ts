@@ -9,6 +9,7 @@
 
 import {
   GOVERNING_NOTIFICATION_CATEGORIES,
+  isStillWaiting,
   type NotificationView,
   type NotificationListFilter,
 } from '#/contexts/feed/application/public-api'
@@ -64,7 +65,7 @@ export function matchesNotificationFilter(
     case 'all':
       return true
     case 'unread':
-      return notification.status === 'unread'
+      return isStillWaiting(notification)
     case 'urgent':
       return notification.priority === 'urgent'
     default:
@@ -80,12 +81,15 @@ export type NotificationGroup = Readonly<{
   notifications: ReadonlyArray<NotificationView>
 }>
 
-/** Popover grouping: what still needs attention, then everything else. */
+/**
+ * Popover grouping: what still needs attention, then everything else. A
+ * settled row is still unread but asks for nothing, so it is "Earlier".
+ */
 export function groupByReadState(
   notifications: ReadonlyArray<NotificationView>,
 ): ReadonlyArray<NotificationGroup> {
-  const unread = notifications.filter((n) => n.status === 'unread')
-  const read = notifications.filter((n) => n.status !== 'unread')
+  const unread = notifications.filter(isStillWaiting)
+  const read = notifications.filter((n) => !isStillWaiting(n))
   const groups: NotificationGroup[] = []
   if (unread.length > 0) groups.push({ key: 'new', label: 'New', notifications: unread })
   if (read.length > 0)
