@@ -24,16 +24,30 @@ import {
 // ── Repository ──────────────────────────────────────────────────────
 
 // Email-only notifications remain durable anchors, but are excluded from the
-// in-app list when the concrete property/category/channel preference disables it.
-const notOptedOutInApp = sql`NOT EXISTS (
-  SELECT 1 FROM notification_preferences
-  WHERE user_id = notifications.user_id
-    AND organization_id = notifications.organization_id
-    AND property_id = notifications.property_id
-    AND category = notifications.category
-    AND channel = 'in_app'
-    AND enabled = false
-    AND notifications.category NOT IN ('mandatory', 'urgent_operational')
+// in-app list while the reader has in-app off for that Property and category.
+// It resolves exactly as delivery does (resolveCategoryPreference): the
+// Property's own row, else the person's category default, else the versioned
+// default, which is on in-app for every category. "Apply to all my properties"
+// writes the default and deletes the Property rows, so reading the Property
+// table alone brought every muted row back. Organization notices ignore
+// preferences on delivery, so they are never hidden here either.
+const notOptedOutInApp = sql`NOT (
+  notifications.property_id IS NOT NULL
+  AND notifications.category NOT IN ('mandatory', 'urgent_operational')
+  AND NOT COALESCE(
+    (SELECT enabled FROM notification_preferences
+      WHERE user_id = notifications.user_id
+        AND organization_id = notifications.organization_id
+        AND property_id = notifications.property_id
+        AND category = notifications.category
+        AND channel = 'in_app'),
+    (SELECT enabled FROM notification_category_defaults
+      WHERE user_id = notifications.user_id
+        AND organization_id = notifications.organization_id
+        AND category = notifications.category
+        AND channel = 'in_app'),
+    true
+  )
 )`
 
 // Latest activity: a coalesced row sorts by its newest absorbed event, so a
