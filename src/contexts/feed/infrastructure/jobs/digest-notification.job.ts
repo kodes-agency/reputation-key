@@ -47,6 +47,7 @@ import type { EmailSenderPort } from '../../application/ports/email-sender.port'
 import type { NotificationRecipientStanding } from '../../application/notification-recipient-standing'
 import type { NotificationOrganizationScopeResolver } from '../repositories/notification-organization-scope.repository'
 import type { NotificationPropertyScopeResolver } from '../repositories/notification-property-scope.repository'
+import { DUE_RECIPIENT_SWEEP_CAP } from '../repositories/notification-due-recipients.query'
 import type { NotificationEmail } from '../../domain/notification-types'
 import { isDailyDigestWindow } from '../../domain/notification-delivery-policy'
 import { ORGANIZATION_CLOSING_REASON } from '../../domain/organization-email-stop'
@@ -619,6 +620,15 @@ export const createDigestNotificationJobHandler = (deps: DigestDeps) => {
     await sweepImmediateOrphans(deps, deps.clock())
 
     const recipients = await deps.emailRepo.findDueRecipients('daily', deps.clock())
+    // A full read may have left recipients for the next tick. They are read in
+    // visit order (work due at any hour, then 08:00 now), but past the cap a
+    // recipient can still miss their hour, and nothing else would say so.
+    if (recipients.length >= DUE_RECIPIENT_SWEEP_CAP) {
+      deps.logger.warn(
+        { recipients: recipients.length, cap: DUE_RECIPIENT_SWEEP_CAP },
+        'Digest sweep read as many recipients as its cap allows',
+      )
+    }
     for (const recipientScope of recipients) {
       try {
         await sendUserDigest(deps, recipientScope)

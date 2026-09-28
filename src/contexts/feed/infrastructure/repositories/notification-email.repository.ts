@@ -29,6 +29,10 @@ import { createNotificationUnsubscribeScopeStore } from './notification-unsubscr
 import { createNotificationDigestBatchStore } from './notification-digest-batch.repository'
 import { emailFromRow, firstAttemptAt, SENDABLE } from './notification-email-queue-rows'
 import { notificationError } from '../../domain/notification-errors'
+import {
+  DUE_RECIPIENT_SWEEP_CAP,
+  dueRecipientsInVisitOrder,
+} from './notification-due-recipients.query'
 import { activePropertyCondition } from './active-property'
 
 const scope = (id: string, orgId: string, propertyId: string | null) =>
@@ -304,19 +308,12 @@ export const createNotificationEmailRepository = (
     cadence: string,
     now: Date,
   ): Promise<readonly NotificationEmailRecipient[]> => {
-    const [rows, openBatches] = await Promise.all([
-      db
-        .selectDistinct({
-          organizationId: notificationEmailQueue.organizationId,
-          userId: notificationEmailQueue.userId,
-        })
-        .from(notificationEmailQueue)
-        .where(and(dueForCadence(cadence, now), onActiveProperty))
-        .orderBy(
-          asc(notificationEmailQueue.organizationId),
-          asc(notificationEmailQueue.userId),
-        )
-        .limit(5_000),
+    const [dueRows, openBatches] = await Promise.all([
+      dueRecipientsInVisitOrder(db, {
+        due: and(dueForCadence(cadence, now), onActiveProperty)!,
+        now,
+        limit: DUE_RECIPIENT_SWEEP_CAP,
+      }),
       cadence === 'daily'
         ? db
             .selectDistinct({
@@ -329,9 +326,13 @@ export const createNotificationEmailRepository = (
               asc(notificationDigestBatches.organizationId),
               asc(notificationDigestBatches.userId),
             )
-            .limit(5_000)
+            .limit(DUE_RECIPIENT_SWEEP_CAP)
         : Promise.resolve([]),
     ])
+    const rows = dueRows.map((row) => ({
+      organizationId: row.organization_id,
+      userId: row.user_id,
+    }))
     const recipients = new Map<string, NotificationEmailRecipient>()
     // Recover already-owned provider attempts before opening new work when a
     // large backlog reaches the sweep cap.
@@ -341,7 +342,7 @@ export const createNotificationEmailRepository = (
         userId: toUserId(row.userId),
       })
     }
-    return [...recipients.values()].slice(0, 5_000)
+    return [...recipients.values()].slice(0, DUE_RECIPIENT_SWEEP_CAP)
   },
 
   findDueByUser: async (
