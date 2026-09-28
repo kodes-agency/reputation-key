@@ -73,6 +73,12 @@ export type ReviewInboxProjectionRevisionPermit = Readonly<{
   rating: number | null
   /** Review's durable observation time for this material revision. */
   observedAt: Date
+  /**
+   * True when this revision only carried its predecessor's unchanged material
+   * into a newer source epoch. Inbox advances its head past it without opening
+   * a Handling Cycle: no guest changed anything.
+   */
+  sourceEpochCarry: boolean
 }>
 
 /** Exact current Review source snapshot used to converge Inbox projections. */
@@ -88,6 +94,8 @@ export type ReviewCurrentInboxProjectionPermit = Readonly<{
   sourceContentState: 'active' | 'source_expired' | 'provider_deleted'
   sourceContentErasedAt: Date | null
   currentMaterialReviewRevision: number
+  /** The Review's whole revision history 1..N, across source epochs: a Review
+   * first seen in an earlier epoch keeps its earlier revisions. */
   revisions: readonly [
     ReviewInboxProjectionRevisionPermit,
     ...ReviewInboxProjectionRevisionPermit[],

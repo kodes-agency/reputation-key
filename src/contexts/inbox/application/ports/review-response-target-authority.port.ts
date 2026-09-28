@@ -45,6 +45,12 @@ export type ReviewInboxProjectionRevisionPermit = Readonly<{
   /** The guest's star rating on this revision; null when it carries none. */
   rating: number | null
   observedAt: Date
+  /**
+   * Review attests this revision only carried its predecessor's unchanged
+   * material into a newer source epoch (Archive/Restore, a Google relink or a
+   * reconnect). It advances the head fence and opens no Handling Cycle.
+   */
+  sourceEpochCarry: boolean
 }>
 
 export type CurrentReviewInboxProjectionPermit = Readonly<{
@@ -58,6 +64,7 @@ export type CurrentReviewInboxProjectionPermit = Readonly<{
   sourceContentState: 'active' | 'source_expired' | 'provider_deleted'
   sourceContentErasedAt: Date | null
   currentMaterialReviewRevision: number
+  /** History 1..N across source epochs, ending in `sourceEpoch`. */
   revisions: readonly [
     ReviewInboxProjectionRevisionPermit,
     ...ReviewInboxProjectionRevisionPermit[],

@@ -170,6 +170,7 @@ async function projectMeasuredReview(
         responseTargetStartAt: publishedAt,
         rating: null,
         observedAt: OPENED_AT,
+        sourceEpochCarry: false,
       },
       targetStart: { basis: 'review_provenance' },
     },

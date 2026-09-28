@@ -87,6 +87,7 @@ describe('Review cycle target provenance', () => {
         ...current.reviewAuthority,
         authority: 'review.inbox-projection-revision.v1',
         observedAt: SOURCE_AT,
+        sourceEpochCarry: false,
       },
     }
 

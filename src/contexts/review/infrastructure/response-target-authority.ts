@@ -1,4 +1,4 @@
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, eq, lte } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { materialReviewRevisions, reviews } from '#/shared/db/schema/review.schema'
 import { organizationId, propertyId, reviewId } from '#/shared/domain/ids'
@@ -14,6 +14,10 @@ import type {
 } from '../application/ports/response-target-authority.port'
 import { runWithReviewExactCurrentApplyAdmission } from './exact-current-apply-admission'
 import { lockReviewSourceMutationScope } from './review-source-mutation-serialization'
+import {
+  isSourceEpochCarry,
+  selectRevisionBindingComparisons,
+} from './source-epoch-carry'
 
 const ELIGIBILITY = new Set<ReviewResponseTargetEligibility>([
   'measured',
@@ -135,6 +139,8 @@ function selectMaterialRevisionRows(
       responseTargetStartAt: materialReviewRevisions.responseTargetStartAt,
       rating: materialReviewRevisions.rating,
       observedAt: materialReviewRevisions.createdAt,
+      normalizationVersion: materialReviewRevisions.normalizationVersion,
+      normalizedDigest: materialReviewRevisions.normalizedDigest,
     })
     .from(materialReviewRevisions)
     .where(
@@ -142,7 +148,9 @@ function selectMaterialRevisionRows(
         eq(materialReviewRevisions.organizationId, expectation.organizationId),
         eq(materialReviewRevisions.propertyId, expectation.propertyId),
         eq(materialReviewRevisions.reviewId, expectation.reviewId),
-        eq(materialReviewRevisions.sourceEpoch, expectation.sourceEpoch),
+        // Revision numbers run on across source epochs. A Review carried into
+        // this epoch keeps its earlier revisions, so the chain reads them too.
+        lte(materialReviewRevisions.sourceEpoch, expectation.sourceEpoch),
       ),
     )
     .orderBy(asc(materialReviewRevisions.revision))
@@ -180,32 +188,59 @@ type MaterialRevisionChain = Readonly<{
   latestObservedAt: number
 }>
 
+/** One well-formed history row: numbered in place, epochs and observation
+ * times never going back, and eligibility evidence that agrees with its
+ * response-target start. */
+function isWellFormedRevisionRow(
+  row: MaterialRevisionRow,
+  index: number,
+  previous: MaterialRevisionRow | undefined,
+): boolean {
+  const eligibility = row.eligibility as ReviewResponseTargetEligibility
+  return (
+    ELIGIBILITY.has(eligibility) &&
+    (eligibility === 'measured') === row.responseTargetStartAt instanceof Date &&
+    row.observedAt instanceof Date &&
+    Number.isFinite(row.observedAt.getTime()) &&
+    (previous === undefined ||
+      (row.observedAt.getTime() >= previous.observedAt.getTime() &&
+        row.sourceEpoch >= previous.sourceEpoch)) &&
+    !(
+      row.responseTargetStartAt instanceof Date &&
+      !Number.isFinite(row.responseTargetStartAt.getTime())
+    ) &&
+    row.revision === index + 1
+  )
+}
+
+/** Revisions whose predecessor sits in an older source epoch: the only ones
+ * that can be a carry. */
+function epochCrossingRevisions(rows: readonly MaterialRevisionRow[]): number[] {
+  return rows
+    .filter((row, index) => {
+      const previous = rows[index - 1]
+      return previous !== undefined && previous.sourceEpoch < row.sourceEpoch
+    })
+    .map((row) => row.revision)
+}
+
 /**
- * The Material Revision history must be a gapless 1..N sequence with
- * non-decreasing observation times and eligibility evidence that agrees with
- * its response-target start. Any deviation makes the projection unsafe, which
- * is reported as no chain at all.
+ * The Material Revision history must be a gapless 1..N sequence across source
+ * epochs. Any deviation makes the projection unsafe, which is reported as no
+ * chain at all. A revision that only carried unchanged material into a newer
+ * epoch is marked, so Inbox never presents Archive/Restore or a relink as a
+ * guest edit, while a real edit after it still reaches the Inbox.
  */
 function buildMaterialRevisionChain(
   rows: readonly MaterialRevisionRow[],
+  bindingComparisons: ReadonlyMap<number, string>,
 ): MaterialRevisionChain | null {
   if (rows.length === 0) return null
   const revisions: ReviewInboxProjectionRevisionPermit[] = []
-  let previousObservedAt = Number.NEGATIVE_INFINITY
+  let latestObservedAt = Number.NEGATIVE_INFINITY
   for (const [index, row] of rows.entries()) {
-    const eligibility = row.eligibility as ReviewResponseTargetEligibility
-    if (
-      !ELIGIBILITY.has(eligibility) ||
-      (eligibility === 'measured') !== row.responseTargetStartAt instanceof Date ||
-      !(row.observedAt instanceof Date) ||
-      !Number.isFinite(row.observedAt.getTime()) ||
-      row.observedAt.getTime() < previousObservedAt ||
-      (row.responseTargetStartAt instanceof Date &&
-        !Number.isFinite(row.responseTargetStartAt.getTime())) ||
-      row.revision !== index + 1
-    ) {
-      return null
-    }
+    const previous = index === 0 ? undefined : rows[index - 1]
+    if (!isWellFormedRevisionRow(row, index, previous)) return null
     revisions.push({
       authority: 'review.inbox-projection-revision.v1',
       organizationId: row.organizationId,
@@ -213,18 +248,22 @@ function buildMaterialRevisionChain(
       reviewId: row.reviewId,
       sourceEpoch: row.sourceEpoch,
       materialReviewRevision: row.revision,
-      eligibility,
+      eligibility: row.eligibility as ReviewResponseTargetEligibility,
       responseTargetStartAt: row.responseTargetStartAt,
       rating: row.rating,
       observedAt: row.observedAt,
+      sourceEpochCarry:
+        previous !== undefined &&
+        isSourceEpochCarry(previous, row, bindingComparisons.get(row.revision) ?? null),
     })
-    previousObservedAt = row.observedAt.getTime()
+    latestObservedAt = row.observedAt.getTime()
   }
-  return { revisions, latestObservedAt: previousObservedAt }
+  return { revisions, latestObservedAt }
 }
 
-/** The chain must end at the Review's current revision and contain the event's
- * own revision; a `created` event must additionally name the first revision. */
+/** The chain must end at the Review's current revision in the event's epoch and
+ * contain the event's own revision; a `created` event must additionally name
+ * the first revision. */
 function chainCoversExpectation(
   revisions: readonly ReviewInboxProjectionRevisionPermit[],
   first: ReviewInboxProjectionRevisionPermit,
@@ -234,6 +273,7 @@ function chainCoversExpectation(
 ): boolean {
   return (
     last.materialReviewRevision === currentSourceRevision &&
+    last.sourceEpoch === expectation.sourceEpoch &&
     revisions.some(
       (revision) => revision.materialReviewRevision === expectation.eventSourceRevision,
     ) &&
@@ -284,8 +324,10 @@ async function readInboxProjectionPermit(
   if (current === undefined) return null
   if (!isProjectableReviewRow(current, expectation)) return null
 
+  const rows = await selectMaterialRevisionRows(tx, expectation)
   const chain = buildMaterialRevisionChain(
-    await selectMaterialRevisionRows(tx, expectation),
+    rows,
+    await selectRevisionBindingComparisons(tx, expectation, epochCrossingRevisions(rows)),
   )
   if (chain === null) return null
   const revisions = chain.revisions

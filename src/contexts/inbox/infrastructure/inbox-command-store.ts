@@ -111,6 +111,7 @@ import {
   appendEscalationHistory,
   readCurrentCycleNumber,
 } from './inbox-escalation-history'
+import { advanceHeadAcrossSourceEpochCarry } from './review-epoch-carry-head'
 
 export type InboxCommandAuthorityPrincipal = Readonly<{
   userId: string
@@ -400,7 +401,8 @@ async function lockReviewProjectionRows(
 /**
  * Replay every attested Material Revision the Inbox head has not reached yet,
  * opening one Handling Cycle per revision at that revision's own observation
- * instant. A gap in the attested history is a conflict, never a silent skip.
+ * instant; a revision Review attests as a source-epoch carry only moves the
+ * head. A gap in the attested history is a conflict, never a silent skip.
  * `withItemCreation` marks the opened facts when this command also created the
  * item, so they are not mistaken for a change someone already saw.
  */
@@ -425,6 +427,23 @@ async function catchUpProjectionRevisions(
         'revision_conflict',
         'Inbox Review projection has a Material Revision gap',
       )
+    }
+    if (revision.sourceEpochCarry) {
+      const carried = await advanceHeadAcrossSourceEpochCarry(tx, {
+        item: input.item,
+        head: current,
+        carriedFrom: current.currentSourceRevision,
+        observedAt: revision.observedAt,
+      })
+      if (!carried) {
+        throw inboxError(
+          'revision_conflict',
+          'Inbox Review projection changed during source-epoch carry',
+        )
+      }
+      advanced = true
+      current = handlingCycleHeadFromRow(carried)
+      continue
     }
     const decision = createNextHandlingCycle({
       current,
@@ -671,31 +690,12 @@ async function lockReviewRowsForObservation(
         'Review Inbox Handling Cycle is not current for this observation',
       )
     }
-    const [carriedHead] = await tx
-      .update(inboxHandlingCycleHeads)
-      .set({
-        currentSourceRevision: observation.materialReviewRevision,
-        currentMaterialReviewRevision: observation.materialReviewRevision,
-        updatedAt: sql<Date>`GREATEST(
-          ${inboxHandlingCycleHeads.updatedAt},
-          ${observation.observedAt}
-        )`,
-      })
-      .where(
-        and(
-          eq(inboxHandlingCycleHeads.inboxItemId, item.id),
-          eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
-          eq(inboxHandlingCycleHeads.propertyId, item.propertyId),
-          eq(inboxHandlingCycleHeads.sourceType, 'review'),
-          eq(inboxHandlingCycleHeads.sourceId, observation.reviewId),
-          eq(inboxHandlingCycleHeads.currentCycleNumber, headRow.currentCycleNumber),
-          eq(inboxHandlingCycleHeads.currentSourceRevision, carriedFrom),
-          eq(inboxHandlingCycleHeads.currentMaterialReviewRevision, carriedFrom),
-          eq(inboxHandlingCycleHeads.stateRevision, headRow.stateRevision),
-          eq(inboxHandlingCycleHeads.status, headRow.status),
-        ),
-      )
-      .returning()
+    const carriedHead = await advanceHeadAcrossSourceEpochCarry(tx, {
+      item,
+      head: headRow,
+      carriedFrom,
+      observedAt: observation.observedAt,
+    })
     if (!carriedHead) {
       throw inboxError(
         'revision_conflict',

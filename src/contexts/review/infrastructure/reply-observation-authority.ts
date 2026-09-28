@@ -15,6 +15,10 @@ import type {
 } from '../application/ports/reply-observation-authority.port'
 import { lockReplyTruthScope } from './reply-truth-serialization'
 import {
+  isSourceEpochCarry,
+  selectRevisionBindingComparisons,
+} from './source-epoch-carry'
+import {
   REVIEW_EXACT_CURRENT_APPLY_CLIENTS,
   REVIEW_EXACT_CURRENT_MAX_CONCURRENT_APPLIES,
   runWithReviewExactCurrentApplyAdmission,
@@ -99,23 +103,16 @@ type CurrentObservationHeadRow = Awaited<
 >[number]
 
 /**
- * A revision gap is safe for Inbox to collapse only when Review can prove the
- * immediate predecessor held the same normalized material in an older source
- * epoch. A material edit changes the digest and therefore never gets a carry
- * permit.
+ * A revision gap is safe for Inbox to collapse only when Review attests a
+ * source-epoch carry — the same rule the Inbox projection permit marks carries
+ * with. A material edit never gets a carry permit.
  */
 async function sourceEpochCarryFromMaterialReviewRevision(
   tx: Tx,
   current: CurrentObservationHeadRow,
 ): Promise<number | null> {
   const previousRevision = current.materialReviewRevision - 1
-  if (
-    !Number.isSafeInteger(previousRevision) ||
-    previousRevision < 1 ||
-    current.materialNormalizedDigest === null
-  ) {
-    return null
-  }
+  if (!Number.isSafeInteger(previousRevision) || previousRevision < 1) return null
   const [previous] = await tx
     .select({
       revision: materialReviewRevisions.revision,
@@ -133,15 +130,20 @@ async function sourceEpochCarryFromMaterialReviewRevision(
       ),
     )
     .limit(1)
-  if (
-    previous === undefined ||
-    previous.sourceEpoch >= current.sourceEpoch ||
-    previous.normalizationVersion !== current.materialNormalizationVersion ||
-    previous.normalizedDigest !== current.materialNormalizedDigest
-  ) {
-    return null
-  }
-  return previous.revision
+  if (previous === undefined || previous.sourceEpoch >= current.sourceEpoch) return null
+  const bindings = await selectRevisionBindingComparisons(tx, current, [
+    current.materialReviewRevision,
+  ])
+  const carried = isSourceEpochCarry(
+    previous,
+    {
+      sourceEpoch: current.sourceEpoch,
+      normalizationVersion: current.materialNormalizationVersion,
+      normalizedDigest: current.materialNormalizedDigest,
+    },
+    bindings.get(current.materialReviewRevision) ?? null,
+  )
+  return carried ? previous.revision : null
 }
 
 /**
