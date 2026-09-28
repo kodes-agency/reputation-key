@@ -87,6 +87,7 @@ import {
   portalResponsibleManagersUpdated,
 } from '#/contexts/portal/domain/events'
 import {
+  propertyArchived,
   propertyResponsibilityNeeded,
   propertyResponsibleManagersUpdated,
 } from '#/contexts/property/domain/events'
@@ -406,6 +407,16 @@ const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
       propertyId: PROPERTY,
       occurredAt: OCCURRED_AT,
     }),
+  'property.archived': () =>
+    propertyArchived({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      userId: ACTOR,
+      previousState: 'active',
+      sourceEpoch: 1,
+      recoveryDeadline: new Date('2026-10-24T09:00:00.000Z'),
+      occurredAt: OCCURRED_AT,
+    }),
   'property.responsible_managers.updated': () =>
     propertyResponsibleManagersUpdated({
       organizationId: ORG,
@@ -509,6 +520,13 @@ type RouteDeps = ReturnType<typeof createNotificationConsumerDeps> &
           ) => Promise<ReadonlyArray<NotificationId>>
         >
       >
+      settleUnreadForProperty: ReturnType<
+        typeof vi.fn<
+          (
+            input: Parameters<NotificationRepositoryPort['settleUnreadForProperty']>[0],
+          ) => Promise<ReadonlyArray<NotificationId>>
+        >
+      >
       findRecipientsOfNotice: ReturnType<
         typeof vi.fn<() => Promise<ReadonlyArray<UserId>>>
       >
@@ -547,6 +565,7 @@ function inertRouteDeps(): RouteDeps {
     },
     notifications: {
       settleUnreadForResource: vi.fn(async () => []),
+      settleUnreadForProperty: vi.fn(async () => []),
       findRecipientsOfNotice: vi.fn(async () => []),
     },
     emails: { cancelQueuedForNotifications: vi.fn(async () => 0) },
@@ -865,6 +884,7 @@ function currentRouteDeps(): RouteDeps {
     },
     notifications: {
       settleUnreadForResource: vi.fn(async () => [SETTLED_NOTIFICATION]),
+      settleUnreadForProperty: vi.fn(async () => [SETTLED_NOTIFICATION]),
       findRecipientsOfNotice: vi.fn(async () => []),
     },
     emails: { cancelQueuedForNotifications: vi.fn(async () => 1) },
@@ -1092,13 +1112,24 @@ describe('every beta notification route queues its notice from its real producer
       // asked for the work, and cancels the mail queued behind them.
       expect(gateDenials).toEqual([])
       expect(queued.filter((job) => (route.settles ?? []).includes(job.type))).toEqual([])
-      expect(deps.notifications.settleUnreadForResource).toHaveBeenCalledWith(
-        expect.objectContaining({
-          organizationId: envelope.organizationId,
-          types: route.settles,
-          resourceId: SETTLED_RESOURCE[route.eventType] ?? ITEM,
-        }),
-      )
+      // An archive settles everything on its Property rather than one resource.
+      if (route.eventType === 'property.archived') {
+        expect(deps.notifications.settleUnreadForProperty).toHaveBeenCalledWith(
+          expect.objectContaining({
+            organizationId: envelope.organizationId,
+            propertyId: PROPERTY,
+            types: route.settles,
+          }),
+        )
+      } else {
+        expect(deps.notifications.settleUnreadForResource).toHaveBeenCalledWith(
+          expect.objectContaining({
+            organizationId: envelope.organizationId,
+            types: route.settles,
+            resourceId: SETTLED_RESOURCE[route.eventType] ?? ITEM,
+          }),
+        )
+      }
       expect(deps.emails.cancelQueuedForNotifications).toHaveBeenCalledWith(
         [SETTLED_NOTIFICATION],
         envelope.organizationId,

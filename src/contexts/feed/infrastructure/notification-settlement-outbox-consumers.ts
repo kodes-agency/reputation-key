@@ -4,9 +4,9 @@
 // retires: when the fact that finishes the work arrives — a reply decided,
 // published or returned to draft, an escalation resolved, a Handling Cycle
 // closed, a responsible manager chosen again, a Portal's Health recovered, a
-// Google connection reconnected, a purge called off — it stamps the
-// still-waiting rows about that resource and cancels the mail queued behind
-// them.
+// Google connection reconnected, a purge called off, a Property archived — it
+// stamps the still-waiting rows about that resource and cancels the mail
+// queued behind them.
 //
 // It writes through the repositories rather than queueing a job: settling is
 // one bounded update per fact and carries no per-recipient decision, so a
@@ -48,7 +48,8 @@ import {
  * their Inbox item (ADR 0046, merged ADR 0022); a "choose a responsible
  * manager" request against the Property or Portal that has the gap; a Health
  * notice against its Portal; a reconnect request against the Google
- * connection; the final deletion warning against its Organization.
+ * connection; the final deletion warning against its Organization. An
+ * archive finishes every notice on the Property, whatever it points at.
  */
 type SettledResourceKind =
   | 'inbox_item_by_review'
@@ -57,6 +58,7 @@ type SettledResourceKind =
   | 'portal'
   | 'google_connection'
   | 'organization'
+  | 'property_wide'
 
 /**
  * The facts that finish work only in some of their shapes. A selection change
@@ -132,6 +134,12 @@ export const NOTIFICATION_SETTLEMENT_CONSUMERS = [
     onlyWhen: 'health_needs_nobody',
   },
   {
+    eventType: 'property.archived',
+    consumerName: 'notification.settle-on-property-archived',
+    fact: 'property.archived',
+    resource: 'property_wide',
+  },
+  {
     eventType: 'identity.organization_lifecycle.changed',
     consumerName: 'notification.settle-on-organization-purge-cancelled',
     fact: 'organization.purge_cancelled',
@@ -168,7 +176,10 @@ export const NOTIFICATION_SETTLEMENT_CONSUMERS = [
 type SettlementRoute = (typeof NOTIFICATION_SETTLEMENT_CONSUMERS)[number]
 
 export type NotificationSettlementConsumerDeps = Readonly<{
-  notifications: Pick<NotificationRepositoryPort, 'settleUnreadForResource'>
+  notifications: Pick<
+    NotificationRepositoryPort,
+    'settleUnreadForResource' | 'settleUnreadForProperty'
+  >
   emails: Pick<NotificationEmailRepositoryPort, 'cancelQueuedForNotifications'>
   inboxItemLookup: Pick<InboxItemLookupPort, 'findInboxItemByReviewId'>
   /**
@@ -254,6 +265,7 @@ async function resolveResource(
     case 'inbox_item':
       return inboxItemId(field(payload, 'inboxItemId'))
     case 'property':
+    case 'property_wide':
       return propertyId(field(payload, 'propertyId'))
     case 'portal':
       return portalId(field(payload, 'portalId'))
@@ -274,19 +286,32 @@ async function settleResource(
   target: Readonly<{ orgId: OrganizationId; resourceId: string; resolvedAt: Date }>,
 ): Promise<Readonly<{ settled: number; cancelled: number }>> {
   const { orgId, resourceId, resolvedAt } = target
-  const types = await deps.workState.finished({
-    organizationId: orgId,
-    resourceId,
-    types: settledNotificationTypes(route.fact),
-  })
+  // A Property-wide fact finishes everything on the Property: there is no one
+  // resource whose work could have been asked for again.
+  const types =
+    route.resource === 'property_wide'
+      ? settledNotificationTypes(route.fact)
+      : await deps.workState.finished({
+          organizationId: orgId,
+          resourceId,
+          types: settledNotificationTypes(route.fact),
+        })
   if (types.length === 0) return { settled: 0, cancelled: 0 }
 
-  const settled = await deps.notifications.settleUnreadForResource({
-    organizationId: orgId,
-    types,
-    resourceId,
-    resolvedAt,
-  })
+  const settled =
+    route.resource === 'property_wide'
+      ? await deps.notifications.settleUnreadForProperty({
+          organizationId: orgId,
+          propertyId: propertyId(resourceId),
+          types,
+          resolvedAt,
+        })
+      : await deps.notifications.settleUnreadForResource({
+          organizationId: orgId,
+          types,
+          resourceId,
+          resolvedAt,
+        })
   if (settled.length === 0) return { settled: 0, cancelled: 0 }
   const cancelled = await deps.emails.cancelQueuedForNotifications(
     settled,
@@ -408,6 +433,12 @@ export function registerNotificationSettlementConsumers(
   registerConsumer({
     eventType: 'portal.health.changed',
     consumerName: 'notification.settle-on-portal-health-recovered',
+    module: 'notification.settlement-outbox-consumers',
+    handler,
+  })
+  registerConsumer({
+    eventType: 'property.archived',
+    consumerName: 'notification.settle-on-property-archived',
     module: 'notification.settlement-outbox-consumers',
     handler,
   })

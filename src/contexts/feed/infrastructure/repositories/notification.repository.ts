@@ -282,6 +282,28 @@ export const createNotificationRepository = (db: Database) => ({
     return settled.map((row) => notificationId(row.id))
   },
 
+  settleUnreadForProperty: async (input: {
+    organizationId: string
+    propertyId: string
+    types: ReadonlyArray<string>
+    resolvedAt: Date
+  }): Promise<readonly NotificationId[]> => {
+    if (input.types.length === 0) return []
+    const settled = await db
+      .update(notifications)
+      .set({ resolvedAt: input.resolvedAt, updatedAt: input.resolvedAt })
+      .where(
+        and(
+          eq(notifications.organizationId, input.organizationId),
+          eq(notifications.propertyId, input.propertyId),
+          inArray(notifications.type, [...input.types]),
+          awaitingSettlement,
+        ),
+      )
+      .returning({ id: notifications.id })
+    return settled.map((row) => notificationId(row.id))
+  },
+
   markRead: async (
     id: string,
     userId: string,

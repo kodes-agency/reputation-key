@@ -53,6 +53,7 @@ import type { FeedbackPortalLookupPort } from './application/ports/feedback-port
 import { createNotificationAudienceAuthorizer } from './application/notification-audience'
 import { createNotificationRecipientStanding } from './application/notification-recipient-standing'
 import { createGroupedReopenStore } from './infrastructure/repositories/notification-grouped-reopen.repository'
+import { createActivePropertyLookup } from './infrastructure/repositories/active-property'
 import { createNotificationWorkState } from './application/notification-work-state'
 import {
   createNotificationOrganizationEmailStopReader,
@@ -429,6 +430,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     responsibleManagers: input.responsibleManagers,
     replyApproval: input.replyApproval,
     inboxItemLookup,
+    activeProperty: createActivePropertyLookup(input.db),
     clock: input.clock,
     logger: input.logger,
   }

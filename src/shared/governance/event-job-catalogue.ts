@@ -401,6 +401,7 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
     durable('inbox.on-property-archived', INBOX_PROPERTY_LIFECYCLE_OUTBOX),
     durable('review.on-property-archived', REVIEW_OUTBOX),
+    durable('notification.settle-on-property-archived', NOTIFICATION_SETTLEMENT_OUTBOX),
   ]),
   ev('property.restored', [
     durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX),

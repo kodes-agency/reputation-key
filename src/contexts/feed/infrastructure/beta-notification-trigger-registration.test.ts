@@ -82,7 +82,10 @@ describe('registered durable notification matrix', () => {
     })
     registerHandlingCycleNotificationConsumers(consumerRegistry, { ...fakes, receipts })
     registerNotificationSettlementConsumers(consumerRegistry, {
-      notifications: { settleUnreadForResource: vi.fn(async () => []) },
+      notifications: {
+        settleUnreadForResource: vi.fn(async () => []),
+        settleUnreadForProperty: vi.fn(async () => []),
+      },
       groupedReopens: noGroupedReopens(),
       emails: { cancelQueuedForNotifications: vi.fn(async () => 0) },
       inboxItemLookup: fakes.inboxItemLookup,

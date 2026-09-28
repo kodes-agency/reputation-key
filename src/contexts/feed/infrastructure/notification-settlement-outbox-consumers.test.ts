@@ -40,6 +40,9 @@ type CancelArgs = Parameters<
 
 const makeDeps = () => ({
   notifications: {
+    settleUnreadForProperty: vi.fn(
+      async (): Promise<ReadonlyArray<NotificationId>> => [],
+    ),
     settleUnreadForResource: vi.fn(
       async (_input: SettleInput): Promise<ReadonlyArray<NotificationId>> => [SETTLED],
     ),

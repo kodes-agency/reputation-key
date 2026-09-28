@@ -55,6 +55,9 @@ const makeDeps = (
   rows: ReadonlyArray<ReturnType<typeof waitingRow>> = [waitingRow()],
 ) => ({
   notifications: {
+    settleUnreadForProperty: vi.fn(
+      async (): Promise<ReadonlyArray<NotificationId>> => [],
+    ),
     settleUnreadForResource: vi.fn(
       async (): Promise<ReadonlyArray<NotificationId>> => [],
     ),

@@ -353,6 +353,23 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     eventCondition:
       'status === healthy || reason not in actionable automatic Health reasons',
   },
+  // An archived Property is outside the workspace: every notice asking for
+  // work on it is finished, whatever resource it points at.
+  settles('property.archived', 'notification.settle-on-property-archived', [
+    'review.created',
+    'review.updated',
+    'feedback.created',
+    'reply.pending_approval',
+    'reply.publish_failed',
+    'inbox.escalated',
+    'inbox.reopened',
+    'inbox.bulk_reopened',
+    'inbox.response_target_halfway',
+    'inbox.response_target_passed',
+    'property.responsibility_needed',
+    'portal.responsibility_needed',
+    'portal.health_attention',
+  ]),
   {
     ...settles(
       'identity.organization_lifecycle.changed',

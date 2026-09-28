@@ -32,6 +32,9 @@ const OCCURRED_AT = new Date('2026-09-23T23:00:00.000Z')
 
 const makeDeps = (stillWaiting: ReadonlyArray<NotificationType>) => ({
   notifications: {
+    settleUnreadForProperty: vi.fn(
+      async (): Promise<ReadonlyArray<NotificationId>> => [],
+    ),
     settleUnreadForResource: vi.fn(async (): Promise<ReadonlyArray<NotificationId>> => [
       SETTLED,
     ]),

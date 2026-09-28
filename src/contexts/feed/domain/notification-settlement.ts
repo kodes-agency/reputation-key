@@ -73,6 +73,7 @@ export type SettlingFact =
   | 'google_connection.disconnected'
   | 'portal_health.recovered'
   | 'organization.purge_cancelled'
+  | 'property.archived'
 
 /**
  * A rejection settles the approval request as surely as an approval does:
@@ -114,6 +115,26 @@ const SETTLED_BY: Readonly<Record<SettlingFact, ReadonlyArray<NotificationType>>
   // an archived Property), no longer needs the manager it asked.
   'portal_health.recovered': ['portal.health_attention'],
   'organization.purge_cancelled': ['account.organization_purge_pending'],
+  // An archived Property is outside the workspace: nothing can be answered,
+  // approved or published there, so every notice asking for work on it is
+  // finished. This one fact settles by Property rather than by resource. A
+  // Google reconnect request is absent: the connection is the
+  // Organization's, and the Property only anchored its notice.
+  'property.archived': [
+    'review.created',
+    'review.updated',
+    'feedback.created',
+    'reply.pending_approval',
+    'reply.publish_failed',
+    'inbox.escalated',
+    'inbox.reopened',
+    'inbox.bulk_reopened',
+    'inbox.response_target_halfway',
+    'inbox.response_target_passed',
+    'property.responsibility_needed',
+    'portal.responsibility_needed',
+    'portal.health_attention',
+  ],
 }
 
 export const settledNotificationTypes = (

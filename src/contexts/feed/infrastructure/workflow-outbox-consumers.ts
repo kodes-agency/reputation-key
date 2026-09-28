@@ -48,6 +48,7 @@ import {
 } from '../application/responsible-recipients'
 import { resolveReplyApprovalRecipients } from '../application/reply-approval-recipients'
 import type { ReplyApprovalAuthorityPort } from '../application/ports/reply-approval-authority.port'
+import type { ActivePropertyLookup } from '../application/ports/active-property.port'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
 import type { NotificationAudience } from '../application/notification-audience'
 import {
@@ -140,6 +141,8 @@ export type WorkflowNotificationConsumerDeps = Readonly<{
   inboxItemLookup: InboxItemLookupPort
   /** Who may act on an approval request, asked at fan-out and again at send. */
   replyApproval: ReplyApprovalAuthorityPort
+  /** Whether the Property is still inside the workspace. */
+  activeProperty: ActivePropertyLookup
   clock: () => Date
   logger: LoggerPort
   receipts: Pick<OutboxRepository, 'insertReceipt'>
@@ -550,11 +553,24 @@ const SUBJECT = 'workflow notification'
  * other three causes take nobody's authority, so every approver is kept.
  * The author's own notice is audienced `property_operator`, which the delivery
  * check re-tests against the Property either way.
+ *
+ * Property eligibility ignores the lifecycle, so it cannot tell an archive
+ * apart: every AccountAdmin, the one who archived included, stayed an
+ * "approver". A Property outside the workspace tells nobody — nothing can be
+ * approved or published there, and the cancellation is the archive's own
+ * consequence.
  */
 async function enqueuePublicationCancelledNotifications(
   deps: WorkflowNotificationDeliveryDeps,
   event: DurableReplyPublicationCancelled,
 ): Promise<void> {
+  if (!(await deps.activeProperty(event.organizationId, event.propertyId))) {
+    deps.logger.info(
+      { correlationId: event.correlationId ?? undefined },
+      'notification publication-cancelled delivery: Property is not active, skipping',
+    )
+    return
+  }
   const admins = await deps.userLookup.findByRole(event.organizationId, 'AccountAdmin')
   const approvers =
     event.cause === 'policy'

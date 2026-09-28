@@ -105,6 +105,19 @@ export type NotificationRepositoryPort = Readonly<{
     }>,
   ): Promise<ReadonlyArray<NotificationId>>
 
+  /**
+   * The same, for every resource on one Property: the settling fact finishes
+   * all of a Property's work at once (it was archived).
+   */
+  settleUnreadForProperty(
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      types: ReadonlyArray<NotificationType>
+      resolvedAt: Date
+    }>,
+  ): Promise<ReadonlyArray<NotificationId>>
+
   markRead(
     id: NotificationId,
     userId: UserId,
