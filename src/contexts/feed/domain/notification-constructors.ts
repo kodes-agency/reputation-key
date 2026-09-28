@@ -29,6 +29,7 @@ import {
 import {
   classifyNotification,
   notificationScopeForType,
+  ORGANIZATION_FALLBACK_TYPES,
   ORGANIZATION_INFORMATIONAL_TYPES,
 } from './notification-delivery-policy'
 import {
@@ -56,6 +57,8 @@ const INFORMATIONAL_RESOURCE_BY_TYPE: Partial<
 > = {
   'beta_feedback.outcome': 'beta_feedback_report',
   'integration.google_disconnected': 'integration',
+  // Only when it falls back to the Organization (ORGANIZATION_FALLBACK_TYPES).
+  'integration.reauthorization_required': 'integration',
 }
 
 const organizationResourceFor = (type: NotificationType): NotificationResourceType =>
@@ -102,6 +105,11 @@ function scopeViolation(
         : 'Mandatory notifications must use an Organization resource'
     }
     return null
+  }
+  if (input.propertyId === null && ORGANIZATION_FALLBACK_TYPES.has(input.type)) {
+    return input.resourceType === organizationResourceFor(input.type)
+      ? null
+      : `${input.type} notifications without a Property must point at ${organizationResourceFor(input.type)}`
   }
   if (!input.propertyId) return 'propertyId is required'
   if (input.resourceType === 'beta_feedback_report') {

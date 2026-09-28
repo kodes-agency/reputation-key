@@ -141,11 +141,13 @@ export const notifications = pgTable(
       'notifications_source_content_free_check',
       sql`NOT (COALESCE(${t.payload}, '{}'::jsonb) ? 'rating') AND CASE WHEN COALESCE(${t.payload}, '{}'::jsonb) ? 'guestRating' THEN COALESCE(${t.payload}->>'platform' = 'portal' AND jsonb_typeof(${t.payload}->'guestRating') = 'number' AND ${t.payload}->>'guestRating' = ANY (ARRAY['1', '2', '3', '4', '5']::text[]), false) ELSE true END`,
     ),
-    // ADR 0046 / ADR 0059. Four shapes and no others: a mandatory account
+    // ADR 0046 / ADR 0059. Five shapes and no others: a mandatory account
     // notice belongs to the Organization; a report outcome belongs to the
     // Organization and points at the report, as `workflow_collaboration`; a
     // Google disconnect belongs to the Organization and points at the
-    // connection, likewise `workflow_collaboration`; every other notice is
+    // connection, likewise `workflow_collaboration`; a Google reauthorization
+    // with no active Property to anchor on falls back to the Organization and
+    // points at the connection, as `urgent_operational`; every other notice is
     // Property-scoped and may point at neither of the two Organization-only
     // resources. Naming each informational type keeps the relaxation from
     // widening by accident.
@@ -163,6 +165,11 @@ export const notifications = pgTable(
       ) OR (
         ${t.type} = 'integration.google_disconnected'
         AND ${t.category} = 'workflow_collaboration'
+        AND ${t.propertyId} IS NULL
+        AND ${t.resourceType} = 'integration'
+      ) OR (
+        ${t.type} = 'integration.reauthorization_required'
+        AND ${t.category} = 'urgent_operational'
         AND ${t.propertyId} IS NULL
         AND ${t.resourceType} = 'integration'
       ) OR (

@@ -261,11 +261,13 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     // or one whose closed reason needs a person, reaches anybody.
     eventCondition: 'outcome === completed || failureReason !== temporary',
   },
+  // Anchored on an active Property so it can be mailed; with none, it falls
+  // back to the Organization, in-app only.
   route(
     'integration.google_account.reauthorization_required',
     'notification.on-google-reauthorization-required',
     ['integration.reauthorization_required'],
-    ['account_admin'],
+    ['account_admin', 'organization_account_admin'],
   ),
   // A deliberate disconnect. Organization-scoped: the connection is the
   // Organization's, and the admin who did it is left out.
