@@ -97,11 +97,27 @@ export function groupByReadState(
   return groups
 }
 
+// Rows with no Property belong to the Organization. Access and role notices
+// (mandatory) are the security group; the other Organization notices (a
+// disconnected Google account, a beta report's outcome, ADR 0059) are work,
+// and must not read as security.
+const ORGANIZATION_GROUP_LABELS: ReadonlyMap<string, string> = new Map([
+  ['organization-account-security', 'Account and security'],
+  ['organization', 'Organization'],
+])
+
+function groupKeyOf(notification: NotificationView): string {
+  if (notification.propertyId !== null) return notification.propertyId
+  return notification.category === 'mandatory'
+    ? 'organization-account-security'
+    : 'organization'
+}
+
 /**
  * Page grouping. The label resolves from the properties the route already
  * loaded, then from the row's own payload — never from `propertyId`, because a
- * UUID is not a group heading. Organization account notices form their own
- * stable group rather than inventing a Property.
+ * UUID is not a group heading. Organization notices form their own stable
+ * groups rather than inventing a Property.
  */
 export function groupByProperty(
   notifications: ReadonlyArray<NotificationView>,
@@ -109,10 +125,9 @@ export function groupByProperty(
 ): ReadonlyArray<NotificationGroup> {
   const order: string[] = []
   const buckets = new Map<string, NotificationView[]>()
-  const organizationKey = 'organization-account-security'
 
   for (const notification of notifications) {
-    const key = notification.propertyId ?? organizationKey
+    const key = groupKeyOf(notification)
     const bucket = buckets.get(key)
     if (bucket) {
       bucket.push(notification)
@@ -127,9 +142,10 @@ export function groupByProperty(
     return {
       key,
       label:
-        key === organizationKey
-          ? 'Account and security'
-          : (propertyNames[key] ?? rows[0]?.payload.propertyName ?? 'Unnamed property'),
+        ORGANIZATION_GROUP_LABELS.get(key) ??
+        propertyNames[key] ??
+        rows[0]?.payload.propertyName ??
+        'Unnamed property',
       notifications: rows,
     }
   })
