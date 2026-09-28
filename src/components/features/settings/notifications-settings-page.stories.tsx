@@ -193,6 +193,14 @@ export const GoalEmailIsDailyOnly: Story = {
     })
     expect(goalCadence).toHaveTextContent('Daily at 08:00')
     expect(goalCadence).toBeDisabled()
+    // Dimmed for a reason it states, and no promise of a choice email would
+    // not bring.
+    expect(goalCadence).toHaveAccessibleDescription('Always emailed daily at 08:00.')
+    expect(
+      within(canvas.getByRole('group', { name: 'Goals' })).queryByText(
+        'Turn on email to choose when it arrives.',
+      ),
+    ).toBeNull()
     // A category whose email is on still offers the choice. (Workflow's email
     // is off in these fixtures, and cadence waits until email is on.)
     expect(
