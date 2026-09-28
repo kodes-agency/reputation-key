@@ -1031,15 +1031,34 @@ describe('notification email outcomes', () => {
   })
 
   it('stays quiet on a couple of delayed deliveries', () => {
+    // A delayed delivery is itself a provider event: the webhook is working.
     expect(
       evaluateOne(
         'notification.email-provider-feedback-missing',
         withOutcomes({
           acceptedUnresolvedCount: NOTIFICATION_EMAIL_UNRESOLVED_ALERT_COUNT,
           oldestAcceptedUnresolvedAgeMs: 7 * 60 * 60 * 1000,
+          providerOutcomeCount: 1,
         }),
       ),
     ).toBeNull()
+  })
+
+  it('pages on the first unresolved message when no provider event arrived at all', () => {
+    // At one Organization's volume three unresolved messages could take days;
+    // a silent webhook is already certain after one.
+    const silent = evaluateOne(
+      'notification.email-provider-feedback-missing',
+      withOutcomes({
+        acceptedCount: 1,
+        acceptedUnresolvedCount: 1,
+        oldestAcceptedUnresolvedAgeMs: 7 * 60 * 60 * 1000,
+        providerOutcomeCount: 0,
+      }),
+    )
+
+    expect(silent).toMatchObject({ value: 1 })
+    expect(silent!.detail).toContain('webhook looks silent')
   })
 })
 

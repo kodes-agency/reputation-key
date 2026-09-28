@@ -924,7 +924,14 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     read: (snapshot) => {
       const outcomes = snapshot.notifications.emailOutcomes
       const unresolved = outcomes.acceptedUnresolvedCount
-      if (unresolved <= NOTIFICATION_EMAIL_UNRESOLVED_ALERT_COUNT) return null
+      // The count threshold absorbs a few slow deliveries. With no provider
+      // event at all in 24h the webhook itself is silent (an unset
+      // RESEND_WEBHOOK_SECRET, say), which one unresolved message already
+      // shows; at one Organization's volume three could take days.
+      const webhookSilent = unresolved > 0 && outcomes.providerOutcomeCount === 0
+      if (unresolved <= NOTIFICATION_EMAIL_UNRESOLVED_ALERT_COUNT && !webhookSilent) {
+        return null
+      }
       const cause =
         outcomes.capturedUnresolvedCount > 0
           ? `${outcomes.capturedUnresolvedCount} captured by the non-sending local transport — the mail never reached a provider`

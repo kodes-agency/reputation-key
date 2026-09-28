@@ -69,6 +69,8 @@ import {
   GOOGLE_PROVIDER_ENDPOINTS,
 } from './composition/provider-runtime'
 import { buildInfrastructure } from './composition/infrastructure'
+import { notificationEmailWebConfigProblems } from '#/contexts/feed/application/notification-email-web-config'
+import { isCapabilityJobEnabled } from '#/shared/auth/beta-capabilities'
 import {
   buildReadAndNotifyContexts,
   notificationEmailAddressKeys,
@@ -634,6 +636,18 @@ function buildContainer(
     ...notificationEmailAddressKeys(env),
   })
   const { activity, notification } = feed
+  // The web service's own email seams (the Resend event webhook, one-click
+  // unsubscribe) only answer 503 when unconfigured; say so once at boot.
+  if (!enableJobs) {
+    for (const problem of notificationEmailWebConfigProblems({
+      production: env.NODE_ENV === 'production',
+      sendEmailEnabled: isCapabilityJobEnabled('notification.send_email'),
+      webhookSecret: env.RESEND_WEBHOOK_SECRET,
+      unsubscribeKeys: env.NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS,
+    })) {
+      logger.error({ problem }, 'Notification email is misconfigured on web')
+    }
+  }
 
   // ARC-03-T10/T15: the process's operational readout and release seam.
   const { opsQueues, jobDispatchWorkerRuntime, operationsSnapshot, containerShutdown } =
