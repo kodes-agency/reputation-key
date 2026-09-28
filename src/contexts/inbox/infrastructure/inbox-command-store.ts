@@ -1497,11 +1497,17 @@ export const createAtomicInboxCommandStore = (
         occurredAt: input.at,
       })
       await insertOutboxRow(tx, fact)
+      released += 1
+      // Closing an item keeps its assignee, so a departing manager still holds
+      // everything they ever handled. Releasing those is right, but only open
+      // work is left without an owner: a closed item is not a gap to fill, and
+      // counting it sent an urgent "give them a new one" for finished work.
+      if (row.status !== 'open') continue
       // Grouped here, not in the fact's reader: a departing fleet manager can
       // hold thousands of assignments, and one entry per item would put an
       // unbounded array on the bus for a notice that is one per Property.
-      // `lockedRows` is ordered by item id, so the first row of a Property is
-      // its canonical anchor.
+      // `lockedRows` is ordered by item id, so the first open row of a
+      // Property is its canonical anchor.
       const group = releasedByProperty.get(row.propertyId)
       if (group) group.count += 1
       else {
@@ -1511,11 +1517,11 @@ export const createAtomicInboxCommandStore = (
           count: 1,
         })
       }
-      released += 1
     }
     // The grouped close fact: the per-item facts above stay history, and this
     // one is what a notification is delivered from, once per Property, to the
     // people who now own the gap. Same transaction as the rows it describes.
+    // A release of handled work alone opens no gap and records none.
     if (releasedByProperty.size > 0) {
       await insertOutboxRow(
         tx,
