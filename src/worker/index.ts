@@ -261,6 +261,8 @@ async function main() {
         managed: schedulerPlan.managedJobNames.length,
         enabled: schedulerPlan.desired.length,
         removedSchedulerIds: scheduleReconciliation.removedSchedulerIds,
+        // Only changed schedulers are upserted; an unchanged one keeps its run.
+        upsertedSchedulerIds: scheduleReconciliation.upsertedSchedulerIds,
       },
       'Background job scheduler set reconciled',
     )

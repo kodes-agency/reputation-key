@@ -7,7 +7,7 @@
 // Redis beside them.
 
 import { createHash } from 'node:crypto'
-import type { JobsOptions, Queue, RepeatOptions } from 'bullmq'
+import type { JobSchedulerJson, JobsOptions, Queue, RepeatOptions } from 'bullmq'
 import type pino from 'pino'
 
 export type JobSchedulerRegistration = Readonly<{
@@ -124,12 +124,76 @@ function validate(input: ReconcileInput): void {
   }
 }
 
+/** The repeat fields BullMQ stores and reads back as they were given. */
+const STORED_REPEAT_FIELDS = [
+  'pattern',
+  'every',
+  'tz',
+  'limit',
+  'startDate',
+  'endDate',
+] as const
+
+/** Key-order-independent JSON, so a stored template compares by value. */
+const canonical = (value: unknown): string =>
+  JSON.stringify(value, (_key, nested: unknown) =>
+    nested !== null && typeof nested === 'object' && !Array.isArray(nested)
+      ? Object.fromEntries(
+          Object.entries(nested).sort(([left], [right]) => left.localeCompare(right)),
+        )
+      : nested,
+  )
+
+const storedDate = (value: unknown): number | undefined =>
+  value === undefined || value === null
+    ? undefined
+    : new Date(value as string | number | Date).getTime()
+
+/**
+ * Whether the installed scheduler already is the desired one: same job, same
+ * cadence, same template. A repeat option BullMQ does not read back makes the
+ * answer "no", so an unrecognised change is still applied.
+ */
+function isInstalledAsDesired(
+  installed: JobSchedulerJson,
+  desired: JobSchedulerRegistration,
+): boolean {
+  if (installed.name !== desired.jobName) return false
+  const repeat = desired.repeat as Readonly<Record<string, unknown>>
+  const compared: readonly string[] = [...STORED_REPEAT_FIELDS, 'offset']
+  if (Object.keys(repeat).some((field) => !compared.includes(field))) return false
+  const sameRepeat = STORED_REPEAT_FIELDS.every((field) =>
+    field === 'startDate' || field === 'endDate'
+      ? storedDate(installed[field]) === storedDate(repeat[field])
+      : (installed[field] ?? undefined) === (repeat[field] ?? undefined),
+  )
+  // BullMQ writes an offset of its own: 0 for a cron pattern, a derived phase
+  // for an interval. A declared offset must match; an interval without one is
+  // upserted as before, which BullMQ 6 does without losing its pending run.
+  const sameOffset =
+    repeat.offset !== undefined
+      ? installed.offset === repeat.offset
+      : installed.pattern !== undefined
+  return (
+    sameRepeat &&
+    sameOffset &&
+    canonical(installed.template?.data ?? {}) === canonical(desired.data ?? {}) &&
+    canonical(installed.template?.opts ?? {}) === canonical(desired.jobOptions)
+  )
+}
+
 /**
  * Reconcile one queue to its complete desired scheduler set.
  *
  * Existing entries are removed when their job name is managed but disabled or
  * their key is not the stable desired ID. A desired ID bound to the wrong name
  * is also removed. Unrelated operator-owned schedulers are preserved.
+ *
+ * A scheduler already installed exactly as desired is left alone: in BullMQ 6
+ * upserting an unchanged cron scheduler removes its iteration while that job
+ * still waits and schedules the next occurrence after now, so a worker booting
+ * just after the hour, before anything took that hour's digest run, used to
+ * cancel it (the watchdog avoids the same trap in restoreMissingJobSchedulers).
  */
 export async function reconcileJobSchedulers(
   input: ReconcileInput,
@@ -140,6 +204,9 @@ export async function reconcileJobSchedulers(
     input.desired.map((schedule) => [schedule.schedulerId, schedule] as const),
   )
   const existing = await input.queue.getJobSchedulers(0, -1, true)
+  const installedById = new Map(
+    existing.map((scheduler) => [scheduler.key, scheduler] as const),
+  )
   const removedSchedulerIds: string[] = []
 
   for (const scheduler of existing) {
@@ -153,6 +220,8 @@ export async function reconcileJobSchedulers(
 
   const upsertedSchedulerIds: string[] = []
   for (const schedule of input.desired) {
+    const installed = installedById.get(schedule.schedulerId)
+    if (installed !== undefined && isInstalledAsDesired(installed, schedule)) continue
     await input.queue.upsertJobScheduler(schedule.schedulerId, schedule.repeat, {
       name: schedule.jobName,
       data: schedule.data ?? {},
