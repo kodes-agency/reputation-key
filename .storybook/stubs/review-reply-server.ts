@@ -26,4 +26,3 @@ export const checkReplyPublicationFn = noop
 export const editPublishedReplyFn = noop
 export const listReplyTemplatesFn = noop
 export const loadReplyTemplateFn = noop
-export const getReplyFn = noop

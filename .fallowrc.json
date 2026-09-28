@@ -160,10 +160,6 @@
       "exports": ["guestFeedbackRetracted"]
     },
     {
-      "file": "src/contexts/identity/server/organizations.query.ts",
-      "exports": ["listUserOrganizations"]
-    },
-    {
       "file": "src/contexts/identity/server/organizations.registration.ts",
       "exports": ["setActiveOrganization"]
     },
@@ -246,12 +242,8 @@
       "exports": ["createOrganizationFn"]
     },
     {
-      "file": "src/contexts/integration/server/google-connections.ts",
-      "exports": ["updateConnectionVisibility"]
-    },
-    {
       "file": "src/contexts/property/server/properties.ts",
-      "exports": ["createProperty", "updateProperty"]
+      "exports": ["updateProperty"]
     },
     {
       "file": "src/contexts/portal/server/portal-groups.ts",

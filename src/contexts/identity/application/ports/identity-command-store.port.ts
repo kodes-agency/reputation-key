@@ -3,9 +3,9 @@
 //
 // Callers must not know Drizzle transaction types or outbox tables.
 // The production implementation commits the better-auth-owned state rows
-// (invitation / member / organization — the app-owned write path, same
-// precedent as the pre-existing acceptInvitation transaction) and the
-// outbox_events fact in one PostgreSQL transaction.
+// (invitation / member — the app-owned write path, same precedent as the
+// pre-existing acceptInvitation transaction) and the outbox_events fact in one
+// PostgreSQL transaction.
 
 import type { InvitationId, OrganizationId, UserId } from '#/shared/domain/ids'
 import type {
@@ -14,7 +14,6 @@ import type {
   IdentityMemberInvited,
   IdentityMemberRemoved,
   IdentityMemberRoleChanged,
-  IdentityOrganizationCreated,
 } from '../../domain/events'
 
 /** Result of an accepted invitation: the joined org + invited property ids. */
@@ -102,20 +101,6 @@ export type ChangeMemberRoleCommand = Readonly<{
   event: IdentityMemberRoleChanged
 }>
 
-/**
- * Register an organization with its owner: organization row + owner member
- * row + organization.created fact in one transaction. A slug conflict throws
- * `already_exists` and records NO fact.
- */
-export type RegisterOrganizationCommand = Readonly<{
-  organizationId: OrganizationId
-  organizationName: string
-  slug: string
-  ownerId: UserId
-  now: Date
-  event: IdentityOrganizationCreated
-}>
-
 export type IdentityCommandStore = Readonly<{
   validateInvitationRegistration(
     command: ValidateInvitationRegistrationCommand,
@@ -125,5 +110,4 @@ export type IdentityCommandStore = Readonly<{
   cancelInvitation(command: CancelInvitationCommand): Promise<void>
   removeMember(command: RemoveMemberCommand): Promise<void>
   changeMemberRole(command: ChangeMemberRoleCommand): Promise<void>
-  registerOrganization(command: RegisterOrganizationCommand): Promise<void>
 }>

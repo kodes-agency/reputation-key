@@ -11,7 +11,6 @@ import { propertyError } from '#/contexts/property/domain/errors'
 import type { PropertyErrorCode } from '#/contexts/property/domain/errors'
 import { propertyErrorStatus } from '#/contexts/property/server/property-shared'
 import { throwContextError } from '#/shared/auth/server-errors'
-import { createPropertyInputSchema } from '#/contexts/property/application/dto/create-property.dto'
 import { updatePropertyInputSchema } from '#/contexts/property/application/dto/update-property.dto'
 import { z } from 'zod/v4'
 
@@ -124,93 +123,6 @@ describe('throwContextError with PropertyError', () => {
 })
 
 // ── Input validation (DTO schemas) ─────────────────────────────────
-
-describe('createProperty input validation', () => {
-  it('accepts valid create input', () => {
-    const result = createPropertyInputSchema.safeParse({
-      name: 'Grand Hotel',
-      timezone: 'America/New_York',
-      countryCode: 'US',
-    })
-    expect(result.success).toBe(true)
-  })
-
-  it('accepts create input with all browser-owned fields', () => {
-    const result = createPropertyInputSchema.safeParse({
-      name: 'Grand Hotel',
-      slug: 'grand-hotel',
-      timezone: 'UTC',
-      countryCode: 'US',
-    })
-    expect(result.success).toBe(true)
-  })
-
-  it('rejects protected provider identifiers on create', () => {
-    const result = createPropertyInputSchema.safeParse({
-      name: 'Grand Hotel',
-      timezone: 'UTC',
-      gbpLocationId: 'ChIJN1t_tDeuEmsRUsoyG83frY4',
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects create input missing required name', () => {
-    const result = createPropertyInputSchema.safeParse({
-      timezone: 'UTC',
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects create input missing required timezone', () => {
-    const result = createPropertyInputSchema.safeParse({
-      name: 'Test',
-      countryCode: 'US',
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects name over 100 characters', () => {
-    const result = createPropertyInputSchema.safeParse({
-      name: 'a'.repeat(101),
-      timezone: 'UTC',
-      countryCode: 'US',
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('rejects slug under 2 characters', () => {
-    const result = createPropertyInputSchema.safeParse({
-      name: 'Test',
-      slug: 'a',
-      timezone: 'UTC',
-      countryCode: 'US',
-    })
-    expect(result.success).toBe(false)
-  })
-
-  it('accepts undefined optional slug (server auto-generates)', () => {
-    const result = createPropertyInputSchema.safeParse({
-      name: 'Test',
-      timezone: 'UTC',
-      slug: undefined,
-      countryCode: 'US',
-    })
-    expect(result.success).toBe(true)
-  })
-
-  it('requires a two-letter country business fact', () => {
-    expect(
-      createPropertyInputSchema.safeParse({ name: 'Test', timezone: 'UTC' }).success,
-    ).toBe(false)
-    expect(
-      createPropertyInputSchema.safeParse({
-        name: 'Test',
-        timezone: 'UTC',
-        countryCode: 'USA',
-      }).success,
-    ).toBe(false)
-  })
-})
 
 describe('updateProperty input validation', () => {
   it('accepts update with propertyId only', () => {

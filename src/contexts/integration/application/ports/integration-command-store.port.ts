@@ -15,7 +15,6 @@ import type {
   IntegrationGoogleAccountConnected,
   IntegrationGoogleAccountDisconnected,
   IntegrationGoogleAccountReauthorizationRequired,
-  IntegrationGoogleConnectionVisibilityChanged,
 } from '../../domain/events'
 
 /**
@@ -76,18 +75,6 @@ export type DisconnectGoogleAccountCommand = Readonly<{
 }>
 
 /**
- * Visibility update + google_connection.visibility_changed fact in one
- * transaction. Throws `connection_not_found` when the row vanished —
- * records NO fact.
- */
-export type UpdateConnectionVisibilityCommand = Readonly<{
-  organizationId: OrganizationId
-  connectionId: GoogleConnectionId
-  visibility: GoogleConnectionVisibility
-  event: IntegrationGoogleConnectionVisibilityChanged
-}>
-
-/**
  * Google refused the connection's refresh grant for good: status →
  * reauth_required + google_account.reauthorization_required fact in one
  * transaction. Applies only while the connection is still active on the
@@ -112,9 +99,6 @@ export type IntegrationCommandStore = Readonly<{
   ): Promise<GoogleConnection>
   disconnectGoogleAccount(
     command: DisconnectGoogleAccountCommand,
-  ): Promise<GoogleConnection>
-  updateConnectionVisibility(
-    command: UpdateConnectionVisibilityCommand,
   ): Promise<GoogleConnection>
   requireReauthorization(command: RequireGoogleReauthorizationCommand): Promise<boolean>
 }>

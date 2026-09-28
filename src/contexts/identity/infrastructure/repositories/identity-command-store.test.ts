@@ -2,11 +2,11 @@
 //
 // Crash-boundary proofs on the real better-auth tables:
 //   1. A forced outbox failure (unregistered fact type) rolls back EVERYTHING
-//      — no invitation/member/organization row survives.
+//      — no invitation/member row survives.
 //   2. Happy path: the state row and the outbox_events row commit together
 //      with the same eventId.
 //   3. Guards hold on the real DB: already-member/already-invited,
-//      last-owner, slug conflict, invitation lifecycle.
+//      last-owner, invitation lifecycle.
 
 import { randomUUID } from 'node:crypto'
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest'
@@ -24,7 +24,6 @@ import {
   identityMemberInvited,
   identityMemberRemoved,
   identityMemberRoleChanged,
-  identityOrganizationCreated,
 } from '../../domain/events'
 import type { IdentityMemberInvited } from '../../domain/events'
 import { isIdentityError } from '../../domain/errors'
@@ -81,7 +80,8 @@ async function truncateAll(p: Pool) {
       [ORG_ID],
     )
     await client.query('DELETE FROM member WHERE "organizationId" = $1', [ORG_ID])
-    // registerOrganization creates NEW orgs (member rows cascade with them).
+    // Membership tests seed extra 'org-idcmd-' Organizations (member rows
+    // cascade with them).
     await client.query(
       `DELETE FROM outbox_events WHERE organization_id LIKE 'org-idcmd-%'`,
     )
@@ -662,91 +662,5 @@ describe.sequential('identityCommandStore (integration)', () => {
     // BQC-3.5 schema fix: the recorded payload keeps the TARGET member id.
     expect(facts.rows[0].payload.memberUserId).toBe(ACCEPTOR_ID as string)
     expect(facts.rows[0].payload.userId).toBe(INVITER_ID as string)
-  })
-
-  it('registerOrganization commits org + owner member + fact; forced outbox failure rolls back both', async () => {
-    const store = createAtomicIdentityCommandStore(db)
-    const newOrgId = organizationId('org-idcmd-registered-000000000001')
-    const event = identityOrganizationCreated({
-      organizationId: newOrgId,
-      organizationName: 'Registered Org',
-      slug: 'idcmd-registered',
-      ownerId: INVITER_ID,
-      occurredAt: NOW,
-    })
-
-    await store.registerOrganization({
-      organizationId: newOrgId,
-      organizationName: 'Registered Org',
-      slug: 'idcmd-registered',
-      ownerId: INVITER_ID,
-      now: NOW,
-      event,
-    })
-
-    const orgs = await pool.query('SELECT id, slug FROM organization WHERE id = $1', [
-      newOrgId,
-    ])
-    expect(orgs.rows).toHaveLength(1)
-    const lifecycle = await pool.query(
-      `SELECT state, revision, last_actor_id, last_reason_code
-       FROM organization_lifecycle_authority
-       WHERE organization_id = $1`,
-      [newOrgId],
-    )
-    expect(lifecycle.rows).toEqual([
-      {
-        state: 'active',
-        revision: 0,
-        last_actor_id: 'system:organization',
-        last_reason_code: 'provisioned',
-      },
-    ])
-    const members = await pool.query(
-      'SELECT "userId", role FROM member WHERE "organizationId" = $1',
-      [newOrgId],
-    )
-    expect(members.rows).toEqual([{ userId: INVITER_ID, role: 'owner' }])
-    const facts = await pool.query(
-      `SELECT id FROM outbox_events WHERE id = $1 AND event_type = 'identity.organization.created'`,
-      [event.eventId],
-    )
-    expect(facts.rows).toHaveLength(1)
-
-    // Forced outbox failure: neither the org nor the member row survives.
-    const ghostOrgId = organizationId('org-idcmd-ghost-00000000000001')
-    const ghost = {
-      ...identityOrganizationCreated({
-        organizationId: ghostOrgId,
-        organizationName: 'Ghost Org',
-        slug: 'idcmd-ghost',
-        ownerId: ACCEPTOR_ID,
-        occurredAt: NOW,
-      }),
-      _tag: 'identity.organization.ghost',
-    } as unknown as Parameters<typeof store.registerOrganization>[0]['event']
-
-    await expect(
-      store.registerOrganization({
-        organizationId: ghostOrgId,
-        organizationName: 'Ghost Org',
-        slug: 'idcmd-ghost',
-        ownerId: ACCEPTOR_ID,
-        now: NOW,
-        event: ghost,
-      }),
-    ).rejects.toThrow(
-      /Event type identity\.organization\.ghost:v1 is not registered for the outbox/,
-    )
-
-    const ghostOrgs = await pool.query('SELECT id FROM organization WHERE id = $1', [
-      ghostOrgId,
-    ])
-    expect(ghostOrgs.rows).toHaveLength(0)
-    const ghostMembers = await pool.query(
-      'SELECT id FROM member WHERE "organizationId" = $1',
-      [ghostOrgId],
-    )
-    expect(ghostMembers.rows).toHaveLength(0)
   })
 })

@@ -85,9 +85,6 @@ export type IdentityPort = Readonly<{
   /** List invitations for the current user across all organizations. */
   listUserInvitations: (headers: Headers) => Promise<ReadonlyArray<InvitationRecord>>
 
-  /** List organizations the current user belongs to. */
-  listUserOrganizations: (headers: Headers) => Promise<ReadonlyArray<OrganizationRecord>>
-
   /** Get the active organization details for the current session. */
   getActiveOrg: (headers: Headers) => Promise<OrganizationRecord | null>
 

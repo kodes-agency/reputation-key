@@ -36,7 +36,9 @@ product decision. Do not remove the projection or its consumer before that
 decision; the unused `getActivityTimeline` plumbing in the inbox bundle is
 cleanup for after the in-flight inbox work lands. Operational Action History is append-oriented,
 organization-scoped evidence with restricted list/export access and legal-hold
-handling.
+handling. `listOperationalActionHistoryFn` and `exportOperationalActionHistoryFn`
+are that restricted AccountAdmin API and have no UI on purpose
+(`docs/operations/operational-action-history.md`, "Access and export").
 
 Notifications are mutable delivery records. Copy is rendered from typed
 payloads at read/send time so in-app rows, urgent email, and digests cannot

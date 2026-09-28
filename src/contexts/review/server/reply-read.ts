@@ -1,18 +1,10 @@
-// Review context — reply read & shared helpers (split from reply.ts)
+// Review context — reply shared helpers (split from reply.ts): the error-status
+// mapping and input DTOs the reply server functions share.
 
-import { createServerFn } from '@tanstack/react-start'
-import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
 import { HTTP_STATUS } from '#/shared/http/status'
 import { z } from 'zod/v4'
-import { getContainer } from '#/composition'
-import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { headersFromContext } from '#/shared/auth/headers'
-import { resolveTenantContext } from '#/shared/auth/middleware'
-import { isReviewError } from '../domain/errors'
 import type { ReviewErrorCode } from '../domain/errors'
-import { reviewId } from '#/shared/domain/ids'
-import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { replyCommentProblem } from '#/shared/google-provider-control/reply-comment'
 import { replyTextProblemMessage } from '../domain/rules'
 import { parseCanonicalReplyLanguageTag } from '#/shared/reply-language-catalogue'
@@ -77,30 +69,3 @@ export const rejectReplyDto = z.object({
   reviewId: z.uuid(),
   reason: z.string().max(1000).optional(),
 })
-
-// ── getReply ─────────────────────────────────────────────────────────
-
-export const getReplyFn = createServerFn({ method: 'GET' })
-  .validator(reviewIdDto)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-        await requireExecutionAllowed({ actor: ctx, action: 'reply.manage' })
-        const { reviewPublicApi } = getContainer()
-        try {
-          return await reviewPublicApi.reply.get(
-            { reviewId: reviewId(data.reviewId) },
-            ctx,
-          )
-        } catch (e) {
-          if (isReviewError(e))
-            throwContextError('ReviewError', e, reviewErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
-      'GET',
-      'review.getReply',
-    ),
-  )

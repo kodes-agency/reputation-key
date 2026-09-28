@@ -41,7 +41,6 @@ import {
   connectGoogleAccount,
   disconnectGoogleAccount,
   listGoogleConnections,
-  updateConnectionVisibility,
   refreshGoogleToken,
   getGoogleAuthUrl,
   manageNotifications,
@@ -275,7 +274,6 @@ export type IntegrationContextApi = Readonly<{
       resume: ReturnType<typeof connectGoogleAccount>['resume']
       disconnect: ReturnType<typeof disconnectGoogleAccount>
       list: ReturnType<typeof listGoogleConnections>
-      updateVisibility: ReturnType<typeof updateConnectionVisibility>
     }>
     oauth: Readonly<{
       getAuthorizationUrl: ReturnType<typeof getGoogleAuthUrl>
@@ -365,7 +363,6 @@ export type IntegrationContextApi = Readonly<{
       resumeGoogleAccountConnection: ReturnType<typeof connectGoogleAccount>['resume']
       disconnectGoogleAccount: ReturnType<typeof disconnectGoogleAccount>
       listGoogleConnections: ReturnType<typeof listGoogleConnections>
-      updateConnectionVisibility: ReturnType<typeof updateConnectionVisibility>
       refreshGoogleToken: ReturnType<typeof refreshGoogleToken>
       prepareGoogleConnectorDeparture: ReturnType<typeof prepareGoogleConnectorDeparture>
       googleImportDiscovery: ReturnType<typeof createGoogleImportDiscovery> | null
@@ -1029,12 +1026,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       connectionRepo,
     }),
 
-    updateConnectionVisibility: updateConnectionVisibility({
-      connectionRepo,
-      commandStore,
-      clock: deps.clock,
-    }),
-
     refreshGoogleToken: refreshGoogleTokenUseCase,
 
     prepareGoogleConnectorDeparture: prepareGoogleConnectorDeparture({
@@ -1083,7 +1074,6 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       resume: useCases.resumeGoogleAccountConnection,
       disconnect: useCases.disconnectGoogleAccount,
       list: useCases.listGoogleConnections,
-      updateVisibility: useCases.updateConnectionVisibility,
     }),
     oauth: Object.freeze({
       getAuthorizationUrl: useCases.getGoogleAuthUrl,

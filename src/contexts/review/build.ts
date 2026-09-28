@@ -95,7 +95,6 @@ import {
   approveReply,
   rejectReply,
   deleteReply,
-  getReply,
   retryPublish,
   editPublishedReply,
 } from './application/use-cases/reply-operations'
@@ -201,7 +200,6 @@ export type ReviewContextApi = Readonly<{
         editPublished: ReturnType<typeof editPublishedReply>
         reject: ReturnType<typeof rejectReply>
         delete: ReturnType<typeof deleteReply>
-        get: ReturnType<typeof getReply>
         retryPublish: ReturnType<typeof retryPublish>
         /** D5: read-only "Check Google again"; never authorizes or enqueues. */
         checkPublication: CheckReplyPublication
@@ -283,7 +281,6 @@ export type ReviewContextApi = Readonly<{
       editPublishedReply: ReturnType<typeof editPublishedReply>
       rejectReply: ReturnType<typeof rejectReply>
       deleteReply: ReturnType<typeof deleteReply>
-      getReply: ReturnType<typeof getReply>
       retryPublish: ReturnType<typeof retryPublish>
       checkReplyPublication: CheckReplyPublication
       listReplyTemplates: ListReplyTemplates
@@ -561,7 +558,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
     approveReply: approveReply(replyDeps),
     rejectReply: rejectReply(replyDeps),
     deleteReply: deleteReply(replyDeps),
-    getReply: getReply(replyDeps),
     retryPublish: retryPublish(replyDeps),
     checkReplyPublication: checkReplyPublication({
       replyRepo,
@@ -678,7 +674,6 @@ export const buildReviewContext = (input: ReviewContextBuildInput): ReviewContex
         editPublished: useCases.editPublishedReply,
         reject: useCases.rejectReply,
         delete: useCases.deleteReply,
-        get: useCases.getReply,
         retryPublish: useCases.retryPublish,
         checkPublication: useCases.checkReplyPublication,
         listTemplates: useCases.listReplyTemplates,

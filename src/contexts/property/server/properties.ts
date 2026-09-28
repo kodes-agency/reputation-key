@@ -13,37 +13,9 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
-import { createPropertyInputSchema } from '../application/dto/create-property.dto'
 import { updatePropertyInputSchema } from '../application/dto/update-property.dto'
 import { isPropertyError } from '../domain/errors'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
-
-// ── createProperty ─────────────────────────────────────────────────
-
-export const createProperty = createServerFn({ method: 'POST' })
-  .validator(createPropertyInputSchema)
-  .handler(
-    tracedHandler(
-      async ({ data }) => {
-        const headers = await headersFromContext()
-        const ctx = await resolveTenantContext(headers)
-
-        await requireExecutionAllowed({ actor: ctx, action: 'property.create' })
-
-        try {
-          const { management } = getContainer().propertyPublicApi
-          const property = await management.createProperty(data, ctx)
-          return { property }
-        } catch (e) {
-          if (isPropertyError(e))
-            throwContextError('PropertyError', e, propertyErrorStatus(e.code))
-          throw catchUntagged(e)
-        }
-      },
-      'POST',
-      'property.createProperty',
-    ),
-  )
 
 // ── updateProperty ─────────────────────────────────────────────────
 

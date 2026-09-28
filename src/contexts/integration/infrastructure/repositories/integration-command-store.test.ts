@@ -17,7 +17,6 @@ import {
   integrationGoogleAccountConnected,
   integrationGoogleAccountDisconnected,
   integrationGoogleAccountReauthorizationRequired,
-  integrationGoogleConnectionVisibilityChanged,
 } from '../../domain/events'
 import { isIntegrationError } from '../../domain/errors'
 import { isUniqueViolationError } from '../../application/ports/google-connection.repository'
@@ -796,39 +795,6 @@ describe.sequential('integrationCommandStore (integration)', () => {
       confirmedNotSent: 0,
       cleanupAmbiguous: 0,
     })
-  })
-
-  it('updateConnectionVisibility commits the update + fact in one transaction', async () => {
-    const store = createAtomicIntegrationCommandStore(db, () => NOW)
-    await store.connectGoogleAccount({
-      connection: makeConnection(),
-      event: connectedEvent(),
-    })
-
-    const updated = await store.updateConnectionVisibility({
-      organizationId: ORG_ID,
-      connectionId: CONN_ID,
-      visibility: 'organization',
-      event: integrationGoogleConnectionVisibilityChanged({
-        connectionId: CONN_ID,
-        organizationId: ORG_ID,
-        visibility: 'organization',
-        occurredAt: NOW,
-      }),
-    })
-
-    expect(updated.visibility).toBe('organization')
-    const rows = await pool.query(
-      'SELECT access_version FROM google_connections WHERE id = $1',
-      [CONN_ID],
-    )
-    expect(rows.rows).toEqual([{ access_version: 2 }])
-    const facts = await pool.query(
-      `SELECT id FROM outbox_events
-       WHERE organization_id = $1 AND event_type = 'integration.google_connection.visibility_changed'`,
-      [ORG_ID],
-    )
-    expect(facts.rows).toHaveLength(1)
   })
 
   const revokedEvent = () =>

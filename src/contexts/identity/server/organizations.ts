@@ -3,11 +3,7 @@
 
 export { identityErrorStatus } from './organizations.shared'
 
-export {
-  getActiveOrganization,
-  listMembers,
-  listUserOrganizations,
-} from './organizations.query'
+export { getActiveOrganization, listMembers } from './organizations.query'
 
 export { inviteMember, updateMemberRole, removeMember } from './organizations.members'
 

@@ -98,23 +98,6 @@ export function createSequentialIntegrationCommandStore(deps: {
       return updated
     },
 
-    updateConnectionVisibility: async (command) => {
-      await deps.connectionRepo.updateVisibility(
-        command.organizationId,
-        command.connectionId,
-        command.visibility,
-      )
-      const updated = await deps.connectionRepo.findById(
-        command.organizationId,
-        command.connectionId,
-      )
-      if (!updated) {
-        throw integrationError('connection_not_found', 'Google connection not found')
-      }
-      await recordAndEmit(command.event)
-      return updated
-    },
-
     requireReauthorization: async (command) => {
       const current = await deps.connectionRepo.findById(
         command.organizationId,

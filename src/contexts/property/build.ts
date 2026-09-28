@@ -17,7 +17,6 @@ import type {
   UserId,
 } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
-import { createProperty } from './application/use-cases/create-property'
 import { updateProperty } from './application/use-cases/update-property'
 import { listProperties } from './application/use-cases/list-properties'
 import { getProperty } from './application/use-cases/get-property'
@@ -31,7 +30,6 @@ import {
   updatePropertyResponsibleManagers,
 } from './application/use-cases/property-responsible-managers'
 import { isEligiblePropertyManager } from './application/property-manager-eligibility'
-import { propertyId } from '#/shared/domain/ids'
 import {
   archiveProperty,
   disconnectPropertyGoogleBinding,
@@ -42,6 +40,7 @@ type PropertyContextDeps = Readonly<{
   db: Database
   repo: PropertyRepository
   clock: () => Date
+  /** Unused since createProperty was deleted; drop it with the composition argument. */
   idGen: () => string
   staffPublicApi: StaffPublicApi
   identityManagerFacts: IdentityManagerFactsPublicApi
@@ -49,7 +48,6 @@ type PropertyContextDeps = Readonly<{
 }>
 
 export const buildPropertyContext = (deps: PropertyContextDeps) => {
-  const idGen = () => propertyId(deps.idGen())
   // BQC-3.5: every property state mutation + fact commits atomically here.
   const commandStore = createAtomicPropertyCommandStore(deps.db)
   const bindingApi = createPropertyGoogleBindingStore(deps.db)
@@ -80,12 +78,6 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
   } as const
 
   const useCases = {
-    createProperty: createProperty({
-      propertyRepo: deps.repo,
-      commandStore,
-      idGen,
-      clock: deps.clock,
-    }),
     updateProperty: updateProperty({
       propertyRepo: deps.repo,
       staffPublicApi: deps.staffPublicApi,

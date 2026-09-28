@@ -24,7 +24,6 @@ import type {
   IntegrationCommandStore,
   ReconnectGoogleAccountCommand,
   RequireGoogleReauthorizationCommand,
-  UpdateConnectionVisibilityCommand,
 } from '../application/ports/integration-command-store.port'
 
 /** True when a Postgres unique-constraint violation (SQLSTATE 23505) caused the error. */
@@ -273,25 +272,6 @@ export const createAtomicIntegrationCommandStore = (
           return redacted
         })
         return googleConnectionFromRow(connection)
-      })
-    },
-
-    updateConnectionVisibility: async (command: UpdateConnectionVisibilityCommand) => {
-      return trace('integration.commandStore.updateConnectionVisibility', async () => {
-        const updated = await db.transaction(async (tx) => {
-          const now = clock()
-          const rows = await updateConnectionRow(tx, command, {
-            visibility: command.visibility,
-            accessVersion: sql`${googleConnections.accessVersion} + 1`,
-            updatedAt: now,
-          }).returning()
-          if (!rows[0]) {
-            throw integrationError('connection_not_found', 'Google connection not found')
-          }
-          await insertOutboxRow(tx, command.event)
-          return rows[0]
-        })
-        return googleConnectionFromRow(updated)
       })
     },
 
