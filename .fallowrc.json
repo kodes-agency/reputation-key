@@ -247,7 +247,7 @@
     },
     {
       "file": "src/contexts/property/server/properties.ts",
-      "exports": ["createProperty", "updateProperty"]
+      "exports": ["updateProperty"]
     },
     {
       "file": "src/contexts/portal/server/portal-groups.ts",
