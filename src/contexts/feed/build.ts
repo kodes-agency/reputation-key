@@ -363,6 +363,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     escalationResolutions,
     inboxItemLookup,
     replyStates: input.replyStates,
+    portalHealthLookup: input.portalHealthLookup,
     responsibleManagers: input.responsibleManagers,
   })
   // Asked when an email is queued, and again before it is sent.

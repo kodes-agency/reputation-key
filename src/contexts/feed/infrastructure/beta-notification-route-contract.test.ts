@@ -91,6 +91,7 @@ import {
   propertyResponsibleManagersUpdated,
 } from '#/contexts/property/domain/events'
 import {
+  integrationGoogleAccountConnected,
   integrationGoogleAccountDisconnected,
   integrationGoogleAccountReauthorizationRequired,
 } from '#/contexts/integration/domain/events'
@@ -439,6 +440,13 @@ const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
       cause: 'member_removed',
       occurredAt: OCCURRED_AT,
     }),
+  'integration.google_account.connected': () =>
+    integrationGoogleAccountConnected({
+      connectionId: CONNECTION,
+      organizationId: ORG,
+      userId: ACTOR,
+      occurredAt: OCCURRED_AT,
+    }),
   'integration.google_account.disconnected': () =>
     integrationGoogleAccountDisconnected({
       connectionId: CONNECTION,
@@ -749,6 +757,28 @@ const SETTLED_NOTIFICATION = notificationId('4d1f0c1e-2b7a-4c55-9a51-00000000001
 const SETTLED_RESOURCE: Readonly<Record<string, string>> = {
   'property.responsible_managers.updated': PROPERTY,
   'portal.responsible_managers.updated': PORTAL,
+  'portal.health.changed': PORTAL,
+  'integration.google_account.connected': CONNECTION,
+  'integration.google_account.disconnected': CONNECTION,
+}
+
+/**
+ * A settling route whose event also announces: the produced fact above is the
+ * announcing shape, so the settling shape is built here, by the same producer.
+ */
+const SETTLING_FACTS: Readonly<Record<string, () => DomainEvent>> = {
+  'notification.settle-on-portal-health-recovered': () =>
+    portalHealthChanged({
+      portalId: PORTAL,
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      previousStatus: 'unavailable',
+      previousReason: 'publication_snapshot_unavailable',
+      status: 'healthy',
+      reason: 'operational',
+      sourceVersion: 'health-fence-2',
+      occurredAt: OCCURRED_AT,
+    }),
 }
 
 /** Reads that find each route's subject still current, so every route has work. */
@@ -1041,7 +1071,7 @@ describe('every beta notification route queues its notice from its real producer
       const deps = currentRouteDeps()
 
       const { envelope, receipts, gateDenials, queued } = await dispatch(
-        PRODUCED_FACTS[route.eventType]!(),
+        (SETTLING_FACTS[route.consumerName] ?? PRODUCED_FACTS[route.eventType])!(),
         deps,
       )
 

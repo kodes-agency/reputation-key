@@ -12,10 +12,10 @@
 // So the work itself is asked, per type, at the three moments that matter:
 // before a notice is written, before its email leaves, and before a settling
 // fact retires it. The answer comes from the context that owns the work — the
-// Inbox for escalations and Handling Cycles, Review for replies, Property and
-// Portal for responsibility — never from Feed's own rows. It is freshness, not
-// standing: whether the recipient may still be told is
-// `notification-recipient-standing.ts`'s question.
+// Inbox for escalations and Handling Cycles, Review for replies, Portal for
+// Health, Property and Portal for responsibility — never from Feed's own
+// rows. It is freshness, not standing: whether the recipient may still be
+// told is `notification-recipient-standing.ts`'s question.
 
 import {
   inboxItemId,
@@ -25,6 +25,7 @@ import {
   type InboxItemId,
   type OrganizationId,
 } from '#/shared/domain/ids'
+import type { PortalPublicApi } from '#/contexts/portal/application/public-api'
 import type { NotificationType } from '../domain/notification-types'
 import type { EscalationResolutionLookupPort } from './ports/escalation-resolution-lookup.port'
 import type {
@@ -36,6 +37,7 @@ import type {
   ReplyWorkStatus,
 } from './ports/reply-work-state.port'
 import type { ResponsibleManagerLookupPort } from './ports/responsible-manager-lookup.port'
+import { isActionablePortalHealthReason } from './portal-health-notification'
 
 export type NotificationWorkSubject = Readonly<{
   organizationId: OrganizationId
@@ -69,6 +71,7 @@ export type NotificationWorkStateDeps = Readonly<{
   escalationResolutions: EscalationResolutionLookupPort
   inboxItemLookup: Pick<InboxItemLookupPort, 'findHandlingCycleNotificationFacts'>
   replyStates: ReplyWorkStateLookupPort
+  portalHealthLookup: Pick<PortalPublicApi, 'findPortalHealthNotificationFacts'>
   responsibleManagers: Pick<
     ResponsibleManagerLookupPort,
     'findForProperty' | 'findForPortal'
@@ -119,6 +122,23 @@ const replyStill =
     return current === status
   }
 
+/**
+ * Any Health interval that still gives a manager something to fix keeps the
+ * notice: a different actionable reason is still the Portal needing them. A
+ * Portal that is gone needs nobody.
+ */
+const healthStillNeedsAttention: WorkCheck = async (
+  deps,
+  { organizationId, resourceId },
+) => {
+  const facts = await deps.portalHealthLookup.findPortalHealthNotificationFacts(
+    organizationId,
+    portalId(resourceId),
+  )
+  if (facts === null) return false
+  return facts.status !== 'healthy' && isActionablePortalHealthReason(facts.reason)
+}
+
 const propertyStillUnstaffed: WorkCheck = async (deps, { organizationId, resourceId }) =>
   (await deps.responsibleManagers.findForProperty(organizationId, propertyId(resourceId)))
     .length === 0
@@ -141,6 +161,7 @@ const WORK_CHECKS: Readonly<Partial<Record<NotificationType, WorkCheck>>> = {
   'inbox.reopened': itemStillOpen,
   'inbox.response_target_halfway': itemStillOpen,
   'inbox.response_target_passed': itemStillOpen,
+  'portal.health_attention': healthStillNeedsAttention,
   'property.responsibility_needed': propertyStillUnstaffed,
   'portal.responsibility_needed': portalStillUnstaffed,
 }

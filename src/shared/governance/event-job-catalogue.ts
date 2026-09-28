@@ -450,6 +450,10 @@ const PORTAL_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('portal.health.changed', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('notification.on-portal-health-changed', NOTIFICATION_PORTAL_HEALTH_OUTBOX),
+    durable(
+      'notification.settle-on-portal-health-recovered',
+      NOTIFICATION_SETTLEMENT_OUTBOX,
+    ),
   ]),
   ev('portal.property_brand_profile.updated', []),
   ev('portal.property_brand_content.updated', []),
@@ -514,6 +518,10 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('integration.google_account.connected', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),
+    durable(
+      'notification.settle-on-google-account-connected',
+      NOTIFICATION_SETTLEMENT_OUTBOX,
+    ),
   ]),
   ev('integration.google_account.disconnected', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
@@ -522,6 +530,10 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
     durable(
       'notification.on-google-account-disconnected',
       NOTIFICATION_INTEGRATION_OUTBOX,
+    ),
+    durable(
+      'notification.settle-on-google-account-disconnected',
+      NOTIFICATION_SETTLEMENT_OUTBOX,
     ),
   ]),
   ev('integration.google_account.reauthorization_required', [

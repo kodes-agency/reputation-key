@@ -49,6 +49,21 @@ describe('which notices a settling fact retires', () => {
     ])
   })
 
+  it('retires the reconnect request whichever way the connection was answered', () => {
+    expect(settledNotificationTypes('google_connection.reconnected')).toEqual([
+      'integration.reauthorization_required',
+    ])
+    expect(settledNotificationTypes('google_connection.disconnected')).toEqual([
+      'integration.reauthorization_required',
+    ])
+  })
+
+  it('retires the Health notice once the Portal needs nobody', () => {
+    expect(settledNotificationTypes('portal_health.recovered')).toEqual([
+      'portal.health_attention',
+    ])
+  })
+
   it('retires a failed publication once a cancellation returns the reply to draft', () => {
     expect(settledNotificationTypes('reply.returned_to_draft')).toEqual([
       'reply.publish_failed',
@@ -82,6 +97,9 @@ describe('which notices a settling fact retires', () => {
       'handling_cycle.closed',
       'property.responsibility_restored',
       'portal.responsibility_restored',
+      'google_connection.reconnected',
+      'google_connection.disconnected',
+      'portal_health.recovered',
     ]
     const settled = facts.flatMap((fact) => [...settledNotificationTypes(fact)])
 

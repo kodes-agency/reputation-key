@@ -3,8 +3,9 @@
 // Every other notification consumer in Feed announces something. This one
 // retires: when the fact that finishes the work arrives — a reply decided,
 // published or returned to draft, an escalation resolved, a Handling Cycle
-// closed, a responsible manager chosen again — it stamps the still-waiting
-// rows about that resource and cancels the mail queued behind them.
+// closed, a responsible manager chosen again, a Portal's Health recovered, a
+// Google connection reconnected — it stamps the still-waiting rows about that
+// resource and cancels the mail queued behind them.
 //
 // It writes through the repositories rather than queueing a job: settling is
 // one bounded update per fact and carries no per-recipient decision, so a
@@ -15,6 +16,7 @@
 import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import {
+  googleConnectionId,
   inboxItemId,
   organizationId,
   portalId,
@@ -28,6 +30,7 @@ import type { NotificationRepositoryPort } from '../application/ports/notificati
 import type { NotificationEmailRepositoryPort } from '../application/ports/notification-email-repository.port'
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
 import type { NotificationWorkState } from '../application/notification-work-state'
+import { isActionablePortalHealthReason } from '../application/portal-health-notification'
 import {
   SETTLED_EMAIL_REASON,
   settledNotificationTypes,
@@ -37,9 +40,21 @@ import {
 /**
  * What the settled notices point at. Reply and Inbox notices are filed against
  * their Inbox item (ADR 0046, merged ADR 0022); a "choose a responsible
- * manager" request is filed against the Property or Portal that has the gap.
+ * manager" request against the Property or Portal that has the gap; a Health
+ * notice against its Portal; a reconnect request against the Google
+ * connection.
  */
-type SettledResourceKind = 'inbox_item_by_review' | 'inbox_item' | 'property' | 'portal'
+type SettledResourceKind =
+  'inbox_item_by_review' | 'inbox_item' | 'property' | 'portal' | 'google_connection'
+
+/**
+ * The facts that finish work only in some of their shapes. A selection change
+ * says what the scope is LEFT with, so only one that leaves somebody
+ * responsible closes a gap. A Health change finishes the notice only when the
+ * new interval needs nobody: recovered, or a state such as a draft that no
+ * manager has to fix.
+ */
+type SettlingCondition = 'staffed' | 'health_needs_nobody'
 
 /** Which settling fact each subscribed event carries, and under what name. */
 export const NOTIFICATION_SETTLEMENT_CONSUMERS = [
@@ -87,14 +102,33 @@ export const NOTIFICATION_SETTLEMENT_CONSUMERS = [
     consumerName: 'notification.settle-on-property-responsibility-restored',
     fact: 'property.responsibility_restored',
     resource: 'property',
-    onlyWhenStaffed: true,
+    onlyWhen: 'staffed',
   },
   {
     eventType: 'portal.responsible_managers.updated',
     consumerName: 'notification.settle-on-portal-responsibility-restored',
     fact: 'portal.responsibility_restored',
     resource: 'portal',
-    onlyWhenStaffed: true,
+    onlyWhen: 'staffed',
+  },
+  {
+    eventType: 'portal.health.changed',
+    consumerName: 'notification.settle-on-portal-health-recovered',
+    fact: 'portal_health.recovered',
+    resource: 'portal',
+    onlyWhen: 'health_needs_nobody',
+  },
+  {
+    eventType: 'integration.google_account.connected',
+    consumerName: 'notification.settle-on-google-account-connected',
+    fact: 'google_connection.reconnected',
+    resource: 'google_connection',
+  },
+  {
+    eventType: 'integration.google_account.disconnected',
+    consumerName: 'notification.settle-on-google-account-disconnected',
+    fact: 'google_connection.disconnected',
+    resource: 'google_connection',
   },
 ] as const satisfies ReadonlyArray<
   Readonly<{
@@ -102,7 +136,7 @@ export const NOTIFICATION_SETTLEMENT_CONSUMERS = [
     consumerName: string
     fact: SettlingFact
     resource: SettledResourceKind
-    onlyWhenStaffed?: boolean
+    onlyWhen?: SettlingCondition
   }>
 >
 
@@ -157,18 +191,20 @@ function parsePayload(event: ConsumerEvent): Readonly<Record<string, unknown>> {
   return parsed
 }
 
-/**
- * Whether this fact finishes work at all. A selection change says what the
- * scope is LEFT with: one that leaves nobody responsible opens a gap rather
- * than closing one, and the `responsibility_became_needed` routes announce it.
- */
+/** Whether this fact finishes work at all, in the shape it arrived in. */
 const finishesWork = (
   route: SettlementRoute,
   payload: Readonly<Record<string, unknown>>,
 ): boolean => {
-  if (!('onlyWhenStaffed' in route && route.onlyWhenStaffed)) return true
-  const count = payload.assignmentCount
-  return typeof count === 'number' && count > 0
+  if (!('onlyWhen' in route)) return true
+  switch (route.onlyWhen) {
+    case 'staffed':
+      return typeof payload.assignmentCount === 'number' && payload.assignmentCount > 0
+    case 'health_needs_nobody':
+      return (
+        payload.status === 'healthy' || !isActionablePortalHealthReason(payload.reason)
+      )
+  }
 }
 
 /**
@@ -193,6 +229,8 @@ async function resolveResource(
       return propertyId(field(payload, 'propertyId'))
     case 'portal':
       return portalId(field(payload, 'portalId'))
+    case 'google_connection':
+      return googleConnectionId(field(payload, 'connectionId'))
   }
 }
 
@@ -311,6 +349,24 @@ export function registerNotificationSettlementConsumers(
   registerConsumer({
     eventType: 'portal.responsible_managers.updated',
     consumerName: 'notification.settle-on-portal-responsibility-restored',
+    module: 'notification.settlement-outbox-consumers',
+    handler,
+  })
+  registerConsumer({
+    eventType: 'portal.health.changed',
+    consumerName: 'notification.settle-on-portal-health-recovered',
+    module: 'notification.settlement-outbox-consumers',
+    handler,
+  })
+  registerConsumer({
+    eventType: 'integration.google_account.connected',
+    consumerName: 'notification.settle-on-google-account-connected',
+    module: 'notification.settlement-outbox-consumers',
+    handler,
+  })
+  registerConsumer({
+    eventType: 'integration.google_account.disconnected',
+    consumerName: 'notification.settle-on-google-account-disconnected',
     module: 'notification.settlement-outbox-consumers',
     handler,
   })

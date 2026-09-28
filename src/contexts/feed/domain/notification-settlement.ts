@@ -37,6 +37,10 @@ export const ACTIONABLE_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new 
   'inbox.response_target_passed',
   'property.responsibility_needed',
   'portal.responsibility_needed',
+  // "Reconnect Google" and "Guest portal needs attention" ask for a fix that
+  // somebody else can make, and whose absence is then news no longer.
+  'integration.reauthorization_required',
+  'portal.health_attention',
 ])
 
 export const isActionableNotificationType = (type: NotificationType): boolean =>
@@ -51,6 +55,9 @@ export type SettlingFact =
   | 'handling_cycle.closed'
   | 'property.responsibility_restored'
   | 'portal.responsibility_restored'
+  | 'google_connection.reconnected'
+  | 'google_connection.disconnected'
+  | 'portal_health.recovered'
 
 /**
  * A rejection settles the approval request as surely as an approval does:
@@ -83,6 +90,14 @@ const SETTLED_BY: Readonly<Record<SettlingFact, ReadonlyArray<NotificationType>>
   ],
   'property.responsibility_restored': ['property.responsibility_needed'],
   'portal.responsibility_restored': ['portal.responsibility_needed'],
+  // A reconnect is the fix asked for. A deliberate disconnect answers it the
+  // other way: the connection is gone on purpose, and asking every admin to
+  // reconnect it would contradict the admin who removed it.
+  'google_connection.reconnected': ['integration.reauthorization_required'],
+  'google_connection.disconnected': ['integration.reauthorization_required'],
+  // Health that recovered, or moved to a state nobody has to fix (a draft,
+  // an archived Property), no longer needs the manager it asked.
+  'portal_health.recovered': ['portal.health_attention'],
 }
 
 export const settledNotificationTypes = (

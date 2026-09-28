@@ -34,6 +34,7 @@ function build(
     cycle: HandlingCycleNotificationFacts | null
     reply: ReplyWorkStatus | null
     managers: ReadonlyArray<string>
+    health: Readonly<{ status: string; reason: string }> | null
   }> = {},
 ) {
   const deps = {
@@ -59,6 +60,20 @@ function build(
     replyStates: {
       findReplyStatus: vi.fn(async () =>
         overrides.reply === undefined ? 'pending_approval' : overrides.reply,
+      ),
+    },
+    portalHealthLookup: {
+      findPortalHealthNotificationFacts: vi.fn(async () =>
+        overrides.health === null
+          ? null
+          : {
+              propertyId: PROPERTY,
+              effectiveFrom: new Date('2026-09-01T00:00:00.000Z'),
+              ...(overrides.health ?? {
+                status: 'degraded',
+                reason: 'google_destination_unavailable',
+              }),
+            },
       ),
     },
     responsibleManagers: {
@@ -131,6 +146,20 @@ describe('whether the work a notice asks for still waits', () => {
         ask(build({ cycle: cycle({ status: 'closed' }) }), type),
       ).resolves.toBe(false)
     }
+  })
+
+  it('keeps a Portal Health notice waiting only while Health still needs a person', async () => {
+    await expect(ask(build(), 'portal.health_attention', PORTAL)).resolves.toBe(true)
+    await expect(
+      ask(
+        build({ health: { status: 'healthy', reason: 'operational' } }),
+        'portal.health_attention',
+        PORTAL,
+      ),
+    ).resolves.toBe(false)
+    await expect(
+      ask(build({ health: null }), 'portal.health_attention', PORTAL),
+    ).resolves.toBe(false)
   })
 
   it('keeps a responsibility request waiting only while nobody is responsible', async () => {

@@ -343,6 +343,27 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ),
     eventCondition: 'assignmentCount > 0',
   },
+  {
+    ...settles(
+      'portal.health.changed',
+      'notification.settle-on-portal-health-recovered',
+      ['portal.health_attention'],
+    ),
+    // The complement of the announcing route's condition.
+    eventCondition:
+      'status === healthy || reason not in actionable automatic Health reasons',
+  },
+  settles(
+    'integration.google_account.connected',
+    'notification.settle-on-google-account-connected',
+    ['integration.reauthorization_required'],
+  ),
+  // A deliberate disconnect answers the reconnect request the other way.
+  settles(
+    'integration.google_account.disconnected',
+    'notification.settle-on-google-account-disconnected',
+    ['integration.reauthorization_required'],
+  ),
 ] as const satisfies ReadonlyArray<BetaNotificationTriggerMatrixRow>
 
 export const BETA_DARK_NOTIFICATION_TYPES =
