@@ -633,6 +633,7 @@ const isEscalationResolutionRecipient = async (
     inboxItemId: audience.inboxItemId,
     assignedTo: facts.assignedTo,
     resolvedBy: facts.resolvedBy,
+    escalatedAt: facts.escalatedAt,
   })
   return recipients.includes(userId)
 }

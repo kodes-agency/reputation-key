@@ -5,6 +5,7 @@ import type { EscalationResolutionLookupPort } from '../application/ports/escala
 import type { ResponsibleManagerLookupPort } from '../application/ports/responsible-manager-lookup.port'
 import type { UserLookupPort } from '../application/ports/notification-user-lookup.port'
 import type { NotificationRepositoryPort } from '../application/ports/notification-repository.port'
+import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
 import { resolveEscalationResolutionRecipients } from '../application/escalation-resolution-recipients'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
 import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
@@ -19,6 +20,8 @@ export type EscalationResolutionNotificationConsumerDeps = Readonly<{
   userLookup: Pick<UserLookupPort, 'findByRole'>
   /** The evidence of who was told the escalation was raised. */
   notifications: Pick<NotificationRepositoryPort, 'findRecipientsOfNotice'>
+  /** Which scope the escalation went to, so the resolution follows it. */
+  inboxItemLookup: Pick<InboxItemLookupPort, 'findInboxItemFacts'>
   receipts: Pick<OutboxRepository, 'insertReceipt'>
 }>
 
@@ -100,6 +103,7 @@ export async function handleNotificationInboxEscalationResolved(
     inboxItemId: itemId,
     assignedTo: facts.assignedTo,
     resolvedBy: facts.resolvedBy,
+    escalatedAt: facts.escalatedAt,
   })
   const resolvedAt = facts.resolvedAt.toISOString()
   const notificationPayload = facts.propertyName

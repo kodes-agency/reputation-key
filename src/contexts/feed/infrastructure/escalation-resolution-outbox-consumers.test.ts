@@ -62,10 +62,13 @@ const makeDeps = () => {
         assignedTo: ASSIGNEE,
         propertyName: 'Riverside Hotel',
         isEscalated: false,
+        escalatedAt: null as Date | null,
         resolvedAt: RESOLVED_AT,
         resolvedBy: RESOLVER,
       })),
     },
+    // A review: its resolution falls back to the Property's managers.
+    inboxItemLookup: { findInboxItemFacts: vi.fn(async () => null) },
     responsibleManagers: {
       findForProperty: vi.fn(async () => [MANAGER]),
       findForPortal: vi.fn(async () => []),
@@ -166,6 +169,7 @@ describe('escalation-resolution notification consumer', () => {
       ORG,
       'inbox.escalated',
       ITEM,
+      null,
     )
     expect(deps.jobs.map((job) => (job.data as { userId: string }).userId)).toEqual([
       ASSIGNEE,
@@ -216,6 +220,7 @@ describe('escalation-resolution notification consumer', () => {
       assignedTo: RESOLVER,
       propertyName: 'Riverside Hotel',
       isEscalated: false,
+      escalatedAt: null,
       resolvedAt: RESOLVED_AT,
       resolvedBy: RESOLVER,
     })
@@ -247,6 +252,7 @@ describe('escalation-resolution notification consumer', () => {
       assignedTo: ASSIGNEE,
       propertyName: 'Riverside Hotel',
       isEscalated: false,
+      escalatedAt: null,
       resolvedAt: RESOLVED_AT,
       resolvedBy: RESOLVER,
       ...change,

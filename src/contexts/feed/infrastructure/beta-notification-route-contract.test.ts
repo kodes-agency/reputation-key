@@ -799,6 +799,7 @@ function currentRouteDeps(): RouteDeps {
         assignedTo: null,
         propertyName: 'Riverside Hotel',
         isEscalated: false,
+        escalatedAt: null,
         resolvedAt: OCCURRED_AT,
         resolvedBy: ACTOR,
       })),

@@ -81,11 +81,17 @@ export type NotificationRepositoryPort = Readonly<{
    * Everyone who holds a notice of this type about this resource, whatever
    * its read state. The evidence of who was told something, so the notice
    * that closes it can reach the same people (I5.3).
+   *
+   * `arrivedSince` bounds it to notices whose latest arrival is at or after
+   * that moment: an item escalated twice keeps the first escalation's rows,
+   * and the people told only about that one were not told about this one.
+   * `null` reads every notice ever held.
    */
   findRecipientsOfNotice(
     orgId: OrganizationId,
     type: NotificationType,
     resourceId: string,
+    arrivedSince: Date | null,
   ): Promise<ReadonlyArray<UserId>>
 
   /**

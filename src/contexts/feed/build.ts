@@ -698,6 +698,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       responsibleManagers: input.responsibleManagers,
       userLookup,
       notifications: notificationRepo,
+      inboxItemLookup,
       receipts: input.outboxRepo,
     })
     registerHandlingCycleNotificationConsumers(consumerRegistry, {
