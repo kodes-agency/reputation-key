@@ -184,7 +184,8 @@ export type NotificationPortalHealthReason =
 
 /**
  * The governed causes `inbox.handling_cycle.reopened` carries: five a manager
- * chooses and two an exact provider observation raises.
+ * chooses, two an exact provider observation raises, and the guest editing a
+ * Review that had been answered.
  */
 export type NotificationReopenReason =
   | 'guest_follow_up_still_needed'
@@ -194,6 +195,7 @@ export type NotificationReopenReason =
   | 'other'
   | 'provider_reply_deleted'
   | 'provider_reply_diverged'
+  | 'material_revision_changed'
 
 export type NotificationReportOutcome = 'accepted' | 'declined' | 'resolved'
 
@@ -266,6 +268,7 @@ const REOPEN_REASONS: Record<string, true> = {
   other: true,
   provider_reply_deleted: true,
   provider_reply_diverged: true,
+  material_revision_changed: true,
 }
 
 const IMPORT_OUTCOMES: Record<string, true> = { completed: true, failed: true }

@@ -383,6 +383,8 @@ const REOPEN_REASON_CLAUSES: Partial<Record<NotificationReopenReason, string>> =
   correcting_handling_status: 'Its handling status was wrong.',
   provider_reply_deleted: 'The published reply was removed from Google.',
   provider_reply_diverged: 'The reply on Google is no longer the one published.',
+  // The reply on Google answered the review before the guest changed it.
+  material_revision_changed: 'The guest changed their review after it was handled.',
 }
 
 const renderInboxReopened = (p: NotificationPayload): RenderedNotification => ({

@@ -515,6 +515,9 @@ const inboxHandlingCycleReopenedSchema = handlingCycleFactScopeSchema
       'other',
       'provider_reply_deleted',
       'provider_reply_diverged',
+      // A guest edit of an answered Review: the old reply does not answer
+      // the new revision, so the closed item is open again.
+      'material_revision_changed',
     ]),
     // Set when a bulk reopen owns the notice through its completion fact.
     // Optional: facts recorded before bulk reopens were marked lack it.

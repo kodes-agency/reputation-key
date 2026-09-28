@@ -117,7 +117,9 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
       ['review.updated'],
       ['handling_cycle'],
     ),
-    // A revision the item was created with is covered by review.created.
+    // Only a revision that superseded an OPEN cycle arrives as `opened`; one
+    // that lands on a closed cycle is a reopen. A revision the item was
+    // created with is covered by review.created.
     eventCondition: 'openReason === material_revision_changed && !openedWithItem',
   },
   {
@@ -127,6 +129,7 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
       ['inbox.reopened'],
       ['handling_cycle'],
     ),
+    // Includes a guest edit of an answered Review (material_revision_changed).
     // A bulk reopen's completion fact notifies for every item it stamped.
     eventCondition: 'bulkId is absent',
   },
