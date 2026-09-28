@@ -800,12 +800,13 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     },
   }),
   // Queued email that is not going out. The cry-wolf guard is the point:
-  // outbound email is capability-dark today, so a pending backlog is the
-  // EXPECTED state and must stay silent. It fires only when email is
-  // globally enabled (so the backlog is a real fault) or when the delivery
-  // path already touched a row and left it unsent — a retry past due or a
-  // quiet-hours hold past its end — which is a fault regardless of the
-  // global flag, and is how a per-org-allowlisted tenant's breakage pages.
+  // rows queue while a scope is dark, so with only some Organizations
+  // admitted a newly admitted one's untouched backlog is EXPECTED and must
+  // stay silent. It fires on untouched rows only when email is open to every
+  // Organization (global, or BETA_ALLOWLIST_ORGS=*), where no scope was ever
+  // dark; and on rows the delivery path already touched and left unsent — a
+  // retry past due or a quiet-hours hold past its end — whatever the posture,
+  // which is how a tenant admitted by name pages.
   define({
     name: 'notification.email-stalled',
     severity: 'P2',
@@ -815,17 +816,17 @@ export const ALERT_DEFINITIONS: readonly AlertDefinition[] = [
     blindedBy: ['health.notificationEmail'],
     read: (snapshot) => {
       const n = snapshot.notifications
-      // Globally dark, an untouched row is expected backlog: only the rows
-      // the delivery path touched (a retry past due, a hold past its end)
-      // and how long they have waited are the fault.
+      // Not open to everyone, an untouched row may be expected backlog: only
+      // the rows the delivery path touched (a retry past due, a hold past its
+      // end) and how long they have waited are the fault.
       const [count, ageMs] = n.emailDeliveryEnabled
         ? [n.pendingOverdueCount, n.oldestPendingOverdueAgeMs]
         : [n.attemptedStuckCount, n.oldestAttemptedStuckAgeMs]
       if (count <= 0) return null
       if (ageMs == null || ageMs <= NOTIFICATION_EMAIL_STALLED_ALERT_MS) return null
       const cause = n.emailDeliveryEnabled
-        ? 'email delivery is enabled'
-        : `email delivery is globally dark but ${count} row(s) were already attempted or held`
+        ? 'email delivery is open to every Organization'
+        : `${count} row(s) were already attempted or held in a scope that may send`
       return {
         value: ageMs,
         detail: `${count} queued notification email(s) overdue, oldest by ${ageMs}ms (> ${NOTIFICATION_EMAIL_STALLED_ALERT_MS}ms) — ${cause}`,

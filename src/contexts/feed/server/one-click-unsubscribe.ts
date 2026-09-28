@@ -1,4 +1,5 @@
 import type { LoggerPort } from '#/shared/domain/logger.port'
+import { captureObservabilityException } from '#/shared/observability/telemetry'
 import { trace } from '#/shared/observability/trace'
 import {
   oneClickUnsubscribeKeyringProblem,
@@ -186,6 +187,9 @@ async function applyOneClickRequest(
     return 'accepted'
   } catch (err) {
     logger.error({ err }, 'One-click unsubscribe preference write failed')
+    // Answered, not thrown, so nothing upstream reports it — and an
+    // unsubscribe that silently fails is a compliance failure, not a retry.
+    captureObservabilityException(err, { source: 'nitro' })
     return 'failed'
   }
 }

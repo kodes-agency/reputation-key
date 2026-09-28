@@ -112,7 +112,7 @@ describe('outbox relay (BQC-3.7)', () => {
     }
   })
 
-  it('publishes the events a manager is watching to the front of the dispatch queue', async () => {
+  it('publishes the switch a manager is watching, not its replay, to the front of the queue', async () => {
     const events = [
       { ...makeEvent('evt-ai'), eventType: 'identity.merchant_ai.changed' },
       {
@@ -129,7 +129,7 @@ describe('outbox relay (BQC-3.7)', () => {
 
     expect(added.map((call) => [call.name, call.opts.lifo])).toEqual([
       ['identity.merchant_ai.changed', true],
-      ['ai.review_analysis.backfill_requested', true],
+      ['ai.review_analysis.backfill_requested', undefined],
       ['review.created', undefined],
     ])
   })

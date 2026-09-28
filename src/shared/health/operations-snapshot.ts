@@ -47,7 +47,7 @@ import {
   getTenantCacheStats,
   type TenantCacheStats,
 } from '#/shared/auth/tenant-cache-stats'
-import { checkGlobalCapability } from '#/shared/auth/beta-capabilities'
+import { isCapabilityOpenToEveryOrganization } from '#/shared/auth/beta-capabilities'
 import { getEnv, getReleaseSha } from '#/shared/config/env'
 import type { JobRuntimeReport } from '#/shared/jobs/runtime-observations'
 import { getLogger } from '#/shared/observability/logger'
@@ -502,14 +502,15 @@ export function createOperationsSnapshot(
     // Readiness fact, not a DB metric: an empty GBP_PUBSUB_TOPIC means Google
     // push is dark and new reviews only arrive on the discovery sweep.
     gbpPushEnabled: getEnv().GBP_PUBSUB_TOPIC.length > 0,
-    // Same kind of readiness fact: while `notification.send_email` is not
-    // globally enabled, the email path is capability-dark by design and a
-    // pending backlog is expected — the alert must not cry wolf about it.
-    // A per-ORG allowlist grant is not globally enumerable, so this flag
-    // cannot see it; notifications.attemptedStuckCount is what covers that
-    // case (a row the delivery path actually touched and left unsent), judged
-    // per scope with the scoped decision.
-    emailDeliveryEnabled: checkGlobalCapability('notification.send_email').allowed,
+    // Same kind of readiness fact: while `notification.send_email` is open to
+    // only some Organizations, rows queued while a scope was dark are an
+    // expected backlog — the alert must not cry wolf about it. A per-ORG
+    // grant is not globally enumerable, so this flag cannot see it;
+    // notifications.attemptedStuckCount covers that case (a row the delivery
+    // path actually touched and left unsent), judged per scope. Not the
+    // global check: that is false under BETA_ALLOWLIST_ORGS=*, where email is
+    // live for everyone and an untouched overdue backlog is a real fault.
+    emailDeliveryEnabled: isCapabilityOpenToEveryOrganization('notification.send_email'),
     isEmailDeliveryAllowed: deps.isEmailDeliveryAllowed,
     // Forwarded, not computed here: the notification-gap query is owned by the
     // notification context.

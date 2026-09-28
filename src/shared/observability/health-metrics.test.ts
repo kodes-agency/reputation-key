@@ -265,18 +265,13 @@ describe('health checker content safety (BQC-4.3)', () => {
           text: 'SECRET_REPLY_TEXT',
         },
       ],
-      [
-        {
-          overdue: 4,
-          oldest_overdue_age_ms: 3_600_000,
-          subject: 'SECRET_REVIEW_TEXT',
-          recipient: 'SECRET_REVIEWER_NAME',
-        },
-      ],
+      [{ subject: 'SECRET_REVIEW_TEXT', recipient: 'SECRET_REVIEWER_NAME' }],
       [
         {
           organizationId: 'org-1',
           propertyId: 'property-1',
+          overdue: 4,
+          oldest_overdue_age_ms: 3_600_000,
           attempted: 1,
           oldest_attempted_age_ms: null,
           subject: 'SECRET_REVIEW_TEXT',
@@ -453,11 +448,13 @@ describe('health checker notification delivery metrics', () => {
       REVIEW_ROW,
       SYNC_ROW,
       PUBLICATION_ROW,
-      [{ overdue: 9, oldest_overdue_age_ms: 7_200_001.6 }],
+      [{}],
       [
         {
           organizationId: 'org-1',
           propertyId: 'property-1',
+          overdue: 9,
+          oldest_overdue_age_ms: 7_200_001.6,
           attempted: 2,
           oldest_attempted_age_ms: 3_600_000.4,
         },
@@ -472,29 +469,35 @@ describe('health checker notification delivery metrics', () => {
     expect(snapshot.notifications.oldestAttemptedStuckAgeMs).toBe(3_600_000)
   })
 
-  it('counts touched email rows only in scopes where email may be sent now', async () => {
+  it('counts overdue and touched email rows only in scopes where email may be sent now', async () => {
     const db = fakeDb([
       REVIEW_ROW,
       SYNC_ROW,
       PUBLICATION_ROW,
-      [{ overdue: 7, oldest_overdue_age_ms: 36_000_000 }],
-      // The touched overdue rows, one reading per delivery scope.
+      [{}],
+      // The overdue rows and their touched subset, one reading per scope.
       [
         {
           organizationId: 'org-pilot',
           propertyId: 'property-1',
+          overdue: 3,
+          oldest_overdue_age_ms: 9_500_000,
           attempted: 2,
           oldest_attempted_age_ms: 9_000_000.4,
         },
         {
           organizationId: 'org-pilot',
           propertyId: null,
+          overdue: 1,
+          oldest_overdue_age_ms: 7_300_000,
           attempted: 1,
           oldest_attempted_age_ms: 7_300_000,
         },
         {
           organizationId: 'org-dark',
           propertyId: 'property-2',
+          overdue: 5,
+          oldest_overdue_age_ms: 36_000_000,
           attempted: 4,
           oldest_attempted_age_ms: 36_000_000,
         },
@@ -503,7 +506,7 @@ describe('health checker notification delivery metrics', () => {
     const asked: Array<{ organizationId: string; propertyId: string | null }> = []
 
     // A scope that can no longer send (de-allowlisted, suspended, killed)
-    // leaves its held and retrying rows unsent by design: not a stall.
+    // leaves its queued, held and retrying rows unsent by design: not late mail.
     const snapshot = await createHealthChecker(db, undefined, {
       isEmailDeliveryAllowed: (scope) => {
         asked.push(scope)
@@ -513,7 +516,8 @@ describe('health checker notification delivery metrics', () => {
 
     expect(snapshot.notifications.attemptedStuckCount).toBe(3)
     expect(snapshot.notifications.oldestAttemptedStuckAgeMs).toBe(9_000_000)
-    expect(snapshot.notifications.pendingOverdueCount).toBe(7)
+    expect(snapshot.notifications.pendingOverdueCount).toBe(4)
+    expect(snapshot.notifications.oldestPendingOverdueAgeMs).toBe(9_500_000)
     expect(asked).toContainEqual({ organizationId: 'org-dark', propertyId: 'property-2' })
     expect(asked).toContainEqual({ organizationId: 'org-pilot', propertyId: null })
   })

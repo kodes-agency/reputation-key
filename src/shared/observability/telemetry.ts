@@ -99,6 +99,7 @@ export interface ErrorCaptureContext {
     | 'bullmq-worker'
     | 'bullmq-job'
     | 'alert-dispatcher'
+    | 'email-provider'
   readonly trigger?:
     | 'SIGTERM'
     | 'SIGINT'
@@ -108,6 +109,12 @@ export interface ErrorCaptureContext {
     | 'shutdown'
   readonly queue?: string
   readonly jobName?: string
+  /**
+   * A dispatched alert's content-free identity. The exception message is
+   * redacted in transit, so without it every alert reads as the same
+   * "Error: [REDACTED]" and groups into one issue.
+   */
+  readonly alert?: Readonly<{ name: string; severity: 'P0' | 'P1' | 'P2' | 'P3' }>
 }
 
 export interface FeedbackCaptureParams {
@@ -293,12 +300,16 @@ export function createErrorMonitor(deps: {
       try {
         const queue = machineTag(context.queue)
         const jobName = machineTag(context.jobName)
+        const alert = machineTag(context.alert?.name)
         activeSdk.captureException(nonErrorFailure(error), {
           tags: {
             runtime_source: context.source,
             ...(context.trigger ? { termination_trigger: context.trigger } : {}),
             ...(queue ? { queue } : {}),
             ...(jobName ? { job_name: jobName } : {}),
+            ...(alert && context.alert
+              ? { alert, alert_severity: context.alert.severity.toLowerCase() }
+              : {}),
           },
         })
       } catch (err) {

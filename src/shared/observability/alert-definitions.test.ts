@@ -818,11 +818,11 @@ describe('notification.email-stalled', () => {
       value: NOTIFICATION_EMAIL_STALLED_ALERT_MS + 1,
       threshold: NOTIFICATION_EMAIL_STALLED_ALERT_MS,
     })
-    expect(event!.detail).toContain('email delivery is enabled')
+    expect(event!.detail).toContain('email delivery is open to every Organization')
   })
 
-  // The cry-wolf guard. Outbound email is capability-dark today, so the queue
-  // legitimately fills with pending rows nothing will ever send. If this
+  // The cry-wolf guard. With email open to only some Organizations, the queue
+  // legitimately holds pending rows a dark scope will never send. If this
   // alert fired on that, it would be firing permanently from day one and
   // would be muted before it ever caught a real fault.
   it('stays silent when outbound email is intentionally capability-dark', () => {

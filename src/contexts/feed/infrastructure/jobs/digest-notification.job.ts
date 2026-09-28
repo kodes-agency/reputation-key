@@ -34,6 +34,7 @@ import {
 } from '#/shared/domain/ids'
 import { absoluteUrl } from '#/shared/email/urls'
 import { maskEmail } from '#/shared/observability/pii'
+import { captureObservabilityException } from '#/shared/observability/telemetry'
 import type {
   FrozenDigestRequest,
   NotificationDigestBatch,
@@ -636,8 +637,24 @@ export const createDigestNotificationJobHandler = (deps: DigestDeps) => {
       try {
         await sendUserDigest(deps, recipientScope)
       } catch (error) {
-        // One bad recipient must not abort the sweep for everyone else.
-        deps.logger.error({ error }, 'Daily digest failed for recipient')
+        // One bad recipient must not abort the sweep for everyone else — so
+        // the job succeeds, and this catch is the only place the failure can
+        // surface. `error` alone serializes to its class; the reason is the
+        // quarantine envelope's rule, name plus first message line.
+        deps.logger.error(
+          {
+            error,
+            failureReason: `${error instanceof Error ? error.name : 'unknown'}: ${
+              error instanceof Error ? (error.message.split('\n')[0] ?? '') : ''
+            }`.slice(0, 200),
+          },
+          'Daily digest failed for recipient',
+        )
+        captureObservabilityException(error, {
+          source: 'bullmq-job',
+          queue: 'background',
+          jobName: DIGEST_JOB_NAME,
+        })
       }
     }
   }

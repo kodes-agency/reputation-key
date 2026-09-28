@@ -1,3 +1,5 @@
+import type { JobsOptions } from 'bullmq'
+
 /**
  * Domain-event dispatch retry policy.
  *
@@ -19,12 +21,34 @@ export const DISPATCH_JOB_OPTIONS = {
  * Event types a manager is watching, published to the front of the dispatch
  * queue (BullMQ `lifo`). A Google import publishes about four events per
  * review, so switching AI on during an import used to wait behind that burst
- * twice — for the enrollment, then for its replay — about 70 seconds for 96
- * reviews before analysis began. Jumping the queue is safe: consumers are
- * idempotent and fenced, and 20 concurrent dispatches never kept events in
- * order anyway.
+ * before analysis began. Jumping the queue is safe: consumers are idempotent
+ * and fenced, and concurrent dispatches never kept events in order anyway.
+ *
+ * One fact per switch, never a family that fans out. The Review Analysis
+ * replay (`ai.review_analysis.backfill_requested`) was expedited too, but it
+ * is one fact per eligible review — up to an import's 10,000 — and at the
+ * front it held every notification fact already waiting behind all of them:
+ * a new review's notice, a failed publish, an escalation. It takes its place
+ * in line; with dispatch no longer rate-limited, an import's burst ahead of
+ * it drains in seconds.
  */
 export const EXPEDITED_DISPATCH_EVENT_TYPES: ReadonlySet<string> = new Set([
   'identity.merchant_ai.changed',
-  'ai.review_analysis.backfill_requested',
 ])
+
+/**
+ * How every dispatch of an outbox fact is added: the fact's id as the job id,
+ * so a second add of a job Redis still holds is a no-op; the retry policy;
+ * the expedite rule; bounded history.
+ */
+export function dispatchJobAddOptions(
+  event: Readonly<{ id: string; eventType: string }>,
+): JobsOptions {
+  return {
+    jobId: event.id,
+    ...DISPATCH_JOB_OPTIONS,
+    ...(EXPEDITED_DISPATCH_EVENT_TYPES.has(event.eventType) ? { lifo: true } : {}),
+    removeOnComplete: { count: 1000 },
+    removeOnFail: { count: 500 },
+  }
+}

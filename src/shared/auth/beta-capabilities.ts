@@ -78,6 +78,11 @@ export type CapabilityPolicyStore = Readonly<{
   /** Environment stop control; authoritative over tenant allowlists. */
   isCapabilityKilled?: (cap: Capability) => boolean
   isOrgAllowlisted: (orgId: string, cap: Capability) => boolean
+  /**
+   * Every Organization is allowlisted for `cap` and it is not killed — the
+   * `*` allowlist. Absent = never (a store that cannot say, says no).
+   */
+  admitsEveryOrganization?: (cap: Capability) => boolean
   isPropertyAllowlisted: (propertyId: string, cap: Capability) => boolean
   isOrgSuspended: (orgId: string) => boolean
   isPropertySuspended: (propertyId: string) => boolean
@@ -196,6 +201,8 @@ export function createEnvCapabilityPolicyStore(
       // Non-core: check the allowlist
       return orgAllowlist.all || orgAllowlist.orgIds.has(orgId)
     },
+    admitsEveryOrganization: (cap) =>
+      orgAllowlist.all && !killAll && !killedCapabilities.has(cap),
     isPropertyAllowlisted: (_propertyId, _cap) => {
       // Property-level allowlisting deferred to future DB-backed implementation
       return true
@@ -503,6 +510,19 @@ export function checkGlobalCapability(capability: Capability): CapabilityDecisio
   }
 
   return { allowed: true, reason: 'allowed', capability }
+}
+
+/**
+ * Whether a capability is live for every Organization here with no tenant to
+ * look up: globally enabled, or admitted through `BETA_ALLOWLIST_ORGS=*` and
+ * not killed. checkGlobalCapability answers only the first, so a `*`
+ * environment — where controlled-beta features really are live — read as
+ * dark to anything built on it. Suspension stays a per-scope decision.
+ */
+export function isCapabilityOpenToEveryOrganization(capability: Capability): boolean {
+  if (checkGlobalCapability(capability).allowed) return true
+  if (BLOCKED_CAPABILITIES.has(capability)) return false
+  return getStore().admitsEveryOrganization?.(capability) === true
 }
 
 /**
