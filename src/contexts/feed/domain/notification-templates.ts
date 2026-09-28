@@ -167,12 +167,19 @@ const renderOrganizationRoleChanged = (): RenderedNotification =>
     'You received this because what your account may do in an organization on Reputation Key changed.',
   )
 
-const renderOrganizationAccessRemoved = (): RenderedNotification =>
-  accountNotice(
-    'Organization access removed',
-    'Your account no longer has access to this organization. If this seems unexpected, contact an account administrator.',
-    'You received this because your access to an organization on Reputation Key ended.',
-  )
+/** A member who left is told they left, not that an administrator acted. */
+const renderOrganizationAccessRemoved = (p: NotificationPayload): RenderedNotification =>
+  p.leftOrganization === true
+    ? accountNotice(
+        'You left the organization',
+        'Your account no longer has access to this organization. To come back, ask an account administrator to invite you again.',
+        'You received this because you left an organization on Reputation Key.',
+      )
+    : accountNotice(
+        'Organization access removed',
+        'Your account no longer has access to this organization. If this seems unexpected, contact an account administrator.',
+        'You received this because your access to an organization on Reputation Key ended.',
+      )
 
 /**
  * LIF-01 program bullet 5. Purge Pending has no timer: support begins the

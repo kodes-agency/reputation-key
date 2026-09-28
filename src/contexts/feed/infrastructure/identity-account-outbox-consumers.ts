@@ -107,6 +107,22 @@ const routeFor = (eventType: string) =>
     (candidate) => candidate.eventType === eventType,
   )
 
+/**
+ * Leaving an Organization records the same removal fact, with the member as
+ * its own actor. Only the fact that they left crosses into the payload — never
+ * the actor — so the notice and /unavailable can stop telling them an
+ * administrator removed them. A row recorded before removedBy was kept reads
+ * as a removal, the old copy.
+ */
+const leftOnTheirOwn = (event: ConsumerEvent): boolean => {
+  if (event.eventType !== 'identity.member.removed') return false
+  const { userId: member, removedBy } = event.payload as Readonly<{
+    userId?: unknown
+    removedBy?: unknown
+  }>
+  return typeof removedBy === 'string' && removedBy === member
+}
+
 export async function handleIdentityAccountNotificationEvent(
   deps: IdentityAccountNotificationConsumerDeps,
   event: ConsumerEvent,
@@ -125,6 +141,7 @@ export async function handleIdentityAccountNotificationEvent(
     payload: event.payload,
   })
   const recipientId = unbrand(recipient)
+  const payload = leftOnTheirOwn(event) ? { leftOrganization: true } : undefined
 
   await deps.queue.add(
     INSERT_NOTIFICATION_JOB_NAME,
@@ -136,6 +153,7 @@ export async function handleIdentityAccountNotificationEvent(
       resourceType: 'organization',
       resourceId: event.organizationId,
       eventId: event.eventId,
+      ...(payload ? { payload } : {}),
       audience: {
         kind: 'affected_organization_user',
         eventId: event.eventId,

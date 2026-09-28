@@ -80,6 +80,12 @@ export type NotificationPayload = Readonly<{
    */
   hasModerationReason?: boolean
   /**
+   * The member left the Organization themselves
+   * (account.organization_access_removed only). Absent means an administrator
+   * removed them, or the row predates the fact saying so.
+   */
+  leftOrganization?: boolean
+  /**
    * How a publication ended without a confirmed live reply
    * (reply.publish_failed only). Absent on rows recorded before facts said.
    */
@@ -357,6 +363,7 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
   set('actorRole', takeMember(raw.actorRole, ACTOR_ROLES))
   set('moderationReason', takeText(raw.moderationReason, MAX_REASON_LENGTH))
   set('hasModerationReason', takeFlag(raw.hasModerationReason))
+  set('leftOrganization', takeFlag(raw.leftOrganization))
   set(
     'publishOutcome',
     takeMember<NotificationPublishOutcome>(raw.publishOutcome, PUBLISH_OUTCOMES),

@@ -470,7 +470,8 @@ export const updateNotificationUserSettingsFn = createServerFn({ method: 'POST' 
  * longer open the Organization the notice lives in.
  *
  * It answers `null` for an account that was never removed (someone waiting on
- * a first invitation), and an instant for one that was. Nothing else crosses:
+ * a first invitation), and an instant for one that was, with whether they left
+ * on their own. Nothing else crosses:
  * a removed member must not learn more about a workspace by being removed
  * from it.
  */
@@ -482,7 +483,9 @@ export const getAccountAccessRemovalFn = createServerFn({ method: 'GET' }).handl
         const removal = await getContainer().feedPublicApi.readAccountAccessRemoval(
           userId(user.id),
         )
-        return removal === null ? null : { removedAt: removal.removedAt.toISOString() }
+        return removal === null
+          ? null
+          : { removedAt: removal.removedAt.toISOString(), left: removal.left }
       } catch (error) {
         throw catchUntagged(error)
       }

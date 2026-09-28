@@ -36,6 +36,7 @@ async function seedNotice(
     type: string
     category: string
     createdAt: Date
+    payload?: Readonly<Record<string, unknown>>
   }>,
 ): Promise<void> {
   await getPool().query(
@@ -44,7 +45,7 @@ async function seedNotice(
        status, resource_type, resource_id, event_id, title, body, payload,
        created_at, updated_at
      ) VALUES ($1::uuid, $2, $3, NULL, $4, $5, 'normal', 'unread', 'organization',
-       $3, $6, 'Organization access removed', NULL, '{}'::jsonb, $7, $7)`,
+       $3, $6, 'Organization access removed', NULL, $8::jsonb, $7, $7)`,
     [
       input.id,
       input.user,
@@ -53,6 +54,7 @@ async function seedNotice(
       input.category,
       input.id,
       input.createdAt.toISOString(),
+      JSON.stringify(input.payload ?? {}),
     ],
   )
 }
@@ -78,10 +80,27 @@ describe('account access removal read', () => {
 
     await expect(
       createAccountAccessRemovalReader(db()).findLatestForUser(REMOVED),
-    ).resolves.toEqual({ removedAt: LATER })
+    ).resolves.toEqual({ removedAt: LATER, left: false })
   })
 
-  it('tells the caller nothing about the workspace beyond when it happened', async () => {
+  // Leaving is recorded as a removal too; /unavailable must be able to say so.
+  it('says when the caller left rather than was removed', async () => {
+    await seedNotice({
+      id: 'f3a20000-0000-4000-8000-000000000015',
+      user: REMOVED as string,
+      organization: ORG as string,
+      type: 'account.organization_access_removed',
+      category: 'mandatory',
+      createdAt: LATER,
+      payload: { leftOrganization: true },
+    })
+
+    await expect(
+      createAccountAccessRemovalReader(db()).findLatestForUser(REMOVED),
+    ).resolves.toEqual({ removedAt: LATER, left: true })
+  })
+
+  it('tells the caller nothing about the workspace beyond when and whether they left', async () => {
     await seedNotice({
       id: 'f3a20000-0000-4000-8000-000000000012',
       user: REMOVED as string,
@@ -94,7 +113,7 @@ describe('account access removal read', () => {
     const removal =
       await createAccountAccessRemovalReader(db()).findLatestForUser(REMOVED)
 
-    expect(Object.keys(removal ?? {})).toEqual(['removedAt'])
+    expect(Object.keys(removal ?? {})).toEqual(['removedAt', 'left'])
   })
 
   it('never answers with somebody else’s removal, or with another kind of notice', async () => {
