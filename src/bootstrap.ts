@@ -617,13 +617,18 @@ async function registerNotificationJobs(
   // from env inside a job.
   const notifBaseUrl = runtime.notification.appBaseUrl
   const unsubscribeKeys = runtime.notification.unsubscribeHmacKeys
-  if (isCapabilityJobEnabled('notification.send_email') && !unsubscribeKeys) {
-    throw new Error(
-      '[CONFIG] notification.send_email requires NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS',
-    )
-  }
-  const { activeOneClickUnsubscribeKeyVersion, oneClickUnsubscribeUrl } =
-    await import('#/contexts/feed/application/one-click-unsubscribe-token')
+  const {
+    activeOneClickUnsubscribeKeyVersion,
+    oneClickUnsubscribeUrl,
+    unsubscribeKeysConfigError,
+  } = await import('#/contexts/feed/application/one-click-unsubscribe-token')
+  // Parsed here, not first at send time: a malformed keyring otherwise boots
+  // and then fails every optional email while composing its unsubscribe link.
+  const unsubscribeKeysError = unsubscribeKeysConfigError({
+    sendEmailEnabled: isCapabilityJobEnabled('notification.send_email'),
+    rawKeys: unsubscribeKeys,
+  })
+  if (unsubscribeKeysError !== null) throw new Error(unsubscribeKeysError)
   const notificationUnsubscribeUrl = (
     target: Parameters<typeof oneClickUnsubscribeUrl>[2],
     keyVersion?: string,
