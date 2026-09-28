@@ -1,6 +1,9 @@
-import { describe, expect, it } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { describe, expect, it, vi } from 'vitest'
 import { emailCorrelationId, providerEventCorrelationId } from './delivery-correlation'
+import {
+  createImmediateEmailEnqueue,
+  createQuietHoursRelease,
+} from './jobs/immediate-email-enqueue'
 
 describe('delivery correlation ids', () => {
   it('builds the queue row log identity', () => {
@@ -8,15 +11,21 @@ describe('delivery correlation ids', () => {
     expect(providerEventCorrelationId('msg_2abc')).toBe('resend-event:msg_2abc')
   })
 
-  it('matches the correlationId the job envelopes already stamp', () => {
+  it('is the correlationId every immediate-email job envelope carries', async () => {
     // If these drift, the enqueue log and the delivery log stop joining, which
     // is exactly the invisible-failure problem this pipeline exists to fix.
-    const bootstrap = readFileSync('src/bootstrap.ts', 'utf-8')
-    const build = readFileSync('src/contexts/feed/build.ts', 'utf-8')
-    const envelopeShape = 'notification-email:${'
+    const add = vi.fn(async (_name: string, _data: unknown) => undefined)
+    const target = { notificationEmailId: 'email-1', organizationId: 'org-1' }
 
-    expect(bootstrap).toContain(envelopeShape)
-    expect(build).toContain(envelopeShape)
-    expect(emailCorrelationId('X')).toBe('notification-email:X')
+    await createImmediateEmailEnqueue({ add }, 'notification:urgent-enqueue')(target)
+    await createQuietHoursRelease({ add }, () => new Date(0))(
+      { ...target, propertyId: 'property-1' },
+      new Date(60_000),
+    )
+
+    expect(add.mock.calls.map(([, data]) => data)).toEqual([
+      expect.objectContaining({ correlationId: emailCorrelationId('email-1') }),
+      expect.objectContaining({ correlationId: emailCorrelationId('email-1') }),
+    ])
   })
 })

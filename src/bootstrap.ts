@@ -54,7 +54,6 @@ import {
 import type { Env } from '#/shared/config/env'
 import { writeWorkerHeartbeat } from '#/shared/health/worker-heartbeat'
 import { createScheduledScopeAuthorizer } from '#/shared/jobs/delayed-execution-gate'
-import { jobEnqueueOptions } from '#/shared/jobs/job-policy'
 import {
   createGeneratePropertyTrendJobHandler,
   GENERATE_PROPERTY_TREND_JOB_NAME,
@@ -662,16 +661,12 @@ async function registerNotificationJobs(
   const authorizeUrgentNotification = createScheduledScopeAuthorizer(
     'system:notification.email_urgent',
   )
-  const { createJobExecutionEnvelope } =
-    await import('#/shared/jobs/delayed-execution-gate')
   // The insert handler must be able to dispatch the immediate email itself:
   // the queue row alone is inert, so an urgent notification would sit pending
   // until a digest sweep. The capability is org-gated at execution, so
   // enqueuing here is safe even when a tenant has email disabled.
-  const { immediateEmailDispatch: immediateDispatch } =
-    await import('#/contexts/feed/infrastructure/jobs/urgent-email.job')
-  const { jobEnqueueOptions: urgentEnqueueOptions } =
-    await import('#/shared/jobs/job-policy')
+  const { createImmediateEmailEnqueue, createQuietHoursRelease } =
+    await import('#/contexts/feed/infrastructure/jobs/immediate-email-enqueue')
   const insertNotifHandler = createInsertNotificationHandler({
     notificationRepo: container.notificationWorkerRuntime.notificationRepo,
     emailRepo: container.notificationWorkerRuntime.emailRepo,
@@ -684,23 +679,7 @@ async function registerNotificationJobs(
     deliverySettlement: container.notificationDeliverySettlement,
     organizationEmailStop: notificationOrganizationEmailStop,
     enqueueImmediateEmail: container.jobQueue
-      ? async (data) => {
-          const dispatch = immediateDispatch(data.propertyId)
-          await container.jobQueue!.add(
-            dispatch.jobName,
-            {
-              ...data,
-              ...createJobExecutionEnvelope({
-                organizationId: data.organizationId,
-                propertyId: data.propertyId,
-                capability: dispatch.capability,
-                initiator: { kind: 'system', id: 'notification:urgent-enqueue' },
-                correlationId: `notification-email:${data.notificationEmailId}`,
-              }),
-            },
-            { ...urgentEnqueueOptions(dispatch.jobName) },
-          )
-        }
+      ? createImmediateEmailEnqueue(container.jobQueue, 'notification:urgent-enqueue')
       : undefined,
   })
   container.jobRegistry.register(INSERT_NOTIFICATION_JOB_NAME, async (job) => {
@@ -764,6 +743,10 @@ async function registerNotificationJobs(
     isRecipientEligible: container.notificationWorkerRuntime.recipientStanding,
     baseUrl: notifBaseUrl,
     oneClickUnsubscribeUrl: notificationUnsubscribeUrl,
+    // Quiet hours end on the minute; the hourly sweep is only the fallback.
+    scheduleRelease: container.jobQueue
+      ? createQuietHoursRelease(container.jobQueue, container.clock)
+      : undefined,
   })
   const runUrgentEmail = async (job: import('bullmq').Job) => {
     await urgentEmailHandler(
@@ -811,24 +794,9 @@ async function registerNotificationJobs(
     baseUrl: notifBaseUrl,
     activeOneClickUnsubscribeKeyVersion: notificationUnsubscribeKeyVersion,
     oneClickUnsubscribeUrl: notificationUnsubscribeUrl,
-    enqueueImmediate: async (data) => {
-      if (!container.jobQueue) return
-      const dispatch = immediateDispatch(data.propertyId)
-      await container.jobQueue.add(
-        dispatch.jobName,
-        {
-          notificationEmailId: data.notificationEmailId,
-          ...createJobExecutionEnvelope({
-            organizationId: data.organizationId,
-            propertyId: data.propertyId,
-            capability: dispatch.capability,
-            initiator: { kind: 'system', id: 'notification:delivery-sweep' },
-            correlationId: `notification-email:${data.notificationEmailId}`,
-          }),
-        },
-        jobEnqueueOptions(dispatch.jobName),
-      )
-    },
+    enqueueImmediate: container.jobQueue
+      ? createImmediateEmailEnqueue(container.jobQueue, 'notification:delivery-sweep')
+      : async () => {},
   })
   registerCapabilityGatedJob(DIGEST_JOB_NAME, 'notification.send_email', async (job) => {
     await digestHandler(job as import('bullmq').Job<void>)

@@ -86,9 +86,8 @@ import {
 } from './infrastructure/jobs/reconcile-missing-notifications.job'
 import { insertNotification } from './application/use-cases/insert-notification'
 import { muteNotificationCategory } from './application/use-cases/mute-notification-category'
-import { immediateEmailDispatch } from './infrastructure/jobs/urgent-email.job'
-import { jobEnqueueOptions, withCatalogueJobOptions } from '#/shared/jobs/job-policy'
-import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
+import { createImmediateEmailEnqueue } from './infrastructure/jobs/immediate-email-enqueue'
+import { withCatalogueJobOptions } from '#/shared/jobs/job-policy'
 import {
   markNotificationRead,
   markNotificationUnread,
@@ -428,29 +427,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   }
 
   const enqueueImmediateEmail = input.queue
-    ? async (data: {
-        notificationEmailId: string
-        organizationId: string
-        propertyId?: string
-      }) => {
-        const dispatch = immediateEmailDispatch(data.propertyId)
-        await input.queue!.add(
-          dispatch.jobName,
-          {
-            ...data,
-            ...createJobExecutionEnvelope({
-              organizationId: data.organizationId,
-              ...(data.propertyId === undefined ? {} : { propertyId: data.propertyId }),
-              capability: dispatch.capability,
-              initiator: { kind: 'system', id: 'notification:urgent-enqueue' },
-              correlationId: `notification-email:${data.notificationEmailId}`,
-            }),
-          },
-          {
-            ...jobEnqueueOptions(dispatch.jobName),
-          },
-        )
-      }
+    ? createImmediateEmailEnqueue(input.queue, 'notification:urgent-enqueue')
     : undefined
 
   const useCases = {
