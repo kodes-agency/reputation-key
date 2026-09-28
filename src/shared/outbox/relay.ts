@@ -126,15 +126,16 @@ export function createOutboxRelay(
     }
   }
 
-  const pollFn = async () => {
-    await trace('outbox.relay.poll', async () => {
+  /** One claim-and-publish round. Returns how many rows it claimed. */
+  const claimAndPublish = (): Promise<number> =>
+    trace('outbox.relay.poll', async () => {
       const events = await repo.claimUnpublished(
         cfg.batchSize,
         cfg.relayId,
         cfg.leaseDurationMs,
       )
 
-      if (events.length === 0) return
+      if (events.length === 0) return 0
 
       logger.info({ count: events.length }, 'Relay claimed outbox events')
 
@@ -149,22 +150,41 @@ export function createOutboxRelay(
         // If publish failed, the lease will expire and another relay
         // (or this one on the next poll) will reclaim it.
       }
+      return events.length
     })
-  }
 
   return {
-    poll: pollFn,
+    poll: async () => {
+      await claimAndPublish()
+    },
 
     start: (intervalMs: number) => {
+      let polling = false
+      let stopped = false
       const timer = setInterval(() => {
-        void pollFn().catch((err: unknown) => {
-          logger.error({ err }, 'Outbox relay poll failed')
-        })
+        // One drain at a time: a tick that lands mid-drain leaves it to finish.
+        if (polling) return
+        polling = true
+        void (async () => {
+          // A full batch means more rows are waiting. Keep publishing until a
+          // poll comes back short, instead of one batch per interval: an
+          // import writes about four events per review, so one batch a second
+          // would cap its burst at 50 events a second.
+          let claimed = cfg.batchSize
+          while (!stopped && claimed === cfg.batchSize) claimed = await claimAndPublish()
+        })()
+          .catch((err: unknown) => {
+            logger.error({ err }, 'Outbox relay poll failed')
+          })
+          .finally(() => {
+            polling = false
+          })
       }, intervalMs)
 
       logger.info({ intervalMs, relayId: cfg.relayId }, 'Outbox relay started')
 
       return () => {
+        stopped = true
         clearInterval(timer)
         logger.info('Outbox relay stopped')
       }

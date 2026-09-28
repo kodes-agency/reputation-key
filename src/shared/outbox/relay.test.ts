@@ -11,7 +11,7 @@
 //   - jobId = event.id dedup is preserved; queue failures leave the row
 //     unpublished so the lease expiry path reclaims it
 
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Queue } from 'bullmq'
 import { EVENT_FAMILY_ROWS } from '#/shared/governance/event-job-catalogue'
 import { EXPEDITED_DISPATCH_EVENT_TYPES } from './dispatch-job-options'
@@ -141,6 +141,87 @@ describe('outbox relay (BQC-3.7)', () => {
         (eventType) => !catalogued.has(eventType),
       ),
     ).toEqual([])
+  })
+
+  describe('scheduled drain', () => {
+    const full = (tag: string) =>
+      Array.from({ length: 50 }, (_, i) => makeEvent(`${tag}-${i}`))
+
+    function sequenceRepo(batches: UnpublishedEvent[][]) {
+      const claimUnpublished = vi.fn(async () => batches.shift() ?? [])
+      const repo = {
+        claimUnpublished,
+        markPublished: vi.fn(async () => {}),
+        renewLease: vi.fn(async (ids: readonly string[]) => ids.length),
+      } as unknown as OutboxRepository
+      return { repo, claimUnpublished }
+    }
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    it('keeps publishing while polls come back full, within one tick', async () => {
+      vi.useFakeTimers()
+      const { repo, claimUnpublished } = sequenceRepo([
+        full('a'),
+        full('b'),
+        [makeEvent('c-0')],
+      ])
+      const { queue, added } = makeQueue()
+      const stop = createOutboxRelay(repo, queue, { relayId: 'relay-test-1' }).start(
+        1_000,
+      )
+
+      // One tick, then half an interval: the next tick has not fired, so every
+      // claim below belongs to the first tick's drain.
+      await vi.advanceTimersByTimeAsync(1_000)
+      await vi.advanceTimersByTimeAsync(500)
+      expect(claimUnpublished).toHaveBeenCalledTimes(3)
+      expect(added).toHaveLength(101)
+      stop()
+    })
+
+    it('leaves a drain in progress to finish instead of starting another', async () => {
+      vi.useFakeTimers()
+      let release: (events: UnpublishedEvent[]) => void = () => {}
+      const claimUnpublished = vi.fn(
+        () =>
+          new Promise<UnpublishedEvent[]>((resolve) => {
+            release = resolve
+          }),
+      )
+      const repo = {
+        claimUnpublished,
+        markPublished: vi.fn(async () => {}),
+        renewLease: vi.fn(async (ids: readonly string[]) => ids.length),
+      } as unknown as OutboxRepository
+      const { queue } = makeQueue()
+      const stop = createOutboxRelay(repo, queue, { relayId: 'relay-test-1' }).start(
+        1_000,
+      )
+
+      await vi.advanceTimersByTimeAsync(3_000)
+      expect(claimUnpublished).toHaveBeenCalledOnce()
+      release([])
+      stop()
+    })
+
+    it('stops draining once the relay is stopped', async () => {
+      vi.useFakeTimers()
+      const { repo, claimUnpublished } = sequenceRepo([full('a'), full('b'), full('c')])
+      const { queue } = makeQueue()
+      let stop: () => void = () => {}
+      ;(repo.markPublished as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+        stop()
+      })
+      stop = createOutboxRelay(repo, queue, { relayId: 'relay-test-1' }).start(1_000)
+
+      await vi.advanceTimersByTimeAsync(1_000)
+      await vi.waitFor(() => expect(claimUnpublished).toHaveBeenCalledOnce())
+      await vi.advanceTimersByTimeAsync(5_000)
+      expect(claimUnpublished).toHaveBeenCalledOnce()
+    })
   })
 
   it('renews the lease for the unprocessed remainder every 10 published events', async () => {
