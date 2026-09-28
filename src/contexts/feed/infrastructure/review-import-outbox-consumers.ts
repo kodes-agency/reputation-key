@@ -221,7 +221,7 @@ async function countUnanswered(
   }
   if (decision === 'skip') {
     deps.logger.warn(
-      { propertyId: fact.propertyId },
+      { settleHorizonMs: REVIEW_IMPORT_SUMMARY_SETTLE_HORIZON_MS },
       'notification payload: import projections never settled, degrading copy',
     )
     return null
