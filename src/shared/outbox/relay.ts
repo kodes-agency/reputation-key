@@ -31,7 +31,10 @@ import {
   type UnpublishedEvent,
 } from './infrastructure/outbox-repository'
 import { buildConsumerEvent } from './envelope'
-import { DISPATCH_JOB_OPTIONS } from './dispatch-job-options'
+import {
+  DISPATCH_JOB_OPTIONS,
+  EXPEDITED_DISPATCH_EVENT_TYPES,
+} from './dispatch-job-options'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
@@ -89,6 +92,7 @@ export function createOutboxRelay(
       await queue.add(event.eventType, envelope, {
         jobId: event.id,
         ...DISPATCH_JOB_OPTIONS,
+        ...(EXPEDITED_DISPATCH_EVENT_TYPES.has(event.eventType) ? { lifo: true } : {}),
         removeOnComplete: { count: 1000 },
         removeOnFail: { count: 500 },
       })
