@@ -1,3 +1,5 @@
+import type { JobsOptions } from 'bullmq'
+
 /**
  * Domain-event dispatch retry policy.
  *
@@ -33,3 +35,20 @@ export const DISPATCH_JOB_OPTIONS = {
 export const EXPEDITED_DISPATCH_EVENT_TYPES: ReadonlySet<string> = new Set([
   'identity.merchant_ai.changed',
 ])
+
+/**
+ * How every dispatch of an outbox fact is added: the fact's id as the job id,
+ * so a second add of a job Redis still holds is a no-op; the retry policy;
+ * the expedite rule; bounded history.
+ */
+export function dispatchJobAddOptions(
+  event: Readonly<{ id: string; eventType: string }>,
+): JobsOptions {
+  return {
+    jobId: event.id,
+    ...DISPATCH_JOB_OPTIONS,
+    ...(EXPEDITED_DISPATCH_EVENT_TYPES.has(event.eventType) ? { lifo: true } : {}),
+    removeOnComplete: { count: 1000 },
+    removeOnFail: { count: 500 },
+  }
+}

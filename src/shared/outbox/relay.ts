@@ -31,10 +31,7 @@ import {
   type UnpublishedEvent,
 } from './infrastructure/outbox-repository'
 import { buildConsumerEvent } from './envelope'
-import {
-  DISPATCH_JOB_OPTIONS,
-  EXPEDITED_DISPATCH_EVENT_TYPES,
-} from './dispatch-job-options'
+import { dispatchJobAddOptions } from './dispatch-job-options'
 import { getLogger } from '#/shared/observability/logger'
 import { trace } from '#/shared/observability/trace'
 
@@ -89,13 +86,7 @@ export function createOutboxRelay(
       // Use the event UUID as the BullMQ job ID for deduplication.
       // If the job already exists (re-publish after a crash), BullMQ
       // returns the existing job — treat as accepted.
-      await queue.add(event.eventType, envelope, {
-        jobId: event.id,
-        ...DISPATCH_JOB_OPTIONS,
-        ...(EXPEDITED_DISPATCH_EVENT_TYPES.has(event.eventType) ? { lifo: true } : {}),
-        removeOnComplete: { count: 1000 },
-        removeOnFail: { count: 500 },
-      })
+      await queue.add(event.eventType, envelope, dispatchJobAddOptions(event))
 
       return true
     } catch (err) {
