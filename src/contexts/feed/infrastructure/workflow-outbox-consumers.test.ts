@@ -954,11 +954,11 @@ describe('durable workflow notification consumers', () => {
       ],
       [
         'source_changed',
-        'The guest changed their review, so the approved text was never sent. Open it to write a reply to the new review.',
+        'The guest changed their review, so RepKey stopped publishing the approved text. Open it to check what Google shows, then reply to the new review.',
       ],
       [
         'provider_truth',
-        'A different reply is already live on Google, so this one was never sent. Open it to check.',
+        'A different reply is live on Google, so this one is not. Open it to check.',
       ],
     ] as const)('says why it was cancelled for cause %s', async (cause, body) => {
       const deps = makeDeps()

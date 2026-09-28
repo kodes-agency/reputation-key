@@ -312,9 +312,12 @@ const renderReplyPublishFailed = (p: NotificationPayload): RenderedNotification 
 }
 
 /**
- * An approved reply that was cancelled before Google saw it. Each cause takes
- * a different next step, so the cause decides the whole sentence: reconnect,
- * nothing to do here, write a new reply, or just look. The title never says
+ * An approved reply whose publication RepKey stopped. Each cause takes a
+ * different next step, so the cause decides the whole sentence: reconnect,
+ * nothing to do here, write a new reply, or just look. A disconnect or a
+ * policy stop only ever cancels a cycle that never went out, so only those
+ * say so; a guest edit or a different live reply can stop one Google may
+ * already hold, so neither claims it was not sent. The title never says
  * "your" — the same notice goes to the approvers who have to act on it.
  */
 const PUBLICATION_CANCELLATION_BODIES = {
@@ -323,9 +326,9 @@ const PUBLICATION_CANCELLATION_BODIES = {
   policy:
     'This property can no longer publish to Google, so it was never sent. The draft is saved.',
   source_changed:
-    'The guest changed their review, so the approved text was never sent. Open it to write a reply to the new review.',
+    'The guest changed their review, so RepKey stopped publishing the approved text. Open it to check what Google shows, then reply to the new review.',
   provider_truth:
-    'A different reply is already live on Google, so this one was never sent. Open it to check.',
+    'A different reply is live on Google, so this one is not. Open it to check.',
 } as const
 
 const renderReplyPublicationCancelled = (
@@ -336,7 +339,7 @@ const renderReplyPublicationCancelled = (
     title: `Reply returned to draft${atProperty(p)}`,
     body:
       cause === undefined
-        ? 'It was never sent to Google. Open it to see where it stands.'
+        ? 'Open it to see where it stands.'
         : PUBLICATION_CANCELLATION_BODIES[cause],
     actionLabel: cause === 'source_changed' ? 'Open review' : 'Open reply',
     summary: factsAt(p, 'review', 'returned to draft'),
