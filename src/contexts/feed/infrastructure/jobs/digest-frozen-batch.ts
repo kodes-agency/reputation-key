@@ -21,6 +21,7 @@ import type { NotificationEmail } from '../../domain/notification-types'
 import {
   authorizedEntries,
   partitionDeliverable,
+  quietHoursEnd,
   type DigestEntryDeps,
   type RecipientContext,
 } from './digest-entry-selection'
@@ -172,6 +173,18 @@ export async function selectFrozenEntries(
   )
   const candidates = await sendableMembers(deps, ctx, batch, members)
   if (candidates === null) return null
+  // Quiet hours hold a frozen batch as it stands. Deferring its members the
+  // way a fresh digest is deferred left the filter below with none of them,
+  // which read as a lost membership and invalidated a batch the provider may
+  // already hold; a same-key retry after the window is always safe.
+  const quietUntil = quietHoursEnd(ctx)
+  if (quietUntil !== null) {
+    deps.logger.info(
+      { batchId: batch.id, until: quietUntil.toISOString(), reason: 'quiet_hours' },
+      'Digest batch retry waits for quiet hours to end',
+    )
+    return null
+  }
 
   const authorized = await authorizedEntries(deps, ctx.rawOrgId, candidates)
   if (
