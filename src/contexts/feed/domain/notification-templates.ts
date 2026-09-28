@@ -837,12 +837,24 @@ const RENDERERS: Record<
 /**
  * How a coalesced row says it repeated, with the verb for what repeated; `#`
  * is the count, the first event included. Types without one say only that it
- * happened again, which is true of all of them.
+ * happened again, which is true of all of them but those marked `null`.
+ *
+ * A `null` type reports where something ended up, and each event moves it on
+ * rather than repeating it: a report accepted and then resolved, an import
+ * that failed and then completed. Its row states only the latest outcome.
  */
-const REPEATED: Partial<Record<NotificationType, string>> = {
+const REPEATED: Partial<Record<NotificationType, string | null>> = {
   'inbox_note.added': '# notes added.',
   'inbox.escalated': 'Escalated # times.',
   'review.updated': 'Updated # times.',
+  'beta_feedback.outcome': null,
+  'property.review_import_finished': null,
+}
+
+const repeatSentence = (type: NotificationType, repeats: number): string => {
+  const copy = REPEATED[type]
+  if (copy === null || repeats <= 1) return ''
+  return (copy ?? 'This happened # times.').replace('#', `${repeats}`)
 }
 
 /**
@@ -861,16 +873,9 @@ export const renderNotification = (
 ): RenderedNotification => {
   const rendered = RENDERERS[type](payload, context)
   const age = waitingAge(payload)
-  const repeats = payload.occurrences ?? 1
   return {
     ...rendered,
-    body:
-      repeats > 1
-        ? sentence(
-            rendered.body,
-            (REPEATED[type] ?? 'This happened # times.').replace('#', `${repeats}`),
-          )
-        : rendered.body,
+    body: sentence(rendered.body, repeatSentence(type, payload.occurrences ?? 1)),
     summary: facts(rendered.summary, age === '' ? '' : `waited ${age}`),
   }
 }
