@@ -230,6 +230,22 @@ describe('which of a settling fact’s types are finished', () => {
     ).resolves.toEqual(['reply.publish_failed'])
   })
 
+  it('asks the Inbox once for every item notice a closed cycle settles', async () => {
+    const lookup = vi.fn(async () => cycle({ status: 'closed' }))
+    const state = createNotificationWorkState({
+      inboxItemLookup: { findHandlingCycleNotificationFacts: lookup },
+    } as never)
+
+    await expect(
+      state.finished({
+        organizationId: ORG,
+        resourceId: ITEM,
+        types: ['review.created', 'feedback.created', 'inbox.reopened'],
+      }),
+    ).resolves.toHaveLength(3)
+    expect(lookup).toHaveBeenCalledTimes(1)
+  })
+
   it('settles a type it cannot check', async () => {
     await expect(
       build().finished({

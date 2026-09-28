@@ -227,9 +227,19 @@ export const createNotificationWorkState = (
 ): NotificationWorkState => ({
   isWaiting: async (subject) => (await check(deps, subject)) ?? true,
   finished: async ({ organizationId, resourceId, types }) => {
-    const answers = await Promise.all(
-      types.map((type) => check(deps, { organizationId, type, resourceId })),
-    )
+    // A closed cycle names six item types that all ask the same question of
+    // the same item: ask each owner once per fact.
+    const asked = new Map<WorkCheck, Promise<NotificationWorkDecision | null>>()
+    const answerFor = (type: NotificationType) => {
+      const ask = WORK_CHECKS[type]
+      if (!ask) return Promise.resolve(null)
+      const known = asked.get(ask)
+      if (known) return known
+      const answer = ask(deps, { organizationId, type, resourceId })
+      asked.set(ask, answer)
+      return answer
+    }
+    const answers = await Promise.all(types.map(answerFor))
     return types.filter((_type, index) => {
       const answer = answers[index]
       return answer === null || answer === false
