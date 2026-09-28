@@ -152,7 +152,7 @@ describe('a settling fact retires the notices that asked for the work', () => {
     })
   })
 
-  it('retires the reopen and the target reminders when the cycle closes', async () => {
+  it('retires the arrival, the reopen and the target reminders when the cycle closes', async () => {
     const deps = makeDeps()
 
     await handleNotificationSettlementEvent(
@@ -162,6 +162,9 @@ describe('a settling fact retires the notices that asked for the work', () => {
 
     expect(deps.notifications.settleUnreadForResource.mock.calls[0]?.[0]).toMatchObject({
       types: [
+        'review.created',
+        'review.updated',
+        'feedback.created',
         'inbox.reopened',
         'inbox.response_target_halfway',
         'inbox.response_target_passed',

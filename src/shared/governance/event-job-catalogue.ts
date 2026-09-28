@@ -241,6 +241,10 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
       'notification.on-review-reply-publication_cancelled',
       NOTIFICATION_WORKFLOW_OUTBOX,
     ),
+    durable(
+      'notification.settle-on-review-reply-publication-cancelled',
+      NOTIFICATION_SETTLEMENT_OUTBOX,
+    ),
   ]),
   ev('review.reply.updated', [durable('activity.recent-activity', ACTIVITY_OUTBOX)]),
 ]

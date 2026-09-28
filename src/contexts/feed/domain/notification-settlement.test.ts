@@ -40,9 +40,18 @@ describe('which notices a settling fact retires', () => {
 
   it('retires every waiting-cycle notice when the Handling Cycle closes', () => {
     expect([...settledNotificationTypes('handling_cycle.closed')].sort()).toEqual([
+      'feedback.created',
       'inbox.reopened',
       'inbox.response_target_halfway',
       'inbox.response_target_passed',
+      'review.created',
+      'review.updated',
+    ])
+  })
+
+  it('retires a failed publication once a cancellation returns the reply to draft', () => {
+    expect(settledNotificationTypes('reply.returned_to_draft')).toEqual([
+      'reply.publish_failed',
     ])
   })
 
@@ -68,6 +77,7 @@ describe('which notices a settling fact retires', () => {
     const facts: ReadonlyArray<SettlingFact> = [
       'reply.decided',
       'reply.published',
+      'reply.returned_to_draft',
       'escalation.resolved',
       'handling_cycle.closed',
       'property.responsibility_restored',

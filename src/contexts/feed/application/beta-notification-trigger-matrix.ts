@@ -305,6 +305,11 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     'reply.publish_failed',
   ]),
   settles(
+    'review.reply.publication_cancelled',
+    'notification.settle-on-review-reply-publication-cancelled',
+    ['reply.publish_failed'],
+  ),
+  settles(
     'inbox.inbox_item.escalation_resolved',
     'notification.settle-on-inbox-escalation-resolved',
     ['inbox.escalated'],
@@ -312,7 +317,14 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
   settles(
     'inbox.handling_cycle.closed',
     'notification.settle-on-inbox-handling-cycle-closed',
-    ['inbox.reopened', 'inbox.response_target_halfway', 'inbox.response_target_passed'],
+    [
+      'review.created',
+      'review.updated',
+      'feedback.created',
+      'inbox.reopened',
+      'inbox.response_target_halfway',
+      'inbox.response_target_passed',
+    ],
   ),
   {
     ...settles(

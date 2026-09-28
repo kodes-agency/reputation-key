@@ -23,6 +23,11 @@ import type { Notification, NotificationType } from './notification-types'
  * or not they saw it in the app first.
  */
 export const ACTIONABLE_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new Set([
+  // An arrival asks for its item to be read and answered ("Open it to read
+  // the review and reply"), so it is waiting work until the item is handled.
+  'review.created',
+  'review.updated',
+  'feedback.created',
   'reply.pending_approval',
   'reply.publish_failed',
   'inbox.escalated',
@@ -41,6 +46,7 @@ export const isActionableNotificationType = (type: NotificationType): boolean =>
 export type SettlingFact =
   | 'reply.decided'
   | 'reply.published'
+  | 'reply.returned_to_draft'
   | 'escalation.resolved'
   | 'handling_cycle.closed'
   | 'property.responsibility_restored'
@@ -55,14 +61,22 @@ export type SettlingFact =
 const SETTLED_BY: Readonly<Record<SettlingFact, ReadonlyArray<NotificationType>>> = {
   'reply.decided': ['reply.pending_approval'],
   'reply.published': ['reply.pending_approval', 'reply.publish_failed'],
+  // A cancelled publication puts the reply back in draft: there is nothing
+  // left to retry, and "Reply returned to draft" says what happened instead.
+  'reply.returned_to_draft': ['reply.publish_failed'],
   'escalation.resolved': ['inbox.escalated'],
-  // A closed cycle is a handled item: the reopen that asked for it and every
-  // Response Target reminder about it are answered. `inbox.bulk_reopened` is
+  // A closed cycle is a handled item: its arrival, the reopen that asked for
+  // it and every Response Target reminder about it are answered — whether it
+  // was replied to, handled privately or withdrawn by the guest.
+  // `inbox.bulk_reopened` is
   // deliberately absent — one grouped notice stands for many items and is
   // filed under the first of them, so closing that one item would retire a
   // notice the rest are still waiting behind. Its own audience already
   // re-counts the items that still stand, at delivery.
   'handling_cycle.closed': [
+    'review.created',
+    'review.updated',
+    'feedback.created',
     'inbox.reopened',
     'inbox.response_target_halfway',
     'inbox.response_target_passed',

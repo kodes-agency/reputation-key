@@ -1,10 +1,10 @@
 // Durable settlement for notices whose work has since been done.
 //
 // Every other notification consumer in Feed announces something. This one
-// retires: when the fact that finishes the work arrives — a reply decided or
-// published, an escalation resolved, a Handling Cycle closed, a responsible
-// manager chosen again — it stamps the still-waiting rows about that resource
-// and cancels the mail queued behind them.
+// retires: when the fact that finishes the work arrives — a reply decided,
+// published or returned to draft, an escalation resolved, a Handling Cycle
+// closed, a responsible manager chosen again — it stamps the still-waiting
+// rows about that resource and cancels the mail queued behind them.
 //
 // It writes through the repositories rather than queueing a job: settling is
 // one bounded update per fact and carries no per-recipient decision, so a
@@ -59,6 +59,12 @@ export const NOTIFICATION_SETTLEMENT_CONSUMERS = [
     eventType: 'review.reply.published',
     consumerName: 'notification.settle-on-review-reply-published',
     fact: 'reply.published',
+    resource: 'inbox_item_by_review',
+  },
+  {
+    eventType: 'review.reply.publication_cancelled',
+    consumerName: 'notification.settle-on-review-reply-publication-cancelled',
+    fact: 'reply.returned_to_draft',
     resource: 'inbox_item_by_review',
   },
   {
@@ -275,6 +281,12 @@ export function registerNotificationSettlementConsumers(
   registerConsumer({
     eventType: 'review.reply.published',
     consumerName: 'notification.settle-on-review-reply-published',
+    module: 'notification.settlement-outbox-consumers',
+    handler,
+  })
+  registerConsumer({
+    eventType: 'review.reply.publication_cancelled',
+    consumerName: 'notification.settle-on-review-reply-publication-cancelled',
     module: 'notification.settlement-outbox-consumers',
     handler,
   })

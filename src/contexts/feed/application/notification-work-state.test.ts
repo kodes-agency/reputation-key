@@ -119,7 +119,13 @@ describe('whether the work a notice asks for still waits', () => {
   })
 
   it('keeps an item notice waiting only while its item is open', async () => {
-    for (const type of ['inbox.reopened', 'inbox.response_target_passed'] as const) {
+    for (const type of [
+      'review.created',
+      'review.updated',
+      'feedback.created',
+      'inbox.reopened',
+      'inbox.response_target_passed',
+    ] as const) {
       await expect(ask(build(), type)).resolves.toBe(true)
       await expect(
         ask(build({ cycle: cycle({ status: 'closed' }) }), type),
