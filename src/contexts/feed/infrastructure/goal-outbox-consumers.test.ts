@@ -15,6 +15,7 @@ import {
   ON_GOAL_MONTHLY_RESULT_REVISED_CONSUMER,
   registerGoalNotificationConsumer,
 } from './goal-outbox-consumers'
+import { withOutboxNotificationDelivery } from './outbox-notification-delivery'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
 let consumerRegistry: ConsumerRegistry = createConsumerRegistry()
@@ -353,7 +354,7 @@ describe('canonical Goal monthly-result notification consumer', () => {
             achieved: true,
           },
         },
-        opts: { jobId: `goal-result-revised-${IDS.result}-r1-${MANAGER}` },
+        opts: { jobId: `${IDS.event}-${MANAGER}` },
       },
     ])
     expect(deps.receipts.insertReceipt).toHaveBeenCalledWith(
@@ -462,8 +463,11 @@ describe('canonical Goal monthly-result notification consumer', () => {
 
   // Under consumer lag an earlier correction and a later one can both be
   // handled after the later one committed, and both still agree with the head.
-  // Keyed by the event, they were two notices about one state of the result.
-  it('converges lagging corrections the head still agrees with on one job per recipient', async () => {
+  // The durable bridge records an enqueue receipt for each event, so each must
+  // own a queued job carrying its delivery: an event whose add converged on
+  // another event's job never settles, and the repair sweep replays it minutes
+  // later as a second notice. r.2 coalescing folds the two into one unread row.
+  it('gives every lagging correction the head agrees with a delivery of its own', async () => {
     const deps = makeDeps()
     const laterEvent = '91000000-0000-4000-8000-000000000009'
     const laterRevision = '91000000-0000-4000-8000-000000000008'
@@ -480,13 +484,29 @@ describe('canonical Goal monthly-result notification consumer', () => {
       periodMonth: '2026-10',
       subject: { kind: 'property', propertyId: IDS.property },
     })
+    // Like BullMQ, an add under an id the queue still holds is a no-op.
+    const held = new Map<string, unknown>()
+    const enqueueReceipts: string[] = []
+    const queue = withOutboxNotificationDelivery(
+      {
+        add: async (_name, data, opts) => {
+          const jobId = (opts as { jobId: string }).jobId
+          if (!held.has(jobId)) held.set(jobId, data)
+        },
+      },
+      { insertReceipt: async (eventId) => void enqueueReceipts.push(eventId) },
+      {
+        eventType: 'goal.monthly_result.revised',
+        consumerName: ON_GOAL_MONTHLY_RESULT_REVISED_CONSUMER,
+      },
+    )
 
     await handleNotificationGoalMonthlyResultRevised(
-      deps,
+      { ...deps, queue },
       revisedEvent({ achieved: false, revision: 1 }),
     )
     await handleNotificationGoalMonthlyResultRevised(
-      deps,
+      { ...deps, queue },
       revisedEvent(
         {
           achieved: false,
@@ -498,10 +518,11 @@ describe('canonical Goal monthly-result notification consumer', () => {
       ),
     )
 
-    expect(deps.jobs.map((job) => job.opts)).toEqual([
-      { jobId: `goal-result-revised-${IDS.result}-r3-${MANAGER}` },
-      { jobId: `goal-result-revised-${IDS.result}-r3-${MANAGER}` },
-    ])
+    const carried = [...held.values()].map(
+      (data) => (data as { delivery: { eventId: string } }).delivery.eventId,
+    )
+    expect(carried.sort()).toEqual([...enqueueReceipts].sort())
+    expect(carried.sort()).toEqual([IDS.event, laterEvent].sort())
   })
 
   it('drops a correction whose outcome a later correction reversed', async () => {

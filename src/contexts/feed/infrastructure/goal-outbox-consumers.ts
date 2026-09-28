@@ -329,11 +329,12 @@ export async function handleNotificationGoalMonthlyResultRevised(
       evaluationState: payload.evaluationState,
       achieved: payload.achieved,
     },
-    // Keyed by the head this notice was judged against, not the event:
-    // corrections handled late, after a later one committed, all describe
-    // that head, so they converge on one notice per recipient.
-    jobId: (recipient) =>
-      `goal-result-revised-${payload.monthlyResultId}-r${facts.revision}-${unbrand(recipient)}`,
+    // Keyed by the event, like every durable route. The delivery bridge
+    // records an enqueue receipt per event, so an event whose add converged
+    // on another event's job would never settle and the repair sweep would
+    // replay it minutes later. Late corrections that still describe the head
+    // meet in the reader's one unread row instead (ADR 0046 r.2).
+    jobId: (recipient) => `${event.eventId}-${unbrand(recipient)}`,
   })
   return settle(deps, event, consumer, 'applied')
 }
