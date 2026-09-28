@@ -13,8 +13,8 @@
 // before a notice is written, before its email leaves, and before a settling
 // fact retires it. The answer comes from the context that owns the work — the
 // Inbox for escalations and Handling Cycles, Review for replies, Portal for
-// Health, Property and Portal for responsibility — never from Feed's own
-// rows. It is freshness, not standing: whether the recipient may still be
+// Health, Property and Portal for responsibility, Identity for the
+// Organization lifecycle — never from Feed's own rows. It is freshness, not standing: whether the recipient may still be
 // told is `notification-recipient-standing.ts`'s question.
 
 import {
@@ -72,6 +72,8 @@ export type NotificationWorkStateDeps = Readonly<{
   inboxItemLookup: Pick<InboxItemLookupPort, 'findHandlingCycleNotificationFacts'>
   replyStates: ReplyWorkStateLookupPort
   portalHealthLookup: Pick<PortalPublicApi, 'findPortalHealthNotificationFacts'>
+  /** The Organization's lifecycle state; null when it has no lifecycle record. */
+  organizationState: (organizationId: OrganizationId) => Promise<string | null>
   responsibleManagers: Pick<
     ResponsibleManagerLookupPort,
     'findForProperty' | 'findForPortal'
@@ -139,6 +141,12 @@ const healthStillNeedsAttention: WorkCheck = async (
   return facts.status !== 'healthy' && isActionablePortalHealthReason(facts.reason)
 }
 
+/** The final deletion warning is true only while the purge is still pending. */
+const purgeStillPending: WorkCheck = async (deps, { organizationId }) => {
+  const state = await deps.organizationState(organizationId)
+  return state === null ? null : state === 'purge_pending'
+}
+
 const propertyStillUnstaffed: WorkCheck = async (deps, { organizationId, resourceId }) =>
   (await deps.responsibleManagers.findForProperty(organizationId, propertyId(resourceId)))
     .length === 0
@@ -162,6 +170,7 @@ const WORK_CHECKS: Readonly<Partial<Record<NotificationType, WorkCheck>>> = {
   'inbox.response_target_halfway': itemStillOpen,
   'inbox.response_target_passed': itemStillOpen,
   'portal.health_attention': healthStillNeedsAttention,
+  'account.organization_purge_pending': purgeStillPending,
   'property.responsibility_needed': propertyStillUnstaffed,
   'portal.responsibility_needed': portalStillUnstaffed,
 }

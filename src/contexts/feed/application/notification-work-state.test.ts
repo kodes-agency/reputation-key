@@ -35,6 +35,7 @@ function build(
     reply: ReplyWorkStatus | null
     managers: ReadonlyArray<string>
     health: Readonly<{ status: string; reason: string }> | null
+    lifecycle: string | null
   }> = {},
 ) {
   const deps = {
@@ -76,6 +77,9 @@ function build(
             },
       ),
     },
+    organizationState: vi.fn(async () =>
+      overrides.lifecycle === undefined ? 'purge_pending' : overrides.lifecycle,
+    ),
     responsibleManagers: {
       findForProperty: vi.fn(async () => (overrides.managers ?? []).map(userId)),
       findForPortal: vi.fn(async () => (overrides.managers ?? []).map(userId)),
@@ -159,6 +163,15 @@ describe('whether the work a notice asks for still waits', () => {
     ).resolves.toBe(false)
     await expect(
       ask(build({ health: null }), 'portal.health_attention', PORTAL),
+    ).resolves.toBe(false)
+  })
+
+  it('stops mailing the final deletion notice once the purge is cancelled', async () => {
+    await expect(ask(build(), 'account.organization_purge_pending', ORG)).resolves.toBe(
+      true,
+    )
+    await expect(
+      ask(build({ lifecycle: 'active' }), 'account.organization_purge_pending', ORG),
     ).resolves.toBe(false)
   })
 

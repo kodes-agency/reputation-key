@@ -4,7 +4,7 @@ import {
   type NotificationType,
 } from '../domain/notification-types'
 import { classifyNotification } from '../domain/notification-delivery-policy'
-import { isActionableNotificationType } from '../domain/notification-settlement'
+import { isSettleableNotificationType } from '../domain/notification-settlement'
 import type { NotificationAudience } from './notification-audience'
 
 export type RegisteredNotificationConsumer = Readonly<{
@@ -353,6 +353,15 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     eventCondition:
       'status === healthy || reason not in actionable automatic Health reasons',
   },
+  {
+    ...settles(
+      'identity.organization_lifecycle.changed',
+      'notification.settle-on-organization-purge-cancelled',
+      ['account.organization_purge_pending'],
+    ),
+    // A purge called off before the irreversible step takes its warning back.
+    eventCondition: 'state === active',
+  },
   settles(
     'integration.google_account.connected',
     'notification.settle-on-google-account-connected',
@@ -418,9 +427,9 @@ const matrixRowViolations = (
       )
       continue
     }
-    // Only a notice that asks for work can be finished by a fact. Settling an
-    // outcome notice would hide news the reader is owed.
-    if (!isActionableNotificationType(type as NotificationType)) {
+    // Only a notice that asks for work can be finished by a fact, or a warning
+    // taken back. Settling an outcome notice would hide news the reader is owed.
+    if (!isSettleableNotificationType(type as NotificationType)) {
       violations.push(
         `notification trigger ${row.eventType} settles ${type}, which asks its reader for nothing`,
       )

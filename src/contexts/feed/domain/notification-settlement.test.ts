@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ACTIONABLE_NOTIFICATION_TYPES,
+  isSettleableNotificationType,
   isStillActionable,
   settledNotificationTypes,
   type SettlingFact,
@@ -104,6 +105,16 @@ describe('which notices a settling fact retires', () => {
     const settled = facts.flatMap((fact) => [...settledNotificationTypes(fact)])
 
     expect(settled.filter((type) => !ACTIONABLE_NOTIFICATION_TYPES.has(type))).toEqual([])
+  })
+
+  it('takes back the final deletion warning, the one warning a later fact retracts', () => {
+    expect(settledNotificationTypes('organization.purge_cancelled')).toEqual([
+      'account.organization_purge_pending',
+    ])
+    expect(isSettleableNotificationType('account.organization_purge_pending')).toBe(true)
+    expect(isSettleableNotificationType('account.organization_access_removed')).toBe(
+      false,
+    )
   })
 
   it('names only real notification types as actionable', () => {

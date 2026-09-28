@@ -4,8 +4,9 @@
 // retires: when the fact that finishes the work arrives — a reply decided,
 // published or returned to draft, an escalation resolved, a Handling Cycle
 // closed, a responsible manager chosen again, a Portal's Health recovered, a
-// Google connection reconnected — it stamps the still-waiting rows about that
-// resource and cancels the mail queued behind them.
+// Google connection reconnected, a purge called off — it stamps the
+// still-waiting rows about that resource and cancels the mail queued behind
+// them.
 //
 // It writes through the repositories rather than queueing a job: settling is
 // one bounded update per fact and carries no per-recipient decision, so a
@@ -32,6 +33,7 @@ import type { InboxItemLookupPort } from '../application/ports/notification-inbo
 import type { NotificationWorkState } from '../application/notification-work-state'
 import { isActionablePortalHealthReason } from '../application/portal-health-notification'
 import {
+  PURGE_CANCELLED_EMAIL_REASON,
   SETTLED_EMAIL_REASON,
   settledNotificationTypes,
   type SettlingFact,
@@ -42,19 +44,25 @@ import {
  * their Inbox item (ADR 0046, merged ADR 0022); a "choose a responsible
  * manager" request against the Property or Portal that has the gap; a Health
  * notice against its Portal; a reconnect request against the Google
- * connection.
+ * connection; the final deletion warning against its Organization.
  */
 type SettledResourceKind =
-  'inbox_item_by_review' | 'inbox_item' | 'property' | 'portal' | 'google_connection'
+  | 'inbox_item_by_review'
+  | 'inbox_item'
+  | 'property'
+  | 'portal'
+  | 'google_connection'
+  | 'organization'
 
 /**
  * The facts that finish work only in some of their shapes. A selection change
  * says what the scope is LEFT with, so only one that leaves somebody
  * responsible closes a gap. A Health change finishes the notice only when the
  * new interval needs nobody: recovered, or a state such as a draft that no
- * manager has to fix.
+ * manager has to fix. A lifecycle change takes the deletion warning back only
+ * when the Organization is active again: the purge was called off.
  */
-type SettlingCondition = 'staffed' | 'health_needs_nobody'
+type SettlingCondition = 'staffed' | 'health_needs_nobody' | 'lifecycle_active'
 
 /** Which settling fact each subscribed event carries, and under what name. */
 export const NOTIFICATION_SETTLEMENT_CONSUMERS = [
@@ -119,6 +127,14 @@ export const NOTIFICATION_SETTLEMENT_CONSUMERS = [
     onlyWhen: 'health_needs_nobody',
   },
   {
+    eventType: 'identity.organization_lifecycle.changed',
+    consumerName: 'notification.settle-on-organization-purge-cancelled',
+    fact: 'organization.purge_cancelled',
+    resource: 'organization',
+    onlyWhen: 'lifecycle_active',
+    emailReason: PURGE_CANCELLED_EMAIL_REASON,
+  },
+  {
     eventType: 'integration.google_account.connected',
     consumerName: 'notification.settle-on-google-account-connected',
     fact: 'google_connection.reconnected',
@@ -137,6 +153,8 @@ export const NOTIFICATION_SETTLEMENT_CONSUMERS = [
     fact: SettlingFact
     resource: SettledResourceKind
     onlyWhen?: SettlingCondition
+    /** Why the queued mail is cancelled, when it is not finished work. */
+    emailReason?: string
   }>
 >
 
@@ -204,6 +222,8 @@ const finishesWork = (
       return (
         payload.status === 'healthy' || !isActionablePortalHealthReason(payload.reason)
       )
+    case 'lifecycle_active':
+      return payload.state === 'active'
   }
 }
 
@@ -231,6 +251,8 @@ async function resolveResource(
       return portalId(field(payload, 'portalId'))
     case 'google_connection':
       return googleConnectionId(field(payload, 'connectionId'))
+    case 'organization':
+      return orgId
   }
 }
 
@@ -274,7 +296,7 @@ export async function handleNotificationSettlementEvent(
     const cancelled = await deps.emails.cancelQueuedForNotifications(
       settled,
       orgId,
-      SETTLED_EMAIL_REASON,
+      'emailReason' in route ? route.emailReason : SETTLED_EMAIL_REASON,
       resolvedAt,
     )
     deps.logger.info(
@@ -355,6 +377,12 @@ export function registerNotificationSettlementConsumers(
   registerConsumer({
     eventType: 'portal.health.changed',
     consumerName: 'notification.settle-on-portal-health-recovered',
+    module: 'notification.settlement-outbox-consumers',
+    handler,
+  })
+  registerConsumer({
+    eventType: 'identity.organization_lifecycle.changed',
+    consumerName: 'notification.settle-on-organization-purge-cancelled',
     module: 'notification.settlement-outbox-consumers',
     handler,
   })

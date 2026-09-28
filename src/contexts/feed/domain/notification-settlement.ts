@@ -46,6 +46,20 @@ export const ACTIONABLE_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new 
 export const isActionableNotificationType = (type: NotificationType): boolean =>
   ACTIONABLE_NOTIFICATION_TYPES.has(type)
 
+/**
+ * Warnings a later fact takes back. The Purge Pending final notice asks for
+ * nothing, and it is mandatory, so reading it never holds its email back; but
+ * once the purge is cancelled "Deletion can start at any time" is simply no
+ * longer true, and it must stop standing in the bell and stop being mailed.
+ */
+export const RETRACTABLE_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new Set([
+  'account.organization_purge_pending',
+])
+
+/** Whether a settling fact may retire this type: work it asked for, or a warning taken back. */
+export const isSettleableNotificationType = (type: NotificationType): boolean =>
+  isActionableNotificationType(type) || RETRACTABLE_NOTIFICATION_TYPES.has(type)
+
 /** The upstream facts that finish the work an actionable notice asked for. */
 export type SettlingFact =
   | 'reply.decided'
@@ -58,6 +72,7 @@ export type SettlingFact =
   | 'google_connection.reconnected'
   | 'google_connection.disconnected'
   | 'portal_health.recovered'
+  | 'organization.purge_cancelled'
 
 /**
  * A rejection settles the approval request as surely as an approval does:
@@ -98,6 +113,7 @@ const SETTLED_BY: Readonly<Record<SettlingFact, ReadonlyArray<NotificationType>>
   // Health that recovered, or moved to a state nobody has to fix (a draft,
   // an archived Property), no longer needs the manager it asked.
   'portal_health.recovered': ['portal.health_attention'],
+  'organization.purge_cancelled': ['account.organization_purge_pending'],
 }
 
 export const settledNotificationTypes = (
@@ -126,15 +142,29 @@ export const isEmailOnlyAnchor = (
  * A notice that reports an outcome always sends. An actionable one sends only
  * while its work is still waiting: unresolved, and neither read nor dismissed
  * by its reader. An email-only anchor counts as unread: its read status is
- * storage, not a reading.
+ * storage, not a reading. A retractable warning sends until it is taken back,
+ * whether or not it was read: it is mandatory mail.
  */
-export const isStillActionable = (notification: ActionableNotificationState): boolean =>
-  !isActionableNotificationType(notification.type) ||
-  (notification.resolvedAt === null &&
-    (notification.status === 'unread' || isEmailOnlyAnchor(notification)))
+export const isStillActionable = (notification: ActionableNotificationState): boolean => {
+  if (RETRACTABLE_NOTIFICATION_TYPES.has(notification.type)) {
+    return notification.resolvedAt === null
+  }
+  return (
+    !isActionableNotificationType(notification.type) ||
+    (notification.resolvedAt === null &&
+      (notification.status === 'unread' || isEmailOnlyAnchor(notification)))
+  )
+}
 
 /** The reason a queued email is cancelled because its work was settled. */
 export const SETTLED_EMAIL_REASON = 'work_settled' as const
+
+/**
+ * The reason the final deletion warning's queued email is cancelled: the
+ * purge it announced was called off. Its own code, so an operator can tell a
+ * withdrawn warning from finished work.
+ */
+export const PURGE_CANCELLED_EMAIL_REASON = 'purge_cancelled' as const
 
 /**
  * The reason a queued email is retired at send time: by then its notice was

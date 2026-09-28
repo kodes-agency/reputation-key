@@ -377,6 +377,10 @@ const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       'notification.on-identity-organization-purge-pending',
       NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
     ),
+    durable(
+      'notification.settle-on-organization-purge-cancelled',
+      NOTIFICATION_SETTLEMENT_OUTBOX,
+    ),
   ]),
 ]
 

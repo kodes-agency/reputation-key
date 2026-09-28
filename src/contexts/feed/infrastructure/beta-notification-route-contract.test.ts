@@ -760,6 +760,7 @@ const SETTLED_RESOURCE: Readonly<Record<string, string>> = {
   'portal.health.changed': PORTAL,
   'integration.google_account.connected': CONNECTION,
   'integration.google_account.disconnected': CONNECTION,
+  'identity.organization_lifecycle.changed': ORG,
 }
 
 /**
@@ -767,6 +768,16 @@ const SETTLED_RESOURCE: Readonly<Record<string, string>> = {
  * announcing shape, so the settling shape is built here, by the same producer.
  */
 const SETTLING_FACTS: Readonly<Record<string, () => DomainEvent>> = {
+  'notification.settle-on-organization-purge-cancelled': () =>
+    identityOrganizationLifecycleChanged({
+      organizationId: ORG,
+      closureLineageId: CLOSURE_LINEAGE,
+      state: 'active',
+      revision: 4,
+      reactivationRequired: true,
+      recoverableUntil: new Date('2026-10-02T09:00:00.000Z'),
+      occurredAt: OCCURRED_AT,
+    }),
   'notification.settle-on-portal-health-recovered': () =>
     portalHealthChanged({
       portalId: PORTAL,

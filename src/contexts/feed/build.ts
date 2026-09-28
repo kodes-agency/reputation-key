@@ -53,7 +53,10 @@ import type { FeedbackPortalLookupPort } from './application/ports/feedback-port
 import { createNotificationAudienceAuthorizer } from './application/notification-audience'
 import { createNotificationRecipientStanding } from './application/notification-recipient-standing'
 import { createNotificationWorkState } from './application/notification-work-state'
-import { createNotificationOrganizationEmailStopReader } from './infrastructure/repositories/notification-organization-email-stop.repository'
+import {
+  createNotificationOrganizationEmailStopReader,
+  createNotificationOrganizationLifecycleStateReader,
+} from './infrastructure/repositories/notification-organization-email-stop.repository'
 import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-item-lookup.adapter'
 import { createDisplayNameLookupAdapter } from './infrastructure/adapters/display-name-lookup.adapter'
 import { createEscalationResolutionLookupAdapter } from './infrastructure/adapters/escalation-resolution-lookup.adapter'
@@ -364,6 +367,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     inboxItemLookup,
     replyStates: input.replyStates,
     portalHealthLookup: input.portalHealthLookup,
+    organizationState: createNotificationOrganizationLifecycleStateReader(input.db),
     responsibleManagers: input.responsibleManagers,
   })
   // Asked when an email is queued, and again before it is sent.
