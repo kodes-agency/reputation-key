@@ -48,14 +48,20 @@ the capacity a draft needs.
 
 | Scope        | Interactive / min | Background / min | Interactive in flight | Background in flight |
 | ------------ | ----------------- | ---------------- | --------------------- | -------------------- |
-| Global       | 8                 | 12               | 8                     | 12                   |
-| Organization | 4                 | 6                | 4                     | 4                    |
-| Property     | 3                 | 3                | 2                     | 2                    |
+| Global       | 8                 | 120              | 8                     | 12                   |
+| Organization | 4                 | 60               | 4                     | 4                    |
+| Property     | 3                 | 60               | 2                     | 4                    |
 
 Rates are sliding one-minute windows. An in-flight slot is held until release
 or a 90-second lease, which outlives the 70-second provider deadline. An
 on-demand analysis must leave one interactive slot free (`headroom`), so
 clicking through reviews cannot exhaust the lane drafts use.
+
+The background lane is sized against the provider account, because drafts no
+longer share it: the pinned model allows 500 requests and 500,000 tokens a
+minute, and an analysis counts about 1,700 tokens against that (about 600 input
+tokens plus the 1,024-token output ceiling the provider reserves). Both global
+lanes together stay under half of either limit, which a unit test pins.
 
 The table lives in `src/contexts/ai/domain/admission-lanes.ts`. Tuning changes
 that file and this table together.
@@ -77,25 +83,32 @@ retry and a repeated click reuse it, and any finished answer rotates it.
    work in `ai_review_analysis_backlog`. A live review whose background lane is
    busy is queued the same way. The origin event is receipted when its row is
    written; the row is the durable authority for the remaining work.
-2. A recurring drain (every 30 seconds, background queue) claims at most the
-   property background rate per property, newest review first, and runs each
-   entry through the ordinary analysis use case. A busy lane parks the
-   property's remaining share at the lane's retry time without asking again.
+2. A recurring drain (every 10 seconds, background queue) claims rounds of at
+   most the property background in-flight share per property, newest review
+   first, and runs each entry through the ordinary analysis use case, four at
+   a time. It keeps claiming rounds while they settle work, for up to 20
+   seconds, and one drain runs per worker at a time. A busy lane parks the
+   property's remaining entries at the lane's retry time without asking again.
    Any settled outcome deletes the entry. A claim expires after three minutes.
    The operation horizon of a drained entry starts when the drain first takes
    it, not when the review was imported.
-3. A review opened in the Inbox for 1.5 seconds with analysis still waiting is
+3. The enrollment consumer opens a freshly queued first-enablement replay on
+   delivery, and the drain records a Property's enrollment caught up as soon
+   as its last replayed review settles. The enrollment sweep, every minute,
+   stays the recovery path for both.
+4. A review opened in the Inbox for 1.5 seconds with analysis still waiting is
    handed to an on-demand worker job, which analyses it ahead of the queue on
    the interactive lane with headroom. A busy lane leaves it queued with
    interactive priority, so the next drain takes it first.
-4. `readReviewAnalysisProgress` reports queued, running, analysed and
+5. `readReviewAnalysisProgress` reports queued, running, analysed and
    not-analysable counts and the enrollment's verified-through time.
 
 ## Consequences
 
-- An import's history is analysed at up to three reviews a minute per property.
-  The newest reviews, the ones a manager is likeliest to answer, come first,
-  and the one on screen is analysed within seconds.
+- An import's history starts analysing within seconds of AI being switched on
+  and runs at up to sixty reviews a minute per property. The newest reviews,
+  the ones a manager is likeliest to answer, come first, and the one on screen
+  is analysed within seconds.
 - Admission refusals are cheap and harmless, so callers may ask again at the
   retry time without amplifying load.
 - The backlog table is identifier-only operational state. It cascades with its
@@ -103,3 +116,18 @@ retry and a repeated click reuse it, and any finished answer rotates it.
   active authority in the data fate catalogue.
 - A Redis outage stops all AI admission. That is unchanged: admission fails
   closed.
+
+## Amendments
+
+- **2026-09-28** — Sized the background lane to the provider account. The
+  first budgets (background 12 / 6 / 3 a minute, property in flight 2)
+  protected drafts that the lanes had already separated, so history crawled:
+  a two-property import of 22 reviews showed "Analysing" for 11 minutes,
+  although its provider calls took about 2.5 seconds each. The time went to the
+  five-minute enrollment sweep before the replay opened, the 30-second drain
+  tick, three admissions a minute per property with one-at-a-time draining,
+  and the sweep again before the enrollment was recorded caught up. The
+  background lane now admits 120 / 60 / 60 a minute (property in flight 4),
+  the drain runs every 10 seconds in parallel rounds, the enrollment opens on
+  delivery and closes when its last review settles, and the sweep runs every
+  minute as recovery.

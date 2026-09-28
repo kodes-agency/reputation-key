@@ -106,21 +106,29 @@ function harness(result: AnalyzeReviewEventResult) {
       enrollmentId: '71000000-0000-4000-8000-000000000205',
     },
   }))
+  const advanceEnrollment = vi.fn<
+    NonNullable<RegisterAiConsumersInput['advanceEnrollment']>
+  >(async () => ({ status: 'replay_started' }))
+  const logger = { warn: vi.fn() }
   const dependencies = {
     analyzeReviewEvent,
     enqueuePropertyTrend,
     applyAiAuthorizationLifecycle,
+    advanceEnrollment,
     receipts: { insertReceipt } as unknown as OutboxRepository,
     backlog: { enqueue },
     nowEpochMillis: () => Date.parse(RECORDED_AT) + 1_000,
+    logger,
   } satisfies RegisterAiConsumersInput
   return {
     dependencies,
     analyzeReviewEvent,
     enqueuePropertyTrend,
     applyAiAuthorizationLifecycle,
+    advanceEnrollment,
     insertReceipt,
     enqueue,
+    logger,
   }
 }
 
@@ -518,6 +526,76 @@ describe('AI authorization lifecycle consumer', () => {
     await expect(
       handleAiAuthorizationLifecycleChanged(test.dependencies, merchantAiChangedEvent()),
     ).resolves.toEqual({ status: 'duplicate' })
+  })
+
+  it('opens a freshly queued enrollment on delivery, not at the next sweep', async () => {
+    const test = harness({ status: 'completed' })
+
+    await expect(
+      handleAiAuthorizationLifecycleChanged(test.dependencies, merchantAiChangedEvent()),
+    ).resolves.toEqual({ status: 'applied' })
+
+    expect(test.advanceEnrollment).toHaveBeenCalledOnce()
+    expect(test.advanceEnrollment).toHaveBeenCalledWith({
+      organizationId: ORGANIZATION_ID,
+      propertyId: PROPERTY_ID,
+    })
+  })
+
+  it.each([
+    [
+      'a replayed trigger',
+      { status: 'duplicate', enrollmentId: '71000000-0000-4000-8000-000000000205' },
+    ],
+    [
+      'an obsolete generation',
+      { status: 'obsolete', reason: 'authorization_state_version_changed' },
+    ],
+    [
+      'a trigger that enrols nothing',
+      {
+        status: 'applied',
+        enrollment: { status: 'not_applicable', reason: 'authorization_not_enabled' },
+      },
+    ],
+    [
+      'an enrollment awaiting assisted approval',
+      {
+        status: 'applied',
+        enrollment: {
+          status: 'awaiting_assisted_approval',
+          enrollmentId: '71000000-0000-4000-8000-000000000205',
+          eligibleRevisionCount: 10_001,
+          safetyCeiling: 10_000,
+        },
+      },
+    ],
+  ] as const)('leaves %s to the enrollment sweep', async (_case, applied) => {
+    const test = harness({ status: 'completed' })
+    test.applyAiAuthorizationLifecycle.mockResolvedValueOnce(applied)
+
+    await handleAiAuthorizationLifecycleChanged(
+      test.dependencies,
+      merchantAiChangedEvent(),
+    )
+
+    expect(test.advanceEnrollment).not.toHaveBeenCalled()
+  })
+
+  it('keeps the applied result when opening the enrollment fails, and records it', async () => {
+    const test = harness({ status: 'completed' })
+    const failure = new Error('enrollment store unavailable')
+    test.advanceEnrollment.mockRejectedValueOnce(failure)
+
+    await expect(
+      handleAiAuthorizationLifecycleChanged(test.dependencies, merchantAiChangedEvent()),
+    ).resolves.toEqual({ status: 'applied' })
+
+    expect(test.logger.warn).toHaveBeenCalledOnce()
+    expect(test.logger.warn).toHaveBeenCalledWith(
+      { err: failure, organizationId: ORGANIZATION_ID, propertyId: PROPERTY_ID },
+      'AI review analysis enrollment advance failed',
+    )
   })
 })
 
