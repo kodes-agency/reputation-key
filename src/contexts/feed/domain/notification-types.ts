@@ -53,6 +53,11 @@ export const NOTIFICATION_TYPES = [
   'inbox.assignments_released',
   /** The item moved to somebody else; the previous holder is told (I15). */
   'inbox.unassigned',
+  /**
+   * A bulk reassignment moved several of one holder's items at a Property to
+   * somebody else: one grouped notice, as a bulk assignment is one.
+   */
+  'inbox.bulk_unassigned',
   'inbox_note.added',
   // Portal operations
   'portal.responsibility_needed',

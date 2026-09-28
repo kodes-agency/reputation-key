@@ -224,12 +224,14 @@ const groupedNotices = {
   'inbox.bulk_assigned': 'mine',
   'inbox.bulk_reopened': 'open',
   'inbox.assignments_released': 'open',
+  'inbox.bulk_unassigned': 'open',
 } as const
 
 const GROUPED_NOTICE_IDS = {
   'inbox.bulk_assigned': '20000000-0000-4000-8000-0000000000c1',
   'inbox.bulk_reopened': '20000000-0000-4000-8000-0000000000c2',
   'inbox.assignments_released': '20000000-0000-4000-8000-0000000000c3',
+  'inbox.bulk_unassigned': '20000000-0000-4000-8000-0000000000c4',
 } as const
 
 const groupedNotice = (type: keyof typeof groupedNotices) =>
@@ -264,6 +266,7 @@ export const BulkReopenedOpensItsQueue: Story = opensItsQueue('inbox.bulk_reopen
 export const AssignmentsReleasedOpensItsQueue: Story = opensItsQueue(
   'inbox.assignments_released',
 )
+export const BulkUnassignedOpensItsQueue: Story = opensItsQueue('inbox.bulk_unassigned')
 
 /**
  * ADR 0046 r.2 coalescing: one unread row absorbing repeat events. A stored

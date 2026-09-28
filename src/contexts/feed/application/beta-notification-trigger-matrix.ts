@@ -152,11 +152,12 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ['inbox.assigned', 'inbox.unassigned'],
     ['inbox_assignee', 'property_operator'],
   ),
+  // I15: the new assignee, and the previous holders — each once per Property.
   route(
     'inbox.inbox_items.bulk_assignment_completed',
     'notification.on-inbox-bulk-assignment-completed',
-    ['inbox.bulk_assigned'],
-    ['bulk_inbox_assignee'],
+    ['inbox.bulk_assigned', 'inbox.bulk_unassigned'],
+    ['bulk_inbox_assignee', 'property_operator'],
   ),
   // One notice per Property, to the people who now own the gap; the per-item
   // unassigned facts it covers stay history.
