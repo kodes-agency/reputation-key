@@ -13,6 +13,8 @@
 
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import type { Queue } from 'bullmq'
+import { EVENT_FAMILY_ROWS } from '#/shared/governance/event-job-catalogue'
+import { EXPEDITED_DISPATCH_EVENT_TYPES } from './dispatch-job-options'
 import { createOutboxRelay } from './relay'
 import type {
   OutboxRepository,
@@ -108,6 +110,37 @@ describe('outbox relay (BQC-3.7)', () => {
         jitter: 0.5,
       })
     }
+  })
+
+  it('publishes the events a manager is watching to the front of the dispatch queue', async () => {
+    const events = [
+      { ...makeEvent('evt-ai'), eventType: 'identity.merchant_ai.changed' },
+      {
+        ...makeEvent('evt-backfill'),
+        eventType: 'ai.review_analysis.backfill_requested',
+      },
+      { ...makeEvent('evt-review'), eventType: 'review.created' },
+    ]
+    const { repo } = makeRepo(events)
+    const { queue, added } = makeQueue()
+
+    const relay = createOutboxRelay(repo, queue, { relayId: 'relay-test-1' })
+    await relay.poll()
+
+    expect(added.map((call) => [call.name, call.opts.lifo])).toEqual([
+      ['identity.merchant_ai.changed', true],
+      ['ai.review_analysis.backfill_requested', true],
+      ['review.created', undefined],
+    ])
+  })
+
+  it('expedites only catalogued event families', () => {
+    const catalogued = new Set(EVENT_FAMILY_ROWS.map((row) => row.eventType))
+    expect(
+      [...EXPEDITED_DISPATCH_EVENT_TYPES].filter(
+        (eventType) => !catalogued.has(eventType),
+      ),
+    ).toEqual([])
   })
 
   it('renews the lease for the unprocessed remainder every 10 published events', async () => {
