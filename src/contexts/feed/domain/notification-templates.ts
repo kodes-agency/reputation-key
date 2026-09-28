@@ -675,9 +675,9 @@ const IMPORT_STOPPED_COPY: Record<
 const importedBody = (p: NotificationPayload): string => {
   if (p.importedCount === undefined) return 'Open the inbox to see what came in.'
   const imported = `We imported ${p.importedCount} reviews`
-  // An unknown count (the summary gave up waiting for the Inbox) is not zero.
-  if (p.unansweredCount === undefined)
-    return `${imported}. Open the inbox to see which still need a reply.`
+  // An unknown count (the Inbox never settled, or a read failed) is not zero,
+  // nor a sign that any are waiting: ADR 0046 drops the second number.
+  if (p.unansweredCount === undefined) return `${imported}.`
   return p.unansweredCount === 0
     ? `${imported}. Nothing is waiting for a reply.`
     : `${imported}; ${p.unansweredCount} still need a reply.`
