@@ -3,7 +3,7 @@
   "src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts": 1538,
   "src/contexts/ai/infrastructure/adapters/ai-property-aggregate-store.adapter.ts": 1280,
   "src/contexts/ai/infrastructure/adapters/ai-review-analysis-enrollment.adapter.ts": 867,
-  "src/contexts/identity/build.ts": 846,
+  "src/contexts/identity/build.ts": 816,
   "src/contexts/inbox/infrastructure/inbox-command-store.ts": 2778,
   "src/contexts/inbox/infrastructure/repositories/inbox.repository.ts": 887,
   "src/contexts/inbox/infrastructure/response-target.store.ts": 951,
