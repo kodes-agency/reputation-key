@@ -93,7 +93,10 @@ async function holdsAudience(
           portalId: audience.portalId,
         })
       ).includes(userId)
+    // A gap request is addressed to the people who can choose a manager, so
+    // it stands on the role; whether the gap is still open is freshness.
     case 'account_admin':
+    case 'responsibility_gap':
       return (await deps.userLookup.findByRole(organizationId, 'AccountAdmin')).includes(
         userId,
       )
