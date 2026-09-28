@@ -68,6 +68,16 @@ under `infrastructure/`. Beta-feedback requests reach the triage store only
 through the build's `betaFeedback` capability (`submit`, `listMine`); the
 operator triage workflow stays with `scripts/ops`.
 
+Three `server/policy-admin.ts` functions have no UI caller on purpose:
+
+- `explainPolicyDecisionFn` is the live, read-only policy and capability-refusal
+  diagnostic for an operator holding `policy.admin`;
+  `scripts/ops/report-capability-refusal.ts` is its local-stack twin (#403/#408).
+- `grantPropertyAccessFn` and `revokePropertyAccessFn` are the operator surface for
+  changing a PropertyManager's Property scope after invitation; there is no access UI.
+  Follow-up: a grant requires `reason` and `ticketRef` but persists neither (a revoke
+  keeps its `reason` as `revoke_reason`).
+
 Identity produces identifier-minimal Organization, invitation, member, merchant-AI,
 and lifecycle facts through the durable outbox. It subscribes to no foreign events.
 

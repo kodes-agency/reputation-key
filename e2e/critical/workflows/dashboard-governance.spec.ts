@@ -2,11 +2,12 @@
 // no cross-property data, no raw-expired data, and reply-derived fields
 // redacted for roles lacking reply.manage (with an admin control).
 //
-// Verified at the governed read boundary — getDashboardDataFn IS the read the
-// dashboard UI consumes. Member login is not a beta surface, so the
-// Member-side assertions target the access model directly (grant-filtered
-// enumeration + governed aggregates + role-based reply redaction), with an admin control for
-// the redaction.
+// Verified at the governed read boundary, getDashboardDataFn. The dashboard UI
+// reads getPropertyOverviewFn instead; getDashboardDataFn is kept for this spec
+// and review-expiry.spec.ts (src/contexts/reporting/CONTEXT.md). Member login is
+// not a beta surface, so the Member-side assertions target the access model
+// directly (grant-filtered enumeration + governed aggregates + role-based reply
+// redaction), with an admin control for the redaction.
 //
 // Landscape: a dedicated property A (Member has an operator grant to it)
 // carries a fresh 5★ review with a published reply + an expired 1★ review;
