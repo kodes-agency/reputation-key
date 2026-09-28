@@ -121,6 +121,14 @@ export type IdentityOffboardingFactsPublicApi = Readonly<{
     organizationId: string,
     userId: string,
   ) => Promise<readonly OutstandingResponsibility[]>
+  /**
+   * Whether this deployment composes the responsibility facts transfer-first
+   * leave needs. When false, `listOutstanding` refuses by design and no
+   * self-service leave can succeed — removal by an AccountAdmin is the way
+   * out — so a surface can say so rather than read a worklist that is fenced.
+   * A composition fact, not a permission: it decides nothing on its own.
+   */
+  selfServiceLeaveAvailable: boolean
 }>
 
 /** Complete delivery-boundary facade used by Identity request handlers. */

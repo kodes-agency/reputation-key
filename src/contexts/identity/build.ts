@@ -254,6 +254,8 @@ type IdentityContextDeps = Readonly<{
    * command refuses, because a leave that cannot see the worklist would
    * silently strand every responsibility on it. AccountAdmin-initiated
    * `removeMember` is unaffected — it releases rather than transfers.
+   * Whether it was supplied is published as
+   * `offboardingFacts.selfServiceLeaveAvailable`.
    */
   memberOffboarding?: MemberOffboarding
   organizationLifecycle?: IdentityOrganizationLifecycleComposition
@@ -965,6 +967,9 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
   })
   const offboardingFacts = Object.freeze({
     listOutstanding: memberOffboarding.listOutstanding,
+    // Derived from the wiring, never configured separately: it can only be
+    // true when a real adapter replaced the fail-closed default above.
+    selfServiceLeaveAvailable: deps.memberOffboarding !== undefined,
   })
   const publicApi = Object.freeze({
     managerFacts,

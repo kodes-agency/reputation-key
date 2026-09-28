@@ -7,12 +7,18 @@ const mocks = vi.hoisted(() => ({
   requireExecutionAllowed: vi.fn(),
   leaveOrganization: vi.fn(),
   listOutstanding: vi.fn(),
+  selfServiceLeaveAvailable: vi.fn<() => boolean>(),
 }))
 
 vi.mock('#/composition', () => ({
   getContainer: () => ({
     identityPublicApi: {
-      offboardingFacts: { listOutstanding: mocks.listOutstanding },
+      offboardingFacts: {
+        listOutstanding: mocks.listOutstanding,
+        get selfServiceLeaveAvailable() {
+          return mocks.selfServiceLeaveAvailable()
+        },
+      },
       requests: { leaveOrganization: mocks.leaveOrganization },
     },
   }),
@@ -35,6 +41,7 @@ import { OutstandingResponsibilitiesError } from '../application/use-cases/leave
 import {
   leaveOrganizationHandler,
   listOutstandingResponsibilitiesHandler,
+  selfServiceLeaveAvailabilityHandler,
 } from './organization-leave-fns'
 
 const ORG = '00000000-0000-4000-8000-000000000002'
@@ -46,6 +53,7 @@ beforeEach(() => {
   mocks.requireExecutionAllowed.mockResolvedValue(undefined)
   mocks.leaveOrganization.mockResolvedValue({ success: true, transferred: 0 })
   mocks.listOutstanding.mockResolvedValue([])
+  mocks.selfServiceLeaveAvailable.mockReturnValue(false)
 })
 
 describe('leave-Organization server functions', () => {
@@ -139,6 +147,26 @@ describe('leave-Organization server functions', () => {
       { kind: 'portal_responsibility', resourceId: 'portal-1' },
     ])
   })
+
+  /**
+   * wiring-03. The members page awaits this in its loader, so it is not
+   * capability-gated — a refusal would take the whole page down — and it never
+   * touches the worklist, whose read is fenced by design when nothing is
+   * composed. Resolving the tenant keeps it behind an authenticated session.
+   */
+  it.each([false, true])(
+    'reports whether self-service leave is composed (%s) without reading the worklist',
+    async (available) => {
+      mocks.selfServiceLeaveAvailable.mockReturnValue(available)
+
+      const result = await withStartContext(() => selfServiceLeaveAvailabilityHandler())
+
+      expect(result).toEqual({ available })
+      expect(mocks.resolveTenantContext).toHaveBeenCalledOnce()
+      expect(mocks.listOutstanding).not.toHaveBeenCalled()
+      expect(mocks.requireExecutionAllowed).not.toHaveBeenCalled()
+    },
+  )
 
   it('fails closed when the responsibility facts are not composed', async () => {
     mocks.listOutstanding.mockRejectedValue({
