@@ -131,6 +131,7 @@ export function baseDeps(options: DigestTestOptions = {}) {
           contentDigest: input.contentDigest,
           providerIdempotencyKey: input.providerIdempotencyKey,
           unsubscribeKeyVersion: input.unsubscribeKeyVersion,
+          providerRequest: input.providerRequest,
           state: 'prepared' as const,
           retryCount: 0,
           everyAttemptRefused: false,

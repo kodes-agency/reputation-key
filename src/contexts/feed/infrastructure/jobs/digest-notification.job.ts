@@ -35,6 +35,7 @@ import {
 import { absoluteUrl } from '#/shared/email/urls'
 import { maskEmail } from '#/shared/observability/pii'
 import type {
+  FrozenDigestRequest,
   NotificationDigestBatch,
   NotificationEmailRecipient,
   NotificationEmailRepositoryPort,
@@ -341,6 +342,23 @@ async function selectDeliverableEntries(
 }
 
 /**
+ * The request a batch the provider may already hold was frozen with, re-sent
+ * as it is: a repeat event coalescing into a line since would otherwise change
+ * the wording and close the batch. Never for a refused batch, which re-renders
+ * so a change goes out fresh under a new key, and never to an address the
+ * recipient no longer has: re-rendered, that batch differs and is closed.
+ */
+const frozenRequestToResend = (
+  openBatch: NotificationDigestBatch | null,
+  recipient: string,
+): FrozenDigestRequest | null =>
+  openBatch !== null &&
+  !openBatch.everyAttemptRefused &&
+  openBatch.providerRequest?.to === recipient
+    ? openBatch.providerRequest
+    : null
+
+/**
  * Stop delivering for a recipient-level reason. A frozen batch is invalidated
  * as a unit; a fresh sweep suppresses the individual rows instead.
  */
@@ -486,6 +504,7 @@ async function prepareAndDispatchBatch(
       memberDigest,
     }),
     unsubscribeKeyVersion,
+    providerRequest: request,
     preparedAt: ctx.now,
   })
   if (!prepared.created) {
@@ -542,7 +561,10 @@ async function sendUserDigest(
   }
 
   // Rows whose notification is gone are settled inside loadItems.
-  const items = await loadItems(deps, ctx, deliverable)
+  const possiblyAccepted = openBatch !== null && !openBatch.everyAttemptRefused
+  const items = await loadItems(deps, ctx, deliverable, {
+    keepSettledWork: possiblyAccepted,
+  })
   if (items.length === 0) {
     if (openBatch) await retireUnreadableBatch(deps, ctx, openBatch)
     return
@@ -563,15 +585,17 @@ async function sendUserDigest(
   const unsubscribeKeyVersion =
     openBatch?.unsubscribeKeyVersion ?? deps.activeOneClickUnsubscribeKeyVersion()
   const localDate = openBatch?.localDate ?? localDateKey(ctx.now, ctx.timezone)
-  const request = await buildProviderRequest(
-    deps,
-    ctx,
-    recipient,
-    items,
-    batchId as string,
-    unsubscribeKeyVersion,
-    localDate,
-  )
+  const request =
+    frozenRequestToResend(openBatch, recipient) ??
+    (await buildProviderRequest(
+      deps,
+      ctx,
+      recipient,
+      items,
+      batchId as string,
+      unsubscribeKeyVersion,
+      localDate,
+    ))
   const contentDigest = digestProviderRequest(request)
   if (openBatch) {
     await retryOpenBatch(deps, ctx, openBatch, members, request, items, contentDigest)

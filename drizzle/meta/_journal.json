@@ -246,6 +246,13 @@
       "when": 1791500000000,
       "tag": "0034_notification_property_scope_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1791600000000,
+      "tag": "0035_notification_digest_frozen_request",
+      "breakpoints": true
     }
   ]
 }

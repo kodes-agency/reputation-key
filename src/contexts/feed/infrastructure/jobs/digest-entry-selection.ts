@@ -297,11 +297,16 @@ export async function retireStaleEntries(
  * moved scope) can never be sent. It is suppressed as
  * `notification_unavailable` here: skipped instead, it kept its recipient due
  * on every run, and enough of them starved every newer row.
+ *
+ * `keepSettledWork` is for a frozen batch the provider may already hold: its
+ * retry repeats the frozen request exactly, so a line read or finished since
+ * stays in it rather than invalidating the whole digest.
  */
 export async function loadItems(
   deps: DigestEntryDeps,
   ctx: RecipientContext,
   entries: readonly NotificationEmail[],
+  options: Readonly<{ keepSettledWork: boolean }> = { keepSettledWork: false },
 ): Promise<readonly DigestItem[]> {
   const byProperty = new Map<string, NotificationEmail[]>()
   for (const entry of entries) {
@@ -340,7 +345,7 @@ export async function loadItems(
       'Digest entries suppressed because their notification is gone',
     )
   }
-  return settledWork(deps, ctx, items)
+  return options.keepSettledWork ? items : settledWork(deps, ctx, items)
 }
 
 /**

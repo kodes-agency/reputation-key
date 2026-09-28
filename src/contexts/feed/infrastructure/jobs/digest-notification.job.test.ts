@@ -171,6 +171,13 @@ describe('digest subject and body', () => {
   })
 })
 
+/**
+ * A batch frozen before its provider request was stored is re-rendered on a
+ * retry and compared with its content digest. A batch that has one re-sends it
+ * (digest-possibly-accepted-retry.test.ts).
+ */
+const FROZEN_BEFORE_REQUESTS_WERE_STORED = { providerRequest: null } as const
+
 describe('digest idempotency (ADR 0046 r.5)', () => {
   it('uses a bounded opaque key bound to the immutable batch', async () => {
     // @proof DIGEST_BATCH_IDEMPOTENCY#1
@@ -215,8 +222,10 @@ describe('digest idempotency (ADR 0046 r.5)', () => {
     const first = baseDeps({ activeUnsubscribeKeyVersion: 'v1' })
     await runHandler(first)
     const firstRequest = first.emailSender.send.mock.calls[0]![0]
-    const openBatch = (await first.emailRepo.prepareDigestBatch.mock.results[0]!.value)
-      .batch
+    const openBatch = {
+      ...(await first.emailRepo.prepareDigestBatch.mock.results[0]!.value).batch,
+      ...FROZEN_BEFORE_REQUESTS_WERE_STORED,
+    }
     const retry = baseDeps({
       activeUnsubscribeKeyVersion: 'v2',
       openBatch,
@@ -245,6 +254,7 @@ describe('digest idempotency (ADR 0046 r.5)', () => {
     }
     const legacy = {
       ...current,
+      ...FROZEN_BEFORE_REQUESTS_WERE_STORED,
       unsubscribeKeyVersion: 'legacy',
       contentDigest: digestProviderRequest({ ...firstRequest, headers: legacyHeaders }),
     }
@@ -307,8 +317,10 @@ describe('digest idempotency (ADR 0046 r.5)', () => {
     // @proof DIGEST_BATCH_IDEMPOTENCY#2
     const first = baseDeps()
     await runHandler(first)
-    const openBatch = (await first.emailRepo.prepareDigestBatch.mock.results[0]!.value)
-      .batch
+    const openBatch = {
+      ...(await first.emailRepo.prepareDigestBatch.mock.results[0]!.value).batch,
+      ...FROZEN_BEFORE_REQUESTS_WERE_STORED,
+    }
     const retry = baseDeps({
       openBatch,
       batchEntries: [entryFor(PROP_A), entryFor(PROP_B)],
@@ -340,6 +352,7 @@ describe('digest idempotency (ADR 0046 r.5)', () => {
     const retry = baseDeps({
       openBatch: {
         ...prepared,
+        ...FROZEN_BEFORE_REQUESTS_WERE_STORED,
         state: 'retryable',
         retryCount: 1,
         everyAttemptRefused: false,
