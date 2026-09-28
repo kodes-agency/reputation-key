@@ -9,6 +9,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { walk } from '#/shared/testing/source-tree'
+import { PRODUCERLESS_EVENT_FAMILIES } from './producerless-event-families'
 import {
   EVENT_FAMILY_ROWS,
   JOB_FAMILY_ROWS,
@@ -136,25 +137,34 @@ describe('event families with durable consumers', () => {
 
   it('are emitted by production code unless the catalogue says why not', () => {
     const unexplained = consumed
-      .filter((row) => row.producerless === undefined && producersOf(row).length === 0)
+      .filter(
+        (row) =>
+          PRODUCERLESS_EVENT_FAMILIES[row.eventType] === undefined &&
+          producersOf(row).length === 0,
+      )
       .map((row) => row.eventType)
 
     expect(
       unexplained,
-      'emit these facts, or mark the row producerless in event-job-catalogue.ts',
+      'emit these facts, or list them with a reason in producerless-event-families.ts',
     ).toEqual([])
   })
 
-  it('keep a producerless marker only on a consumed family nothing emits', () => {
-    const stale = EVENT_FAMILY_ROWS.filter((row) => row.producerless !== undefined)
-      .map((row) => ({
-        eventType: row.eventType,
-        consumed: row.consumers.length > 0,
-        producers: producersOf(row),
-      }))
-      .filter((row) => !row.consumed || row.producers.length > 0)
+  it('keep a producerless entry only for a consumed family nothing emits', () => {
+    const stale = Object.keys(PRODUCERLESS_EVENT_FAMILIES)
+      .map((eventType) => {
+        const row = EVENT_FAMILY_ROWS.find(
+          (candidate) => candidate.eventType === eventType,
+        )
+        return {
+          eventType,
+          consumed: (row?.consumers.length ?? 0) > 0,
+          producers: row ? producersOf(row) : [],
+        }
+      })
+      .filter((entry) => !entry.consumed || entry.producers.length > 0)
 
-    expect(stale, 'drop the producerless marker from these rows').toEqual([])
+    expect(stale, 'drop these entries from producerless-event-families.ts').toEqual([])
   })
 })
 

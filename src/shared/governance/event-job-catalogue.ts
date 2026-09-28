@@ -2,8 +2,9 @@
 //
 // Runtime catalogue for durable event routing and governed BullMQ families.
 // Event rows name the event type and expected durable consumers; a consumed
-// family that nothing emits says why with `producerless`. Job rows own retry,
-// timeout, scheduling, capability, action, and registration policy.
+// family that nothing emits is listed, with its reason, in
+// producerless-event-families.ts. Job rows own retry, timeout, scheduling,
+// capability, action, and registration policy.
 //
 // A missing expected consumer fails worker readiness and dispatcher delivery.
 // A missing or unknown job family fails readiness or enqueue policy.
@@ -21,19 +22,9 @@ export type EventConsumerRef = Readonly<{
   module: string
 }>
 
-/**
- * Why a family keeps durable consumers although no production code emits it:
- * - 'legacy_replay': its producer was retired; facts recorded before that are
- *   still delivered and replayed, so the consumers stay.
- * - 'reserved': defined and consumed ahead of the command that will emit it.
- */
-export type ProducerlessReason = 'legacy_replay' | 'reserved'
-
 export type EventFamilyRow = Readonly<{
   eventType: string
   consumers: ReadonlyArray<EventConsumerRef>
-  /** Only on a consumed family nothing emits (event-job-catalogue.test.ts). */
-  producerless?: ProducerlessReason
 }>
 
 /** Registration posture of a job family. */
@@ -77,11 +68,7 @@ const durable = (name: string, module: string): EventConsumerRef => ({ name, mod
 const ev = (
   eventType: string,
   consumers: ReadonlyArray<EventConsumerRef>,
-  producerless?: ProducerlessReason,
-): EventFamilyRow =>
-  producerless === undefined
-    ? { eventType, consumers }
-    : { eventType, consumers, producerless }
+): EventFamilyRow => ({ eventType, consumers })
 
 type JobBase = Readonly<{
   queue: 'default' | 'background'
@@ -209,13 +196,7 @@ const REVIEW_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('ai.review_analysis.backfill_requested', [
     durable('ai.analyze-review-event', AI_OUTBOX),
   ]),
-  // Legacy replay: review.source_transitioned replaced it and nothing emits it
-  // now; a restored or still-pending fact converges on the same Inbox command.
-  ev(
-    'review.expired',
-    [durable('inbox.on-review-expired', INBOX_OUTBOX)],
-    'legacy_replay',
-  ),
+  ev('review.expired', [durable('inbox.on-review-expired', INBOX_OUTBOX)]),
   ev('review.reply.submitted', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('notification.on-review-reply-submitted', NOTIFICATION_WORKFLOW_OUTBOX),
@@ -347,13 +328,9 @@ const INBOX_ROWS: ReadonlyArray<EventFamilyRow> = [
 ]
 
 const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
-  // Legacy replay: nothing has emitted it since WP1.7 deleted /register
-  // (2026-09-06); Recent Activity keeps projecting and replaying older facts.
-  ev(
-    'identity.organization.created',
-    [durable('activity.recent-activity', ACTIVITY_OUTBOX)],
-    'legacy_replay',
-  ),
+  ev('identity.organization.created', [
+    durable('activity.recent-activity', ACTIVITY_OUTBOX),
+  ]),
   ev('identity.member.invited', [durable('activity.recent-activity', ACTIVITY_OUTBOX)]),
   ev('identity.invitation.accepted', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
@@ -405,17 +382,11 @@ const PROPERTY_ROWS: ReadonlyArray<EventFamilyRow> = [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
     durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX),
   ]),
-  // Legacy replay: Property deletion fails closed in the beta (property
-  // CONTEXT.md), so nothing emits it; recorded facts are still delivered.
-  ev(
-    'property.deleted',
-    [
-      durable('activity.recent-activity', ACTIVITY_OUTBOX),
-      durable('activity.operational-action-history', ACTIVITY_OUTBOX),
-      durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX),
-    ],
-    'legacy_replay',
-  ),
+  ev('property.deleted', [
+    durable('activity.recent-activity', ACTIVITY_OUTBOX),
+    durable('activity.operational-action-history', ACTIVITY_OUTBOX),
+    durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX),
+  ]),
   ev('property.archived', [
     durable('portal.reconcile-health-dependencies', PORTAL_HEALTH_OUTBOX),
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
@@ -517,13 +488,9 @@ const GUEST_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('guest.qualified_scan.recorded', [
     durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
   ]),
-  // Reserved: the Qualified Scan correction path (guest CONTEXT.md). The store
-  // write and this fact exist, but no use case retracts a scan yet.
-  ev(
-    'guest.qualified_scan.retracted',
-    [durable('metric.guest-analytics', METRIC_GUEST_OUTBOX)],
-    'reserved',
-  ),
+  ev('guest.qualified_scan.retracted', [
+    durable('metric.guest-analytics', METRIC_GUEST_OUTBOX),
+  ]),
   ev('guest.rating.submitted', [durable('metric.guest-analytics', METRIC_GUEST_OUTBOX)]),
   ev('guest.rating.retracted', [durable('metric.guest-analytics', METRIC_GUEST_OUTBOX)]),
   ev('guest.feedback.submitted', [
@@ -568,13 +535,9 @@ const INTEGRATION_ROWS: ReadonlyArray<EventFamilyRow> = [
   ev('integration.property_import.retention_released', [
     durable('property.import-retention-release', PROPERTY_RETENTION_OUTBOX),
   ]),
-  // Legacy replay: its only producer, the caller-less updateConnectionVisibility
-  // endpoint, was deleted; any fact it recorded still reaches Recent Activity.
-  ev(
-    'integration.google_connection.visibility_changed',
-    [durable('activity.recent-activity', ACTIVITY_OUTBOX)],
-    'legacy_replay',
-  ),
+  ev('integration.google_connection.visibility_changed', [
+    durable('activity.recent-activity', ACTIVITY_OUTBOX),
+  ]),
 ]
 
 const METRIC_ROWS: ReadonlyArray<EventFamilyRow> = [
