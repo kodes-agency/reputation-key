@@ -104,6 +104,11 @@ export const integrationGoogleAccountReauthorizationRequired = (
   }
 }
 
+/**
+ * Legacy: nothing emits this since the caller-less updateConnectionVisibility
+ * endpoint was deleted. The type stays so recorded facts keep their schema and
+ * Recent Activity projection.
+ */
 export type IntegrationGoogleConnectionVisibilityChanged = Readonly<{
   _tag: 'integration.google_connection.visibility_changed'
   eventId: string
@@ -113,17 +118,6 @@ export type IntegrationGoogleConnectionVisibilityChanged = Readonly<{
   occurredAt: Date
   correlationId: string | null
 }>
-export const integrationGoogleConnectionVisibilityChanged = (
-  args: IntegrationEventArgs<IntegrationGoogleConnectionVisibilityChanged>,
-): IntegrationGoogleConnectionVisibilityChanged => {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
-  return {
-    _tag: 'integration.google_connection.visibility_changed',
-    eventId: newEventId(),
-    ...args,
-    correlationId: args.correlationId ?? null,
-  }
-}
 
 export type IntegrationPropertyImportRetentionReleased = Readonly<{
   _tag: 'integration.property_import.retention_released'
