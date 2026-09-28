@@ -51,12 +51,22 @@ function carryUnreadCount(
 }
 
 /**
+ * Refusals no later tick can turn into an answer: the session ended (401), or
+ * access did (403: removed from the Organization, Organization suspended,
+ * in-app notices switched off; 409: the membership no longer matches). Each
+ * is logged server-side, so a timer would also fill the log.
+ */
+const REFUSALS_THAT_STOP_POLLING: ReadonlySet<number | undefined> = new Set([
+  401, 403, 409,
+])
+
+/**
  * Query options for the only notification page allowed to refresh on a timer.
  *
- * The timer stops once a read answers 401: the session ended under the open
- * tab (signed out elsewhere, expired, or revoked by a password change), and
- * every tick would be another refusal. The list offers sign-in instead; a
- * window focus or Retry still reads again, so signing in elsewhere recovers.
+ * The timer stops once a read is refused for good: the session or access
+ * ended under the open tab, and every tick would be another refusal. The
+ * list offers sign-in (401) or Retry instead; a window focus or Retry still
+ * reads again, so signing in or access restored elsewhere recovers.
  */
 export function notificationHeadQueryOptions(
   queryKey: QueryKey,
@@ -68,7 +78,9 @@ export function notificationHeadQueryOptions(
     queryFn: fetchHead,
     ...NOTIFICATION_POLL_OPTIONS,
     refetchInterval: (query) =>
-      poll && httpStatus(query.state.error) !== 401 ? NOTIFICATION_POLL_INTERVAL : false,
+      poll && !REFUSALS_THAT_STOP_POLLING.has(httpStatus(query.state.error))
+        ? NOTIFICATION_POLL_INTERVAL
+        : false,
     placeholderData: carryUnreadCount,
   })
 }

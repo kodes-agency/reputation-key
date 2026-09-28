@@ -177,6 +177,32 @@ describe('notification polling posture', () => {
     unsubscribe()
   })
 
+  it.each([
+    [403, 'forbidden'],
+    [409, 'organization_membership_conflict'],
+  ])('stops polling the head once access is refused (%i)', async (status, code) => {
+    // Removed from the Organization, Organization suspended, or in-app
+    // notices switched off: each tick would be refused and logged again.
+    const fetchHead = vi.fn(async () => {
+      throw new ServerFunctionError('AuthError', 'Refused', code, status)
+    })
+    const observer = new QueryObserver(
+      client,
+      notificationHeadQueryOptions(
+        notificationKeys.head('org-1', 20, 'all'),
+        fetchHead,
+        true,
+      ),
+    )
+    const unsubscribe = observer.subscribe(() => {})
+
+    await vi.advanceTimersByTimeAsync(0)
+    await vi.advanceTimersByTimeAsync(NOTIFICATION_POLL_INTERVAL * 3)
+
+    expect(fetchHead).toHaveBeenCalledTimes(1)
+    unsubscribe()
+  })
+
   it('keeps polling through a failure a later tick can recover from', async () => {
     const fetchHead = vi.fn(async () => {
       throw new ServerFunctionError('InternalError', 'Unavailable', 'internal_error', 503)
