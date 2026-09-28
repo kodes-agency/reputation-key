@@ -56,6 +56,7 @@ export type ConditionalReplyUpdate = Readonly<{
   templateVersion?: number | null
   aiGenerated?: boolean
   submittedAt?: Date | null
+  submittedBy?: string | null
   approvedBy?: string | null
   approvedAt?: Date | null
   rejectedBy?: string | null

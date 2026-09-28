@@ -70,6 +70,7 @@ import type { ReplyPublicationDispatchEvidencePort } from '../../application/por
 import { attemptNeverDispatched } from './attempt-never-dispatched'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { Reply, Review } from '../../domain/types'
+import { replyAuthor } from '../../domain/reply-author'
 import { replyId, organizationId, propertyId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
@@ -123,7 +124,7 @@ function buildPublishFailedEvent(
     reviewId: reply.reviewId,
     propertyId: review.propertyId,
     organizationId: reply.organizationId,
-    authorId: reply.createdBy,
+    authorId: replyAuthor(reply),
     outcome,
     ...(cause === null ? {} : { cause }),
     occurredAt,
@@ -375,7 +376,7 @@ async function cancelRefusedPublication(
         reviewId: claimed.reviewId,
         propertyId: review.propertyId,
         organizationId: claimed.organizationId,
-        authorId: claimed.createdBy,
+        authorId: replyAuthor(claimed),
         cause: 'policy',
         occurredAt: now,
       }),

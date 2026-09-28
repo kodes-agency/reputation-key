@@ -53,6 +53,7 @@ import type { PublicationAuthorizationFacts } from '../application/ports/reply-c
 import { googleReplyTextDigest } from '../domain/google-reply-observation'
 import { lockReplyTruthScope } from './reply-truth-serialization'
 import { reviewReplyPublicationCancelled } from '../domain/events'
+import { replyAuthor } from '../domain/reply-author'
 import { attemptMayHaveDispatched } from './reply-publication-dispatch-evidence'
 
 /**
@@ -587,7 +588,7 @@ async function cancelUnclaimablePublication(
     reviewId: cancelled.reviewId,
     propertyId: attempt.propertyId,
     organizationId: cancelled.organizationId,
-    authorId: cancelled.createdBy,
+    authorId: replyAuthor(cancelled),
     cause: 'policy',
     occurredAt: at,
   })

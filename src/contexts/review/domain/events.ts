@@ -184,6 +184,7 @@ export type ReviewReplyPublished = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   userId: UserId | null
+  /** Whoever put the reply up for approval, else its creator (`replyAuthor`). */
   authorId: UserId | null
   source: 'web' | 'import'
   occurredAt: Date
@@ -241,6 +242,7 @@ export type ReviewReplyApproved = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   userId: UserId
+  /** Whoever put the reply up for approval, else its creator (`replyAuthor`). */
   authorId: UserId | null
   source: 'web' | 'import'
   occurredAt: Date
@@ -339,6 +341,7 @@ export type ReviewReplyRejected = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   userId: UserId
+  /** Whoever put the reply up for approval, else its creator (`replyAuthor`). */
   authorId: UserId | null
   reason: string | null
   /**
@@ -389,6 +392,7 @@ export type ReviewReplyPublishFailed = Readonly<{
   reviewId: ReviewId
   organizationId: OrganizationId
   propertyId: PropertyId
+  /** Whoever put the reply up for approval, else its creator (`replyAuthor`). */
   authorId: UserId | null
   outcome: ReplyPublishFailureOutcome
   /** Present only when the remedy is not a retry: Google must be reconnected first. */
@@ -447,11 +451,11 @@ export type ReviewReplyPublicationCancelled = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   /**
-   * Who wrote the reply this cancellation returned to draft. Identifier only:
-   * the cancellation is silent to everyone else, and the author was told the
-   * reply was queued to publish, so the notice has to find them again. Null
-   * when the reply has no known author, and on facts recorded before the
-   * field existed.
+   * The reply's author as `replyAuthor` names it — whoever put it up for
+   * approval, else its creator. Identifier only: the cancellation is silent to
+   * everyone else, and the author was told the reply was queued to publish,
+   * so the notice has to find them again. Null when the reply has no known
+   * author, and on facts recorded before the field existed.
    */
   authorId: UserId | null
   cause: 'disconnect' | 'policy' | 'source_changed' | 'provider_truth'

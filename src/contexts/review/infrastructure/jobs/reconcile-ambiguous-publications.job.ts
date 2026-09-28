@@ -36,6 +36,7 @@ import type {
   ReconcileReplyPublication,
 } from '../../application/use-cases/reconcile-reply-publication'
 import type { Reply } from '../../domain/types'
+import { replyAuthor } from '../../domain/reply-author'
 import {
   reviewReplyPublishFailed,
   type ReplyPublishFailureOutcome,
@@ -115,7 +116,7 @@ async function publishFailedEvent(
     reviewId: reply.reviewId,
     propertyId: review.propertyId,
     organizationId: reply.organizationId,
-    authorId: reply.createdBy,
+    authorId: replyAuthor(reply),
     outcome,
     occurredAt,
   })

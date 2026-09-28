@@ -194,6 +194,7 @@ async function readTables(
           status,
           source,
           created_by,
+          submitted_by,
           approved_by,
           rejected_by,
           rejection_reason,
