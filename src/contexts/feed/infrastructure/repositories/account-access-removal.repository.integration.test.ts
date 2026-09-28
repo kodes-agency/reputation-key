@@ -81,6 +81,38 @@ describe('account access removal read', () => {
     ).resolves.toEqual({ removedAt: LATER })
   })
 
+  it('answers with a repeat removal folded into an older unread notice', async () => {
+    // Removed in January, re-invited, removed again in May: ADR 0046 r.2
+    // folds the May notice into January's unread row and stamps only its
+    // latest arrival. The removal that explains this sign-in is May's.
+    const REMOVED_AGAIN = new Date('2026-09-25T09:00:00.000Z')
+    await seedNotice({
+      id: 'f3a20000-0000-4000-8000-000000000015',
+      user: REMOVED as string,
+      organization: ORG as string,
+      type: 'account.organization_access_removed',
+      category: 'mandatory',
+      createdAt: EARLIER,
+    })
+    await seedNotice({
+      id: 'f3a20000-0000-4000-8000-000000000016',
+      user: REMOVED as string,
+      organization: OTHER_ORG as string,
+      type: 'account.organization_access_removed',
+      category: 'mandatory',
+      createdAt: LATER,
+    })
+    await getPool().query(
+      `UPDATE notifications SET coalesced_count = 2, coalesced_latest_at = $2
+        WHERE id = $1::uuid`,
+      ['f3a20000-0000-4000-8000-000000000015', REMOVED_AGAIN.toISOString()],
+    )
+
+    await expect(
+      createAccountAccessRemovalReader(db()).findLatestForUser(REMOVED),
+    ).resolves.toEqual({ removedAt: REMOVED_AGAIN })
+  })
+
   it('tells the caller nothing about the workspace beyond when it happened', async () => {
     await seedNotice({
       id: 'f3a20000-0000-4000-8000-000000000012',
