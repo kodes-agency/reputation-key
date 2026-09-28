@@ -1,9 +1,9 @@
 // Atomic identity command store (BQC-3.5).
 //
 // One PostgreSQL transaction per command commits the better-auth-owned state
-// mutation (invitation / member / organization rows — the app-owned write
-// path, the same precedent as the pre-existing acceptInvitation transaction
-// and the custom-role writes) together with its outbox_events fact.
+// mutation (invitation / member rows — the app-owned write path, the same
+// precedent as the pre-existing acceptInvitation transaction and the
+// custom-role writes) together with its outbox_events fact.
 //
 // Crash contract:
 // - Crash anywhere inside the transaction rolls back BOTH the state mutation
@@ -12,7 +12,7 @@
 //   and the separate fact record).
 // - A committed outbox row is the durable fact and is delivered by the relay.
 // - Guarded transitions (already-member/already-invited, last-owner,
-//   invitation lifecycle, slug conflict) record no fact.
+//   invitation lifecycle) record no fact.
 // - removeMember/changeMemberRole take the org advisory lock inside the
 //   transaction and re-check the last-owner invariant under it, preserving
 //   the pre-BQC-3.5 withOrgLock serialization semantics.
@@ -20,13 +20,7 @@
 import { isBetaInteractiveMemberRoleToken } from '#/shared/domain/beta-interactive-role'
 import { and, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import {
-  invitation,
-  member,
-  organization,
-  session,
-  user as userTable,
-} from '#/shared/db/schema/auth'
+import { invitation, member, session, user as userTable } from '#/shared/db/schema/auth'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { isOwnerToken } from '#/shared/domain/roles'
@@ -40,7 +34,6 @@ import type {
   ChangeMemberRoleCommand,
   IdentityCommandStore,
   InviteMemberCommand,
-  RegisterOrganizationCommand,
   RemoveMemberCommand,
   ValidateInvitationRegistrationCommand,
 } from '../application/ports/identity-command-store.port'
@@ -472,52 +465,6 @@ export const createAtomicIdentityCommandStore = (
                 eq(member.organizationId, command.organizationId as string),
               ),
             )
-          await insertOutboxRow(tx, command.event)
-        })
-      })
-    },
-
-    registerOrganization: async (command: RegisterOrganizationCommand) => {
-      return trace('identity.commandStore.registerOrganization', async () => {
-        await db.transaction(async (tx) => {
-          // Slug-uniqueness guard (better-auth's findOrganizationBySlug parity).
-          const existing = await tx
-            .select({ id: organization.id })
-            .from(organization)
-            .where(eq(organization.slug, command.slug))
-            .limit(1)
-          if (existing.length > 0) {
-            throw identityError(
-              'already_exists',
-              'An organization with this slug already exists',
-            )
-          }
-          const membership = await checkSingleOrganizationMembership(tx, {
-            userId: command.ownerId as string,
-            organizationId: command.organizationId as string,
-          })
-          if (membership.hasCurrentMembership) {
-            throw identityError(
-              'already_exists',
-              'User is already a member of this Organization',
-            )
-          }
-          await tx.insert(organization).values({
-            id: command.organizationId as string,
-            name: command.organizationName,
-            slug: command.slug,
-            createdAt: command.now,
-          })
-          await tx.insert(member).values({
-            id: idGen(),
-            organizationId: command.organizationId as string,
-            userId: command.ownerId as string,
-            role: 'owner',
-            createdAt: command.now,
-          })
-          // Migration 0159 owns lifecycle provisioning with an AFTER INSERT
-          // trigger on Better Auth's Organization table. Writing a second row
-          // here would race that database authority and fail the whole command.
           await insertOutboxRow(tx, command.event)
         })
       })

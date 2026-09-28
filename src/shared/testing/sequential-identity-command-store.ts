@@ -281,31 +281,6 @@ export function createSequentialIdentityCommandStore(deps: {
       await recordAndEmit(command.event)
     },
 
-    registerOrganization: async (command) => {
-      const slugTaken = [...organizations.values()].some((o) => o.slug === command.slug)
-      if (slugTaken) {
-        throw identityError(
-          'already_exists',
-          'An organization with this slug already exists',
-        )
-      }
-      organizations.set(command.organizationId as string, {
-        id: command.organizationId as string,
-        name: command.organizationName,
-        slug: command.slug,
-        createdAt: command.now,
-      })
-      members.set(`member-${command.ownerId as string}`, {
-        id: `member-${command.ownerId as string}`,
-        organizationId: command.organizationId as string,
-        userId: command.ownerId as string,
-        email: '',
-        role: 'owner',
-        createdAt: command.now,
-      })
-      await recordAndEmit(command.event)
-    },
-
     seedInvitation: (row) => {
       invitations.set(row.id, row)
     },

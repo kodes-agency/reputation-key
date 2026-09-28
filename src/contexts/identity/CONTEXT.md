@@ -78,8 +78,10 @@ Three `server/policy-admin.ts` functions have no UI caller on purpose:
   Follow-up: a grant requires `reason` and `ticketRef` but persists neither (a revoke
   keeps its `reason` as `revoke_reason`).
 
-Identity produces identifier-minimal Organization, invitation, member, merchant-AI,
-and lifecycle facts through the durable outbox. It subscribes to no foreign events.
+Identity produces identifier-minimal invitation, member, merchant-AI, and Organization
+lifecycle facts through the durable outbox. It subscribes to no foreign events.
+`identity.organization.created` is legacy: nothing has emitted it since `/register` was
+deleted, and Recent Activity keeps projecting and replaying the facts recorded before.
 
 ## Lifecycle and export compatibility
 
