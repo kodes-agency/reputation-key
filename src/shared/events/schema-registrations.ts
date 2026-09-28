@@ -13,6 +13,11 @@
 
 import { z } from 'zod/v4'
 import { registerEventSchema, isEventRegistered } from './schema-registry'
+import {
+  goalMonthlyResultClosedSchema,
+  goalMonthlyResultReconciledSchema,
+  goalMonthlyResultRevisedSchema,
+} from './goal-event-schemas'
 
 // ── Review event schemas ────────────────────────────────────────────
 
@@ -894,79 +899,6 @@ const guestReviewLinkClickedSchema = z.object({
   portalId: z.string(),
   occurredAt: z.string(),
 })
-
-// ── Goal event schemas ──────────────────────────────────────────────
-
-const goalMonthlyResultBaseSchema = z
-  .object({
-    // Tenant scope also lives in the durable envelope. These two fields are
-    // optional only for replay of rows written by the pre-adapter producer.
-    organizationId: z.string().trim().min(1).optional(),
-    propertyId: z.uuid().optional(),
-    programId: z.uuid(),
-    programVersionId: z.uuid(),
-    assignmentId: z.uuid(),
-    monthlyResultId: z.uuid(),
-    periodStart: z.iso.datetime(),
-    periodEnd: z.iso.datetime(),
-    evaluationState: z.enum([
-      'eligible',
-      'updating',
-      'insufficient_data',
-      'unavailable',
-      'quarantined',
-    ]),
-    achieved: z.boolean().nullable(),
-    // The outbox row created_at remains authoritative for the old producer.
-    occurredAt: z.iso.datetime().optional(),
-  })
-  .superRefine((payload, ctx) => {
-    if (new Date(payload.periodEnd) <= new Date(payload.periodStart)) {
-      ctx.addIssue({ code: 'custom', message: 'periodEnd must follow periodStart' })
-    }
-    if (
-      (payload.evaluationState === 'eligible' && payload.achieved === null) ||
-      (payload.evaluationState !== 'eligible' && payload.achieved !== null)
-    ) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'achievement must match the evaluation state',
-      })
-    }
-  })
-
-const goalMonthlyResultClosedSchema = goalMonthlyResultBaseSchema
-  .safeExtend({ status: z.literal('closed') })
-  .superRefine((payload, ctx) => {
-    if (payload.evaluationState === 'updating') {
-      ctx.addIssue({ code: 'custom', message: 'closed result cannot be updating' })
-    }
-  })
-
-const goalMonthlyResultReconciledSchema = goalMonthlyResultBaseSchema.safeExtend({
-  status: z.literal('reconciling'),
-})
-
-const goalMonthlyResultRevisedSchema = goalMonthlyResultBaseSchema
-  .safeExtend({
-    status: z.literal('closed'),
-    revisionId: z.uuid(),
-    revision: z.number().int().positive(),
-    supersedesRevisionId: z.uuid().nullable(),
-    outcomeChanged: z.boolean(),
-    availabilityChanged: z.boolean(),
-  })
-  .superRefine((payload, ctx) => {
-    if (payload.evaluationState === 'updating') {
-      ctx.addIssue({ code: 'custom', message: 'closed result cannot be updating' })
-    }
-    if (
-      (payload.revision === 1 && payload.supersedesRevisionId !== null) ||
-      (payload.revision > 1 && payload.supersedesRevisionId === null)
-    ) {
-      ctx.addIssue({ code: 'custom', message: 'result revision lineage is invalid' })
-    }
-  })
 
 // ── Identity event schemas ──────────────────────────────────────────
 

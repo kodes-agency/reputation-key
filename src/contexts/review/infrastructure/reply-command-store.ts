@@ -10,9 +10,8 @@
 // comes from nextPublicationState (the domain authority), never from a
 // caller-supplied literal.
 
-import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { properties } from '#/shared/db/schema/property.schema'
 import {
   googleReplyObservationHeads,
   googleReplyObservations,
@@ -55,6 +54,10 @@ import { lockReplyTruthScope } from './reply-truth-serialization'
 import { reviewReplyPublicationCancelled } from '../domain/events'
 import { replyAuthor } from '../domain/reply-author'
 import { attemptMayHaveDispatched } from './reply-publication-dispatch-evidence'
+import {
+  lockPublicationProperty,
+  propertyAdmitsCycle,
+} from './publication-property-admission'
 
 /**
  * Identity-owned, transaction-bound decision injected at composition. The
@@ -506,52 +509,6 @@ async function readCurrentPublicationAuthorization(
     return null
   }
   return authorization
-}
-
-/**
- * The Property this claim is admitted under, locked FOR SHARE ahead of Reply
- * truth (the canonical order in review-source-mutation-serialization.ts). An
- * Archive or Restore therefore commits wholly before this claim decides, or
- * after the claimed attempt is recorded; the provider authorizer's own
- * refusal covers the second case.
- */
-async function lockPublicationProperty(
-  tx: Tx,
-  organizationId: Reply['organizationId'],
-  propertyId: string,
-): Promise<Readonly<{ lifecycleState: string; sourceEpoch: number }> | null> {
-  const rows = await tx
-    .select({
-      lifecycleState: properties.lifecycleState,
-      sourceEpoch: properties.sourceEpoch,
-    })
-    .from(properties)
-    .where(
-      and(
-        eq(properties.organizationId, organizationId),
-        eq(properties.id, propertyId),
-        isNull(properties.deletedAt),
-      ),
-    )
-    .for('share')
-    .limit(1)
-  return rows[0] ?? null
-}
-
-/**
- * The provider authorizer admits a write only for an active Property at the
- * source epoch the cycle was authorized at. Anything else (an Archive, or a
- * Restore since approval) would be refused and reported as a Google rejection.
- */
-function propertyAdmitsCycle(
-  property: Readonly<{ lifecycleState: string; sourceEpoch: number }> | null,
-  authorization: PublicationAuthorizationRow,
-): boolean {
-  return (
-    property !== null &&
-    property.lifecycleState === 'active' &&
-    property.sourceEpoch === authorization.sourceEpoch
-  )
 }
 
 /** The cycle can no longer be claimed — its named manager lost current
