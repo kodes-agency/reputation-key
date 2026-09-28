@@ -77,7 +77,6 @@ export const checkReplyPublicationFn = createServerFn({ method: 'POST' })
 
 // ── Re-exports from split files ──────────────────────────────────────
 
-export { getReplyFn } from './reply-read'
 export {
   draftReplyFn,
   submitReplyFn,

@@ -297,7 +297,6 @@ export type SubmitReply = ReturnType<typeof submitReply>
 export type ApproveReply = ReturnType<typeof approveReply>
 export type RejectReply = ReturnType<typeof rejectReply>
 export type DeleteReply = ReturnType<typeof deleteReply>
-export type GetReply = ReturnType<typeof getReply>
 export type RetryPublish = ReturnType<typeof retryPublish>
 
 export type DraftReplyInput = Readonly<{
@@ -659,22 +658,6 @@ export const deleteReply =
     }
 
     await deps.replyRepo.deleteById(reply.id, ctx.organizationId)
-  }
-
-// ── Get reply for review ──────────────────────────────────────────────
-
-export type GetReplyInput = Readonly<{
-  reviewId: ReviewId
-}>
-
-export const getReply =
-  (deps: ReplyDeps) =>
-  async (input: GetReplyInput, ctx: AuthContext): Promise<Reply | null> => {
-    requireManager(ctx)
-    // D6-001: scope the reply read to the caller's assigned properties — same guard
-    // the mutations use. Without it a PropertyManager could read other properties' drafts.
-    await requireAccessibleReview(deps, ctx, input.reviewId)
-    return deps.replyRepo.findInternalByReviewId(input.reviewId, ctx.organizationId)
   }
 
 // ── Retry publish ─────────────────────────────────────────────────────
