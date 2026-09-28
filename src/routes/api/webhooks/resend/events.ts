@@ -23,6 +23,7 @@ import { getContainer } from '#/composition'
 import { svixHeaders, verifySvixSignature } from '#/shared/auth/svix-signature.verifier'
 import { requestRuntimeConfig } from '#/shared/config/request-runtime-config'
 import { getLogger } from '#/shared/observability/logger'
+import { captureObservabilityException } from '#/shared/observability/telemetry'
 import { trace } from '#/shared/observability/trace'
 
 // Only the fields we act on. Resend adds fields freely, so the schema stays
@@ -154,6 +155,9 @@ export async function handleResendWebhookPost(request: Request): Promise<Respons
         )
       }
       logger.error({ err }, 'Resend webhook processing failed')
+      // Answered, not thrown, so neither the Nitro error hook nor Sentry's
+      // request middleware sees it; Resend just retries into the same failure.
+      captureObservabilityException(err, { source: 'nitro' })
       return Response.json(
         {
           error: 'Internal Server Error',
