@@ -19,7 +19,9 @@ exit / failed action) and therefore blocks the PR. There is no
 `.github/workflows/review.yml` (`security`, `control-vs-ceremony`) reports
 findings and is deliberately **not** in `main`'s required checks — a bot
 approving a bot's work protects nothing, so it exits non-zero and stays
-informational.
+informational. This is the settled end state (owner decision, 2026-09-28), not
+a deferral: the jobs do not become required once the credential works again,
+so a lapsed credential can never block every merge.
 
 Since 2026-09-22 both jobs fail on every branch, Dependabot's included, with
 `401 OAuth access token is invalid`: the repository's `CLAUDE_CODE_OAUTH_TOKEN`
