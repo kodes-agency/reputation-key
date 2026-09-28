@@ -332,6 +332,8 @@ Clean → proceed. A newly-orphaned export/file → remove it, but **confirm rea
 
 **WIP caution:** the baseline may include unused exports/files in active work. Do not delete flagged WIP symbols without a `trace` confirming they are truly dead. Prefer `@expected-unused` or leave them for the feature to complete.
 
+**File-length ratchet** (`pnpm check:file-length`, run by `lint:ci`): a production module under `src/contexts`, `src/shared`, `src/routes`, `scripts` or `server` may hold at most 800 counted lines, counted as ESLint `max-lines` counts them (blank and comment-only lines are free). The modules already past it are grandfathered in `scripts/ci/file-length.baseline.json` and may not grow. Split them one per change and lower the baseline with `pnpm check:file-length --write-baseline`; never raise an entry to get a change through. `src/components` keeps its stricter ESLint limit (300).
+
 ---
 
 ## Documentation map
