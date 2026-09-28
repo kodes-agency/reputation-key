@@ -523,6 +523,14 @@ const renderInboxBulkAssigned = (p: NotificationPayload): RenderedNotification =
     (items) => `${byRole(p)} assigned ${items} to you. Open the Inbox to see your work.`,
   )
 
+/** The grouped `inbox.unassigned`: it never names who holds the items now. */
+const renderInboxBulkUnassigned = (p: NotificationPayload): RenderedNotification =>
+  renderInboxBulk(
+    p,
+    'no longer yours',
+    (items) => `${byRole(p)} reassigned ${items} you held to somebody else.`,
+  )
+
 /**
  * A member's items were released, all at once, at one Property. The copy never
  * names them — ADR 0046 r.8 keeps other employees out of a payload — so it
@@ -836,6 +844,7 @@ const RENDERERS: Record<
   'inbox.response_target_passed': renderResponseTargetPassed,
   'inbox.assigned': renderInboxAssigned,
   'inbox.unassigned': renderInboxUnassigned,
+  'inbox.bulk_unassigned': renderInboxBulkUnassigned,
   'inbox.bulk_assigned': renderInboxBulkAssigned,
   'inbox.assignments_released': renderAssignmentsReleased,
   'inbox_note.added': renderNoteAdded,
@@ -915,6 +924,8 @@ const GROUPED_INBOX_QUEUES: Partial<Record<NotificationType, string>> = {
   'inbox.bulk_reopened': 'open',
   // Released items are nobody's, so the honest queue is every open item.
   'inbox.assignments_released': 'open',
+  // Reassigned items are somebody else's now, and still in the open queue.
+  'inbox.bulk_unassigned': 'open',
 }
 
 /**

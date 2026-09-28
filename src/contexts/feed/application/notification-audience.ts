@@ -593,21 +593,6 @@ const isStillNoteAuthor = async (
   )
 }
 
-const isStillAssigneeOfEvery = async (
-  deps: Deps,
-  { organizationId, propertyId, userId }: PropertyScopedRequest,
-  itemIds: ReadonlyArray<InboxItemId>,
-) => {
-  const facts = await Promise.all(
-    itemIds.map((itemId) =>
-      deps.inboxItemLookup.findInboxItemFacts(itemId, organizationId),
-    ),
-  )
-  return !facts.some(
-    (item) => !item || item.propertyId !== propertyId || item.assignedTo !== userId,
-  )
-}
-
 const isEscalationResolutionRecipient = async (
   deps: Deps,
   { organizationId, propertyId, userId }: PropertyScopedRequest,
@@ -633,6 +618,7 @@ const isEscalationResolutionRecipient = async (
     inboxItemId: audience.inboxItemId,
     assignedTo: facts.assignedTo,
     resolvedBy: facts.resolvedBy,
+    escalatedAt: facts.escalatedAt,
   })
   return recipients.includes(userId)
 }
@@ -842,6 +828,30 @@ const isStillResponsibleForProperty = (
   { organizationId, propertyId, userId }: PropertyScopedRequest,
 ) => deps.responsibleManagers.isEligibleForProperty(organizationId, propertyId, userId)
 
+/**
+ * A grouped assignment stands for the items still assigned to the recipient
+ * on this Property, and counts only those. Its per-item facts notify nobody,
+ * so one item moving on before delivery must not silence the rest — as a
+ * grouped reopen already counts the cycles that still stand.
+ */
+const isBulkInboxAssigneeRecipient = async (
+  deps: Deps,
+  request: PropertyScopedRequest,
+  audience: AudienceOfKind<'bulk_inbox_assignee'>,
+): Promise<NotificationAudienceDecision> => {
+  const { organizationId, propertyId, userId } = request
+  const facts = await Promise.all(
+    audience.inboxItemIds.map((itemId) =>
+      deps.inboxItemLookup.findInboxItemFacts(itemId, organizationId),
+    ),
+  )
+  const itemCount = facts.filter(
+    (item) => item && item.propertyId === propertyId && item.assignedTo === userId,
+  ).length
+  if (itemCount === 0) return false
+  return (await isStillResponsibleForProperty(deps, request)) ? { itemCount } : false
+}
+
 /** Every audience kind that a Property-less job may never satisfy. */
 type PropertyScopedAudienceKind = Exclude<
   NotificationAudience['kind'],
@@ -883,9 +893,7 @@ const PROPERTY_SCOPED_RESOLVERS: {
   inbox_note_author: async (deps, request, audience) =>
     (await isStillNoteAuthor(deps, request, request.userId, audience.inboxItemId)) &&
     (await isStillResponsibleForProperty(deps, request)),
-  bulk_inbox_assignee: async (deps, request, audience) =>
-    (await isStillAssigneeOfEvery(deps, request, audience.inboxItemIds)) &&
-    (await isStillResponsibleForProperty(deps, request)),
+  bulk_inbox_assignee: isBulkInboxAssigneeRecipient,
   property_operator: (deps, request) => isStillResponsibleForProperty(deps, request),
 }
 

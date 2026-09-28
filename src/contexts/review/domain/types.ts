@@ -91,6 +91,13 @@ export type Reply = Readonly<{
   status: ReplyStatus
   source: ReplySource
   createdBy: UserId | null
+  /**
+   * Who last put the reply up for approval. Often not its creator: a draft
+   * handed to another manager is rewritten and submitted by them, and they
+   * are the one waiting on the decision. Absent or null on a reply never
+   * submitted, or submitted before this was recorded.
+   */
+  submittedBy?: UserId | null
   approvedBy: UserId | null
   rejectedBy: UserId | null
   rejectionReason: string | null

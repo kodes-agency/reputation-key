@@ -857,8 +857,17 @@ describe('durable workflow notification consumers', () => {
         { propertyId: CANCELLED_IDS.propertyId },
       )
 
-    it('tells the author and the admins who can re-approve it', async () => {
+    // No responsible manager may approve, so the approvers are the admins;
+    // the responsible-approver tier has its own suite
+    // (workflow-publication-cancelled-audience.test.ts).
+    const adminFallbackDeps = () => {
       const deps = makeDeps()
+      deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([])
+      return deps
+    }
+
+    it('tells the author and, with no responsible approver, the admins', async () => {
+      const deps = adminFallbackDeps()
       deps.fakes.userLookup.findByRole.mockResolvedValue([
         NOTIF_TEST_IDS.admin1,
         NOTIF_TEST_IDS.admin2,
@@ -886,7 +895,7 @@ describe('durable workflow notification consumers', () => {
     })
 
     it('tells the admins alone when the fact names no author', async () => {
-      const deps = makeDeps()
+      const deps = adminFallbackDeps()
 
       await handleWorkflowNotificationEvent(deps, cancelled('source_changed', null))
 
@@ -899,7 +908,7 @@ describe('durable workflow notification consumers', () => {
     })
 
     it('names an author who is also an admin once', async () => {
-      const deps = makeDeps()
+      const deps = adminFallbackDeps()
       deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.authorId])
 
       await handleWorkflowNotificationEvent(deps, cancelled('provider_truth'))
@@ -915,7 +924,7 @@ describe('durable workflow notification consumers', () => {
     // A policy cancellation is what an Archive or a lost authority looks like:
     // the approver it took the authority from cannot re-approve anything.
     it('leaves out an approver who just lost authority over the Property', async () => {
-      const deps = makeDeps()
+      const deps = adminFallbackDeps()
       deps.fakes.userLookup.findByRole.mockResolvedValue([
         NOTIF_TEST_IDS.admin1,
         NOTIF_TEST_IDS.admin2,
@@ -933,7 +942,7 @@ describe('durable workflow notification consumers', () => {
     })
 
     it('keeps every approver for a cancellation that took nobody’s authority', async () => {
-      const deps = makeDeps()
+      const deps = adminFallbackDeps()
       deps.fakes.userLookup.findByRole.mockResolvedValue([NOTIF_TEST_IDS.admin1])
       deps.fakes.responsibleManagers.isEligibleForProperty.mockResolvedValue(false)
 
@@ -962,7 +971,7 @@ describe('durable workflow notification consumers', () => {
         'A different reply is live on Google, so this one is not. Open it to check.',
       ],
     ] as const)('says why it was cancelled for cause %s', async (cause, body) => {
-      const deps = makeDeps()
+      const deps = adminFallbackDeps()
 
       await handleWorkflowNotificationEvent(deps, cancelled(cause))
 

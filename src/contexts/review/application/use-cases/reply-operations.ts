@@ -31,6 +31,7 @@ import {
   nextPublicationCycle,
 } from '../../domain/reply-publication-workflow'
 import { reviewError } from '../../domain/errors'
+import { replyAuthor } from '../../domain/reply-author'
 import { settleIfNeverDispatched } from './settle-never-dispatched-attempt'
 import { commitTransition } from '../reply-commit'
 import {
@@ -452,7 +453,8 @@ export const submitReply =
     const submitted = await commitTransition(reply, 'pending_approval', now, () =>
       deps.commandStore.submitReply(
         reply,
-        { status: 'pending_approval', submittedAt: now },
+        // Whoever submits is who the decision is news to (replyAuthor).
+        { status: 'pending_approval', submittedAt: now, submittedBy: ctx.userId },
         reviewReplySubmitted({
           replyId: reply.id,
           reviewId: reply.reviewId,
@@ -507,7 +509,7 @@ export const approveReply =
                 propertyId: review.propertyId,
                 organizationId: reply.organizationId,
                 userId: ctx.userId,
-                authorId: reply.createdBy,
+                authorId: replyAuthor(reply),
                 occurredAt: now,
               }),
               publicationIntent,
@@ -629,7 +631,7 @@ export const rejectReply =
           propertyId: review.propertyId,
           organizationId: reply.organizationId,
           userId: ctx.userId,
-          authorId: reply.createdBy,
+          authorId: replyAuthor(reply),
           reason: input.reason ?? null,
           occurredAt: now,
         }),

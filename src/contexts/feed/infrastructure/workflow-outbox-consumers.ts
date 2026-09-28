@@ -33,19 +33,23 @@ import type {
   ReplyPublishFailureOutcome,
   ReviewReplyApproved,
   ReviewReplyPublished,
-  ReviewReplyPublishFailed,
-  ReviewReplyRejected,
   ReviewReplySubmitted,
 } from '#/contexts/review/application/public-api'
+import {
+  enqueuePublishFailedNotification,
+  enqueueReplyAuthorNotification,
+  type DurableReplyPublishFailed,
+  type DurableReplyRejected,
+} from './reply-outcome-notifications'
 import type { InsertNotificationJobData } from './jobs/insert-notification.job'
 import { INSERT_NOTIFICATION_JOB_NAME } from './jobs/insert-notification.job'
 import { buildInboxItemPayload } from './notification-payload-facts'
 import {
   inboxNotificationAudience,
   resolveInboxResponsibleRecipients,
-  resolveResponsibleRecipients,
 } from '../application/responsible-recipients'
 import { resolveReplyApprovalRecipients } from '../application/reply-approval-recipients'
+import { resolveEscalationRecipients } from '../application/escalation-recipients'
 import type { ReplyApprovalAuthorityPort } from '../application/ports/reply-approval-authority.port'
 import type { ActivePropertyLookup } from '../application/ports/active-property.port'
 import type { NotificationJobEnqueuePort } from './inbox-notification-fanout'
@@ -101,21 +105,6 @@ export const WORKFLOW_NOTIFICATION_CONSUMERS = [
 
 type WorkflowEventType = (typeof WORKFLOW_NOTIFICATION_CONSUMERS)[number]['eventType']
 
-/**
- * The durable rejection fact. The reason stays on the reply (ADR 0030); the
- * fact says only whether there is one, and a fact recorded before it said so
- * says neither (`null`).
- */
-type DurableReplyRejected = Omit<ReviewReplyRejected, 'reason' | 'hasReason'> &
-  Readonly<{ hasReason: boolean | null }>
-
-/**
- * The durable publish-failure fact. One recorded before it said how the
- * publication ended says nothing (`null`), and the notice claims no cause.
- */
-type DurableReplyPublishFailed = Omit<ReviewReplyPublishFailed, 'outcome'> &
-  Readonly<{ outcome: ReplyPublishFailureOutcome | null }>
-
 type WorkflowEvent =
   | InboxItemAssigned
   | InboxItemEscalated
@@ -142,15 +131,6 @@ export type WorkflowNotificationConsumerDeps = Readonly<{
 }>
 
 type WorkflowNotificationDeliveryDeps = Omit<WorkflowNotificationConsumerDeps, 'receipts'>
-
-/**
- * Nobody is told about their own action: they already know what they did.
- * A system actor (`null`) excludes nobody.
- */
-const excludingActor = (
-  recipients: readonly UserId[],
-  actorId: UserId | null,
-): readonly UserId[] => recipients.filter((recipientId) => recipientId !== actorId)
 
 /**
  * Who this assignment is news to.
@@ -220,10 +200,9 @@ async function enqueueAssignmentNotification(
 }
 
 /**
- * An escalation goes to the people who own the item's work — the Property's
- * responsible managers for a review, the Portal's for private feedback — and
- * to the AccountAdmins only when that scope has nobody (I5.3). It used to go
- * to every AccountAdmin in the Organization regardless.
+ * An escalation goes to the people who own the item's work, and to the
+ * AccountAdmins when nobody there but the escalating actor can answer it
+ * (I5.3, `resolveEscalationRecipients`).
  */
 async function enqueueEscalationNotifications(
   deps: WorkflowNotificationDeliveryDeps,
@@ -233,21 +212,20 @@ async function enqueueEscalationNotifications(
     event.inboxItemId,
     event.organizationId,
   )
-  const candidates = facts
-    ? await resolveInboxResponsibleRecipients(deps, event.organizationId, facts)
-    : await deps.userLookup.findByRole(event.organizationId, 'AccountAdmin')
-  const audience = facts
-    ? inboxNotificationAudience(facts)
-    : ({ kind: 'account_admin' } as const)
-  if (candidates.length === 0) {
+  const { recipients, audience } = await resolveEscalationRecipients(
+    deps,
+    event.organizationId,
+    facts,
+    event.userId,
+  )
+  if (recipients.length === 0) {
+    // A request for help that reaches nobody must at least leave a trace.
     deps.logger.warn(
       { correlationId: event.correlationId ?? undefined },
-      'notification escalation delivery: no recipients found, skipping',
+      'notification escalation delivery: nobody besides the escalating actor, skipping',
     )
     return
   }
-  const recipients = excludingActor(candidates, event.userId)
-  if (recipients.length === 0) return
 
   // Escalating is a person's judgement call; the notice names their role.
   const payload = await buildInboxItemPayload(deps, {
@@ -419,117 +397,6 @@ async function enqueueSubmittedNotifications(
       deps.queue.add(INSERT_NOTIFICATION_JOB_NAME, data, {
         jobId: `${event.eventId}-${data.userId}`,
       }),
-    ),
-  )
-}
-
-type ReplyAuthorEvent =
-  | ReviewReplyApproved
-  | DurableReplyRejected
-  | ReviewReplyPublished
-  | DurableReplyPublishFailed
-
-/** Who approved or rejected. Publication outcomes come from Google, not a person. */
-const replyDecider = (event: ReplyAuthorEvent): UserId | null =>
-  event._tag === 'review.reply.approved' || event._tag === 'review.reply.rejected'
-    ? event.userId
-    : null
-
-async function enqueueReplyAuthorNotification(
-  deps: WorkflowNotificationDeliveryDeps,
-  event: ReplyAuthorEvent,
-  type: InsertNotificationJobData['type'],
-): Promise<void> {
-  if (!event.authorId) return
-  // Deciding on your own reply is not news to you; Google's verdict still is.
-  if (replyDecider(event) === event.authorId) return
-
-  const inboxItem = await deps.inboxItemLookup.findInboxItemByReviewId(
-    event.reviewId,
-    event.organizationId,
-  )
-  if (!inboxItem) return
-
-  const payload = await buildInboxItemPayload(deps, {
-    inboxItemId: inboxItem,
-    orgId: event.organizationId,
-    hasModerationReason: event._tag === 'review.reply.rejected' ? event.hasReason : null,
-    publishOutcome: event._tag === 'review.reply.publish_failed' ? event.outcome : null,
-    publishFailureCause:
-      event._tag === 'review.reply.publish_failed' ? (event.cause ?? null) : null,
-  })
-  await deps.queue.add(
-    INSERT_NOTIFICATION_JOB_NAME,
-    {
-      userId: event.authorId,
-      organizationId: event.organizationId,
-      propertyId: event.propertyId,
-      type,
-      resourceType: 'inbox_item',
-      resourceId: inboxItem,
-      eventId: event.eventId,
-      payload,
-      audience: { kind: 'property_operator' },
-    },
-    { jobId: `${event.eventId}-${event.authorId}` },
-  )
-}
-
-/**
- * A reply that failed to publish still needs someone to retry it. The author
- * gets the notice while they can still act on the Property. Otherwise — they
- * left, lost access, or are unknown — the Property's responsible managers own
- * this Google work and get it (AccountAdmins when none is eligible). Delivery
- * rechecks whichever audience was chosen.
- */
-async function enqueuePublishFailedNotification(
-  deps: WorkflowNotificationDeliveryDeps,
-  event: DurableReplyPublishFailed,
-): Promise<void> {
-  const authorCanRetry =
-    event.authorId !== null &&
-    (await deps.responsibleManagers.isEligibleForProperty(
-      event.organizationId,
-      event.propertyId,
-      event.authorId,
-    ))
-  if (authorCanRetry) {
-    await enqueueReplyAuthorNotification(deps, event, 'reply.publish_failed')
-    return
-  }
-
-  const inboxItem = await deps.inboxItemLookup.findInboxItemByReviewId(
-    event.reviewId,
-    event.organizationId,
-  )
-  if (!inboxItem) return
-  const scope = { kind: 'property', propertyId: event.propertyId } as const
-  const recipients = await resolveResponsibleRecipients(deps, event.organizationId, scope)
-  const payload = await buildInboxItemPayload(deps, {
-    inboxItemId: inboxItem,
-    orgId: event.organizationId,
-    publishOutcome: event.outcome,
-    // A manager cannot retry past a lapsed Google grant any more than the
-    // author could, so they need the reconnect cause too.
-    publishFailureCause: event.cause ?? null,
-  })
-  await Promise.all(
-    recipients.map((recipientId) =>
-      deps.queue.add(
-        INSERT_NOTIFICATION_JOB_NAME,
-        {
-          userId: recipientId,
-          organizationId: event.organizationId,
-          propertyId: event.propertyId,
-          type: 'reply.publish_failed',
-          resourceType: 'inbox_item',
-          resourceId: inboxItem,
-          eventId: event.eventId,
-          payload,
-          audience: { kind: 'responsible_scope', scope },
-        },
-        { jobId: `${event.eventId}-${recipientId}` },
-      ),
     ),
   )
 }

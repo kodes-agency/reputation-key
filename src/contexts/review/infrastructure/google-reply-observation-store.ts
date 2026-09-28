@@ -10,7 +10,7 @@ import {
 } from '#/shared/db/schema/review.schema'
 import type { DomainEvent } from '#/shared/events/events'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
-import { replyId, userId } from '#/shared/domain/ids'
+import { replyId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import type {
   CurrentGoogleReplyObservation,
@@ -26,6 +26,7 @@ import {
   type GoogleReplyPublicationCandidate,
 } from '../domain/google-reply-observation'
 import { reviewError } from '../domain/errors'
+import { rowReplyAuthor } from '../domain/reply-author'
 import {
   reviewReplyObserved,
   reviewReplyPublicationCancelled,
@@ -381,7 +382,7 @@ function providerTruthCancellationFact(
     reviewId: input.reviewId,
     propertyId: input.propertyId,
     organizationId: input.organizationId,
-    authorId: internal.createdBy === null ? null : userId(internal.createdBy),
+    authorId: rowReplyAuthor(internal),
     cause: 'provider_truth',
     occurredAt: input.observedAt,
   })
@@ -576,7 +577,7 @@ async function confirmReplyOnGoogle(
     propertyId: input.propertyId,
     organizationId: input.organizationId,
     userId: null,
-    authorId: internal.createdBy ? userId(internal.createdBy) : null,
+    authorId: rowReplyAuthor(internal),
     occurredAt: input.observedAt,
   })
 }

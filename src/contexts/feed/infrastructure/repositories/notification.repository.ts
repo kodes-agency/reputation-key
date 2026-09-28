@@ -236,11 +236,14 @@ export const createNotificationRepository = (db: Database) => ({
   },
 
   // Who was told. Read state is irrelevant: somebody who read the escalation
-  // notice was still told about it, and a settled row still proves it.
+  // notice was still told about it, and a settled row still proves it. The
+  // latest arrival is the one a repeat event coalesced in, so a row first
+  // written for an earlier occurrence still counts once it was told again.
   findRecipientsOfNotice: async (
     orgId: string,
     type: string,
     resourceId: string,
+    arrivedSince: Date | null,
   ): Promise<readonly UserId[]> => {
     const rows = await db
       .selectDistinct({ userId: notifications.userId })
@@ -250,6 +253,9 @@ export const createNotificationRepository = (db: Database) => ({
           eq(notifications.organizationId, orgId),
           eq(notifications.type, type),
           eq(notifications.resourceId, resourceId),
+          arrivedSince === null
+            ? undefined
+            : sql`COALESCE(${notifications.coalescedLatestAt}, ${notifications.createdAt}) >= ${arrivedSince}`,
         ),
       )
     return rows.map((row) => userId(row.userId))

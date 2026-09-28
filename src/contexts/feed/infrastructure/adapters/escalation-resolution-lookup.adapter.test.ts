@@ -33,6 +33,7 @@ const ITEM = inboxItemId('b8100000-0000-4000-8000-000000000040')
 const PROPERTY = 'b8100000-0000-4000-8000-000000000010'
 const ASSIGNEE = 'b8100000-0000-4000-8000-000000000050'
 const RESOLVER = 'b8100000-0000-4000-8000-000000000051'
+const ESCALATED_AT = new Date('2026-06-01T09:00:00.000Z')
 const RESOLVED_AT = new Date('2026-06-01T10:00:00.000Z')
 
 type Read = {
@@ -46,6 +47,7 @@ const ITEM_ROW = {
   propertyId: PROPERTY,
   assignedTo: ASSIGNEE,
   isEscalated: false,
+  escalatedAt: ESCALATED_AT,
   resolvedAt: RESOLVED_AT,
   resolvedBy: RESOLVER,
 }
@@ -140,7 +142,7 @@ describe('escalation resolution lookup — Organization fencing', () => {
 })
 
 describe('escalation resolution lookup — content-free projection', () => {
-  it('reads only the five fence columns from inbox_items', async () => {
+  it('reads only the six fence columns from inbox_items', async () => {
     const reads: Read[] = []
 
     await lookup(reads, [
@@ -152,6 +154,7 @@ describe('escalation resolution lookup — content-free projection', () => {
       propertyId: 'property_id',
       assignedTo: 'assigned_to',
       isEscalated: 'is_escalated',
+      escalatedAt: 'escalated_at',
       resolvedAt: 'escalation_resolved_at',
       resolvedBy: 'escalation_resolved_by',
     })
@@ -168,6 +171,7 @@ describe('escalation resolution lookup — content-free projection', () => {
 
     expect(Object.keys(facts ?? {}).sort()).toEqual([
       'assignedTo',
+      'escalatedAt',
       'isEscalated',
       'propertyId',
       'propertyName',
@@ -191,6 +195,7 @@ describe('escalation resolution lookup — facts returned', () => {
       assignedTo: ASSIGNEE,
       propertyName: 'Seaside Hotel',
       isEscalated: true,
+      escalatedAt: ESCALATED_AT,
       resolvedAt: RESOLVED_AT,
       resolvedBy: RESOLVER,
     })

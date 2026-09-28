@@ -1,0 +1,12 @@
+-- Who last put a reply up for approval.
+--
+-- The decision and publication facts named the reply's creator as its author,
+-- and Feed addressed "Your reply needs changes", "…was approved", "…is live
+-- on Google" and "Retry publish" to that person. A draft is often started by
+-- one manager and finished by another, who rewrites it and submits it; the
+-- creator was told about a decision they were no longer waiting on, and the
+-- submitter heard nothing. The submit command now records who submitted.
+--
+-- Nullable, with no backfill: a reply submitted before this column existed
+-- keeps being addressed to its creator, which is what it was told before.
+ALTER TABLE "replies" ADD COLUMN "submitted_by" varchar(255);

@@ -36,12 +36,9 @@ const unique = (recipients: readonly UserId[]): readonly UserId[] => [
 const recoveryAdmins = (deps: ResponsibleRecipientDeps, organizationId: OrganizationId) =>
   deps.userLookup.findByRole(organizationId, 'AccountAdmin')
 
-/**
- * Resolve current explicit responsibility. AccountAdmins are a recovery path
- * only when the scoped authority has no eligible recipient.
- */
-export async function resolveResponsibleRecipients(
-  deps: ResponsibleRecipientDeps,
+/** The scope's own responsible managers, with no recovery path behind them. */
+export async function findScopeResponsibleManagers(
+  deps: Pick<ResponsibleRecipientDeps, 'responsibleManagers'>,
   organizationId: OrganizationId,
   scope: ResponsibleScope,
 ): Promise<readonly UserId[]> {
@@ -60,9 +57,21 @@ export async function resolveResponsibleRecipients(
             organizationId,
             portalGroupId(scope.portalGroupId),
           )
+  return unique(recipients)
+}
 
+/**
+ * Resolve current explicit responsibility. AccountAdmins are a recovery path
+ * only when the scoped authority has no eligible recipient.
+ */
+export async function resolveResponsibleRecipients(
+  deps: ResponsibleRecipientDeps,
+  organizationId: OrganizationId,
+  scope: ResponsibleScope,
+): Promise<readonly UserId[]> {
+  const recipients = await findScopeResponsibleManagers(deps, organizationId, scope)
   return recipients.length > 0
-    ? unique(recipients)
+    ? recipients
     : unique(await recoveryAdmins(deps, organizationId))
 }
 

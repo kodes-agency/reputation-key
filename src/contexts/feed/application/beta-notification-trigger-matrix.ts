@@ -155,11 +155,12 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ['inbox.assigned', 'inbox.unassigned'],
     ['inbox_assignee', 'property_operator'],
   ),
+  // I15: the new assignee, and the previous holders — each once per Property.
   route(
     'inbox.inbox_items.bulk_assignment_completed',
     'notification.on-inbox-bulk-assignment-completed',
-    ['inbox.bulk_assigned'],
-    ['bulk_inbox_assignee'],
+    ['inbox.bulk_assigned', 'inbox.bulk_unassigned'],
+    ['bulk_inbox_assignee', 'property_operator'],
   ),
   // One notice per Property, to the people who now own the gap; the per-item
   // unassigned facts it covers stay history.
@@ -222,13 +223,14 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ['property_operator', 'responsible_scope'],
   ),
   // The author was told the reply was queued to publish; the approvers are the
-  // ones who can send it again. A `policy` cancellation drops the approvers it
-  // took the Property authority from.
+  // ones who can send it again — the responsible ones first, admins as the
+  // fallback (I5.3). A `policy` cancellation drops the approvers it took the
+  // Property authority from.
   route(
     'review.reply.publication_cancelled',
     'notification.on-review-reply-publication_cancelled',
     ['reply.publication_cancelled'],
-    ['property_operator', 'account_admin'],
+    ['property_operator', 'reply_approver', 'account_admin'],
   ),
   route(
     'portal.responsibility_became_needed',

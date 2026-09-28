@@ -31,6 +31,7 @@ import type {
 } from '../ports/reply-command-store.port'
 import type { GoogleConnectionId, OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { reviewReplyPublicationCancelled } from '../../domain/events'
+import { replyAuthor } from '../../domain/reply-author'
 
 export type CancelPublicationsForConnectionDeps = Readonly<{
   reviewRepo: ReviewRepository
@@ -103,7 +104,7 @@ export const cancelPublicationsForConnection =
             reviewId: reply.reviewId,
             propertyId,
             organizationId: input.organizationId,
-            authorId: reply.createdBy,
+            authorId: replyAuthor(reply),
             cause: input.cause,
             occurredAt: now,
           }),
@@ -185,7 +186,7 @@ export const cancelPublicationsForProperty =
             reviewId: reply.reviewId,
             propertyId: input.propertyId,
             organizationId: input.organizationId,
-            authorId: reply.createdBy,
+            authorId: replyAuthor(reply),
             cause: input.cause,
             occurredAt: now,
           }),

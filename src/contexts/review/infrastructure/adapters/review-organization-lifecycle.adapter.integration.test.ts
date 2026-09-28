@@ -315,9 +315,9 @@ async function seedReviewWork(): Promise<void> {
   await pool.query(
     `INSERT INTO replies (
        id, review_id, organization_id, text, status, source, created_by,
-       approved_by, authorship, publication_state, publication_cycle,
-       published_at, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 'published', 'internal', $5, $5, 'human',
+       submitted_by, approved_by, authorship, publication_state,
+       publication_cycle, published_at, created_at, updated_at
+     ) VALUES ($1, $2, $3, $4, 'published', 'internal', $5, $5, $5, 'human',
                'published', 1, $6, $6, $6)`,
     [PUBLISHED_REPLY_ID, PUBLISHED_REVIEW_ID, ORG_ID, REPLY_TEXT, MANAGER_ID, AT],
   )
@@ -724,6 +724,16 @@ describe.sequential('Review Organization lifecycle contributor (PostgreSQL)', ()
       text: '',
       status: 'published',
       publication_state: 'published',
+    })
+    // No manager stays named on the scrubbed reply, its submitter included.
+    const actors = await pool.query(
+      `SELECT created_by, submitted_by, approved_by FROM replies WHERE id = $1`,
+      [PUBLISHED_REPLY_ID],
+    )
+    expect(actors.rows[0]).toEqual({
+      created_by: null,
+      submitted_by: null,
+      approved_by: null,
     })
 
     // Nothing Review holds for the CLOSED tenant still carries its text. The
