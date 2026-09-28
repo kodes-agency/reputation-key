@@ -218,11 +218,7 @@ export const markAllNotificationsReadFn = createServerFn({ method: 'POST' })
     tracedHandler(
       async ({ data }) =>
         runBulkNotificationMutation((feedPublicApi, ctx) =>
-          feedPublicApi.markAllRead(
-            ctx.userId,
-            ctx.organizationId,
-            data?.filter ?? 'all',
-          ),
+          feedPublicApi.markAllRead(ctx, data?.filter ?? 'all'),
         ),
       'POST',
       'notification.markAllRead',
@@ -234,9 +230,7 @@ export const markAllNotificationsReadFn = createServerFn({ method: 'POST' })
 export const dismissAllNotificationsFn = createServerFn({ method: 'POST' }).handler(
   tracedHandler(
     async () =>
-      runBulkNotificationMutation((feedPublicApi, ctx) =>
-        feedPublicApi.dismissAll(ctx.userId, ctx.organizationId),
-      ),
+      runBulkNotificationMutation((feedPublicApi, ctx) => feedPublicApi.dismissAll(ctx)),
     'POST',
     'notification.dismissAll',
   ),
