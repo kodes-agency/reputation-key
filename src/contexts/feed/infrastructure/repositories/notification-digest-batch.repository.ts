@@ -18,10 +18,16 @@ import {
 import type { NotificationEmail } from '../../domain/notification-types'
 import type {
   DigestBatchSettlement,
+  FrozenDigestRequest,
   NotificationDigestBatch,
   PreparedNotificationDigestBatch,
 } from '../../application/ports/notification-email-repository.port'
-import { digestBatchIdempotencyKey, digestMemberSet } from '../digest-batch-identity'
+import {
+  digestBatchIdempotencyKey,
+  digestMemberSet,
+  digestProviderRequest,
+} from '../digest-batch-identity'
+import { frozenDigestRequest, readFrozenDigestRequest } from '../digest-frozen-request'
 import { digestUnsubscribeScopesInsert } from './notification-unsubscribe-scope.repository'
 import { emailFromRow, firstAttemptAt, SENDABLE } from './notification-email-queue-rows'
 import { notificationError } from '../../domain/notification-errors'
@@ -63,6 +69,7 @@ const digestBatchFromRow = (row: DigestBatchRow): NotificationDigestBatch => ({
   retryCount: row.retryCount,
   everyAttemptRefused:
     row.state === 'retryable' && row.outcomeClass === REFUSED_OUTCOME_CLASS,
+  providerRequest: readFrozenDigestRequest(row.providerRequest, row.contentDigest),
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
 })
@@ -146,6 +153,7 @@ async function settleAccepted(
     .update(notificationDigestBatches)
     .set({
       state: 'accepted',
+      providerRequest: null,
       providerMessageId: settlement.providerMessageId,
       outcomeClass: null,
       terminalReason: null,
@@ -168,6 +176,7 @@ async function settleSuperseded(
     .update(notificationDigestBatches)
     .set({
       state: 'terminal',
+      providerRequest: null,
       outcomeClass: 'superseded',
       terminalReason: 'provider_request_changed',
       updatedAt: settlement.detectedAt,
@@ -205,6 +214,7 @@ async function suppressAndClose(
     .update(notificationDigestBatches)
     .set({
       state: 'terminal',
+      providerRequest: null,
       outcomeClass: closure.outcomeClass,
       terminalReason: closure.terminalReason,
       failedAt: closure.at,
@@ -236,6 +246,8 @@ async function settleRejected(
     .update(notificationDigestBatches)
     .set({
       state: retryable ? 'retryable' : 'terminal',
+      // A retry re-sends the frozen request; a closed batch never will.
+      ...(retryable ? {} : { providerRequest: null }),
       // Refused only when this attempt was refused AND every earlier
       // one was: the start of this attempt left `in_flight` only then.
       outcomeClass:
@@ -346,6 +358,7 @@ export const createNotificationDigestBatchStore = (db: Database) => ({
     contentDigest: string
     providerIdempotencyKey: string
     unsubscribeKeyVersion: string
+    providerRequest: FrozenDigestRequest
     preparedAt: Date
   }): Promise<PreparedNotificationDigestBatch> => {
     if (input.memberIds.length === 0) {
@@ -375,6 +388,12 @@ export const createNotificationDigestBatchStore = (db: Database) => ({
       throw notificationError(
         'insert_failed',
         'Digest batch provider key does not match immutable identity',
+      )
+    }
+    if (digestProviderRequest(input.providerRequest) !== input.contentDigest) {
+      throw notificationError(
+        'insert_failed',
+        'Digest batch request does not match its content digest',
       )
     }
 
@@ -439,6 +458,7 @@ export const createNotificationDigestBatchStore = (db: Database) => ({
           contentDigest: input.contentDigest,
           providerIdempotencyKey: input.providerIdempotencyKey,
           unsubscribeKeyVersion: input.unsubscribeKeyVersion,
+          providerRequest: frozenDigestRequest(input.providerRequest),
           state: 'prepared',
           createdAt: input.preparedAt,
           updatedAt: input.preparedAt,

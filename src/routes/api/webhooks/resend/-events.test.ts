@@ -244,6 +244,24 @@ describe('resend webhook route', () => {
     })
   })
 
+  it('acks an event about something other than a message, which carries no email_id', async () => {
+    // A webhook subscribed to "all events" also gets domain.* and contact.*.
+    for (const type of ['domain.updated', 'contact.created']) {
+      const response = await handleResendWebhookPost(
+        mkRequest(
+          JSON.stringify({ type, data: { id: 'domain-1', name: 'example.com' } }),
+        ),
+      )
+
+      expect(response.status).toBe(200)
+      await expect(response.json()).resolves.toMatchObject({
+        applied: false,
+        reason: 'ignored_event_type',
+      })
+    }
+    expect(mocks.handleResendEvent).not.toHaveBeenCalled()
+  })
+
   it('surfaces an internal failure as 500, distinguishable from a probing client', async () => {
     mocks.handleResendEvent.mockRejectedValue(new Error('database is down'))
 

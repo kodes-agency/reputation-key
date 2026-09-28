@@ -153,6 +153,21 @@ export function isOrganizationScopedNotice(
 }
 
 /**
+ * Organization facts mailed through a Property that is only their delivery
+ * anchor, never named in their copy (Feed CONTEXT.md). The preference that
+ * lets such a message through is the anchor's category preference, so a
+ * one-click switch for it would silently stop every email of that category
+ * about a Property the message never mentioned. Its unsubscribe opens the
+ * preferences page instead.
+ */
+export const PROPERTY_ANCHORED_NOTICE_TYPES: ReadonlySet<NotificationType> = new Set([
+  'integration.reauthorization_required',
+])
+
+export const isPropertyAnchoredNotice = (type: NotificationType): boolean =>
+  PROPERTY_ANCHORED_NOTICE_TYPES.has(type)
+
+/**
  * Mandatory account/security notices belong to the Organization, as do the
  * few informational notices above. Every other active family remains
  * Property-scoped. Keeping this derived from the category map and one explicit

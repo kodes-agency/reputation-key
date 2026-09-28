@@ -369,6 +369,16 @@ export const notificationDigestBatches = pgTable(
     unsubscribeKeyVersion: varchar('unsubscribe_key_version', { length: 32 })
       .notNull()
       .default('legacy'),
+    // The rendered request the batch was frozen with, re-sent verbatim by a
+    // retry the provider may already hold. Cleared when the batch closes, so
+    // rendered mail is kept no longer than it can still be sent.
+    providerRequest: jsonb('provider_request').$type<{
+      to: string
+      subject: string
+      html: string
+      text: string
+      headers: Record<string, string>
+    }>(),
     state: varchar('state', { length: 16 }).notNull().default('prepared'),
     providerMessageId: varchar('provider_message_id', { length: 255 }),
     outcomeClass: varchar('outcome_class', { length: 24 }),

@@ -83,6 +83,7 @@ export function NotificationsSettingsPage({
     propertyId,
     preferences,
     categoryDefaults,
+    emailAllowed: emailAvailability === 'allowed',
     updatePreference,
   })
   return (

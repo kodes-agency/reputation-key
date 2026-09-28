@@ -21,7 +21,11 @@ import {
   userId,
 } from '#/shared/domain/ids'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
-import { digestBatchIdempotencyKey, digestMemberSet } from '../digest-batch-identity'
+import {
+  digestBatchIdempotencyKey,
+  digestMemberSet,
+  digestProviderRequest,
+} from '../digest-batch-identity'
 import { createNotificationEmailRepository } from './notification-email.repository'
 import { createOneClickUnsubscribeRepository } from './one-click-unsubscribe.repository'
 
@@ -34,6 +38,13 @@ const DAILY_A = notificationEmailId('86000000-0000-4000-8000-000000000012')
 const DAILY_B = notificationEmailId('86000000-0000-4000-8000-000000000013')
 const BATCH = notificationDigestBatchId('86000000-0000-4000-8000-000000000021')
 const NOW = new Date('2026-08-26T08:00:00.000Z')
+const FROZEN_REQUEST = {
+  to: 'manager@example.com',
+  subject: 'Your digest',
+  html: '<p>Digest</p>',
+  text: 'Digest',
+  headers: {},
+}
 const DAYS_LATER = new Date('2026-12-01T08:00:00.000Z')
 
 const SEEDS = [
@@ -174,7 +185,8 @@ describe.sequential(
         localDate: '2026-08-26',
         memberIds,
         memberDigest,
-        contentDigest: 'c'.repeat(64),
+        contentDigest: digestProviderRequest(FROZEN_REQUEST),
+        providerRequest: FROZEN_REQUEST,
         providerIdempotencyKey: digestBatchIdempotencyKey({
           organizationId: ORG,
           userId: USER,

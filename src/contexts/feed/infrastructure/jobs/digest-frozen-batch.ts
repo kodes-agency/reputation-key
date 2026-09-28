@@ -18,9 +18,11 @@ import type {
   NotificationEmailRepositoryPort,
 } from '../../application/ports/notification-email-repository.port'
 import type { NotificationEmail } from '../../domain/notification-types'
+import { SETTLED_EMAIL_REASON } from '../../domain/notification-settlement'
 import {
   authorizedEntries,
   partitionDeliverable,
+  quietHoursEnd,
   type DigestEntryDeps,
   type RecipientContext,
 } from './digest-entry-selection'
@@ -41,6 +43,15 @@ const SENDABLE_STATUSES: readonly string[] = ['pending', 'failed', 'delayed']
 const isSendableMember = (entry: NotificationEmail): boolean =>
   SENDABLE_STATUSES.includes(entry.status) &&
   !(entry.status === 'failed' && entry.lastErrorClass !== 'transient')
+
+/**
+ * A member whose work was finished after the batch froze: settlement cancels
+ * its queue row. A batch the provider may already hold keeps the line, since
+ * its retry must repeat the frozen request exactly; nothing about a finished
+ * task must not leak. A refused batch drops it and goes out without it.
+ */
+const isSettledElsewhere = (entry: NotificationEmail): boolean =>
+  entry.status === 'cancelled' && entry.suppressionReason === SETTLED_EMAIL_REASON
 
 const mustWait = (entry: NotificationEmail, now: Date): boolean =>
   (entry.notBefore !== null && entry.notBefore > now) ||
@@ -139,19 +150,24 @@ async function sendableMembers(
   batch: NotificationDigestBatch,
   members: readonly NotificationEmail[],
 ): Promise<readonly NotificationEmail[] | null> {
-  const sendable = members.filter(isSendableMember)
+  const possiblyAccepted = !batch.everyAttemptRefused
+  const kept = members.filter(
+    (entry) => isSendableMember(entry) || (possiblyAccepted && isSettledElsewhere(entry)),
+  )
   const exhausted = members.some((entry) => entry.retryCount >= MAX_BATCH_ATTEMPTS)
-  // A spent budget ends any batch; a member settled elsewhere ends one the
-  // provider may already hold.
+  // A spent budget ends any batch. A batch the provider may already hold ends
+  // when a member was suppressed elsewhere (a bounce, an opt-out), or when
+  // every line's work is done and nothing is left for it to deliver.
   if (
     members.length === 0 ||
     exhausted ||
-    (!batch.everyAttemptRefused && sendable.length !== members.length)
+    (possiblyAccepted &&
+      (kept.length !== members.length || !members.some(isSendableMember)))
   ) {
     await invalidateBatch(deps, ctx, batch, 'digest_membership_unavailable')
     return null
   }
-  return sendable.some((entry) => mustWait(entry, ctx.now)) ? null : sendable
+  return kept.some((entry) => mustWait(entry, ctx.now)) ? null : kept
 }
 
 /**
@@ -172,6 +188,18 @@ export async function selectFrozenEntries(
   )
   const candidates = await sendableMembers(deps, ctx, batch, members)
   if (candidates === null) return null
+  // Quiet hours hold a frozen batch as it stands. Deferring its members the
+  // way a fresh digest is deferred left the filter below with none of them,
+  // which read as a lost membership and invalidated a batch the provider may
+  // already hold; a same-key retry after the window is always safe.
+  const quietUntil = quietHoursEnd(ctx)
+  if (quietUntil !== null) {
+    deps.logger.info(
+      { batchId: batch.id, until: quietUntil.toISOString(), reason: 'quiet_hours' },
+      'Digest batch retry waits for quiet hours to end',
+    )
+    return null
+  }
 
   const authorized = await authorizedEntries(deps, ctx.rawOrgId, candidates)
   if (

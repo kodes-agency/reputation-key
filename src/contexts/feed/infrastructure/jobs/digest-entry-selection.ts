@@ -133,6 +133,23 @@ function recipientStandingFor(
 }
 
 /**
+ * When the recipient's quiet hours end, or `null` when they are not quiet now.
+ * One window for the whole digest (ADR 0046 r.4).
+ */
+export function quietHoursEnd(ctx: RecipientContext): Date | null {
+  const timing = deliveryTiming({
+    now: ctx.now,
+    timezone: ctx.timezone,
+    quietHoursStart: ctx.quietHours.quietHoursStart,
+    quietHoursEnd: ctx.quietHours.quietHoursEnd,
+    // A digest is never urgent, so the bypass has nothing to bypass.
+    urgent: false,
+    urgentBypassEnabled: false,
+  })
+  return timing.kind === 'defer' ? timing.until : null
+}
+
+/**
  * The recipient's own quiet hours, asked once for the whole digest. Quiet
  * means the digest waits as a whole: every row is deferred to the same minute,
  * so tomorrow's sweep still finds one digest rather than two halves of one.
@@ -145,22 +162,14 @@ async function deferForQuietHours(
   ctx: RecipientContext,
   entries: readonly NotificationEmail[],
 ): Promise<boolean> {
-  const timing = deliveryTiming({
-    now: ctx.now,
-    timezone: ctx.timezone,
-    quietHoursStart: ctx.quietHours.quietHoursStart,
-    quietHoursEnd: ctx.quietHours.quietHoursEnd,
-    // A digest is never urgent, so the bypass has nothing to bypass.
-    urgent: false,
-    urgentBypassEnabled: false,
-  })
-  if (timing.kind !== 'defer') return false
+  const until = quietHoursEnd(ctx)
+  if (until === null) return false
   for (const entry of entries) {
     await deps.emailRepo.markDelayed(
       notificationEmailId(entry.id as string),
       ctx.orgId,
       propertyId(entry.propertyId as string),
-      timing.until,
+      until,
       ctx.now,
     )
   }
@@ -169,7 +178,7 @@ async function deferForQuietHours(
       entries: entries.length,
       timezone: ctx.timezone,
       timezoneSource: ctx.timezoneSource,
-      until: timing.until.toISOString(),
+      until: until.toISOString(),
       reason: 'quiet_hours',
     },
     'Digest deferred',
@@ -294,11 +303,16 @@ export async function retireStaleEntries(
  * moved scope) can never be sent. It is suppressed as
  * `notification_unavailable` here: skipped instead, it kept its recipient due
  * on every run, and enough of them starved every newer row.
+ *
+ * `keepSettledWork` is for a frozen batch the provider may already hold: its
+ * retry repeats the frozen request exactly, so a line read or finished since
+ * stays in it rather than invalidating the whole digest.
  */
 export async function loadItems(
   deps: DigestEntryDeps,
   ctx: RecipientContext,
   entries: readonly NotificationEmail[],
+  options: Readonly<{ keepSettledWork: boolean }> = { keepSettledWork: false },
 ): Promise<readonly DigestItem[]> {
   const byProperty = new Map<string, NotificationEmail[]>()
   for (const entry of entries) {
@@ -337,7 +351,7 @@ export async function loadItems(
       'Digest entries suppressed because their notification is gone',
     )
   }
-  return settledWork(deps, ctx, items)
+  return options.keepSettledWork ? items : settledWork(deps, ctx, items)
 }
 
 /**

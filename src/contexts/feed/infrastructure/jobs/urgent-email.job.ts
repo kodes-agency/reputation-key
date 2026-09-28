@@ -48,7 +48,10 @@ import {
 } from '../../application/notification-work-state'
 import type { NotificationPropertyScopeResolver } from '../repositories/notification-property-scope.repository'
 import type { NotificationOrganizationScopeResolver } from '../repositories/notification-organization-scope.repository'
-import { deliveryTiming } from '../../domain/notification-delivery-policy'
+import {
+  deliveryTiming,
+  isPropertyAnchoredNotice,
+} from '../../domain/notification-delivery-policy'
 import { isStaleQueuedEmail, STALE_EMAIL_REASON } from '../../domain/email-freshness'
 import {
   isStillActionable,
@@ -70,6 +73,7 @@ import {
   assertPreferencesLink,
   mailClassForCategory,
   PREFERENCES_PATH,
+  preferencesPageUnsubscribeHeaders,
   requiresPreferencesLink,
   unsubscribeHeaders,
 } from './preferences-link'
@@ -130,7 +134,22 @@ export type UrgentEmailDeps = Readonly<{
   /** `env.BETTER_AUTH_URL`. Injected, never read from env inside the job. */
   baseUrl: string
   oneClickUnsubscribeUrl: (target: Readonly<{ kind: 'email'; id: string }>) => string
+  /**
+   * Re-enqueues this email for the minute its quiet hours end. Without it the
+   * hourly sweep is the only release, up to 59 minutes late.
+   */
+  scheduleRelease?: QuietHoursRelease
 }>
+
+/** Enqueue one immediate email to run at `releaseAt`. */
+export type QuietHoursRelease = (
+  target: Readonly<{
+    notificationEmailId: string
+    organizationId: string
+    propertyId?: string
+  }>,
+  releaseAt: Date,
+) => Promise<void>
 
 const TRANSIENT_REJECTION = 'Transient email provider rejection'
 
@@ -306,6 +325,33 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
   }
 
   /**
+   * Best effort: the row is already held, and the hourly sweep still releases
+   * anything whose scheduled release was lost, only later.
+   */
+  const scheduleRelease = async (ids: EmailDeliveryIds, until: Date): Promise<void> => {
+    if (!deps.scheduleRelease) return
+    try {
+      await deps.scheduleRelease(
+        {
+          notificationEmailId: ids.emailId,
+          organizationId: ids.orgId,
+          ...(ids.propId === null ? {} : { propertyId: ids.propId }),
+        },
+        until,
+      )
+    } catch (error) {
+      deps.logger.warn(
+        {
+          error,
+          correlationId: emailCorrelationId(ids.emailId),
+          until: until.toISOString(),
+        },
+        'Quiet-hours release not scheduled; the hourly sweep will release the email',
+      )
+    }
+  }
+
+  /**
    * ADR 0046 r.3: quiet hours run on the RECIPIENT's clock, and (amended
    * 2026-09-23) they are the recipient's own window, not the Property
    * preference row's — unless this Property overrides it, which the resolver
@@ -363,6 +409,7 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       },
       'Urgent notification email deferred',
     )
+    await scheduleRelease(scope.ids, timing.until)
     return { deferred: true, timezone }
   }
 
@@ -453,12 +500,18 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
       preferencesUrl,
       priority: entry.priority,
     })
-    const oneClickUrl = requiresPreferencesLink(mailClass)
-      ? deps.oneClickUnsubscribeUrl({ kind: 'email', id: entry.id as string })
-      : ''
+    const headers =
+      preferencesUrl !== null && isPropertyAnchoredNotice(notification.type)
+        ? preferencesPageUnsubscribeHeaders(preferencesUrl)
+        : unsubscribeHeaders(
+            mailClass,
+            requiresPreferencesLink(mailClass)
+              ? deps.oneClickUnsubscribeUrl({ kind: 'email', id: entry.id as string })
+              : '',
+          )
     return {
       email,
-      headers: unsubscribeHeaders(mailClass, oneClickUrl),
+      headers,
       // A notice whose copy asks the reader to answer says where, and the
       // header has to agree with it.
       replyTo: notificationReplyTo(notification.type),
@@ -552,7 +605,10 @@ export const createUrgentEmailJobHandler = (deps: UrgentEmailDeps) => {
     )
     // The one-click link names only this row, which retention deletes after
     // 90 days; what it stands for is kept before the mail leaves.
-    if (requiresPreferencesLink(mailClassForCategory(entry.category))) {
+    if (
+      requiresPreferencesLink(mailClassForCategory(entry.category)) &&
+      !isPropertyAnchoredNotice(notification.type)
+    ) {
       await deps.emailRepo.recordEmailUnsubscribeScope(emailId, orgId, deps.clock())
     }
     await sendAndRecord(ids, entry, recipient, email, headers, replyTo)

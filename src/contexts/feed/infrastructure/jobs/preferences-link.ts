@@ -63,6 +63,18 @@ export function unsubscribeHeaders(
 }
 
 /**
+ * An optional message no one-click switch can honestly turn off (a notice
+ * delivered through a Property it never names): the mail client's unsubscribe
+ * opens the preferences page, where the reader sees what they would change.
+ * Without `List-Unsubscribe-Post` the client does not act on its own.
+ */
+export function preferencesPageUnsubscribeHeaders(
+  preferencesUrl: string,
+): Readonly<Record<string, string>> {
+  return { 'List-Unsubscribe': `<${preferencesUrl}>` }
+}
+
+/**
  * Throws when an optional email is about to be dispatched without a usable
  * preferences URL. Returns the URL so call sites read as
  * `assertPreferencesLink(mailClass, url)` in the argument position.

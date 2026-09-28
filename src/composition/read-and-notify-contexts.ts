@@ -49,6 +49,8 @@ export type ReadAndNotifyContextsInput = Readonly<{
    * domain label inside Feed.
    */
   notificationEmailAddressKey: string
+  /** Keys refused addresses may still be stored under while they move. */
+  retiredNotificationEmailAddressKeys: readonly string[]
 }>
 
 /**
@@ -62,6 +64,36 @@ export type ReadAndNotifyContextsInput = Readonly<{
  * the allowlisted capability for it would hide a stuck final deletion warning
  * in exactly the Organizations the allowlist never named.
  */
+/**
+ * The key refused email addresses are stored under, and the ones they may
+ * still be stored under. They used to be keyed with BETTER_AUTH_SECRET, which
+ * an account-compromise incident rotates, and rotating it made every stored
+ * refusal unmatchable. NOTIFICATION_EMAIL_SUPPRESSION_KEY takes over when set;
+ * until then the auth secret stays the key, exactly as before. While both are
+ * present the auth secret is honoured as retired, and each entry moves to the
+ * dedicated key the first time it matches.
+ */
+export function notificationEmailAddressKeys(
+  env: Readonly<{
+    BETTER_AUTH_SECRET: string
+    NOTIFICATION_EMAIL_SUPPRESSION_KEY?: string
+  }>,
+): Pick<
+  ReadAndNotifyContextsInput,
+  'notificationEmailAddressKey' | 'retiredNotificationEmailAddressKeys'
+> {
+  const dedicated = env.NOTIFICATION_EMAIL_SUPPRESSION_KEY
+  return dedicated === undefined
+    ? {
+        notificationEmailAddressKey: env.BETTER_AUTH_SECRET,
+        retiredNotificationEmailAddressKeys: [],
+      }
+    : {
+        notificationEmailAddressKey: dedicated,
+        retiredNotificationEmailAddressKeys: [env.BETTER_AUTH_SECRET],
+      }
+}
+
 export function isEmailDeliveryAllowed(
   scope: Readonly<{ organizationId: string; propertyId: string | null }>,
 ): boolean {
@@ -195,6 +227,7 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
       isEmailDeliveryAllowed,
       propertyAccess: input.identity.publicApi.people.getAccessiblePropertyIds,
       emailAddressKey: input.notificationEmailAddressKey,
+      retiredEmailAddressKeys: input.retiredNotificationEmailAddressKeys,
     },
   })
 
