@@ -11,6 +11,7 @@ import { Pool } from 'pg'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
+import { organizationId, userId } from '#/shared/domain/ids'
 import type { NotificationListFilter } from '../../application/notification-list-filter'
 import { createNotificationRepository } from './notification.repository'
 
@@ -127,7 +128,15 @@ beforeEach(async () => {
 })
 
 const markAllRead = (filter: NotificationListFilter) =>
-  createNotificationRepository(getDb()).markAllRead(USER, ORG, filter, MARKED_AT)
+  createNotificationRepository(getDb()).markAllRead(
+    {
+      userId: userId(USER),
+      organizationId: organizationId(ORG),
+      visiblePropertyIds: null,
+    },
+    filter,
+    MARKED_AT,
+  )
 
 describe.sequential('"Mark all read" scoped to the filter (real PostgreSQL)', () => {
   it('on a category tab, marks only that category and leaves urgent and account notices unread', async () => {

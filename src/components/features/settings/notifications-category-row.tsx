@@ -85,14 +85,16 @@ function CadenceSelect({
 }: CategoryControlProps &
   Readonly<{ cadence: NotificationCadence | undefined; disabled: boolean }>) {
   // Goals are emailed daily only (ADR 0046, amended 2026-09-22): the one
-  // offered cadence is shown, but there is nothing to choose.
+  // offered cadence is shown, but there is nothing to choose, and the dimmed
+  // control says why rather than leaving a screen reader with "dimmed".
   const cadences = offeredEmailCadences(category)
+  const fixed = cadences.length < 2
   return (
     <Field className="w-auto">
       <FieldLabel htmlFor={`${category}-cadence`}>Cadence</FieldLabel>
       <Select
         value={effectiveEmailCadence(category, cadence)}
-        disabled={disabled || cadences.length < 2}
+        disabled={disabled || fixed}
         onValueChange={(value) =>
           void savePreference(category, 'email', {
             cadence: value as NotificationCadence,
@@ -102,6 +104,7 @@ function CadenceSelect({
         <SelectTrigger
           id={`${category}-cadence`}
           aria-label={named(categoryLabel, 'Cadence')}
+          aria-describedby={fixed ? `${category}-cadence-fixed` : undefined}
           className="h-11 min-h-11 w-44 min-w-0"
         >
           <SelectValue />
@@ -138,10 +141,20 @@ function EmailTiming({
     /** Off by the reader's choice, not locked or unavailable. */
     emailSwitchedOff: boolean
   }>) {
+  const offered = offeredEmailCadences(control.category)
+  const only = offered.length === 1 ? offered[0] : undefined
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-4 md:col-span-3 md:col-start-1">
       <CadenceSelect {...control} cadence={email?.cadence} disabled={disabled} />
-      {emailSwitchedOff ? (
+      {only ? (
+        // Turning email on changes nothing here, so no hint promises a choice.
+        <p
+          id={`${control.category}-cadence-fixed`}
+          className="basis-full text-sm text-muted-foreground"
+        >
+          Always emailed {CADENCE_LABELS[only].toLowerCase()}.
+        </p>
+      ) : emailSwitchedOff ? (
         <p className="basis-full text-sm text-muted-foreground">
           Turn on email to choose when it arrives.
         </p>

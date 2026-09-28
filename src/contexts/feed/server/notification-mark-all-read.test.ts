@@ -48,21 +48,13 @@ describe('markAllNotificationsReadFn', () => {
       markAllNotificationsReadFn({ data: { filter: 'workflow_collaboration' } }),
     )
 
-    expect(mocks.markAllRead).toHaveBeenCalledWith(
-      ACTOR.userId,
-      ACTOR.organizationId,
-      'workflow_collaboration',
-    )
+    expect(mocks.markAllRead).toHaveBeenCalledWith(ACTOR, 'workflow_collaboration')
   })
 
   it('keeps marking everything for a tab still running the bundle that sent no filter', async () => {
     await withStartContext(() => markAllNotificationsReadFn({ data: undefined }))
 
-    expect(mocks.markAllRead).toHaveBeenCalledWith(
-      ACTOR.userId,
-      ACTOR.organizationId,
-      'all',
-    )
+    expect(mocks.markAllRead).toHaveBeenCalledWith(ACTOR, 'all')
   })
 
   it('refuses a filter the feed does not have', () => {

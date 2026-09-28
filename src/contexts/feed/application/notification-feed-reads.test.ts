@@ -13,6 +13,7 @@ const READER = {
 function readsFor(accessible: ReadonlyArray<PropertyId> | null) {
   const heads: NotificationFeedQuery[] = []
   const pages: NotificationFeedQuery[] = []
+  const bulk: unknown[][] = []
   const propertyAccess = vi.fn(async () => accessible)
   const reads = createNotificationFeedReads({
     propertyAccess,
@@ -30,9 +31,12 @@ function readsFor(accessible: ReadonlyArray<PropertyId> | null) {
         pages.push(query)
         return { notifications: [], hasMore: false, nextCursor: null }
       },
+      markAllRead: async (...args) => void bulk.push(['read', ...args]),
+      markAllDismissed: async (...args) => void bulk.push(['dismissed', ...args]),
     },
+    clock: () => new Date('2026-09-22T09:00:00.000Z'),
   })
-  return { reads, heads, pages, propertyAccess }
+  return { reads, heads, pages, bulk, propertyAccess }
 }
 
 describe('notification feed reads follow current Property access', () => {
@@ -80,5 +84,20 @@ describe('notification feed reads follow current Property access', () => {
     await reads.getFeedHead(unscoped, { limit: 20, filter: 'all' })
 
     expect(heads[0]?.visiblePropertyIds).toEqual([])
+  })
+
+  it('scopes "Mark all read" and "Clear all" to the rows the reads show', async () => {
+    const { reads, bulk } = readsFor([HARBOR])
+    const manager: AuthContext = { ...READER, role: 'PropertyManager' }
+
+    await reads.markAllRead(manager, 'urgent')
+    await reads.dismissAll(manager)
+
+    const scope = { ...READER, visiblePropertyIds: [HARBOR] }
+    const at = new Date('2026-09-22T09:00:00.000Z')
+    expect(bulk).toEqual([
+      ['read', scope, 'urgent', at],
+      ['dismissed', scope, at],
+    ])
   })
 })

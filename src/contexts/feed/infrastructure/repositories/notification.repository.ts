@@ -15,6 +15,7 @@ import type { Notification, NotificationStatus } from '../../domain/notification
 import { notificationFromRow } from './notification-row.mapper'
 import { notificationError } from '../../domain/notification-errors'
 import type { NotificationListFilter } from '../../application/notification-list-filter'
+import type { NotificationFeedScope } from '../../application/ports/notification-repository.port'
 import {
   createNotificationPage,
   type NotificationFeedCursor,
@@ -294,8 +295,7 @@ export const createNotificationRepository = (db: Database) => ({
   // "Mark all read" on the tab the reader is on: the unread rows its filter
   // holds, not the Organization's every unread row.
   markAllRead: async (
-    userId: string,
-    orgId: string,
+    scope: NotificationFeedScope,
     filter: NotificationListFilter,
     updatedAt: Date,
   ): Promise<void> => {
@@ -304,10 +304,14 @@ export const createNotificationRepository = (db: Database) => ({
       .set({ status: 'read', readAt: updatedAt, updatedAt })
       .where(
         and(
-          eq(notifications.userId, userId),
-          eq(notifications.organizationId, orgId),
+          eq(notifications.userId, scope.userId),
+          eq(notifications.organizationId, scope.organizationId),
           eq(notifications.status, 'unread'),
           feedFilterCondition(filter),
+          // Only what the tab showed and counted: a row hidden by revoked
+          // Property access or an in-app opt-out must come back unread.
+          notOptedOutInApp,
+          withinVisibleProperties(scope.visiblePropertyIds),
         ),
       )
   },
@@ -421,10 +425,9 @@ export const createNotificationRepository = (db: Database) => ({
     return rows[0] ? notificationFromRow(rows[0]) : null
   },
 
-  // Clear-all: dismiss every non-dismissed notification for the user.
+  // Clear-all: dismiss every notification the reader's feed shows.
   markAllDismissed: async (
-    userId: string,
-    orgId: string,
+    scope: NotificationFeedScope,
     updatedAt: Date,
   ): Promise<void> => {
     await db
@@ -432,9 +435,11 @@ export const createNotificationRepository = (db: Database) => ({
       .set({ status: 'dismissed', updatedAt })
       .where(
         and(
-          eq(notifications.userId, userId),
-          eq(notifications.organizationId, orgId),
+          eq(notifications.userId, scope.userId),
+          eq(notifications.organizationId, scope.organizationId),
           ne(notifications.status, 'dismissed'),
+          notOptedOutInApp,
+          withinVisibleProperties(scope.visiblePropertyIds),
         ),
       )
   },

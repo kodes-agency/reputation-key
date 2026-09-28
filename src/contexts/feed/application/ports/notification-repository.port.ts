@@ -35,6 +35,12 @@ export type NotificationFeedQuery = Readonly<{
   limit: number
 }>
 
+/**
+ * Whose feed a bulk action ("Mark all read", "Clear all") changes: the rows
+ * that reader's feed shows now, as a read of it would resolve them.
+ */
+export type NotificationFeedScope = Omit<NotificationFeedQuery, 'filter' | 'limit'>
+
 export type NotificationRepositoryPort = Readonly<{
   /**
    * Insert the unread row. Conflicts resolve on the ADR 0046 r.2 partial
@@ -114,8 +120,7 @@ export type NotificationRepositoryPort = Readonly<{
 
   /** Mark read every unread row the filter holds (the reader's tab), no more. */
   markAllRead(
-    userId: UserId,
-    orgId: OrganizationId,
+    scope: NotificationFeedScope,
     filter: NotificationListFilter,
     updatedAt: Date,
   ): Promise<void>
@@ -152,8 +157,8 @@ export type NotificationRepositoryPort = Readonly<{
     updatedAt: Date,
   ): Promise<Notification | null>
 
-  /** Dismiss every non-dismissed notification for the user (Clear-all). */
-  markAllDismissed(userId: UserId, orgId: OrganizationId, updatedAt: Date): Promise<void>
+  /** Dismiss every notification the reader's feed shows (Clear-all). */
+  markAllDismissed(scope: NotificationFeedScope, updatedAt: Date): Promise<void>
 
   updateStatus(
     id: NotificationId,

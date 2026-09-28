@@ -26,6 +26,17 @@ export type NotificationView = Pick<
   | 'createdAt'
 >
 
+/**
+ * Still waiting on its reader: what the badge and the Unread tab count. A row
+ * whose work was settled upstream keeps its unread status (read is not
+ * resolved) but has stopped asking. The browser's twin of the repository's
+ * `stillWaiting`, so an optimistic count or a staleness check never counts a
+ * row the server does not.
+ */
+export const isStillWaiting = (
+  notification: Pick<NotificationView, 'status' | 'resolvedAt'>,
+): boolean => notification.status === 'unread' && notification.resolvedAt === null
+
 /** Copies field by field, so a column added to the domain row never reaches the wire by default. */
 export function toNotificationView(notification: Notification): NotificationView {
   return {
