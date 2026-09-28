@@ -592,9 +592,10 @@ const renderPropertyResponsibilityNeeded = (
  * The Google connection belongs to the Organization. The Property its notice
  * is filed under is only a delivery anchor, so the copy never names it.
  *
- * When Google refused the grant itself, updates and replies have already
- * stopped, so the copy says so and leads with the one action that restores
- * them.
+ * A connection that needs reauthorization admits no sync or reply, whatever
+ * the cause, so every version says updates and replies are paused. When
+ * Google refused the grant itself, the copy leads with the one action that
+ * restores them; when the admin whose grant backed it left, it says why.
  */
 const renderIntegrationReauthorizationRequired = (
   p: NotificationPayload,
@@ -608,7 +609,10 @@ const renderIntegrationReauthorizationRequired = (
       }
     : {
         title: 'Google connection needs attention',
-        body: 'Reconnect the account to keep Google review updates and replies working.',
+        body:
+          p.reauthorizationCause === undefined
+            ? 'Review updates and replies are paused until Google is reconnected.'
+            : 'The person who connected Google is no longer an account admin here, so review updates and replies are paused. Reconnect Google to restart them.',
         actionLabel: 'Review connection',
         summary: 'Google connection needs attention',
       }

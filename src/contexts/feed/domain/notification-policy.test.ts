@@ -118,7 +118,7 @@ describe('notification policy', () => {
     {
       type: 'integration.reauthorization_required' as const,
       cause: { reauthorizationCause: 'provider_revoked' },
-      body: 'Reconnect the account to keep Google review updates and replies working.',
+      body: 'Review updates and replies are paused until Google is reconnected.',
     },
   ])(
     'lets a repeat $type without a cause drop the earlier one',
