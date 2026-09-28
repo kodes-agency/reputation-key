@@ -28,18 +28,19 @@ export const ANSWERED_EDIT_SCOPE = {
 export type AnsweredEditRevision = 1 | 2
 
 /** When Review observed material revision 1, then the guest's edit (2). */
-const REVISION_AT = [
-  new Date('2026-09-01T12:00:00.000Z'),
-  new Date('2026-09-10T12:00:00.000Z'),
-] as const
+const REVISION_1_AT = new Date('2026-09-01T12:00:00.000Z')
+const REVISION_2_AT = new Date('2026-09-10T12:00:00.000Z')
+
+const revisionAt = (revision: AnsweredEditRevision): Date =>
+  revision === 1 ? REVISION_1_AT : REVISION_2_AT
 
 export const ANSWERED_EDIT_CLOCK = {
   deliveredAt: new Date('2026-09-20T12:00:00.000Z'),
   contentExpiresAt: new Date('2027-09-01T12:00:00.000Z'),
-  revisionObservedAt: (revision: AnsweredEditRevision): Date => REVISION_AT[revision - 1],
+  revisionObservedAt: (revision: AnsweredEditRevision): Date => revisionAt(revision),
   /** `hours` after Review observed `revision`. */
   hoursAfter: (revision: AnsweredEditRevision, hours: number): Date =>
-    new Date(REVISION_AT[revision - 1].getTime() + hours * 3_600_000),
+    new Date(revisionAt(revision).getTime() + hours * 3_600_000),
 } as const
 
 /** A committed outbox row as the relay would hand it to a consumer. */
@@ -72,7 +73,7 @@ export function answeredEditFixtures(pool: Pool) {
         String(revision).repeat(64),
         revision === 1 ? 5 : 2,
         `revision-${revision}`,
-        REVISION_AT[revision - 1],
+        revisionAt(revision),
       ],
     )
 
@@ -121,7 +122,7 @@ export function answeredEditFixtures(pool: Pool) {
           REVIEW,
           ORG,
           PROPERTY,
-          REVISION_AT[0],
+          REVISION_1_AT,
           ANSWERED_EDIT_CLOCK.contentExpiresAt,
           'a'.repeat(64),
         ],
@@ -136,7 +137,7 @@ export function answeredEditFixtures(pool: Pool) {
         `UPDATE reviews SET rating = 2, source_revision = 2, source_observation_sequence = 2,
            analysis_sequence = 2, source_updated_at = $2, last_fetched_at = $2
          WHERE id = $1`,
-        [REVIEW, REVISION_AT[1]],
+        [REVIEW, REVISION_2_AT],
       )
     },
 
@@ -152,7 +153,7 @@ export function answeredEditFixtures(pool: Pool) {
         sourceEpoch: 0,
         sourceRevision: revision,
         analysisSequence: revision,
-        occurredAt: REVISION_AT[revision - 1].toISOString(),
+        occurredAt: revisionAt(revision).toISOString(),
       }
       await q(
         `INSERT INTO outbox_events (id, event_type, event_version, payload, organization_id,
@@ -165,7 +166,7 @@ export function answeredEditFixtures(pool: Pool) {
           ORG,
           PROPERTY,
           REVIEW,
-          REVISION_AT[revision - 1],
+          revisionAt(revision),
         ],
       )
       return {
