@@ -52,7 +52,9 @@ queue. The sweep also reopens a text review whose analysis settled without a
 result because its operation gave up on a transient failure (ADR 0058,
 2026-09-29): a fresh analysis sequence and a backfill event, at most three times
 per revision. An enrollment is not caught up while one of its replayed reviews
-still owes an analysis.
+still owes an analysis. The replay and the reopen pass lock the Property's
+source fence before their enrollment row and reviews, the order Review writers
+and authorization changes take (ADR 0060).
 `readReviewAnalysisProgress` reports queued, running, analysed and
 not-analysable counts. Reply Draft provider output remains session-ephemeral until an explicit,
 atomically revalidated adoption creates Review-owned draft content.

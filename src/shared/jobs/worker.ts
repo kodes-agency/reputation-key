@@ -58,25 +58,21 @@ export const JOB_LOCK_DURATION_MS = 90_000
 export const JOB_STALLED_INTERVAL_MS = 90_000
 
 /**
- * Peak concurrent pool clients held by ONE in-flight job. The Google-import
- * item job is the worst case: `runClaimedEffect` holds a `FOR UPDATE`
- * transaction on the item row while the nested Property effect opens its own
- * transaction — two clients at once.
+ * Pool clients a Google-import item job holds at once: `runClaimedEffect`
+ * holds a `FOR UPDATE` transaction on the item row while the nested Property
+ * effect opens its own transaction, so it waits for its second client while
+ * holding the first. Other default jobs read more in parallel but hold no lock
+ * while they wait (src/worker/pool-budget.ts).
  */
 export const WORST_CASE_POOL_CLIENTS_PER_JOB = 2
 
 /**
- * Default-queue concurrency. REQUIRED INVARIANT:
- *
- *   DEFAULT_QUEUE_CONCURRENCY * WORST_CASE_POOL_CLIENTS_PER_JOB
- *     <= POOL_MAX_CONNECTIONS   (see #/shared/db/pool)
- *
- * 4 * 2 = 8 of 10, leaving 2 clients for the background worker, the outbox
- * relay and health probes in the same process. Setting this EQUAL to the pool
- * max (as it was) is a deterministic deadlock: every slot sits inside
- * `runClaimedEffect` holding a client, every nested acquisition then waits
- * out `connectionTimeoutMillis`, and the items are reported as spurious
- * `temporarily_unavailable`. The invariant is pinned by worker.test.ts.
+ * Default-queue concurrency. The worker's pool is sized from every queue's
+ * concurrency (src/worker/pool-budget.ts, pinned by its test), so these slots
+ * never hold every client. Letting them do so is a deterministic deadlock:
+ * every slot sits inside `runClaimedEffect` holding a client, every nested
+ * acquisition then waits out `connectionTimeoutMillis`, and the items are
+ * reported as spurious `temporarily_unavailable`.
  */
 export const DEFAULT_QUEUE_CONCURRENCY = JOB_OPERATIONAL_QUEUE_CONCURRENCY.default
 

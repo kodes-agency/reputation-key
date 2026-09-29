@@ -12,6 +12,7 @@ import {
   AI_REVIEW_ANALYSIS_REOPEN_CODES,
 } from '../../domain/review-analysis-reopen'
 import type { AiReviewAnalysisReopenPort } from '../../application/ports/ai-review-analysis-reopen.port'
+import { lockReviewAnalysisPropertyFence } from './review-analysis-property-fence'
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
 type Row = Readonly<Record<string, unknown>>
@@ -221,12 +222,7 @@ async function reopenProperty(
   limit: number,
   occurredAt: Date,
 ): Promise<number> {
-  await tx.execute(sql`
-    SELECT 1 FROM properties
-    WHERE organization_id = ${scope.organizationId}
-      AND id = ${scope.propertyId}::uuid
-    FOR UPDATE
-  `)
+  await lockReviewAnalysisPropertyFence(tx, scope)
   const candidates = await tx.execute(sql`
     SELECT review.id, review.source_epoch, review.source_revision,
            review.analysis_sequence, operation.id AS operation_id

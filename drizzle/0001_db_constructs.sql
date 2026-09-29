@@ -1926,7 +1926,7 @@ BEGIN
   FROM public."properties"
   WHERE "organization_id" = p_organization_id
     AND "id" = p_property_id
-  FOR UPDATE;
+  FOR NO KEY UPDATE;
 
   IF property_epoch IS NULL OR property_epoch <> p_source_epoch THEN
     RAISE EXCEPTION 'review_source_epoch_changed' USING ERRCODE = 'P0001';

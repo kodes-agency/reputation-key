@@ -14,7 +14,8 @@ import { getLogger } from '#/shared/observability/logger'
 // Symbol.for keys the singleton on the process-global registry so every
 // bundle copy shares one pool.
 const POOL_KEY = Symbol.for('repkey.shared.db.pool')
-type PoolStore = { [POOL_KEY]?: Pool }
+const POOL_MAX_KEY = Symbol.for('repkey.shared.db.pool.max')
+type PoolStore = { [POOL_KEY]?: Pool; [POOL_MAX_KEY]?: number }
 
 function poolStore(): PoolStore {
   return globalThis as PoolStore
@@ -97,14 +98,37 @@ function wrapPoolConnectWithRetry(pool: Pool): void {
 }
 
 /**
- * Maximum physical connections per process pool. Exported because worker
- * concurrency is budgeted against it: see the
- * `concurrency * clients_per_job <= POOL_MAX_CONNECTIONS` invariant in
- * `#/shared/jobs/worker` (pinned by its unit test). Raising this without
- * re-checking that budget re-opens the self-starvation failure mode where
- * every worker slot holds a client while waiting for a nested one.
+ * Physical connections in web's pool, and in any process that does not size
+ * its own. Web cannot bound its request concurrency, so Review exact-current
+ * applies are admitted against this size
+ * (`#/contexts/review/infrastructure/exact-current-apply-admission`).
+ *
+ * The worker's concurrency is known, so it sizes its pool from every queue
+ * (`src/worker/pool-budget.ts`) through `configurePoolMaxConnections`. On the
+ * closed beta (2026-09-29) the worker ran with this size while its queues could
+ * hold about 45 clients at once; a review import then starved the pool.
  */
 export const POOL_MAX_CONNECTIONS = 10
+
+/**
+ * Size this process's pool. Call it before anything uses the pool: a pool
+ * already created at another size cannot be resized, and a process that
+ * silently kept the smaller one would starve again.
+ */
+export function configurePoolMaxConnections(max: number): void {
+  if (!Number.isSafeInteger(max) || max < 1) {
+    throw new Error(`[db] pool size must be a positive integer, got ${max}`)
+  }
+  const store = poolStore()
+  const existing = store[POOL_KEY]
+  if (existing && existing.options.max !== max) {
+    throw new Error(
+      `[db] pool already exists with ${existing.options.max} connections; ` +
+        `size it (${max}) before first use`,
+    )
+  }
+  store[POOL_MAX_KEY] = max
+}
 
 /**
  * Role-level statement guards applied to every physical connection.
@@ -133,17 +157,44 @@ export const POOL_MAX_CONNECTIONS = 10
 export const SESSION_LOCK_TIMEOUT_MS = 10_000
 export const SESSION_IDLE_IN_TRANSACTION_TIMEOUT_MS = 30_000
 
+/** Bound on opening a connection: pg-pool's connect, then the session guards. */
+const CONNECTION_TIMEOUT_MS = 15_000
+
 /**
  * pg-pool 3.14's `onConnect` hook is AWAITED before the client is handed to
  * the checkout caller (and a rejection closes the client instead of leaking
  * it), so unlike the synchronous `connect` event this cannot race the first
  * query. Applied per physical connection, not per checkout.
+ *
+ * pg-pool's `connectionTimeoutMillis` stops once the socket connects, so the
+ * guards carry their own bound: a connection that never answers them would
+ * otherwise hold its checkout, and a pool-client reservation queue behind it
+ * (`pool-client-reservation.ts`), forever. The rejection closes the client.
  */
-async function applySessionGuards(client: ClientBase): Promise<void> {
-  await client.query(
+async function applySessionGuards(client: Pick<ClientBase, 'query'>): Promise<void> {
+  const guards = client.query(
     `SET lock_timeout = ${SESSION_LOCK_TIMEOUT_MS}; ` +
       `SET idle_in_transaction_session_timeout = ${SESSION_IDLE_IN_TRANSACTION_TIMEOUT_MS}`,
   )
+  // Once the timeout closes the client this query fails too; nobody awaits it.
+  guards.catch(() => undefined)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () =>
+        reject(
+          new Error(
+            `[db] session guards did not answer within ${CONNECTION_TIMEOUT_MS}ms`,
+          ),
+        ),
+      CONNECTION_TIMEOUT_MS,
+    )
+  })
+  try {
+    await Promise.race([guards, timeout])
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /** Get the shared database connection pool. Creates it on first call. */
@@ -153,10 +204,10 @@ export function getPool(): Pool {
     const env = getEnv()
     const pool = new Pool({
       connectionString: env.DATABASE_URL,
-      max: POOL_MAX_CONNECTIONS,
+      max: store[POOL_MAX_KEY] ?? POOL_MAX_CONNECTIONS,
       // Bound acquisition and idle-socket lifetime so a dead route or
       // recycled connection cannot hold a request indefinitely.
-      connectionTimeoutMillis: 15_000,
+      connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
       idleTimeoutMillis: 30_000,
       onConnect: (client) => applySessionGuards(client),
     })

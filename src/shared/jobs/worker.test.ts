@@ -3,19 +3,14 @@
 // Both invariants below are cross-module and were previously only implicit —
 // the numbers lived in three files with nothing tying them together, and both
 // were violated: the BullMQ defaults put stalled recovery INSIDE the claim
-// lease, and default-queue concurrency equalled the pool max.
+// lease, and default-queue concurrency equalled the pool max. The pool budget
+// now covers every queue: src/worker/pool-budget.test.ts.
 
 import { describe, expect, it } from 'vitest'
-import { AI_BACKLOG_DRAIN_CONCURRENCY } from '#/contexts/ai/application/use-cases/drain-review-analysis-backlog'
 import { GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS } from '#/contexts/integration/application/ports/google-import-v2-store.port'
-import { POOL_MAX_CONNECTIONS } from '#/shared/db/pool'
 import {
-  BACKGROUND_QUEUE_CONCURRENCY,
-  DEFAULT_QUEUE_CONCURRENCY,
-  DOMAIN_EVENTS_QUEUE_CONCURRENCY,
   JOB_LOCK_DURATION_MS,
   JOB_STALLED_INTERVAL_MS,
-  WORST_CASE_POOL_CLIENTS_PER_JOB,
   jobQueueRateLimit,
 } from './worker'
 
@@ -31,37 +26,6 @@ describe('BullMQ lock/stall ordering', () => {
 
   it('never detects a stall before the lock it is detecting could expire', () => {
     expect(JOB_LOCK_DURATION_MS).toBeLessThanOrEqual(JOB_STALLED_INTERVAL_MS)
-  })
-})
-
-describe('worker concurrency / connection-pool budget', () => {
-  // The Google-import item job holds its fenced `FOR UPDATE` transaction while
-  // the nested Property effect opens a second one. With concurrency == pool
-  // max, every slot holds a client and every nested acquisition waits out
-  // connectionTimeoutMillis — a deterministic self-starvation reported to
-  // tenants as a spurious `temporarily_unavailable`.
-  it('leaves headroom for the nested effect under the pool max', () => {
-    const peakDefaultQueueClients =
-      DEFAULT_QUEUE_CONCURRENCY * WORST_CASE_POOL_CLIENTS_PER_JOB
-    expect(peakDefaultQueueClients).toBeLessThanOrEqual(POOL_MAX_CONNECTIONS)
-  })
-
-  it('keeps spare clients for the background worker and relay', () => {
-    const peakDefaultQueueClients =
-      DEFAULT_QUEUE_CONCURRENCY * WORST_CASE_POOL_CLIENTS_PER_JOB
-    expect(POOL_MAX_CONNECTIONS - peakDefaultQueueClients).toBeGreaterThan(0)
-    // Background sweeps are single-client, so the spare pool must cover at
-    // least one of them concurrently with a saturated default queue.
-    expect(BACKGROUND_QUEUE_CONCURRENCY).toBeGreaterThan(0)
-  })
-
-  // One Review Analysis backlog drain runs several analyses inside a single
-  // background job. Each holds a client only for one short transaction at a
-  // time, never across its provider call, but settlements of one property
-  // queue on its advisory lock while holding theirs. At the pool max, a burst
-  // of them would hold every client.
-  it('runs fewer analyses in one backlog drain than the pool has clients', () => {
-    expect(AI_BACKLOG_DRAIN_CONCURRENCY).toBeLessThan(POOL_MAX_CONNECTIONS)
   })
 })
 
@@ -81,12 +45,5 @@ describe('job-start rate limits', () => {
 
   it('gives a queue the catalogue does not name the default limit', () => {
     expect(jobQueueRateLimit('some-test-queue')).toEqual(jobQueueRateLimit('default'))
-  })
-
-  // Without the limiter the dispatcher runs at its concurrency continuously.
-  // Ten is the peak it always reached: the old limiter released ten events at
-  // once at the top of every second.
-  it('dispatches no more domain events at once than the pool has clients', () => {
-    expect(DOMAIN_EVENTS_QUEUE_CONCURRENCY).toBeLessThanOrEqual(POOL_MAX_CONNECTIONS)
   })
 })

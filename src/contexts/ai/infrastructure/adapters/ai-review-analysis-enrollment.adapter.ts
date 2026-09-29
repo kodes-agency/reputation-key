@@ -3,8 +3,6 @@ import type { Database } from '#/shared/db'
 import { aiReviewAnalysisEnrollments, eventConsumerReceipts } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
-import { insertOutboxRow } from '#/shared/outbox/commit'
-import { aiReviewAnalysisBackfillRequested } from '../../domain/events'
 import type {
   AiAuthorizationLifecycleApplyResult,
   AiAuthorizationLifecycleTrigger,
@@ -14,10 +12,13 @@ import type {
   ReviewAnalysisEnrollmentStorePort,
 } from '../../application/ports/ai-review-analysis-enrollment.port'
 import { AI_REVIEW_ANALYSIS_ENROLLMENT_SAFETY_CEILING } from '../../application/ports/ai-review-analysis-enrollment.port'
+import { enrollmentOwesAnalysis } from './ai-review-analysis-reopen.adapter'
 import {
-  ANALYSABLE_REVIEW_SQL,
-  enrollmentOwesAnalysis,
-} from './ai-review-analysis-reopen.adapter'
+  eligibleRevisionSnapshot,
+  lockPropertyBeforeReplay,
+  replayEnrollmentCandidates,
+} from './ai-review-analysis-enrollment-replay'
+import { lockPropertyForAuthorizationChange } from './review-analysis-property-fence'
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
 type Row = Readonly<Record<string, unknown>>
@@ -144,56 +145,6 @@ function mapEvidence(row: Row): ReviewAnalysisEnrollmentEvidence {
     caughtUpAtEpochMillis: nullableEpochMillis(row.caught_up_at, 'caught-up time'),
     terminalReason: row.terminal_reason === null ? null : String(row.terminal_reason),
   }
-}
-
-function eligibleReviewsSql(input: {
-  organizationId: string
-  propertyId: string
-  sourceEpoch: number
-  analysisStartSequence: number
-}) {
-  return sql`
-    FROM reviews AS review
-    WHERE review.organization_id = ${input.organizationId}
-      AND review.property_id = ${input.propertyId}::uuid
-      AND review.source_epoch = ${input.sourceEpoch}
-      AND review.source_revision >= 1
-      AND review.analysis_sequence <= ${input.analysisStartSequence}
-      AND ${ANALYSABLE_REVIEW_SQL}
-  `
-}
-
-async function snapshot(
-  tx: Tx,
-  input: {
-    organizationId: string
-    propertyId: string
-    sourceEpoch: number
-    analysisStartSequence: number
-  },
-): Promise<{ count: number; digest: string }> {
-  const result = await tx.execute(sql`
-    SELECT count(*)::bigint AS count,
-           encode(
-             sha256(
-               convert_to(
-                 COALESCE(
-                   string_agg(
-                     review.id::text || ':' || review.source_revision::text,
-                     ',' ORDER BY review.id
-                   ),
-                   ''
-                 ),
-                 'UTF8'
-               )
-             ),
-             'hex'
-           ) AS digest
-    ${eligibleReviewsSql(input)}
-  `)
-  const row = result.rows[0] as Row | undefined
-  if (!row) throw new Error('Review Analysis enrollment snapshot returned no row')
-  return { count: safeInteger(row.count, 'snapshot count'), digest: String(row.digest) }
 }
 
 async function insertReceipt(
@@ -494,6 +445,7 @@ export const createReviewAnalysisEnrollmentAdapter = (
         }
       }
 
+      await lockPropertyForAuthorizationChange(tx, input)
       const current = await tx.execute(sql`
         SELECT enablement.*, property.source_epoch AS property_source_epoch,
                property.lifecycle_state, property.deleted_at
@@ -558,7 +510,7 @@ export const createReviewAnalysisEnrollmentAdapter = (
         }
       }
 
-      const evidence = await snapshot(tx, {
+      const evidence = await eligibleRevisionSnapshot(tx, {
         organizationId: input.organizationId,
         propertyId: input.propertyId,
         sourceEpoch: input.fence.sourceEpoch,
@@ -635,6 +587,7 @@ export const createReviewAnalysisEnrollmentAdapter = (
 
   async reconcile(input) {
     return db.transaction(async (tx) => {
+      await lockPropertyBeforeReplay(tx, input)
       const locked = await tx.execute(sql`
         SELECT * FROM ai_review_analysis_enrollments
         WHERE id = ${input.enrollmentId}::uuid
@@ -683,7 +636,7 @@ export const createReviewAnalysisEnrollmentAdapter = (
         return reconcileRunning(tx, row, input, storedFence)
       }
 
-      const expectedSnapshot = await snapshot(tx, {
+      const expectedSnapshot = await eligibleRevisionSnapshot(tx, {
         organizationId: String(row.organization_id),
         propertyId: String(row.property_id),
         sourceEpoch: storedFence.sourceEpoch,
@@ -713,67 +666,15 @@ export const createReviewAnalysisEnrollmentAdapter = (
       }
       if (expectedSnapshot.count === 0) return catchUp(tx, row, input.occurredAt)
 
-      const candidates = await tx.execute(sql`
-        SELECT review.id, review.source_revision
-        ${eligibleReviewsSql({
+      const pinnedRevisionCount = await replayEnrollmentCandidates(tx, {
+        scope: {
           organizationId: String(row.organization_id),
           propertyId: String(row.property_id),
-          sourceEpoch: storedFence.sourceEpoch,
-          analysisStartSequence: storedFence.analysisStartSequence,
-        })}
-        ORDER BY review.id
-        FOR UPDATE
-      `)
-      for (const raw of candidates.rows) {
-        const candidate = raw as Row
-        const allocated = await tx.execute(sql`
-          SELECT lock_review_ai_analysis_head_v1(
-            ${String(row.organization_id)},
-            ${String(row.property_id)}::uuid,
-            ${storedFence.sourceEpoch}
-          ) AS sequence
-        `)
-        const sequence = safeInteger(
-          (allocated.rows[0] as Row | undefined)?.sequence,
-          'allocated analysis sequence',
-          1,
-        )
-        const reviewId = String(candidate.id)
-        const sourceRevision = safeInteger(
-          candidate.source_revision,
-          'source revision',
-          1,
-        )
-        const updated = await tx.execute(sql`
-          UPDATE reviews
-          SET analysis_sequence = ${sequence}
-          WHERE organization_id = ${String(row.organization_id)}
-            AND property_id = ${String(row.property_id)}::uuid
-            AND id = ${reviewId}::uuid
-            AND source_epoch = ${storedFence.sourceEpoch}
-            AND source_revision = ${sourceRevision}
-            AND analysis_sequence <= ${storedFence.analysisStartSequence}
-        `)
-        if (updated.rowCount !== 1) {
-          throw new Error('Review Analysis enrollment candidate changed while locked')
-        }
-        await insertOutboxRow(
-          tx,
-          aiReviewAnalysisBackfillRequested({
-            organizationId: organizationId(String(row.organization_id)),
-            propertyId: propertyId(String(row.property_id)),
-            reviewId: reviewId as Parameters<
-              typeof aiReviewAnalysisBackfillRequested
-            >[0]['reviewId'],
-            sourceEpoch: storedFence.sourceEpoch,
-            sourceRevision,
-            analysisSequence: sequence,
-            occurredAt: input.occurredAt,
-            correlationId: input.enrollmentId,
-          }),
-          { recordedAt: input.occurredAt },
-        )
-      }
+        },
+        fence: storedFence,
+        enrollmentId: input.enrollmentId,
+        occurredAt: input.occurredAt,
+      })
       const updatedAt = new Date(
         Math.max(input.occurredAt.getTime(), epochMillis(row.created_at, 'created time')),
       )
@@ -781,14 +682,14 @@ export const createReviewAnalysisEnrollmentAdapter = (
         .update(aiReviewAnalysisEnrollments)
         .set({
           state: 'running',
-          enrolledRevisionCount: candidates.rows.length,
+          enrolledRevisionCount: pinnedRevisionCount,
           updatedAt,
         })
         .where(eq(aiReviewAnalysisEnrollments.id, input.enrollmentId))
       return {
         status: 'replay_started',
         runId: input.enrollmentId,
-        pinnedRevisionCount: candidates.rows.length,
+        pinnedRevisionCount,
       }
     })
   },

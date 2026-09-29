@@ -7,6 +7,12 @@
 Drizzle `pgTable` declarations are the application-schema authority. Shared DB also owns connection/pool mechanics, the migration journal, non-DSL PostgreSQL constructs, control-plane seed rows, schema drift comparison, and test isolation.
 Bounded contexts retain the business meaning and lifecycle of their records.
 
+Each process has one pool (`pool.ts`). Web keeps `POOL_MAX_CONNECTIONS` (10);
+the worker sizes its pool from every queue's concurrency at boot
+(`src/worker/pool-budget.ts`, ADR 0060). A unit of work that holds a lock
+while it opens a second transaction reserves both clients first
+(`pool-client-reservation.ts`): a lock holder never waits on the pool.
+
 ## Schema tracks
 
 1. **Drizzle journal** — `0000_baseline.sql` contains every application table,

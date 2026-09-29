@@ -30,3 +30,4 @@ Missing numbers are retired, merged, or never issued: `0001–0006`, `0009–001
 | [0057](0057-inbox-queues.md)                                              | Inbox queues                                                 | accepted | —             |
 | [0058](0058-ai-admission-lanes.md)                                        | AI admission lanes and paced review analysis                 | accepted | —             |
 | [0059](0059-organization-scoped-report-outcome-notice.md)                 | Organization-scoped report outcome notice                    | accepted | —             |
+| [0060](0060-property-fence-and-worker-pool-budget.md)                     | Property source fence and the worker pool budget             | accepted | —             |

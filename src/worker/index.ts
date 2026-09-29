@@ -13,6 +13,7 @@ import { runCapabilityBootGuard } from '#/shared/auth/capability-boot-guard'
 import { assertProductionSecrets } from '#/shared/config/production-secrets'
 import { assertReleaseIdentity } from '#/shared/config/release-identity'
 import { getDb } from '#/shared/db'
+import { configurePoolMaxConnections } from '#/shared/db/pool'
 import { assertRecoveryCutoverAttestation } from '#/shared/config/recovery-cutover-attestation'
 import { createRecoveryCutoverRunReader } from '#/shared/db/recovery/recovery-cutover-run-reader'
 import {
@@ -53,6 +54,7 @@ import {
   createJobRuntimeReportReader,
 } from '#/shared/jobs/runtime-observations'
 import { drainWorkerResources, namedCloseable } from './drain'
+import { WORKER_POOL_MAX_CONNECTIONS } from './pool-budget'
 import {
   createWorkerProcessFailurePolicy,
   type WorkerTerminationTrigger,
@@ -73,8 +75,18 @@ async function main() {
   assertReleaseIdentity(env)
   const logger = getLogger()
   initObservability('worker')
+  // Before anything opens the pool: every queue's concurrency is budgeted
+  // against it (./pool-budget), web's smaller default is not enough.
+  configurePoolMaxConnections(WORKER_POOL_MAX_CONNECTIONS)
 
-  logger.info({ env: env.NODE_ENV, releaseSha: getReleaseSha(env) }, 'Worker starting')
+  logger.info(
+    {
+      env: env.NODE_ENV,
+      releaseSha: getReleaseSha(env),
+      poolMaxConnections: WORKER_POOL_MAX_CONNECTIONS,
+    },
+    'Worker starting',
+  )
 
   // BQC-0.3: refuse boot if test-only capability overrides leak outside an
   // explicit test/CI identity; assert blocked caps; record policy manifest.
@@ -196,12 +208,11 @@ async function main() {
     : null
 
   // ── Default queue — user-facing jobs (import, review sync, reply publish, etc.)
-  // Concurrency is budgeted against the connection pool, NOT maximized:
-  // DEFAULT_QUEUE_CONCURRENCY * WORST_CASE_POOL_CLIENTS_PER_JOB <= pool max.
+  // Concurrency is budgeted against the connection pool, NOT maximized: the
+  // pool covers every queue's slots at their peak clients (./pool-budget).
   // A Google-import item holds its fenced `FOR UPDATE` transaction while the
-  // nested Property effect opens a second one, so a concurrency equal to the
-  // pool max lets every slot hold a client and deadlock on the nested
-  // acquisition. See the invariant on the constants in shared/jobs/worker.
+  // nested Property effect opens a second one, so slots that could hold every
+  // client would deadlock on the nested acquisition.
   if (container.jobQueue) {
     // BQC-3.2: every job authorizes through the delayed execution gate at
     // dispatch (current policy — a stale allow never overrides a deny).

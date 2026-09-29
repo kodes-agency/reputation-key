@@ -498,9 +498,9 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
 
   // One child import batch fans out up to 100 item jobs in a single addBulk, so
   // the queue depth is intentionally far above what the pool can execute at
-  // once. Safety comes from the worker side, not from throttling here:
-  // DEFAULT_QUEUE_CONCURRENCY * WORST_CASE_POOL_CLIENTS_PER_JOB <= pool max
-  // (see #/shared/jobs/worker), because each item holds its fenced
+  // once. Safety comes from the worker side, not from throttling here: the
+  // worker's pool covers DEFAULT_QUEUE_CONCURRENCY * WORST_CASE_POOL_CLIENTS_PER_JOB
+  // and every other queue (src/worker/pool-budget.ts), because each item holds its fenced
   // `FOR UPDATE` transaction while the nested Property effect opens a second
   // one. If that budget is ever violated, every worker slot holds a client
   // and the nested acquisitions deadlock until connectionTimeoutMillis.
