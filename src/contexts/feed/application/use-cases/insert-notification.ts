@@ -34,6 +34,10 @@ import {
   isEmailStopped,
   ORGANIZATION_CLOSING_REASON,
 } from '../../domain/organization-email-stop'
+import {
+  SETTLED_EMAIL_REASON,
+  SUPERSEDED_FOR_READER,
+} from '../../domain/notification-settlement'
 
 // ── Input ───────────────────────────────────────────────────────────
 
@@ -263,6 +267,34 @@ const asEmailOnlyAnchor = (notification: DomainNotification): DomainNotification
   readAt: null,
 })
 
+/**
+ * Retires the reader's own earlier notices this one takes over, and the emails
+ * still queued behind them (`SUPERSEDED_FOR_READER`).
+ */
+const settleSupersededForReader = async (
+  deps: InsertNotificationDeps,
+  notification: DomainNotification,
+  shownInApp: boolean,
+): Promise<void> => {
+  const rule = SUPERSEDED_FOR_READER[notification.type]
+  if (rule === undefined || (rule.onlyWhenShownInApp && !shownInApp)) return
+  const resolvedAt = deps.clock()
+  const settled = await deps.notificationRepo.settleUnreadForReader({
+    organizationId: notification.organizationId,
+    userId: notification.userId,
+    types: rule.types,
+    resourceId: notification.resourceId,
+    resolvedAt,
+  })
+  if (settled.length === 0) return
+  await deps.emailRepo.cancelQueuedForNotifications(
+    settled,
+    notification.organizationId,
+    SETTLED_EMAIL_REASON,
+    resolvedAt,
+  )
+}
+
 // ── Use case ────────────────────────────────────────────────────────
 
 export const insertNotification =
@@ -353,6 +385,9 @@ export const insertNotification =
         audience,
       )
     }
+
+    // 4b. This notice takes over the reader's own earlier ones about the item.
+    await settleSupersededForReader(deps, inserted, inAppEnabled)
 
     // 5. Return notification only if in-app channel is enabled
     if (!inAppEnabled) {

@@ -127,6 +127,29 @@ describe.sequential('settling a notice whose work is done (real PostgreSQL)', ()
     ])
   })
 
+  // D3: an assignment takes over only its own reader's arrival notice.
+  it("settles one reader's notices about the item and leaves everybody else's", async () => {
+    const repo = createNotificationRepository(db)
+    await repo.insert(
+      notice('86000000-0000-4000-8000-000000000031', APPROVER, 'review.created'),
+    )
+    await repo.insert(
+      notice('86000000-0000-4000-8000-000000000032', SECOND_APPROVER, 'review.created'),
+    )
+
+    const settled = await repo.settleUnreadForReader({
+      organizationId: ORG,
+      userId: APPROVER,
+      types: ['review.created', 'review.updated', 'feedback.created'],
+      resourceId: ITEM,
+      resolvedAt: SETTLED_AT,
+    })
+
+    expect(settled).toEqual(['86000000-0000-4000-8000-000000000031'])
+    expect((await feedHead(SECOND_APPROVER)).unreadCount).toBe(1)
+    expect((await feedHead(APPROVER)).unreadCount).toBe(0)
+  })
+
   it('leaves the row unread, because read is not resolved', async () => {
     const repo = createNotificationRepository(db)
     const waiting = notice('86000000-0000-4000-8000-000000000013', APPROVER)

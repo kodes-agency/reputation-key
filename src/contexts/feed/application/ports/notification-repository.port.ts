@@ -118,6 +118,21 @@ export type NotificationRepositoryPort = Readonly<{
   ): Promise<ReadonlyArray<NotificationId>>
 
   /**
+   * The same, for ONE reader: a notice just written that takes over their own
+   * earlier notices about the resource (`SUPERSEDED_FOR_READER`). Nobody
+   * else's rows about it change.
+   */
+  settleUnreadForReader(
+    input: Readonly<{
+      organizationId: OrganizationId
+      userId: UserId
+      types: ReadonlyArray<NotificationType>
+      resourceId: string
+      resolvedAt: Date
+    }>,
+  ): Promise<ReadonlyArray<NotificationId>>
+
+  /**
    * The same, for every resource on one Property: the settling fact finishes
    * all of a Property's work at once (it was archived).
    */

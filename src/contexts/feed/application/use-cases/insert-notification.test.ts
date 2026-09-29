@@ -604,4 +604,68 @@ describe('insertNotification', () => {
       expect(deps.emailRepo.insert).toHaveBeenCalledOnce()
     })
   })
+
+  // D3: one row for one piece of work, per reader.
+  describe("a notice that takes over its reader's earlier ones", () => {
+    const assigned = { ...input, type: 'inbox.assigned' as const, eventId: 'assign-1' }
+
+    it("retires the assignee's arrival notice about the item, and its queued email", async () => {
+      vi.mocked(deps.notificationRepo.settleUnreadForReader).mockResolvedValueOnce([
+        'arrival-1' as never,
+      ])
+
+      await insertNotification(deps)(assigned)
+
+      expect(deps.notificationRepo.settleUnreadForReader).toHaveBeenCalledWith({
+        organizationId: ORG_ID,
+        userId: USER_ID,
+        types: ['review.created', 'review.updated', 'feedback.created'],
+        resourceId: 'item-1',
+        resolvedAt: expect.any(Date),
+      })
+      expect(deps.emailRepo.cancelQueuedForNotifications).toHaveBeenCalledWith(
+        ['arrival-1'],
+        ORG_ID,
+        'work_settled',
+        expect.any(Date),
+      )
+    })
+
+    it('leaves the arrival standing when the assignment only goes by email', async () => {
+      deps = {
+        ...deps,
+        preferenceRepo: {
+          ...deps.preferenceRepo,
+          resolveForDelivery: vi.fn(
+            storedRows({
+              in_app: preference('in_app', false),
+              email: preference('email', true),
+            }),
+          ),
+        },
+      }
+
+      await insertNotification(deps)(assigned)
+
+      expect(deps.notificationRepo.settleUnreadForReader).not.toHaveBeenCalled()
+    })
+
+    it('retires the previous holder\'s "Assigned to you" when the item moves on', async () => {
+      await insertNotification(deps)({
+        ...input,
+        type: 'inbox.unassigned',
+        eventId: 'moved-1',
+      })
+
+      expect(deps.notificationRepo.settleUnreadForReader).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: USER_ID, types: ['inbox.assigned'] }),
+      )
+    })
+
+    it('takes over nothing for a notice that supersedes no other', async () => {
+      await insertNotification(deps)(input)
+
+      expect(deps.notificationRepo.settleUnreadForReader).not.toHaveBeenCalled()
+    })
+  })
 })

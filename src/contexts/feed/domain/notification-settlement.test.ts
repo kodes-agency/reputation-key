@@ -4,6 +4,7 @@ import {
   isSettleableNotificationType,
   isStillActionable,
   settledNotificationTypes,
+  SUPERSEDED_FOR_READER,
   type SettlingFact,
 } from './notification-settlement'
 import { NOTIFICATION_TYPES, type NotificationType } from './notification-types'
@@ -42,6 +43,7 @@ describe('which notices a settling fact retires', () => {
   it('retires every waiting-cycle notice when the Handling Cycle closes', () => {
     expect([...settledNotificationTypes('handling_cycle.closed')].sort()).toEqual([
       'feedback.created',
+      'inbox.assigned',
       'inbox.reopened',
       'inbox.response_target_halfway',
       'inbox.response_target_passed',
@@ -123,6 +125,44 @@ describe('which notices a settling fact retires', () => {
         (type) => !(NOTIFICATION_TYPES as readonly string[]).includes(type),
       ),
     ).toEqual([])
+  })
+})
+
+// D3 (docs/design/notifications): an assignment is work handed to its reader.
+describe('an assignment waits on its reader', () => {
+  it('counts "Assigned to you" and a grouped assignment as work', () => {
+    expect(ACTIONABLE_NOTIFICATION_TYPES.has('inbox.assigned')).toBe(true)
+    expect(ACTIONABLE_NOTIFICATION_TYPES.has('inbox.bulk_assigned')).toBe(true)
+    // Losing an item is news, never a call to act.
+    expect(ACTIONABLE_NOTIFICATION_TYPES.has('inbox.unassigned')).toBe(false)
+  })
+
+  it('retires both when the Property is archived', () => {
+    expect(settledNotificationTypes('property.archived')).toEqual(
+      expect.arrayContaining(['inbox.assigned', 'inbox.bulk_assigned']),
+    )
+  })
+
+  it('takes over the arrival it hands over, but only while shown in the app', () => {
+    expect(SUPERSEDED_FOR_READER['inbox.assigned']).toEqual({
+      types: ['review.created', 'review.updated', 'feedback.created'],
+      onlyWhenShownInApp: true,
+    })
+  })
+
+  it('retires the previous holder\'s "Assigned to you" when the item moves on', () => {
+    expect(SUPERSEDED_FOR_READER['inbox.unassigned']).toEqual({
+      types: ['inbox.assigned'],
+      onlyWhenShownInApp: false,
+    })
+  })
+
+  it('only ever takes over a type that asks its reader for work', () => {
+    for (const rule of Object.values(SUPERSEDED_FOR_READER)) {
+      for (const type of rule?.types ?? []) {
+        expect(ACTIONABLE_NOTIFICATION_TYPES.has(type)).toBe(true)
+      }
+    }
   })
 })
 

@@ -163,6 +163,22 @@ const groupStillOpen: WorkCheck = async (deps, { organizationId, audience }) => 
 }
 
 /**
+ * A grouped assignment stands for the items its audience names, and counts
+ * only those still open, so a mail sent later says how many are really left.
+ */
+const assignedItemsStillOpen: WorkCheck = async (deps, { organizationId, audience }) => {
+  const parsed = parseNotificationAudience(audience)
+  if (parsed?.kind !== 'bulk_inbox_assignee') return null
+  const open = await Promise.all(
+    parsed.inboxItemIds.map(
+      async (item) => (await cycleOf(deps, organizationId, item))?.status === 'open',
+    ),
+  )
+  const itemCount = open.filter(Boolean).length
+  return itemCount === 0 ? false : { itemCount }
+}
+
+/**
  * Any Health interval that still gives a manager something to fix keeps the
  * notice: a different actionable reason is still the Portal needing them. A
  * Portal that is gone needs nobody.
@@ -208,6 +224,8 @@ const WORK_CHECKS: Readonly<Partial<Record<NotificationType, WorkCheck>>> = {
   'inbox.response_target_halfway': itemStillOpen,
   'inbox.response_target_passed': itemStillOpen,
   'inbox.bulk_reopened': groupStillOpen,
+  'inbox.assigned': itemStillOpen,
+  'inbox.bulk_assigned': assignedItemsStillOpen,
   'portal.health_attention': healthStillNeedsAttention,
   'account.organization_purge_pending': purgeStillPending,
   'property.responsibility_needed': propertyStillUnstaffed,
