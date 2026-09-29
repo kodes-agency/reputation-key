@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Job } from 'bullmq'
 import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
@@ -31,6 +32,13 @@ import {
   handleNotificationHandlingCycle,
   type HandlingCycleNotificationConsumerDeps,
 } from '#/contexts/feed/infrastructure/handling-cycle-outbox-consumers'
+import { handleNotificationInboxItemCreated } from '#/contexts/feed/infrastructure/notification-outbox-consumers'
+import {
+  createInsertNotificationHandler,
+  type InsertNotificationJobData,
+} from '#/contexts/feed/infrastructure/jobs/insert-notification.job'
+import { createNotificationWorkState } from '#/contexts/feed/application/notification-work-state'
+import { buildFakeInsertNotificationDeps } from '#/contexts/feed/application/use-cases/test-fixtures'
 
 // End to end, the guest edits a Google review the team had already answered,
 // and the owner reply stays live on Google. A reply written for revision 1
@@ -38,6 +46,8 @@ import {
 // answering the edit, Inbox reopens the item and keeps it open, Feed tells the
 // responsible manager with the urgent `inbox.reopened`, and only a reply to
 // the edited review closes it again — the close that settles the notice.
+// The last block proves the same review's arrival notice through the real
+// Inbox and Feed's work-state gate: written while unanswered, never after.
 
 const OLD_REPLY = 'Thank you for the five stars!'
 const NEW_REPLY = 'We are sorry the second stay let you down.'
@@ -151,6 +161,44 @@ async function readReply(text: string, revision: AnsweredEditRevision, at: Date)
   for (const fact of facts.slice(before))
     await handleInboxReplyObserved(inboxDeps(), fact)
   return result
+}
+
+/** Feed's arrival fan-out from Inbox's committed `inbox.inbox_item.created`. */
+async function fanOutArrival(): Promise<ReadonlyArray<InsertNotificationJobData>> {
+  const [created] = await fixtures.outboxEvents('inbox.inbox_item.created')
+  const feed = feedDeps()
+  await handleNotificationInboxItemCreated(feed.deps, created!)
+  return feed.jobs as InsertNotificationJobData[]
+}
+
+const notAskedForAnArrival = async (): Promise<never> => {
+  throw new Error('an arrival asks only the Inbox whether it still waits')
+}
+
+/**
+ * The insert-notification jobs, run later on the default queue, asking the
+ * real Inbox through the work-state gate whether the review still waits.
+ * Returns the notices written.
+ */
+async function writeNotices(jobs: ReadonlyArray<InsertNotificationJobData>) {
+  const insert = buildFakeInsertNotificationDeps()
+  const handle = createInsertNotificationHandler({
+    ...insert,
+    authorizeAudience: async () => true,
+    workState: createNotificationWorkState({
+      inboxItemLookup: feedDeps().deps.inboxItemLookup,
+      escalationResolutions: { findEscalationResolutionFacts: notAskedForAnArrival },
+      replyStates: { findReplyStatus: notAskedForAnArrival },
+      portalHealthLookup: { findPortalHealthNotificationFacts: notAskedForAnArrival },
+      organizationState: notAskedForAnArrival,
+      responsibleManagers: {
+        findForProperty: notAskedForAnArrival,
+        findForPortal: notAskedForAnArrival,
+      },
+    }),
+  })
+  for (const data of jobs) await handle({ data } as Job<InsertNotificationJobData>)
+  return vi.mocked(insert.notificationRepo.insert).mock.calls.map(([notice]) => notice)
 }
 
 /** Answered at revision 1, then edited by the guest with the reply still live. */
@@ -280,5 +328,40 @@ describe.sequential('a guest edit of an answered Google review (real PostgreSQL)
       cycleStatus: 'open',
       cycleNumber: 2,
     })
+  })
+})
+
+// Before any reply, the same review's arrival. The fan-out and the insert job
+// run seconds apart, and the insert asks the Inbox whether the review still
+// waits (ADR 0046, amended 2026-09-28). An unanswered review is always
+// announced; one the owner answered first is not, whichever side of the
+// fan-out the answer lands on, because `inbox.handling_cycle.closed` settles
+// only rows that already exist and a late row would ask for a reply forever.
+describe.sequential("a new Google review's arrival notice (real PostgreSQL)", () => {
+  it('announces a new, unanswered review to the responsible manager', async () => {
+    const notices = await writeNotices(await fanOutArrival())
+
+    expect(notices).toEqual([
+      expect.objectContaining({
+        userId: SCOPE.managerUserId,
+        type: 'review.created',
+        resourceId: SCOPE.itemId,
+      }),
+    ])
+  })
+
+  it('writes nothing when the owner answered while its insert job was queued', async () => {
+    const jobs = await fanOutArrival()
+    expect(jobs).toHaveLength(1)
+    await readReply(OLD_REPLY, 1, CLOCK.hoursAfter(1, 1))
+
+    await expect(writeNotices(jobs)).resolves.toEqual([])
+  })
+
+  it('writes nothing when the owner answered before the fan-out ran', async () => {
+    await readReply(OLD_REPLY, 1, CLOCK.hoursAfter(1, 1))
+    expect(await fixtures.inboxState()).toMatchObject({ cycleStatus: 'closed' })
+
+    await expect(writeNotices(await fanOutArrival())).resolves.toEqual([])
   })
 })

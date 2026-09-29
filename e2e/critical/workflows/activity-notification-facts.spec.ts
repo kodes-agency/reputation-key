@@ -118,6 +118,36 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
       { timeoutMs: 15_000, description: 'inbox item for the arrived review' },
     )
 
+    // The new-review notification for the assigned admin — awaited BEFORE the
+    // source-authority close below. The insert-notification job runs after
+    // the item exists, on the shared default queue, and first asks the Inbox
+    // whether the review still waits: a notice for a review already answered
+    // is never written (ADR 0046, amended 2026-09-28). Closing first would
+    // race that job and, when the close wins, correctly leave no notice.
+    const notifications = await waitFor(
+      async () => {
+        const rows = await getNotificationsForUser(admin!.id)
+        const match = rows.filter(
+          (r) => r.type === 'review.created' && r.resource_id === inboxItem.id,
+        )
+        return match.length >= 1 ? match : null
+      },
+      { timeoutMs: 30_000, description: 'new-review notification for the admin' },
+    )
+    // Copy is rendered from `type` + `payload` now, so assert the SHAPE the
+    // renderer guarantees rather than a frozen sentence: the property name and
+    // the star rating are present, and no identifier is.
+    expect(notifications[0].title).toContain('review')
+    expect(notifications[0].title).not.toContain(inboxItem.id)
+    expect(notifications[0].body ?? '').not.toContain(inboxItem.id)
+    // The point of this test: the allowlisted payload cannot carry source
+    // content. `payload` is stringified along with the row, so this now covers
+    // the new column too.
+    expect(JSON.stringify(notifications[0])).not.toContain('SENSITIVE-REVIEW-TEXT-MARKER')
+    expect(JSON.stringify(notifications[0])).not.toContain(
+      'SENSITIVE-REVIEWER-NAME-MARKER',
+    )
+
     // Triage actions (each a durable activity fact): close, reopen, note.
     //
     // Closing is an OUTCOME, not a manager toggle — there is deliberately no
@@ -191,31 +221,6 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
       expect(JSON.stringify(row.payload)).not.toContain('SENSITIVE-REVIEW-TEXT-MARKER')
       expect(JSON.stringify(row.payload)).not.toContain('SENSITIVE-REVIEWER-NAME-MARKER')
     }
-
-    // The new-review notification for the assigned admin.
-    const notifications = await waitFor(
-      async () => {
-        const rows = await getNotificationsForUser(admin!.id)
-        const match = rows.filter(
-          (r) => r.type === 'review.created' && r.resource_id === inboxItem.id,
-        )
-        return match.length >= 1 ? match : null
-      },
-      { timeoutMs: 30_000, description: 'new-review notification for the admin' },
-    )
-    // Copy is rendered from `type` + `payload` now, so assert the SHAPE the
-    // renderer guarantees rather than a frozen sentence: the property name and
-    // the star rating are present, and no identifier is.
-    expect(notifications[0].title).toContain('review')
-    expect(notifications[0].title).not.toContain(inboxItem.id)
-    expect(notifications[0].body ?? '').not.toContain(inboxItem.id)
-    // The point of this test: the allowlisted payload cannot carry source
-    // content. `payload` is stringified along with the row, so this now covers
-    // the new column too.
-    expect(JSON.stringify(notifications[0])).not.toContain('SENSITIVE-REVIEW-TEXT-MARKER')
-    expect(JSON.stringify(notifications[0])).not.toContain(
-      'SENSITIVE-REVIEWER-NAME-MARKER',
-    )
 
     // Rendered surfaces: the pane reads the reopen from Handling History in the
     // thread now, not from the Recent Activity feed — that collapsible was
