@@ -85,14 +85,21 @@ export const notificationKeys = {
     [...notificationKeys.all, 'feed', organizationId] as const,
   lists: (organizationId: string) =>
     [...notificationKeys.feed(organizationId), 'list'] as const,
-  list: (organizationId: string, limit: number, filter = 'all') =>
-    [...notificationKeys.lists(organizationId), { limit, filter }] as const,
+  /** `propertyId`: the page's Property filter; absent for the whole feed. */
+  list: (organizationId: string, limit: number, filter = 'all', propertyId?: string) =>
+    [
+      ...notificationKeys.lists(organizationId),
+      propertyId ? { limit, filter, propertyId } : { limit, filter },
+    ] as const,
   /**
    * Periodically refreshed first page. Older pages stay under `list(...)` so
    * an interval refresh never asks the server for the whole loaded history.
    */
-  head: (organizationId: string, limit: number, filter = 'all') =>
-    [...notificationKeys.list(organizationId, limit, filter), 'head'] as const,
+  head: (organizationId: string, limit: number, filter = 'all', propertyId?: string) =>
+    [
+      ...notificationKeys.list(organizationId, limit, filter, propertyId),
+      'head',
+    ] as const,
 
   // ── Settings (/settings/notifications) ──────────────────────────────
   settings: (organizationId: string) =>

@@ -86,6 +86,8 @@ type NotificationFeedQuery = Readonly<{
   organizationId: string
   /** Current Property access; null reads every Property. */
   visiblePropertyIds: ReadonlyArray<string> | null
+  /** The page's Property filter; absent or null reads the whole feed. */
+  propertyId?: string | null
   filter: NotificationListFilter
   limit: number
 }>
@@ -135,6 +137,13 @@ const needsYou: SQL = and(
   inArray(notifications.type, [...ACTIONABLE_NOTIFICATION_TYPES]),
 )!
 
+// The page's Property filter: one Property's notices. It is always ANDed with
+// `withinVisibleProperties`, so a Property the reader can no longer access
+// reads as empty instead of showing its rows, and Organization-scoped notices
+// (no Property) are left out. Undefined: the whole feed.
+const inPropertyFilter = (propertyId: string | null | undefined): SQL | undefined =>
+  propertyId ? eq(notifications.propertyId, propertyId) : undefined
+
 // What a feed filter adds to "the reader's notices": work waiting on them or
 // everything else, the unread status, the urgent priority flag (any category),
 // or one category. `all` adds nothing. Shared by the feed read, its filter's
@@ -171,6 +180,7 @@ const selectFeedRows = (
     eq(notifications.organizationId, query.organizationId),
     notOptedOutInApp,
     withinVisibleProperties(query.visiblePropertyIds),
+    inPropertyFilter(query.propertyId),
     ne(notifications.status, 'dismissed'),
     feedFilterCondition(query.filter),
   ]
@@ -215,6 +225,7 @@ const countVisibleUnread = async (
         stillWaiting,
         notOptedOutInApp,
         withinVisibleProperties(query.visiblePropertyIds),
+        inPropertyFilter(query.propertyId),
       ),
     )
 
@@ -445,6 +456,7 @@ export const createNotificationRepository = (db: Database) => ({
           // Property access or an in-app opt-out must come back unread.
           notOptedOutInApp,
           withinVisibleProperties(scope.visiblePropertyIds),
+          inPropertyFilter(scope.propertyId),
         ),
       )
   },
@@ -609,6 +621,7 @@ export const createNotificationRepository = (db: Database) => ({
           ne(notifications.status, 'dismissed'),
           notOptedOutInApp,
           withinVisibleProperties(scope.visiblePropertyIds),
+          inPropertyFilter(scope.propertyId),
         ),
       )
   },

@@ -5,10 +5,12 @@
 // This route is the real one; the popover links here.
 
 import { createFileRoute, getRouteApi } from '@tanstack/react-router'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import { NotificationPage } from '#/components/features/notification/notification-page'
 import { parseNotificationFilter } from '#/components/features/notification/notification-filters'
 import { notificationFns } from '#/routes/-notification-fns'
+import { propertiesQuery } from '#/routes/-queries/route-queries'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 
 const authRoute = getRouteApi('/_authenticated')
@@ -19,6 +21,8 @@ const authRoute = getRouteApi('/_authenticated')
 // GOVERNING_NOTIFICATION_CATEGORIES) — a bookmarked URL must not 500.
 const notificationSearch = z.object({
   filter: z.string().optional().catch(undefined),
+  /** The Property filter; a malformed id reads the whole feed. */
+  property: z.uuid().optional().catch(undefined),
 })
 
 export const Route = createFileRoute('/_authenticated/notifications')({
@@ -32,6 +36,7 @@ function NotificationsRoute() {
   const organizationId = context.activeOrganization?.id ?? 'no-active-organization'
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
+  const { data: properties } = useSuspenseQuery(propertiesQuery)
 
   return (
     <NotificationPage
@@ -41,7 +46,15 @@ function NotificationsRoute() {
       onFilterChange={(filter) => {
         // Filter lives in the URL so a filtered view is linkable and survives
         // a refresh. `replace` keeps the back button meaning "previous page".
-        void navigate({ search: { filter }, replace: true })
+        void navigate({ search: (prev) => ({ ...prev, filter }), replace: true })
+      }}
+      properties={properties.properties}
+      propertyId={search.property ?? null}
+      onPropertyChange={(property) => {
+        void navigate({
+          search: (prev) => ({ ...prev, property: property ?? undefined }),
+          replace: true,
+        })
       }}
     />
   )

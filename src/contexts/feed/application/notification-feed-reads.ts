@@ -8,9 +8,11 @@
 // resolves the reader's current scope for `notification.read`, the way Recent
 // Activity resolves `inbox.read`. Organization-scoped notices (no Property)
 // are never Property-gated. "Mark all read" and "Clear all" resolve the same
-// scope, so they change exactly the rows the reader's tab and count showed.
+// scope, so they change exactly the rows the reader's tab and count showed —
+// including the page's Property filter, when one is set.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { PropertyId } from '#/shared/domain/ids'
 import {
   getAccessiblePropertyIdsForPermission,
   type PropertyAccessLookup,
@@ -23,9 +25,14 @@ import type {
 import type { NotificationListFilter } from './notification-list-filter'
 import type { NotificationFeedCursor } from './notification-page'
 
+/** The page's Property filter: one Property's notices, or null for all. */
+type PropertyFilter = PropertyId | null
+
 type FeedPageRequest = Readonly<{
   limit: number
   filter: NotificationListFilter
+  /** Absent: the whole feed. */
+  propertyId?: PropertyFilter
 }>
 
 export type NotificationFeedReadsDeps = Readonly<{
@@ -39,7 +46,10 @@ export type NotificationFeedReadsDeps = Readonly<{
 }>
 
 export const createNotificationFeedReads = (deps: NotificationFeedReadsDeps) => {
-  const readerScope = async (ctx: AuthContext): Promise<NotificationFeedScope> => ({
+  const readerScope = async (
+    ctx: AuthContext,
+    propertyId: PropertyFilter,
+  ): Promise<NotificationFeedScope> => ({
     userId: ctx.userId,
     organizationId: ctx.organizationId,
     visiblePropertyIds: await getAccessiblePropertyIdsForPermission(
@@ -47,12 +57,13 @@ export const createNotificationFeedReads = (deps: NotificationFeedReadsDeps) => 
       ctx,
       'notification.read',
     ),
+    ...(propertyId === null ? {} : { propertyId }),
   })
   const readerQuery = async (
     ctx: AuthContext,
     request: FeedPageRequest,
   ): Promise<NotificationFeedQuery> => ({
-    ...(await readerScope(ctx)),
+    ...(await readerScope(ctx, request.propertyId ?? null)),
     limit: request.limit,
     filter: request.filter,
   })
@@ -71,10 +82,13 @@ export const createNotificationFeedReads = (deps: NotificationFeedReadsDeps) => 
         before: request.before,
       }),
     /** "Mark all read" on the reader's tab: the unread rows it holds and shows. */
-    markAllRead: async (ctx: AuthContext, filter: NotificationListFilter) =>
-      deps.repo.markAllRead(await readerScope(ctx), filter, deps.clock()),
+    markAllRead: async (
+      ctx: AuthContext,
+      filter: NotificationListFilter,
+      propertyId: PropertyFilter = null,
+    ) => deps.repo.markAllRead(await readerScope(ctx, propertyId), filter, deps.clock()),
     /** "Clear all": every row the reader's feed shows, and none it hides. */
-    dismissAll: async (ctx: AuthContext) =>
-      deps.repo.markAllDismissed(await readerScope(ctx), deps.clock()),
+    dismissAll: async (ctx: AuthContext, propertyId: PropertyFilter = null) =>
+      deps.repo.markAllDismissed(await readerScope(ctx, propertyId), deps.clock()),
   } as const
 }

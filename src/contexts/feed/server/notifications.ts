@@ -13,7 +13,7 @@ import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { headersFromContext } from '#/shared/auth/headers'
 import { requireAuth, resolveTenantContext } from '#/shared/auth/middleware'
-import { userId } from '#/shared/domain/ids'
+import { propertyId as toPropertyId, userId } from '#/shared/domain/ids'
 import { z } from 'zod/v4'
 import { isNotificationError } from '../domain/notification-errors'
 import { NOTIFICATION_LIST_FILTERS } from '../application/notification-list-filter'
@@ -24,7 +24,10 @@ import {
   notificationQuietHoursDto,
   updateNotificationPreferenceDto,
 } from '../application/dto/notification-preference.dto'
-import { markAllNotificationsReadDto } from '../application/dto/notification-mark-all-read.dto'
+import {
+  dismissAllNotificationsDto,
+  markAllNotificationsReadDto,
+} from '../application/dto/notification-mark-all-read.dto'
 import { requiredCapabilityForPreferenceChannel } from '../domain/notification-delivery-policy'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
@@ -72,9 +75,15 @@ const notificationFeedCursor = z.object({
 export const getNotificationsDto = z.object({
   limit: z.coerce.number().int().min(1).max(100).optional().default(20),
   filter: z.enum(NOTIFICATION_LIST_FILTERS).optional().default('all'),
+  /** The page's Property filter; absent reads the whole feed. */
+  propertyId: z.uuid().optional(),
   /** Continue strictly after this position; absent reads from the top. */
   before: notificationFeedCursor.optional(),
 })
+
+/** The Property filter as the feed reads take it: branded, or null for all. */
+const propertyFilterOf = (id: string | undefined) =>
+  id === undefined ? null : toPropertyId(id)
 
 /** First-page feed authority. History continues with getNotificationsFn. */
 export const getNotificationFeedHeadDto = getNotificationsDto.omit({ before: true })
@@ -102,6 +111,7 @@ export const getNotificationFeedHeadFn = createServerFn({ method: 'GET' })
           return await feedPublicApi.getFeedHead(ctx, {
             limit: data.limit,
             filter: data.filter,
+            propertyId: propertyFilterOf(data.propertyId),
           })
         } catch (e) {
           throw catchUntagged(e)
@@ -125,6 +135,7 @@ export const getNotificationsFn = createServerFn({ method: 'GET' })
           return await feedPublicApi.getNotifications(ctx, {
             limit: data.limit,
             filter: data.filter,
+            propertyId: propertyFilterOf(data.propertyId),
             before: data.before ?? null,
           })
         } catch (e) {
@@ -218,7 +229,11 @@ export const markAllNotificationsReadFn = createServerFn({ method: 'POST' })
     tracedHandler(
       async ({ data }) =>
         runBulkNotificationMutation((feedPublicApi, ctx) =>
-          feedPublicApi.markAllRead(ctx, data?.filter ?? 'all'),
+          feedPublicApi.markAllRead(
+            ctx,
+            data?.filter ?? 'all',
+            propertyFilterOf(data?.propertyId),
+          ),
         ),
       'POST',
       'notification.markAllRead',
@@ -227,14 +242,18 @@ export const markAllNotificationsReadFn = createServerFn({ method: 'POST' })
 
 // ── dismissAllNotificationsFn ─────────────────────────────────────
 
-export const dismissAllNotificationsFn = createServerFn({ method: 'POST' }).handler(
-  tracedHandler(
-    async () =>
-      runBulkNotificationMutation((feedPublicApi, ctx) => feedPublicApi.dismissAll(ctx)),
-    'POST',
-    'notification.dismissAll',
-  ),
-)
+export const dismissAllNotificationsFn = createServerFn({ method: 'POST' })
+  .validator(dismissAllNotificationsDto)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        runBulkNotificationMutation((feedPublicApi, ctx) =>
+          feedPublicApi.dismissAll(ctx, propertyFilterOf(data?.propertyId)),
+        ),
+      'POST',
+      'notification.dismissAll',
+    ),
+  )
 
 // ── dismissNotificationFn ─────────────────────────────────────────
 

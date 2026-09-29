@@ -37,6 +37,10 @@ const meta: Meta<typeof NotificationPage> = {
     organizationId: ORGANIZATION_ID,
     filter: 'all',
     onFilterChange,
+    // One Property: the filter is not offered (it needs two or more).
+    properties: [],
+    propertyId: null,
+    onPropertyChange: fn(),
   },
 }
 export default meta

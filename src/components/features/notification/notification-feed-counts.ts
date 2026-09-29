@@ -28,7 +28,7 @@ export type ClearedUnread = Readonly<{
 }>
 
 /** A filter whose share is every unread row, so its count is the badge. */
-const holdsEveryUnread = (filter: NotificationListFilter) =>
+export const holdsEveryUnread = (filter: NotificationListFilter) =>
   filter === 'all' || filter === 'unread'
 
 const isUnreadIn = (row: NotificationView | null, filter: NotificationListFilter) =>

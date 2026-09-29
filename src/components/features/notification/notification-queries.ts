@@ -60,17 +60,20 @@ export function useNotifications(
   limit = 20,
   filter: NotificationListFilter = 'all',
   poll = false,
+  /** The page's Property filter; absent reads the whole feed. */
+  propertyId?: string,
 ) {
   const qc = useQueryClient()
-  const historyKey = notificationKeys.list(organizationId, limit, filter)
-  const headKey = notificationKeys.head(organizationId, limit, filter)
+  const historyKey = notificationKeys.list(organizationId, limit, filter, propertyId)
+  const headKey = notificationKeys.head(organizationId, limit, filter, propertyId)
+  const scope = propertyId ? { propertyId } : {}
   const fetchPage = (before: NotificationFeedCursor | null) =>
-    getList({ data: { limit, filter, ...(before ? { before } : {}) } })
+    getList({ data: { limit, filter, ...scope, ...(before ? { before } : {}) } })
   const fetchHead = fetchHeadKeepingHistoryContiguous(
     qc,
     headKey,
     historyKey,
-    () => getFeedHead({ data: { limit, filter } }),
+    () => getFeedHead({ data: { limit, filter, ...scope } }),
     fetchPage,
   )
   const head = useQuery(notificationHeadQueryOptions(headKey, fetchHead, poll))

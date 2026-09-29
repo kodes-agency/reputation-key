@@ -30,6 +30,8 @@ vi.mock('#/shared/auth/execution-policy', () => ({
 import { markAllNotificationsReadDto } from '../application/dto/notification-mark-all-read.dto'
 import { markAllNotificationsReadFn } from './notifications'
 
+const PROPERTY = '86700000-0000-4000-8000-000000000001'
+
 const ACTOR = {
   organizationId: 'org-notification-mark-all-read',
   userId: 'user-notification-mark-all-read',
@@ -48,13 +50,23 @@ describe('markAllNotificationsReadFn', () => {
       markAllNotificationsReadFn({ data: { filter: 'workflow_collaboration' } }),
     )
 
-    expect(mocks.markAllRead).toHaveBeenCalledWith(ACTOR, 'workflow_collaboration')
+    expect(mocks.markAllRead).toHaveBeenCalledWith(ACTOR, 'workflow_collaboration', null)
+  })
+
+  it("marks read only the page's filtered Property when one is chosen", async () => {
+    await withStartContext(() =>
+      markAllNotificationsReadFn({
+        data: { filter: 'needs_you', propertyId: PROPERTY },
+      }),
+    )
+
+    expect(mocks.markAllRead).toHaveBeenCalledWith(ACTOR, 'needs_you', PROPERTY)
   })
 
   it('keeps marking everything for a tab still running the bundle that sent no filter', async () => {
     await withStartContext(() => markAllNotificationsReadFn({ data: undefined }))
 
-    expect(mocks.markAllRead).toHaveBeenCalledWith(ACTOR, 'all')
+    expect(mocks.markAllRead).toHaveBeenCalledWith(ACTOR, 'all', null)
   })
 
   it('refuses a filter the feed does not have', () => {

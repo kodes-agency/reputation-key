@@ -32,6 +32,12 @@ export type NotificationFeedQuery = Readonly<{
    * Property. Organization-scoped notices (no Property) are always visible.
    */
   visiblePropertyIds: ReadonlyArray<PropertyId> | null
+  /**
+   * One Property's notices only (the page's Property filter); absent or null
+   * reads the whole feed. A filtered read leaves out Organization-scoped
+   * notices, and a Property the reader cannot access reads as empty.
+   */
+  propertyId?: PropertyId | null
   filter: NotificationListFilter
   limit: number
 }>

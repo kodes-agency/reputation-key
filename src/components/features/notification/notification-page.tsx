@@ -4,7 +4,8 @@
 // is (docs/design/notifications, D1): Needs you, most pressing first; Updates
 // and All by day, on the reader's clock. One 768 px column, rows naming their
 // Property, same-kind arrivals stacked, and the bulk actions that are too
-// destructive to sit in a popover header alone.
+// destructive to sit in a popover header alone. A reader with several
+// Properties can filter to one; the bulk actions then reach only its rows.
 //
 // Honest scope note: the server excludes DISMISSED rows and rows whose category
 // the user opted out of in-app, so "all" means every notification still
@@ -33,6 +34,7 @@ import { useNotificationMutations } from './notification-mutations'
 import { NotificationAnnouncer, useNotificationAnnouncer } from './notification-announcer'
 import { NotificationFilterTabs } from './notification-filter-tabs'
 import { NotificationListBody } from './notification-list-body'
+import { NotificationPropertyFilter } from './notification-property-filter'
 import { byUrgency, groupByDay, type NotificationFilter } from './notification-filters'
 import type { NotificationRowActions, NotificationServerFns } from './types'
 
@@ -49,6 +51,11 @@ type Props = Readonly<{
   organizationId: string
   filter: NotificationFilter
   onFilterChange: (filter: NotificationFilter) => void
+  /** The reader's Properties, for the filter; it is offered with two or more. */
+  properties: ReadonlyArray<Readonly<{ id: string; name: string }>>
+  /** The Property the page is filtered to, or null for all of them. */
+  propertyId: string | null
+  onPropertyChange: (propertyId: string | null) => void
 }>
 
 export function NotificationPage({
@@ -56,7 +63,13 @@ export function NotificationPage({
   organizationId,
   filter,
   onFilterChange,
+  properties,
+  propertyId,
+  onPropertyChange,
 }: Props) {
+  const property = properties.find((candidate) => candidate.id === propertyId) ?? null
+  // A Property the reader no longer has reads the whole feed, not an empty one.
+  const scope = property?.id
   const { announcement, announce } = useNotificationAnnouncer()
   const listRef = useRef<HTMLDivElement>(null)
   const dismissAllConfirmed = useRef(false)
@@ -67,6 +80,7 @@ export function NotificationPage({
     PAGE_SIZE,
     filter,
     true,
+    scope,
   )
   const format = useNotificationFormat(notificationFns.getUserSettings, organizationId)
   const mutations = useNotificationMutations(notificationFns, organizationId, announce)
@@ -93,7 +107,7 @@ export function NotificationPage({
   // It goes once they are read, so focus moves to the list it changed.
   const offersMarkAllRead = list.filterUnreadCount > 0 && !mutations.isMarkingAllRead
   const markAllRead = () => {
-    mutations.markAllRead(filter)
+    mutations.markAllRead(filter, scope)
     listRef.current?.focus()
   }
 
@@ -124,8 +138,9 @@ export function NotificationPage({
                 <Button
                   variant="outline"
                   size="sm"
-                  // It dismisses every notification, not this tab's, so an
-                  // empty tab (Needs you, most mornings) does not disable it.
+                  // It dismisses every notification (or the filtered
+                  // Property's), not this tab's, so an empty tab (Needs you,
+                  // most mornings) does not disable it.
                   disabled={mutations.isDismissingAll}
                 >
                   <Trash2 aria-hidden="true" />
@@ -143,10 +158,16 @@ export function NotificationPage({
                 }}
               >
                 <AlertDialogHeader>
-                  <AlertDialogTitle>Dismiss all notifications?</AlertDialogTitle>
+                  <AlertDialogTitle>
+                    {property
+                      ? `Dismiss all notifications about ${property.name}?`
+                      : 'Dismiss all notifications?'}
+                  </AlertDialogTitle>
                   <AlertDialogDescription>
-                    This hides every notification currently addressed to you. It does not
-                    change the underlying reviews, feedback, or other work.
+                    {property
+                      ? `This hides every notification about ${property.name} currently addressed to you. Other properties' notifications stay.`
+                      : 'This hides every notification currently addressed to you.'}{' '}
+                    It does not change the underlying reviews, feedback, or other work.
                   </AlertDialogDescription>
                 </AlertDialogHeader>
                 <AlertDialogFooter>
@@ -154,7 +175,7 @@ export function NotificationPage({
                   <AlertDialogAction
                     onClick={() => {
                       dismissAllConfirmed.current = true
-                      mutations.dismissAll()
+                      mutations.dismissAll(scope)
                     }}
                   >
                     Dismiss all
@@ -172,7 +193,14 @@ export function NotificationPage({
         }
       />
       <NotificationAnnouncer announcement={announcement} />
-      <NotificationFilterTabs value={filter} onChange={onFilterChange} className="mt-6">
+      <div className="mt-6">
+        <NotificationPropertyFilter
+          properties={properties}
+          propertyId={scope ?? null}
+          onChange={onPropertyChange}
+        />
+      </div>
+      <NotificationFilterTabs value={filter} onChange={onFilterChange} className="mt-4">
         <NotificationListBody
           groups={groups}
           isLoading={list.isLoading}

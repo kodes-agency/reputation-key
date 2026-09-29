@@ -13,6 +13,7 @@ import { notificationKeys } from '#/shared/queries/query-keys'
 import { matchesNotificationFilter } from './notification-filters'
 import type { NotificationHistoryPages } from './notification-feed-pagination'
 import {
+  holdsEveryUnread,
   patchedCounts,
   uniqueRows,
   unreadDeltaWithin,
@@ -45,13 +46,22 @@ const isHistory = (data: CachedFeed): data is FeedPages => 'pages' in data
 const pagesOf = (data: CachedFeed): ReadonlyArray<NotificationPage> =>
   isHistory(data) ? data.pages : [data.page]
 
-/** The filter a feed key was read under: `list(org, limit, filter)`, and its head. */
-function filterOf(queryKey: QueryKey): NotificationListFilter {
-  const identity = queryKey.find(
-    (part): part is Readonly<{ filter: NotificationListFilter }> =>
+type FeedIdentity = Readonly<{ filter: NotificationListFilter; propertyId?: string }>
+
+const identityOf = (queryKey: QueryKey): FeedIdentity | undefined =>
+  queryKey.find(
+    (part): part is FeedIdentity =>
       typeof part === 'object' && part !== null && 'filter' in part,
   )
-  return identity?.filter ?? 'all'
+
+/** The filter a feed key was read under: `list(org, limit, filter)`, and its head. */
+function filterOf(queryKey: QueryKey): NotificationListFilter {
+  return identityOf(queryKey)?.filter ?? 'all'
+}
+
+/** The page's Property filter a feed key was read under; undefined for the whole feed. */
+function propertyOf(queryKey: QueryKey): string | undefined {
+  return identityOf(queryKey)?.propertyId
 }
 
 /** The patch as one cache sees it: a changed row that left its filter leaves it. */
@@ -82,7 +92,8 @@ type CachedEntry = Readonly<{ key: QueryKey; data: CachedFeed }>
 
 /**
  * What a filter-wide write cleared: the unread rows its filter held, read from
- * that filter's own cached head, else from the loaded rows alone.
+ * that filter's own cached head for the whole feed (a Property-filtered head
+ * holds only a share), else from the loaded rows alone.
  */
 function clearedUnreadOf(
   filter: NotificationListFilter,
@@ -90,10 +101,26 @@ function clearedUnreadOf(
   delta: (filter: NotificationListFilter) => number,
 ): ClearedUnread {
   const held = heads.flatMap(({ key, data }) =>
-    !isHistory(data) && filterOf(key) === filter ? [data.filterUnreadCount] : [],
+    !isHistory(data) && filterOf(key) === filter && propertyOf(key) === undefined
+      ? [data.filterUnreadCount]
+      : [],
   )
   return { filter, held: held.length > 0 ? Math.max(...held) : -delta(filter) }
 }
+
+/**
+ * The whole-filter reach a head's counts take from a write. A head filtered to
+ * one Property holds only its share of the filter's count, so it takes the
+ * reach only when every unread row went; otherwise its loaded rows say what
+ * moved, until the invalidation reads it.
+ */
+const clearedFor = (
+  cleared: ClearedUnread | undefined,
+  propertyId: string | undefined,
+): ClearedUnread | undefined =>
+  cleared && (propertyId === undefined || holdsEveryUnread(cleared.filter))
+    ? cleared
+    : undefined
 
 /**
  * Optimistically patch every cached feed of the Organization: the bell's and
@@ -148,8 +175,17 @@ export function patchNotificationFeedCache(
       pagesOf(entry.data).flatMap((page) => page.notifications),
     ),
   )
-  const delta = (filter: NotificationListFilter) =>
-    unreadDeltaWithin(loaded, patch, filter)
+  // A head filtered to one Property moves by that Property's rows only.
+  const deltaWithin =
+    (propertyId: string | undefined) => (filter: NotificationListFilter) =>
+      unreadDeltaWithin(
+        propertyId === undefined
+          ? loaded
+          : loaded.filter((row) => row.propertyId === propertyId),
+        patch,
+        filter,
+      )
+  const delta = deltaWithin(undefined)
   const cleared =
     options.clearsUnreadOf && clearedUnreadOf(options.clearsUnreadOf, heads, delta)
 
@@ -161,10 +197,16 @@ export function patchNotificationFeedCache(
       qc.setQueryData<FeedPages>(key, { ...data, pages: data.pages.map(patchOne) })
       continue
     }
+    const propertyId = propertyOf(key)
     qc.setQueryData<NotificationFeedHead>(key, {
       ...data,
       page: patchOne(data.page),
-      ...patchedCounts(data, filterOf(key), delta, cleared),
+      ...patchedCounts(
+        data,
+        filterOf(key),
+        deltaWithin(propertyId),
+        clearedFor(cleared, propertyId),
+      ),
     })
   }
   for (const query of loadingMore) resumeLoadMore(query)
