@@ -3,6 +3,7 @@ import {
   GOOGLE_PROVIDER_FIXTURES_V1,
 } from '#/test-fixtures/generated/google-provider-identifiers-v1'
 import { describe, expect, it, vi } from 'vitest'
+import type { GbpSubscribeResult } from './use-cases/manage-notifications'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { PropertyGoogleBindingPublicApi } from '#/contexts/property/application/public-api'
 import type { GoogleImportCommandAuthorizer } from './google-import-discovery'
@@ -122,6 +123,7 @@ function setup(
     locationLookupError?: unknown
     enqueueReviewSyncError?: unknown
     subscribeToNotificationsError?: unknown
+    subscribeResult?: GbpSubscribeResult
     defaultPublicDisplayNameError?: unknown
   } = {},
 ) {
@@ -214,7 +216,12 @@ function setup(
     : vi.fn().mockResolvedValue(undefined)
   const subscribeToNotifications = over.subscribeToNotificationsError
     ? vi.fn().mockRejectedValue(over.subscribeToNotificationsError)
-    : vi.fn().mockResolvedValue('subscribed')
+    : vi.fn().mockResolvedValue(
+        over.subscribeResult ?? {
+          outcome: 'subscribed',
+          accounts: { subscribed: 1, alreadySubscribed: 0, failed: 0, failureCodes: {} },
+        },
+      )
   const defaultPublicDisplayName = over.defaultPublicDisplayNameError
     ? vi.fn().mockRejectedValue(over.defaultPublicDisplayNameError)
     : vi.fn().mockResolvedValue(true)
@@ -1036,4 +1043,62 @@ describe('GoogleImportV2Processor', () => {
     expect(logged).not.toContain('GBP 503 from Google')
     expect(logged).not.toContain(ORG_ID)
   })
+
+  // subscribe never throws; it reports. A connection it could not subscribe
+  // must still be visible at import time, not only in the next daily summary.
+  it('warns, content-free, when the subscribe did not settle', async () => {
+    const harness = setup({
+      receipts: [null, null, importedReceipt()],
+      subscribeResult: {
+        outcome: 'provider_failed',
+        accounts: {
+          subscribed: 0,
+          alreadySubscribed: 0,
+          failed: 1,
+          failureCodes: { coordination_unavailable: 1 },
+        },
+      },
+    })
+
+    await harness.processor.process({
+      organizationId: ORG_ID,
+      itemId: ITEM_ID,
+      retryRevision: 0,
+      attemptOrdinal: 1,
+    })
+
+    expect(harness.createBoundProperty).toHaveBeenCalledOnce()
+    expect(harness.logger.warn).toHaveBeenCalledWith(
+      {
+        itemId: ITEM_ID,
+        outcome: 'provider_failed',
+        failureCodes: { coordination_unavailable: 1 },
+      },
+      expect.stringContaining('GBP notification subscribe did not complete after import'),
+    )
+  })
+
+  it.each(['already_subscribed', 'account_unresolved', 'topic_unset'] as const)(
+    'stays quiet when the subscribe settled as %s',
+    async (outcome) => {
+      const harness = setup({
+        receipts: [null, null, importedReceipt()],
+        subscribeResult: {
+          outcome,
+          accounts: { subscribed: 0, alreadySubscribed: 0, failed: 0, failureCodes: {} },
+        },
+      })
+
+      await harness.processor.process({
+        organizationId: ORG_ID,
+        itemId: ITEM_ID,
+        retryRevision: 0,
+        attemptOrdinal: 1,
+      })
+
+      expect(JSON.stringify(harness.logger.warn.mock.calls)).not.toContain(
+        'GBP notification subscribe',
+      )
+    },
+  )
 })

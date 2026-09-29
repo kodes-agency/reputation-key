@@ -968,6 +968,18 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     { retryBackoff: 'fixed:5000', timeoutMs: 60_000 },
   ),
   job(
+    'reconcile-gbp-notification-subscriptions',
+    'src/contexts/integration/infrastructure/jobs/reconcile-gbp-notification-subscriptions.job.ts',
+    {
+      queue: 'background',
+      capability: 'property.connect_gbp',
+      action: 'system:integration.gbp_subscription_reconcile',
+      schedule: 'every:86400000',
+      registration: 'enabled',
+    },
+    { retryAttempts: 5, retryBackoff: 'exponential:60000', timeoutMs: 600_000 },
+  ),
+  job(
     'digest-notification',
     'src/contexts/feed/infrastructure/jobs/digest-notification.job.ts',
     {

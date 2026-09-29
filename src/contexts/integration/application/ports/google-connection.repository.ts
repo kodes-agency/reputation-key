@@ -53,6 +53,13 @@ export type GoogleConnectionRepository = Readonly<{
     orgId: OrganizationId,
     filter: ConnectionVisibilityFilter,
   ) => Promise<ReadonlyArray<GoogleConnection>>
+  /**
+   * Tenant-cross, identifiers only: every organization holding an `active`
+   * connection (the only status that can call Google), once each. The
+   * enumeration boundary of the daily GBP push reconciliation, which
+   * re-authorizes each organization before any work.
+   */
+  listOrganizationIdsWithActiveConnections: () => Promise<ReadonlyArray<OrganizationId>>
   insert: (connection: GoogleConnection) => Promise<void>
   updateStatus: (
     orgId: OrganizationId,

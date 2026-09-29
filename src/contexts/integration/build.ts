@@ -22,7 +22,6 @@ import type { OAuthStateHandleService } from './application/oauth-state-handle'
 import type { OAuthCallbackAbuseGate } from './application/oauth-callback-abuse-gate'
 import type { GbpApiPort } from './application/ports/gbp-api.port'
 import type { GoogleAuthorizedProviderExecutor } from './application/ports/google-authorized-provider-executor.port'
-import type { GoogleReviewSyncProviderCallAuthorization } from './application/google-provider-contract'
 import type { GoogleImportReferenceStore } from './application/ports/google-import-reference-store.port'
 import type { PropertyFkCleanupPort } from './application/ports/property-fk-cleanup.port'
 import type {
@@ -47,6 +46,8 @@ import {
   handleGbpNotification,
   type HandleGbpNotification,
   createGbpSubscribeBackfill,
+  createGbpNotificationReconciliation,
+  type ReconcileGbpNotificationSubscriptions,
   prepareGoogleConnectorDeparture,
 } from './application/use-cases'
 import { createGoogleConnectionRepository } from './infrastructure/repositories/google-connection.repository'
@@ -92,6 +93,7 @@ import {
   createGooglePerformanceAuthorizer,
   type PerformanceContentAuthorizer,
 } from './application/google-performance-authorizer'
+import { createGoogleNotificationProviderAuthorizer } from './application/google-notification-provider-authorizer'
 import {
   createGoogleReviewSyncAuthorizer,
   type GoogleReviewSyncContentAuthorizer,
@@ -107,7 +109,6 @@ import { createActiveMemberAuthResolver } from './infrastructure/active-member-a
 import { parseGbpNotificationSubscriptionConfig } from './application/notification-subscription-config'
 import type { SourceContentPurge } from '#/contexts/review/application/public-api'
 import type { PortalPublicDisplayNameDefaultPublicApi } from '#/contexts/portal/application/public-api'
-import { googleConnectionId, propertyId } from '#/shared/domain/ids'
 import type { HandleGbpNotificationDeps } from './application/use-cases/handle-gbp-notification'
 import {
   reconcileGoogleProviderRecovery,
@@ -331,6 +332,8 @@ export type IntegrationContextApi = Readonly<{
     sweepImportLifecycle: ReturnType<typeof createGoogleImportV2Lifecycle>['sweep'] | null
     /** One bounded pass of both provider recovery stores; counts only. */
     reconcileProviderRecovery: ReconcileGoogleProviderRecovery
+    /** The daily GBP push reconciliation across every tenant; counts only. */
+    reconcileNotificationSubscriptions: ReconcileGbpNotificationSubscriptions
   }>
   /** ARC-03-T12: the named provider capabilities the Review build consumes. */
   reviewSync: Readonly<{
@@ -683,15 +686,26 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     logger: deps.logger,
   })
 
-  // ops:gbp-subscribe (scripts/ops/gbp-subscribe.ts). Reads the repo directly
-  // rather than the listGoogleConnections use case: the operator harness has
-  // already authorized the invocation (`system:ops`, audited), and an operator
-  // repair must not depend on a tenant's `integration.manage` grant — the same
-  // posture as ops:property-capabilities.
+  // ops:gbp-subscribe (scripts/ops/gbp-subscribe.ts) and the daily
+  // reconciliation below. Reads the repo directly rather than the
+  // listGoogleConnections use case: each caller has already authorized the
+  // organization (the operator harness as `system:ops`, audited; the job
+  // through current delayed policy), and a system repair must not depend on a
+  // tenant's `integration.manage` grant — the same posture as
+  // ops:property-capabilities.
   const gbpSubscribeBackfill = createGbpSubscribeBackfill({
     listConnections: (organizationIdValue) =>
       connectionRepo.listByOrganization(organizationIdValue, { showAll: true }),
     subscribe: manageNotificationsUseCase.subscribe,
+  })
+  // The same backfill for every tenant, once a day (worker job
+  // reconcile-gbp-notification-subscriptions), because the operator command
+  // cannot reach a database on a private network.
+  const reconcileNotificationSubscriptions = createGbpNotificationReconciliation({
+    topicConfigured: notificationConfig.pubsubTopic.length > 0,
+    listOrganizations: connectionRepo.listOrganizationIdsWithActiveConnections,
+    backfill: gbpSubscribeBackfill,
+    nowMs: () => deps.clock().getTime(),
   })
 
   let googleImportDiscovery: ReturnType<typeof createGoogleImportDiscovery> | null = null
@@ -1040,7 +1054,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       clock: deps.clock,
     }),
 
-    /** ops:gbp-subscribe command core — see scripts/ops/gbp-subscribe.ts. */
+    /** gbp-subscribe backfill — ops:gbp-subscribe and the daily reconciliation. */
     gbpSubscribeBackfill,
 
     googleImportDiscovery,
@@ -1122,93 +1136,12 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
       : null
   if (googleReviewSyncAuthorizer && deps.propertyBindingApi) {
     const propertyBindingApi = deps.propertyBindingApi
-    authorizeGoogleNotificationProviderCall = async (
-      organizationIdValue,
-      connectionIdValue,
-    ) => {
-      const canonicalConnectionId = googleConnectionId(connectionIdValue)
-      let connection
-      try {
-        connection = await connectionRepo.findById(
-          organizationIdValue,
-          canonicalConnectionId,
-        )
-      } catch {
-        return { ok: false, code: 'authorization_unavailable' }
-      }
-      if (!connection) return { ok: false, code: 'connection_missing' }
-      if (connection.status !== 'active' || connection.credentialUseState !== 'active') {
-        return { ok: false, code: 'connection_inactive' }
-      }
-
-      let linkedPropertyIds: ReadonlyArray<string>
-      try {
-        linkedPropertyIds = await deps.propertyApi.findIdsByGoogleConnection(
-          canonicalConnectionId,
-          organizationIdValue,
-        )
-      } catch {
-        return { ok: false, code: 'authorization_unavailable' }
-      }
-      const targets: Array<{
-        accessToken: string
-        authorization: GoogleReviewSyncProviderCallAuthorization
-        gbpAccountId: string
-      }> = []
-      // Google's notification setting is account-scoped. Multiple active
-      // Property bindings may share that account, so choose the first
-      // lexicographically sorted Property whose exact binding/source epoch is
-      // authorized, then issue one desired-state operation for the account.
-      // This never invents broader account authority or selects an unbound
-      // account from provider discovery.
-      const targetedAccounts = new Set<string>()
-      for (const linkedPropertyId of [...linkedPropertyIds].sort()) {
-        const canonicalPropertyId = propertyId(linkedPropertyId)
-        let binding
-        try {
-          binding = await propertyBindingApi.readInternal(
-            organizationIdValue,
-            canonicalPropertyId,
-          )
-        } catch {
-          return { ok: false, code: 'authorization_unavailable' }
-        }
-        if (
-          !binding ||
-          binding.connectionId !== canonicalConnectionId ||
-          !binding.accountId ||
-          binding.state !== 'active' ||
-          binding.lifecycleState !== 'active' ||
-          binding.deletedAt !== null
-        ) {
-          continue
-        }
-        if (targetedAccounts.has(binding.accountId)) continue
-        const authorized = await googleReviewSyncAuthorizer({
-          organizationId: organizationIdValue,
-          propertyId: canonicalPropertyId,
-          connectionId: canonicalConnectionId,
-          sourceEpoch: binding.sourceEpoch,
-          operationKey: 'notifications.manage',
-        })
-        if (authorized.ok) {
-          targetedAccounts.add(binding.accountId)
-          targets.push({
-            accessToken: authorized.accessToken,
-            authorization: authorized.authorization,
-            gbpAccountId: binding.accountId,
-          })
-          continue
-        }
-        if (authorized.code === 'runtime_unavailable') {
-          return { ok: false, code: 'authorization_unavailable' }
-        }
-      }
-      if (targets.length > 0) {
-        return { ok: true, targets: Object.freeze(targets) }
-      }
-      return { ok: false, code: 'authorization_unavailable' }
-    }
+    authorizeGoogleNotificationProviderCall = createGoogleNotificationProviderAuthorizer({
+      findConnection: connectionRepo.findById,
+      findLinkedPropertyIds: deps.propertyApi.findIdsByGoogleConnection,
+      readBinding: propertyBindingApi.readInternal,
+      authorizeSystemCall: googleReviewSyncAuthorizer,
+    })
     reauthorizeGoogleNotificationProviderCall = async ({ authorization }) => {
       if (
         authorization.capability !== 'property.connect_gbp' ||
@@ -1422,6 +1355,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
         exchangeRecovery: googleOAuthExchangeRecovery,
         disconnectRevoke: googleDisconnectRevokeStore,
       }),
+      reconcileNotificationSubscriptions,
     }),
     // ARC-03-T12: the two provider capabilities the Review context consumes.
     // The root forwards this named group instead of reaching into `internal`.

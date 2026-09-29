@@ -93,6 +93,7 @@ export type SystemAction =
   | 'system:ai.review_analysis_enrollment'
   | 'system:permit.start_deadline_fence'
   | 'system:property.import_claim_reap'
+  | 'system:integration.gbp_subscription_reconcile'
   | 'system:goal.reconcile'
   | 'system:goal.maintain'
   | 'system:activity.record'
@@ -294,6 +295,13 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:property.import_claim_reap',
     'property.import_gbp_v2',
     'tenant_cross',
+  ),
+  job(
+    'reconcile-gbp-notification-subscriptions',
+    'system:integration.gbp_subscription_reconcile',
+    'property.connect_gbp',
+    'tenant_cross',
+    true,
   ),
   job('project-recent-activity', 'system:activity.record', 'none', 'organization'),
   job('insert-activity-log', 'system:activity.record', 'none', 'organization'),
@@ -686,6 +694,13 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     'system:property.import_claim_reap',
     'property.import_gbp_v2',
     'tenant_cross',
+  ),
+  schedule(
+    'reconcile-gbp-notification-subscriptions-recurring',
+    'system:integration.gbp_subscription_reconcile',
+    'property.connect_gbp',
+    'tenant_cross',
+    true,
   ),
   schedule(
     'goal-program.maintain-recurring',

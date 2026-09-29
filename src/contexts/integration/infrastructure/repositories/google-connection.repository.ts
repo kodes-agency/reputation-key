@@ -2,9 +2,10 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 // Filters by organizationId; connectedBy is audit provenance, not authority.
 
-import { and, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import type { Clock } from '#/shared/domain/clock'
+import { organizationId } from '#/shared/domain/ids'
 import { googleConnections } from '#/shared/db/schema/google-connection.schema'
 import type {
   GoogleConnectionRepository,
@@ -68,6 +69,20 @@ export const createGoogleConnectionRepository = (
         .where(eq(googleConnections.organizationId, orgId))
       return rows.map(googleConnectionFromRow)
     })
+  },
+
+  listOrganizationIdsWithActiveConnections: async () => {
+    return trace(
+      'googleConnection.listOrganizationIdsWithActiveConnections',
+      async () => {
+        const rows = await db
+          .selectDistinct({ organizationId: googleConnections.organizationId })
+          .from(googleConnections)
+          .where(eq(googleConnections.status, 'active'))
+          .orderBy(asc(googleConnections.organizationId))
+        return rows.map((row) => organizationId(row.organizationId))
+      },
+    )
   },
 
   insert: async (conn) => {

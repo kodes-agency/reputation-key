@@ -1,16 +1,17 @@
-// Integration context — ops:gbp-subscribe command core tests.
+// Integration context — gbp-subscribe backfill core tests.
 //
-// The command is the only path by which a tenant that connected BEFORE the
-// import-path subscribe wiring, or a deployment whose GBP_PUBSUB_TOPIC changed,
-// ever gets push. Its two load-bearing properties: it writes nothing without
-// --apply, and it is safe to run again after a partial run.
+// The backfill re-asserts push for every usable connection of one
+// organization: the daily reconciliation job runs it for every tenant, and
+// ops:gbp-subscribe runs it on demand. Its two load-bearing properties: it
+// writes nothing without --apply, and it is safe to run again after a partial
+// run.
 
 import { describe, it, expect, vi } from 'vitest'
 import {
   createGbpSubscribeBackfill,
   createGbpSubscribeOperatorAction,
 } from './gbp-subscribe-backfill'
-import type { GbpSubscribeOutcome } from './manage-notifications'
+import type { GbpSubscribeOutcome, GbpSubscribeResult } from './manage-notifications'
 import { buildTestGoogleConnection } from '#/shared/testing/fixtures'
 import { organizationId } from '#/shared/domain/ids'
 import type { GoogleConnectionStatus } from '../../domain/types'
@@ -21,18 +22,34 @@ const ORG = organizationId('org-00000000-0000-0000-0000-000000000001')
 const CONN_A = 'e0000000-0000-0000-0000-00000000000a'
 const CONN_B = 'e0000000-0000-0000-0000-00000000000b'
 const CONN_C = 'e0000000-0000-0000-0000-00000000000c'
+const CONN_D = 'e0000000-0000-0000-0000-00000000000d'
 
 const connection = (id: string, status: GoogleConnectionStatus) =>
   buildTestGoogleConnection({ id, organizationId: ORG, status })
+
+const NO_ACCOUNTS = { subscribed: 0, alreadySubscribed: 0, failed: 0, failureCodes: {} }
+
+/** One account per connection, landing the way the outcome says. */
+const result = (outcome: GbpSubscribeOutcome): GbpSubscribeResult => ({
+  outcome,
+  accounts:
+    outcome === 'subscribed'
+      ? { ...NO_ACCOUNTS, subscribed: 1 }
+      : outcome === 'already_subscribed'
+        ? { ...NO_ACCOUNTS, alreadySubscribed: 1 }
+        : outcome === 'provider_failed'
+          ? { ...NO_ACCOUNTS, failed: 1, failureCodes: { provider_403: 1 } }
+          : NO_ACCOUNTS,
+})
 
 const setup = (
   connections: ReadonlyArray<ReturnType<typeof connection>>,
   outcomes: ReadonlyArray<GbpSubscribeOutcome> = [],
 ) => {
   const subscribe =
-    vi.fn<(org: typeof ORG, connectionId: string) => Promise<GbpSubscribeOutcome>>()
-  for (const outcome of outcomes) subscribe.mockResolvedValueOnce(outcome)
-  subscribe.mockResolvedValue('subscribed')
+    vi.fn<(org: typeof ORG, connectionId: string) => Promise<GbpSubscribeResult>>()
+  for (const outcome of outcomes) subscribe.mockResolvedValueOnce(result(outcome))
+  subscribe.mockResolvedValue(result('subscribed'))
   const listConnections = vi.fn().mockResolvedValue(connections)
   const backfill = createGbpSubscribeBackfill({ listConnections, subscribe })
   return { backfill, subscribe, listConnections }
@@ -59,9 +76,15 @@ describe('gbp-subscribe backfill', () => {
       connections: 2,
       candidates: 1,
       counts: { skipped_inactive: 1 },
+      accounts: NO_ACCOUNTS,
       connectionOutcomes: [
-        { connectionId: CONN_A, status: 'active', outcome: null },
-        { connectionId: CONN_B, status: 'disconnected', outcome: 'skipped_inactive' },
+        { connectionId: CONN_A, status: 'active', outcome: null, accounts: null },
+        {
+          connectionId: CONN_B,
+          status: 'disconnected',
+          outcome: 'skipped_inactive',
+          accounts: null,
+        },
       ],
     })
   })
@@ -82,6 +105,7 @@ describe('gbp-subscribe backfill', () => {
     expect(report.action).toBe('subscribe')
     expect(report.candidates).toBe(2)
     expect(report.counts).toEqual({ subscribed: 2, skipped_inactive: 1 })
+    expect(report.accounts).toEqual({ ...NO_ACCOUNTS, subscribed: 2 })
   })
 
   it('reports each connection outcome instead of collapsing a partial run', async () => {
@@ -93,10 +117,26 @@ describe('gbp-subscribe backfill', () => {
     const report = await backfill.apply(ORG)
 
     expect(report.connectionOutcomes).toEqual([
-      { connectionId: CONN_A, status: 'active', outcome: 'subscribed' },
-      { connectionId: CONN_B, status: 'active', outcome: 'provider_failed' },
+      {
+        connectionId: CONN_A,
+        status: 'active',
+        outcome: 'subscribed',
+        accounts: { ...NO_ACCOUNTS, subscribed: 1 },
+      },
+      {
+        connectionId: CONN_B,
+        status: 'active',
+        outcome: 'provider_failed',
+        accounts: { ...NO_ACCOUNTS, failed: 1, failureCodes: { provider_403: 1 } },
+      },
     ])
     expect(report.counts).toEqual({ subscribed: 1, provider_failed: 1 })
+    expect(report.accounts).toEqual({
+      subscribed: 1,
+      alreadySubscribed: 0,
+      failed: 1,
+      failureCodes: { provider_403: 1 },
+    })
   })
 
   // Re-runnability is the whole safety story: subscribe never throws, so a run
@@ -136,11 +176,16 @@ describe('ops:gbp-subscribe action', () => {
     expect(lines[1]).toBe('re-run with --reason <text> --apply to ops:gbp-subscribe')
   })
 
-  it('exits 0 when every candidate reaches subscribed', async () => {
-    const { backfill, subscribe } = setup([
-      connection(CONN_A, 'active'),
-      connection(CONN_B, 'disconnected'),
-    ])
+  it('exits 0 when every candidate is subscribed, already was, or has no account yet', async () => {
+    const { backfill, subscribe } = setup(
+      [
+        connection(CONN_A, 'active'),
+        connection(CONN_B, 'disconnected'),
+        connection(CONN_C, 'active'),
+        connection(CONN_D, 'active'),
+      ],
+      ['subscribed', 'already_subscribed', 'account_unresolved'],
+    )
     const { io, lines } = captureIO()
 
     const exit = await createGbpSubscribeOperatorAction(backfill, 'ops:gbp-subscribe')(
@@ -150,7 +195,7 @@ describe('ops:gbp-subscribe action', () => {
     )
 
     expect(exit).toBe(0)
-    expect(subscribe).toHaveBeenCalledOnce()
+    expect(subscribe).toHaveBeenCalledTimes(3)
     expect(JSON.parse(lines[0]!)).toMatchObject({ action: 'subscribe' })
     expect(lines).toHaveLength(1)
   })
@@ -168,7 +213,9 @@ describe('ops:gbp-subscribe action', () => {
     )
 
     expect(exit).toBe(1)
-    expect(lines[1]).toContain("1 connection(s) did not reach 'subscribed'")
+    expect(lines[1]).toContain(
+      "1 connection(s) did not reach 'subscribed' or 'already_subscribed'",
+    )
   })
 })
 

@@ -52,6 +52,15 @@ export const createInMemoryGoogleConnectionRepo = (): InMemoryGoogleConnectionRe
       return orgConnections
     },
 
+    listOrganizationIdsWithActiveConnections: async () =>
+      [
+        ...new Set(
+          [...store.values()]
+            .filter(({ status }) => status === 'active')
+            .map(({ organizationId }) => organizationId),
+        ),
+      ].sort(),
+
     insert: async (connection) => {
       store.set(connection.id as string, connection)
     },

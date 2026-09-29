@@ -2690,6 +2690,26 @@ BEGIN
                   '65da4b7ff2904448056791e99cea6bcf83adee8507a501d9b22d042d41373899'
               )
               OR (
+                -- GBP Pub/Sub notification settings: the notification
+                -- principal, on its three routes only. Without this branch every
+                -- notification permit was fenced `authorization_changed`.
+                permit.capability::text = 'property.connect_gbp'
+                AND permit.property_id IS NOT NULL
+                AND permit.initiator_user_id IS NULL
+                AND permit.route_key IN (
+                  'notifications.get',
+                  'notifications.subscribe',
+                  'notifications.unsubscribe'
+                )
+                AND permit.authorization_vector->>'principalKind' = 'system'
+                AND permit.authorization_vector->>'systemPrincipal' =
+                  'notification-management-worker-v1'
+                AND permit.authorization_vector->>'role' = 'System'
+                AND permit.authorization_vector->'permissionVersion' = 'null'::jsonb
+                AND permit.authorization_vector->>'permissionDigest' =
+                  '2da8e0be3309dcbdb587386fa35106e8d078e12b0f1c872b17ca67cbf0b9c6f4'
+              )
+              OR (
                 permit.capability::text = 'property.publish_reply'
                 AND permit.property_id IS NOT NULL
                 AND permit.initiator_user_id IS NULL

@@ -141,6 +141,44 @@ describe('googleConnectionRepository (integration)', () => {
     })
   })
 
+  describe('listOrganizationIdsWithActiveConnections', () => {
+    const insert = (
+      org: typeof ORG_A,
+      status: 'active' | 'degraded' | 'reauth_required',
+    ) =>
+      makeRepo().insert(
+        buildTestGoogleConnection({
+          id: crypto.randomUUID(),
+          organizationId: org,
+          googleSubject: `signed-${crypto.randomUUID()}`,
+          status,
+        }),
+      )
+
+    it('names each organization with an active connection once', async () => {
+      await insert(ORG_A, 'active')
+      await insert(ORG_A, 'active')
+      await insert(ORG_B, 'active')
+
+      const organizations = await makeRepo().listOrganizationIdsWithActiveConnections()
+
+      expect(organizations.filter((id) => id === ORG_A || id === ORG_B).sort()).toEqual([
+        ORG_A,
+        ORG_B,
+      ])
+      expect(new Set(organizations).size).toBe(organizations.length)
+    })
+
+    it('leaves out an organization whose connections cannot call Google', async () => {
+      await insert(ORG_B, 'degraded')
+      await insert(ORG_B, 'reauth_required')
+
+      const organizations = await makeRepo().listOrganizationIdsWithActiveConnections()
+
+      expect(organizations).not.toContain(ORG_B)
+    })
+  })
+
   describe('tenant isolation', () => {
     it('findById does not return connections from other orgs', async () => {
       const repo = makeRepo()

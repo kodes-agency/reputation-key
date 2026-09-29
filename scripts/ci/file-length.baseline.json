@@ -7,7 +7,7 @@
   "src/contexts/inbox/infrastructure/inbox-command-store.ts": 2778,
   "src/contexts/inbox/infrastructure/repositories/inbox.repository.ts": 887,
   "src/contexts/inbox/infrastructure/response-target.store.ts": 951,
-  "src/contexts/integration/build.ts": 1276,
+  "src/contexts/integration/build.ts": 1211,
   "src/contexts/integration/infrastructure/adapters/google-review-api.adapter.ts": 925,
   "src/contexts/integration/infrastructure/google-import-v2-store.ts": 1838,
   "src/contexts/portal/domain/events.ts": 1016,

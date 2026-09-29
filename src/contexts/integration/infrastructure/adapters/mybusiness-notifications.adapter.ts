@@ -69,6 +69,20 @@ export const createMyBusinessNotificationsAdapter = (
     return parsed.data
   }
 
+  /** The current setting; an account with none (404) reads as the empty one. */
+  const readCurrentOrNone = async (
+    input: Parameters<typeof readSetting>[0],
+  ): Promise<NotificationSetting> => {
+    try {
+      return await readSetting(input)
+    } catch (error) {
+      if (isGbpApiError(error) && error.providerStatus === 404) {
+        return { name: `accounts/${input.gbpAccountId}/notificationSetting` }
+      }
+      throw error
+    }
+  }
+
   const writeThenConfirm = async (input: {
     operation: 'subscribe' | 'unsubscribe'
     descriptor: GoogleProviderRouteDescriptor
@@ -106,7 +120,18 @@ export const createMyBusinessNotificationsAdapter = (
   }
 
   return Object.freeze({
+    // Read first, write only on a difference. The setting is a single desired
+    // state per account, and both the import path and the daily
+    // reconciliation assert it: an account already publishing to this topic
+    // costs one read and no edit (Google allows 10 edits per minute per
+    // profile). A setting that cannot be read is not written blind — except a
+    // 404, which says the account has no setting yet, i.e. that it differs;
+    // the readback after the write still decides success.
     subscribe: async (input) => {
+      const desired = (setting: NotificationSetting) =>
+        setting.pubsubTopic === input.pubsubTopic &&
+        sameTypes(setting.notificationTypes ?? [], input.notificationTypes)
+      if (desired(await readCurrentOrNone(input))) return 'already_subscribed'
       await writeThenConfirm({
         operation: 'subscribe',
         descriptor: {
@@ -119,11 +144,10 @@ export const createMyBusinessNotificationsAdapter = (
         accessToken: input.accessToken,
         authorization: input.authorization,
         gbpAccountId: input.gbpAccountId,
-        desired: (setting) =>
-          setting.pubsubTopic === input.pubsubTopic &&
-          sameTypes(setting.notificationTypes ?? [], input.notificationTypes),
+        desired,
         signal: input.signal,
       })
+      return 'subscribed'
     },
     unsubscribe: async (input) => {
       await writeThenConfirm({
