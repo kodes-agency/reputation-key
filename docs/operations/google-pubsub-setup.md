@@ -215,6 +215,12 @@ refusal in `correlation_id`, e.g. `authorization_changed`.
 
 If nothing arrives, in order of likelihood:
 
+- Pub/Sub shows `url_4xx_error_400` on the subscription and the web log says
+  `Webhook received malformed provider identifiers or payload` — the webhook
+  does not accept the message shape. Google publishes
+  `{"type":"NEW_REVIEW","location":"accounts/…/locations/…","review":"accounts/…/locations/…/reviews/…"}`
+  with no attributes (captured 2026-09-29). Pub/Sub retries a rejected message
+  until it is acknowledged, so fixing and deploying the webhook delivers it.
 - Step 3 was skipped or the principal is misspelled — Google drops the publish
   silently. Check the topic's Permissions page.
 - The subscription's audience does not match `GBP_PUBSUB_AUDIENCE` — the app

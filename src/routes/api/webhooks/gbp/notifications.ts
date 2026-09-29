@@ -32,11 +32,13 @@ const pubSubBodySchema = z.object({
   }),
   subscription: z.string().min(1).max(512).optional(),
 })
+// Google's My Business Notifications payload, as published to the topic
+// (captured 2026-09-29): `{"type":"NEW_REVIEW","location":"accounts/…/locations/…",
+// "review":"accounts/…/locations/…/reviews/…"}` with no message attributes.
 const gbpNotificationPayloadSchema = z.object({
-  locationName: z.string().min(1).max(768),
-  reviewName: z.string().min(1).max(1_024),
+  location: z.string().min(1).max(768),
+  review: z.string().min(1).max(1_024),
   type: z.string().max(64).optional(),
-  notificationType: z.string().max(64).optional(),
 })
 const notificationKindSchema = z.enum(['NEW_REVIEW', 'UPDATED_REVIEW'])
 
@@ -98,11 +100,7 @@ function notificationKind(
   payload: z.infer<typeof gbpNotificationPayloadSchema>,
   attributes: Readonly<Record<string, string>> | undefined,
 ): GoogleReviewPushNotificationKind {
-  const candidate =
-    payload.notificationType ??
-    payload.type ??
-    attributes?.notificationType ??
-    attributes?.type
+  const candidate = payload.type ?? attributes?.notificationType ?? attributes?.type
   // Google's published review notification resource shape identifies a
   // review but does not guarantee a kind field on every delivery. The topic
   // itself is configured to NEW_REVIEW/UPDATED_REVIEW only, so preserve the
@@ -129,9 +127,9 @@ async function readPushNotification(
   } finally {
     decoded.fill(0)
   }
-  const resource = parseReviewProviderResource(payload.reviewName)
+  const resource = parseReviewProviderResource(payload.review)
   const locationName = `accounts/${resource.accountId}/locations/${resource.locationId}`
-  if (payload.locationName !== locationName) {
+  if (payload.location !== locationName) {
     throw new TypeError('Google review push resource mismatch')
   }
   return {
