@@ -12,7 +12,9 @@ import {
 } from './notifications-settings-view'
 import type { EmailAvailability } from './email-availability-notice'
 import { describeInheritedDefault } from './notification-inherited-defaults'
+import { toast } from 'sonner'
 import {
+  hasOwnSetting,
   setDifferentlyElsewhere,
   type SetDifferently,
 } from './notification-apply-everywhere'
@@ -36,13 +38,23 @@ type Props = Readonly<{
   retryEmailAvailability: () => void
   setPropertyId: (value: string) => void
   updatePreference: Action<PreferenceUpdate, NotificationPreference>
+  resetPropertyCategory: Action<
+    Readonly<{
+      data: Readonly<{ propertyId: string; category: ConfigurableNotificationCategory }>
+    }>,
+    void
+  >
   updateUserSettings: Action<NotificationSettingsUpdate, EffectiveNotificationSettings>
   updateQuietHours: Action<QuietHoursUpdate, EffectiveNotificationSettings>
 }>
 
 type BoundaryProps = Omit<
   Props,
-  'userSettings' | 'preferences' | 'updatePreference' | 'categoryDefaults'
+  | 'userSettings'
+  | 'preferences'
+  | 'updatePreference'
+  | 'categoryDefaults'
+  | 'resetPropertyCategory'
 > &
   Readonly<{
     settings: EffectiveNotificationSettings
@@ -50,6 +62,11 @@ type BoundaryProps = Omit<
     setDifferentlyFor: (
       category: ConfigurableNotificationCategory,
     ) => ReadonlyArray<SetDifferently>
+    ownSettingHere: (category: ConfigurableNotificationCategory) => boolean
+    resetToDefault: (
+      category: ConfigurableNotificationCategory,
+      propertyIds: ReadonlyArray<string>,
+    ) => Promise<void>
   }> &
   ReturnType<typeof useNotificationPreferenceSaves>
 
@@ -74,6 +91,7 @@ export function NotificationsSettingsPage({
   retryEmailAvailability,
   setPropertyId,
   updatePreference,
+  resetPropertyCategory,
   updateUserSettings,
   updateQuietHours,
 }: Props) {
@@ -93,6 +111,33 @@ export function NotificationsSettingsPage({
     emailAllowed: emailAvailability === 'allowed',
     updatePreference,
   })
+  // D7: a reset is the explicit way an exception ends. One at a time, so a
+  // failure part-way leaves the ones before it reset — and says so: the
+  // action has no toast of its own, so this is the only word the reader gets.
+  const resetToDefault = async (
+    category: ConfigurableNotificationCategory,
+    propertyIds: ReadonlyArray<string>,
+  ) => {
+    let done = 0
+    for (const id of propertyIds) {
+      try {
+        await resetPropertyCategory({ data: { propertyId: id, category } })
+      } catch {
+        toast.error(
+          done === 0
+            ? "Couldn't reset to your default. Try again."
+            : `${done} of ${propertyIds.length} properties now follow your default; the rest couldn't be reset. Try again.`,
+        )
+        return
+      }
+      done += 1
+    }
+    toast.success(
+      propertyIds.length === 1 && propertyIds[0] === propertyId
+        ? 'This property now follows your default'
+        : `${done} ${done === 1 ? 'property now follows' : 'properties now follow'} your default`,
+    )
+  }
   return (
     <NotificationFormattingBoundary
       // Remounting on the server values is the re-sync. The locale and timezone
@@ -115,6 +160,8 @@ export function NotificationsSettingsPage({
       setDifferentlyFor={(category) =>
         setDifferentlyElsewhere(category, preferences, properties, propertyId)
       }
+      ownSettingHere={(category) => hasOwnSetting(category, preferences, propertyId)}
+      resetToDefault={resetToDefault}
       updateUserSettings={updateUserSettings}
       updateQuietHours={updateQuietHours}
     />
@@ -134,6 +181,8 @@ function NotificationFormattingBoundary({
   applyToAll,
   inheritedFor,
   setDifferentlyFor,
+  ownSettingHere,
+  resetToDefault,
   updateUserSettings,
   updateQuietHours,
 }: BoundaryProps) {
@@ -153,6 +202,8 @@ function NotificationFormattingBoundary({
       applyToAll={applyToAll}
       inheritedFor={inheritedFor}
       setDifferentlyFor={setDifferentlyFor}
+      ownSettingHere={ownSettingHere}
+      resetToDefault={resetToDefault}
       updateUserSettings={updateUserSettings}
       updateQuietHours={updateQuietHours}
     />

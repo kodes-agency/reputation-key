@@ -370,6 +370,48 @@ export const updateNotificationPreferenceFn = createServerFn({ method: 'POST' })
     ),
   )
 
+const resetNotificationPropertyCategoryDto = z.object({
+  propertyId: z.uuid(),
+  category: notificationPreferenceCategory,
+})
+
+/**
+ * @public One Property's own settings for a category removed, so it follows
+ * the person's default again. The explicit reset an exception waits for:
+ * changing a default never removes one (D7, docs/design/notifications).
+ */
+export const resetNotificationPropertyCategoryFn = createServerFn({ method: 'POST' })
+  .validator(resetNotificationPropertyCategoryDto)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'notification.update',
+          propertyId: data.propertyId,
+        })
+        try {
+          const { feedPublicApi } = getContainer()
+          await feedPublicApi.resetPropertyCategory(
+            ctx.userId,
+            ctx.organizationId,
+            data.propertyId,
+            data.category,
+          )
+        } catch (error) {
+          if (isNotificationError(error)) {
+            throwContextError('NotificationError', error, 400)
+          }
+          throw catchUntagged(error)
+        }
+      },
+      'POST',
+      'notification.resetPropertyCategory',
+    ),
+  )
+
 const muteNotificationCategoryDto = z.object({
   propertyId: z.uuid(),
   category: notificationPreferenceCategory,

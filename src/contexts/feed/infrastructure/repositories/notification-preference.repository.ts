@@ -337,8 +337,33 @@ export const createNotificationPreferenceRepository = (db: Database) => {
         updatedAt: preference.updatedAt,
       }),
 
-    applyCategoryDefaultEverywhere: async (
+    /**
+     * One Property's own settings for a category, both channels, removed: it
+     * follows the person's default again. The explicit reset an exception
+     * waits for (D7).
+     */
+    resetPropertyCategory: async (
+      userId: string,
+      orgId: string,
+      propertyId: string,
+      category: NotificationCategory,
+    ): Promise<void> => {
+      refuseMandatory(category)
+      await db
+        .delete(notificationPreferences)
+        .where(
+          and(
+            eq(notificationPreferences.userId, userId),
+            eq(notificationPreferences.organizationId, orgId),
+            eq(notificationPreferences.propertyId, propertyId),
+            eq(notificationPreferences.category, category),
+          ),
+        )
+    },
+
+    saveCategoryDefault: async (
       categoryDefaultRow: NotificationCategoryDefault,
+      followingPropertyId: string,
     ): Promise<NotificationCategoryDefault> => {
       refuseMandatory(categoryDefaultRow.category)
       return db.transaction(async (tx) => {
@@ -368,9 +393,10 @@ export const createNotificationPreferenceRepository = (db: Database) => {
             },
           })
           .returning()
-        // "Apply to all my properties" means all of them, including the ones
-        // configured differently — a per-Property row left behind would keep
-        // overriding the answer the person just gave for every Property.
+        // The Property the answer was given at follows it now, so its own row
+        // goes. Every other Property's own row stays: an exception is kept
+        // until the person resets it (D7, docs/design/notifications). This
+        // used to delete them all, mutes made from the bell included.
         await tx
           .delete(notificationPreferences)
           .where(
@@ -380,6 +406,7 @@ export const createNotificationPreferenceRepository = (db: Database) => {
                 notificationPreferences.organizationId,
                 categoryDefaultRow.organizationId as string,
               ),
+              eq(notificationPreferences.propertyId, followingPropertyId),
               eq(notificationPreferences.category, categoryDefaultRow.category),
               eq(notificationPreferences.channel, categoryDefaultRow.channel),
             ),

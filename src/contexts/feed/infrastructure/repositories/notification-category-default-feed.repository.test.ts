@@ -1,9 +1,9 @@
-// The bell and the notifications page honour "Apply to all my properties"
+// The bell and the notifications page honour a person's category default
 // (real PostgreSQL).
 //
-// Applying an in-app answer to every Property writes the person's category
-// default and deletes the per-Property rows, so a Property's in-app choice can
-// live in either table. Delivery already resolved Property row → category
+// "Make this my default" writes the person's category default, and a
+// Property's own row — kept until it is reset (D7) — overrides it, so a
+// Property's in-app choice can live in either table. Delivery already resolved Property row → category
 // default → versioned default; the feed and its badge read only the
 // per-Property table, so "in-app off everywhere" brought every muted row back
 // and showed each new email-only anchor. These pin the read side to the same
@@ -83,8 +83,10 @@ async function applyInAppEverywhere(enabled: boolean) {
     () => new Date('2026-09-25T11:00:00Z'),
   )
   if (row.isErr()) throw row.error
-  await createNotificationPreferenceRepository(getDb()).applyCategoryDefaultEverywhere(
+  // Given at Riverside: Riverside follows it; Harbor keeps any row of its own.
+  await createNotificationPreferenceRepository(getDb()).saveCategoryDefault(
     row.value,
+    RIVERSIDE,
   )
 }
 

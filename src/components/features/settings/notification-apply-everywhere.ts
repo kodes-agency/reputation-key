@@ -53,35 +53,38 @@ export function applyEverywhereNotice(
   const [firstApplied] = outcome.applied
   if (outcome.failed !== null) {
     if (firstApplied === undefined) {
-      return { tone: 'error', message: 'Could not apply to every property' }
+      return { tone: 'error', message: 'Could not make this your default' }
     }
     return {
       tone: 'error',
-      message: `${CHANNEL_LABEL[firstApplied]} was applied to every property; ${CHANNEL_LABEL[outcome.failed]} could not be applied`,
+      message: `${CHANNEL_LABEL[firstApplied]} is now your default; ${CHANNEL_LABEL[outcome.failed]} could not be saved`,
     }
   }
   const [firstSkipped] = outcome.skipped
   if (firstApplied !== undefined && firstSkipped !== undefined) {
     return {
       tone: 'success',
-      message: `${CHANNEL_LABEL[firstApplied]} applied to every property; ${CHANNEL_LABEL[firstSkipped]} is not enabled here`,
+      message: `${CHANNEL_LABEL[firstApplied]} is now your default; ${CHANNEL_LABEL[firstSkipped]} is not enabled here`,
     }
   }
-  return { tone: 'success', message: 'Applied to every property' }
+  return {
+    tone: 'success',
+    message: 'Now your default for every property without its own setting',
+  }
 }
 
-/** Another Property whose own setting "Apply to all" would replace. */
+/** Another Property with a setting of its own, which a default leaves alone (D7). */
 export type SetDifferently = Readonly<{
+  id: string
   name: string
   /** Its in-app channel is off, as a mute from the bell leaves it. */
   muted: boolean
 }>
 
 /**
- * The other Properties with a setting of their own for `category`, which
- * "Apply to all my properties" replaces: the answer becomes the person's
- * default, and every Property row that would override it is deleted — a mute
- * made from the bell included. The page asks before doing that to any of them.
+ * The other Properties with a setting of their own for `category`. Making an
+ * answer the person's default leaves them as they are (D7); the page names
+ * them, and resetting them is a choice of its own.
  */
 export function setDifferentlyElsewhere(
   category: ConfigurableNotificationCategory,
@@ -96,13 +99,14 @@ export function setDifferentlyElsewhere(
         (row) => (row.propertyId as string) === property.id && row.category === category,
       )
       return {
+        id: property.id,
         name: property.name,
         own: own.length > 0,
         muted: own.some((row) => row.channel === 'in_app' && !row.enabled),
       }
     })
     .filter((property) => property.own)
-    .map(({ name, muted }) => ({ name, muted }))
+    .map(({ id, name, muted }) => ({ id, name, muted }))
 }
 
 /** "Harbor & Pine", "Harbor & Pine and Riverside Hotel", "A, B and 3 others". */
@@ -111,3 +115,13 @@ export function namesInBrief(names: ReadonlyArray<string>): string {
   const others = names.length - 2
   return `${names.slice(0, 2).join(', ')} and ${others} ${others === 1 ? 'other' : 'others'}`
 }
+
+/** Whether the Property in view has a setting of its own for `category`. */
+export const hasOwnSetting = (
+  category: ConfigurableNotificationCategory,
+  preferences: ReadonlyArray<NotificationPreference>,
+  propertyInView: string,
+): boolean =>
+  preferences.some(
+    (row) => (row.propertyId as string) === propertyInView && row.category === category,
+  )

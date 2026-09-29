@@ -369,7 +369,7 @@ describe.sequential('personal notification delivery (real PostgreSQL)', () => {
 
   it("gives a property with no row of its own the person's category default", async () => {
     const repo = createNotificationPreferenceRepository(db)
-    await repo.applyCategoryDefaultEverywhere(categoryDefault({ enabled: true }))
+    await repo.saveCategoryDefault(categoryDefault({ enabled: true }), PROPERTY)
 
     // A Property added or reassigned since falls to the default, not to ADR
     // 0046's versioned "email off" — the reason a brand-new Property used to
@@ -387,7 +387,7 @@ describe.sequential('personal notification delivery (real PostgreSQL)', () => {
 
   it("lets one property's own row override the person's default", async () => {
     const repo = createNotificationPreferenceRepository(db)
-    await repo.applyCategoryDefaultEverywhere(categoryDefault({ enabled: true }))
+    await repo.saveCategoryDefault(categoryDefault({ enabled: true }), OTHER_PROPERTY)
     await repo.upsert(
       preference({
         id: notificationPreferenceId('84000000-0000-4000-8000-00000000000b'),
@@ -411,23 +411,67 @@ describe.sequential('personal notification delivery (real PostgreSQL)', () => {
     ).resolves.toEqual({ enabled: true, cadence: 'daily' })
   })
 
-  it('clears the rows that would have overridden an "apply to all" answer', async () => {
+  // D7: a default never deletes another Property's exception.
+  it("keeps other properties' own rows, and lets the property it came from follow it", async () => {
     const repo = createNotificationPreferenceRepository(db)
-    await repo.upsert(
-      preference({
-        id: notificationPreferenceId('84000000-0000-4000-8000-00000000000c'),
-        channel: 'email',
-        enabled: false,
-        cadence: 'daily',
-      }),
-    )
+    const own = (id: string, propertyId: typeof PROPERTY) =>
+      repo.upsert(
+        preference({
+          id: notificationPreferenceId(id),
+          propertyId,
+          channel: 'email',
+          enabled: false,
+          cadence: 'daily',
+        }),
+      )
+    await own('84000000-0000-4000-8000-00000000000c', PROPERTY)
+    await own('84000000-0000-4000-8000-00000000000d', OTHER_PROPERTY)
 
-    await repo.applyCategoryDefaultEverywhere(categoryDefault({ enabled: true }))
+    await repo.saveCategoryDefault(categoryDefault({ enabled: true }), PROPERTY)
 
-    await expect(repo.findByUser(USER, ORG)).resolves.toEqual([])
     await expect(
       repo.resolveForDelivery(USER, ORG, PROPERTY, 'workflow_collaboration', 'email'),
     ).resolves.toEqual({ enabled: true, cadence: 'daily' })
+    await expect(
+      repo.resolveForDelivery(
+        USER,
+        ORG,
+        OTHER_PROPERTY,
+        'workflow_collaboration',
+        'email',
+      ),
+    ).resolves.toEqual({ enabled: false, cadence: 'daily' })
+    await repo.resetPropertyCategory(USER, ORG, OTHER_PROPERTY, 'workflow_collaboration')
+  })
+
+  it("resets one property's own settings for a category, both channels", async () => {
+    const repo = createNotificationPreferenceRepository(db)
+    await repo.upsert(
+      preference({
+        id: notificationPreferenceId('84000000-0000-4000-8000-00000000000e'),
+      }),
+    )
+    await repo.upsert(
+      preference({
+        id: notificationPreferenceId('84000000-0000-4000-8000-00000000000f'),
+        channel: 'email',
+        enabled: true,
+      }),
+    )
+    await repo.upsert(
+      preference({
+        id: notificationPreferenceId('84000000-0000-4000-8000-000000000010'),
+        category: 'recognition',
+      }),
+    )
+
+    await repo.resetPropertyCategory(USER, ORG, PROPERTY, 'workflow_collaboration')
+
+    const left = await repo.findByUser(USER, ORG)
+    expect(left.map((row) => [row.category, row.channel])).toEqual([
+      ['recognition', 'in_app'],
+    ])
+    await repo.resetPropertyCategory(USER, ORG, PROPERTY, 'recognition')
   })
 
   it('refuses a default for a channel its category requires', async () => {

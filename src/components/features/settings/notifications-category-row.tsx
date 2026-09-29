@@ -1,15 +1,3 @@
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '#/components/ui/alert-dialog'
-import { Button } from '#/components/ui/button'
 import { Field, FieldLabel } from '#/components/ui/field'
 import { Label } from '#/components/ui/label'
 import {
@@ -31,7 +19,8 @@ import {
 } from '#/contexts/feed/application/public-api'
 import type { NotificationPreferencePatch } from './notifications-settings-view'
 import type { PreferenceValues } from './notification-preference-saves'
-import { namesInBrief, type SetDifferently } from './notification-apply-everywhere'
+import type { SetDifferently } from './notification-apply-everywhere'
+import { DefaultControls, named } from './notification-default-controls'
 
 const CADENCE_LABELS: Readonly<Record<NotificationCadence, string>> = {
   immediate: 'Immediate',
@@ -50,11 +39,6 @@ type CategoryControlProps = Readonly<{
   categoryLabel: string
   savePreference: SavePreference
 }>
-
-// Every row repeats "In-app", "Email", "Cadence" and "Quiet from", so each
-// control's name carries the category: a screen-reader user tabbing through
-// otherwise cannot tell which category a control changes.
-const named = (categoryLabel: string, control: string) => `${categoryLabel}: ${control}`
 
 function InAppSwitch({
   category,
@@ -175,86 +159,6 @@ function EmailTiming({
   )
 }
 
-/**
- * The same answer for every property the person has, and for every property
- * they are given next — which used to fall through to the versioned defaults,
- * so a newly added property mailed urgent notices at 03:00 whatever the person
- * had chosen everywhere else.
- *
- * It replaces what other properties were set to, a mute made from the bell
- * included, so when any has a setting of its own the button asks first and
- * names them. It used to replace them without a word.
- */
-function ApplyToAllProperties({
-  category,
-  categoryLabel,
-  inherited,
-  propertyCount,
-  setDifferently,
-  applyToAll,
-}: Readonly<{
-  category: ConfigurableNotificationCategory
-  categoryLabel: string
-  inherited: string
-  propertyCount: number
-  /** The other properties whose own setting this replaces. */
-  setDifferently: ReadonlyArray<SetDifferently>
-  applyToAll: (category: ConfigurableNotificationCategory) => Promise<void>
-}>) {
-  const noteId = `${category}-inherited`
-  const apply = () => void applyToAll(category)
-  const asks = setDifferently.length > 0
-  const button = (
-    <Button
-      type="button"
-      variant="outline"
-      size="sm"
-      aria-label={named(categoryLabel, 'Apply to all my properties')}
-      aria-describedby={noteId}
-      disabled={propertyCount < 2}
-      onClick={asks ? undefined : apply}
-    >
-      Apply to all my properties
-    </Button>
-  )
-  const count = setDifferently.length
-  const includesMute = setDifferently.some((property) => property.muted)
-  return (
-    <div className="flex min-w-0 flex-wrap items-center gap-3 md:col-span-3 md:col-start-1">
-      {asks ? (
-        <AlertDialog>
-          <AlertDialogTrigger asChild>{button}</AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>
-                Replace the settings at {count} other{' '}
-                {count === 1 ? 'property' : 'properties'}?
-              </AlertDialogTitle>
-              <AlertDialogDescription>
-                {namesInBrief(setDifferently.map((property) => property.name))}{' '}
-                {count === 1 ? 'has its' : 'have their'} own {categoryLabel.toLowerCase()}{' '}
-                settings
-                {includesMute ? ', including a mute from the notification bell' : ''}.
-                Applying to all your properties replaces them with the settings you chose
-                here.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Keep them</AlertDialogCancel>
-              <AlertDialogAction onClick={apply}>Apply to all</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
-      ) : (
-        button
-      )}
-      <p id={noteId} className="text-sm text-muted-foreground">
-        {inherited}
-      </p>
-    </div>
-  )
-}
-
 export function NotificationsCategoryRow({
   category,
   label,
@@ -263,10 +167,12 @@ export function NotificationsCategoryRow({
   email,
   emailAllowed,
   inherited,
-  propertyCount,
   setDifferently,
+  ownHere,
+  propertyInView,
   savePreference,
   applyToAll,
+  resetToDefault,
 }: Readonly<{
   category: ConfigurableNotificationCategory
   label: string
@@ -276,12 +182,17 @@ export function NotificationsCategoryRow({
   emailAllowed: boolean
   /** What a property with no row of its own gets, in words. */
   inherited: string
-  /** Applying to all is not an offer when there is only one property. */
-  propertyCount: number
-  /** The other properties whose own setting "Apply to all" would replace. */
+  /** The other properties with a setting of their own, which a default keeps. */
   setDifferently: ReadonlyArray<SetDifferently>
+  /** This property has a setting of its own for the category. */
+  ownHere: boolean
+  propertyInView: string
   savePreference: SavePreference
   applyToAll: (category: ConfigurableNotificationCategory) => Promise<void>
+  resetToDefault: (
+    category: ConfigurableNotificationCategory,
+    propertyIds: ReadonlyArray<string>,
+  ) => Promise<void>
 }>) {
   const control = { category, categoryLabel: label, savePreference }
   const emailControlsDisabled =
@@ -329,13 +240,15 @@ export function NotificationsCategoryRow({
         disabled={emailControlsDisabled || !emailOn}
         emailSwitchedOff={!emailControlsDisabled && !emailOn}
       />
-      <ApplyToAllProperties
+      <DefaultControls
         category={category}
         categoryLabel={label}
         inherited={inherited}
-        propertyCount={propertyCount}
         setDifferently={setDifferently}
+        ownHere={ownHere}
+        propertyInView={propertyInView}
         applyToAll={applyToAll}
+        resetToDefault={resetToDefault}
       />
     </fieldset>
   )

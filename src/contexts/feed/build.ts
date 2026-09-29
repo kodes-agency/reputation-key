@@ -617,9 +617,9 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       )
       if (result.isErr()) throw result.error
       if (!applyToAllProperties) return prefRepo.upsert(result.value)
-      // "Apply to all my properties" is a statement about the person, not one
-      // Property: it becomes the default a Property with no row inherits, and
-      // the rows that would have overridden it go.
+      // "Make this my default" is a statement about the person, not one
+      // Property: it becomes the default every Property without its own row
+      // inherits. Other Properties' own rows stay (D7).
       const categoryDefault = createNotificationCategoryDefault(
         {
           userId: userId as UserId,
@@ -632,9 +632,22 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
         () => now,
       )
       if (categoryDefault.isErr()) throw categoryDefault.error
-      await prefRepo.applyCategoryDefaultEverywhere(categoryDefault.value)
+      await prefRepo.saveCategoryDefault(categoryDefault.value, propertyId)
       return result.value
     },
+    /** Resets one Property's own settings for a category to the person's default. */
+    resetPropertyCategory: (
+      userId: string,
+      orgId: string,
+      propertyId: string,
+      category: ConfigurableNotificationCategory,
+    ) =>
+      prefRepo.resetPropertyCategory(
+        userId as UserId,
+        orgId as OrganizationId,
+        propertyId,
+        category,
+      ),
     updateQuietHours: (
       userId: UserId,
       orgId: OrganizationId,

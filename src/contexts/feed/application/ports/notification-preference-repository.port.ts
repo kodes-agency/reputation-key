@@ -5,6 +5,7 @@
 // Brands serve as documentation of intent, not runtime enforcement.
 
 import type {
+  ConfigurableNotificationCategory,
   NotificationCategory,
   NotificationCategoryDefault,
   NotificationChannel,
@@ -42,13 +43,21 @@ export type NotificationPreferenceRepositoryPort = Readonly<{
   ): Promise<PersonalDeliveryWindow>
   upsert(preference: NotificationPreference): Promise<NotificationPreference>
   /**
-   * The person's answer for a category everywhere: the default a Property
-   * with no row inherits, and — because "apply to all" means all — the
-   * removal of the per-Property rows that would have overridden it.
+   * The person's answer for a category: the default every Property without a
+   * row of its own inherits. The Property it was given at follows it, so its
+   * own row goes; every other Property's own row stays (D7).
    */
-  applyCategoryDefaultEverywhere(
+  saveCategoryDefault(
     categoryDefault: NotificationCategoryDefault,
+    followingPropertyId: string,
   ): Promise<NotificationCategoryDefault>
+  /** One Property's own settings for a category removed, both channels. */
+  resetPropertyCategory(
+    userId: UserId,
+    orgId: OrganizationId,
+    propertyId: string,
+    category: ConfigurableNotificationCategory,
+  ): Promise<void>
   findByUser(
     userId: UserId,
     orgId: OrganizationId,

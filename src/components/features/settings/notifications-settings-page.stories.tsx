@@ -1,16 +1,19 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { toast } from 'sonner'
 import type {
   EffectiveNotificationSettings,
   NotificationPreference,
   NotificationPropertyDeliveryWindow,
 } from '#/contexts/feed/application/public-api'
 import type { Action } from '#/components/hooks/use-action'
+import { Toaster } from '#/components/ui/sonner'
 import { NotificationsSettingsPage } from './notifications-settings-page'
 
 const PROPERTY_ID = '10000000-0000-4000-8000-000000000001'
 const OTHER_PROPERTY_ID = '10000000-0000-4000-8000-000000000002'
+const THIRD_PROPERTY_ID = '10000000-0000-4000-8000-000000000003'
 
 const properties = [
   { id: PROPERTY_ID, name: 'Harbor & Pine — a deliberately long name for narrow shells' },
@@ -72,6 +75,11 @@ type PreferenceInput = Readonly<{
   }>
 }>
 
+/** One Property's own settings for a category, removed so it follows the default. */
+type ResetInput = Readonly<{
+  data: Readonly<{ propertyId: string; category: NotificationPreference['category'] }>
+}>
+
 type QuietHoursInput = Readonly<{
   data: Readonly<{
     propertyId?: string
@@ -96,9 +104,11 @@ const asAction = <TInput, TOutput>(
 const updatePreferenceMock = fn(async (input: PreferenceInput) =>
   preference({ category: input.data.category, channel: input.data.channel }),
 )
+const resetPropertyCategoryMock = fn(async (_input: ResetInput): Promise<void> => {})
 const updateUserSettingsMock = fn(async () => userSettings)
 const updateQuietHoursMock = fn(async (_input: QuietHoursInput) => userSettings)
 const updatePreference = asAction(updatePreferenceMock)
+const resetPropertyCategory = asAction(resetPropertyCategoryMock)
 const updateUserSettings = asAction(updateUserSettingsMock)
 const updateQuietHours = asAction(updateQuietHoursMock)
 
@@ -109,11 +119,20 @@ const meta = {
   title: 'Settings/NotificationsSettingsPage',
   component: NotificationsSettingsPage,
   parameters: { layout: 'fullscreen' },
+  // Sonner's store outlives a story, and a Toaster that mounts replays every
+  // toast still showing, so one story's toast would reappear in the next.
+  beforeEach: () => {
+    toast.dismiss()
+  },
   decorators: [
     (Story) => (
-      <div className="max-w-3xl p-4">
-        <Story />
-      </div>
+      <>
+        <div className="max-w-3xl p-4">
+          <Story />
+        </div>
+        {/* The app's toaster: what a default or a reset did must be seen. */}
+        <Toaster />
+      </>
     ),
   ],
   args: {
@@ -127,6 +146,7 @@ const meta = {
     retryEmailAvailability,
     setPropertyId,
     updatePreference,
+    resetPropertyCategory,
     updateUserSettings,
     updateQuietHours,
   },
@@ -302,9 +322,16 @@ export const EveryControlNamesItsCategory: Story = {
         canvas.getByRole('combobox', { name: `${category}: Cadence` }),
       ).toBeInTheDocument()
       expect(
-        canvas.getByRole('button', { name: `${category}: Apply to all my properties` }),
+        canvas.getByRole('button', { name: `${category}: Make this my default` }),
       ).toBeInTheDocument()
     }
+    // Workflow has a setting of its own at this property, and the button that
+    // ends it names its category too.
+    expect(
+      canvas.getByRole('button', {
+        name: 'Workflow and collaboration: Use my default here',
+      }),
+    ).toBeInTheDocument()
     // Quiet hours are the person's one setting now, so they are named once,
     // not once per category (ADR 0046, amended 2026-09-23).
     expect(canvas.getAllByLabelText(/Quiet from/)).toHaveLength(1)
@@ -547,138 +574,314 @@ export const SwitchingPropertyShowsItsOwnOverride: Story = {
   },
 }
 
+/** The toast carrying `message`, once it has entered (sonner animates it in). */
+async function expectToast(message: string): Promise<void> {
+  const text = await within(document.body).findByText(message)
+  await waitFor(() => expect(text).toBeVisible())
+}
+
+const expectNoDialog = () =>
+  waitFor(() => expect(within(document.body).queryByRole('alertdialog')).toBeNull())
+
+const MAKE_WORKFLOW_DEFAULT = 'Workflow and collaboration: Make this my default'
+const DEFAULT_SAVED = 'Now your default for every property without its own setting'
+
+/**
+ * Both of Workflow's channels saved as the person's default, in-app first,
+ * each with the answer this property shows: in-app on, email off.
+ */
+function expectWorkflowSavedAsDefault() {
+  expect(updatePreferenceMock).toHaveBeenCalledTimes(2)
+  expect(updatePreferenceMock).toHaveBeenNthCalledWith(1, {
+    data: expect.objectContaining({
+      propertyId: PROPERTY_ID,
+      category: 'workflow_collaboration',
+      channel: 'in_app',
+      enabled: true,
+      applyToAllProperties: true,
+    }),
+  })
+  expect(updatePreferenceMock).toHaveBeenNthCalledWith(2, {
+    data: expect.objectContaining({
+      propertyId: PROPERTY_ID,
+      category: 'workflow_collaboration',
+      channel: 'email',
+      enabled: false,
+      applyToAllProperties: true,
+    }),
+  })
+}
+
 /**
  * The gap this closes: a Property added or reassigned after the person
  * configured everything else had no row at all and fell through to the
- * versioned defaults — urgent email, immediately, at 03:00. No other property
- * has a setting of its own here, so nothing is replaced and nothing is asked.
+ * versioned defaults — urgent email, immediately, at 03:00. The answer here
+ * becomes the person's default, both channels, and nothing is asked. No other
+ * property has a setting of its own, so there is nothing to reset either.
  */
-export const AppliesACategoryToEveryProperty: Story = {
+export const MakesACategoryMyDefault: Story = {
   play: async ({ canvasElement }) => {
     updatePreferenceMock.mockClear()
+    resetPropertyCategoryMock.mockClear()
     const canvas = within(canvasElement)
-    const button = canvas.getByRole('button', {
-      name: 'Workflow and collaboration: Apply to all my properties',
-    })
-    // The button says what every other property will get, so it is not a leap.
+    const button = canvas.getByRole('button', { name: MAKE_WORKFLOW_DEFAULT })
+    // It says what a property without its own setting gets, so it is not a leap.
     expect(button).toHaveAccessibleDescription(
       'A new property gets in-app on, email off.',
     )
+    expect(
+      canvas.queryByRole('button', { name: /^Workflow and collaboration: Reset / }),
+    ).toBeNull()
 
     await userEvent.click(button)
     expect(within(document.body).queryByRole('alertdialog')).toBeNull()
-
-    await waitFor(() => expect(updatePreferenceMock).toHaveBeenCalledTimes(2))
-    expect(updatePreferenceMock).toHaveBeenCalledWith({
-      data: expect.objectContaining({
-        category: 'workflow_collaboration',
-        channel: 'email',
-        applyToAllProperties: true,
-      }),
-    })
+    await expectToast(DEFAULT_SAVED)
+    expectWorkflowSavedAsDefault()
+    expect(resetPropertyCategoryMock).not.toHaveBeenCalled()
   },
 }
 
-/** A row Second Property has of its own: the setting "Apply to all" replaces. */
-const secondPropertyPreference = (
+/**
+ * With one property there is nobody else to apply it to, but the default is
+ * still what the next property gets. The button used to be dimmed here.
+ */
+export const OnePropertyCanStillMakeADefault: Story = {
+  args: { properties: properties.slice(0, 1) },
+  play: async ({ canvasElement }) => {
+    updatePreferenceMock.mockClear()
+    const button = within(canvasElement).getByRole('button', {
+      name: MAKE_WORKFLOW_DEFAULT,
+    })
+    expect(button).toBeEnabled()
+
+    await userEvent.click(button)
+    await expectToast(DEFAULT_SAVED)
+    expectWorkflowSavedAsDefault()
+  },
+}
+
+/** A row `propertyId` has of its own, which a default leaves alone (D7). */
+const preferenceAt = (
+  propertyId: string,
   overrides: Partial<NotificationPreference> & Pick<NotificationPreference, 'category'>,
 ): NotificationPreference =>
   ({
     ...preference(overrides),
-    id: `pref-second-${overrides.category}-${overrides.channel ?? 'email'}`,
-    propertyId: OTHER_PROPERTY_ID,
+    id: `pref-${propertyId}-${overrides.category}-${overrides.channel ?? 'email'}`,
+    propertyId,
   }) as unknown as NotificationPreference
 
 /** Workflow in-app switched off at Second Property, as a mute from the bell leaves it. */
 const mutedAtSecondProperty: readonly NotificationPreference[] = [
   ...preferences,
-  secondPropertyPreference({
+  preferenceAt(OTHER_PROPERTY_ID, {
     category: 'workflow_collaboration',
     channel: 'in_app',
     enabled: false,
   }),
 ]
 
-/** Presses Workflow's "Apply to all my properties" and returns the question it asks. */
-async function askToApplyWorkflowEverywhere(canvas: Canvas) {
+/**
+ * D7: exceptions stay when a default changes. Making a default used to replace
+ * every other property's own setting, a mute from the bell included; now it
+ * leaves them as they are, says which, and asks nothing.
+ */
+export const MakingADefaultKeepsAMute: Story = {
+  args: { preferences: mutedAtSecondProperty },
+  play: async ({ canvasElement }) => {
+    updatePreferenceMock.mockClear()
+    resetPropertyCategoryMock.mockClear()
+    const button = within(canvasElement).getByRole('button', {
+      name: MAKE_WORKFLOW_DEFAULT,
+    })
+    expect(button).toHaveAccessibleDescription(
+      'A new property gets in-app on, email off. Second Property keeps its own setting, including a mute from the notification bell.',
+    )
+
+    await userEvent.click(button)
+    expect(within(document.body).queryByRole('alertdialog')).toBeNull()
+    await expectToast(DEFAULT_SAVED)
+    expectWorkflowSavedAsDefault()
+    expect(resetPropertyCategoryMock).not.toHaveBeenCalled()
+  },
+}
+
+/**
+ * Ending another property's own setting is a choice of its own, and it asks
+ * first: the question names the property and the mute it would undo. Keeping
+ * them changes nothing.
+ */
+export const ResettingAMuteAsksFirst: Story = {
+  args: { preferences: mutedAtSecondProperty },
+  play: async ({ canvasElement }) => {
+    updatePreferenceMock.mockClear()
+    resetPropertyCategoryMock.mockClear()
+    const reset = within(canvasElement).getByRole('button', {
+      name: 'Workflow and collaboration: Reset it to my default',
+    })
+    expect(reset).toHaveTextContent('Reset it to my default')
+
+    await userEvent.click(reset)
+    const dialog = await within(document.body).findByRole('alertdialog', {
+      name: 'Reset 1 property to your default?',
+    })
+    expect(dialog).toHaveAccessibleDescription(
+      'Second Property loses its own workflow and collaboration settings, including a mute from the notification bell, and follows your default instead.',
+    )
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Keep them' }))
+    await expectNoDialog()
+    expect(resetPropertyCategoryMock).not.toHaveBeenCalled()
+    expect(updatePreferenceMock).not.toHaveBeenCalled()
+  },
+}
+
+const threeProperties = [...properties, { id: THIRD_PROPERTY_ID, name: 'Lakeside Lodge' }]
+
+/** Workflow email set differently at Second Property and Lakeside Lodge; neither is a mute. */
+const setAtTwoOtherProperties: readonly NotificationPreference[] = [
+  ...preferences,
+  preferenceAt(OTHER_PROPERTY_ID, {
+    category: 'workflow_collaboration',
+    channel: 'email',
+  }),
+  preferenceAt(THIRD_PROPERTY_ID, {
+    category: 'workflow_collaboration',
+    channel: 'email',
+    cadence: 'immediate',
+  }),
+]
+
+const RESET_BOTH_OTHERS = 'Workflow and collaboration: Reset them to my default'
+
+/** Presses Workflow's reset and returns the question it asks about both. */
+async function askToResetBothOthers(canvasElement: HTMLElement): Promise<HTMLElement> {
   await userEvent.click(
-    canvas.getByRole('button', {
-      name: 'Workflow and collaboration: Apply to all my properties',
-    }),
+    within(canvasElement).getByRole('button', { name: RESET_BOTH_OTHERS }),
   )
-  const dialog = await within(document.body).findByRole('alertdialog', {
-    name: 'Replace the settings at 1 other property?',
+  return within(document.body).findByRole('alertdialog', {
+    name: 'Reset 2 properties to your default?',
   })
-  // Names the property it would change, and the mute it would undo.
-  expect(dialog).toHaveAccessibleDescription(
-    'Second Property has its own workflow and collaboration settings, including a mute from the notification bell. Applying to all your properties replaces them with the settings you chose here.',
-  )
-  return within(dialog)
 }
 
-const expectNoDialog = () =>
-  waitFor(() => expect(within(document.body).queryByRole('alertdialog')).toBeNull())
-
-/**
- * "Apply to all my properties" replaces every other property's own setting
- * for the category, a mute from the bell included. It used to do that without
- * a word; when another property has one it now asks first, and keeping them
- * applies nothing.
- */
-export const ApplyToAllAsksBeforeReplacingAMute: Story = {
-  args: { preferences: mutedAtSecondProperty },
+/** Confirmed, every listed property is reset, one request apiece, and nothing else. */
+export const ResetsEachListedPropertyOnceConfirmed: Story = {
+  args: { properties: threeProperties, preferences: setAtTwoOtherProperties },
   play: async ({ canvasElement }) => {
     updatePreferenceMock.mockClear()
-    const dialog = await askToApplyWorkflowEverywhere(within(canvasElement))
-
-    await userEvent.click(dialog.getByRole('button', { name: 'Keep them' }))
-    await expectNoDialog()
-    expect(updatePreferenceMock).not.toHaveBeenCalled()
-  },
-}
-
-/** Confirmed, it applies both channels everywhere, as it does when nothing is replaced. */
-export const ApplyToAllReplacesOnceConfirmed: Story = {
-  args: { preferences: mutedAtSecondProperty },
-  play: async ({ canvasElement }) => {
-    updatePreferenceMock.mockClear()
-    const dialog = await askToApplyWorkflowEverywhere(within(canvasElement))
-    expect(updatePreferenceMock).not.toHaveBeenCalled()
-
-    await userEvent.click(dialog.getByRole('button', { name: 'Apply to all' }))
-    await waitFor(() => expect(updatePreferenceMock).toHaveBeenCalledTimes(2))
-    for (const channel of ['in_app', 'email'] as const) {
-      expect(updatePreferenceMock).toHaveBeenCalledWith({
-        data: expect.objectContaining({
-          category: 'workflow_collaboration',
-          channel,
-          applyToAllProperties: true,
-        }),
-      })
-    }
-    await expectNoDialog()
-  },
-}
-
-/**
- * Email the Property in view cannot send is not applied everywhere. The email
- * save used to go out anyway, the server refused it for the missing
- * `notification.send_email` capability, and the page said "Could not apply to
- * every property" although in-app had already been applied to all of them.
- */
-export const ApplyToAllLeavesUnavailableEmailAlone: Story = {
-  args: { emailAvailability: 'unavailable' },
-  play: async ({ canvasElement }) => {
-    updatePreferenceMock.mockClear()
+    resetPropertyCategoryMock.mockClear()
     const canvas = within(canvasElement)
+    // Both are named beneath the default, which keeps them.
+    expect(
+      canvas.getByRole('button', { name: MAKE_WORKFLOW_DEFAULT }),
+    ).toHaveAccessibleDescription(
+      'A new property gets in-app on, email off. Second Property and Lakeside Lodge keep their own setting.',
+    )
+    expect(canvas.getByRole('button', { name: RESET_BOTH_OTHERS })).toHaveTextContent(
+      'Reset them to my default',
+    )
+
+    const dialog = await askToResetBothOthers(canvasElement)
+    expect(dialog).toHaveAccessibleDescription(
+      'Second Property and Lakeside Lodge lose their own workflow and collaboration settings and follow your default instead.',
+    )
+    expect(resetPropertyCategoryMock).not.toHaveBeenCalled()
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Reset' }))
+    await expectToast('2 properties now follow your default')
+    // One request per listed property; the property in view is not one of them.
+    expect(resetPropertyCategoryMock).toHaveBeenCalledTimes(2)
+    expect(resetPropertyCategoryMock).toHaveBeenNthCalledWith(1, {
+      data: { propertyId: OTHER_PROPERTY_ID, category: 'workflow_collaboration' },
+    })
+    expect(resetPropertyCategoryMock).toHaveBeenNthCalledWith(2, {
+      data: { propertyId: THIRD_PROPERTY_ID, category: 'workflow_collaboration' },
+    })
+    expect(updatePreferenceMock).not.toHaveBeenCalled()
+    await expectNoDialog()
+  },
+}
+
+/** Resets Second Property, then fails at Lakeside Lodge, as a dropped connection would. */
+const resetThenFailMock = fn(async (input: ResetInput): Promise<void> => {
+  if (input.data.propertyId === THIRD_PROPERTY_ID) throw new Error('Failed to fetch')
+})
+
+/**
+ * A reset that fails part-way has already reset the properties before it, so
+ * it has to say what happened rather than end in silence.
+ */
+export const AFailedResetSaysSo: Story = {
+  args: {
+    properties: threeProperties,
+    preferences: setAtTwoOtherProperties,
+    resetPropertyCategory: asAction(resetThenFailMock),
+  },
+  play: async ({ canvasElement }) => {
+    resetThenFailMock.mockClear()
+    const dialog = await askToResetBothOthers(canvasElement)
+
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Reset' }))
+    await waitFor(() => expect(resetThenFailMock).toHaveBeenCalledTimes(2))
+    await waitFor(() =>
+      expect(
+        document.querySelector('[data-sonner-toast][data-type="error"]'),
+        'an error toast after a reset that failed part-way',
+      ).not.toBeNull(),
+    )
+    // It says what already happened, not only that something failed.
+    await expectToast(
+      "1 of 2 properties now follow your default; the rest couldn't be reset. Try again.",
+    )
+  },
+}
+
+/**
+ * The property in view has a Workflow setting of its own, so it can follow the
+ * default again — this property only: Second Property's mute stays, so there is
+ * nothing to ask. A category with no setting of its own here offers nothing.
+ */
+export const UseMyDefaultHereResetsOnlyThisProperty: Story = {
+  args: { preferences: mutedAtSecondProperty },
+  play: async ({ canvasElement }) => {
+    updatePreferenceMock.mockClear()
+    resetPropertyCategoryMock.mockClear()
+    const canvas = within(canvasElement)
+    expect(
+      canvas.queryByRole('button', { name: 'Action needed: Use my default here' }),
+    ).toBeNull()
 
     await userEvent.click(
       canvas.getByRole('button', {
-        name: 'Workflow and collaboration: Apply to all my properties',
+        name: 'Workflow and collaboration: Use my default here',
       }),
     )
+    expect(within(document.body).queryByRole('alertdialog')).toBeNull()
+    await expectToast('This property now follows your default')
+    expect(resetPropertyCategoryMock).toHaveBeenCalledOnce()
+    expect(resetPropertyCategoryMock).toHaveBeenCalledWith({
+      data: { propertyId: PROPERTY_ID, category: 'workflow_collaboration' },
+    })
+    expect(updatePreferenceMock).not.toHaveBeenCalled()
+  },
+}
 
-    await waitFor(() => expect(updatePreferenceMock).toHaveBeenCalledOnce())
+/**
+ * Email the Property in view cannot send is not made the default. The email
+ * save used to go out anyway, the server refused it for the missing
+ * `notification.send_email` capability, and the page reported a failure
+ * although in-app had already been saved.
+ */
+export const MakingADefaultLeavesUnavailableEmailAlone: Story = {
+  args: { emailAvailability: 'unavailable' },
+  play: async ({ canvasElement }) => {
+    updatePreferenceMock.mockClear()
+
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: MAKE_WORKFLOW_DEFAULT }),
+    )
+
+    await expectToast('In-app is now your default; email is not enabled here')
+    expect(updatePreferenceMock).toHaveBeenCalledOnce()
     expect(updatePreferenceMock).toHaveBeenCalledWith({
       data: expect.objectContaining({ channel: 'in_app', applyToAllProperties: true }),
     })
@@ -707,9 +910,7 @@ export const InheritedDefaultIsWhatANewPropertyGets: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(
-      canvas.getByRole('button', {
-        name: 'Workflow and collaboration: Apply to all my properties',
-      }),
+      canvas.getByRole('button', { name: MAKE_WORKFLOW_DEFAULT }),
     ).toHaveAccessibleDescription('A new property gets in-app on, email daily at 08:00.')
   },
 }
