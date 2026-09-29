@@ -10,6 +10,7 @@
 // Handling History rows in the inbox thread).
 
 import { test, expect } from '../../helpers/error-detection'
+import { clickWhenReady, waitForHydration } from '../../helpers/interaction'
 import { signIn } from '../../helpers/auth'
 import { requireE2eSeedState } from '../../helpers/seed-state'
 import { gbpStubControl } from '../../fixtures/gbp-stub'
@@ -243,10 +244,11 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
     // feed head only refreshes on a 30 s poll, so reload to be sure the row the
     // DB assertion just confirmed has reached the client.
     await page.reload()
-    await page
-      .getByRole('button', { name: /notifications/i })
-      .first()
-      .click()
+    // A click that lands before hydration hits the server-rendered bell, which
+    // has no handler yet: the popover never opens and the next assertion fails
+    // on "element not found" (seen on main CI, 2026-09-29).
+    await waitForHydration(page)
+    await clickWhenReady(page.getByRole('button', { name: /notifications/i }).first())
     // …while the notification body never carries the source content. (The
     // reviewer name legitimately renders in the inbox list via the governed
     // live lookup — the assertion targets the notification surface only.
