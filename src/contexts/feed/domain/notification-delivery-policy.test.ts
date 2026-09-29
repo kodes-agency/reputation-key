@@ -310,9 +310,24 @@ describe('notification delivery policy', () => {
     expect(classifyNotification('account.organization_access_removed')).toBe('mandatory')
     expect(classifyNotification('reply.publish_failed')).toBe('urgent_operational')
     expect(classifyNotification('feedback.created')).toBe('urgent_operational')
-    expect(classifyNotification('review.created')).toBe('workflow_collaboration')
-    expect(classifyNotification('review.updated')).toBe('workflow_collaboration')
+    expect(classifyNotification('review.created')).toBe('arrivals')
+    expect(classifyNotification('review.updated')).toBe('arrivals')
     expect(classifyNotification('inbox.reopened')).toBe('urgent_operational')
+  })
+
+  // D4 (docs/design/notifications): only a Portal rating decides, and only for
+  // private feedback. A provider review's rating never enters Feed (r.8).
+  it('files pleasant private feedback as an arrival and keeps a guest concern urgent', () => {
+    expect(classifyNotification('feedback.created', { guestRating: 5 })).toBe('arrivals')
+    expect(classifyNotification('feedback.created', { guestRating: 4 })).toBe('arrivals')
+    expect(classifyNotification('feedback.created', { guestRating: 3 })).toBe(
+      'urgent_operational',
+    )
+    expect(classifyNotification('feedback.created', {})).toBe('urgent_operational')
+    // A rating on anything else changes nothing.
+    expect(classifyNotification('inbox.escalated', { guestRating: 5 })).toBe(
+      'urgent_operational',
+    )
   })
 
   it('emails a guest edit of handled work by default, and an edit of unhandled work not at all', () => {
@@ -325,7 +340,8 @@ describe('notification delivery policy', () => {
     const editOfClosedWork = classifyNotification('inbox.reopened')
 
     expect(getDefaultEnabled(editOfOpenWork, 'email')).toBe(false)
-    expect(getDefaultEnabled(editOfOpenWork, 'in_app')).toBe(true)
+    // An arrival, like the review it amends: off in the app by default (D4).
+    expect(getDefaultEnabled(editOfOpenWork, 'in_app')).toBe(false)
     expect(getDefaultEnabled(editOfClosedWork, 'email')).toBe(true)
   })
 
@@ -345,12 +361,14 @@ describe('notification delivery policy', () => {
     expect(NOTIFICATION_CATEGORIES).toContain('recognition')
     expect(NOTIFICATION_SETTINGS_CATEGORIES).toEqual([
       'urgent_operational',
+      'arrivals',
       'workflow_collaboration',
       'recognition',
     ])
     expect(GOVERNING_NOTIFICATION_CATEGORIES).toEqual([
       'mandatory',
       'urgent_operational',
+      'arrivals',
       'workflow_collaboration',
       'recognition',
     ])
@@ -360,7 +378,9 @@ describe('notification delivery policy', () => {
     // Two-way invariant, deliberately NOT a hardcoded array: a hardcoded
     // expectation would sleep through exactly the regression that produced a
     // settings switch governing nothing.
-    const governedByAType = new Set(NOTIFICATION_TYPES.map(classifyNotification))
+    const governedByAType = new Set(
+      NOTIFICATION_TYPES.map((type) => classifyNotification(type)),
+    )
 
     for (const category of GOVERNING_NOTIFICATION_CATEGORIES) {
       expect(
@@ -387,7 +407,15 @@ describe('notification delivery policy', () => {
     // {in_app:false, email:false}, so the use case persisted nothing at all.
     // A type may be email-opt-in, but a type nobody can see anywhere is a
     // dropped notification. Add an opt-in type here only with a reason.
-    const DELIBERATELY_IN_APP_OPT_IN: ReadonlyArray<string> = []
+    //
+    // Arrivals are opt-in by the owner's decision (D4, ADR 0046 amended
+    // 2026-09-30): the Inbox is where new reviews are worked, and announcing
+    // each one buried the notices that ask for a decision. Their urgency
+    // reaches people through the Response Target reminders.
+    const DELIBERATELY_IN_APP_OPT_IN: ReadonlyArray<string> = [
+      'review.created',
+      'review.updated',
+    ]
 
     for (const type of NOTIFICATION_TYPES) {
       if (DELIBERATELY_IN_APP_OPT_IN.includes(type)) continue

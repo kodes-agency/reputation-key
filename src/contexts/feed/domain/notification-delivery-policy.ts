@@ -32,7 +32,11 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   'account.organization_role_changed': 'mandatory',
   'account.organization_access_removed': 'mandatory',
   'account.organization_purge_pending': 'mandatory',
-  'review.created': 'workflow_collaboration',
+  // A new review is an arrival (D4, docs/design/notifications): off in the app
+  // by default, like every arrival. Feed cannot tell a low-rated provider
+  // review from a glowing one (ADR 0046 r.8); its urgency reaches people
+  // through the Response Target reminders, which a low rating may shorten.
+  'review.created': 'arrivals',
   // A guest revision that SUPERSEDES AN OPEN CYCLE — work nobody has handled
   // yet. It was `urgent_operational`, so a guest fixing a comma sent an
   // immediate email by default while the 1-star review it edits had only
@@ -42,7 +46,7 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   // `inbox.reopened` and stays urgent: somebody had considered that finished.
   // Urgency for an unanswered review comes from its Response Target, which
   // Inbox measures, not from Feed (ADR 0046, amended 2026-09-24).
-  'review.updated': 'workflow_collaboration',
+  'review.updated': 'arrivals',
   // Private feedback asks a manager to review and handle a guest concern. It
   // is Action Required even when it is not marked urgent enough to bypass
   // quiet hours.
@@ -106,7 +110,29 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   'beta_feedback.outcome': 'workflow_collaboration',
 }
 
-export function classifyNotification(type: NotificationType): NotificationCategory {
+/**
+ * The locally collected Portal rating from which private feedback is a pleasant
+ * arrival rather than a guest concern (D4). Feedback rated below it, or not
+ * rated at all, stays Action needed: always in the app, emailed by default.
+ */
+export const ARRIVAL_FEEDBACK_MIN_RATING = 4
+
+/**
+ * The category a notice is governed by. By type, except private feedback,
+ * whose locally collected rating decides it (ADR 0046 r.8 admits that rating;
+ * a provider review's never enters Feed, so it is decided by type alone).
+ */
+export function classifyNotification(
+  type: NotificationType,
+  payload: Readonly<{ guestRating?: number }> = {},
+): NotificationCategory {
+  if (
+    type === 'feedback.created' &&
+    payload.guestRating !== undefined &&
+    payload.guestRating >= ARRIVAL_FEEDBACK_MIN_RATING
+  ) {
+    return 'arrivals'
+  }
   return CATEGORY_BY_TYPE[type]
 }
 
@@ -191,6 +217,7 @@ export function notificationScopeForType(
 export const NOTIFICATION_CATEGORIES: ReadonlyArray<NotificationCategory> = [
   'mandatory',
   'urgent_operational',
+  'arrivals',
   'workflow_collaboration',
   'recognition',
 ]
@@ -202,7 +229,7 @@ export const NOTIFICATION_CATEGORIES: ReadonlyArray<NotificationCategory> = [
  * others: in-app on by default, email opt-in (ADR 0046).
  */
 export const NOTIFICATION_SETTINGS_CATEGORIES: ReadonlyArray<ConfigurableNotificationCategory> =
-  ['urgent_operational', 'workflow_collaboration', 'recognition']
+  ['urgent_operational', 'arrivals', 'workflow_collaboration', 'recognition']
 
 /**
  * Categories that govern at least one notification type — derived from

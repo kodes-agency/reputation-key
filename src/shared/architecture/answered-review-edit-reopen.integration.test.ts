@@ -38,6 +38,7 @@ import {
   type InsertNotificationJobData,
 } from '#/contexts/feed/infrastructure/jobs/insert-notification.job'
 import { createNotificationWorkState } from '#/contexts/feed/application/notification-work-state'
+import { resolveCategoryPreference } from '#/contexts/feed/domain/notification-preference-resolution'
 import { buildFakeInsertNotificationDeps } from '#/contexts/feed/application/use-cases/test-fixtures'
 
 // End to end, the guest edits a Google review the team had already answered,
@@ -182,6 +183,21 @@ const notAskedForAnArrival = async (): Promise<never> => {
  */
 async function writeNotices(jobs: ReadonlyArray<InsertNotificationJobData>) {
   const insert = buildFakeInsertNotificationDeps()
+  // The manager follows arrivals in the app. They are off by default (ADR 0046,
+  // amended 2026-09-30), and a notice nobody asked for would make the two
+  // "writes nothing" cases below pass without the answered-first rule.
+  vi.mocked(insert.preferenceRepo.resolveForDelivery).mockImplementation(
+    async (_userId, _orgId, _propertyId, category, channel) =>
+      resolveCategoryPreference({
+        category,
+        channel,
+        property:
+          category === 'arrivals' && channel === 'in_app'
+            ? { enabled: true, cadence: 'daily' }
+            : null,
+        personalDefault: null,
+      }),
+  )
   const handle = createInsertNotificationHandler({
     ...insert,
     authorizeAudience: async () => true,

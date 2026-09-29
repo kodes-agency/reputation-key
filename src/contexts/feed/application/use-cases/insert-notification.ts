@@ -18,11 +18,9 @@ import {
 import type {
   Notification as DomainNotification,
   NotificationCadence,
+  NotificationCategory,
 } from '../../domain/notification-types'
-import {
-  classifyNotification,
-  isOrganizationScopedNotice,
-} from '../../domain/notification-delivery-policy'
+import { isOrganizationScopedNotice } from '../../domain/notification-delivery-policy'
 import {
   applyCoalescence,
   getDefaultCadence,
@@ -80,8 +78,9 @@ type ChannelPreferences = Readonly<{
 const resolveChannelPreferences = async (
   deps: InsertNotificationDeps,
   input: InsertNotificationInput,
+  /** The row's own category: private feedback's depends on its parsed rating. */
+  category: NotificationCategory,
 ): Promise<ChannelPreferences> => {
-  const category = classifyNotification(input.type)
   // Organization mandatory notices are policy, not preference. Never consult
   // a property-scoped preference row for them: both channels are always on
   // and email is always immediate.
@@ -317,6 +316,7 @@ export const insertNotification =
     const { inAppEnabled, emailEnabled, emailCadence } = await resolveChannelPreferences(
       deps,
       input,
+      result.value.category,
     )
 
     if (!inAppEnabled && !emailEnabled) {

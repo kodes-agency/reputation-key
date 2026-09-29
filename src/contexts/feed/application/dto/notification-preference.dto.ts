@@ -12,6 +12,7 @@ const quietTime = z
 /** Configurable Property categories; Organization mandatory policy is refused. */
 export const notificationPreferenceCategory = z.enum([
   'urgent_operational',
+  'arrivals',
   'workflow_collaboration',
   'recognition',
 ])

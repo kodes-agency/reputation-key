@@ -97,6 +97,19 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
     })
     // The Property has no explicit responsible manager, so the current
     // AccountAdmin is the notification recovery recipient.
+    //
+    // A new review is an arrival, off in the app by default (ADR 0046, amended
+    // 2026-09-30). This spec is about what an arrival notice carries, so the
+    // admin turns arrivals on for this Property first, as a person would in
+    // their preferences.
+    await dbQuery(
+      `INSERT INTO notification_preferences
+         (user_id, organization_id, property_id, category, channel, enabled, cadence)
+       VALUES ($1, $2, $3, 'arrivals', 'in_app', true, 'daily')
+       ON CONFLICT (user_id, organization_id, property_id, category, channel)
+       DO UPDATE SET enabled = true`,
+      [admin!.id, seed.organizationId, propertyId],
+    )
 
     await signIn(page)
 

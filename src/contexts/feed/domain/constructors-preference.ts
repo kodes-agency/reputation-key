@@ -31,6 +31,7 @@ import { offeredEmailCadences } from './notification-cadence'
 const CATEGORIES: Readonly<Record<NotificationCategory, true>> = {
   mandatory: true,
   urgent_operational: true,
+  arrivals: true,
   workflow_collaboration: true,
   recognition: true,
 }

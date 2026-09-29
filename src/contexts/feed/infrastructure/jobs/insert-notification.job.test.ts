@@ -16,7 +16,8 @@ const data: InsertNotificationJobData = {
   userId: userId('user-1'),
   organizationId: organizationId('org-1'),
   propertyId: propertyId('11111111-1111-4111-8111-111111111111'),
-  type: 'review.created',
+  // On in the app by default; a new review is an arrival, off by default (D4).
+  type: 'feedback.created',
   resourceType: 'inbox_item',
   resourceId: 'item-1',
   eventId: 'event-1',

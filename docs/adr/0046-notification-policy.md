@@ -829,6 +829,41 @@ time it matches. Until the new key is set, rotating `BETTER_AUTH_SECRET`
 after an account incident empties the list; after that it does not. Rotating
 the dedicated key always does.
 
+## Amended 2026-09-30 — arrivals are opt-in, and an assignment is work
+
+The owner reviewed the notification surfaces (docs/design/notifications) and
+decided two policy changes (D3, D4).
+
+**Arrivals get their own category, off by default (D4).** A new review
+(`review.created`), a guest's edit of unhandled work (`review.updated`) and
+private feedback rated 4 or 5 stars now belong to `arrivals` — "New reviews
+and feedback" — which is off on both channels until the person turns it on.
+The Inbox is where arrivals are worked, and announcing each one buried the
+notices that ask for a decision. This is the one deliberate exception to "every
+category is on in-app": a category off on both channels persists nothing, which
+is the intent here, and the test that guards the rule names the two types.
+
+Private feedback rated 1–3, or not rated, stays `urgent_operational` — always in
+the app, emailed by default — because it is a guest concern. Only the locally
+collected Portal rating decides that (r.8 admits it). A provider review is
+classified by type alone: Feed still neither stores nor reads a rating class for
+one (amended 2026-09-24). A low-rated Google review reaches people through its
+Response Target reminders, which a low-rating target can make sooner.
+
+Existing email choices carry over: every person's Workflow email switch — per
+Property and as their default, on or off — is copied to `arrivals` by migration
+`0041_notification_arrivals_email_carryover`, so nobody gains or loses review
+email without deciding to. In-app is not carried over.
+
+**An assignment waits on its reader (D3).** `inbox.assigned` and
+`inbox.bulk_assigned` join the actionable types. "Assigned to you" settles when
+its Handling Cycle closes, when its Property is archived, or — for the previous
+holder only — when the item moves to somebody else (`SUPERSEDED_FOR_READER`: an
+`inbox.unassigned` retires that reader's `inbox.assigned`). An assignment shown
+in the app also takes over its reader's own arrival notice about the item, so
+one piece of work is one row. A grouped assignment waits until it is opened or
+its Property archived; settling it item by item is a follow-up.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

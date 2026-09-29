@@ -171,7 +171,7 @@ export const createNotification = (
     organizationId: input.organizationId,
     propertyId: input.propertyId,
     type: input.type,
-    category: classifyNotification(input.type),
+    category: classifyNotification(input.type, payload),
     priority,
     status: 'unread',
     resourceType: input.resourceType,

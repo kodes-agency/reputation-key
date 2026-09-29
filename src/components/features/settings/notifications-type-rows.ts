@@ -20,9 +20,15 @@ export const CATEGORY_COPY: Readonly<
     description:
       'Private feedback, escalations, and delivery issues that may need attention.',
   },
+  // D4 (docs/design/notifications): off in the app by default.
+  arrivals: {
+    label: 'New reviews and feedback',
+    description:
+      'Every new review, and private feedback rated 4 or 5 stars. Lower-rated feedback always reaches you under Action needed.',
+  },
   workflow_collaboration: {
     label: 'Workflow and collaboration',
-    description: 'Reviews, assignments, notes, and reply updates.',
+    description: 'Assignments, notes, and reply updates.',
   },
   // `recognition` carries goal results only (ADR 0046, amended 2026-09-22).
   recognition: {
