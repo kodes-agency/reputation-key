@@ -194,12 +194,14 @@ const countVisibleUnread = async (
  * A row may become unread again only while no other row waits under its
  * (user, type, resource) unread key, ADR 0046 r.2's partial unique key, or
  * when it is settled, which that key does not cover. Mark-unread and a
- * dismissal's Undo both pass through it.
+ * dismissal's Undo both pass through it. The sibling is looked for in the
+ * row's own Organization.
  */
 const mayBecomeUnread = (userId: string) =>
   sql`(notifications.resolved_at IS NOT NULL OR NOT EXISTS (
     SELECT 1 FROM notifications AS unread_sibling
-     WHERE unread_sibling.user_id = ${userId}
+     WHERE unread_sibling.organization_id = notifications.organization_id
+       AND unread_sibling.user_id = ${userId}
        AND unread_sibling.type = notifications.type
        AND unread_sibling.resource_id = notifications.resource_id
        AND unread_sibling.status = 'unread'
