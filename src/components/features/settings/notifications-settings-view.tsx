@@ -57,6 +57,13 @@ type NotificationsSettingsViewProps = Readonly<{
   setDifferentlyFor: (
     category: ConfigurableNotificationCategory,
   ) => ReadonlyArray<SetDifferently>
+  /** Whether the property in view has a setting of its own for the category. */
+  ownSettingHere: (category: ConfigurableNotificationCategory) => boolean
+  /** Removes the named properties' own settings for a category (D7). */
+  resetToDefault: (
+    category: ConfigurableNotificationCategory,
+    propertyIds: ReadonlyArray<string>,
+  ) => Promise<void>
   applyToAll: (category: ConfigurableNotificationCategory) => Promise<void>
   preferenceFor: (
     category: ConfigurableNotificationCategory,
@@ -171,8 +178,10 @@ export function NotificationsSettingsView(props: NotificationsSettingsViewProps)
               email={props.preferenceFor(category, 'email')}
               emailAllowed={emailAllowed}
               inherited={props.inheritedFor(category)}
-              propertyCount={props.properties.length}
               setDifferently={props.setDifferentlyFor(category)}
+              ownHere={props.ownSettingHere(category)}
+              propertyInView={props.propertyId}
+              resetToDefault={props.resetToDefault}
               savePreference={props.savePreference}
               applyToAll={props.applyToAll}
             />

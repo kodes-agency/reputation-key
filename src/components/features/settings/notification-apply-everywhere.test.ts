@@ -44,7 +44,10 @@ describe('applyEverywhereNotice', () => {
   it('reports a whole success plainly', () => {
     expect(
       applyEverywhereNotice({ applied: ['in_app', 'email'], failed: null, skipped: [] }),
-    ).toEqual({ tone: 'success', message: 'Applied to every property' })
+    ).toEqual({
+      tone: 'success',
+      message: 'Now your default for every property without its own setting',
+    })
   })
 
   it('does not call a half-applied answer a failure', () => {
@@ -52,7 +55,7 @@ describe('applyEverywhereNotice', () => {
       applyEverywhereNotice({ applied: ['in_app'], failed: 'email', skipped: [] }),
     ).toEqual({
       tone: 'error',
-      message: 'In-app was applied to every property; email could not be applied',
+      message: 'In-app is now your default; email could not be saved',
     })
   })
 
@@ -61,13 +64,13 @@ describe('applyEverywhereNotice', () => {
       applyEverywhereNotice({ applied: ['in_app'], failed: null, skipped: ['email'] }),
     ).toEqual({
       tone: 'success',
-      message: 'In-app applied to every property; email is not enabled here',
+      message: 'In-app is now your default; email is not enabled here',
     })
   })
 
   it('reports nothing applied when the first save fails', () => {
     expect(applyEverywhereNotice({ applied: [], failed: 'in_app', skipped: [] })).toEqual(
-      { tone: 'error', message: 'Could not apply to every property' },
+      { tone: 'error', message: 'Could not make this your default' },
     )
   })
 })
@@ -111,8 +114,8 @@ describe('setDifferentlyElsewhere', () => {
         PROPERTIES[0]!.id,
       ),
     ).toEqual([
-      { name: 'Harbor & Pine', muted: true },
-      { name: 'Lakeside Lodge', muted: false },
+      { id: PROPERTIES[1]!.id, name: 'Harbor & Pine', muted: true },
+      { id: PROPERTIES[2]!.id, name: 'Lakeside Lodge', muted: false },
     ])
   })
 

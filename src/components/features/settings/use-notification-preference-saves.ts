@@ -118,10 +118,9 @@ export function useNotificationPreferenceSaves({
   }
 
   /**
-   * The same answer for every property the person has, and the default a
-   * property they are given next inherits. The server writes the default and
-   * clears the per-property rows that would have overridden it, so the reader
-   * does not have to visit thirty properties to be sure.
+   * The answer at this property becomes the person's default: every property
+   * without a setting of its own gets it, including ones they are given next.
+   * This property follows it now; other properties' own settings stay (D7).
    */
   const applyToAll = async (category: ConfigurableNotificationCategory) => {
     const outcome = await applyEverywhereInOrder(emailAllowed, (channel) => {

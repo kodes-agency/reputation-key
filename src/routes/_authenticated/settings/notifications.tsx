@@ -9,6 +9,7 @@ import {
   updateNotificationPreferenceFn,
   updateNotificationQuietHoursFn,
   updateNotificationUserSettingsFn,
+  resetNotificationPropertyCategoryFn,
 } from '#/contexts/feed/server/notifications'
 import { NotificationsSettingsPage } from '#/components/features/settings'
 import { notificationPropertyScopeKey } from '#/components/features/settings/notification-property-selection'
@@ -124,6 +125,9 @@ function NotificationSettingsPropertyScope({
   const updatePreference = useActionMutation(updateNotificationPreferenceFn, {
     invalidateKeys: [notificationKeys.preferences(organizationId)],
   })
+  const resetPropertyCategory = useActionMutation(resetNotificationPropertyCategoryFn, {
+    invalidateKeys: [notificationKeys.preferences(organizationId)],
+  })
   const updateUserSettings = useActionMutation(updateNotificationUserSettingsFn, {
     invalidateKeys: [notificationKeys.userSettings(organizationId)],
   })
@@ -152,6 +156,7 @@ function NotificationSettingsPropertyScope({
           retryEmailAvailability={() => void emailCapability.refetch()}
           setPropertyId={setPropertyId}
           updatePreference={updatePreference}
+          resetPropertyCategory={resetPropertyCategory}
           updateUserSettings={updateUserSettings}
           updateQuietHours={updateQuietHours}
         />
