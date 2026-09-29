@@ -602,9 +602,10 @@ const tallFeed = TALL_FEED_TYPES.map((type, n) =>
 )
 
 /**
- * The bell where the app puts it, at the right end of the top bar, on a phone.
- * The popover must stay inside the viewport at 320-375 px and in landscape,
- * with its footer reachable. Geometry is measured against compiled Tailwind by
+ * The bell where the app puts it, at the right end of the top bar, on a phone,
+ * where it opens a full-screen sheet (D8); the metrics file also opens this
+ * story on a desktop-sized page, where it is the popover. Geometry is measured
+ * against compiled Tailwind by
  * e2e/storybook-metrics/notification-popover.metrics.ts; this runner compiles
  * none, so its play only opens the bell.
  */
@@ -928,6 +929,45 @@ export const DismissOffersUndo: Story = {
     })
     expect(restored.closest('li')).toHaveAttribute('data-notification-state', 'unread')
     expect(popover.getAllByRole('listitem')).toHaveLength(before)
+  },
+}
+
+const phoneSheetServer = makeStatefulNotificationFns(undoableFeed)
+
+/**
+ * On a phone the bell is a full-screen sheet, named by its visible title (D8).
+ * It is not modal, like the popover: a modal dialog would set
+ * `pointer-events: none` on the page, and the Undo a dismissal offers — in a
+ * toast, outside the sheet — could not be pressed. Close hands focus back to
+ * the bell.
+ */
+export const PhoneOpensAFullScreenSheet: Story = {
+  args: { notificationFns: phoneSheetServer },
+  parameters: { layout: 'fullscreen', viewport: { defaultViewport: 'mobileNarrow' } },
+  render: (args) => (
+    <header className="flex h-12 items-center justify-end border-b px-2">
+      <NotificationPanel {...args} />
+    </header>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const sheet = await openBell(canvasElement)
+    expect(document.querySelector('[data-slot="sheet-content"]')).not.toBeNull()
+    expect(document.querySelector('[data-slot="popover-content"]')).toBeNull()
+    within(document.body).getByRole('dialog', { name: 'Notifications' })
+    await waitFor(() =>
+      expect(sheet.getByRole('group', { name: 'Needs you' })).toHaveFocus(),
+    )
+
+    const before = await dismissFirstRow(sheet)
+    await waitFor(() => expect(sheet.getAllByRole('listitem')).toHaveLength(before - 1))
+    await userEvent.click(await findToastUndo('Notification dismissed.'))
+    await expectToast('Notification restored.')
+    await waitFor(() => expect(sheet.getAllByRole('listitem')).toHaveLength(before))
+
+    await userEvent.click(sheet.getByRole('button', { name: 'Close notifications' }))
+    await waitFor(() => expect(within(document.body).queryByRole('dialog')).toBeNull())
+    expect(canvas.getByRole('button', { name: /^Notifications/ })).toHaveFocus()
   },
 }
 

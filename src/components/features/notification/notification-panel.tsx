@@ -12,11 +12,19 @@
 // the pointer reaches the bell or the bell takes focus, so it is usually in
 // place before the click. The trigger, the badge and the polling head stay
 // eager.
+//
+// On a phone the bell opens a full-screen sheet instead (D8): the popover was
+// a floating card a few rows tall. The sheet is not modal, like the popover:
+// a modal Radix dialog sets `pointer-events: none` on the page and hides its
+// siblings from screen readers, and the toaster and the live regions are
+// siblings — the Undo a dismissal offers could be neither pressed nor heard.
 
 import { Suspense, useCallback, useState } from 'react'
 import { Bell } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from '#/components/ui/sheet'
+import { useIsMobile } from '#/components/hooks/use-mobile'
 import { Skeleton } from '#/components/ui/skeleton'
 import { useNotificationFormat, useNotifications } from './notification-queries'
 import { useNotificationMutations } from './notification-mutations'
@@ -105,6 +113,7 @@ type Props = Readonly<{
 
 export function NotificationPanel({ notificationFns, organizationId }: Props) {
   const [open, setOpen] = useState(false)
+  const isPhone = useIsMobile()
   const { announcement, announce } = useNotificationAnnouncer()
 
   // The badge and the Needs-you list are one snapshot. Polling the shared head
@@ -140,75 +149,101 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
     },
   }
 
-  return (
-    <Popover
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next)
-        // Refetch the head, never invalidate: invalidating the org subtree used
-        // to evict settings caches, while refetching the old infinite query
-        // replayed every history page already loaded.
-        if (next) needsYou.refetch()
-      }}
+  const onOpenChange = (next: boolean) => {
+    setOpen(next)
+    // Refetch the head, never invalidate: invalidating the org subtree used
+    // to evict settings caches, while refetching the old infinite query
+    // replayed every history page already loaded.
+    if (next) needsYou.refetch()
+  }
+  const bell = (
+    <Button
+      variant="ghost"
+      size="icon-sm"
+      className="relative"
+      onPointerEnter={preloadPopoverContent}
+      onFocus={preloadPopoverContent}
+      aria-label={`Notifications${count > 0 ? `, ${count} ${count === 1 ? 'needs' : 'need'} you` : ''}`}
     >
-      <PopoverTrigger asChild>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          className="relative"
-          onPointerEnter={preloadPopoverContent}
-          onFocus={preloadPopoverContent}
-          aria-label={`Notifications${count > 0 ? `, ${count} ${count === 1 ? 'needs' : 'need'} you` : ''}`}
+      <Bell aria-hidden="true" className="size-4" />
+      {count > 0 && (
+        <span
+          aria-hidden="true"
+          className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground"
         >
-          <Bell aria-hidden="true" className="size-4" />
-          {count > 0 && (
-            <span
-              aria-hidden="true"
-              className="absolute -top-0.5 -right-0.5 flex size-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground"
-            >
-              {count > 9 ? '9+' : count}
-            </span>
-          )}
-        </Button>
-      </PopoverTrigger>
+          {count > 9 ? '9+' : count}
+        </span>
+      )}
+    </Button>
+  )
+  const body = (sheet: boolean) => (
+    <Suspense fallback={<PopoverContentFallback />}>
+      <NotificationPopoverContent
+        needsYou={{
+          notifications: needsYou.notifications,
+          isLoading: needsYou.isLoading,
+          isLoadingMore: needsYou.isLoadingMore,
+          error: needsYou.error,
+          loadMoreError: needsYou.loadMoreError,
+          hasMore: needsYou.hasMore,
+          onRetry: needsYou.refetch,
+          onLoadMore: needsYou.loadMore,
+        }}
+        unreadCount={needsYou.unreadCount}
+        isMarkingAllRead={mutations.isMarkingAllRead}
+        onMarkAllRead={() => mutations.markAllRead('all')}
+        actions={actions}
+        format={format}
+        notificationFns={notificationFns}
+        organizationId={organizationId}
+        onViewAll={() => setOpen(false)}
+        {...(sheet
+          ? { Title: SheetTitle, onClose: () => setOpen(false), fill: true }
+          : {})}
+      />
+    </Suspense>
+  )
+
+  return (
+    <>
+      {isPhone ? (
+        <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
+          <SheetTrigger asChild>{bell}</SheetTrigger>
+          {/* Named by its title, which the body renders; the close button is
+              the body's too, in its header beside "Mark all read". */}
+          <SheetContent
+            side="bottom"
+            showCloseButton={false}
+            aria-describedby={undefined}
+            onOpenAutoFocus={focusListOnOpen}
+            onInteractOutside={keepOpenForToasts}
+            className="top-0 gap-0"
+          >
+            {body(true)}
+          </SheetContent>
+        </Sheet>
+      ) : (
+        <Popover open={open} onOpenChange={onOpenChange}>
+          <PopoverTrigger asChild>{bell}</PopoverTrigger>
+          {/* Radix gives PopoverContent role="dialog"; an unnamed dialog is a
+              serious axe violation, so the panel names itself. It is positioned
+              `fixed`, where the page cannot scroll to a clipped edge, so it is
+              capped to the viewport on both axes (24rem was 64px too wide for a
+              320px phone) and its list scrolls inside it, footer in reach. */}
+          <PopoverContent
+            align="end"
+            aria-label="Notifications"
+            onOpenAutoFocus={focusListOnOpen}
+            onInteractOutside={keepOpenForToasts}
+            collisionPadding={POPOVER_VIEWPORT_MARGIN_PX}
+            className="flex max-h-(--radix-popover-content-available-height) w-[min(24rem,calc(100vw-1rem))] flex-col p-0"
+          >
+            {body(false)}
+          </PopoverContent>
+        </Popover>
+      )}
       <NotificationAriaLive count={count} />
       <NotificationAnnouncer announcement={announcement} />
-      {/* Radix gives PopoverContent role="dialog"; an unnamed dialog is a
-          serious axe violation, so the panel names itself. It is positioned
-          `fixed`, where the page cannot scroll to a clipped edge, so it is
-          capped to the viewport on both axes (24rem was 64px too wide for a
-          320px phone) and its list scrolls inside it, footer in reach. */}
-      <PopoverContent
-        align="end"
-        aria-label="Notifications"
-        onOpenAutoFocus={focusListOnOpen}
-        onInteractOutside={keepOpenForToasts}
-        collisionPadding={POPOVER_VIEWPORT_MARGIN_PX}
-        className="flex max-h-(--radix-popover-content-available-height) w-[min(24rem,calc(100vw-1rem))] flex-col p-0"
-      >
-        <Suspense fallback={<PopoverContentFallback />}>
-          <NotificationPopoverContent
-            needsYou={{
-              notifications: needsYou.notifications,
-              isLoading: needsYou.isLoading,
-              isLoadingMore: needsYou.isLoadingMore,
-              error: needsYou.error,
-              loadMoreError: needsYou.loadMoreError,
-              hasMore: needsYou.hasMore,
-              onRetry: needsYou.refetch,
-              onLoadMore: needsYou.loadMore,
-            }}
-            unreadCount={needsYou.unreadCount}
-            isMarkingAllRead={mutations.isMarkingAllRead}
-            onMarkAllRead={() => mutations.markAllRead('all')}
-            actions={actions}
-            format={format}
-            notificationFns={notificationFns}
-            organizationId={organizationId}
-            onViewAll={() => setOpen(false)}
-          />
-        </Suspense>
-      </PopoverContent>
-    </Popover>
+    </>
   )
 }
