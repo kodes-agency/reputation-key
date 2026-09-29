@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { z } from 'zod/v4'
+import { runGoogleOAuthPreflight } from './google-oauth-preflight'
 
 export const CI_IMAGE_DIGEST_MAP_VERSION = 'repkey-ci-image-digest-map-1' as const
 export const CI_IMAGE_DIGEST_MAP_FILE = 'ci-image-digest-map.json' as const
@@ -387,7 +388,7 @@ export function downloadCiImageDigestMap(
   )
 }
 
-function railwayTargetArgs(serviceId?: string): string[] {
+export function railwayTargetArgs(serviceId?: string): string[] {
   return [
     '--project',
     CLOSED_BETA_PROJECT_ID,
@@ -673,6 +674,23 @@ export async function applyClosedBetaImageDeployment(
   return settled
 }
 
+/**
+ * Google must accept the web service's callback address and client secret, or
+ * "Connect Google" dead-ends on Google's own error page. Neither depends on the
+ * image, so a failure never blocks the deploy; it fails the command instead.
+ */
+export function verifyClosedBetaGoogleOAuth(
+  out: (line: string) => void = console.log,
+  runner: CommandRunner = defaultCommandRunner,
+): Promise<boolean> {
+  const web = CLOSED_BETA_IMAGE_SERVICES.find(({ serviceName }) => serviceName === 'web')!
+  return runGoogleOAuthPreflight({
+    runner,
+    targetArgs: railwayTargetArgs(web.serviceId),
+    out,
+  })
+}
+
 const COMMAND = 'ops:deploy-ci-images'
 const USAGE = 'pnpm ops deploy-ci-images [--sha <source-revision>] [--apply]'
 
@@ -736,6 +754,7 @@ export async function runDeployCiImagesCommand(
     ),
   )
   if (!args.apply) {
+    await verifyClosedBetaGoogleOAuth(out)
     out(`report only — re-run with --sha ${revision} --apply to move three services`)
     return 0
   }
@@ -747,6 +766,10 @@ export async function runDeployCiImagesCommand(
       2,
     ),
   )
+  if (!(await verifyClosedBetaGoogleOAuth(out))) {
+    out('deployed, but "Connect Google" will fail until the Google OAuth check passes')
+    return 1
+  }
   return 0
 }
 

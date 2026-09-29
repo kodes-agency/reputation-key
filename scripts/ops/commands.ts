@@ -8,6 +8,7 @@ export const COMMANDS: Readonly<
   'ai-approve-enrollment': ['scripts/ops/ai-approve-enrollment.ts'],
   'ai-control': ['scripts/ops/ai-execution-control.ts'],
   'bootstrap-owner': ['scripts/ops/bootstrap-owner.ts'],
+  'check-google-oauth': ['scripts/ops/check-google-oauth.ts'],
   'deploy-ci-images': ['scripts/ops/deploy-ci-images.ts'],
   'disconnect-connection': ['scripts/ops/disconnect-connection.ts'],
   'feedback-issue': ['scripts/ops/feedback-issue.ts'],

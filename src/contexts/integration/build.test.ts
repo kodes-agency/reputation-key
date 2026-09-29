@@ -58,7 +58,7 @@ const CONFIG = {
   googleClientId: 'integration-build-client',
   googleClientSecret: 'integration-build-secret',
   encryptionKey: '11'.repeat(32),
-  authBaseUrl: 'https://app.example.test',
+  googleCallbackUrl: 'https://app.example.test/api/auth/google/callback',
   pubsubTopic: '',
   pubsubNotificationTypes: 'NEW_REVIEW',
 }

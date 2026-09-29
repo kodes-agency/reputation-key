@@ -2,7 +2,7 @@
 
 import { generateCodeVerifier, generateOidcNonce, s256Challenge } from '../oauth-pkce'
 import type { OAuthStateHandleService } from '../oauth-state-handle'
-import { GOOGLE_BUSINESS_MANAGE_SCOPE } from '../google-provider-contract'
+import { buildGoogleAuthorizeUrl } from '../google-authorize-request'
 
 export type GetGoogleAuthUrlDeps = Readonly<{
   clientId: string
@@ -26,12 +26,6 @@ export type GetGoogleAuthUrlInput = Readonly<{
 export type GetGoogleAuthUrlResult = Readonly<{
   url: string
 }>
-
-/**
- * Exact v2 OAuth contract: signed OIDC identity, the account's verified email
- * as its display label, and GBP management (ADR 0050, amended 2026-09-15).
- */
-const GBP_OAUTH_SCOPES = ['openid', 'email', GOOGLE_BUSINESS_MANAGE_SCOPE]
 
 /** Concrete use case instance type — named, not derived via ReturnType. */
 export type GetGoogleAuthUrl = (
@@ -68,21 +62,13 @@ export const getGoogleAuthUrl =
       oidcNonce,
     })
 
-    // Build OAuth URL
-    const params = new URLSearchParams({
-      client_id: deps.clientId,
-      redirect_uri: deps.callbackUrl,
-      scope: GBP_OAUTH_SCOPES.join(' '),
-      response_type: 'code',
+    const url = buildGoogleAuthorizeUrl({
+      clientId: deps.clientId,
+      callbackUrl: deps.callbackUrl,
       state,
-      access_type: 'offline',
-      prompt: 'consent',
       nonce: oidcNonce,
-      code_challenge: s256Challenge(codeVerifier),
-      code_challenge_method: 'S256',
+      codeChallenge: s256Challenge(codeVerifier),
     })
-
-    const url = `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`
 
     return { url }
   }
