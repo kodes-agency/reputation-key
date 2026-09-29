@@ -49,15 +49,19 @@ const mkRequest = (body: unknown, auth: string | null = 'Bearer valid-token') =>
     body: JSON.stringify(body),
   })
 
+// The exact shape Google's My Business Notifications API publishes, captured
+// from the beta's topic on 2026-09-29: no attributes, `location` and `review`
+// resource names, and the kind in `type`. The webhook had required
+// `locationName`/`reviewName`, so every real push was answered 400.
 const VALID_PAYLOAD = Object.freeze({
-  locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
-  reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+  type: 'NEW_REVIEW',
+  location: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+  review: GOOGLE_REVIEW_PRIMARY_RESOURCE,
 })
 const validBody = Object.freeze({
   message: {
     data: encodePayload(VALID_PAYLOAD),
     messageId: 'm-1',
-    attributes: { notificationType: 'NEW_REVIEW' },
   },
 })
 
@@ -137,13 +141,13 @@ describe('POST /api/webhooks/gbp/notifications', () => {
     },
   )
 
-  it('rejects a review resource whose embedded location differs from locationName', async () => {
+  it('rejects a review resource whose embedded location differs from location', async () => {
     const response = await handleGbpWebhookPost(
       mkRequest({
         message: {
           data: encodePayload({
             ...VALID_PAYLOAD,
-            reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE.replace(
+            review: GOOGLE_REVIEW_PRIMARY_RESOURCE.replace(
               `/locations/${LOCATION_ID}/`,
               '/locations/different-location/',
             ),
@@ -161,12 +165,39 @@ describe('POST /api/webhooks/gbp/notifications', () => {
       mkRequest({
         message: {
           ...validBody.message,
-          attributes: { notificationType: 'NEW_QUESTION' },
+          data: encodePayload({ ...VALID_PAYLOAD, type: 'NEW_QUESTION' }),
         },
       }),
     )
     expect(response.status).toBe(400)
   })
+
+  it.each(['NEW_REVIEW', 'UPDATED_REVIEW'] as const)(
+    "accepts Google's own %s payload exactly as it publishes it",
+    async (type) => {
+      const response = await handleGbpWebhookPost(
+        mkRequest({
+          message: {
+            data: encodePayload({
+              type,
+              location: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+              review: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+            }),
+            messageId: `m-google-${type}`,
+          },
+        }),
+      )
+      expect(response.status).toBe(200)
+      expect(mocks.handleGbpNotification).toHaveBeenCalledWith(
+        expect.objectContaining({
+          notificationKind: type,
+          locationId: LOCATION_ID,
+          locationName: GOOGLE_LOCATION_PRIMARY_RESOURCE,
+          reviewName: GOOGLE_REVIEW_PRIMARY_RESOURCE,
+        }),
+      )
+    },
+  )
 
   it('durably delegates canonical review identifiers and acknowledges only afterward', async () => {
     const response = await handleGbpWebhookPost(mkRequest(validBody))
@@ -187,8 +218,9 @@ describe('POST /api/webhooks/gbp/notifications', () => {
   })
 
   it('uses the honest combined kind when Google omits a kind field', async () => {
+    const { type: _omitted, ...withoutKind } = VALID_PAYLOAD
     await handleGbpWebhookPost(
-      mkRequest({ message: { data: encodePayload(VALID_PAYLOAD), messageId: 'm-2' } }),
+      mkRequest({ message: { data: encodePayload(withoutKind), messageId: 'm-2' } }),
     )
     expect(mocks.handleGbpNotification).toHaveBeenCalledWith(
       expect.objectContaining({ notificationKind: 'REVIEW_CHANGED' }),
