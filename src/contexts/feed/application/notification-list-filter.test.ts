@@ -6,6 +6,8 @@ describe('notification list filters', () => {
   it('keeps feed-state filters ahead of every governed category without duplicates', () => {
     expect(NOTIFICATION_LIST_FILTERS).toEqual([
       'all',
+      'needs_you',
+      'updates',
       'unread',
       'urgent',
       ...GOVERNING_NOTIFICATION_CATEGORIES,

@@ -16,6 +16,12 @@ import { Inbox } from 'lucide-react'
 import { EmptyState } from '#/components/ui/empty-state'
 import { Skeleton } from '#/components/ui/skeleton'
 import { NotificationRow } from './notification-row'
+import { NotificationStackRow } from './notification-stack-row'
+import {
+  entryId,
+  stackNotifications,
+  type NotificationEntry,
+} from './notification-stacks'
 import type { NotificationGroup } from './notification-filters'
 import type { NotificationFormat } from './notification-utils'
 import type { NotificationRowActions } from './types'
@@ -42,8 +48,14 @@ export type NotificationListBodyProps = Readonly<{
   emptyTitle?: string
   /** Group-label heading level. The popover nests under an h2, the page under an h1. */
   headingLevel?: 2 | 3
-  /** False where the group headings already name each Property (the page). */
+  /** False where the group headings already name each Property. */
   showProperty?: boolean
+  /** Fold same-kind arrivals at one Property into one row ("3 new reviews"). */
+  stack?: boolean
+  /** An empty list as one quiet line, for a section of the bell. */
+  compactEmpty?: boolean
+  /** The list group's name, told apart from the other list beside it. */
+  listLabel?: string
   /** The focusable list group, for a caller that must hand focus to the list. */
   listRef?: RefObject<HTMLDivElement | null>
 }>
@@ -65,18 +77,29 @@ function NotificationLoadingState() {
   )
 }
 
+/** The rows of a group as the list shows them: stacked where asked. */
+const entriesOf = (
+  group: NotificationGroup,
+  stack: boolean,
+): ReadonlyArray<NotificationEntry> =>
+  stack
+    ? stackNotifications(group.notifications)
+    : group.notifications.map((notification) => ({ kind: 'row' as const, notification }))
+
 function NotificationSection({
   group,
   actions,
   format,
   headingLevel,
   showProperty,
+  stack,
 }: Readonly<{
   group: NotificationGroup
   actions: NotificationRowActions
   format: NotificationFormat | undefined
   headingLevel: 2 | 3
   showProperty: boolean
+  stack: boolean
 }>) {
   const Heading = headingLevel === 2 ? 'h2' : 'h3'
   return (
@@ -88,15 +111,25 @@ function NotificationSection({
         {group.label}
       </Heading>
       <ul className="flex flex-col">
-        {group.notifications.map((notification) => (
-          <NotificationRow
-            key={notification.id}
-            notification={notification}
-            actions={actions}
-            format={format}
-            showProperty={showProperty}
-          />
-        ))}
+        {entriesOf(group, stack).map((entry) =>
+          entry.kind === 'row' ? (
+            <NotificationRow
+              key={entry.notification.id}
+              notification={entry.notification}
+              actions={actions}
+              format={format}
+              showProperty={showProperty}
+            />
+          ) : (
+            <NotificationStackRow
+              key={entry.key}
+              notifications={entry.notifications}
+              actions={actions}
+              format={format}
+              showProperty={showProperty}
+            />
+          ),
+        )}
       </ul>
     </section>
   )
@@ -105,7 +138,10 @@ function NotificationSection({
 export function NotificationListBody(props: NotificationListBodyProps) {
   const ownRef = useRef<HTMLDivElement>(null)
   const listRef = props.listRef ?? ownRef
-  const rowIds = props.groups.flatMap((group) => group.notifications.map((row) => row.id))
+  // A stack is one row to focus: it answers to its newest member's id.
+  const rowIds = props.groups.flatMap((group) =>
+    entriesOf(group, props.stack ?? false).map(entryId),
+  )
   const focusRecovery = useNotificationFocusRecovery(listRef, rowIds)
 
   // Focus lands here when the bell opens, after "Mark all read", and when the
@@ -116,7 +152,7 @@ export function NotificationListBody(props: NotificationListBodyProps) {
     <div
       ref={listRef}
       role="group"
-      aria-label="Notification list"
+      aria-label={props.listLabel ?? 'Notification list'}
       tabIndex={-1}
       data-notification-list=""
       className="rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset"
@@ -134,9 +170,13 @@ function NotificationListState(props: NotificationListBodyProps): ReactNode {
   }
   if (props.isLoading) return <NotificationLoadingState />
   if (!hasRows) {
+    const title = props.emptyTitle ?? "You're all caught up"
+    if (props.compactEmpty) {
+      return <p className="px-3 py-3 text-sm text-muted-foreground">{title}</p>
+    }
     return (
       <div className="px-3 py-6">
-        <EmptyState icon={Inbox} title={props.emptyTitle ?? "You're all caught up"} />
+        <EmptyState icon={Inbox} title={title} />
       </div>
     )
   }
@@ -154,6 +194,7 @@ function NotificationListState(props: NotificationListBodyProps): ReactNode {
           format={props.format}
           headingLevel={props.headingLevel ?? 3}
           showProperty={props.showProperty ?? true}
+          stack={props.stack ?? false}
         />
       ))}
       {props.hasMore && (

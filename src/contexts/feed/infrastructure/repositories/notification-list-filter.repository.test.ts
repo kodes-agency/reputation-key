@@ -166,6 +166,53 @@ describe.sequential('notification list filters (real PostgreSQL)', () => {
     ])
   })
 
+  // The bell's two sections: work still waiting on the reader, and the rest.
+  it('splits the feed into what needs the reader and everything else', async () => {
+    // Unread, but news: a published reply asks nothing of anyone.
+    await insertNotification({
+      id: '82000000-0000-4000-8000-000000000007',
+      type: 'reply.published',
+      category: 'workflow_collaboration',
+      status: 'unread',
+      createdAt: '2026-08-25T10:00:00Z',
+    })
+    // Waiting work that was finished upstream has stopped asking.
+    await insertNotification({
+      id: '82000000-0000-4000-8000-000000000008',
+      status: 'unread',
+      createdAt: '2026-08-25T09:59:00Z',
+    })
+    await pool.query(`UPDATE notifications SET resolved_at = NOW() WHERE id = $1`, [
+      '82000000-0000-4000-8000-000000000008',
+    ])
+    const repo = createNotificationRepository(getDb())
+    const firstPage = {
+      userId: USER,
+      organizationId: ORG_A,
+      visiblePropertyIds: null,
+      limit: 10,
+      before: null,
+    }
+
+    const needsYou = await repo.readFeedPage({ ...firstPage, filter: 'needs_you' })
+    const updates = await repo.readFeedPage({ ...firstPage, filter: 'updates' })
+    const head = await repo.readFeedHead({ ...firstPage, filter: 'needs_you' })
+
+    expect(needsYou.notifications.map((row) => row.id)).toEqual([
+      '82000000-0000-4000-8000-000000000001',
+    ])
+    expect(updates.notifications.map((row) => row.id)).toEqual([
+      '82000000-0000-4000-8000-000000000002',
+      '82000000-0000-4000-8000-000000000003',
+      '82000000-0000-4000-8000-000000000004',
+      '82000000-0000-4000-8000-000000000007',
+      '82000000-0000-4000-8000-000000000008',
+    ])
+    // The badge counts only what needs the reader; the unread news does not.
+    expect(head.filterUnreadCount).toBe(1)
+    expect(head.unreadCount).toBe(2)
+  })
+
   it('returns the first page and exact unread count with one snapshot watermark', async () => {
     const head = await createNotificationRepository(getDb()).readFeedHead({
       userId: USER,

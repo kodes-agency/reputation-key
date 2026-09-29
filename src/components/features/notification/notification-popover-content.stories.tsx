@@ -1,13 +1,23 @@
-// Bell popover content: header actions, filter tabs, list body, and the
-// "View all notifications" foot link. Pure presentational; stories vary the
-// header affordances, the active filter and the body state.
+// Bell popover content: header actions, what needs the reader, Updates, and
+// the "View all notifications" foot link. It is handed the Needs-you rows (the
+// panel's polling head, which the badge counts) and reads Updates itself, so
+// stories vary the header affordances, each list's state, and the server the
+// Updates list reads from.
 import { useEffect, useRef, useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import { makeNotification, notificationFixtures } from './notification.stories.fixtures'
-import { groupByReadState, matchesNotificationFilter } from './notification-filters'
+import type { NotificationView } from '#/contexts/feed/application/public-api'
+import {
+  makeNotification,
+  makeNotificationFns,
+  makeStatefulNotificationFns,
+  notificationFixtures,
+} from './notification.stories.fixtures'
+import { needsReader } from './notification-filters'
 import { NotificationPopoverContent } from './notification-popover-content'
 import type { NotificationRowActions } from './types'
+
+const ORGANIZATION_ID = '22222222-2222-4222-8222-222222222222'
 
 const actions: NotificationRowActions = {
   onActivate: fn(),
@@ -15,11 +25,25 @@ const actions: NotificationRowActions = {
   onMarkUnread: fn(),
   onDismiss: fn(),
   onMuteCategory: fn(),
+  onMarkManyRead: fn(),
+  onDismissMany: fn(),
 }
 
 const noop = () => {}
-const onFilterChange = fn()
 const onMarkAllRead = fn()
+
+/** The Needs-you list as the panel hands it over: loaded, nothing more to load. */
+const needsYouList = (notifications: ReadonlyArray<NotificationView>) => ({
+  notifications,
+  isLoading: false,
+  isLoadingMore: false,
+  error: null,
+  hasMore: false,
+  onRetry: noop,
+  onLoadMore: noop,
+})
+
+const needsYouRows = notificationFixtures.filter(needsReader)
 
 const meta: Meta<typeof NotificationPopoverContent> = {
   title: 'Notification/NotificationPopoverContent',
@@ -27,19 +51,14 @@ const meta: Meta<typeof NotificationPopoverContent> = {
   tags: ['autodocs'],
   parameters: { layout: 'centered' },
   args: {
-    groups: groupByReadState(notificationFixtures),
-    isLoading: false,
-    isLoadingMore: false,
-    error: null,
-    hasMore: false,
-    filterUnreadCount: 3,
-    filter: 'all',
-    onFilterChange,
+    needsYou: needsYouList(needsYouRows),
+    unreadCount: needsYouRows.length,
     isMarkingAllRead: false,
-    onRetry: noop,
-    onLoadMore: noop,
     onMarkAllRead,
     actions,
+    // Where the body reads Updates from: the fixture feed, by filter.
+    notificationFns: makeStatefulNotificationFns(notificationFixtures),
+    organizationId: ORGANIZATION_ID,
   },
   decorators: [
     (Story) => (
@@ -52,19 +71,25 @@ const meta: Meta<typeof NotificationPopoverContent> = {
 export default meta
 type Story = StoryObj<typeof NotificationPopoverContent>
 
-/** "Mark all read" is offered only while the tab holds an unread row to mark. */
+/** "Mark all read" is offered only while something is unread to mark. */
 const expectNoMarkAllRead = (canvasElement: HTMLElement) =>
   expect(
     within(canvasElement).queryByRole('button', { name: /mark all read/i }),
   ).toBeNull()
 
+/** The Needs-you list: where focus goes when the body hands it on. */
+const needsYouListOf = (canvasElement: HTMLElement) =>
+  within(canvasElement).getByRole('group', { name: 'Needs you' })
+
 export const Default: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('heading', { name: 'Notifications' })).toBeInTheDocument()
-    expect(canvas.getByRole('heading', { name: 'New' })).toBeInTheDocument()
-    expect(canvas.getByRole('heading', { name: 'Earlier' })).toBeInTheDocument()
-    // The popover is no longer the whole surface — it links to the full page.
+    expect(canvas.getByRole('heading', { name: 'Needs you' })).toBeInTheDocument()
+    // Updates are read by the body itself: the read note arrives there.
+    const updates = await canvas.findByRole('region', { name: 'Updates' })
+    expect(within(updates).getAllByRole('listitem')).toHaveLength(1)
+    // The popover is not the whole surface — it links to the full page.
     expect(canvas.getByRole('link', { name: 'View all notifications' })).toHaveAttribute(
       'href',
       '/notifications',
@@ -73,64 +98,35 @@ export const Default: Story = {
   },
 }
 
-/**
- * Two tabs, the questions a reader asks: everything, or what still waits on
- * me. The Urgent tab and one tab per category wrapped onto a second line on a
- * phone and were mostly empty, so they went.
- */
-export const FilterTabs: Story = {
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    const tabs = canvas.getAllByRole('tab').map((tab) => tab.textContent)
-    expect(tabs).toEqual(['All', 'Unread'])
-    onFilterChange.mockClear()
-    await userEvent.click(canvas.getByRole('tab', { name: 'Unread' }))
-    expect(onFilterChange).toHaveBeenCalledWith('unread')
-  },
-}
-
-/** Unread filter applied: only the rows still waiting survive, all of them New. */
-export const UnreadFilterApplied: Story = {
-  args: {
-    filter: 'unread',
-    groups: groupByReadState(
-      notificationFixtures.filter((n) => matchesNotificationFilter(n, 'unread')),
-    ),
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    expect(canvas.getByRole('tab', { name: 'Unread' })).toHaveAttribute(
-      'aria-selected',
-      'true',
-    )
-    const rows = canvas.getAllByRole('listitem')
-    expect(rows).toHaveLength(3)
-    for (const row of rows) {
-      expect(row).toHaveAttribute('data-notification-state', 'unread')
-    }
-    expect(canvas.getByRole('heading', { name: 'New' })).toBeInTheDocument()
-    expect(canvas.queryByRole('heading', { name: 'Earlier' })).toBeNull()
-  },
-}
-
 export const Loading: Story = {
-  args: { isLoading: true, groups: [] },
+  args: { needsYou: { ...needsYouList([]), isLoading: true } },
 }
 
 export const ErrorState: Story = {
-  args: { groups: [], error: new Error('Notifications service unavailable') },
+  args: {
+    needsYou: {
+      ...needsYouList([]),
+      error: new Error('Notifications service unavailable'),
+    },
+  },
   play: async ({ canvasElement }) => {
     expect(
-      within(canvasElement).getByRole('button', { name: /retry/i }),
+      within(needsYouListOf(canvasElement)!).getByRole('button', { name: /retry/i }),
     ).toBeInTheDocument()
   },
 }
 
+/** Nothing at all: each list is one quiet line, and nothing is offered to mark. */
 export const Empty: Story = {
-  args: { groups: [], filterUnreadCount: 0 },
+  args: {
+    needsYou: needsYouList([]),
+    unreadCount: 0,
+    notificationFns: makeNotificationFns(),
+  },
   play: async ({ canvasElement }) => {
-    expect(within(canvasElement).getByText(/nothing here right now/i)).toBeInTheDocument()
-    // Bulk actions are hidden when there is nothing to act on.
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Nothing needs you right now')).toBeInTheDocument()
+    expect(await canvas.findByText('No updates yet')).toBeInTheDocument()
     expectNoMarkAllRead(canvasElement)
   },
 }
@@ -144,15 +140,15 @@ export const MarkingAllRead: Story = {
 }
 
 /**
- * The tab lists rows, but none of them still waits on the reader — one is
+ * The bell lists rows, but none of them still waits on the reader — one is
  * read, one was settled upstream: "Mark all read" would change nothing a
  * reader can see, so it is not offered.
  */
-export const NothingUnreadOnThisTab: Story = {
+export const NothingUnreadNothingToMark: Story = {
   args: {
-    filter: 'all',
-    filterUnreadCount: 0,
-    groups: groupByReadState([
+    needsYou: needsYouList([]),
+    unreadCount: 0,
+    notificationFns: makeStatefulNotificationFns([
       makeNotification({
         id: '10000000-0000-4000-8000-000000000080',
         type: 'inbox_note.added',
@@ -167,14 +163,17 @@ export const NothingUnreadOnThisTab: Story = {
     ]),
   },
   play: async ({ canvasElement }) => {
-    expect(within(canvasElement).getAllByRole('listitem')).toHaveLength(2)
+    const canvas = within(canvasElement)
+    const updates = await canvas.findByRole('region', { name: 'Updates' })
+    expect(within(updates).getAllByRole('listitem')).toHaveLength(2)
+    expect(canvas.getByText('Nothing needs you right now')).toBeInTheDocument()
     expectNoMarkAllRead(canvasElement)
   },
 }
 
 /**
  * "Mark all read" leaves once its rows are read, so it hands focus to the
- * list it changed rather than to <body> outside the non-modal popover.
+ * Needs-you list rather than to <body> outside the non-modal popover.
  */
 export const MarkAllReadHandsFocusToTheList: Story = {
   play: async ({ canvasElement }) => {
@@ -183,14 +182,15 @@ export const MarkAllReadHandsFocusToTheList: Story = {
     canvas.getByRole('button', { name: /mark all read/i }).focus()
     await userEvent.keyboard('{Enter}')
     expect(onMarkAllRead).toHaveBeenCalledTimes(1)
-    expect(canvas.getByRole('group', { name: 'Notification list' })).toHaveFocus()
+    expect(needsYouListOf(canvasElement)).toHaveFocus()
   },
 }
 
 /**
  * The popover opens at once, and its body's chunk can arrive after it: the
- * popover holds focus meanwhile. When the body mounts, the list takes that
- * focus over, so the first key press lands on the list, not on a button.
+ * popover holds focus meanwhile. When the body mounts, the Needs-you list
+ * takes that focus over, so the first key press lands on a list, not on a
+ * button.
  */
 function LateBody(props: Parameters<typeof NotificationPopoverContent>[0]) {
   const popover = useRef<HTMLDivElement>(null)
@@ -212,7 +212,7 @@ export const TakesOverFocusTheLoadingPopoverHeld: Story = {
   render: (args) => <LateBody {...args} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const list = await canvas.findByRole('group', { name: 'Notification list' })
-    await waitFor(() => expect(list).toHaveFocus())
+    await canvas.findByRole('group', { name: 'Needs you' })
+    await waitFor(() => expect(needsYouListOf(canvasElement)).toHaveFocus())
   },
 }

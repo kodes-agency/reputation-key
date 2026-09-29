@@ -5,12 +5,10 @@
 // This route is the real one; the popover links here.
 
 import { createFileRoute, getRouteApi } from '@tanstack/react-router'
-import { useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import { NotificationPage } from '#/components/features/notification/notification-page'
 import { parseNotificationFilter } from '#/components/features/notification/notification-filters'
 import { notificationFns } from '#/routes/-notification-fns'
-import { propertiesQuery } from '#/routes/-queries/route-queries'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 
 const authRoute = getRouteApi('/_authenticated')
@@ -25,9 +23,6 @@ const notificationSearch = z.object({
 
 export const Route = createFileRoute('/_authenticated/notifications')({
   validateSearch: notificationSearch,
-  loader: async ({ context }) => {
-    await context.queryClient.ensureQueryData(propertiesQuery)
-  },
   staleTime: 30_000,
   component: NotificationsRoute,
 })
@@ -37,13 +32,11 @@ function NotificationsRoute() {
   const organizationId = context.activeOrganization?.id ?? 'no-active-organization'
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
-  const { data: properties } = useSuspenseQuery(propertiesQuery)
 
   return (
     <NotificationPage
       notificationFns={notificationFns}
       organizationId={organizationId}
-      properties={properties.properties}
       filter={parseNotificationFilter(search.filter)}
       onFilterChange={(filter) => {
         // Filter lives in the URL so a filtered view is linkable and survives

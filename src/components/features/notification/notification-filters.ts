@@ -1,15 +1,16 @@
 // Feed filtering + grouping. Pure functions over rows the server already sent.
 //
-// The bell and the page offer two tabs: All and Unread. They used to add
-// Urgent and one tab per category (Account, Action, Workflow, Goals), which
-// wrapped onto a second line in the popover and on a phone, exposed the
-// internal category list rather than a question a reader asks, and were
-// mostly empty: Account and Goals rarely hold anything, and Urgent overlapped
-// Action. The server still answers every `NotificationListFilter`, so "Mark all
-// read" and an old bookmarked filter keep their meaning; an unknown or retired
-// filter in the URL falls back to All.
+// The feed is read the way the owner chose (docs/design/notifications, D1):
+// what still waits on the reader first — "Needs you" — then everything else,
+// "Updates". The bell shows both, one above the other; the page offers them as
+// tabs beside All. Earlier tabs (Unread, Urgent, one per category) wrapped onto
+// a second line, exposed the internal category list, and were mostly empty.
+// The server still answers every `NotificationListFilter`, so "Mark all read"
+// and an old bookmarked filter keep their meaning; an unknown or retired
+// filter in the URL opens Needs you.
 
 import {
+  isActionableNotificationType,
   isStillWaiting,
   type NotificationView,
   type NotificationListFilter,
@@ -28,26 +29,36 @@ export type NotificationFilterOption = Readonly<{
 }>
 
 export const NOTIFICATION_FILTERS: ReadonlyArray<NotificationFilterOption> = [
+  { value: 'needs_you', label: 'Needs you' },
+  { value: 'updates', label: 'Updates' },
   { value: 'all', label: 'All' },
-  { value: 'unread', label: 'Unread' },
 ]
 
 const VALID_FILTERS: Readonly<Record<string, true>> = Object.fromEntries(
   NOTIFICATION_FILTERS.map((option) => [option.value, true]),
 )
 
-/** Coerces an untrusted search param to a filter, defaulting to `'all'`. */
+/** Coerces an untrusted search param to a tab, defaulting to Needs you. */
 export function parseNotificationFilter(value: unknown): NotificationFilter {
   return typeof value === 'string' && VALID_FILTERS[value] === true
     ? (value as NotificationFilter)
-    : 'all'
+    : 'needs_you'
 }
+
+/**
+ * Work still waiting on its reader: an actionable notice, unread and unsettled.
+ * The same rule as the server's `needs_you` filter, which the badge counts (D2).
+ */
+export const needsReader = (notification: NotificationView): boolean =>
+  isStillWaiting(notification) && isActionableNotificationType(notification.type)
 
 /**
  * What a filter tab holds, as a sentence subject: "Mark all read" on that tab
  * changes exactly these, and its announcement says which.
  */
 export function notificationFilterScope(filter: NotificationFilter): string {
+  if (filter === 'needs_you') return 'Notifications that need you'
+  if (filter === 'updates') return 'Updates'
   if (filter === 'all' || filter === 'unread') return 'All notifications'
   if (filter === 'urgent') return 'Urgent notifications'
   return `${CATEGORY_COPY[filter].label} notifications`
@@ -60,6 +71,10 @@ export function matchesNotificationFilter(
   switch (filter) {
     case 'all':
       return true
+    case 'needs_you':
+      return needsReader(notification)
+    case 'updates':
+      return !needsReader(notification)
     case 'unread':
       return isStillWaiting(notification)
     case 'urgent':
@@ -69,7 +84,7 @@ export function matchesNotificationFilter(
   }
 }
 
-// ── Grouping ────────────────────────────────────────────────────────
+// ── Order and grouping ──────────────────────────────────────────────
 
 export type NotificationGroup = Readonly<{
   key: string
@@ -77,72 +92,70 @@ export type NotificationGroup = Readonly<{
   notifications: ReadonlyArray<NotificationView>
 }>
 
-/**
- * Popover grouping: what still needs attention, then everything else. A
- * settled row is still unread but asks for nothing, so it is "Earlier".
- */
-export function groupByReadState(
-  notifications: ReadonlyArray<NotificationView>,
-): ReadonlyArray<NotificationGroup> {
-  const unread = notifications.filter(isStillWaiting)
-  const read = notifications.filter((n) => !isStillWaiting(n))
-  const groups: NotificationGroup[] = []
-  if (unread.length > 0) groups.push({ key: 'new', label: 'New', notifications: unread })
-  if (read.length > 0)
-    groups.push({ key: 'earlier', label: 'Earlier', notifications: read })
-  return groups
-}
+const isOnAClock = (notification: NotificationView): boolean =>
+  notification.priority === 'urgent' ||
+  notification.type === 'inbox.response_target_passed'
 
-// Rows with no Property belong to the Organization. Access and role notices
-// (mandatory) are the security group; the other Organization notices (a
-// disconnected Google account, a beta report's outcome, ADR 0059) are work,
-// and must not read as security.
-const ORGANIZATION_GROUP_LABELS: ReadonlyMap<string, string> = new Map([
-  ['organization-account-security', 'Account and security'],
-  ['organization', 'Organization'],
-])
-
-function groupKeyOf(notification: NotificationView): string {
-  if (notification.propertyId !== null) return notification.propertyId
-  return notification.category === 'mandatory'
-    ? 'organization-account-security'
-    : 'organization'
-}
+const stampOf = (notification: NotificationView): number =>
+  (notification.coalescedLatestAt ?? notification.createdAt).getTime()
 
 /**
- * Page grouping. The label resolves from the properties the route already
- * loaded, then from the row's own payload — never from `propertyId`, because a
- * UUID is not a group heading. Organization notices form their own stable
- * groups rather than inventing a Property.
+ * Needs you, most pressing first: what is on a clock (urgent, or past its
+ * Response Target), then the rest, each newest first. Stable for equal rows.
  */
-export function groupByProperty(
+export function byUrgency(
   notifications: ReadonlyArray<NotificationView>,
-  propertyNames: Readonly<Record<string, string>>,
-): ReadonlyArray<NotificationGroup> {
-  const order: string[] = []
-  const buckets = new Map<string, NotificationView[]>()
+): ReadonlyArray<NotificationView> {
+  return [...notifications].sort(
+    (a, b) => Number(isOnAClock(b)) - Number(isOnAClock(a)) || stampOf(b) - stampOf(a),
+  )
+}
 
-  for (const notification of notifications) {
-    const key = groupKeyOf(notification)
-    const bucket = buckets.get(key)
-    if (bucket) {
-      bucket.push(notification)
-      continue
-    }
-    order.push(key)
-    buckets.set(key, [notification])
+const DAY_MS = 86_400_000
+const dayFormatters = new Map<string, Intl.DateTimeFormat>()
+
+/** The calendar day an instant falls on, on the reader's own clock. */
+function dayOf(instant: number, timeZone: string): number {
+  let format = dayFormatters.get(timeZone)
+  if (format === undefined) {
+    format = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    })
+    dayFormatters.set(timeZone, format)
   }
+  return Date.parse(`${format.format(instant)}T00:00:00Z`) / DAY_MS
+}
 
-  return order.map((key) => {
-    const rows = buckets.get(key) ?? []
-    return {
-      key,
-      label:
-        ORGANIZATION_GROUP_LABELS.get(key) ??
-        propertyNames[key] ??
-        rows[0]?.payload.propertyName ??
-        'Unnamed property',
-      notifications: rows,
-    }
-  })
+const DAY_GROUPS = [
+  { key: 'today', label: 'Today', within: (days: number) => days <= 0 },
+  { key: 'yesterday', label: 'Yesterday', within: (days: number) => days === 1 },
+  { key: 'this-week', label: 'Earlier this week', within: (days: number) => days < 7 },
+  { key: 'older', label: 'Older', within: () => true },
+] as const
+
+/**
+ * Today / Yesterday / Earlier this week / Older, by the calendar day on the
+ * reader's clock — not by 24-hour spans, so 23:50 yesterday is "Yesterday".
+ * Rows keep the order they came in; empty groups are left out.
+ */
+export function groupByDay(
+  notifications: ReadonlyArray<NotificationView>,
+  timeZone: string,
+  now: Date = new Date(),
+): ReadonlyArray<NotificationGroup> {
+  const today = dayOf(now.getTime(), timeZone)
+  const buckets = DAY_GROUPS.map(() => [] as NotificationView[])
+  for (const notification of notifications) {
+    const days = today - dayOf(stampOf(notification), timeZone)
+    const at = DAY_GROUPS.findIndex((group) => group.within(days))
+    buckets[at]!.push(notification)
+  }
+  return DAY_GROUPS.flatMap((group, index) =>
+    buckets[index]!.length === 0
+      ? []
+      : [{ key: group.key, label: group.label, notifications: buckets[index]! }],
+  )
 }

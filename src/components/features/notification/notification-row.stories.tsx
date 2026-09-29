@@ -27,6 +27,8 @@ const actions: NotificationRowActions = {
   onMarkUnread: fn(),
   onDismiss: fn(),
   onMuteCategory: fn(),
+  onMarkManyRead: fn(),
+  onDismissMany: fn(),
 }
 
 const meta: Meta<typeof NotificationRow> = {

@@ -42,21 +42,24 @@ for (const viewport of VIEWPORTS) {
     expect(popover.x + popover.width, 'right edge').toBeLessThanOrEqual(viewport.width)
     expect(popover.y + popover.height, 'bottom edge').toBeLessThanOrEqual(viewport.height)
 
-    // The two filter tabs (All, Unread) share one line, even at 320 px, and
-    // the list starts below them. Six tabs used to wrap onto a second line.
-    const tabs = await boxOf(layer.getByRole('tablist', { name: 'Filter notifications' }))
-    const tabBoxes = await Promise.all((await layer.getByRole('tab').all()).map(boxOf))
-    expect(tabBoxes).toHaveLength(2)
-    for (const tab of tabBoxes) {
-      expect(
-        Math.abs(tab.y - tabBoxes[0]!.y),
-        'a filter tab off the first line',
-      ).toBeLessThan(1)
-      expect(tab.y + tab.height, 'a filter tab').toBeLessThanOrEqual(tabs.y + tabs.height)
-      expect(tab.x + tab.width, 'a filter tab').toBeLessThanOrEqual(viewport.width)
+    // No tabs any more: the header, then Needs you, then Updates, one below
+    // the other and none under another. Updates may sit below the fold of the
+    // lists' own scroll, so only its order is measured, not its visibility.
+    await expect(layer.getByRole('tablist')).toHaveCount(0)
+    const header = await boxOf(layer.getByRole('heading', { name: 'Notifications' }))
+    const needsYou = await boxOf(layer.getByRole('heading', { name: 'Needs you' }))
+    const updates = await boxOf(layer.getByRole('heading', { name: 'Updates' }))
+    expect(header.y + header.height, 'the header').toBeLessThanOrEqual(needsYou.y)
+    expect(needsYou.y + needsYou.height, 'Needs you').toBeLessThanOrEqual(updates.y)
+    for (const [section, box] of [
+      ['Needs you', needsYou],
+      ['Updates', updates],
+    ] as const) {
+      expect(box.x, `the ${section} heading`).toBeGreaterThanOrEqual(popover.x)
+      expect(box.x + box.width, `the ${section} heading`).toBeLessThanOrEqual(
+        popover.x + popover.width,
+      )
     }
-    const firstGroup = await boxOf(layer.getByRole('heading', { name: 'New' }))
-    expect(tabs.y + tabs.height, 'the filter tabs').toBeLessThanOrEqual(firstGroup.y)
 
     // Each row's last control, its menu button, is on screen: nothing is cut
     // off at the side. It is transparent until the row is hovered or focused,
@@ -164,7 +167,7 @@ for (const theme of ['dark', 'light'] as const) {
 //
 // Radix used to focus "Mark all read" on open, and after a pointer open no ring
 // showed it, so one stray Space marked everything read. Focus now starts on the
-// notification list. A keyboard open must SHOW it there: `:focus-visible`
+// Needs-you list. A keyboard open must SHOW it there: `:focus-visible`
 // follows real key presses, which the Vitest story runner cannot send, and the
 // ring is a compiled Tailwind class the runner does not have.
 
@@ -179,7 +182,10 @@ test('a keyboard open puts visible focus on the list, not on "Mark all read"', a
   await expect(page.getByRole('dialog', { name: 'Notifications' })).toHaveCount(0)
   await page.keyboard.press('Enter')
 
-  const list = page.locator('[data-slot="popover-content"] [data-notification-list]')
+  // The first list, Needs you; Updates is the second.
+  const list = page
+    .locator('[data-slot="popover-content"] [data-notification-list]')
+    .first()
   await expect(list).toBeFocused()
   expect(await list.evaluate((element) => element.matches(':focus-visible'))).toBe(true)
   expect(await list.evaluate((element) => getComputedStyle(element).boxShadow)).not.toBe(

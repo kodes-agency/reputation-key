@@ -14,6 +14,7 @@
 import {
   classifyNotification,
   isStillWaiting,
+  type NotificationCategory,
   type NotificationFeedCursor,
   type NotificationFeedHead,
   type NotificationListFilter,
@@ -35,6 +36,12 @@ export type NotificationFixtureOverrides = Readonly<{
   /** `null` for an Organization-scoped notice (mandatory, or ADR 0059). */
   propertyId?: string | null
   type?: NotificationType
+  /**
+   * The category a row was stored with. The type decides it at creation
+   * (`classifyNotification`); a story overrides it only to prove what a
+   * different category changes, such as whether two rows stack.
+   */
+  category?: NotificationCategory
   priority?: NotificationPriority
   status?: NotificationStatus
   resourceType?: NotificationResourceType
@@ -64,7 +71,7 @@ export function makeNotification(
         ? null
         : propertyId(overrides.propertyId ?? '33333333-3333-4333-8333-333333333333'),
     type,
-    category: classifyNotification(type),
+    category: overrides.category ?? classifyNotification(type),
     priority: overrides.priority ?? 'normal',
     status,
     resourceType: overrides.resourceType ?? 'inbox_item',
@@ -146,14 +153,6 @@ export const longPropertyNameNotification: NotificationView = makeNotification({
     platform: 'google',
   },
 })
-
-/** Property list the /notifications page uses to resolve group headings. */
-export const notificationPropertyFixtures: ReadonlyArray<
-  Readonly<{ id: string; name: string }>
-> = [
-  { id: RIVERSIDE, name: 'Riverside Hotel' },
-  { id: HARBOUR, name: 'Harbour View Suites' },
-]
 
 export const notificationUserSettingsFixture = {
   userId: userId('11111111-1111-4111-8111-111111111111'),

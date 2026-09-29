@@ -1,8 +1,10 @@
 // The full notification surface at /notifications.
 //
-// The bell popover is a quick view; this is the history: every filter, rows
-// grouped per property, and bulk actions that are too destructive to sit in a
-// popover header alone.
+// The bell popover is a quick view; this is the history, read the way the bell
+// is (docs/design/notifications, D1): Needs you, most pressing first; Updates
+// and All by day, on the reader's clock. One 768 px column, rows naming their
+// Property, same-kind arrivals stacked, and the bulk actions that are too
+// destructive to sit in a popover header alone.
 //
 // Honest scope note: the server excludes DISMISSED rows and rows whose category
 // the user opted out of in-app, so "all" means every notification still
@@ -31,16 +33,20 @@ import { useNotificationMutations } from './notification-mutations'
 import { NotificationAnnouncer, useNotificationAnnouncer } from './notification-announcer'
 import { NotificationFilterTabs } from './notification-filter-tabs'
 import { NotificationListBody } from './notification-list-body'
-import { groupByProperty, type NotificationFilter } from './notification-filters'
+import { byUrgency, groupByDay, type NotificationFilter } from './notification-filters'
 import type { NotificationRowActions, NotificationServerFns } from './types'
 
 const PAGE_SIZE = 50
 
+const EMPTY_TITLES: Partial<Record<NotificationFilter, string>> = {
+  needs_you: 'Nothing needs you right now',
+  updates: 'No updates yet',
+  all: "You're all caught up",
+}
+
 type Props = Readonly<{
   notificationFns: NotificationServerFns
   organizationId: string
-  /** Supplies group headings, so a property never appears as a bare UUID. */
-  properties: ReadonlyArray<Readonly<{ id: string; name: string }>>
   filter: NotificationFilter
   onFilterChange: (filter: NotificationFilter) => void
 }>
@@ -48,7 +54,6 @@ type Props = Readonly<{
 export function NotificationPage({
   notificationFns,
   organizationId,
-  properties,
   filter,
   onFilterChange,
 }: Props) {
@@ -66,13 +71,21 @@ export function NotificationPage({
   const format = useNotificationFormat(notificationFns.getUserSettings, organizationId)
   const mutations = useNotificationMutations(notificationFns, organizationId, announce)
 
-  const propertyNames = useMemo(
-    () => Object.fromEntries(properties.map((property) => [property.id, property.name])),
-    [properties],
-  )
+  // Needs you is one list, most pressing first; the others read by day.
   const groups = useMemo(
-    () => groupByProperty(list.notifications, propertyNames),
-    [list.notifications, propertyNames],
+    () =>
+      filter === 'needs_you'
+        ? list.notifications.length === 0
+          ? []
+          : [
+              {
+                key: 'needs-you',
+                label: 'Most pressing first',
+                notifications: byUrgency(list.notifications),
+              },
+            ]
+        : groupByDay(list.notifications, format.timeZone),
+    [filter, list.notifications, format.timeZone],
   )
 
   // Offered while the active tab holds unread rows, and it marks only those:
@@ -94,10 +107,10 @@ export function NotificationPage({
   }
 
   return (
-    <PageShell>
+    <PageShell tier="narrow">
       <PageHeader
         title="Notifications"
-        description="Everything still addressed to you, newest first. Dismissed items and muted categories are not listed."
+        description="What needs you comes first. Dismissed notifications and categories you muted are not listed."
         actions={
           <div className="flex flex-wrap items-center gap-2">
             {offersMarkAllRead && (
@@ -111,7 +124,9 @@ export function NotificationPage({
                 <Button
                   variant="outline"
                   size="sm"
-                  disabled={mutations.isDismissingAll || list.notifications.length === 0}
+                  // It dismisses every notification, not this tab's, so an
+                  // empty tab (Needs you, most mornings) does not disable it.
+                  disabled={mutations.isDismissingAll}
                 >
                   <Trash2 aria-hidden="true" />
                   Dismiss all
@@ -121,9 +136,8 @@ export function NotificationPage({
                 onCloseAutoFocus={(event) => {
                   if (!dismissAllConfirmed.current) return
                   dismissAllConfirmed.current = false
-                  // "Dismiss all" is disabled once nothing is left, so the
-                  // dialog cannot hand focus back to it; the emptied list
-                  // takes it instead of <body>.
+                  // Focus goes to the emptied list — what the action changed —
+                  // rather than back to the button, and never to <body>.
                   event.preventDefault()
                   listRef.current?.focus()
                 }}
@@ -171,13 +185,9 @@ export function NotificationPage({
           actions={actions}
           format={format}
           headingLevel={2}
-          showProperty={false}
+          stack
           listRef={listRef}
-          emptyTitle={
-            filter === 'all'
-              ? "You're all caught up"
-              : 'Nothing matches this filter right now'
-          }
+          emptyTitle={EMPTY_TITLES[filter] ?? 'Nothing here right now'}
         />
       </NotificationFilterTabs>
     </PageShell>
