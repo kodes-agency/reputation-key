@@ -373,7 +373,7 @@ export const createReviewResponseTargetAuthority = (
     expectation: ReviewResponseTargetExpectation,
     apply: (permit: ReviewCurrentResponseTargetPermit) => Promise<T>,
   ) =>
-    runWithReviewExactCurrentApplyAdmission(() =>
+    runWithReviewExactCurrentApplyAdmission(db, () =>
       db.transaction(async (tx) => {
         const permit = await readCurrentPermit(tx, expectation)
         if (!permit) return { status: 'obsolete' as const }
@@ -400,7 +400,7 @@ export const createReviewResponseTargetAuthority = (
     if (new Set(ordered.map((entry) => entry.reviewId)).size !== ordered.length) {
       throw new TypeError('Review Response Target authority batch contains duplicates')
     }
-    return runWithReviewExactCurrentApplyAdmission(() =>
+    return runWithReviewExactCurrentApplyAdmission(db, () =>
       db.transaction(async (tx) => {
         const permits: ReviewCurrentResponseTargetPermit[] = []
         for (const expectation of ordered) {
@@ -416,7 +416,7 @@ export const createReviewResponseTargetAuthority = (
     expectation: ReviewInboxProjectionExpectation,
     apply: (permit: ReviewCurrentInboxProjectionPermit) => Promise<T>,
   ) =>
-    runWithReviewExactCurrentApplyAdmission(() =>
+    runWithReviewExactCurrentApplyAdmission(db, () =>
       db.transaction(async (tx) => {
         const permit = await readInboxProjectionPermit(tx, expectation)
         if (!permit) return { status: 'obsolete' as const }

@@ -1,5 +1,10 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
-import { isTransientConnectionError, getPool, closePool } from './pool'
+import {
+  closePool,
+  configurePoolMaxConnections,
+  getPool,
+  isTransientConnectionError,
+} from './pool'
 
 vi.mock('pg', () => {
   class FakePool {
@@ -47,9 +52,11 @@ function setNextConnect(implementation: (() => Promise<unknown>) | null): void {
 }
 
 const POOL_KEY = Symbol.for('repkey.shared.db.pool')
+const POOL_MAX_KEY = Symbol.for('repkey.shared.db.pool.max')
 
 function clearStore(): void {
   delete (globalThis as Record<symbol, unknown>)[POOL_KEY]
+  delete (globalThis as Record<symbol, unknown>)[POOL_MAX_KEY]
 }
 
 beforeEach(() => {
@@ -213,5 +220,47 @@ describe('getPool / closePool (BQC-7.1)', () => {
   it('closePool no-ops when no pool was ever created', async () => {
     await expect(closePool()).resolves.toBeUndefined()
     expect(fakePools()).toHaveLength(0)
+  })
+})
+
+// The worker sizes its pool from every queue's concurrency before first use
+// (src/worker/pool-budget.ts); web keeps the default.
+describe('configurePoolMaxConnections', () => {
+  it('sizes the pool created after it', () => {
+    configurePoolMaxConnections(49)
+
+    getPool()
+
+    expect(fakePools().map((pool) => pool.options.max)).toEqual([49])
+  })
+
+  it('refuses to resize a pool that already exists', () => {
+    getPool()
+
+    expect(() => configurePoolMaxConnections(49)).toThrow(
+      /pool already exists with 10 connections/,
+    )
+  })
+
+  it('accepts the size the existing pool already has', () => {
+    getPool()
+
+    expect(() => configurePoolMaxConnections(10)).not.toThrow()
+  })
+
+  it('rejects a size that is not a positive integer', () => {
+    for (const size of [0, -1, 1.5, Number.NaN]) {
+      expect(() => configurePoolMaxConnections(size)).toThrow(/positive integer/)
+    }
+  })
+
+  it('keeps the configured size when the pool is recreated after closePool', async () => {
+    configurePoolMaxConnections(49)
+    getPool()
+    await closePool()
+
+    getPool()
+
+    expect(fakePools().map((pool) => pool.options.max)).toEqual([49, 49])
   })
 })

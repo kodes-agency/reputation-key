@@ -28,7 +28,7 @@ export const createReviewSourceTransitionAuthority = (
     expectation: ReviewSourceTransitionExpectation,
     apply: (permit: ReviewCurrentSourceTransitionPermit) => Promise<T>,
   ) =>
-    runWithReviewExactCurrentApplyAdmission(() =>
+    runWithReviewExactCurrentApplyAdmission(db, () =>
       db.transaction(async (tx) => {
         const scopeCurrent = await lockReviewSourceMutationScope(tx, {
           organizationId: organizationId(expectation.organizationId),

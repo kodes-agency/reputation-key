@@ -215,7 +215,7 @@ export const createReviewReplyObservationAuthority = (
     expectation: ReviewReplyObservationExpectation,
     apply: (permit: ReviewCurrentReplyObservationPermit) => Promise<T>,
   ) =>
-    runWithReviewExactCurrentApplyAdmission(() =>
+    runWithReviewExactCurrentApplyAdmission(db, () =>
       db.transaction(async (tx) => {
         await lockReplyTruthScope(
           tx,

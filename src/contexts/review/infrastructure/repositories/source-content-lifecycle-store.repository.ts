@@ -752,7 +752,9 @@ export const createReviewSourceContentLifecycleStore = (
                 .from(properties)
                 .where(inArray(properties.id, propertyIds))
                 .orderBy(asc(properties.id))
-                .for('update')
+                // The source fence, in bulk: read-only, so it does not block
+                // foreign-key checks (see lockReviewSourceMutationScope).
+                .for('no key update')
         const propertyEpochs = new Map(
           lockedProperties.map((row) => [
             `${row.organizationId}\0${row.id}`,

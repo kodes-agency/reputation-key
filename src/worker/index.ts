@@ -13,6 +13,7 @@ import { runCapabilityBootGuard } from '#/shared/auth/capability-boot-guard'
 import { assertProductionSecrets } from '#/shared/config/production-secrets'
 import { assertReleaseIdentity } from '#/shared/config/release-identity'
 import { getDb } from '#/shared/db'
+import { configurePoolMaxConnections } from '#/shared/db/pool'
 import { assertRecoveryCutoverAttestation } from '#/shared/config/recovery-cutover-attestation'
 import { createRecoveryCutoverRunReader } from '#/shared/db/recovery/recovery-cutover-run-reader'
 import {
@@ -53,6 +54,7 @@ import {
   createJobRuntimeReportReader,
 } from '#/shared/jobs/runtime-observations'
 import { drainWorkerResources, namedCloseable } from './drain'
+import { WORKER_POOL_MAX_CONNECTIONS } from './pool-budget'
 import {
   createWorkerProcessFailurePolicy,
   type WorkerTerminationTrigger,
@@ -73,8 +75,18 @@ async function main() {
   assertReleaseIdentity(env)
   const logger = getLogger()
   initObservability('worker')
+  // Before anything opens the pool: every queue's concurrency is budgeted
+  // against it (./pool-budget), web's smaller default is not enough.
+  configurePoolMaxConnections(WORKER_POOL_MAX_CONNECTIONS)
 
-  logger.info({ env: env.NODE_ENV, releaseSha: getReleaseSha(env) }, 'Worker starting')
+  logger.info(
+    {
+      env: env.NODE_ENV,
+      releaseSha: getReleaseSha(env),
+      poolMaxConnections: WORKER_POOL_MAX_CONNECTIONS,
+    },
+    'Worker starting',
+  )
 
   // BQC-0.3: refuse boot if test-only capability overrides leak outside an
   // explicit test/CI identity; assert blocked caps; record policy manifest.
