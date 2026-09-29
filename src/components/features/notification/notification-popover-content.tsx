@@ -10,9 +10,20 @@
 // panel points Radix's open focus at the first list, and when this body
 // arrives after the popover opened (its chunk is lazy), the body takes over
 // the focus the popover itself held meanwhile.
+//
+// On a phone the same body fills a full-screen sheet (D8): the sheet passes
+// its Dialog title, so the dialog is named by the visible heading, and a close
+// button, since there is no page left around it to tap.
 
-import { useLayoutEffect, useMemo, useRef, type RefObject } from 'react'
-import { CheckCheck } from 'lucide-react'
+import {
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  type ComponentType,
+  type ReactNode,
+  type RefObject,
+} from 'react'
+import { CheckCheck, X } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { Button } from '#/components/ui/button'
 import { Separator } from '#/components/ui/separator'
@@ -50,7 +61,20 @@ type Props = Readonly<{
   organizationId: string
   /** Lets the panel close itself when the user leaves for the full page. */
   onViewAll?: () => void
+  /** The heading; a sheet passes its Dialog title, which names the dialog. */
+  Title?: ComponentType<Readonly<{ className?: string; children: ReactNode }>>
+  /** Offers a close button in the header: a full-screen sheet has no outside. */
+  onClose?: () => void
+  /** The lists take all the height there is, instead of a popover's cap. */
+  fill?: boolean
 }>
+
+function PlainTitle({
+  className,
+  children,
+}: Readonly<{ className?: string; children: ReactNode }>) {
+  return <h2 className={className}>{children}</h2>
+}
 
 /** Takes over the focus the popover held while this body was loading. */
 function useFocusListOnLateArrival(list: RefObject<HTMLDivElement | null>) {
@@ -95,26 +119,46 @@ export function NotificationPopoverContent(props: Props) {
     listRef.current?.focus()
   }
 
+  const Title = props.Title ?? PlainTitle
+
   return (
     <>
       <div className="flex shrink-0 items-center justify-between gap-2 px-4 py-3">
-        <h2 className="text-sm font-semibold">Notifications</h2>
-        {offersMarkAllRead && (
-          <Button
-            variant="ghost"
-            size="xs"
-            onClick={markAllRead}
-            className="text-xs text-muted-foreground"
-          >
-            <CheckCheck aria-hidden="true" className="size-3" />
-            Mark all read
-          </Button>
-        )}
+        <Title className="text-sm font-semibold">Notifications</Title>
+        <div className="flex items-center gap-1">
+          {offersMarkAllRead && (
+            <Button
+              variant="ghost"
+              size="xs"
+              onClick={markAllRead}
+              className="text-xs text-muted-foreground"
+            >
+              <CheckCheck aria-hidden="true" className="size-3" />
+              Mark all read
+            </Button>
+          )}
+          {props.onClose && (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={props.onClose}
+              aria-label="Close notifications"
+            >
+              <X aria-hidden="true" className="size-4" />
+            </Button>
+          )}
+        </div>
       </div>
       <Separator />
       {/* The lists are the part that gives: on a short or landscape phone they
           shrink and scroll, so the header and the footer stay on screen. */}
-      <div className="max-h-[28rem] min-h-0 flex-1 overflow-y-auto px-1 pb-1">
+      <div
+        className={
+          props.fill
+            ? 'min-h-0 flex-1 overflow-y-auto px-1 pb-1'
+            : 'max-h-[28rem] min-h-0 flex-1 overflow-y-auto px-1 pb-1'
+        }
+      >
         <NotificationListBody
           groups={needsYouGroups}
           isLoading={props.needsYou.isLoading}

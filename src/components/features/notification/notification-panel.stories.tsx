@@ -18,6 +18,7 @@
 // answers each filter as the endpoint does (`makeStatefulNotificationFns`),
 // with any command a story holds open replaced.
 import type { Meta, StoryObj } from '@storybook/react'
+import { focusManager } from '@tanstack/react-query'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { toast } from 'sonner'
 import { Toaster } from '#/components/ui/sonner'
@@ -25,6 +26,7 @@ import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import {
   makeNotification,
   makeNotificationFns,
+  notificationFeedHeadFixture,
   makeStatefulNotificationFns,
   notificationFixtures,
   notificationPageFixture,
@@ -600,9 +602,10 @@ const tallFeed = TALL_FEED_TYPES.map((type, n) =>
 )
 
 /**
- * The bell where the app puts it, at the right end of the top bar, on a phone.
- * The popover must stay inside the viewport at 320-375 px and in landscape,
- * with its footer reachable. Geometry is measured against compiled Tailwind by
+ * The bell where the app puts it, at the right end of the top bar, on a phone,
+ * where it opens a full-screen sheet (D8); the metrics file also opens this
+ * story on a desktop-sized page, where it is the popover. Geometry is measured
+ * against compiled Tailwind by
  * e2e/storybook-metrics/notification-popover.metrics.ts; this runner compiles
  * none, so its play only opens the bell.
  */
@@ -929,6 +932,45 @@ export const DismissOffersUndo: Story = {
   },
 }
 
+const phoneSheetServer = makeStatefulNotificationFns(undoableFeed)
+
+/**
+ * On a phone the bell is a full-screen sheet, named by its visible title (D8).
+ * It is not modal, like the popover: a modal dialog would set
+ * `pointer-events: none` on the page, and the Undo a dismissal offers — in a
+ * toast, outside the sheet — could not be pressed. Close hands focus back to
+ * the bell.
+ */
+export const PhoneOpensAFullScreenSheet: Story = {
+  args: { notificationFns: phoneSheetServer },
+  parameters: { layout: 'fullscreen', viewport: { defaultViewport: 'mobileNarrow' } },
+  render: (args) => (
+    <header className="flex h-12 items-center justify-end border-b px-2">
+      <NotificationPanel {...args} />
+    </header>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const sheet = await openBell(canvasElement)
+    expect(document.querySelector('[data-slot="sheet-content"]')).not.toBeNull()
+    expect(document.querySelector('[data-slot="popover-content"]')).toBeNull()
+    within(document.body).getByRole('dialog', { name: 'Notifications' })
+    await waitFor(() =>
+      expect(sheet.getByRole('group', { name: 'Needs you' })).toHaveFocus(),
+    )
+
+    const before = await dismissFirstRow(sheet)
+    await waitFor(() => expect(sheet.getAllByRole('listitem')).toHaveLength(before - 1))
+    await userEvent.click(await findToastUndo('Notification dismissed.'))
+    await expectToast('Notification restored.')
+    await waitFor(() => expect(sheet.getAllByRole('listitem')).toHaveLength(before))
+
+    await userEvent.click(sheet.getByRole('button', { name: 'Close notifications' }))
+    await waitFor(() => expect(within(document.body).queryByRole('dialog')).toBeNull())
+    expect(canvas.getByRole('button', { name: /^Notifications/ })).toHaveFocus()
+  },
+}
+
 /** Three new reviews at one Property, and an escalation elsewhere. */
 const reviewStackFeed = [
   ...[2, 4, 6].map((minutes, n) =>
@@ -1052,5 +1094,63 @@ export const HonoursPersistedLocale: Story = {
         /^\d{2}\.\d{2}\.\d{4}, \d{1,2}:\d{2} MES?Z$/,
       )
     }
+  },
+}
+
+/** A calm request already listed, and an escalation that arrives afterwards. */
+const calmRequest = makeNotification({
+  id: '71000000-0000-4000-8000-000000000001',
+  type: 'reply.pending_approval',
+  payload: { propertyName: 'Harbour View Suites' },
+  createdAt: new Date(Date.now() - 10 * MINUTE),
+})
+const arrivingEscalation = makeNotification({
+  id: '71000000-0000-4000-8000-000000000002',
+  type: 'inbox.escalated',
+  priority: 'urgent',
+  payload: { propertyName: 'Riverside Hotel', platform: 'portal' },
+  createdAt: new Date(),
+})
+let escalationArrived = false
+const readArrivingHead = fn(async ({ data }: Readonly<{ data: { filter?: string } }>) =>
+  notificationFeedHeadFixture(
+    data.filter === 'needs_you'
+      ? escalationArrived
+        ? [arrivingEscalation, calmRequest]
+        : [calmRequest]
+      : [],
+  ),
+)
+
+/**
+ * Something urgent arriving while the bell is closed says so (D9): the badge
+ * moving by one was the only sign. What was listed when the page loaded never
+ * toasts; the arrival does, and Open opens the bell on it.
+ */
+export const UrgentArrivalShowsAToast: Story = {
+  args: {
+    notificationFns: makeNotificationFns({
+      getFeedHead: readArrivingHead as unknown as NotificationServerFns['getFeedHead'],
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    escalationArrived = false
+    const canvas = within(canvasElement)
+    await canvas.findByRole('button', { name: 'Notifications, 1 needs you' })
+    expect(document.querySelector('[data-sonner-toast]')).toBeNull()
+
+    escalationArrived = true
+    // The tab coming back into view reads the head again, as a poll would.
+    focusManager.setFocused(false)
+    focusManager.setFocused(true)
+    await canvas.findByRole('button', { name: 'Notifications, 2 need you' })
+
+    const shown = (
+      await expectToast('Something urgent needs you at Riverside Hotel')
+    ).closest<HTMLElement>('[data-sonner-toast]')
+    if (shown === null) throw new Error('the arrival is not in a toast')
+    await userEvent.click(within(shown).getByRole('button', { name: 'Open' }))
+    const popover = await findOpenBellPopover()
+    await popover.findByRole('link', { name: /^Escalated: feedback at Riverside Hotel,/ })
   },
 }

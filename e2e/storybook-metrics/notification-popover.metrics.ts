@@ -1,6 +1,6 @@
-// Bell popover on phones: real-browser geometry against Storybook, where
-// Tailwind is compiled. The Vitest story runner compiles none, so a width or a
-// height asserted there measures an unstyled document. Run with
+// The bell on phones: real-browser geometry against Storybook, where Tailwind
+// is compiled. The Vitest story runner compiles none, so a width or a height
+// asserted there measures an unstyled document. Run with
 // `pnpm test:storybook:metrics` (see `playwright.storybook.config.ts`).
 //
 // The popover was a fixed 24rem with no viewport cap and no collision padding.
@@ -8,10 +8,12 @@
 // phone 64 px of it (every row's last control, the timestamps, "Mark all
 // read") sat past the right edge where the page cannot scroll, and on a
 // landscape phone the list and "View all notifications" fell below the fold.
+// Below 768 px the bell now opens a full-screen sheet instead (D8), and this
+// file holds it to the whole screen, with the same content inside it.
 //
 // The story puts the bell where the app does, at the right end of the top bar,
 // and its play opens it; `openStory` waits until that play has finished and
-// the popover's entry animation has settled.
+// the entry animation — the sheet's slide — has settled.
 
 import { expect, test, type Locator } from '@playwright/test'
 import { openStory } from './storybook-story'
@@ -32,15 +34,21 @@ async function boxOf(locator: Locator) {
 }
 
 for (const viewport of VIEWPORTS) {
-  test(`the bell popover fits a ${viewport.name} phone`, async ({ page }) => {
+  test(`the bell fills a ${viewport.name} phone as a sheet`, async ({ page }) => {
     await page.setViewportSize({ width: viewport.width, height: viewport.height })
     await openStory(page, STORY)
 
-    const layer = page.locator('[data-slot="popover-content"]')
-    const popover = await boxOf(layer)
-    expect(popover.x, 'left edge').toBeGreaterThanOrEqual(0)
-    expect(popover.x + popover.width, 'right edge').toBeLessThanOrEqual(viewport.width)
-    expect(popover.y + popover.height, 'bottom edge').toBeLessThanOrEqual(viewport.height)
+    await expect(page.locator('[data-slot="popover-content"]')).toHaveCount(0)
+    const layer = page.locator('[data-slot="sheet-content"]')
+    const sheet = await boxOf(layer)
+    expect(sheet.x, 'left edge').toBe(0)
+    expect(sheet.y, 'top edge').toBe(0)
+    expect(sheet.width, 'the whole width').toBe(viewport.width)
+    expect(sheet.height, 'the whole height').toBe(viewport.height)
+    // With no page around it to tap, the sheet closes from its own header.
+    await expect(
+      layer.getByRole('button', { name: 'Close notifications' }),
+    ).toBeInViewport({ ratio: 1 })
 
     // No tabs any more: the header, then Needs you, then Updates, one below
     // the other and none under another. Updates may sit below the fold of the
@@ -55,9 +63,9 @@ for (const viewport of VIEWPORTS) {
       ['Needs you', needsYou],
       ['Updates', updates],
     ] as const) {
-      expect(box.x, `the ${section} heading`).toBeGreaterThanOrEqual(popover.x)
+      expect(box.x, `the ${section} heading`).toBeGreaterThanOrEqual(sheet.x)
       expect(box.x + box.width, `the ${section} heading`).toBeLessThanOrEqual(
-        popover.x + popover.width,
+        sheet.x + sheet.width,
       )
     }
 
@@ -75,7 +83,7 @@ for (const viewport of VIEWPORTS) {
     }
 
     // The footer is reachable without scrolling the page, which cannot move
-    // a fixed layer; the list scrolls inside the popover instead.
+    // a fixed layer; the list scrolls inside the sheet instead.
     await expect(
       page.getByRole('link', { name: 'View all notifications' }),
     ).toBeInViewport({ ratio: 1 })
