@@ -36,6 +36,7 @@ const BINDING = { keyId: 'binding-v1', hmac: 'A'.repeat(43) } as const
 function descriptor(input: {
   operationId: string
   permitId: string
+  attemptNumber?: number
 }): PropertyDescriptor {
   // The authority reads route, ids, attempt, permit, digest, byte count and
   // deadline; the rest is the wire shape the admission service validated.
@@ -45,7 +46,7 @@ function descriptor(input: {
     route: 'reply-suggestion',
     operationId: input.operationId,
     permitId: input.permitId,
-    attemptNumber: 1,
+    attemptNumber: input.attemptNumber ?? 1,
     organizationId: ORGANIZATION_ID,
     propertyId: PROPERTY_ID,
     internalSubjectId: 'subject-1',
@@ -123,19 +124,42 @@ function descriptor(input: {
 }
 
 function settlement(
-  input: { operationId: string; permitId: string; nonce: string },
+  input: { operationId: string; permitId: string; nonce: string; attemptNumber?: number },
   usage: { inputTokens: number; cachedInputTokens: number; outputTokens: number },
 ): AiSettlementRequestV1 {
   return {
     operationId: input.operationId,
     permitId: input.permitId,
-    attemptNumber: 1,
+    attemptNumber: input.attemptNumber ?? 1,
     nonce: input.nonce,
     disposition: 'success',
     reportedDisposition: 'success',
     providerRetryable: false,
     usageKnown: true,
     ...usage,
+    reasoningTokens: 0,
+    retryAfterSeconds: null,
+  }
+}
+
+/** What the gateway settles when it withheld dispatch (e.g. the grant TTL was too short). */
+function noDispatch(input: {
+  operationId: string
+  permitId: string
+  nonce: string
+}): AiSettlementRequestV1 {
+  return {
+    operationId: input.operationId,
+    permitId: input.permitId,
+    attemptNumber: 1,
+    nonce: input.nonce,
+    disposition: 'no_dispatch',
+    reportedDisposition: 'no_dispatch',
+    providerRetryable: false,
+    usageKnown: false,
+    inputTokens: 0,
+    cachedInputTokens: 0,
+    outputTokens: 0,
     reasoningTokens: 0,
     retryAfterSeconds: null,
   }
@@ -315,5 +339,112 @@ describe.sequential('AI admission authority (real PostgreSQL)', () => {
         'grant-v2',
       ),
     ).rejects.toThrow(/key ID/)
+  })
+
+  /** What `claimExecution` does between attempts: a new attempt, a new permit. */
+  const claimNextAttempt = async (operationId: string, attemptNumber: number) => {
+    const permitId = randomUUID()
+    await db
+      .update(aiOperations)
+      .set({
+        state: 'executing',
+        executionAttempt: attemptNumber,
+        executionPermitId: permitId,
+      })
+      .where(eq(aiOperations.id, operationId))
+    return { operationId, permitId, attemptNumber }
+  }
+
+  // Reproduced on the closed beta (2026-09-29): during an import burst, database
+  // waits left three analyses less grant time than the provider call needs, so
+  // the gateway withheld dispatch and released the grant. Every later attempt
+  // was then refused as `already_consumed`, the caller read that as an
+  // ambiguous provider outcome, and after four attempts the reviews were
+  // settled without an analysis. Nothing had been spent.
+  it('admits the next attempt once the previous admission was released without dispatch', async () => {
+    const first = await executingOperation()
+    const granted = await authority.authorizeProperty(descriptor(first), BINDING)
+    if (granted.status !== 'admitted') throw new Error(`not admitted: ${granted.code}`)
+    await expect(
+      authority.settle(noDispatch({ ...first, nonce: granted.nonce }), SIGNING_KID),
+    ).resolves.toMatchObject({
+      status: 'settled',
+      costMicros: 0,
+      settlementState: 'released',
+    })
+
+    const second = await claimNextAttempt(first.operationId, 2)
+    const secondBinding = { ...BINDING, hmac: 'C'.repeat(43) }
+    const regranted = await authority.authorizeProperty(descriptor(second), secondBinding)
+
+    expect(regranted).toMatchObject({ status: 'admitted' })
+    if (regranted.status !== 'admitted') throw new Error('unreachable')
+    expect(regranted.nonce).not.toBe(granted.nonce)
+    const [row] = await db
+      .select({
+        requestBindingHmac: aiOperations.requestBindingHmac,
+        reservedMicros: aiOperations.reservedMicros,
+        budgetSettledAt: aiOperations.budgetSettledAt,
+        actualMicros: aiOperations.actualMicros,
+      })
+      .from(aiOperations)
+      .where(eq(aiOperations.id, first.operationId))
+    expect(row).toEqual({
+      requestBindingHmac: secondBinding.hmac,
+      reservedMicros: expect.any(Number),
+      budgetSettledAt: null,
+      actualMicros: null,
+    })
+    expect(row?.reservedMicros).toBeGreaterThan(0)
+
+    // The fresh admission is settled from its own usage, once.
+    const usage = { inputTokens: 1_000, cachedInputTokens: 0, outputTokens: 100 }
+    await expect(
+      authority.settle(
+        settlement({ ...second, nonce: regranted.nonce }, usage),
+        SIGNING_KID,
+      ),
+    ).resolves.toMatchObject({
+      status: 'settled',
+      costMicros: Number(settledCostMicros(usage)),
+      settlementState: 'settled',
+    })
+    // The released first attempt can no longer settle against the operation.
+    await expect(
+      authority.settle(noDispatch({ ...first, nonce: granted.nonce }), SIGNING_KID),
+    ).resolves.toEqual({ status: 'denied', code: 'permit_mismatch' })
+  })
+
+  it('still refuses a later attempt once a charged attempt consumed the admission', async () => {
+    const first = await executingOperation()
+    const granted = await authority.authorizeProperty(descriptor(first), BINDING)
+    if (granted.status !== 'admitted') throw new Error(`not admitted: ${granted.code}`)
+    const usage = { inputTokens: 1_000, cachedInputTokens: 0, outputTokens: 100 }
+    await authority.settle(
+      settlement({ ...first, nonce: granted.nonce }, usage),
+      SIGNING_KID,
+    )
+
+    const second = await claimNextAttempt(first.operationId, 2)
+    await expect(
+      authority.authorizeProperty(descriptor(second), {
+        ...BINDING,
+        hmac: 'C'.repeat(43),
+      }),
+    ).resolves.toEqual({ status: 'denied', code: 'already_consumed' })
+  })
+
+  it('still refuses a later attempt while the previous admission is unsettled', async () => {
+    const first = await executingOperation()
+    const granted = await authority.authorizeProperty(descriptor(first), BINDING)
+    if (granted.status !== 'admitted') throw new Error(`not admitted: ${granted.code}`)
+
+    const second = await claimNextAttempt(first.operationId, 2)
+    await expect(
+      authority.authorizeProperty(descriptor(second), {
+        ...BINDING,
+        hmac: 'C'.repeat(43),
+      }),
+    ).resolves.toEqual({ status: 'denied', code: 'already_consumed' })
   })
 })

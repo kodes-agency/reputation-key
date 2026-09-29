@@ -23,6 +23,8 @@ const OUTCOME = Object.freeze({
   enrollmentsSuperseded: 0,
   enrollmentsStalled: 0,
   batchFull: false,
+  analysesReopened: 2,
+  analysesLeftUnanalysed: 1,
 })
 
 describe('AI Review Analysis enrollment sweep job', () => {

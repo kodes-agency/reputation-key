@@ -1,4 +1,5 @@
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
+import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
 import type { AiAuthorizationPort } from '../ports/ai-authorization.port'
 import type { AiControlPort } from '../ports/ai-control.port'
 import type {
@@ -7,10 +8,16 @@ import type {
   ReviewAnalysisEnrollmentReconcileResult,
   ReviewAnalysisEnrollmentStorePort,
 } from '../ports/ai-review-analysis-enrollment.port'
+import type {
+  AiReviewAnalysisReopenPort,
+  AiReviewAnalysisReopenResult,
+} from '../ports/ai-review-analysis-reopen.port'
 import { resolveAiExecutionStopFence } from '../ai-workflow-support'
 
 /** Enrollment heads visited per recovery tick. */
 const AI_REVIEW_ANALYSIS_ENROLLMENT_SWEEP_BATCH_SIZE = 50
+/** Abandoned analyses reopened per recovery tick; the rest wait for the next. */
+const AI_REVIEW_ANALYSIS_REOPEN_BATCH_SIZE = 50
 
 export type AdvanceReviewAnalysisEnrollmentSweepResult = Readonly<{
   enrollmentsVisited: number
@@ -22,6 +29,10 @@ export type AdvanceReviewAnalysisEnrollmentSweepResult = Readonly<{
   enrollmentsSuperseded: number
   enrollmentsStalled: number
   batchFull: boolean
+  /** Reviews queued again after their analysis was abandoned by a transient failure. */
+  analysesReopened: number
+  /** Reviews abandoned again after every reopen: settled as not analysable. */
+  analysesLeftUnanalysed: number
 }>
 
 /** What advancing one enrollment did. */
@@ -51,6 +62,7 @@ export type AdvanceReviewAnalysisEnrollmentDependencies = Readonly<{
   authorization: AiAuthorizationPort
   control: AiControlPort
   enrollments: ReviewAnalysisEnrollmentStorePort
+  reopen: AiReviewAnalysisReopenPort
   nowEpochMillis: () => number
 }>
 
@@ -135,6 +147,24 @@ export function createAdvanceReviewAnalysisEnrollments(
     })
   }
 
+  /**
+   * The safety net under exhaustive coverage (ADR 0058): a review settled
+   * without an analysis because its operation gave up on a transient failure
+   * is queued again. Only while provider execution accepts work: a dark
+   * runtime would settle the reopened review as disabled straight away.
+   */
+  async function reopenAbandoned(): Promise<AiReviewAnalysisReopenResult> {
+    const stopFence = await resolveAiExecutionStopFence(dependencies.control, {
+      providerDeploymentProfileVersion: AI_PROVIDER_DEPLOYMENT_PROFILE.profileVersion,
+      capability: 'review_analysis',
+    })
+    if (stopFence === null) return { reopened: 0, leftUnanalysed: 0 }
+    return dependencies.reopen.reopenAbandoned({
+      limit: AI_REVIEW_ANALYSIS_REOPEN_BATCH_SIZE,
+      occurredAt: new Date(dependencies.nowEpochMillis()),
+    })
+  }
+
   return {
     async sweep() {
       const heads = await dependencies.enrollments.listActionable(
@@ -185,7 +215,13 @@ export function createAdvanceReviewAnalysisEnrollments(
         }
       }
 
-      return counts
+      // After the enrollments, so a failing reopen pass cannot hold them back.
+      const reopened = await reopenAbandoned()
+      return {
+        ...counts,
+        analysesReopened: reopened.reopened,
+        analysesLeftUnanalysed: reopened.leftUnanalysed,
+      }
     },
 
     async advanceProperty(input) {

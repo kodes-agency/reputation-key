@@ -39,6 +39,7 @@ import { createAiPropertyTrendScheduleStore } from './infrastructure/adapters/ai
 import { createAiReviewEventStoreAdapter } from './infrastructure/adapters/ai-review-event-store.adapter'
 import { createPropertyProcessingProfileAdapter } from './infrastructure/adapters/property-processing-profile.adapter'
 import { createReviewAnalysisEnrollmentAdapter } from './infrastructure/adapters/ai-review-analysis-enrollment.adapter'
+import { createAiReviewAnalysisReopenAdapter } from './infrastructure/adapters/ai-review-analysis-reopen.adapter'
 import { createRedisAiLaneAdmissionAdapter } from './infrastructure/adapters/ai-lane-admission.adapter'
 import { createAiReviewAnalysisBacklogAdapter } from './infrastructure/adapters/ai-review-analysis-backlog.adapter'
 import { createAiOrganizationSpendAdapter } from './infrastructure/adapters/ai-organization-spend.adapter'
@@ -165,6 +166,7 @@ export const buildAiContext = (input: AiContextBuildInput) => {
     authorization,
     control,
     enrollments,
+    reopen: createAiReviewAnalysisReopenAdapter(input.db),
     nowEpochMillis,
   })
   const applyAiAuthorizationLifecycle = createApplyAiAuthorizationLifecycle({

@@ -137,3 +137,37 @@ retry and a repeated click reuse it, and any finished answer rotates it.
   review settles, and the sweep runs every minute as recovery. Measured on the
   first step of this change (4 at a time, 60 a minute): 18 reviews went from
   about 11 minutes to 18 seconds.
+- **2026-09-29** — Reopening an abandoned analysis. An import burst on the
+  closed beta (244 reviews in 30 seconds) left three text reviews of one
+  Property permanently unanalysed while its enrollment recorded itself caught
+  up. Database lock waits of 10–30 seconds cost three analyses so much of their
+  70-second deadline that the gateway withheld dispatch (`grant_ttl_too_short`)
+  and released their grants at zero cost. The admission authority then refused
+  every later attempt of those operations as `already_consumed`, because an
+  operation kept its first attempt's nonce and binding for good; the gateway
+  reported the refusal as `operation_ambiguous`, which spends the four provider
+  attempts, and after the fourth each review was settled without a result.
+  Settling counted as caught up, and nothing looked at the reviews again.
+  Separately, an admission authority that timed out was also reported as
+  `operation_ambiguous`, though nothing had been granted or dispatched.
+  1. At the source: an operation's next attempt is admitted afresh when its
+     previous admission was released without charge (a withheld dispatch, or a
+     stale reservation the reaper released); a charged or still-open admission
+     still blocks it, since the ledger holds one reservation per operation. An
+     admission authority that cannot answer is `provider_unavailable`, retried
+     within the operation horizon without spending provider attempts.
+  2. The safety net: the enrollment sweep reopens text reviews whose current
+     analysis settled without a result because its operation failed with a
+     code that says nothing about the review (`AI_REVIEW_ANALYSIS_REOPEN_CODES`
+     in `src/contexts/ai/domain/review-analysis-reopen.ts`: ambiguous,
+     abandoned, undelivered, provider or budget unavailable). Each gets a fresh
+     analysis sequence and an `ai.review_analysis.backfill_requested` event
+     correlated to the abandoned operation, and is queued again through the
+     ordinary path. A revision is reopened at most three times; reviews that
+     exhaust it are counted on every sweep (`analysesLeftUnanalysed`). Answers
+     about the review itself — the redactor, its language, its size, the
+     provider's refusal or invalid output — are never reopened. The pass runs
+     only while provider execution accepts work, 50 reviews per tick.
+  3. A first-enablement enrollment catches up only when none of its replayed
+     reviews still owes an analysis: its current sequence must have settled,
+     and not after an abandoned or still-open operation.

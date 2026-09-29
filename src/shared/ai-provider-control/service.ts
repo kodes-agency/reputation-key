@@ -356,14 +356,37 @@ export function createAiEgressGatewayService(
       let successSettled = false
       try {
         authorizationInvoked = true
-        const authorization = await dependencies.admission.authorize(
-          {
-            descriptor: prepared.invocation.descriptor,
-            requestBindingKeyId: prepared.invocation.requestBindingKeyId,
-            requestBindingHmac: prepared.invocation.requestBindingHmac,
-          },
-          deadline.signal,
-        )
+        let authorization: Awaited<ReturnType<AiAdmissionClient['authorize']>>
+        try {
+          authorization = await dependencies.admission.authorize(
+            {
+              descriptor: prepared.invocation.descriptor,
+              requestBindingKeyId: prepared.invocation.requestBindingKeyId,
+              requestBindingHmac: prepared.invocation.requestBindingHmac,
+            },
+            deadline.signal,
+          )
+        } catch (error) {
+          // The authority could not answer (its database timed out under a
+          // burst). No grant reached this process and the connector was never
+          // invoked, so nothing can have been charged: this is a transient
+          // outage to retry, not an ambiguous provider outcome. Reporting it as
+          // ambiguous spent the caller's provider attempts on retries that
+          // never reached the provider.
+          process.stderr.write(
+            `${JSON.stringify({
+              event: 'gateway_admission_unavailable',
+              route,
+              operationId: prepared.invocation.descriptor.operationId,
+              permitId: prepared.invocation.descriptor.permitId,
+              attempt: prepared.invocation.descriptor.attemptNumber,
+              reason: error instanceof Error ? error.name : 'unknown',
+              message: error instanceof Error ? error.message.slice(0, 160) : '',
+            })}\n`,
+          )
+          prepared.invocation.canonicalProviderBytes.fill(0)
+          return errorResponse(route, 'provider_unavailable')
+        }
         if (authorization.status === 'denied') {
           prepared.invocation.canonicalProviderBytes.fill(0)
           return errorResponse(route, denialCode(authorization.code))

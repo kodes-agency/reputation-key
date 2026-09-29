@@ -32,6 +32,10 @@ type AiReviewAnalysisEnrollmentSweepOutcome = Readonly<{
   enrollmentsSuperseded: number
   enrollmentsStalled: number
   batchFull: boolean
+  /** Abandoned analyses queued again (ADR 0058). */
+  analysesReopened: number
+  /** Abandoned analyses that used every reopen and stay unanalysed. */
+  analysesLeftUnanalysed: number
 }>
 
 type AiReviewAnalysisEnrollmentSweepDependencies = Readonly<{
