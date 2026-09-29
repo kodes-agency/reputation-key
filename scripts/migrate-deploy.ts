@@ -13,6 +13,12 @@
 //      advisory-locked CREATE INDEX CONCURRENTLY outside Drizzle's
 //      transaction, for indexes on tables too large to hold a share lock for
 //      a plain journaled CREATE INDEX (database-03).
+//   4. Declared capability posture (src/composition/declared-capability-
+//      posture.ts, ADR 0032 amended 2026-09-29) — after the state check
+//      passes, lifts the seed-default Google content / AI capability kill
+//      switches the environment declares (GOOGLE_CONTENT_CAPABILITIES_ALLOWED,
+//      AI_CAPABILITIES_ENABLED), never an operator's kill. Unset = no change.
+//      An unknown capability name refuses the deploy before any migration.
 //
 // SINGLE EXECUTION: a PostgreSQL session-level advisory lock
 // (pg_advisory_lock, key = sha256('repkey-migrate-deploy')[:8]) serializes
@@ -50,6 +56,16 @@ import { migrate } from 'drizzle-orm/node-postgres/migrator'
 import { authorizeDeployMigrationRuntime } from '../src/shared/db/deploy-migration-runtime'
 import { initializeReviewProviderSubjectKeyInventoryFromEnvironment } from '../src/contexts/review/infrastructure/provider-subject-key-initializer'
 import { buildRegisteredConcurrentIndexes } from '../src/shared/db/concurrent-index-sidecar'
+import type { Database } from '../src/shared/db'
+import {
+  formatDeclaredCapabilityPostureReport,
+  parseDeclaredCapabilityPosture,
+  type DeclaredCapabilityPosture,
+} from '../src/shared/release/declared-capability-posture'
+import {
+  applyDeclaredCapabilityPosture,
+  createDeclaredCapabilityPostureStores,
+} from '../src/composition/declared-capability-posture'
 
 // dist-worker/migrate-deploy.js (built) and scripts/migrate-deploy.ts (tsx)
 // both sit one level below the app root.
@@ -86,6 +102,46 @@ async function readJournalState(client: Client): Promise<Record<string, unknown>
   }
 }
 
+/** The declared posture, or null after reporting why the deploy refuses it. */
+function readDeclaredCapabilityPosture(): DeclaredCapabilityPosture | null {
+  try {
+    return parseDeclaredCapabilityPosture(process.env)
+  } catch (err) {
+    console.error(
+      `[declared-posture] refused before migrating: ${err instanceof Error ? err.message : String(err)}`,
+    )
+    process.exitCode = 1
+    return null
+  }
+}
+
+/**
+ * Step 4. A failure here happens with the schema already current, so it gets
+ * its own recovery line rather than the migration one; the step still fails,
+ * so the deploy is not promoted dark.
+ */
+async function applyDeclaredCapabilityPostureStep(
+  db: Database,
+  posture: DeclaredCapabilityPosture,
+): Promise<void> {
+  try {
+    const report = await applyDeclaredCapabilityPosture({
+      stores: createDeclaredCapabilityPostureStores(db),
+      posture,
+      now: new Date(),
+    })
+    console.log(formatDeclaredCapabilityPostureReport(report))
+  } catch (err) {
+    console.error('[declared-posture] FAILED', err)
+    console.error(
+      '[declared-posture] The schema is current; only the capability controls are ' +
+        'unresolved. Read the error, fix the control state (runbooks.md §25) and ' +
+        'redeploy — the step is idempotent.',
+    )
+    process.exitCode = 1
+  }
+}
+
 async function main(): Promise<void> {
   // The throw is the fail-closed deploy guard; nothing downstream reads the
   // resolved runtime any more.
@@ -95,6 +151,11 @@ async function main(): Promise<void> {
 
   const url = process.env.DATABASE_URL
   if (!url) throw new Error('DATABASE_URL is required')
+
+  // Read before any migration, so a mistyped capability name refuses the
+  // deploy while the schema is still untouched.
+  const posture = readDeclaredCapabilityPosture()
+  if (!posture) return
 
   // Deferred until after the guard: the schema config throws without
   // BETTER_AUTH_SECRET and builds the full auth instance at import time.
@@ -179,6 +240,14 @@ async function main(): Promise<void> {
         )
       }
       log('OK — deploy migration state reached')
+
+      // 4. Declared capability posture, still under the deploy lock. Its
+      // stores only issue queries and transactions, which drizzle runs on this
+      // Client exactly as on the app's Pool.
+      await applyDeclaredCapabilityPostureStep(
+        migrationDb as unknown as Database,
+        posture,
+      )
     } finally {
       await client.query('SELECT pg_advisory_unlock($1::bigint)', [lockKey.toString()])
       log('advisory lock released')

@@ -41,7 +41,7 @@ Two migration systems run in a fixed order, both behind one command:
 DEPLOY_MIGRATE=1 pnpm db:migrate-deploy
 ```
 
-It provisions the pinned Better Auth tables, applies the Drizzle journal, and performs provider-subject initialization. Railway invokes the same runner under platform identity instead of setting `DEPLOY_MIGRATE`. Use this same journaled workflow in development, CI and production. **Never** run `pnpm db:push` against this schema — it bypasses the authoritative journal and conceals deploy-time drift.
+It provisions the pinned Better Auth tables, applies the Drizzle journal, performs provider-subject initialization, and then applies the declared capability posture (a no-op unless `GOOGLE_CONTENT_CAPABILITIES_ALLOWED` / `AI_CAPABILITIES_ENABLED` are set — see "Capability kill switches after a database reset" below). Railway invokes the same runner under platform identity instead of setting `DEPLOY_MIGRATE`. Use this same journaled workflow in development, CI and production. **Never** run `pnpm db:push` against this schema — it bypasses the authoritative journal and conceals deploy-time drift.
 
 - **Auth schema change:** edit `src/shared/auth/org-schema.ts` (the single source for `additionalFields`), then `pnpm auth:migrate`.
 - **Business schema change:** edit `src/shared/db/schema/`, run `pnpm db:baseline`, review and commit `drizzle/`, then run `pnpm db:migrate`.
@@ -113,6 +113,18 @@ yourself is not on `BETA_ALLOWLIST_ORGS` and every one of those refuses with
 "not enabled for your organization yet". Add its ID to the list in `local.env`.
 Avoid `*` on a stack you also run e2e against: it lights up the deliberately
 dark "locked" Organization those tests rely on.
+
+**Capability kill switches after a database reset.** Below the allowlist sit
+two database-held kill switches: a fresh database seeds every Google content
+capability denied (Connect Google then fails with `capability_killed`) and
+every AI capability killed. The local seed lifts them for you. A deployed
+environment declares them instead, on `web`:
+`GOOGLE_CONTENT_CAPABILITIES_ALLOWED=*` and `AI_CAPABILITIES_ENABLED=*` (or
+comma lists). Web's deploy step applies the declaration right after
+migrations, so a reset plus a deploy comes back working. It lifts only an
+untouched seed default: a denial or kill an operator made stays, and the deploy
+log says so in one `[declared-posture]` line. Unset changes nothing; an unknown
+name fails the deploy (ADR 0032, amended 2026-09-29).
 
 **Real Google - `local.env` + `REPKEY_LOCAL_GOOGLE=real`.** To connect a real
 Google account and import real locations from this stack, copy

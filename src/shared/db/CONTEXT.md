@@ -59,6 +59,11 @@ AI operation/routing catalogues, Metric definitions, and cell topology. Rebuild 
 from an approved fully migrated database when a catalogue changes; a DDL-only
 baseline leaves those paths fail-closed.
 
+The seed also leaves every Google content capability denied and every AI
+capability killed. The deploy runner lifts only the ones the environment declares
+(`GOOGLE_CONTENT_CAPABILITIES_ALLOWED`, `AI_CAPABILITIES_ENABLED`) and only while
+they are still that seed default — ADR 0032, amended 2026-09-29.
+
 `schema/auth.ts` must match the tables produced by the pinned Better Auth migrator,
 including names, types, nullability, and defaults. Drizzle never migrates this
 mirror. DB-only DDL on those tables lives in `db-constructs.sql` and is parity-tested.

@@ -129,7 +129,7 @@ definitions and security controls live in
 **Prerequisites:** Name both operating roles and record the exact cell, release manifest, migration head, failed phase, source database service, last known good digest/config, and backup/PITR observations. Do not start a restore until the exact sibling target and independent Review lifecycle approval path are available.
 **Diagnostics:** Check `pg_stat_activity` for connection count. Check the Railway console (Postgres service metrics) for compute/storage. Check migration logs.
 **Containment:** Reduce worker concurrency. Pause non-critical jobs. If the predeploy migration failed: the deploy is already blocked (Railway `preDeployCommand` exited non-zero) — the previous containers keep serving; do NOT hand-roll partial schema state.
-**Recovery:** Saturation → tune pool sizes, add indexes. Migration → forward recovery only: `scripts/migrate-deploy.ts` is advisory-locked and idempotent, so fix the failing migration or registered deploy SQL forward and redeploy; the rerun converges (see the script header + src/shared/db/CONTEXT.md "Deploy apply order"). Never roll the schema back mid-flight. Restore → follow [backup-and-lifecycle.md](backup-and-lifecycle.md) §1 exactly: contain the deployment → Railway PITR to its generated sibling service → exact-target preflight through a Railway tunnel → migration parity → dry-run inventory → destructive retention/recovery fence → isolated signed-image read verification → fresh Redis and controlled connection cutover only after independent approval of that exact target/report/generation.
+**Recovery:** Saturation → tune pool sizes, add indexes. Migration → forward recovery only: `scripts/migrate-deploy.ts` is advisory-locked and idempotent, so fix the failing migration or registered deploy SQL forward and redeploy; the rerun converges (see the script header + src/shared/db/CONTEXT.md "Deploy apply order"). Never roll the schema back mid-flight. Restore → follow [backup-and-lifecycle.md](backup-and-lifecycle.md) §1 exactly: contain the deployment → Railway PITR to its generated sibling service → exact-target preflight through a Railway tunnel → migration parity → dry-run inventory → destructive retention/recovery fence → isolated signed-image read verification → fresh Redis and controlled connection cutover only after independent approval of that exact target/report/generation. A database rebuilt from empty comes back with every Google content and AI capability dark until web's next deploy applies the declared posture (§25).
 **Verification:** Connection count under budget. Migration journal consistent. Restore has one replayable `recovery_runs` generation, zero overdue retention/Google-import backlog, zero unfenced restored authority, no claimable fenced outbox rows, critical reads/tenant isolation green, fresh empty queues, and no duplicate external effect before cutover.
 **Escalation:** P0 — page Bozhidar Denev for migration/restore. Railway support if platform issue.
 **Evidence:** Retain migration/backup heads, failure class, forward-fix or restore decision, signed recovery report/bundle identifiers, source/sibling and fresh-Redis identities, cutover/rollback read-backs, RPO/RTO, and alert receipts. Local tests are not this evidence.
@@ -165,7 +165,7 @@ definitions and security controls live in
 **Trigger:** Any P0 stop condition from ADR 0038 (tenant isolation breach, data loss, duplicate effect, token leak, policy violation).
 **Impact:** P0 — all external effects must stop immediately.
 **Containment:** Full stop → set `BETA_CAPABILITIES_OFF=all` and restart web + worker. Targeted stop → set a comma list, e.g. `BETA_CAPABILITIES_OFF=property.connect_gbp,property.publish_reply` stops Google sync/import/publish (interactive gates deny; the sync/import/publish job handlers re-check capability before side effects and skip cleanly — enqueued jobs are preserved, not deleted). Worker startup logs the effective capability manifest (kill switch, disabled list, blocked set).
-**Recovery:** Investigate root cause. Fix. Re-enable capabilities one at a time with monitoring (remove list entries, restart).
+**Recovery:** Investigate root cause. Fix. Re-enable capabilities one at a time with monitoring (remove list entries, restart). A stop made in the database-held controls (Google content capability rows, AI capability heads) is kept by every later deploy — the declared posture only lifts untouched seed defaults — so re-open it deliberately (§25).
 **Verification:** No new external effects after kill switch. Canonical data preserved.
 **Escalation:** Bozhidar Denev decides on restart. All P0 conditions require written sign-off before re-enabling.
 
@@ -932,6 +932,54 @@ reconnect notice and the Settings prompt, then reconnect and confirm the notice
 settles; edit an answered review on Google and confirm the urgent "reopened"
 notice; in the Railway Log Explorer, `@level:error` returns error lines.
 
+**Escalation:** Bozhidar Denev.
+
+---
+
+## 25. Connect Google or AI Dark After a Database Reset
+
+**Trigger/Symptoms:** After a database reset, restore or new cell, "Connect
+Google" answers "Google could not be connected. Try again." (the token exchange
+refuses with `capability_killed`), imports and reply publication refuse, or no
+AI analysis, reply draft or trend is produced.
+**Impact:** P1 — every tenant loses Google connection and AI at once.
+**Diagnostics:** The seed leaves every Google content capability denied and every
+AI capability `killed`/`draining`; web's deploy step lifts the ones declared in
+`GOOGLE_CONTENT_CAPABILITIES_ALLOWED` / `AI_CAPABILITIES_ENABLED` (ADR 0032,
+amended 2026-09-29). Read web's latest deploy log for the `[declared-posture]`
+line, right after `[migrate-deploy] OK — deploy migration state reached`:
+
+- `nothing declared` — the variables are unset on web.
+- `[declared-posture] refused before migrating: …` (and a failed deploy) — an
+  unknown capability name, or `AI_CAPABILITIES_ENABLED` without a 40-character
+  `RELEASE_SHA`; the message names the fix, and nothing was migrated.
+- `kept_operator_denied=[…]` / `kept_operator_killed=[…]` — an operator stopped
+  that capability (a Google row counts as seed only with no or a `migration:`
+  operator AND a `*_default_deny` reason); the declaration never overrides it.
+- `skipped_plane_stopped=[…]` — the global or provider AI plane is not
+  `enabled`/`accepting`, so no capability can be activated under it.
+- `skipped_head_absent=[…]` — an AI control head the seed inserts is missing:
+  a seed defect, not a stop.
+- No line at all — no deploy has run since the reset, or the running image
+  predates the declared posture.
+
+**Recovery:** Set `GOOGLE_CONTENT_CAPABILITIES_ALLOWED=*` and
+`AI_CAPABILITIES_ENABLED=*` (or the intended comma lists) on web, staged with
+`--skip-deploys`, then redeploy web: the step is idempotent and only lifts
+untouched seed defaults. A capability an operator stopped is re-opened only by
+an operator. For AI, from inside Railway's network:
+`pnpm ops ai-control restore capability <name> <profile> <release-sha> --operator <id> --reason <text> --ticket <ref> --apply --yes ops:ai-control`.
+For Google, in one transaction — what `allowCapability` does: take
+`pg_advisory_xact_lock(hashtextextended('google-content-emergency-generation', 0))`,
+set the row `denied = false` with `denied_at`, `drained_at` and
+`cleanup_drained_at` NULL, your operator id, a reason and `updated_at = now()`,
+then move `emergency_kill_version` on EVERY row to one past the current maximum.
+A row edited without the shared generation leaves the other capabilities
+failing closed. A hand kill likewise records your operator id and a reason that
+is not `*_default_deny`, or the next deploy reads it as the seed default.
+**Verification:** The deploy log line reads `lifted=[…]` / `enabled=[…]` for every
+declared capability (or `already_…` on a later deploy); Connect Google reaches
+Google's consent screen and returns; a new review gets an analysis.
 **Escalation:** Bozhidar Denev.
 
 ---

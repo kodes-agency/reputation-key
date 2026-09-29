@@ -286,6 +286,20 @@ const baseEnvSchema = z.object({
   // controlled-beta capability (Google import, Portals, Goals, AI, email
   // notifications) refuses. Set it on web AND worker; both evaluate it.
   BETA_ALLOWLIST_ORGS: z.string().optional(),
+  // Declared capability posture (ADR 0032, amended 2026-09-29). A fresh
+  // database seeds every Google content capability denied and every AI
+  // capability killed; the deploy step (scripts/migrate-deploy.ts, web's
+  // preDeployCommand) lifts the ones declared here, right after migrations —
+  // but only an untouched seed default, never an operator's kill. `*` or a
+  // comma list; unset = no change. Read by web's deploy step only; an unknown
+  // name fails that step (parseDeclaredCapabilityPosture).
+  //   GOOGLE_CONTENT_CAPABILITIES_ALLOWED: property.import_gbp_v2,
+  //     property.read_gbp_performance, property.connect_gbp,
+  //     property.publish_reply
+  //   AI_CAPABILITIES_ENABLED: review_analysis, reply_drafting,
+  //     property_trends (records RELEASE_SHA on the activation)
+  GOOGLE_CONTENT_CAPABILITIES_ALLOWED: z.string().optional(),
+  AI_CAPABILITIES_ENABLED: z.string().optional(),
   // Comma-separated non-core capabilities forced globally ON (E2E/CI only).
   // Must never enable blocked capabilities. Example:
   // goal.use,portal.write,notification.send_email
