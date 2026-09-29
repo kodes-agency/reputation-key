@@ -115,8 +115,11 @@ async function buildLikeNitro(root: string, plugins: Plugin[]): Promise<void> {
     builder: {
       sharedConfigBuild: true,
       buildApp: async (app) => {
-        await app.build(app.environments.client)
-        await app.build(app.environments[NITRO_ENVIRONMENT])
+        const client = app.environments.client
+        const nitro = app.environments[NITRO_ENVIRONMENT]
+        if (!client || !nitro) throw new Error('fixture build lacks an environment')
+        await app.build(client)
+        await app.build(nitro)
       },
     },
   })
