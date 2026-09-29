@@ -14,10 +14,11 @@ import type {
 import { AI_REVIEW_ANALYSIS_ENROLLMENT_SAFETY_CEILING } from '../../application/ports/ai-review-analysis-enrollment.port'
 import { enrollmentOwesAnalysis } from './ai-review-analysis-reopen.adapter'
 import {
-  eligibleReviewsSql,
+  eligibleRevisionSnapshot,
   lockPropertyBeforeReplay,
   replayEnrollmentCandidates,
 } from './ai-review-analysis-enrollment-replay'
+import { lockPropertyForAuthorizationChange } from './review-analysis-property-fence'
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
 type Row = Readonly<Record<string, unknown>>
@@ -144,39 +145,6 @@ function mapEvidence(row: Row): ReviewAnalysisEnrollmentEvidence {
     caughtUpAtEpochMillis: nullableEpochMillis(row.caught_up_at, 'caught-up time'),
     terminalReason: row.terminal_reason === null ? null : String(row.terminal_reason),
   }
-}
-
-async function snapshot(
-  tx: Tx,
-  input: {
-    organizationId: string
-    propertyId: string
-    sourceEpoch: number
-    analysisStartSequence: number
-  },
-): Promise<{ count: number; digest: string }> {
-  const result = await tx.execute(sql`
-    SELECT count(*)::bigint AS count,
-           encode(
-             sha256(
-               convert_to(
-                 COALESCE(
-                   string_agg(
-                     review.id::text || ':' || review.source_revision::text,
-                     ',' ORDER BY review.id
-                   ),
-                   ''
-                 ),
-                 'UTF8'
-               )
-             ),
-             'hex'
-           ) AS digest
-    ${eligibleReviewsSql(input)}
-  `)
-  const row = result.rows[0] as Row | undefined
-  if (!row) throw new Error('Review Analysis enrollment snapshot returned no row')
-  return { count: safeInteger(row.count, 'snapshot count'), digest: String(row.digest) }
 }
 
 async function insertReceipt(
@@ -477,6 +445,7 @@ export const createReviewAnalysisEnrollmentAdapter = (
         }
       }
 
+      await lockPropertyForAuthorizationChange(tx, input)
       const current = await tx.execute(sql`
         SELECT enablement.*, property.source_epoch AS property_source_epoch,
                property.lifecycle_state, property.deleted_at
@@ -541,7 +510,7 @@ export const createReviewAnalysisEnrollmentAdapter = (
         }
       }
 
-      const evidence = await snapshot(tx, {
+      const evidence = await eligibleRevisionSnapshot(tx, {
         organizationId: input.organizationId,
         propertyId: input.propertyId,
         sourceEpoch: input.fence.sourceEpoch,
@@ -667,7 +636,7 @@ export const createReviewAnalysisEnrollmentAdapter = (
         return reconcileRunning(tx, row, input, storedFence)
       }
 
-      const expectedSnapshot = await snapshot(tx, {
+      const expectedSnapshot = await eligibleRevisionSnapshot(tx, {
         organizationId: String(row.organization_id),
         propertyId: String(row.property_id),
         sourceEpoch: storedFence.sourceEpoch,

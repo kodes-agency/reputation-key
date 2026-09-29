@@ -37,7 +37,11 @@ vi.mock('pg', () => {
 import { Pool } from 'pg'
 
 type FakePoolInstance = Pool & {
-  options: { connectionString?: string; max?: number }
+  options: {
+    connectionString?: string
+    max?: number
+    onConnect?: (client: { query: (text: string) => Promise<unknown> }) => Promise<void>
+  }
   end: ReturnType<typeof vi.fn>
   queryImplementation: ReturnType<typeof vi.fn>
 }
@@ -262,5 +266,45 @@ describe('configurePoolMaxConnections', () => {
     getPool()
 
     expect(fakePools().map((pool) => pool.options.max)).toEqual([49, 49])
+  })
+})
+
+// pg-pool's connectionTimeoutMillis stops once the socket connects; the
+// session guards run after it, inside the checkout. A connection that never
+// answers them would hold its checkout, and with it a pool-client reservation
+// queue (pool-client-reservation.ts), forever.
+describe('session guards', () => {
+  it('sets the lock and idle-in-transaction timeouts on every connection', async () => {
+    getPool()
+    const query = vi.fn(async (_text: string) => ({ rows: [] }))
+
+    await fakePools()[0]?.options.onConnect?.({ query })
+
+    expect(query).toHaveBeenCalledWith(
+      'SET lock_timeout = 10000; SET idle_in_transaction_session_timeout = 30000',
+    )
+  })
+
+  it('fails a connection that never answers them within the connection timeout', async () => {
+    vi.useFakeTimers()
+    try {
+      getPool()
+      const silent = { query: vi.fn(() => new Promise<never>(() => undefined)) }
+
+      const guarded = fakePools()[0]
+        ?.options.onConnect?.(silent)
+        .then(
+          () => 'connected',
+          (error: unknown) => (error as Error).message,
+        )
+      await vi.advanceTimersByTimeAsync(14_999)
+      await vi.advanceTimersByTimeAsync(1)
+
+      await expect(guarded).resolves.toMatch(
+        /session guards did not answer within 15000ms/,
+      )
+    } finally {
+      vi.useRealTimers()
+    }
   })
 })

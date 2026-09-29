@@ -25,3 +25,22 @@ export async function lockReviewAnalysisPropertyFence(
     FOR NO KEY UPDATE
   `)
 }
+
+/**
+ * Lock the Property before an authorization change touches its enablement and
+ * enrollments, the order a merchant AI transition takes (Property, then
+ * enablement). Locking both in one statement took the enablement first and
+ * could deadlock against that transition. The mode stays `FOR UPDATE`, the
+ * one this change always held while it erases retired derivatives.
+ */
+export async function lockPropertyForAuthorizationChange(
+  tx: Tx,
+  scope: Readonly<{ organizationId: string; propertyId: string }>,
+): Promise<void> {
+  await tx.execute(sql`
+    SELECT 1 FROM properties
+    WHERE organization_id = ${scope.organizationId}
+      AND id = ${scope.propertyId}::uuid
+    FOR UPDATE
+  `)
+}

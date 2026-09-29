@@ -208,12 +208,11 @@ async function main() {
     : null
 
   // ── Default queue — user-facing jobs (import, review sync, reply publish, etc.)
-  // Concurrency is budgeted against the connection pool, NOT maximized:
-  // DEFAULT_QUEUE_CONCURRENCY * WORST_CASE_POOL_CLIENTS_PER_JOB <= pool max.
+  // Concurrency is budgeted against the connection pool, NOT maximized: the
+  // pool covers every queue's slots at their peak clients (./pool-budget).
   // A Google-import item holds its fenced `FOR UPDATE` transaction while the
-  // nested Property effect opens a second one, so a concurrency equal to the
-  // pool max lets every slot hold a client and deadlock on the nested
-  // acquisition. See the invariant on the constants in shared/jobs/worker.
+  // nested Property effect opens a second one, so slots that could hold every
+  // client would deadlock on the nested acquisition.
   if (container.jobQueue) {
     // BQC-3.2: every job authorizes through the delayed execution gate at
     // dispatch (current policy — a stale allow never overrides a deny).

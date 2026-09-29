@@ -52,7 +52,10 @@ traced three causes.
    exact-current authorities do this inside their admission. Clients the unit
    releases return to its reservation until it settles, so a plain read before
    the consumer's transaction cannot give that transaction's client away.
-   Reservations are taken one at a time per pool.
+   Reservations are taken one at a time per pool. A reserved client whose
+   connection drops while it waits is evicted, never lent, and the session
+   guards every new connection runs are bounded by the connection timeout, so a
+   connection that never answers cannot hold the reservation queue.
 3. **The worker's pool is sized from every queue.** `src/worker/pool-budget.ts`
    adds each queue's concurrency times its peak clients per job, the AI drain,
    the second client of each admitted exact-current apply, and the relay and
@@ -62,9 +65,12 @@ traced three causes.
    checks that both services' pools, doubled for Railway's deploy overlap, plus
    20 for operators, fit under the database's `max_connections` (500 on
    closed-beta-v2, read 2026-09-29).
-4. **Passes that allocate many sequences take the Property first.** The
-   enrollment replay locks the Property before its enrollment row and reviews,
-   and the reopen pass before its reviews.
+4. **The Property is locked first.** The enrollment replay locks the Property
+   before its enrollment row and reviews, and the reopen pass before its
+   reviews. An authorization change locks the Property in its own first
+   statement, before the enablement and enrollments: one statement locking
+   both took the enablement first and could deadlock against a merchant AI
+   transition, which takes the Property first. It keeps `FOR UPDATE`.
 
 ## Consequences
 
@@ -78,3 +84,8 @@ traced three causes.
   They hold no lock while they wait, so past the budget they only queue.
 - The Google import item job still holds its item row while it waits for a
   second client. That row is not the Property fence, and the budget covers it.
+- The fence is still held while an exact-current consumer commits on its own
+  connection. That consumer must not lock the same Property row (`FOR SHARE`
+  or stronger, or `UPDATE`): it would wait on its own caller until
+  `lock_timeout`. None does; only its foreign-key checks touch the row, and
+  they no longer wait.

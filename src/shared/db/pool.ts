@@ -157,17 +157,44 @@ export function configurePoolMaxConnections(max: number): void {
 export const SESSION_LOCK_TIMEOUT_MS = 10_000
 export const SESSION_IDLE_IN_TRANSACTION_TIMEOUT_MS = 30_000
 
+/** Bound on opening a connection: pg-pool's connect, then the session guards. */
+const CONNECTION_TIMEOUT_MS = 15_000
+
 /**
  * pg-pool 3.14's `onConnect` hook is AWAITED before the client is handed to
  * the checkout caller (and a rejection closes the client instead of leaking
  * it), so unlike the synchronous `connect` event this cannot race the first
  * query. Applied per physical connection, not per checkout.
+ *
+ * pg-pool's `connectionTimeoutMillis` stops once the socket connects, so the
+ * guards carry their own bound: a connection that never answers them would
+ * otherwise hold its checkout, and a pool-client reservation queue behind it
+ * (`pool-client-reservation.ts`), forever. The rejection closes the client.
  */
-async function applySessionGuards(client: ClientBase): Promise<void> {
-  await client.query(
+async function applySessionGuards(client: Pick<ClientBase, 'query'>): Promise<void> {
+  const guards = client.query(
     `SET lock_timeout = ${SESSION_LOCK_TIMEOUT_MS}; ` +
       `SET idle_in_transaction_session_timeout = ${SESSION_IDLE_IN_TRANSACTION_TIMEOUT_MS}`,
   )
+  // Once the timeout closes the client this query fails too; nobody awaits it.
+  guards.catch(() => undefined)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(
+      () =>
+        reject(
+          new Error(
+            `[db] session guards did not answer within ${CONNECTION_TIMEOUT_MS}ms`,
+          ),
+        ),
+      CONNECTION_TIMEOUT_MS,
+    )
+  })
+  try {
+    await Promise.race([guards, timeout])
+  } finally {
+    clearTimeout(timer)
+  }
 }
 
 /** Get the shared database connection pool. Creates it on first call. */
@@ -180,7 +207,7 @@ export function getPool(): Pool {
       max: store[POOL_MAX_KEY] ?? POOL_MAX_CONNECTIONS,
       // Bound acquisition and idle-socket lifetime so a dead route or
       // recycled connection cannot hold a request indefinitely.
-      connectionTimeoutMillis: 15_000,
+      connectionTimeoutMillis: CONNECTION_TIMEOUT_MS,
       idleTimeoutMillis: 30_000,
       onConnect: (client) => applySessionGuards(client),
     })

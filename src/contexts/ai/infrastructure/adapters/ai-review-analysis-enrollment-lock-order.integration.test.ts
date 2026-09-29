@@ -266,47 +266,108 @@ beforeEach(async () => {
   enrollmentId = await seedQueuedEnrollment()
 })
 
+/**
+ * Hold the writer's Property lock, start `run`, wait until it queues on a lock,
+ * then take the writer's next lock. A lock-order inversion makes PostgreSQL
+ * abort one side with a deadlock.
+ */
+async function raceWriter<T>(
+  writer: ConcurrentWriter,
+  run: () => Promise<T>,
+): Promise<Readonly<{ writerNext: string; outcome: { result: T } | { error: string } }>> {
+  const client = await writerPool.connect()
+  try {
+    await client.query('BEGIN')
+    await client.query(`SET LOCAL lock_timeout = ${WAIT_LIMIT_MS}`)
+    await client.query(writer.lockProperty, [ORG, PROPERTY])
+    const outcome = run().then(
+      (result) => ({ result }),
+      (error: unknown) => ({ error: errorCode(error) }),
+    )
+    await waitForReplayToQueueOnALock()
+    const next = writer.lockNext()
+    const writerNext = await client.query(next.statement, next.values).then(
+      () => 'locked',
+      (error: unknown) => errorCode(error),
+    )
+    await client.query('ROLLBACK')
+    return { writerNext, outcome: await outcome }
+  } finally {
+    client.release()
+  }
+}
+
+const adapter = () =>
+  createReviewAnalysisEnrollmentAdapter(drizzle(replayPool), randomUUID)
+
 describe('Review Analysis enrollment replay lock order', () => {
   it.each([
     ['a review import that locks a candidate review', reviewImport],
     ['an authorization change that locks the enrollment', authorizationChange],
   ])('waits behind %s without a deadlock', async (_name, writer) => {
-    const client = await writerPool.connect()
-    try {
-      await client.query('BEGIN')
-      await client.query(`SET LOCAL lock_timeout = ${WAIT_LIMIT_MS}`)
-      await client.query(writer.lockProperty, [ORG, PROPERTY])
+    const race = await raceWriter(writer, () =>
+      adapter().reconcile({
+        enrollmentId,
+        organizationId: ORG,
+        expectedFence: FENCE,
+        correlationId: enrollmentId,
+        occurredAt: NOW,
+      }),
+    )
 
-      const replay = createReviewAnalysisEnrollmentAdapter(
-        drizzle(replayPool),
-        randomUUID,
-      )
-        .reconcile({
-          enrollmentId,
-          organizationId: ORG,
-          expectedFence: FENCE,
-          correlationId: enrollmentId,
-          occurredAt: NOW,
-        })
-        .then(
-          (result) => ({ result }),
-          (error: unknown) => ({ error: errorCode(error) }),
-        )
-      await waitForReplayToQueueOnALock()
-
-      const next = writer.lockNext()
-      const writerNext = await client.query(next.statement, next.values).then(
-        () => 'locked',
-        (error: unknown) => errorCode(error),
-      )
-      await client.query('ROLLBACK')
-
-      expect(writerNext).toBe('locked')
-      await expect(replay).resolves.toEqual({
+    expect(race).toEqual({
+      writerNext: 'locked',
+      outcome: {
         result: { status: 'replay_started', runId: enrollmentId, pinnedRevisionCount: 3 },
+      },
+    })
+  })
+})
+
+describe('Review Analysis authorization lifecycle lock order', () => {
+  // A merchant AI transition locks the Property, then the enablement
+  // (merchant-ai-transition.ts). The lifecycle consumer of the previous
+  // transition used to lock them the other way round in one statement.
+  const merchantTransition: ConcurrentWriter = {
+    lockProperty: `SELECT 1 FROM properties WHERE organization_id = $1 AND id = $2::uuid FOR UPDATE`,
+    lockNext: () => ({
+      statement: `SELECT 1 FROM merchant_ai_enablement
+                  WHERE organization_id = $1 AND property_id = $2::uuid FOR UPDATE`,
+      values: [ORG, PROPERTY],
+    }),
+  }
+
+  it('waits behind a merchant AI transition without a deadlock', async () => {
+    const triggerEventId = randomUUID()
+    await getDb()
+      .insert(outboxEvents)
+      .values({
+        id: triggerEventId,
+        eventType: 'identity.merchant_ai.changed',
+        eventVersion: 1,
+        payload: { state: 'enabled' },
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        sourceContext: 'identity',
+        sourceAggregateId: PROPERTY,
+        createdAt: NOW,
       })
-    } finally {
-      client.release()
-    }
+
+    const race = await raceWriter(merchantTransition, () =>
+      adapter().applyAuthorizationLifecycle({
+        eventEnvelopeId: triggerEventId,
+        organizationId: ORG,
+        propertyId: PROPERTY,
+        authorizationState: 'enabled',
+        fence: { ...FENCE, replyDraftingEpoch: 1, propertyTrendsEpoch: 1 },
+        correlationId: null,
+        occurredAt: NOW,
+      }),
+    )
+
+    expect(race).toMatchObject({
+      writerNext: 'locked',
+      outcome: { result: { status: 'applied' } },
+    })
   })
 })

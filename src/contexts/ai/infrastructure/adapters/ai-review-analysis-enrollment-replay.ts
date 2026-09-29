@@ -14,9 +14,9 @@ type Scope = Readonly<{ organizationId: string; propertyId: string }>
 /** Enrollment states a reconcile can move into a replay. */
 const REPLAYABLE_STATES = new Set(['queued', 'awaiting_assisted_approval'])
 
-function positiveInteger(value: unknown, field: string): number {
+function integer(value: unknown, field: string, minimum: number): number {
   const parsed = typeof value === 'string' ? Number(value) : value
-  if (typeof parsed !== 'number' || !Number.isSafeInteger(parsed) || parsed < 1) {
+  if (typeof parsed !== 'number' || !Number.isSafeInteger(parsed) || parsed < minimum) {
     throw new Error(`Review Analysis enrollment read an invalid ${field}`)
   }
   return parsed
@@ -38,6 +38,35 @@ export function eligibleReviewsSql(
       AND review.analysis_sequence <= ${input.analysisStartSequence}
       AND ${ANALYSABLE_REVIEW_SQL}
   `
+}
+
+/** Count and digest of the eligible revision set an enrollment pins. */
+export async function eligibleRevisionSnapshot(
+  tx: Tx,
+  input: Scope & Readonly<{ sourceEpoch: number; analysisStartSequence: number }>,
+): Promise<{ count: number; digest: string }> {
+  const result = await tx.execute(sql`
+    SELECT count(*)::bigint AS count,
+           encode(
+             sha256(
+               convert_to(
+                 COALESCE(
+                   string_agg(
+                     review.id::text || ':' || review.source_revision::text,
+                     ',' ORDER BY review.id
+                   ),
+                   ''
+                 ),
+                 'UTF8'
+               )
+             ),
+             'hex'
+           ) AS digest
+    ${eligibleReviewsSql(input)}
+  `)
+  const row = result.rows[0] as Row | undefined
+  if (!row) throw new Error('Review Analysis enrollment snapshot returned no row')
+  return { count: integer(row.count, 'snapshot count', 0), digest: String(row.digest) }
 }
 
 /**
@@ -105,12 +134,13 @@ export async function replayEnrollmentCandidates(
         ${fence.sourceEpoch}
       ) AS sequence
     `)
-    const sequence = positiveInteger(
+    const sequence = integer(
       (allocated.rows[0] as Row | undefined)?.sequence,
       'allocated analysis sequence',
+      1,
     )
     const candidateId = String(candidate.id)
-    const sourceRevision = positiveInteger(candidate.source_revision, 'source revision')
+    const sourceRevision = integer(candidate.source_revision, 'source revision', 1)
     const updated = await tx.execute(sql`
       UPDATE reviews
       SET analysis_sequence = ${sequence}

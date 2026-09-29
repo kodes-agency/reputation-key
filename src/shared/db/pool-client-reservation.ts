@@ -19,12 +19,23 @@
 
 import { AsyncLocalStorage } from 'node:async_hooks'
 import type { Pool, PoolClient } from 'pg'
+import { getLogger } from '#/shared/observability/logger'
+
+type Release = (error?: Error | boolean) => void
+
+/** A reserved client between loans. */
+type Parked = Readonly<{
+  client: PoolClient
+  /** pg-pool's one-shot release for this checkout. */
+  release: Release
+  /** Evicts the client if its connection drops while it waits. */
+  onError: (error: Error) => void
+}>
 
 type Reservation = {
   readonly pool: Pool
-  /** Reserved clients not lent out right now. */
-  readonly clients: PoolClient[]
-  /** Until the unit settles, a released client returns here. */
+  readonly parked: Parked[]
+  /** Until the unit settles, a released client returns to `parked`. */
   open: boolean
 }
 
@@ -40,6 +51,10 @@ type Checkout = (...args: unknown[]) => unknown
 // load this module twice, and both copies must share one scope and one queue.
 const RUNTIME_KEY = Symbol.for('repkey.shared.db.pool-client-reservation')
 const INSTALLED_KEY = Symbol.for('repkey.shared.db.pool-client-reservation.installed')
+
+/** pg-pool's own message, so a double release reads the same with or without a reservation. */
+const ALREADY_RELEASED =
+  'Release called on client which has already been released to the pool.'
 
 function runtime(): ReservationRuntime {
   const store = globalThis as { [RUNTIME_KEY]?: ReservationRuntime }
@@ -58,6 +73,84 @@ function asPool(client: unknown): Pool | null {
   return typeof name === 'string' && name.includes('Pool') ? (client as Pool) : null
 }
 
+function alreadyReleased(): never {
+  throw new Error(ALREADY_RELEASED)
+}
+
+/** The check pg-pool makes before it pools a released client again. */
+function isUsable(client: PoolClient): boolean {
+  const state = client as PoolClient & { _queryable?: boolean; _ending?: boolean }
+  return state._queryable !== false && state._ending !== true
+}
+
+/**
+ * Give a client back to pg-pool, which discards it after an error or a dead
+ * connection. Never throws: a failed release is logged, so cleanup releases
+ * every other client and never masks the unit's own outcome.
+ */
+function returnToPool(
+  client: PoolClient,
+  release: Release,
+  error?: Error | boolean,
+): void {
+  client.release = release
+  try {
+    release(error)
+  } catch (failure) {
+    getLogger().error(
+      { error: failure instanceof Error ? failure.message : String(failure) },
+      '[db] reserved pool client could not be released',
+    )
+  }
+}
+
+/**
+ * Hold a client in the reservation until the unit's next checkout. pg emits
+ * `error` on a client whose server went away, and pg-pool listens only while
+ * the client sits in the pool, so the reservation listens instead: an unheard
+ * `error` is an uncaught exception. A dropped client is evicted, never lent.
+ */
+function park(reservation: Reservation, client: PoolClient, release: Release): void {
+  const parked: Parked = {
+    client,
+    release,
+    onError: (error) => {
+      const index = reservation.parked.indexOf(parked)
+      if (index === -1) return
+      reservation.parked.splice(index, 1)
+      client.removeListener('error', parked.onError)
+      getLogger().warn(
+        { error: error.message },
+        '[db] reserved pool client lost its connection',
+      )
+      returnToPool(client, release, error)
+    },
+  }
+  client.on('error', parked.onError)
+  client.release = alreadyReleased
+  reservation.parked.push(parked)
+}
+
+/**
+ * Lend a parked client to one checkout of the unit. Its release parks it again
+ * while the unit runs. A release with an error, of an unusable connection, or
+ * after the unit settled goes to pg-pool instead; so does `pool.query`'s
+ * release after a failed read, which leaves the unit's later checkouts to the
+ * pool on that failing path. A second release throws, as pg-pool's does.
+ */
+function lend(reservation: Reservation, parked: Parked): PoolClient {
+  const { client, release } = parked
+  client.removeListener('error', parked.onError)
+  let returned = false
+  client.release = (error?: Error | boolean) => {
+    if (returned) alreadyReleased()
+    returned = true
+    if (reservation.open && !error && isUsable(client)) park(reservation, client, release)
+    else returnToPool(client, release, error)
+  }
+  return client
+}
+
 /**
  * Serve a checkout from the current reservation of this pool, if any. Both of
  * pg's shapes: `connect()` (Drizzle transactions) and `connect(callback)`
@@ -69,9 +162,9 @@ function serveReservedCheckouts(pool: Pool, scope: AsyncLocalStorage<Reservation
   const checkout = pool.connect.bind(pool) as Checkout
   const reservedCheckout: Checkout = (...args) => {
     const reservation = scope.getStore()
-    const reserved = reservation?.pool === pool ? reservation.clients.shift() : undefined
-    if (reservation === undefined || reserved === undefined) return checkout(...args)
-    const client = lend(reservation, reserved)
+    const parked = reservation?.pool === pool ? reservation.parked.shift() : undefined
+    if (reservation === undefined || parked === undefined) return checkout(...args)
+    const client = lend(reservation, parked)
     const callback = args[0]
     if (typeof callback !== 'function') return Promise.resolve(client)
     queueMicrotask(() =>
@@ -81,24 +174,6 @@ function serveReservedCheckouts(pool: Pool, scope: AsyncLocalStorage<Reservation
   }
   pool.connect = reservedCheckout as Pool['connect']
   marked[INSTALLED_KEY] = true
-}
-
-/**
- * pg-pool gives every checkout its own one-shot `release`. While the unit
- * runs, a release puts the client back in the reservation; one with an error,
- * or after the unit settled, goes to the pool (which discards a broken one).
- */
-function lend(reservation: Reservation, client: PoolClient): PoolClient {
-  const release = client.release
-  client.release = (error?: Error | boolean) => {
-    client.release = release
-    if (error || !reservation.open) {
-      release.call(client, error)
-      return
-    }
-    reservation.clients.push(client)
-  }
-  return client
 }
 
 async function acquireInTurn(
@@ -124,7 +199,7 @@ async function acquireInTurn(
     }
     return clients
   } catch (error) {
-    for (const client of clients) client.release()
+    for (const client of clients) returnToPool(client, client.release)
     throw error
   } finally {
     finish()
@@ -134,8 +209,8 @@ async function acquireInTurn(
 /**
  * Run `work` with `count` clients of `db`'s pool already checked out for it.
  * The reservation is released when `work` settles; a client still lent then
- * goes to the pool when its user releases it. A database bound
- * to a single client (a test transaction) cannot starve, so `work` runs as is.
+ * goes to the pool when its user releases it. A database bound to a single
+ * client (a test transaction) cannot starve, so `work` runs as is.
  */
 export async function withReservedPoolClients<T>(
   db: Readonly<{ $client: Pool }>,
@@ -146,15 +221,17 @@ export async function withReservedPoolClients<T>(
   if (pool === null || count < 1) return work()
   const reservations = runtime()
   serveReservedCheckouts(pool, reservations.scope)
-  const reservation: Reservation = {
-    pool,
-    clients: await acquireInTurn(reservations, pool, count),
-    open: true,
+  const reservation: Reservation = { pool, parked: [], open: true }
+  for (const client of await acquireInTurn(reservations, pool, count)) {
+    park(reservation, client, client.release)
   }
   try {
     return await reservations.scope.run(reservation, work)
   } finally {
     reservation.open = false
-    for (const client of reservation.clients.splice(0)) client.release()
+    for (const parked of reservation.parked.splice(0)) {
+      parked.client.removeListener('error', parked.onError)
+      returnToPool(parked.client, parked.release)
+    }
   }
 }
