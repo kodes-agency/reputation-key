@@ -13,7 +13,7 @@
 // place before the click. The trigger, the badge and the polling head stay
 // eager.
 
-import { Suspense, useState } from 'react'
+import { Suspense, useCallback, useState } from 'react'
 import { Bell } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
@@ -22,6 +22,7 @@ import { useNotificationFormat, useNotifications } from './notification-queries'
 import { useNotificationMutations } from './notification-mutations'
 import { NotificationAnnouncer, useNotificationAnnouncer } from './notification-announcer'
 import { lazyPopoverBody } from './notification-popover-loader'
+import { useUrgentArrivalToasts } from './notification-urgent-arrivals'
 import type { NotificationServerFns, NotificationRowActions } from './types'
 import type { NotificationView } from '#/contexts/feed/application/public-api'
 
@@ -119,6 +120,15 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
     true,
   )
   const count = needsYou.filterUnreadCount
+  // Something urgent arriving while the bell is closed says so (D9).
+  const openBell = useCallback(() => setOpen(true), [])
+  useUrgentArrivalToasts({
+    scope: organizationId,
+    rows: needsYou.notifications,
+    ready: !needsYou.isLoading && needsYou.error === null,
+    bellOpen: open,
+    openBell,
+  })
   const format = useNotificationFormat(notificationFns.getUserSettings, organizationId)
   const mutations = useNotificationMutations(notificationFns, organizationId, announce)
 

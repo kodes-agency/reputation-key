@@ -92,7 +92,7 @@ export type NotificationGroup = Readonly<{
   notifications: ReadonlyArray<NotificationView>
 }>
 
-const isOnAClock = (notification: NotificationView): boolean =>
+export const isOnAClock = (notification: NotificationView): boolean =>
   notification.priority === 'urgent' ||
   notification.type === 'inbox.response_target_passed'
 

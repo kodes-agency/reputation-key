@@ -18,6 +18,7 @@
 // answers each filter as the endpoint does (`makeStatefulNotificationFns`),
 // with any command a story holds open replaced.
 import type { Meta, StoryObj } from '@storybook/react'
+import { focusManager } from '@tanstack/react-query'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { toast } from 'sonner'
 import { Toaster } from '#/components/ui/sonner'
@@ -25,6 +26,7 @@ import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import {
   makeNotification,
   makeNotificationFns,
+  notificationFeedHeadFixture,
   makeStatefulNotificationFns,
   notificationFixtures,
   notificationPageFixture,
@@ -1052,5 +1054,63 @@ export const HonoursPersistedLocale: Story = {
         /^\d{2}\.\d{2}\.\d{4}, \d{1,2}:\d{2} MES?Z$/,
       )
     }
+  },
+}
+
+/** A calm request already listed, and an escalation that arrives afterwards. */
+const calmRequest = makeNotification({
+  id: '71000000-0000-4000-8000-000000000001',
+  type: 'reply.pending_approval',
+  payload: { propertyName: 'Harbour View Suites' },
+  createdAt: new Date(Date.now() - 10 * MINUTE),
+})
+const arrivingEscalation = makeNotification({
+  id: '71000000-0000-4000-8000-000000000002',
+  type: 'inbox.escalated',
+  priority: 'urgent',
+  payload: { propertyName: 'Riverside Hotel', platform: 'portal' },
+  createdAt: new Date(),
+})
+let escalationArrived = false
+const readArrivingHead = fn(async ({ data }: Readonly<{ data: { filter?: string } }>) =>
+  notificationFeedHeadFixture(
+    data.filter === 'needs_you'
+      ? escalationArrived
+        ? [arrivingEscalation, calmRequest]
+        : [calmRequest]
+      : [],
+  ),
+)
+
+/**
+ * Something urgent arriving while the bell is closed says so (D9): the badge
+ * moving by one was the only sign. What was listed when the page loaded never
+ * toasts; the arrival does, and Open opens the bell on it.
+ */
+export const UrgentArrivalShowsAToast: Story = {
+  args: {
+    notificationFns: makeNotificationFns({
+      getFeedHead: readArrivingHead as unknown as NotificationServerFns['getFeedHead'],
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    escalationArrived = false
+    const canvas = within(canvasElement)
+    await canvas.findByRole('button', { name: 'Notifications, 1 needs you' })
+    expect(document.querySelector('[data-sonner-toast]')).toBeNull()
+
+    escalationArrived = true
+    // The tab coming back into view reads the head again, as a poll would.
+    focusManager.setFocused(false)
+    focusManager.setFocused(true)
+    await canvas.findByRole('button', { name: 'Notifications, 2 need you' })
+
+    const shown = (
+      await expectToast('Something urgent needs you at Riverside Hotel')
+    ).closest<HTMLElement>('[data-sonner-toast]')
+    if (shown === null) throw new Error('the arrival is not in a toast')
+    await userEvent.click(within(shown).getByRole('button', { name: 'Open' }))
+    const popover = await findOpenBellPopover()
+    await popover.findByRole('link', { name: /^Escalated: feedback at Riverside Hotel,/ })
   },
 }
