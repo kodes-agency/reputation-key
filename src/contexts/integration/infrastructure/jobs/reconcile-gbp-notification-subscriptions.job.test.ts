@@ -179,7 +179,7 @@ describe('reconcile-gbp-notification-subscriptions job', () => {
         action: ACTION,
         schedule: 'every:86400000',
         registration: 'enabled',
-        retryAttempts: 3,
+        retryAttempts: 5,
         retryBackoff: 'exponential:60000',
       }),
     ])

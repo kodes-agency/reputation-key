@@ -18,8 +18,9 @@
 // Organizations run one at a time; Google's rate is bounded by the notification
 // quota buckets, which refuse an account (`quota_exhausted`) rather than let it
 // through. A refusal like that is transient, so the run asks the queue for a
-// retry, which costs one read per account already settled. A lasting refusal
-// (Google's 403, a denied binding) waits for the next day. One organization
+// retry, which costs one read per account already settled; so is a permit
+// fenced at start. A lasting refusal (Google's 403, a denied binding) waits
+// for the next day. One organization
 // failing does not stop the others, and no organization starts after the
 // run's deadline, so a run never outlives its job timeout.
 
@@ -82,9 +83,16 @@ const SETTLED_OUTCOMES: ReadonlySet<GbpSubscribeConnectionOutcome> = new Set([
   'connection_inactive',
 ])
 
-/** Failure codes a retry within minutes can clear. */
+/**
+ * Failure codes a retry within minutes can clear. `authorization_changed` is a
+ * permit fenced at start: a race with a binding or credential change, or a
+ * worker that runs before the web deploy applied the permit-start migration
+ * (drizzle/0039) — both clear on their own, and a fence that does not is
+ * worth the failed job it becomes.
+ */
 const TRANSIENT_FAILURE_CODES: ReadonlySet<string> = new Set([
   'coordination_unavailable',
+  'authorization_changed',
   'quota_exhausted',
   'in_flight_exhausted',
   'grant_unavailable',

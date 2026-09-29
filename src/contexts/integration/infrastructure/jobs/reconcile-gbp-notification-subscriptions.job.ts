@@ -18,9 +18,11 @@
 //
 // Failures: a lasting refusal (Google's 403, a denied binding) is logged and
 // left to the next day. A transient one (coordination or quota refusal, a
-// 5xx, an organization whose backfill threw) is logged, then fails the run so
-// the queue retries it within minutes (3 attempts, exponential from 60s, long
-// enough for the per-minute quota buckets to refill); a retry costs one read
+// permit fenced at start, a 5xx, an organization whose backfill threw) is
+// logged, then fails the run so the queue retries it: 5 attempts, exponential
+// from 60s — long enough for the per-minute quota buckets to refill, and about
+// a quarter of an hour in all, which also covers a worker that booted before
+// the web deploy applied the permit-start migration. A retry costs one read
 // per account already settled. A policy outage throws from `authorizeScope`.
 // Organizations the run's deadline left unstarted are reported and wait for
 // the next day.

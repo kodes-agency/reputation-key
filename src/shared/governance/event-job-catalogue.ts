@@ -977,7 +977,7 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
       schedule: 'every:86400000',
       registration: 'enabled',
     },
-    { retryBackoff: 'exponential:60000', timeoutMs: 600_000 },
+    { retryAttempts: 5, retryBackoff: 'exponential:60000', timeoutMs: 600_000 },
   ),
   job(
     'digest-notification',

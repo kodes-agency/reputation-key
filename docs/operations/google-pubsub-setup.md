@@ -188,11 +188,12 @@ admission refused before Google: `coordination_unavailable`,
 `authorization_changed`, `quota_exhausted`, and `authorization_denied` (no
 Property of the connection could authorize that account). Others come from
 Google: `provider_403`, `provider_5xx`, and `upstream_error`. A transient
-failure fails the run after logging, and the queue retries it within minutes:
-3 attempts, backing off from 60 seconds. Transient means a coordination or
-quota refusal, a transport error, a 429 or 5xx, or an organization whose
-backfill threw. A lasting refusal, such as a 403 or a denied binding, waits for
-the next day's run. With no topic set, the job logs
+failure fails the run after logging, and the queue retries it: 5 attempts,
+backing off from 60 seconds, about a quarter of an hour in all. Transient means
+a coordination or quota refusal, a permit fenced at start
+(`authorization_changed`), a transport error, a 429 or 5xx, or an organization
+whose backfill threw. A lasting refusal, such as a 403 or a denied binding,
+waits for the next day's run. With no topic set, the job logs
 `GBP notification subscription reconciliation skipped — no Pub/Sub topic
 configured`.
 
@@ -230,10 +231,13 @@ If nothing arrives, in order of likelihood:
     notification routes had none (`google-notifications-read-v1` /
     `-write-v1`), so every subscribe was refused this way and the permits
     ended `fenced`.
-  - `authorization_changed` — the permit was fenced at start; the connection,
-    Property binding or credential generation moved, or the notification
-    principal is not admitted by `start_google_execution_permit` (fixed by
-    migration `0039_google_notification_permit_start`).
+  - `authorization_changed` — the permit was fenced at start. Either the
+    connection, Property binding or credential generation moved, or the
+    database does not yet admit the notification principal in
+    `start_google_execution_permit`. Migration
+    `0039_google_notification_permit_start` adds that, and it runs in the
+    web service's pre-deploy, so deploy web before the worker. If the worker
+    ran first, the daily job retries for about a quarter of an hour.
   - `provider_403` — Google refused: check that the My Business Notifications
     API is enabled on the OAuth client's project (step 1).
   - Nothing at all — the connection has no active bound Property, or the

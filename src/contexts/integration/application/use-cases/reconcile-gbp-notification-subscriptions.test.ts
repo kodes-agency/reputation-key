@@ -143,6 +143,10 @@ describe('createGbpNotificationReconciliation', () => {
 
   it.each([
     'coordination_unavailable',
+    // A permit fenced at start: a race with a binding or credential change, or
+    // a worker running before the web deploy applied the permit-start
+    // migration. Either clears within minutes.
+    'authorization_changed',
     'quota_exhausted',
     'in_flight_exhausted',
     'transport_error',
