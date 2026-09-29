@@ -734,28 +734,28 @@ export const Empty: Story = {
 }
 
 /**
- * Two Harbour notices of the workflow category — a review that needs the
- * reader and an assignment under Updates — and a Riverside review a Harbour
- * mute must keep.
+ * Two Harbour notices of the workflow category — an assignment that needs the
+ * reader and a note under Updates — and a Riverside assignment a Harbour mute
+ * must keep. (A new review is an arrival, its own category, since D4.)
  */
 const muteFeed = [
   makeNotification({
     id: '40000000-0000-4000-8000-000000000001',
-    type: 'review.created',
+    type: 'inbox.assigned',
     propertyId: HARBOUR,
     payload: { propertyName: 'Harbour View Suites', platform: 'google' },
     createdAt: new Date(Date.now() - MINUTE),
   }),
   makeNotification({
     id: '40000000-0000-4000-8000-000000000002',
-    type: 'review.created',
+    type: 'inbox.assigned',
     propertyId: RIVERSIDE,
     payload: { propertyName: 'Riverside Hotel', platform: 'google' },
     createdAt: new Date(Date.now() - 2 * MINUTE),
   }),
   makeNotification({
     id: '40000000-0000-4000-8000-000000000003',
-    type: 'inbox.assigned',
+    type: 'inbox_note.added',
     status: 'read',
     propertyId: HARBOUR,
     payload: { propertyName: 'Harbour View Suites', platform: 'google' },
@@ -793,7 +793,7 @@ export const MuteCategory: Story = {
 
     await waitFor(() => expect(portal.getAllByRole('listitem')).toHaveLength(1))
     expect(
-      portal.getByRole('link', { name: /^New review at Riverside Hotel,/ }),
+      portal.getByRole('link', { name: /^Assigned to you: review at Riverside Hotel,/ }),
     ).toBeInTheDocument()
     expect(portal.getByText('No updates yet')).toBeInTheDocument()
     expect(muteInApp).toHaveBeenCalledWith({
