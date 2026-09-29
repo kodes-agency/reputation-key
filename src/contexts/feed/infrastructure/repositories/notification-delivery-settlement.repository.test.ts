@@ -51,6 +51,9 @@ describe.sequential('notification delivery settlement (real PostgreSQL)', () => 
       .where(eq(notificationEmailQueue.organizationId, ORG))
     await db.delete(notifications).where(eq(notifications.organizationId, ORG))
     await db.delete(outboxEvents).where(eq(outboxEvents.organizationId, ORG))
+    await db
+      .delete(notificationPreferences)
+      .where(eq(notificationPreferences.organizationId, ORG))
     await db.delete(properties).where(eq(properties.organizationId, ORG))
     await db.insert(properties).values({
       id: PROPERTY,
@@ -58,6 +61,17 @@ describe.sequential('notification delivery settlement (real PostgreSQL)', () => 
       name: 'Settlement Property',
       slug: 'notification-delivery-settlement',
       timezone: 'UTC',
+    })
+    // The reader follows arrivals in the app: they are off by default (ADR
+    // 0046, amended 2026-09-30), and this suite delivers a new review.
+    await db.insert(notificationPreferences).values({
+      userId: USER,
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      category: 'arrivals',
+      channel: 'in_app',
+      enabled: true,
+      cadence: 'daily',
     })
     await db.insert(outboxEvents).values([
       {
@@ -117,6 +131,9 @@ describe.sequential('notification delivery settlement (real PostgreSQL)', () => 
       .where(eq(notificationEmailQueue.organizationId, ORG))
     await db?.delete(notifications).where(eq(notifications.organizationId, ORG))
     await db?.delete(outboxEvents).where(eq(outboxEvents.organizationId, ORG))
+    await db
+      ?.delete(notificationPreferences)
+      .where(eq(notificationPreferences.organizationId, ORG))
     await db?.delete(properties).where(eq(properties.organizationId, ORG))
     await lease?.release()
   })

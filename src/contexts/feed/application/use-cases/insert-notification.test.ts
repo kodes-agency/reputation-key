@@ -20,7 +20,9 @@ const input = {
   userId: USER_ID,
   organizationId: ORG_ID,
   propertyId: PROPERTY_ID,
-  type: 'review.created' as const,
+  // A workflow notice: on in the app by default. An arrival (a new review) is
+  // off by default (D4), so it would test the skip, not the write.
+  type: 'inbox_note.added' as const,
   resourceType: 'inbox_item' as const,
   resourceId: 'item-1',
   eventId: 'event-1',
@@ -141,12 +143,12 @@ describe('insertNotification', () => {
 
     // The handler passed facts only; the stored snapshot is the rendered copy.
     expect(result).toMatchObject({
-      title: 'New review at Riverside Hotel',
+      title: 'New internal note on a review at Riverside Hotel',
       payload: { propertyName: 'Riverside Hotel', platform: 'google' },
       coalescedCount: 1,
       coalescedLatestAt: null,
     })
-    expect(result?.body).toContain('Open it to read the review and reply')
+    expect(result?.body).toContain('Open it to read the thread')
   })
 
   it('drops payload keys that are not on the ADR 0046 r.8 allowlist', async () => {
@@ -241,7 +243,7 @@ describe('insertNotification', () => {
       USER_ID,
       ORG_ID,
       PROPERTY_ID,
-      'review.created',
+      'inbox_note.added',
       'item-1',
     )
   })
@@ -301,7 +303,7 @@ describe('insertNotification', () => {
 
     const result = await insertNotification(deps)(input)
 
-    expect(result?.body).toMatch(/ This happened 2 times\.$/)
+    expect(result?.body).toMatch(/ 2 notes added\.$/)
   })
 
   it('keeps a payload key the repeat event could not resolve', async () => {
@@ -603,5 +605,119 @@ describe('insertNotification', () => {
 
       expect(deps.emailRepo.insert).toHaveBeenCalledOnce()
     })
+  })
+
+  // D3: one row for one piece of work, per reader.
+  describe("a notice that takes over its reader's earlier ones", () => {
+    const assigned = { ...input, type: 'inbox.assigned' as const, eventId: 'assign-1' }
+
+    it("retires the assignee's arrival notice about the item, and its queued email", async () => {
+      vi.mocked(deps.notificationRepo.settleUnreadForReader).mockResolvedValueOnce([
+        'arrival-1' as never,
+      ])
+
+      await insertNotification(deps)(assigned)
+
+      expect(deps.notificationRepo.settleUnreadForReader).toHaveBeenCalledWith({
+        organizationId: ORG_ID,
+        userId: USER_ID,
+        types: ['review.created', 'review.updated', 'feedback.created'],
+        resourceId: 'item-1',
+        resolvedAt: expect.any(Date),
+      })
+      expect(deps.emailRepo.cancelQueuedForNotifications).toHaveBeenCalledWith(
+        ['arrival-1'],
+        ORG_ID,
+        'work_settled',
+        expect.any(Date),
+      )
+    })
+
+    it('leaves the arrival standing when the assignment only goes by email', async () => {
+      deps = {
+        ...deps,
+        preferenceRepo: {
+          ...deps.preferenceRepo,
+          resolveForDelivery: vi.fn(
+            storedRows({
+              in_app: preference('in_app', false),
+              email: preference('email', true),
+            }),
+          ),
+        },
+      }
+
+      await insertNotification(deps)(assigned)
+
+      expect(deps.notificationRepo.settleUnreadForReader).not.toHaveBeenCalled()
+    })
+
+    it('retires the previous holder\'s "Assigned to you" when the item moves on', async () => {
+      await insertNotification(deps)({
+        ...input,
+        type: 'inbox.unassigned',
+        eventId: 'moved-1',
+      })
+
+      expect(deps.notificationRepo.settleUnreadForReader).toHaveBeenCalledWith(
+        expect.objectContaining({ userId: USER_ID, types: ['inbox.assigned'] }),
+      )
+    })
+
+    it('takes over nothing for a notice that supersedes no other', async () => {
+      await insertNotification(deps)(input)
+
+      expect(deps.notificationRepo.settleUnreadForReader).not.toHaveBeenCalled()
+    })
+  })
+
+  // D4: arrivals are off in the app by default; guest concerns are not arrivals.
+  describe('an arrival', () => {
+    const arrival = { ...input, type: 'review.created' as const, eventId: 'review-1' }
+
+    it('stores nothing for a new review while its reader has not turned arrivals on', async () => {
+      await expect(insertNotification(deps)(arrival)).resolves.toBeNull()
+
+      expect(deps.notificationRepo.insert).not.toHaveBeenCalled()
+      expect(deps.preferenceRepo.resolveForDelivery).toHaveBeenCalledWith(
+        USER_ID,
+        ORG_ID,
+        PROPERTY_ID,
+        'arrivals',
+        'in_app',
+      )
+    })
+
+    it('files four- and five-star private feedback as an arrival', async () => {
+      await insertNotification(deps)({
+        ...arrival,
+        type: 'feedback.created',
+        payload: { platform: 'portal', guestRating: 5 },
+      })
+
+      expect(deps.preferenceRepo.resolveForDelivery).toHaveBeenCalledWith(
+        USER_ID,
+        ORG_ID,
+        PROPERTY_ID,
+        'arrivals',
+        'in_app',
+      )
+    })
+
+    it.each([undefined, 1, 3] as const)(
+      'keeps private feedback rated %s as Action needed, always in the app',
+      async (guestRating) => {
+        const result = await insertNotification(deps)({
+          ...arrival,
+          type: 'feedback.created',
+          payload: {
+            platform: 'portal',
+            ...(guestRating === undefined ? {} : { guestRating }),
+          },
+        })
+
+        expect(result).toMatchObject({ category: 'urgent_operational' })
+      },
+    )
   })
 })

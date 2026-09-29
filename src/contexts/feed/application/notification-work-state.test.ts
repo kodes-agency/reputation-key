@@ -144,6 +144,7 @@ describe('whether the work a notice asks for still waits', () => {
       'feedback.created',
       'inbox.reopened',
       'inbox.response_target_passed',
+      'inbox.assigned',
     ] as const) {
       await expect(ask(build(), type)).resolves.toBe(true)
       await expect(
@@ -174,6 +175,22 @@ describe('whether the work a notice asks for still waits', () => {
       ask(
         build({ cycle: cycle({ status: 'closed' }) }),
         'inbox.bulk_reopened',
+        ITEM,
+        audience,
+      ),
+    ).resolves.toBe(false)
+  })
+
+  it('counts the items of a grouped assignment that are still open', async () => {
+    const audience = { kind: 'bulk_inbox_assignee', inboxItemIds: [ITEM, 'item-two'] }
+
+    await expect(ask(build(), 'inbox.bulk_assigned', ITEM, audience)).resolves.toEqual({
+      itemCount: 2,
+    })
+    await expect(
+      ask(
+        build({ cycle: cycle({ status: 'closed' }) }),
+        'inbox.bulk_assigned',
         ITEM,
         audience,
       ),

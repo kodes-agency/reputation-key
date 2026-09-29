@@ -156,7 +156,7 @@ describe('a settling fact retires the notices that asked for the work', () => {
     })
   })
 
-  it('retires the arrival, the reopen and the target reminders when the cycle closes', async () => {
+  it('retires the arrival, the reopen, the target reminders and the assignment when the cycle closes', async () => {
     const deps = makeDeps()
 
     await handleNotificationSettlementEvent(
@@ -172,6 +172,7 @@ describe('a settling fact retires the notices that asked for the work', () => {
         'inbox.reopened',
         'inbox.response_target_halfway',
         'inbox.response_target_passed',
+        'inbox.assigned',
       ],
       resourceId: ITEM,
     })

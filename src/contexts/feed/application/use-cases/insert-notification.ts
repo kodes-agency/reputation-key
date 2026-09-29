@@ -18,11 +18,9 @@ import {
 import type {
   Notification as DomainNotification,
   NotificationCadence,
+  NotificationCategory,
 } from '../../domain/notification-types'
-import {
-  classifyNotification,
-  isOrganizationScopedNotice,
-} from '../../domain/notification-delivery-policy'
+import { isOrganizationScopedNotice } from '../../domain/notification-delivery-policy'
 import {
   applyCoalescence,
   getDefaultCadence,
@@ -34,6 +32,10 @@ import {
   isEmailStopped,
   ORGANIZATION_CLOSING_REASON,
 } from '../../domain/organization-email-stop'
+import {
+  SETTLED_EMAIL_REASON,
+  SUPERSEDED_FOR_READER,
+} from '../../domain/notification-settlement'
 
 // ── Input ───────────────────────────────────────────────────────────
 
@@ -76,8 +78,9 @@ type ChannelPreferences = Readonly<{
 const resolveChannelPreferences = async (
   deps: InsertNotificationDeps,
   input: InsertNotificationInput,
+  /** The row's own category: private feedback's depends on its parsed rating. */
+  category: NotificationCategory,
 ): Promise<ChannelPreferences> => {
-  const category = classifyNotification(input.type)
   // Organization mandatory notices are policy, not preference. Never consult
   // a property-scoped preference row for them: both channels are always on
   // and email is always immediate.
@@ -263,6 +266,34 @@ const asEmailOnlyAnchor = (notification: DomainNotification): DomainNotification
   readAt: null,
 })
 
+/**
+ * Retires the reader's own earlier notices this one takes over, and the emails
+ * still queued behind them (`SUPERSEDED_FOR_READER`).
+ */
+const settleSupersededForReader = async (
+  deps: InsertNotificationDeps,
+  notification: DomainNotification,
+  shownInApp: boolean,
+): Promise<void> => {
+  const rule = SUPERSEDED_FOR_READER[notification.type]
+  if (rule === undefined || (rule.onlyWhenShownInApp && !shownInApp)) return
+  const resolvedAt = deps.clock()
+  const settled = await deps.notificationRepo.settleUnreadForReader({
+    organizationId: notification.organizationId,
+    userId: notification.userId,
+    types: rule.types,
+    resourceId: notification.resourceId,
+    resolvedAt,
+  })
+  if (settled.length === 0) return
+  await deps.emailRepo.cancelQueuedForNotifications(
+    settled,
+    notification.organizationId,
+    SETTLED_EMAIL_REASON,
+    resolvedAt,
+  )
+}
+
 // ── Use case ────────────────────────────────────────────────────────
 
 export const insertNotification =
@@ -285,6 +316,7 @@ export const insertNotification =
     const { inAppEnabled, emailEnabled, emailCadence } = await resolveChannelPreferences(
       deps,
       input,
+      result.value.category,
     )
 
     if (!inAppEnabled && !emailEnabled) {
@@ -353,6 +385,9 @@ export const insertNotification =
         audience,
       )
     }
+
+    // 4b. This notice takes over the reader's own earlier ones about the item.
+    await settleSupersededForReader(deps, inserted, inAppEnabled)
 
     // 5. Return notification only if in-app channel is enabled
     if (!inAppEnabled) {

@@ -92,7 +92,11 @@ export type NotificationPriority = 'urgent' | 'normal'
  * rows to `recognition`.
  */
 export type NotificationCategory =
-  'mandatory' | 'urgent_operational' | 'workflow_collaboration' | 'recognition'
+  | 'mandatory'
+  | 'urgent_operational'
+  | 'arrivals'
+  | 'workflow_collaboration'
+  | 'recognition'
 /** Categories a user may configure for a Property. Mandatory is Organization policy. */
 export type ConfigurableNotificationCategory = Exclude<NotificationCategory, 'mandatory'>
 export type NotificationChannel = 'in_app' | 'email'

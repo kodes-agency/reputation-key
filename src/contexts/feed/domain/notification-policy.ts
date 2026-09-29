@@ -30,9 +30,13 @@ import { renderNotification } from './notification-templates'
 export type { NotificationCategory, NotificationChannel }
 
 /**
- * ADR 0046 default policy. Every remaining category is ON in-app: an in-app
- * row costs nothing and a category that is off on both channels persists
- * nothing at all (which is exactly how `goal.completed` used to vanish).
+ * ADR 0046 default policy. Every category but one is ON in-app: an in-app row
+ * costs nothing and a category that is off on both channels persists nothing
+ * at all (which is exactly how `goal.completed` used to vanish). Arrivals — a
+ * new review, a pleasant piece of feedback — are the exception the owner chose
+ * (D4, ADR 0046 amended 2026-09-30): the Inbox is where they are worked, and
+ * announcing each one buried the notices that ask for a decision. Off on both
+ * channels means they persist nothing until the person turns them on.
  * Email stays opt-in outside mandatory/urgent.
  */
 const DEFAULT_POLICY: Readonly<
@@ -40,6 +44,7 @@ const DEFAULT_POLICY: Readonly<
 > = {
   mandatory: { in_app: true, email: true },
   urgent_operational: { in_app: true, email: true },
+  arrivals: { in_app: false, email: false },
   workflow_collaboration: { in_app: true, email: false },
   recognition: { in_app: true, email: false },
 }

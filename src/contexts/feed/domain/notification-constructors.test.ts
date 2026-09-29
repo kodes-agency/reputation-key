@@ -234,7 +234,7 @@ describe('notification constructors', () => {
     expect(result.isOk()).toBe(true)
     if (result.isOk()) {
       expect(result.value).toMatchObject({
-        category: 'workflow_collaboration',
+        category: 'arrivals',
         priority: 'normal',
         status: 'unread',
         readAt: null,

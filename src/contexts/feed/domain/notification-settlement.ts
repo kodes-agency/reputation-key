@@ -41,6 +41,14 @@ export const ACTIONABLE_NOTIFICATION_TYPES: ReadonlySet<NotificationType> = new 
   // somebody else can make, and whose absence is then news no longer.
   'integration.reauthorization_required',
   'portal.health_attention',
+  // "Assigned to you" is the item handed to its reader to handle (D3,
+  // docs/design/notifications): it waits on them until the item is handled,
+  // its Property archived, or the item moves to somebody else.
+  'inbox.assigned',
+  // A grouped assignment waits until opened or its Property is archived; its
+  // items settling one by one is a follow-up (grouped settlement is built for
+  // grouped reopens only).
+  'inbox.bulk_assigned',
 ])
 
 export const isActionableNotificationType = (type: NotificationType): boolean =>
@@ -103,6 +111,7 @@ const SETTLED_BY: Readonly<Record<SettlingFact, ReadonlyArray<NotificationType>>
     'inbox.reopened',
     'inbox.response_target_halfway',
     'inbox.response_target_passed',
+    'inbox.assigned',
   ],
   'property.responsibility_restored': ['property.responsibility_needed'],
   'portal.responsibility_restored': ['portal.responsibility_needed'],
@@ -134,7 +143,33 @@ const SETTLED_BY: Readonly<Record<SettlingFact, ReadonlyArray<NotificationType>>
     'property.responsibility_needed',
     'portal.responsibility_needed',
     'portal.health_attention',
+    'inbox.assigned',
+    'inbox.bulk_assigned',
   ],
+}
+
+/**
+ * A notice that retires its own reader's earlier notices about the same item
+ * when it is written — never anybody else's. An assignment takes over the
+ * arrival it hands to its assignee, so the bell shows one row for one piece of
+ * work; it does so only when it is shown in the app itself, or the reader
+ * would be left with nothing there. An item moving to somebody else retires
+ * its previous holder's "Assigned to you" whatever their channels: the work
+ * is no longer waiting on them.
+ */
+export const SUPERSEDED_FOR_READER: Readonly<
+  Partial<
+    Record<
+      NotificationType,
+      Readonly<{ types: ReadonlyArray<NotificationType>; onlyWhenShownInApp: boolean }>
+    >
+  >
+> = {
+  'inbox.assigned': {
+    types: ['review.created', 'review.updated', 'feedback.created'],
+    onlyWhenShownInApp: true,
+  },
+  'inbox.unassigned': { types: ['inbox.assigned'], onlyWhenShownInApp: false },
 }
 
 export const settledNotificationTypes = (

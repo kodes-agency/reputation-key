@@ -331,6 +331,7 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
       'inbox.reopened',
       'inbox.response_target_halfway',
       'inbox.response_target_passed',
+      'inbox.assigned',
     ],
   ),
   {
@@ -376,6 +377,8 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     'property.responsibility_needed',
     'portal.responsibility_needed',
     'portal.health_attention',
+    'inbox.assigned',
+    'inbox.bulk_assigned',
   ]),
   {
     ...settles(
