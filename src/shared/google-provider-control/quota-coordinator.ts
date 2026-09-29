@@ -140,6 +140,52 @@ export const GOOGLE_QUOTA_POLICIES = Object.freeze({
     leaseMs: 30_000,
     maxWaitMs: 2_000,
   }),
+  // GBP Pub/Sub notification settings (My Business Notifications API). The
+  // setting is one resource per Google account, touched once per account by an
+  // import item or by the daily subscription reconciliation, which reads it
+  // first and writes only when it differs: a handful of calls per account per
+  // day. Scoped like Reviews, per credential + project + endpoint, with a
+  // project-wide ceiling because the reconciliation walks every tenant.
+  // Google's published limits are 300 QPM per project for this API and 10
+  // edits per minute per profile; read + write project ceilings (120 + 60)
+  // stay well under the first, and the per-credential write rate equals the
+  // second.
+  'google-notifications-read-v1': Object.freeze({
+    requestClass: 'notifications' as const,
+    buckets: Object.freeze([
+      bucket(
+        'credential-project-endpoint-minute',
+        'credential_project_endpoint',
+        30,
+        30,
+        60_000,
+      ),
+      bucket('project-minute', 'project', 120, 120, 60_000),
+    ]),
+    inFlightScope: 'credential_project_endpoint' as const,
+    maxInFlight: 2,
+    leaseMs: 30_000,
+    maxWaitMs: 2_000,
+  }),
+  'google-notifications-write-v1': Object.freeze({
+    requestClass: 'notifications' as const,
+    buckets: Object.freeze([
+      bucket(
+        'credential-project-endpoint-minute',
+        'credential_project_endpoint',
+        10,
+        10,
+        60_000,
+      ),
+      bucket('project-minute', 'project', 60, 60, 60_000),
+    ]),
+    // Two, not one: concurrent import items of one connection may each assert
+    // the same desired state, and the loser should wait briefly, not fail.
+    inFlightScope: 'credential_project_endpoint' as const,
+    maxInFlight: 2,
+    leaseMs: 30_000,
+    maxWaitMs: 2_000,
+  }),
 } satisfies Readonly<Record<string, GoogleQuotaPolicy>>)
 
 const FINGERPRINT = /^[a-f0-9]{64}$/
@@ -478,6 +524,54 @@ export function createRedisGoogleQuotaCoordinator(
         return { ok: false, code: 'coordination_unavailable', retryAfterMs: 0 }
       }
     },
+  })
+}
+
+export type GoogleCoordinationLookup = Readonly<{
+  quotaForPolicy: (policyId: string) => GoogleQuotaCoordinator | null
+  inFlightForPolicy: (policyId: string) => GoogleInFlightCoordinator | null
+}>
+
+/**
+ * One quota and one in-flight coordinator per GOOGLE_QUOTA_POLICIES entry, the
+ * only place the admission service finds them. A route whose policy id is not
+ * in that table resolves to null here and is refused `coordination_unavailable`
+ * before any request leaves: that is how every GBP notification call failed
+ * until 2026-09-29 (quota-policy-coverage.test.ts).
+ */
+export function createGoogleCoordinationLookup(
+  deps: Readonly<{
+    redis: GoogleCoordinationRedis
+    nowMs: () => number
+    leaseId: () => string
+  }>,
+): GoogleCoordinationLookup {
+  const quota = new Map<string, GoogleQuotaCoordinator>()
+  const inFlight = new Map<string, GoogleInFlightCoordinator>()
+  for (const [policyId, policy] of Object.entries(GOOGLE_QUOTA_POLICIES)) {
+    quota.set(
+      policyId,
+      createRedisGoogleQuotaCoordinator({
+        redis: deps.redis,
+        nowMs: deps.nowMs,
+        policyId,
+        policy,
+      }),
+    )
+    inFlight.set(
+      policyId,
+      createRedisGoogleInFlightCoordinator({
+        redis: deps.redis,
+        nowMs: deps.nowMs,
+        leaseId: deps.leaseId,
+        policyId,
+        policy,
+      }),
+    )
+  }
+  return Object.freeze({
+    quotaForPolicy: (policyId) => quota.get(policyId) ?? null,
+    inFlightForPolicy: (policyId) => inFlight.get(policyId) ?? null,
   })
 }
 

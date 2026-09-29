@@ -56,20 +56,33 @@ const setting = (overrides: Readonly<Record<string, unknown>> = {}) => ({
   notificationTypes: ['NEW_REVIEW', 'UPDATED_REVIEW'],
   ...overrides,
 })
+/** What Google returns for an account nobody subscribed: the name alone. */
+const unsubscribed = { name: 'accounts/account-1/notificationSetting' }
 
 describe('createMyBusinessNotificationsAdapter', () => {
   it('subscribes only through the frozen write route and confirms exact desired state', async () => {
-    const harness = setup([providerJson(setting()), providerJson(setting())])
+    const harness = setup([
+      providerJson(unsubscribed),
+      providerJson(setting()),
+      providerJson(setting()),
+    ])
 
-    await harness.adapter.subscribe({
-      accessToken: 'access-token',
-      authorization: AUTHORIZATION,
-      gbpAccountId: 'account-1',
-      pubsubTopic: 'projects/repkey-project/topics/gbp-reviews',
-      notificationTypes: ['NEW_REVIEW', 'UPDATED_REVIEW'],
-    })
+    await expect(
+      harness.adapter.subscribe({
+        accessToken: 'access-token',
+        authorization: AUTHORIZATION,
+        gbpAccountId: 'account-1',
+        pubsubTopic: 'projects/repkey-project/topics/gbp-reviews',
+        notificationTypes: ['NEW_REVIEW', 'UPDATED_REVIEW'],
+      }),
+    ).resolves.toBe('subscribed')
 
     expect(harness.descriptors).toEqual([
+      {
+        routeKey: 'notifications.get',
+        accessToken: 'access-token',
+        accountId: 'account-1',
+      },
       {
         routeKey: 'notifications.subscribe',
         accessToken: 'access-token',
@@ -82,6 +95,95 @@ describe('createMyBusinessNotificationsAdapter', () => {
         accessToken: 'access-token',
         accountId: 'account-1',
       },
+    ])
+  })
+
+  it('reports an account already publishing to the topic without writing', async () => {
+    const harness = setup([
+      providerJson(setting({ notificationTypes: ['UPDATED_REVIEW', 'NEW_REVIEW'] })),
+    ])
+
+    await expect(
+      harness.adapter.subscribe({
+        accessToken: 'access-token',
+        authorization: AUTHORIZATION,
+        gbpAccountId: 'account-1',
+        pubsubTopic: 'projects/repkey-project/topics/gbp-reviews',
+        notificationTypes: ['NEW_REVIEW', 'UPDATED_REVIEW'],
+      }),
+    ).resolves.toBe('already_subscribed')
+    expect(harness.descriptors.map((descriptor) => descriptor.routeKey)).toEqual([
+      'notifications.get',
+    ])
+  })
+
+  it.each([
+    ['another topic', setting({ pubsubTopic: 'projects/other/topics/topic' })],
+    ['fewer notification types', setting({ notificationTypes: ['NEW_REVIEW'] })],
+  ])('re-points an account publishing with %s', async (_label, current) => {
+    const harness = setup([
+      providerJson(current),
+      providerJson(setting()),
+      providerJson(setting()),
+    ])
+
+    await expect(
+      harness.adapter.subscribe({
+        accessToken: 'access-token',
+        authorization: AUTHORIZATION,
+        gbpAccountId: 'account-1',
+        pubsubTopic: 'projects/repkey-project/topics/gbp-reviews',
+        notificationTypes: ['NEW_REVIEW', 'UPDATED_REVIEW'],
+      }),
+    ).resolves.toBe('subscribed')
+    expect(harness.descriptors.map((descriptor) => descriptor.routeKey)).toEqual([
+      'notifications.get',
+      'notifications.subscribe',
+      'notifications.get',
+    ])
+  })
+
+  // Google documents the setting as a per-account singleton, but an account
+  // that never had one might answer 404 instead of a bare name. That account is
+  // exactly the one to subscribe, so a 404 counts as "differs"; the readback
+  // after the write still decides success.
+  it('writes when the account has no setting yet (404)', async () => {
+    const harness = setup([
+      providerJson({ error: { code: 404 } }, 404),
+      providerJson(setting()),
+      providerJson(setting()),
+    ])
+
+    await expect(
+      harness.adapter.subscribe({
+        accessToken: 'access-token',
+        authorization: AUTHORIZATION,
+        gbpAccountId: 'account-1',
+        pubsubTopic: 'projects/repkey-project/topics/gbp-reviews',
+        notificationTypes: ['NEW_REVIEW', 'UPDATED_REVIEW'],
+      }),
+    ).resolves.toBe('subscribed')
+    expect(harness.descriptors.map((descriptor) => descriptor.routeKey)).toEqual([
+      'notifications.get',
+      'notifications.subscribe',
+      'notifications.get',
+    ])
+  })
+
+  it('does not write when the current setting cannot be read', async () => {
+    const harness = setup([providerJson({ error: 'forbidden' }, 403)])
+
+    await expect(
+      harness.adapter.subscribe({
+        accessToken: 'access-token',
+        authorization: AUTHORIZATION,
+        gbpAccountId: 'account-1',
+        pubsubTopic: 'projects/repkey-project/topics/gbp-reviews',
+        notificationTypes: ['NEW_REVIEW'],
+      }),
+    ).rejects.toMatchObject({ _tag: 'GbpApiError', kind: 'permission_denied' })
+    expect(harness.descriptors.map((descriptor) => descriptor.routeKey)).toEqual([
+      'notifications.get',
     ])
   })
 
@@ -108,19 +210,23 @@ describe('createMyBusinessNotificationsAdapter', () => {
 
   it('reconciles an ambiguous subscribe by readback without repeating the write', async () => {
     const harness = setup([
+      providerJson(unsubscribed),
       { ok: false, code: 'transport_error', dispatch: 'unknown', retryAfterMs: 0 },
       providerJson(setting()),
     ])
 
-    await harness.adapter.subscribe({
-      accessToken: 'access-token',
-      authorization: AUTHORIZATION,
-      gbpAccountId: 'account-1',
-      pubsubTopic: 'projects/repkey-project/topics/gbp-reviews',
-      notificationTypes: ['NEW_REVIEW', 'UPDATED_REVIEW'],
-    })
+    await expect(
+      harness.adapter.subscribe({
+        accessToken: 'access-token',
+        authorization: AUTHORIZATION,
+        gbpAccountId: 'account-1',
+        pubsubTopic: 'projects/repkey-project/topics/gbp-reviews',
+        notificationTypes: ['NEW_REVIEW', 'UPDATED_REVIEW'],
+      }),
+    ).resolves.toBe('subscribed')
 
     expect(harness.descriptors.map((descriptor) => descriptor.routeKey)).toEqual([
+      'notifications.get',
       'notifications.subscribe',
       'notifications.get',
     ])
@@ -128,6 +234,7 @@ describe('createMyBusinessNotificationsAdapter', () => {
 
   it('preserves an ambiguous outcome when authoritative readback does not match', async () => {
     const harness = setup([
+      providerJson(unsubscribed),
       { ok: false, code: 'transport_error', dispatch: 'unknown', retryAfterMs: 0 },
       providerJson(setting({ pubsubTopic: 'projects/other/topics/topic' })),
     ])
@@ -146,6 +253,7 @@ describe('createMyBusinessNotificationsAdapter', () => {
       kind: 'upstream_error',
     })
     expect(harness.descriptors.map((descriptor) => descriptor.routeKey)).toEqual([
+      'notifications.get',
       'notifications.subscribe',
       'notifications.get',
     ])
@@ -168,6 +276,7 @@ describe('createMyBusinessNotificationsAdapter', () => {
 
   it('fails closed on malformed readback instead of claiming subscription', async () => {
     const harness = setup([
+      providerJson(unsubscribed),
       providerJson(setting()),
       providerJson({ name: 'accounts/another-account/notificationSetting' }),
     ])

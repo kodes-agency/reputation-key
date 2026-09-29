@@ -7,9 +7,11 @@
 
 import type { GoogleProviderCallAuthorization } from '../google-provider-contract'
 import type {
+  GbpAccountSubscription,
   GbpNotificationType,
   MyBusinessNotificationsPort,
 } from '../ports/mybusiness-notifications.port'
+import { isGbpApiError } from '../../domain/gbp-api-error'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { OrganizationId } from '#/shared/domain/ids'
 
@@ -24,6 +26,12 @@ export type NotificationProviderAuthorizationResult =
           gbpAccountId: string
         }>
       >
+      /**
+       * Bound accounts no Property of the connection could authorize (a
+       * denied or stale binding). Counted as failed, so a partly refused
+       * connection is not reported as fully subscribed.
+       */
+      unauthorizedAccounts?: number
     }>
   | Readonly<{
       ok: false
@@ -48,12 +56,17 @@ export type ManageNotificationsDeps = Readonly<{
 
 /**
  * Why `subscribe` reports an outcome instead of returning void: it swallows
- * every failure by design, so a void return left NO caller — the import path or
- * the ops backfill — able to tell "Google is now publishing" from "we gave up".
- * The enum is content-free and safe to log.
+ * every failure by design, so a void return left NO caller — the import path,
+ * the ops backfill or the daily reconciliation — able to tell "Google is now
+ * publishing" from "we gave up". The enum is content-free and safe to log.
+ *
+ * `subscribed`: every bound account now publishes to the topic, and at least
+ * one needed the write. `already_subscribed`: every one already did, so
+ * nothing was written.
  */
 export type GbpSubscribeOutcome =
   | 'subscribed'
+  | 'already_subscribed'
   | 'topic_unset'
   | 'connection_missing'
   | 'connection_inactive'
@@ -62,14 +75,74 @@ export type GbpSubscribeOutcome =
   | 'account_unresolved'
   | 'provider_failed'
 
+/**
+ * What happened to each exact GBP account the attempt reached. Google stores
+ * the notification setting per account, so this — not the connection — is the
+ * unit that is or is not publishing. Counts and codes only.
+ */
+export type GbpAccountTally = Readonly<{
+  subscribed: number
+  alreadySubscribed: number
+  failed: number
+  /** Failure code → accounts, e.g. `coordination_unavailable`, `provider_403`. */
+  failureCodes: Readonly<Record<string, number>>
+}>
+
+export type GbpSubscribeResult = Readonly<{
+  outcome: GbpSubscribeOutcome
+  accounts: GbpAccountTally
+}>
+
 /** Lifecycle API returned by the use case. Both methods are best-effort. */
 export type ManageNotificationsApi = Readonly<{
   subscribe: (
     organizationId: OrganizationId,
     connectionId: string,
-  ) => Promise<GbpSubscribeOutcome>
+  ) => Promise<GbpSubscribeResult>
   unsubscribe: (organizationId: OrganizationId, connectionId: string) => Promise<void>
 }>
+
+export const NO_GBP_ACCOUNTS: GbpAccountTally = Object.freeze({
+  subscribed: 0,
+  alreadySubscribed: 0,
+  failed: 0,
+  failureCodes: Object.freeze({}),
+})
+
+/** Adds tallies up, merging failure codes. */
+export const sumGbpAccountTallies = (
+  tallies: ReadonlyArray<GbpAccountTally>,
+): GbpAccountTally => {
+  const failureCodes: Record<string, number> = {}
+  for (const tally of tallies) {
+    for (const [code, count] of Object.entries(tally.failureCodes)) {
+      failureCodes[code] = (failureCodes[code] ?? 0) + count
+    }
+  }
+  return {
+    subscribed: tallies.reduce((sum, tally) => sum + tally.subscribed, 0),
+    alreadySubscribed: tallies.reduce((sum, tally) => sum + tally.alreadySubscribed, 0),
+    failed: tallies.reduce((sum, tally) => sum + tally.failed, 0),
+    failureCodes,
+  }
+}
+
+/**
+ * The most specific content-free reason an account's subscribe failed: our own
+ * admission's refusal (`coordination_unavailable`, `authorization_changed`, …)
+ * before Google's answer, then the executor's code, then the error kind.
+ */
+const gbpNotificationFailureCode = (error: unknown): string => {
+  if (!isGbpApiError(error)) return 'unexpected_error'
+  if (error.executionAdmissionCode) return error.executionAdmissionCode
+  if (error.providerStatus !== undefined) return `provider_${error.providerStatus}`
+  return error.executionCode ?? error.kind
+}
+
+const connectionOutcome = (accounts: GbpAccountTally): GbpSubscribeOutcome => {
+  if (accounts.failed > 0) return 'provider_failed'
+  return accounts.subscribed > 0 ? 'subscribed' : 'already_subscribed'
+}
 
 export const manageNotifications = (
   deps: ManageNotificationsDeps,
@@ -93,25 +166,36 @@ export const manageNotifications = (
         { envVar: 'GBP_PUBSUB_TOPIC' },
         'GBP push notifications disabled (GBP_PUBSUB_TOPIC is empty); new reviews arrive only via the discovery sweep',
       )
-      return 'topic_unset'
+      return { outcome: 'topic_unset', accounts: NO_GBP_ACCOUNTS }
     }
 
     let authorized: NotificationProviderAuthorizationResult
     try {
       authorized = await deps.authorizeProviderCall(organizationId, connectionId)
     } catch (err) {
-      deps.logger.warn({ err }, 'GBP notifications authorization unavailable')
-      return 'authorization_unavailable'
+      deps.logger.warn(
+        { errorName: err instanceof Error ? err.name : 'unknown' },
+        'GBP notifications authorization unavailable',
+      )
+      return { outcome: 'authorization_unavailable', accounts: NO_GBP_ACCOUNTS }
     }
-    if (!authorized.ok) return authorized.code
+    if (!authorized.ok) return { outcome: authorized.code, accounts: NO_GBP_ACCOUNTS }
 
     const targets = distinctTargets(authorized)
-    if (targets.length === 0) return 'account_unresolved'
+    if (targets.length === 0) {
+      return { outcome: 'account_unresolved', accounts: NO_GBP_ACCOUNTS }
+    }
 
-    let providerFailed = false
+    let subscribed = 0
+    let alreadySubscribed = 0
+    const failureCodes: Record<string, number> = {}
+    if (authorized.unauthorizedAccounts) {
+      failureCodes.authorization_denied = authorized.unauthorizedAccounts
+    }
     for (const target of targets) {
+      let result: GbpAccountSubscription
       try {
-        await deps.notifications.subscribe({
+        result = await deps.notifications.subscribe({
           accessToken: target.accessToken,
           authorization: target.authorization,
           gbpAccountId: target.gbpAccountId,
@@ -119,13 +203,29 @@ export const manageNotifications = (
           notificationTypes: deps.notificationTypes,
         })
       } catch (err) {
-        providerFailed = true
-        deps.logger.warn({ err }, 'GBP notifications subscribe failed — continuing')
+        const code = gbpNotificationFailureCode(err)
+        failureCodes[code] = (failureCodes[code] ?? 0) + 1
+        // Code and error class only: the daily run repeats this per account.
+        deps.logger.warn(
+          { code, errorName: err instanceof Error ? err.name : 'unknown' },
+          'GBP notifications subscribe failed — continuing',
+        )
+        continue
       }
+      if (result === 'subscribed') subscribed += 1
+      else alreadySubscribed += 1
     }
-    if (providerFailed) return 'provider_failed'
-    deps.logger.info('GBP notifications: subscribed')
-    return 'subscribed'
+    const accounts: GbpAccountTally = {
+      subscribed,
+      alreadySubscribed,
+      failed: Object.values(failureCodes).reduce((sum, count) => sum + count, 0),
+      failureCodes,
+    }
+    const outcome = connectionOutcome(accounts)
+    if (outcome === 'subscribed') {
+      deps.logger.info({ subscribed, alreadySubscribed }, 'GBP notifications: subscribed')
+    }
+    return { outcome, accounts }
   }
 
   const unsubscribe: ManageNotificationsApi['unsubscribe'] = async (
@@ -136,7 +236,9 @@ export const manageNotifications = (
       const authorized = await deps.authorizeProviderCall(organizationId, connectionId)
       if (!authorized.ok) return
 
-      for (const target of distinctTargets(authorized)) {
+      const targets = distinctTargets(authorized)
+      if (targets.length === 0) return
+      for (const target of targets) {
         try {
           await deps.notifications.unsubscribe({
             accessToken: target.accessToken,

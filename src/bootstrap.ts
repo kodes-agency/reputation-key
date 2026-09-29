@@ -25,6 +25,10 @@ import {
   JOB_NAME as GOOGLE_IMPORT_CLAIM_REAPER_JOB,
 } from '#/contexts/integration/infrastructure/jobs/google-import-claim-reaper.job'
 import { createGoogleImportV2ClaimReaper } from '#/contexts/integration/application/google-import-v2-claim-reaper'
+import {
+  createReconcileGbpNotificationSubscriptionsHandler,
+  JOB_NAME as RECONCILE_GBP_NOTIFICATION_SUBSCRIPTIONS_JOB,
+} from '#/contexts/integration/infrastructure/jobs/reconcile-gbp-notification-subscriptions.job'
 import { createGoogleImportV2Store } from '#/contexts/integration/infrastructure/google-import-v2-store'
 import {
   createRecoverInvitedRegistrationsHandler,
@@ -319,6 +323,21 @@ export async function bootstrap(
         store: createGoogleImportV2Store(container.db, container.clock),
         clock: container.clock,
       }),
+      logger: container.logger,
+    }),
+  )
+
+  // Daily GBP push reconciliation (the tenant-cross schedule only enumerates;
+  // each organization is decided again under current policy before any call).
+  registerCapabilityGatedJob(
+    RECONCILE_GBP_NOTIFICATION_SUBSCRIPTIONS_JOB,
+    'property.connect_gbp',
+    createReconcileGbpNotificationSubscriptionsHandler({
+      reconcile: container.integrationWorkerRuntime.reconcileNotificationSubscriptions,
+      authorizeScope: createScheduledScopeAuthorizer(
+        'system:integration.gbp_subscription_reconcile',
+      ),
+      nowMs: () => container.clock().getTime(),
       logger: container.logger,
     }),
   )

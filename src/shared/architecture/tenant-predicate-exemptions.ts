@@ -167,6 +167,13 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
   },
   {
     file: 'src/contexts/integration/infrastructure/repositories/google-connection.repository.ts',
+    symbol: 'listOrganizationIdsWithActiveConnections',
+    reason:
+      'The daily GBP push reconciliation enumerates the organizations holding an active Google connection, identifiers only, and re-authorizes each organization before any tenant work.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/integration/infrastructure/repositories/google-connection.repository.ts',
     symbol: 'findByGoogleIdentityGlobal',
     reason:
       'Google subject identity is a global uniqueness authority; this explicitly global lookup prevents one provider identity from binding across tenants.',

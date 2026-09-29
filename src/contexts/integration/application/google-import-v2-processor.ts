@@ -21,7 +21,10 @@ import {
   type ImportOutcomeCode,
   type ImportProfileField,
 } from './google-import-v2-contract'
-import type { ManageNotificationsApi } from './use-cases/manage-notifications'
+import type {
+  GbpSubscribeOutcome,
+  ManageNotificationsApi,
+} from './use-cases/manage-notifications'
 import {
   GOOGLE_IMPORT_ITEM_CLAIM_LEASE_MS,
   GOOGLE_IMPORT_ITEM_MAX_ATTEMPTS,
@@ -151,6 +154,14 @@ function authorizationOutcome(
   }
 }
 
+/** Subscribe outcomes that leave nothing to report after an import. */
+const SETTLED_SUBSCRIBE_OUTCOMES: ReadonlySet<GbpSubscribeOutcome> = new Set([
+  'subscribed',
+  'already_subscribed',
+  'account_unresolved',
+  'topic_unset',
+])
+
 export function createGoogleImportV2Processor(
   deps: Readonly<{
     store: GoogleImportV2Store
@@ -263,8 +274,9 @@ export function createGoogleImportV2Processor(
 
   /**
    * Ask Google to push future reviews for this account. Swallows its own
-   * failure: the discovery sweep still finds new reviews, and
-   * `ops:gbp-subscribe` repairs the subscription out of band.
+   * failure: the discovery sweep still finds new reviews, and the daily
+   * `reconcile-gbp-notification-subscriptions` job (or `ops:gbp-subscribe`)
+   * repairs the subscription.
    */
   const subscribeToNotificationsBestEffort = async (
     organizationIdValue: string,
@@ -273,10 +285,23 @@ export function createGoogleImportV2Processor(
   ): Promise<void> => {
     if (!deps.subscribeToNotifications) return
     try {
-      await deps.subscribeToNotifications(
+      const result = await deps.subscribeToNotifications(
         organizationId(organizationIdValue),
         connectionId,
       )
+      // `topic_unset` already warned in the use case; `account_unresolved`
+      // means no bound account to subscribe. Anything else short of
+      // subscribed is worth seeing now, not only in tomorrow's summary.
+      if (!SETTLED_SUBSCRIBE_OUTCOMES.has(result.outcome)) {
+        deps.logger.warn(
+          {
+            itemId,
+            outcome: result.outcome,
+            failureCodes: result.accounts.failureCodes,
+          },
+          'GBP notification subscribe did not complete after import — push stays dark for this account until the daily subscription reconciliation; discovery sweep unaffected',
+        )
+      }
     } catch (error) {
       // Content-free, matching the capability-provisioning warn below.
       deps.logger.warn(
@@ -285,7 +310,7 @@ export function createGoogleImportV2Processor(
           errorName: error instanceof Error ? error.name : 'unknown',
           errorCode: googleImportErrorCode(error),
         },
-        'GBP notification subscribe failed after import — push stays dark for this account until ops:gbp-subscribe runs; discovery sweep unaffected',
+        'GBP notification subscribe failed after import — push stays dark for this account until the daily subscription reconciliation; discovery sweep unaffected',
       )
     }
   }

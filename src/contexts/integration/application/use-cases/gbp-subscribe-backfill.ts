@@ -1,14 +1,19 @@
-// Integration context — ops:gbp-subscribe command core.
+// Integration context — gbp-subscribe backfill core.
 //
-// Why this exists: `manageNotifications.subscribe` now runs on the import path,
-// so every property connected FROM NOW ON gets push. Nothing retroactively
-// subscribes the tenants that connected before that wiring existed, and nothing
-// re-points an existing subscription when GBP_PUBSUB_TOPIC changes — Google
-// stores the topic per GBP account, not per deployment. Both are the same
-// operation: re-run `subscribe` over every active connection. That is this
-// command, and it is the ONLY mechanism for either; there is deliberately no
-// hidden reconciliation loop that would re-PATCH accounts behind an operator's
-// back.
+// Why this exists: `manageNotifications.subscribe` runs on the import path, so
+// every property connected with push working gets it. Nothing else subscribes
+// the tenants imported while push was off or broken (closed-beta-v2 until
+// 2026-09-29), and nothing re-points an existing subscription when
+// GBP_PUBSUB_TOPIC changes — Google stores the topic per GBP account, not per
+// deployment. Both are the same operation: re-run `subscribe` over every usable
+// connection of an organization. That is this backfill.
+//
+// Two callers run it. The daily `reconcile-gbp-notification-subscriptions`
+// job runs it for every organization the capability allows, because the
+// operator command cannot reach a database inside a private network; and
+// ops:gbp-subscribe runs it on demand for one organization. Neither re-PATCHes
+// an account behind anyone's back: `subscribe` reads the account's setting
+// first and writes only when it differs from the configured topic.
 //
 // The command's parse + action live here (with their unit tests); scripts/ is
 // outside tsconfig/eslint, so scripts/ops/gbp-subscribe.ts is wiring only — the
@@ -17,7 +22,13 @@
 import { organizationId as toOrganizationId } from '#/shared/domain/ids'
 import type { OrganizationId } from '#/shared/domain/ids'
 import type { GoogleConnection, GoogleConnectionStatus } from '../../domain/types'
-import type { GbpSubscribeOutcome, ManageNotificationsApi } from './manage-notifications'
+import {
+  NO_GBP_ACCOUNTS,
+  sumGbpAccountTallies,
+  type GbpAccountTally,
+  type GbpSubscribeOutcome,
+  type ManageNotificationsApi,
+} from './manage-notifications'
 
 /**
  * `skipped_inactive` is ours, not the use case's: a pending/reauth_required/
@@ -42,6 +53,8 @@ export type GbpSubscribeConnectionReport = Readonly<{
    * called. `skipped_inactive` is decided from the row in both modes.
    */
   outcome: GbpSubscribeConnectionOutcome | null
+  /** What happened to each GBP account of the connection; null when nothing was called. */
+  accounts: GbpAccountTally | null
 }>
 
 export type GbpSubscribeBackfillReport = Readonly<{
@@ -52,6 +65,8 @@ export type GbpSubscribeBackfillReport = Readonly<{
   candidates: number
   /** Outcome → count. Only the resolved outcomes, so empty on a dry run. */
   counts: Readonly<Partial<Record<GbpSubscribeConnectionOutcome, number>>>
+  /** Every GBP account the run reached, across its connections. */
+  accounts: GbpAccountTally
   connectionOutcomes: ReadonlyArray<GbpSubscribeConnectionReport>
 }>
 
@@ -80,9 +95,10 @@ export type GbpSubscribeBackfill = Readonly<{
   plan: (organizationId: OrganizationId) => Promise<GbpSubscribeBackfillReport>
   /**
    * Re-asserts the topic for every candidate. Safely re-runnable: `subscribe`
-   * resolves to a PATCH of the account's single notificationSetting resource
-   * and never throws, so a partial run is repaired by running it again.
-   * Sequential on purpose — a backfill must not burst GBP's per-project quota.
+   * reads the account's single notificationSetting resource, PATCHes it only
+   * when it differs, and never throws, so a partial run is repaired by running
+   * it again. Sequential on purpose — a backfill must not burst GBP's
+   * per-project quota.
    */
   apply: (organizationId: OrganizationId) => Promise<GbpSubscribeBackfillReport>
 }>
@@ -104,14 +120,17 @@ export const createGbpSubscribeBackfill = (
           connectionId: connection.id,
           status: connection.status,
           outcome: 'skipped_inactive',
+          accounts: null,
         })
         continue
       }
       candidates += 1
+      const result = call ? await deps.subscribe(organizationId, connection.id) : null
       connectionOutcomes.push({
         connectionId: connection.id,
         status: connection.status,
-        outcome: call ? await deps.subscribe(organizationId, connection.id) : null,
+        outcome: result?.outcome ?? null,
+        accounts: result?.accounts ?? null,
       })
     }
 
@@ -121,6 +140,12 @@ export const createGbpSubscribeBackfill = (
       connections: connections.length,
       candidates,
       counts: tally(connectionOutcomes),
+      accounts: sumGbpAccountTallies([
+        NO_GBP_ACCOUNTS,
+        ...connectionOutcomes.flatMap((entry) =>
+          entry.accounts ? [entry.accounts] : [],
+        ),
+      ]),
       connectionOutcomes,
     }
   }
@@ -130,6 +155,14 @@ export const createGbpSubscribeBackfill = (
     apply: (organizationId) => examine(organizationId, true),
   }
 }
+
+/** Outcomes that leave nothing for an operator to repair. */
+const SETTLED_OUTCOMES: ReadonlySet<GbpSubscribeConnectionOutcome> = new Set([
+  'subscribed',
+  'already_subscribed',
+  'skipped_inactive',
+  'account_unresolved',
+])
 
 /** The subset of the harness context/io this action reads (structural). */
 type GbpSubscribeOperatorContext = Readonly<{
@@ -143,8 +176,9 @@ type GbpSubscribeOperatorIO = Readonly<{ out: (line: string) => void }>
  * OperatorAction. DRY-RUN by default: the harness sets ctx.dryRun for a mutation
  * invoked without --apply, and then nothing calls Google at all.
  *
- * Exit code 1 when an applied run produced any outcome other than `subscribed`
- * or `skipped_inactive`, so a backfill that quietly achieved nothing is not
+ * Exit code 1 when an applied run left any connection neither subscribed nor
+ * with nothing to subscribe (`skipped_inactive`, or `account_unresolved`: no
+ * bound Property yet), so a backfill that quietly achieved nothing is not
  * mistaken for a successful one. `topic_unset` lands there too: it means
  * GBP_PUBSUB_TOPIC is empty in the environment the command ran in, which is the
  * single most likely reason an operator's backfill does nothing.
@@ -169,11 +203,11 @@ export function createGbpSubscribeOperatorAction(
     const report = await backfill.apply(organization)
     io.out(JSON.stringify(report, null, 2))
     const unresolved = report.connectionOutcomes.filter(
-      (entry) => entry.outcome !== 'subscribed' && entry.outcome !== 'skipped_inactive',
+      (entry) => entry.outcome === null || !SETTLED_OUTCOMES.has(entry.outcome),
     )
     if (unresolved.length === 0) return 0
     io.out(
-      `${unresolved.length} connection(s) did not reach 'subscribed' — safe to re-run; see the per-connection outcomes above`,
+      `${unresolved.length} connection(s) did not reach 'subscribed' or 'already_subscribed' — safe to re-run; see the per-connection outcomes above`,
     )
     return 1
   }

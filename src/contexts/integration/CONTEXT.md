@@ -50,6 +50,13 @@ notification, import, Review fallback, and recovery execute through governed
 routes. Durable outbox dispatch is always on; worker boot fails when delivery
 dependencies are unavailable.
 
+GBP push is desired state per Google account: each account bound to an active
+Property publishes to `GBP_PUBSUB_TOPIC`. An import item asserts it, and the
+daily `reconcile-gbp-notification-subscriptions` job re-asserts it for every
+organization with an active connection that current policy allows, reading each
+account's setting first and writing only on a difference, so accounts imported
+while push was off or broken and a changed topic converge without an operator.
+
 The callback preserves one encrypted provider response behind a leased,
 server-generated exchange-attempt identifier. Refresh uses a renewable Redis
 single-flight lease and credential-generation compare-and-swap. A refresh Google

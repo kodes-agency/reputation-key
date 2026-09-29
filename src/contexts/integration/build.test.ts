@@ -139,6 +139,7 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
     )
     expect(Object.keys(ctx.worker).sort()).toEqual([
       'processImportItem',
+      'reconcileNotificationSubscriptions',
       'reconcileProviderRecovery',
       'registerOutboxConsumers',
       'sweepImportLifecycle',
@@ -192,8 +193,18 @@ describe('buildIntegrationContext provider slots (BQC-6.1)', () => {
     expect(notificationWiring).toContain('createMyBusinessNotificationsAdapter')
     expect(notificationWiring).toContain('authorization_unavailable')
     expect(notificationWiring).not.toContain('createGoogleAccountManagementAdapter')
-    expect(source).toContain('const targetedAccounts = new Set<string>()')
-    expect(source).toContain('gbpAccountId: binding.accountId')
+    // The account targets come from active Property bindings, never discovery.
+    const authorizer = readFileSync(
+      new URL(
+        './application/google-notification-provider-authorizer.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    )
+    expect(source).toContain('createGoogleNotificationProviderAuthorizer({')
+    expect(authorizer).toContain('const targetedAccounts = new Set<string>()')
+    expect(authorizer).toContain('gbpAccountId: binding.accountId')
+    expect(authorizer).not.toContain('listAccounts')
     expect(source).not.toContain('createGbpApiAdapter')
   })
 

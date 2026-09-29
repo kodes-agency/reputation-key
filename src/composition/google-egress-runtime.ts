@@ -31,15 +31,9 @@ import { createGoogleCredentialBinder } from '#/shared/google-provider-control/c
 import { createRedisGoogleAdmissionGrantStore } from '#/shared/google-provider-control/admission-grant-store'
 import type { GoogleAdmissionGrantRedis } from '#/shared/google-provider-control/admission-grant-store'
 import {
-  GOOGLE_QUOTA_POLICIES,
-  createRedisGoogleInFlightCoordinator,
-  createRedisGoogleQuotaCoordinator,
+  createGoogleCoordinationLookup,
   type GoogleCoordinationRedis,
 } from '#/shared/google-provider-control/quota-coordinator'
-import type {
-  GoogleInFlightCoordinator,
-  GoogleQuotaCoordinator,
-} from '#/shared/google-provider-control/contracts'
 import { createPostgresGoogleAdmissionPermitAuthority } from '#/shared/google-provider-control/postgres-permit-authority'
 import { createGoogleExecutionAdmissionService } from '#/shared/google-provider-control/admission-service'
 import {
@@ -75,29 +69,11 @@ export function createInProcessGoogleEgressRuntime(
     }>
   }>,
 ): InProcessGoogleEgressRuntime {
-  const quotaCoordinators = new Map<string, GoogleQuotaCoordinator>()
-  const inFlightCoordinators = new Map<string, GoogleInFlightCoordinator>()
-  for (const [policyId, policy] of Object.entries(GOOGLE_QUOTA_POLICIES)) {
-    quotaCoordinators.set(
-      policyId,
-      createRedisGoogleQuotaCoordinator({
-        redis: deps.redis,
-        nowMs: deps.nowMs,
-        policyId,
-        policy,
-      }),
-    )
-    inFlightCoordinators.set(
-      policyId,
-      createRedisGoogleInFlightCoordinator({
-        redis: deps.redis,
-        nowMs: deps.nowMs,
-        leaseId: () => randomBytes(24).toString('base64url'),
-        policyId,
-        policy,
-      }),
-    )
-  }
+  const coordination = createGoogleCoordinationLookup({
+    redis: deps.redis,
+    nowMs: deps.nowMs,
+    leaseId: () => randomBytes(24).toString('base64url'),
+  })
 
   // One keyring, shared. In the split topology the gateway and the admission
   // service each built their own from the same secret so the grant one signed
@@ -113,8 +89,8 @@ export function createInProcessGoogleEgressRuntime(
       pool: deps.pool,
       gatewayIdentity: deps.gatewayIdentity,
     }),
-    quotaForPolicy: (policyId) => quotaCoordinators.get(policyId) ?? null,
-    inFlightForPolicy: (policyId) => inFlightCoordinators.get(policyId) ?? null,
+    quotaForPolicy: coordination.quotaForPolicy,
+    inFlightForPolicy: coordination.inFlightForPolicy,
   })
 
   const bindCredential = createGoogleCredentialBinder(

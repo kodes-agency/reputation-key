@@ -21,6 +21,16 @@ describe('Integration runtime dependency injection', () => {
     expect(source).not.toMatch(/new Date\s*\(\s*\)/u)
   })
 
+  it('keeps the GBP subscription reconciliation logger and clock worker-owned', () => {
+    const source = read(
+      'infrastructure/jobs/reconcile-gbp-notification-subscriptions.job.ts',
+    )
+    expect(source).not.toMatch(/\bgetLogger\s*\(/u)
+    expect(source).not.toMatch(/\bDate\.now\s*\(/u)
+    expect(source).toContain("logger: Pick<LoggerPort, 'info' | 'warn'>")
+    expect(source).toContain('nowMs: () => number')
+  })
+
   it('keeps the import claim-reaper logger worker-owned', () => {
     const source = read('infrastructure/jobs/google-import-claim-reaper.job.ts')
     expect(source).not.toMatch(/\bgetLogger\s*\(/u)

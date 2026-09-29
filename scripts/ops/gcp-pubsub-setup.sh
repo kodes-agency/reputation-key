@@ -9,7 +9,9 @@
 #
 # What it does NOT do: set the app's environment variables (they live in
 # Railway, and the values are printed at the end for you to paste), and
-# subscribe the tenants (that is `pnpm ops gbp-subscribe`, which needs the
+# subscribe the tenants (the worker's daily
+# reconcile-gbp-notification-subscriptions job does that once the variables are
+# set; `pnpm ops gbp-subscribe` does it at once from a host that reaches the
 # app's database). See docs/operations/google-pubsub-setup.md.
 #
 # Usage:
@@ -158,7 +160,10 @@ Set these on BOTH the web and worker services:
   GBP_PUBSUB_PUSH_SERVICE_ACCOUNT=${PUSH_SA}
   GBP_PUBSUB_NOTIFICATION_TYPES=NEW_REVIEW
 
-Then subscribe each tenant (org-scoped, dry-run first):
+The worker then subscribes every tenant: its daily
+reconcile-gbp-notification-subscriptions job (first run right after the deploy
+that installed it). To subscribe one tenant at once, from a host that reaches
+the app's database (org-scoped, dry-run first):
 
   pnpm ops gbp-subscribe --operator <user-id> --org <org-id>
   pnpm ops gbp-subscribe --operator <user-id> --org <org-id> --reason "enable GBP push" --apply

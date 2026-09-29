@@ -51,6 +51,10 @@ export {
   type GbpSubscribeConnectionReport,
 } from './gbp-subscribe-backfill'
 export {
+  createGbpNotificationReconciliation,
+  type ReconcileGbpNotificationSubscriptions,
+} from './reconcile-gbp-notification-subscriptions'
+export {
   getGoogleAuthUrl,
   type GetGoogleAuthUrlDeps,
   type GetGoogleAuthUrl,

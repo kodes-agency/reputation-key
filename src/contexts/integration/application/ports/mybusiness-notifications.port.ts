@@ -1,9 +1,10 @@
 // Integration context — GBP Notifications API port (Pub/Sub lifecycle step 2/3).
 // Per architecture: "Ports are TypeScript types defining capability contracts."
 // Wraps Google's My Business Notifications desired-state endpoint through the
-// typed Google provider executor. Every write is followed by an authoritative
-// readback; ambiguous transport outcomes are never resolved by replaying the
-// write blindly.
+// typed Google provider executor. A subscribe reads the current setting first
+// and writes only when it differs; every write is followed by an authoritative
+// readback, and ambiguous transport outcomes are never resolved by replaying
+// the write blindly.
 
 import type { GoogleProviderCallAuthorization } from '../google-provider-contract'
 
@@ -30,12 +31,16 @@ export type UnsubscribeInput = Readonly<{
   signal?: AbortSignal
 }>
 
+/** What `subscribe` found: it wrote the setting, or it already matched. */
+export type GbpAccountSubscription = 'subscribed' | 'already_subscribed'
+
 export type MyBusinessNotificationsPort = Readonly<{
   /**
-   * PATCH updateNotificationSetting with a pubsubTopic + notificationTypes so
-   * Google publishes the given notification types to the topic.
+   * Read the account's notification setting and, only when it differs, PATCH
+   * updateNotificationSetting with the pubsubTopic + notificationTypes so Google
+   * publishes those types to the topic, then confirm by readback.
    */
-  subscribe: (input: SubscribeInput) => Promise<void>
+  subscribe: (input: SubscribeInput) => Promise<GbpAccountSubscription>
   /**
    * PATCH updateNotificationSetting with an empty pubsubTopic to stop publishing.
    */
