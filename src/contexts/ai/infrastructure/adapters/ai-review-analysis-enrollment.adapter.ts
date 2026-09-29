@@ -2,10 +2,6 @@ import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { aiReviewAnalysisEnrollments, eventConsumerReceipts } from '#/shared/db/schema'
 import { organizationId, propertyId } from '#/shared/domain/ids'
-import {
-  MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1,
-  MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1,
-} from '#/shared/ai-review-source-contract'
 import { AI_PROVIDER_DEPLOYMENT_PROFILE } from '#/shared/ai-operation-profiles'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { aiReviewAnalysisBackfillRequested } from '../../domain/events'
@@ -18,6 +14,10 @@ import type {
   ReviewAnalysisEnrollmentStorePort,
 } from '../../application/ports/ai-review-analysis-enrollment.port'
 import { AI_REVIEW_ANALYSIS_ENROLLMENT_SAFETY_CEILING } from '../../application/ports/ai-review-analysis-enrollment.port'
+import {
+  ANALYSABLE_REVIEW_SQL,
+  enrollmentOwesAnalysis,
+} from './ai-review-analysis-reopen.adapter'
 
 type Tx = Parameters<Parameters<Database['transaction']>[0]>[0]
 type Row = Readonly<Record<string, unknown>>
@@ -159,14 +159,7 @@ function eligibleReviewsSql(input: {
       AND review.source_epoch = ${input.sourceEpoch}
       AND review.source_revision >= 1
       AND review.analysis_sequence <= ${input.analysisStartSequence}
-      AND review.text IS NOT NULL
-      AND review.content_expires_at > transaction_timestamp()
-      AND review.ai_source_byte_length <= ${MAX_AI_REVIEW_SOURCE_CANONICAL_BYTES_V1}
-      AND (
-        COALESCE(octet_length(review.text), 0)::bigint
-        + COALESCE(octet_length(review.language_code), 0)::bigint
-        + COALESCE(octet_length(review.reviewer_name), 0)::bigint
-      ) <= ${MAX_AI_REVIEW_SOURCE_RAW_BYTES_V1}
+      AND ${ANALYSABLE_REVIEW_SQL}
   `
 }
 
@@ -466,6 +459,15 @@ async function reconcileRunning(
   if (settled !== enrolled) {
     return { status: 'stalled', reason: 'verification_inconsistent' }
   }
+  // Every replayed event settled, but settling is not analysing: wait for a
+  // review the sweep reopens after a transient failure (ADR 0058).
+  const scope = {
+    organizationId: String(row.organization_id),
+    propertyId: String(row.property_id),
+    enrollmentId: input.enrollmentId,
+    fence,
+  }
+  if (await enrollmentOwesAnalysis(tx, scope)) return { status: 'waiting_for_replay' }
   return catchUp(tx, row, input.occurredAt)
 }
 

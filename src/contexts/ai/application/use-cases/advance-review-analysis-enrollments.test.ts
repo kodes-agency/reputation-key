@@ -8,6 +8,7 @@ import type {
   ReviewAnalysisEnrollmentStorePort,
 } from '../ports/ai-review-analysis-enrollment.port'
 import { EMPTY_REVIEW_ANALYSIS_REVISION_SET_DIGEST } from '../ports/ai-review-analysis-enrollment.port'
+import type { AiReviewAnalysisReopenPort } from '../ports/ai-review-analysis-reopen.port'
 import { createAdvanceReviewAnalysisEnrollments } from './advance-review-analysis-enrollments'
 
 const ORGANIZATION_ID = organizationId('ai-enrollment-test')
@@ -95,6 +96,7 @@ function harness(
     controlsEnabled?: boolean
     reconcileStatus?: Awaited<ReturnType<ReviewAnalysisEnrollmentStorePort['reconcile']>>
     currentEnrollment?: ReviewAnalysisEnrollmentEvidence | null
+    reopened?: Awaited<ReturnType<AiReviewAnalysisReopenPort['reopenAbandoned']>>
   }> = {},
 ) {
   const readMerchantAuthorization = vi.fn(async () =>
@@ -148,6 +150,9 @@ function harness(
       : options.reconcileStatus,
   )
   const markSuperseded = vi.fn(async () => true)
+  const reopenAbandoned = vi.fn(
+    async () => options.reopened ?? { reopened: 0, leftUnanalysed: 0 },
+  )
   const store: ReviewAnalysisEnrollmentStorePort = {
     applyAuthorizationLifecycle: async () => {
       throw new Error('not used')
@@ -165,12 +170,14 @@ function harness(
       authorization: { readMerchantAuthorization } as AiAuthorizationPort,
       control: { readHeads, transition: async () => null } as AiControlPort,
       enrollments: store,
+      reopen: { reopenAbandoned },
       nowEpochMillis: () => NOW.getTime(),
     }),
     readMerchantAuthorization,
     readHeads,
     reconcile,
     markSuperseded,
+    reopenAbandoned,
   }
 }
 
@@ -188,9 +195,28 @@ describe('advance Review Analysis first-enablement enrollment', () => {
       enrollmentsSuperseded: 0,
       enrollmentsStalled: 0,
       batchFull: false,
+      analysesReopened: 0,
+      analysesLeftUnanalysed: 0,
     })
     expect(test.reconcile).not.toHaveBeenCalled()
     expect(test.markSuperseded).not.toHaveBeenCalled()
+    // Reopening would queue work that a dark runtime settles as disabled.
+    expect(test.reopenAbandoned).not.toHaveBeenCalled()
+  })
+
+  // Closed beta, 2026-09-29: reviews settled without an analysis after their
+  // operations gave up on a transient failure, and nothing looked at them again.
+  it('reopens analyses abandoned by a transient failure and reports what it could not', async () => {
+    const test = harness({ reopened: { reopened: 3, leftUnanalysed: 1 } })
+
+    const result = await test.advance.sweep()
+
+    expect(test.reopenAbandoned).toHaveBeenCalledWith({ limit: 50, occurredAt: NOW })
+    expect(result).toMatchObject({ analysesReopened: 3, analysesLeftUnanalysed: 1 })
+    // Enrollments advance first, so a failing reopen pass cannot hold them back.
+    expect(test.reconcile.mock.invocationCallOrder[0]).toBeLessThan(
+      test.reopenAbandoned.mock.invocationCallOrder[0]!,
+    )
   })
 
   it('starts one set-based revision-pinned replay for the exact authorization fence', async () => {
@@ -224,7 +250,8 @@ describe('advance Review Analysis first-enablement enrollment', () => {
       reason: 'authorization_changed',
       occurredAt: NOW,
     })
-    expect(test.readHeads).not.toHaveBeenCalled()
+    // Controls are read once, by the reopen pass; never for the retired enrollment.
+    expect(test.readHeads).toHaveBeenCalledTimes(1)
     expect(test.reconcile).not.toHaveBeenCalled()
   })
 

@@ -48,7 +48,11 @@ buckets. Historical and backfill analysis events queue their provider work in
 `ai_review_analysis_backlog`, which a 5-second drain empties newest review
 first, eight analyses at a time, and records an enrollment caught up as soon as
 its last review settles; a review opened in the Inbox is analysed ahead of the
-queue.
+queue. The sweep also reopens a text review whose analysis settled without a
+result because its operation gave up on a transient failure (ADR 0058,
+2026-09-29): a fresh analysis sequence and a backfill event, at most three times
+per revision. An enrollment is not caught up while one of its replayed reviews
+still owes an analysis.
 `readReviewAnalysisProgress` reports queued, running, analysed and
 not-analysable counts. Reply Draft provider output remains session-ephemeral until an explicit,
 atomically revalidated adoption creates Review-owned draft content.
@@ -82,4 +86,4 @@ The context contains substantial control, admission, lifecycle, analysis, drafti
 
 The unconditional recurring enrollment sweep is registered, catalogued, and scheduled through the shared operational authority; deployed scheduler/runtime observation remains release evidence rather than a local-code claim. A broader manager-facing analyzed/candidate/excluded/failed and Verified Through surface remains a product gap. Deployed scheduler/runtime observations remain release evidence, not a local-code claim. Reply Draft cross-context deletion proof, provider-side deletion evidence where applicable, and deployed recovery evidence remain release gates.
 
-The first-enablement Review Analysis enrollment replay is the sole producer of `ai.review_analysis.backfill_requested`. Migration 0157 adds the fixed whole-snapshot safety pause, assisted-approval evidence, readiness counts, and `ops:ai-approve-enrollment`; a broader manager-facing analyzed/candidate/excluded/failed and Verified Through surface remains a product gap.
+The first-enablement Review Analysis enrollment replay and the sweep's reopen pass are the only producers of `ai.review_analysis.backfill_requested`; a reopened review's event is correlated to the operation it replaces, never to an enrollment. Migration 0157 adds the fixed whole-snapshot safety pause, assisted-approval evidence, readiness counts, and `ops:ai-approve-enrollment`; a broader manager-facing analyzed/candidate/excluded/failed and Verified Through surface remains a product gap.

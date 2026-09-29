@@ -392,6 +392,27 @@ describe('AI gateway execution orchestration', () => {
     expect(value.settle).toHaveBeenCalledTimes(1)
   })
 
+  // Closed beta, 2026-09-29: during an import burst the admission authority's
+  // database waited past its lock timeout. Nothing had been granted or
+  // dispatched, but the gateway answered `operation_ambiguous`, which the
+  // analysis retry counts against its four provider attempts.
+  it('reports an admission authority that could not answer as unavailable, not ambiguous', async () => {
+    const value = harness()
+    value.authorize.mockRejectedValue(new Error('AI admission authority is unavailable'))
+
+    const response = await value.service.execute(
+      sourceLease(value.request),
+      new AbortController().signal,
+    )
+
+    expect(response).toMatchObject({ status: 'error', code: 'provider_unavailable' })
+    expect(value.invoke).not.toHaveBeenCalled()
+    expect(value.settle).not.toHaveBeenCalled()
+    expect(
+      value.prepared.invocation.canonicalProviderBytes.every((byte) => byte === 0),
+    ).toBe(true)
+  })
+
   it('uses provider-free readiness checks only', async () => {
     const value = harness()
     await expect(value.service.readiness(new AbortController().signal)).resolves.toBe(

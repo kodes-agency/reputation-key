@@ -57,6 +57,33 @@ function settlementState(
   return 'settled'
 }
 
+/**
+ * An admission whose reservation was settled at zero cost: the gateway withheld
+ * dispatch and released it, or the stale-reservation reaper released it. The
+ * provider was never charged for it, so it must not block the operation's next
+ * attempt. A charged or still-open admission keeps blocking: the ledger holds
+ * one reservation per operation, and a second provider call against it would be
+ * unaccounted.
+ */
+function releasedWithoutCharge(
+  operation: Readonly<{ budgetSettledAt: Date | null; actualMicros: number | null }>,
+): boolean {
+  return operation.budgetSettledAt !== null && operation.actualMicros === 0
+}
+
+/** Clears a released admission so the next attempt is admitted afresh. */
+const RELEASED_ADMISSION_CLEARED = Object.freeze({
+  admissionNonce: null,
+  requestBindingKeyId: null,
+  requestBindingHmac: null,
+  grantKid: null,
+  costWindowId: null,
+  reservedMicros: 0,
+  budgetReservedAt: null,
+  budgetSettledAt: null,
+  actualMicros: null,
+})
+
 export function createPostgresAiAdmissionAuthority(
   input: Dependencies,
 ): AiAdmissionDatabaseAuthority {
@@ -93,6 +120,8 @@ export function createPostgresAiAdmissionAuthority(
             requestBindingKeyId: aiOperations.requestBindingKeyId,
             requestBindingHmac: aiOperations.requestBindingHmac,
             admissionNonce: aiOperations.admissionNonce,
+            budgetSettledAt: aiOperations.budgetSettledAt,
+            actualMicros: aiOperations.actualMicros,
             expiresAt: aiOperations.expiresAt,
           })
           .from(aiOperations)
@@ -132,19 +161,25 @@ export function createPostgresAiAdmissionAuthority(
             : null
         if (operation.admissionNonce !== null) {
           if (
-            operation.requestBindingKeyId !== requestBinding.keyId ||
-            operation.requestBindingHmac !== requestBinding.hmac
+            operation.requestBindingKeyId === requestBinding.keyId &&
+            operation.requestBindingHmac === requestBinding.hmac
           ) {
+            return {
+              status: 'admitted' as const,
+              nonce: operation.admissionNonce,
+              issuedAtEpochMillis,
+              expiresAtEpochMillis: descriptor.callerDeadlineEpochMillis,
+              replyTokenExpiresAtEpochMillis: adoptionWindowEnd,
+              replyDraftExpiresAtEpochMillis: adoptionWindowEnd,
+            }
+          }
+          if (!releasedWithoutCharge(operation)) {
             return { status: 'denied' as const, code: 'already_consumed' as const }
           }
-          return {
-            status: 'admitted' as const,
-            nonce: operation.admissionNonce,
-            issuedAtEpochMillis,
-            expiresAtEpochMillis: descriptor.callerDeadlineEpochMillis,
-            replyTokenExpiresAtEpochMillis: adoptionWindowEnd,
-            replyDraftExpiresAtEpochMillis: adoptionWindowEnd,
-          }
+          await tx
+            .update(aiOperations)
+            .set(RELEASED_ADMISSION_CLEARED)
+            .where(eq(aiOperations.id, descriptor.operationId))
         }
 
         const admitted = await budget.admitAiOperation(tx, {
