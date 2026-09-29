@@ -109,6 +109,77 @@ function collectFileViolations(name, path, bytes, violations) {
   if (extname(path) === '.map') collectSourceMapViolations(name, contents, violations)
 }
 
+// Nitro bundles its static-asset manifest (`#nitro/virtual/public-assets-data`)
+// into a server chunk and serves every listed id by reading the entry's `path`,
+// relative to `server/`. An id whose file the build deleted afterwards answers
+// 500, not 404: on 2026-09-29 the client source maps were listed, then deleted
+// by the Dockerfile, and every `GET /assets/<chunk>.js.map` paged the owner.
+const PUBLIC_ASSET_MANIFEST_REGION =
+  /\/\/#region #nitro\/virtual\/public-assets-data\n[^{]*(\{[\s\S]*?\n\});?\n\/\/#endregion/gu
+
+async function isDirectory(path) {
+  return stat(path).then(
+    (stats) => stats.isDirectory(),
+    () => false,
+  )
+}
+
+async function isFile(path) {
+  return stat(path).then(
+    (stats) => stats.isFile(),
+    () => false,
+  )
+}
+
+/** Nitro's node-server layout: `server/index.mjs` serving from `public/`. */
+async function isNitroOutput(rootPath) {
+  return (
+    (await isFile(resolve(rootPath, 'server/index.mjs'))) &&
+    (await isDirectory(resolve(rootPath, 'public')))
+  )
+}
+
+function parsePublicAssetManifests(name, contents, violations) {
+  return [...contents.matchAll(PUBLIC_ASSET_MANIFEST_REGION)].flatMap(([, literal]) => {
+    try {
+      return [JSON.parse(literal)]
+    } catch {
+      violations.push(`${name}: unreadable Nitro public-asset manifest`)
+      return []
+    }
+  })
+}
+
+/**
+ * Every id the manifest serves must exist. A manifest that cannot be found is
+ * itself a violation: without it nothing proves the served set is readable.
+ */
+async function collectPublicAssetViolations(root, violations) {
+  const rootPath = resolve(root)
+  if (!(await isNitroOutput(rootPath))) return
+  const serverDir = resolve(rootPath, 'server')
+  const manifests = []
+  for (const path of await filesBelow(serverDir)) {
+    if (!path.endsWith('.mjs')) continue
+    const name = relative(process.cwd(), path).replaceAll('\\', '/')
+    const contents = await readFile(path, 'utf8')
+    manifests.push(...parsePublicAssetManifests(name, contents, violations))
+  }
+  if (manifests.length === 0) {
+    violations.push(`${root}: no Nitro public-asset manifest found under server/`)
+    return
+  }
+  for (const manifest of manifests) {
+    for (const [id, asset] of Object.entries(manifest)) {
+      if (typeof asset?.path !== 'string') continue
+      if (await isFile(resolve(serverDir, asset.path))) continue
+      violations.push(
+        `${root}: public asset ${id} is listed but ${asset.path} does not exist (Nitro would answer 500)`,
+      )
+    }
+  }
+}
+
 async function inspect(roots) {
   const digest = createHash('sha256')
   const violations = []
@@ -122,6 +193,7 @@ async function inspect(roots) {
       digest.update(bytes)
       collectFileViolations(name, path, bytes, violations)
     }
+    await collectPublicAssetViolations(root, violations)
   }
   if (fileCount === 0) throw new Error('Artifact roots contain no files')
   return {

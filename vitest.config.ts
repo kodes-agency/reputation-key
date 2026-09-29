@@ -105,6 +105,8 @@ export default defineConfig({
             'scripts/ci/**/*.test.ts',
             'scripts/ops/**/*.test.ts',
             'scripts/local/**/*.test.ts',
+            // Build plugins registered by vite.config.ts.
+            'scripts/build/**/*.test.ts',
             'e2e/fixtures/**/*.test.ts',
             // The e2e HELPERS are ordinary Node modules with no browser
             // dependency (polling, allowlist bookkeeping, raw SQL builders), and
