@@ -130,6 +130,32 @@ reset. **Effort: M.**
 8. Phones: open the bell as a full-screen sheet?
 9. A visible cue for urgent arrivals (toast or tab-title count)?
 
+### Answers (owner, 2026-09-29)
+
+| #   | Answer                                                                 |
+| --- | ---------------------------------------------------------------------- |
+| D1  | **B** — Needs you / Updates                                            |
+| D2  | Badge counts **Needs you** only                                        |
+| D3  | Open — proposed: yes, and it settles (see below)                       |
+| D4  | Arrivals **off in the app by default**; escalations and low ratings on |
+| D5  | Yes — a stack opens the Property's Inbox queue                         |
+| D6  | Yes — timezone and date format move to Profile                         |
+| D7  | Exceptions **stay** when a default changes                             |
+| D8  | Yes — full-screen sheet on phones                                      |
+| D9  | Maybe — a toast for urgent arrivals                                    |
+
+**D3 proposal.** "Assigned to you" joins Needs you and settles when the item's
+handling cycle closes, when its Property is archived, or — for the previous
+holder only — when the item is reassigned. A bulk assignment settles once none
+of its items is still open (the rule `grouped-reopen-settlement.ts` already
+applies to bulk reopens). For a reader who also got the arrival for the same
+item, the assignment replaces the arrival row.
+
+**D4 follow-up.** Google/provider ratings are forbidden in notification
+payloads (`notification-payload.ts:20`), so "low ratings on" can be decided
+from the payload only for Portal feedback. Low-rated Google reviews need the
+decision made at fan-out, from the Inbox's rating, without storing it.
+
 ## 5. Constraints for the build
 
 - **Bundle budget.** The bell renders in the first-paint closure and Tailwind
