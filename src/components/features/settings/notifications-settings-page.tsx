@@ -12,6 +12,10 @@ import {
 } from './notifications-settings-view'
 import type { EmailAvailability } from './email-availability-notice'
 import { describeInheritedDefault } from './notification-inherited-defaults'
+import {
+  setDifferentlyElsewhere,
+  type SetDifferently,
+} from './notification-apply-everywhere'
 import type { QuietHoursUpdate } from './notification-quiet-hours-card'
 import {
   useNotificationPreferenceSaves,
@@ -43,6 +47,9 @@ type BoundaryProps = Omit<
   Readonly<{
     settings: EffectiveNotificationSettings
     inheritedFor: (category: ConfigurableNotificationCategory) => string
+    setDifferentlyFor: (
+      category: ConfigurableNotificationCategory,
+    ) => ReadonlyArray<SetDifferently>
   }> &
   ReturnType<typeof useNotificationPreferenceSaves>
 
@@ -105,6 +112,9 @@ export function NotificationsSettingsPage({
       savePreference={savePreference}
       applyToAll={applyToAll}
       inheritedFor={(category) => describeInheritedDefault(category, categoryDefaults)}
+      setDifferentlyFor={(category) =>
+        setDifferentlyElsewhere(category, preferences, properties, propertyId)
+      }
       updateUserSettings={updateUserSettings}
       updateQuietHours={updateQuietHours}
     />
@@ -123,6 +133,7 @@ function NotificationFormattingBoundary({
   savePreference,
   applyToAll,
   inheritedFor,
+  setDifferentlyFor,
   updateUserSettings,
   updateQuietHours,
 }: BoundaryProps) {
@@ -141,6 +152,7 @@ function NotificationFormattingBoundary({
       savePreference={savePreference}
       applyToAll={applyToAll}
       inheritedFor={inheritedFor}
+      setDifferentlyFor={setDifferentlyFor}
       updateUserSettings={updateUserSettings}
       updateQuietHours={updateQuietHours}
     />

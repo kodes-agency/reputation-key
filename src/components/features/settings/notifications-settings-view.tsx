@@ -23,6 +23,7 @@ import {
   type EmailAvailability,
 } from './email-availability-notice'
 import type { PreferencePatch, PreferenceValues } from './notification-preference-saves'
+import type { SetDifferently } from './notification-apply-everywhere'
 import { CATEGORY_COPY } from './notifications-type-rows'
 import {
   NotificationFormattingForm,
@@ -52,6 +53,10 @@ type NotificationsSettingsViewProps = Readonly<{
   quietHoursOverride: PersonalDeliveryWindow | null
   /** What a property with no row of its own inherits, per category. */
   inheritedFor: (category: ConfigurableNotificationCategory) => string
+  /** The other properties whose own setting "Apply to all" would replace. */
+  setDifferentlyFor: (
+    category: ConfigurableNotificationCategory,
+  ) => ReadonlyArray<SetDifferently>
   applyToAll: (category: ConfigurableNotificationCategory) => Promise<void>
   preferenceFor: (
     category: ConfigurableNotificationCategory,
@@ -167,6 +172,7 @@ export function NotificationsSettingsView(props: NotificationsSettingsViewProps)
               emailAllowed={emailAllowed}
               inherited={props.inheritedFor(category)}
               propertyCount={props.properties.length}
+              setDifferently={props.setDifferentlyFor(category)}
               savePreference={props.savePreference}
               applyToAll={props.applyToAll}
             />

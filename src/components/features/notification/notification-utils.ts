@@ -72,6 +72,24 @@ const dateFormatter = (locale: string, timeZone: string): Intl.DateTimeFormat =>
   return created
 }
 
+type Since = Readonly<{ unit: 'second' | 'minute' | 'hour' | 'day'; count: number }>
+
+/** How long ago, in the largest whole unit under a week; null past a week. */
+function sinceUnderAWeek(date: Date | string, now: Date): Since | null {
+  const then = typeof date === 'string' ? new Date(date) : date
+  const seconds = Math.max(0, Math.floor((now.getTime() - then.getTime()) / 1000))
+  if (seconds < MINUTE) return { unit: 'second', count: 0 }
+  if (seconds < HOUR) return { unit: 'minute', count: Math.floor(seconds / MINUTE) }
+  if (seconds < DAY) return { unit: 'hour', count: Math.floor(seconds / HOUR) }
+  if (seconds < DAY * 7) return { unit: 'day', count: Math.floor(seconds / DAY) }
+  return null
+}
+
+const dateOf = (date: Date | string, format: NotificationFormat): string =>
+  dateFormatter(format.locale, format.timeZone).format(
+    typeof date === 'string' ? new Date(date) : date,
+  )
+
 /**
  * "just now" / "3 hours ago" / "yesterday" / "Mar 4". Anything older than a
  * week becomes an absolute date in the user's timezone, because "23d ago" is
@@ -82,23 +100,30 @@ export function formatRelativeTime(
   format: NotificationFormat = DEFAULT_NOTIFICATION_FORMAT,
   now: Date = new Date(),
 ): string {
-  const then = typeof date === 'string' ? new Date(date) : date
-  const seconds = Math.max(0, Math.floor((now.getTime() - then.getTime()) / 1000))
+  const since = sinceUnderAWeek(date, now)
+  if (since === null) return dateOf(date, format)
+  // 0, never -0: "now", not "0 seconds ago".
+  const count = since.unit === 'second' ? 0 : -since.count
+  return relativeFormatter(format.locale).format(count, since.unit)
+}
 
-  if (seconds < MINUTE) return relativeFormatter(format.locale).format(0, 'second')
-  if (seconds < HOUR) {
-    return relativeFormatter(format.locale).format(
-      -Math.floor(seconds / MINUTE),
-      'minute',
-    )
-  }
-  if (seconds < DAY) {
-    return relativeFormatter(format.locale).format(-Math.floor(seconds / HOUR), 'hour')
-  }
-  if (seconds < DAY * 7) {
-    return relativeFormatter(format.locale).format(-Math.floor(seconds / DAY), 'day')
-  }
-  return dateFormatter(format.locale, format.timeZone).format(then)
+const COMPACT_UNITS = { minute: 'm', hour: 'h', day: 'd' } as const
+
+/**
+ * The row's own clock: "now", "12m", "3h", "2d", then the date. The long form
+ * (`formatRelativeTime`) is what a screen reader hears; this is what fits
+ * beside a one-line title. Units stay English, like every word in the product
+ * (docs/BETA.md); the date past a week follows the reader's locale and zone.
+ */
+export function formatCompactTime(
+  date: Date | string,
+  format: NotificationFormat = DEFAULT_NOTIFICATION_FORMAT,
+  now: Date = new Date(),
+): string {
+  const since = sinceUnderAWeek(date, now)
+  if (since === null) return dateOf(date, format)
+  if (since.unit === 'second') return 'now'
+  return `${since.count}${COMPACT_UNITS[since.unit]}`
 }
 
 /** Absolute timestamp, zone named, for the row's `title`/`dateTime` affordances. */

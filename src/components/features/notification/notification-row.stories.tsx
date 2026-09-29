@@ -4,6 +4,12 @@
 // which returns a COMPLETE `Notification` — the old per-story helpers cast an
 // incomplete object to `Notification` and would have rendered `undefined` once
 // the row started reading `payload`.
+//
+// The whole row is one link. Its visible title leaves the Property to the
+// facts line under it; its accessible name is one sentence — the full title,
+// the facts in words, when, and whether it is unread — and the detail line is
+// its description. A sighted reader and a screen-reader user get these
+// separately, so the stories assert both.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import {
@@ -56,6 +62,9 @@ const muteableReview = makeNotification({
   payload: { propertyName: 'Harbour View Suites', platform: 'google' },
 })
 
+/** The row's one link: the whole row opens what the notice is about. */
+const rowLink = (canvasElement: HTMLElement) => within(canvasElement).getByRole('link')
+
 /** Opens the row's overflow menu. Radix portals the menu outside the story canvas. */
 async function openRowMenu(canvasElement: HTMLElement) {
   await userEvent.click(
@@ -86,27 +95,50 @@ async function expectMenuSettled(canvasElement: HTMLElement) {
 }
 
 /**
- * The copy stories are all pinned the same way: the sentences the row now
- * says, and — where the story exists because the old wording was wrong — the
- * phrasing that must not survive anywhere in the row. Only the fixture and
- * those facts differ, so the assertions are written once here. Every fixture
- * is unread, the state this copy is written for and the factory's default.
+ * The copy stories are all pinned the same way: the title the row shows, the
+ * facts under it, the detail line (the link's description, or none when the
+ * title says it all), the one sentence a screen reader hears, and — where the
+ * story exists because the old wording was wrong — the phrasing that must not
+ * survive anywhere in the row. Only the fixture and those facts differ, so the
+ * assertions are written once here. Every fixture is unread, the state this
+ * copy is written for and the factory's default, so every name ends "unread".
  */
 type RowCopySpec = Readonly<{
   notification: NotificationFixtureOverrides
-  says: ReadonlyArray<RegExp | string>
+  /** The visible title, without the Property: the facts line names it. */
+  title: string
+  facts: ReadonlyArray<string>
+  detail: RegExp | string | null
+  /** The link's name, which leads with the title as every other channel shows it. */
+  name: RegExp
   neverSays?: RegExp
 }> &
   Omit<NonNullable<Story['args']>, 'notification'>
 
-const rowSays = ({ notification, says, neverSays, ...args }: RowCopySpec): Story => ({
+const rowSays = ({
+  notification,
+  title,
+  facts,
+  detail,
+  name,
+  neverSays,
+  ...args
+}: RowCopySpec): Story => ({
   args: { ...args, notification: makeNotification(notification) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    for (const sentence of says) {
-      expect(canvas.getByText(sentence)).toBeInTheDocument()
+    const link = rowLink(canvasElement)
+    expect(canvas.getByText(title)).toBeInTheDocument()
+    for (const fact of facts) {
+      expect(canvas.getByText(fact)).toBeInTheDocument()
     }
-    if (neverSays) expect(canvasElement.textContent).not.toMatch(neverSays)
+    if (detail === null) expect(link).not.toHaveAttribute('aria-describedby')
+    else expect(link).toHaveAccessibleDescription(detail)
+    expect(link).toHaveAccessibleName(name)
+    if (neverSays) {
+      expect(canvasElement.textContent).not.toMatch(neverSays)
+      expect(link).not.toHaveAccessibleName(neverSays)
+    }
   },
 })
 
@@ -125,7 +157,10 @@ export const ReopenedSaysWhy: Story = rowSays({
       reopenReason: 'provider_reply_deleted',
     },
   },
-  says: [/The published reply was removed from Google\./],
+  title: 'Reopened: review',
+  facts: ['Riverside Hotel'],
+  detail: 'The published reply was removed from Google.',
+  name: /^Reopened: review at Riverside Hotel, \d+ minutes? ago, unread$/,
   neverSays: /needs another look/,
 })
 
@@ -144,7 +179,10 @@ export const ResponseTargetSaysByWhen: Story = rowSays({
     },
   },
   format: { locale: 'en-US', timeZone: 'America/New_York' },
-  says: [/Target time Tue, Sep 29, 08:00\./],
+  title: 'Halfway to the response target',
+  facts: ['Riverside Hotel'],
+  detail: 'Target time Tue, Sep 29, 08:00.',
+  name: /^Halfway to the response target at Riverside Hotel, \d+ minutes? ago, unread$/,
   // The product's term is "target time"; "due" is not a word it uses.
   neverSays: /\bdue\b/i,
 })
@@ -163,13 +201,18 @@ export const PortalOffline: Story = rowSays({
       portalHealthReason: 'public_address_unavailable',
     },
   },
-  says: [/Guest portal is offline at Harbour Lodge/],
+  title: 'Guest portal is offline',
+  facts: ['Harbour Lodge'],
+  detail:
+    'Its web address no longer resolves, so guests cannot reach it. Check the address.',
+  name: /^Guest portal is offline at Harbour Lodge, \d+ minutes? ago, unread$/,
   neverSays: /may need attention/,
 })
 
 /**
  * Which month, whose goal, and which way it went — the three facts that tell
- * one Portal's monthly result from its nine siblings'.
+ * one Portal's monthly result from its nine siblings'. The body only restates
+ * the title, so the row has no detail line.
  */
 export const GoalResultNamesItsMonth: Story = rowSays({
   notification: {
@@ -183,36 +226,57 @@ export const GoalResultNamesItsMonth: Story = rowSays({
       goalOutcome: 'not_met',
     },
   },
-  says: [
-    'October goal no longer met: Lobby QR scans at Harbour Lodge',
-    /This Portal goal no longer meets its target\./,
-  ],
+  title: 'October goal no longer met: Lobby QR scans',
+  facts: ['Harbour Lodge'],
+  // Which of ten sibling results: the title says only "goal".
+  detail: 'This Portal goal no longer meets its target.',
+  name: /^October goal no longer met: Lobby QR scans at Harbour Lodge, \d+ minutes? ago, unread$/,
 })
 
-/** Urgent + unread: pill, unread dot, rating glyphs, waiting age, accent CTA. */
+/**
+ * Urgent + unread: the unread state, the rating in words, the wait, a compact
+ * clock, and one link carrying the resource id. There is no Urgent pill any
+ * more: an urgent row's icon turns red, which this runner cannot see (it
+ * compiles no CSS).
+ */
 export const UrgentUnread: Story = {
   args: { notification: escalatedWaiting },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    const link = rowLink(canvasElement)
     // Copy comes from renderNotification, never from the stored snapshot.
     expect(canvas.queryByText(/LEGACY SNAPSHOT/i)).not.toBeInTheDocument()
-    // The whole point: no identifier on screen. The id lives in the href only.
-    expect(canvasElement.textContent).not.toContain(escalated.resourceId)
-    expect(canvasElement.textContent).not.toContain(escalated.id)
-    expect(canvas.getByText('Urgent')).toBeInTheDocument()
-    // Each fact once: the title names the Property, and the strip beside it
-    // does not name it again.
+    // The whole point: no identifier on screen, nor in what a screen reader
+    // hears. The id lives in the href only.
+    for (const id of [escalated.resourceId, escalated.id]) {
+      expect(canvasElement.textContent).not.toContain(id)
+      expect(link).not.toHaveAccessibleName(expect.stringContaining(id))
+    }
+    // Each fact once: the title leaves the Property to the facts line.
+    expect(canvas.getByText('Escalated: feedback')).toBeInTheDocument()
     expect(canvas.getAllByText(/Riverside Hotel/)).toHaveLength(1)
     // Rating is never glyph-or-colour alone, and the sentences leave it to
     // the stars.
-    expect(canvas.getByText('Rated 2 out of 5 stars')).toBeInTheDocument()
+    expect(canvas.getByText('Rated 2 of 5')).toBeInTheDocument()
     expect(canvasElement.textContent).not.toMatch(/2-star/)
     // Raised 26 hours into the wait renders as the compact "1d": the wait the
     // notice was raised with, which never grows while the row sits unread.
-    expect(canvas.getAllByText(/Waited 1d/).length).toBeGreaterThan(0)
+    expect(canvas.getByText('waited 1d')).toBeInTheDocument()
+    // One sentence for a screen reader: the full title, the facts, when, and
+    // that it is unread.
+    expect(link).toHaveAccessibleName(
+      /^Escalated: feedback at Riverside Hotel, rated 2 of 5, waited 1d, \d+ minutes? ago, unread$/,
+    )
+    expect(canvasElement.querySelector('li')).toHaveAttribute(
+      'data-notification-state',
+      'unread',
+    )
+    // The row's own clock is compact; the absolute time, zone named, is its title.
+    const time = canvasElement.querySelector('time')
+    expect(time).toHaveTextContent(/^\d+m$/)
+    expect(time).toHaveAttribute('title', expect.stringMatching(/ UTC$/))
     // The deep link carries the resource id as a typed search param.
-    const cta = canvas.getByRole('link')
-    expect(cta).toHaveAttribute('href', expect.stringContaining(escalated.resourceId))
+    expect(link).toHaveAttribute('href', expect.stringContaining(escalated.resourceId))
   },
 }
 
@@ -271,7 +335,8 @@ export const BulkUnassignedOpensItsQueue: Story = opensItsQueue('inbox.bulk_unas
 /**
  * ADR 0046 r.2 coalescing: one unread row absorbing repeat events. A stored
  * row reads its count from the coalescing column into `occurrences`, and the
- * copy says it once, with the verb for what repeated.
+ * row says it once: as "×3" in its facts line, and in words in its name. The
+ * email's "This happened 3 times." sentence stays in the email.
  */
 export const Coalesced: Story = {
   args: {
@@ -285,15 +350,19 @@ export const Coalesced: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText(/This happened 3 times\.$/)).toBeInTheDocument()
-    expect(canvasElement.textContent?.match(/3 times/g)).toHaveLength(1)
+    expect(canvas.getByText('×3')).toBeInTheDocument()
+    expect(canvasElement.textContent?.match(/×3/g)).toHaveLength(1)
+    expect(canvasElement.textContent).not.toMatch(/happened|times/)
+    expect(rowLink(canvasElement)).toHaveAccessibleName(
+      /^Approve a reply at Riverside Hotel, 3 times, \d+ minutes? ago, unread$/,
+    )
     expect(canvas.queryByText(/Updated/)).not.toBeInTheDocument()
   },
 }
 
 /**
  * A notice about finished work carries no wait. A row written before waits
- * were anchored still holds a frozen age; it must not come back as a chip.
+ * were anchored still holds a frozen age; it must not come back as a fact.
  */
 export const OutcomeShowsNoWait: Story = {
   args: {
@@ -305,32 +374,81 @@ export const OutcomeShowsNoWait: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText(/Your reply is live on Google/)).toBeInTheDocument()
-    expect(canvas.queryByText(/Wait/)).not.toBeInTheDocument()
+    expect(canvas.getByText('Your reply is live on Google')).toBeInTheDocument()
+    expect(canvasElement.textContent).not.toMatch(/waited/i)
+    expect(rowLink(canvasElement)).not.toHaveAccessibleName(/waited/i)
+  },
+}
+
+/** The urgent approval of SettledStopsAsking: its work was done upstream. */
+const settledApproval = makeNotification({
+  id: '20000000-0000-4000-8000-000000000004',
+  type: 'reply.pending_approval',
+  status: 'unread',
+  priority: 'urgent',
+  resolvedAt: new Date(Date.now() - 2 * 60 * 1000),
+  payload: { propertyName: 'Riverside Hotel', platform: 'google' },
+})
+
+/**
+ * The work an urgent notice asked for was done upstream. Read is not resolved,
+ * so the row is still unread — but it has stopped asking: no unread dot, a
+ * check in place of its red icon, "Done" in its facts line, and a name that
+ * says done rather than unread.
+ */
+export const SettledStopsAsking: Story = {
+  args: { notification: settledApproval },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvasElement.querySelector('li')).toHaveAttribute(
+      'data-notification-state',
+      'done',
+    )
+    expect(canvas.getByText('Done')).toBeInTheDocument()
+    expect(rowLink(canvasElement)).toHaveAccessibleName(
+      /^Approve a reply at Riverside Hotel, done, \d+ minutes? ago$/,
+    )
   },
 }
 
 /**
- * The work an urgent notice asked for was done upstream. Read is not resolved,
- * so the row is still unread — but it has stopped asking: no unread dot, no
- * Urgent pill, and a "Done" marker in their place.
+ * A settled row has stopped asking, so its menu offers no read state to
+ * change: "Mark as read" would clear a dot the row does not show, and "Mark as
+ * unread" would bring none back. Dismiss is what is left, read or not.
  */
-export const SettledStopsAsking: Story = {
-  args: {
-    notification: makeNotification({
-      id: '20000000-0000-4000-8000-000000000004',
-      type: 'reply.pending_approval',
-      status: 'unread',
-      priority: 'urgent',
-      resolvedAt: new Date(Date.now() - 2 * 60 * 1000),
-      payload: { propertyName: 'Riverside Hotel', platform: 'google' },
-    }),
-  },
+export const SettledRowOffersOnlyDismiss: Story = {
+  args: { notification: settledApproval },
+  render: (args) => (
+    <>
+      <NotificationRow {...args} />
+      <NotificationRow
+        {...args}
+        notification={makeNotification({
+          id: '20000000-0000-4000-8000-000000000005',
+          type: 'reply.pending_approval',
+          status: 'read',
+          resolvedAt: new Date(Date.now() - 2 * 60 * 1000),
+          payload: { propertyName: 'Harbour View Suites', platform: 'google' },
+        })}
+      />
+    </>
+  ),
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    expect(canvas.getByText('Done')).toBeInTheDocument()
-    expect(canvas.queryByText('Urgent')).not.toBeInTheDocument()
-    expect(canvas.queryByText('Unread.')).not.toBeInTheDocument()
+    const triggers = within(canvasElement).getAllByRole('button', {
+      name: /^More actions for:/,
+    })
+    expect(triggers).toHaveLength(2)
+    for (const trigger of triggers) {
+      await userEvent.click(trigger)
+      const menu = within(canvasElement.ownerDocument.body)
+      await findVisibleMenuItem(menu, 'Dismiss')
+      expect(menu.queryByRole('menuitem', { name: /^Mark as/ })).toBeNull()
+      expect(menu.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+        'Dismiss',
+      ])
+      await userEvent.keyboard('{Escape}')
+      await expectMenuSettled(canvasElement)
+    }
   },
 }
 
@@ -338,7 +456,8 @@ export const HighRating: Story = {
   args: { notification: newFeedback },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText('Rated 5 out of 5 stars')).toBeInTheDocument()
+    expect(canvas.getByText('Rated 5 of 5')).toBeInTheDocument()
+    expect(rowLink(canvasElement)).toHaveAccessibleName(/, rated 5 of 5, /)
   },
 }
 
@@ -348,33 +467,42 @@ export const NoMetadata: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvasElement.textContent).not.toContain('undefined')
-    expect(canvas.queryByText(/Wait/)).not.toBeInTheDocument()
-    // A CTA is still offered — an unlabelled row would be a dead end.
-    expect(canvas.getByRole('link')).toBeInTheDocument()
+    expect(canvas.queryByText(/waited/i)).not.toBeInTheDocument()
+    // The row still opens what it is about, and says what that is: an
+    // unlabelled row would be a dead end.
+    expect(rowLink(canvasElement)).toHaveAccessibleName(
+      /^New internal note on a review, \d+ hours? ago$/,
+    )
   },
 }
 
 export const LongPropertyName: Story = {
   args: { notification: longPropertyNameNotification },
   play: async ({ canvasElement }) => {
-    // The invariant that matters: a long Property name wraps inside the title
-    // rather than widening the row.
+    // The invariant that matters: a long Property name wraps inside the facts
+    // line rather than widening the row. The title leaves it out.
     const canvas = within(canvasElement)
     const list = canvasElement.querySelector('ul')
-    const title = canvas.getByText(/^New review at The Grand Riverside/)
+    const property = canvas.getByText(/^The Grand Riverside/)
+    expect(canvas.getByText('New review')).toBeInTheDocument()
     expect(list).not.toBeNull()
     if (list === null) return
-    expect(title.getBoundingClientRect().right).toBeLessThanOrEqual(
+    expect(property.getBoundingClientRect().right).toBeLessThanOrEqual(
       list.getBoundingClientRect().right,
     )
     expect(list.scrollWidth).toBeLessThanOrEqual(list.clientWidth)
+    expect(rowLink(canvasElement)).toHaveAccessibleName(
+      /^New review at The Grand Riverside Boulevard Hotel, Conference Centre and Rooftop Spa Resort, /,
+    )
   },
 }
 
 /**
- * The regression this story pins: dismiss used to be `text-muted-foreground/0`
- * revealed only by `group-hover:`, with no `focus-visible:` rule, so a keyboard
- * user tabbed onto an invisible control.
+ * Dismissing is reachable from the keyboard. The regression this story pins:
+ * dismiss used to be `text-muted-foreground/0` revealed only by `group-hover:`,
+ * with no `focus-visible:` rule, so a keyboard user tabbed onto an invisible
+ * control. It now lives in the row's menu, whose trigger follows the row's
+ * link in tab order and shows while anything in the row has focus.
  */
 export const DismissIsKeyboardReachable: Story = {
   args: {
@@ -383,14 +511,26 @@ export const DismissIsKeyboardReachable: Story = {
       payload: { propertyName: 'Riverside Hotel' },
     }),
   },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    const dismiss = canvas.getByRole('button', { name: /^Dismiss:/ })
-    dismiss.focus()
-    expect(dismiss).toHaveFocus()
-    expect(dismiss).toBeVisible()
+  play: async ({ canvasElement, args }) => {
+    rowLink(canvasElement).focus()
+    await userEvent.tab()
+    const trigger = within(canvasElement).getByRole('button', {
+      name: 'More actions for: New review at Riverside Hotel',
+    })
+    expect(trigger).toHaveFocus()
+    expect(trigger).toBeVisible()
+
     await userEvent.keyboard('{Enter}')
-    expect(actions.onDismiss).toHaveBeenCalled()
+    const menu = within(canvasElement.ownerDocument.body)
+    await waitFor(() =>
+      expect(menu.getByRole('menuitem', { name: 'Mark as read' })).toHaveFocus(),
+    )
+    await userEvent.keyboard('{ArrowDown}')
+    expect(menu.getByRole('menuitem', { name: 'Dismiss' })).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    expect(actions.onDismiss).toHaveBeenCalledWith(args.notification.id)
+
+    await expectMenuSettled(canvasElement)
   },
 }
 
@@ -468,8 +608,9 @@ export const GoalResultCanBeMuted: Story = {
 
 /**
  * ADR 0059: the reporter's own beta report reached an outcome. Organization-
- * scoped, so no Property chip; the deep link opens the Feedback dialog's
- * "Your reports" through an anchor, and never carries the report reference.
+ * scoped, so nothing names a Property; the deep link opens the Feedback
+ * dialog's "Your reports" through an anchor, and never carries the report
+ * reference.
  */
 const reportResolved = makeNotification({
   id: '20000000-0000-4000-8000-0000000000bf',
@@ -485,12 +626,13 @@ const reportResolved = makeNotification({
 export const ReportOutcome: Story = {
   args: { notification: reportResolved },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    expect(canvas.getByText('Your report was resolved')).toBeInTheDocument()
-    expect(canvas.queryByText('Urgent')).not.toBeInTheDocument()
-    const cta = canvas.getByRole('link', { name: /view reports/i })
-    expect(cta.getAttribute('href')).toMatch(/#beta-feedback-reports$/u)
-    expect(cta.getAttribute('href')).not.toContain(reportResolved.resourceId)
+    const link = within(canvasElement).getByRole('link', {
+      name: /^Your report was resolved, \d+ minutes? ago, unread$/,
+    })
+    // The title and the time are all the row says: no Property, no facts.
+    expect(link.textContent).toMatch(/^Your report was resolved\d+m$/)
+    expect(link.getAttribute('href')).toMatch(/#beta-feedback-reports$/u)
+    expect(link.getAttribute('href')).not.toContain(reportResolved.resourceId)
     expect(canvasElement.textContent).not.toContain(reportResolved.resourceId)
   },
 }

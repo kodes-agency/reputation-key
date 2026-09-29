@@ -50,6 +50,14 @@ export type RenderedNotification = Readonly<{
   title: string
   /** One supporting sentence. Empty string when the title says everything. */
   body: string
+  /**
+   * What the in-app row shows under its title: the part of the body the title
+   * and the row's facts line do not already say — a reason, a cause, a count,
+   * a target time. Empty when the body only restates the title or says to open
+   * the item, which the row itself is for. Never carries the repeat sentence:
+   * the row shows how often a notice repeated as a fact.
+   */
+  detail: string
   /** Primary action label, imperative, <= 3 words. */
   actionLabel: string
   /** Extra context line for email only (digest rows and the urgent preheader). */
@@ -63,6 +71,9 @@ export type RenderedNotification = Readonly<{
    */
   whyReceived?: string
 }>
+
+/** What a per-type renderer returns: `detail` defaults to "nothing to add". */
+type RendererCopy = Omit<RenderedNotification, 'detail'> & Readonly<{ detail?: string }>
 
 /** Deep-link target for a notification, resolved from resource + type. */
 export type NotificationLink = Readonly<{
@@ -145,22 +156,24 @@ const accountNotice = (
   title: string,
   body: string,
   whyReceived: string,
-): RenderedNotification => ({
+  detail = '',
+): RendererCopy => ({
   title,
   body,
+  detail,
   actionLabel: 'Review account',
   summary: title.toLowerCase(),
   whyReceived,
 })
 
-const renderOrganizationAccessGranted = (): RenderedNotification =>
+const renderOrganizationAccessGranted = (): RendererCopy =>
   accountNotice(
     'Organization access added',
     'Your account can now access this organization.',
     'You received this because your account was given access to an organization on Reputation Key.',
   )
 
-const renderOrganizationRoleChanged = (): RenderedNotification =>
+const renderOrganizationRoleChanged = (): RendererCopy =>
   accountNotice(
     'Organization role updated',
     'Your account permissions for this organization were updated.',
@@ -168,14 +181,21 @@ const renderOrganizationRoleChanged = (): RenderedNotification =>
   )
 
 /** A member who left is told they left, not that an administrator acted. */
-const renderOrganizationAccessRemoved = (p: NotificationPayload): RenderedNotification =>
+/** Access removal says what to do about it, so the row shows its body. */
+const informativeAccountNotice = (
+  title: string,
+  body: string,
+  whyReceived: string,
+): RendererCopy => accountNotice(title, body, whyReceived, body)
+
+const renderOrganizationAccessRemoved = (p: NotificationPayload): RendererCopy =>
   p.leftOrganization === true
-    ? accountNotice(
+    ? informativeAccountNotice(
         'You left the organization',
         'Your account no longer has access to this organization. To come back, ask an account administrator to invite you again.',
         'You received this because you left an organization on Reputation Key.',
       )
-    : accountNotice(
+    : informativeAccountNotice(
         'Organization access removed',
         'Your account no longer has access to this organization. If this seems unexpected, contact an account administrator.',
         'You received this because your access to an organization on Reputation Key ended.',
@@ -193,25 +213,27 @@ const renderOrganizationAccessRemoved = (p: NotificationPayload): RenderedNotifi
  * (`notificationReplyTo`). A reader in a mail client can then answer where
  * they are standing.
  */
-const renderOrganizationPurgePending = (
-  p: NotificationPayload,
-): RenderedNotification => ({
-  title: `Final notice: permanent deletion of ${p.organizationName ?? 'this organization'}`,
-  body: `The recovery window has ended. Deletion can start at any time and permanently erases its properties, portals, reviews, replies and Inbox history. Only Reputation Key support can stop it, before it starts. To stop it, answer this email or write to ${SUPPORT_EMAIL} now.`,
-  actionLabel: 'Open profile',
-  summary: facts(p.organizationName ?? '', 'permanent deletion pending'),
-  whyReceived:
-    'You received this because you administer an organization that is scheduled for permanent deletion. It cannot be turned off.',
-})
+const renderOrganizationPurgePending = (p: NotificationPayload): RendererCopy => {
+  const body = `The recovery window has ended. Deletion can start at any time and permanently erases its properties, portals, reviews, replies and Inbox history. Only Reputation Key support can stop it, before it starts. To stop it, answer this email or write to ${SUPPORT_EMAIL} now.`
+  return {
+    title: `Final notice: permanent deletion of ${p.organizationName ?? 'this organization'}`,
+    body,
+    detail: body,
+    actionLabel: 'Open profile',
+    summary: facts(p.organizationName ?? '', 'permanent deletion pending'),
+    whyReceived:
+      'You received this because you administer an organization that is scheduled for permanent deletion. It cannot be turned off.',
+  }
+}
 
-const renderReviewCreated = (p: NotificationPayload): RenderedNotification => ({
+const renderReviewCreated = (p: NotificationPayload): RendererCopy => ({
   title: `New ${'review'}${atProperty(p)}`,
   body: 'Open it to read the review and reply.',
   actionLabel: 'Read review',
   summary: factsAt(p, 'review'),
 })
 
-const renderReviewUpdated = (p: NotificationPayload): RenderedNotification => ({
+const renderReviewUpdated = (p: NotificationPayload): RendererCopy => ({
   title: `Review updated${atProperty(p)}`,
   body: 'The guest changed their review. Open it to check the latest details.',
   actionLabel: 'Review update',
@@ -219,21 +241,21 @@ const renderReviewUpdated = (p: NotificationPayload): RenderedNotification => ({
 })
 
 // Always feedback, even when the item lookup failed and left no platform.
-const renderFeedbackCreated = (p: NotificationPayload): RenderedNotification => ({
+const renderFeedbackCreated = (p: NotificationPayload): RendererCopy => ({
   title: `New guest feedback${atProperty(p)}`,
   body: 'Open it to read the feedback.',
   actionLabel: 'Read feedback',
   summary: factsAt(p, ratedFeedback(p)),
 })
 
-const renderReplyPendingApproval = (p: NotificationPayload): RenderedNotification => ({
+const renderReplyPendingApproval = (p: NotificationPayload): RendererCopy => ({
   title: `Approve a reply${atProperty(p)}`,
   body: `${byRole(p)} drafted a reply to a ${'review'}. It stays unpublished until you approve it.`,
   actionLabel: 'Review reply',
   summary: factsAt(p, 'review'),
 })
 
-const renderReplyApproved = (p: NotificationPayload): RenderedNotification => ({
+const renderReplyApproved = (p: NotificationPayload): RendererCopy => ({
   title: `Your reply was approved${atProperty(p)}`,
   body: 'It is queued to publish to Google.',
   actionLabel: 'View reply',
@@ -259,19 +281,28 @@ const rejectionReasonBody = (p: NotificationPayload): string => {
   return 'Open it to see any note from the approver, then edit and resubmit.'
 }
 
-const renderReplyRejected = (p: NotificationPayload): RenderedNotification => ({
-  title: `Your reply needs changes${atProperty(p)}`,
-  body: rejectionReasonBody(p),
-  actionLabel: 'Edit reply',
-  summary: factsAt(p, 'review'),
-})
+const renderReplyRejected = (p: NotificationPayload): RendererCopy => {
+  const body = rejectionReasonBody(p)
+  const knowsReason =
+    p.hasModerationReason !== undefined || p.moderationReason !== undefined
+  return {
+    title: `Your reply needs changes${atProperty(p)}`,
+    body,
+    detail: knowsReason ? body : '',
+    actionLabel: 'Edit reply',
+    summary: factsAt(p, 'review'),
+  }
+}
 
-const renderReplyPublished = (p: NotificationPayload): RenderedNotification => ({
+const renderReplyPublished = (p: NotificationPayload): RendererCopy => ({
   title: `Your reply is live on Google${atProperty(p)}`,
   body: 'Guests can see it now. No further action needed.',
   actionLabel: 'View reply',
   summary: factsAt(p, 'review'),
 })
+
+/** The shared close of a notice that asks the reader to look, not to act. */
+const SEE_WHERE = 'Open it to see where it stands.'
 
 // `not_sent` includes an answered 429, so it says nothing was posted, as the
 // Inbox's "Not published" copy does, not that nothing reached Google.
@@ -281,13 +312,15 @@ const PUBLISH_FAILURE_BODIES = {
   unconfirmed: "RepKey won't send it twice. Open it to check.",
 } as const
 
+const RECONNECT_FIRST =
+  'Google needs reconnecting first. An account admin can reconnect it in Settings, then retry — the draft is saved.'
+
 // A connection waiting for a fresh consent refuses every retry, and the
 // author may not be the one allowed to reconnect it, so the copy says who can.
-const renderReplyPublishNeedsReconnect = (
-  p: NotificationPayload,
-): RenderedNotification => ({
+const renderReplyPublishNeedsReconnect = (p: NotificationPayload): RendererCopy => ({
   title: `Reply not published${atProperty(p)}`,
-  body: 'Google needs reconnecting first. An account admin can reconnect it in Settings, then retry — the draft is saved.',
+  body: RECONNECT_FIRST,
+  detail: RECONNECT_FIRST,
   actionLabel: 'Open reply',
   summary: factsAt(p, 'review', 'reconnect Google'),
 })
@@ -300,18 +333,17 @@ const renderReplyPublishNeedsReconnect = (
  * that cause decides the copy instead: a retry alone cannot succeed. It can
  * reach a responsible manager instead of the author, so it never says "your".
  */
-const renderReplyPublishFailed = (p: NotificationPayload): RenderedNotification => {
+const renderReplyPublishFailed = (p: NotificationPayload): RendererCopy => {
   if (p.publishFailureCause === 'google_reauthorization_required') {
     return renderReplyPublishNeedsReconnect(p)
   }
   const outcome = p.publishOutcome
   const state = outcome === 'unconfirmed' ? 'not confirmed' : 'not published'
+  const cause = outcome === undefined ? '' : PUBLISH_FAILURE_BODIES[outcome]
   return {
     title: `Reply ${state}${outcome === 'unconfirmed' ? ' on Google' : ''}${atProperty(p)}`,
-    body:
-      outcome === undefined
-        ? 'Open the reply to see where it stands.'
-        : PUBLISH_FAILURE_BODIES[outcome],
+    body: cause === '' ? 'Open the reply to see where it stands.' : cause,
+    detail: cause,
     actionLabel:
       outcome === 'not_sent' || outcome === 'refused' ? 'Retry publish' : 'View reply',
     summary: factsAt(p, 'review', state),
@@ -338,30 +370,24 @@ const PUBLICATION_CANCELLATION_BODIES = {
     'A different reply is live on Google, so this one is not. Open it to check.',
 } as const
 
-const renderReplyPublicationCancelled = (
-  p: NotificationPayload,
-): RenderedNotification => {
+const renderReplyPublicationCancelled = (p: NotificationPayload): RendererCopy => {
   const cause = p.publicationCancellationCause
+  const why = cause === undefined ? '' : PUBLICATION_CANCELLATION_BODIES[cause]
   return {
     title: `Reply returned to draft${atProperty(p)}`,
-    body:
-      cause === undefined
-        ? 'Open it to see where it stands.'
-        : PUBLICATION_CANCELLATION_BODIES[cause],
+    body: why === '' ? SEE_WHERE : why,
+    detail: why,
     actionLabel: cause === 'source_changed' ? 'Open review' : 'Open reply',
     summary: factsAt(p, 'review', 'returned to draft'),
   }
 }
-
-/** The shared close of a notice that asks the reader to look, not to act. */
-const SEE_WHERE = 'Open it to see where it stands.'
 
 /**
  * Escalation is a manual call with no reason field, and an answered or closed
  * item can be escalated too. So the copy says who asked for attention and
  * nothing about why, or about the item being unanswered.
  */
-const renderInboxEscalated = (p: NotificationPayload): RenderedNotification => ({
+const renderInboxEscalated = (p: NotificationPayload): RendererCopy => ({
   title: `Escalated: ${inboxNoun(p)}${atProperty(p)}`,
   body: `${byRole(p)} escalated this for your attention. ${SEE_WHERE}`,
   actionLabel: 'Open item',
@@ -373,7 +399,7 @@ const renderInboxEscalated = (p: NotificationPayload): RenderedNotification => (
 // feedback is handled, never replied to. "Follow-up" is the Inbox's word for a
 // feedback outcome, so no notice uses it for anything else.
 
-const renderInboxEscalationResolved = (p: NotificationPayload): RenderedNotification => ({
+const renderInboxEscalationResolved = (p: NotificationPayload): RendererCopy => ({
   title: `Escalation resolved${atProperty(p)}`,
   body: `This item is no longer escalated. ${SEE_WHERE}`,
   actionLabel: 'View item',
@@ -397,16 +423,21 @@ const REOPEN_REASON_CLAUSES: Partial<Record<NotificationReopenReason, string>> =
   material_revision_changed: 'The guest changed their review after it was handled.',
 }
 
-const renderInboxReopened = (p: NotificationPayload): RenderedNotification => ({
-  title: `Reopened: ${inboxNoun(p)}${atProperty(p)}`,
-  body: sentence(
+const renderInboxReopened = (p: NotificationPayload): RendererCopy => {
+  const reason =
     (p.reopenReason === undefined ? undefined : REOPEN_REASON_CLAUSES[p.reopenReason]) ??
-      `This ${inboxNoun(p)} needs another look.`,
-    SEE_WHERE,
-  ),
-  actionLabel: 'View item',
-  summary: factsAt(p, ratedNoun(p), 'reopened'),
-})
+    ''
+  return {
+    title: `Reopened: ${inboxNoun(p)}${atProperty(p)}`,
+    body: sentence(
+      reason === '' ? `This ${inboxNoun(p)} needs another look.` : reason,
+      SEE_WHERE,
+    ),
+    detail: reason,
+    actionLabel: 'View item',
+    summary: factsAt(p, ratedNoun(p), 'reopened'),
+  }
+}
 
 /** "an item" / "7 items" for the grouped Inbox notices. */
 const someItems = (count: number): string => (count === 1 ? 'an item' : `${count} items`)
@@ -419,7 +450,7 @@ const renderInboxBulk = (
   p: NotificationPayload,
   outcome: string,
   body: (items: string) => string,
-): RenderedNotification => {
+): RendererCopy => {
   const count = p.itemCount ?? 1
   return {
     title: `${count} ${count === 1 ? 'item' : 'items'} ${outcome}${atProperty(p)}`,
@@ -429,7 +460,7 @@ const renderInboxBulk = (
   }
 }
 
-const renderInboxBulkReopened = (p: NotificationPayload): RenderedNotification =>
+const renderInboxBulkReopened = (p: NotificationPayload): RendererCopy =>
   renderInboxBulk(
     p,
     'reopened',
@@ -468,36 +499,47 @@ const targetTime = (
   return format.format(at)
 }
 
+/** Halfway and passed share one shape; the words and the fact differ. */
+const responseTargetNotice = (
+  p: NotificationPayload,
+  context: NotificationRenderContext | undefined,
+  copy: Readonly<{ title: string; stillOpen: string; targetLead: string; fact: string }>,
+): RendererCopy => {
+  const at = targetTime(p, context)
+  const target = at === '' ? '' : `${copy.targetLead} ${at}.`
+  return {
+    title: `${copy.title}${atProperty(p)}`,
+    body: sentence(copy.stillOpen, target),
+    detail: target,
+    actionLabel: 'View item',
+    summary: factsAt(p, ratedNoun(p), copy.fact),
+  }
+}
+
 const renderResponseTargetHalfway = (
   p: NotificationPayload,
   context?: NotificationRenderContext,
-): RenderedNotification => {
-  const at = targetTime(p, context)
-  return {
-    title: `Halfway to the response target${atProperty(p)}`,
-    body: sentence('This item is still open.', at === '' ? '' : `Target time ${at}.`),
-    actionLabel: 'View item',
-    summary: factsAt(p, ratedNoun(p), 'target halfway'),
-  }
-}
+): RendererCopy =>
+  responseTargetNotice(p, context, {
+    title: 'Halfway to the response target',
+    stillOpen: 'This item is still open.',
+    targetLead: 'Target time',
+    fact: 'target halfway',
+  })
 
 const renderResponseTargetPassed = (
   p: NotificationPayload,
   context?: NotificationRenderContext,
-): RenderedNotification => {
-  const at = targetTime(p, context)
-  return {
-    title: `Response target passed${atProperty(p)}`,
-    body: sentence(
+): RendererCopy =>
+  responseTargetNotice(p, context, {
+    title: 'Response target passed',
+    stillOpen:
       'This item is still open. Review it and choose the next step when practical.',
-      at === '' ? '' : `The target time was ${at}.`,
-    ),
-    actionLabel: 'View item',
-    summary: factsAt(p, ratedNoun(p), 'target passed'),
-  }
-}
+    targetLead: 'The target time was',
+    fact: 'target passed',
+  })
 
-const renderInboxAssigned = (p: NotificationPayload): RenderedNotification => ({
+const renderInboxAssigned = (p: NotificationPayload): RendererCopy => ({
   title: `Assigned to you: ${inboxNoun(p)}${atProperty(p)}`,
   body: `${byRole(p)} assigned this to you. The next step is yours.`,
   actionLabel: 'Open item',
@@ -509,14 +551,14 @@ const renderInboxAssigned = (p: NotificationPayload): RenderedNotification => ({
  * is off the reader's list, and never names who has it now — that is another
  * employee's data (ADR 0046 r.8).
  */
-const renderInboxUnassigned = (p: NotificationPayload): RenderedNotification => ({
+const renderInboxUnassigned = (p: NotificationPayload): RendererCopy => ({
   title: `No longer yours: ${inboxNoun(p)}${atProperty(p)}`,
   body: `${byRole(p)} passed this on. Somebody else is handling it now.`,
   actionLabel: 'View item',
   summary: factsAt(p, ratedNoun(p), 'reassigned'),
 })
 
-const renderInboxBulkAssigned = (p: NotificationPayload): RenderedNotification =>
+const renderInboxBulkAssigned = (p: NotificationPayload): RendererCopy =>
   renderInboxBulk(
     p,
     'assigned to you',
@@ -524,7 +566,7 @@ const renderInboxBulkAssigned = (p: NotificationPayload): RenderedNotification =
   )
 
 /** The grouped `inbox.unassigned`: it never names who holds the items now. */
-const renderInboxBulkUnassigned = (p: NotificationPayload): RenderedNotification =>
+const renderInboxBulkUnassigned = (p: NotificationPayload): RendererCopy =>
   renderInboxBulk(
     p,
     'no longer yours',
@@ -536,23 +578,21 @@ const renderInboxBulkUnassigned = (p: NotificationPayload): RenderedNotification
  * names them — ADR 0046 r.8 keeps other employees out of a payload — so it
  * says what is true for the reader: this work is theirs to place now.
  */
-const renderAssignmentsReleased = (p: NotificationPayload): RenderedNotification =>
+const renderAssignmentsReleased = (p: NotificationPayload): RendererCopy =>
   renderInboxBulk(
     p,
     'left unassigned',
     (items) => `${items} at this property lost their assignee. Give them a new one.`,
   )
 
-const renderNoteAdded = (p: NotificationPayload): RenderedNotification => ({
+const renderNoteAdded = (p: NotificationPayload): RendererCopy => ({
   title: `New internal note on ${p.platform === 'portal' ? 'feedback' : 'a review'}${atProperty(p)}`,
   body: `${byRole(p)} left a note on this item. Open it to read the thread.`,
   actionLabel: 'Read note',
   summary: factsAt(p, ratedNoun(p), 'internal note'),
 })
 
-const renderPortalResponsibilityNeeded = (
-  p: NotificationPayload,
-): RenderedNotification => ({
+const renderPortalResponsibilityNeeded = (p: NotificationPayload): RendererCopy => ({
   title: `A portal${atProperty(p)} needs a responsible manager`,
   body: 'Choose an eligible manager so portal updates reach the right people.',
   actionLabel: 'Choose manager',
@@ -579,7 +619,7 @@ const PORTAL_HEALTH_TITLES: Record<NotificationPortalHealthStatus, string> = {
   degraded: 'Guest portal needs attention',
 }
 
-const renderPortalHealthAttention = (p: NotificationPayload): RenderedNotification => {
+const renderPortalHealthAttention = (p: NotificationPayload): RendererCopy => {
   const status = p.portalHealthStatus
   const reason = p.portalHealthReason
   return {
@@ -591,6 +631,7 @@ const renderPortalHealthAttention = (p: NotificationPayload): RenderedNotificati
       reason === undefined
         ? 'Open its settings to see what changed and what to do next.'
         : PORTAL_HEALTH_BODIES[reason],
+    detail: reason === undefined ? '' : PORTAL_HEALTH_BODIES[reason],
     actionLabel: 'Review portal',
     summary: factsAt(
       p,
@@ -599,9 +640,7 @@ const renderPortalHealthAttention = (p: NotificationPayload): RenderedNotificati
   }
 }
 
-const renderPropertyResponsibilityNeeded = (
-  p: NotificationPayload,
-): RenderedNotification => ({
+const renderPropertyResponsibilityNeeded = (p: NotificationPayload): RendererCopy => ({
   title: `${p.propertyName ?? 'A property'} needs a responsible manager`,
   body: 'Choose an eligible manager so property-wide updates reach the right people.',
   actionLabel: 'Choose manager',
@@ -617,25 +656,33 @@ const renderPropertyResponsibilityNeeded = (
  * Google refused the grant itself, the copy leads with the one action that
  * restores them; when the admin whose grant backed it left, it says why.
  */
+const GOOGLE_ACCESS_ENDED =
+  'Google no longer accepts RepKey\u2019s access, so review updates and replies are paused.'
+
+const googleNeedsAttention = (body: string): RendererCopy => ({
+  title: 'Google connection needs attention',
+  body,
+  detail: body,
+  actionLabel: 'Review connection',
+  summary: 'Google connection needs attention',
+})
+
 const renderIntegrationReauthorizationRequired = (
   p: NotificationPayload,
-): RenderedNotification =>
+): RendererCopy =>
   p.reauthorizationCause === 'provider_revoked'
     ? {
         title: 'Reconnect Google',
-        body: 'Google no longer accepts RepKey\u2019s access, so review updates and replies are paused.',
+        body: GOOGLE_ACCESS_ENDED,
+        detail: GOOGLE_ACCESS_ENDED,
         actionLabel: 'Reconnect Google',
         summary: 'Google access ended',
       }
-    : {
-        title: 'Google connection needs attention',
-        body:
-          p.reauthorizationCause === undefined
-            ? 'Review updates and replies are paused until Google is reconnected.'
-            : 'The person who connected Google is no longer an account admin here, so review updates and replies are paused. Reconnect Google to restart them.',
-        actionLabel: 'Review connection',
-        summary: 'Google connection needs attention',
-      }
+    : googleNeedsAttention(
+        p.reauthorizationCause === undefined
+          ? 'Review updates and replies are paused until Google is reconnected.'
+          : 'The person who connected Google is no longer an account admin here, so review updates and replies are paused. Reconnect Google to restart them.',
+      )
 
 /**
  * Somebody disconnected the Organization's Google account on purpose. The
@@ -644,9 +691,13 @@ const renderIntegrationReauthorizationRequired = (
  * the record that it happened. No Property: the connection is the
  * Organization's.
  */
-const renderIntegrationGoogleDisconnected = (): RenderedNotification => ({
+const GOOGLE_DISCONNECTED =
+  'Review updates and replies to Google have stopped for this organization. Reconnect it in Settings if that was not intended.'
+
+const renderIntegrationGoogleDisconnected = (): RendererCopy => ({
   title: 'Google was disconnected',
-  body: 'Review updates and replies to Google have stopped for this organization. Reconnect it in Settings if that was not intended.',
+  body: GOOGLE_DISCONNECTED,
+  detail: GOOGLE_DISCONNECTED,
   actionLabel: 'Review connection',
   summary: 'Google disconnected',
 })
@@ -683,7 +734,7 @@ const importedBody = (p: NotificationPayload): string => {
     : `${imported}; ${p.unansweredCount} still need a reply.`
 }
 
-const renderReviewImportFinished = (p: NotificationPayload): RenderedNotification =>
+const renderReviewImportFinished = (p: NotificationPayload): RendererCopy =>
   p.importOutcome === 'failed'
     ? {
         title: `Review history import stopped${atProperty(p)}`,
@@ -691,12 +742,17 @@ const renderReviewImportFinished = (p: NotificationPayload): RenderedNotificatio
           p.importFailureReason === undefined
             ? 'Open the property to start the import again.'
             : IMPORT_STOPPED_COPY[p.importFailureReason],
+        detail:
+          p.importFailureReason === undefined
+            ? ''
+            : IMPORT_STOPPED_COPY[p.importFailureReason],
         actionLabel: 'Open inbox',
         summary: factsAt(p, 'review import stopped'),
       }
     : {
         title: `Review history imported${atProperty(p)}`,
         body: importedBody(p),
+        detail: p.importedCount === undefined ? '' : importedBody(p),
         actionLabel: 'Open inbox',
         summary: factsAt(p, 'review history imported'),
       }
@@ -743,9 +799,11 @@ const goalOutcomeTitle = (p: NotificationPayload, outcome: string): string => {
   return month === '' ? `Goal ${outcome}` : `${month} goal ${outcome}`
 }
 
-const renderGoalCompleted = (p: NotificationPayload): RenderedNotification => ({
+const renderGoalCompleted = (p: NotificationPayload): RendererCopy => ({
   title: goalTitle(goalOutcomeTitle(p, 'met'), p),
   body: sentence(`${thisGoal(p)} hit its target.`, 'Open the goal to see the numbers.'),
+  // Which of ten sibling results it is: the title says only "goal".
+  detail: p.goalSubjectKind === undefined ? '' : `${thisGoal(p)} hit its target.`,
   actionLabel: 'View progress',
   summary: factsAt(
     p,
@@ -770,7 +828,7 @@ const GOAL_OUTCOME_CLAUSES: Record<NotificationGoalOutcome, string> = {
   unavailable: 'has no usable result for the month',
 }
 
-const renderGoalResultRevised = (p: NotificationPayload): RenderedNotification => {
+const renderGoalResultRevised = (p: NotificationPayload): RendererCopy => {
   const outcome = p.goalOutcome
   return {
     title: goalTitle(
@@ -785,6 +843,10 @@ const renderGoalResultRevised = (p: NotificationPayload): RenderedNotification =
         : `${thisGoal(p)} ${GOAL_OUTCOME_CLAUSES[outcome]}.`,
       'Open the goal to see the current metrics.',
     ),
+    detail:
+      outcome === undefined || p.goalSubjectKind === undefined
+        ? ''
+        : `${thisGoal(p)} ${GOAL_OUTCOME_CLAUSES[outcome]}.`,
     actionLabel: 'View result',
     summary: factsAt(
       p,
@@ -811,7 +873,7 @@ const REPORT_OUTCOME_COPY = {
 
 // Kept terse on purpose: templates render synchronously in the bell, so this
 // copy ships in the initial bundle, which has almost no headroom.
-const renderBetaFeedbackOutcome = (p: NotificationPayload): RenderedNotification => {
+const renderBetaFeedbackOutcome = (p: NotificationPayload): RendererCopy => {
   const [title, body] =
     p.reportOutcome === undefined
       ? ['Your report was updated', 'See where it got to.']
@@ -821,10 +883,7 @@ const renderBetaFeedbackOutcome = (p: NotificationPayload): RenderedNotification
 
 const RENDERERS: Record<
   NotificationType,
-  (
-    payload: NotificationPayload,
-    context?: NotificationRenderContext,
-  ) => RenderedNotification
+  (payload: NotificationPayload, context?: NotificationRenderContext) => RendererCopy
 > = {
   'account.organization_access_granted': renderOrganizationAccessGranted,
   'account.organization_role_changed': renderOrganizationRoleChanged,
@@ -886,6 +945,16 @@ const repeatSentence = (type: NotificationType, repeats: number): string => {
 }
 
 /**
+ * How many times a notice's row should say it happened: its occurrences, or 1
+ * for a type that reports where something ended up rather than repeating it.
+ * The email body says it in words (`repeatSentence`); the in-app row as a count.
+ */
+export const notificationRepeatCount = (
+  type: NotificationType,
+  payload: NotificationPayload,
+): number => (REPEATED[type] === null ? 1 : (payload.occurrences ?? 1))
+
+/**
  * Render the copy for a notification. Pure — same inputs, same output — so the
  * in-app list, the email worker, and the digest all agree.
  *
@@ -903,6 +972,7 @@ export const renderNotification = (
   const age = waitingAge(payload)
   return {
     ...rendered,
+    detail: rendered.detail ?? '',
     body: sentence(rendered.body, repeatSentence(type, payload.occurrences ?? 1)),
     summary: facts(rendered.summary, age === '' ? '' : `waited ${age}`),
   }

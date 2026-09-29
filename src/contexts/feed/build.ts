@@ -92,13 +92,18 @@ import {
   NOTIFICATION_GAP_SCAN_LIMIT,
 } from './infrastructure/jobs/reconcile-missing-notifications.job'
 import { insertNotification } from './application/use-cases/insert-notification'
-import { muteNotificationCategory } from './application/use-cases/mute-notification-category'
+import {
+  muteNotificationCategory,
+  undoNotificationCategoryMute,
+  type PreviousPropertySetting,
+} from './application/use-cases/mute-notification-category'
 import { createImmediateEmailEnqueue } from './infrastructure/jobs/immediate-email-enqueue'
 import { withCatalogueJobOptions } from '#/shared/jobs/job-policy'
 import {
   markNotificationRead,
   markNotificationUnread,
   dismissNotification,
+  restoreDismissedNotification,
 } from './domain/constructors-transitions'
 import {
   createNotificationCategoryDefault,
@@ -557,6 +562,28 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       if (now === null) return // invalid transition, skip
       await notificationRepo.updateStatus(id, userId, orgId, 'dismissed', now)
     },
+    /**
+     * The undo a dismissal offers: the row comes back as it was, read or
+     * unread. Resolves to its browser view, or null when there is nothing to
+     * undo (it was not dismissed, or a dismiss-all already moved on). A wrong
+     * or foreign id still throws `not_found`.
+     */
+    restore: async (id: string, orgId: string, userId: UserId) => {
+      const notification = await notificationRepo.findById(id, orgId)
+      if (!notification || notification.userId !== userId) {
+        throw notificationError('not_found', 'Notification not found or access denied')
+      }
+      const restored = restoreDismissedNotification(notification, input.clock)
+      if (restored.isErr()) return null
+      const row = await notificationRepo.restoreDismissed(
+        id,
+        userId,
+        orgId,
+        restored.value.status === 'unread' ? 'unread' : 'read',
+        restored.value.updatedAt,
+      )
+      return row === null ? null : toNotificationView(row)
+    },
     getPreferences: async (userId: string, orgId: string) => ({
       preferences: await prefRepo.findByUser(userId, orgId),
       categoryDefaults: await prefRepo.findCategoryDefaults(userId, orgId),
@@ -631,7 +658,33 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
         {
           newId: () => notificationPreferenceId(input.idGen()),
           clock: input.clock,
+          findPropertyPreference: prefRepo.findPropertyPreference,
           upsertEnabled: prefRepo.upsertEnabled,
+        },
+      ),
+    /** The bell's Undo for a mute: puts back what the mute replaced. */
+    undoMutePreferenceCategory: (
+      userId: string,
+      orgId: string,
+      propertyId: string,
+      category: NotificationCategory,
+      channel: NotificationChannel,
+      previous: PreviousPropertySetting,
+    ) =>
+      undoNotificationCategoryMute(
+        {
+          userId: userId as UserId,
+          organizationId: orgId as OrganizationId,
+          propertyId: propertyId as PropertyId,
+          category,
+          channel,
+          previous,
+        },
+        {
+          newId: () => notificationPreferenceId(input.idGen()),
+          clock: input.clock,
+          upsertEnabled: prefRepo.upsertEnabled,
+          deletePropertyPreference: prefRepo.deletePropertyPreference,
         },
       ),
     oneClickUnsubscribe: (target: OneClickUnsubscribeTarget) =>

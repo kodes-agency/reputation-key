@@ -267,8 +267,8 @@ export const MandatoryCategoryIsOrganizationPolicy: Story = {
     const canvas = within(canvasElement)
     // Mandatory account notices are Organization policy, not a Property
     // preference with disabled controls that imply it could later be changed.
-    expect(canvas.queryByRole('heading', { name: 'Account and safety' })).toBeNull()
-    expect(canvas.queryByRole('switch', { name: /^Account and safety/ })).toBeNull()
+    expect(canvas.queryByRole('heading', { name: 'Account and security' })).toBeNull()
+    expect(canvas.queryByRole('switch', { name: /^Account and security/ })).toBeNull()
   },
 }
 
@@ -550,7 +550,8 @@ export const SwitchingPropertyShowsItsOwnOverride: Story = {
 /**
  * The gap this closes: a Property added or reassigned after the person
  * configured everything else had no row at all and fell through to the
- * versioned defaults — urgent email, immediately, at 03:00.
+ * versioned defaults — urgent email, immediately, at 03:00. No other property
+ * has a setting of its own here, so nothing is replaced and nothing is asked.
  */
 export const AppliesACategoryToEveryProperty: Story = {
   play: async ({ canvasElement }) => {
@@ -565,6 +566,7 @@ export const AppliesACategoryToEveryProperty: Story = {
     )
 
     await userEvent.click(button)
+    expect(within(document.body).queryByRole('alertdialog')).toBeNull()
 
     await waitFor(() => expect(updatePreferenceMock).toHaveBeenCalledTimes(2))
     expect(updatePreferenceMock).toHaveBeenCalledWith({
@@ -574,6 +576,87 @@ export const AppliesACategoryToEveryProperty: Story = {
         applyToAllProperties: true,
       }),
     })
+  },
+}
+
+/** A row Second Property has of its own: the setting "Apply to all" replaces. */
+const secondPropertyPreference = (
+  overrides: Partial<NotificationPreference> & Pick<NotificationPreference, 'category'>,
+): NotificationPreference =>
+  ({
+    ...preference(overrides),
+    id: `pref-second-${overrides.category}-${overrides.channel ?? 'email'}`,
+    propertyId: OTHER_PROPERTY_ID,
+  }) as unknown as NotificationPreference
+
+/** Workflow in-app switched off at Second Property, as a mute from the bell leaves it. */
+const mutedAtSecondProperty: readonly NotificationPreference[] = [
+  ...preferences,
+  secondPropertyPreference({
+    category: 'workflow_collaboration',
+    channel: 'in_app',
+    enabled: false,
+  }),
+]
+
+/** Presses Workflow's "Apply to all my properties" and returns the question it asks. */
+async function askToApplyWorkflowEverywhere(canvas: Canvas) {
+  await userEvent.click(
+    canvas.getByRole('button', {
+      name: 'Workflow and collaboration: Apply to all my properties',
+    }),
+  )
+  const dialog = await within(document.body).findByRole('alertdialog', {
+    name: 'Replace the settings at 1 other property?',
+  })
+  // Names the property it would change, and the mute it would undo.
+  expect(dialog).toHaveAccessibleDescription(
+    'Second Property has its own workflow and collaboration settings, including a mute from the notification bell. Applying to all your properties replaces them with the settings you chose here.',
+  )
+  return within(dialog)
+}
+
+const expectNoDialog = () =>
+  waitFor(() => expect(within(document.body).queryByRole('alertdialog')).toBeNull())
+
+/**
+ * "Apply to all my properties" replaces every other property's own setting
+ * for the category, a mute from the bell included. It used to do that without
+ * a word; when another property has one it now asks first, and keeping them
+ * applies nothing.
+ */
+export const ApplyToAllAsksBeforeReplacingAMute: Story = {
+  args: { preferences: mutedAtSecondProperty },
+  play: async ({ canvasElement }) => {
+    updatePreferenceMock.mockClear()
+    const dialog = await askToApplyWorkflowEverywhere(within(canvasElement))
+
+    await userEvent.click(dialog.getByRole('button', { name: 'Keep them' }))
+    await expectNoDialog()
+    expect(updatePreferenceMock).not.toHaveBeenCalled()
+  },
+}
+
+/** Confirmed, it applies both channels everywhere, as it does when nothing is replaced. */
+export const ApplyToAllReplacesOnceConfirmed: Story = {
+  args: { preferences: mutedAtSecondProperty },
+  play: async ({ canvasElement }) => {
+    updatePreferenceMock.mockClear()
+    const dialog = await askToApplyWorkflowEverywhere(within(canvasElement))
+    expect(updatePreferenceMock).not.toHaveBeenCalled()
+
+    await userEvent.click(dialog.getByRole('button', { name: 'Apply to all' }))
+    await waitFor(() => expect(updatePreferenceMock).toHaveBeenCalledTimes(2))
+    for (const channel of ['in_app', 'email'] as const) {
+      expect(updatePreferenceMock).toHaveBeenCalledWith({
+        data: expect.objectContaining({
+          category: 'workflow_collaboration',
+          channel,
+          applyToAllProperties: true,
+        }),
+      })
+    }
+    await expectNoDialog()
   },
 }
 

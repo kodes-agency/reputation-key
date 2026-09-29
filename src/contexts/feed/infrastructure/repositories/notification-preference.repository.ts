@@ -290,6 +290,35 @@ export const createNotificationPreferenceRepository = (db: Database) => {
       return resolveDeliveryWindow(personal, override)
     },
 
+    /** One Property's own row for a category and channel, or null when it inherits. */
+    findPropertyPreference: scopedPreference,
+
+    /**
+     * Removes one Property's own row, so it inherits the person's default
+     * again: how a mute taken from the bell is undone when that Property had
+     * no row of its own before it.
+     */
+    deletePropertyPreference: async (
+      userId: string,
+      orgId: string,
+      propertyId: string,
+      category: NotificationCategory,
+      channel: NotificationChannel,
+    ): Promise<void> => {
+      refuseMandatory(category)
+      await db
+        .delete(notificationPreferences)
+        .where(
+          and(
+            eq(notificationPreferences.userId, userId),
+            eq(notificationPreferences.organizationId, orgId),
+            eq(notificationPreferences.propertyId, propertyId),
+            eq(notificationPreferences.category, category),
+            eq(notificationPreferences.channel, channel),
+          ),
+        )
+    },
+
     upsert: (preference: NotificationPreference) =>
       writePreference(preference, {
         enabled: preference.enabled,

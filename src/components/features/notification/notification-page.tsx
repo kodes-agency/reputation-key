@@ -171,6 +171,7 @@ export function NotificationPage({
           actions={actions}
           format={format}
           headingLevel={2}
+          showProperty={false}
           listRef={listRef}
           emptyTitle={
             filter === 'all'

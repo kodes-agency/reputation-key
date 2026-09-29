@@ -79,11 +79,7 @@ export function NotificationPopoverContent(props: Props) {
       </div>
       <Separator />
       {/* The list is the part that gives: on a short or landscape phone it
-          shrinks and scrolls, so the header and the footer stay on screen.
-          In the light theme it sits on the page tone, because the popover
-          and an unread row's elevated surface are the same white there and
-          the row's lift (DESIGN.md, Tonal Stack) measured 1.00:1. The dark
-          popover already sits a step below the row. */}
+          shrinks and scrolls, so the header and the footer stay on screen. */}
       <NotificationFilterTabs
         value={props.filter}
         onChange={props.onFilterChange}
@@ -91,7 +87,7 @@ export function NotificationPopoverContent(props: Props) {
         listClassName="px-2 pt-2"
         contentClassName="flex min-h-0 flex-col"
       >
-        <div className="max-h-96 min-h-0 flex-1 overflow-y-auto bg-background px-1 pb-1 dark:bg-transparent">
+        <div className="max-h-96 min-h-0 flex-1 overflow-y-auto px-1 pb-1">
           <NotificationListBody
             groups={props.groups}
             isLoading={props.isLoading}

@@ -60,6 +60,18 @@ const POPOVER_VIEWPORT_MARGIN_PX = 8
 const NOTIFICATION_LIST_SELECTOR = '[data-notification-list]'
 
 /**
+ * A press on a toast is not a press outside the bell. The toast that confirms a
+ * dismissal or a mute offers Undo, and closing the popover under that click
+ * hid the very row Undo brought back until the bell was opened again.
+ */
+function keepOpenForToasts(event: Event): void {
+  const target = event.target
+  if (target instanceof Element && target.closest('[data-sonner-toaster]')) {
+    event.preventDefault()
+  }
+}
+
+/**
  * Radix focuses the first tabbable control on open: "Mark all read", with no
  * ring after a pointer open, so one stray Space or Enter (or a fast double
  * Enter on the bell) marked every notification read. Focus starts on the list
@@ -163,6 +175,7 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
         align="end"
         aria-label="Notifications"
         onOpenAutoFocus={focusListOnOpen}
+        onInteractOutside={keepOpenForToasts}
         collisionPadding={POPOVER_VIEWPORT_MARGIN_PX}
         className="flex max-h-(--radix-popover-content-available-height) w-[min(24rem,calc(100vw-1rem))] flex-col p-0"
       >

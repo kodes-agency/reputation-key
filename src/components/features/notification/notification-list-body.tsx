@@ -42,6 +42,8 @@ export type NotificationListBodyProps = Readonly<{
   emptyTitle?: string
   /** Group-label heading level. The popover nests under an h2, the page under an h1. */
   headingLevel?: 2 | 3
+  /** False where the group headings already name each Property (the page). */
+  showProperty?: boolean
   /** The focusable list group, for a caller that must hand focus to the list. */
   listRef?: RefObject<HTMLDivElement | null>
 }>
@@ -50,13 +52,12 @@ function NotificationLoadingState() {
   return (
     <div aria-busy="true" role="status" className="flex flex-col gap-1 py-1">
       <span className="sr-only">Loading notifications…</span>
-      {Array.from({ length: 4 }, (_, index) => (
-        <div key={index} className="flex items-start gap-3 px-3 py-3">
-          <Skeleton className="mt-0.5 size-8 shrink-0 rounded-full" />
+      {Array.from({ length: 5 }, (_, index) => (
+        <div key={index} className="flex items-start gap-3 px-3 py-2.5">
+          <Skeleton className="mt-0.5 size-4 shrink-0 rounded-full" />
           <div className="flex-1 space-y-2">
             <Skeleton className="h-3.5 w-3/4" />
-            <Skeleton className="h-3 w-full" />
-            <Skeleton className="h-5 w-24" />
+            <Skeleton className="h-3 w-1/2" />
           </div>
         </div>
       ))}
@@ -69,11 +70,13 @@ function NotificationSection({
   actions,
   format,
   headingLevel,
+  showProperty,
 }: Readonly<{
   group: NotificationGroup
   actions: NotificationRowActions
   format: NotificationFormat | undefined
   headingLevel: 2 | 3
+  showProperty: boolean
 }>) {
   const Heading = headingLevel === 2 ? 'h2' : 'h3'
   return (
@@ -84,13 +87,14 @@ function NotificationSection({
       >
         {group.label}
       </Heading>
-      <ul className="flex flex-col gap-1">
+      <ul className="flex flex-col">
         {group.notifications.map((notification) => (
           <NotificationRow
             key={notification.id}
             notification={notification}
             actions={actions}
             format={format}
+            showProperty={showProperty}
           />
         ))}
       </ul>
@@ -149,6 +153,7 @@ function NotificationListState(props: NotificationListBodyProps): ReactNode {
           actions={props.actions}
           format={props.format}
           headingLevel={props.headingLevel ?? 3}
+          showProperty={props.showProperty ?? true}
         />
       ))}
       {props.hasMore && (

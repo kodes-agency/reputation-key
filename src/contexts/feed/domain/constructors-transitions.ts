@@ -41,7 +41,7 @@ export const markNotificationRead = (
  * "Mark as unread".
  *
  * A dismissed row is NOT resurrected: dismissal is the user saying "gone", and
- * un-dismissing belongs to a different (unbuilt) affordance. The
+ * un-dismissing is `restoreDismissedNotification`, the dismissal's own undo. The
  * (user, type, resource) unread-uniqueness collision this can cause is a
  * database fact, so it is resolved by the repository's guarded UPDATE, not here.
  */
@@ -97,5 +97,32 @@ export const dismissNotification = (
     ...notification,
     status: 'dismissed',
     updatedAt: now,
+  })
+}
+
+/**
+ * Dismissed -> how it was before: the undo a dismissal offers for a few seconds
+ * after it. A dismissal keeps `readAt`, so a row nobody had read comes back
+ * unread and a read row comes back read. The (user, type, resource) unread key
+ * another row may hold meanwhile is a database fact, resolved by the
+ * repository's guarded UPDATE, as it is for `markNotificationUnread`.
+ */
+export const restoreDismissedNotification = (
+  notification: Notification,
+  clock: () => Date,
+): Result<Notification, NotificationError> => {
+  if (notification.status !== 'dismissed') {
+    return err(
+      notificationError(
+        'invalid_status',
+        `Cannot restore from status: ${notification.status}`,
+        { status: notification.status },
+      ),
+    )
+  }
+  return ok({
+    ...notification,
+    status: notification.readAt === null ? 'unread' : 'read',
+    updatedAt: clock(),
   })
 }

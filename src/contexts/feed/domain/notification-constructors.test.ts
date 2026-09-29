@@ -6,6 +6,7 @@ import {
   dismissNotification,
   markNotificationRead,
   markNotificationUnread,
+  restoreDismissedNotification,
 } from './constructors-transitions'
 import {
   notificationEmailId,
@@ -525,6 +526,49 @@ describe('notification constructors', () => {
     expect(result.isOk()).toBe(true)
     if (result.isOk()) expect(result.value).toBe(notification)
     expect(clockCalls).toBe(0)
+  })
+
+  it('restores a dismissed notification nobody had read as unread', () => {
+    const notification = createValidNotification()
+    const dismissed = dismissNotification(notification, () => LATER)
+    if (dismissed.isErr()) throw dismissed.error
+    const restoredAt = new Date('2026-01-15T10:03:00.000Z')
+
+    const result = restoreDismissedNotification(dismissed.value, () => restoredAt)
+
+    expect(result.isOk()).toBe(true)
+    if (result.isOk()) {
+      expect(result.value).toMatchObject({
+        status: 'unread',
+        readAt: null,
+        updatedAt: restoredAt,
+      })
+    }
+  })
+
+  it('restores a dismissed notification that had been read as read, keeping when', () => {
+    const read = markNotificationRead(createValidNotification(), () => LATER)
+    if (read.isErr()) throw read.error
+    const dismissed = dismissNotification(read.value, () => LATER)
+    if (dismissed.isErr()) throw dismissed.error
+
+    const result = restoreDismissedNotification(dismissed.value, () => NOW)
+
+    expect(result.isOk()).toBe(true)
+    if (result.isOk())
+      expect(result.value).toMatchObject({ status: 'read', readAt: LATER })
+  })
+
+  it('refuses to restore a notification that was never dismissed', () => {
+    const result = restoreDismissedNotification(createValidNotification(), () => NOW)
+
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error).toMatchObject({
+        code: 'invalid_status',
+        message: 'Cannot restore from status: unread',
+      })
+    }
   })
 
   it('does not resurrect a dismissed notification as unread', () => {

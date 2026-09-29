@@ -12,6 +12,8 @@ import type {
   dismissAllNotificationsFn,
   muteNotificationCategoryFn,
   getNotificationUserSettingsFn,
+  restoreNotificationFn,
+  undoNotificationCategoryMuteFn,
 } from '#/contexts/feed/server/notifications'
 import type { NotificationView } from '#/contexts/feed/application/public-api'
 
@@ -25,6 +27,10 @@ export type NotificationServerFns = Readonly<{
   dismiss: typeof dismissNotificationFn
   dismissAll: typeof dismissAllNotificationsFn
   muteCategory: typeof muteNotificationCategoryFn
+  /** A dismissal's Undo: the row comes back as it was. */
+  restore: typeof restoreNotificationFn
+  /** A mute's Undo: puts back what the mute replaced. */
+  undoMuteCategory: typeof undoNotificationCategoryMuteFn
   /** Supplies the persisted `locale` + `timezone` used to format timestamps. */
   getUserSettings: typeof getNotificationUserSettingsFn
 }>

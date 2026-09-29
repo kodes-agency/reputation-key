@@ -3,7 +3,16 @@ import type { NotificationChannel } from '#/contexts/feed/application/public-api
 import {
   applyEverywhereNotice,
   applyEverywhereInOrder,
+  namesInBrief,
+  setDifferentlyElsewhere,
 } from './notification-apply-everywhere'
+import {
+  notificationPreferenceId,
+  organizationId,
+  propertyId,
+  userId,
+} from '#/shared/domain/ids'
+import type { NotificationPreference } from '#/contexts/feed/application/public-api'
 
 const saved = async () => undefined
 const refused = async () => {
@@ -60,5 +69,72 @@ describe('applyEverywhereNotice', () => {
     expect(applyEverywhereNotice({ applied: [], failed: 'in_app', skipped: [] })).toEqual(
       { tone: 'error', message: 'Could not apply to every property' },
     )
+  })
+})
+
+const PROPERTIES = [
+  { id: '10000000-0000-4000-8000-000000000001', name: 'Riverside Hotel' },
+  { id: '10000000-0000-4000-8000-000000000002', name: 'Harbor & Pine' },
+  { id: '10000000-0000-4000-8000-000000000003', name: 'Lakeside Lodge' },
+]
+const row = (
+  property: number,
+  overrides: Partial<NotificationPreference> = {},
+): NotificationPreference => ({
+  id: notificationPreferenceId(`20000000-0000-4000-8000-00000000000${property}`),
+  userId: userId('user-1'),
+  organizationId: organizationId('org-1'),
+  propertyId: propertyId(PROPERTIES[property]!.id),
+  category: 'workflow_collaboration',
+  channel: 'in_app',
+  enabled: true,
+  cadence: 'immediate',
+  createdAt: new Date(0),
+  updatedAt: new Date(0),
+  ...overrides,
+})
+
+describe('setDifferentlyElsewhere', () => {
+  it('names the other properties with their own setting for the category, and their mutes', () => {
+    const preferences = [
+      row(0),
+      row(1, { enabled: false }),
+      row(2, { channel: 'email', enabled: true }),
+      row(2, { category: 'recognition' }),
+    ]
+
+    expect(
+      setDifferentlyElsewhere(
+        'workflow_collaboration',
+        preferences,
+        PROPERTIES,
+        PROPERTIES[0]!.id,
+      ),
+    ).toEqual([
+      { name: 'Harbor & Pine', muted: true },
+      { name: 'Lakeside Lodge', muted: false },
+    ])
+  })
+
+  it('finds nothing when only the property in view has its own setting', () => {
+    expect(
+      setDifferentlyElsewhere(
+        'workflow_collaboration',
+        [row(0)],
+        PROPERTIES,
+        PROPERTIES[0]!.id,
+      ),
+    ).toEqual([])
+  })
+})
+
+describe('namesInBrief', () => {
+  it.each([
+    [['Harbor & Pine'], 'Harbor & Pine'],
+    [['Harbor & Pine', 'Lakeside Lodge'], 'Harbor & Pine and Lakeside Lodge'],
+    [['A', 'B', 'C'], 'A, B and 1 other'],
+    [['A', 'B', 'C', 'D'], 'A, B and 2 others'],
+  ])('writes %j as %s', (names, expected) => {
+    expect(namesInBrief(names)).toBe(expected)
   })
 })

@@ -275,6 +275,7 @@ describe('renderNotification — the copy that was broken', () => {
     ).toEqual({
       title: 'Escalation resolved at Riverside Hotel',
       body: 'This item is no longer escalated. Open it to see where it stands.',
+      detail: '',
       actionLabel: 'View item',
       summary: 'Riverside Hotel · escalation resolved',
     })
@@ -286,6 +287,7 @@ describe('renderNotification — the copy that was broken', () => {
     ).toEqual({
       title: 'Review updated at Riverside Hotel',
       body: 'The guest changed their review. Open it to check the latest details.',
+      detail: '',
       actionLabel: 'Review update',
       summary: 'Riverside Hotel · updated review',
     })
@@ -301,6 +303,7 @@ describe('renderNotification — the copy that was broken', () => {
     ).toEqual({
       title: 'Reopened: feedback at Riverside Hotel',
       body: 'This feedback needs another look. Open it to see where it stands.',
+      detail: '',
       actionLabel: 'View item',
       summary: 'Riverside Hotel · 2-star feedback · reopened',
     })
@@ -569,6 +572,7 @@ describe('renderNotification — the copy that was broken', () => {
     expect(renderNotification('reply.publish_failed', {})).toEqual({
       title: 'Reply not published',
       body: 'Open the reply to see where it stands.',
+      detail: '',
       actionLabel: 'View reply',
       summary: 'review · not published',
     })
@@ -691,6 +695,7 @@ describe('notificationLink', () => {
     expect(renderNotification('account.organization_access_granted', {})).toEqual({
       title: 'Organization access added',
       body: 'Your account can now access this organization.',
+      detail: '',
       actionLabel: 'Review account',
       summary: 'organization access added',
       whyReceived:
@@ -699,6 +704,7 @@ describe('notificationLink', () => {
     expect(renderNotification('account.organization_role_changed', {})).toEqual({
       title: 'Organization role updated',
       body: 'Your account permissions for this organization were updated.',
+      detail: '',
       actionLabel: 'Review account',
       summary: 'organization role updated',
       whyReceived:
@@ -707,6 +713,8 @@ describe('notificationLink', () => {
     expect(renderNotification('account.organization_access_removed', {})).toEqual({
       title: 'Organization access removed',
       body: 'Your account no longer has access to this organization. If this seems unexpected, contact an account administrator.',
+      detail:
+        'Your account no longer has access to this organization. If this seems unexpected, contact an account administrator.',
       actionLabel: 'Review account',
       summary: 'organization access removed',
       whyReceived:
@@ -722,6 +730,8 @@ describe('notificationLink', () => {
     ).toEqual({
       title: 'Final notice: permanent deletion of Riverside Group',
       body: 'The recovery window has ended. Deletion can start at any time and permanently erases its properties, portals, reviews, replies and Inbox history. Only Reputation Key support can stop it, before it starts. To stop it, answer this email or write to denev@kodes.agency now.',
+      detail:
+        'The recovery window has ended. Deletion can start at any time and permanently erases its properties, portals, reviews, replies and Inbox history. Only Reputation Key support can stop it, before it starts. To stop it, answer this email or write to denev@kodes.agency now.',
       actionLabel: 'Open profile',
       summary: 'Riverside Group · permanent deletion pending',
       whyReceived:
@@ -824,6 +834,7 @@ describe('notificationLink', () => {
     ).toEqual({
       title: 'A portal at Riverside Hotel needs a responsible manager',
       body: 'Choose an eligible manager so portal updates reach the right people.',
+      detail: '',
       actionLabel: 'Choose manager',
       summary: 'Riverside Hotel · responsible manager needed',
     })
@@ -844,6 +855,7 @@ describe('notificationLink', () => {
     ).toEqual({
       title: 'Riverside Hotel needs a responsible manager',
       body: 'Choose an eligible manager so property-wide updates reach the right people.',
+      detail: '',
       actionLabel: 'Choose manager',
       summary: 'Riverside Hotel · responsible manager needed',
     })
@@ -866,6 +878,7 @@ describe('notificationLink', () => {
     ).toEqual({
       title: 'Goal result updated: Monthly guest engagement',
       body: 'A monthly result changed. Open the goal to see the current metrics.',
+      detail: '',
       actionLabel: 'View result',
       summary: 'Monthly guest engagement',
     })
@@ -883,6 +896,8 @@ describe('notificationLink', () => {
     ).toEqual({
       title: 'Reconnect Google',
       body: 'Google no longer accepts RepKey\u2019s access, so review updates and replies are paused.',
+      detail:
+        'Google no longer accepts RepKey\u2019s access, so review updates and replies are paused.',
       actionLabel: 'Reconnect Google',
       summary: 'Google access ended',
     })
@@ -907,6 +922,8 @@ describe('notificationLink', () => {
     ).toEqual({
       title: 'Reply not published at Riverside Hotel',
       body: 'Google needs reconnecting first. An account admin can reconnect it in Settings, then retry \u2014 the draft is saved.',
+      detail:
+        'Google needs reconnecting first. An account admin can reconnect it in Settings, then retry \u2014 the draft is saved.',
       actionLabel: 'Open reply',
       summary: 'Riverside Hotel · review · reconnect Google',
     })
@@ -929,6 +946,8 @@ describe('notificationLink', () => {
     ).toEqual({
       title: 'Reply not published at Riverside Hotel',
       body: 'Google needs reconnecting first. An account admin can reconnect it in Settings, then retry \u2014 the draft is saved.',
+      detail:
+        'Google needs reconnecting first. An account admin can reconnect it in Settings, then retry \u2014 the draft is saved.',
       actionLabel: 'Open reply',
       summary: 'Riverside Hotel · review · reconnect Google',
     })
@@ -960,6 +979,7 @@ describe('notificationLink', () => {
     ).toEqual({
       title: 'October goal met: Lobby QR scans at Riverside Hotel',
       body: 'This Portal goal hit its target. Open the goal to see the numbers.',
+      detail: 'This Portal goal hit its target.',
       actionLabel: 'View progress',
       summary: 'Riverside Hotel · Lobby QR scans · Portal',
     })
@@ -1030,6 +1050,94 @@ describe('renderer coverage', () => {
   it('has a renderer for every declared type', () => {
     for (const type of NOTIFICATION_TYPES as ReadonlyArray<NotificationType>) {
       expect(() => renderNotification(type, {})).not.toThrow()
+    }
+  })
+})
+
+describe('renderNotification — the in-app detail line', () => {
+  it.each([
+    'review.created',
+    'feedback.created',
+    'inbox.escalated',
+    'reply.pending_approval',
+    'inbox.assigned',
+    'inbox_note.added',
+    'goal.completed',
+  ] as const)(
+    'adds nothing under a %s title that the title does not already say',
+    (type) => {
+      const rendered = renderNotification(type, {
+        propertyName: 'Riverside Hotel',
+        actorRole: 'property_manager',
+      })
+      expect(rendered.body).not.toBe('')
+      expect(rendered.detail).toBe('')
+    },
+  )
+
+  it('keeps the reason a notice was reopened and leaves the repeat count to the row', () => {
+    const rendered = renderNotification('inbox.reopened', {
+      reopenReason: 'new_information',
+      occurrences: 3,
+    })
+    expect(rendered.detail).toBe('New information came in.')
+    expect(rendered.body).toContain('This happened 3 times.')
+  })
+
+  it("shows a passed Response Target as its target time, on the reader's clock", () => {
+    const rendered = renderNotification(
+      'inbox.response_target_passed',
+      { targetDueAt: '2026-09-29T11:00:00.000Z' },
+      { timeZone: 'Europe/Sofia' },
+    )
+    expect(rendered.detail).toBe('The target time was Tue, Sep 29, 14:00.')
+  })
+
+  it('says why a reply was sent back only when the notice knows whether a reason exists', () => {
+    expect(
+      renderNotification('reply.rejected', { hasModerationReason: true }).detail,
+    ).toBe(
+      'The approver left a reason. Open the reply to read it, then edit and resubmit.',
+    )
+    expect(renderNotification('reply.rejected', {}).detail).toBe('')
+  })
+
+  it('shows the imported counts, and nothing when the count is unknown', () => {
+    expect(
+      renderNotification('property.review_import_finished', {
+        importOutcome: 'completed',
+        importedCount: 240,
+        unansweredCount: 12,
+      }).detail,
+    ).toBe('We imported 240 reviews; 12 still need a reply.')
+    expect(
+      renderNotification('property.review_import_finished', {
+        importOutcome: 'completed',
+      }).detail,
+    ).toBe('')
+  })
+
+  it('never says anything in the detail that the email body does not', () => {
+    const payload = {
+      propertyName: 'Riverside Hotel',
+      platform: 'portal',
+      guestRating: 2,
+      actorRole: 'staff',
+      reopenReason: 'guest_follow_up_still_needed',
+      publishOutcome: 'refused',
+      publicationCancellationCause: 'policy',
+      portalHealthStatus: 'unavailable',
+      portalHealthReason: 'public_address_unavailable',
+      reauthorizationCause: 'member_removed',
+      importOutcome: 'failed',
+      importFailureReason: 'location_too_large',
+      hasModerationReason: false,
+      targetDueAt: '2026-09-29T11:00:00.000Z',
+      occurrences: 2,
+    } as const
+    for (const type of NOTIFICATION_TYPES) {
+      const rendered = renderNotification(type, payload, { timeZone: 'UTC' })
+      if (rendered.detail !== '') expect(rendered.body).toContain(rendered.detail)
     }
   })
 })

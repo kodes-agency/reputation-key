@@ -13,11 +13,12 @@
 //
 // A failure is a visible toast, not only an announcement: the optimistic
 // change is undone, and a row that reappears with no word of why looks like
-// the UI undoing itself. A mute is confirmed by a toast too, because nothing
-// else on screen says what it covered.
+// the UI undoing itself. A dismissal and a mute are confirmed by a toast with
+// Undo: a dismissed row has nowhere else to be found again, and nothing else
+// on screen says what a mute covered. Sonner's live region reads the toast, so
+// neither is announced a second time.
 
 import { useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import {
   actionErrorMessage,
@@ -61,21 +62,8 @@ function muteConfirmation(notification: NotificationView): string {
   return `In-app ${category} notices muted for ${property}, including earlier ones.`
 }
 
-/**
- * The mute toast's way back: the settings of the Property just muted, where
- * the mute is undone. Without it the page opens the first Property, whose
- * switch is still on, so a mistaken mute looks like nothing happened.
- */
-export function muteSettingsAction(
-  navigate: ReturnType<typeof useNavigate>,
-  propertyId: string,
-) {
-  return {
-    label: 'Settings',
-    onClick: () =>
-      void navigate({ to: '/settings/notifications', search: { propertyId } }),
-  }
-}
+/** How long a toast offering Undo stays: long enough to notice it and act. */
+const UNDO_TOAST_MS = 6_000
 
 export type NotificationFeedMutations = Readonly<{
   onMarkRead: (notificationId: string) => void
@@ -95,7 +83,6 @@ export function useNotificationMutations(
   announce: (text: string) => void,
 ): NotificationFeedMutations {
   const qc = useQueryClient()
-  const navigate = useNavigate()
   const invalidateKeys = [notificationKeys.feed(organizationId)]
   const patchFeed = (
     patch: Parameters<typeof patchNotificationFeedCache>[2],
@@ -147,6 +134,17 @@ export function useNotificationMutations(
         clearsUnreadOf: 'all',
       }),
   })
+  // An Undo brings rows back through the next read, not optimistically: the
+  // server decides whether a restored row is unread (another row may have
+  // taken its place meanwhile).
+  const restore = useActionMutation(fns.restore, {
+    invalidateKeys,
+    errorMessage: failed("Couldn't bring that notification back."),
+  })
+  const undoMute = useActionMutation(fns.undoMuteCategory, {
+    invalidateKeys: [...invalidateKeys, notificationKeys.preferences(organizationId)],
+    errorMessage: failed("Couldn't undo that mute."),
+  })
   // The server hides every row of the muted category for that Property, read
   // or unread, from the next read on; the list says so at once, and the feed
   // is read again so the badge and loaded history agree.
@@ -162,13 +160,15 @@ export function useNotificationMutations(
   })
 
   /** Awaits a mutation and reports success; its failure is the mutation's toast. Never rejects. */
-  const run = async (work: Promise<unknown>, done: () => void) => {
+  const run = async <T>(work: Promise<T>, done: (result: T) => void) => {
+    let result: T
     try {
-      await work
-      done()
+      result = await work
     } catch {
       // Already reported: `errorMessage` toasts, and sonner's region announces it.
+      return
     }
+    done(result)
   }
 
   return {
@@ -184,7 +184,16 @@ export function useNotificationMutations(
     },
     onDismiss: (id) => {
       void run(dismiss({ data: { notificationId: id } }), () =>
-        announce('Notification dismissed.'),
+        toast('Notification dismissed.', {
+          duration: UNDO_TOAST_MS,
+          action: {
+            label: 'Undo',
+            onClick: () =>
+              void run(restore({ data: { notificationId: id } }), () =>
+                toast('Notification restored.'),
+              ),
+          },
+        }),
       )
     },
     onMuteCategory: (notification) => {
@@ -194,12 +203,18 @@ export function useNotificationMutations(
         announce("This notice can't be muted. Dismiss it instead.")
         return
       }
-      const work = muteCategory({
-        data: { propertyId, category: notification.category },
-      })
-      void run(work, () =>
+      const category = notification.category
+      const work = muteCategory({ data: { propertyId, category } })
+      void run(work, ({ previous }) =>
         toast.success(muteConfirmation(notification), {
-          action: muteSettingsAction(navigate, propertyId),
+          duration: UNDO_TOAST_MS,
+          action: {
+            label: 'Undo',
+            onClick: () =>
+              void run(undoMute({ data: { propertyId, category, previous } }), () =>
+                toast('Mute undone.'),
+              ),
+          },
         }),
       )
     },
