@@ -5,16 +5,17 @@ import { PageHeader } from '#/components/layout/page-header'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import {
   getNotificationPreferencesFn,
-  getNotificationUserSettingsFn,
   updateNotificationPreferenceFn,
   updateNotificationQuietHoursFn,
-  updateNotificationUserSettingsFn,
   resetNotificationPropertyCategoryFn,
 } from '#/contexts/feed/server/notifications'
 import { NotificationsSettingsPage } from '#/components/features/settings'
 import { notificationPropertyScopeKey } from '#/components/features/settings/notification-property-selection'
 import { notificationKeys } from '#/shared/queries/query-keys'
-import { propertiesQuery } from '#/routes/-queries/route-queries'
+import {
+  notificationUserSettingsQuery,
+  propertiesQuery,
+} from '#/routes/-queries/route-queries'
 import { checkControlledRoute } from '#/shared/auth/controlled-route-check'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 
@@ -24,13 +25,6 @@ const preferencesQuery = (organizationId: string) =>
   queryOptions({
     queryKey: notificationKeys.preferences(organizationId),
     queryFn: () => getNotificationPreferencesFn(),
-    staleTime: 60_000,
-  })
-
-const userSettingsQuery = (organizationId: string) =>
-  queryOptions({
-    queryKey: notificationKeys.userSettings(organizationId),
-    queryFn: () => getNotificationUserSettingsFn(),
     staleTime: 60_000,
   })
 
@@ -49,7 +43,7 @@ export const Route = createFileRoute('/_authenticated/settings/notifications')({
     const organizationId = routeContext.activeOrganization?.id ?? 'no-active-organization'
     await Promise.all([
       context.queryClient.ensureQueryData(preferencesQuery(organizationId)),
-      context.queryClient.ensureQueryData(userSettingsQuery(organizationId)),
+      context.queryClient.ensureQueryData(notificationUserSettingsQuery(organizationId)),
       context.queryClient.ensureQueryData(propertiesQuery),
     ])
   },
@@ -81,7 +75,9 @@ function NotificationSettingsPropertyScope({
   organizationId,
 }: Readonly<{ organizationId: string }>) {
   const { data: preferences } = useSuspenseQuery(preferencesQuery(organizationId))
-  const { data: userSettings } = useSuspenseQuery(userSettingsQuery(organizationId))
+  const { data: userSettings } = useSuspenseQuery(
+    notificationUserSettingsQuery(organizationId),
+  )
   const { data: properties } = useSuspenseQuery(propertiesQuery)
   const search = Route.useSearch()
   const navigate = useNavigate({ from: Route.fullPath })
@@ -128,9 +124,6 @@ function NotificationSettingsPropertyScope({
   const resetPropertyCategory = useActionMutation(resetNotificationPropertyCategoryFn, {
     invalidateKeys: [notificationKeys.preferences(organizationId)],
   })
-  const updateUserSettings = useActionMutation(updateNotificationUserSettingsFn, {
-    invalidateKeys: [notificationKeys.userSettings(organizationId)],
-  })
   // A quiet-hours save writes the person's row or one Property override, so
   // both reads are stale afterwards.
   const updateQuietHours = useActionMutation(updateNotificationQuietHoursFn, {
@@ -157,7 +150,6 @@ function NotificationSettingsPropertyScope({
           setPropertyId={setPropertyId}
           updatePreference={updatePreference}
           resetPropertyCategory={resetPropertyCategory}
-          updateUserSettings={updateUserSettings}
           updateQuietHours={updateQuietHours}
         />
       ) : (

@@ -1,4 +1,5 @@
 import { createFileRoute } from '@tanstack/react-router'
+import { useQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
 import { useServerFn } from '@tanstack/react-start'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
@@ -10,15 +11,29 @@ import {
   requestAvatarUpload,
   finalizeAvatarUpload,
 } from '#/contexts/identity/server/organizations'
+import { updateNotificationUserSettingsFn } from '#/contexts/feed/server/notifications'
 import { ProfileSettingsPage } from '#/components/features/identity'
+import { TimezoneAndFormatCard } from '#/components/features/settings'
+import { notificationUserSettingsQuery } from '#/routes/-queries/route-queries'
+import { notificationKeys } from '#/shared/queries/query-keys'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 
+const NO_ACTIVE_ORGANIZATION = 'no-active-organization'
+
 export const Route = createFileRoute('/_authenticated/settings/profile')({
+  loader: async ({ context }) => {
+    const organizationId =
+      (context as AuthRouteContext).activeOrganization?.id ?? NO_ACTIVE_ORGANIZATION
+    // Primed, not awaited as a gate: the card below appears when it answers,
+    // and the name and avatar never wait on the notification settings.
+    void context.queryClient.prefetchQuery(notificationUserSettingsQuery(organizationId))
+  },
   component: ProfileSettings,
 })
 
 function ProfileSettings() {
   const ctx = Route.useRouteContext() as AuthRouteContext
+  const organizationId = ctx.activeOrganization?.id ?? NO_ACTIVE_ORGANIZATION
   const updateProfile = useActionMutation(updateProfileFn, {
     successMessage: 'Profile updated successfully',
   })
@@ -27,15 +42,22 @@ function ProfileSettings() {
   })
   const requestUpload = useServerFn(requestAvatarUpload)
   const finalizeUpload = useServerFn(finalizeAvatarUpload)
+  // Timezone and date format are the person's clock (D6): quiet hours, the
+  // daily digest and every notification time go by them. They are kept per
+  // Organization membership, so only an active Organization has them.
+  const userSettings = useQuery(notificationUserSettingsQuery(organizationId))
+  const updateUserSettings = useActionMutation(updateNotificationUserSettingsFn, {
+    invalidateKeys: [notificationKeys.userSettings(organizationId)],
+  })
 
   return (
     <>
       <PageHeader
         title="Profile"
-        description="Manage your name, email, and avatar."
+        description="Manage your name, email, avatar, timezone and date format."
         breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Profile' }]}
       />
-      <div className="mt-6">
+      <div className="mt-6 space-y-6">
         <ProfileSettingsPage
           key={`${ctx.user.id}:${ctx.user.name}:${ctx.user.image ?? 'no-image'}`}
           user={ctx.user}
@@ -44,6 +66,16 @@ function ProfileSettings() {
           requestAvatarUpload={requestUpload}
           finalizeAvatarUpload={finalizeUpload}
         />
+        {/* The server answers null without an Organization context. */}
+        {ctx.activeOrganization && userSettings.data !== null ? (
+          <TimezoneAndFormatCard
+            settings={userSettings.data}
+            error={userSettings.error}
+            onRetry={() => void userSettings.refetch()}
+            organizationName={ctx.activeOrganization.name}
+            updateUserSettings={updateUserSettings}
+          />
+        ) : null}
       </div>
     </>
   )

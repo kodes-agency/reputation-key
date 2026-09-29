@@ -21,7 +21,13 @@ import {
 import { queryOptions } from '@tanstack/react-query'
 import { listProperties, getProperty } from '#/contexts/property/server/properties'
 import { listMembers } from '#/contexts/identity/server/organizations'
-import { aiKeys, identityKeys, propertyKeys } from '#/shared/queries/query-keys'
+import { getNotificationUserSettingsFn } from '#/contexts/feed/server/notifications'
+import {
+  aiKeys,
+  identityKeys,
+  notificationKeys,
+  propertyKeys,
+} from '#/shared/queries/query-keys'
 import { reviewAnalysisProgressRefetchInterval } from '#/shared/queries/review-analysis-progress-polling'
 // Structural property data consumed by the app shell and sibling routes.
 // Rarely changes; 5-min staleTime.
@@ -31,6 +37,16 @@ export const propertiesQuery = queryOptions({
   queryFn: () => listProperties(),
   staleTime: 5 * 60 * 1000,
 })
+
+// A person's timezone, date format and quiet hours in one Organization: read
+// by Profile, which edits the first two (D6), and by the notification
+// settings, which edit quiet hours and show times on that clock.
+export const notificationUserSettingsQuery = (organizationId: string) =>
+  queryOptions({
+    queryKey: notificationKeys.userSettings(organizationId),
+    queryFn: () => getNotificationUserSettingsFn(),
+    staleTime: 60_000,
+  })
 
 export const membersQuery = queryOptions({
   queryKey: identityKeys.members(),

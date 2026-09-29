@@ -957,6 +957,8 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     page,
   }) => {
     await signIn(page, seed.email, seed.password, BASE_ORIGIN, '/settings/profile')
+    // Timezone and date format are the person's clock, set on Profile (D6).
+    await expect(page.getByRole('combobox', { name: 'Timezone' })).toBeVisible()
     const nameInput = page.getByLabel('Name')
     await nameInput.fill(`${seed.managerName} Persisted`)
     await clickWhenReady(page.getByRole('button', { name: 'Save Changes' }))
@@ -968,6 +970,11 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(page.getByText('Profile updated successfully')).toBeVisible()
 
     await page.goto('/settings/notifications')
+    // Quiet hours say which clock they run on, and link to where it is set.
+    await expect(
+      page.getByText(/on your own clock/).getByRole('link', { name: 'Profile' }),
+    ).toBeVisible()
+    await expect(page.getByRole('combobox', { name: 'Timezone' })).toHaveCount(0)
     // Preferences are per property and the page defaults to the FIRST one by
     // name. Other specs leave fixture properties in the seeded organization
     // that sort ahead of P1 and are not allowlisted for notification email, so

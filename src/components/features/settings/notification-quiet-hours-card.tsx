@@ -7,6 +7,7 @@
 // only some properties split the one daily digest in two.
 
 import { useState } from 'react'
+import { Link } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import type { Action } from '#/components/hooks/use-action'
 import { Button } from '#/components/ui/button'
@@ -98,7 +99,14 @@ export function NotificationQuietHoursCard({
         <CardTitle>Quiet hours</CardTitle>
         <CardDescription>
           Email waits until quiet hours are over, at every property, on your own clock (
-          {clockLabel}). The daily digest waits as a whole, so it stays one email.
+          {clockLabel}, set in{' '}
+          <Link
+            to="/settings/profile"
+            className="font-medium underline underline-offset-4"
+          >
+            Profile
+          </Link>
+          ). The daily digest waits as a whole, so it stays one email.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
