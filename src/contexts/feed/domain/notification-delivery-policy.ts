@@ -115,7 +115,7 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
  * arrival rather than a guest concern (D4). Feedback rated below it, or not
  * rated at all, stays Action needed: always in the app, emailed by default.
  */
-export const ARRIVAL_FEEDBACK_MIN_RATING = 4
+const ARRIVAL_FEEDBACK_MIN_RATING = 4
 
 /**
  * The category a notice is governed by. By type, except private feedback,
