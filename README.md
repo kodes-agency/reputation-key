@@ -188,6 +188,12 @@ for i in 1 2 3; do pnpm e2e:stack:down && pnpm e2e:stack:up && pnpm test:e2e --p
 
 **Deploy - `pnpm ops deploy-ci-images --sha <main sha> --apply`** once `main`
 is green; CI has already run the same stack, so deploying is not a test step.
+It ends by asking Google whether it accepts the beta's "Connect Google": the
+callback `${BETTER_AUTH_URL}/api/auth/google/callback` must be an authorised
+redirect URI on the OAuth client, and the client secret must be current. A
+refusal (Google's `Error 400: redirect_uri_mismatch` page, which the app never
+sees) fails the command with the exact URI to register and the console link.
+Run the same check alone with `pnpm ops check-google-oauth`.
 
 ### Git hooks
 

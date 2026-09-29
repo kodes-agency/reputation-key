@@ -44,6 +44,7 @@ import { buildPropertyContext } from '#/contexts/property/build'
 import { createInboxCommandAuthority } from '#/contexts/inbox/infrastructure/adapters/inbox-command-authority.adapter'
 import { createPropertyRepository } from '#/contexts/property/infrastructure/repositories/property.repository'
 import { buildIntegrationContext } from '#/contexts/integration/build'
+import { googleOAuthCallbackUrl } from '#/contexts/integration/application/google-authorize-request'
 import { randomBytes, randomUUID } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { validateGoogleRuntimeIsolationReadiness } from '#/shared/auth/google-runtime-isolation'
@@ -379,7 +380,7 @@ function buildContainer(
       googleClientId: env.GOOGLE_CLIENT_ID,
       googleClientSecret: env.GOOGLE_CLIENT_SECRET,
       encryptionKey: env.ENCRYPTION_KEY,
-      authBaseUrl: env.BETTER_AUTH_URL,
+      googleCallbackUrl: googleOAuthCallbackUrl(env.BETTER_AUTH_URL),
       pubsubTopic: env.GBP_PUBSUB_TOPIC,
       pubsubNotificationTypes: env.GBP_PUBSUB_NOTIFICATION_TYPES,
     },

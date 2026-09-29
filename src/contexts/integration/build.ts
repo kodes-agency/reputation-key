@@ -234,7 +234,8 @@ type IntegrationContextDeps = Readonly<{
     googleClientId: string
     googleClientSecret: string
     encryptionKey: string
-    authBaseUrl: string
+    /** `${BETTER_AUTH_URL}/api/auth/google/callback`, the address Google must list. */
+    googleCallbackUrl: string
     pubsubTopic: string
     pubsubNotificationTypes: string
   }>
@@ -979,7 +980,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
   }
   const getOpaqueGoogleAuthUrl = getGoogleAuthUrl({
     clientId: deps.config.googleClientId,
-    callbackUrl: `${deps.config.authBaseUrl}/api/auth/google/callback`,
+    callbackUrl: deps.config.googleCallbackUrl,
     clock: deps.clock,
     stateHandles: deps.oauthStateHandles,
   })
@@ -992,7 +993,7 @@ export const buildIntegrationContext = (deps: IntegrationContextDeps) => {
     exchangeRecovery: googleOAuthExchangeRecovery,
     clock: deps.clock,
     idGen: deps.idGen,
-    callbackUrl: `${deps.config.authBaseUrl}/api/auth/google/callback`,
+    callbackUrl: deps.config.googleCallbackUrl,
     authorizeProviderCall: deps.authorizeGoogleOAuthProviderCall,
   })
 
