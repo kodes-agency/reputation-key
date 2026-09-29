@@ -5,6 +5,7 @@ import { sentryTanstackStart } from '@sentry/tanstackstart-react/vite'
 import viteReact from '@vitejs/plugin-react'
 import { nitro } from 'nitro/vite'
 import { loadEnv, defineConfig, type Plugin } from 'vite'
+import { withholdClientSourceMaps } from './scripts/build/withhold-client-source-maps'
 
 /**
  * Zod v4 decides whether to use its JIT-compiled validator path by PROBING for
@@ -228,6 +229,9 @@ const config = defineConfig(({ mode }) => {
                 'server/plugins/request-guard.ts',
               ],
             }),
+            // Client source maps leave `.output/public` after Sentry's upload
+            // and before Nitro lists that directory as servable static assets.
+            withholdClientSourceMaps(),
           ]
         : []),
       tailwindcss(),
