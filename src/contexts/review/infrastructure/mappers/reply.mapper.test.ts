@@ -20,6 +20,7 @@ const sampleRow: ReplyRow = {
   status: 'published',
   source: 'google_sync',
   createdBy: null,
+  submittedBy: null,
   approvedBy: null,
   rejectedBy: null,
   rejectionReason: null,

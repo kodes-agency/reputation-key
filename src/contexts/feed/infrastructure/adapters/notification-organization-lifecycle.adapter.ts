@@ -255,6 +255,8 @@ const prepareClosing = async (
     .update(notificationDigestBatches)
     .set({
       state: 'terminal',
+      // A closed batch is never sent, so its rendered mail is not kept.
+      providerRequest: null,
       outcomeClass: 'invalidated',
       terminalReason: NOTIFICATION_CLOSING_FENCE_REASON,
       failedAt: request.occurredAt,

@@ -273,8 +273,10 @@ async function seedFixture(label: string): Promise<Fixture> {
     `INSERT INTO notification_digest_batches (
        id, organization_id, user_id, local_date, sequence, member_digest,
        content_digest, provider_idempotency_key, unsubscribe_key_version, state,
-       created_at, updated_at
-     ) VALUES ($1, $2, $3, '2026-07-28', 1, $4, $4, $5, 'legacy', 'prepared', $6, $6)`,
+       provider_request, created_at, updated_at
+     ) VALUES ($1, $2, $3, '2026-07-28', 1, $4, $4, $5, 'legacy', 'prepared',
+       '{"to":"manager@example.com","subject":"Digest","html":"","text":"","headers":{}}',
+       $6, $6)`,
     [
       fixture.batchId,
       fixture.organizationId,
@@ -477,6 +479,13 @@ describe.sequential('Notification Organization lifecycle contributor', () => {
     // open provider batch no longer holds its idempotency key.
     expect(await dueEmailCount(fixture.organizationId, 'product')).toBe(0)
     expect(await openDigestBatchCount(fixture.organizationId)).toBe(0)
+    // The closed batch's rendered mail can never be sent, so it is not kept.
+    const frozen = await lease.pool.query<{ request: unknown }>(
+      `SELECT provider_request AS request FROM notification_digest_batches
+        WHERE organization_id = $1`,
+      [fixture.organizationId],
+    )
+    expect(frozen.rows.map((row) => row.request)).toEqual([null])
     // STOP EFFECTS, KEEP DATA — every owned table still has its rows.
     expect(await rowCounts(fixture.organizationId)).toEqual(before)
   })

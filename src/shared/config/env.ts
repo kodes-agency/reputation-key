@@ -46,6 +46,13 @@ const baseEnvSchema = z.object({
           .string()
           .max(195)
           .default(`dev:${'01'.repeat(32)}`),
+  // Keys the durable email suppression list (hashed refused addresses). Kept
+  // apart from BETTER_AUTH_SECRET so rotating that one after an incident does
+  // not unmatch every stored bounce and complaint. Optional: absent, the auth
+  // secret stays the key; set, entries stored under the auth secret move to
+  // this key as they match. Generate: openssl rand -hex 32. Rotating THIS key
+  // empties the list in effect.
+  NOTIFICATION_EMAIL_SUPPRESSION_KEY: z.string().min(32).optional(),
   // RFC 5322 From header for every outbound message. Defaulted, not required,
   // so no deployment breaks on the upgrade — the default is the value that was
   // previously hardcoded in shared/auth/emails.ts.

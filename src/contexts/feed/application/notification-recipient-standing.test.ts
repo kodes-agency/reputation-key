@@ -108,6 +108,20 @@ describe('notification recipient standing at send time', () => {
     await expect(standingOf(deps, { kind: 'account_admin' }, ADMIN)).resolves.toBe(false)
   })
 
+  // A gap notice deferred by quiet hours must not reach someone demoted in the
+  // meantime: an org-wide PropertyManager stays eligible for the Property.
+  it('requires the AccountAdmin role when the audience was a responsibility gap', async () => {
+    const deps = makeDeps()
+    const audience = {
+      kind: 'responsibility_gap',
+      scope: { kind: 'property', propertyId: PROPERTY as string },
+    }
+
+    await expect(standingOf(deps, audience, ADMIN)).resolves.toBe(true)
+    deps.userLookup.findByRole.mockResolvedValue([])
+    await expect(standingOf(deps, audience, ADMIN)).resolves.toBe(false)
+  })
+
   it('asks only for Property eligibility when the audience names no standing duty', async () => {
     const deps = makeDeps()
 

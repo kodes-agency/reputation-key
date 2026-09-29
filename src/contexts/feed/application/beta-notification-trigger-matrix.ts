@@ -4,7 +4,7 @@ import {
   type NotificationType,
 } from '../domain/notification-types'
 import { classifyNotification } from '../domain/notification-delivery-policy'
-import { isActionableNotificationType } from '../domain/notification-settlement'
+import { isSettleableNotificationType } from '../domain/notification-settlement'
 import type { NotificationAudience } from './notification-audience'
 
 export type RegisteredNotificationConsumer = Readonly<{
@@ -117,7 +117,9 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
       ['review.updated'],
       ['handling_cycle'],
     ),
-    // A revision the item was created with is covered by review.created.
+    // Only a revision that superseded an OPEN cycle arrives as `opened`; one
+    // that lands on a closed cycle is a reopen. A revision the item was
+    // created with is covered by review.created.
     eventCondition: 'openReason === material_revision_changed && !openedWithItem',
   },
   {
@@ -127,6 +129,7 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
       ['inbox.reopened'],
       ['handling_cycle'],
     ),
+    // Includes a guest edit of an answered Review (material_revision_changed).
     // A bulk reopen's completion fact notifies for every item it stamped.
     eventCondition: 'bulkId is absent',
   },
@@ -152,11 +155,12 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ['inbox.assigned', 'inbox.unassigned'],
     ['inbox_assignee', 'property_operator'],
   ),
+  // I15: the new assignee, and the previous holders — each once per Property.
   route(
     'inbox.inbox_items.bulk_assignment_completed',
     'notification.on-inbox-bulk-assignment-completed',
-    ['inbox.bulk_assigned'],
-    ['bulk_inbox_assignee'],
+    ['inbox.bulk_assigned', 'inbox.bulk_unassigned'],
+    ['bulk_inbox_assignee', 'property_operator'],
   ),
   // One notice per Property, to the people who now own the gap; the per-item
   // unassigned facts it covers stay history.
@@ -219,13 +223,14 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ['property_operator', 'responsible_scope'],
   ),
   // The author was told the reply was queued to publish; the approvers are the
-  // ones who can send it again. A `policy` cancellation drops the approvers it
-  // took the Property authority from.
+  // ones who can send it again — the responsible ones first, admins as the
+  // fallback (I5.3). A `policy` cancellation drops the approvers it took the
+  // Property authority from.
   route(
     'review.reply.publication_cancelled',
     'notification.on-review-reply-publication_cancelled',
     ['reply.publication_cancelled'],
-    ['property_operator', 'account_admin'],
+    ['property_operator', 'reply_approver', 'account_admin'],
   ),
   route(
     'portal.responsibility_became_needed',
@@ -261,11 +266,13 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     // or one whose closed reason needs a person, reaches anybody.
     eventCondition: 'outcome === completed || failureReason !== temporary',
   },
+  // Anchored on an active Property so it can be mailed; with none, it falls
+  // back to the Organization, in-app only.
   route(
     'integration.google_account.reauthorization_required',
     'notification.on-google-reauthorization-required',
     ['integration.reauthorization_required'],
-    ['account_admin'],
+    ['account_admin', 'organization_account_admin'],
   ),
   // A deliberate disconnect. Organization-scoped: the connection is the
   // Organization's, and the admin who did it is left out.
@@ -305,6 +312,11 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     'reply.publish_failed',
   ]),
   settles(
+    'review.reply.publication_cancelled',
+    'notification.settle-on-review-reply-publication-cancelled',
+    ['reply.publish_failed'],
+  ),
+  settles(
     'inbox.inbox_item.escalation_resolved',
     'notification.settle-on-inbox-escalation-resolved',
     ['inbox.escalated'],
@@ -312,7 +324,14 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
   settles(
     'inbox.handling_cycle.closed',
     'notification.settle-on-inbox-handling-cycle-closed',
-    ['inbox.reopened', 'inbox.response_target_halfway', 'inbox.response_target_passed'],
+    [
+      'review.created',
+      'review.updated',
+      'feedback.created',
+      'inbox.reopened',
+      'inbox.response_target_halfway',
+      'inbox.response_target_passed',
+    ],
   ),
   {
     ...settles(
@@ -331,6 +350,53 @@ export const BETA_NOTIFICATION_TRIGGER_MATRIX = [
     ),
     eventCondition: 'assignmentCount > 0',
   },
+  {
+    ...settles(
+      'portal.health.changed',
+      'notification.settle-on-portal-health-recovered',
+      ['portal.health_attention'],
+    ),
+    // The complement of the announcing route's condition.
+    eventCondition:
+      'status === healthy || reason not in actionable automatic Health reasons',
+  },
+  // An archived Property is outside the workspace: every notice asking for
+  // work on it is finished, whatever resource it points at.
+  settles('property.archived', 'notification.settle-on-property-archived', [
+    'review.created',
+    'review.updated',
+    'feedback.created',
+    'reply.pending_approval',
+    'reply.publish_failed',
+    'inbox.escalated',
+    'inbox.reopened',
+    'inbox.bulk_reopened',
+    'inbox.response_target_halfway',
+    'inbox.response_target_passed',
+    'property.responsibility_needed',
+    'portal.responsibility_needed',
+    'portal.health_attention',
+  ]),
+  {
+    ...settles(
+      'identity.organization_lifecycle.changed',
+      'notification.settle-on-organization-purge-cancelled',
+      ['account.organization_purge_pending'],
+    ),
+    // A purge called off before the irreversible step takes its warning back.
+    eventCondition: 'state === active',
+  },
+  settles(
+    'integration.google_account.connected',
+    'notification.settle-on-google-account-connected',
+    ['integration.reauthorization_required'],
+  ),
+  // A deliberate disconnect answers the reconnect request the other way.
+  settles(
+    'integration.google_account.disconnected',
+    'notification.settle-on-google-account-disconnected',
+    ['integration.reauthorization_required'],
+  ),
 ] as const satisfies ReadonlyArray<BetaNotificationTriggerMatrixRow>
 
 export const BETA_DARK_NOTIFICATION_TYPES =
@@ -385,9 +451,9 @@ const matrixRowViolations = (
       )
       continue
     }
-    // Only a notice that asks for work can be finished by a fact. Settling an
-    // outcome notice would hide news the reader is owed.
-    if (!isActionableNotificationType(type as NotificationType)) {
+    // Only a notice that asks for work can be finished by a fact, or a warning
+    // taken back. Settling an outcome notice would hide news the reader is owed.
+    if (!isSettleableNotificationType(type as NotificationType)) {
       violations.push(
         `notification trigger ${row.eventType} settles ${type}, which asks its reader for nothing`,
       )

@@ -157,6 +157,32 @@ describe('renderNotification — the import summary that replaced a flood', () =
     expect(r.body).not.toMatch(/still need/u)
   })
 
+  // The unanswered count is left out of the payload exactly when it is
+  // unknown: the Inbox never settled within the summary's wait, or a read
+  // failed. ADR 0046: that costs the sentence its second number, never the
+  // notice — and "unknown" must not read as "none", which after a large import
+  // is when the most reviews are waiting.
+  const importedBody = (unansweredCount?: number): string =>
+    renderNotification('property.review_import_finished', {
+      importOutcome: 'completed',
+      importedCount: 260,
+      ...(unansweredCount === undefined ? {} : { unansweredCount }),
+    }).body
+
+  it('says nothing is waiting only when it counted none', () => {
+    expect(importedBody(0)).toBe(
+      'We imported 260 reviews. Nothing is waiting for a reply.',
+    )
+  })
+
+  it('drops the second number, and claims nothing, when the count is unknown', () => {
+    expect(importedBody()).toBe('We imported 260 reviews.')
+  })
+
+  it('names how many still need a reply when it counted them', () => {
+    expect(importedBody(14)).toBe('We imported 260 reviews; 14 still need a reply.')
+  })
+
   it('keeps a sentence a reader can act on when the counts never arrived', () => {
     const r = renderNotification('property.review_import_finished', {
       propertyName: 'Riverside Hotel',

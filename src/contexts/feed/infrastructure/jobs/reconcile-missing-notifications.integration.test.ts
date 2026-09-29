@@ -179,6 +179,7 @@ describe.sequential('missing-notification repair through the Feed build', () => 
           isEligibleForProperty: async () => true,
         },
         replyApproval: { canApproveReplies: async () => true },
+        replyStates: { findReplyStatus: async () => 'pending_approval' },
         feedbackPortalLookup: { findPortalId: async () => PORTAL },
         googleConnectionProperties: { findGoogleNotificationAnchor: async () => null },
         propertyImportInitiators: {} as never,
@@ -203,6 +204,7 @@ describe.sequential('missing-notification repair through the Feed build', () => 
         `86000000-0000-4000-b000-${String(++id).padStart(12, '0')}` as never,
       logger: createMockLogger(),
       authorizeAudience: delivery.authorizeAudience,
+      workState: delivery.workState,
       deliverySettlement: delivery.deliverySettlement,
       organizationEmailStop: createNotificationOrganizationEmailStopReader(db),
     })

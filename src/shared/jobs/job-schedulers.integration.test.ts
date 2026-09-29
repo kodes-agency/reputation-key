@@ -92,6 +92,37 @@ describe.sequential('job scheduler reconciliation (real Redis)', () => {
     ])
   })
 
+  it("leaves an unchanged cron scheduler's due iteration in place on a reboot", async () => {
+    // BullMQ 6 upserting a cron scheduler removes its previous iteration while
+    // that job still waits, and schedules the next occurrence after now. A
+    // worker booting just after the hour, before anything took that hour's
+    // digest run, therefore cancelled it.
+    const desired: JobSchedulerRegistration[] = [
+      {
+        schedulerId: 'digest-notification-recurring',
+        jobName: 'digest-notification',
+        repeat: { pattern: '0 * * * *' },
+        jobOptions: { attempts: 3, backoff: { type: 'exponential', delay: 1_000 } },
+      },
+    ]
+    const reconcile = () =>
+      reconcileJobSchedulers({
+        queue,
+        managedJobNames: ['digest-notification'],
+        desired,
+        planRecord,
+      })
+    await reconcile()
+    // The hour arrives: its iteration is due and waiting for a worker.
+    const [iteration] = await queue.getDelayed()
+    await iteration!.promote()
+
+    const reboot = await reconcile()
+
+    expect((await queue.getWaiting()).map((job) => job.id)).toEqual([iteration!.id])
+    expect(reboot.upsertedSchedulerIds).toEqual([])
+  })
+
   it('restores schedulers lost with Redis state and leaves the surviving ones alone', async () => {
     const desired: JobSchedulerRegistration[] = [
       {

@@ -111,6 +111,7 @@ import {
   appendEscalationHistory,
   readCurrentCycleNumber,
 } from './inbox-escalation-history'
+import { advanceHeadAcrossSourceEpochCarry } from './review-epoch-carry-head'
 
 export type InboxCommandAuthorityPrincipal = Readonly<{
   userId: string
@@ -400,7 +401,8 @@ async function lockReviewProjectionRows(
 /**
  * Replay every attested Material Revision the Inbox head has not reached yet,
  * opening one Handling Cycle per revision at that revision's own observation
- * instant. A gap in the attested history is a conflict, never a silent skip.
+ * instant; a revision Review attests as a source-epoch carry only moves the
+ * head. A gap in the attested history is a conflict, never a silent skip.
  * `withItemCreation` marks the opened facts when this command also created the
  * item, so they are not mistaken for a change someone already saw.
  */
@@ -425,6 +427,23 @@ async function catchUpProjectionRevisions(
         'revision_conflict',
         'Inbox Review projection has a Material Revision gap',
       )
+    }
+    if (revision.sourceEpochCarry) {
+      const carried = await advanceHeadAcrossSourceEpochCarry(tx, {
+        item: input.item,
+        head: current,
+        carriedFrom: current.currentSourceRevision,
+        observedAt: revision.observedAt,
+      })
+      if (!carried) {
+        throw inboxError(
+          'revision_conflict',
+          'Inbox Review projection changed during source-epoch carry',
+        )
+      }
+      advanced = true
+      current = handlingCycleHeadFromRow(carried)
+      continue
     }
     const decision = createNextHandlingCycle({
       current,
@@ -671,31 +690,12 @@ async function lockReviewRowsForObservation(
         'Review Inbox Handling Cycle is not current for this observation',
       )
     }
-    const [carriedHead] = await tx
-      .update(inboxHandlingCycleHeads)
-      .set({
-        currentSourceRevision: observation.materialReviewRevision,
-        currentMaterialReviewRevision: observation.materialReviewRevision,
-        updatedAt: sql<Date>`GREATEST(
-          ${inboxHandlingCycleHeads.updatedAt},
-          ${observation.observedAt}
-        )`,
-      })
-      .where(
-        and(
-          eq(inboxHandlingCycleHeads.inboxItemId, item.id),
-          eq(inboxHandlingCycleHeads.organizationId, item.organizationId),
-          eq(inboxHandlingCycleHeads.propertyId, item.propertyId),
-          eq(inboxHandlingCycleHeads.sourceType, 'review'),
-          eq(inboxHandlingCycleHeads.sourceId, observation.reviewId),
-          eq(inboxHandlingCycleHeads.currentCycleNumber, headRow.currentCycleNumber),
-          eq(inboxHandlingCycleHeads.currentSourceRevision, carriedFrom),
-          eq(inboxHandlingCycleHeads.currentMaterialReviewRevision, carriedFrom),
-          eq(inboxHandlingCycleHeads.stateRevision, headRow.stateRevision),
-          eq(inboxHandlingCycleHeads.status, headRow.status),
-        ),
-      )
-      .returning()
+    const carriedHead = await advanceHeadAcrossSourceEpochCarry(tx, {
+      item,
+      head: headRow,
+      carriedFrom,
+      observedAt: observation.observedAt,
+    })
     if (!carriedHead) {
       throw inboxError(
         'revision_conflict',
@@ -1497,11 +1497,17 @@ export const createAtomicInboxCommandStore = (
         occurredAt: input.at,
       })
       await insertOutboxRow(tx, fact)
+      released += 1
+      // Closing an item keeps its assignee, so a departing manager still holds
+      // everything they ever handled. Releasing those is right, but only open
+      // work is left without an owner: a closed item is not a gap to fill, and
+      // counting it sent an urgent "give them a new one" for finished work.
+      if (row.status !== 'open') continue
       // Grouped here, not in the fact's reader: a departing fleet manager can
       // hold thousands of assignments, and one entry per item would put an
       // unbounded array on the bus for a notice that is one per Property.
-      // `lockedRows` is ordered by item id, so the first row of a Property is
-      // its canonical anchor.
+      // `lockedRows` is ordered by item id, so the first open row of a
+      // Property is its canonical anchor.
       const group = releasedByProperty.get(row.propertyId)
       if (group) group.count += 1
       else {
@@ -1511,11 +1517,11 @@ export const createAtomicInboxCommandStore = (
           count: 1,
         })
       }
-      released += 1
     }
     // The grouped close fact: the per-item facts above stay history, and this
     // one is what a notification is delivered from, once per Property, to the
     // people who now own the gap. Same transaction as the rows it describes.
+    // A release of handled work alone opens no gap and records none.
     if (releasedByProperty.size > 0) {
       await insertOutboxRow(
         tx,

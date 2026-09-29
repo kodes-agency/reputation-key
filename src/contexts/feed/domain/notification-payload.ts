@@ -80,6 +80,12 @@ export type NotificationPayload = Readonly<{
    */
   hasModerationReason?: boolean
   /**
+   * The member left the Organization themselves
+   * (account.organization_access_removed only). Absent means an administrator
+   * removed them, or the row predates the fact saying so.
+   */
+  leftOrganization?: boolean
+  /**
    * How a publication ended without a confirmed live reply
    * (reply.publish_failed only). Absent on rows recorded before facts said.
    */
@@ -184,7 +190,8 @@ export type NotificationPortalHealthReason =
 
 /**
  * The governed causes `inbox.handling_cycle.reopened` carries: five a manager
- * chooses and two an exact provider observation raises.
+ * chooses, two an exact provider observation raises, and the guest editing a
+ * Review that had been answered.
  */
 export type NotificationReopenReason =
   | 'guest_follow_up_still_needed'
@@ -194,6 +201,7 @@ export type NotificationReopenReason =
   | 'other'
   | 'provider_reply_deleted'
   | 'provider_reply_diverged'
+  | 'material_revision_changed'
 
 export type NotificationReportOutcome = 'accepted' | 'declined' | 'resolved'
 
@@ -266,6 +274,7 @@ const REOPEN_REASONS: Record<string, true> = {
   other: true,
   provider_reply_deleted: true,
   provider_reply_diverged: true,
+  material_revision_changed: true,
 }
 
 const IMPORT_OUTCOMES: Record<string, true> = { completed: true, failed: true }
@@ -357,6 +366,7 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
   set('actorRole', takeMember(raw.actorRole, ACTOR_ROLES))
   set('moderationReason', takeText(raw.moderationReason, MAX_REASON_LENGTH))
   set('hasModerationReason', takeFlag(raw.hasModerationReason))
+  set('leftOrganization', takeFlag(raw.leftOrganization))
   set(
     'publishOutcome',
     takeMember<NotificationPublishOutcome>(raw.publishOutcome, PUBLISH_OUTCOMES),

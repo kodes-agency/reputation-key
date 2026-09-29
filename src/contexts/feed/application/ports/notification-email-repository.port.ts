@@ -50,6 +50,20 @@ export type EmailSuppressionReason = 'bounced' | 'complained' | 'suppressed'
 export type NotificationDigestBatchState =
   'prepared' | 'retryable' | 'accepted' | 'terminal'
 
+/**
+ * The exact provider request a batch was frozen with, minus its idempotency
+ * key. A retry of a batch the provider may already hold re-sends this rather
+ * than a fresh render: a repeat event coalescing into a line changes the
+ * rendered wording, and different content under the same key is refused.
+ */
+export type FrozenDigestRequest = Readonly<{
+  to: string
+  subject: string
+  html: string
+  text: string
+  headers: Readonly<Record<string, string>>
+}>
+
 export type NotificationDigestBatch = Readonly<{
   id: NotificationDigestBatchId
   organizationId: OrganizationId
@@ -69,6 +83,11 @@ export type NotificationDigestBatch = Readonly<{
    * whose worker never reported back.
    */
   everyAttemptRefused: boolean
+  /**
+   * Kept only while the batch is open, and `null` for a batch frozen before
+   * requests were stored: such a batch is re-rendered and compared instead.
+   */
+  providerRequest: FrozenDigestRequest | null
   createdAt: Date
   updatedAt: Date
 }>
@@ -282,6 +301,8 @@ export type NotificationEmailRepositoryPort = Readonly<{
     contentDigest: string
     providerIdempotencyKey: string
     unsubscribeKeyVersion: string
+    /** Must fingerprint to `contentDigest`. */
+    providerRequest: FrozenDigestRequest
     preparedAt: Date
   }): Promise<PreparedNotificationDigestBatch>
   /**

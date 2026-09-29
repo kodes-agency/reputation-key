@@ -194,14 +194,15 @@ const jobProducersOf = (row: JobFamilyRow): ReadonlyArray<string> =>
 const UNSCANNED_JOB_PRODUCERS: Readonly<
   Record<string, Readonly<{ module: string; evidence: string }>>
 > = {
-  // enqueueImmediateEmail chooses the job name per email.
+  // addImmediateEmailJob chooses the job name per email, for the insert
+  // path, the orphan sweep and the quiet-hours release alike.
   'urgent-email': {
-    module: 'src/contexts/feed/build.ts',
-    evidence: 'immediateEmailDispatch(data.propertyId)',
+    module: 'src/contexts/feed/infrastructure/jobs/immediate-email-enqueue.ts',
+    evidence: 'immediateEmailDispatch(target.propertyId)',
   },
   'mandatory-email': {
-    module: 'src/contexts/feed/build.ts',
-    evidence: 'immediateEmailDispatch(data.propertyId)',
+    module: 'src/contexts/feed/infrastructure/jobs/immediate-email-enqueue.ts',
+    evidence: 'immediateEmailDispatch(target.propertyId)',
   },
   // Rolling drain only: nothing enqueues either name any more, and the job
   // module says when both handlers can go.

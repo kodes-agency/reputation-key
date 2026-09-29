@@ -31,6 +31,8 @@ export type FakeNotificationConsumerDeps = Readonly<{
   replyApproval: MockedPort<ReplyApprovalAuthorityPort>
   inboxItemLookup: MockedPort<InboxItemLookupPort>
   displayNames: MockedPort<DisplayNameLookupPort>
+  /** Whether the Property is still active; archived and later states are not. */
+  activeProperty: Mock
   clock: () => Date
   logger: MockedPort<LoggerPort>
 }>
@@ -99,6 +101,7 @@ export const createNotificationConsumerDeps = (): FakeNotificationConsumerDeps =
     findWaitingSince: vi.fn(async () => null),
     findNoteAuthors: vi.fn(async () => []),
     countOpenReviewItemsForProperty: vi.fn(async () => 0),
+    hasPendingReviewProjections: vi.fn(async () => false),
   } as unknown as MockedPort<InboxItemLookupPort>
 
   const displayNames = {
@@ -114,6 +117,7 @@ export const createNotificationConsumerDeps = (): FakeNotificationConsumerDeps =
     logger,
     inboxItemLookup,
     displayNames,
+    activeProperty: vi.fn(async () => true),
     clock: () => new Date('2026-06-01T12:00:00.000Z'),
   }
 }

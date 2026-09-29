@@ -143,6 +143,7 @@ const typeIconMap: Record<NotificationType, LucideIcon> = {
   'inbox.assignments_released': UserMinus,
   // The mirror of an assignment: the work left this reader's list.
   'inbox.unassigned': UserMinus,
+  'inbox.bulk_unassigned': UserMinus,
   'inbox_note.added': FileEdit,
   'portal.responsibility_needed': UserPlus,
   'portal.health_attention': AlertTriangle,

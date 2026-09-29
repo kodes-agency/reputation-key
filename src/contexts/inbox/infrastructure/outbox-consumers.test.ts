@@ -351,6 +351,7 @@ function makeDeps(overrides: {
             eligibility: 'measured' as const,
             responseTargetStartAt: meta.sourceDate,
             observedAt: new Date(NOW.getTime() + index),
+            sourceEpochCarry: false,
           })) as [
             {
               authority: 'review.inbox-projection-revision.v1'
@@ -362,6 +363,7 @@ function makeDeps(overrides: {
               eligibility: 'measured'
               responseTargetStartAt: Date
               observedAt: Date
+              sourceEpochCarry: boolean
             },
           ],
         }),

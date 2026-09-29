@@ -246,6 +246,34 @@
       "when": 1791500000000,
       "tag": "0034_notification_property_scope_indexes",
       "breakpoints": true
+    },
+    {
+      "idx": 35,
+      "version": "7",
+      "when": 1791600000000,
+      "tag": "0035_google_reauthorization_organization_fallback",
+      "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1791700000000,
+      "tag": "0036_notification_waiting_resource_unique",
+      "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1791800000000,
+      "tag": "0037_reply_submitted_by",
+      "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1791900000000,
+      "tag": "0038_notification_digest_frozen_request",
+      "breakpoints": true
     }
   ]
 }

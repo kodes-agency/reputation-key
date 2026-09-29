@@ -16,6 +16,7 @@ export const createEscalationResolutionLookupAdapter = (
           propertyId: inboxItems.propertyId,
           assignedTo: inboxItems.assignedTo,
           isEscalated: inboxItems.isEscalated,
+          escalatedAt: inboxItems.escalatedAt,
           resolvedAt: inboxItems.escalationResolvedAt,
           resolvedBy: inboxItems.escalationResolvedBy,
         })
@@ -45,6 +46,7 @@ export const createEscalationResolutionLookupAdapter = (
         assignedTo: row.assignedTo ? userId(row.assignedTo) : null,
         propertyName: property?.name ?? null,
         isEscalated: row.isEscalated,
+        escalatedAt: row.escalatedAt,
         resolvedAt: row.resolvedAt,
         resolvedBy: row.resolvedBy ? userId(row.resolvedBy) : null,
       }

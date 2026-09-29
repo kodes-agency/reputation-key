@@ -61,6 +61,22 @@ function muteConfirmation(notification: NotificationView): string {
   return `In-app ${category} notices muted for ${property}, including earlier ones.`
 }
 
+/**
+ * The mute toast's way back: the settings of the Property just muted, where
+ * the mute is undone. Without it the page opens the first Property, whose
+ * switch is still on, so a mistaken mute looks like nothing happened.
+ */
+export function muteSettingsAction(
+  navigate: ReturnType<typeof useNavigate>,
+  propertyId: string,
+) {
+  return {
+    label: 'Settings',
+    onClick: () =>
+      void navigate({ to: '/settings/notifications', search: { propertyId } }),
+  }
+}
+
 export type NotificationFeedMutations = Readonly<{
   onMarkRead: (notificationId: string) => void
   onMarkUnread: (notificationId: string) => void
@@ -173,19 +189,17 @@ export function useNotificationMutations(
     },
     onMuteCategory: (notification) => {
       // The row menu never offers these; the guard keeps the command honest.
-      if (notification.propertyId === null || notification.category === 'mandatory') {
+      const { propertyId } = notification
+      if (propertyId === null || notification.category === 'mandatory') {
         announce("This notice can't be muted. Dismiss it instead.")
         return
       }
       const work = muteCategory({
-        data: { propertyId: notification.propertyId, category: notification.category },
+        data: { propertyId, category: notification.category },
       })
       void run(work, () =>
         toast.success(muteConfirmation(notification), {
-          action: {
-            label: 'Settings',
-            onClick: () => void navigate({ to: '/settings/notifications' }),
-          },
+          action: muteSettingsAction(navigate, propertyId),
         }),
       )
     },

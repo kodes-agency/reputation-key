@@ -582,7 +582,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     exitCriteria: RETAINED_HISTORY,
   }),
   ...rows({
-    schemaFile: 'review.schema.ts',
+    schemaFile: 'review-source-content.schema.ts',
     exportNames: ['reviewSourceContents'],
     owner: 'review',
     disposition: 'erasable_source_content',

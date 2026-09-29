@@ -12,6 +12,12 @@ export type EscalationResolutionNotificationFacts = Readonly<{
   assignedTo: UserId | null
   propertyName: string | null
   isEscalated: boolean
+  /**
+   * When the escalation this resolution closes was raised. It bounds the
+   * evidence of who was told about it: an earlier escalation's notices went
+   * to people this one may never have reached.
+   */
+  escalatedAt: Date | null
   resolvedAt: Date | null
   resolvedBy: UserId | null
 }>

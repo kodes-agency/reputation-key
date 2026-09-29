@@ -37,6 +37,23 @@ describe('unavailable route presentation', () => {
     })
   })
 
+  // Leaving is recorded as a removal too; the page must not tell someone who
+  // left that an administrator removed them.
+  it('tells someone who left the workspace that they left', () => {
+    const content = unavailablePageContent(
+      { reason: 'workspace_access' },
+      { accessRemoved: true, leftWorkspace: true },
+    )
+
+    expect(content.title).toBe('You left the workspace')
+    expect(content.description).toBe(
+      'You left the workspace, so it is no longer available to you.',
+    )
+    expect(content.guidance).toBe(
+      'To come back, ask an account administrator of that workspace to invite you again. Any new invitation will appear here.',
+    )
+  })
+
   it('keeps the waiting-for-access copy for someone who was never removed', () => {
     expect(
       unavailablePageContent({ reason: 'workspace_access' }, { accessRemoved: false }),
@@ -162,6 +179,17 @@ describe('unavailable account state', () => {
       accessRemoved: false,
     })
     expect(read).toHaveBeenCalledTimes(1)
+  })
+
+  it('passes on that the reader left rather than was removed', async () => {
+    const read = vi.fn(async () => ({
+      removedAt: '2026-09-20T09:00:00.000Z',
+      left: true,
+    }))
+
+    await expect(
+      resolveUnavailableAccountState('workspace_access', read),
+    ).resolves.toEqual({ accessRemoved: true, leftWorkspace: true })
   })
 
   it('still renders the recovery screen when the read fails', async () => {

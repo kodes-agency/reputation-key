@@ -38,6 +38,7 @@ export function buildReplySetClause(
     }
   }
   if (updates.submittedAt !== undefined) setClause.submittedAt = updates.submittedAt
+  if (updates.submittedBy !== undefined) setClause.submittedBy = updates.submittedBy
   if (updates.approvedBy !== undefined) setClause.approvedBy = updates.approvedBy
   if (updates.approvedAt !== undefined) setClause.approvedAt = updates.approvedAt
   if (updates.rejectedBy !== undefined) setClause.rejectedBy = updates.rejectedBy

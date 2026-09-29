@@ -91,6 +91,10 @@ export function getLogger(destination?: pino.DestinationStream): pino.Logger {
     _logger = pino(
       {
         level: env.LOG_LEVEL,
+        // The label, not pino's number: Railway reads a JSON line's level only
+        // as a string and files {"level":50} under the stdout default, INFO —
+        // so no error or warning was findable by level.
+        formatters: { level: (label) => ({ level: label }) },
         hooks: {
           logMethod(args, method) {
             method.apply(this, sanitizeLogArgs(args) as Parameters<typeof method>)

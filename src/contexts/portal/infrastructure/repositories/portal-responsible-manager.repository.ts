@@ -241,6 +241,8 @@ export const createPortalResponsibleManagerRepository = (
             organizationId: organizationId(input.organizationId),
             propertyId: propertyId(input.propertyId),
             portalId: portalId(input.portalId),
+            // The admin clearing the list opened the gap; the fan-out drops them.
+            actorUserId: userId(input.actorId),
             sourceAggregateVersion: revised.updatedAt.toISOString(),
             occurredAt: input.at,
           })

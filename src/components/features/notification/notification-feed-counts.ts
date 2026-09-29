@@ -7,10 +7,11 @@
 // loaded rows give the exact movement. "Mark all read" on a tab also reaches
 // rows no one has loaded, so its movement comes from that tab's own count.
 
-import type {
-  NotificationFeedHead,
-  NotificationListFilter,
-  NotificationView,
+import {
+  isStillWaiting,
+  type NotificationFeedHead,
+  type NotificationListFilter,
+  type NotificationView,
 } from '#/contexts/feed/application/public-api'
 import { matchesNotificationFilter } from './notification-filters'
 
@@ -31,7 +32,7 @@ const holdsEveryUnread = (filter: NotificationListFilter) =>
   filter === 'all' || filter === 'unread'
 
 const isUnreadIn = (row: NotificationView | null, filter: NotificationListFilter) =>
-  row !== null && row.status === 'unread' && matchesNotificationFilter(row, filter)
+  row !== null && isStillWaiting(row) && matchesNotificationFilter(row, filter)
 
 /** Each loaded row once, the first copy winning: pass the heads' pages first. */
 export function uniqueRows(

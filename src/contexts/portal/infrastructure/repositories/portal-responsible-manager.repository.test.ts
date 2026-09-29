@@ -431,6 +431,7 @@ describe('portal responsible manager repository', () => {
       propertyId: PROPERTY,
       sourceAggregateVersion: new Date(FUTURE_REVISION.getTime() + 1).toISOString(),
       occurredAt: UNASSIGNED.toISOString(),
+      actorUserId: 'admin-1',
     })
     expect(
       outbox.rows

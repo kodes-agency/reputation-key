@@ -35,6 +35,7 @@ import {
 } from './bulk-assignment-outbox-consumers'
 import { createInsertNotificationHandler } from './jobs/insert-notification.job'
 import type { InsertNotificationJobData } from './jobs/insert-notification.job'
+import { waitingWorkState } from './jobs/test-fixtures'
 import { withBetaOutboxNotificationDelivery } from './outbox-notification-delivery'
 import { createNotificationDeliverySettlement } from './repositories/notification-delivery-settlement.repository'
 
@@ -174,6 +175,7 @@ describe.sequential('notification Redis to PostgreSQL settlement', () => {
     const handler = createInsertNotificationHandler({
       ...buildFakeInsertNotificationDeps(),
       authorizeAudience: vi.fn(async () => true),
+      workState: waitingWorkState(),
       deliverySettlement: settlement,
     })
 

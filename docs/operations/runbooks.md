@@ -109,8 +109,8 @@ definitions and security controls live in
 **Prerequisites:** Name both operating roles; capture the exact `cell-us` release/config heads, queue family, oldest-age/depth snapshot, worker heartbeat, and stop time. Do not record job payloads.
 **Diagnostics:** Check Redis connectivity and worker boot logs. `BullMQ Redis runtime verified` records the non-secret Redis version, `noeviction` policy, and GETDEL capability; `[CONFIG] BullMQ Redis runtime is incompatible: <code>` means the process refused a missing, uninspectable, unsupported, or eviction-capable queue store. Check BullMQ stalled/failed counts and identify the poison-job pattern.
 **Containment:** If Queue Redis is down, the Postgres outbox accumulates events without losing accepted durable facts; serving processes stay live but readiness degrades. If Cache Redis is down, cache reads degrade and production rate-limited public actions fail closed without affecting queue keys. If poison job: quarantine via dead-letter, stop retry cycle.
-**Recovery:** Rebuild/restore only the failed Redis resource, preserve the distinct `REDIS_URL`/`QUEUE_REDIS_URL` mapping, then let the relay drain the backlog. Recurring job schedulers are Queue Redis state too: a running worker's scheduler watchdog re-installs any that went missing within a minute (log line `Job schedulers missing from Queue Redis were restored`, with the scheduler ids) and re-records its boot observations; a worker restart re-installs them all. The watchdog acts only for the scheduler plan its boot recorded in Queue Redis (`repkey:job-schedulers:v1:plan:background`), claiming the record back when it was lost with the schedulers: `Job scheduler watchdog superseded` means a newer boot reconciled a different plan and this — outgoing — worker restores nothing. Poison job → fix handler code, redrive from DLQ.
-**Verification:** Queue depth normal. No repeated failures. Outbox `published_at` advances. On `/api/health/metrics`, `jobs.missingObservations` AND `jobs.schedulerMissing` are both 0, and the worker heartbeat is fresh again. The two gauges only prove presence together: the report checks the live BullMQ scheduler set per job family, but only once that family's boot observation exists — after a Redis wipe the observations are gone too, so every family reads `missingObservations` and `schedulerMissing` reads 0 whether or not a scheduler exists. The health-check job is itself a scheduler, so a stale heartbeat after Redis returns means the schedulers are still missing; redeploy the worker.
+**Recovery:** Rebuild/restore only the failed Redis resource, preserve the distinct `REDIS_URL`/`QUEUE_REDIS_URL` mapping, then let the relay drain the backlog. Recurring job schedulers are Queue Redis state too: a running worker's scheduler watchdog re-installs any that went missing within a minute (log line `Job schedulers missing from Queue Redis were restored`, with the scheduler ids) and re-records its boot observations; a worker restart re-installs them all. The watchdog acts only for the scheduler plan its boot recorded in Queue Redis (`repkey:job-schedulers:v1:plan:background`), claiming the record back when it was lost with the schedulers: `Job scheduler watchdog superseded` means a newer boot reconciled a different plan and this — outgoing — worker restores nothing. At boot the worker upserts only schedulers whose stored definition differs from the plan, so a reboot no longer cancels the hour's promoted run; `Background job scheduler set reconciled` lists them as `upsertedSchedulerIds`. Dispatch jobs that were waiting or retrying when Queue Redis was lost are republished automatically: the worker runs lost-dispatch recovery at boot and whenever the scheduler watchdog restores missing schedulers (log line `Dispatch jobs missing from Queue Redis were republished`, with checked/republished/failures; `Lost dispatch recovery found nothing missing` otherwise). It covers facts published within the last 2 h, whose job Redis no longer holds, under the fact's own job id; older facts belong to published-event redelivery. To force it, redeploy the worker. Poison job → fix handler code, redrive from DLQ.
+**Verification:** Queue depth normal. No repeated failures. Outbox `published_at` advances, but that alone does not prove queued facts were recovered: `notification.missing-for-inbox-item` and `notification.in-app-delivery-lag` must clear within minutes too. On `/api/health/metrics`, `jobs.missingObservations` AND `jobs.schedulerMissing` are both 0, and the worker heartbeat is fresh again. The two gauges only prove presence together: the report checks the live BullMQ scheduler set per job family, but only once that family's boot observation exists — after a Redis wipe the observations are gone too, so every family reads `missingObservations` and `schedulerMissing` reads 0 whether or not a scheduler exists. The health-check job is itself a scheduler, so a stale heartbeat after Redis returns means the schedulers are still missing; redeploy the worker.
 **Escalation:** Bozhidar Denev if backlog > 30 minutes.
 **Durability posture:** Redis is disposable-and-rebuild — the Postgres outbox is the durable fact store, no AOF is required for correctness (backup-and-lifecycle.md §2). BullMQ history prunes by count; dead-letter quarantine entries expire after `QUARANTINE_TTL_DAYS` (default 30d) via the daily `quarantine-ttl-sweep` (per-entry `job.remove()`, evidence subject `quarantine.ttl`) — the 24h `queue.quarantine-growth` redrive SLA is unchanged.
 
@@ -229,7 +229,7 @@ definitions and security controls live in
 
 **Alerts:** `notification.in-app-delivery-lag` (P1), `notification.immediate-email-acceptance-lag` (P2), `notification.missing-for-inbox-item` (P1), `notification.email-stalled` (P2), and the email-outcome alerts `notification.email-permanent-failures`, `notification.email-bounce-rate`, `notification.email-complaints`, `notification.email-retry-exhausted`, and `notification.email-provider-feedback-missing` (all P2).
 
-**What `notification.in-app-delivery-lag` means:** an active beta Notification source fact has remained incomplete for more than 60 seconds from its durable source clock. `notification.delivery.source_receipt_pending` is source work the durable consumer has not acknowledged; `notification.delivery.materialization_pending` is Redis-accepted work without its atomic PostgreSQL notification/materialization receipt. The alert uses the oldest outstanding source age as a breach signal. It does not by itself prove the deployed p99 latency distribution.
+**What `notification.in-app-delivery-lag` means:** an active beta Notification source fact has remained incomplete for more than 60 seconds from its durable source clock. Route facts whose consumer announces nothing (an import's historical arrivals, a cycle opening Feed does not announce, a bulk reopen's per-item facts) are not counted; `silent-route-fact.ts` restates those consumers' rules in SQL, so a change to either belongs in both. `notification.delivery.source_receipt_pending` is source work the durable consumer has not acknowledged; `notification.delivery.materialization_pending` is Redis-accepted work without its atomic PostgreSQL notification/materialization receipt. The alert uses the oldest outstanding source age as a breach signal. It does not by itself prove the deployed p99 latency distribution.
 
 **First three things to check:**
 
@@ -270,9 +270,9 @@ The evidence counts only rows whose scope may send email right now: the scoped `
 - `portal.health.changed` facts the old Portal Health consumer rejected have exhausted published-event redelivery. Until 30-day outbox retention removes them, they keep `exhaustedBeforeRun` above zero in the `Published event redelivery sweep needs attention` log. The log does not name event types, so treat that count as new consumer exhaustion only if it grows, or if the outbox rows at the redelivery cap without a consumer receipt are of other event types. Replay them report-first only while the Health interval they announced is still open; the delivery-time check refuses the rest.
 - Facts the gate refused under the old per-action scope carry dispatcher-written `obsolete` receipts and will not replay on their own. Replaying them is the pending backfill decision.
 
-**What `notification.email-stalled` means:** queued notification emails are still unsent — `pending`, held for quiet hours (`delayed`), or a transient failure awaiting its scheduled retry — more than two hours past their due time (the later of `next_attempt_at` and `not_before`, else `created_at` — a row needs both its retry time and its hold to pass): two missed hourly digest ticks, past any legitimate cadence, batching, or retry backoff. A row for a Property that is no longer active (archived, suspended, deleted) is held by every send path until the Property is restored, and is never counted.
+**What `notification.email-stalled` means:** queued notification emails are still unsent — `pending`, held for quiet hours (`delayed`), or a transient failure awaiting its scheduled retry — more than two hours past their due time (the later of `next_attempt_at` and `not_before`, else `created_at`, or `created_at` + 25 h for an unscheduled daily-digest row, which waits for its next 08:00 window — a row needs both its retry time and its hold to pass): two missed hourly digest ticks, past any legitimate cadence, batching, or retry backoff. A daily row therefore pages about 27 h after it was queued, well before its 48 h `stale` retirement. A row for a Property that is no longer active (archived, suspended, deleted) is held by every send path until the Property is restored, and is never counted. A quiet-hours hold on an immediate email schedules its own release job for the minute the window ends (`quiet-release-<emailId>-<ms>`, initiator `notification:quiet-hours-release`); the hourly sweep is only the fallback. A frozen digest waits out quiet hours without touching its members and retries under the same key after the window.
 
-**Read `notification.email.delivery_enabled` FIRST.** While it reads `0`, outbound email is capability-dark (`notification.send_email` is not globally enabled), the email job handlers are effectively inert, and a pending backlog is the EXPECTED state — this alert deliberately stays silent on it, so if you are reading it, one of two things is true: email is globally enabled and genuinely not going out, or `notification.email.attempted_stuck` is non-zero, meaning the delivery path reached those rows and left them unsent — a retry past its due time or a quiet-hours hold past its end. The second case fires even while the global flag reads `0` (judged on `notification.email.oldest_attempted_stuck_age_ms`), because a per-organization allowlist grant is not globally enumerable and would otherwise breakage-hide. It counts only rows whose scope may send right now — the scoped `notification.send_email` decision (allowlist, suspension, kill switch) on an active Property, or an Organization-scoped notice: a row held or retrying when its Organization left the allowlist, was suspended, or its Property was archived is never processed again, and is not a stall.
+**Read `notification.email.delivery_enabled` FIRST.** It reads `1` when `notification.send_email` is open to every Organization: globally enabled, or `BETA_ALLOWLIST_ORGS=*` and not killed. That is production (closed-beta-v2 runs `*`), so there it reads `1` and any overdue row in `notification.email.pending_overdue` pages. It reads `0` only when some Organizations are admitted by name, or none; then rows queued while a scope was dark are EXPECTED backlog and this alert deliberately stays silent on them, so if you are reading it, one of two things is true: email is open to everyone and genuinely not going out, or `notification.email.attempted_stuck` is non-zero, meaning the delivery path reached those rows and left them unsent — a retry past its due time or a quiet-hours hold past its end. The second case fires even while the global flag reads `0` (judged on `notification.email.oldest_attempted_stuck_age_ms`), because a per-organization allowlist grant is not globally enumerable and would otherwise breakage-hide. It counts only rows whose scope may send right now — the scoped `notification.send_email` decision (allowlist, suspension, kill switch) on an active Property, or an Organization-scoped notice: a row held or retrying when its Organization left the allowlist, was suspended, or its Property was archived is never processed again, and is not a stall.
 
 **First three things to check:**
 
@@ -282,19 +282,25 @@ The evidence counts only rows whose scope may send email right now: the scoped `
 
 **Remediate:** capability/policy cause → enable `notification.send_email` for the intended scope and restart the worker so the handler registers for real. Provider cause → fix the credential/suppression and let the retry schedule drain transient failures; rows keep their idempotency key, so replay inside the provider's 24-hour key window cannot double-send, and an immediate row is retired as `stale` 23 h after its first provider attempt rather than retried past that window. A permanently refused row is never selected again and does not drain — that is `notification.email-permanent-failures`, below. Never bulk-clear `pending` rows to silence the alert — that deletes the only record that a user was owed an email. When email is admitted for a scope that was dark, its backlog is not flushed: rows past their freshness bound (immediate 24 h, daily digest 48 h, mandatory notices 7 days, counted from when the row became due) are suppressed with reason `stale` by the sweep or the send path, and only fresh rows are sent.
 
-**Verification:** `notification.email.pending_overdue` drains and `notification.email.oldest_pending_overdue_age_ms` falls under two hours; `notification.email.attempted_stuck` returns to 0.
+**Verification:** `notification.email.pending_overdue` drains and `notification.email.oldest_pending_overdue_age_ms` falls under two hours; `notification.email.attempted_stuck` returns to 0. `pending_overdue` counts only scopes whose scoped `notification.send_email` decision allows sending, so a suspended or killed scope's rows never read as late.
+
+**The digest sweep's cap.** The hourly digest sweep reads recipients whose work is due at any hour first (delayed or retrying rows), then those whose local 08:00 is now, up to 5,000. `Digest sweep read as many recipients as its cap allows` means some recipients may miss their hour; they are picked up on a later sweep while their rows are fresh.
+
+**Reading a cancelled or suppressed row.** `suppression_reason` says why a queue row will not be sent: `work_settled` (a settling fact finished the work), `work_no_longer_waiting` (retired at send because the notice was settled, read or dismissed, or the owning context says the work is done), `purge_cancelled` (the final deletion warning taken back), `stale` (past its freshness bound), `recipient_ineligible` (standing lost), `organization_closing`. A `cancelled` or `suppressed` row may also carry `provider_message_id`, `provider_state = 'accepted'` and `accepted_at`: the cancel raced a send the provider had already accepted, and that mail DID go out. Its bounce or complaint still suppresses the address.
 
 **What the email-outcome alerts mean:** the alerts above watch mail that has not gone out. These watch what became of the mail the delivery path did attempt (`notification.email.outcomes_24h`, trailing 24h; `notification.email.accepted_unresolved`, 7-day lookback). They count provider messages, not queue rows: a daily digest is one message however many notifications it carried, so one bounced or refused digest is one bounce or refusal. Without them a revoked key, a silent webhook, or a burned sending domain stopped email with no page.
 
-- `notification.email-permanent-failures` — at least three messages and more than half of the window's attempts were refused permanently. Fewer refusals stay a gauge: every non-429 4xx is classified permanent, so one malformed recipient address in a quiet Organization is a 100% share on its own. A refused row is never retried, so each one is a lost email. A revoked or rotated `RESEND_API_KEY` (401), a lapsed sending-domain verification (403), and a provider transport failure classified permanent all land here. Read the `Urgent notification email rejected by provider` / `Daily digest rejected by provider` warn lines (classification and provider code only) and the Resend dashboard's API keys and domains. Fix the credential or domain first. Refused rows stay `failed`/`permanent` as the record of what was lost; resending any of them is a separate, reviewed decision, never a bulk queue edit.
+- `notification.email-permanent-failures` — at least three messages and more than half of the window's attempts were refused permanently. A 401 or 403 refusal of our own sender also reaches Sentry on the first message, whatever the count, as an `EmailProviderRefusedSender` issue (runtime source `email-provider`): rotate or verify `RESEND_API_KEY`, or the sending domain's verification. Fewer refusals stay a gauge: every non-429 4xx is classified permanent, so one malformed recipient address in a quiet Organization is a 100% share on its own. A refused row is never retried, so each one is a lost email. A revoked or rotated `RESEND_API_KEY` (401), a lapsed sending-domain verification (403), and a provider transport failure classified permanent all land here. Read the `Urgent notification email rejected by provider` / `Daily digest rejected by provider` warn lines (classification and provider code only) and the Resend dashboard's API keys and domains. Fix the credential or domain first. Refused rows stay `failed`/`permanent` as the record of what was lost; resending any of them is a separate, reviewed decision, never a bulk queue edit.
 - `notification.email-bounce-rate` — at least three bounces and more than 4% of accepted mail in the window, Resend's published ceiling. Each permanent bounce already suppresses its recipient's address (see _A refused address_ below); the risk is the provider throttling or suspending the sending domain. Check whether the bounces cluster on one Organization's addresses or started with a change to `EMAIL_FROM` alignment (SPF/DKIM/DMARC).
 - `notification.email-complaints` — a recipient marked notification email as spam. The recipient's address is suppressed automatically; at beta volume one complaint already exceeds the provider's complaint-rate ceiling. Confirm the mail was one the recipient opted into (ADR 0046) and that optional mail carries its unsubscribe header.
 - `notification.email-retry-exhausted` — transient failures spent the five-attempt retry budget: the urgent path leaves the row `failed`, the digest path suppresses it, and nothing will send either. The urgent path's exhausted BullMQ attempts also quarantine (§14); the digest path has no other signal. Look for the provider outage or rate limit behind the transient class, then restore it — new mail recovers, the given-up rows do not.
-- `notification.email-provider-feedback-missing` — more than two accepted emails have no final provider outcome (delivered, bounced, complained, failed, suppressed) 6h after acceptance. The detail names the likely cause. Captured rows mean the worker runs the non-sending capture transport (the `NOTIFICATION EMAIL IS BEING CAPTURED` boot line: a placeholder or missing key) and the mail never reached a provider. No provider event at all in 24h means the webhook is silent: `RESEND_WEBHOOK_SECRET` unset on the web service (every delivery answers 503 `webhook_disabled`), a wrong endpoint in the Resend dashboard, or signature failures (401 in the web log). Events that do arrive point at delayed delivery (the unresolved rows read `provider_state = 'delivery_delayed'`) or an event type the webhook does not send. Without provider feedback a bounced address is never suppressed and keeps being mailed (ADR 0046 r.6).
+- `notification.email-provider-feedback-missing` — more than two accepted emails have no final provider outcome (delivered, bounced, complained, failed, suppressed) 6h after acceptance, or a single one has none while no provider event at all arrived in 24h (a silent webhook shows on the first message). The detail names the likely cause. Captured rows mean the worker runs the non-sending capture transport (the `NOTIFICATION EMAIL IS BEING CAPTURED` boot line: a placeholder or missing key) and the mail never reached a provider. No provider event at all in 24h means the webhook is silent: `RESEND_WEBHOOK_SECRET` unset on the web service (every delivery answers 503 `webhook_disabled`, and in production with `notification.send_email` enabled web logs `Notification email is misconfigured on web` once at boot), a wrong endpoint in the Resend dashboard, or signature failures (401 in the web log). An event type that is neither `email.*` nor a suppression-list event answers 200 `ignored_event_type` and is logged at info, so it never reads as a failure; a malformed `email.*` event still answers 400. Events that do arrive point at delayed delivery (the unresolved rows read `provider_state = 'delivery_delayed'`) or an event type the webhook does not send. Without provider feedback a bounced address is never suppressed and keeps being mailed (ADR 0046 r.6).
 
 **Verification (email outcomes):** the causing gauge falls back under its threshold as the window moves past the incident — 24h for the outcome counts, 7 days for `notification.email.accepted_unresolved` — and new mail accepted after the fix resolves within 6h.
 
-**A refused address.** A permanent bounce, a spam complaint, or the provider's own suppression puts the recipient's address on `notification_email_suppressions` (reason `recipient_bounced` on the rows it stops), for every Organization and with no expiry; the table holds only a keyed digest, so it cannot be searched by address. To lift one — the mailbox was fixed, or the person asks for mail again — remove the address from Resend's suppression list (dashboard, or `DELETE /suppressions/{id}`). Resend sends `suppression.removed`, and the webhook lifts ours; the Resend webhook must therefore subscribe to `suppression.added` and `suppression.removed` as well as the email events. Never delete rows from the table by hand: without the server secret no row can be matched to an address.
+**A refused address.** A permanent bounce, a spam complaint, or the provider's own suppression puts the recipient's address on `notification_email_suppressions` (reason `recipient_bounced` on the rows it stops), for every Organization and with no expiry; the table holds only a keyed digest, so it cannot be searched by address. To lift one — the mailbox was fixed, or the person asks for mail again — remove the address from Resend's suppression list (dashboard, or `DELETE /suppressions/{id}`). Resend sends `suppression.removed`, and the webhook lifts ours; the Resend webhook must therefore subscribe to `suppression.added` and `suppression.removed` as well as the email events. Never delete rows from the table by hand: without the key no row can be matched to an address. The key is `NOTIFICATION_EMAIL_SUPPRESSION_KEY` once set, else `BETTER_AUTH_SECRET` (see §24).
+
+**One-click unsubscribe unavailable.** The worker refuses to boot while `notification.send_email` is enabled and `NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS` cannot be parsed (a bare hex key without `vN:`, say); the message names the parse problem, never the value. Web answers every one-click POST with 503 `unsubscribe_disabled` in that state, and says so in the boot error above. A 500 from the unsubscribe or webhook route reaches Sentry (source `nitro`) with its stack; the log line carries only the error name and code.
 
 **Escalation:** Bozhidar Denev.
 
@@ -372,6 +378,21 @@ metric labels, durable facts, and the masked-layout attachment boundary. It
 proves the synthetic markers cannot enter the geometry/SVG contract while
 ordinary screenshot/base64/replay shapes are rejected. A green local canary
 does not substitute for provider inspection.
+
+**Alerts in Sentry.** Every firing alert also reaches Sentry as an issue
+titled `[alert] <name>`, tagged `alert=<name>`, `alert_severity=p1|p2` and
+`runtime_source=alert-dispatcher`, one issue per alert name (the scrubber
+rebuilds the fingerprint `['alert', <name>]` from the allow-listed tag).
+Production has no `ALERT_WEBHOOK_URL`, so Sentry is the only push channel:
+configure a Sentry alert rule on new issues, or on
+`runtime_source:alert-dispatcher` and `runtime_source:email-provider` (an
+`EmailProviderRefusedSender` issue, §15), and set `ALERT_WEBHOOK_URL` on web
+and worker when an operator channel exists, so the alert detail and runbook
+anchor reach it.
+
+**Log levels.** Logs carry pino level labels (`"level":"error"`), not numbers,
+so the Railway Log Explorer filters them: `@level:error` shows the
+`← THROW … → 500` lines and `[alert] … firing`, `@level:warn` the warnings.
 
 **Escalation/Evidence:** Bozhidar Denev. Record cell, release SHA, service,
 Sentry event ID, alert receipt, drill time, and scrubber inspection result. Do
@@ -833,24 +854,58 @@ decision—never review or reviewer content.
 
 ## 24. Notification Release Steps
 
-**When:** deploying the notification audit fixes (#597, #599) and the follow-up
-decisions, or any later change to notification routing, email or reminders.
+**When:** deploying the notification audit fixes (#597, #599), the 2026-09-28
+review (ADR 0046, amended 2026-09-28) and the follow-up decisions, or any later
+change to notification routing, email or reminders.
+
+**Migrations first.** The 2026-09-28 release adds `0035` (the Organization
+fallback branch of `notifications_mandatory_scope_check`), `0036` (the unread
+coalescing index narrowed to unsettled rows), `0037` (`replies.submitted_by`,
+nullable, no backfill) and `0038` (`notification_digest_batches.provider_request`,
+nullable). All are additive or narrowing; every row the old index admitted
+satisfies the new one.
 
 **Order: workers before web.** A reauthorization notice carries a cause an older
 worker's schema refuses. Refusing it is terminal for that dispatch, and the fact
 only returns through the published-event redelivery sweep, so the notice can be
 up to two hours late. Rolling workers first avoids that window; rolling web
-first is safe only if a late reconnect notice is acceptable.
+first is safe only if a late reconnect notice is acceptable. An older worker
+strips `removedBy` from `identity.member.removed` rather than refusing it, so a
+member who leaves during the roll is told their access was removed.
 
-**Provider webhook subscriptions.** The Resend webhook must subscribe to
-`suppression.added` and `suppression.removed` alongside the delivery events.
-Without them a provider-side suppression never reaches the durable suppression
-store, and the address keeps being attempted until the provider refuses it.
-Check the subscription in the Resend dashboard after any webhook change.
+**Provider webhook.** Create or confirm the Resend endpoint
+`https://<BETTER_AUTH_URL host>/api/webhooks/resend/events`, subscribed to
+`email.delivered`, `email.delivery_delayed`, `email.bounced`,
+`email.complained`, `email.failed`, `email.suppressed`, `suppression.added`
+and `suppression.removed`. Set its `whsec_` signing secret as
+`RESEND_WEBHOOK_SECRET` on the web service (the worker does not need it),
+re-enable the endpoint if Svix disabled it, and confirm that one delivered
+event moves a queue row. Without the suppression events a provider-side
+suppression never reaches the durable suppression store, and the address keeps
+being attempted until the provider refuses it. Until the secret is set, web
+logs `Notification email is misconfigured on web` at boot and
+`notification.email-provider-feedback-missing` fires on the first unresolved
+message (§15). Check the subscription after any webhook change.
 
-**Suppression key.** Durable suppression entries are keyed with a dedicated
-secret. Rotating it empties our list; the provider's own list is the backstop,
-so rotate deliberately and re-verify a known suppressed address afterwards.
+**Suppression key.** Durable suppression entries are keyed with
+`NOTIFICATION_EMAIL_SUPPRESSION_KEY` once it is set (`openssl rand -hex 32`),
+on BOTH web (the webhook writes suppressions) and worker (sends check them).
+Until then they are keyed with `BETTER_AUTH_SECRET`, so rotating that secret
+after an account incident empties the list. Set the dedicated key BEFORE any
+`BETTER_AUTH_SECRET` rotation: `BETTER_AUTH_SECRET` is then honoured as a
+retired key, and each entry moves to the new key the first time its address is
+looked up, so an entry never looked up again stays under the old secret until
+it is rotated away. Rotating the dedicated key itself always empties our list;
+the provider's own list is the backstop, so rotate deliberately and re-verify
+a known suppressed address afterwards.
+
+**Unsubscribe keyring.** Every key in `NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS`
+needs its `vN:` prefix. With `notification.send_email` enabled the worker
+refuses to boot on a keyring it cannot parse (§15).
+
+**Alert channel.** Production has no `ALERT_WEBHOOK_URL`, so alerts reach an
+operator only through Sentry (§16). Configure the Sentry alert rule, and set
+`ALERT_WEBHOOK_URL` on web and worker when a channel exists.
 
 **Reminder rows recorded before the overdue-on-arrival rule.** Pending reminder
 rows that were already due when they were written are not cancelled
@@ -864,10 +919,18 @@ WHERE delivered_at IS NULL AND cancelled_at IS NULL AND scheduled_for <= created
 A non-zero count sends one `target passed` per row at the next release pass, and
 no `halfway`. Left alone it drains; it never grows under the current rule.
 
+**The first health check after the 2026-09-28 deploy may page.**
+`notification.email.delivery_enabled` now reads `1` under
+`BETA_ALLOWLIST_ORGS=*`, so `notification.email-stalled` judges every overdue
+row, including a backlog nothing ever touched. That page is intended: read the
+overdue rows (§15) rather than silencing it.
+
 **Verification after the deploy:** change a member's role and confirm both the
-bell row and its email; archive a Property and confirm its reminders stop;
-revoke access in Google and confirm the reconnect notice and the Settings
-prompt.
+bell row and its email; archive a Property and confirm its reminders stop and
+its waiting notices show "Done"; revoke access in Google and confirm the
+reconnect notice and the Settings prompt, then reconnect and confirm the notice
+settles; edit an answered review on Google and confirm the urgent "reopened"
+notice; in the Railway Log Explorer, `@level:error` returns error lines.
 
 **Escalation:** Bozhidar Denev.
 

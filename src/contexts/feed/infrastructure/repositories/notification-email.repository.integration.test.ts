@@ -18,7 +18,11 @@ import {
 } from '#/shared/domain/ids'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
 import { createNotificationEmailRepository } from './notification-email.repository'
-import { digestBatchIdempotencyKey, digestMemberSet } from '../jobs/digest-assembly'
+import {
+  digestBatchIdempotencyKey,
+  digestMemberSet,
+  digestProviderRequest,
+} from '../jobs/digest-assembly'
 
 const ORG = organizationId('notification-digest-batch-test-org')
 const USER = userId('notification-digest-batch-test-user')
@@ -28,6 +32,13 @@ const EMAIL_B = notificationEmailId('81000000-0000-4000-8000-000000000012')
 const EMAIL_LATE = notificationEmailId('81000000-0000-4000-8000-000000000013')
 const BATCH = notificationDigestBatchId('81000000-0000-4000-8000-000000000021')
 const NOW = new Date('2026-08-25T08:00:00.000Z')
+const FROZEN_REQUEST = {
+  to: 'manager@example.com',
+  subject: 'Your digest',
+  html: '<p>Digest</p>',
+  text: 'Digest',
+  headers: {},
+}
 
 const digestBatchInput = (
   id = BATCH,
@@ -43,7 +54,8 @@ const digestBatchInput = (
     localDate: '2026-08-25',
     memberIds,
     memberDigest,
-    contentDigest: 'a'.repeat(64),
+    contentDigest: digestProviderRequest(FROZEN_REQUEST),
+    providerRequest: FROZEN_REQUEST,
     unsubscribeKeyVersion: 'v1',
     providerIdempotencyKey: digestBatchIdempotencyKey({
       organizationId: ORG,

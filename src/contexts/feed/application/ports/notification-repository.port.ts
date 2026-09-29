@@ -35,11 +35,18 @@ export type NotificationFeedQuery = Readonly<{
   limit: number
 }>
 
+/**
+ * Whose feed a bulk action ("Mark all read", "Clear all") changes: the rows
+ * that reader's feed shows now, as a read of it would resolve them.
+ */
+export type NotificationFeedScope = Omit<NotificationFeedQuery, 'filter' | 'limit'>
+
 export type NotificationRepositoryPort = Readonly<{
   /**
    * Insert the unread row. Conflicts resolve on the ADR 0046 r.2 partial
-   * unique key (user, type, resource) WHERE status = 'unread' — the row's
-   * rendered copy and payload win.
+   * unique key (user, type, resource) over rows still waiting — unread and
+   * unsettled — so the row's rendered copy and payload win, and a settled row
+   * is never revived.
    */
   insert(notification: Notification): Promise<Notification>
 
@@ -81,11 +88,17 @@ export type NotificationRepositoryPort = Readonly<{
    * Everyone who holds a notice of this type about this resource, whatever
    * its read state. The evidence of who was told something, so the notice
    * that closes it can reach the same people (I5.3).
+   *
+   * `arrivedSince` bounds it to notices whose latest arrival is at or after
+   * that moment: an item escalated twice keeps the first escalation's rows,
+   * and the people told only about that one were not told about this one.
+   * `null` reads every notice ever held.
    */
   findRecipientsOfNotice(
     orgId: OrganizationId,
     type: NotificationType,
     resourceId: string,
+    arrivedSince: Date | null,
   ): Promise<ReadonlyArray<UserId>>
 
   /**
@@ -104,6 +117,19 @@ export type NotificationRepositoryPort = Readonly<{
     }>,
   ): Promise<ReadonlyArray<NotificationId>>
 
+  /**
+   * The same, for every resource on one Property: the settling fact finishes
+   * all of a Property's work at once (it was archived).
+   */
+  settleUnreadForProperty(
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      types: ReadonlyArray<NotificationType>
+      resolvedAt: Date
+    }>,
+  ): Promise<ReadonlyArray<NotificationId>>
+
   markRead(
     id: NotificationId,
     userId: UserId,
@@ -114,13 +140,16 @@ export type NotificationRepositoryPort = Readonly<{
 
   /** Mark read every unread row the filter holds (the reader's tab), no more. */
   markAllRead(
-    userId: UserId,
-    orgId: OrganizationId,
+    scope: NotificationFeedScope,
     filter: NotificationListFilter,
     updatedAt: Date,
   ): Promise<void>
 
-  /** Find a user's existing unread notification for a type+resource (dedup). */
+  /**
+   * Find a user's notification for a type+resource that is still waiting on
+   * them — unread and unsettled (dedup). A settled row is done, so it is not
+   * one to coalesce into.
+   */
   findUnreadByUserTypeResource(
     userId: UserId,
     orgId: OrganizationId,
@@ -152,8 +181,8 @@ export type NotificationRepositoryPort = Readonly<{
     updatedAt: Date,
   ): Promise<Notification | null>
 
-  /** Dismiss every non-dismissed notification for the user (Clear-all). */
-  markAllDismissed(userId: UserId, orgId: OrganizationId, updatedAt: Date): Promise<void>
+  /** Dismiss every notification the reader's feed shows (Clear-all). */
+  markAllDismissed(scope: NotificationFeedScope, updatedAt: Date): Promise<void>
 
   updateStatus(
     id: NotificationId,

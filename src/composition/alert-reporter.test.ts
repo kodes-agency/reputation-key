@@ -29,10 +29,14 @@ describe('reportAlertToObservability', () => {
 
     expect(mocks.captureObservabilityException).toHaveBeenCalledWith(
       expect.objectContaining({
+        name: '[alert] worker.job-runtime-unready',
         message:
           '[alert] worker.job-runtime-unready firing (P1): value 3 vs threshold 1; runbook §7.4',
       }),
-      { source: 'alert-dispatcher' },
+      {
+        source: 'alert-dispatcher',
+        alert: { name: 'worker.job-runtime-unready', severity: 'P1' },
+      },
     )
   })
 })

@@ -30,6 +30,16 @@ one source revision; its compare-and-swap head selects the current episode and
 state revision. Feedback Handling Outcomes are append-only manager results, and
 corrections supersede rather than rewrite them.
 
+A guest edit (a new Material Revision) that lands on a CLOSED Review cycle
+reopens the item: the transition is `reopened` with reason
+`material_revision_changed`, because a reply written for revision N does not
+answer revision N+1 and whoever considered the item finished has to be told
+(ADR 0046, amended 2026-09-28). The reopened cycle keeps its Response Target
+open until the edit is answered, so it counts in reminders, target results and
+open items. An edit that supersedes an OPEN cycle is an opening, and so is a
+new private-feedback occurrence: the guest wrote again, which is new work
+rather than finished work coming back.
+
 Google Review and private-feedback Response Targets default to 48 elapsed hours.
 Each measured cycle snapshots its duration, policy version, start/due time, and
 halfway/target-passed reminder slots. A halfway slot already due when the target
@@ -73,7 +83,9 @@ state.
 5. An offboarding or eligibility release clears a member's assignments, records
    one identifier-only `inbox.inbox_item.unassigned` fact per item, and commits
    one grouped `inbox.inbox_items.assignments_released` close fact in the same
-   transaction. That fact groups by Property — an anchor item, a count — never
+   transaction. That fact counts and anchors only the OPEN items released, and
+   is not recorded for a Property where only closed items were released. It
+   groups by Property — an anchor item, a count — never
    one entry per item: a departing fleet manager's assignments are unbounded. Notification follows the one release, not each item, as for
    bulk assignment and bulk reopen. Its closed cause is `releaseReason`,
    because the outbox adapter denylists `reason` as content.
@@ -81,6 +93,11 @@ state.
 7. Outcome corrections append a directly superseding fact under exact item/cycle/source/state/outcome revision fences. They preserve the first completion instant and deadline result, leave the cycle closed, and never alter the source rating.
 8. A source-epoch carry of unchanged Review material advances the head fence in
    place; it does not open or reopen a Handling Cycle, change status, or manufacture work.
+   Both paths collapse a carry the same way: the reply observation and the
+   source-event projection's catch-up (`review.updated`), through one head-move
+   helper. Review attests which revisions are carries; a guest edit after a
+   carry, including one first seen in the new epoch, opens a cycle like any
+   other edit.
 9. Provider write acknowledgement and the internal `review.reply.published` lifecycle fact are not Google truth and cannot mutate Inbox status.
 10. A stale/replayed observation cannot close or reopen work twice. An orphan or
     mismatched compatibility row is repair-visible but never actionable.

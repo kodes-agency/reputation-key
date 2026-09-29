@@ -16,6 +16,7 @@ import {
 import { trace } from '#/shared/observability/trace'
 import type { Review } from '../domain/types'
 import { reviewError } from '../domain/errors'
+import { rowReplyAuthor } from '../domain/reply-author'
 import type { ReviewCommandStore } from '../application/ports/review-command-store.port'
 import {
   reviewReplyPublicationCancelled,
@@ -23,13 +24,7 @@ import {
   reviewUpdated,
 } from '../domain/events'
 import { eraseReviewSourceContent } from './review-source-content-store'
-import {
-  organizationId,
-  propertyId,
-  replyId,
-  reviewId,
-  userId,
-} from '#/shared/domain/ids'
+import { organizationId, propertyId, replyId, reviewId } from '#/shared/domain/ids'
 import {
   persistReviewObservation,
   type PersistedReviewObservation,
@@ -64,6 +59,7 @@ async function supersedeStaleReviewPublications(
       publicationCycle: replies.publicationCycle,
       publicationAttempts: replies.publicationAttempts,
       createdBy: replies.createdBy,
+      submittedBy: replies.submittedBy,
     })
     .from(replies)
     .leftJoin(
@@ -139,7 +135,7 @@ async function supersedeStaleReviewPublications(
         reviewId: review.id,
         propertyId: review.propertyId,
         organizationId: review.organizationId,
-        authorId: stale.createdBy === null ? null : userId(stale.createdBy),
+        authorId: rowReplyAuthor(stale),
         cause: 'source_changed',
         occurredAt,
       }),

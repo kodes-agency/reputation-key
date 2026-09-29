@@ -67,6 +67,7 @@ const makeDeps = () => {
       findPropertyImportInitiator: vi.fn(async () => null as string | null),
     },
     receipts: { insertReceipt: vi.fn(async () => {}) },
+    clock: () => NOTIF_TEST_IDS.now,
     fakes,
   }
 }
@@ -94,6 +95,7 @@ describe('review history import notification consumer', () => {
   it('tells the person who asked for the import what it brought in', async () => {
     const deps = makeDeps()
     deps.importInitiators.findPropertyImportInitiator.mockResolvedValue(unbrand(IMPORTER))
+    deps.fakes.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
 
     await expect(
       handleNotificationReviewHistoryImportFinished(deps, event()),
@@ -117,6 +119,26 @@ describe('review history import notification consumer', () => {
       EVENT_ID,
       ON_REVIEW_HISTORY_IMPORT_FINISHED_CONSUMER,
       'applied',
+    )
+  })
+
+  it('passes over an initiator who has since lost the Property', async () => {
+    const deps = makeDeps()
+    deps.importInitiators.findPropertyImportInitiator.mockResolvedValue(unbrand(IMPORTER))
+    deps.fakes.responsibleManagers.isEligibleForProperty.mockResolvedValue(false)
+    deps.fakes.responsibleManagers.findForProperty.mockResolvedValue([
+      NOTIF_TEST_IDS.manager1,
+    ])
+
+    await handleNotificationReviewHistoryImportFinished(deps, event())
+
+    expect(deps.fakes.jobs.map((job) => (job.data as { userId: string }).userId)).toEqual(
+      [NOTIF_TEST_IDS.manager1],
+    )
+    expect(deps.fakes.responsibleManagers.isEligibleForProperty).toHaveBeenCalledWith(
+      NOTIF_TEST_IDS.orgId,
+      PROPERTY,
+      IMPORTER,
     )
   })
 

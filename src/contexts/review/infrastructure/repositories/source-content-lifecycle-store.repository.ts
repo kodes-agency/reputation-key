@@ -7,9 +7,9 @@ import {
   replies,
   reviewProviderSubjects,
   reviews,
-  reviewSourceContents,
   reviewSourceObservations,
 } from '#/shared/db/schema/review.schema'
+import { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
 import { retentionRuns } from '#/shared/db/schema/review-sync.schema'
 import { reviewLifecycleRecoveryExecutions } from '#/shared/db/schema/recovery.schema'
 import { properties } from '#/shared/db/schema/property.schema'

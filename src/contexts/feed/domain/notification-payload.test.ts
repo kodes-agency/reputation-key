@@ -85,6 +85,7 @@ describe('parseNotificationPayload', () => {
       actorRole: 'property_manager',
       moderationReason: 'Tone is too defensive.',
       hasModerationReason: true,
+      leftOrganization: true,
       publishOutcome: 'refused',
       goalName: 'Lobby QR scans',
       occurrences: 3,

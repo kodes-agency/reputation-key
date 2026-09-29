@@ -87,10 +87,12 @@ import {
   portalResponsibleManagersUpdated,
 } from '#/contexts/portal/domain/events'
 import {
+  propertyArchived,
   propertyResponsibilityNeeded,
   propertyResponsibleManagersUpdated,
 } from '#/contexts/property/domain/events'
 import {
+  integrationGoogleAccountConnected,
   integrationGoogleAccountDisconnected,
   integrationGoogleAccountReauthorizationRequired,
 } from '#/contexts/integration/domain/events'
@@ -118,6 +120,7 @@ import { registerEscalationResolutionNotificationConsumer } from './escalation-r
 import { registerGoalNotificationConsumer } from './goal-outbox-consumers'
 import { registerHandlingCycleNotificationConsumers } from './handling-cycle-outbox-consumers'
 import { registerNotificationSettlementConsumers } from './notification-settlement-outbox-consumers'
+import { noGroupedReopens, waitingWorkState } from './jobs/test-fixtures'
 import { registerResponseTargetNotificationConsumer } from './response-target-outbox-consumers'
 import { registerPortalHealthNotificationConsumer } from './portal-health-outbox-consumers'
 import {
@@ -404,6 +407,16 @@ const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
       propertyId: PROPERTY,
       occurredAt: OCCURRED_AT,
     }),
+  'property.archived': () =>
+    propertyArchived({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      userId: ACTOR,
+      previousState: 'active',
+      sourceEpoch: 1,
+      recoveryDeadline: new Date('2026-10-24T09:00:00.000Z'),
+      occurredAt: OCCURRED_AT,
+    }),
   'property.responsible_managers.updated': () =>
     propertyResponsibleManagersUpdated({
       organizationId: ORG,
@@ -436,6 +449,13 @@ const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
       connectionId: CONNECTION,
       organizationId: ORG,
       cause: 'member_removed',
+      occurredAt: OCCURRED_AT,
+    }),
+  'integration.google_account.connected': () =>
+    integrationGoogleAccountConnected({
+      connectionId: CONNECTION,
+      organizationId: ORG,
+      userId: ACTOR,
       occurredAt: OCCURRED_AT,
     }),
   'integration.google_account.disconnected': () =>
@@ -500,6 +520,13 @@ type RouteDeps = ReturnType<typeof createNotificationConsumerDeps> &
           ) => Promise<ReadonlyArray<NotificationId>>
         >
       >
+      settleUnreadForProperty: ReturnType<
+        typeof vi.fn<
+          (
+            input: Parameters<NotificationRepositoryPort['settleUnreadForProperty']>[0],
+          ) => Promise<ReadonlyArray<NotificationId>>
+        >
+      >
       findRecipientsOfNotice: ReturnType<
         typeof vi.fn<() => Promise<ReadonlyArray<UserId>>>
       >
@@ -517,6 +544,8 @@ type RouteDeps = ReturnType<typeof createNotificationConsumerDeps> &
       >
     }
     importInitiators: PropertyImportInitiatorLookup
+    workState: ReturnType<typeof waitingWorkState>
+    groupedReopens: ReturnType<typeof noGroupedReopens>
   }>
 
 /** Reads that find nothing, for tests that never run a handler. */
@@ -536,10 +565,13 @@ function inertRouteDeps(): RouteDeps {
     },
     notifications: {
       settleUnreadForResource: vi.fn(async () => []),
+      settleUnreadForProperty: vi.fn(async () => []),
       findRecipientsOfNotice: vi.fn(async () => []),
     },
     emails: { cancelQueuedForNotifications: vi.fn(async () => 0) },
     importInitiators: { findPropertyImportInitiator: vi.fn(async () => null) },
+    workState: waitingWorkState(),
+    groupedReopens: noGroupedReopens(),
   }
 }
 
@@ -746,6 +778,39 @@ const SETTLED_NOTIFICATION = notificationId('4d1f0c1e-2b7a-4c55-9a51-00000000001
 const SETTLED_RESOURCE: Readonly<Record<string, string>> = {
   'property.responsible_managers.updated': PROPERTY,
   'portal.responsible_managers.updated': PORTAL,
+  'portal.health.changed': PORTAL,
+  'integration.google_account.connected': CONNECTION,
+  'integration.google_account.disconnected': CONNECTION,
+  'identity.organization_lifecycle.changed': ORG,
+}
+
+/**
+ * A settling route whose event also announces: the produced fact above is the
+ * announcing shape, so the settling shape is built here, by the same producer.
+ */
+const SETTLING_FACTS: Readonly<Record<string, () => DomainEvent>> = {
+  'notification.settle-on-organization-purge-cancelled': () =>
+    identityOrganizationLifecycleChanged({
+      organizationId: ORG,
+      closureLineageId: CLOSURE_LINEAGE,
+      state: 'active',
+      revision: 4,
+      reactivationRequired: true,
+      recoverableUntil: new Date('2026-10-02T09:00:00.000Z'),
+      occurredAt: OCCURRED_AT,
+    }),
+  'notification.settle-on-portal-health-recovered': () =>
+    portalHealthChanged({
+      portalId: PORTAL,
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      previousStatus: 'unavailable',
+      previousReason: 'publication_snapshot_unavailable',
+      status: 'healthy',
+      reason: 'operational',
+      sourceVersion: 'health-fence-2',
+      occurredAt: OCCURRED_AT,
+    }),
 }
 
 /** Reads that find each route's subject still current, so every route has work. */
@@ -799,6 +864,7 @@ function currentRouteDeps(): RouteDeps {
         assignedTo: null,
         propertyName: 'Riverside Hotel',
         isEscalated: false,
+        escalatedAt: null,
         resolvedAt: OCCURRED_AT,
         resolvedBy: ACTOR,
       })),
@@ -819,6 +885,7 @@ function currentRouteDeps(): RouteDeps {
     },
     notifications: {
       settleUnreadForResource: vi.fn(async () => [SETTLED_NOTIFICATION]),
+      settleUnreadForProperty: vi.fn(async () => [SETTLED_NOTIFICATION]),
       findRecipientsOfNotice: vi.fn(async () => []),
     },
     emails: { cancelQueuedForNotifications: vi.fn(async () => 1) },
@@ -1038,7 +1105,7 @@ describe('every beta notification route queues its notice from its real producer
       const deps = currentRouteDeps()
 
       const { envelope, receipts, gateDenials, queued } = await dispatch(
-        PRODUCED_FACTS[route.eventType]!(),
+        (SETTLING_FACTS[route.consumerName] ?? PRODUCED_FACTS[route.eventType])!(),
         deps,
       )
 
@@ -1046,13 +1113,24 @@ describe('every beta notification route queues its notice from its real producer
       // asked for the work, and cancels the mail queued behind them.
       expect(gateDenials).toEqual([])
       expect(queued.filter((job) => (route.settles ?? []).includes(job.type))).toEqual([])
-      expect(deps.notifications.settleUnreadForResource).toHaveBeenCalledWith(
-        expect.objectContaining({
-          organizationId: envelope.organizationId,
-          types: route.settles,
-          resourceId: SETTLED_RESOURCE[route.eventType] ?? ITEM,
-        }),
-      )
+      // An archive settles everything on its Property rather than one resource.
+      if (route.eventType === 'property.archived') {
+        expect(deps.notifications.settleUnreadForProperty).toHaveBeenCalledWith(
+          expect.objectContaining({
+            organizationId: envelope.organizationId,
+            propertyId: PROPERTY,
+            types: route.settles,
+          }),
+        )
+      } else {
+        expect(deps.notifications.settleUnreadForResource).toHaveBeenCalledWith(
+          expect.objectContaining({
+            organizationId: envelope.organizationId,
+            types: route.settles,
+            resourceId: SETTLED_RESOURCE[route.eventType] ?? ITEM,
+          }),
+        )
+      }
       expect(deps.emails.cancelQueuedForNotifications).toHaveBeenCalledWith(
         [SETTLED_NOTIFICATION],
         envelope.organizationId,

@@ -224,25 +224,31 @@ function hasConsistentProjectionSourceState(
 
 /**
  * One entry of the attested revision history: same scope as the item, dense
- * 1-based numbering, non-decreasing observation instants, and a start instant
- * present exactly when the revision was measured.
+ * 1-based numbering, non-decreasing observation instants and source epochs, a
+ * carry only where the epoch moved on, and a start instant present exactly
+ * when the revision was measured.
  */
 function isValidProjectionRevision(
   revision: ReviewInboxProjectionRevisionPermit,
   item: InboxItem,
   projection: CurrentReviewInboxProjectionPermit,
   index: number,
-  previousObservedAt: number,
+  previous: ReviewInboxProjectionRevisionPermit | undefined,
 ): boolean {
   return (
     revision.authority === 'review.inbox-projection-revision.v1' &&
     revision.organizationId === item.organizationId &&
     revision.propertyId === item.propertyId &&
     revision.reviewId === item.sourceId &&
-    revision.sourceEpoch === projection.sourceEpoch &&
+    revision.sourceEpoch <= projection.sourceEpoch &&
     revision.materialReviewRevision === index + 1 &&
     Number.isFinite(revision.observedAt.getTime()) &&
-    revision.observedAt.getTime() >= previousObservedAt &&
+    (previous === undefined ||
+      (revision.observedAt.getTime() >= previous.observedAt.getTime() &&
+        revision.sourceEpoch >= previous.sourceEpoch)) &&
+    typeof revision.sourceEpochCarry === 'boolean' &&
+    (!revision.sourceEpochCarry ||
+      (previous !== undefined && previous.sourceEpoch < revision.sourceEpoch)) &&
     (revision.eligibility === 'measured' ||
       revision.eligibility === 'historical_onboarding' ||
       revision.eligibility === 'legacy_unknown') &&
@@ -278,24 +284,22 @@ export function assertReviewProjectionCommand(
   if (!hasConsistentProjectionSourceState(projection)) {
     throw inboxError('invalid_input', 'Review Inbox projection source state is invalid')
   }
-  let previousObservedAt = Number.NEGATIVE_INFINITY
   for (const [index, revision] of projection.revisions.entries()) {
-    if (
-      !isValidProjectionRevision(revision, item, projection, index, previousObservedAt)
-    ) {
+    const previous = index === 0 ? undefined : projection.revisions[index - 1]
+    if (!isValidProjectionRevision(revision, item, projection, index, previous)) {
       throw inboxError(
         'invalid_input',
         'Review Inbox projection revision history is invalid',
       )
     }
-    previousObservedAt = revision.observedAt.getTime()
   }
+  const latest = projection.revisions[projection.revisions.length - 1]
   const erasedAt = projection.sourceContentErasedAt
   if (
-    projection.revisions.at(-1)?.materialReviewRevision !==
-      projection.currentMaterialReviewRevision ||
+    latest?.materialReviewRevision !== projection.currentMaterialReviewRevision ||
+    latest.sourceEpoch !== projection.sourceEpoch ||
     item.createdAt.getTime() !== projection.revisions[0].observedAt.getTime() ||
-    (erasedAt instanceof Date && erasedAt.getTime() < previousObservedAt)
+    (erasedAt instanceof Date && erasedAt.getTime() < latest.observedAt.getTime())
   ) {
     throw inboxError(
       'invalid_input',

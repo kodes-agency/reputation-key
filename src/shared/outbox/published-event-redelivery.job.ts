@@ -28,16 +28,21 @@ type PublishedEventRedeliveryConfig = Readonly<{
   backoffBaseMs: number
 }>
 
+/**
+ * Eight exponential dispatcher attempts can span at most about 95 minutes
+ * with the configured jitter. Two hours cannot race that original budget.
+ * Lost-dispatch recovery owns the window inside it.
+ */
+export const PUBLISHED_EVENT_REDELIVERY_HORIZON_MS = 2 * 60 * 60 * 1_000
+
 const PUBLISHED_EVENT_REDELIVERY_CONFIG = Object.freeze({
   batchSize: 50,
-  // Eight exponential dispatcher attempts can span at most about 95 minutes
-  // with the configured jitter. Two hours cannot race that original budget.
-  horizonMs: 2 * 60 * 60 * 1_000,
+  horizonMs: PUBLISHED_EVENT_REDELIVERY_HORIZON_MS,
   maxAttempts: 3,
   backoffBaseMs: 2 * 60 * 60 * 1_000,
 }) satisfies PublishedEventRedeliveryConfig
 
-const CATALOGUED_CONSUMERS: readonly DurableConsumerExpectation[] =
+export const CATALOGUED_CONSUMER_EXPECTATIONS: readonly DurableConsumerExpectation[] =
   EVENT_FAMILY_ROWS.flatMap(({ eventType, consumers }) =>
     consumers.map(({ name }) => ({ eventType, consumerName: name })),
   )
@@ -68,7 +73,8 @@ export function createPublishedEventRedeliveryHandler(
 ): (job: Job) => Promise<void> {
   const config = { ...PUBLISHED_EVENT_REDELIVERY_CONFIG, ...dependencies.config }
   assertConfig(config)
-  const consumerExpectations = dependencies.consumerExpectations ?? CATALOGUED_CONSUMERS
+  const consumerExpectations =
+    dependencies.consumerExpectations ?? CATALOGUED_CONSUMER_EXPECTATIONS
 
   return async (_job: Job): Promise<void> =>
     trace(`job.${JOB_NAME}`, async () => {

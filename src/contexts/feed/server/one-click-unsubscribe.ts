@@ -1,6 +1,8 @@
 import type { LoggerPort } from '#/shared/domain/logger.port'
+import { captureObservabilityException } from '#/shared/observability/telemetry'
 import { trace } from '#/shared/observability/trace'
 import {
+  oneClickUnsubscribeKeyringProblem,
   verifyOneClickUnsubscribeToken,
   type OneClickUnsubscribeTarget,
 } from '../application/one-click-unsubscribe-token'
@@ -143,6 +145,16 @@ async function applyOneClickRequest(
     logger.error('One-click unsubscribe endpoint is disabled — HMAC keys are unset')
     return 'disabled'
   }
+  // A keyring that cannot be parsed can never verify a link: say so, the way
+  // an unset one does, rather than acknowledging or failing every POST.
+  const problem = oneClickUnsubscribeKeyringProblem(rawKeys)
+  if (problem !== null) {
+    logger.error(
+      { problem },
+      'One-click unsubscribe endpoint is disabled — HMAC keys are malformed',
+    )
+    return 'disabled'
+  }
 
   try {
     const rejection = await oneClickFormRejection(request)
@@ -175,6 +187,9 @@ async function applyOneClickRequest(
     return 'accepted'
   } catch (err) {
     logger.error({ err }, 'One-click unsubscribe preference write failed')
+    // Answered, not thrown, so nothing upstream reports it — and an
+    // unsubscribe that silently fails is a compliance failure, not a retry.
+    captureObservabilityException(err, { source: 'nitro' })
     return 'failed'
   }
 }

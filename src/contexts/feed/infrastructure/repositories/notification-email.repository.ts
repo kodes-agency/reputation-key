@@ -1,7 +1,7 @@
 // Feed notification surface — Drizzle repository adapter for notification email queue
 // Per architecture: factory pattern `createXxxRepository(db)` returning port interface.
 
-import { and, asc, eq, inArray, isNull, lte, or, sql } from 'drizzle-orm'
+import { and, asc, eq, inArray, isNotNull, isNull, lte, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   notificationDigestBatches,
@@ -29,6 +29,10 @@ import { createNotificationUnsubscribeScopeStore } from './notification-unsubscr
 import { createNotificationDigestBatchStore } from './notification-digest-batch.repository'
 import { emailFromRow, firstAttemptAt, SENDABLE } from './notification-email-queue-rows'
 import { notificationError } from '../../domain/notification-errors'
+import {
+  DUE_RECIPIENT_SWEEP_CAP,
+  dueRecipientsInVisitOrder,
+} from './notification-due-recipients.query'
 import { activePropertyCondition } from './active-property'
 
 const scope = (id: string, orgId: string, propertyId: string | null) =>
@@ -170,13 +174,19 @@ export type NotificationEmailRepositoryOptions = Readonly<{
    * suppression methods throw rather than guess.
    */
   emailAddressKey?: string
+  /** Keys refused addresses may still be stored under while they move. */
+  retiredEmailAddressKeys?: readonly string[]
 }>
 
 export const createNotificationEmailRepository = (
   db: Database,
   options: NotificationEmailRepositoryOptions = {},
 ) => ({
-  ...createNotificationEmailSuppressionStore(db, options.emailAddressKey),
+  ...createNotificationEmailSuppressionStore(
+    db,
+    options.emailAddressKey,
+    options.retiredEmailAddressKeys,
+  ),
   ...createNotificationUnsubscribeScopeStore(db),
   ...createNotificationDigestBatchStore(db),
 
@@ -304,19 +314,12 @@ export const createNotificationEmailRepository = (
     cadence: string,
     now: Date,
   ): Promise<readonly NotificationEmailRecipient[]> => {
-    const [rows, openBatches] = await Promise.all([
-      db
-        .selectDistinct({
-          organizationId: notificationEmailQueue.organizationId,
-          userId: notificationEmailQueue.userId,
-        })
-        .from(notificationEmailQueue)
-        .where(and(dueForCadence(cadence, now), onActiveProperty))
-        .orderBy(
-          asc(notificationEmailQueue.organizationId),
-          asc(notificationEmailQueue.userId),
-        )
-        .limit(5_000),
+    const [dueRows, openBatches] = await Promise.all([
+      dueRecipientsInVisitOrder(db, {
+        due: and(dueForCadence(cadence, now), onActiveProperty)!,
+        now,
+        limit: DUE_RECIPIENT_SWEEP_CAP,
+      }),
       cadence === 'daily'
         ? db
             .selectDistinct({
@@ -329,9 +332,13 @@ export const createNotificationEmailRepository = (
               asc(notificationDigestBatches.organizationId),
               asc(notificationDigestBatches.userId),
             )
-            .limit(5_000)
+            .limit(DUE_RECIPIENT_SWEEP_CAP)
         : Promise.resolve([]),
     ])
+    const rows = dueRows.map((row) => ({
+      organizationId: row.organization_id,
+      userId: row.user_id,
+    }))
     const recipients = new Map<string, NotificationEmailRecipient>()
     // Recover already-owned provider attempts before opening new work when a
     // large backlog reaches the sweep cap.
@@ -341,7 +348,7 @@ export const createNotificationEmailRepository = (
         userId: toUserId(row.userId),
       })
     }
-    return [...recipients.values()].slice(0, 5_000)
+    return [...recipients.values()].slice(0, DUE_RECIPIENT_SWEEP_CAP)
   },
 
   findDueByUser: async (
@@ -390,7 +397,7 @@ export const createNotificationEmailRepository = (
     providerMessageId: string,
     acceptedAt: Date,
   ): Promise<void> => {
-    await db
+    const accepted = await db
       .update(notificationEmailQueue)
       .set({
         status: 'accepted',
@@ -407,6 +414,30 @@ export const createNotificationEmailRepository = (
         and(
           scope(id, orgId, propertyId),
           inArray(notificationEmailQueue.status, [...SENDABLE]),
+        ),
+      )
+      .returning({ id: notificationEmailQueue.id })
+    if (accepted.length > 0) return
+    // Settlement or a bounce cascade retired the row while this send was at
+    // the provider. The retirement stands — it is terminal (ADR 0046 r.6) —
+    // but the mail went out, so the acceptance is recorded beside it: without
+    // the message id a later bounce or complaint for it matches no row, and
+    // the address is never suppressed.
+    await db
+      .update(notificationEmailQueue)
+      .set({
+        providerMessageId,
+        providerState: 'accepted',
+        acceptedAt,
+        sentAt: acceptedAt,
+        updatedAt: acceptedAt,
+      })
+      .where(
+        and(
+          scope(id, orgId, propertyId),
+          inArray(notificationEmailQueue.status, ['cancelled', 'suppressed']),
+          isNotNull(notificationEmailQueue.attemptedAt),
+          isNull(notificationEmailQueue.providerMessageId),
         ),
       )
   },

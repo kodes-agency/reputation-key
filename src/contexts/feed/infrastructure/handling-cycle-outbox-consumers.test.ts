@@ -124,6 +124,7 @@ const makeDeps = () => {
       findWaitingSince: vi.fn(async (): Promise<Date | null> => null),
       findNoteAuthors: vi.fn(async () => []),
       countOpenReviewItemsForProperty: vi.fn(async () => 0),
+      hasPendingReviewProjections: vi.fn(async () => false),
     },
     clock: () => new Date('2026-08-27T11:00:00.000Z'),
     logger: {

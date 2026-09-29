@@ -41,6 +41,8 @@ type UnavailablePageContent = Readonly<{
 export type UnavailableAccountState = Readonly<{
   /** Their access to a workspace was removed (I27); false while unknown. */
   accessRemoved: boolean
+  /** They left that workspace themselves rather than being removed. */
+  leftWorkspace?: boolean
 }>
 
 export function unavailablePageContent(
@@ -53,6 +55,18 @@ export function unavailablePageContent(
     // written into a workspace they can no longer open, so until now the
     // product told them their access "isn't ready" and left them waiting for
     // something that is not coming.
+    if (account.accessRemoved && account.leftWorkspace === true) {
+      return {
+        title: 'You left the workspace',
+        description: 'You left the workspace, so it is no longer available to you.',
+        guidance:
+          'To come back, ask an account administrator of that workspace to invite you again. Any new invitation will appear here.',
+        link: {
+          label: 'Review pending invitations',
+          to: '/accept-invitation',
+        },
+      }
+    }
     if (account.accessRemoved) {
       return {
         title: 'Your workspace access was removed',
@@ -118,11 +132,18 @@ export function unavailablePageContent(
  */
 export async function resolveUnavailableAccountState(
   reason: UnavailableSearch['reason'],
-  readAccessRemoval: () => Promise<Readonly<{ removedAt: string }> | null>,
+  readAccessRemoval: () => Promise<Readonly<{
+    removedAt: string
+    left?: boolean
+  }> | null>,
 ): Promise<UnavailableAccountState> {
   if (reason !== 'workspace_access') return { accessRemoved: false }
   try {
-    return { accessRemoved: (await readAccessRemoval()) !== null }
+    const removal = await readAccessRemoval()
+    if (removal === null) return { accessRemoved: false }
+    return removal.left === true
+      ? { accessRemoved: true, leftWorkspace: true }
+      : { accessRemoved: true }
   } catch {
     return { accessRemoved: false }
   }

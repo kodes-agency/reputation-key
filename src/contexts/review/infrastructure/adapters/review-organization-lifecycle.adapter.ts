@@ -372,6 +372,7 @@ async function purge(
         SET text = '',
             rejection_reason = NULL,
             created_by = NULL,
+            submitted_by = NULL,
             approved_by = NULL,
             rejected_by = NULL,
             reply_language_tag = NULL,
@@ -382,6 +383,7 @@ async function purge(
           AND (text <> ''
                OR rejection_reason IS NOT NULL
                OR created_by IS NOT NULL
+               OR submitted_by IS NOT NULL
                OR approved_by IS NOT NULL
                OR rejected_by IS NOT NULL
                OR reply_language_tag IS NOT NULL)`,

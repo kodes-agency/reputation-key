@@ -15,6 +15,7 @@ import type { Notification, NotificationStatus } from '../../domain/notification
 import { notificationFromRow } from './notification-row.mapper'
 import { notificationError } from '../../domain/notification-errors'
 import type { NotificationListFilter } from '../../application/notification-list-filter'
+import type { NotificationFeedScope } from '../../application/ports/notification-repository.port'
 import {
   createNotificationPage,
   type NotificationFeedCursor,
@@ -24,16 +25,30 @@ import {
 // ── Repository ──────────────────────────────────────────────────────
 
 // Email-only notifications remain durable anchors, but are excluded from the
-// in-app list when the concrete property/category/channel preference disables it.
-const notOptedOutInApp = sql`NOT EXISTS (
-  SELECT 1 FROM notification_preferences
-  WHERE user_id = notifications.user_id
-    AND organization_id = notifications.organization_id
-    AND property_id = notifications.property_id
-    AND category = notifications.category
-    AND channel = 'in_app'
-    AND enabled = false
-    AND notifications.category NOT IN ('mandatory', 'urgent_operational')
+// in-app list while the reader has in-app off for that Property and category.
+// It resolves exactly as delivery does (resolveCategoryPreference): the
+// Property's own row, else the person's category default, else the versioned
+// default, which is on in-app for every category. "Apply to all my properties"
+// writes the default and deletes the Property rows, so reading the Property
+// table alone brought every muted row back. Organization notices ignore
+// preferences on delivery, so they are never hidden here either.
+const notOptedOutInApp = sql`NOT (
+  notifications.property_id IS NOT NULL
+  AND notifications.category NOT IN ('mandatory', 'urgent_operational')
+  AND NOT COALESCE(
+    (SELECT enabled FROM notification_preferences
+      WHERE user_id = notifications.user_id
+        AND organization_id = notifications.organization_id
+        AND property_id = notifications.property_id
+        AND category = notifications.category
+        AND channel = 'in_app'),
+    (SELECT enabled FROM notification_category_defaults
+      WHERE user_id = notifications.user_id
+        AND organization_id = notifications.organization_id
+        AND category = notifications.category
+        AND channel = 'in_app'),
+    true
+  )
 )`
 
 // Latest activity: a coalesced row sorts by its newest absorbed event, so a
@@ -78,6 +93,18 @@ const withinVisibleProperties = (
 const stillWaiting: SQL = and(
   eq(notifications.status, 'unread'),
   isNull(notifications.resolvedAt),
+)!
+
+// What a settling fact retires: every row still waiting on its reader, plus
+// an email-only recipient's anchor, which is stored read but was never read
+// (`isEmailOnlyAnchor`). Its queued email is still owed until the work is
+// done, so settlement has to reach it to cancel that email.
+export const awaitingSettlement: SQL = and(
+  isNull(notifications.resolvedAt),
+  or(
+    eq(notifications.status, 'unread'),
+    and(eq(notifications.status, 'read'), isNull(notifications.readAt)),
+  ),
 )!
 
 // What a feed filter adds to "the reader's notices": the unread status, the
@@ -199,9 +226,11 @@ export const createNotificationRepository = (db: Database) => ({
       // bump the count, stamp the latest arrival, merge the payload newest-wins
       // with the count written in as `occurrences`. Live surfaces render from
       // that payload; the title/body snapshot is the fresh event's fallback.
+      // A settled row sits outside the index, so a racing repeat never
+      // revives one: it lands as a fresh row with its own email.
       .onConflictDoUpdate({
         target: [notifications.userId, notifications.type, notifications.resourceId],
-        targetWhere: sql`status = 'unread'`,
+        targetWhere: sql`status = 'unread' AND resolved_at IS NULL`,
         set: {
           title: notification.title,
           body: notification.body,
@@ -209,9 +238,6 @@ export const createNotificationRepository = (db: Database) => ({
           priority: notification.priority,
           coalescedCount: sql`${notifications.coalescedCount} + 1`,
           coalescedLatestAt: notification.updatedAt,
-          // The row is being asked for again, so any settled marker it carries
-          // is dropped: the work came back.
-          resolvedAt: null,
           updatedAt: notification.updatedAt,
         },
       })
@@ -224,11 +250,14 @@ export const createNotificationRepository = (db: Database) => ({
   },
 
   // Who was told. Read state is irrelevant: somebody who read the escalation
-  // notice was still told about it, and a settled row still proves it.
+  // notice was still told about it, and a settled row still proves it. The
+  // latest arrival is the one a repeat event coalesced in, so a row first
+  // written for an earlier occurrence still counts once it was told again.
   findRecipientsOfNotice: async (
     orgId: string,
     type: string,
     resourceId: string,
+    arrivedSince: Date | null,
   ): Promise<readonly UserId[]> => {
     const rows = await db
       .selectDistinct({ userId: notifications.userId })
@@ -238,13 +267,16 @@ export const createNotificationRepository = (db: Database) => ({
           eq(notifications.organizationId, orgId),
           eq(notifications.type, type),
           eq(notifications.resourceId, resourceId),
+          arrivedSince === null
+            ? undefined
+            : sql`COALESCE(${notifications.coalescedLatestAt}, ${notifications.createdAt}) >= ${arrivedSince}`,
         ),
       )
     return rows.map((row) => userId(row.userId))
   },
 
   // The work a notice asked for is done. Every recipient's still-waiting row
-  // about that resource is stamped, whatever their read state, and the ids
+  // about that resource is stamped, email-only anchors included, and the ids
   // come back so the caller can cancel the mail queued behind them. `status`
   // is deliberately untouched: read is not resolved (docs/BETA.md). Rows
   // already resolved are excluded, so a redelivered fact settles nothing
@@ -264,7 +296,29 @@ export const createNotificationRepository = (db: Database) => ({
           eq(notifications.organizationId, input.organizationId),
           eq(notifications.resourceId, input.resourceId),
           inArray(notifications.type, [...input.types]),
-          stillWaiting,
+          awaitingSettlement,
+        ),
+      )
+      .returning({ id: notifications.id })
+    return settled.map((row) => notificationId(row.id))
+  },
+
+  settleUnreadForProperty: async (input: {
+    organizationId: string
+    propertyId: string
+    types: ReadonlyArray<string>
+    resolvedAt: Date
+  }): Promise<readonly NotificationId[]> => {
+    if (input.types.length === 0) return []
+    const settled = await db
+      .update(notifications)
+      .set({ resolvedAt: input.resolvedAt, updatedAt: input.resolvedAt })
+      .where(
+        and(
+          eq(notifications.organizationId, input.organizationId),
+          eq(notifications.propertyId, input.propertyId),
+          inArray(notifications.type, [...input.types]),
+          awaitingSettlement,
         ),
       )
       .returning({ id: notifications.id })
@@ -294,8 +348,7 @@ export const createNotificationRepository = (db: Database) => ({
   // "Mark all read" on the tab the reader is on: the unread rows its filter
   // holds, not the Organization's every unread row.
   markAllRead: async (
-    userId: string,
-    orgId: string,
+    scope: NotificationFeedScope,
     filter: NotificationListFilter,
     updatedAt: Date,
   ): Promise<void> => {
@@ -304,10 +357,14 @@ export const createNotificationRepository = (db: Database) => ({
       .set({ status: 'read', readAt: updatedAt, updatedAt })
       .where(
         and(
-          eq(notifications.userId, userId),
-          eq(notifications.organizationId, orgId),
+          eq(notifications.userId, scope.userId),
+          eq(notifications.organizationId, scope.organizationId),
           eq(notifications.status, 'unread'),
           feedFilterCondition(filter),
+          // Only what the tab showed and counted: a row hidden by revoked
+          // Property access or an in-app opt-out must come back unread.
+          notOptedOutInApp,
+          withinVisibleProperties(scope.visiblePropertyIds),
         ),
       )
   },
@@ -331,7 +388,9 @@ export const createNotificationRepository = (db: Database) => ({
       )
   },
 
-  // ── Dedup: at most one unread per (user, type, resource) ──────────
+  // ── Dedup: at most one waiting row per (user, type, resource) ─────
+  // Waiting, not merely unread: a settled row is done, so a new request on
+  // the resource starts a row of its own rather than reviving it.
   findUnreadByUserTypeResource: async (
     userId: string,
     orgId: string,
@@ -351,7 +410,7 @@ export const createNotificationRepository = (db: Database) => ({
             : eq(notifications.propertyId, propertyId),
           eq(notifications.type, type),
           eq(notifications.resourceId, resourceId),
-          eq(notifications.status, 'unread'),
+          stillWaiting,
         ),
       )
       .limit(1)
@@ -362,8 +421,8 @@ export const createNotificationRepository = (db: Database) => ({
   // `applyCoalescence` — the re-rendered copy, the merged payload, the count
   // and the latest-arrival stamp. `updatedAt` is the entity's, not `now()`, so
   // the row matches exactly what the use case returned to the caller. The
-  // lookup took no lock, so the row may have been read or dismissed since:
-  // the status guard leaves such a row alone and reports the miss.
+  // lookup took no lock, so the row may have been read, dismissed or settled
+  // since: the guard leaves such a row alone and reports the miss.
   refreshUnread: async (notification: Notification): Promise<boolean> => {
     const bumped = await db
       .update(notifications)
@@ -373,8 +432,6 @@ export const createNotificationRepository = (db: Database) => ({
         payload: notification.payload,
         coalescedCount: notification.coalescedCount,
         coalescedLatestAt: notification.coalescedLatestAt,
-        // `applyCoalescence` clears it: the repeat event is asking again.
-        resolvedAt: notification.resolvedAt,
         updatedAt: notification.updatedAt,
       })
       .where(
@@ -382,7 +439,7 @@ export const createNotificationRepository = (db: Database) => ({
           eq(notifications.id, unbrand(notification.id)),
           eq(notifications.userId, unbrand(notification.userId)),
           eq(notifications.organizationId, unbrand(notification.organizationId)),
-          eq(notifications.status, 'unread'),
+          stillWaiting,
         ),
       )
       .returning({ id: notifications.id })
@@ -390,9 +447,10 @@ export const createNotificationRepository = (db: Database) => ({
   },
 
   // Read -> unread for the row menu. The partial unread-uniqueness index means
-  // this flip can collide with an unread row that already covers the same
+  // this flip can collide with a waiting row that already covers the same
   // (user, type, resource), so the guard makes the collision a no-op (null)
-  // instead of a raw PG unique violation surfacing as a 500.
+  // instead of a raw PG unique violation surfacing as a 500. A settled row on
+  // either side sits outside the index and cannot collide.
   markUnread: async (
     id: string,
     userId: string,
@@ -408,23 +466,23 @@ export const createNotificationRepository = (db: Database) => ({
           eq(notifications.userId, userId),
           eq(notifications.organizationId, orgId),
           eq(notifications.status, 'read'),
-          sql`NOT EXISTS (
+          sql`(notifications.resolved_at IS NOT NULL OR NOT EXISTS (
             SELECT 1 FROM notifications AS unread_sibling
              WHERE unread_sibling.user_id = ${userId}
                AND unread_sibling.type = notifications.type
                AND unread_sibling.resource_id = notifications.resource_id
                AND unread_sibling.status = 'unread'
-          )`,
+               AND unread_sibling.resolved_at IS NULL
+          ))`,
         ),
       )
       .returning()
     return rows[0] ? notificationFromRow(rows[0]) : null
   },
 
-  // Clear-all: dismiss every non-dismissed notification for the user.
+  // Clear-all: dismiss every notification the reader's feed shows.
   markAllDismissed: async (
-    userId: string,
-    orgId: string,
+    scope: NotificationFeedScope,
     updatedAt: Date,
   ): Promise<void> => {
     await db
@@ -432,9 +490,11 @@ export const createNotificationRepository = (db: Database) => ({
       .set({ status: 'dismissed', updatedAt })
       .where(
         and(
-          eq(notifications.userId, userId),
-          eq(notifications.organizationId, orgId),
+          eq(notifications.userId, scope.userId),
+          eq(notifications.organizationId, scope.organizationId),
           ne(notifications.status, 'dismissed'),
+          notOptedOutInApp,
+          withinVisibleProperties(scope.visiblePropertyIds),
         ),
       )
   },

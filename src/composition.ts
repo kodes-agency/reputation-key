@@ -69,7 +69,12 @@ import {
   GOOGLE_PROVIDER_ENDPOINTS,
 } from './composition/provider-runtime'
 import { buildInfrastructure } from './composition/infrastructure'
-import { buildReadAndNotifyContexts } from './composition/read-and-notify-contexts'
+import { notificationEmailWebConfigProblems } from '#/contexts/feed/application/notification-email-web-config'
+import { isCapabilityJobEnabled } from '#/shared/auth/beta-capabilities'
+import {
+  buildReadAndNotifyContexts,
+  notificationEmailAddressKeys,
+} from './composition/read-and-notify-contexts'
 import type { CreateContainerOptions } from './composition/container-options'
 import { buildOperationalReadout } from './composition/operational-readout'
 import { reportAlertToObservability } from './composition/alert-reporter'
@@ -628,11 +633,21 @@ function buildContainer(
     integration,
     inbox,
     reviewServingStats: review.lookups.servingStats,
-    // Parsed key material, like identityRequestSecurity's pseudonym secrets:
-    // the same required, stable server secret, domain-separated in Feed.
-    notificationEmailAddressKey: env.BETTER_AUTH_SECRET,
+    ...notificationEmailAddressKeys(env),
   })
   const { activity, notification } = feed
+  // The web service's own email seams (the Resend event webhook, one-click
+  // unsubscribe) only answer 503 when unconfigured; say so once at boot.
+  if (!enableJobs) {
+    for (const problem of notificationEmailWebConfigProblems({
+      production: env.NODE_ENV === 'production',
+      sendEmailEnabled: isCapabilityJobEnabled('notification.send_email'),
+      webhookSecret: env.RESEND_WEBHOOK_SECRET,
+      unsubscribeKeys: env.NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS,
+    })) {
+      logger.error({ problem }, 'Notification email is misconfigured on web')
+    }
+  }
 
   // ARC-03-T10/T15: the process's operational readout and release seam.
   const { opsQueues, jobDispatchWorkerRuntime, operationsSnapshot, containerShutdown } =
@@ -774,6 +789,9 @@ function buildContainer(
       preferenceRepo: notification.delivery.repos.preferenceRepo,
       // Rechecked immediately before every Property-scoped email is sent.
       recipientStanding: notification.delivery.recipientStanding,
+      // Whether the work a notice asks for still waits: asked before it is
+      // written and again before its email is sent.
+      workState: notification.delivery.workState,
     }),
     handleResendEvent: notification.delivery.handleResendEvent,
     notificationAudienceAuthorizer: notification.delivery.authorizeAudience,

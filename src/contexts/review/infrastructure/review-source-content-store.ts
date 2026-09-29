@@ -5,9 +5,9 @@ import {
   googleReplyObservations,
   replies,
   reviews,
-  reviewSourceContents,
   reviewSourceObservations,
 } from '#/shared/db/schema/review.schema'
+import { reviewSourceContents } from '#/shared/db/schema/review-source-content.schema'
 import { unbrand } from '#/shared/domain/ids'
 import type { OrganizationId, PropertyId, ReviewId } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'

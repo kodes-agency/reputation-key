@@ -142,13 +142,14 @@ type GoogleAccountDisconnectedPayload = Readonly<{
 }>
 
 /**
- * A revoked Google connection must not leave a reply publication in flight:
- * every active publication (requested/authorized/sending) on the connection's
- * reviews is cancelled (publication_state → 'cancelled', status → 'draft', one
- * review.reply.publication_cancelled fact per reply). A publish job holding a
- * claim then loses its post-call re-read guard against the cancelled row and
- * returns without marking. Redelivery converges because the use case cancels
- * only what is still active.
+ * A revoked Google connection must not leave a reply publication queued:
+ * every cycle on the connection's reviews that was never dispatched
+ * (requested/authorized) is cancelled (publication_state → 'cancelled',
+ * status → 'draft', one review.reply.publication_cancelled fact per reply).
+ * A claimed (sending) or provider-accepted (pending_observation) cycle may
+ * already be on Google, so the worker and the reconciliation sweep settle it
+ * instead. Redelivery converges because the use case cancels only what is
+ * still undispatched.
  */
 export async function handleGoogleAccountDisconnected(
   deps: ReplyPublicationConsumerDeps,

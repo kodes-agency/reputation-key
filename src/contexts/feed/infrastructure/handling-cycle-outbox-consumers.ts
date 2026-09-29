@@ -107,10 +107,12 @@ function parse(event: ConsumerEvent): Parsed {
 /**
  * Initial observations/submissions are already represented by
  * `inbox.inbox_item.created`; consuming them again would produce two arrival
- * notifications. Only a material Review revision maps from `opened`, and not
- * one the item was created with: nobody saw the earlier revision, so "New
- * review" already says it all. A reopen stamped with a bulkId is covered by
- * its bulk completion fact.
+ * notifications. Only a material Review revision maps from `opened` — an edit
+ * that superseded an OPEN cycle — and not one the item was created with:
+ * nobody saw the earlier revision, so "New review" already says it all. An
+ * edit that lands on a CLOSED cycle arrives as `reopened` (reason
+ * `material_revision_changed`) and is `inbox.reopened` like any other reopen.
+ * A reopen stamped with a bulkId is covered by its bulk completion fact.
  */
 function notificationTypeFor(payload: Parsed): NotificationType | null {
   if (payload.eventType === REOPENED_EVENT) {

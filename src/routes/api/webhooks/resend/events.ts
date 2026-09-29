@@ -23,6 +23,7 @@ import { getContainer } from '#/composition'
 import { svixHeaders, verifySvixSignature } from '#/shared/auth/svix-signature.verifier'
 import { requestRuntimeConfig } from '#/shared/config/request-runtime-config'
 import { getLogger } from '#/shared/observability/logger'
+import { captureObservabilityException } from '#/shared/observability/telemetry'
 import { trace } from '#/shared/observability/trace'
 
 // Only the fields we act on. Resend adds fields freely, so the schema stays
@@ -65,14 +66,35 @@ const isSuppressionListEvent = (payload: unknown): boolean =>
   payload !== null &&
   SUPPRESSION_LIST_EVENTS.some((type) => (payload as { type?: unknown }).type === type)
 
+/**
+ * A webhook subscribed to "all events" also receives domain.* and contact.*
+ * events, which are about no message and carry no `email_id`. Parsed as a
+ * message event they failed as malformed (400), so the provider retried each
+ * one and the log read like a broken integration. They are acknowledged as
+ * ignored, like any other event this route has no use for.
+ */
+const typeAboutNoMessage = (payload: unknown): string | null => {
+  const type =
+    typeof payload === 'object' && payload !== null
+      ? (payload as { type?: unknown }).type
+      : undefined
+  return typeof type === 'string' && !type.startsWith('email.') ? type.slice(0, 64) : null
+}
+
 /** A provider timestamp we cannot parse is worse than our own receipt time. */
 const eventTime = (createdAt: string | undefined): Date => {
   const parsed = createdAt ? new Date(createdAt) : null
   return parsed && !Number.isNaN(parsed.getTime()) ? parsed : new Date()
 }
 
-/** Parse the verified body into the handler's input. Throws ZodError. */
-function eventInput(rawBody: string, eventId: string): ResendEventInput {
+/**
+ * Parse the verified body into the handler's input, or the type of an event
+ * about no message. Throws ZodError.
+ */
+function eventInput(
+  rawBody: string,
+  eventId: string,
+): ResendEventInput | Readonly<{ ignoredType: string }> {
   const payload: unknown = JSON.parse(rawBody)
   if (isSuppressionListEvent(payload)) {
     const event = suppressionListEventSchema.parse(payload)
@@ -84,6 +106,8 @@ function eventInput(rawBody: string, eventId: string): ResendEventInput {
       eventId,
     }
   }
+  const ignoredType = typeAboutNoMessage(payload)
+  if (ignoredType !== null) return { ignoredType }
   const event = resendEventSchema.parse(payload)
   const bounceType = event.data.bounce?.type
   return {
@@ -138,9 +162,24 @@ export async function handleResendWebhookPost(request: Request): Promise<Respons
         )
       }
 
-      const result = await getContainer().handleResendEvent(
-        eventInput(rawBody, verification.id),
-      )
+      const input = eventInput(rawBody, verification.id)
+      if ('ignoredType' in input) {
+        logger.info(
+          { eventType: input.ignoredType },
+          'Resend webhook event about no message ignored',
+        )
+        return Response.json(
+          {
+            ok: true,
+            applied: false,
+            rows: 0,
+            suppressed: 0,
+            reason: 'ignored_event_type',
+          },
+          { status: 200 },
+        )
+      }
+      const result = await getContainer().handleResendEvent(input)
 
       // 200 even for an ignored or unmatched event: a retry cannot change it,
       // and the handler has already logged why.
@@ -154,6 +193,9 @@ export async function handleResendWebhookPost(request: Request): Promise<Respons
         )
       }
       logger.error({ err }, 'Resend webhook processing failed')
+      // Answered, not thrown, so neither the Nitro error hook nor Sentry's
+      // request middleware sees it; Resend just retries into the same failure.
+      captureObservabilityException(err, { source: 'nitro' })
       return Response.json(
         {
           error: 'Internal Server Error',

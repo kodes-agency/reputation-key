@@ -32,6 +32,10 @@ import {
   type ResendSendResult,
 } from '../adapters/resend-email.adapter'
 import type { DigestItem } from './digest-assembly'
+import type {
+  NotificationWorkDecision,
+  NotificationWorkState,
+} from '../../application/notification-work-state'
 
 const NOW = new Date('2026-08-21T08:00:00.000Z')
 const ORG = 'org-1'
@@ -102,6 +106,7 @@ export type NotificationOverrides = Partial<{
   body: string | null
   status: Notification['status']
   resolvedAt: Date | null
+  readAt: Date | null
 }>
 
 export function buildNotification(overrides: NotificationOverrides = {}): Notification {
@@ -126,7 +131,14 @@ export function buildNotification(overrides: NotificationOverrides = {}): Notifi
     coalescedCount: 1,
     coalescedLatestAt: null,
     resolvedAt: overrides.resolvedAt ?? null,
-    readAt: null,
+    // A read row was read by somebody, at some time; only an email-only
+    // anchor is stored read with no read time (`isEmailOnlyAnchor`).
+    readAt:
+      overrides.readAt !== undefined
+        ? overrides.readAt
+        : overrides.status === 'read'
+          ? NOW
+          : null,
     createdAt: NOW,
     updatedAt: NOW,
   }
@@ -203,3 +215,23 @@ export const createFakeJobLogger = (): FakeJobLogger => {
   logger.child.mockReturnValue(logger)
   return logger as unknown as FakeJobLogger
 }
+
+/**
+ * Work that is always still waiting, and settling facts that always finish
+ * it: the state every test assumes unless it is about the work itself.
+ */
+export const waitingWorkState = () => ({
+  isWaiting: vi.fn(
+    async (_subject: Parameters<NotificationWorkState['isWaiting']>[0]) =>
+      true as NotificationWorkDecision,
+  ),
+  finished: vi.fn(
+    async ({ types }: Parameters<NotificationWorkState['finished']>[0]) => types,
+  ),
+})
+
+/** No grouped reopen waiting on any Property: nothing for a closed cycle to settle there. */
+export const noGroupedReopens = () => ({
+  findWaiting: vi.fn(async () => []),
+  settle: vi.fn(async () => []),
+})

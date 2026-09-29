@@ -130,7 +130,11 @@ export function NotificationsSettingsView(props: NotificationsSettingsViewProps)
       </Card>
 
       {selected ? (
+        // Keyed by Property: whether the card edits an override is seeded
+        // from the Property's own window, so another Property starts afresh
+        // rather than inheriting the last one's mode.
         <NotificationQuietHoursCard
+          key={selected.id}
           settings={props.settings}
           property={selected}
           override={props.quietHoursOverride}

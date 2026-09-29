@@ -4,6 +4,22 @@
 
 import { sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
+import { PROPERTY_ANCHORED_NOTICE_TYPES } from '../../domain/notification-delivery-policy'
+
+/**
+ * A notice delivered through a Property it never names gives the link nothing
+ * to switch off: its scope would be the anchor's category, and one click would
+ * stop every email of that category about a Property the message never
+ * mentioned (the Google reconnect email).
+ */
+const notAnchoredNotice = sql`NOT EXISTS (
+  SELECT 1 FROM notifications n
+   WHERE n.id = notification_email_queue.notification_id
+     AND n.type IN (${sql.join(
+       [...PROPERTY_ANCHORED_NOTICE_TYPES].map((type) => sql`${type}`),
+       sql`, `,
+     )})
+)`
 
 /**
  * The optional scopes of a frozen digest batch, written in the transaction
@@ -32,6 +48,7 @@ export const digestUnsubscribeScopesInsert = (
     )})
     AND category <> 'mandatory'
     AND property_id IS NOT NULL
+    AND ${notAnchoredNotice}
   ON CONFLICT DO NOTHING
 `
 
@@ -53,6 +70,7 @@ export const createNotificationUnsubscribeScopeStore = (db: Database) => ({
         AND organization_id = ${orgId}
         AND category <> 'mandatory'
         AND property_id IS NOT NULL
+        AND ${notAnchoredNotice}
       ON CONFLICT DO NOTHING
     `)
   },

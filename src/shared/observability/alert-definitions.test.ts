@@ -818,11 +818,11 @@ describe('notification.email-stalled', () => {
       value: NOTIFICATION_EMAIL_STALLED_ALERT_MS + 1,
       threshold: NOTIFICATION_EMAIL_STALLED_ALERT_MS,
     })
-    expect(event!.detail).toContain('email delivery is enabled')
+    expect(event!.detail).toContain('email delivery is open to every Organization')
   })
 
-  // The cry-wolf guard. Outbound email is capability-dark today, so the queue
-  // legitimately fills with pending rows nothing will ever send. If this
+  // The cry-wolf guard. With email open to only some Organizations, the queue
+  // legitimately holds pending rows a dark scope will never send. If this
   // alert fired on that, it would be firing permanently from day one and
   // would be muted before it ever caught a real fault.
   it('stays silent when outbound email is intentionally capability-dark', () => {
@@ -1031,15 +1031,34 @@ describe('notification email outcomes', () => {
   })
 
   it('stays quiet on a couple of delayed deliveries', () => {
+    // A delayed delivery is itself a provider event: the webhook is working.
     expect(
       evaluateOne(
         'notification.email-provider-feedback-missing',
         withOutcomes({
           acceptedUnresolvedCount: NOTIFICATION_EMAIL_UNRESOLVED_ALERT_COUNT,
           oldestAcceptedUnresolvedAgeMs: 7 * 60 * 60 * 1000,
+          providerOutcomeCount: 1,
         }),
       ),
     ).toBeNull()
+  })
+
+  it('pages on the first unresolved message when no provider event arrived at all', () => {
+    // At one Organization's volume three unresolved messages could take days;
+    // a silent webhook is already certain after one.
+    const silent = evaluateOne(
+      'notification.email-provider-feedback-missing',
+      withOutcomes({
+        acceptedCount: 1,
+        acceptedUnresolvedCount: 1,
+        oldestAcceptedUnresolvedAgeMs: 7 * 60 * 60 * 1000,
+        providerOutcomeCount: 0,
+      }),
+    )
+
+    expect(silent).toMatchObject({ value: 1 })
+    expect(silent!.detail).toContain('webhook looks silent')
   })
 })
 

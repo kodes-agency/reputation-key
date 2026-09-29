@@ -37,7 +37,7 @@
 //           ambiguous, due at the next rung of the 72-hour read ladder.
 //   3. POST-CALL RACE GUARD — re-reads the reply before the local ack:
 //      row missing (purged by the disconnect cascade) or
-//      publication_state='cancelled' (disconnect won the race) → return
+//      publication_state='cancelled' (a cancellation won the race) → return
 //      WITHOUT marking. The local truth is cancelled; provider-side cleanup
 //      of the orphaned Google-visible reply is out of scope.
 //   4. successful write response → persist provider outcome as
@@ -70,6 +70,7 @@ import type { ReplyPublicationDispatchEvidencePort } from '../../application/por
 import { attemptNeverDispatched } from './attempt-never-dispatched'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { Reply, Review } from '../../domain/types'
+import { replyAuthor } from '../../domain/reply-author'
 import { replyId, organizationId, propertyId } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
@@ -123,7 +124,7 @@ function buildPublishFailedEvent(
     reviewId: reply.reviewId,
     propertyId: review.propertyId,
     organizationId: reply.organizationId,
-    authorId: reply.createdBy,
+    authorId: replyAuthor(reply),
     outcome,
     ...(cause === null ? {} : { cause }),
     occurredAt,
@@ -211,8 +212,8 @@ async function loadPublishTarget(
 }
 
 /**
- * BQC-3.8 POST-CALL RACE GUARD: the disconnect cascade (cancellation + purge)
- * or a re-authorization may have run while the Google call was in flight. In
+ * BQC-3.8 POST-CALL RACE GUARD: the disconnect purge, a cancellation or a
+ * re-authorization may have run while the Google call was in flight. In
  * every one of those cases the local truth wins and the provider result is not
  * acknowledged.
  */
@@ -375,7 +376,7 @@ async function cancelRefusedPublication(
         reviewId: claimed.reviewId,
         propertyId: review.propertyId,
         organizationId: claimed.organizationId,
-        authorId: claimed.createdBy,
+        authorId: replyAuthor(claimed),
         cause: 'policy',
         occurredAt: now,
       }),

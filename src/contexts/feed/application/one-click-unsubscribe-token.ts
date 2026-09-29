@@ -42,6 +42,35 @@ export function createOneClickUnsubscribeToken(
   }
 }
 
+/**
+ * What is wrong with a signing keyring, or `null` when it parses. The keyring
+ * is otherwise parsed only when a link is signed or checked, so a malformed
+ * value (a bare `openssl rand -hex 32` without its `vN:`) passed boot and then
+ * failed every optional email. The message never contains the keys.
+ */
+export function oneClickUnsubscribeKeyringProblem(rawKeys: string): string | null {
+  try {
+    createVersionedHmacKeyring(rawKeys).dispose()
+    return null
+  } catch (error) {
+    return error instanceof Error ? error.message : 'HMAC keyring is unusable'
+  }
+}
+
+/** Why the worker must not start sending optional email, or `null`. */
+export function unsubscribeKeysConfigError(
+  input: Readonly<{ sendEmailEnabled: boolean; rawKeys: string | undefined }>,
+): string | null {
+  if (!input.sendEmailEnabled) return null
+  if (!input.rawKeys) {
+    return '[CONFIG] notification.send_email requires NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS'
+  }
+  const problem = oneClickUnsubscribeKeyringProblem(input.rawKeys)
+  return problem === null
+    ? null
+    : `[CONFIG] NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS is unusable: ${problem}`
+}
+
 export function activeOneClickUnsubscribeKeyVersion(rawKeys: string): string {
   const keys = createVersionedHmacKeyring(rawKeys)
   try {

@@ -48,10 +48,17 @@ import { createOneClickUnsubscribeRepository } from './infrastructure/repositori
 import { createNotificationDbUserLookupAdapter } from './infrastructure/adapters/notification-db-user-lookup.adapter'
 import type { ResponsibleManagerLookupPort } from './application/ports/responsible-manager-lookup.port'
 import type { ReplyApprovalAuthorityPort } from './application/ports/reply-approval-authority.port'
+import type { ReplyWorkStateLookupPort } from './application/ports/reply-work-state.port'
 import type { FeedbackPortalLookupPort } from './application/ports/feedback-portal-lookup.port'
 import { createNotificationAudienceAuthorizer } from './application/notification-audience'
 import { createNotificationRecipientStanding } from './application/notification-recipient-standing'
-import { createNotificationOrganizationEmailStopReader } from './infrastructure/repositories/notification-organization-email-stop.repository'
+import { createGroupedReopenStore } from './infrastructure/repositories/notification-grouped-reopen.repository'
+import { createActivePropertyLookup } from './infrastructure/repositories/active-property'
+import { createNotificationWorkState } from './application/notification-work-state'
+import {
+  createNotificationOrganizationEmailStopReader,
+  createNotificationOrganizationLifecycleStateReader,
+} from './infrastructure/repositories/notification-organization-email-stop.repository'
 import { createInboxItemLookupAdapter } from './infrastructure/adapters/inbox-item-lookup.adapter'
 import { createDisplayNameLookupAdapter } from './infrastructure/adapters/display-name-lookup.adapter'
 import { createEscalationResolutionLookupAdapter } from './infrastructure/adapters/escalation-resolution-lookup.adapter'
@@ -86,9 +93,8 @@ import {
 } from './infrastructure/jobs/reconcile-missing-notifications.job'
 import { insertNotification } from './application/use-cases/insert-notification'
 import { muteNotificationCategory } from './application/use-cases/mute-notification-category'
-import { immediateEmailDispatch } from './infrastructure/jobs/urgent-email.job'
-import { jobEnqueueOptions, withCatalogueJobOptions } from '#/shared/jobs/job-policy'
-import { createJobExecutionEnvelope } from '#/shared/jobs/delayed-execution-gate'
+import { createImmediateEmailEnqueue } from './infrastructure/jobs/immediate-email-enqueue'
+import { withCatalogueJobOptions } from '#/shared/jobs/job-policy'
 import {
   markNotificationRead,
   markNotificationUnread,
@@ -111,7 +117,6 @@ import type { Result } from '#/shared/domain'
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
 import type { PropertyAccessLookup } from '#/shared/domain/property-access'
 import { createNotificationFeedReads } from './application/notification-feed-reads'
-import type { NotificationListFilter } from './application/notification-list-filter'
 import { toNotificationView } from './application/notification-view'
 import type { OneClickUnsubscribeTarget } from './application/one-click-unsubscribe-token'
 import { assertBetaNotificationTriggerMatrix } from './application/beta-notification-trigger-matrix'
@@ -280,6 +285,8 @@ type NotificationBuildInput = Readonly<{
   responsibleManagers: ResponsibleManagerLookupPort
   /** Identity-owned `reply.manage` authority, for routing approval requests. */
   replyApproval: ReplyApprovalAuthorityPort
+  /** Review-owned reply status, so a notice never asks for a decided reply. */
+  replyStates: ReplyWorkStateLookupPort
   /** Guest-owned source attribution; Notification never reads Guest tables. */
   feedbackPortalLookup: FeedbackPortalLookupPort
   googleConnectionProperties: GoogleConnectionPropertyLookup
@@ -298,6 +305,8 @@ type NotificationBuildInput = Readonly<{
   propertyAccess: PropertyAccessLookup
   /** Server secret refused email addresses are keyed with (never stored). */
   emailAddressKey: string
+  /** Keys refused addresses may still be stored under while they move. */
+  retiredEmailAddressKeys?: readonly string[]
 }>
 
 const buildNotificationFeed = (input: NotificationBuildInput) => {
@@ -305,6 +314,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   const feedReads = createNotificationFeedReads({
     repo: notificationRepo,
     propertyAccess: input.propertyAccess,
+    clock: input.clock,
   })
   const accessRemovalReader = createAccountAccessRemovalReader(input.db)
   const gapRepo = createNotificationGapRepository(input.db)
@@ -315,6 +325,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   )
   const emailRepo = createNotificationEmailRepository(input.db, {
     emailAddressKey: input.emailAddressKey,
+    retiredEmailAddressKeys: input.retiredEmailAddressKeys,
   })
   const prefRepo = createNotificationPreferenceRepository(input.db)
   const oneClickUnsubscribeRepo = createOneClickUnsubscribeRepository(input.db)
@@ -352,6 +363,16 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     portalHealthLookup: input.portalHealthLookup,
     monthlyResultFacts: input.monthlyResultFacts,
     organizationAccountAuthority,
+  })
+  // Asked before a notice is written, before its email leaves, and before a
+  // settling fact retires it: the owners' answer to "is the work still waiting".
+  const workState = createNotificationWorkState({
+    escalationResolutions,
+    inboxItemLookup,
+    replyStates: input.replyStates,
+    portalHealthLookup: input.portalHealthLookup,
+    organizationState: createNotificationOrganizationLifecycleStateReader(input.db),
+    responsibleManagers: input.responsibleManagers,
   })
   // Asked when an email is queued, and again before it is sent.
   const organizationEmailStop = createNotificationOrganizationEmailStopReader(input.db)
@@ -411,6 +432,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     responsibleManagers: input.responsibleManagers,
     replyApproval: input.replyApproval,
     inboxItemLookup,
+    activeProperty: createActivePropertyLookup(input.db),
     clock: input.clock,
     logger: input.logger,
   }
@@ -428,29 +450,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   }
 
   const enqueueImmediateEmail = input.queue
-    ? async (data: {
-        notificationEmailId: string
-        organizationId: string
-        propertyId?: string
-      }) => {
-        const dispatch = immediateEmailDispatch(data.propertyId)
-        await input.queue!.add(
-          dispatch.jobName,
-          {
-            ...data,
-            ...createJobExecutionEnvelope({
-              organizationId: data.organizationId,
-              ...(data.propertyId === undefined ? {} : { propertyId: data.propertyId }),
-              capability: dispatch.capability,
-              initiator: { kind: 'system', id: 'notification:urgent-enqueue' },
-              correlationId: `notification-email:${data.notificationEmailId}`,
-            }),
-          },
-          {
-            ...jobEnqueueOptions(dispatch.jobName),
-          },
-        )
-      }
+    ? createImmediateEmailEnqueue(input.queue, 'notification:urgent-enqueue')
     : undefined
 
   const useCases = {
@@ -549,14 +549,9 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       const flipped = await notificationRepo.markUnread(id, userId, orgId, now)
       return flipped === null ? null : toNotificationView(flipped)
     },
-    markAllRead: (userId: string, orgId: string, filter: NotificationListFilter) => {
-      const now = input.clock()
-      return notificationRepo.markAllRead(userId, orgId, filter, now)
-    },
-    dismissAll: (userId: string, orgId: string) => {
-      const now = input.clock()
-      return notificationRepo.markAllDismissed(userId, orgId, now)
-    },
+    // Bulk actions resolve the same Property scope as the reads.
+    markAllRead: feedReads.markAllRead,
+    dismissAll: feedReads.dismissAll,
     dismiss: async (id: string, orgId: string, userId: UserId) => {
       const now = await applyOwnedTransition(id, orgId, userId, dismissNotification)
       if (now === null) return // invalid transition, skip
@@ -698,6 +693,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       responsibleManagers: input.responsibleManagers,
       userLookup,
       notifications: notificationRepo,
+      inboxItemLookup,
       receipts: input.outboxRepo,
     })
     registerHandlingCycleNotificationConsumers(consumerRegistry, {
@@ -709,8 +705,10 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     // they announced retire their notices and cancel the mail behind them.
     registerNotificationSettlementConsumers(consumerRegistry, {
       notifications: notificationRepo,
+      groupedReopens: createGroupedReopenStore(input.db),
       emails: emailRepo,
       inboxItemLookup,
+      workState,
       clock: input.clock,
       logger: input.logger,
       receipts: input.outboxRepo,
@@ -767,6 +765,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       displayNames,
       logger: input.logger,
       receipts: input.outboxRepo,
+      clock: input.clock,
     })
   }
 
@@ -814,6 +813,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
         handleResendEvent,
         authorizeAudience,
         recipientStanding,
+        workState,
         deliverySettlement,
         reconcileMissingNotificationsHandler: reconcileMissingNotificationsHandler(),
       },

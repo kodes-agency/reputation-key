@@ -80,3 +80,10 @@ silently drop queue metadata.
   (`endpoints_not_isolated` stayed enforced), the other runbooks, nor the live
   `closed-beta-v2` environment (two Redis resources) changed with it. This
   amendment makes the record match what production enforces.
+- **2026-09-28** — Queue Redis stays safe to lose. Dispatch jobs that were
+  waiting or retrying when it was lost are republished by the worker's
+  lost-dispatch recovery, which runs at boot and whenever the scheduler
+  watchdog restores missing schedulers; it covers facts published in the last
+  two hours, and the published-event redelivery sweep covers older ones.
+  Losing Queue Redis therefore delays notification facts by minutes rather
+  than stranding them for the two-hour sweep (runbook §7).

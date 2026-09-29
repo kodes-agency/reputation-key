@@ -412,7 +412,7 @@ describe('notification audience authorization', () => {
     )
   })
 
-  it('authorizes a grouped assignment only while every item remains assigned in that Property', async () => {
+  it('authorizes a grouped assignment for the items still assigned in that Property', async () => {
     const deps = buildDeps()
     deps.responsibleManagers.isEligibleForProperty.mockResolvedValue(true)
     deps.inboxItemLookup.findInboxItemFacts
@@ -444,8 +444,7 @@ describe('notification audience authorization', () => {
           },
         }),
       ),
-    ).resolves.toBe(false)
-    expect(deps.responsibleManagers.isEligibleForProperty).not.toHaveBeenCalled()
+    ).resolves.toEqual({ itemCount: 1 })
   })
 
   it('authorizes a grouped assignment when every item and Property permission are current', async () => {
@@ -470,7 +469,7 @@ describe('notification audience authorization', () => {
           },
         }),
       ),
-    ).resolves.toBe(true)
+    ).resolves.toEqual({ itemCount: 2 })
     expect(deps.inboxItemLookup.findInboxItemFacts).toHaveBeenCalledTimes(2)
     expect(deps.responsibleManagers.isEligibleForProperty).toHaveBeenCalledWith(
       ORG,

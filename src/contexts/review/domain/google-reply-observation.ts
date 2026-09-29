@@ -134,14 +134,42 @@ function describeObservedText(observedText: string | null): ObservedGoogleReplyS
 
 type ObservationScope = Readonly<{ sourceEpoch: number; materialReviewRevision: number }>
 
+/**
+ * The guest edited an answered Review and Google still shows the reply that
+ * answered the earlier revision, word for word. A reply written for revision N
+ * does not answer revision N+1, so that text is carried over, not added: it
+ * must not resolve as a current live reply, which would close the Inbox cycle
+ * the edit reopened. Only a head from the SAME source epoch can witness this.
+ * A source-epoch carry (Archive/Restore, relink) also advances the revision
+ * without any guest edit, and Inbox carries its head on that observation.
+ */
+function isReplyCarriedOverFromEarlierRevision(
+  observed: ObservedGoogleReplyState,
+  previous: PreviousGoogleReplyObservation | null,
+  scope: ObservationScope,
+): boolean {
+  return (
+    previous !== null &&
+    previous.state === 'live' &&
+    observed.state === 'live' &&
+    previous.sourceEpoch === scope.sourceEpoch &&
+    previous.materialReviewRevision < scope.materialReviewRevision &&
+    previous.normalizedDigest === observed.normalizedDigest
+  )
+}
+
 /** Material change against the previous head. A head recorded under a different
  * source scope cannot witness an edit or a deletion, so live text there reads as
- * newly added and absence as no change. */
+ * newly added and absence as no change — except the answered reply a guest
+ * edit carried over unchanged, which is no change at all. */
 function decideObservationChange(
   observed: ObservedGoogleReplyState,
   previous: PreviousGoogleReplyObservation | null,
   scope: ObservationScope,
 ): 'added' | 'deleted' | 'edited' | 'unchanged' {
+  if (isReplyCarriedOverFromEarlierRevision(observed, previous, scope)) {
+    return 'unchanged'
+  }
   const outOfScope =
     previous === null ||
     previous.sourceEpoch !== scope.sourceEpoch ||

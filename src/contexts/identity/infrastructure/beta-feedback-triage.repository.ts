@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, ne, or } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, lt, ne, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { organizationId, userId } from '#/shared/domain/ids'
 import { insertOutboxRow } from '#/shared/outbox/commit'
@@ -444,7 +444,8 @@ export class BetaFeedbackTriageRepository implements BetaFeedbackSubmissionStore
       if (
         outcome !== null &&
         current.triageState !== next.triageState &&
-        input.outcomeRecipient
+        input.outcomeRecipient &&
+        (await earlierOutcome(tx, input.reference, next.revision)) !== outcome
       ) {
         await insertOutboxRow(
           tx,
@@ -462,6 +463,34 @@ export class BetaFeedbackTriageRepository implements BetaFeedbackSubmissionStore
     })
   }
 }
+
+/**
+ * The outcome the report reached last before `revision`, or null. A report
+ * that goes accepted -> reproducing -> accepted has not changed its answer to
+ * the reporter, so the second arrival is not announced again; comparing only
+ * the current and next state could not see that.
+ */
+async function earlierOutcome(
+  tx: TriageTx,
+  reference: string,
+  revision: number,
+): Promise<string | null> {
+  const rows = await tx
+    .select({ toState: betaFeedbackTriageTransitions.toState })
+    .from(betaFeedbackTriageTransitions)
+    .where(
+      and(
+        eq(betaFeedbackTriageTransitions.feedbackReference, reference),
+        inArray(betaFeedbackTriageTransitions.toState, [...REPORTER_OUTCOMES]),
+        lt(betaFeedbackTriageTransitions.resultRevision, revision),
+      ),
+    )
+    .orderBy(desc(betaFeedbackTriageTransitions.resultRevision))
+    .limit(1)
+  return rows[0]?.toState ?? null
+}
+
+const REPORTER_OUTCOMES = ['accepted', 'declined', 'resolved'] as const
 
 /** The triage states a reporter is told about; the rest are internal steps. */
 function reporterOutcome(

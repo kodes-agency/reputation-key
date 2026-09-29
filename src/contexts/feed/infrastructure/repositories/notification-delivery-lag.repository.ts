@@ -14,6 +14,7 @@ import { notificationDeliveryReceiptPrefixes } from '../outbox-notification-deli
 import { notificationRouteValues as routeValues } from './notification-route-values'
 import { assertStatementTimeoutMs, withHealthReadTimeout } from './health-read-timeout'
 import { activePropertyCondition } from './active-property'
+import { silentRouteFact } from '../silent-route-fact'
 
 type PendingRow = Readonly<{
   pending: number
@@ -192,7 +193,11 @@ const readSendableImmediateEmailRows = async (
   return rows.rows
 }
 
-/** Durable source facts whose base consumer receipt is still absent (bounded). */
+/**
+ * Durable source facts whose base consumer receipt is still absent (bounded).
+ * A fact its route consumes only to announce nothing is not a notice waiting
+ * (silent-route-fact.ts): an import writes two per past review.
+ */
 const readSourceReceiptPending = async (
   db: Pick<Database, 'execute'>,
   window: NotificationDeliveryLagWindow,
@@ -213,6 +218,7 @@ const readSourceReceiptPending = async (
           WHERE receipt.event_id = event.id
             AND receipt.consumer_name = routes.consumer_name
         )
+        AND NOT ${silentRouteFact}
       ORDER BY event.created_at, event.id
       LIMIT ${window.scanLimit}
     ) AS candidate
@@ -264,7 +270,8 @@ const readMaterializationPending = async (
 
 /**
  * Reads only identifiers, receipt names, and timestamps. Event payload is
- * intentionally absent from both SELECT lists, so content cannot leak into a
+ * intentionally absent from every SELECT list (the silent-fact filter reads
+ * identifier-only payload fields in WHERE), so content cannot leak into a
  * health response or log through this repository. The email scopes'
  * identifiers are read only to ask `isEmailDeliveryAllowed`; the report
  * carries counts and clocks.

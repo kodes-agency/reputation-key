@@ -160,6 +160,8 @@ describe('Property Responsible Managers', () => {
         propertyId: PROPERTY.id,
         organizationId: PROPERTY.organizationId,
         occurredAt: NOW,
+        // The admin who cleared the list is not asked to fix it (ADR 0046).
+        actorUserId: ctx.userId,
       }),
     ])
   })

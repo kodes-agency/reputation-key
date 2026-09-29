@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type {
@@ -192,6 +193,14 @@ export const GoalEmailIsDailyOnly: Story = {
     })
     expect(goalCadence).toHaveTextContent('Daily at 08:00')
     expect(goalCadence).toBeDisabled()
+    // Dimmed for a reason it states, and no promise of a choice email would
+    // not bring.
+    expect(goalCadence).toHaveAccessibleDescription('Always emailed daily at 08:00.')
+    expect(
+      within(canvas.getByRole('group', { name: 'Goals' })).queryByText(
+        'Turn on email to choose when it arrives.',
+      ),
+    ).toBeNull()
     // A category whose email is on still offers the choice. (Workflow's email
     // is off in these fixtures, and cadence waits until email is on.)
     expect(
@@ -493,6 +502,52 @@ export const OnePropertyCanOverrideTheWindow: Story = {
 }
 
 /**
+ * Picking another Property shows that Property's own answer. The card used to
+ * keep the first Property's mode, so a Property whose override sends email at
+ * any hour read "Follows your quiet hours", and saving the bypass on a
+ * Property without one stored an override that ended quiet hours there.
+ */
+export const SwitchingPropertyShowsItsOwnOverride: Story = {
+  args: {
+    userSettings: { ...userSettings, quietHoursStart: '22:00', quietHoursEnd: '07:00' },
+    propertyWindows: [
+      {
+        ...override,
+        propertyId: OTHER_PROPERTY_ID,
+        quietHoursStart: null,
+        quietHoursEnd: null,
+      } as unknown as NotificationPropertyDeliveryWindow,
+    ],
+  },
+  render: function SwitchingProperty(args) {
+    const [propertyId, setPropertyId] = useState(args.propertyId)
+    return (
+      <NotificationsSettingsPage
+        {...args}
+        propertyId={propertyId}
+        setPropertyId={setPropertyId}
+      />
+    )
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByRole('button', { name: 'Use different hours here' })).toBeVisible()
+
+    await userEvent.click(canvas.getByRole('combobox', { name: /^Property:/ }))
+    await userEvent.click(
+      await within(document.body).findByRole('option', { name: 'Second Property' }),
+    )
+
+    await waitFor(() =>
+      expect(
+        canvas.getByRole('button', { name: 'Follow my quiet hours here' }),
+      ).toBeVisible(),
+    )
+    expect(canvas.queryByText(/Follows your quiet hours/)).toBeNull()
+  },
+}
+
+/**
  * The gap this closes: a Property added or reassigned after the person
  * configured everything else had no row at all and fell through to the
  * versioned defaults — urgent email, immediately, at 03:00.
@@ -518,6 +573,34 @@ export const AppliesACategoryToEveryProperty: Story = {
         channel: 'email',
         applyToAllProperties: true,
       }),
+    })
+  },
+}
+
+/**
+ * Email the Property in view cannot send is not applied everywhere. The email
+ * save used to go out anyway, the server refused it for the missing
+ * `notification.send_email` capability, and the page said "Could not apply to
+ * every property" although in-app had already been applied to all of them.
+ */
+export const ApplyToAllLeavesUnavailableEmailAlone: Story = {
+  args: { emailAvailability: 'unavailable' },
+  play: async ({ canvasElement }) => {
+    updatePreferenceMock.mockClear()
+    const canvas = within(canvasElement)
+
+    await userEvent.click(
+      canvas.getByRole('button', {
+        name: 'Workflow and collaboration: Apply to all my properties',
+      }),
+    )
+
+    await waitFor(() => expect(updatePreferenceMock).toHaveBeenCalledOnce())
+    expect(updatePreferenceMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({ channel: 'in_app', applyToAllProperties: true }),
+    })
+    expect(updatePreferenceMock).not.toHaveBeenCalledWith({
+      data: expect.objectContaining({ channel: 'email' }),
     })
   },
 }

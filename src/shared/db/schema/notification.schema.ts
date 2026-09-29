@@ -94,11 +94,14 @@ export const notifications = pgTable(
     updatedAt: updatedAtColumn(),
   },
   (t) => [
-    // ADR 0046 r.2: at most one UNREAD row per (user, type, resource).
-    // Replaces the event-ID-keyed uniqueness, which made every event a new row.
+    // ADR 0046 r.2: at most one row per (user, type, resource) still asking
+    // its reader for something — unread and unsettled. Replaces the
+    // event-ID-keyed uniqueness, which made every event a new row. A settled
+    // row stays unread (read is not resolved) but leaves the slot, so the next
+    // request on the resource gets a row and an email of its own.
     uniqueIndex('notifications_unread_resource_unique')
       .on(t.userId, t.type, t.resourceId)
-      .where(sql`status = 'unread'`),
+      .where(sql`status = 'unread' AND resolved_at IS NULL`),
     // Query: unread count + list by user
     index('notifications_user_status_idx').on(t.userId, t.status, t.createdAt),
     // Query: list by org (admin views)
@@ -141,11 +144,13 @@ export const notifications = pgTable(
       'notifications_source_content_free_check',
       sql`NOT (COALESCE(${t.payload}, '{}'::jsonb) ? 'rating') AND CASE WHEN COALESCE(${t.payload}, '{}'::jsonb) ? 'guestRating' THEN COALESCE(${t.payload}->>'platform' = 'portal' AND jsonb_typeof(${t.payload}->'guestRating') = 'number' AND ${t.payload}->>'guestRating' = ANY (ARRAY['1', '2', '3', '4', '5']::text[]), false) ELSE true END`,
     ),
-    // ADR 0046 / ADR 0059. Four shapes and no others: a mandatory account
+    // ADR 0046 / ADR 0059. Five shapes and no others: a mandatory account
     // notice belongs to the Organization; a report outcome belongs to the
     // Organization and points at the report, as `workflow_collaboration`; a
     // Google disconnect belongs to the Organization and points at the
-    // connection, likewise `workflow_collaboration`; every other notice is
+    // connection, likewise `workflow_collaboration`; a Google reauthorization
+    // with no active Property to anchor on falls back to the Organization and
+    // points at the connection, as `urgent_operational`; every other notice is
     // Property-scoped and may point at neither of the two Organization-only
     // resources. Naming each informational type keeps the relaxation from
     // widening by accident.
@@ -163,6 +168,11 @@ export const notifications = pgTable(
       ) OR (
         ${t.type} = 'integration.google_disconnected'
         AND ${t.category} = 'workflow_collaboration'
+        AND ${t.propertyId} IS NULL
+        AND ${t.resourceType} = 'integration'
+      ) OR (
+        ${t.type} = 'integration.reauthorization_required'
+        AND ${t.category} = 'urgent_operational'
         AND ${t.propertyId} IS NULL
         AND ${t.resourceType} = 'integration'
       ) OR (
@@ -359,6 +369,16 @@ export const notificationDigestBatches = pgTable(
     unsubscribeKeyVersion: varchar('unsubscribe_key_version', { length: 32 })
       .notNull()
       .default('legacy'),
+    // The rendered request the batch was frozen with, re-sent verbatim by a
+    // retry the provider may already hold. Cleared when the batch closes, so
+    // rendered mail is kept no longer than it can still be sent.
+    providerRequest: jsonb('provider_request').$type<{
+      to: string
+      subject: string
+      html: string
+      text: string
+      headers: Record<string, string>
+    }>(),
     state: varchar('state', { length: 16 }).notNull().default('prepared'),
     providerMessageId: varchar('provider_message_id', { length: 255 }),
     outcomeClass: varchar('outcome_class', { length: 24 }),

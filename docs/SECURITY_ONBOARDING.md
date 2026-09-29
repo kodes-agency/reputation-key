@@ -8,13 +8,14 @@
 
 If `.env` has ever been shared, committed by mistake, or copied to an insecure location, **rotate these secrets immediately**:
 
-| Secret                               | How to Rotate                                                                                                            |
-| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| `DATABASE_URL` (Railway PostgreSQL)  | Rotate the scoped database role/password in the `cell-us` Railway database and update every approved service reference   |
-| `DATABASE_URL_POOLER`                | Rotate with the same scoped database authority; verify direct and pooled references before retiring the prior credential |
-| `RESEND_API_KEY`                     | Resend Dashboard → API Keys → Revoke + Create new                                                                        |
-| `BETTER_AUTH_SECRET`                 | Run `openssl rand -base64 48` and install the new value                                                                  |
-| `NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS` | Add a new active `vN:<64-hex>` from `openssl rand -hex 32`; retain the prior version for 90 days                         |
+| Secret                               | How to Rotate                                                                                                                              |
+| ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `DATABASE_URL` (Railway PostgreSQL)  | Rotate the scoped database role/password in the `cell-us` Railway database and update every approved service reference                     |
+| `DATABASE_URL_POOLER`                | Rotate with the same scoped database authority; verify direct and pooled references before retiring the prior credential                   |
+| `RESEND_API_KEY`                     | Resend Dashboard → API Keys → Revoke + Create new                                                                                          |
+| `BETTER_AUTH_SECRET`                 | Run `openssl rand -base64 48` and install the new value                                                                                    |
+| `NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS` | Add a new active `vN:<64-hex>` from `openssl rand -hex 32`; retain the prior version for 90 days                                           |
+| `NOTIFICATION_EMAIL_SUPPRESSION_KEY` | `openssl rand -hex 32` on web and worker in one release. Rotating it empties RepKey's own suppression list (Resend's list is the backstop) |
 
 After rotating, update `.env.local` (never `.env` — see §3).
 
@@ -24,6 +25,19 @@ previous version for at least the 90-day notification evidence window; an open
 digest also pins its signing version so provider retries remain byte-for-byte
 stable during rotation. Do not remove a retained version while any open digest
 uses it.
+
+`NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS` must stay in the versioned `vN:<hex>`
+form. With `notification.send_email` enabled, the worker refuses to boot on a
+keyring it cannot parse (a bare hex key, for example), and the web one-click
+endpoint answers `503 unsubscribe_disabled`.
+
+Durable email suppressions are keyed with `NOTIFICATION_EMAIL_SUPPRESSION_KEY`
+(set it on BOTH web — the provider webhook writes suppressions — and worker —
+sends check them). Until it is set they are keyed with `BETTER_AUTH_SECRET`,
+so rotating `BETTER_AUTH_SECRET` then silently empties the suppression list.
+Once it is set, entries move to the dedicated key the first time an address is
+looked up, and a `BETTER_AUTH_SECRET` rotation no longer touches them. Set the
+dedicated key before any `BETTER_AUTH_SECRET` rotation.
 
 Migration `0104_notification_one_click_unsubscribe` deliberately leaves a
 `legacy` database default for rolling-deploy compatibility. A later contract
@@ -121,3 +135,4 @@ If secrets are leaked:
 2. **Check the `cell-us` Railway PostgreSQL service logs and RepKey policy/action audit records** for unauthorized access
 3. **Check Resend logs** for unauthorized email sends
 4. **Invalidate Better Auth sessions** by rotating `BETTER_AUTH_SECRET` (forces all users to re-authenticate)
+5. **Before rotating `BETTER_AUTH_SECRET`**, confirm `NOTIFICATION_EMAIL_SUPPRESSION_KEY` is set on web and worker; otherwise the rotation empties RepKey's email suppression list (§1)

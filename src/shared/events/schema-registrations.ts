@@ -13,6 +13,11 @@
 
 import { z } from 'zod/v4'
 import { registerEventSchema, isEventRegistered } from './schema-registry'
+import {
+  goalMonthlyResultClosedSchema,
+  goalMonthlyResultReconciledSchema,
+  goalMonthlyResultRevisedSchema,
+} from './goal-event-schemas'
 
 // ── Review event schemas ────────────────────────────────────────────
 
@@ -515,6 +520,9 @@ const inboxHandlingCycleReopenedSchema = handlingCycleFactScopeSchema
       'other',
       'provider_reply_deleted',
       'provider_reply_diverged',
+      // A guest edit of an answered Review: the old reply does not answer
+      // the new revision, so the closed item is open again.
+      'material_revision_changed',
     ]),
     // Set when a bulk reopen owns the notice through its completion fact.
     // Optional: facts recorded before bulk reopens were marked lack it.
@@ -892,79 +900,6 @@ const guestReviewLinkClickedSchema = z.object({
   occurredAt: z.string(),
 })
 
-// ── Goal event schemas ──────────────────────────────────────────────
-
-const goalMonthlyResultBaseSchema = z
-  .object({
-    // Tenant scope also lives in the durable envelope. These two fields are
-    // optional only for replay of rows written by the pre-adapter producer.
-    organizationId: z.string().trim().min(1).optional(),
-    propertyId: z.uuid().optional(),
-    programId: z.uuid(),
-    programVersionId: z.uuid(),
-    assignmentId: z.uuid(),
-    monthlyResultId: z.uuid(),
-    periodStart: z.iso.datetime(),
-    periodEnd: z.iso.datetime(),
-    evaluationState: z.enum([
-      'eligible',
-      'updating',
-      'insufficient_data',
-      'unavailable',
-      'quarantined',
-    ]),
-    achieved: z.boolean().nullable(),
-    // The outbox row created_at remains authoritative for the old producer.
-    occurredAt: z.iso.datetime().optional(),
-  })
-  .superRefine((payload, ctx) => {
-    if (new Date(payload.periodEnd) <= new Date(payload.periodStart)) {
-      ctx.addIssue({ code: 'custom', message: 'periodEnd must follow periodStart' })
-    }
-    if (
-      (payload.evaluationState === 'eligible' && payload.achieved === null) ||
-      (payload.evaluationState !== 'eligible' && payload.achieved !== null)
-    ) {
-      ctx.addIssue({
-        code: 'custom',
-        message: 'achievement must match the evaluation state',
-      })
-    }
-  })
-
-const goalMonthlyResultClosedSchema = goalMonthlyResultBaseSchema
-  .safeExtend({ status: z.literal('closed') })
-  .superRefine((payload, ctx) => {
-    if (payload.evaluationState === 'updating') {
-      ctx.addIssue({ code: 'custom', message: 'closed result cannot be updating' })
-    }
-  })
-
-const goalMonthlyResultReconciledSchema = goalMonthlyResultBaseSchema.safeExtend({
-  status: z.literal('reconciling'),
-})
-
-const goalMonthlyResultRevisedSchema = goalMonthlyResultBaseSchema
-  .safeExtend({
-    status: z.literal('closed'),
-    revisionId: z.uuid(),
-    revision: z.number().int().positive(),
-    supersedesRevisionId: z.uuid().nullable(),
-    outcomeChanged: z.boolean(),
-    availabilityChanged: z.boolean(),
-  })
-  .superRefine((payload, ctx) => {
-    if (payload.evaluationState === 'updating') {
-      ctx.addIssue({ code: 'custom', message: 'closed result cannot be updating' })
-    }
-    if (
-      (payload.revision === 1 && payload.supersedesRevisionId !== null) ||
-      (payload.revision > 1 && payload.supersedesRevisionId === null)
-    ) {
-      ctx.addIssue({ code: 'custom', message: 'result revision lineage is invalid' })
-    }
-  })
-
 // ── Identity event schemas ──────────────────────────────────────────
 
 const memberInvitedV2Schema = z.object({
@@ -992,6 +927,10 @@ const invitationCanceledSchema = z.object({
 const memberRemovedSchema = z.object({
   organizationId: z.string(),
   userId: z.string(),
+  // Additive at version 1: leaving records this same fact with the member as
+  // its own actor, and Feed must not tell a member who left that an
+  // administrator removed them. Rows recorded before it was kept lack it.
+  removedBy: z.string().optional(),
 })
 
 // BQC-3.5: memberRoleChangedSchema gains `memberUserId` IN PLACE at version 1.

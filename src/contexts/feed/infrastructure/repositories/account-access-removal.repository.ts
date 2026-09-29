@@ -14,18 +14,24 @@
 //   - the caller is the subject. The server function resolves the user from
 //     the session and never accepts a user id from the browser;
 //   - one type, the one that is about the caller's own account;
-//   - the answer is an instant, nothing else. No Organization id or name, no
-//     actor, no row id — a removed member must not learn more about a
-//     workspace by being removed from it than they knew while inside it.
+//   - the answer is an instant and whether the reader left on their own,
+//     nothing else. No Organization id or name, no actor, no row id — a
+//     removed member must not learn more about a workspace by being removed
+//     from it than they knew while inside it.
 
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { notifications } from '#/shared/db/schema/notification.schema'
 import type { UserId } from '#/shared/domain/ids'
 import { unbrand } from '#/shared/domain/ids'
+import { parseNotificationPayload } from '../../domain/notification-payload'
 
-/** What the reader is told about their own removal: when it happened. */
-export type AccountAccessRemoval = Readonly<{ removedAt: Date }>
+/**
+ * What the reader is told about their own removal: when it happened, and
+ * whether they left themselves — leaving records the same notice, and the page
+ * must not tell them an administrator removed them.
+ */
+export type AccountAccessRemoval = Readonly<{ removedAt: Date; left: boolean }>
 
 export type AccountAccessRemovalReader = Readonly<{
   /** The caller's most recent access-removal notice, or null if there is none. */
@@ -35,12 +41,20 @@ export type AccountAccessRemovalReader = Readonly<{
 /** The one type this read admits. */
 const ACCESS_REMOVED_NOTIFICATION_TYPE = 'account.organization_access_removed'
 
+// When the row's latest removal happened. A second removal from the same
+// Organization folds into the first one's unread row (ADR 0046 r.2), which
+// keeps its `created_at` and stamps only `coalesced_latest_at`.
+const latestRemovalAt =
+  sql<Date>`COALESCE(${notifications.coalescedLatestAt}, ${notifications.createdAt})`.mapWith(
+    notifications.createdAt,
+  )
+
 export const createAccountAccessRemovalReader = (
   db: Database,
 ): AccountAccessRemovalReader => ({
   findLatestForUser: async (userId) => {
     const rows = await db
-      .select({ createdAt: notifications.createdAt })
+      .select({ removedAt: latestRemovalAt, payload: notifications.payload })
       .from(notifications)
       .where(
         and(
@@ -50,8 +64,13 @@ export const createAccountAccessRemovalReader = (
       )
       // Someone may have been removed from more than one Organization over
       // time, and only the latest removal explains why they are here now.
-      .orderBy(desc(notifications.createdAt))
+      .orderBy(desc(latestRemovalAt))
       .limit(1)
-    return rows[0] ? { removedAt: rows[0].createdAt } : null
+    const latest = rows[0]
+    if (!latest) return null
+    return {
+      removedAt: latest.removedAt,
+      left: parseNotificationPayload(latest.payload).leftOrganization === true,
+    }
   },
 })

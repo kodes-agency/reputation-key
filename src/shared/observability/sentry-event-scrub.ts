@@ -25,6 +25,8 @@ const ALLOWED_EVENT_TAGS: Readonly<Record<string, true>> = {
   termination_trigger: true,
   queue: true,
   job_name: true,
+  alert: true,
+  alert_severity: true,
   feedback_type: true,
   feedback_impact: true,
   feedback_route: true,
@@ -122,12 +124,30 @@ function scrubEventEnvelope(record: Record<string, unknown>): void {
 
   if ('tags' in record) record.tags = scrubSentryTags(record.tags)
   if ('contexts' in record) record.contexts = scrubEventContexts(record.contexts)
+  const alertFingerprint = alertIssueFingerprint(record.tags)
+  if (alertFingerprint) record.fingerprint = alertFingerprint
 
   const request = asRecord(record.request)
   if (request) {
     if (typeof request.method === 'string') record.request = { method: request.method }
     else delete record.request
   }
+}
+
+const ALERT_NAME = /^[a-z0-9][a-z0-9_.:-]{0,79}$/u
+
+/**
+ * Every dispatched alert has the same stack (reporter → dispatcher) and a
+ * redacted message, so Sentry would fold them all into one issue — and once
+ * that issue exists, a different alert never raises a new-issue notification.
+ * The fingerprint is rebuilt here from the allow-listed alert tag alone, never
+ * kept from the caller, so it cannot carry content.
+ */
+function alertIssueFingerprint(tags: unknown): string[] | undefined {
+  const safe = asRecord(tags)
+  if (safe?.runtime_source !== 'alert-dispatcher') return undefined
+  const name = safe.alert
+  return typeof name === 'string' && ALERT_NAME.test(name) ? ['alert', name] : undefined
 }
 
 function scrubEventExceptions(record: Record<string, unknown>): void {

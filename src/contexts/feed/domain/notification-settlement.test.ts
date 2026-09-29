@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ACTIONABLE_NOTIFICATION_TYPES,
+  isSettleableNotificationType,
   isStillActionable,
   settledNotificationTypes,
   type SettlingFact,
@@ -12,11 +13,13 @@ const row = (
     type: NotificationType
     status: 'unread' | 'read' | 'dismissed'
     resolvedAt: Date | null
+    readAt: Date | null
   }> = {},
 ) => ({
   type: 'reply.pending_approval' as NotificationType,
   status: 'unread' as const,
   resolvedAt: null,
+  readAt: over.status === 'read' ? new Date('2026-09-23T08:00:00Z') : null,
   ...over,
 })
 
@@ -38,9 +41,33 @@ describe('which notices a settling fact retires', () => {
 
   it('retires every waiting-cycle notice when the Handling Cycle closes', () => {
     expect([...settledNotificationTypes('handling_cycle.closed')].sort()).toEqual([
+      'feedback.created',
       'inbox.reopened',
       'inbox.response_target_halfway',
       'inbox.response_target_passed',
+      'review.created',
+      'review.updated',
+    ])
+  })
+
+  it('retires the reconnect request whichever way the connection was answered', () => {
+    expect(settledNotificationTypes('google_connection.reconnected')).toEqual([
+      'integration.reauthorization_required',
+    ])
+    expect(settledNotificationTypes('google_connection.disconnected')).toEqual([
+      'integration.reauthorization_required',
+    ])
+  })
+
+  it('retires the Health notice once the Portal needs nobody', () => {
+    expect(settledNotificationTypes('portal_health.recovered')).toEqual([
+      'portal.health_attention',
+    ])
+  })
+
+  it('retires a failed publication once a cancellation returns the reply to draft', () => {
+    expect(settledNotificationTypes('reply.returned_to_draft')).toEqual([
+      'reply.publish_failed',
     ])
   })
 
@@ -66,14 +93,28 @@ describe('which notices a settling fact retires', () => {
     const facts: ReadonlyArray<SettlingFact> = [
       'reply.decided',
       'reply.published',
+      'reply.returned_to_draft',
       'escalation.resolved',
       'handling_cycle.closed',
       'property.responsibility_restored',
       'portal.responsibility_restored',
+      'google_connection.reconnected',
+      'google_connection.disconnected',
+      'portal_health.recovered',
     ]
     const settled = facts.flatMap((fact) => [...settledNotificationTypes(fact)])
 
     expect(settled.filter((type) => !ACTIONABLE_NOTIFICATION_TYPES.has(type))).toEqual([])
+  })
+
+  it('takes back the final deletion warning, the one warning a later fact retracts', () => {
+    expect(settledNotificationTypes('organization.purge_cancelled')).toEqual([
+      'account.organization_purge_pending',
+    ])
+    expect(isSettleableNotificationType('account.organization_purge_pending')).toBe(true)
+    expect(isSettleableNotificationType('account.organization_access_removed')).toBe(
+      false,
+    )
   })
 
   it('names only real notification types as actionable', () => {
@@ -98,6 +139,22 @@ describe('whether a queued email still has work to announce', () => {
 
   it('holds back an actionable notice the reader already read', () => {
     expect(isStillActionable(row({ status: 'read' }))).toBe(false)
+  })
+
+  it('sends an email-only anchor, which is stored read but nobody read', () => {
+    expect(isStillActionable(row({ status: 'read', readAt: null }))).toBe(true)
+  })
+
+  it('holds back an email-only anchor whose work was settled', () => {
+    expect(
+      isStillActionable(
+        row({
+          status: 'read',
+          readAt: null,
+          resolvedAt: new Date('2026-09-23T09:00:00Z'),
+        }),
+      ),
+    ).toBe(false)
   })
 
   it('holds back an actionable notice the reader dismissed', () => {

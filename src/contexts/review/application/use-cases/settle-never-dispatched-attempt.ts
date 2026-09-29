@@ -14,6 +14,7 @@
 import type { PropertyId } from '#/shared/domain/ids'
 import type { Reply } from '../../domain/types'
 import { reviewReplyPublishFailed } from '../../domain/events'
+import { replyAuthor } from '../../domain/reply-author'
 import type { ReplyRepository } from '../ports/reply.repository'
 import type { ReplyCommandStore } from '../ports/reply-command-store.port'
 import type {
@@ -96,7 +97,7 @@ export async function settleIfNeverDispatched(
     reviewId: reply.reviewId,
     propertyId: input.propertyId,
     organizationId: reply.organizationId,
-    authorId: reply.createdBy,
+    authorId: replyAuthor(reply),
     outcome: 'not_sent',
     occurredAt: now,
   })

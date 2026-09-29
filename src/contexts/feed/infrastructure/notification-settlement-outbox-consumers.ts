@@ -1,10 +1,12 @@
 // Durable settlement for notices whose work has since been done.
 //
 // Every other notification consumer in Feed announces something. This one
-// retires: when the fact that finishes the work arrives — a reply decided or
-// published, an escalation resolved, a Handling Cycle closed, a responsible
-// manager chosen again — it stamps the still-waiting rows about that resource
-// and cancels the mail queued behind them.
+// retires: when the fact that finishes the work arrives — a reply decided,
+// published or returned to draft, an escalation resolved, a Handling Cycle
+// closed, a responsible manager chosen again, a Portal's Health recovered, a
+// Google connection reconnected, a purge called off, a Property archived — it
+// stamps the still-waiting rows about that resource and cancels the mail
+// queued behind them.
 //
 // It writes through the repositories rather than queueing a job: settling is
 // one bounded update per fact and carries no per-recipient decision, so a
@@ -15,6 +17,7 @@
 import type { ConsumerEvent, ConsumerRegistry, OutboxRepository } from '#/shared/outbox'
 import { validateEventPayload } from '#/shared/events/schema-registry'
 import {
+  googleConnectionId,
   inboxItemId,
   organizationId,
   portalId,
@@ -27,7 +30,14 @@ import { isRecordPayload, requiredString } from './outbox-payload-fields'
 import type { NotificationRepositoryPort } from '../application/ports/notification-repository.port'
 import type { NotificationEmailRepositoryPort } from '../application/ports/notification-email-repository.port'
 import type { InboxItemLookupPort } from '../application/ports/notification-inbox-item-lookup.port'
+import type { NotificationWorkState } from '../application/notification-work-state'
+import { isActionablePortalHealthReason } from '../application/portal-health-notification'
 import {
+  settleGroupedReopens,
+  type GroupedReopenSettlementDeps,
+} from './grouped-reopen-settlement'
+import {
+  PURGE_CANCELLED_EMAIL_REASON,
   SETTLED_EMAIL_REASON,
   settledNotificationTypes,
   type SettlingFact,
@@ -36,9 +46,29 @@ import {
 /**
  * What the settled notices point at. Reply and Inbox notices are filed against
  * their Inbox item (ADR 0046, merged ADR 0022); a "choose a responsible
- * manager" request is filed against the Property or Portal that has the gap.
+ * manager" request against the Property or Portal that has the gap; a Health
+ * notice against its Portal; a reconnect request against the Google
+ * connection; the final deletion warning against its Organization. An
+ * archive finishes every notice on the Property, whatever it points at.
  */
-type SettledResourceKind = 'inbox_item_by_review' | 'inbox_item' | 'property' | 'portal'
+type SettledResourceKind =
+  | 'inbox_item_by_review'
+  | 'inbox_item'
+  | 'property'
+  | 'portal'
+  | 'google_connection'
+  | 'organization'
+  | 'property_wide'
+
+/**
+ * The facts that finish work only in some of their shapes. A selection change
+ * says what the scope is LEFT with, so only one that leaves somebody
+ * responsible closes a gap. A Health change finishes the notice only when the
+ * new interval needs nobody: recovered, or a state such as a draft that no
+ * manager has to fix. A lifecycle change takes the deletion warning back only
+ * when the Organization is active again: the purge was called off.
+ */
+type SettlingCondition = 'staffed' | 'health_needs_nobody' | 'lifecycle_active'
 
 /** Which settling fact each subscribed event carries, and under what name. */
 export const NOTIFICATION_SETTLEMENT_CONSUMERS = [
@@ -61,6 +91,12 @@ export const NOTIFICATION_SETTLEMENT_CONSUMERS = [
     resource: 'inbox_item_by_review',
   },
   {
+    eventType: 'review.reply.publication_cancelled',
+    consumerName: 'notification.settle-on-review-reply-publication-cancelled',
+    fact: 'reply.returned_to_draft',
+    resource: 'inbox_item_by_review',
+  },
+  {
     eventType: 'inbox.inbox_item.escalation_resolved',
     consumerName: 'notification.settle-on-inbox-escalation-resolved',
     fact: 'escalation.resolved',
@@ -71,6 +107,7 @@ export const NOTIFICATION_SETTLEMENT_CONSUMERS = [
     consumerName: 'notification.settle-on-inbox-handling-cycle-closed',
     fact: 'handling_cycle.closed',
     resource: 'inbox_item',
+    settlesGroupedReopens: true,
   },
   // A selection change says what the scope is left with. Only one that leaves
   // somebody responsible closes the gap; one that leaves nobody opens a new
@@ -80,14 +117,47 @@ export const NOTIFICATION_SETTLEMENT_CONSUMERS = [
     consumerName: 'notification.settle-on-property-responsibility-restored',
     fact: 'property.responsibility_restored',
     resource: 'property',
-    onlyWhenStaffed: true,
+    onlyWhen: 'staffed',
   },
   {
     eventType: 'portal.responsible_managers.updated',
     consumerName: 'notification.settle-on-portal-responsibility-restored',
     fact: 'portal.responsibility_restored',
     resource: 'portal',
-    onlyWhenStaffed: true,
+    onlyWhen: 'staffed',
+  },
+  {
+    eventType: 'portal.health.changed',
+    consumerName: 'notification.settle-on-portal-health-recovered',
+    fact: 'portal_health.recovered',
+    resource: 'portal',
+    onlyWhen: 'health_needs_nobody',
+  },
+  {
+    eventType: 'property.archived',
+    consumerName: 'notification.settle-on-property-archived',
+    fact: 'property.archived',
+    resource: 'property_wide',
+  },
+  {
+    eventType: 'identity.organization_lifecycle.changed',
+    consumerName: 'notification.settle-on-organization-purge-cancelled',
+    fact: 'organization.purge_cancelled',
+    resource: 'organization',
+    onlyWhen: 'lifecycle_active',
+    emailReason: PURGE_CANCELLED_EMAIL_REASON,
+  },
+  {
+    eventType: 'integration.google_account.connected',
+    consumerName: 'notification.settle-on-google-account-connected',
+    fact: 'google_connection.reconnected',
+    resource: 'google_connection',
+  },
+  {
+    eventType: 'integration.google_account.disconnected',
+    consumerName: 'notification.settle-on-google-account-disconnected',
+    fact: 'google_connection.disconnected',
+    resource: 'google_connection',
   },
 ] as const satisfies ReadonlyArray<
   Readonly<{
@@ -95,16 +165,29 @@ export const NOTIFICATION_SETTLEMENT_CONSUMERS = [
     consumerName: string
     fact: SettlingFact
     resource: SettledResourceKind
-    onlyWhenStaffed?: boolean
+    onlyWhen?: SettlingCondition
+    /** Why the queued mail is cancelled, when it is not finished work. */
+    emailReason?: string
+    /** Also settle the Property's grouped reopens with nothing left open. */
+    settlesGroupedReopens?: boolean
   }>
 >
 
 type SettlementRoute = (typeof NOTIFICATION_SETTLEMENT_CONSUMERS)[number]
 
 export type NotificationSettlementConsumerDeps = Readonly<{
-  notifications: Pick<NotificationRepositoryPort, 'settleUnreadForResource'>
+  notifications: Pick<
+    NotificationRepositoryPort,
+    'settleUnreadForResource' | 'settleUnreadForProperty'
+  >
   emails: Pick<NotificationEmailRepositoryPort, 'cancelQueuedForNotifications'>
   inboxItemLookup: Pick<InboxItemLookupPort, 'findInboxItemByReviewId'>
+  /**
+   * Whether each type's work is really finished now. A fact handled late must
+   * not retire a request made again since, which coalesced into the same row.
+   */
+  workState: Pick<NotificationWorkState, 'finished' | 'isWaiting'>
+  groupedReopens: GroupedReopenSettlementDeps['groupedReopens']
   clock: () => Date
   logger: LoggerPort
   receipts: Pick<OutboxRepository, 'insertReceipt'>
@@ -145,18 +228,22 @@ function parsePayload(event: ConsumerEvent): Readonly<Record<string, unknown>> {
   return parsed
 }
 
-/**
- * Whether this fact finishes work at all. A selection change says what the
- * scope is LEFT with: one that leaves nobody responsible opens a gap rather
- * than closing one, and the `responsibility_became_needed` routes announce it.
- */
+/** Whether this fact finishes work at all, in the shape it arrived in. */
 const finishesWork = (
   route: SettlementRoute,
   payload: Readonly<Record<string, unknown>>,
 ): boolean => {
-  if (!('onlyWhenStaffed' in route && route.onlyWhenStaffed)) return true
-  const count = payload.assignmentCount
-  return typeof count === 'number' && count > 0
+  if (!('onlyWhen' in route)) return true
+  switch (route.onlyWhen) {
+    case 'staffed':
+      return typeof payload.assignmentCount === 'number' && payload.assignmentCount > 0
+    case 'health_needs_nobody':
+      return (
+        payload.status === 'healthy' || !isActionablePortalHealthReason(payload.reason)
+      )
+    case 'lifecycle_active':
+      return payload.state === 'active'
+  }
 }
 
 /**
@@ -178,10 +265,61 @@ async function resolveResource(
     case 'inbox_item':
       return inboxItemId(field(payload, 'inboxItemId'))
     case 'property':
+    case 'property_wide':
       return propertyId(field(payload, 'propertyId'))
     case 'portal':
       return portalId(field(payload, 'portalId'))
+    case 'google_connection':
+      return googleConnectionId(field(payload, 'connectionId'))
+    case 'organization':
+      return orgId
   }
+}
+
+/**
+ * Retire the still-waiting notices about one resource whose work is finished
+ * now, and cancel the mail queued behind them.
+ */
+async function settleResource(
+  deps: NotificationSettlementConsumerDeps,
+  route: SettlementRoute,
+  target: Readonly<{ orgId: OrganizationId; resourceId: string; resolvedAt: Date }>,
+): Promise<Readonly<{ settled: number; cancelled: number }>> {
+  const { orgId, resourceId, resolvedAt } = target
+  // A Property-wide fact finishes everything on the Property: there is no one
+  // resource whose work could have been asked for again.
+  const types =
+    route.resource === 'property_wide'
+      ? settledNotificationTypes(route.fact)
+      : await deps.workState.finished({
+          organizationId: orgId,
+          resourceId,
+          types: settledNotificationTypes(route.fact),
+        })
+  if (types.length === 0) return { settled: 0, cancelled: 0 }
+
+  const settled =
+    route.resource === 'property_wide'
+      ? await deps.notifications.settleUnreadForProperty({
+          organizationId: orgId,
+          propertyId: propertyId(resourceId),
+          types,
+          resolvedAt,
+        })
+      : await deps.notifications.settleUnreadForResource({
+          organizationId: orgId,
+          types,
+          resourceId,
+          resolvedAt,
+        })
+  if (settled.length === 0) return { settled: 0, cancelled: 0 }
+  const cancelled = await deps.emails.cancelQueuedForNotifications(
+    settled,
+    orgId,
+    'emailReason' in route ? route.emailReason : SETTLED_EMAIL_REASON,
+    resolvedAt,
+  )
+  return { settled: settled.length, cancelled }
 }
 
 export async function handleNotificationSettlementEvent(
@@ -204,24 +342,24 @@ export async function handleNotificationSettlementEvent(
   }
 
   const resolvedAt = deps.clock()
-  const settled = await deps.notifications.settleUnreadForResource({
-    organizationId: orgId,
-    types: settledNotificationTypes(route.fact),
-    resourceId,
-    resolvedAt,
-  })
-  if (settled.length > 0) {
-    const cancelled = await deps.emails.cancelQueuedForNotifications(
-      settled,
-      orgId,
-      SETTLED_EMAIL_REASON,
-      resolvedAt,
-    )
+  const settled = await settleResource(deps, route, { orgId, resourceId, resolvedAt })
+  // A grouped reopen is filed under one of its items, so no resource reaches
+  // it: each closed cycle asks about the Property's grouped reopens instead.
+  const grouped =
+    'settlesGroupedReopens' in route
+      ? await settleGroupedReopens(deps, {
+          organizationId: orgId,
+          propertyId: propertyId(field(payload, 'propertyId')),
+          resolvedAt,
+        })
+      : 0
+  if (settled.settled + grouped > 0) {
     deps.logger.info(
       {
         correlationId: event.correlationId ?? undefined,
-        settled: settled.length,
-        cancelled,
+        settled: settled.settled,
+        grouped,
+        cancelled: settled.cancelled,
         fact: route.fact,
       },
       'Notices settled because their work is done',
@@ -263,6 +401,12 @@ export function registerNotificationSettlementConsumers(
     handler,
   })
   registerConsumer({
+    eventType: 'review.reply.publication_cancelled',
+    consumerName: 'notification.settle-on-review-reply-publication-cancelled',
+    module: 'notification.settlement-outbox-consumers',
+    handler,
+  })
+  registerConsumer({
     eventType: 'inbox.inbox_item.escalation_resolved',
     consumerName: 'notification.settle-on-inbox-escalation-resolved',
     module: 'notification.settlement-outbox-consumers',
@@ -283,6 +427,36 @@ export function registerNotificationSettlementConsumers(
   registerConsumer({
     eventType: 'portal.responsible_managers.updated',
     consumerName: 'notification.settle-on-portal-responsibility-restored',
+    module: 'notification.settlement-outbox-consumers',
+    handler,
+  })
+  registerConsumer({
+    eventType: 'portal.health.changed',
+    consumerName: 'notification.settle-on-portal-health-recovered',
+    module: 'notification.settlement-outbox-consumers',
+    handler,
+  })
+  registerConsumer({
+    eventType: 'property.archived',
+    consumerName: 'notification.settle-on-property-archived',
+    module: 'notification.settlement-outbox-consumers',
+    handler,
+  })
+  registerConsumer({
+    eventType: 'identity.organization_lifecycle.changed',
+    consumerName: 'notification.settle-on-organization-purge-cancelled',
+    module: 'notification.settlement-outbox-consumers',
+    handler,
+  })
+  registerConsumer({
+    eventType: 'integration.google_account.connected',
+    consumerName: 'notification.settle-on-google-account-connected',
+    module: 'notification.settlement-outbox-consumers',
+    handler,
+  })
+  registerConsumer({
+    eventType: 'integration.google_account.disconnected',
+    consumerName: 'notification.settle-on-google-account-disconnected',
     module: 'notification.settlement-outbox-consumers',
     handler,
   })

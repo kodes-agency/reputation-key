@@ -59,6 +59,8 @@ import {
 } from './process-failure'
 import { createPublishReplyScopeResolver } from '#/contexts/review/infrastructure/jobs/publish-reply-scope-resolver'
 import { createOutboxRelay } from '#/shared/outbox/relay'
+import { republishLostDispatches } from '#/shared/outbox/lost-dispatch-recovery'
+import { createPublishedAwaitingReceiptsReader } from '#/shared/outbox/infrastructure/published-awaiting-receipts'
 import { createDispatcherHandler } from '#/shared/outbox/dispatcher'
 import type { Worker } from 'bullmq'
 
@@ -261,6 +263,8 @@ async function main() {
         managed: schedulerPlan.managedJobNames.length,
         enabled: schedulerPlan.desired.length,
         removedSchedulerIds: scheduleReconciliation.removedSchedulerIds,
+        // Only changed schedulers are upserted; an unchanged one keeps its run.
+        upsertedSchedulerIds: scheduleReconciliation.upsertedSchedulerIds,
       },
       'Background job scheduler set reconciled',
     )
@@ -318,6 +322,26 @@ async function main() {
     )
   }
 
+  // Dispatch jobs live only in Queue Redis too. Their outbox rows are already
+  // published, so after a loss nothing but this pass puts them back inside the
+  // redelivery sweep's two-hour horizon. It runs at boot and whenever the
+  // watchdog below finds Queue Redis emptied; it never throws.
+  const recoverLostDispatches = async (): Promise<void> => {
+    if (!domainEventsQueue) return
+    try {
+      await republishLostDispatches({
+        readPublishedAwaitingReceipts: createPublishedAwaitingReceiptsReader(
+          container.db,
+        ),
+        queue: domainEventsQueue,
+        clock: container.clock,
+        logger,
+      })
+    } catch (err) {
+      logger.error({ err }, 'Lost dispatch recovery failed')
+    }
+  }
+
   // Schedulers — and the boot observations beside them — live only in Queue
   // Redis, which needs no persistence (ADR 0053). A restart without it, or a
   // failover to an empty replica, would leave this reconnected worker running
@@ -332,6 +356,7 @@ async function main() {
         logger,
         onRestored: async () => {
           await runtimeObservationStore?.recordBoot(bootObservation)
+          await recoverLostDispatches()
         },
       })
     : () => {}
@@ -347,6 +372,7 @@ async function main() {
   }
   const relay = createOutboxRelay(container.outboxRepo, domainEventsQueue)
   const stopRelay = relay.start(1_000)
+  void recoverLostDispatches()
   const domainEventsWorker = createJobWorker(
     'domain-events',
     createDispatcherHandler(container.outboxRepo, {
