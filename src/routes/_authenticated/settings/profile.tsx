@@ -24,9 +24,12 @@ export const Route = createFileRoute('/_authenticated/settings/profile')({
   loader: async ({ context }) => {
     const organizationId =
       (context as AuthRouteContext).activeOrganization?.id ?? NO_ACTIVE_ORGANIZATION
-    // Primed, not awaited as a gate: the card below appears when it answers,
-    // and the name and avatar never wait on the notification settings.
-    void context.queryClient.prefetchQuery(notificationUserSettingsQuery(organizationId))
+    // Awaited, so the server renders the card the client hydrates: rendering
+    // it on one side and its loading state on the other is a hydration
+    // mismatch, and React then re-renders the page under the reader's first
+    // click. `prefetchQuery` never throws, so a failed read shows in the card,
+    // with Try again, and never takes the name and avatar down with it.
+    await context.queryClient.prefetchQuery(notificationUserSettingsQuery(organizationId))
   },
   component: ProfileSettings,
 })

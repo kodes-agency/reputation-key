@@ -5,8 +5,8 @@
 // and quiet hours, where they read as one Property's.
 //
 // The row is per Organization membership (ADR 0046 r.3), so the card says
-// which Organization it sets them for. Profile does not wait for it: the card
-// shows its own loading and failure, and the name and avatar never do.
+// which Organization it sets them for. A failed read shows here, with Try
+// again, rather than as an error for the whole of Profile.
 
 import type { Action } from '#/components/hooks/use-action'
 import { Button } from '#/components/ui/button'
