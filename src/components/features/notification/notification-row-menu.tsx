@@ -39,6 +39,9 @@ export function NotificationRowMenu({
   actions,
 }: Props) {
   const isUnread = notification.status === 'unread'
+  // A settled row has stopped asking and shows no unread dot, though it stays
+  // unread until opened: offering "Mark as read" on it contradicted the row.
+  const isSettled = notification.resolvedAt !== null
   // A mute is a per-Property in-app switch. An Organization-scoped row
   // (mandatory, or the ADR 0059 report outcome) has no Property to switch
   // off, even when its category is configurable elsewhere.
@@ -62,12 +65,13 @@ export function NotificationRowMenu({
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
-        {isUnread ? (
+        {!isSettled && isUnread && (
           <DropdownMenuItem onSelect={() => actions.onMarkRead(notification.id)}>
             <Check aria-hidden="true" />
             Mark as read
           </DropdownMenuItem>
-        ) : (
+        )}
+        {!isSettled && !isUnread && (
           <DropdownMenuItem onSelect={() => actions.onMarkUnread(notification.id)}>
             <Undo2 aria-hidden="true" />
             Mark as unread

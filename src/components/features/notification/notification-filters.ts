@@ -1,14 +1,15 @@
 // Feed filtering + grouping. Pure functions over rows the server already sent.
 //
-// The category tabs are derived from GOVERNING_NOTIFICATION_CATEGORIES, not
-// hardcoded. `recognition` shows as "Goals", the goal results it governs
-// (ADR 0046, amended 2026-09-22). `mandatory` DOES govern types
-// now (Organization access granted/removed, role changed, purge pending), so
-// it earns a tab: a category the reader cannot switch off is still one they
-// may filter to. One list per question, both from the domain.
+// The bell and the page offer two tabs: All and Unread. They used to add
+// Urgent and one tab per category (Account, Action, Workflow, Goals), which
+// wrapped onto a second line in the popover and on a phone, exposed the
+// internal category list rather than a question a reader asks, and were
+// mostly empty: Account and Goals rarely hold anything, and Urgent overlapped
+// Action. The server still answers every `NotificationListFilter`, so "Mark all
+// read" and an old bookmarked filter keep their meaning; an unknown or retired
+// filter in the URL falls back to All.
 
 import {
-  GOVERNING_NOTIFICATION_CATEGORIES,
   isStillWaiting,
   type NotificationView,
   type NotificationListFilter,
@@ -29,11 +30,6 @@ export type NotificationFilterOption = Readonly<{
 export const NOTIFICATION_FILTERS: ReadonlyArray<NotificationFilterOption> = [
   { value: 'all', label: 'All' },
   { value: 'unread', label: 'Unread' },
-  { value: 'urgent', label: 'Urgent' },
-  ...GOVERNING_NOTIFICATION_CATEGORIES.map((category) => ({
-    value: category,
-    label: CATEGORY_COPY[category].shortLabel,
-  })),
 ]
 
 const VALID_FILTERS: Readonly<Record<string, true>> = Object.fromEntries(

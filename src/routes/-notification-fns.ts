@@ -23,6 +23,8 @@ import {
   dismissAllNotificationsFn,
   muteNotificationCategoryFn,
   getNotificationUserSettingsFn,
+  restoreNotificationFn,
+  undoNotificationCategoryMuteFn,
 } from '#/contexts/feed/server/notifications'
 import type { NotificationServerFns } from '#/components/features/notification/types'
 
@@ -50,6 +52,12 @@ export const notificationFns: NotificationServerFns = {
   },
   get muteCategory() {
     return muteNotificationCategoryFn
+  },
+  get restore() {
+    return restoreNotificationFn
+  },
+  get undoMuteCategory() {
+    return undoNotificationCategoryMuteFn
   },
   get getUserSettings() {
     return getNotificationUserSettingsFn

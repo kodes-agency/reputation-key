@@ -43,6 +43,8 @@ import {
   markNotificationReadFn,
   markNotificationUnreadFn,
   muteNotificationCategoryFn,
+  restoreNotificationFn,
+  undoNotificationCategoryMuteFn,
 } from './notifications'
 
 const ACTOR = {
@@ -97,6 +99,7 @@ const ownedRowMutations = [
   ['markNotificationReadFn', markNotificationReadFn],
   ['markNotificationUnreadFn', markNotificationUnreadFn],
   ['dismissNotificationFn', dismissNotificationFn],
+  ['restoreNotificationFn', restoreNotificationFn],
 ] as const
 
 describe('notification server functions map Feed refusals', () => {
@@ -134,6 +137,24 @@ describe('notification server functions map Feed refusals', () => {
       code: 'invalid_input',
       status: 400,
       message: 'This notification channel is required and cannot be disabled',
+    })
+  })
+
+  it('refuses to undo a mute of a required in-app channel with 400, before any write', async () => {
+    await expect(
+      withStartContext(() =>
+        undoNotificationCategoryMuteFn({
+          data: {
+            propertyId: PROPERTY_ID,
+            category: 'urgent_operational',
+            previous: null,
+          },
+        }),
+      ),
+    ).rejects.toMatchObject({
+      _tag: 'NotificationError',
+      code: 'invalid_input',
+      status: 400,
     })
   })
 })

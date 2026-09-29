@@ -190,6 +190,24 @@ const countVisibleUnread = async (
   return rows[0]!
 }
 
+/**
+ * A row may become unread again only while no other row waits under its
+ * (user, type, resource) unread key, ADR 0046 r.2's partial unique key, or
+ * when it is settled, which that key does not cover. Mark-unread and a
+ * dismissal's Undo both pass through it. The sibling is looked for in the
+ * row's own Organization.
+ */
+const mayBecomeUnread = (userId: string) =>
+  sql`(notifications.resolved_at IS NOT NULL OR NOT EXISTS (
+    SELECT 1 FROM notifications AS unread_sibling
+     WHERE unread_sibling.organization_id = notifications.organization_id
+       AND unread_sibling.user_id = ${userId}
+       AND unread_sibling.type = notifications.type
+       AND unread_sibling.resource_id = notifications.resource_id
+       AND unread_sibling.status = 'unread'
+       AND unread_sibling.resolved_at IS NULL
+  ))`
+
 export const createNotificationRepository = (db: Database) => ({
   // ── Mutations ────────────────────────────────────────────────────
 
@@ -466,18 +484,52 @@ export const createNotificationRepository = (db: Database) => ({
           eq(notifications.userId, userId),
           eq(notifications.organizationId, orgId),
           eq(notifications.status, 'read'),
-          sql`(notifications.resolved_at IS NOT NULL OR NOT EXISTS (
-            SELECT 1 FROM notifications AS unread_sibling
-             WHERE unread_sibling.user_id = ${userId}
-               AND unread_sibling.type = notifications.type
-               AND unread_sibling.resource_id = notifications.resource_id
-               AND unread_sibling.status = 'unread'
-               AND unread_sibling.resolved_at IS NULL
-          ))`,
+          mayBecomeUnread(userId),
         ),
       )
       .returning()
     return rows[0] ? notificationFromRow(rows[0]) : null
+  },
+
+  /**
+   * Dismissed -> read or unread: a dismissal's undo. `status` is what the row
+   * was before it went (`restoreDismissedNotification`). It comes back unread
+   * only while no other waiting row holds its (user, type, resource) unread
+   * key, the guard `markUnread` uses; otherwise it comes back read, stamped
+   * now, so it never passes for an email-only anchor (read, no read time).
+   * Resolves to the restored row, or null when no dismissed row matched.
+   */
+  restoreDismissed: async (
+    id: string,
+    userId: string,
+    orgId: string,
+    status: 'read' | 'unread',
+    updatedAt: Date,
+  ): Promise<Notification | null> => {
+    const dismissedRow = and(
+      eq(notifications.id, id),
+      eq(notifications.userId, userId),
+      eq(notifications.organizationId, orgId),
+      eq(notifications.status, 'dismissed'),
+    )
+    if (status === 'unread') {
+      const unread = await db
+        .update(notifications)
+        .set({ status: 'unread', updatedAt })
+        .where(and(dismissedRow, mayBecomeUnread(userId)))
+        .returning()
+      if (unread[0]) return notificationFromRow(unread[0])
+    }
+    const read = await db
+      .update(notifications)
+      .set(
+        status === 'unread'
+          ? { status: 'read', readAt: updatedAt, updatedAt }
+          : { status: 'read', updatedAt },
+      )
+      .where(dismissedRow)
+      .returning()
+    return read[0] ? notificationFromRow(read[0]) : null
   },
 
   // Clear-all: dismiss every notification the reader's feed shows.

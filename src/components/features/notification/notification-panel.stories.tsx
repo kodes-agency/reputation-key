@@ -13,6 +13,7 @@
 // that one factory.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { toast } from 'sonner'
 import { Toaster } from '#/components/ui/sonner'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import {
@@ -48,11 +49,39 @@ const loadedFeedHead = (async () =>
     unreadCount,
   )) as unknown as NotificationServerFns['getFeedHead']
 
-/** Dismisses the first row; answers how many rows the list held before. */
-async function dismissFirstRow(popover: ReturnType<typeof within>): Promise<number> {
+type Popover = ReturnType<typeof within>
+
+/** Picks `item` from the first row's menu. Radix portals the menu outside the popover. */
+async function chooseFromFirstRowMenu(popover: Popover, item: string): Promise<void> {
+  await userEvent.click(
+    popover.getAllByRole('button', { name: /^More actions for:/ })[0]!,
+  )
+  await userEvent.click(
+    await within(document.body).findByRole('menuitem', { name: item }),
+  )
+}
+
+/** Dismisses the first row from its menu; answers how many rows the list held before. */
+async function dismissFirstRow(popover: Popover): Promise<number> {
   const before = (await popover.findAllByRole('listitem')).length
-  await userEvent.click(popover.getAllByRole('button', { name: /^Dismiss:/ })[0]!)
+  await chooseFromFirstRowMenu(popover, 'Dismiss')
   return before
+}
+
+/**
+ * Opens a row's menu from the keyboard and chooses Dismiss. The menu opens on
+ * its first item, "Mark as read" on an unread row; Dismiss is the next.
+ */
+async function dismissFromTheKeyboard(trigger: HTMLElement): Promise<void> {
+  trigger.focus()
+  await userEvent.keyboard('{Enter}')
+  const menu = within(document.body)
+  await waitFor(() =>
+    expect(menu.getByRole('menuitem', { name: 'Mark as read' })).toHaveFocus(),
+  )
+  await userEvent.keyboard('{ArrowDown}')
+  expect(menu.getByRole('menuitem', { name: 'Dismiss' })).toHaveFocus()
+  await userEvent.keyboard('{Enter}')
 }
 
 const meta: Meta<typeof NotificationPanel> = {
@@ -61,6 +90,11 @@ const meta: Meta<typeof NotificationPanel> = {
   tags: ['autodocs'],
   parameters: { layout: 'centered' },
   args: { notificationFns: loadedFns, organizationId: ORGANIZATION_ID },
+  // Sonner's store outlives a story, and a Toaster that mounts replays every
+  // toast still showing, so one story's toast would reappear in the next.
+  beforeEach: () => {
+    toast.dismiss()
+  },
   // The app's toaster: failures and mutes must be seen, not only announced.
   decorators: [
     (Story) => (
@@ -162,18 +196,21 @@ const pendingRowFns = (rows: typeof notificationFixtures) =>
   })
 
 /**
- * The dismissed row takes its focused button with it. Focus moves to the same
- * control on the next row, so a keyboard user can clear one notice after
- * another, instead of landing on <body> outside the non-modal popover.
+ * The dismissed row takes the menu button that opened its menu with it. Focus
+ * moves to the same control on the next row, so a keyboard user can clear one
+ * notice after another, instead of landing on <body> outside the non-modal
+ * popover.
  */
 export const DismissKeepsFocusInTheList: Story = {
   args: { notificationFns: pendingRowFns(notificationFixtures) },
   play: async ({ canvasElement }) => {
     const popover = await openBell(canvasElement)
-    const [first, second] = await popover.findAllByRole('button', { name: /^Dismiss:/ })
-    first!.focus()
-    await userEvent.keyboard('{Enter}')
+    const [first, second] = await popover.findAllByRole('button', {
+      name: /^More actions for:/,
+    })
+    await dismissFromTheKeyboard(first!)
     await waitFor(() => expect(second).toHaveFocus())
+    await waitFor(() => expect(document.querySelector('[role="menu"]')).toBeNull())
   },
 }
 
@@ -200,8 +237,9 @@ export const DismissingTheLastRowFocusesTheList: Story = {
   args: { notificationFns: pendingRowFns(notificationFixtures.slice(0, 1)) },
   play: async ({ canvasElement }) => {
     const popover = await openBell(canvasElement)
-    ;(await popover.findByRole('button', { name: /^Dismiss:/ })).focus()
-    await userEvent.keyboard('{Enter}')
+    await dismissFromTheKeyboard(
+      await popover.findByRole('button', { name: /^More actions for:/ }),
+    )
     const list = await popover.findByRole('group', { name: 'Notification list' })
     await waitFor(() => expect(list).toHaveFocus())
     expect(within(list).getByText(/nothing here right now/i)).toBeInTheDocument()
@@ -263,7 +301,10 @@ export const OpeningTheBellArmsNothing: Story = {
   },
 }
 
-/** Rows of two categories: tidying Workflow must leave the urgent alert unread. */
+/**
+ * Two rows still waiting on the reader, and one whose work was settled
+ * upstream: still unread, but asking for nothing, so not on the Unread tab.
+ */
 const tabbedFeed = [
   makeNotification({
     id: '60000000-0000-4000-8000-000000000001',
@@ -280,7 +321,8 @@ const tabbedFeed = [
   }),
   makeNotification({
     id: '60000000-0000-4000-8000-000000000003',
-    type: 'inbox_note.added',
+    type: 'reply.pending_approval',
+    resolvedAt: new Date(Date.now() - 60_000),
     payload: { propertyName: 'Harbour View Suites' },
     createdAt: new Date(Date.now() - 4 * 60_000),
   }),
@@ -289,9 +331,10 @@ const tabbedServer = makeStatefulNotificationFns(tabbedFeed)
 const markTabRead = fn(tabbedServer.markAllRead)
 
 /**
- * "Mark all read" marks what the tab shows. On Workflow it used to clear the
- * urgent escalation and account notices too; now it sends the tab, and the
- * badge keeps counting what is still unread elsewhere.
+ * "Mark all read" marks what the tab shows. It sends the tab, so on Unread it
+ * marks the rows still waiting and nothing else: the settled row keeps its
+ * unread status. A settled row shows no read state, so that is read back from
+ * the server the story runs against.
  */
 export const MarkAllReadFollowsTheTab: Story = {
   args: {
@@ -303,22 +346,34 @@ export const MarkAllReadFollowsTheTab: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const popover = await openBell(canvasElement)
-    await userEvent.click(await popover.findByRole('tab', { name: 'Workflow' }))
+    await userEvent.click(await popover.findByRole('tab', { name: 'Unread' }))
     await waitFor(() => expect(popover.getAllByRole('listitem')).toHaveLength(2))
     await userEvent.click(popover.getByRole('button', { name: /mark all read/i }))
 
-    expect(markTabRead).toHaveBeenCalledWith({
-      data: { filter: 'workflow_collaboration' },
-    })
-    await canvas.findByRole('button', { name: 'Notifications, 1 unread' })
+    expect(markTabRead).toHaveBeenCalledWith({ data: { filter: 'unread' } })
+    await canvas.findByRole('button', { name: 'Notifications' })
     expect(popover.queryByRole('button', { name: /mark all read/i })).toBeNull()
+    expect(await popover.findByText(/nothing here right now/i)).toBeInTheDocument()
 
-    await userEvent.click(popover.getByRole('tab', { name: 'All' }))
-    const unread = await popover.findByRole('region', { name: 'New' })
-    const stillUnread = within(unread).getAllByRole('listitem')
-    expect(stillUnread.map((row) => row.dataset.notificationId)).toEqual([
-      tabbedFeed[0]!.id,
+    const { page } = await tabbedServer.getFeedHead({
+      data: { limit: 20, filter: 'all' },
+    })
+    expect(page.notifications.map((row) => [row.id, row.status])).toEqual([
+      [tabbedFeed[0]!.id, 'read'],
+      [tabbedFeed[1]!.id, 'read'],
+      [tabbedFeed[2]!.id, 'unread'],
     ])
+
+    // On All the tab's rows are listed as read; the settled one is done.
+    await userEvent.click(popover.getByRole('tab', { name: 'All' }))
+    const earlier = await popover.findByRole('region', { name: 'Earlier' })
+    await waitFor(() =>
+      expect(
+        within(earlier)
+          .getAllByRole('listitem')
+          .map((row) => row.dataset.notificationState),
+      ).toEqual(['read', 'read', 'done']),
+    )
   },
 }
 
@@ -367,12 +422,17 @@ export const FilterSwitchKeepsTheCount: Story = {
   },
 }
 
-/** Ten rows: taller than a landscape phone, so the list has to scroll. */
+/**
+ * Ten rows: taller than a landscape phone, so the list has to scroll. Four are
+ * unread, and the fifth was settled upstream: still unread, but done, so the
+ * metrics can tell the unread dot from its absence.
+ */
 const tallFeed = Array.from({ length: 10 }, (_, n) =>
   makeNotification({
     id: `50000000-0000-4000-8000-${n.toString().padStart(12, '0')}`,
-    type: 'review.created',
-    status: n < 4 ? 'unread' : 'read',
+    type: n === 4 ? 'reply.pending_approval' : 'review.created',
+    status: n <= 4 ? 'unread' : 'read',
+    resolvedAt: n === 4 ? new Date(Date.now() - 60_000) : null,
     payload: { propertyName: 'Harbour View Suites', platform: 'google' },
     createdAt: new Date(Date.now() - (n + 1) * 7 * 60_000),
   }),
@@ -410,9 +470,8 @@ export const PhoneTopBar: Story = {
 }
 
 /**
- * The same popover in the light theme, where the popover surface and an
- * unread row's elevated surface are the same white unless the list sits on
- * the page tone. Measured by the same metrics file.
+ * The same popover in the light theme, where the unread dot has to hold its
+ * own against a white popover. Measured by the same metrics file.
  */
 export const PhoneTopBarLight: Story = {
   ...PhoneTopBar,
@@ -542,10 +601,22 @@ const muteFeed = [
 ]
 
 /** The toast carrying `message`, once it has entered (sonner animates it in). */
-async function expectToast(message: string | RegExp): Promise<void> {
+async function expectToast(message: string | RegExp): Promise<HTMLElement> {
   const text = await within(document.body).findByText(message)
   await waitFor(() => expect(text).toBeVisible())
+  return text
 }
+
+/** The Undo offered by the toast that says `message`. */
+async function findToastUndo(message: string): Promise<HTMLElement> {
+  const shown = (await expectToast(message)).closest<HTMLElement>('[data-sonner-toast]')
+  if (shown === null) throw new Error(`"${message}" is not in a toast`)
+  return within(shown).getByRole('button', { name: 'Undo' })
+}
+
+const MUTE_ITEM = 'Mute workflow and collaboration for this property'
+const MUTE_CONFIRMATION =
+  'In-app workflow and collaboration notices muted for Harbour View Suites, including earlier ones.'
 
 /**
  * Muting sends only the semantic command, takes that Property's rows of the
@@ -569,23 +640,16 @@ export const MuteCategory: Story = {
     const portal = await openBell(canvasElement)
     await waitFor(() => expect(portal.getAllByRole('listitem')).toHaveLength(3))
     const readsBefore = readMuteFeedHead.mock.calls.length
-    await userEvent.click(
-      portal.getAllByRole('button', { name: /^More actions for:/ })[0]!,
-    )
-    await userEvent.click(
-      await within(document.body).findByRole('menuitem', {
-        name: 'Mute workflow and collaboration for this property',
-      }),
-    )
+    await chooseFromFirstRowMenu(portal, MUTE_ITEM)
 
     await waitFor(() => expect(portal.getAllByRole('listitem')).toHaveLength(1))
-    expect(portal.getByText('New review at Riverside Hotel')).toBeInTheDocument()
+    expect(
+      portal.getByRole('link', { name: /^New review at Riverside Hotel,/ }),
+    ).toBeInTheDocument()
     expect(muteInApp).toHaveBeenCalledWith({
       data: { propertyId: HARBOUR, category: 'workflow_collaboration' },
     })
-    await expectToast(
-      'In-app workflow and collaboration notices muted for Harbour View Suites, including earlier ones.',
-    )
+    await expectToast(MUTE_CONFIRMATION)
     // The feed is read again, so the badge and any loaded history follow.
     await waitFor(() =>
       expect(readMuteFeedHead.mock.calls.length).toBeGreaterThan(readsBefore),
@@ -611,10 +675,114 @@ export const FailedDismissSaysSo: Story = {
   },
 }
 
+const muteUndoServer = makeStatefulNotificationFns(muteFeed)
+const undoMuteInApp = fn(muteUndoServer.undoMuteCategory)
+
+/**
+ * Nothing else on screen says what a mute covered, so its toast offers Undo.
+ * Undo puts the switch back as the mute found it (`previous`, from the mute's
+ * own answer) and the muted rows return. A press on a toast is not a press
+ * outside the bell, so the popover stays open; the rows come back in it, and
+ * the badge counts them at once.
+ */
+export const MuteOffersUndo: Story = {
+  args: {
+    notificationFns: {
+      ...muteUndoServer,
+      undoMuteCategory:
+        undoMuteInApp as unknown as NotificationServerFns['undoMuteCategory'],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const popover = await openBell(canvasElement)
+    await waitFor(() => expect(popover.getAllByRole('listitem')).toHaveLength(3))
+    await chooseFromFirstRowMenu(popover, MUTE_ITEM)
+    await waitFor(() => expect(popover.getAllByRole('listitem')).toHaveLength(1))
+    await canvas.findByRole('button', { name: 'Notifications, 1 unread' })
+
+    await userEvent.click(await findToastUndo(MUTE_CONFIRMATION))
+    await waitFor(() =>
+      expect(undoMuteInApp).toHaveBeenCalledWith({
+        data: { propertyId: HARBOUR, category: 'workflow_collaboration', previous: null },
+      }),
+    )
+    await expectToast('Mute undone.')
+    await canvas.findByRole('button', { name: 'Notifications, 3 unread' })
+
+    // The press on the toast was not a press outside the bell: it stays open,
+    // and the rows come back where the reader is looking.
+    await waitFor(() =>
+      expect(
+        popover.getAllByRole('listitem').map((row) => row.dataset.notificationId),
+      ).toEqual(muteFeed.map((row) => row.id)),
+    )
+  },
+}
+
+/** Two rows to dismiss and take back. */
+const undoableFeed = [
+  makeNotification({
+    id: '64000000-0000-4000-8000-000000000001',
+    type: 'review.created',
+    payload: { propertyName: 'Riverside Hotel', platform: 'google' },
+    createdAt: new Date(Date.now() - 60_000),
+  }),
+  makeNotification({
+    id: '64000000-0000-4000-8000-000000000002',
+    type: 'inbox_note.added',
+    payload: { propertyName: 'Harbour View Suites' },
+    createdAt: new Date(Date.now() - 2 * 60_000),
+  }),
+]
+const undoableServer = makeStatefulNotificationFns(undoableFeed)
+const restoreDismissed = fn(undoableServer.restore)
+
+/**
+ * A dismissed row has nowhere else to be found again, so the toast confirming
+ * the dismissal offers Undo, and Undo brings the row back as it was, unread.
+ * Choosing it does not close the bell (a press on a toast is not a press
+ * outside it), so the row comes back in front of the reader, and the badge
+ * counts it at once.
+ */
+export const DismissOffersUndo: Story = {
+  args: {
+    notificationFns: {
+      ...undoableServer,
+      restore: restoreDismissed as unknown as NotificationServerFns['restore'],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const popover = await openBell(canvasElement)
+    const before = await dismissFirstRow(popover)
+    await waitFor(() => expect(popover.getAllByRole('listitem')).toHaveLength(before - 1))
+    await canvas.findByRole('button', { name: 'Notifications, 1 unread' })
+
+    await userEvent.click(await findToastUndo('Notification dismissed.'))
+    await waitFor(() =>
+      expect(restoreDismissed).toHaveBeenCalledWith({
+        data: { notificationId: undoableFeed[0]!.id },
+      }),
+    )
+    await expectToast('Notification restored.')
+    await canvas.findByRole('button', { name: 'Notifications, 2 unread' })
+
+    // The bell stayed open under the toast, and the row is back in it, unread.
+    const restored = await popover.findByRole('link', {
+      name: /^New review at Riverside Hotel, .*, unread$/,
+    })
+    expect(restored.closest('li')).toHaveAttribute('data-notification-state', 'unread')
+    expect(popover.getAllByRole('listitem')).toHaveLength(before)
+  },
+}
+
 /**
  * Timestamps use the user's PERSISTED locale and IANA timezone. The old
  * formatter hardcoded `'en-US'` even though the settings page advertises both
- * values as "used for notification formatting".
+ * values as "used for notification formatting". The row's own compact clock
+ * ("12m") stays English, like every word in the product; the relative time a
+ * screen reader hears and the absolute time in the tooltip follow the reader.
  */
 export const HonoursPersistedLocale: Story = {
   args: {
@@ -631,7 +799,18 @@ export const HonoursPersistedLocale: Story = {
     const portal = await openBell(canvasElement)
     await portal.findAllByRole('listitem')
     await waitFor(() => {
-      expect(portal.getAllByText(/vor \d+ Minuten/).length).toBeGreaterThan(0)
+      expect(
+        portal.getAllByRole('link', { name: /, vor \d+ Minuten, unread$/ }).length,
+      ).toBeGreaterThan(0)
     })
+    const times = [...document.querySelectorAll('[data-slot="popover-content"] time')]
+    expect(times.length).toBeGreaterThan(0)
+    for (const time of times) {
+      expect(time.textContent).toMatch(/^\d+[mh]$/)
+      // "29.09.2026, 23:21 MESZ": the German date, on Berlin's clock.
+      expect(time.getAttribute('title')).toMatch(
+        /^\d{2}\.\d{2}\.\d{4}, \d{1,2}:\d{2} MES?Z$/,
+      )
+    }
   },
 }

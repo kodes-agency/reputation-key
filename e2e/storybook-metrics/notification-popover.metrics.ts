@@ -5,7 +5,7 @@
 //
 // The popover was a fixed 24rem with no viewport cap and no collision padding.
 // Radix positions it `fixed` and shifts it to the left edge, so on a 320 px
-// phone 64 px of it (every row's dismiss button, the timestamps, "Mark all
+// phone 64 px of it (every row's last control, the timestamps, "Mark all
 // read") sat past the right edge where the page cannot scroll, and on a
 // landscape phone the list and "View all notifications" fell below the fold.
 //
@@ -36,27 +36,39 @@ for (const viewport of VIEWPORTS) {
     await page.setViewportSize({ width: viewport.width, height: viewport.height })
     await openStory(page, STORY)
 
-    const popover = await boxOf(page.locator('[data-slot="popover-content"]'))
+    const layer = page.locator('[data-slot="popover-content"]')
+    const popover = await boxOf(layer)
     expect(popover.x, 'left edge').toBeGreaterThanOrEqual(0)
     expect(popover.x + popover.width, 'right edge').toBeLessThanOrEqual(viewport.width)
     expect(popover.y + popover.height, 'bottom edge').toBeLessThanOrEqual(viewport.height)
 
-    // Narrower than 24rem the six filter tabs wrap onto a second line; the
-    // list must start below them, not under them.
-    const tabs = await boxOf(page.getByRole('tablist', { name: 'Filter notifications' }))
-    const lastTab = await boxOf(page.getByRole('tab').last())
-    const firstGroup = await boxOf(page.getByRole('heading', { name: 'New' }))
-    expect(lastTab.y + lastTab.height, 'the last filter tab').toBeLessThanOrEqual(
-      tabs.y + tabs.height,
-    )
+    // The two filter tabs (All, Unread) share one line, even at 320 px, and
+    // the list starts below them. Six tabs used to wrap onto a second line.
+    const tabs = await boxOf(layer.getByRole('tablist', { name: 'Filter notifications' }))
+    const tabBoxes = await Promise.all((await layer.getByRole('tab').all()).map(boxOf))
+    expect(tabBoxes).toHaveLength(2)
+    for (const tab of tabBoxes) {
+      expect(
+        Math.abs(tab.y - tabBoxes[0]!.y),
+        'a filter tab off the first line',
+      ).toBeLessThan(1)
+      expect(tab.y + tab.height, 'a filter tab').toBeLessThanOrEqual(tabs.y + tabs.height)
+      expect(tab.x + tab.width, 'a filter tab').toBeLessThanOrEqual(viewport.width)
+    }
+    const firstGroup = await boxOf(layer.getByRole('heading', { name: 'New' }))
     expect(tabs.y + tabs.height, 'the filter tabs').toBeLessThanOrEqual(firstGroup.y)
 
-    // Each row's last control is on screen: nothing is cut off at the side.
-    const dismissButtons = await page.getByRole('button', { name: /^Dismiss:/ }).all()
-    expect(dismissButtons.length).toBeGreaterThan(0)
-    for (const button of dismissButtons) {
+    // Each row's last control, its menu button, is on screen: nothing is cut
+    // off at the side. It is transparent until the row is hovered or focused,
+    // but it keeps its box.
+    const rows = await layer.locator('li[data-notification-id]').count()
+    const menuButtons = await layer
+      .getByRole('button', { name: /^More actions for:/ })
+      .all()
+    expect(menuButtons).toHaveLength(rows)
+    for (const button of menuButtons) {
       const box = await boxOf(button)
-      expect(box.x + box.width, 'a dismiss button').toBeLessThanOrEqual(viewport.width)
+      expect(box.x + box.width, 'a row menu button').toBeLessThanOrEqual(viewport.width)
     }
 
     // The footer is reachable without scrolling the page, which cannot move
@@ -67,17 +79,22 @@ for (const viewport of VIEWPORTS) {
   })
 }
 
-// ── Unread rows lift off the popover ────────────────────────────────────────
+// ── The unread dot ──────────────────────────────────────────────────────────
 //
-// Unread rows are drawn on `--surface-elevated` and read rows on nothing
-// (DESIGN.md, Tonal Stack: elevation by lightness, never by shadow). In the
-// light theme `--popover` and `--surface-elevated` are both white, so inside
-// the bell that lift measured 1.00:1: no step at all. The page, on
-// `--background`, shows 1.06:1, and the dark popover 1.08:1.
+// Unread rows used to be drawn on `--surface-elevated`, a lift the light
+// popover could not show (1.00:1: it is white as well). The cue is now a dot
+// beside the row's icon, with a heavier title. A read row has none, and so has
+// a done one: settled upstream, still unread, but asking for nothing. The
+// Vitest runner compiles no CSS, so only a real browser can say the dot is
+// drawn — sized, inside its row, and standing off the popover by WCAG 1.4.11's
+// 3:1 (measured 3.76:1 dark, 9.21:1 light).
+
+/** The dot: the one element beside the icon in the link's icon slot. */
+const DOT = '[data-row-control="open"] > [aria-hidden="true"] > span'
 
 /** WCAG contrast between an element's background and what shows behind it. */
-async function liftOf(row: Locator): Promise<number> {
-  return row.evaluate((element) => {
+async function contrastOf(dot: Locator): Promise<number> {
+  return dot.evaluate((element) => {
     const canvas = document.createElement('canvas')
     canvas.width = 1
     canvas.height = 1
@@ -95,7 +112,7 @@ async function liftOf(row: Locator): Promise<number> {
         const color = rgba(getComputedStyle(node).backgroundColor)
         if (color[3] === 255) return color
       }
-      throw new Error('no opaque background behind the row')
+      throw new Error('no opaque background behind the dot')
     }
     const luminance = ([r, g, b]: number[]) => {
       const linear = (channel: number) => {
@@ -111,15 +128,35 @@ async function liftOf(row: Locator): Promise<number> {
 }
 
 for (const theme of ['dark', 'light'] as const) {
-  test(`unread rows lift off the ${theme} bell popover`, async ({ page }) => {
+  test(`an unread row shows its dot and a done row does not, ${theme} theme`, async ({
+    page,
+  }) => {
     await page.setViewportSize({ width: 1280, height: 800 })
     await openStory(page, theme === 'light' ? `${STORY}-light` : STORY)
-    const unread = page
-      .locator('[data-slot="popover-content"] li[data-notification-id]')
-      .filter({ hasText: 'Unread.' })
-      .first()
-    // The page's own step (--background under a row) is 1.06:1.
-    expect(await liftOf(unread)).toBeGreaterThanOrEqual(1.04)
+    const rows = page.locator('[data-slot="popover-content"] li[data-notification-id]')
+    const unread = rows.and(page.locator('[data-notification-state="unread"]'))
+    const done = rows.and(page.locator('[data-notification-state="done"]'))
+    const read = rows.and(page.locator('[data-notification-state="read"]'))
+    // The story's feed: four unread rows, one done, five read.
+    await expect(unread).toHaveCount(4)
+    await expect(done).toHaveCount(1)
+
+    await expect(unread.locator(DOT)).toHaveCount(4)
+    const dot = unread.first().locator(DOT)
+    await expect(dot).toBeVisible()
+    const box = await boxOf(dot)
+    const row = await boxOf(unread.first())
+    expect(box.width, 'the dot is drawn').toBeGreaterThanOrEqual(4)
+    expect(box.height, 'the dot is drawn').toBeGreaterThanOrEqual(4)
+    expect(box.x, 'the dot inside its row').toBeGreaterThanOrEqual(row.x)
+    expect(box.y, 'the dot inside its row').toBeGreaterThanOrEqual(row.y)
+    expect(box.x + box.width, 'the dot inside its row').toBeLessThanOrEqual(
+      row.x + row.width,
+    )
+    expect(await contrastOf(dot)).toBeGreaterThanOrEqual(3)
+
+    await expect(done.locator(DOT)).toHaveCount(0)
+    await expect(read.locator(DOT)).toHaveCount(0)
   })
 }
 
@@ -149,7 +186,11 @@ test('a keyboard open puts visible focus on the list, not on "Mark all read"', a
     'none',
   )
 
+  // Space on the list changes nothing: "Mark all read" is still offered, and
+  // the four unread rows are still unread.
   await page.keyboard.press('Space')
   await expect(page.getByRole('button', { name: /mark all read/i })).toBeVisible()
-  await expect(page.getByText('Unread.').first()).toBeAttached()
+  await expect(
+    page.locator('[data-slot="popover-content"] li[data-notification-state="unread"]'),
+  ).toHaveCount(4)
 })

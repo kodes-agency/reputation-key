@@ -26,6 +26,7 @@ const PROPERTY = '86300000-0000-4000-8000-000000000001'
 const ROW = '86300000-0000-4000-8000-000000000011'
 const EVENT_ID = 'event-correlation-86300000'
 const FROZEN_TITLE = 'LEGACY SNAPSHOT TITLE 86300000'
+const SIBLING = '86300000-0000-4000-8000-000000000012'
 
 const BROWSER_FIELDS = [
   'category',
@@ -152,5 +153,66 @@ describe.sequential('notification browser contract (real PostgreSQL)', () => {
 
     expect(Object.keys(flipped ?? {}).sort()).toEqual(BROWSER_FIELDS)
     expect(flipped?.status).toBe('unread')
+  })
+
+  // A dismissal's Undo puts the row back as it was.
+  it('restores a dismissed read row as read, keeping when it was read', async () => {
+    const api = feedPublicApi()
+    await api.dismiss(ROW, ORG, userId(USER))
+
+    const restored = await api.restore(ROW, ORG, userId(USER))
+
+    expect(Object.keys(restored ?? {}).sort()).toEqual(BROWSER_FIELDS)
+    expect(restored?.status).toBe('read')
+    expect(restored?.readAt?.toISOString()).toBe('2026-09-21T09:00:00.000Z')
+  })
+
+  it('restores a dismissed row nobody had read as unread', async () => {
+    await pool.query(
+      `UPDATE notifications SET status = 'unread', read_at = NULL WHERE id = $1`,
+      [ROW],
+    )
+    const api = feedPublicApi()
+    await api.dismiss(ROW, ORG, userId(USER))
+
+    const restored = await api.restore(ROW, ORG, userId(USER))
+
+    expect(restored).toMatchObject({ status: 'unread', readAt: null })
+  })
+
+  it('restores it read when another row took its unread place meanwhile', async () => {
+    await pool.query(
+      `UPDATE notifications SET status = 'unread', read_at = NULL WHERE id = $1`,
+      [ROW],
+    )
+    const api = feedPublicApi()
+    await api.dismiss(ROW, ORG, userId(USER))
+    // The same (user, type, resource) arrived again while the row was gone.
+    await pool.query(
+      `INSERT INTO notifications (
+         id, user_id, organization_id, property_id, type, category, priority, status,
+         resource_type, resource_id, event_id, title, body, payload, created_at, updated_at
+       ) VALUES (
+         $1, $2, $3, $4, 'feedback.created', 'urgent_operational', 'normal', 'unread',
+         'inbox_item', $5, 'event-sibling-86300000', 'Sibling', NULL, '{}', NOW(), NOW()
+       )`,
+      [SIBLING, USER, ORG, PROPERTY, `resource-${ROW}`],
+    )
+
+    const restored = await api.restore(ROW, ORG, userId(USER))
+
+    expect(restored?.status).toBe('read')
+    // Stamped, so it never reads as an email-only anchor (read, no read time).
+    expect(restored?.readAt).not.toBeNull()
+  })
+
+  it('has nothing to undo for a row that was never dismissed', async () => {
+    expect(await feedPublicApi().restore(ROW, ORG, userId(USER))).toBeNull()
+  })
+
+  it("refuses to restore somebody else's notification", async () => {
+    await expect(
+      feedPublicApi().restore(ROW, ORG, userId('user-somebody-else')),
+    ).rejects.toMatchObject({ code: 'not_found' })
   })
 })

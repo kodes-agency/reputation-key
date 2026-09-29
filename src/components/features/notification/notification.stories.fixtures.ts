@@ -13,6 +13,7 @@
 
 import {
   classifyNotification,
+  isStillWaiting,
   type NotificationFeedCursor,
   type NotificationFeedHead,
   type NotificationListFilter,
@@ -190,12 +191,13 @@ export function notificationPageFixture(
 
 /**
  * A head as the server answers it. The fixture is the All tab's, so its
- * filter's share of the unread count is the whole count.
+ * filter's share of the unread count is the whole count. The count is what the
+ * endpoint counts: rows still waiting on the reader, so a settled row, unread
+ * but asking for nothing, is not in it.
  */
 export function notificationFeedHeadFixture(
   notifications: ReadonlyArray<NotificationView> = [],
-  unreadCount = notifications.filter((notification) => notification.status === 'unread')
-    .length,
+  unreadCount = notifications.filter(isStillWaiting).length,
   hasMore = false,
 ): NotificationFeedHead {
   return {
@@ -234,7 +236,9 @@ export function makeNotificationFns(
     markAllRead: stub(undefined) as NotificationServerFns['markAllRead'],
     dismiss: stub(undefined) as NotificationServerFns['dismiss'],
     dismissAll: stub(undefined) as NotificationServerFns['dismissAll'],
-    muteCategory: stub(undefined) as NotificationServerFns['muteCategory'],
+    muteCategory: stub({ previous: null }) as NotificationServerFns['muteCategory'],
+    restore: stub(null) as NotificationServerFns['restore'],
+    undoMuteCategory: stub(undefined) as NotificationServerFns['undoMuteCategory'],
     getUserSettings: stub(
       notificationUserSettingsFixture,
     ) as NotificationServerFns['getUserSettings'],
@@ -252,6 +256,11 @@ type FeedRead = Readonly<{
 type BulkRead = Readonly<{ data?: Readonly<{ filter?: NotificationListFilter }> }>
 type RowCommand = Readonly<{ data: Readonly<{ notificationId: string }> }>
 type MuteCommand = Readonly<{ data: Readonly<{ propertyId: string; category: string }> }>
+
+/** Newest first, as the endpoint orders the feed. */
+const feedOrder = (a: NotificationView, b: NotificationView) =>
+  (b.coalescedLatestAt ?? b.createdAt).getTime() -
+    (a.coalescedLatestAt ?? a.createdAt).getTime() || (a.id < b.id ? 1 : -1)
 
 /** Rows strictly after `cursor` in feed order, as the endpoint reads them. */
 function rowsAfter(
@@ -277,6 +286,13 @@ export function makeStatefulNotificationFns(
   overrides: Partial<NotificationServerFns> = {},
 ): NotificationServerFns {
   let rows = [...initial]
+  // What Undo brings back: dismissed rows, and the rows each mute hid.
+  let dismissed: NotificationView[] = []
+  const hiddenByMute = new Map<string, NotificationView[]>()
+  const muteKey = (data: MuteCommand['data']) => `${data.propertyId}|${data.category}`
+  const bringBack = (returning: ReadonlyArray<NotificationView>) => {
+    rows = [...rows, ...returning].sort(feedOrder)
+  }
   const read = (row: NotificationView): NotificationView =>
     row.status === 'unread' ? { ...row, status: 'read', readAt: new Date() } : row
   const pageOf = (candidates: ReadonlyArray<NotificationView>, limit: number) =>
@@ -284,8 +300,10 @@ export function makeStatefulNotificationFns(
 
   const inFilter = (filter: NotificationListFilter = 'all') =>
     rows.filter((row) => matchesNotificationFilter(row, filter))
+  // The badge and a tab's share count what the endpoint counts: rows still
+  // waiting on the reader, never a settled row that kept its unread status.
   const unread = (candidates: ReadonlyArray<NotificationView>) =>
-    candidates.filter((row) => row.status === 'unread').length
+    candidates.filter(isStillWaiting).length
 
   const server = {
     getFeedHead: async ({ data }: FeedRead): Promise<NotificationFeedHead> => ({
@@ -305,7 +323,15 @@ export function makeStatefulNotificationFns(
       rows = rows.map((row) => (row.id === data.notificationId ? read(row) : row))
     },
     dismiss: async ({ data }: RowCommand) => {
+      dismissed = [...dismissed, ...rows.filter((row) => row.id === data.notificationId)]
       rows = rows.filter((row) => row.id !== data.notificationId)
+    },
+    restore: async ({ data }: RowCommand) => {
+      const returning = dismissed.find((row) => row.id === data.notificationId)
+      if (returning === undefined) return null
+      dismissed = dismissed.filter((row) => row !== returning)
+      bringBack([returning])
+      return returning
     },
     markAllRead: async ({ data }: BulkRead) => {
       const filter = data?.filter ?? 'all'
@@ -316,9 +342,15 @@ export function makeStatefulNotificationFns(
     },
     // The server hides every row of a muted in-app category for that Property.
     muteCategory: async ({ data }: MuteCommand) => {
-      rows = rows.filter(
-        (row) => row.propertyId !== data.propertyId || row.category !== data.category,
-      )
+      const muted = (row: NotificationView) =>
+        row.propertyId === data.propertyId && row.category === data.category
+      hiddenByMute.set(muteKey(data), rows.filter(muted))
+      rows = rows.filter((row) => !muted(row))
+      return { previous: null }
+    },
+    undoMuteCategory: async ({ data }: MuteCommand) => {
+      bringBack(hiddenByMute.get(muteKey(data)) ?? [])
+      hiddenByMute.delete(muteKey(data))
     },
   }
   // Same two-step cast as `makeNotificationFns`, for the same reason.

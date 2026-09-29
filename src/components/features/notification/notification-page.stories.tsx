@@ -93,37 +93,50 @@ export const FilterIsLifted: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     onFilterChange.mockClear()
-    await userEvent.click(await canvas.findByRole('tab', { name: 'Workflow' }))
+    await userEvent.click(await canvas.findByRole('tab', { name: 'Unread' }))
     // The page does not own the filter — the route does, so it stays in the URL.
-    expect(onFilterChange).toHaveBeenCalledWith('workflow_collaboration')
+    expect(onFilterChange).toHaveBeenCalledWith('unread')
   },
 }
 
-export const UrgentFilter: Story = {
-  args: { filter: 'urgent' },
+/** The route's filter picks the tab, and the tab lists only what still waits on the reader. */
+export const UnreadFilter: Story = {
+  args: { filter: 'unread' },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
+    expect(await canvas.findByRole('tab', { name: 'Unread' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
     await waitFor(async () => {
-      expect(await canvas.findAllByRole('listitem')).toHaveLength(2)
+      expect(await canvas.findAllByRole('listitem')).toHaveLength(unreadCount)
     })
+    for (const row of canvas.getAllByRole('listitem')) {
+      expect(row).toHaveAttribute('data-notification-state', 'unread')
+    }
   },
 }
 
+/**
+ * The server filters, before its limit: asked for anything but Unread, this
+ * head answers only the read rows, so a page that read All and filtered its
+ * own rows would list none.
+ */
 export const FilterIsAppliedBeforePagination: Story = {
   args: {
-    filter: 'urgent',
+    filter: 'unread',
     notificationFns: makeNotificationFns({
       getFeedHead: (async (input: unknown) => {
         const requestedFilter = (
           input as Readonly<{ data: Readonly<{ filter?: string }> }>
         ).data.filter
         return notificationFeedHeadFixture(
-          requestedFilter === 'urgent'
+          requestedFilter === 'unread'
             ? notificationFixtures.filter(
-                (notification) => notification.priority === 'urgent',
+                (notification) => notification.status === 'unread',
               )
             : notificationFixtures.filter(
-                (notification) => notification.priority !== 'urgent',
+                (notification) => notification.status !== 'unread',
               ),
         )
       }) as unknown as NotificationServerFns['getFeedHead'],
@@ -131,7 +144,7 @@ export const FilterIsAppliedBeforePagination: Story = {
   },
   play: async ({ canvasElement }) => {
     const rows = await within(canvasElement).findAllByRole('listitem')
-    expect(rows).toHaveLength(2)
+    expect(rows).toHaveLength(unreadCount)
   },
 }
 
@@ -256,12 +269,16 @@ export const BellHistoryFollowsThePage: Story = {
     const reopened = await findOpenBellPopover()
     await reopened.findByRole('heading', { name: 'Earlier' })
     expect(reopened.queryByRole('heading', { name: 'New' })).toBeNull()
-    expect(reopened.queryByText('Unread.')).toBeNull()
+    // No row still tells a screen reader it is unread.
+    expect(reopened.queryAllByRole('link', { name: /, unread$/ })).toHaveLength(0)
   },
 }
 
-/** Two Workflow rows under the Workflow tab, and an urgent alert outside it. */
-const workflowTabFeed = [
+/**
+ * Two rows under the Unread tab, and one whose work was settled upstream:
+ * still unread, but asking for nothing, so outside the tab.
+ */
+const unreadTabFeed = [
   makeNotification({
     id: '61000000-0000-4000-8000-000000000001',
     type: 'inbox.escalated',
@@ -277,24 +294,27 @@ const workflowTabFeed = [
   }),
   makeNotification({
     id: '61000000-0000-4000-8000-000000000003',
-    type: 'inbox_note.added',
+    type: 'reply.pending_approval',
+    resolvedAt: new Date(Date.now() - 60_000),
     payload: { propertyName: 'Harbour View Suites' },
     createdAt: new Date(Date.now() - 4 * 60_000),
   }),
 ]
-const workflowTabServer = makeStatefulNotificationFns(workflowTabFeed)
-const markWorkflowRead = fn(workflowTabServer.markAllRead)
+const unreadTabServer = makeStatefulNotificationFns(unreadTabFeed)
+const markUnreadTabRead = fn(unreadTabServer.markAllRead)
 
 /**
- * "Mark all read" on the Workflow tab sends that tab and marks its rows only,
+ * "Mark all read" on the Unread tab sends that tab and marks its rows only,
  * then gives focus to the list, since the button leaves with nothing to mark.
+ * The settled row was not on the tab and keeps its unread status; it shows no
+ * read state, so that is read back from the server the story runs against.
  */
 export const MarkAllReadFollowsTheTab: Story = {
   args: {
-    filter: 'workflow_collaboration',
+    filter: 'unread',
     notificationFns: {
-      ...workflowTabServer,
-      markAllRead: markWorkflowRead as unknown as NotificationServerFns['markAllRead'],
+      ...unreadTabServer,
+      markAllRead: markUnreadTabRead as unknown as NotificationServerFns['markAllRead'],
     },
   },
   play: async ({ canvasElement }) => {
@@ -303,14 +323,23 @@ export const MarkAllReadFollowsTheTab: Story = {
     canvas.getByRole('button', { name: /mark all read/i }).focus()
     await userEvent.keyboard('{Enter}')
 
-    expect(markWorkflowRead).toHaveBeenCalledWith({
-      data: { filter: 'workflow_collaboration' },
-    })
+    expect(markUnreadTabRead).toHaveBeenCalledWith({ data: { filter: 'unread' } })
     expect(canvas.getByRole('group', { name: 'Notification list' })).toHaveFocus()
     await waitFor(() =>
       expect(canvas.queryByRole('button', { name: /mark all read/i })).toBeNull(),
     )
-    await waitFor(() => expect(canvas.queryAllByText('Unread.')).toHaveLength(0))
+    // Read now, so they have left the tab.
+    await waitFor(() => expect(canvas.queryAllByRole('listitem')).toHaveLength(0))
+    expect(canvas.getByText('Nothing matches this filter right now')).toBeInTheDocument()
+
+    const { page } = await unreadTabServer.getFeedHead({
+      data: { limit: 50, filter: 'all' },
+    })
+    expect(page.notifications.map((row) => [row.id, row.status])).toEqual([
+      [unreadTabFeed[0]!.id, 'read'],
+      [unreadTabFeed[1]!.id, 'read'],
+      [unreadTabFeed[2]!.id, 'unread'],
+    ])
   },
 }
 
@@ -335,7 +364,7 @@ export const FocusLeftElsewhereStaysThere: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await waitFor(() => expect(canvas.getAllByRole('listitem')).toHaveLength(3))
-    canvas.getAllByRole('button', { name: /^Dismiss:/ })[1]!.focus()
+    canvas.getAllByRole('button', { name: /^More actions for:/ })[1]!.focus()
     await userEvent.click(
       canvas.getByRole('heading', { level: 1, name: 'Notifications' }),
     )

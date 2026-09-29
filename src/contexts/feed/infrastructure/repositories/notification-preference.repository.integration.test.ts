@@ -124,6 +124,40 @@ describe.sequential('notification preference repository (real PostgreSQL)', () =
     })
   })
 
+  it("finds and removes one Property's own row, leaving the other Property alone", async () => {
+    const repo = createNotificationPreferenceRepository(db)
+    await repo.upsert(preference({ enabled: false }))
+    await repo.upsert(
+      preference({
+        id: notificationPreferenceId('84000000-0000-4000-8000-00000000000b'),
+        propertyId: OTHER_PROPERTY,
+        enabled: false,
+      }),
+    )
+    const find = (property: string) =>
+      repo.findPropertyPreference(USER, ORG, property, 'workflow_collaboration', 'in_app')
+
+    expect(await find(PROPERTY)).toMatchObject({ enabled: false })
+
+    await repo.deletePropertyPreference(
+      USER,
+      ORG,
+      PROPERTY,
+      'workflow_collaboration',
+      'in_app',
+    )
+
+    expect(await find(PROPERTY)).toBeNull()
+    expect(await find(OTHER_PROPERTY)).toMatchObject({ enabled: false })
+    await repo.deletePropertyPreference(
+      USER,
+      ORG,
+      OTHER_PROPERTY,
+      'workflow_collaboration',
+      'in_app',
+    )
+  })
+
   it('rejects non-configurable categories and enforces required channels at the database boundary', async () => {
     const base = {
       userId: USER,

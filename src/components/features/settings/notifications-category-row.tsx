@@ -1,3 +1,14 @@
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from '#/components/ui/alert-dialog'
 import { Button } from '#/components/ui/button'
 import { Field, FieldLabel } from '#/components/ui/field'
 import { Label } from '#/components/ui/label'
@@ -20,6 +31,7 @@ import {
 } from '#/contexts/feed/application/public-api'
 import type { NotificationPreferencePatch } from './notifications-settings-view'
 import type { PreferenceValues } from './notification-preference-saves'
+import { namesInBrief, type SetDifferently } from './notification-apply-everywhere'
 
 const CADENCE_LABELS: Readonly<Record<NotificationCadence, string>> = {
   immediate: 'Immediate',
@@ -168,34 +180,74 @@ function EmailTiming({
  * they are given next — which used to fall through to the versioned defaults,
  * so a newly added property mailed urgent notices at 03:00 whatever the person
  * had chosen everywhere else.
+ *
+ * It replaces what other properties were set to, a mute made from the bell
+ * included, so when any has a setting of its own the button asks first and
+ * names them. It used to replace them without a word.
  */
 function ApplyToAllProperties({
   category,
   categoryLabel,
   inherited,
   propertyCount,
+  setDifferently,
   applyToAll,
 }: Readonly<{
   category: ConfigurableNotificationCategory
   categoryLabel: string
   inherited: string
   propertyCount: number
+  /** The other properties whose own setting this replaces. */
+  setDifferently: ReadonlyArray<SetDifferently>
   applyToAll: (category: ConfigurableNotificationCategory) => Promise<void>
 }>) {
   const noteId = `${category}-inherited`
+  const apply = () => void applyToAll(category)
+  const asks = setDifferently.length > 0
+  const button = (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      aria-label={named(categoryLabel, 'Apply to all my properties')}
+      aria-describedby={noteId}
+      disabled={propertyCount < 2}
+      onClick={asks ? undefined : apply}
+    >
+      Apply to all my properties
+    </Button>
+  )
+  const count = setDifferently.length
+  const includesMute = setDifferently.some((property) => property.muted)
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-3 md:col-span-3 md:col-start-1">
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        aria-label={named(categoryLabel, 'Apply to all my properties')}
-        aria-describedby={noteId}
-        disabled={propertyCount < 2}
-        onClick={() => void applyToAll(category)}
-      >
-        Apply to all my properties
-      </Button>
+      {asks ? (
+        <AlertDialog>
+          <AlertDialogTrigger asChild>{button}</AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>
+                Replace the settings at {count} other{' '}
+                {count === 1 ? 'property' : 'properties'}?
+              </AlertDialogTitle>
+              <AlertDialogDescription>
+                {namesInBrief(setDifferently.map((property) => property.name))}{' '}
+                {count === 1 ? 'has its' : 'have their'} own {categoryLabel.toLowerCase()}{' '}
+                settings
+                {includesMute ? ', including a mute from the notification bell' : ''}.
+                Applying to all your properties replaces them with the settings you chose
+                here.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Keep them</AlertDialogCancel>
+              <AlertDialogAction onClick={apply}>Apply to all</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+      ) : (
+        button
+      )}
       <p id={noteId} className="text-sm text-muted-foreground">
         {inherited}
       </p>
@@ -212,6 +264,7 @@ export function NotificationsCategoryRow({
   emailAllowed,
   inherited,
   propertyCount,
+  setDifferently,
   savePreference,
   applyToAll,
 }: Readonly<{
@@ -225,6 +278,8 @@ export function NotificationsCategoryRow({
   inherited: string
   /** Applying to all is not an offer when there is only one property. */
   propertyCount: number
+  /** The other properties whose own setting "Apply to all" would replace. */
+  setDifferently: ReadonlyArray<SetDifferently>
   savePreference: SavePreference
   applyToAll: (category: ConfigurableNotificationCategory) => Promise<void>
 }>) {
@@ -279,6 +334,7 @@ export function NotificationsCategoryRow({
         categoryLabel={label}
         inherited={inherited}
         propertyCount={propertyCount}
+        setDifferently={setDifferently}
         applyToAll={applyToAll}
       />
     </fieldset>

@@ -46,6 +46,7 @@ export type { NotificationRenderContext } from '../domain/notification-templates
 export {
   BETA_FEEDBACK_REPORTS_ANCHOR,
   notificationLink,
+  notificationRepeatCount,
   renderNotification,
   waitingAge,
 } from '../domain/notification-templates'
@@ -56,7 +57,6 @@ export {
 // context-internal.
 export {
   classifyNotification,
-  GOVERNING_NOTIFICATION_CATEGORIES,
   NOTIFICATION_SETTINGS_CATEGORIES,
 } from '../domain/notification-delivery-policy'
 
@@ -64,6 +64,8 @@ export type { UserLookupPort } from './ports/notification-user-lookup.port'
 export type { InboxItemLookupPort } from './ports/notification-inbox-item-lookup.port'
 export type { NotificationListFilter } from './notification-list-filter'
 export { isStillWaiting, type NotificationView } from './notification-view'
+/** Types that stand for work still waiting on their reader, until settled. */
+export { isActionableNotificationType } from '../domain/notification-settlement'
 export type {
   NotificationFeedCursor,
   NotificationFeedHead,

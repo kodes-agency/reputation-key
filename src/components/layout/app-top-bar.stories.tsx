@@ -37,7 +37,9 @@ function makeNotificationFns(count: number): NotificationServerFns {
     markAllRead: inert<'markAllRead'>(undefined),
     dismiss: inert<'dismiss'>(undefined),
     dismissAll: inert<'dismissAll'>(undefined),
-    muteCategory: inert<'muteCategory'>(undefined),
+    muteCategory: inert<'muteCategory'>({ previous: null }),
+    restore: inert<'restore'>(null),
+    undoMuteCategory: inert<'undoMuteCategory'>(undefined),
     getUserSettings: inert<'getUserSettings'>(null),
   }
 }

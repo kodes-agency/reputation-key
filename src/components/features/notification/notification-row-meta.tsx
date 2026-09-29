@@ -1,48 +1,40 @@
-// The row's metadata strip: the facts beside the copy, never the ones in it.
-//
-// The title already names the Property and the copy says how often a row
-// repeated, so the strip shows only what the sentences deliberately leave
-// out: a locally collected rating, as stars, and how long the item had waited
-// when the notice was raised. That age is fixed, like the row's own time: the
-// item may have been answered since, so it never keeps counting.
+// The row's facts line: what the title leaves out, in one muted line —
+// "Riverside Hotel · ★★ · waited 1d · ×3".
 //
 // Every field is optional (ADR 0046 r.8 payloads carry only what was captured),
 // so this renders nothing at all rather than a row of empty separators. No
-// identifier ever appears here — `resourceId` lives in the deep link only.
+// identifier ever appears here — `resourceId` lives in the deep link only. The
+// wait is fixed, like the row's own time: the item may have been answered
+// since, so it never keeps counting.
 
-import { Clock } from 'lucide-react'
+import type { ReactNode } from 'react'
 import { StarRating } from '#/components/ui/star-rating'
-import {
-  waitingAge,
-  type NotificationPayload,
-} from '#/contexts/feed/application/public-api'
+import type { NotificationRowView } from './notification-row-view'
 
-type Props = Readonly<{
-  payload: NotificationPayload
-  /**
-   * ADR 0046 r.2 coalescing count. Not shown here: the copy says how often a
-   * row repeated, once, in the words for what repeated.
-   */
-  coalescedCount: number
-}>
+type Props = Readonly<{ view: NotificationRowView }>
 
-export function NotificationRowMeta({ payload }: Props) {
-  const waiting = waitingAge(payload)
-  const rating = payload.guestRating
-
-  if (rating === undefined && waiting === '') return null
+export function NotificationRowMeta({ view }: Props) {
+  const facts: ReactNode[] = []
+  if (view.property !== null) facts.push(view.property)
+  if (view.tone === 'done') facts.push(<span className="text-positive">Done</span>)
+  if (view.targetPassed) {
+    facts.push(<span className="font-medium text-destructive">Target passed</span>)
+  }
+  if (view.rating !== undefined) {
+    facts.push(<StarRating value={view.rating} label={`Rated ${view.rating} of 5`} />)
+  }
+  if (view.waited !== '') facts.push(`waited ${view.waited}`)
+  if (view.repeats > 1) facts.push(`×${view.repeats}`)
+  if (facts.length === 0) return null
 
   return (
-    <div className="mt-1.5 flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
-      {rating !== undefined && (
-        <StarRating value={rating} label={`Rated ${rating} out of 5 stars`} />
-      )}
-      {waiting !== '' && (
-        <span className="inline-flex items-center gap-1 text-xs text-muted-foreground">
-          <Clock aria-hidden="true" className="size-3" />
-          Waited {waiting}
+    <span className="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-1.5 text-xs text-muted-foreground">
+      {facts.map((fact, index) => (
+        <span key={index} className="inline-flex items-center gap-1.5">
+          {index > 0 && <span aria-hidden="true">·</span>}
+          {fact}
         </span>
-      )}
-    </div>
+      ))}
+    </span>
   )
 }

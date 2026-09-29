@@ -74,44 +74,42 @@ export const Default: Story = {
 }
 
 /**
- * Tabs are derived from GOVERNING_NOTIFICATION_CATEGORIES: a category earns a
- * filter exactly when it governs a live notification type.
+ * Two tabs, the questions a reader asks: everything, or what still waits on
+ * me. The Urgent tab and one tab per category wrapped onto a second line on a
+ * phone and were mostly empty, so they went.
  */
 export const FilterTabs: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const tabs = canvas.getAllByRole('tab').map((tab) => tab.textContent)
-    // Derived from the domain, never hand-listed. `Account` appeared when the
-    // Organization access/role/purge-pending notices made `mandatory` govern
-    // real types: a category the reader cannot switch off is still one they
-    // may filter TO. `Goals` is the live goal-result category (`recognition`).
-    expect(tabs).toEqual([
-      'All',
-      'Unread',
-      'Urgent',
-      'Account',
-      'Action',
-      'Workflow',
-      'Goals',
-    ])
+    expect(tabs).toEqual(['All', 'Unread'])
     onFilterChange.mockClear()
-    await userEvent.click(canvas.getByRole('tab', { name: 'Urgent' }))
-    expect(onFilterChange).toHaveBeenCalledWith('urgent')
+    await userEvent.click(canvas.getByRole('tab', { name: 'Unread' }))
+    expect(onFilterChange).toHaveBeenCalledWith('unread')
   },
 }
 
-/** Urgent filter applied: only the two urgent rows survive. */
-export const UrgentFilterApplied: Story = {
+/** Unread filter applied: only the rows still waiting survive, all of them New. */
+export const UnreadFilterApplied: Story = {
   args: {
-    filter: 'urgent',
+    filter: 'unread',
     groups: groupByReadState(
-      notificationFixtures.filter((n) => matchesNotificationFilter(n, 'urgent')),
+      notificationFixtures.filter((n) => matchesNotificationFilter(n, 'unread')),
     ),
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getAllByRole('listitem')).toHaveLength(2)
-    expect(canvas.getAllByText('Urgent').length).toBeGreaterThan(0)
+    expect(canvas.getByRole('tab', { name: 'Unread' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    const rows = canvas.getAllByRole('listitem')
+    expect(rows).toHaveLength(3)
+    for (const row of rows) {
+      expect(row).toHaveAttribute('data-notification-state', 'unread')
+    }
+    expect(canvas.getByRole('heading', { name: 'New' })).toBeInTheDocument()
+    expect(canvas.queryByRole('heading', { name: 'Earlier' })).toBeNull()
   },
 }
 
@@ -146,12 +144,13 @@ export const MarkingAllRead: Story = {
 }
 
 /**
- * The tab lists rows, but none of them is unread: "Mark all read" would
- * change nothing here, so it is not offered, whatever other tabs hold.
+ * The tab lists rows, but none of them still waits on the reader — one is
+ * read, one was settled upstream: "Mark all read" would change nothing a
+ * reader can see, so it is not offered.
  */
 export const NothingUnreadOnThisTab: Story = {
   args: {
-    filter: 'workflow_collaboration',
+    filter: 'all',
     filterUnreadCount: 0,
     groups: groupByReadState([
       makeNotification({
@@ -159,10 +158,16 @@ export const NothingUnreadOnThisTab: Story = {
         type: 'inbox_note.added',
         status: 'read',
       }),
+      makeNotification({
+        id: '10000000-0000-4000-8000-000000000081',
+        type: 'reply.pending_approval',
+        status: 'unread',
+        resolvedAt: new Date(Date.now() - 60_000),
+      }),
     ]),
   },
   play: async ({ canvasElement }) => {
-    expect(within(canvasElement).getAllByRole('listitem')).toHaveLength(1)
+    expect(within(canvasElement).getAllByRole('listitem')).toHaveLength(2)
     expectNoMarkAllRead(canvasElement)
   },
 }

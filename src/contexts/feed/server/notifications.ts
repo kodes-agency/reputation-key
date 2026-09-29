@@ -269,6 +269,44 @@ export const dismissNotificationFn = createServerFn({ method: 'POST' })
     ),
   )
 
+// ── restoreNotificationFn ─────────────────────────────────────────
+
+const restoreNotificationDto = z.object({
+  notificationId: z.uuid(),
+})
+
+/**
+ * The Undo a dismissal offers for a few seconds after it: the row comes back
+ * read or unread, as it was. Resolves to the restored row's browser view, or
+ * null when there was nothing to undo.
+ */
+export const restoreNotificationFn = createServerFn({ method: 'POST' })
+  .validator(restoreNotificationDto)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        await requireExecutionAllowed({ actor: ctx, action: 'notification.update' })
+        try {
+          const { feedPublicApi } = getContainer()
+          return await feedPublicApi.restore(
+            data.notificationId,
+            ctx.organizationId,
+            ctx.userId,
+          )
+        } catch (e) {
+          if (isNotificationError(e)) {
+            throwContextError('NotificationError', e, e.code === 'not_found' ? 404 : 500)
+          }
+          throw catchUntagged(e)
+        }
+      },
+      'POST',
+      'notification.restore',
+    ),
+  )
+
 // ── getNotificationPreferencesFn ──────────────────────────────────
 
 /** @public Consumed by the notification preferences settings route. */
@@ -368,6 +406,48 @@ export const muteNotificationCategoryFn = createServerFn({ method: 'POST' })
       },
       'POST',
       'notification.muteCategory',
+    ),
+  )
+
+const undoNotificationCategoryMuteDto = z.object({
+  propertyId: z.uuid(),
+  category: notificationPreferenceCategory,
+  /** What the mute replaced: the Property's own switch, or null when it inherited. */
+  previous: z.object({ enabled: z.boolean() }).nullable(),
+})
+
+/** @public The bell's Undo for a mute: puts back what the mute replaced. */
+export const undoNotificationCategoryMuteFn = createServerFn({ method: 'POST' })
+  .validator(undoNotificationCategoryMuteDto)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'notification.update',
+          propertyId: data.propertyId,
+        })
+        try {
+          const { feedPublicApi } = getContainer()
+          await feedPublicApi.undoMutePreferenceCategory(
+            ctx.userId,
+            ctx.organizationId,
+            data.propertyId,
+            data.category,
+            'in_app',
+            data.previous,
+          )
+        } catch (error) {
+          if (isNotificationError(error)) {
+            throwContextError('NotificationError', error, 400)
+          }
+          throw catchUntagged(error)
+        }
+      },
+      'POST',
+      'notification.undoMuteCategory',
     ),
   )
 

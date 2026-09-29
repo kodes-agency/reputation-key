@@ -3,7 +3,11 @@
 // failure part-way leaves the channels before it applied everywhere — the
 // notice has to say so rather than report that nothing happened.
 
-import type { NotificationChannel } from '#/contexts/feed/application/public-api'
+import type {
+  ConfigurableNotificationCategory,
+  NotificationChannel,
+  NotificationPreference,
+} from '#/contexts/feed/application/public-api'
 
 export type ApplyEverywhereOutcome = Readonly<{
   applied: readonly NotificationChannel[]
@@ -64,4 +68,46 @@ export function applyEverywhereNotice(
     }
   }
   return { tone: 'success', message: 'Applied to every property' }
+}
+
+/** Another Property whose own setting "Apply to all" would replace. */
+export type SetDifferently = Readonly<{
+  name: string
+  /** Its in-app channel is off, as a mute from the bell leaves it. */
+  muted: boolean
+}>
+
+/**
+ * The other Properties with a setting of their own for `category`, which
+ * "Apply to all my properties" replaces: the answer becomes the person's
+ * default, and every Property row that would override it is deleted — a mute
+ * made from the bell included. The page asks before doing that to any of them.
+ */
+export function setDifferentlyElsewhere(
+  category: ConfigurableNotificationCategory,
+  preferences: ReadonlyArray<NotificationPreference>,
+  properties: ReadonlyArray<Readonly<{ id: string; name: string }>>,
+  propertyInView: string,
+): ReadonlyArray<SetDifferently> {
+  return properties
+    .filter((property) => property.id !== propertyInView)
+    .map((property) => {
+      const own = preferences.filter(
+        (row) => (row.propertyId as string) === property.id && row.category === category,
+      )
+      return {
+        name: property.name,
+        own: own.length > 0,
+        muted: own.some((row) => row.channel === 'in_app' && !row.enabled),
+      }
+    })
+    .filter((property) => property.own)
+    .map(({ name, muted }) => ({ name, muted }))
+}
+
+/** "Harbor & Pine", "Harbor & Pine and Riverside Hotel", "A, B and 3 others". */
+export function namesInBrief(names: ReadonlyArray<string>): string {
+  if (names.length <= 2) return names.join(' and ')
+  const others = names.length - 2
+  return `${names.slice(0, 2).join(', ')} and ${others} ${others === 1 ? 'other' : 'others'}`
 }
