@@ -105,11 +105,9 @@ const updatePreferenceMock = fn(async (input: PreferenceInput) =>
   preference({ category: input.data.category, channel: input.data.channel }),
 )
 const resetPropertyCategoryMock = fn(async (_input: ResetInput): Promise<void> => {})
-const updateUserSettingsMock = fn(async () => userSettings)
 const updateQuietHoursMock = fn(async (_input: QuietHoursInput) => userSettings)
 const updatePreference = asAction(updatePreferenceMock)
 const resetPropertyCategory = asAction(resetPropertyCategoryMock)
-const updateUserSettings = asAction(updateUserSettingsMock)
 const updateQuietHours = asAction(updateQuietHoursMock)
 
 const setPropertyId = fn()
@@ -147,7 +145,6 @@ const meta = {
     setPropertyId,
     updatePreference,
     resetPropertyCategory,
-    updateUserSettings,
     updateQuietHours,
   },
 } satisfies Meta<typeof NotificationsSettingsPage>
@@ -339,110 +336,34 @@ export const EveryControlNamesItsCategory: Story = {
   },
 }
 
-type Canvas = ReturnType<typeof within>
-
-/** Picks a "Date and time format" option; the list opens outside the canvas. */
-async function pickFormat(canvas: Canvas, option: string) {
-  await userEvent.click(canvas.getByRole('combobox', { name: 'Date and time format' }))
-  await userEvent.click(
-    await within(document.body).findByRole('option', { name: option }),
-  )
-}
-
-/** Saves the formatting form and expects exactly `data` to have been sent, once. */
-async function expectFormattingSaved(
-  canvas: Canvas,
-  data: Readonly<{ locale?: string; timezone?: string }>,
-) {
-  await userEvent.click(canvas.getByRole('button', { name: 'Save formatting' }))
-  await waitFor(() => expect(updateUserSettingsMock).toHaveBeenCalledOnce())
-  expect(updateUserSettingsMock).toHaveBeenCalledWith({ data })
-}
-
-export const FormattingSavesAPickedTimezone: Story = {
-  play: async ({ canvasElement }) => {
-    updateUserSettingsMock.mockClear()
-    const canvas = within(canvasElement)
-    const portal = within(document.body)
-    // A picker, not free text: a hotel manager should not need to know IANA
-    // names, and a typed fixed offset ignored daylight saving.
-    await userEvent.click(canvas.getByRole('combobox', { name: 'Timezone' }))
-    await userEvent.type(
-      portal.getByPlaceholderText('Search a city, region or UTC offset'),
-      'Berlin',
-    )
-    await userEvent.click(await portal.findByRole('option', { name: /Berlin/ }))
-    // Only the changed setting travels: the untouched format is not re-sent.
-    await expectFormattingSaved(canvas, { timezone: 'Europe/Berlin' })
-  },
-}
-
-export const SeedsFormattingFromTheServer: Story = {
+/**
+ * Timezone and date format moved to Profile (D6): they are the person's clock,
+ * not one Property's. Quiet hours still say which clock they run on, and where
+ * it is set.
+ */
+export const TimezoneIsSetInProfile: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    // Render source is the query result, not a stale local mirror.
-    expect(
-      canvas.getByRole('combobox', { name: 'Date and time format' }),
-    ).toHaveTextContent('English (UK)')
-    expect(canvas.getByRole('combobox', { name: 'Timezone' })).toHaveTextContent(
-      /Sofia \(UTC\+[23]\)/,
+    expect(canvas.queryByText('Timezone and date format')).toBeNull()
+    expect(canvas.queryByRole('combobox', { name: 'Timezone' })).toBeNull()
+    expect(canvas.queryByRole('combobox', { name: 'Date and time format' })).toBeNull()
+    expect(canvas.getByRole('link', { name: 'Profile' })).toHaveAttribute(
+      'href',
+      '/settings/profile',
     )
   },
 }
 
-export const NewUserSeesTheOrganizationTimezone: Story = {
+export const QuietHoursRunOnTheOrganizationClock: Story = {
   args: { userSettings: organizationSettings },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    // Quiet hours and the digest already run on the Organization's zone, so
-    // that is what the page shows — never a UTC placeholder.
-    expect(canvas.getByRole('combobox', { name: 'Timezone' })).toHaveTextContent(
-      /Sofia \(UTC\+[23]\)/,
-    )
-    expect(canvas.getByTestId('timezone-source')).toHaveTextContent(
-      "Your organization's timezone",
-    )
-    // Said once, where quiet hours are set, instead of once per category row.
+    // A user who never saved a timezone is on the Organization's, and quiet
+    // hours say so — said once, where they are set, not once per category row.
     expect(
       canvas.getAllByText(/on your own clock \(Sofia/, { exact: false }),
     ).toHaveLength(1)
     expect(canvas.queryByText(/property-local/)).toBeNull()
-  },
-}
-
-export const SavingTheLocaleKeepsTheOrganizationTimezone: Story = {
-  args: { userSettings: organizationSettings },
-  play: async ({ canvasElement }) => {
-    updateUserSettingsMock.mockClear()
-    const canvas = within(canvasElement)
-    // Nothing differs from what is in effect yet.
-    expect(canvas.getByRole('button', { name: 'Save formatting' })).toBeDisabled()
-    await pickFormat(canvas, 'English (UK)')
-    // The timezone is not sent, so the save cannot pin anything over it.
-    await expectFormattingSaved(canvas, { locale: 'en-GB' })
-  },
-}
-
-export const KeepsALegacyTimezoneTheListNoLongerOffers: Story = {
-  args: {
-    userSettings: {
-      locale: 'de-DE',
-      timezone: '+03:00',
-      timezoneSource: 'user',
-      ...OPEN_WINDOW,
-    },
-  },
-  play: async ({ canvasElement }) => {
-    updateUserSettingsMock.mockClear()
-    const canvas = within(canvasElement)
-    // A free-text value saved before the pickers still shows as itself, not
-    // as an empty "Choose a timezone" that hides what delivery is using.
-    expect(canvas.getByRole('combobox', { name: 'Timezone' })).toHaveTextContent('+03:00')
-    expect(
-      canvas.getByRole('combobox', { name: 'Date and time format' }),
-    ).toHaveTextContent('de-DE')
-    await pickFormat(canvas, 'English (US)')
-    await expectFormattingSaved(canvas, { locale: 'en' })
   },
 }
 
@@ -912,30 +833,6 @@ export const InheritedDefaultIsWhatANewPropertyGets: Story = {
     expect(
       canvas.getByRole('button', { name: MAKE_WORKFLOW_DEFAULT }),
     ).toHaveAccessibleDescription('A new property gets in-app on, email daily at 08:00.')
-  },
-}
-
-/**
- * The card used to be called "Language and timezone" while every word in the
- * product is English (docs/BETA.md); it only ever changed how a date is
- * written.
- */
-export const TimezoneCardIsNamedForWhatItDoes: Story = {
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    expect(canvas.getByText('Timezone and date format')).toBeVisible()
-    expect(canvas.queryByText(/Language and timezone/)).toBeNull()
-
-    await userEvent.click(canvas.getByRole('combobox', { name: 'Date and time format' }))
-    const portal = within(document.body)
-    const options = await portal.findAllByRole('option')
-    // English conventions only — a language nobody is offered is not a choice.
-    expect(options.map((option) => option.textContent)).toEqual([
-      'English (US)',
-      'English (UK)',
-    ])
-    // And the control says what it changes, which its names do not.
-    expect(canvas.getByTestId('format-sample')).toHaveTextContent('23/09/2026')
   },
 }
 

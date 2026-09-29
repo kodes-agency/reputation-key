@@ -6,18 +6,11 @@ import type {
   NotificationPreference,
   NotificationPropertyDeliveryWindow,
 } from '#/contexts/feed/application/public-api'
-import {
-  NotificationsSettingsView,
-  type NotificationSettingsUpdate,
-} from './notifications-settings-view'
+import { NotificationsSettingsView } from './notifications-settings-view'
 import type { EmailAvailability } from './email-availability-notice'
 import { describeInheritedDefault } from './notification-inherited-defaults'
 import { toast } from 'sonner'
-import {
-  hasOwnSetting,
-  setDifferentlyElsewhere,
-  type SetDifferently,
-} from './notification-apply-everywhere'
+import { hasOwnSetting, setDifferentlyElsewhere } from './notification-apply-everywhere'
 import type { QuietHoursUpdate } from './notification-quiet-hours-card'
 import {
   useNotificationPreferenceSaves,
@@ -44,31 +37,8 @@ type Props = Readonly<{
     }>,
     void
   >
-  updateUserSettings: Action<NotificationSettingsUpdate, EffectiveNotificationSettings>
   updateQuietHours: Action<QuietHoursUpdate, EffectiveNotificationSettings>
 }>
-
-type BoundaryProps = Omit<
-  Props,
-  | 'userSettings'
-  | 'preferences'
-  | 'updatePreference'
-  | 'categoryDefaults'
-  | 'resetPropertyCategory'
-> &
-  Readonly<{
-    settings: EffectiveNotificationSettings
-    inheritedFor: (category: ConfigurableNotificationCategory) => string
-    setDifferentlyFor: (
-      category: ConfigurableNotificationCategory,
-    ) => ReadonlyArray<SetDifferently>
-    ownSettingHere: (category: ConfigurableNotificationCategory) => boolean
-    resetToDefault: (
-      category: ConfigurableNotificationCategory,
-      propertyIds: ReadonlyArray<string>,
-    ) => Promise<void>
-  }> &
-  ReturnType<typeof useNotificationPreferenceSaves>
 
 /** What delivery falls back to when there is no Organization to ask. */
 const NO_ORGANIZATION_SETTINGS: EffectiveNotificationSettings = {
@@ -92,7 +62,6 @@ export function NotificationsSettingsPage({
   setPropertyId,
   updatePreference,
   resetPropertyCategory,
-  updateUserSettings,
   updateQuietHours,
 }: Props) {
   // The values delivery uses, never a UTC placeholder: a user who never saved
@@ -102,8 +71,7 @@ export function NotificationsSettingsPage({
   // top. There used to be a `localPreferences` mirror seeded once from this
   // prop and patched by hand after each save, which made it the only render
   // source: nothing re-seeded it after a refetch, so persisted state never
-  // reached the screen. The overlay lasts only until a row's saves settle, and
-  // it lives above the boundary so a formatting save cannot reset a queue.
+  // reached the screen. The overlay lasts only until a row's saves settle.
   const { preferenceFor, savePreference, applyToAll } = useNotificationPreferenceSaves({
     propertyId,
     preferences,
@@ -138,54 +106,6 @@ export function NotificationsSettingsPage({
         : `${done} ${done === 1 ? 'property now follows' : 'properties now follow'} your default`,
     )
   }
-  return (
-    <NotificationFormattingBoundary
-      // Remounting on the server values is the re-sync. The locale and timezone
-      // inputs need local edit state, but seeding it once meant a refetch — or
-      // another session — never reached the fields. Keying on the effective
-      // values reseeds them exactly when the server truth changes and never
-      // while the user is mid-edit.
-      key={`${settings.locale}:${settings.timezone}:${settings.timezoneSource}`}
-      properties={properties}
-      propertyWindows={propertyWindows}
-      settings={settings}
-      propertyId={propertyId}
-      emailAvailability={emailAvailability}
-      retryEmailAvailability={retryEmailAvailability}
-      setPropertyId={setPropertyId}
-      preferenceFor={preferenceFor}
-      savePreference={savePreference}
-      applyToAll={applyToAll}
-      inheritedFor={(category) => describeInheritedDefault(category, categoryDefaults)}
-      setDifferentlyFor={(category) =>
-        setDifferentlyElsewhere(category, preferences, properties, propertyId)
-      }
-      ownSettingHere={(category) => hasOwnSetting(category, preferences, propertyId)}
-      resetToDefault={resetToDefault}
-      updateUserSettings={updateUserSettings}
-      updateQuietHours={updateQuietHours}
-    />
-  )
-}
-
-function NotificationFormattingBoundary({
-  properties,
-  propertyWindows,
-  settings,
-  propertyId,
-  emailAvailability,
-  retryEmailAvailability,
-  setPropertyId,
-  preferenceFor,
-  savePreference,
-  applyToAll,
-  inheritedFor,
-  setDifferentlyFor,
-  ownSettingHere,
-  resetToDefault,
-  updateUserSettings,
-  updateQuietHours,
-}: BoundaryProps) {
   const override =
     propertyWindows.find((window) => (window.propertyId as string) === propertyId) ?? null
   return (
@@ -200,11 +120,12 @@ function NotificationFormattingBoundary({
       preferenceFor={preferenceFor}
       savePreference={savePreference}
       applyToAll={applyToAll}
-      inheritedFor={inheritedFor}
-      setDifferentlyFor={setDifferentlyFor}
-      ownSettingHere={ownSettingHere}
+      inheritedFor={(category) => describeInheritedDefault(category, categoryDefaults)}
+      setDifferentlyFor={(category) =>
+        setDifferentlyElsewhere(category, preferences, properties, propertyId)
+      }
+      ownSettingHere={(category) => hasOwnSetting(category, preferences, propertyId)}
       resetToDefault={resetToDefault}
-      updateUserSettings={updateUserSettings}
       updateQuietHours={updateQuietHours}
     />
   )

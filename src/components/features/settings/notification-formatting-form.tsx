@@ -98,9 +98,9 @@ export function NotificationFormattingForm({ settings, updateUserSettings }: Pro
       const data = formattingDto.parse(value)
       try {
         await updateUserSettings({ data })
-        toast.success('Notification formatting updated')
+        toast.success('Timezone and date format saved')
       } catch {
-        toast.error('Could not update notification formatting')
+        toast.error("Couldn't save your timezone and date format. Try again.")
       }
     },
   })
@@ -111,18 +111,18 @@ export function NotificationFormattingForm({ settings, updateUserSettings }: Pro
       <form.Field name="timezone">
         {(field) => (
           <Field className="min-w-0">
-            <FieldLabel htmlFor="notifications-timezone">Timezone</FieldLabel>
+            <FieldLabel htmlFor="profile-timezone">Timezone</FieldLabel>
             <TimezoneCombobox
-              id="notifications-timezone"
+              id="profile-timezone"
               value={field.state.value}
               onValueChange={field.handleChange}
               onBlur={field.handleBlur}
               disabled={pending}
-              aria-describedby="notifications-timezone-source"
+              aria-describedby="profile-timezone-source"
               className="h-11 min-h-11"
             />
             <p
-              id="notifications-timezone-source"
+              id="profile-timezone-source"
               data-testid="timezone-source"
               className="text-sm text-muted-foreground"
             >
@@ -135,16 +135,13 @@ export function NotificationFormattingForm({ settings, updateUserSettings }: Pro
       <form.Field name="locale">
         {(field) => (
           <Field className="min-w-0">
-            <FieldLabel htmlFor="notifications-locale">Date and time format</FieldLabel>
+            <FieldLabel htmlFor="profile-locale">Date and time format</FieldLabel>
             <Select
               value={field.state.value}
               onValueChange={field.handleChange}
               disabled={pending}
             >
-              <SelectTrigger
-                id="notifications-locale"
-                className="h-11 min-h-11 w-full min-w-0"
-              >
+              <SelectTrigger id="profile-locale" className="h-11 min-h-11 w-full min-w-0">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -175,7 +172,7 @@ export function NotificationFormattingForm({ settings, updateUserSettings }: Pro
             }
             className="w-fit"
           >
-            Save formatting
+            Save timezone and format
           </SubmitButton>
         )}
       </form.Subscribe>

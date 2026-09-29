@@ -864,6 +864,16 @@ in the app also takes over its reader's own arrival notice about the item, so
 one piece of work is one row. A grouped assignment waits until it is opened or
 its Property archived; settling it item by item is a follow-up.
 
+## Amended 2026-09-30 — timezone and date format are set on Profile
+
+The "Timezone and date format" card moved from the notification settings page
+to Profile (docs/design/notifications, D6). They are the person's clock, not a
+Property's: quiet hours, the daily digest and every time a notification shows
+go by them, and between the Property picker and quiet hours they read as one
+Property's. Nothing about storage changed: the row is still per Organization
+membership (r.3), so the card names the Organization it sets them for, and the
+quiet-hours card names the clock it runs on and links to Profile.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

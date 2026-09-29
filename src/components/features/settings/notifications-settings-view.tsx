@@ -26,28 +26,21 @@ import type { PreferencePatch, PreferenceValues } from './notification-preferenc
 import type { SetDifferently } from './notification-apply-everywhere'
 import { CATEGORY_COPY } from './notifications-type-rows'
 import {
-  NotificationFormattingForm,
-  type NotificationSettingsUpdate,
-} from './notification-formatting-form'
-import {
   NotificationQuietHoursCard,
   type QuietHoursUpdate,
 } from './notification-quiet-hours-card'
 
 export type NotificationPreferencePatch = PreferencePatch
 
-export type { NotificationSettingsUpdate } from './notification-formatting-form'
-
 type NotificationsSettingsViewProps = Readonly<{
   properties: readonly Readonly<{ id: string; name: string }>[]
   propertyId: string
-  /** The language and timezone delivery uses now, Organization fallback applied. */
+  /** The quiet hours and the clock delivery uses now, Organization fallback applied. */
   settings: EffectiveNotificationSettings
   /** The selected Property's server-enforced email capability, as far as known. */
   emailAvailability: EmailAvailability
   retryEmailAvailability: () => void
   setPropertyId: (value: string) => void
-  updateUserSettings: Action<NotificationSettingsUpdate, EffectiveNotificationSettings>
   updateQuietHours: Action<QuietHoursUpdate, EffectiveNotificationSettings>
   /** This property's override of the person's quiet hours, if it has one. */
   quietHoursOverride: PersonalDeliveryWindow | null
@@ -118,26 +111,6 @@ export function NotificationsSettingsView(props: NotificationsSettingsViewProps)
               }}
             />
           </Field>
-        </CardContent>
-      </Card>
-
-      <Card className="min-w-0">
-        <CardHeader>
-          {/*
-            Not "Language": every word in the product is English (docs/BETA.md),
-            and this control only chooses how a date and a time are written.
-          */}
-          <CardTitle>Timezone and date format</CardTitle>
-          <CardDescription>
-            Your timezone decides when quiet hours start and end and when the daily digest
-            arrives (08:00), for every property. Notification times are shown in it too.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <NotificationFormattingForm
-            settings={props.settings}
-            updateUserSettings={props.updateUserSettings}
-          />
         </CardContent>
       </Card>
 
