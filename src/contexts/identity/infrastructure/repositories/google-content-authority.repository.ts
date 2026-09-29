@@ -27,10 +27,15 @@ const countRowSchema = z.object({
   value: z.union([z.number(), z.string().regex(/^[0-9]+$/)]),
 })
 
-async function nextEmergencyKillVersion(tx: Database): Promise<number> {
+/** Serializes every change to the capability controls and their generation. */
+async function lockEmergencyGeneration(tx: Database): Promise<void> {
   await tx.execute(
     sql`SELECT pg_advisory_xact_lock(hashtextextended('google-content-emergency-generation', 0))`,
   )
+}
+
+async function nextEmergencyKillVersion(tx: Database): Promise<number> {
+  await lockEmergencyGeneration(tx)
   const result = await tx.execute(sql`
     SELECT COALESCE(MAX(emergency_kill_version), 0) + 1 AS emergency_kill_version
     FROM capability_execution_control
@@ -73,9 +78,27 @@ export type GoogleContentControlState = Readonly<{
   killedCapabilities: ReadonlyArray<GoogleContentCapability>
 }>
 
+/** One persisted control row, with who last changed it and why. */
+export type GoogleContentCapabilityControl = Readonly<{
+  capability: GoogleContentCapability
+  denied: boolean
+  operatorId: string | null
+  reason: string | null
+}>
+
 export type GoogleContentAuthorityRepository = Readonly<{
   transaction<T>(run: (tx: Database) => Promise<T>): Promise<T>
   loadControl(tx: Database): Promise<GoogleContentControlState>
+  /**
+   * Every control row, locked for update after the lock deny/allow take. A
+   * change that lands between this read and a write in the same transaction
+   * is impossible: `denyCapability` waits on the advisory lock, and a hand
+   * UPDATE waits on the row lock (or, already in flight, is waited for and
+   * then read as committed).
+   */
+  lockCapabilityControls(
+    tx: Database,
+  ): Promise<ReadonlyArray<GoogleContentCapabilityControl>>
   insertPermit(tx: Database, record: GoogleExecutionPermitRecord): Promise<void>
   lockPermit(
     tx: Database,
@@ -148,6 +171,19 @@ export const createGoogleContentAuthorityRepository = (
             !controls.some((row) => row.capability === capability && !row.denied),
         ),
       }
+    },
+
+    lockCapabilityControls: async (tx) => {
+      await lockEmergencyGeneration(tx)
+      return tx
+        .select({
+          capability: capabilityExecutionControl.capability,
+          denied: capabilityExecutionControl.denied,
+          operatorId: capabilityExecutionControl.operatorId,
+          reason: capabilityExecutionControl.reason,
+        })
+        .from(capabilityExecutionControl)
+        .for('update')
     },
 
     insertPermit: async (tx, record) => {

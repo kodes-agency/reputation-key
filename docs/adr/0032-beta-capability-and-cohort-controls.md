@@ -58,6 +58,41 @@ Settings. The worker's startup manifest records the allowlist's shape (all /
 N listed / none — never an ID), and `ops:bootstrap-owner` reports whether the
 Organization it creates is covered, with the exact fix when it is not.
 
+## Amendment 2026-09-29 — declared capability posture survives a database reset
+
+Below the allowlist sit two database-held kill switches: the Google content
+capability controls (`capability_execution_control`) and the AI capability
+heads (`ai_execution_control_heads`). The seed leaves every Google content
+capability denied (operator `NULL` or `migration:0124`) and every AI capability
+`killed`/`draining` at generation 1 — the dark posture an operator lifts. After
+the old production activation script was deleted nothing lifted it, so each
+closed-beta database reset silently broke Connect Google (`capability_killed`)
+and all AI until the rows were repaired by hand.
+
+The environment now declares its posture, on `web`:
+`GOOGLE_CONTENT_CAPABILITIES_ALLOWED` and `AI_CAPABILITIES_ENABLED`, each `*` or
+a comma list, unset meaning no change. Web's `preDeployCommand`
+(`scripts/migrate-deploy.ts`) applies it right after the schema tracks, inside
+the same advisory-locked step, through the existing authorities:
+`allowCapability` (which advances the shared emergency generation) and
+`transition_ai_execution_control_v1` (`operator_restore`, actor
+`deploy:declared-posture`, the deployed `RELEASE_SHA` — else the image-baked
+`IMAGE_SOURCE_REVISION` — as the audited candidate).
+
+The declaration restores a reset; it is not a second switch. It lifts only an
+untouched seed default — a Google row (or a missing one) still denied with no
+operator or a `migration:` operator AND a `*_default_deny` reason, read under
+the emergency-generation lock and a row lock; an AI head still at generation 1.
+Any other denial, or an AI head an operator moved (any later generation that is
+not `enabled`/`accepting`), is kept and reported, as is a stopped global or
+provider plane; a compare-and-set lost to a concurrent move is re-read and the
+move kept. A hand kill must therefore record who and why: an operator id and a
+reason other than a default-deny one. Removing a capability from the declaration does not re-deny it: stopping
+stays the operator's act (the controls themselves, or `BETA_CAPABILITIES_OFF`).
+An unknown capability name fails the deploy before any migration. Every run
+logs one `[declared-posture]` line naming what was lifted and what was left and
+why; nothing is written when nothing needs to change.
+
 ## Consequences
 
 - UI affordances may explain a refusal but cannot bypass it.
