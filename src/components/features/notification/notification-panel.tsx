@@ -13,7 +13,7 @@
 // place before the click. The trigger, the badge and the polling head stay
 // eager.
 
-import { Suspense, useMemo, useState } from 'react'
+import { Suspense, useState } from 'react'
 import { Bell } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
@@ -22,7 +22,6 @@ import { useNotificationFormat, useNotifications } from './notification-queries'
 import { useNotificationMutations } from './notification-mutations'
 import { NotificationAnnouncer, useNotificationAnnouncer } from './notification-announcer'
 import { lazyPopoverBody } from './notification-popover-loader'
-import { groupByReadState, type NotificationFilter } from './notification-filters'
 import type { NotificationServerFns, NotificationRowActions } from './types'
 import type { NotificationView } from '#/contexts/feed/application/public-api'
 
@@ -86,13 +85,14 @@ function focusListOnOpen(event: Event): void {
   ;(popover.querySelector<HTMLElement>(NOTIFICATION_LIST_SELECTOR) ?? popover).focus()
 }
 
-// Screen-reader live region announcing the unread count.
+// Screen-reader live region announcing what the badge counts: the notices
+// still waiting on the reader (D2), not every unread row.
 function NotificationAriaLive({ count }: Readonly<{ count: number }>) {
   return (
     <span aria-live="polite" className="sr-only">
       {count > 0
-        ? `${count} unread notification${count === 1 ? '' : 's'}`
-        : 'No unread notifications'}
+        ? `${count} notification${count === 1 ? ' needs' : 's need'} you`
+        : 'Nothing needs you'}
     </span>
   )
 }
@@ -104,24 +104,23 @@ type Props = Readonly<{
 
 export function NotificationPanel({ notificationFns, organizationId }: Props) {
   const [open, setOpen] = useState(false)
-  const [filter, setFilter] = useState<NotificationFilter>('all')
   const { announcement, announce } = useNotificationAnnouncer()
 
-  // The badge and list head are one snapshot. Polling the shared head while
-  // closed keeps the bell current without a second, racing count request.
-  const list = useNotifications(
+  // The badge and the Needs-you list are one snapshot. Polling the shared head
+  // while closed keeps the bell current without a second, racing count
+  // request. The badge counts what still waits on the reader (D2); unread news
+  // shows in Updates with its dot, and does not raise the badge.
+  const needsYou = useNotifications(
     notificationFns.getFeedHead,
     notificationFns.getList,
     organizationId,
     PAGE_SIZE,
-    filter,
+    'needs_you',
     true,
   )
-  const count = list.unreadCount
+  const count = needsYou.filterUnreadCount
   const format = useNotificationFormat(notificationFns.getUserSettings, organizationId)
   const mutations = useNotificationMutations(notificationFns, organizationId, announce)
-
-  const groups = useMemo(() => groupByReadState(list.notifications), [list.notifications])
 
   const actions: NotificationRowActions = {
     ...mutations,
@@ -139,9 +138,7 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
         // Refetch the head, never invalidate: invalidating the org subtree used
         // to evict settings caches, while refetching the old infinite query
         // replayed every history page already loaded.
-        if (next) list.refetch()
-        // The bell is a quick view: it opens on All, not on the tab it closed on.
-        else setFilter('all')
+        if (next) needsYou.refetch()
       }}
     >
       <PopoverTrigger asChild>
@@ -151,7 +148,7 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
           className="relative"
           onPointerEnter={preloadPopoverContent}
           onFocus={preloadPopoverContent}
-          aria-label={`Notifications${count > 0 ? `, ${count} unread` : ''}`}
+          aria-label={`Notifications${count > 0 ? `, ${count} ${count === 1 ? 'needs' : 'need'} you` : ''}`}
         >
           <Bell aria-hidden="true" className="size-4" />
           {count > 0 && (
@@ -181,21 +178,23 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
       >
         <Suspense fallback={<PopoverContentFallback />}>
           <NotificationPopoverContent
-            groups={groups}
-            isLoading={list.isLoading}
-            isLoadingMore={list.isLoadingMore}
-            error={list.error}
-            loadMoreError={list.loadMoreError}
-            hasMore={list.hasMore}
-            filterUnreadCount={list.filterUnreadCount}
-            filter={filter}
-            onFilterChange={setFilter}
+            needsYou={{
+              notifications: needsYou.notifications,
+              isLoading: needsYou.isLoading,
+              isLoadingMore: needsYou.isLoadingMore,
+              error: needsYou.error,
+              loadMoreError: needsYou.loadMoreError,
+              hasMore: needsYou.hasMore,
+              onRetry: needsYou.refetch,
+              onLoadMore: needsYou.loadMore,
+            }}
+            unreadCount={needsYou.unreadCount}
             isMarkingAllRead={mutations.isMarkingAllRead}
-            onRetry={list.refetch}
-            onLoadMore={list.loadMore}
-            onMarkAllRead={() => mutations.markAllRead(filter)}
+            onMarkAllRead={() => mutations.markAllRead('all')}
             actions={actions}
             format={format}
+            notificationFns={notificationFns}
+            organizationId={organizationId}
             onViewAll={() => setOpen(false)}
           />
         </Suspense>

@@ -1,7 +1,7 @@
 // Feed notification surface — Drizzle repository adapter for notifications
 // Per architecture: factory pattern `createXxxRepository(db)` returning port interface.
 
-import { and, eq, desc, inArray, isNull, ne, or, sql, type SQL } from 'drizzle-orm'
+import { and, eq, desc, inArray, isNull, ne, not, or, sql, type SQL } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { notifications } from '#/shared/db/schema/notification.schema'
 import {
@@ -14,6 +14,7 @@ import {
 import type { Notification, NotificationStatus } from '../../domain/notification-types'
 import { notificationFromRow } from './notification-row.mapper'
 import { notificationError } from '../../domain/notification-errors'
+import { ACTIONABLE_NOTIFICATION_TYPES } from '../../domain/notification-settlement'
 import type { NotificationListFilter } from '../../application/notification-list-filter'
 import type { NotificationFeedScope } from '../../application/ports/notification-repository.port'
 import {
@@ -107,12 +108,24 @@ export const awaitingSettlement: SQL = and(
   ),
 )!
 
-// What a feed filter adds to "the reader's notices": the unread status, the
-// urgent priority flag (any category), or one category. `all` adds nothing.
-// Shared by the feed read, its filter's unread count and the filter-scoped
-// "Mark all read", so the three can never disagree about a tab's rows.
+// Work still waiting on its reader: an actionable notice (the types a settling
+// fact can retire) that is unread and unsettled. The bell leads with these and
+// counts only these (docs/design/notifications, D2); everything else is an
+// update.
+const needsYou: SQL = and(
+  stillWaiting,
+  inArray(notifications.type, [...ACTIONABLE_NOTIFICATION_TYPES]),
+)!
+
+// What a feed filter adds to "the reader's notices": work waiting on them or
+// everything else, the unread status, the urgent priority flag (any category),
+// or one category. `all` adds nothing. Shared by the feed read, its filter's
+// unread count and the filter-scoped "Mark all read", so the three can never
+// disagree about a tab's rows.
 const feedFilterCondition = (filter: NotificationListFilter): SQL | undefined => {
   if (filter === 'all') return undefined
+  if (filter === 'needs_you') return needsYou
+  if (filter === 'updates') return not(needsYou)
   if (filter === 'unread') return stillWaiting
   if (filter === 'urgent') return eq(notifications.priority, 'urgent')
   return eq(notifications.category, filter)

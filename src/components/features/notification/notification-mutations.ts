@@ -69,6 +69,8 @@ export type NotificationFeedMutations = Readonly<{
   onMarkRead: (notificationId: string) => void
   onMarkUnread: (notificationId: string) => void
   onDismiss: (notificationId: string) => void
+  onMarkManyRead: (notificationIds: ReadonlyArray<string>) => void
+  onDismissMany: (notificationIds: ReadonlyArray<string>) => void
   onMuteCategory: (notification: NotificationView) => void
   /** Marks read the unread rows `filter` holds: the tab the reader is on, not every tab. */
   markAllRead: (filter: NotificationListFilter) => void
@@ -194,6 +196,29 @@ export function useNotificationMutations(
               ),
           },
         }),
+      )
+    },
+    onMarkManyRead: (ids) => {
+      void run(
+        Promise.all(ids.map((id) => markRead({ data: { notificationId: id } }))),
+        () => announce(`${ids.length} notifications marked as read.`),
+      )
+    },
+    onDismissMany: (ids) => {
+      void run(
+        Promise.all(ids.map((id) => dismiss({ data: { notificationId: id } }))),
+        () =>
+          toast(`${ids.length} notifications dismissed.`, {
+            duration: UNDO_TOAST_MS,
+            action: {
+              label: 'Undo',
+              onClick: () =>
+                void run(
+                  Promise.all(ids.map((id) => restore({ data: { notificationId: id } }))),
+                  () => toast(`${ids.length} notifications restored.`),
+                ),
+            },
+          }),
       )
     },
     onMuteCategory: (notification) => {

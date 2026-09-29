@@ -14,7 +14,7 @@ import {
   fetchHeadKeepingHistoryContiguous,
   type NotificationHistoryPages,
 } from './notification-feed-pagination'
-import { groupByReadState, matchesNotificationFilter } from './notification-filters'
+import { matchesNotificationFilter } from './notification-filters'
 import { unreadDeltaWithin } from './notification-feed-counts'
 
 const settled = makeNotification({
@@ -62,14 +62,16 @@ describe('a settled-but-unread row', () => {
     expect(matchesNotificationFilter(waiting, 'unread')).toBe(true)
   })
 
-  it('lists under "Earlier", not "New"', () => {
-    const groups = groupByReadState([waiting, settled])
+  it('is an update, not something that needs its reader', () => {
+    const approval = { ...settled, type: 'reply.pending_approval' as const }
+    expect(matchesNotificationFilter(approval, 'needs_you')).toBe(false)
+    expect(matchesNotificationFilter(approval, 'updates')).toBe(true)
     expect(
-      groups.map((group) => [group.key, group.notifications.map((n) => n.id)]),
-    ).toEqual([
-      ['new', [waiting.id]],
-      ['earlier', [settled.id]],
-    ])
+      matchesNotificationFilter(
+        { ...waiting, type: 'reply.pending_approval' },
+        'needs_you',
+      ),
+    ).toBe(true)
   })
 
   it('does not move the badge when opened or dismissed', () => {
