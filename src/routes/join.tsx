@@ -1,10 +1,19 @@
 // Join page — creates a beta manager account from one exact invitation.
-// The server-side saga consumes the invitation atomically; success asks the
-// user to sign in so session creation remains a separate explicit action.
-import { createFileRoute, Link, redirect } from '@tanstack/react-router'
+// The server-side saga consumes the invitation atomically, which verifies the
+// address, and then signs the new member in; the page lands them in the app
+// the way a sign-in does. If that sign-in failed, the card asks them to sign in.
+import {
+  createFileRoute,
+  Link,
+  redirect,
+  useNavigate,
+  useRouter,
+} from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
+import { useQueryClient } from '@tanstack/react-query'
 import { z } from 'zod/v4'
-import { getSession } from '#/shared/auth/auth.functions'
+import { ensureActiveOrg, getSession } from '#/shared/auth/auth.functions'
+import { clearTenantCacheBeforeNavigation } from '#/shared/queries/tenant-cache-transition'
 import { AuthCard, AuthFooterLink } from '#/components/layout/auth-layout'
 import { RegisterForm } from '#/components/features/identity'
 import { registerMember } from '#/contexts/identity/server/organizations'
@@ -33,9 +42,19 @@ export const Route = createFileRoute('/join')({
 
 function JoinPage() {
   const { invitationId } = Route.useSearch()
+  const navigate = useNavigate()
+  const router = useRouter()
+  const queryClient = useQueryClient()
   const register = useAction(useServerFn(registerMember))
 
-  const mutation = wrapAction(register, async () => undefined)
+  const mutation = wrapAction(register, async ({ signedIn }) => {
+    if (!signedIn) return
+    await ensureActiveOrg()
+    await clearTenantCacheBeforeNavigation(queryClient, async () => {
+      await router.invalidate()
+      await navigate({ to: '/properties' })
+    })
+  })
 
   if (!invitationId) {
     return (
@@ -51,6 +70,16 @@ function JoinPage() {
             Sign in to an existing account
           </Link>
         </div>
+      </AuthCard>
+    )
+  }
+
+  if (mutation.isSuccess && mutation.data?.signedIn === true) {
+    return (
+      <AuthCard title="Account created!" description="Your email is verified.">
+        <p className="text-center text-sm text-muted-foreground" role="status">
+          Signing you in…
+        </p>
       </AuthCard>
     )
   }

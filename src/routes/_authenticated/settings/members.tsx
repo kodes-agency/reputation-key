@@ -5,6 +5,7 @@
 // also check permissions internally (defense in depth).
 
 import { useState } from 'react'
+import { toast } from 'sonner'
 import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
 import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
@@ -93,6 +94,9 @@ export const Route = createFileRoute('/_authenticated/settings/members')({
   component: MembersSettingsRoute,
 })
 
+const INVITATION_EMAIL_UNSENT =
+  'Invitation created, but the email could not be sent. Use Resend.'
+
 function MembersSettingsRoute() {
   const { allowedRoles, selfServiceLeaveAvailable } = Route.useLoaderData()
   const { data: memberResult } = useSuspenseQuery(membersQuery)
@@ -106,9 +110,13 @@ function MembersSettingsRoute() {
   const [inviteOpen, setInviteOpen] = useState(false)
 
   const inviteMutation = useActionMutation(inviteMember, {
-    successMessage: 'Invitation sent',
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
-    onSuccess: async () => setInviteOpen(false),
+    onSuccess: async ({ emailSent }) => {
+      // The invitation exists either way; an unsent email is renewed by Resend.
+      if (emailSent) toast.success('Invitation sent')
+      else toast.warning(INVITATION_EMAIL_UNSENT)
+      setInviteOpen(false)
+    },
   })
   // The tables have no inline error surface, so these report a refusal (the
   // resend rate limit, the last Account Admin) by toast. The invite form shows
@@ -124,9 +132,12 @@ function MembersSettingsRoute() {
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
   })
   const resendMutation = useActionMutation(resendInvitation, {
-    successMessage: 'Invitation resent',
     errorMessage: actionErrorMessage,
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
+    onSuccess: async ({ emailSent }) => {
+      if (emailSent) toast.success('Invitation resent')
+      else toast.warning(INVITATION_EMAIL_UNSENT)
+    },
   })
   const cancelMutation = useActionMutation(cancelInvitation, {
     successMessage: 'Invitation cancelled',
