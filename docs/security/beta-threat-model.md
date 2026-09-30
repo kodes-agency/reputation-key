@@ -127,7 +127,10 @@
    rate-limited read keyed by the invitation ID, which is a bearer secret
    already mailed to the invitee. It returns only what the invitation email
    states plus whether the address has an account; unknown IDs and ineligible
-   invitations return one identical `unavailable` shape.
+   invitations return one identical `unavailable` shape. The limit is 60 reads
+   per IP per 10 minutes because one link open reads the preview two or three
+   times (the emailed link, then the page it redirects to); the link pages
+   show the refusal as a "Too many attempts" card rather than an error.
 
 ## OWASP ASVS 5.0 mapping
 
