@@ -113,9 +113,19 @@ export function PortalOverviewResultsStrip({ controls, propertyId }: Props) {
 
 /** The footer line under the table: the window, the zone and the floor for an average. */
 export function PortalOverviewResultsFooter({ controls, propertyId }: Props) {
-  const { state } = controls
+  const { state, busy = false } = controls
   if (state.status !== 'ready') return null
   const strip = state.index.strip(propertyId)
   if (!strip) return null
-  return <p className="text-xs text-muted-foreground">{strip.footer}</p>
+  return (
+    <p
+      aria-busy={busy}
+      className={cn(
+        'text-xs text-muted-foreground transition-opacity',
+        busy && 'opacity-60',
+      )}
+    >
+      {strip.footer}
+    </p>
+  )
 }

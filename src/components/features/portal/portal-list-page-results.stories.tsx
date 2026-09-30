@@ -143,6 +143,20 @@ export const ChangesTheWindow: Story = {
   },
 }
 
+/** A new window is loading: the figures on screen are the previous window's, and say so. */
+export const NewWindowLoadingMarksEveryFigureBusy: Story = {
+  args: { ...baseArgs, results: { ...controls(READY), busy: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const table = canvas.getByRole('table', { name: /portals at avela resort/i })
+    const figures = table.closest('[aria-busy]')
+    await expect(figures).toHaveAttribute('aria-busy', 'true')
+    await expect(
+      canvas.getByLabelText('Portal results').closest('[aria-busy]'),
+    ).toHaveAttribute('aria-busy', 'true')
+  },
+}
+
 export const NamesTheWindowAndTheFloor: Story = {
   args: withResults,
   play: async ({ canvasElement }) => {
@@ -194,6 +208,10 @@ export const NotOfferedToThisReader: Story = {
   },
 }
 
+// Both lines are in the document whatever the width: the Vitest story runner compiles no
+// Tailwind, so this story proves the summary line's words, not that it is the one shown at
+// 390 px. Which of the two layouts shows at which width is held in
+// `e2e/storybook-metrics/portal-overview.metrics.ts`, where Tailwind is compiled.
 export const Phone: Story = {
   args: withResults,
   decorators: [

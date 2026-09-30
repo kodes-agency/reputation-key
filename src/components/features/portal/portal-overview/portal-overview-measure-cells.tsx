@@ -24,7 +24,7 @@ export const MEASURE_COLUMNS = [
 
 export const MEASURE_COLUMN_COUNT = MEASURE_COLUMNS.length
 
-const CELL = 'hidden px-2 py-3 text-right text-sm tabular-nums @4xl:table-cell @4xl:w-28'
+const CELL = 'hidden px-2 py-3 text-right text-sm tabular-nums @4xl:table-cell @4xl:w-24'
 
 const MISSING: MeasureFigure = { text: '—', unit: null, tone: 'missing', reason: null }
 

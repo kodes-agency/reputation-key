@@ -65,13 +65,13 @@ export function PortalOverviewTableRow({
         </div>
       </TableHead>
       <PortalMeasureCells slot={figures} draft={draft} />
-      <TableCell className="hidden p-0 @4xl:table-cell @4xl:w-40 @4xl:px-4 @4xl:py-3">
+      <TableCell className="hidden p-0 @4xl:table-cell @4xl:w-36 @4xl:px-4 @4xl:py-3">
         {archived ? null : <PortalManagersCell managers={item.managers} />}
       </TableCell>
-      <TableCell className="col-span-2 row-start-2 grid grid-cols-2 gap-2 p-0 @4xl:table-cell @4xl:w-56 @4xl:px-2 @4xl:py-3 @4xl:text-right [&>*]:justify-center @4xl:[&>*]:ml-2">
+      <TableCell className="col-span-2 row-start-2 grid grid-cols-2 gap-2 p-0 @4xl:table-cell @4xl:w-48 @4xl:px-2 @4xl:py-3 @4xl:text-right [&>*]:justify-center @4xl:[&>*]:ml-2">
         <PortalRowButtons item={item} propertyId={propertyId} />
       </TableCell>
-      <TableCell className="col-start-2 row-start-1 -mt-2 -mr-2 self-start p-0 @4xl:mt-0 @4xl:mr-0 @4xl:table-cell @4xl:w-14 @4xl:px-2 @4xl:py-3 @4xl:text-right">
+      <TableCell className="col-start-2 row-start-1 -mt-2 -mr-2 self-start p-0 @4xl:mt-0 @4xl:mr-0 @4xl:table-cell @4xl:w-12 @4xl:px-2 @4xl:py-3 @4xl:text-right">
         <PortalRowMenu
           item={item}
           propertyId={propertyId}

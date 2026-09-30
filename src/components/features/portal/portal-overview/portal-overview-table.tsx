@@ -4,6 +4,7 @@
 // reader's own, kept here rather than in the URL.
 import { useState } from 'react'
 import { ArrowDown, ArrowUp } from 'lucide-react'
+import { cn } from '#/lib/utils'
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '#/components/ui/table'
 import type { PortalArchiveMutations } from './portal-archive-dialog'
 import { PortalOverviewGroupHead } from './portal-overview-group-head'
@@ -23,13 +24,16 @@ type Props = PortalArchiveMutations &
     propertyId: string
     propertyName: string
     results: PortalOverviewResultsState
+    /** A new window is loading: the figures shown are still the previous window's. */
+    busy?: boolean
     /** Set while the table is ordered by qualified scans, to mark that column. */
     scansOrder?: SortDirection
   }>
 
 const TBODY = 'block space-y-3 pb-3 @4xl:table-row-group @4xl:space-y-0 @4xl:pb-0'
 
-const MEASURE_HEAD = 'h-10 px-2 text-right text-xs text-muted-foreground'
+const MEASURE_HEAD =
+  'h-10 px-2 text-right text-xs leading-tight whitespace-normal text-muted-foreground'
 
 function MeasureHeader({
   label,
@@ -59,6 +63,7 @@ export function PortalOverviewTable({
   archiveMutation,
   restoreMutation,
   results,
+  busy = false,
   scansOrder,
 }: Props) {
   const [folded, setFolded] = useState<readonly string[]>([])
@@ -68,7 +73,13 @@ export function PortalOverviewTable({
     )
 
   return (
-    <div className="@container @4xl:overflow-hidden @4xl:rounded-lg @4xl:border @4xl:bg-card">
+    <div
+      aria-busy={busy}
+      className={cn(
+        '@container transition-opacity @4xl:overflow-hidden @4xl:rounded-lg @4xl:border @4xl:bg-card',
+        busy && 'opacity-60',
+      )}
+    >
       <Table aria-label={`Portals at ${propertyName}`} className="block @4xl:table">
         <TableHeader className="hidden @4xl:table-header-group">
           <TableRow className="hover:bg-transparent">

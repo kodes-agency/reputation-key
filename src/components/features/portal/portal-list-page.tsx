@@ -166,6 +166,7 @@ export function PortalListPage({
                   archiveMutation={archiveMutation}
                   restoreMutation={restoreMutation}
                   results={resultsState}
+                  busy={results?.busy}
                   scansOrder={
                     listSearch.sort === 'scans'
                       ? (listSearch.dir ?? defaultSortDirection('scans'))
