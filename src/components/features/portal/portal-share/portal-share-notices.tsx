@@ -14,7 +14,7 @@ export function PortalViewOnlyNotice({ show }: NoticeProps) {
       <ShieldX />
       <AlertTitle>View-only access</AlertTitle>
       <AlertDescription>
-        You do not have permission to generate, rotate, or revoke public links.
+        You do not have permission to make, replace or stop the portal's code.
       </AlertDescription>
     </Alert>
   )
@@ -25,10 +25,10 @@ export function PortalRevokedNotice({ show }: NoticeProps) {
   return (
     <Alert aria-live="polite">
       <ShieldX />
-      <AlertTitle>Public links revoked</AlertTitle>
+      <AlertTitle>All codes stopped</AlertTitle>
       <AlertDescription>
-        Previously issued links no longer provide access. Generate a new link when you are
-        ready to share this portal again.
+        Earlier codes and the public address no longer open this portal. Make a new code
+        when you are ready to share it again.
       </AlertDescription>
     </Alert>
   )
@@ -41,41 +41,9 @@ export function PortalScanGoalReadinessNotice({ show }: NoticeProps) {
       <Link2 />
       <AlertTitle>QR update available</AlertTitle>
       <AlertDescription>
-        This public link was created before visit goals were added. It remains usable, but
-        visits from it are not included in scan-based goals. Rotate the link, then replace
-        the printed QR with the new one to include future visits.
-      </AlertDescription>
-    </Alert>
-  )
-}
-
-type ActiveLinkNoticeProps = Readonly<{
-  show: boolean
-  /** `version 3, issued Jan 4, 2026`; empty when the token has no metadata. */
-  detail: string
-  graceLabel: string | null
-}>
-
-export function PortalActiveLinkNotice({
-  show,
-  detail,
-  graceLabel,
-}: ActiveLinkNoticeProps) {
-  if (!show) return null
-  return (
-    <Alert>
-      <Link2 />
-      <AlertTitle>A public link is active</AlertTitle>
-      <AlertDescription>
-        {detail !== '' && <p>This portal is shared as {detail}.</p>}
-        <p>
-          The URL is shown only once, when it is generated or rotated, so it cannot be
-          displayed again here. Rotate the link to get a new URL you can copy or print, or
-          revoke it to stop all access.
-        </p>
-        {graceLabel !== null && (
-          <p>A previously rotated link keeps working until {graceLabel} (UTC).</p>
-        )}
+        This code was made before visit goals were added. It remains usable, but visits
+        from it are not included in scan-based goals. Replace the code, then swap the
+        printed QR for the new one to include future visits.
       </AlertDescription>
     </Alert>
   )

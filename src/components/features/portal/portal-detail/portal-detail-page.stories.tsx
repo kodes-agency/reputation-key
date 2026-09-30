@@ -396,9 +396,9 @@ export const ShareTab: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /generate public link/i }))
+    await userEvent.click(canvas.getByRole('button', { name: /make code/i }))
     await expect(await canvas.findByText(publicUrl)).toBeInTheDocument()
-    await expect(canvas.getByText(/save this link now/i)).toBeInTheDocument()
+    await expect(canvas.getByText(/save this address now/i)).toBeInTheDocument()
   },
 }
 

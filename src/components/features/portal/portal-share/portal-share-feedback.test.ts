@@ -80,12 +80,12 @@ describe('liveStatusMessage', () => {
     // Copy-then-rotate leaves `copied` true while the rotate runs; announcing
     // "copied" then would tell a screen reader the clipboard holds a link that
     // is being replaced.
-    expect(liveStatusMessage(true, true)).toBe('Updating the portal public link')
-    expect(liveStatusMessage(true, false)).toBe('Updating the portal public link')
+    expect(liveStatusMessage(true, true)).toBe('Updating the portal code')
+    expect(liveStatusMessage(true, false)).toBe('Updating the portal code')
   })
 
   it('confirms a copy only while nothing else is happening, and is otherwise silent', () => {
-    expect(liveStatusMessage(false, true)).toBe('Portal link copied')
+    expect(liveStatusMessage(false, true)).toBe('Address copied')
     // Empty keeps the live region from re-announcing on every unrelated render.
     expect(liveStatusMessage(false, false)).toBe('')
   })

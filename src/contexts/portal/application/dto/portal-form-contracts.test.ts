@@ -9,8 +9,10 @@ import {
   propertyPortalBrandProfileInputSchema,
 } from './portal-experience.dto'
 import {
+  portalCodeReplacementFormSchema,
   revokePortalTokensInputSchema,
   rotatePortalTokenInputSchema,
+  toRotatePortalTokenInput,
 } from './portal-token-lifecycle.dto'
 
 describe('Portal form DTO contracts', () => {
@@ -126,5 +128,46 @@ describe('Portal form DTO contracts', () => {
       revokePortalTokensInputSchema.safeParse({ portalId: 'portal-1', reason: '  ' })
         .success,
     ).toBe(false)
+  })
+
+  it('validates the replace-code choice and maps it to the rotate command', () => {
+    const planned = portalCodeReplacementFormSchema.parse({
+      replacementKind: 'planned',
+      gracePeriodDays: 7,
+    })
+    expect(toRotatePortalTokenInput('portal-1', planned)).toEqual({
+      portalId: 'portal-1',
+      replacementKind: 'planned',
+      gracePeriodDays: 7,
+    })
+    // A security replacement never carries a transition period, even when the
+    // form still holds the days typed before the choice changed.
+    const security = portalCodeReplacementFormSchema.parse({
+      replacementKind: 'security',
+      gracePeriodDays: 7,
+    })
+    const rotate = toRotatePortalTokenInput('portal-1', security)
+    expect(rotate).toEqual({ portalId: 'portal-1', replacementKind: 'security' })
+    expect(rotatePortalTokenInputSchema.safeParse(rotate).success).toBe(true)
+  })
+
+  it('bounds the transition period only for a planned replacement', () => {
+    for (const gracePeriodDays of [0, 91, 1.5, Number.NaN]) {
+      expect(
+        portalCodeReplacementFormSchema.safeParse({
+          replacementKind: 'planned',
+          gracePeriodDays,
+        }).success,
+        String(gracePeriodDays),
+      ).toBe(false)
+    }
+    // The field is hidden for a security replacement, so a stale or blank value
+    // in it must not block the submit.
+    expect(
+      portalCodeReplacementFormSchema.safeParse({
+        replacementKind: 'security',
+        gracePeriodDays: Number.NaN,
+      }).success,
+    ).toBe(true)
   })
 })

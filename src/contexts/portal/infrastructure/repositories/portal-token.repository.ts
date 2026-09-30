@@ -1,10 +1,11 @@
-import { and, asc, desc, eq, gte, inArray, isNull, notExists, or } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, inArray, isNull, lt, notExists, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { portalAccessArtifacts, portalTokens } from '#/shared/db/schema/portal.schema'
 import type { PortalTokenRepository } from '../../application/ports/portal-token.repository'
 import type { PortalToken, TokenStatus } from '../../domain/portal-token'
 import { portalError } from '../../domain/errors'
 import { unbrand } from '#/shared/domain/ids'
+import type { OrganizationId, PortalId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
 const VALID_TOKEN_STATES: ReadonlySet<string> = new Set(['active', 'rotating', 'revoked'])
@@ -64,6 +65,33 @@ const resolvableAsOf = (asOf: Date) =>
     and(eq(portalTokens.status, 'rotating'), gte(portalTokens.gracePeriodEnds, asOf)),
   )
 
+// A rotation writes `gracePeriodEnds` on the outgoing token only, so the newer
+// (current) token carries none. The window a reader cares about is the one the
+// older, printed code is still inside: the latest end among those older tokens.
+async function outgoingGraceEnd(
+  db: Database,
+  organizationId: OrganizationId,
+  portalId: PortalId,
+  currentVersion: number,
+  asOf: Date,
+): Promise<Date | null> {
+  const [row] = await db
+    .select({ gracePeriodEnds: portalTokens.gracePeriodEnds })
+    .from(portalTokens)
+    .where(
+      and(
+        eq(portalTokens.organizationId, unbrand(organizationId)),
+        eq(portalTokens.portalId, unbrand(portalId)),
+        eq(portalTokens.status, 'rotating'),
+        lt(portalTokens.version, currentVersion),
+        gte(portalTokens.gracePeriodEnds, asOf),
+      ),
+    )
+    .orderBy(desc(portalTokens.gracePeriodEnds))
+    .limit(1)
+  return row?.gracePeriodEnds ?? null
+}
+
 export const createPortalTokenRepository = (db: Database): PortalTokenRepository => ({
   findLatestForPortal: async (organizationId, portalId) =>
     trace('portalToken.findLatestForPortal', async () => {
@@ -113,14 +141,15 @@ export const createPortalTokenRepository = (db: Database): PortalTokenRepository
         )
         .orderBy(desc(portalTokens.version))
         .limit(1)
-      return row
-        ? {
-            version: row.version,
-            issuedAt: row.issuedAt,
-            gracePeriodEnds: row.gracePeriodEnds,
-            hasPublishedAccessArtifact: row.accessArtifactId !== null,
-          }
-        : null
+      if (!row) return null
+      return {
+        version: row.version,
+        issuedAt: row.issuedAt,
+        gracePeriodEnds:
+          row.gracePeriodEnds ??
+          (await outgoingGraceEnd(db, organizationId, portalId, row.version, asOf)),
+        hasPublishedAccessArtifact: row.accessArtifactId !== null,
+      }
     }),
 
   findResolvableByDigest: async (digest, asOf) =>

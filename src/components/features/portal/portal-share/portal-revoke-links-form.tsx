@@ -67,7 +67,7 @@ export function PortalRevokeLinksForm({
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
               disabled={!reason.trim() || mutation.isPending}
             >
-              {mutation.isPending ? 'Revoking…' : 'Revoke links'}
+              {mutation.isPending ? 'Stopping…' : 'Stop all codes'}
             </Button>
           )}
         </form.Subscribe>
