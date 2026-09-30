@@ -2,7 +2,7 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 // Every query filters by organization_id AND deleted_at IS NULL via baseWhere().
 
-import { and, asc, eq, ne, not, sql, inArray, isNull } from 'drizzle-orm'
+import { and, asc, eq, ne, not, sql, isNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { baseWhere } from '#/shared/db/base-where'
 import {
@@ -10,7 +10,6 @@ import {
   portalLinkCategories,
   portalLinks,
   portalApprovedDestinations,
-  portalGroupMembers,
 } from '#/shared/db/schema/portal.schema'
 import type {
   PortalRepository,
@@ -25,7 +24,6 @@ import {
   type OrganizationId,
   type PortalId,
   type PropertyId,
-  type PortalGroupId,
 } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import { isPubliclyAvailable } from '../../domain/portal-publication'
@@ -203,31 +201,6 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
         .where(and(...baseWhere(portals, orgId), eq(portals.id, unbrand(portalIdParam))))
         .limit(1)
       return portal ? loadPublicPortal(db, portal) : null
-    })
-  },
-
-  findGroupIdsByPortalIds: async (orgId, portalIds) => {
-    return trace('portal.findGroupIdsByPortalIds', async () => {
-      if (portalIds.length === 0) return []
-
-      const rows = await db
-        .selectDistinct({ portalGroupId: portalGroupMembers.portalGroupId })
-        .from(portalGroupMembers)
-        .innerJoin(portals, eq(portals.id, portalGroupMembers.portalId))
-        .where(
-          and(
-            ...baseWhere(portals, orgId),
-            inArray(portals.id, [...portalIds] as string[]),
-          ),
-        )
-
-      const groupIds: PortalGroupId[] = []
-      for (const row of rows) {
-        if (row.portalGroupId) {
-          groupIds.push(row.portalGroupId as PortalGroupId)
-        }
-      }
-      return groupIds
     })
   },
 })
