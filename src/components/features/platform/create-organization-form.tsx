@@ -19,15 +19,10 @@ import {
   type ProvisionOrganizationInput,
   type ProvisionOrganizationResult,
 } from '#/contexts/identity/application/dto/platform-console.dto'
-import { deriveOrganizationSlug } from '#/shared/domain/organization-slug'
+import { suggestedSlug } from './platform-console-model'
 
 // The form always submits a slug (the one on screen); the DTO leaves it optional.
 const createFormSchema = provisionOrganizationInputSchema.required({ slug: true })
-
-/** What the slug field shows for a name: empty until there is a name to derive from. */
-export function suggestedSlug(name: string): string {
-  return name.trim() === '' ? '' : deriveOrganizationSlug(name)
-}
 
 type Props = Readonly<{
   provision: Action<{ data: ProvisionOrganizationInput }, ProvisionOrganizationResult>

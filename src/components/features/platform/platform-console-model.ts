@@ -4,6 +4,7 @@
 // No React, so each rule is pinned by a unit test.
 
 import { isServerFunctionError } from '#/shared/auth/server-function-error'
+import { deriveOrganizationSlug } from '#/shared/domain/organization-slug'
 import { formatDateTime } from '#/lib/format-date-time'
 import type {
   PlatformAdminInvitationView,
@@ -99,6 +100,11 @@ export function summarizeOrganizations(
     darkForControlledBeta: organizations.filter((entry) => !entry.controlledBetaEnabled)
       .length,
   }
+}
+
+/** What the slug field shows for a name: empty until there is a name to derive from. */
+export function suggestedSlug(name: string): string {
+  return name.trim() === '' ? '' : deriveOrganizationSlug(name)
 }
 
 const CONSOLE_LOCALE = 'en-US'
