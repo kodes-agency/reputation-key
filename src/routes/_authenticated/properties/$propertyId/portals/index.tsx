@@ -20,7 +20,7 @@ import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { propertiesQuery } from '#/routes/-queries/route-queries'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
-import { portalGroupsQuery } from './-portal-groups-query'
+import { portalGroupsQuery } from './-portal-detail-data'
 import { portalGroupCachePolicy } from '#/components/features/portal/portal-group-cache-policy'
 
 const portalsQuery = (propertyId: string) =>

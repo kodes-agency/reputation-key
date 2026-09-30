@@ -41,6 +41,7 @@ import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import {
   findAuthorizedPortal,
+  portalGroupsQuery,
   portalApprovedDestinationsQuery,
   portalExperienceQuery,
   portalLinksQuery,
@@ -48,7 +49,6 @@ import {
   portalQuery,
   responsibleManagersQuery,
 } from './-portal-detail-data'
-import { portalGroupsQuery } from './-portal-groups-query'
 
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/$portalId',
