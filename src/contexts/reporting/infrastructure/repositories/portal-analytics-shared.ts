@@ -77,7 +77,7 @@ const PORTAL_ANALYTICS_POLICIES = Object.freeze([
   PORTAL_FEEDBACK_POLICY,
   PORTAL_DESTINATION_CLICK_POLICY,
 ])
-const PORTAL_ANALYTICS_VERSION_IDS = Object.freeze(
+export const PORTAL_ANALYTICS_VERSION_IDS = Object.freeze(
   PORTAL_ANALYTICS_POLICIES.map(({ metric }) => metric.version.id),
 )
 const PORTAL_ANALYTICS_POLICY = or(

@@ -106,17 +106,23 @@ export type {
   FleetTotals,
 } from '../domain/dashboard-types'
 export type {
-  PortalResultsAggregateRow,
   PortalResultsGroupRow,
+  PortalResultsMeasures,
+  PortalResultsMembership,
   PortalResultsOverview,
   PortalResultsPeriod,
   PortalResultsPortalRow,
+  PortalResultsPropertyRow,
   PortalResultsScope,
+  PortalResultsTotalRow,
+  PortalResultsUngroupedRow,
 } from '../domain/portal-results-overview'
 export {
   PORTAL_RESULTS_PORTAL_LIMIT,
   type GetPortalResultsOverviewInput,
+  type PortalResultsPropertyZone,
   type PortalResultsRosterEntry,
+  type PortalResultsTimeRange,
 } from './use-cases/get-portal-results-overview'
 export type {
   SetupChecklist,

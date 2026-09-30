@@ -227,6 +227,7 @@ describe('MetricRegistry', () => {
     it('keeps the widened measures private to Portal analytics', () => {
       // Widening the scope is not widening the audience.
       const widened = [
+        METRIC_VERSION_IDS.portalRatingAnalytics,
         METRIC_VERSION_IDS.portalDestinationClickAnalytics,
         METRIC_VERSION_IDS.portalFeedbackAnalytics,
       ]

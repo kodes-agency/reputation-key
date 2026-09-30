@@ -352,6 +352,7 @@ function buildDashboardModule(
   })
   const getResultsOverview = getPortalResultsOverview({
     results: createPortalResultsOverviewRepository(input.db, input.clock),
+    now: input.clock,
   })
   const getStaffDashboard = getStaffDashboardData({
     repo: dashboardRepo,

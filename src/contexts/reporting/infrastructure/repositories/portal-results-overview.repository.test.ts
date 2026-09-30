@@ -27,6 +27,7 @@ import {
 import { METRIC_VERSION_IDS } from '../../application/public-api'
 import { getPortalAnalytics } from '../../application/use-cases/get-portal-analytics'
 import { getPortalResultsOverview } from '../../application/use-cases/get-portal-results-overview'
+import { priorPeriodDates, timeRangeToDates } from '../../application/utils'
 import { createPortalAnalyticsRepository } from './portal-analytics.repository'
 import { createPortalResultsOverviewRepository } from './portal-results-overview.repository'
 
@@ -386,6 +387,31 @@ describe('Portal results overview repository (integration)', () => {
     ])
   })
 
+  it('reports every group a reading sat under, including readings it could not count', async () => {
+    const batched = await overview().readWindow({
+      organizationId: ORG,
+      portals: ROSTER,
+      window: WINDOW,
+    })
+    const groupsOf = (target: PortalId) =>
+      batched.readingGroups
+        .filter((pair) => pair.portalId === target)
+        .map((pair) => pair.groupId)
+        .sort()
+
+    // BUSY had readings under both groups; UNATTRIBUTED's sit under no group.
+    expect(groupsOf(BUSY)).toEqual([G1, G2])
+    expect(groupsOf(UNATTRIBUTED)).toEqual([null])
+    // An invalid rating and a click nobody applied yet have no counted cell but
+    // still say which group they belong to.
+    expect(cellsOf(batched, INVALID_RATING)).toEqual([])
+    expect(groupsOf(INVALID_RATING)).toEqual([null])
+    expect(groupsOf(UPDATING)).toEqual([G2])
+    // Neither a Portal outside the roster nor another organisation appears.
+    expect(groupsOf(FOREIGN)).toEqual([])
+    expect(batched.readingGroups.every((pair) => pair.portalId !== EMPTY)).toBe(true)
+  })
+
   it('counts qualified scans and Google opens only, and leaves readings outside the window', async () => {
     const batched = await overview().readWindow({
       organizationId: ORG,
@@ -498,7 +524,12 @@ describe('Portal results overview repository (integration)', () => {
       window: WINDOW,
     })
 
-    expect(batched).toEqual({ computedAt: COMPUTED_AT, cells: [], evidence: [] })
+    expect(batched).toEqual({
+      computedAt: COMPUTED_AT,
+      cells: [],
+      readingGroups: [],
+      evidence: [],
+    })
     expect(execute).not.toHaveBeenCalled()
   })
 
@@ -524,8 +555,10 @@ describe('Portal results overview repository (integration)', () => {
   it("gives every Portal the same five measures as that Portal's own Results view", async () => {
     // The use case over the real store, against getPortalAnalytics over the
     // single Portal store: one Portal row must never say something the Portal's
-    // Results view would not, with the prior window and its trends included.
-    const results = getPortalResultsOverview({ results: overview() })
+    // Results view would not, with the prior window and its trends included, and
+    // with each Property read through its own time zone.
+    const now = () => WINDOW.endAt
+    const results = getPortalResultsOverview({ results: overview(), now })
     const resultsView = getPortalAnalytics({
       portalMetrics: single(),
       portalLifetime: { get: async () => null },
@@ -538,31 +571,50 @@ describe('Portal results overview repository (integration)', () => {
         }),
       },
     })
+    const zones = new Map([
+      [PROP_A, 'UTC'],
+      [PROP_B, 'Pacific/Auckland'],
+    ])
 
     const rows = await results({
       scope: { organizationId: ORG, propertyId: null },
       portals: ROSTER.map((portal) => ({ ...portal, groupId: null })),
-      range: WINDOW,
-      compare: {
-        startAt: new Date('2026-08-02T00:00:00.000Z'),
-        endAt: WINDOW.startAt,
-      },
+      properties: [...zones].map(([property, timezone]) => ({
+        propertyId: property,
+        timezone,
+      })),
+      timeRange: '30d',
+      compare: true,
     })
 
     for (const { portalId: target, propertyId: property } of ROSTER) {
+      const timezone = zones.get(property) ?? 'UTC'
+      const { startDate, endDate } = timeRangeToDates('30d', now(), timezone)
       const view = await resultsView({
         organizationId: ORG,
         propertyId: property,
         portalId: target,
-        startDate: WINDOW.startAt,
-        endDate: WINDOW.endAt,
+        startDate,
+        endDate,
         timeRange: '30d',
-        propertyTimezone: 'UTC',
+        propertyTimezone: timezone,
       })
-      expect(rows.portals.find((row) => row.portalId === target)?.kpis, target).toEqual(
-        view.kpis,
-      )
+      const row = rows.portals.find((candidate) => candidate.portalId === target)
+      expect(row?.kpis, target).toEqual(view.kpis)
+      expect(row?.engagementFunnel, target).toEqual(view.engagementFunnel)
     }
+    // Each Property's subtotal reads its own local window.
+    const local = timeRangeToDates('30d', now(), 'Pacific/Auckland')
+    const prior = priorPeriodDates(
+      '30d',
+      local.startDate,
+      local.endDate,
+      'Pacific/Auckland',
+    )
+    expect(rows.properties.find((row) => row.propertyId === PROP_B)).toMatchObject({
+      period: { startAt: local.startDate, endAt: local.endDate },
+      comparePeriod: { startAt: prior?.priorStartDate, endAt: prior?.priorEndDate },
+    })
     // The group rows split BUSY's readings by the group each sat under.
     const busyRatings = (id: typeof G1 | typeof G2) =>
       rows.groups.find((row) => row.groupId === id)?.kpis.ratings.value

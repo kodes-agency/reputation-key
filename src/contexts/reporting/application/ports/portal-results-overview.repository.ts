@@ -34,6 +34,12 @@ export type PortalResultsCell = Readonly<{
   count: number
 }>
 
+/** A Portal and the group one of its readings in the window sat under. */
+export type PortalResultsReadingGroup = Readonly<{
+  portalId: PortalId
+  groupId: PortalGroupId | null
+}>
+
 export type PortalResultsPortalEvidence = Readonly<{
   portalId: PortalId
   evidence: MetricPortalMetricEvidenceSet
@@ -43,6 +49,12 @@ export type PortalResultsWindowReading = Readonly<{
   computedAt: Date
   /** Only cells with at least one counted reading; a missing cell is a verified zero. */
   cells: readonly PortalResultsCell[]
+  /**
+   * Every (Portal, group) pair any governed-family reading in the window sits
+   * under, counted or not (a reading that fails the quality contract still
+   * belongs to its group's evidence). A superset of the cells' pairs.
+   */
+  readingGroups: readonly PortalResultsReadingGroup[]
   /** Exactly one entry per requested Portal, in request order. */
   evidence: readonly PortalResultsPortalEvidence[]
 }>

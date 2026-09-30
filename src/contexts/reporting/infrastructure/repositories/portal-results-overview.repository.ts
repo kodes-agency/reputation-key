@@ -1,9 +1,9 @@
 // Metric context — the Portals overview's batched results read.
 //
-// Answers for every requested Portal in three statements, however many there
+// Answers for every requested Portal in four statements, however many there
 // are: the governed sums (per Portal, per group the reading sat under, per
-// measure), the unattributed Google-open clicks, and the evidence for every
-// family. It counts exactly what a single Portal's Results view counts, through
+// measure), the groups every reading sat under (counted or not), the
+// unattributed Google-open clicks, and the evidence for every family. It counts exactly what a single Portal's Results view counts, through
 // the same definitions (portal-analytics-shared.ts) and the same evidence
 // statement (portal-analytics-evidence.sql.ts), so a row here can never disagree
 // with that Portal's own Results.
@@ -28,6 +28,7 @@ import type {
   PortalResultsCell,
   PortalResultsOverviewRepository,
   PortalResultsPortalEvidence,
+  PortalResultsReadingGroup,
   PortalResultsWindow,
 } from '../../application/ports/portal-results-overview.repository'
 import { portalMetricEvidenceSql } from './portal-analytics-evidence.sql'
@@ -38,6 +39,7 @@ import {
   effectiveValue,
   foldEvidenceRows,
   governedPortalWhere,
+  PORTAL_ANALYTICS_VERSION_IDS,
   portalEvidenceFamilies,
   withStatementTimeout,
   type EvidenceRow,
@@ -124,6 +126,37 @@ async function readUnattributedClicks(
   )
 }
 
+/**
+ * Every (Portal, group) pair any governed-family reading in the window sits
+ * under, whatever its quality: a reading the counted sums leave out (an invalid
+ * rating, a secondary-link click) still belongs to its group's evidence.
+ */
+async function readReadingGroups(
+  tx: Tx,
+  scope: SQL | undefined,
+): Promise<readonly PortalResultsReadingGroup[]> {
+  const rows = await tx
+    .select({ portalId: metricReadings.portalId, groupId: metricReadings.groupId })
+    .from(metricReadings)
+    .where(
+      and(
+        scope,
+        inArray(metricReadings.definitionVersionId, PORTAL_ANALYTICS_VERSION_IDS),
+      ),
+    )
+    .groupBy(metricReadings.portalId, metricReadings.groupId)
+  return rows.flatMap((row) =>
+    row.portalId === null
+      ? []
+      : [
+          {
+            portalId: toPortalId(row.portalId),
+            groupId: row.groupId === null ? null : portalGroupId(row.groupId),
+          },
+        ],
+  )
+}
+
 export const createPortalResultsOverviewRepository = (
   db: Database,
   clock: () => Date,
@@ -131,7 +164,9 @@ export const createPortalResultsOverviewRepository = (
   async readWindow({ organizationId, portals, window }) {
     return trace('metric.portalResultsOverview.readWindow', async () => {
       const computedAt = clock()
-      if (portals.length === 0) return { computedAt, cells: [], evidence: [] }
+      if (portals.length === 0) {
+        return { computedAt, cells: [], readingGroups: [], evidence: [] }
+      }
 
       const roster: Roster = {
         portalIds: portals.map((portal) => toPortalId(portal.portalId.toLowerCase())),
@@ -140,10 +175,10 @@ export const createPortalResultsOverviewRepository = (
         ] as PropertyId[],
       }
       const scope = windowedScope(organizationId, roster, window)
-      const { cells, unattributed, evidenceRows } = await withStatementTimeout(
-        db,
-        async (tx) => ({
+      const { cells, readingGroups, unattributed, evidenceRows } =
+        await withStatementTimeout(db, async (tx) => ({
           cells: await readCells(db, tx, scope),
+          readingGroups: await readReadingGroups(tx, scope),
           unattributed: await readUnattributedClicks(db, tx, scope),
           evidenceRows: (
             await tx.execute(
@@ -156,8 +191,7 @@ export const createPortalResultsOverviewRepository = (
               }),
             )
           ).rows as EvidenceRow[],
-        }),
-      )
+        }))
 
       const byPortal = foldEvidenceRows(
         evidenceRows,
@@ -179,6 +213,10 @@ export const createPortalResultsOverviewRepository = (
         cells: cells.map((cell) => ({
           ...cell,
           portalId: spelled.get(cell.portalId) ?? cell.portalId,
+        })),
+        readingGroups: readingGroups.map((pair) => ({
+          ...pair,
+          portalId: spelled.get(pair.portalId) ?? pair.portalId,
         })),
         evidence,
       }
