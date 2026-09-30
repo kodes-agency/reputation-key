@@ -15,7 +15,7 @@ import { throwAuthError } from '#/shared/auth/auth-errors'
 import { getExecutionPolicy } from '#/shared/auth/execution-policy'
 import { throwContextError } from '#/shared/auth/server-errors'
 import { userId as toUserId, type UserId } from '#/shared/domain/ids'
-import { getLogger } from '#/shared/observability/logger'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 
 /** A console change needs a session signed in at most this long ago. */
 export const OPERATOR_MUTATION_SESSION_MAX_AGE_MS = 30 * 60 * 1000
@@ -33,6 +33,8 @@ export type PlatformOperator = Readonly<{
 export type PlatformOperatorCheck = Readonly<{
   mutation: boolean
   now: Date
+  /** Receives one warn line per refusal, naming the user id only. */
+  logger: Pick<LoggerPort, 'warn'>
   correlationId?: string
 }>
 
@@ -43,8 +45,12 @@ export function operatorPrincipalId(
   return user.emailVerified ? user.email.trim().toLowerCase() : null
 }
 
-function refuseOperator(userId: string, reason: string): never {
-  getLogger().warn(
+function refuseOperator(
+  logger: Pick<LoggerPort, 'warn'>,
+  userId: string,
+  reason: string,
+): never {
+  logger.warn(
     { event: 'platform.operator_denied', userId, reason },
     'Platform console refused a user who is not a registered operator',
   )
@@ -70,7 +76,9 @@ export async function requirePlatformOperator(
   }
   const { session, user } = signedIn
   const principal = operatorPrincipalId(user)
-  if (principal === null) refuseOperator(user.id, 'operator_not_registered')
+  if (principal === null) {
+    refuseOperator(options.logger, user.id, 'operator_not_registered')
+  }
 
   const decision = await getExecutionPolicy().decide({
     principal: { kind: 'operator', id: principal },
@@ -79,7 +87,7 @@ export async function requirePlatformOperator(
     now: options.now,
     ...(options.correlationId ? { correlationId: options.correlationId } : {}),
   })
-  if (!decision.allowed) refuseOperator(user.id, decision.reason)
+  if (!decision.allowed) refuseOperator(options.logger, user.id, decision.reason)
 
   const sessionAgeMs = options.now.getTime() - new Date(session.createdAt).getTime()
   if (options.mutation && sessionAgeMs > OPERATOR_MUTATION_SESSION_MAX_AGE_MS) {

@@ -8,16 +8,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('#/shared/auth/middleware', () => ({
   getSessionFromHeaders: mocks.getSession,
 }))
-vi.mock('#/shared/observability/logger', () => ({
-  getLogger: () => ({
-    info: vi.fn(),
-    warn: mocks.warn,
-    error: vi.fn(),
-    debug: vi.fn(),
-    child: vi.fn(),
-  }),
-}))
-
 import {
   createExecutionPolicy,
   initExecutionPolicy,
@@ -64,8 +54,16 @@ function sessionFor(
   }
 }
 
+const logger = {
+  info: vi.fn(),
+  warn: mocks.warn,
+  error: vi.fn(),
+  debug: vi.fn(),
+  child: vi.fn(),
+}
+
 const read = (mutation = false) =>
-  requirePlatformOperator(HEADERS, { mutation, now: NOW })
+  requirePlatformOperator(HEADERS, { mutation, now: NOW, logger })
 
 describe('operatorPrincipalId', () => {
   it('is the trimmed, lowercased email of a verified user', () => {

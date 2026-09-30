@@ -142,6 +142,23 @@ describe('Identity public API', () => {
     expect(container.identityPublicApi).not.toHaveProperty('betaFeedback')
     expect(container).not.toHaveProperty('betaFeedbackTriageRepo')
   })
+
+  it('exposes the platform operator console as its own frozen capability, off publicApi', () => {
+    // ADR 0063: only the console's server functions reach it, after
+    // requirePlatformOperator; no other context ever receives it.
+    expect(Object.keys(container.identityPlatform).sort()).toEqual([
+      'cancelInvitation',
+      'inviteAdmin',
+      'listOrganizations',
+      'provisionOrganization',
+      'resendInvitation',
+    ])
+    expect(Object.isFrozen(container.identityPlatform)).toBe(true)
+    expect(container.identityPublicApi).not.toHaveProperty('platform')
+    expect(container.identityPublicApi.requests).not.toHaveProperty(
+      'provisionOrganization',
+    )
+  })
 })
 
 describe('Identity self-service leave availability', () => {
