@@ -140,6 +140,9 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await description.fill('Persisted Portal manager change.')
     await expect(page.getByText('Draft saved')).toBeVisible()
     await page.reload()
+    // Fill only once the page is interactive: a value typed into the
+    // server-rendered textarea before hydration is lost or merged into it.
+    await waitForHydration(page)
     await expect(description).toHaveValue('Persisted Portal manager change.')
     await description.fill('Published Portal fixture for local beta acceptance.')
     await expect(page.getByText('Draft saved')).toBeVisible()

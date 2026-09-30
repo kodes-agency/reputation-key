@@ -306,6 +306,12 @@
       "policy": "Seeded once from the form's own default values, which are what the server held when the form mounted, and advanced only by a write the server accepted; it is a comparison baseline for skipping no-op writes, not a second copy of the form's state."
     },
     {
+      "id": "src/components/features/portal/portal-editor/use-portal-form-autosave.ts:useState(fields)",
+      "classification": "local_runtime",
+      "owner": "Portal blur-committed field values",
+      "policy": "Seeded once from the form's own default values and advanced only when a write carrying the committed value is accepted; it holds what the server was last given for fields that commit on blur, so another write does not persist a half-typed value. It is not a second copy of the form's state."
+    },
+    {
       "id": "src/components/features/portal/portal-form/portal-creation-with-preview.tsx:useState(preview)",
       "classification": "local_runtime",
       "owner": "Portal creation preview",
