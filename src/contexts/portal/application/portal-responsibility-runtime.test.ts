@@ -30,6 +30,9 @@ const assignment = (portalId: string): PortalResponsibleManager => ({
 
 const createRepo = (seed: readonly PortalResponsibleManager[] = []) => ({
   listActive: vi.fn<PortalResponsibleManagerRepository['listActive']>(async () => seed),
+  listActiveForPortals: vi.fn<PortalResponsibleManagerRepository['listActiveForPortals']>(
+    async () => seed,
+  ),
   listActiveForUser: vi.fn<PortalResponsibleManagerRepository['listActiveForUser']>(
     async () => seed,
   ),

@@ -55,6 +55,7 @@ function setup(
       findPortalMembership: async () => null,
       getGroupPortalIds: async () => [],
       findGroupIdsByPortalIds: async () => [],
+      listGroupsForPortals: async () => [],
       findGroupForPortal: async () => null,
     },
     staffPublicApi: staffApiMock(accessible),

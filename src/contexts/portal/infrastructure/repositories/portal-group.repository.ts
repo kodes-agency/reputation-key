@@ -2,7 +2,7 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 // Every query filters by organization_id AND deleted_at IS NULL via baseWhere().
 
-import { and, eq, gt, inArray, isNull, lte, not, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gt, inArray, isNull, lte, not, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { baseWhere } from '#/shared/db/base-where'
 import { portalGroups, portals } from '#/shared/db/schema/portal.schema'
@@ -332,6 +332,51 @@ export const createPortalGroupRepository = (db: Database): PortalGroupRepository
         )
         .limit(1)
       return row ? portalGroupFromRow(row.group) : null
+    })
+  },
+
+  listGroupsForPortals: async (orgId, portalIds, asOf) => {
+    return trace('portalGroup.listGroupsForPortals', async () => {
+      if (portalIds.length === 0) return []
+      // The same interval and archive predicate as findGroupForPortal, for a set
+      // of Portals. DISTINCT ON keeps one row per Portal, the newest membership.
+      const rows = await db
+        .selectDistinctOn([portalGroupMemberships.portalId], {
+          portalId: portalGroupMemberships.portalId,
+          group: portalGroups,
+        })
+        .from(portalGroups)
+        .innerJoin(
+          portalGroupMemberships,
+          and(
+            eq(portalGroupMemberships.organizationId, portalGroups.organizationId),
+            eq(portalGroupMemberships.propertyId, portalGroups.propertyId),
+            eq(portalGroupMemberships.portalGroupId, portalGroups.id),
+            inArray(
+              portalGroupMemberships.portalId,
+              portalIds.map((id) => unbrand(id)),
+            ),
+            lte(portalGroupMemberships.effectiveFrom, asOf),
+            or(
+              isNull(portalGroupMemberships.effectiveTo),
+              gt(portalGroupMemberships.effectiveTo, asOf),
+            ),
+          ),
+        )
+        .where(
+          and(
+            eq(portalGroups.organizationId, unbrand(orgId)),
+            or(isNull(portalGroups.deletedAt), gt(portalGroups.deletedAt, asOf)),
+          ),
+        )
+        .orderBy(
+          asc(portalGroupMemberships.portalId),
+          desc(portalGroupMemberships.effectiveFrom),
+        )
+      return rows.map((row) => ({
+        portalId: portalId(row.portalId),
+        group: portalGroupFromRow(row.group),
+      }))
     })
   },
 })

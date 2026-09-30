@@ -75,6 +75,7 @@ function setup(
   const baseCommandStore = createInMemoryPortalCommandStore({ portalRepo, outbox })
   let command: UpdatePortalCommand | null = null
   const publicationRepo: PortalPublicationRepository = {
+    countOpenPendingContentChanges: async () => [],
     loadWorkingCopy: async () => null,
     getCursor: async () => ({
       nextSnapshotVersion: 3,

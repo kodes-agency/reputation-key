@@ -19,6 +19,14 @@ export type PortalHealthRepository = Readonly<{
     propertyId: PropertyId,
     portalId: PortalId,
   ) => Promise<PortalHealthInterval | null>
+  /**
+   * `getCurrent` for a set of Portals in one read. A Portal with no interval
+   * yet is absent.
+   */
+  listCurrentForPortals: (
+    organizationId: OrganizationId,
+    portalIds: readonly PortalId[],
+  ) => Promise<readonly PortalHealthInterval[]>
   listHistory: (
     organizationId: OrganizationId,
     propertyId: PropertyId,

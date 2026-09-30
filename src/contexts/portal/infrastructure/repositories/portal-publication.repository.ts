@@ -1,4 +1,17 @@
-import { and, asc, desc, eq, gte, isNull, lt, lte, max, or } from 'drizzle-orm'
+import {
+  and,
+  asc,
+  count,
+  desc,
+  eq,
+  gte,
+  inArray,
+  isNull,
+  lt,
+  lte,
+  max,
+  or,
+} from 'drizzle-orm'
 import { z } from 'zod/v4'
 import type { Database } from '#/shared/db'
 import { portals, portalTokens } from '#/shared/db/schema/portal.schema'
@@ -22,7 +35,7 @@ import type {
   PortalPublicationSnapshot,
 } from '../../domain/portal-publication-snapshot'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
-import { unbrand } from '#/shared/domain/ids'
+import { portalId as toPortalId, unbrand } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import { isLocalizedConfiguration } from '../../domain/portal-publication-snapshot'
 import { readPortalWorkingCopy } from '../portal-working-copy.reader'
@@ -416,6 +429,39 @@ export const createPortalPublicationRepository = (
         const kind = pendingContentChangeKindSchema.safeParse(row.kind)
         return kind.success ? [{ ...row, kind: kind.data }] : []
       })
+    }),
+
+  countOpenPendingContentChanges: (organizationId, portalIds) =>
+    trace('portalPublication.countOpenPendingContentChanges', async () => {
+      if (portalIds.length === 0) return []
+      // The same rows listOpenPendingContentChanges would list: open, and of a
+      // kind this reader knows.
+      const rows = await db
+        .select({
+          portalId: portalPendingContentChanges.portalId,
+          count: count(),
+        })
+        .from(portalPendingContentChanges)
+        .where(
+          and(
+            eq(portalPendingContentChanges.organizationId, unbrand(organizationId)),
+            inArray(
+              portalPendingContentChanges.portalId,
+              portalIds.map((id) => unbrand(id)),
+            ),
+            inArray(
+              portalPendingContentChanges.changeKind,
+              pendingContentChangeKindSchema.options,
+            ),
+            isNull(portalPendingContentChanges.resolvedAt),
+          ),
+        )
+        .groupBy(portalPendingContentChanges.portalId)
+        .orderBy(asc(portalPendingContentChanges.portalId))
+      return rows.map((row) => ({
+        portalId: toPortalId(row.portalId),
+        count: row.count,
+      }))
     }),
 
   resolveActiveByTokenDigest: async (digest, asOf) =>

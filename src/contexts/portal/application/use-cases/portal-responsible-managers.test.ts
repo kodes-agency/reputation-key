@@ -29,6 +29,8 @@ const setup = () => {
   ]
   const managerRepo: PortalResponsibleManagerRepository = {
     listActive: async () => active,
+    listActiveForPortals: async (_organizationId, portalIds) =>
+      active.filter((row) => portalIds.includes(row.portalId)),
     listActiveForUser: async () => active,
     releaseForUser: async () => ({ released: 0 }),
     replace: async (input) => {

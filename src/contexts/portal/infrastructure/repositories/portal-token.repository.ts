@@ -4,7 +4,7 @@ import { portalAccessArtifacts, portalTokens } from '#/shared/db/schema/portal.s
 import type { PortalTokenRepository } from '../../application/ports/portal-token.repository'
 import type { PortalToken, TokenStatus } from '../../domain/portal-token'
 import { portalError } from '../../domain/errors'
-import { unbrand } from '#/shared/domain/ids'
+import { portalId as toPortalId, unbrand } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 
 const VALID_TOKEN_STATES: ReadonlySet<string> = new Set(['active', 'rotating', 'revoked'])
@@ -121,6 +121,51 @@ export const createPortalTokenRepository = (db: Database): PortalTokenRepository
             hasPublishedAccessArtifact: row.accessArtifactId !== null,
           }
         : null
+    }),
+
+  findResolvableSummariesForPortals: async (organizationId, portalIds, asOf) =>
+    trace('portalToken.findResolvableSummariesForPortals', async () => {
+      if (portalIds.length === 0) return []
+      // The same predicate and ordering as findResolvableSummaryForPortal; DISTINCT
+      // ON keeps each Portal's highest resolvable version.
+      const rows = await db
+        .selectDistinctOn([portalTokens.portalId], {
+          portalId: portalTokens.portalId,
+          version: portalTokens.version,
+          issuedAt: portalTokens.issuedAt,
+          gracePeriodEnds: portalTokens.gracePeriodEnds,
+          accessArtifactId: portalAccessArtifacts.id,
+        })
+        .from(portalTokens)
+        .leftJoin(
+          portalAccessArtifacts,
+          and(
+            eq(portalAccessArtifacts.portalTokenId, portalTokens.id),
+            eq(portalAccessArtifacts.organizationId, portalTokens.organizationId),
+            eq(portalAccessArtifacts.propertyId, portalTokens.propertyId),
+            eq(portalAccessArtifacts.portalId, portalTokens.portalId),
+            eq(portalAccessArtifacts.status, 'published'),
+            isNull(portalAccessArtifacts.retiredAt),
+          ),
+        )
+        .where(
+          and(
+            eq(portalTokens.organizationId, unbrand(organizationId)),
+            inArray(
+              portalTokens.portalId,
+              portalIds.map((id) => unbrand(id)),
+            ),
+            resolvableAsOf(asOf),
+          ),
+        )
+        .orderBy(asc(portalTokens.portalId), desc(portalTokens.version))
+      return rows.map((row) => ({
+        portalId: toPortalId(row.portalId),
+        version: row.version,
+        issuedAt: row.issuedAt,
+        gracePeriodEnds: row.gracePeriodEnds,
+        hasPublishedAccessArtifact: row.accessArtifactId !== null,
+      }))
     }),
 
   findResolvableByDigest: async (digest, asOf) =>

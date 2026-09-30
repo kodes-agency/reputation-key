@@ -50,6 +50,15 @@ public token resolution returns only the current open, digest-verified snapshot.
 Portal, Group, content, responsibility, and token commands use Portal-owned stores
 that commit state, revisions, receipts, and identifier-only outbox facts together.
 
+`listPortalOverview` is the batched read behind the Portals overview. For a Property
+or for the Organization it returns one row per Portal (languages, Health and its
+reason, pending-change count, current group, responsible-manager user ids, token
+status, publication state) and asks each source once for the whole set: the
+`*ForPortals` reads on the health, publication, group, responsible-manager and token
+repositories. Each mirrors its single-Portal read (`portal-overview-reads.test.ts`
+compares them), so a row says what that Portal's own page says. It is scoped like
+`listPortals` (`portal.read`, assigned Properties) and carries no content.
+
 The dormant issued-image implementation has been removed. The nullable
 `portals.hero_image_url` column and read path remain so published historical
 rows still render, while the shared arbitrary-key storage stack remains live

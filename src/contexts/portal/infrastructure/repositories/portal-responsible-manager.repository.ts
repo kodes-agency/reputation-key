@@ -74,6 +74,25 @@ export const createPortalResponsibleManagerRepository = (
     return rows.map(fromRow)
   },
 
+  listActiveForPortals: async (organizationId, portalIds) => {
+    if (portalIds.length === 0) return []
+    const rows = await db
+      .select()
+      .from(portalResponsibleManagers)
+      .where(
+        and(
+          eq(portalResponsibleManagers.organizationId, organizationId),
+          inArray(portalResponsibleManagers.portalId, [...portalIds]),
+          isNull(portalResponsibleManagers.effectiveTo),
+        ),
+      )
+      .orderBy(
+        asc(portalResponsibleManagers.portalId),
+        asc(portalResponsibleManagers.userId),
+      )
+    return rows.map(fromRow)
+  },
+
   listActiveForUser: async (organizationId, userId) => {
     const rows = await db
       .select()

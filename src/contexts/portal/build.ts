@@ -43,6 +43,7 @@ import { rollbackPortalPublication } from './application/use-cases/rollback-port
 import { getPortal } from './application/use-cases/get-portal'
 import { getPortalPublicationHistory } from './application/use-cases/get-portal-publication-history'
 import { listPortals } from './application/use-cases/list-portals'
+import { listPortalOverview } from './application/use-cases/list-portal-overview'
 import { softDeletePortal } from './application/use-cases/soft-delete-portal'
 import { createLinkCategory } from './application/use-cases/create-link-category'
 import { updateLinkCategory } from './application/use-cases/update-link-category'
@@ -329,6 +330,16 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       staffPublicApi: deps.staffPublicApi,
     }),
     listPortals: listPortals({ portalRepo, staffPublicApi: deps.staffPublicApi }),
+    listPortalOverview: listPortalOverview({
+      portalRepo,
+      portalHealthRepo,
+      publicationRepo: portalPublicationRepo,
+      portalGroupRepo,
+      managerRepo: portalResponsibleManagerRepo,
+      portalTokenRepo,
+      staffPublicApi: deps.staffPublicApi,
+      clock: deps.clock,
+    }),
     softDeletePortal: softDeletePortal({
       portalRepo,
       commandStore: portalCommandStore,
