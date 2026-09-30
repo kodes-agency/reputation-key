@@ -13,6 +13,8 @@ import { Header } from '#/components/layout/header'
 import { initWebVitals } from '#/components/hooks/web-vitals'
 import { authClient } from '#/shared/auth/auth-client'
 import { isGuestLocale } from '#/shared/domain/guest-locale'
+import { FontSetLinks } from '#/components/layout/font-set-links'
+import { fontSetOfMatches } from '#/shared/font-sets'
 import { Toaster } from '#/components/ui/sonner'
 import appCss from '#/styles.css?url'
 import { notificationFns } from '#/routes/-notification-fns'
@@ -73,6 +75,16 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     },
   })
 
+  // Which web fonts this page loads. `styles.css` used to @import the app fonts
+  // for every page; now the root links exactly one set, chosen from the route
+  // loaders (`/p/$token` declares 'guest' for the Immersive Hub). Read from the
+  // router state rather than this route's `head`, so a client-side navigation
+  // between an app page and a guest page swaps the set even though the root
+  // match itself is kept.
+  const fontSet = useRouterState({
+    select: (s) => fontSetOfMatches(s.matches),
+  })
+
   // BQC-6.8: Core Web Vitals collection (LCP + CLS). Runs client-side only
   // (useEffect never fires during SSR); initWebVitals is a no-op without
   // PerformanceObserver support.
@@ -94,6 +106,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
           suppressHydrationWarning
           dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }}
         />
+        <FontSetLinks fontSet={fontSet} locale={documentLanguage} />
         <HeadContent />
       </head>
       <body className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-[oklch(0.42_0.18_290/0.25)]">

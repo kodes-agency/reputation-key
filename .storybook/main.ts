@@ -41,6 +41,9 @@ const portalLinksStub = fileURLToPath(new URL('./stubs/portal-links.ts', import.
 
 const config: StorybookConfig = {
   stories: ['../src/**/*.stories.@(ts|tsx)'],
+  // The guest stylesheet and its woff2 files live in public/fonts/guest and are
+  // requested at /fonts/guest/… by the app; serve them at the same URL here.
+  staticDirs: [{ from: '../public/fonts', to: '/fonts' }],
   addons: ['@storybook/addon-a11y', '@storybook/addon-docs', '@storybook/addon-vitest'],
   framework: {
     name: '@storybook/react-vite',

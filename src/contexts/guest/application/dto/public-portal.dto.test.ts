@@ -73,6 +73,16 @@ describe('public Portal loader projection', () => {
     expect(JSON.stringify(projected)).not.toContain('secret-sort')
   })
 
+  it('declares the app fonts for a portal published with a generation 1 pack', () => {
+    const projected = toPublicPortalLoaderData(portal, {
+      guestSession: { csrfNonce: crypto.randomUUID() },
+      response: null,
+      responseForm: { availability: 'available' },
+    })
+
+    expect(projected.fontSet).toBe('app')
+  })
+
   it('cannot serialize a last-known Google URI in degraded state', () => {
     const projected = toPublicPortalLoaderData(
       {

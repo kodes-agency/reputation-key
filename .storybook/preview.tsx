@@ -7,8 +7,18 @@ import type { Preview } from '@storybook/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
 import '../src/styles.css'
+import { APP_FONT_STYLESHEETS } from '../src/shared/font-sets'
 import '../src/shared/auth/permissions' // side-effect: initPermissionTable() for can()
 import { RouterDecorator } from './RouterDecorator'
+
+// `styles.css` no longer @imports the app fonts (the root document links them per
+// route), so the preview links the same two stylesheets once, as the app does.
+for (const href of APP_FONT_STYLESHEETS) {
+  const link = document.createElement('link')
+  link.rel = 'stylesheet'
+  link.href = href
+  document.head.appendChild(link)
+}
 
 // Per-story QueryClient (BQC-6.8): a module-level singleton leaked cached
 // queries across stories (identical query keys + staleTime/gcTime Infinity —
