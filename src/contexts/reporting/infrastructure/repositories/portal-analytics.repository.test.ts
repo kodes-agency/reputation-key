@@ -280,24 +280,27 @@ afterAll(async () => {
 })
 
 describe('governed Portal analytics repository (integration)', () => {
-  it('buckets the daily trend on property_local_date, not the UTC ingestion day', async () => {
+  it('buckets weekly readings on property_local_date, anchored to the window start', async () => {
     const adapter = createPortalAnalyticsRepository(db, () => COMPUTED_AT)
 
-    const trend = await adapter.getPortalRatingTrend(
+    const weekly = await adapter.getPortalWeeklyReadings(
       ORG,
       PROP,
       PORTAL,
       WINDOW_START,
       WINDOW_END,
+      '2026-06-01',
     )
 
     // 2026-06-01: both source rows share the same local day, but the 3-star
-    // row's current correction tip retracts it, leaving the effective 5-star row.
-    // 2026-06-10: the late-ingested reading is inside the window on event time.
+    // row's current correction tip retracts it, leaving the effective 5-star
+    // row (week 0). The UTC ingestion day would have split them.
+    // 2026-06-10: the late-ingested reading is inside the window on event time
+    // and falls in week 1 (8-14 Jun).
     // 2026-06-20: excluded — value 7 is outside the 1..5 rating domain.
-    expect(trend).toEqual([
-      { date: '2026-06-01', avgRating: 5 },
-      { date: '2026-06-10', avgRating: 4 },
+    expect(weekly).toEqual([
+      { bucket: 0, metricKey: 'portal.rating', total: 5, count: 1 },
+      { bucket: 1, metricKey: 'portal.rating', total: 4, count: 1 },
     ])
   })
 

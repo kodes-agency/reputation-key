@@ -22,7 +22,6 @@ export type { GovernedGoalMetricQuery, GovernedGoalMetricResult }
 export type {
   MetricPortalMetricEvidence,
   MetricPortalMetricEvidenceSet,
-  MetricPortalRatingTrendPoint,
   PortalMetricSumRow,
   PortalRatingBucket,
 } from './ports/portal-analytics.repository'
@@ -96,7 +95,8 @@ export type {
   PortalEngagementFunnel,
   PortalLifetimeReconciliationState,
   PortalResponseIntegritySummary,
-  PortalRatingTrendPoint,
+  PortalRatingLanguages,
+  PortalResultsThresholds,
   RatingTrendPoint,
   ReviewVolumePoint,
   AttentionSignals,
@@ -105,6 +105,11 @@ export type {
   FleetMetricEvidence,
   FleetTotals,
 } from '../domain/dashboard-types'
+export type {
+  PortalResultsSeries,
+  PortalSeriesWeek,
+  PortalVersionMarker,
+} from '../domain/portal-results-series'
 export type {
   PortalResultsGroupRow,
   PortalResultsMeasures,

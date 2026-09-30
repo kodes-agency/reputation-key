@@ -1,121 +1,152 @@
-import type { PortalAnalyticsData } from '#/contexts/reporting/server/portal-analytics'
-import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
-import { TimeRangePicker } from '#/components/features/dashboard/time-range-picker'
+// The Results tab (board 07): the range and the comparison, the five measures,
+// the path from scan to Google, the rating mix, guests by language and the
+// weekly view. All Time reads from the lifetime totals, which have no weeks, so
+// it shows the totals and says why the weekly view is not there.
+import { useId } from 'react'
 import { BarChart3 } from 'lucide-react'
-import { ChartCard, RatingTrendChart } from './portal-analytics-charts'
-import { RatingDistributionChart } from '#/components/features/shared/rating-distribution-chart'
-import { EngagementFunnelChart } from './portal-analytics-funnel-chart'
-import { PortalKpiCards } from './portal-analytics-kpi-cards'
-import { PortalMetricEvidenceSummary } from './portal-metric-evidence-summary'
-import { PortalResponseIntegritySummary } from './portal-response-integrity-summary'
+import { cn } from '#/lib/utils'
+import type { PortalAnalyticsData } from '#/contexts/reporting/application/public-api'
+import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
 import { PortalLifetimeReconciliationSummary } from './portal-lifetime-reconciliation-summary'
+import { PortalResultsAbout } from './portal-results-about'
+import { resultsCells } from './portal-results-cells'
+import { PortalResultsFunnel } from './portal-results-funnel'
+import { PortalResultsLanguages } from './portal-results-language-list'
+import { PortalResultsRatingMix } from './portal-results-rating-mix'
+import { PortalResultsSeries } from './portal-results-series'
+import { PortalResultsStrip } from './portal-results-strip'
+import { PortalResultsToolbar } from './portal-results-toolbar'
+import { windowFooter } from './portal-results-window'
 
 type Props = Readonly<{
   data: PortalAnalyticsData
   timeRange: TimeRangePreset
   onTimeRangeChange: (timeRange: TimeRangePreset) => void
+  compare: boolean
+  onCompareChange: (compare: boolean) => void
+  /** The figures shown are the previous range's while the new ones load. */
+  busy?: boolean
 }>
 
-export function PortalAnalyticsContent({ data, timeRange, onTimeRangeChange }: Props) {
-  const propertyTimezone = data.period.timezone
-  const hasData =
-    (data.kpis.scans.value ?? 0) > 0 ||
-    (data.kpis.feedback.value ?? 0) > 0 ||
-    (data.kpis.googleOpens.value ?? 0) > 0 ||
-    data.kpis.avgRating.sampleCount > 0 ||
+function hasAnyFigure(data: PortalAnalyticsData): boolean {
+  const { kpis } = data
+  return (
+    (kpis.scans.value ?? 0) > 0 ||
+    (kpis.feedback.value ?? 0) > 0 ||
+    (kpis.googleOpens.value ?? 0) > 0 ||
+    kpis.avgRating.sampleCount > 0 ||
     data.responseIntegrity.total > 0
-  const hasPendingState = [
-    data.kpis.scans.evidence.state,
-    data.kpis.ratings.evidence.state,
-    data.kpis.avgRating.evidence.state,
-    data.kpis.feedback.evidence.state,
-    data.kpis.googleOpens.evidence.state,
-  ].some((state) => state === 'updating' || state === 'temporarily_unavailable')
+  )
+}
+
+function hasPendingState(data: PortalAnalyticsData): boolean {
+  const { kpis } = data
+  return [kpis.scans, kpis.ratings, kpis.avgRating, kpis.feedback, kpis.googleOpens].some(
+    ({ evidence }) =>
+      evidence.state === 'updating' || evidence.state === 'temporarily_unavailable',
+  )
+}
+
+function EmptyResults() {
+  return (
+    <div className="rounded-lg border border-dashed p-12 text-center">
+      <BarChart3 className="mx-auto size-10 text-muted-foreground/50" />
+      <h3 className="mt-4 font-semibold">No data yet</h3>
+      <p className="mt-1 text-sm text-muted-foreground">
+        Share your portal to start collecting metrics.
+      </p>
+    </div>
+  )
+}
+
+export function PortalAnalyticsContent({
+  data,
+  timeRange,
+  onTimeRangeChange,
+  compare,
+  onCompareChange,
+  busy = false,
+}: Props) {
+  const funnelId = useId()
+  const mixId = useId()
+  const languagesId = useId()
+  const timezone = data.period.timezone
   // Clicks exist but cannot be told apart: an empty page would be a false "no data".
   const hasWithheldGoogleOpens =
     data.kpis.googleOpens.evidence.availabilityReason === 'destination_unattributed'
+  const empty = !hasAnyFigure(data) && !hasPendingState(data) && !hasWithheldGoogleOpens
+  // "All time" has no prior window, so there is nothing to switch on or off.
+  const comparing = compare && data.comparePeriod !== null
 
-  if (!hasData && !hasPendingState && !hasWithheldGoogleOpens) {
-    return (
-      <div className="space-y-6">
-        <TimeRangePicker timeRange={timeRange} onChange={onTimeRangeChange} />
-        {data.lifetimeReconciliation !== null && (
+  return (
+    <div className="@container space-y-8" aria-busy={busy}>
+      <PortalResultsToolbar
+        timeRange={timeRange}
+        onTimeRangeChange={onTimeRangeChange}
+        compare={compare}
+        onCompareChange={onCompareChange}
+        localDays={data.localDays}
+        timezone={timezone}
+      />
+      <div className={cn('space-y-8 transition-opacity', busy && 'opacity-60')}>
+        {data.lifetimeReconciliation === null ? null : (
           <PortalLifetimeReconciliationSummary
             state={data.lifetimeReconciliation}
-            timeZone={propertyTimezone}
+            timeZone={timezone}
           />
         )}
-        <div className="rounded-lg border border-dashed p-12 text-center">
-          <BarChart3 className="mx-auto size-10 text-muted-foreground/50" />
-          <h3 className="mt-4 font-semibold">No data yet</h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Share your portal to start collecting metrics.
+        {empty ? (
+          <EmptyResults />
+        ) : (
+          <>
+            <PortalResultsStrip cells={resultsCells(data, { compare: comparing })} />
+            <div className="grid gap-x-10 gap-y-10 @4xl:grid-cols-[minmax(0,5fr)_minmax(0,6fr)]">
+              <div className="space-y-10">
+                <section aria-labelledby={funnelId} className="space-y-4">
+                  <h3 id={funnelId} className="text-base font-semibold">
+                    From scan to Google
+                  </h3>
+                  <PortalResultsFunnel
+                    funnel={data.engagementFunnel}
+                    qualifiedScansSince={data.qualifiedScansSince}
+                    privateNotes={data.kpis.feedback.value}
+                    headingId={funnelId}
+                  />
+                </section>
+                <div className="grid gap-x-8 gap-y-10 @2xl:grid-cols-2">
+                  <section aria-labelledby={mixId}>
+                    <PortalResultsRatingMix data={data} headingId={mixId} />
+                  </section>
+                  <section aria-labelledby={languagesId}>
+                    <PortalResultsLanguages
+                      breakdown={data.ratingLanguages}
+                      ratingsState={data.kpis.ratings.evidence.state}
+                      headingId={languagesId}
+                    />
+                  </section>
+                </div>
+              </div>
+              <PortalResultsSeries data={data} comparing={comparing} />
+            </div>
+          </>
+        )}
+        <footer className="flex flex-wrap items-start justify-between gap-x-6 border-t pt-2">
+          <p className="min-h-11 flex-1 basis-80 py-3 text-xs text-muted-foreground">
+            {windowFooter(
+              data.localDays !== null && !comparing
+                ? { ...data.localDays, compareStart: null, compareEnd: null }
+                : data.localDays,
+              timezone,
+              data.thresholds.comparisonMinSample,
+            )}
           </p>
-        </div>
-      </div>
-    )
-  }
-
-  const engagementFunnel = data.engagementFunnel
-  return (
-    <div className="space-y-8">
-      <TimeRangePicker timeRange={timeRange} onChange={onTimeRangeChange} />
-      {data.lifetimeReconciliation !== null && (
-        <PortalLifetimeReconciliationSummary
-          state={data.lifetimeReconciliation}
-          timeZone={propertyTimezone}
-        />
-      )}
-      <PortalKpiCards
-        kpis={data.kpis}
-        timeRange={timeRange}
-        timeZone={propertyTimezone}
-      />
-      {data.lifetimeReconciliation === null && (
-        <PortalMetricEvidenceSummary
-          entries={[
-            { label: 'Qualified scans', evidence: data.kpis.scans.evidence },
-            { label: 'Private ratings', evidence: data.kpis.ratings.evidence },
-            { label: 'Average private rating', evidence: data.kpis.avgRating.evidence },
-            {
-              label: 'Guests who opened Google',
-              evidence: data.kpis.googleOpens.evidence,
-            },
-            { label: 'Private notes', evidence: data.kpis.feedback.evidence },
-          ]}
-          timeZone={propertyTimezone}
-        />
-      )}
-      <PortalResponseIntegritySummary summary={data.responseIntegrity} />
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-        {engagementFunnel !== null && (
-          <ChartCard title="Engagement Funnel" className="md:col-span-2">
-            {(headingId) => (
-              <EngagementFunnelChart
-                funnel={engagementFunnel}
-                qualifiedScansSince={data.qualifiedScansSince}
-                labelledBy={headingId}
-              />
-            )}
-          </ChartCard>
-        )}
-        {data.kpis.avgRating.evidence.state === 'ready' && (
-          <ChartCard title="Private rating distribution">
-            {(headingId) => (
-              <RatingDistributionChart
-                distribution={data.ratingDistribution}
-                labelledBy={headingId}
-              />
-            )}
-          </ChartCard>
-        )}
-        {data.ratingTrend.length > 0 && (
-          <ChartCard title="Private rating trend">
-            {(headingId) => (
-              <RatingTrendChart trend={data.ratingTrend} labelledBy={headingId} />
-            )}
-          </ChartCard>
-        )}
+          <div className="min-w-0 flex-1 basis-80">
+            <PortalResultsAbout
+              data={data}
+              showEvidence={data.lifetimeReconciliation === null}
+            />
+          </div>
+        </footer>
       </div>
     </div>
   )

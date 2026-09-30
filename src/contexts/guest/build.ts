@@ -39,6 +39,7 @@ import {
 } from '#/shared/domain/ids'
 import { createFeedbackPortalAttributionLookup } from './infrastructure/feedback-portal-attribution'
 import { getPortalResponseIntegritySummary } from './application/use-cases/get-portal-response-integrity-summary'
+import { getPortalRatingLanguages } from './application/use-cases/get-portal-rating-languages'
 import { createGuestNetworkPressureStore } from './infrastructure/guest-network-pressure.store'
 import { consumeGuestNetworkPressure } from './application/use-cases/consume-guest-network-pressure'
 import {
@@ -166,6 +167,7 @@ export const buildGuestContext = (deps: GuestContextDeps) => {
   const integrityPublicApi = {
     getPortalResponseIntegritySummary:
       getPortalResponseIntegritySummary(guestResponseRepo),
+    getPortalRatingLanguages: getPortalRatingLanguages(guestResponseRepo),
   }
   const publicApi = {
     /** Public-edge request capabilities, including the session and abuse

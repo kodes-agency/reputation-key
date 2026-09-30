@@ -4,10 +4,7 @@
 import { ok, err, type Result } from '#/shared/domain'
 import type { ReviewId } from '#/shared/domain/ids'
 
-export type PortalRatingTrendPoint = Readonly<{
-  date: string // YYYY-MM-DD
-  avgRating: number
-}>
+import type { PortalResultsSeries, PortalVersionMarker } from './portal-results-series'
 
 // ─── KPI Strip ───
 
@@ -226,8 +223,39 @@ export type PortalResponseIntegritySummary = Readonly<{
   total: number
 }>
 
+/**
+ * Private ratings by the language of the page the guest saw. `total` counts
+ * every rating read, those with no recorded language (`unrecorded`) included.
+ */
+export type PortalRatingLanguages = Readonly<{
+  total: number
+  languages: ReadonlyArray<Readonly<{ locale: string; count: number }>>
+  unrecorded: number
+}>
+
+/** The sample floors the server applied, so a client never keeps a copy. */
+export type PortalResultsThresholds = Readonly<{
+  /** Private ratings a period needs before its average is shown. */
+  averageMinSample: number
+  /** Private ratings each period needs before two averages are compared. */
+  comparisonMinSample: number
+}>
+
 export type PortalAnalyticsData = Readonly<{
   period: Readonly<{ startAt: Date; endAt: Date; timezone: string }>
+  /** The equal-length window before, when compared; null for All Time or "off". */
+  comparePeriod: Readonly<{ startAt: Date; endAt: Date }> | null
+  /**
+   * The window and its comparison as Property-local calendar days (`YYYY-MM-DD`,
+   * both ends inclusive), for labels like "1-30 Sep" that a client must not
+   * work out from instants and a zone. Null for All Time.
+   */
+  localDays: Readonly<{
+    start: string
+    end: string
+    compareStart: string | null
+    compareEnd: string | null
+  }> | null
   /** The first day qualified scans were counted, from the metric registry. */
   qualifiedScansSince: Date
   /** Present only for the anonymous, non-comparative All Time projection. */
@@ -235,7 +263,12 @@ export type PortalAnalyticsData = Readonly<{
   kpis: PortalKPIs
   engagementFunnel: PortalEngagementFunnel | null
   ratingDistribution: RatingDistribution
-  ratingTrend: PortalRatingTrendPoint[]
+  /** Weekly qualified scans and average, anchored to the window start. Null for All Time. */
+  series: PortalResultsSeries | null
+  /** Versions that went live inside the window; empty for All Time. */
+  versionMarkers: readonly PortalVersionMarker[]
+  ratingLanguages: PortalRatingLanguages
+  thresholds: PortalResultsThresholds
   responseIntegrity: PortalResponseIntegritySummary
 }>
 

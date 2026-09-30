@@ -40,3 +40,12 @@ export function averageWithholdReason(ratingCount: number): string | null {
     ? AVERAGE_BELOW_MINIMUM_REASON
     : null
 }
+
+/**
+ * Both floors, as the Results tab receives them. The server applies them and
+ * hands them over, so the client keeps no copy to drift from.
+ */
+export const PORTAL_RESULTS_THRESHOLDS = Object.freeze({
+  averageMinSample: PORTAL_AVERAGE_MIN_SAMPLE,
+  comparisonMinSample: MIN_RATING_COMPARISON_SAMPLE,
+})

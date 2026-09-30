@@ -1,16 +1,16 @@
-// Portal analytics tab — KPI cards + charts for portal-scoped metrics
+// Portal Results tab — the range and the comparison are a viewing preference
+// that follows the reader from portal to portal; the figures come from one
+// server read per (range, comparison).
 
 import { useState, useEffect } from 'react'
-import { useQuery } from '@tanstack/react-query'
+import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import type { getPortalAnalyticsFn } from '#/contexts/reporting/server/portal-analytics'
 import { portalKeys } from '#/shared/queries/query-keys'
-import {
-  timeRangePreset,
-  type TimeRangePreset,
-} from '#/contexts/reporting/application/dto/dashboard.dto'
+import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
 import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'
 import { BarChart3 } from 'lucide-react'
 import { PortalAnalyticsContent } from './portal-analytics-content'
+import { storedResultsRange } from './portal-results-window'
 
 type Props = Readonly<{
   portalId: string
@@ -21,47 +21,67 @@ type Props = Readonly<{
 // Intentionally global, not per-portal: the selected range is a user-level
 // viewing preference that should follow the reader from portal to portal.
 const TIME_RANGE_KEY = 'portal-analytics-time-range'
+const COMPARE_KEY = 'portal-analytics-compare'
 
-/** Stored preset, validated against the schema the server DTO uses. An
- * unchecked cast let any stale, hand-edited or since-removed value through to
- * getPortalAnalyticsFn, where it failed the DTO and pinned the tab on its error
- * branch until the reader happened to click another range. */
+/** Stored preset, validated against the schema the server DTO uses and against
+ * the ranges this tab offers. An unchecked cast let any stale, hand-edited or
+ * since-removed value through to getPortalAnalyticsFn, where it failed the DTO
+ * and pinned the tab on its error branch until the reader happened to click
+ * another range. */
 function readStoredTimeRange(): TimeRangePreset {
-  if (typeof window === 'undefined') return 'all'
+  if (typeof window === 'undefined') return '30d'
   try {
-    const parsed = timeRangePreset.safeParse(localStorage.getItem(TIME_RANGE_KEY))
-    return parsed.success ? parsed.data : 'all'
+    return storedResultsRange(localStorage.getItem(TIME_RANGE_KEY))
   } catch {
-    return 'all'
+    return '30d'
+  }
+}
+
+/** Comparing is the default; only an explicit "off" is remembered as off. */
+function readStoredCompare(): boolean {
+  if (typeof window === 'undefined') return true
+  try {
+    return localStorage.getItem(COMPARE_KEY) !== 'off'
+  } catch {
+    return true
+  }
+}
+
+function remember(key: string, value: string): void {
+  try {
+    localStorage.setItem(key, value)
+  } catch {
+    // Ignore storage errors (Safari private mode, sandboxed iframes): a
+    // preference write must never take down the tab. Matches
+    // portal-preview/use-preview-toggle.ts.
   }
 }
 
 export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }: Props) {
   const [timeRange, setTimeRange] = useState<TimeRangePreset>(readStoredTimeRange)
+  const [compare, setCompare] = useState<boolean>(readStoredCompare)
 
-  useEffect(() => {
-    try {
-      localStorage.setItem(TIME_RANGE_KEY, timeRange)
-    } catch {
-      // Ignore storage errors (Safari private mode, sandboxed iframes): a
-      // preference write must never take down the tab. Matches
-      // portal-preview/use-preview-toggle.ts.
-    }
-  }, [timeRange])
+  useEffect(() => remember(TIME_RANGE_KEY, timeRange), [timeRange])
+  useEffect(() => remember(COMPARE_KEY, compare ? 'on' : 'off'), [compare])
 
   const {
     data,
     isLoading: loading,
     error: queryError,
+    isPlaceholderData: stale,
   } = useQuery({
-    queryKey: portalKeys.analytics(propertyId, portalId, timeRange),
-    queryFn: () => getPortalAnalytics({ data: { propertyId, portalId, timeRange } }),
+    queryKey: portalKeys.analytics(propertyId, portalId, timeRange, compare),
+    queryFn: () =>
+      getPortalAnalytics({ data: { propertyId, portalId, timeRange, compare } }),
+    // Changing the range or the comparison keeps the page on screen while the
+    // new figures load, instead of blanking it.
+    placeholderData: keepPreviousData,
   })
 
   if (loading) {
     return (
       <div className="flex items-center justify-center py-20">
-        <p className="text-sm text-muted-foreground">Loading analytics…</p>
+        <p className="text-sm text-muted-foreground">Loading results…</p>
       </div>
     )
   }
@@ -77,9 +97,9 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
       return (
         <div className="rounded-lg border border-dashed p-12 text-center">
           <BarChart3 className="mx-auto size-10 text-muted-foreground/50" />
-          <h3 className="mt-4 font-semibold">Analytics isn't available yet</h3>
+          <h3 className="mt-4 font-semibold">Results aren't available yet</h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Portal analytics aren't switched on for this property.
+            Portal results aren't switched on for this property.
           </p>
         </div>
       )
@@ -87,7 +107,7 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
     return (
       <div className="rounded-lg border border-dashed p-8 text-center">
         <p className="text-sm text-destructive">
-          Couldn't load analytics. Please try again.
+          Couldn't load results. Please try again.
         </p>
       </div>
     )
@@ -99,6 +119,9 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
       data={data}
       timeRange={timeRange}
       onTimeRangeChange={setTimeRange}
+      compare={compare}
+      onCompareChange={setCompare}
+      busy={stale}
     />
   )
 }

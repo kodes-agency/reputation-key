@@ -1,10 +1,12 @@
 import {
+  PORTAL_RESULTS_THRESHOLDS,
   averageWithholdReason,
   isAverageShowable,
 } from '../../domain/portal-results-thresholds'
 import type {
   PortalAnalyticsData,
   PortalMetricEvidence,
+  PortalRatingLanguages,
   PortalResponseIntegritySummary,
 } from '../../domain/dashboard-types'
 import type { GetPortalAnalyticsInput } from './get-portal-analytics'
@@ -65,6 +67,7 @@ export function portalLifetimeAnalyticsData(
   input: GetPortalAnalyticsInput,
   aggregate: PortalLifetimeAggregate | null,
   responseIntegrity: PortalResponseIntegritySummary,
+  ratingLanguages: PortalRatingLanguages,
   qualifiedScansSince: Date,
 ): PortalAnalyticsData {
   if (aggregate === null) {
@@ -75,6 +78,8 @@ export function portalLifetimeAnalyticsData(
         endAt: input.endDate,
         timezone: input.propertyTimezone,
       },
+      comparePeriod: null,
+      localDays: null,
       qualifiedScansSince,
       lifetimeReconciliation: {
         state: 'not_initialized',
@@ -99,7 +104,10 @@ export function portalLifetimeAnalyticsData(
       },
       engagementFunnel: null,
       ratingDistribution: [],
-      ratingTrend: [],
+      series: null,
+      versionMarkers: [],
+      ratingLanguages,
+      thresholds: PORTAL_RESULTS_THRESHOLDS,
       responseIntegrity,
     }
   }
@@ -152,6 +160,8 @@ export function portalLifetimeAnalyticsData(
       endAt: input.endDate,
       timezone: input.propertyTimezone,
     },
+    comparePeriod: null,
+    localDays: null,
     qualifiedScansSince,
     lifetimeReconciliation: {
       state:
@@ -210,9 +220,12 @@ export function portalLifetimeAnalyticsData(
           { stars: 5, count: values.privateRating5Count },
         ]
       : [],
-    // An anonymous total has no daily points. Deriving a chart from it would
+    // An anonymous total has no weekly points. Deriving a chart from it would
     // invent time semantics the lifetime projection intentionally does not own.
-    ratingTrend: [],
+    series: null,
+    versionMarkers: [],
+    ratingLanguages,
+    thresholds: PORTAL_RESULTS_THRESHOLDS,
     responseIntegrity,
   }
 }

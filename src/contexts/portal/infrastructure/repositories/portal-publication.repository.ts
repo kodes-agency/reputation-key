@@ -170,6 +170,9 @@ function activationFromRow(row: ActivationRow): PortalPublicationActivation | nu
   }
 }
 
+/** Versions a chart marks inside one window; far more than anyone publishes in 180 days. */
+const MAX_ACTIVATIONS_BETWEEN = 100
+
 /** Exported for the golden-snapshot tests; production reads go through the repository. */
 export function snapshotFromRow(row: SnapshotRow): PortalPublicationSnapshot | null {
   const parsed = publicationConfigurationSchema.safeParse(row.configuration)
@@ -388,6 +391,51 @@ export const createPortalPublicationRepository = (
             ? (visibleRows.at(-1)?.activation.activationSequence ?? null)
             : null,
       } satisfies PortalPublicationActivationPage
+    }),
+
+  listActivationsBetween: (organizationId, propertyId, portalId, window) =>
+    trace('portalPublication.listActivationsBetween', async () => {
+      const rows = await db
+        .select({
+          version: portalPublicationSnapshots.version,
+          kind: portalPublicationActivations.kind,
+          activatedAt: portalPublicationActivations.activatedAt,
+        })
+        .from(portalPublicationActivations)
+        .innerJoin(
+          portalPublicationSnapshots,
+          and(
+            eq(
+              portalPublicationSnapshots.organizationId,
+              portalPublicationActivations.organizationId,
+            ),
+            eq(
+              portalPublicationSnapshots.propertyId,
+              portalPublicationActivations.propertyId,
+            ),
+            eq(
+              portalPublicationSnapshots.portalId,
+              portalPublicationActivations.portalId,
+            ),
+            eq(portalPublicationSnapshots.id, portalPublicationActivations.snapshotId),
+          ),
+        )
+        .where(
+          and(
+            eq(portalPublicationActivations.organizationId, unbrand(organizationId)),
+            eq(portalPublicationActivations.propertyId, unbrand(propertyId)),
+            eq(portalPublicationActivations.portalId, unbrand(portalId)),
+            gte(portalPublicationActivations.activatedAt, window.startAt),
+            lt(portalPublicationActivations.activatedAt, window.endAt),
+          ),
+        )
+        .orderBy(asc(portalPublicationActivations.activationSequence))
+        .limit(MAX_ACTIVATIONS_BETWEEN)
+      return rows.flatMap((row) =>
+        row.kind === 'publish' || row.kind === 'rollback'
+          ? [{ version: row.version, kind: row.kind, activatedAt: row.activatedAt }]
+          : [],
+      )
     }),
 
   listOpenPendingContentChanges: (organizationId, propertyId, portalId) =>

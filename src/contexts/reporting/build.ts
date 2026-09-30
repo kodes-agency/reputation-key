@@ -349,6 +349,7 @@ function buildDashboardModule(
     portalMetrics,
     portalLifetime,
     responseIntegrity: input.guestResponseIntegrity,
+    portalVersions: input.portalApi,
   })
   const getResultsOverview = getPortalResultsOverview({
     results: createPortalResultsOverviewRepository(input.db, input.clock),

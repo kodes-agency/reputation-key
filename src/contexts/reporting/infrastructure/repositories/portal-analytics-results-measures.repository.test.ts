@@ -294,6 +294,36 @@ describe('Portal results measures (integration)', () => {
     })
   })
 
+  it('buckets qualified scans by week from the window start, net of retractions', async () => {
+    const weekly = await repository().getPortalWeeklyReadings(
+      ORG,
+      PROP,
+      PORTAL,
+      WINDOW_START,
+      WINDOW_END,
+      '2026-09-01',
+    )
+
+    // Five, six and seven Sep fall in week 0; the seventh is retracted. Raw
+    // scans, clicks and the 1 Oct reading (the exclusive end) never appear.
+    expect(weekly).toEqual([
+      { bucket: 0, metricKey: 'portal.qualified_scan', total: 2, count: 2 },
+    ])
+  })
+
+  it('never reads another organisation into a weekly series', async () => {
+    const weekly = await repository().getPortalWeeklyReadings(
+      ORG,
+      OTHER_PROP,
+      OTHER_PORTAL,
+      WINDOW_START,
+      WINDOW_END,
+      '2026-09-01',
+    )
+
+    expect(weekly).toEqual([])
+  })
+
   it('counts Google opens only, never secondary-link clicks', async () => {
     const sums = await repository().getPortalKpiSums(
       ORG,

@@ -33,6 +33,19 @@ export type PortalResponseIntegritySummary = Readonly<{
   total: number
 }>
 
+/**
+ * Eligible private ratings of one Portal, by the language of the page the guest
+ * saw when they rated (pinned by the response's experience snapshot). A rating
+ * older than the snapshots has no recorded language and is counted on its own
+ * line, never guessed. `total` is every counted rating, `unrecorded` included.
+ */
+export type PortalRatingLanguageBreakdown = Readonly<{
+  total: number
+  /** Most ratings first; ties by locale, so the order is stable. */
+  languages: ReadonlyArray<Readonly<{ locale: string; count: number }>>
+  unrecorded: number
+}>
+
 export type GuestResponseRepository = Readonly<{
   findForSession(
     scope: GuestResponseScope,
@@ -81,5 +94,10 @@ export type GuestResponseRepository = Readonly<{
     startAt: Date,
     endAt: Date,
   ): Promise<PortalResponseIntegritySummary>
+  summarizePortalRatingLanguages(
+    scope: GuestResponseScope,
+    startAt: Date,
+    endAt: Date,
+  ): Promise<PortalRatingLanguageBreakdown>
   saveModeration(response: GuestResponse): Promise<boolean>
 }>

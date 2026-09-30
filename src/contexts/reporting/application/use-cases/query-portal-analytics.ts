@@ -24,9 +24,9 @@ export function queryPortalAnalytics(
       assertValidPeriod(args[3], args[4])
       return repository.getPortalRatingDistribution(...args)
     },
-    getPortalRatingTrend: async (...args) => {
+    getPortalWeeklyReadings: async (...args) => {
       assertValidPeriod(args[3], args[4])
-      return repository.getPortalRatingTrend(...args)
+      return repository.getPortalWeeklyReadings(...args)
     },
     getPortalMetricEvidence: async (...args) => {
       assertValidPeriod(args[3], args[4])

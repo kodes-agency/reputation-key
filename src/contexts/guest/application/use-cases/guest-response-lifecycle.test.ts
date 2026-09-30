@@ -79,6 +79,11 @@ function memoryRepo(): GuestResponseRepository & {
       underReview: 0,
       total: 0,
     }),
+    summarizePortalRatingLanguages: async () => ({
+      total: 0,
+      languages: [],
+      unrecorded: 0,
+    }),
     saveModeration: async (response) => {
       const index = responses.findIndex((row) => row.id === response.id)
       if (index < 0) return false

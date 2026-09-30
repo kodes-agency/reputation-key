@@ -8,8 +8,9 @@
 // assembled through `portalPeriodKpis`, so a row says what that Portal's own
 // Results view says.
 //
-// Windows. A Portal's Results view builds its window in its Property's time zone
-// (`timeRangeToDates`, `priorPeriodDates`). So does this read: the caller says
+// Windows. A Portal's Results view builds its window in its Property's time zone,
+// as whole local days from midnight (`localDaysWindow`, `priorPeriodDates`).
+// So does this read: the caller says
 // which time zone each Property has, and Reporting builds each Property's
 // window itself, the way the single-Portal view does. Properties that share a
 // window share a read, so the number of statements follows the number of
@@ -47,7 +48,7 @@ import type {
   PortalResultsReadingGroup,
   PortalResultsWindowReading,
 } from '../ports/portal-results-overview.repository'
-import { priorPeriodDates, timeRangeToDates } from '../utils'
+import { localDaysWindow, priorPeriodDates } from '../utils'
 import { combineEvidence, sumCells } from './portal-results-aggregate'
 import {
   portalPeriodKpis,
@@ -143,7 +144,7 @@ function planProperties(input: GetPortalResultsOverviewInput, now: Date): Proper
   }
   return [...byProperty].map(([propertyId, entries]) => {
     const timezone = zones.get(propertyId) ?? 'UTC'
-    const { startDate, endDate } = timeRangeToDates(input.timeRange, now, timezone)
+    const { startDate, endDate } = localDaysWindow(input.timeRange, now, timezone)
     const prior = input.compare
       ? priorPeriodDates(input.timeRange, startDate, endDate, timezone)
       : null
@@ -393,7 +394,7 @@ function totalReadings(
 ): Readings {
   if (properties.length === 0) {
     // No Property says which time zone; UTC stands in for an empty total.
-    const { startDate, endDate } = timeRangeToDates(input.timeRange, now, 'UTC')
+    const { startDate, endDate } = localDaysWindow(input.timeRange, now, 'UTC')
     const prior = input.compare
       ? priorPeriodDates(input.timeRange, startDate, endDate, 'UTC')
       : null
