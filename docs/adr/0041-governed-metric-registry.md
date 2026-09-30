@@ -60,3 +60,11 @@ about them moves:
 
 Rule 2 stays intact. This is not a new formula: the same readings are read, over a wider
 grouping, and no historical meaning changes.
+
+**An exception to "immutable versions", and its limit.** The Structure section calls a version's
+scopes and attribution immutable, and this amendment changes both on three existing versions in
+place. That is allowed only for a change of this kind: it widens `allowedScopes` (and corrects the
+attribution text to say what the reading always recorded), adds no permitted consumer, and leaves
+every reading, source-policy allowlist and effective date as it was. Anything else, such as a new
+consumer, a different formula, a moved effective date or a narrowed scope, still needs a new
+version under rule 2.
