@@ -15,6 +15,7 @@ import type { ListInvitations } from './use-cases/list-invitations'
 import type { ResendInvitation } from './use-cases/resend-invitation'
 import type { AcceptInvitation } from './use-cases/accept-invitation'
 import type { CancelInvitation } from './use-cases/cancel-invitation'
+import type { GetInvitationPreview } from './use-cases/get-invitation-preview'
 import type { RegisterInvitedUser } from './use-cases/register-invited-user'
 import type { UpdateOrganization } from './use-cases/update-organization'
 import type { CreateCustomRole } from './use-cases/create-custom-role'
@@ -50,6 +51,9 @@ export type {
   MemberRecord,
   OrganizationRecord,
 } from './ports/identity.port'
+
+export type { InvitationPreview } from './use-cases/get-invitation-preview'
+export type { OrganizationInvitation } from './dto/invitation.dto'
 
 export type {
   StaffPublicApi,
@@ -104,6 +108,8 @@ export type IdentityRequestApi = Readonly<{
   resendInvitation: ResendInvitation
   acceptInvitation: AcceptInvitation
   cancelInvitation: CancelInvitation
+  /** Anonymous: the invitation link's preview, keyed by its bearer id. */
+  getInvitationPreview: GetInvitationPreview
   registerInvitedUser: RegisterInvitedUser
   updateOrganization: UpdateOrganization
   createCustomRole: CreateCustomRole

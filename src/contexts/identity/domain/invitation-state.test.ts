@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { invitationExpiresInDays, invitationState } from './invitation-state'
+import {
+  betaInvitationRole,
+  invitationExpiresInDays,
+  invitationState,
+} from './invitation-state'
 
 const NOW = new Date('2026-09-30T12:00:00.000Z')
 const LATER = new Date('2026-10-07T12:00:00.000Z')
@@ -49,4 +53,18 @@ describe('invitationExpiresInDays', () => {
     expect(invitationExpiresInDays(60_000)).toBe(1)
     expect(invitationExpiresInDays(0)).toBe(1)
   })
+})
+
+describe('betaInvitationRole', () => {
+  it('maps the two beta manager tokens to their roles', () => {
+    expect(betaInvitationRole('owner')).toBe('AccountAdmin')
+    expect(betaInvitationRole(' Admin ')).toBe('PropertyManager')
+  })
+
+  it.each([['member'], ['owner,editor'], ['custom-role'], [''], [null]])(
+    'reads %j as no beta role',
+    (raw) => {
+      expect(betaInvitationRole(raw)).toBeNull()
+    },
+  )
 })

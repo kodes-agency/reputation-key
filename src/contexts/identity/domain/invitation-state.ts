@@ -5,6 +5,12 @@
 // address to another Organization writes 'expired' onto a lapsed row. Every
 // reader derives the state here so "expired" means the same thing everywhere.
 
+import {
+  isBetaInteractiveRole,
+  type BetaInteractiveRole,
+} from '#/shared/domain/beta-interactive-role'
+import { toDomainRole } from '#/shared/domain/roles'
+
 export type InvitationState = 'pending' | 'expired' | 'accepted' | 'rejected' | 'canceled'
 
 const MS_PER_DAY = 86_400_000
@@ -34,3 +40,12 @@ export function invitationState(
  */
 export const invitationExpiresInDays = (ms: number): number =>
   Math.max(1, Math.round(ms / MS_PER_DAY))
+
+/**
+ * The beta manager role an invitation's raw Better Auth token grants, or null
+ * for a token no beta login may hold (Member, custom, multi-role).
+ */
+export function betaInvitationRole(raw: string | null): BetaInteractiveRole | null {
+  const role = toDomainRole((raw ?? '').trim().toLowerCase())
+  return role !== null && isBetaInteractiveRole(role) ? role : null
+}
