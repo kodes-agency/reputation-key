@@ -76,6 +76,31 @@ export const lapsedInvitation: PlatformOrganizationView = {
   ],
 }
 
+/** Two live invitations out: whoever accepts second becomes a second Account Admin. */
+export const competingInvitations: PlatformOrganizationView = {
+  id: 'org-lagoon',
+  name: 'Lagoon Suites',
+  slug: 'lagoon-suites',
+  createdAt: '2026-09-28T10:00:00.000Z',
+  lifecycleState: 'active',
+  memberCount: 0,
+  accountAdminCount: 0,
+  pendingInvitationCount: 2,
+  controlledBetaEnabled: true,
+  pendingAdminInvitations: [
+    invitation({
+      id: 'inv-right',
+      email: 'gm@lagoonsuites.example',
+      expiresAt: '2026-10-05T10:00:00.000Z',
+    }),
+    invitation({
+      id: 'inv-typo',
+      email: 'gm@lagoonsuite.example',
+      expiresAt: '2026-10-05T09:58:00.000Z',
+    }),
+  ],
+}
+
 /** Every invitation was cancelled: nothing is out, so only the form remains. */
 export const noInvitationOut: PlatformOrganizationView = {
   id: 'org-sunset',

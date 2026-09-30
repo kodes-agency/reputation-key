@@ -7,6 +7,7 @@ import {
   administered,
   awaitingFirstAdmin,
   closing,
+  competingInvitations,
   lapsedInvitation,
   makeAction,
   makeActions,
@@ -68,6 +69,21 @@ export const LapsedInvitation: Story = {
     expect(canvas.getByText('Expired Sep 19, 2026, 2:40 PM UTC')).toBeVisible()
     expect(
       canvas.getAllByRole('button', { name: /^resend invitation to/i }),
+    ).toHaveLength(2)
+    // One live invitation and one lapsed one do not compete.
+    expect(canvas.queryByText(/more than one invitation is live/i)).toBeNull()
+  },
+}
+
+export const CompetingInvitations: Story = {
+  args: { organization: competingInvitations },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // Each live invitation can still be accepted after the first, and the
+    // console stops acting once an Account Admin joins: say so while it can.
+    expect(canvas.getByText(/more than one invitation is live/i)).toBeVisible()
+    expect(
+      canvas.getAllByRole('button', { name: /^cancel invitation to/i }),
     ).toHaveLength(2)
   },
 }

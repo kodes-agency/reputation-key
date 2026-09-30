@@ -1,6 +1,7 @@
 // Platform operator console — the pure rules the page and its rows share
 // (ADR 0063): what needs the operator's attention, which Organizations take an
-// invitation, how a timestamp reads, and which refusal means "sign in again".
+// invitation, when open invitations compete, how a timestamp reads, and which
+// refusal means "sign in again".
 // No React, so each rule is pinned by a unit test.
 
 import { isServerFunctionError } from '#/shared/auth/server-function-error'
@@ -22,6 +23,23 @@ export function isReauthRequired(error: unknown): boolean {
 /** The console may invite only an active Organization that has no Account Admin. */
 export function canInviteAdmin(organization: PlatformOrganizationView): boolean {
   return organization.accountAdminCount === 0 && organization.lifecycleState === 'active'
+}
+
+/**
+ * More than one live Account Admin invitation is out for an ownerless
+ * Organization. Each stays acceptable after the first acceptance, and once an
+ * Account Admin has joined the console may no longer cancel the rest, so this
+ * is how an Organization ends up with two Account Admins. A lapsed invitation
+ * does not count: nobody can accept it until it is resent.
+ */
+export function hasCompetingAdminInvitations(
+  organization: PlatformOrganizationView,
+): boolean {
+  if (organization.accountAdminCount > 0) return false
+  const live = organization.pendingAdminInvitations.filter(
+    (invitation) => !invitation.expired,
+  )
+  return live.length > 1
 }
 
 const LIFECYCLE_LABELS: Readonly<

@@ -5,6 +5,7 @@ import {
   canInviteAdmin,
   formatConsoleDate,
   formatInvitationExpiry,
+  hasCompetingAdminInvitations,
   isReauthRequired,
   lifecycleLabel,
   organizationFlags,
@@ -62,6 +63,60 @@ describe('canInviteAdmin', () => {
     expect(canInviteAdmin(organization({ lifecycleState: 'closure_requested' }))).toBe(
       false,
     )
+  })
+})
+
+describe('hasCompetingAdminInvitations', () => {
+  const adminInvitation = (id: string, expired: boolean) => ({
+    id,
+    email: `${id}@example.com`,
+    expiresAt: '2026-10-07T12:00:00.000Z',
+    expired,
+  })
+
+  it('warns while two live Account Admin invitations are out: both can be accepted', () => {
+    expect(
+      hasCompetingAdminInvitations(
+        organization({
+          pendingAdminInvitations: [
+            adminInvitation('first', false),
+            adminInvitation('second', false),
+          ],
+        }),
+      ),
+    ).toBe(true)
+  })
+
+  it('does not count a lapsed invitation, which nobody can accept', () => {
+    expect(
+      hasCompetingAdminInvitations(
+        organization({
+          pendingAdminInvitations: [
+            adminInvitation('live', false),
+            adminInvitation('lapsed', true),
+          ],
+        }),
+      ),
+    ).toBe(false)
+  })
+
+  it('stays quiet for one invitation, and for an administered Organization', () => {
+    expect(
+      hasCompetingAdminInvitations(
+        organization({ pendingAdminInvitations: [adminInvitation('only', false)] }),
+      ),
+    ).toBe(false)
+    expect(
+      hasCompetingAdminInvitations(
+        organization({
+          accountAdminCount: 1,
+          pendingAdminInvitations: [
+            adminInvitation('first', false),
+            adminInvitation('second', false),
+          ],
+        }),
+      ),
+    ).toBe(false)
   })
 })
 
