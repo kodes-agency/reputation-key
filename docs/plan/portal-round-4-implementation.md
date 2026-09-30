@@ -551,6 +551,13 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
 - The category UI is removed.
 - Bringing `link-tree.tsx` under the limit needs an owner patch to `eslint.config.js`.
 - Depends on 10, 27. Size L.
+- **As built.**
+  - `getPortalLinktree` reads the whole section in one call (switch, written titles, each link in guest order with its texts, icon and destination approval); `savePortalLinkTexts` and `saveLinktreeSettings` get server functions. The section's title is "Title on the page" (default "Useful links"), per language, with a "Use default" reset.
+  - `createLink` may leave the category out: the link joins the Portal's last category, and the first link starts one titled "Links". The category is started only after the label, icon, cap and destination pass, and the Portal is read again before the link write (a real-PostgreSQL test pins this).
+  - Moving a tile saves one category's order, so a tile moves only among those of its own category; at a boundary between two older categories its move control is disabled. The category server functions, the drag-and-drop code and the `@dnd-kit` dependencies are removed; the category use cases stay until slice 19 flattens categories in the snapshot.
+  - Typed text (labels, lines, titles) saves through the portal autosave. Re-ordering, icons, the address, adding, deleting and the switch are their own saves, each after any typed text still waiting. The address is checked on the server, so it saves when the field is left.
+  - No photo choice and no "Translate with AI": both wait for uploads and for the AI capability. The approved-destinations card stays under the tiles, because it is where an Account Admin approves a custom address.
+  - The exemption for `link-tree.tsx` in `eslint.config.js` is stale now that the file is 200 lines; removing it is the owner patch (`s28-eslint.patch`).
 
 **29. Languages section and coverage read (A7).**
 
