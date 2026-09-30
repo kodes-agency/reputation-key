@@ -68,9 +68,9 @@ function SelectButton({ className, onClick }: SelectButtonProps) {
  * 32px whatever a breakpoint utility says. Select is a text button, so
  * `-mr-2` (its px-2) puts the word, not the box, on the 16px gutter.
  *
- * `useIsMobile` is false on the server, so a server-rendered phone paints the
- * md+ header first and swaps to this one on hydration. The whole compact layout
- * (`useInboxCompactLayout`) swaps the same way, which is how it already was.
+ * Phone or not is `useIsMobile`'s answer, on the server as on the client, so the
+ * first paint gets whichever bar that hook decides, the same way the compact
+ * layout follows `useInboxCompactLayout`.
  */
 function PhoneControls({
   filters,

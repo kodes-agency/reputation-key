@@ -84,7 +84,7 @@ export function InboxListPanel(props: InboxListPanelProps) {
         }
       />
       {queueStrip}
-      {/* Phone only, so it appears on hydration: `useIsMobile` is false on the server. */}
+      {/* Phone only: shown whenever `useIsMobile` says phone, the header's own test. */}
       {isMobile && (
         <InboxActiveFilters
           filters={filters}
