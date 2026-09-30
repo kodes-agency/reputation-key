@@ -102,4 +102,21 @@ describe('member Property access server handlers', () => {
     })
     expect(mocks.resetTenantCache).not.toHaveBeenCalled()
   })
+
+  it('drops cached tenant scope when a failure may follow a committed change', async () => {
+    // The responsibility reconcile runs after the grants commit, so an
+    // untagged failure does not mean nothing changed.
+    mocks.setMemberPropertyAccess.mockRejectedValue(
+      new Error('temporary reconciliation failure'),
+    )
+
+    await expect(
+      withStartContext(() =>
+        setMemberPropertyAccess({
+          data: { memberId: 'member-pm', revokePropertyIds: [PROPERTY_A] },
+        }),
+      ),
+    ).rejects.toMatchObject({ code: 'internal_error', status: 500 })
+    expect(mocks.resetTenantCache).toHaveBeenCalledOnce()
+  })
 })

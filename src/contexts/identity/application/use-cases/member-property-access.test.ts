@@ -152,7 +152,7 @@ describe('setMemberPropertyAccess', () => {
     )
   })
 
-  it('does not reconcile responsibilities when nothing was revoked', async () => {
+  it('does not reconcile responsibilities when the request revokes nothing', async () => {
     const { set, reconcile } = setup()
 
     await set(
@@ -179,8 +179,8 @@ describe('setMemberPropertyAccess', () => {
     expect(commands[0]?.revokePropertyIds).toEqual([PROPERTY_C])
   })
 
-  it('writes no fact and reconciles nothing for a repeat that changes nothing', async () => {
-    const { set, facts, reconcile } = setup({ 'user-pm': [PROPERTY_A] })
+  it('writes no fact for a repeat that changes nothing', async () => {
+    const { set, facts } = setup({ 'user-pm': [PROPERTY_A] })
 
     const applied = await set(
       {
@@ -193,7 +193,34 @@ describe('setMemberPropertyAccess', () => {
 
     expect(applied).toEqual({ grantedPropertyIds: [], revokedPropertyIds: [] })
     expect(facts).toEqual([])
-    expect(reconcile).not.toHaveBeenCalled()
+  })
+
+  it('reconciles again when a revoke is repeated after its reconcile failed', async () => {
+    const { set, facts, reconcile } = setup({ 'user-pm': [PROPERTY_B] })
+    reconcile.mockRejectedValueOnce(new Error('temporary reconciliation failure'))
+    const request = {
+      memberId: 'member-pm',
+      grantPropertyIds: [],
+      revokePropertyIds: [PROPERTY_B],
+    }
+
+    // The revoke and its fact commit before the reconcile fails.
+    await expect(set(request, ADMIN_CTX)).rejects.toThrow(
+      'temporary reconciliation failure',
+    )
+    // The repeat revokes nothing more, yet still releases what the member lost.
+    await expect(set(request, ADMIN_CTX)).resolves.toEqual({
+      grantedPropertyIds: [],
+      revokedPropertyIds: [],
+    })
+
+    expect(facts).toHaveLength(1)
+    expect(reconcile).toHaveBeenCalledTimes(2)
+    expect(reconcile).toHaveBeenLastCalledWith(
+      ADMIN_CTX.organizationId,
+      'user-pm',
+      'user-admin',
+    )
   })
 
   it('refuses a PropertyManager caller', async () => {
