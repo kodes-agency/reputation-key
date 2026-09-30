@@ -8,8 +8,10 @@ import {
 } from './portal-overview-results-fixtures'
 import {
   groupHeadCount,
+  groupSlot,
   indexOverviewResults,
   measureSlot,
+  resultsStateOf,
   rowMeasures,
 } from './portal-overview-results'
 
@@ -237,5 +239,80 @@ describe('measureSlot', () => {
         kind: 'unavailable',
       },
     )
+  })
+})
+
+describe('groupSlot', () => {
+  const ready = { status: 'ready' as const, index: indexOverviewResults(avelaResults()) }
+
+  it('gives a group its figures and how many Portals the read counts in it', () => {
+    const { slot, memberCount } = groupSlot(ready, (index) => index.group('group-pool'))
+
+    expect(slot).toMatchObject({ kind: 'figures', measures: { scans: { text: '698' } } })
+    expect(memberCount).toBe(3)
+  })
+
+  it('knows no count until the read is here, and keeps the state of the read', () => {
+    expect(
+      groupSlot({ status: 'loading' }, (index) => index.group('group-pool')),
+    ).toEqual({
+      slot: { kind: 'loading' },
+      memberCount: null,
+    })
+    expect(groupSlot({ status: 'off' }, (index) => index.group('group-pool'))).toEqual({
+      slot: { kind: 'off' },
+      memberCount: null,
+    })
+  })
+
+  it('has no count for a group the read did not name', () => {
+    expect(groupSlot(ready, (index) => index.group('group-new'))).toEqual({
+      slot: { kind: 'unavailable' },
+      memberCount: null,
+    })
+  })
+})
+
+describe('resultsStateOf', () => {
+  const index = indexOverviewResults(avelaResults())
+  const allowed = { allowed: true, error: null }
+
+  it('shows no results to a reader who may not read them', () => {
+    expect(resultsStateOf({ allowed: false, error: null }, index)).toEqual({
+      status: 'off',
+    })
+  })
+
+  it('waits while there is nothing yet', () => {
+    expect(resultsStateOf(allowed, null)).toEqual({ status: 'loading' })
+  })
+
+  it('has the figures once they are there', () => {
+    expect(resultsStateOf(allowed, index)).toEqual({ status: 'ready', index })
+  })
+
+  it('keeps the figures it has when a later refresh fails', () => {
+    expect(resultsStateOf({ allowed: true, error: new Error('network') }, index)).toEqual(
+      {
+        status: 'ready',
+        index,
+      },
+    )
+  })
+
+  it('says it failed on a real error, so the list can say so', () => {
+    expect(
+      resultsStateOf({ allowed: true, error: new Error('database down') }, null),
+    ).toEqual({
+      status: 'failed',
+    })
+  })
+
+  it('treats a deliberately dark capability as no results, not as a failure', () => {
+    const dark = Object.assign(new Error('denied'), { code: 'org_not_allowlisted' })
+
+    expect(resultsStateOf({ allowed: true, error: dark }, null)).toEqual({
+      status: 'off',
+    })
   })
 })

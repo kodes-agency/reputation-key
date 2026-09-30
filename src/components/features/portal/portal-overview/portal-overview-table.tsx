@@ -3,9 +3,17 @@
 // is a table (see `portal-overview-table-row.tsx`). Groups fold away; the fold is the
 // reader's own, kept here rather than in the URL.
 import { useState } from 'react'
+import { ArrowDown, ArrowUp } from 'lucide-react'
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '#/components/ui/table'
 import type { PortalArchiveMutations } from './portal-archive-dialog'
 import { PortalOverviewGroupHead } from './portal-overview-group-head'
+import { MEASURE_COLUMNS } from './portal-overview-measure-cells'
+import {
+  groupSlot,
+  measureSlot,
+  type PortalOverviewResultsState,
+} from './portal-overview-results'
+import type { SortDirection } from './portal-overview-search-schema'
 import { PortalOverviewTableRow } from './portal-overview-table-row'
 import type { PortalOverviewSection } from './portal-overview-view'
 
@@ -14,9 +22,35 @@ type Props = PortalArchiveMutations &
     sections: readonly PortalOverviewSection[]
     propertyId: string
     propertyName: string
+    results: PortalOverviewResultsState
+    /** Set while the table is ordered by qualified scans, to mark that column. */
+    scansOrder?: SortDirection
   }>
 
 const TBODY = 'block space-y-3 pb-3 @4xl:table-row-group @4xl:space-y-0 @4xl:pb-0'
+
+const MEASURE_HEAD = 'h-10 px-2 text-right text-xs text-muted-foreground'
+
+function MeasureHeader({
+  label,
+  order,
+}: Readonly<{ label: string; order: SortDirection | undefined }>) {
+  const Arrow = order === 'asc' ? ArrowUp : ArrowDown
+  return (
+    <TableHead
+      scope="col"
+      aria-sort={
+        order === undefined ? undefined : order === 'asc' ? 'ascending' : 'descending'
+      }
+      className={MEASURE_HEAD}
+    >
+      {order === undefined ? null : (
+        <Arrow aria-hidden="true" className="mr-1 inline size-3 align-[-1px]" />
+      )}
+      {label}
+    </TableHead>
+  )
+}
 
 export function PortalOverviewTable({
   sections,
@@ -24,6 +58,8 @@ export function PortalOverviewTable({
   propertyName,
   archiveMutation,
   restoreMutation,
+  results,
+  scansOrder,
 }: Props) {
   const [folded, setFolded] = useState<readonly string[]>([])
   const toggle = (key: string) =>
@@ -39,6 +75,15 @@ export function PortalOverviewTable({
             <TableHead scope="col" className="h-10 px-4 text-xs text-muted-foreground">
               Portal
             </TableHead>
+            {results.status === 'off'
+              ? null
+              : MEASURE_COLUMNS.map(({ key, label }) => (
+                  <MeasureHeader
+                    key={key}
+                    label={label}
+                    order={key === 'scans' ? scansOrder : undefined}
+                  />
+                ))}
             <TableHead scope="col" className="h-10 px-4 text-xs text-muted-foreground">
               Responsible
             </TableHead>
@@ -50,11 +95,16 @@ export function PortalOverviewTable({
         {sections.map((section) => {
           const headed = section.kind !== 'flat'
           const expanded = !headed || !folded.includes(section.key)
+          const head = groupSlot(results, (index) =>
+            section.group ? index.group(section.group.id) : index.ungrouped(propertyId),
+          )
           return (
             <TableBody key={section.key} className={TBODY}>
               {headed ? (
                 <PortalOverviewGroupHead
                   section={section}
+                  figures={head.slot}
+                  readCount={head.memberCount}
                   expanded={expanded}
                   onToggle={() => toggle(section.key)}
                 />
@@ -64,6 +114,9 @@ export function PortalOverviewTable({
                     <PortalOverviewTableRow
                       key={item.row.portalId}
                       item={item}
+                      figures={measureSlot(results, (index) =>
+                        index.portal(item.row.portalId),
+                      )}
                       propertyId={propertyId}
                       showGroup={!headed}
                       archiveMutation={archiveMutation}

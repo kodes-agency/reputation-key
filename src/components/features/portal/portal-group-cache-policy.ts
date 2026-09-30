@@ -25,9 +25,10 @@ async function invalidateAffectedProjections(
     ...affectedProjectionKeys(propertyId).map((queryKey) =>
       queryClient.invalidateQueries({ queryKey, exact: true }),
     ),
-    // One read per window: the root stands for all of them.
+    // One read per window: the root stands for all of them, so not exact.
     queryClient.invalidateQueries({
       queryKey: portalKeys.resultsOverviewRoot(propertyId),
+      exact: false,
     }),
   ])
 }

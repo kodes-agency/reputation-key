@@ -62,6 +62,15 @@ export type ResultsMeasuresInput = Readonly<{
   funnel?: PortalEngagementFunnel | null
 }>
 
+/** What each cell counts, in words a manager would use; the strip prints them in this order. */
+export const RESULTS_LABELS = {
+  scans: 'Qualified scans',
+  ratings: 'Private ratings',
+  average: 'Average private rating',
+  googleOpens: 'Guests who opened Google',
+  notes: 'Private notes',
+} as const satisfies Record<ResultsCellKey, string>
+
 export const DASH = '—'
 
 export const formatCount = (value: number) => value.toLocaleString('en-US')
@@ -162,7 +171,7 @@ function averageCell(data: ResultsMeasuresInput, options: Options): ResultsCell 
   const { avgRating } = data.kpis
   const base = {
     key: 'average',
-    label: 'Average private rating',
+    label: RESULTS_LABELS.average,
     subject: 'ratings',
   } as const
   if (avgRating.value === null) {
@@ -198,7 +207,7 @@ export function measureCells(
   return [
     countCell(
       'scans',
-      'Qualified scans',
+      RESULTS_LABELS.scans,
       'qualified_scans',
       kpis.scans,
       changeLine(kpis.scans, data, options),
@@ -206,7 +215,7 @@ export function measureCells(
     ),
     countCell(
       'ratings',
-      'Private ratings',
+      RESULTS_LABELS.ratings,
       'ratings',
       kpis.ratings,
       shareOfScans('ratings', data) ?? changeLine(kpis.ratings, data, options),
@@ -215,7 +224,7 @@ export function measureCells(
     averageCell(data, options),
     countCell(
       'googleOpens',
-      'Guests who opened Google',
+      RESULTS_LABELS.googleOpens,
       'google_opens',
       kpis.googleOpens,
       shareOfScans('googleOpens', data) ?? changeLine(kpis.googleOpens, data, options),
@@ -223,7 +232,7 @@ export function measureCells(
     ),
     countCell(
       'notes',
-      'Private notes',
+      RESULTS_LABELS.notes,
       'private_feedback',
       kpis.feedback,
       changeLine(kpis.feedback, data, options),

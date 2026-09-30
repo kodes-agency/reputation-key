@@ -12,6 +12,8 @@ import {
   PortalNameLink,
 } from './portal-overview-cells'
 import type { PortalArchiveMutations } from './portal-archive-dialog'
+import { PortalMeasureCells } from './portal-overview-measure-cells'
+import type { MeasureSlot } from './portal-overview-results'
 import { PortalRowButtons, PortalRowMenu } from './portal-overview-row-actions'
 import type { PortalOverviewItem } from './portal-overview-view'
 
@@ -21,6 +23,8 @@ export const PORTAL_OVERVIEW_COLUMNS = 4
 type Props = PortalArchiveMutations &
   Readonly<{
     item: PortalOverviewItem
+    /** This Portal's figures: drawn beside its name in a table, as one line in a card. */
+    figures: MeasureSlot
     propertyId: string
     /** A flat list has no group heads, so the row says which group it is in. */
     showGroup: boolean
@@ -32,6 +36,7 @@ const CARD_ROW =
 
 export function PortalOverviewTableRow({
   item,
+  figures,
   propertyId,
   showGroup,
   archiveMutation,
@@ -39,6 +44,9 @@ export function PortalOverviewTableRow({
 }: Props) {
   const { row } = item
   const archived = row.publicationState === 'archived'
+  const draft = row.publicationState === 'draft'
+  // A draft has no results: its card says so by saying nothing, as its table row does.
+  const summary = figures.kind === 'figures' && !draft ? figures.measures.summary : null
   return (
     <TableRow className={cn(CARD_ROW, archived && 'opacity-70')}>
       <TableHead
@@ -53,8 +61,10 @@ export function PortalOverviewTableRow({
             <PortalAttentionLine item={item} propertyId={propertyId} />
           </div>
           <PortalMetaLine item={item} showGroup={showGroup} />
+          {summary ? <p className="text-sm @4xl:hidden">{summary}</p> : null}
         </div>
       </TableHead>
+      <PortalMeasureCells slot={figures} draft={draft} />
       <TableCell className="hidden p-0 @4xl:table-cell @4xl:w-40 @4xl:px-4 @4xl:py-3">
         {archived ? null : <PortalManagersCell managers={item.managers} />}
       </TableCell>

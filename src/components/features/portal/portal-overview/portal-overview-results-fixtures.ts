@@ -18,6 +18,8 @@ import {
 const PROPERTY = propertyId('prop-1')
 
 export type Figures = Readonly<{
+  /** The period before, where the row says how it moved. */
+  priorScans?: number
   scans: number
   ratings: number
   /** Null is an average the sample is too small to show. */
@@ -31,7 +33,7 @@ export function measuresOf(figures: Figures): PortalResultsMeasures {
   const { scans, ratings, average, googleOpens, notes } = figures
   return {
     kpis: {
-      scans: resultsCount(scans, null),
+      scans: resultsCount(scans, figures.priorScans ?? null),
       ratings: resultsCount(ratings, null),
       avgRating:
         average === null
@@ -184,6 +186,7 @@ export const OLIVE = { scans: 351, ratings: 97, average: 4.2, googleOpens: 41, n
 const POOL_SIDE = { scans: 698, ratings: 209, average: 4.5, googleOpens: 116, notes: 13 }
 const FRONT = { scans: 558, ratings: 144, average: 4.5, googleOpens: 79, notes: 12 }
 const PROPERTY_TOTAL = {
+  priorScans: 1490,
   scans: 1607,
   ratings: 450,
   average: 4.4,

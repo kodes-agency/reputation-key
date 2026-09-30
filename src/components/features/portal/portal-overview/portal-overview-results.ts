@@ -13,6 +13,7 @@ import type {
   PortalResultsPropertyRow,
   PortalResultsThresholds,
 } from '#/contexts/reporting/application/public-api'
+import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'
 import {
   DASH,
   formatCount,
@@ -264,4 +265,32 @@ export function measureSlot(
   if (state.status === 'failed') return { kind: 'unavailable' }
   const measures = pick(state.index)
   return measures ? { kind: 'figures', measures } : { kind: 'unavailable' }
+}
+
+/** A group's (or the ungrouped row's) figures, and the Portals the read counts in it. */
+export function groupSlot(
+  state: PortalOverviewResultsState,
+  pick: (index: OverviewResultsIndex) => GroupFigures | null,
+): Readonly<{ slot: MeasureSlot; memberCount: number | null }> {
+  return {
+    slot: measureSlot(state, (index) => pick(index)?.measures ?? null),
+    memberCount:
+      state.status === 'ready' ? (pick(state.index)?.memberCount ?? null) : null,
+  }
+}
+
+/**
+ * What the route knows about the read, as the page's state. The read needs
+ * `dashboard.read`, a different capability from the `portal.read` that got the
+ * reader to the list: a role without it, or a beta-dark posture, gets the list
+ * without results, and only a real failure says so.
+ */
+export function resultsStateOf(
+  facts: Readonly<{ allowed: boolean; error: unknown }>,
+  index: OverviewResultsIndex | null,
+): PortalOverviewResultsState {
+  if (!facts.allowed) return { status: 'off' }
+  if (index) return { status: 'ready', index }
+  if (facts.error === null) return { status: 'loading' }
+  return isDarkCapabilityDenial(facts.error) ? { status: 'off' } : { status: 'failed' }
 }

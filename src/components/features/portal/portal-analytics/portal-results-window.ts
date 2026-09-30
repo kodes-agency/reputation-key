@@ -25,6 +25,9 @@ export const PORTAL_RESULTS_RANGES: ReadonlyArray<{
   { value: 'all', label: 'All time' },
 ]
 
+/** Where the range is remembered: one viewing preference for every Results surface. */
+export const PORTAL_RESULTS_RANGE_STORAGE_KEY = 'portal-analytics-time-range'
+
 const DEFAULT_RANGE = '30d' satisfies TimeRangePreset
 
 /** A remembered range, if the picker still offers it: the server accepts more presets than this tab shows. */
