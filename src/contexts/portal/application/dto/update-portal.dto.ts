@@ -1,6 +1,7 @@
 // Portal context — update portal DTO
 
 import { z } from 'zod/v4'
+import { MAX_ADDITIONAL_GUEST_LOCALES } from '#/shared/domain/guest-locale'
 import { offeredGuestLocaleSchema } from '#/shared/guest-locale-schemas'
 
 export const updatePortalInputSchema = z
@@ -24,7 +25,11 @@ export const updatePortalInputSchema = z
     primaryGuestLocale: offeredGuestLocaleSchema.optional(),
     additionalGuestLocales: z
       .array(offeredGuestLocaleSchema)
-      .max(1)
+      // Bounded by the catalogue, not by what is offered today, so offering a
+      // locale later needs no schema change. Excluding the primary locale is
+      // enforced by the use case: a refinement here would break `.pick()` in
+      // the edit form.
+      .max(MAX_ADDITIONAL_GUEST_LOCALES)
       .refine((locales) => new Set(locales).size === locales.length, {
         message: 'Guest locales must be unique',
       })

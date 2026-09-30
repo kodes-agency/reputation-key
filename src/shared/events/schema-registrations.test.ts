@@ -332,3 +332,57 @@ describe('registered review.reply.publication_requested schemas', () => {
     ).toThrow(ZodError)
   })
 })
+
+describe('registered Portal guest locale schemas', () => {
+  beforeEach(() => {
+    clearEventSchemas()
+    registerAllEventSchemas()
+  })
+
+  const localeFact = {
+    organizationId: 'organization-1',
+    propertyId: '22222222-2222-4222-8222-222222222222',
+    portalId: '33333333-3333-4333-8333-333333333333',
+    sourceAggregateVersion: '2026-08-26T12:01:00.000Z',
+    occurredAt: '2026-08-26T12:00:00.000Z',
+  } as const
+
+  it('reads a locale set that uses any of the six catalogue locales', () => {
+    const payload = {
+      ...localeFact,
+      primaryGuestLocale: 'de',
+      additionalGuestLocales: ['en', 'es', 'it', 'fr', 'bg'],
+    }
+    expect(validateEventPayload('portal.locale_set.updated', 1, payload)).toEqual(payload)
+  })
+
+  it('refuses a sixth additional locale and a locale outside the catalogue', () => {
+    const sixAdditional = {
+      ...localeFact,
+      primaryGuestLocale: 'en',
+      additionalGuestLocales: ['en', 'es', 'it', 'fr', 'de', 'bg'],
+    }
+    expect(() =>
+      validateEventPayload('portal.locale_set.updated', 1, sixAdditional),
+    ).toThrow(ZodError)
+    expect(() =>
+      validateEventPayload('portal.locale_set.updated', 1, {
+        ...localeFact,
+        primaryGuestLocale: 'pt',
+        additionalGuestLocales: [],
+      }),
+    ).toThrow(ZodError)
+  })
+
+  it.each([
+    ['portal.property_brand_content.updated', { ...localeFact, contentVersion: 2 }],
+    ['portal.localized_override.updated', { ...localeFact, overrideVersion: null }],
+  ] as const)('reads a %s fact in a locale that is not yet offered', (type, base) => {
+    expect(() =>
+      validateEventPayload(type, 1, { ...base, guestLocale: 'fr' }),
+    ).not.toThrow()
+    expect(() => validateEventPayload(type, 1, { ...base, guestLocale: 'pt' })).toThrow(
+      ZodError,
+    )
+  })
+})

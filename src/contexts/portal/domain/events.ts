@@ -4,7 +4,11 @@
 
 import { newEventId } from '#/shared/domain/event-id'
 import { assert } from '#/shared/domain/assert'
-import { isGuestLocale, type GuestLocale } from '#/shared/domain/guest-locale'
+import {
+  isGuestLocale,
+  isValidAdditionalGuestLocales,
+  type GuestLocale,
+} from '#/shared/domain/guest-locale'
 import type { PortalId } from './types'
 import type {
   OrganizationId,
@@ -826,12 +830,8 @@ export const portalLocaleSetUpdated = (
     'Portal primary guest locale must be supported',
   )
   assert(
-    args.additionalGuestLocales.every(isGuestLocale),
-    'Portal additional guest locales must be supported',
-  )
-  assert(
-    !args.additionalGuestLocales.includes(args.primaryGuestLocale),
-    'Portal primary guest locale cannot also be additional',
+    isValidAdditionalGuestLocales(args.primaryGuestLocale, args.additionalGuestLocales),
+    'Portal additional guest locales must be supported, unique, and not repeat the primary',
   )
   return {
     _tag: 'portal.locale_set.updated',
