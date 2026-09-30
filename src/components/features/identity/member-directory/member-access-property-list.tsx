@@ -69,13 +69,9 @@ export function MemberAccessPropertyList({
       <div className="flex items-center gap-2 border-b pb-2">
         <Checkbox
           id={`${searchId}-all`}
-          checked={
-            allVisibleSelected
-              ? true
-              : visibleSelected.length > 0
-                ? 'indeterminate'
-                : false
-          }
+          // Checked only when every listed property is; a partial selection is
+          // read from the "n of total" heading, not a mixed state.
+          checked={allVisibleSelected}
           disabled={disabled || visibleIds.length === 0}
           onCheckedChange={() =>
             onSelectedChange(

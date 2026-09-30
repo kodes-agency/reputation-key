@@ -143,7 +143,7 @@ export const AsPropertyManager: Story = {
     // Nav entries render enabled (propertyId is set). Use findBy to tolerate async render.
     expect(await canvas.findByText(/^dashboard$/i)).toBeInTheDocument()
     expect(await canvas.findByText(/^reviews$/i)).toBeInTheDocument()
-    expect(await canvas.findByText(/^people$/i)).toBeInTheDocument()
+    expect(await canvas.findByText(/^staff$/i)).toBeInTheDocument()
     expect(await canvas.findByText(/^portals$/i)).toBeInTheDocument()
     expect(await canvas.findByText(/^goals$/i)).toBeInTheDocument()
     expect(canvas.queryByText(/^leaderboard$/i)).toBeNull()
@@ -182,7 +182,7 @@ export const NoPropertySelected: Story = {
     const canvas = await expectNoPropertyChrome(canvasElement)
     const reviews = await canvas.findByRole('link', { name: /^reviews$/i })
     expect(reviews).toHaveAttribute('href', '/inbox')
-    expect(canvas.queryByRole('link', { name: /^people$/i })).toBeNull()
+    expect(canvas.queryByRole('link', { name: /^staff$/i })).toBeNull()
   },
 }
 
