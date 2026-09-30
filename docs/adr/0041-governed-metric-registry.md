@@ -37,3 +37,26 @@ A centralized **governed metric registry** is the only route from source facts t
 
 - **Let each context implement its own formula** — incompatible denominators, missing-data behavior, and policy enforcement.
 - **Allow arbitrary customer formulas** — impossible to audit for fairness, privacy, or source-policy compliance.
+
+## Amendment 2026-09-30 — the Portal results measures at group and property scope
+
+Owner decision 2026-09-30: Portal group rows, group pages and totals show all five Portal
+results measures, not the three Goal measures alone.
+
+`portal.rating` (…1202), `portal.feedback` (…1203) and `portal.review_link_click` (…1204) were
+admitted at `portal` scope only. Their versions now admit `property`, `portal_group` and
+`portal`, as the qualified-scan and rating-count/average versions already did. Nothing else
+about them moves:
+
+- The versions keep their ids, effective dates, source-policy allowlists and
+  `permittedConsumers: ['portal_analytics']`. Widening the scope is not widening the audience:
+  no Goal, dashboard, notification or export consumer gains the private-response or
+  solicitation measures.
+- Readings are unchanged. Every reading is still recorded at `portal` scope and already carries
+  the Portal's group at event time (ADR 0040). A group figure is the sum of the readings tagged
+  with that group, so a Portal that moves keeps its earlier results with its old group.
+- The attribution text of the three versions now says "portal and group", which is what the
+  reading always recorded.
+
+Rule 2 stays intact. This is not a new formula: the same readings are read, over a wider
+grouping, and no historical meaning changes.

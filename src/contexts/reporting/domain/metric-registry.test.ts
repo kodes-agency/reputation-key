@@ -9,6 +9,8 @@ import {
   evaluateInsufficientData,
   isGamificationViolation,
   METRIC_DEFINITIONS,
+  METRIC_VERSION_IDS,
+  findMetricVersionById,
 } from './metric-registry'
 
 function makeVersion(
@@ -196,6 +198,43 @@ describe('MetricRegistry', () => {
       )
 
       expect(permitted.filter((consumer) => retired.includes(consumer))).toEqual([])
+    })
+
+    it('admits all five Portal results measures at Portal, Group and Property scope', () => {
+      // Owner decision 2 (2026-09-30): group rows, group pages and totals show
+      // all five measures, so no measure may be Portal-only in the registry.
+      const resultsMeasures = [
+        METRIC_VERSION_IDS.qualifiedScanGoal,
+        METRIC_VERSION_IDS.portalRatingAnalytics,
+        METRIC_VERSION_IDS.portalRatingCountGoal,
+        METRIC_VERSION_IDS.portalRatingAverageGoal,
+        METRIC_VERSION_IDS.portalDestinationClickAnalytics,
+        METRIC_VERSION_IDS.portalFeedbackAnalytics,
+      ]
+
+      for (const versionId of resultsMeasures) {
+        const governed = findMetricVersionById(versionId)
+        expect(governed, versionId).not.toBeNull()
+        const scopes = governed?.version.allowedScopes ?? []
+        expect([...scopes].sort(), versionId).toEqual([
+          'portal',
+          'portal_group',
+          'property',
+        ])
+      }
+    })
+
+    it('keeps the widened measures private to Portal analytics', () => {
+      // Widening the scope is not widening the audience.
+      const widened = [
+        METRIC_VERSION_IDS.portalDestinationClickAnalytics,
+        METRIC_VERSION_IDS.portalFeedbackAnalytics,
+      ]
+      for (const versionId of widened) {
+        expect(findMetricVersionById(versionId)?.version.permittedConsumers).toEqual([
+          'portal_analytics',
+        ])
+      }
     })
   })
 })
