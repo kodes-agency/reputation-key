@@ -19,12 +19,15 @@ const ownerless: OrganizationAdministration = {
 }
 
 function setup(administration: OrganizationAdministration | null = ownerless) {
+  const cancelAdminInvitation = vi.fn(async () => {})
   const store = {
     listOrganizations: vi.fn(),
     readAdministration: vi.fn(async () => administration),
     provisionOrganization: vi.fn(),
+    inviteAdmin: vi.fn(),
+    renewAdminInvitation: vi.fn(),
+    cancelAdminInvitation,
   } satisfies PlatformOrganizationStore
-  const cancelInvitation = vi.fn(async () => {})
   const logger = {
     info: vi.fn(),
     warn: vi.fn(),
@@ -34,11 +37,10 @@ function setup(administration: OrganizationAdministration | null = ownerless) {
   }
   const cancel = cancelOrganizationAdminInvitation({
     store,
-    commandStore: { cancelInvitation },
     clock: () => NOW,
     logger,
   })
-  return { cancel, store, cancelInvitation, logger }
+  return { cancel, store, cancelAdminInvitation, logger }
 }
 
 const INPUT = { organizationId: 'org-new', invitationId: 'inv-open' }
@@ -46,33 +48,37 @@ const INPUT = { organizationId: 'org-new', invitationId: 'inv-open' }
 describe('cancelOrganizationAdminInvitation', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('cancels through the ordinary command, scoped by the given Organization', async () => {
-    const { cancel, store, cancelInvitation } = setup()
+  it('cancels through the ordinary command, scoped by the given Organization, audited to the operator', async () => {
+    const { cancel, store, cancelAdminInvitation } = setup()
 
     await expect(cancel(INPUT, OPERATOR)).resolves.toBeUndefined()
 
     expect(store.readAdministration).toHaveBeenCalledWith('org-new')
-    expect(cancelInvitation).toHaveBeenCalledWith({
-      invitationId: 'inv-open',
-      organizationId: 'org-new',
-      event: expect.objectContaining({
-        _tag: 'identity.invitation.canceled',
+    // The fact names no actor; the store's audit row names the operator.
+    expect(cancelAdminInvitation).toHaveBeenCalledWith(
+      {
         invitationId: 'inv-open',
         organizationId: 'org-new',
-        occurredAt: NOW,
-      }),
-    })
+        event: expect.objectContaining({
+          _tag: 'identity.invitation.canceled',
+          invitationId: 'inv-open',
+          organizationId: 'org-new',
+          occurredAt: NOW,
+        }),
+      },
+      'user-operator',
+    )
   })
 
   it('still cancels on an ownerless Organization that is no longer active', async () => {
-    const { cancel, cancelInvitation } = setup({
+    const { cancel, cancelAdminInvitation } = setup({
       ...ownerless,
       lifecycleState: 'closure_requested',
     })
 
     await cancel(INPUT, OPERATOR)
 
-    expect(cancelInvitation).toHaveBeenCalledOnce()
+    expect(cancelAdminInvitation).toHaveBeenCalledOnce()
   })
 
   it('logs the cancellation content-free: no identifiers, no address', async () => {
@@ -103,12 +109,12 @@ describe('cancelOrganizationAdminInvitation', () => {
     ],
     ['an Organization that does not exist', INPUT, null, 'forbidden'],
   ])('refuses %s', async (_label, input, administration, code) => {
-    const { cancel, cancelInvitation } = setup(administration)
+    const { cancel, cancelAdminInvitation } = setup(administration)
 
     await expect(cancel(input, OPERATOR)).rejects.toMatchObject({
       _tag: 'IdentityError',
       code,
     })
-    expect(cancelInvitation).not.toHaveBeenCalled()
+    expect(cancelAdminInvitation).not.toHaveBeenCalled()
   })
 })

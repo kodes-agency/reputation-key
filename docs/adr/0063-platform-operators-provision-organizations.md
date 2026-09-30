@@ -54,14 +54,20 @@ denies everyone it does not list. The beta has no MFA.
 5. **No tenant capability.** `organization.create` stays `beta_disabled`: it
    names tenant self-service, which remains off. Operator provisioning is not a
    tenant capability, and it adds no SystemAction or capability.
-6. **No new fact.** Provisioning records no fact of its own, as
-   `ops:bootstrap-owner` records none. The Organization row, its lifecycle
-   authority row and the first invitation's `identity.member.invited` fact are
-   the record; the operator is on record as that invitation's `inviterId`. Each
-   change and each refusal also writes a content-free log line
-   (`platform.organization_provisioned`, `platform.operator_denied`, …) that
-   the request's trace correlates; like every log line, it carries no tenant
-   identifier or address.
+6. **No new fact; an audit row per change.** Provisioning records no fact of
+   its own, as `ops:bootstrap-owner` records none. The Organization row, its
+   lifecycle authority row and the first invitation's `identity.member.invited`
+   fact are the record of what exists. Who made each change is recorded
+   separately: every console change (provision, invite, resend, cancel) commits
+   one `audit_logs` row in the same transaction, naming the Organization, the
+   operator's user id and the action (`platform.organization_provisioned`,
+   `platform.admin_invited`, `platform.admin_invitation_resent`,
+   `platform.admin_invitation_canceled`), with ids only and never an address.
+   That row is the only durable attribution: log lines and spans carry no
+   tenant or user identifier, and `identity.invitation.canceled` names no
+   actor. Each change and each refusal also writes a content-free log line
+   (`platform.operator_denied` for a refusal) that the request's trace
+   correlates.
 7. **Its own composition seam.** The console is the container key
    `identityPlatform`, built by `identity/build-platform.ts`. It is not on
    `identityPublicApi`: no other context receives it.
@@ -77,7 +83,9 @@ denies everyone it does not list. The beta has no MFA.
   Organizations are dark.
 - The operator's user id appears as `inviterId` in that Organization's export.
   The operator is no member, so any notice addressed to the inviter as a member
-  is refused.
+  is refused. The console's `audit_logs` rows are not exported (Activity treats
+  that table as an unattributed archive) and are kept for 365 days by the
+  retention sweep, including after the Organization closes.
 - A stolen operator session within 30 minutes of sign-in can create empty
   Organizations or seed ownerless ones, up to the hourly budget. It cannot touch
   an Organization that has an AccountAdmin.

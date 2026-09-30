@@ -33,6 +33,9 @@ describe('listPlatformOrganizations', () => {
       listOrganizations: vi.fn(async () => [row('org-dark', 0), row('org-lit', 2)]),
       readAdministration: vi.fn(),
       provisionOrganization: vi.fn(),
+      inviteAdmin: vi.fn(),
+      renewAdminInvitation: vi.fn(),
+      cancelAdminInvitation: vi.fn(),
     } satisfies PlatformOrganizationStore
     const list = listPlatformOrganizations({
       store,

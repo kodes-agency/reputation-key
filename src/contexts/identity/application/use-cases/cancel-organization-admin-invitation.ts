@@ -4,7 +4,8 @@
 // Cancelling needs no active Organization: withdrawing an invitation is how
 // the operator stops an ownerless Organization from gaining an admin while
 // it closes. The ordinary command commits the status change and its
-// `identity.invitation.canceled` fact atomically.
+// `identity.invitation.canceled` fact atomically, and the store's audit row in
+// the same transaction names the operator, whom the fact does not.
 
 import type { Clock } from '#/shared/domain/clock'
 import {
@@ -17,13 +18,11 @@ import type {
   OrganizationInvitationInput,
   PlatformOperatorActor,
 } from '../dto/platform-console.dto'
-import type { IdentityCommandStore } from '../ports/identity-command-store.port'
 import type { PlatformOrganizationStore } from '../ports/platform-organization-store.port'
 import { assertOperatorMayAdminister } from '../platform-administration'
 
 export type CancelOrganizationAdminInvitationDeps = Readonly<{
-  store: Pick<PlatformOrganizationStore, 'readAdministration'>
-  commandStore: Pick<IdentityCommandStore, 'cancelInvitation'>
+  store: Pick<PlatformOrganizationStore, 'readAdministration' | 'cancelAdminInvitation'>
   clock: Clock
   logger: Pick<LoggerPort, 'info'>
 }>
@@ -35,24 +34,26 @@ export type CancelOrganizationAdminInvitation = (
 
 export const cancelOrganizationAdminInvitation =
   (deps: CancelOrganizationAdminInvitationDeps): CancelOrganizationAdminInvitation =>
-  // The canceled fact names no actor, so the operator only gates the call.
-  async (input, _operator) => {
+  async (input, operator) => {
     const organizationId = toOrganizationId(input.organizationId)
     const invitationId = toInvitationId(input.invitationId)
     const administration = await deps.store.readAdministration(organizationId)
     assertOperatorMayAdminister(administration, { requireActive: false, invitationId })
 
-    await deps.commandStore.cancelInvitation({
-      invitationId,
-      organizationId,
-      event: identityInvitationCanceled({
-        organizationId,
+    await deps.store.cancelAdminInvitation(
+      {
         invitationId,
-        occurredAt: deps.clock(),
-      }),
-    })
-    // Content-free (observability schema): the request's trace correlates
-    // it, and the rows it names already record the operator as inviter.
+        organizationId,
+        event: identityInvitationCanceled({
+          organizationId,
+          invitationId,
+          occurredAt: deps.clock(),
+        }),
+      },
+      operator.userId,
+    )
+    // Content-free (observability schema): the audit row names the
+    // Organization and the operator; the request's trace correlates this.
     deps.logger.info(
       { event: 'platform.admin_invitation_canceled' },
       'Platform operator canceled an Account Admin invitation',

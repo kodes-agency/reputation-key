@@ -79,12 +79,16 @@ of any Organization that has no AccountAdmin yet.
   unless `BETA_ALLOWLIST_ORGS` is `*` or names its ID, on web **and** worker. The
   console flags such an Organization and shows the ID to add; redeploy both after
   changing the list.
-- **Trace.** Each change writes a content-free log line
+- **Audit.** Each change commits one `audit_logs` row with it: the
+  Organization (`organization_id`), the operator (`user_id`) and the action
   (`platform.organization_provisioned`, `platform.admin_invited`,
-  `platform.admin_invitation_resent`, `platform.admin_invitation_canceled`) that
-  the request's trace correlates. An invitation's `identity.member.invited` fact
-  names the operator's user as its inviter; `identity.invitation.canceled` names
-  no actor, and a refused attempt logs `platform.operator_denied`.
+  `platform.admin_invitation_resent`, `platform.admin_invitation_canceled`),
+  with the invitation or Organization id as `resource_id`. It is the only
+  durable record of who made a console change: log lines carry no identifiers,
+  and `identity.invitation.canceled` names no actor. To investigate, query
+  `audit_logs WHERE action LIKE 'platform.%'`. The rows are kept 365 days. Each
+  change also writes a content-free log line of the same name, and a refused
+  attempt logs `platform.operator_denied`.
 
 ### Canonical synthetic Google resource
 
