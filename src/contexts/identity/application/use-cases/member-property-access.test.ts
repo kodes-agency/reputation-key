@@ -54,6 +54,19 @@ const SELF = member({
   role: 'AccountAdmin',
   rawRole: 'owner',
 })
+const LEGACY_MEMBER = member({
+  id: 'member-legacy',
+  userId: 'user-legacy',
+  role: 'Member',
+  rawRole: 'member',
+})
+/** A multi-role token maps to no built-in Role. */
+const CUSTOM_ROLE_MEMBER = member({
+  id: 'member-custom',
+  userId: 'user-custom',
+  role: null,
+  rawRole: 'admin,editor',
+})
 
 function createStoreFake(initial: Readonly<Record<string, ReadonlyArray<string>>> = {}) {
   const grants = new Map(
@@ -88,7 +101,7 @@ function createStoreFake(initial: Readonly<Record<string, ReadonlyArray<string>>
 
 function setup(initial: Readonly<Record<string, ReadonlyArray<string>>> = {}) {
   const identity = createInMemoryIdentityPort()
-  identity.seedMembers([PM, OTHER_ADMIN, SELF])
+  identity.seedMembers([PM, OTHER_ADMIN, SELF, LEGACY_MEMBER, CUSTOM_ROLE_MEMBER])
   const fake = createStoreFake(initial)
   const reconcile = vi.fn(async () => undefined)
   const set = setMemberPropertyAccess({
@@ -304,6 +317,22 @@ describe('setMemberPropertyAccess', () => {
     )
     expect(commands).toEqual([])
   })
+})
+it.each([
+  ['a legacy Member', 'member-legacy'],
+  ['a member holding a custom role', 'member-custom'],
+])('refuses %s without calling them an Account Admin', async (_label, memberId) => {
+  const { set, commands } = setup()
+
+  await expect(
+    set({ memberId, grantPropertyIds: [PROPERTY_A], revokePropertyIds: [] }, ADMIN_CTX),
+  ).rejects.toSatisfy(
+    refusedWith(
+      'validation_error',
+      'Property access can be edited only for a Property Manager',
+    ),
+  )
+  expect(commands).toEqual([])
 })
 
 describe('listMemberPropertyAccess', () => {
