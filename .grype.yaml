@@ -5,17 +5,63 @@
 # Zero exceptions is the target. Before any entry below is written, every
 # finding WITH a fix is fixed: the base is node:22.23.2-trixie-slim (Debian 13,
 # plan revision R2, 2026-09-07; bookworm was EOL), the npm CLI is stripped from
-# every runtime stage, and OpenSSL is pinned to the patched 3.5.7-1~deb13u2 in
+# every runtime stage, and OpenSSL is pinned to the patched 3.5.7-1~deb13u3 in
 # every Dockerfile base stage (nine CVEs incl. CVE-2026-63073 / CVE-2026-75803
-# Critical — the only fixable class trixie shipped with). What remains is
-# marked won't-fix / not-fixed by Debian for trixie as well; the base swap did
-# not clear these, it only moved their package versions. Every entry carries
-# owner/reason/expiresAt and is re-justified at the quarterly review and on
-# every base-image bump. grype has no native expiry — the dates are enforced by
-# the documented review cadence, not by the tool. A new entry needs the finding
-# named (package, CVE, grype's own identity line).
+# Critical — the only fixable class trixie shipped with — plus DSA-6531-1's
+# thirteen, 2026-09-30, incl. CVE-2026-72897 / -84782 / -84784 High). What
+# remains is marked won't-fix / not-fixed by Debian for trixie as well; the
+# base swap did not clear these, it only moved their package versions. Every
+# entry carries owner/reason/expiresAt and is re-justified at the quarterly
+# review and on every base-image bump. grype has no native expiry — the dates
+# are enforced by the documented review cadence, not by the tool. A new entry
+# needs the finding named (package, CVE, grype's own identity line).
 
 ignore:
+  # ── OpenSSL 3.5.7-1~deb13u3: fixed, but grype's database lags (3 CVEs) ─
+  # owner: platform — reason: DSA-6531-1 (2026-09-30) fixes all three in
+  # 3.5.7-1~deb13u3, which every base stage now installs, pinned exact. The
+  # grype database built 2026-09-30 still lists them unfixed on trixie and
+  # so matches the patched package: `libssl3t64` / `openssl-provider-legacy`
+  # 3.5.7-1~deb13u3 deb CVE-2026-72897 / CVE-2026-84782 / CVE-2026-84784
+  # High, no fixed version. Scoped to that exact version, so an image that
+  # drifts back to ~deb13u2 still fails. None is reachable in any case: the
+  # images run node, whose OpenSSL is compiled in (it links neither
+  # package), and the three need a TLS server that switches SSL_CTX
+  # mid-handshake (the app serves plain HTTP behind Railway's TLS edge),
+  # DTLS, or OpenSSL's QUIC stack, none of which the app uses. Drop this
+  # section once grype's database names ~deb13u3 as the fix.
+  # expiresAt: 2026-10-07
+  - vulnerability: CVE-2026-72897
+    package:
+      name: libssl3t64
+      version: 3.5.7-1~deb13u3
+      type: deb
+  - vulnerability: CVE-2026-72897
+    package:
+      name: openssl-provider-legacy
+      version: 3.5.7-1~deb13u3
+      type: deb
+  - vulnerability: CVE-2026-84782
+    package:
+      name: libssl3t64
+      version: 3.5.7-1~deb13u3
+      type: deb
+  - vulnerability: CVE-2026-84782
+    package:
+      name: openssl-provider-legacy
+      version: 3.5.7-1~deb13u3
+      type: deb
+  - vulnerability: CVE-2026-84784
+    package:
+      name: libssl3t64
+      version: 3.5.7-1~deb13u3
+      type: deb
+  - vulnerability: CVE-2026-84784
+    package:
+      name: openssl-provider-legacy
+      version: 3.5.7-1~deb13u3
+      type: deb
+
   # ── Debian trixie base packages, perl-base 5.40.1-6 (13 CVEs) ─────────
   # owner: platform — reason: Debian marks these won't-fix/not-fixed for
   # trixie (tracker read 2026-09-07 from the CI scan of the trixie image);
