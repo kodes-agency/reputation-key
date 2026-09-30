@@ -1,0 +1,88 @@
+import { describe, expect, it } from 'vitest'
+import {
+  PORTAL_RESULTS_RANGES,
+  compareLabel,
+  dayCount,
+  formatDayRange,
+  windowCaption,
+  windowFooter,
+} from './portal-results-window'
+
+describe('formatDayRange', () => {
+  it('writes a range inside one month as "1–30 Sep"', () => {
+    expect(formatDayRange('2026-09-01', '2026-09-30')).toBe('1–30 Sep')
+  })
+
+  it('names both months when the range crosses one', () => {
+    expect(formatDayRange('2026-08-28', '2026-09-03')).toBe('28 Aug – 3 Sep')
+  })
+
+  it('adds the year only when the range crosses a year', () => {
+    expect(formatDayRange('2025-12-28', '2026-01-03')).toBe('28 Dec 2025 – 3 Jan 2026')
+  })
+
+  it('writes a single day as one date', () => {
+    expect(formatDayRange('2026-09-30', '2026-09-30')).toBe('30 Sep')
+  })
+
+  it('does not depend on the reader locale for month names', () => {
+    // en-GB prints "Sept"; the boards say "Sep".
+    expect(formatDayRange('2026-09-01', '2026-09-07')).toBe('1–7 Sep')
+  })
+})
+
+describe('dayCount', () => {
+  it('counts both ends of an inclusive local-day range', () => {
+    expect(dayCount('2026-09-01', '2026-09-30')).toBe(30)
+    expect(dayCount('2026-08-02', '2026-08-31')).toBe(30)
+    expect(dayCount('2026-09-30', '2026-09-30')).toBe(1)
+  })
+})
+
+describe('the window texts', () => {
+  const days = {
+    start: '2026-09-01',
+    end: '2026-09-30',
+    compareStart: '2026-08-02',
+    compareEnd: '2026-08-31',
+  }
+
+  it('names the window and the Property zone it was cut in', () => {
+    expect(windowCaption(days, 'Europe/Sofia')).toBe('1–30 Sep, Europe/Sofia time')
+  })
+
+  it('says what the comparison is against', () => {
+    expect(compareLabel(days)).toBe('Compare with the 30 days before')
+  })
+
+  it('says the same in the singular for a one-day window', () => {
+    expect(compareLabel({ ...days, start: '2026-09-30', end: '2026-09-30' })).toBe(
+      'Compare with the day before',
+    )
+  })
+
+  it('puts both periods and the comparison floor in the footer', () => {
+    expect(windowFooter(days, 'Europe/Sofia', 10)).toBe(
+      '1–30 Sep against 2–31 Aug, Europe/Sofia time · Averages compare only when both periods have at least 10 private ratings.',
+    )
+  })
+
+  it('leaves the comparison out of the footer when it is off', () => {
+    expect(
+      windowFooter({ ...days, compareStart: null, compareEnd: null }, 'Europe/Sofia', 10),
+    ).toBe('1–30 Sep, Europe/Sofia time')
+  })
+})
+
+describe('PORTAL_RESULTS_RANGES', () => {
+  it('offers the presets the server reads, All time last', () => {
+    expect(PORTAL_RESULTS_RANGES.map((range) => range.value)).toEqual([
+      '7d',
+      '30d',
+      '60d',
+      '90d',
+      'all',
+    ])
+    expect(PORTAL_RESULTS_RANGES[1]?.label).toBe('Last 30 days')
+  })
+})

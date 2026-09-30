@@ -43,7 +43,9 @@ and backend-only until its approval and handling requirements are met.
 ## Runtime
 
 `build.ts` composes response lifecycle, public Portal resolution, qualified-action
-stores, integrity reads, reconciliation, and retention. PostgreSQL receipts own
+stores, integrity reads, rating-language reads (private ratings by the language of the
+page the guest saw, from the response's experience snapshot), reconciliation, and
+retention. PostgreSQL receipts own
 correctness; Redis provides abuse control and observation-loss monitoring. State,
 source-event identities, and identifier-only outbox facts commit atomically.
 

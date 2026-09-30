@@ -33,4 +33,6 @@ export const getPortalAnalyticsDto = z.object({
   propertyId: z.uuid(),
   portalId: z.uuid(),
   timeRange: timeRangePreset.default('30d'),
+  /** Also read the equal-length window before. */
+  compare: z.boolean().default(true),
 })

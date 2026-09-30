@@ -11,10 +11,10 @@ import type { Database, Tx } from '#/shared/db'
 import { metricReadings } from '#/shared/db/schema'
 import {
   and,
-  avg,
   count,
   eq,
   gte,
+  inArray,
   isNotNull,
   isNull,
   lt,
@@ -26,6 +26,7 @@ import { portalMetricEvidenceSql } from './portal-analytics-evidence.sql'
 import {
   PORTAL_DESTINATION_CLICK_KEY,
   PORTAL_RATING_KEY,
+  QUALIFIED_SCAN_POLICY,
   countedPortalReadingWhere,
   currentCorrectionTips,
   effectiveValue,
@@ -37,10 +38,13 @@ import {
 } from './portal-analytics-shared'
 import type {
   MetricPortalMetricEvidenceSet,
-  MetricPortalRatingTrendPoint,
   PortalAnalyticsRepository,
   PortalRatingBucket,
 } from '../../application/ports/portal-analytics.repository'
+import {
+  SERIES_BUCKET_DAYS,
+  type SeriesReadingRow,
+} from '../../domain/portal-results-series'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
 
 function metricPortalWhere(
@@ -162,28 +166,30 @@ export const createPortalAnalyticsRepository = (
     })
   },
 
-  async getPortalRatingTrend(
+  async getPortalWeeklyReadings(
     organizationId: OrganizationId,
     propertyId: PropertyId,
     portalId: PortalId,
     startDate: Date,
     endDate: Date,
-  ): Promise<readonly MetricPortalRatingTrendPoint[]> {
-    return trace('metric.portalAnalytics.getPortalRatingTrend', async () => {
+    startLocalDate: string,
+  ): Promise<readonly SeriesReadingRow[]> {
+    return trace('metric.portalAnalytics.getPortalWeeklyReadings', async () => {
       const correctionTips = currentCorrectionTips(db)
       const value = effectiveValue(correctionTips)
+      // Weeks are counted on `property_local_date`, which is computed per row
+      // from the Property's time zone off the EVENT time (and required by the
+      // governed-provenance CHECK), never on the UTC ingestion day. Date minus
+      // date is whole days; integer division floors, and nothing here precedes
+      // the window's first local day.
+      const bucket = sql<number>`((${metricReadings.propertyLocalDate}::date - ${startLocalDate}::date) / ${sql.raw(String(SERIES_BUCKET_DAYS))})`
       const rows = await withStatementTimeout(db, (tx) =>
         tx
           .select({
-            // property_local_date is computed per row from properties.timezone
-            // (metric/infrastructure/repositories/property-local-date.ts) off the
-            // EVENT time, and is required by the governed-provenance CHECK. Bucket
-            // on it rather than DATE(recorded_at): the latter is the ingestion
-            // timestamp evaluated in the UTC session timezone, so for a property in
-            // e.g. America/Los_Angeles every action from 17:00 local onward landed
-            // on the next day.
-            date: metricReadings.propertyLocalDate,
-            avgRating: sql<number>`ROUND(${avg(value)}::NUMERIC, 1)`,
+            bucket,
+            metricKey: metricReadings.metricKey,
+            total: sql<number>`SUM(${value})`,
+            count: count(value),
           })
           .from(metricReadings)
           .leftJoin(correctionTips, eq(correctionTips.readingId, metricReadings.id))
@@ -198,21 +204,25 @@ export const createPortalAnalyticsRepository = (
                   endDate,
                 ),
               ),
-              eq(metricReadings.metricKey, PORTAL_RATING_KEY),
+              inArray(metricReadings.metricKey, [
+                QUALIFIED_SCAN_POLICY.metric.definition.key,
+                PORTAL_RATING_KEY,
+              ]),
               isNotNull(metricReadings.propertyLocalDate),
-              sql`${value} BETWEEN 1 AND 5 AND ${value} = TRUNC(${value})`,
+              countedPortalReadingWhere(value),
             ),
           )
-          .groupBy(metricReadings.propertyLocalDate)
-          .orderBy(metricReadings.propertyLocalDate),
+          // By position: the bucket expression carries a bound parameter, and
+          // the planner cannot match two copies of it.
+          .groupBy(sql`1`, sql`2`)
+          .orderBy(sql`1`, sql`2`),
       )
-
-      // property_local_date is nullable in drizzle (pre-governance legacy rows);
-      // the isNotNull predicate above already excludes them, so this narrows
-      // without an assertion rather than inventing a date.
-      return rows.flatMap((r) =>
-        r.date === null ? [] : [{ date: r.date, avgRating: Number(r.avgRating ?? 0) }],
-      )
+      return rows.map((row) => ({
+        bucket: Number(row.bucket),
+        metricKey: row.metricKey,
+        total: Number(row.total ?? 0),
+        count: Number(row.count ?? 0),
+      }))
     })
   },
 

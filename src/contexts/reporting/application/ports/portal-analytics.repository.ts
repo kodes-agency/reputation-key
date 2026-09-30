@@ -1,9 +1,5 @@
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
-
-export type MetricPortalRatingTrendPoint = Readonly<{
-  date: string
-  avgRating: number
-}>
+import type { SeriesReadingRow } from '../../domain/portal-results-series'
 
 export type PortalRatingBucket = Readonly<{
   stars: number
@@ -60,13 +56,20 @@ export type PortalAnalyticsRepository = Readonly<{
     startDate: Date,
     endDate: Date,
   ): Promise<readonly PortalRatingBucket[]>
-  getPortalRatingTrend(
+  /**
+   * Qualified scans and private ratings summed per week of the window, weeks
+   * counted from `startLocalDate` (the Property-local date the window opens on)
+   * by the readings' own `property_local_date`. The same governed, corrected
+   * and counted readings as `getPortalKpiSums`, so the weeks add up to the KPIs.
+   */
+  getPortalWeeklyReadings(
     organizationId: OrganizationId,
     propertyId: PropertyId,
     portalId: PortalId,
     startDate: Date,
     endDate: Date,
-  ): Promise<readonly MetricPortalRatingTrendPoint[]>
+    startLocalDate: string,
+  ): Promise<readonly SeriesReadingRow[]>
   getPortalMetricEvidence(
     organizationId: OrganizationId,
     propertyId: PropertyId,

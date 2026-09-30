@@ -13,7 +13,7 @@ function repository(): PortalAnalyticsRepository {
   return {
     getPortalKpiSums: vi.fn(async () => []),
     getPortalRatingDistribution: vi.fn(async () => []),
-    getPortalRatingTrend: vi.fn(async () => []),
+    getPortalWeeklyReadings: vi.fn(async () => []),
     getPortalMetricEvidence: vi.fn(async () => ({
       scans: evidence('scan-version'),
       privateRatings: evidence('rating-version'),
@@ -51,7 +51,7 @@ describe('queryPortalAnalytics', () => {
     const queries = queryPortalAnalytics(repo)
 
     await expect(
-      queries.getPortalRatingTrend(ORG, PROPERTY, PORTAL, END, START),
+      queries.getPortalWeeklyReadings(ORG, PROPERTY, PORTAL, END, START, '2026-09-01'),
     ).rejects.toThrow('Portal analytics period is invalid')
     await expect(
       queries.getPortalRatingDistribution(
@@ -62,7 +62,7 @@ describe('queryPortalAnalytics', () => {
         END,
       ),
     ).rejects.toThrow('Portal analytics period is invalid')
-    expect(repo.getPortalRatingTrend).not.toHaveBeenCalled()
+    expect(repo.getPortalWeeklyReadings).not.toHaveBeenCalled()
     expect(repo.getPortalRatingDistribution).not.toHaveBeenCalled()
   })
 

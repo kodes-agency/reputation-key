@@ -27,7 +27,7 @@ import {
 import { METRIC_VERSION_IDS } from '../../application/public-api'
 import { getPortalAnalytics } from '../../application/use-cases/get-portal-analytics'
 import { getPortalResultsOverview } from '../../application/use-cases/get-portal-results-overview'
-import { priorPeriodDates, timeRangeToDates } from '../../application/utils'
+import { localDaysWindow, priorPeriodDates } from '../../application/utils'
 import { createPortalAnalyticsRepository } from './portal-analytics.repository'
 import { createPortalResultsOverviewRepository } from './portal-results-overview.repository'
 
@@ -569,7 +569,13 @@ describe('Portal results overview repository (integration)', () => {
           underReview: 0,
           total: 0,
         }),
+        getPortalRatingLanguages: async () => ({
+          total: 0,
+          languages: [],
+          unrecorded: 0,
+        }),
       },
+      portalVersions: { listPublicationActivationsBetween: async () => [] },
     })
     const zones = new Map([
       [PROP_A, 'UTC'],
@@ -589,7 +595,7 @@ describe('Portal results overview repository (integration)', () => {
 
     for (const { portalId: target, propertyId: property } of ROSTER) {
       const timezone = zones.get(property) ?? 'UTC'
-      const { startDate, endDate } = timeRangeToDates('30d', now(), timezone)
+      const { startDate, endDate } = localDaysWindow('30d', now(), timezone)
       const view = await resultsView({
         organizationId: ORG,
         propertyId: property,
@@ -604,7 +610,7 @@ describe('Portal results overview repository (integration)', () => {
       expect(row?.engagementFunnel, target).toEqual(view.engagementFunnel)
     }
     // Each Property's subtotal reads its own local window.
-    const local = timeRangeToDates('30d', now(), 'Pacific/Auckland')
+    const local = localDaysWindow('30d', now(), 'Pacific/Auckland')
     const prior = priorPeriodDates(
       '30d',
       local.startDate,

@@ -267,8 +267,18 @@ export const portalKeys = {
     [...portalKeys.forProperty(propertyId), 'portal', portalId] as const,
   analyticsRoot: (propertyId: string, portalId: string) =>
     [...portalKeys.forPropertyPortal(propertyId, portalId), 'analytics'] as const,
-  analytics: (propertyId: string, portalId: string, timeRange: string) =>
-    [...portalKeys.analyticsRoot(propertyId, portalId), timeRange] as const,
+  /** One window, with or without the period before: each is its own read. */
+  analytics: (
+    propertyId: string,
+    portalId: string,
+    timeRange: string,
+    compare: boolean,
+  ) =>
+    [
+      ...portalKeys.analyticsRoot(propertyId, portalId),
+      timeRange,
+      compare ? 'compare' : 'alone',
+    ] as const,
 }
 
 // ── Integrations (Google connections + bounded import content) ───────────

@@ -72,6 +72,21 @@ export type PortalPublicationRepository = Readonly<{
     portalId: PortalId,
     page: Readonly<{ beforeSequence: number | null; limit: number }>,
   ) => Promise<PortalPublicationActivationPage>
+  /**
+   * The versions that went live in `[startAt, endAt)`, oldest first: a fresh
+   * publication or a rollback, with the version number and the instant. Bounded,
+   * for markers on a chart; it is not the history read.
+   */
+  listActivationsBetween: (
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+    portalId: PortalId,
+    window: Readonly<{ startAt: Date; endAt: Date }>,
+  ) => Promise<
+    ReadonlyArray<
+      Readonly<{ version: number; kind: 'publish' | 'rollback'; activatedAt: Date }>
+    >
+  >
   listOpenPendingContentChanges?: (
     organizationId: OrganizationId,
     propertyId: PropertyId,

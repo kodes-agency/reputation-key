@@ -4,9 +4,9 @@ import { getPortalAnalytics } from './get-portal-analytics'
 import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
 import type { PortalAnalyticsData } from '../../domain/dashboard-types'
 import { METRIC_VERSION_IDS, findMetricVersionById } from '../../domain/metric-registry'
+import type { SeriesReadingRow } from '../../domain/portal-results-series'
 import type {
   MetricPortalMetricEvidenceSet,
-  MetricPortalRatingTrendPoint,
   PortalAnalyticsRepository,
   PortalMetricSumRow,
   PortalRatingBucket,
@@ -25,7 +25,7 @@ const PORT = portalId('b0000000-0000-0000-0000-000000000001')
 function createFakePortalMetrics(overrides?: {
   kpiSums?: readonly PortalMetricSumRow[]
   ratingDistribution?: readonly PortalRatingBucket[]
-  ratingTrend?: readonly MetricPortalRatingTrendPoint[]
+  weeklyReadings?: readonly SeriesReadingRow[]
   evidence?: MetricPortalMetricEvidenceSet
 }): PortalAnalyticsRepository & { calls: string[] } {
   const calls: string[] = []
@@ -51,12 +51,13 @@ function createFakePortalMetrics(overrides?: {
         ]
       )
     },
-    async getPortalRatingTrend() {
-      calls.push('getPortalRatingTrend')
+    async getPortalWeeklyReadings() {
+      calls.push('getPortalWeeklyReadings')
       return (
-        overrides?.ratingTrend ?? [
-          { date: '2026-05-19', avgRating: 4.2 },
-          { date: '2026-05-20', avgRating: 4.5 },
+        overrides?.weeklyReadings ?? [
+          { bucket: 0, metricKey: 'portal.qualified_scan', total: 60, count: 6 },
+          { bucket: 1, metricKey: 'portal.qualified_scan', total: 40, count: 4 },
+          { bucket: 1, metricKey: 'portal.rating', total: 22, count: 5 },
         ]
       )
     },
@@ -98,7 +99,25 @@ function createFakeResponseIntegrity() {
       underReview: 1,
       total: 10,
     })),
+    getPortalRatingLanguages: vi.fn(async () => ({
+      total: 8,
+      languages: [
+        { locale: 'en', count: 5 },
+        { locale: 'bg', count: 2 },
+      ],
+      unrecorded: 1,
+    })),
   }
+}
+
+function createFakePortalVersions(
+  activations: readonly Readonly<{
+    version: number
+    kind: 'publish' | 'rollback'
+    activatedAt: Date
+  }>[] = [],
+) {
+  return { listPublicationActivationsBetween: vi.fn(async () => activations) }
 }
 
 function createUnusedPortalLifetime() {
@@ -144,6 +163,7 @@ describe('getPortalAnalytics (use case)', () => {
       portalMetrics: metrics,
       portalLifetime: createUnusedPortalLifetime(),
       responseIntegrity: createFakeResponseIntegrity(),
+      portalVersions: createFakePortalVersions(),
     })
     const now = new Date()
     const start = new Date(now.getTime() - 30 * 86_400_000)
@@ -183,7 +203,7 @@ describe('getPortalAnalytics (use case)', () => {
 
     // Rating data from metrics port
     expect(result.ratingDistribution).toHaveLength(2)
-    expect(result.ratingTrend).toHaveLength(2)
+    expect(result.series?.weeks.length).toBeGreaterThan(0)
     expect(metrics.calls).toContain('getPortalKpiSums')
     expect(result.responseIntegrity).toEqual({
       accepted: 8,
@@ -206,6 +226,7 @@ describe('getPortalAnalytics (use case)', () => {
       portalMetrics: metrics,
       portalLifetime: { get: vi.fn(async () => emptyPortalLifetimeAggregate()) },
       responseIntegrity: createFakeResponseIntegrity(),
+      portalVersions: createFakePortalVersions(),
     })
     const now = new Date()
 
@@ -256,6 +277,7 @@ describe('getPortalAnalytics (use case)', () => {
       portalMetrics: dynamicMetrics,
       portalLifetime: createUnusedPortalLifetime(),
       responseIntegrity: createFakeResponseIntegrity(),
+      portalVersions: createFakePortalVersions(),
     })
     const now = new Date()
     const start = new Date(now.getTime() - 30 * 86_400_000)
@@ -290,6 +312,7 @@ describe('getPortalAnalytics (use case)', () => {
       portalMetrics: { ...metrics, getPortalKpiSums },
       portalLifetime: createUnusedPortalLifetime(),
       responseIntegrity: createFakeResponseIntegrity(),
+      portalVersions: createFakePortalVersions(),
     })
     const startDate = new Date('2026-02-18T17:00:00.000Z')
     const endDate = new Date('2026-03-20T16:00:00.000Z')
@@ -347,6 +370,7 @@ describe('getPortalAnalytics (use case)', () => {
     const analytics = getPortalAnalytics({
       portalMetrics: metrics,
       responseIntegrity: createFakeResponseIntegrity(),
+      portalVersions: createFakePortalVersions(),
       portalLifetime: { get: lifetimeGet },
     })
 
@@ -387,7 +411,7 @@ describe('getPortalAnalytics (use case)', () => {
     expect(result.kpis.avgRating.comparison).toBeNull()
     expect(result.kpis.feedback.trend).toBeNull()
     expect(result.kpis.googleOpens.trend).toBeNull()
-    expect(result.ratingTrend).toEqual([])
+    expect(result.series).toBeNull()
 
     expect(result.kpis.scans.priorValue).toBeNull()
     expect(result.lifetimeReconciliation).toEqual({
@@ -406,6 +430,7 @@ describe('getPortalAnalytics (use case)', () => {
       portalMetrics: metrics,
       portalLifetime: { get: lifetimeGet },
       responseIntegrity: createFakeResponseIntegrity(),
+      portalVersions: createFakePortalVersions(),
     })
 
     const result = await analytics({
@@ -427,7 +452,7 @@ describe('getPortalAnalytics (use case)', () => {
     expect(result.kpis.feedback.value).toBeNull()
     expect(result.kpis.googleOpens.value).toBeNull()
     expect(result.kpis.avgRating.value).toBeNull()
-    expect(result.ratingTrend).toEqual([])
+    expect(result.series).toBeNull()
   })
 
   it('derives one correction-aware engagement funnel from governed rows', async () => {
@@ -436,6 +461,7 @@ describe('getPortalAnalytics (use case)', () => {
       portalMetrics: metrics,
       portalLifetime: createUnusedPortalLifetime(),
       responseIntegrity: createFakeResponseIntegrity(),
+      portalVersions: createFakePortalVersions(),
     })
     const now = new Date()
 
@@ -481,6 +507,7 @@ describe('getPortalAnalytics (use case)', () => {
       portalMetrics: metrics,
       portalLifetime: createUnusedPortalLifetime(),
       responseIntegrity: createFakeResponseIntegrity(),
+      portalVersions: createFakePortalVersions(),
     })
 
     const result = await analytics({
@@ -566,6 +593,7 @@ async function run30Days(portalMetrics: PortalAnalyticsRepository) {
     portalMetrics,
     portalLifetime: createUnusedPortalLifetime(),
     responseIntegrity: createFakeResponseIntegrity(),
+    portalVersions: createFakePortalVersions(),
   })({
     organizationId: ORG,
     propertyId: PROP,
@@ -599,7 +627,7 @@ describe('getPortalAnalytics: the average is held back below the floor', () => {
     expect(result.kpis.ratings.value).toBe(4)
     // A distribution or daily averages would reveal the withheld average.
     expect(result.ratingDistribution).toEqual([])
-    expect(result.ratingTrend).toEqual([])
+    expect(result.series?.weeks.every((week) => week.average === null)).toBe(true)
   })
 
   it('shows the average from n = 5', async () => {
@@ -617,7 +645,7 @@ describe('getPortalAnalytics: the average is held back below the floor', () => {
       availabilityReason: null,
     })
     expect(result.ratingDistribution).toHaveLength(2)
-    expect(result.ratingTrend).toHaveLength(2)
+    expect(result.series?.weeks.some((week) => week.average !== null)).toBe(true)
   })
 
   it('withholds only the side of the period that is too small', async () => {
@@ -771,6 +799,7 @@ async function runWindowStartingBeforeMeasure(
     ),
     portalLifetime: createUnusedPortalLifetime(),
     responseIntegrity: createFakeResponseIntegrity(),
+    portalVersions: createFakePortalVersions(),
   })({
     organizationId: ORG,
     propertyId: PROP,
@@ -853,6 +882,7 @@ describe('getPortalAnalytics: qualified scans have a first day', () => {
       ),
       portalLifetime: createUnusedPortalLifetime(),
       responseIntegrity: createFakeResponseIntegrity(),
+      portalVersions: createFakePortalVersions(),
     })({
       organizationId: ORG,
       propertyId: PROP,
@@ -949,6 +979,7 @@ describe('getPortalAnalytics: All Time counts Google selections only', () => {
       portalMetrics: createFakePortalMetrics(),
       portalLifetime: { get: vi.fn(async () => aggregate) },
       responseIntegrity: createFakeResponseIntegrity(),
+      portalVersions: createFakePortalVersions(),
     })({
       organizationId: ORG,
       propertyId: PROP,
@@ -999,5 +1030,250 @@ describe('getPortalAnalytics: All Time counts Google selections only', () => {
     })
     expect(result.ratingDistribution).toEqual([])
     expect(result.kpis.ratings.value).toBe(4)
+  })
+})
+
+// ── Results tab (R3): weekly series, compare toggle, versions, languages ──
+
+const SOFIA_START = new Date('2026-08-31T21:00:00.000Z') // 1 Sep 00:00 in Sofia
+const SOFIA_END = new Date('2026-09-30T11:23:00.000Z')
+const SOFIA_PRIOR_START = new Date('2026-08-01T21:00:00.000Z') // 2 Aug 00:00
+
+function resultsTabDeps(
+  overrides?: Readonly<{
+    metrics?: PortalAnalyticsRepository
+    versions?: ReturnType<typeof createFakePortalVersions>
+    integrity?: ReturnType<typeof createFakeResponseIntegrity>
+  }>,
+) {
+  return {
+    portalMetrics: overrides?.metrics ?? createFakePortalMetrics(),
+    portalLifetime: createUnusedPortalLifetime(),
+    responseIntegrity: overrides?.integrity ?? createFakeResponseIntegrity(),
+    portalVersions: overrides?.versions ?? createFakePortalVersions(),
+  }
+}
+
+function runResultsTab(
+  deps: ReturnType<typeof resultsTabDeps>,
+  input?: Partial<Parameters<ReturnType<typeof getPortalAnalytics>>[0]>,
+) {
+  return getPortalAnalytics(deps)({
+    organizationId: ORG,
+    propertyId: PROP,
+    portalId: PORT,
+    startDate: SOFIA_START,
+    endDate: SOFIA_END,
+    timeRange: '30d',
+    propertyTimezone: 'Europe/Sofia',
+    ...input,
+  })
+}
+
+describe('getPortalAnalytics: the Results tab', () => {
+  it('cuts the window into weeks from its own first local day', async () => {
+    const metrics = createFakePortalMetrics()
+    const getPortalWeeklyReadings = vi.fn(metrics.getPortalWeeklyReadings)
+    const result = await runResultsTab(
+      resultsTabDeps({ metrics: { ...metrics, getPortalWeeklyReadings } }),
+    )
+
+    expect(getPortalWeeklyReadings).toHaveBeenNthCalledWith(
+      1,
+      ORG,
+      PROP,
+      PORT,
+      SOFIA_START,
+      SOFIA_END,
+      '2026-09-01',
+    )
+    expect(
+      result.series?.weeks.map((week) => [week.startLocalDate, week.endLocalDate]),
+    ).toEqual([
+      ['2026-09-01', '2026-09-07'],
+      ['2026-09-08', '2026-09-14'],
+      ['2026-09-15', '2026-09-21'],
+      ['2026-09-22', '2026-09-28'],
+      ['2026-09-29', '2026-09-30'],
+    ])
+    expect(result.series?.weeks[0]).toMatchObject({ scans: 60, priorScans: 60 })
+    expect(result.series?.weeks[1]).toMatchObject({ scans: 40, ratings: 5, average: 4.4 })
+  })
+
+  it('reads the prior window from its own first local day and hands both periods back', async () => {
+    const metrics = createFakePortalMetrics()
+    const getPortalWeeklyReadings = vi.fn(metrics.getPortalWeeklyReadings)
+    const result = await runResultsTab(
+      resultsTabDeps({ metrics: { ...metrics, getPortalWeeklyReadings } }),
+    )
+
+    expect(getPortalWeeklyReadings).toHaveBeenNthCalledWith(
+      2,
+      ORG,
+      PROP,
+      PORT,
+      SOFIA_PRIOR_START,
+      SOFIA_START,
+      '2026-08-02',
+    )
+    expect(result.comparePeriod).toEqual({
+      startAt: SOFIA_PRIOR_START,
+      endAt: SOFIA_START,
+    })
+  })
+
+  it('names the window and its comparison as local days for labels', async () => {
+    const result = await runResultsTab(resultsTabDeps())
+
+    expect(result.localDays).toEqual({
+      start: '2026-09-01',
+      end: '2026-09-30',
+      compareStart: '2026-08-02',
+      compareEnd: '2026-08-31',
+    })
+  })
+
+  it('reads nothing from the prior window when the comparison is off', async () => {
+    const metrics = createFakePortalMetrics()
+    const getPortalKpiSums = vi.fn(metrics.getPortalKpiSums)
+    const getPortalWeeklyReadings = vi.fn(metrics.getPortalWeeklyReadings)
+    const getPortalMetricEvidence = vi.fn(metrics.getPortalMetricEvidence)
+
+    const result = await runResultsTab(
+      resultsTabDeps({
+        metrics: {
+          ...metrics,
+          getPortalKpiSums,
+          getPortalWeeklyReadings,
+          getPortalMetricEvidence,
+        },
+      }),
+      { compare: false },
+    )
+
+    expect(getPortalKpiSums).toHaveBeenCalledTimes(1)
+    expect(getPortalWeeklyReadings).toHaveBeenCalledTimes(1)
+    expect(getPortalMetricEvidence).toHaveBeenCalledTimes(1)
+    expect(result.comparePeriod).toBeNull()
+    expect(result.localDays).toMatchObject({
+      start: '2026-09-01',
+      compareStart: null,
+      compareEnd: null,
+    })
+    expect(result.kpis.scans.priorValue).toBeNull()
+    expect(result.kpis.scans.trend).toBeNull()
+    expect(result.series?.weeks.every((week) => week.priorScans === null)).toBe(true)
+  })
+
+  it('compares by default', async () => {
+    const result = await runResultsTab(resultsTabDeps())
+
+    expect(result.comparePeriod).not.toBeNull()
+    expect(result.kpis.scans.priorValue).toBe(100)
+  })
+
+  it('marks each version that went live in the window, on its local day', async () => {
+    const versions = createFakePortalVersions([
+      { version: 5, kind: 'publish', activatedAt: new Date('2026-09-22T06:00:00.000Z') },
+    ])
+
+    const result = await runResultsTab(resultsTabDeps({ versions }))
+
+    expect(versions.listPublicationActivationsBetween).toHaveBeenCalledWith(
+      ORG,
+      PROP,
+      PORT,
+      { startAt: SOFIA_START, endAt: SOFIA_END },
+    )
+    expect(result.versionMarkers).toEqual([
+      expect.objectContaining({
+        version: 5,
+        kind: 'publish',
+        localDate: '2026-09-22',
+        week: 3,
+        dayInWeek: 0,
+      }),
+    ])
+  })
+
+  it('counts private ratings by page language over the same window', async () => {
+    const integrity = createFakeResponseIntegrity()
+
+    const result = await runResultsTab(resultsTabDeps({ integrity }))
+
+    expect(integrity.getPortalRatingLanguages).toHaveBeenCalledWith({
+      organizationId: ORG,
+      propertyId: PROP,
+      portalId: PORT,
+      startAt: SOFIA_START,
+      endAt: SOFIA_END,
+    })
+    expect(result.ratingLanguages).toEqual({
+      total: 8,
+      languages: [
+        { locale: 'en', count: 5 },
+        { locale: 'bg', count: 2 },
+      ],
+      unrecorded: 1,
+    })
+  })
+
+  it('tells the client the sample floors so it keeps no copy of them', async () => {
+    const result = await runResultsTab(resultsTabDeps())
+
+    expect(result.thresholds).toEqual({ averageMinSample: 5, comparisonMinSample: 10 })
+  })
+
+  it('holds every weekly average back while the ratings are not ready', async () => {
+    const metrics = createFakePortalMetrics({
+      evidence: {
+        ...readyEvidence(),
+        privateRatings: {
+          ...metricEvidence('rating-version'),
+          state: 'updating',
+          verifiedThrough: null,
+          availabilityReason: 'consumer_receipt_pending',
+        },
+      },
+    })
+
+    const result = await runResultsTab(resultsTabDeps({ metrics }))
+
+    expect(result.series?.weeks.every((week) => week.average === null)).toBe(true)
+    expect(result.series?.weeks[0]?.scans).toBe(60)
+  })
+
+  it('draws no prior scans for a window that opens before the measure was counted', async () => {
+    const before = new Date('2026-07-15T21:00:00.000Z')
+    const result = await runResultsTab(resultsTabDeps(), {
+      startDate: before,
+      endDate: new Date('2026-08-14T11:00:00.000Z'),
+    })
+
+    expect(result.kpis.scans.priorUnavailableReason).toBe('measure_not_yet_counted')
+    expect(result.series?.weeks.every((week) => week.priorScans === null)).toBe(true)
+  })
+
+  it('serves All Time without a series, a comparison or markers, still by language', async () => {
+    const deps = resultsTabDeps()
+    const result = await getPortalAnalytics({
+      ...deps,
+      portalLifetime: { get: vi.fn(async () => emptyPortalLifetimeAggregate()) },
+    })({
+      organizationId: ORG,
+      propertyId: PROP,
+      portalId: PORT,
+      startDate: new Date(0),
+      endDate: SOFIA_END,
+      timeRange: 'all',
+      propertyTimezone: 'Europe/Sofia',
+    })
+
+    expect(result.series).toBeNull()
+    expect(result.comparePeriod).toBeNull()
+    expect(result.localDays).toBeNull()
+    expect(result.versionMarkers).toEqual([])
+    expect(result.ratingLanguages.total).toBe(8)
+    expect(deps.portalVersions.listPublicationActivationsBetween).not.toHaveBeenCalled()
   })
 })

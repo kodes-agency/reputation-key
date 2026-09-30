@@ -1,6 +1,10 @@
 // Dashboard context — shared utilities for server and repository layers
 import type { TimeRangePreset } from './dto/dashboard.dto'
-import { shiftPropertyLocalDays } from '#/shared/domain/property-calendar'
+import {
+  propertyWallClockAt,
+  propertyWallClockToInstant,
+  shiftPropertyLocalDays,
+} from '#/shared/domain/property-calendar'
 import { isComparisonShowable } from '../domain/portal-results-thresholds'
 export const MS_PER_DAY = 86_400_000
 
@@ -33,6 +37,38 @@ export function timeRangeToDates(preset: TimeRangePreset, now: Date, timezone = 
   const days = presetDays(preset)
   return {
     startDate: shiftPropertyLocalDays(now, -days, timezone),
+    endDate: now,
+  }
+}
+
+/**
+ * The window a Portal's Results view reads: a bounded preset is that many whole
+ * Property-local calendar days ending with today (still in progress), opening
+ * at local midnight. "Last 30 days" on 30 Sep is 1-30 Sep, and its prior window
+ * (`priorPeriodDates`) is the 30 local days before that, 2-31 Aug. All Time has
+ * no lower bound. The same window is used wherever Results are read, so a
+ * Portal's row in the overview and its own Results tab say the same thing.
+ */
+export function localDaysWindow(preset: TimeRangePreset, now: Date, timezone = 'UTC') {
+  if (preset === 'all') return { startDate: new Date(0), endDate: now }
+  const today = propertyWallClockAt(now, timezone)
+  // Date.UTC normalises a day before the 1st into the previous month.
+  const first = new Date(
+    Date.UTC(today.year, today.month - 1, today.day - (presetDays(preset) - 1)),
+  )
+  return {
+    startDate: propertyWallClockToInstant(
+      {
+        year: first.getUTCFullYear(),
+        month: first.getUTCMonth() + 1,
+        day: first.getUTCDate(),
+        hour: 0,
+        minute: 0,
+        second: 0,
+        millisecond: 0,
+      },
+      timezone,
+    ),
     endDate: now,
   }
 }

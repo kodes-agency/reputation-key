@@ -30,6 +30,18 @@ metric authority.
   ratings, the average private rating, guests who opened Google (Google review link opens
   only; a secondary link is not one), and private notes. The reading floors live in
   `domain/portal-results-thresholds.ts`.
+- **Results window**: a bounded range is that many whole Property-local calendar days ending with
+  today, opening at local midnight (`localDaysWindow`); the period before is the same number of
+  days before that. "Last 30 days" on 30 Sep is 1-30 Sep against 2-31 Aug. A Portal's Results tab
+  and the Portals overview read the same window, so a Portal's row and its own tab agree.
+- **Results series**: a Portal's window cut into weekly buckets anchored to its own first day
+  (`domain/portal-results-series.ts`). A bucket carries qualified scans, the prior window's scans
+  in the same position, and an average computed as sum over count of that bucket's own ratings,
+  held back below the average floor. Versions that went live inside the window (Portal's
+  `listPublicationActivationsBetween`) are placed on their local day. All Time has no series.
+- **Guests by language**: private ratings (not scans) counted by the language of the page the
+  guest saw, read from Guest (`getPortalRatingLanguages`). A rating with no recorded language is
+  counted on its own line, never guessed.
 - **Portals overview results**: the same five measures for every Portal at once, then per Portal
   Group, per Property for its Portals in no group, per Property as a subtotal, and in total
   (`getPortalResultsOverview`, read in a fixed number of statements per distinct time zone however

@@ -1,99 +1,102 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, fn } from 'storybook/test'
-import type {
-  PortalAnalyticsData,
-  PortalMetricEvidence,
-} from '#/contexts/reporting/application/public-api'
+import { expect, fn, userEvent, within } from 'storybook/test'
 import { PortalAnalyticsContent } from './portal-analytics-content'
-
-const COMPUTED_AT = new Date('2026-09-30T09:00:00.000Z')
-
-function evidence(overrides: Partial<PortalMetricEvidence> = {}): PortalMetricEvidence {
-  return {
-    definitionVersionId: 'story-version',
-    state: 'ready',
-    verifiedThrough: COMPUTED_AT,
-    latestActivity: COMPUTED_AT,
-    computedAt: COMPUTED_AT,
-    completeness: 1,
-    availabilityReason: null,
-    correctionHead: null,
-    sampleCount: 0,
-    ...overrides,
-  }
-}
-
-function count(value: number, priorValue: number | null, trend: number | null) {
-  return { value, priorValue, trend, evidence: evidence({ sampleCount: value }) }
-}
-
-const healthy: PortalAnalyticsData = {
-  period: {
-    startAt: new Date('2026-08-31T00:00:00.000Z'),
-    endAt: COMPUTED_AT,
-    timezone: 'Europe/Sofia',
-  },
-  qualifiedScansSince: new Date('2026-08-01T00:00:00.000Z'),
-  lifetimeReconciliation: null,
-  kpis: {
-    scans: count(200, 160, 25),
-    ratings: count(50, 40, 25),
-    avgRating: {
-      value: 4.6,
-      priorValue: 4.4,
-      comparison: 0.2,
-      sampleCount: 50,
-      priorSampleCount: 40,
-      evidence: evidence({ sampleCount: 50 }),
-    },
-    feedback: count(9, 6, 50),
-    googleOpens: count(10, 8, 25),
-  },
-  engagementFunnel: { qualifiedScans: 200, ratings: 50, googleOpens: 10 },
-  ratingDistribution: [
-    { stars: 1, count: 1 },
-    { stars: 2, count: 2 },
-    { stars: 3, count: 4 },
-    { stars: 4, count: 13 },
-    { stars: 5, count: 30 },
-  ],
-  ratingTrend: [
-    { date: '2026-09-01', avgRating: 4.4 },
-    { date: '2026-09-02', avgRating: 4.7 },
-  ],
-  responseIntegrity: {
-    accepted: 50,
-    filteredAutomatically: 0,
-    underReview: 0,
-    total: 50,
-  },
-}
+import {
+  RESULTS_HEALTHY as healthy,
+  RESULTS_WEEKS,
+  resultsCount,
+  resultsEvidence,
+} from './portal-results-stories-data'
 
 const meta = {
   title: 'Portal/Analytics/Results',
   component: PortalAnalyticsContent,
   parameters: { layout: 'padded' },
-  args: { data: healthy, timeRange: '30d', onTimeRangeChange: fn() },
+  args: {
+    data: healthy,
+    timeRange: '30d',
+    onTimeRangeChange: fn(),
+    compare: true,
+    onCompareChange: fn(),
+  },
 } satisfies Meta<typeof PortalAnalyticsContent>
 
 export default meta
 type Story = StoryObj<typeof meta>
 
-export const HonestMeasures: Story = {
+/** Board 07: Pool & Terrace, the last 30 days on 30 Sep. */
+export const BoardSeven: Story = {
   play: async ({ canvas }) => {
-    for (const label of [
-      'Qualified scans',
-      'Private ratings',
-      'Average private rating (n = 50)',
-      'Guests who opened Google',
-      'Private notes',
-    ]) {
-      // The label also names a row in the closed Data status table.
-      await expect(canvas.getAllByText(label)[0]).toBeVisible()
-    }
-    await expect(canvas.getByText('4.6 / 5')).toBeVisible()
-    await expect(canvas.getByText('↑ 25% · prior 160')).toBeVisible()
-    await expect(canvas.getByText('25% of qualified scans')).toBeVisible()
+    const strip = canvas.getByLabelText('Portal results')
+    const cells = within(strip)
+    await expect(cells.getByText('Qualified scans')).toBeVisible()
+    await expect(cells.getByText('+31 vs the 30 days before')).toBeVisible()
+    await expect(cells.getByText('Average private rating')).toBeVisible()
+    await expect(cells.getByText('from 118 · +0.1')).toBeVisible()
+    await expect(cells.getByText('Guests who opened Google')).toBeVisible()
+    await expect(canvas.getByText('1–30 Sep, Europe/Sofia time')).toBeVisible()
+    await expect(
+      canvas.getByRole('checkbox', { name: 'Compare with the 30 days before' }),
+    ).toBeChecked()
+    await expect(
+      canvas.getByText('From 118 private ratings, by page language.'),
+    ).toBeVisible()
+    await expect(canvas.getByText('Български')).toBeVisible()
+    await expect(canvas.getByText('v5 published 22 Sep')).toBeVisible()
+    await expect(
+      canvas.getByText(/1–30 Sep against 2–31 Aug, Europe\/Sofia time/),
+    ).toBeVisible()
+  },
+}
+
+export const ChartValuesAsATable: Story = {
+  play: async ({ canvas }) => {
+    await userEvent.click(canvas.getByText('View chart values'))
+    const table = canvas.getByRole('table', {
+      name: 'Qualified scans and average rating by week',
+    })
+    await expect(within(table).getByText('29–30 Sep')).toBeVisible()
+    // The last week has four ratings: too few for an average, and it says so.
+    await expect(within(table).getByText('Too few')).toBeVisible()
+  },
+}
+
+export const ComparisonOff: Story = {
+  args: {
+    compare: false,
+    data: {
+      ...healthy,
+      comparePeriod: null,
+      localDays: {
+        start: '2026-09-01',
+        end: '2026-09-30',
+        compareStart: null,
+        compareEnd: null,
+      },
+      kpis: {
+        ...healthy.kpis,
+        scans: resultsCount(412, null),
+        feedback: resultsCount(9, null),
+      },
+      series: { weeks: RESULTS_WEEKS.map((week) => ({ ...week, priorScans: null })) },
+    },
+  },
+  play: async ({ canvas }) => {
+    expect(canvas.queryByText(/vs the 30 days before/)).toBeNull()
+    expect(canvas.queryByText('The period before')).toBeNull()
+    await expect(
+      canvas.getByRole('checkbox', { name: 'Compare with the 30 days before' }),
+    ).not.toBeChecked()
+  },
+}
+
+export const ChangesTheRange: Story = {
+  play: async ({ canvas, args }) => {
+    await userEvent.click(canvas.getByRole('combobox', { name: 'Time range' }))
+    await userEvent.click(
+      await within(document.body).findByRole('option', { name: 'Last 7 days' }),
+    )
+    await expect(args.onTimeRangeChange).toHaveBeenCalledWith('7d')
   },
 }
 
@@ -103,14 +106,14 @@ export const AverageHeldBackBelowFive: Story = {
       ...healthy,
       kpis: {
         ...healthy.kpis,
-        ratings: count(4, null, null),
+        ratings: resultsCount(4, null),
         avgRating: {
           value: null,
           priorValue: null,
           comparison: null,
           sampleCount: 4,
           priorSampleCount: 0,
-          evidence: evidence({
+          evidence: resultsEvidence({
             state: 'insufficient_data',
             availabilityReason: 'below_minimum_sample',
             verifiedThrough: null,
@@ -120,15 +123,13 @@ export const AverageHeldBackBelowFive: Story = {
       },
       engagementFunnel: { qualifiedScans: 30, ratings: 4, googleOpens: 2 },
       ratingDistribution: [],
-      ratingTrend: [],
+      series: { weeks: RESULTS_WEEKS.map((week) => ({ ...week, average: null })) },
     },
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText('Average private rating (n = 4)')).toBeVisible()
-    await expect(
-      canvas.getAllByText('Too few ratings to show an average yet.')[0],
-    ).toBeVisible()
-    expect(canvas.queryByText('Private rating distribution')).toBeNull()
+    await expect(canvas.getByText('4 ratings, needs 5 to show an average')).toBeVisible()
+    await expect(canvas.getByText(/The mix appears from 5 private ratings/)).toBeVisible()
+    expect(canvas.queryByText('From 4 private ratings.')).toBeNull()
   },
 }
 
@@ -140,10 +141,9 @@ export const RatingsOutnumberScans: Story = {
     },
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText('3 qualified scans')).toBeVisible()
-    await expect(canvas.getByText('50 private ratings')).toBeVisible()
     await expect(canvas.getByText(/without percentages/)).toBeVisible()
-    expect(canvas.queryByText(/% of/)).toBeNull()
+    // No share is printed in the funnel when a step out-counts the one before.
+    expect(canvas.queryByText(/% of scans/, { selector: 'ol span span' })).toBeNull()
   },
 }
 
@@ -154,22 +154,20 @@ export const WindowOpensBeforeQualifiedScans: Story = {
       kpis: {
         ...healthy.kpis,
         scans: {
-          value: 200,
-          priorValue: null,
+          ...resultsCount(200, null),
           priorUnavailableReason: 'measure_not_yet_counted',
-          trend: null,
-          evidence: evidence({
+          evidence: resultsEvidence({
             sampleCount: 200,
             availabilityReason: 'measure_started_mid_period',
           }),
         },
       },
+      series: { weeks: RESULTS_WEEKS.map((week) => ({ ...week, priorScans: null })) },
     },
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText('Prior period predates this measure')).toBeVisible()
     await expect(
-      canvas.getAllByText(/counted only from the day the measure began/)[0],
+      canvas.getByText('The period before predates this measure'),
     ).toBeVisible()
   },
 }
@@ -184,7 +182,7 @@ export const GoogleOpensUnattributed: Story = {
           value: null,
           priorValue: null,
           trend: null,
-          evidence: evidence({
+          evidence: resultsEvidence({
             state: 'insufficient_data',
             availabilityReason: 'destination_unattributed',
             verifiedThrough: null,
@@ -195,6 +193,7 @@ export const GoogleOpensUnattributed: Story = {
     },
   },
   play: async ({ canvas }) => {
+    // The status table in the closed "About" drawer repeats the reason.
     await expect(
       canvas.getAllByText(/Some clicks did not record which link was opened/)[0],
     ).toBeVisible()
@@ -202,9 +201,105 @@ export const GoogleOpensUnattributed: Story = {
   },
 }
 
+export const RatingsWithoutARecordedLanguage: Story = {
+  args: {
+    data: {
+      ...healthy,
+      ratingLanguages: {
+        total: 118,
+        languages: [{ locale: 'en', count: 100 }],
+        unrecorded: 18,
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText('Language not recorded')).toBeVisible()
+  },
+}
+
+export const VersionMadeLiveAgain: Story = {
+  args: {
+    data: {
+      ...healthy,
+      versionMarkers: [
+        {
+          version: 3,
+          kind: 'rollback',
+          activatedAt: new Date('2026-09-10T06:00:00.000Z'),
+          localDate: '2026-09-10',
+          week: 1,
+          dayInWeek: 2,
+        },
+      ],
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText('v3 made live again 10 Sep')).toBeVisible()
+  },
+}
+
+export const AllTime: Story = {
+  args: {
+    timeRange: 'all',
+    data: {
+      ...healthy,
+      localDays: null,
+      comparePeriod: null,
+      series: null,
+      versionMarkers: [],
+      kpis: {
+        ...healthy.kpis,
+        scans: resultsCount(1200, null),
+        feedback: resultsCount(30, null),
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(
+      canvas.getByText('Weekly figures need a chosen range. All time shows totals only.'),
+    ).toBeVisible()
+    expect(canvas.queryByRole('checkbox')).toBeNull()
+  },
+}
+
+export const NoDataYet: Story = {
+  args: {
+    data: {
+      ...healthy,
+      kpis: {
+        scans: resultsCount(0, 0),
+        ratings: resultsCount(0, 0),
+        avgRating: {
+          value: null,
+          priorValue: null,
+          comparison: null,
+          sampleCount: 0,
+          priorSampleCount: 0,
+          evidence: resultsEvidence({ state: 'insufficient_data' }),
+        },
+        feedback: resultsCount(0, 0),
+        googleOpens: resultsCount(0, 0),
+      },
+      engagementFunnel: null,
+      ratingDistribution: [],
+      ratingLanguages: { total: 0, languages: [], unrecorded: 0 },
+      responseIntegrity: {
+        accepted: 0,
+        filteredAutomatically: 0,
+        underReview: 0,
+        total: 0,
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText('No data yet')).toBeVisible()
+  },
+}
+
 export const Narrow320: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
   play: async ({ canvas }) => {
     await expect(canvas.getAllByText('Guests who opened Google')[0]).toBeVisible()
+    await expect(canvas.getByText('Over time')).toBeVisible()
   },
 }

@@ -46,6 +46,7 @@ export const getPortalAnalyticsFn = createServerFn({ method: 'GET' })
               organizationId: ctx.organizationId,
               propertyId: pid,
               timeRange: data.timeRange,
+              wholeLocalDays: true,
             },
           )
 
@@ -57,6 +58,7 @@ export const getPortalAnalyticsFn = createServerFn({ method: 'GET' })
             endDate,
             timeRange: data.timeRange,
             propertyTimezone,
+            compare: data.compare,
           })
         } catch (e) {
           if (isDashboardError(e))

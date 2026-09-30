@@ -29,6 +29,29 @@ describe('resolvePropertyPeriod', () => {
     expect(getPropertyTimezone).toHaveBeenCalledWith(ORGANIZATION, PROPERTY)
   })
 
+  it('opens a whole-local-days window at Property midnight when asked to', async () => {
+    const propertyFacts = {
+      getPropertyTimezone: vi.fn(async () => 'America/New_York'),
+    } satisfies PropertyFactsPublicApi
+
+    await expect(
+      resolvePropertyPeriod(
+        { propertyFacts, clock: () => NOW },
+        {
+          organizationId: ORGANIZATION,
+          propertyId: PROPERTY,
+          timeRange: '30d',
+          wholeLocalDays: true,
+        },
+      ),
+    ).resolves.toEqual({
+      // 20 Mar is day 30 of the window, so it opens on 19 Feb 00:00 EST.
+      startDate: new Date('2026-02-19T05:00:00.000Z'),
+      endDate: NOW,
+      propertyTimezone: 'America/New_York',
+    })
+  })
+
   it('fails closed when the Property timezone cannot be resolved', async () => {
     const propertyFacts = {
       getPropertyTimezone: vi.fn(async () => null),

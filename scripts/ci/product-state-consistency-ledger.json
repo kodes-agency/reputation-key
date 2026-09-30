@@ -288,6 +288,12 @@
       "policy": "The transfer choices the departing member is composing, keyed by responsibility. Seeded empty rather than from `outstanding`, which stays the server-owned prop the unassigned list is derived from, so a refreshed worklist can never be overwritten by a stale local copy. Submitted once and then discarded with the dialog."
     },
     {
+      "id": "src/components/features/portal/portal-analytics/portal-analytics-tab.tsx:useState(compare)",
+      "classification": "client_persistence",
+      "owner": "Portal analytics viewing preference",
+      "policy": "Initialize from guarded localStorage (comparing unless the reader turned it off) and persist changes; like the range, this preference is intentionally global across portals."
+    },
+    {
       "id": "src/components/features/portal/portal-analytics/portal-analytics-tab.tsx:useState(timeRange)",
       "classification": "client_persistence",
       "owner": "Portal analytics viewing preference",

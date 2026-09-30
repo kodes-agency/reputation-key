@@ -556,6 +556,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       idGen: deps.idGen,
       clock: deps.clock,
     }),
+    listPublicationActivationsBetween: portalPublicationRepo.listActivationsBetween,
     getResponsibleManagerUserIds: async (orgId: OrganizationId, pid: PortalId) => {
       const facts = await contactRequestManagerAuthorityFacts(orgId, pid)
       return facts?.responsibleManagerUserIds ?? []

@@ -2,7 +2,7 @@ import type { PropertyFactsPublicApi } from '#/contexts/property/application/pub
 import type { Clock } from '#/shared/domain/clock'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { TimeRangePreset } from '../application/dto/dashboard.dto'
-import { timeRangeToDates } from '../application/utils'
+import { localDaysWindow, timeRangeToDates } from '../application/utils'
 
 type ResolvePropertyPeriodDeps = Readonly<{
   propertyFacts: PropertyFactsPublicApi
@@ -13,6 +13,11 @@ type ResolvePropertyPeriodInput = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   timeRange: TimeRangePreset
+  /**
+   * Open the window at Property-local midnight and count today as a day, as the
+   * Portal Results tab does, instead of rolling back from the current instant.
+   */
+  wholeLocalDays?: boolean
 }>
 
 /** Resolve Dashboard time windows from the trusted Property-owned timezone. */
@@ -34,7 +39,11 @@ export async function resolvePropertyPeriod(
     }
   }
   return {
-    ...timeRangeToDates(input.timeRange, deps.clock(), timezone),
+    ...(input.wholeLocalDays === true ? localDaysWindow : timeRangeToDates)(
+      input.timeRange,
+      deps.clock(),
+      timezone,
+    ),
     propertyTimezone: timezone,
   }
 }

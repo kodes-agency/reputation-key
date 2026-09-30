@@ -8,8 +8,21 @@ import type { ReactNode } from 'react'
 
 export function PortalWorkspaceBodyFrame({
   children,
-}: Readonly<{ children: ReactNode }>) {
+  wide = false,
+}: Readonly<{
+  children: ReactNode
+  /** Room for a two-column body, as the Results tab draws it. */
+  wide?: boolean
+}>) {
   return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-5 md:px-6 md:py-8">{children}</div>
+    <div
+      className={
+        wide
+          ? 'mx-auto w-full max-w-7xl px-4 py-5 md:px-6 md:py-8'
+          : 'mx-auto w-full max-w-5xl px-4 py-5 md:px-6 md:py-8'
+      }
+    >
+      {children}
+    </div>
   )
 }
