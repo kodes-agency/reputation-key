@@ -995,7 +995,7 @@ export const LowRatingsAskHowLow: Story = {
       ['2★ or lower', '2 stars or lower'],
       ['3★ or lower', '3 stars or lower'],
       ['4★ or lower', '4 stars or lower'],
-    ]) {
+    ] as const) {
       const option = list.getByRole('option', { name: spoken })
       expect(within(option).getByText(shown)).toBeVisible()
     }
