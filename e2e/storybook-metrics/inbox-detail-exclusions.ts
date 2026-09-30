@@ -42,6 +42,9 @@ const MENU_EXIT_RACE =
 const MENU_ENTRY_RACE =
   'play asserts a menu row visible during the menu entry animation; threw in 15 of 30 real-browser runs'
 
+const BYTE_LIMIT_WIDTH =
+  'centered layout gives the field-sizing textarea no width (root 19,091 to 29,875 px at 320, 390 and 1440); the same field is measured bounded as inbox-replycomposer--over-limit'
+
 const RENDERS_NOTHING =
   'renders nothing: the story proves an absence, and there is no box to measure'
 
@@ -69,6 +72,17 @@ export const EXCLUDED_STORIES: Readonly<Record<string, string>> = {
   'inbox-replyform--draft-over-limit':
     'centered layout gives the field-sizing textarea no width (root 36,424 px); measured bounded as inbox-replycomposer--over-limit',
 
+  // The same field-sizing defect for the byte-limit states: a 20,000-byte draft
+  // in a centered story lays out as one 20,000 px line (root 20,232 to 20,242 px
+  // at 320 and 390, 19,091 to 19,100 px at 1440; 29,875 and 28,011 px for the
+  // trailing-line-feed story). The field is measured bounded, as above.
+  'inbox-replycompose--over-limit-in-bytes': BYTE_LIMIT_WIDTH,
+  'inbox-replycompose--at-the-byte-limit': BYTE_LIMIT_WIDTH,
+  'inbox-replyeditorviews--published-edit-counts-bytes-not-characters': BYTE_LIMIT_WIDTH,
+  'inbox-replyeditorviews--published-edit-at-the-byte-limit': BYTE_LIMIT_WIDTH,
+  'inbox-replyeditorviews--published-edit-trailing-line-feed-over-the-limit':
+    BYTE_LIMIT_WIDTH,
+
   // `ReplyEditorInPane` draws nothing once a reply is past draft: the reply is
   // a thread node now, measured as `Inbox/ReplyMessage` and in the thread.
   'inbox-replyform--pending-approval': RENDERS_NOTHING,
@@ -83,6 +97,8 @@ export const EXCLUDED_STORIES: Readonly<Record<string, string>> = {
   'inbox-replyform--rejected': RENDERS_NOTHING,
   'inbox-replyform--loading':
     'a one-line `Loading reply...` paragraph: nothing to press, nothing that can overflow',
+  'inbox-replymessage--needs-check-cancelled':
+    'the check cancels the publication, so the reply leaves the thread: the story ends on the harness button (170 x 56 px at every width) and a toast',
   'inbox-replymessage--draft-is-not-in-the-thread': RENDERS_NOTHING,
   'inbox-replymessage--no-reply-is-not-in-the-thread': RENDERS_NOTHING,
   'inbox-notes-thread--without-write-permission': RENDERS_NOTHING,
@@ -118,6 +134,8 @@ export const EXCLUDED_STORIES: Readonly<Record<string, string>> = {
   'pages-inbox--long-content': 'no item is open: the page shows only the list panel',
   'pages-inbox--mobile-viewport':
     'no item is open: the phone list with its folders drawer; the detail sheet is measured by Inbox/Mobile 390',
+  'pages-inbox--tablet-viewport':
+    "its own window is 768 px, which the harness never loads (320, 390, 1440): at 320 and 390 it is pages-inbox--mobile-viewport again, and at 1440 its play (the compact layout's Select items button) throws, so the tablet composition is the page's own play",
   'inbox-escalation-shortcut--detail-loading':
     'the pane shows only its loading state, measured as inbox-detail-panel--loading; the play is desktop-only',
   'inbox-escalation-shortcut--detail-failed':
@@ -126,6 +144,8 @@ export const EXCLUDED_STORIES: Readonly<Record<string, string>> = {
 
 /** Whole titles under `src/components/inbox/` measured nowhere, and why. */
 export const EXCLUDED_TITLES: Readonly<Record<string, string>> = {
+  'Inbox/Hooks/Open item across queue moves':
+    'a hook harness: three status paragraphs and three story buttons, drawn by the story to drive the hook — no product surface to measure',
   'Inbox/Real Logic (In-Memory)':
     'renders the in-memory use case’s counts as text: no pane, nothing to press',
 }

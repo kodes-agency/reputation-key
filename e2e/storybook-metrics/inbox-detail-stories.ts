@@ -154,6 +154,7 @@ const REGION_GROUPS: ReadonlyArray<Group> = [
       'future-entry-kind-does-not-steal-the-guest-key',
       'with-events-light',
       'folded-history-light',
+      'notes-unavailable',
     ],
   },
   {

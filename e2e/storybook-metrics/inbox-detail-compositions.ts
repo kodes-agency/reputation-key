@@ -37,7 +37,7 @@ export const COMPOSITION_GROUPS: ReadonlyArray<Group> = [
   // at y 551.3, 36 px tall) in a column no surface mounts unbounded.
   {
     prefix: DETAIL_CONTENT,
-    pane: PANE.story,
+    pane: PANE.root,
     widths: DESKTOP,
     stories: [
       'review-as-property-manager',
@@ -58,6 +58,8 @@ export const COMPOSITION_GROUPS: ReadonlyArray<Group> = [
       'note-survives-mode-switch',
       'note-shortcut-is-refused-during-a-live-edit',
       'selecting-another-item-carries-nothing-over',
+      'four-named-regions',
+      'waiting-analysis-is-requested-after-dwell',
     ],
     // The live edit's final frame shows the published reply's editing band,
     // and no composer primary.
@@ -69,7 +71,7 @@ export const COMPOSITION_GROUPS: ReadonlyArray<Group> = [
   // layer over the pane.
   {
     prefix: FEEDBACK_PANE,
-    pane: PANE.story,
+    pane: PANE.root,
     widths: DESKTOP,
     stories: [
       'feedback-open',
@@ -128,6 +130,21 @@ export const COMPOSITION_GROUPS: ReadonlyArray<Group> = [
       'rejected-without-reason',
       'rejected-while-saving',
       'unnamed-property',
+      'waiting-for-google-while-checking-automatically',
+      'needs-check-while-checking',
+      'needs-check-not-on-google',
+      'needs-check-twice-with-the-same-answer',
+      'needs-check-line-leaves-when-checks-stop',
+      'needs-check-line-leaves-when-the-reply-goes-live',
+      'needs-check-line-waits-for-the-reply-it-describes',
+      'needs-check-refused-because-the-reply-moved-on',
+      'needs-check-never-sent',
+      'needs-check-live-on-google',
+      'needs-check-unreadable',
+      'needs-check-different-reply',
+      'needs-check-review-missing',
+      'needs-check-error',
+      'unknown-status-is-read-only',
     ],
   },
   {
@@ -158,6 +175,16 @@ export const COMPOSITION_GROUPS: ReadonlyArray<Group> = [
       'undo-after-a-template-drops-its-tag',
       'use-draft-returns-the-caret-to-the-text',
       'template-switch-back-while-loading-keeps-the-composer-live',
+      'ai-draft-over-the-byte-limit-is-refused',
+      'template-over-the-byte-limit-is-refused',
+      'save-failure-before-submit-is-announced',
+      'template-loads-even-when-its-save-fails',
+      'typing-during-generation-does-not-lock-the-composer',
+      'save-failure-before-drafting-is-not-a-generation-failure',
+      'generation-failure-after-typing-is-reported',
+      'busy-offers-retry-and-template',
+      'busy-retry-reuses-the-request',
+      'provider-failure-offers-template',
     ],
     // `saving`'s footer shows the saving state in the primary's place.
     withPrimary: { allBut: ['saving'] },
@@ -202,6 +229,8 @@ export const COMPOSITION_GROUPS: ReadonlyArray<Group> = [
       'with-deletable-draft',
       'submit-blocked',
       'submitting',
+      'delete-draft-refused',
+      'retry-save-refused',
     ],
     // `submitting` shows the pending state instead.
     withPrimary: { allBut: ['submitting'] },
