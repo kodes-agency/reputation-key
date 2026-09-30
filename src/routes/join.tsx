@@ -7,24 +7,22 @@
 // which verifies the address, and then signs the new member in; the page lands
 // them in the app the way a sign-in does. If that sign-in failed, the card asks
 // them to sign in.
-import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { useQueryClient } from '@tanstack/react-query'
 import { z } from 'zod/v4'
-import { ensureActiveOrg, getSession } from '#/shared/auth/auth.functions'
+import { ensureActiveOrg } from '#/shared/auth/auth.functions'
 import { clearTenantCacheBeforeNavigation } from '#/shared/queries/tenant-cache-transition'
 import { AuthCard, AuthFooterLink } from '#/components/layout/auth-layout'
 import {
   InvitationStateCard,
   InvitationSummary,
   RegisterForm,
-  type InvitationLink,
 } from '#/components/features/identity'
 import { JoinEntryCard } from '#/components/features/identity/registration/join-entry-card'
 import { registerMember } from '#/contexts/identity/server/organizations'
 import { useAction, wrapAction } from '#/components/hooks/use-action'
 import { enterWorkspace } from './-join-entry'
-import { loadInvitationEntry, signInToAcceptInvitation } from './-invitation-entry'
 
 /**
  * The link names one invitation. Anything the router parsed into something else
@@ -36,27 +34,14 @@ export const joinSearch = z.object({
   invitationId: z.string().min(1).optional().catch(undefined),
 })
 
-async function resolveLink(
-  invitationId: string | undefined,
-): Promise<{ link: InvitationLink | null }> {
-  if (!invitationId) {
-    if (await getSession()) throw redirect({ to: '/properties' })
-    return { link: null }
-  }
-  const { link, accountExists, signedInEmail } = await loadInvitationEntry(invitationId)
-  // Signed in already: accepting is a confirm step, not a sign-up.
-  if (signedInEmail !== null) {
-    throw redirect({ to: '/accept-invitation', search: { id: invitationId } })
-  }
-  // The address has an account, so this form could only fail: sign in instead.
-  if (link.state === 'pending' && accountExists)
-    throw signInToAcceptInvitation(invitationId)
-  return { link }
-}
-
 export const Route = createFileRoute('/join')({
   validateSearch: joinSearch,
-  beforeLoad: ({ search }) => resolveLink(search.invitationId),
+  beforeLoad: async ({ search }) => {
+    // Loaded on demand: first-paint bytes are budgeted, and this only runs for
+    // a visitor who opened an invitation link.
+    const { resolveJoinLink } = await import('./-invitation-entry')
+    return resolveJoinLink(search.invitationId)
+  },
   component: JoinPage,
 })
 
