@@ -54,8 +54,8 @@ payloads at read/send time so in-app rows, urgent email, and digests cannot
 silently drift. Preferences and current responsibility are rechecked before
 external delivery: each queued email keeps the audience descriptor that
 admitted its recipient, and immediately before a Property-scoped send the
-recipient must still be an eligible manager for the Property (membership,
-access, participation) and, for a responsible-scope, Portal-health or
+recipient must still be an eligible manager for the Property (membership
+and access) and, for a responsible-scope, Portal-health or
 AccountAdmin audience, still hold that responsibility or role. A digest drops
 only the rows that fail. A digest already frozen for retry does too when the
 provider refused every attempt at it: it is retired and the remaining rows go

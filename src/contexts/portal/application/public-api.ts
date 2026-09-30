@@ -320,7 +320,7 @@ export type PortalPublicApi = Readonly<{
       Readonly<{ version: number; kind: 'publish' | 'rollback'; activatedAt: Date }>
     >
   >
-  /** Current assigned managers, revalidated against role/access/participation. */
+  /** Current assigned managers, revalidated against role and current Property access. */
   getResponsibleManagerUserIds: (
     orgId: OrganizationId,
     portalId: PortalId,

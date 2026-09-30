@@ -33,9 +33,11 @@ adapter; no other context reads its tables directly.
   acceptance locks and rechecks membership before provisioning selected grants.
 - Property authorization derives only from current Identity-owned grants. Staff
   Participation, login links, Portal Responsibility, Team history, and responsible
-  manager assignments never grant membership or Property access.
-- Staff Participants may exist without users. Current login links and participation
-  checks are effective-dated, ambiguity-denying, and transactionally locked.
+  manager assignments never grant membership or Property access, and never gate
+  Property work.
+- Staff Participants may exist without users. Login links and participation are
+  effective-dated and ambiguity-denying; they drive attribution only and are never
+  read for command authority or manager eligibility.
 - Participation and responsibility intervals are half-open. Replacing a responsibility
   set preserves unchanged rows and closes removed relationships.
 - At most one active primary Portal attribution exists. Supporting attribution does
