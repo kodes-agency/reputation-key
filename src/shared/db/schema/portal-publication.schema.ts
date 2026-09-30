@@ -20,6 +20,11 @@ import {
   foreignKey,
   check,
 } from 'drizzle-orm/pg-core'
+import {
+  GUEST_LANGUAGE_PACK_SQL_PATTERN,
+  GUEST_LOCALE_JSONB_LITERAL,
+  GUEST_LOCALE_SQL_LIST,
+} from '../../guest-locale-schemas'
 import { portals } from './portal.schema'
 
 // ── immutable Portal publication snapshots ───────────────────────
@@ -127,15 +132,15 @@ export const portalPublicationSnapshots = pgTable(
     ),
     check(
       'portal_publication_snapshots_locale_valid',
-      sql`${t.guestLocale} IN ('en', 'bg')`,
+      sql`${t.guestLocale} IN (${sql.raw(GUEST_LOCALE_SQL_LIST)})`,
     ),
     check(
       'portal_publication_snapshots_language_pack_valid',
-      sql`${t.languagePackVersion} IN ('guest-ui-en-v1', 'guest-ui-bg-v1')`,
+      sql`${t.languagePackVersion} ~ '${sql.raw(GUEST_LANGUAGE_PACK_SQL_PATTERN)}'`,
     ),
     check(
       'portal_publication_snapshots_locale_set_valid',
-      sql`jsonb_typeof(${t.localeSet}) = 'array' AND ${t.localeSet} <@ '["en", "bg"]'::jsonb AND ${t.localeSet} @> jsonb_build_array(${t.guestLocale})`,
+      sql`jsonb_typeof(${t.localeSet}) = 'array' AND ${t.localeSet} <@ '${sql.raw(GUEST_LOCALE_JSONB_LITERAL)}'::jsonb AND ${t.localeSet} @> jsonb_build_array(${t.guestLocale})`,
     ),
     check(
       'portal_publication_snapshots_language_packs_object',

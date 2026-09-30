@@ -36,12 +36,8 @@ const ALLOWLIST: ReadonlyArray<
     why: 'the frozen v1/v2 zod branches that parse stored snapshot rows',
   },
   {
-    match: (p) => p === 'src/shared/db/schema/portal.schema.ts',
-    why: 'CHECK constraints, until migration 0043 widens them',
-  },
-  {
     match: (p) => p === 'src/shared/db/schema/portal-publication.schema.ts',
-    why: 'snapshot CHECK constraints and the jsonb default, until migration 0043',
+    why: 'the frozen jsonb default of language_pack_versions, pinned by migration history',
   },
   {
     match: (p) => p === 'src/shared/testing/scenarios/executors.ts',

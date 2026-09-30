@@ -7,6 +7,8 @@ import {
   currentGuestLanguagePack,
   guestLocaleFormatTag,
   isGuestLocale,
+  isValidAdditionalGuestLocales,
+  MAX_ADDITIONAL_GUEST_LOCALES,
   isSupportedGuestLanguagePack,
   matchGuestLocale,
   parseGuestLocale,
@@ -130,5 +132,23 @@ describe('guest language pack membership', () => {
     expect(isSupportedGuestLanguagePack('bg', 'guest-ui-bg-v2', 1)).toBe(false)
     expect(isSupportedGuestLanguagePack('en', 'guest-ui-bg-v2', 2)).toBe(false)
     expect(isSupportedGuestLanguagePack('bg', 'guest-ui-en-v1', 2)).toBe(false)
+  })
+})
+
+describe('additional guest locales beside a primary', () => {
+  it('leaves room for every catalogue locale except the primary', () => {
+    expect(MAX_ADDITIONAL_GUEST_LOCALES).toBe(5)
+    expect(isValidAdditionalGuestLocales('de', ['en', 'es', 'it', 'fr', 'bg'])).toBe(true)
+    expect(isValidAdditionalGuestLocales('en', [])).toBe(true)
+  })
+
+  it.each([
+    ['repeats the primary', 'en', ['en']],
+    ['repeats itself', 'en', ['bg', 'bg']],
+    ['names a locale outside the catalogue', 'en', ['pt']],
+    ['is longer than the catalogue allows', 'en', ['es', 'it', 'fr', 'de', 'bg', 'bg']],
+    ['holds a non-string', 'en', [null]],
+  ] as const)('refuses a list that %s', (_label, primary, additional) => {
+    expect(isValidAdditionalGuestLocales(primary, additional)).toBe(false)
   })
 })

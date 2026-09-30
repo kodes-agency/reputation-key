@@ -4,6 +4,10 @@
 
 import { sql } from 'drizzle-orm'
 import { createdAtColumn, updatedAtColumn, deletedAtColumn } from '../columns'
+import {
+  GUEST_LOCALE_JSONB_LITERAL,
+  GUEST_LOCALE_SQL_LIST,
+} from '../../guest-locale-schemas'
 import { portalGroups } from './portal-group.schema'
 import { properties } from './property.schema'
 export { portalGroups } from './portal-group.schema'
@@ -83,11 +87,11 @@ export const portals = pgTable(
     ),
     check(
       'portals_primary_guest_locale_active',
-      sql`${t.primaryGuestLocale} IN ('en', 'bg')`,
+      sql`${t.primaryGuestLocale} IN (${sql.raw(GUEST_LOCALE_SQL_LIST)})`,
     ),
     check(
       'portals_additional_guest_locales_array',
-      sql`jsonb_typeof(${t.additionalGuestLocales}) = 'array' AND ${t.additionalGuestLocales} <@ '["en", "bg"]'::jsonb`,
+      sql`jsonb_typeof(${t.additionalGuestLocales}) = 'array' AND ${t.additionalGuestLocales} <@ '${sql.raw(GUEST_LOCALE_JSONB_LITERAL)}'::jsonb`,
     ),
   ],
 )
@@ -161,7 +165,7 @@ export const propertyPortalBrandContents = pgTable(
     }).onDelete('restrict'),
     check(
       'property_portal_brand_contents_locale_active',
-      sql`${t.locale} IN ('en', 'bg')`,
+      sql`${t.locale} IN (${sql.raw(GUEST_LOCALE_SQL_LIST)})`,
     ),
     check('property_portal_brand_contents_version_positive', sql`${t.version} >= 1`),
   ],
@@ -194,7 +198,10 @@ export const portalLocalizedOverrides = pgTable(
       columns: [t.organizationId, t.propertyId, t.portalId],
       foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
     }).onDelete('restrict'),
-    check('portal_localized_overrides_locale_active', sql`${t.locale} IN ('en', 'bg')`),
+    check(
+      'portal_localized_overrides_locale_active',
+      sql`${t.locale} IN (${sql.raw(GUEST_LOCALE_SQL_LIST)})`,
+    ),
     check('portal_localized_overrides_version_positive', sql`${t.version} >= 1`),
     check(
       'portal_localized_overrides_has_value',

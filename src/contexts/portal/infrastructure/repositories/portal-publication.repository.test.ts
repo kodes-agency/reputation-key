@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { eq } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
@@ -11,7 +12,11 @@ import {
   guestResponses,
 } from '#/shared/db/schema/guest.schema'
 import { buildPortalPublicationSnapshot } from '../../application/portal-publication-snapshot'
-import { createPortalPublicationRepository } from './portal-publication.repository'
+import { verifyPortalPublicationSnapshot } from '../../application/portal-publication-snapshot'
+import {
+  createPortalPublicationRepository,
+  snapshotFromRow,
+} from './portal-publication.repository'
 
 const ORG = organizationId('org-portal-publication-0000000000001')
 const OTHER_ORG = organizationId('org-portal-publication-0000000000002')
@@ -423,5 +428,104 @@ describe.sequential('Portal publication repository (real PostgreSQL)', () => {
         constraint: 'guest_response_experience_snapshots_publication_scope_fk',
       },
     })
+  })
+})
+
+describe.sequential('Snapshot guest locale CHECKs (real PostgreSQL)', () => {
+  const SNAPSHOT_ID = 'f5000000-0000-4000-8000-000000000031'
+  type SnapshotInsert = typeof portalPublicationSnapshots.$inferInsert
+
+  async function insertRow(overrides: Partial<SnapshotInsert>) {
+    const built = snapshot(1, 'Locale layering', SNAPSHOT_ID)
+    await getDb()
+      .insert(portalPublicationSnapshots)
+      .values({ ...snapshotRow(built), ...overrides })
+    return built
+  }
+
+  async function rejectedConstraint(
+    overrides: Partial<SnapshotInsert>,
+  ): Promise<string | undefined> {
+    try {
+      await insertRow(overrides)
+    } catch (error) {
+      const cause = (error as { cause?: { code?: string; constraint?: string } }).cause
+      expect(cause?.code).toBe('23514')
+      return cause?.constraint
+    }
+    return undefined
+  }
+
+  it('accepts a German pack row at the database while the reader stays closed', async () => {
+    const built = snapshot(1, 'Locale layering', SNAPSHOT_ID)
+    const configuration = {
+      ...built.configuration,
+      schemaVersion: 2,
+      guestLocale: 'de',
+      languagePackVersion: 'guest-ui-de-v2',
+      localeSet: ['de'],
+      languagePackVersions: { de: 'guest-ui-de-v2' },
+      localizedContent: {},
+      brandProfile: {
+        displayName: 'Layering',
+        logoUrl: null,
+        defaultHeroImageUrl: null,
+        primaryColor: '#123456',
+        backgroundColor: '#ffffff',
+        textColor: '#111111',
+        version: 1,
+      },
+    }
+    await insertRow({
+      configuration,
+      guestLocale: 'de',
+      languagePackVersion: 'guest-ui-de-v2',
+      localeSet: ['de'],
+      languagePackVersions: { de: 'guest-ui-de-v2' },
+      brandProfileVersion: 1,
+    })
+
+    const [stored] = await getDb()
+      .select()
+      .from(portalPublicationSnapshots)
+      .where(eq(portalPublicationSnapshots.id, SNAPSHOT_ID))
+    expect(stored).toMatchObject({
+      guestLocale: 'de',
+      languagePackVersion: 'guest-ui-de-v2',
+    })
+    // The database is broad; the application registry is authoritative.
+    expect(stored && snapshotFromRow(stored)).toBeNull()
+    expect(
+      verifyPortalPublicationSnapshot({
+        ...built,
+        configuration: configuration as never,
+      }),
+    ).toBe(false)
+  })
+
+  it('rejects a primary locale outside the catalogue', async () => {
+    // A row this wrong breaks both locale checks; Postgres reports whichever
+    // it evaluates first, so either named constraint proves the rejection.
+    await expect(
+      rejectedConstraint({ guestLocale: 'pt', localeSet: ['pt'] }),
+    ).resolves.toMatch(/^portal_publication_snapshots_locale_(set_)?valid$/)
+  })
+
+  it.each(['guest-ui-pt-v1', 'guest-ui-en-v1000', 'guest-ui-en-v0'])(
+    'rejects the pack id %s with the named constraint',
+    async (languagePackVersion) => {
+      await expect(rejectedConstraint({ languagePackVersion })).resolves.toBe(
+        'portal_publication_snapshots_language_pack_valid',
+      )
+    },
+  )
+
+  it('rejects a locale set outside the catalogue or missing its primary locale', async () => {
+    await expect(rejectedConstraint({ localeSet: ['en', 'pt'] })).resolves.toBe(
+      'portal_publication_snapshots_locale_set_valid',
+    )
+    await expect(rejectedConstraint({ localeSet: ['de'] })).resolves.toBe(
+      'portal_publication_snapshots_locale_set_valid',
+    )
   })
 })
