@@ -1,6 +1,7 @@
 import type { Decorator, Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import type { GuestPagePreviewState } from './guest-page-preview-state'
+import { getGuestPortalCopy } from './guest-language-pack'
 import { GuestPageView, type GuestPageViewProps } from './guest-page-view'
 import { PortalSecondaryLinks } from './portal-secondary-links'
 
@@ -27,20 +28,38 @@ const secondaryLinks = (
   />
 )
 
+const PHONE_FRAME_HEIGHT = 720
+/** Taller than any viewport, so a page sized to the viewport cannot fill it. */
+const TALL_FRAME_HEIGHT = 4000
+
 /** A phone frame with a fixed height: the view must fill it, not the viewport. */
-const PhoneFrame: Decorator = (Story) => (
+const PhoneFrame: Decorator = (Story, { parameters }) => (
   <div
     data-testid="phone-frame"
-    className="mx-auto h-[720px] w-[390px] overflow-y-auto rounded-3xl border"
+    className="mx-auto overflow-y-auto rounded-3xl border"
+    style={{ width: 390, height: parameters.frameHeight ?? PHONE_FRAME_HEIGHT }}
   >
     <Story />
   </div>
 )
 
+/**
+ * The two height utilities the view chooses between, spelled out. The frame is
+ * styled inline for the same reason: the geometry check below must not pass or
+ * fail on whether this environment generated Tailwind utilities, only on the
+ * view picking the class that sizes to its container.
+ */
+const HeightUtilities: Decorator = (Story) => (
+  <>
+    <style>{'.min-h-full{min-height:100%}.min-h-screen{min-height:100vh}'}</style>
+    <Story />
+  </>
+)
+
 const meta: Meta<typeof GuestPageView> = {
   title: 'Features/Guest/GuestPageView',
   component: GuestPageView,
-  decorators: [PhoneFrame],
+  decorators: [PhoneFrame, HeightUtilities],
   args: {
     portal,
     height: 'container',
@@ -125,12 +144,58 @@ export const ManagerSketch: Story = {
   },
 }
 
+export const Bulgarian: Story = {
+  args: {
+    localization: {
+      selectedLocale: 'bg',
+      primaryLocale: 'en',
+      availableLocales: ['en', 'bg'],
+      languagePackVersion: 'guest-ui-bg-v1',
+    },
+    body: {
+      kind: 'preview',
+      previewState: { kind: 'rated', rating: 2 },
+      secondaryLinks: (
+        <PortalSecondaryLinks
+          organizationName={portal.organizationName}
+          categories={[{ id: 'useful', title: 'Полезни връзки' }]}
+          links={[
+            {
+              id: 'website',
+              label: 'Уебсайт на хотела',
+              url: 'https://example.com/',
+              categoryId: 'useful',
+            },
+          ]}
+          locale="bg"
+          languagePackVersion="guest-ui-bg-v1"
+        />
+      ),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const copy = getGuestPortalCopy('bg', 'guest-ui-bg-v1')
+    const canvas = within(canvasElement)
+    const google = canvas.getByRole('button', { name: copy.continueToGoogle })
+    const note = canvas.getByLabelText(copy.privateFeedbackLabel)
+    await expect(google).toBeVisible()
+    expect(google.closest('[lang]')?.getAttribute('lang')).toBe('bg')
+    expect(
+      google.compareDocumentPosition(note) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  },
+}
+
+/**
+ * In a frame taller than any viewport the page is exactly as tall as the
+ * frame. `min-h-screen` would stop at the viewport height and fail this.
+ */
 export const FillsItsFrame: Story = {
+  parameters: { frameHeight: TALL_FRAME_HEIGHT },
   play: async ({ canvasElement }) => {
     const frame = within(canvasElement).getByTestId('phone-frame')
     const page = frame.firstElementChild as HTMLElement
-    expect(page.getBoundingClientRect().height).toBeGreaterThanOrEqual(
-      frame.getBoundingClientRect().height - 2,
-    )
+    expect(TALL_FRAME_HEIGHT).toBeGreaterThan(window.innerHeight)
+    expect(Math.round(page.getBoundingClientRect().height)).toBe(frame.clientHeight)
   },
 }

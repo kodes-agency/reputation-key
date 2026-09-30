@@ -27,7 +27,7 @@ The public portal is a **review-link touchpoint first**. Private rating/feedback
 ### Anti-gating rule
 
 Review destination visibility, ordering, wording, and prominence are **invariant** across guest response values and states. This is enforced by architectural test:
-`src/components/features/guest/public-portal/guest-page-view.test.ts` renders the pure guest page for ratings 1–5, with and without the private-note card, in English and Bulgarian, and requires the Google card to have the same markup, position, heading, copy and accessible name every time.
+`src/components/features/guest/public-portal/guest-page-view.test.ts` renders the guest page for ratings 1–5, with and without the private-note card, and in the note-writing, done, withdrawn-note and correcting states, in English and Bulgarian. It does so on both paths a guest can reach: a controlled preview state, and the live public container that binds the response session (`PublicPortalContent`). It requires the Google card to have the same markup, position, heading, copy and accessible name every time, on every path.
 
 ### Abuse and privacy
 

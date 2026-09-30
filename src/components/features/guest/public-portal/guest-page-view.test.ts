@@ -1,74 +1,31 @@
 // ADR 0044, "Anti-gating rule": review destination visibility, ordering,
 // wording and prominence are invariant across guest response values and
-// states. This is that architectural test. It renders the pure guest page for
-// every rating, with and without the private-note card, and requires the Google
-// card to be the same markup in the same place. A change that hides, moves,
-// reorders or rewords the Google card by rating fails here.
+// states. This is that architectural test. It renders the guest page for every
+// rating and state on BOTH paths a guest can reach (a controlled preview state
+// and the live container that binds the response session) and requires the
+// Google card to be the same markup in the same place. A change that hides,
+// moves, reorders or rewords the Google card by rating fails here, wherever in
+// the stack it is made.
 //
 // There is no DOM in the unit project, so the markup is split by a small tag
 // walker rather than queried.
 
-import { readFileSync } from 'node:fs'
-import { createElement } from 'react'
-import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
+import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
 import { getGuestPortalCopy } from './guest-language-pack'
-import { GuestPageView, type GuestPageViewProps } from './guest-page-view'
 import type { GuestPagePreviewState } from './guest-page-preview-state'
-import type { PortalLocalization } from './portal-localization'
-import { PortalSecondaryLinks } from './portal-secondary-links'
-
-const RATINGS = [1, 2, 3, 4, 5] as const
-const LOCALES = ['en', 'bg'] as const
-const LOCALIZATION: Readonly<Record<(typeof LOCALES)[number], PortalLocalization>> = {
-  en: {
-    selectedLocale: 'en',
-    primaryLocale: 'en',
-    availableLocales: ['en', 'bg'],
-    languagePackVersion: 'guest-ui-en-v1',
-  },
-  bg: {
-    selectedLocale: 'bg',
-    primaryLocale: 'en',
-    availableLocales: ['en', 'bg'],
-    languagePackVersion: 'guest-ui-bg-v1',
-  },
-}
-
-const portal = {
-  name: 'The Harbor Hotel',
-  description: 'Thank you for visiting.',
-  organizationName: 'Harbor Hospitality',
-  heroImageUrl: null,
-  theme: null,
-}
-
-function secondaryLinks(locale: (typeof LOCALES)[number]) {
-  return createElement(PortalSecondaryLinks, {
-    organizationName: portal.organizationName,
-    categories: [{ id: 'c1', title: 'Useful links' }],
-    links: [
-      { id: 'l1', label: 'Hotel website', url: 'https://example.com/', categoryId: 'c1' },
-    ],
-    locale,
-    languagePackVersion: LOCALIZATION[locale].languagePackVersion,
-  })
-}
-
-function renderPage(
-  locale: (typeof LOCALES)[number],
-  previewState: GuestPagePreviewState,
-  overrides: Partial<GuestPageViewProps> = {},
-): string {
-  return renderToStaticMarkup(
-    createElement(GuestPageView, {
-      portal,
-      localization: LOCALIZATION[locale],
-      body: { kind: 'preview', previewState, secondaryLinks: secondaryLinks(locale) },
-      ...overrides,
-    }),
-  )
-}
+import {
+  LOCALES,
+  LOCALIZATION,
+  RATINGS,
+  VARIANTS,
+  renderCorrecting,
+  renderLive,
+  renderPage,
+  secondaryLinks,
+  submitted,
+  type Locale,
+} from './guest-page-test-fixtures'
 
 const TAG = /<(\/?)([a-zA-Z][\w-]*)((?:"[^"]*"|'[^']*'|[^>"'])*)>/g
 const VOID_TAGS = new Set(['img', 'input', 'br', 'hr', 'meta', 'link'])
@@ -108,72 +65,92 @@ const text = (html: string) =>
     .trim()
 const ratedSection = (html: string) =>
   directChildren(html, 'aria-labelledby="rating-receipt-heading"')
+const noteVisible = (response: GuestResponseView) =>
+  response.privateFeedbackEligible && !response.hasPrivateFeedback
+
+type Rendered = Readonly<{
+  label: string
+  noteVisible: boolean
+  children: readonly string[]
+}>
+
+/** Every variant on every path that can render it. */
+function renderEverywhere(locale: Locale): Rendered[] {
+  return VARIANTS.flatMap(({ label, response, preview }) => {
+    const shown = noteVisible(response)
+    const row = (path: string, html: string): Rendered => ({
+      label: `${path}: ${label}`,
+      noteVisible: shown,
+      children: ratedSection(html),
+    })
+    return [
+      ...(preview ? [row('preview', renderPage(locale, preview))] : []),
+      row('live', renderLive(locale, response)),
+      row('correcting', renderCorrecting(locale, response)),
+    ]
+  })
+}
 
 describe('anti-gating: the Google card does not depend on the rating', () => {
   for (const locale of LOCALES) {
     const copy = getGuestPortalCopy(locale, LOCALIZATION[locale].languagePackVersion)
-    const cases = RATINGS.flatMap((rating) =>
-      [true, false].map((noteEligible) => ({ rating, noteEligible })),
-    )
-    const rendered = cases.map((c) => ({
-      ...c,
-      children: ratedSection(
-        renderPage(locale, {
-          kind: 'rated',
-          rating: c.rating,
-          noteEligible: c.noteEligible,
-        }),
-      ),
-    }))
+    const rendered = renderEverywhere(locale)
     const googleIndex = (children: readonly string[]) =>
       children.findIndex((child) => child.includes(copy.googleTitle))
 
-    it(`[${locale}] puts the Google card second, after the thank-you card, at every rating`, () => {
-      for (const { children, rating, noteEligible } of rendered) {
-        expect(googleIndex(children), `rating ${rating}, note ${noteEligible}`).toBe(1)
-        expect(text(children[0] ?? '')).toContain(copy.privateRatingThanks)
+    it(`[${locale}] covers the preview, live and correcting paths`, () => {
+      const paths = new Set(rendered.map(({ label }) => label.split(':')[0]))
+      expect(paths).toEqual(new Set(['preview', 'live', 'correcting']))
+    })
+
+    it(`[${locale}] puts the Google card second, after the thank-you card, everywhere`, () => {
+      for (const { children, label } of rendered) {
+        expect(googleIndex(children), label).toBe(1)
+        expect(text(children[0] ?? ''), label).toContain(copy.privateRatingThanks)
       }
     })
 
-    it(`[${locale}] renders identical Google card markup for ratings 1-5, note or not`, () => {
+    it(`[${locale}] renders identical Google card markup for every rating, state and path`, () => {
       const cards = rendered.map(({ children }) => children[googleIndex(children)])
       expect(new Set(cards).size).toBe(1)
     })
 
     it(`[${locale}] gives the Google card the same heading, copy and accessible name`, () => {
-      for (const { children } of rendered) {
+      for (const { children, label } of rendered) {
         const card = children[googleIndex(children)] ?? ''
-        expect(card).toContain(`>${copy.googleTitle}</h2>`)
-        expect(card).toContain(`>${copy.googleBody}</p>`)
+        expect(card, label).toContain(`>${copy.googleTitle}</h2>`)
+        expect(card, label).toContain(`>${copy.googleBody}</p>`)
         const button = /<button\b[^>]*>(.*?)<\/button>/s.exec(card)
-        expect(text(button?.[1] ?? '')).toBe(copy.continueToGoogle)
-        expect(/<button\b[^>]*\sdisabled(?=[\s=>])/.test(card)).toBe(false)
+        expect(text(button?.[1] ?? ''), label).toBe(copy.continueToGoogle)
+        expect(/<button\b[^>]*\sdisabled(?=[\s=>])/.test(card), label).toBe(false)
       }
     })
 
     it(`[${locale}] shows the note card only when eligible, and always after Google`, () => {
-      for (const { children, noteEligible } of rendered) {
+      for (const { children, noteVisible: expected, label } of rendered) {
         const noteIndex = children.findIndex((child) =>
           child.includes(copy.privateFeedbackTitle),
         )
-        if (!noteEligible) expect(noteIndex).toBe(-1)
-        else expect(noteIndex).toBeGreaterThan(googleIndex(children))
+        if (!expected) expect(noteIndex, label).toBe(-1)
+        else expect(noteIndex, label).toBeGreaterThan(googleIndex(children))
       }
     })
 
-    it(`[${locale}] keeps the other links after Google at every rating`, () => {
-      for (const { children } of rendered) {
+    it(`[${locale}] keeps the other links after Google everywhere`, () => {
+      for (const { children, label } of rendered) {
         const linksIndex = children.findIndex((child) =>
           child.includes(`aria-label="${copy.moreLinksLabel}"`),
         )
-        expect(linksIndex).toBeGreaterThan(googleIndex(children))
+        expect(linksIndex, label).toBeGreaterThan(googleIndex(children))
       }
     })
 
-    it(`[${locale}] keeps the unavailable card in the same place at every rating`, () => {
-      const unavailable = RATINGS.map((rating) =>
-        ratedSection(renderPage(locale, { kind: 'googleUnavailable', rating })),
-      )
+    it(`[${locale}] keeps the unavailable card in the same place at every rating, on every path`, () => {
+      const unavailable = RATINGS.flatMap((rating) => [
+        renderPage(locale, { kind: 'googleUnavailable', rating }),
+        renderLive(locale, submitted({ rating, noteEligible: false }), 'unavailable'),
+        renderCorrecting(locale, submitted({ rating, noteEligible: false }), false),
+      ]).map(ratedSection)
       const positions = unavailable.map((children) =>
         children.findIndex((child) => child.includes(copy.googleUnavailableTitle)),
       )
@@ -186,12 +163,17 @@ describe('anti-gating: the Google card does not depend on the rating', () => {
     })
   }
 
-  it('leaves the page chrome untouched by the rating', () => {
-    const chrome = (rating: number) => {
-      const html = renderPage('en', { kind: 'rated', rating })
-      return html.slice(0, html.indexOf('aria-labelledby="rating-receipt-heading"'))
-    }
-    expect(new Set(RATINGS.map(chrome)).size).toBe(1)
+  it('leaves the page chrome untouched by the rating, on the preview and live paths', () => {
+    const beforeResponse = (html: string) =>
+      html.slice(0, html.indexOf('aria-labelledby="rating-receipt-heading"'))
+    const previewChrome = RATINGS.map((rating) =>
+      beforeResponse(renderPage('en', { kind: 'rated', rating })),
+    )
+    const liveChrome = RATINGS.map((rating) =>
+      beforeResponse(renderLive('en', submitted({ rating, noteEligible: rating <= 3 }))),
+    )
+    expect(new Set(previewChrome).size).toBe(1)
+    expect(new Set(liveChrome).size).toBe(1)
   })
 })
 
@@ -249,18 +231,4 @@ describe('GuestPageView', () => {
     expect(html).toContain(`aria-label="${copy.moreLinksLabel}"`)
     expect(html).not.toContain(copy.submitPrivateRating)
   })
-})
-
-describe('GuestPageView purity', () => {
-  const read = (name: string) => readFileSync(new URL(name, import.meta.url), 'utf8')
-
-  it.each(['./guest-page-view.tsx', './guest-page-preview-state.ts'])(
-    '%s imports no server function, action hook or controller',
-    (file) => {
-      const source = read(file)
-      expect(source).not.toMatch(/useServerFn|useAction|createServerFn/)
-      expect(source).not.toMatch(/from '#\/contexts\/[^']*\/server/)
-      expect(source).not.toContain('use-guest-response-controller')
-    },
-  )
 })

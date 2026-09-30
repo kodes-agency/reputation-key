@@ -82,7 +82,7 @@ function secondaryLinksFor(
  * The guest page bound to its token: the container around `GuestPageView`.
  * Only a public page with a resolved review gateway mounts the response
  * actions. A preview state, a manager preview and a gateway that failed to
- * resolve render the pure view alone.
+ * resolve render the pure view alone; a preview state never carries the token.
  */
 export function PublicPortalContent(props: PublicPortalContentProps) {
   const { token, accessArtifactId, portal, localization, reviewGateway, responseForm } =
@@ -92,14 +92,20 @@ export function PublicPortalContent(props: PublicPortalContentProps) {
   const view = { token, accessArtifactId, portal, localization, height } as const
 
   if (props.previewState) {
+    // A preview is inert whoever renders it: no token, no session nonce, no
+    // action. Links go straight to their destination instead of the tracked
+    // click endpoint, and the language switch (which needs a token) is absent.
+    const inert = { ...props, token: undefined, selectSecondaryLink: undefined }
     return (
       <GuestPageView
-        {...view}
+        portal={portal}
+        localization={localization}
+        height="container"
         body={{
           kind: 'preview',
           previewState: props.previewState,
           privateFeedbackThreshold: reviewGateway?.privateFeedbackThreshold,
-          secondaryLinks: secondaryLinksFor(props, responseForm?.csrfNonce ?? ''),
+          secondaryLinks: secondaryLinksFor(inert, ''),
         }}
       />
     )

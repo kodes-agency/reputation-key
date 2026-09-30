@@ -71,20 +71,35 @@ describe('PublicPortalContent', () => {
     expect(html).toContain(copy.moreLinksLabel)
   })
 
-  it('renders a preview state without ever calling an action', () => {
+  it('renders a preview state with no token, nonce, click tracking or action', () => {
     const form = responseForm()
     const html = render({
       token: 'tok',
+      accessArtifactId: 'artifact-1',
       reviewGateway: gateway,
       responseForm: form,
+      selectSecondaryLink: refuse(),
+      localization: {
+        selectedLocale: 'en',
+        primaryLocale: 'en',
+        availableLocales: ['en', 'bg'],
+        languagePackVersion: 'guest-ui-en-v1',
+      },
       previewState: { kind: 'rated', rating: 2 },
     })
 
     expect(html).toContain(copy.continueToGoogle)
     expect(html).toContain(copy.privateFeedbackTitle)
-    for (const action of Object.values(form)) {
-      if (typeof action === 'function') expect(action).not.toHaveBeenCalled()
-    }
+    // The link goes straight to its destination: no tracked click, no recorded selection.
+    expect(html).toContain('href="https://example.com/"')
+    expect(html).not.toContain('/api/public/p/')
+    // No language switch back to the real public page, and no session nonce.
+    expect(html).not.toContain('/p/tok')
+    expect(html).not.toContain('artifact-1')
+    expect(html).not.toContain(NONCE)
+    // A preview is sized to its frame, never to the viewport.
+    expect(html).toContain('min-h-full')
+    expect(html).not.toContain('min-h-screen')
   })
 
   it('uses the gateway threshold to decide a preview state note', () => {

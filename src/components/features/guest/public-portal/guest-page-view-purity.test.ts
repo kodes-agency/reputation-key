@@ -1,0 +1,65 @@
+// The guest page view must stay a pure view: nothing it renders may bind a
+// server function or an action. The container binds them and hands the finished
+// state in. This walks every module the view renders, not just its own file.
+
+import { existsSync, readFileSync } from 'node:fs'
+import { dirname, join, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
+import { describe, expect, it } from 'vitest'
+
+describe('GuestPageView purity', () => {
+  const SRC = fileURLToPath(new URL('../../../../', import.meta.url))
+  const ENTRY = fileURLToPath(new URL('./guest-page-view.tsx', import.meta.url))
+  const RUNTIME_IMPORT = /^\s*(?:import|export)\s+(?!type\b)[^'"]*?from\s+'([^']+)'/gm
+
+  function resolveSource(from: string, specifier: string): string | null {
+    const base = specifier.startsWith('#/')
+      ? join(SRC, specifier.slice(2))
+      : specifier.startsWith('.')
+        ? resolve(dirname(from), specifier)
+        : null
+    if (base === null) return null
+    return (
+      ['.tsx', '.ts', '/index.tsx', '/index.ts']
+        .map((extension) => base + extension)
+        .find((candidate) => existsSync(candidate)) ?? null
+    )
+  }
+
+  /** Every module the view renders, following runtime imports (not `import type`). */
+  function viewTree(): Map<string, string> {
+    const tree = new Map<string, string>()
+    const queue = [ENTRY]
+    for (let file = queue.pop(); file; file = queue.pop()) {
+      if (tree.has(file)) continue
+      const source = readFileSync(file, 'utf8')
+      tree.set(file, source)
+      for (const [, specifier] of source.matchAll(RUNTIME_IMPORT)) {
+        const next = resolveSource(file, specifier ?? '')
+        if (next && next.startsWith(SRC + 'components/')) queue.push(next)
+      }
+    }
+    return tree
+  }
+
+  it('reaches the form view, its cards and the preview state', () => {
+    const files = [...viewTree().keys()].map((file) => file.slice(SRC.length))
+    expect(files).toEqual(
+      expect.arrayContaining([
+        'components/features/guest/public-portal/guest-response-form-view.tsx',
+        'components/features/guest/public-portal/guest-private-feedback-form.tsx',
+        'components/features/guest/public-portal/guest-rating-correction.tsx',
+        'components/features/guest/public-portal/guest-page-preview-state.ts',
+      ]),
+    )
+  })
+
+  it('imports no server function, action hook or controller anywhere in the tree', () => {
+    for (const [file, source] of viewTree()) {
+      const name = file.slice(SRC.length)
+      expect(source, name).not.toMatch(/useServerFn|useAction|createServerFn/)
+      expect(source, name).not.toMatch(/from '#\/contexts\/[^']*\/server/)
+      expect(source, name).not.toContain('use-guest-response-controller')
+    }
+  })
+})

@@ -12,7 +12,12 @@ export type GuestPagePreviewState =
   | Readonly<{ kind: 'arrival' }>
   /** Rated, with the Google card. The note card follows the threshold unless pinned. */
   | Readonly<{ kind: 'rated'; rating: number; noteEligible?: boolean }>
-  /** A low rating with the private note still to write. */
+  /**
+   * A low rating with the private note still to write. The note field is the
+   * form's own state, so this renders the same markup as an eligible `rated`
+   * state: an empty note. A drafted note (board G06) needs an initial-text prop
+   * on the note form and is not reachable from a preview state yet.
+   */
   | Readonly<{ kind: 'note-writing'; rating?: number }>
   /** A low rating whose private note has been sent. */
   | Readonly<{ kind: 'done'; rating?: number }>
