@@ -14,6 +14,7 @@ import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import type {
   PortalCommandStore,
+  SavePortalLinkTextsCommand,
   SavePortalLinktreeSettingsCommand,
 } from '../application/ports/portal-command-store.port'
 import { portalError } from '../domain/errors'
@@ -38,10 +39,7 @@ type Changes = Readonly<{
 
 function recordPending(
   tx: Tx,
-  command: Pick<
-    SavePortalLinktreeSettingsCommand,
-    'organizationId' | 'propertyId' | 'portalId' | 'revision' | 'occurredAt'
-  >,
+  command: SavePortalLinkTextsCommand | SavePortalLinktreeSettingsCommand,
   key: string,
   sourceVersion: string,
 ): Promise<number> {
