@@ -9,6 +9,7 @@ import {
   lifecycleLabel,
   organizationFlags,
   summarizeOrganizations,
+  suggestedSlug,
 } from './platform-console-model'
 
 const organization = (
@@ -173,5 +174,16 @@ describe('formatInvitationExpiry', () => {
     expect(
       formatInvitationExpiry({ expiresAt: '2026-09-01T09:05:00.000Z', expired: true }),
     ).toBe('Expired Sep 1, 2026, 9:05 AM UTC')
+  })
+})
+
+describe('suggestedSlug', () => {
+  it('derives the slug the server would, from the name being typed', () => {
+    expect(suggestedSlug('Hotel Riviera & Spa')).toBe('hotel-riviera-spa')
+  })
+
+  it('suggests nothing until there is a name, rather than the fallback slug', () => {
+    expect(suggestedSlug('')).toBe('')
+    expect(suggestedSlug('   ')).toBe('')
   })
 })
