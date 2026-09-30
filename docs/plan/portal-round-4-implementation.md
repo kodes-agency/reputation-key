@@ -491,6 +491,7 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
 - Scoped like `listPortals`. Adds `listActiveForPortals`.
 - Deletes the dead `PortalRepository.findGroupIdsByPortalIds` and its in-memory stub.
 - Size M.
+- **As built.** Input is a discriminated `scope`: `{ scope: 'organization' }` or `{ scope: 'property', propertyId }`, with optional `propertyIds` narrowing the organization scope. The server function is `listPortalOverview`. Rows carry responsible managers as user ids only, and no live-version field. Slice 25 must resolve manager display names itself (per Property through the eligible-manager read, not per Portal).
 
 **24. Batched results overview read (R2).**
 

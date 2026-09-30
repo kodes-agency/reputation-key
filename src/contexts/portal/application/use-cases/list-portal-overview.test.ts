@@ -311,18 +311,22 @@ describe('listPortalOverview', () => {
 
   it('lists portals by name, then by id, so the answer does not depend on storage order', async () => {
     const { useCase, portalRepo } = setup()
+    // Stored in descending id order, so storage order is the wrong answer.
+    const tied = [
+      buildTestPortal({ id: 'p-2', name: 'Bar' }),
+      buildTestPortal({ id: 'p-4', name: 'Bar' }),
+    ].sort((a, b) => (a.id < b.id ? -1 : 1))
     portalRepo.seed([
       buildTestPortal({ id: 'p-3', name: 'Spa' }),
       buildTestPortal({ id: 'p-1', name: 'lobby' }),
-      buildTestPortal({ id: 'p-2', name: 'Bar' }),
-      buildTestPortal({ id: 'p-4', name: 'Bar' }),
+      ...[...tied].reverse(),
     ])
 
     const rows = await useCase(ORGANIZATION, buildTestAuthContext())
 
     expect(rows.map((row) => row.name)).toEqual(['Bar', 'Bar', 'lobby', 'Spa'])
     const tiedIds = rows.filter((row) => row.name === 'Bar').map((row) => row.portalId)
-    expect(tiedIds).toEqual([...tiedIds].sort())
+    expect(tiedIds).toEqual(tied.map((portal) => portal.id))
   })
 
   it('refuses a caller without portal.read', async () => {

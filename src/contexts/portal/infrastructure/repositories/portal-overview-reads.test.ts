@@ -7,6 +7,7 @@
 
 import { createHash } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
+import { eq } from 'drizzle-orm'
 import { Pool } from 'pg'
 import { getEnv } from '#/shared/config/env'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
@@ -18,6 +19,7 @@ import {
   propertyId,
   type PortalId,
 } from '#/shared/domain/ids'
+import { portalGroups } from '#/shared/db/schema/portal-group.schema'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import { listPortalOverview } from '../../application/use-cases/list-portal-overview'
 import { createPortalRepository } from './portal.repository'
@@ -41,7 +43,7 @@ const FORMER = portalId('ee000000-0000-4000-8000-000000000013')
 const OTHER_TENANT_PORTAL = portalId('ee000000-0000-4000-8000-000000000021')
 const GROUP = portalGroupId('ee000000-0000-4000-8000-000000000031')
 const GROUP_OTHER = portalGroupId('ee000000-0000-4000-8000-000000000032')
-const GROUP_ARCHIVED = portalGroupId('ee000000-0000-4000-8000-000000000033')
+const GROUP_FORMER = portalGroupId('ee000000-0000-4000-8000-000000000033')
 const START = new Date('2026-09-01T10:00:00.000Z')
 const LATER = new Date('2026-09-02T10:00:00.000Z')
 const NOW = new Date('2026-09-10T12:00:00.000Z')
@@ -122,11 +124,11 @@ async function seedGroups() {
     deletedAt: null,
   })
   await repo.insert(ORG, group(GROUP, ORG, PROPERTY))
-  await repo.insert(ORG, group(GROUP_ARCHIVED, ORG, PROPERTY))
+  await repo.insert(ORG, group(GROUP_FORMER, ORG, PROPERTY))
   await repo.insert(ORG_OTHER, group(GROUP_OTHER, ORG_OTHER, PROPERTY_OTHER))
   await repo.addPortal(ORG, GROUP, FULL, START, 'owner')
-  await repo.addPortal(ORG, GROUP_ARCHIVED, FORMER, START, 'owner')
-  await repo.removePortal(ORG, GROUP_ARCHIVED, FORMER, LATER, 'moved')
+  await repo.addPortal(ORG, GROUP_FORMER, FORMER, START, 'owner')
+  await repo.removePortal(ORG, GROUP_FORMER, FORMER, LATER, 'moved')
   await repo.addPortal(ORG_OTHER, GROUP_OTHER, OTHER_TENANT_PORTAL, START, 'owner')
   return repo
 }
@@ -156,8 +158,25 @@ describe('portal group repository — listGroupsForPortals', () => {
     )
     const after = await repo.listGroupsForPortals(ORG, [FORMER], NOW)
 
-    expect(before.map((row) => row.group.id)).toEqual([GROUP_ARCHIVED])
+    expect(before.map((row) => row.group.id)).toEqual([GROUP_FORMER])
     expect(after).toEqual([])
+  })
+
+  it('drops a group once it is archived, and keeps it at the moment before', async () => {
+    const repo = await seedGroups()
+    await getDb()
+      .update(portalGroups)
+      .set({ deletedAt: LATER })
+      .where(eq(portalGroups.id, GROUP))
+    const before = new Date(START.getTime() + 1)
+
+    const rows = await repo.listGroupsForPortals(ORG, [FULL], before)
+    const after = await repo.listGroupsForPortals(ORG, [FULL], NOW)
+
+    expect(rows.map((row) => row.group.id)).toEqual([GROUP])
+    expect((await repo.findGroupForPortal(ORG, FULL, before))?.id).toBe(GROUP)
+    expect(after).toEqual([])
+    await expect(repo.findGroupForPortal(ORG, FULL, NOW)).resolves.toBeNull()
   })
 
   it('never answers for another tenant Portal', async () => {
@@ -405,11 +424,117 @@ describe('portal token repository — findResolvableSummariesForPortals', () => 
     // The newest resolvable token governs, as in the single read; the revoked
     // Portal and the Portal with no token have none.
     expect(rows.map((row) => [row.portalId, row.version])).toEqual([[FULL, 2]])
+    // The newer token carries no grace; the window is the outgoing token's.
+    expect(rows[0]?.gracePeriodEnds).toEqual(new Date(START.getTime() + 2_592_000_000))
     for (const pid of [FULL, BARE, FORMER]) {
       const single = await repo.findResolvableSummaryForPortal(ORG, pid, START)
       expect(rows.find((row) => row.portalId === pid)).toEqual(
         single ? { ...single, portalId: pid } : undefined,
       )
+    }
+  })
+
+  it('reports the outgoing grace for one Portal and not another, in one answer', async () => {
+    const repo = createPortalTokenRepository(getDb())
+    const rotate = async (pid: PortalId, suffix: string, grace: number) => {
+      const old = token(
+        `ee000000-0000-4000-8000-0000000001${suffix}0`,
+        ORG,
+        PROPERTY,
+        pid,
+        1,
+      )
+      await repo.insert(old)
+      const rotation = rotateToken(
+        old,
+        {
+          id: `ee000000-0000-4000-8000-0000000001${suffix}1`,
+          tokenIdentifier: `overview-out-${suffix}`,
+          tokenHash: hash(`out-${suffix}`),
+          tokenKeyVersion: 1,
+          version: 2,
+        },
+        grace,
+        START,
+      )
+      if (!('oldToken' in rotation)) throw new Error('rotation failed')
+      await repo.saveRotation(rotation)
+    }
+    await rotate(FULL, '1', 60_000)
+    await rotate(BARE, '2', 120_000)
+    await repo.insert(
+      token('ee000000-0000-4000-8000-000000000153', ORG, PROPERTY, FORMER, 1),
+    )
+
+    const rows = await repo.findResolvableSummariesForPortals(
+      ORG,
+      [FULL, BARE, FORMER],
+      START,
+    )
+
+    const graceOf = (pid: PortalId) =>
+      rows.find((row) => row.portalId === pid)?.gracePeriodEnds
+    expect(graceOf(FULL)).toEqual(new Date(START.getTime() + 60_000))
+    expect(graceOf(BARE)).toEqual(new Date(START.getTime() + 120_000))
+    expect(graceOf(FORMER)).toBeNull()
+    for (const pid of [FULL, BARE, FORMER]) {
+      const single = await repo.findResolvableSummaryForPortal(ORG, pid, START)
+      expect(rows.find((row) => row.portalId === pid)).toEqual({
+        ...single,
+        portalId: pid,
+      })
+    }
+  })
+
+  it('reports one row per Portal however many access artifacts its token holds', async () => {
+    const repo = createPortalTokenRepository(getDb())
+    const full = token('ee000000-0000-4000-8000-000000000061', ORG, PROPERTY, FULL, 1)
+    const bare = token('ee000000-0000-4000-8000-000000000062', ORG, PROPERTY, BARE, 1)
+    await repo.insert(full)
+    await repo.insert(bare)
+    const artifact = (
+      id: string,
+      pid: PortalId,
+      tokenId: string,
+      channel: 'qr' | 'nfc',
+      retired: boolean,
+    ) =>
+      pool.query(
+        `INSERT INTO portal_access_artifacts
+           (id, organization_id, property_id, portal_id, portal_token_id, channel, status, published_at, retired_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          id,
+          ORG,
+          PROPERTY,
+          pid,
+          tokenId,
+          channel,
+          retired ? 'retired' : 'published',
+          START,
+          retired ? LATER : null,
+        ],
+      )
+    await artifact('ee000000-0000-4000-8000-000000000071', FULL, full.id, 'qr', false)
+    await artifact('ee000000-0000-4000-8000-000000000072', FULL, full.id, 'nfc', false)
+    await artifact('ee000000-0000-4000-8000-000000000073', BARE, bare.id, 'qr', true)
+
+    const rows = await repo.findResolvableSummariesForPortals(ORG, [FULL, BARE], START)
+
+    expect(
+      rows.map((row) => [row.portalId, row.hasPublishedAccessArtifact]).sort(),
+    ).toEqual(
+      [
+        [FULL, true],
+        [BARE, false],
+      ].sort(),
+    )
+    for (const pid of [FULL, BARE]) {
+      const single = await repo.findResolvableSummaryForPortal(ORG, pid, START)
+      expect(rows.find((row) => row.portalId === pid)).toEqual({
+        ...single,
+        portalId: pid,
+      })
     }
   })
 

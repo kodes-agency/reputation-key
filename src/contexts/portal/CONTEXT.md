@@ -56,7 +56,8 @@ reason, pending-change count, current group, responsible-manager user ids, token
 status, publication state) and asks each source once for the whole set: the
 `*ForPortals` reads on the health, publication, group, responsible-manager and token
 repositories. Each mirrors its single-Portal read (`portal-overview-reads.test.ts`
-compares them), so a row says what that Portal's own page says. It is scoped like
+compares them), so each batched read returns what its single-Portal read returns,
+including the token's grace end. It is scoped like
 `listPortals` (`portal.read`, assigned Properties) and carries no content.
 
 The dormant issued-image implementation has been removed. The nullable
