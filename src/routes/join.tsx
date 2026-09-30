@@ -2,13 +2,7 @@
 // The server-side saga consumes the invitation atomically, which verifies the
 // address, and then signs the new member in; the page lands them in the app
 // the way a sign-in does. If that sign-in failed, the card asks them to sign in.
-import {
-  createFileRoute,
-  Link,
-  redirect,
-  useNavigate,
-  useRouter,
-} from '@tanstack/react-router'
+import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { useQueryClient } from '@tanstack/react-query'
 import { z } from 'zod/v4'
@@ -43,17 +37,17 @@ export const Route = createFileRoute('/join')({
 function JoinPage() {
   const { invitationId } = Route.useSearch()
   const navigate = useNavigate()
-  const router = useRouter()
   const queryClient = useQueryClient()
   const register = useAction(useServerFn(registerMember))
 
   const mutation = wrapAction(register, async ({ signedIn }) => {
     if (!signedIn) return
     await ensureActiveOrg()
-    await clearTenantCacheBeforeNavigation(queryClient, async () => {
-      await router.invalidate()
-      await navigate({ to: '/properties' })
-    })
+    // /join never held an authenticated match, and the _authenticated layout
+    // re-reads the session on navigation, so no whole-router invalidation.
+    await clearTenantCacheBeforeNavigation(queryClient, () =>
+      navigate({ to: '/properties' }),
+    )
   })
 
   if (!invitationId) {
