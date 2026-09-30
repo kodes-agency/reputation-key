@@ -34,9 +34,9 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   'account.organization_access_removed': 'mandatory',
   'account.organization_purge_pending': 'mandatory',
   // A new review is an arrival (D4, docs/design/notifications): off in the app
-  // by default, like every arrival. Feed cannot tell a low-rated provider
-  // review from a glowing one (ADR 0046 r.8); its urgency reaches people
-  // through the Response Target reminders, which a low rating may shorten.
+  // by default, like every arrival — unless its rating is at or below its
+  // reader's Low ratings threshold, decided when the notice is written
+  // (`classifyNotification`, ADR 0046 amended 2026-09-30).
   'review.created': 'arrivals',
   // A guest revision that SUPERSEDES AN OPEN CYCLE — work nobody has handled
   // yet. It was `urgent_operational`, so a guest fixing a comma sent an

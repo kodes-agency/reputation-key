@@ -7,6 +7,7 @@ import {
 import { buildFakeInsertNotificationDeps } from './test-fixtures'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { Notification, NotificationCategory } from '../../domain/notification-types'
+import { SETTLED_EMAIL_REASON } from '../../domain/notification-settlement'
 import {
   resolveCategoryPreference,
   type CategoryPreferenceValues,
@@ -755,11 +756,17 @@ describe('insertNotification', () => {
       },
     })
     const review = { ...input, type: 'review.created' as const, eventId: 'review-low' }
+    const DEFAULT_THRESHOLDS = {
+      in_app: { enabled: true, maxRating: 3 },
+      email: { enabled: true, maxRating: 2 },
+    } as const
+    /** The reader's Low ratings answers, and any New reviews answer they chose. */
     const withLowRatings = (
       values: Readonly<{
         in_app: Readonly<{ enabled: boolean; maxRating: 1 | 2 | 3 | 4 }>
         email: Readonly<{ enabled: boolean; maxRating: 1 | 2 | 3 | 4 }>
       }>,
+      arrivals: Partial<Record<'in_app' | 'email', CategoryPreferenceValues>> = {},
     ) => {
       const fallback = deps.preferenceRepo.resolveForDelivery
       deps = {
@@ -767,13 +774,14 @@ describe('insertNotification', () => {
         preferenceRepo: {
           ...deps.preferenceRepo,
           resolveForDelivery: vi.fn(
-            async (userId, orgId, propertyId, category, channel) =>
-              category === 'low_ratings'
-                ? {
-                    ...values[channel as 'in_app' | 'email'],
-                    cadence: 'immediate' as const,
-                  }
-                : fallback(userId, orgId, propertyId, category, channel),
+            async (userId, orgId, propertyId, category, channel) => {
+              const key = channel as 'in_app' | 'email'
+              if (category === 'low_ratings') {
+                return { ...values[key], cadence: 'immediate' as const }
+              }
+              const chosen = category === 'arrivals' ? arrivals[key] : undefined
+              return chosen ?? fallback(userId, orgId, propertyId, category, channel)
+            },
           ),
         },
       }
@@ -864,6 +872,111 @@ describe('insertNotification', () => {
         }),
       )
       expect(deps.emailRepo.insert).toHaveBeenCalledOnce()
+      expect(deps.emailRepo.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ category: 'low_ratings', cadence: 'immediate' }),
+      )
+    })
+
+    // Each channel admits a rated notice under its own category, and the
+    // later checks read exactly that one: the feed the row's, the pre-send
+    // recheck and the unsubscribe link the email's.
+    it('files the row as the arrival its reader shows, and mails it as a low rating', async () => {
+      withLowRatings(
+        {
+          in_app: { enabled: true, maxRating: 1 },
+          email: { enabled: true, maxRating: 3 },
+        },
+        { in_app: preference('in_app', true) },
+      )
+      vi.mocked(deps.ratingForRouting).mockResolvedValue(2)
+
+      const result = await insertNotification(deps)(review)
+
+      expect(result).toMatchObject({ category: 'arrivals' })
+      expect(result?.payload).not.toHaveProperty('lowRating')
+      expect(deps.emailRepo.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ category: 'low_ratings', cadence: 'immediate' }),
+      )
+    })
+
+    it('files the row as a low rating, and mails it under the New reviews answer', async () => {
+      withLowRatings(
+        {
+          in_app: { enabled: true, maxRating: 3 },
+          email: { enabled: true, maxRating: 1 },
+        },
+        { email: preference('email', true, 'daily') },
+      )
+      vi.mocked(deps.ratingForRouting).mockResolvedValue(3)
+
+      const result = await insertNotification(deps)(review)
+
+      expect(result).toMatchObject({ category: 'low_ratings' })
+      expect(deps.emailRepo.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ category: 'arrivals', cadence: 'daily' }),
+      )
+    })
+
+    describe('an edit to a review whose notice still waits', () => {
+      const edit = (eventId: string) => ({
+        ...review,
+        type: 'review.updated' as const,
+        eventId,
+      })
+
+      it("replaces the waiting row when the edit crosses the reader's threshold", async () => {
+        // The first edit, to four stars, is an arrival the reader shows.
+        withLowRatings(DEFAULT_THRESHOLDS, { in_app: preference('in_app', true) })
+        vi.mocked(deps.ratingForRouting).mockResolvedValue(4)
+        const waiting = (await insertNotification(deps)(edit('edit-1'))) as Notification
+        expect(waiting).toMatchObject({ category: 'arrivals' })
+        vi.mocked(deps.notificationRepo.findUnreadByUserTypeResource).mockResolvedValue(
+          waiting,
+        )
+        vi.mocked(deps.notificationRepo.insert).mockClear()
+        vi.mocked(deps.ratingForRouting).mockResolvedValue(1)
+
+        const result = await insertNotification(deps)(edit('edit-2'))
+
+        expect(result).toMatchObject({
+          category: 'low_ratings',
+          title: 'Review edited to a low rating at Riverside Hotel',
+        })
+        expect(deps.notificationRepo.refreshUnread).not.toHaveBeenCalled()
+        // Dismissed, not settled: the review still waits for a reply.
+        expect(deps.notificationRepo.updateStatus).toHaveBeenCalledWith(
+          waiting.id,
+          USER_ID,
+          ORG_ID,
+          'dismissed',
+          NOW,
+        )
+        expect(deps.emailRepo.cancelQueuedForNotifications).toHaveBeenCalledWith(
+          [waiting.id],
+          ORG_ID,
+          SETTLED_EMAIL_REASON,
+          NOW,
+        )
+        expect(deps.notificationRepo.insert).toHaveBeenCalledOnce()
+      })
+
+      it('folds an edit that stays on the same side of the threshold', async () => {
+        vi.mocked(deps.ratingForRouting).mockResolvedValue(2)
+        const waiting = (await insertNotification(deps)(edit('edit-1'))) as Notification
+        vi.mocked(deps.notificationRepo.findUnreadByUserTypeResource).mockResolvedValue(
+          waiting,
+        )
+        vi.mocked(deps.ratingForRouting).mockResolvedValue(1)
+
+        const result = await insertNotification(deps)(edit('edit-2'))
+
+        expect(result).toMatchObject({
+          id: waiting.id,
+          category: 'low_ratings',
+          coalescedCount: 2,
+        })
+        expect(deps.notificationRepo.updateStatus).not.toHaveBeenCalled()
+      })
     })
 
     it('is not low for a reader whose thresholds are lower than the rating', async () => {

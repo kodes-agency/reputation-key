@@ -35,6 +35,10 @@ const defaultFor = (
 export const lowRatingWords = (maxRating: number): string =>
   maxRating === 1 ? '1★ only' : `${maxRating}★ or lower`
 
+/** The same read aloud: a screen reader says "★" as "black star". */
+export const spokenLowRatingWords = (maxRating: number): string =>
+  maxRating === 1 ? '1 star only' : `${maxRating} stars or lower`
+
 export function describeInheritedDefault(
   category: ConfigurableNotificationCategory,
   defaults: readonly NotificationCategoryDefault[],

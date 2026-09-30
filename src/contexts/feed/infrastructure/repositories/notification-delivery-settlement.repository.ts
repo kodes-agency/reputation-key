@@ -23,7 +23,7 @@ type SettlementDeps = Readonly<{
   idGen: () => NotificationId
   emailIdGen: () => NotificationEmailId
   logger: LoggerPort
-  /** Outside the transaction: Review's read, compared and dropped. */
+  /** Review's read, on its own connection; compared and dropped, never stored. */
   ratingForRouting: ReviewRatingForRouting
   enqueueImmediateEmail?: (data: {
     notificationEmailId: string

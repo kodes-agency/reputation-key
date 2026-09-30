@@ -2,8 +2,9 @@
 //
 // How low a rating must be is stored with the answer it belongs to — per
 // Property and as the person's default — and nowhere else; migration 0042
-// carries each Action needed email choice over to it; and a review's rating is
-// asked of Review for routing, while a feedback item is never looked up.
+// carries each Action needed email choice over to it; a review's rating is
+// asked of Review for routing, while a feedback item is never looked up; and a
+// Low ratings email-only anchor never reaches the bell.
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
@@ -24,6 +25,7 @@ import {
   createNotificationPreference,
 } from '../../domain/constructors-preference'
 import { createNotificationPreferenceRepository } from './notification-preference.repository'
+import { createNotificationRepository } from './notification.repository'
 import { createReviewRatingForRouting } from '../adapters/review-rating-routing.adapter'
 
 const ORG = 'org-notification-low-ratings'
@@ -39,6 +41,7 @@ const NOW = new Date('2026-09-30T09:00:00.000Z')
 let pool: Pool
 
 async function cleanUp() {
+  await pool.query('DELETE FROM notifications WHERE organization_id = $1', [ORG])
   await pool.query('DELETE FROM notification_preferences WHERE organization_id = $1', [
     ORG,
   ])
@@ -239,5 +242,73 @@ describe.sequential('Low ratings thresholds (real PostgreSQL)', () => {
       }),
     ).resolves.toBeNull()
     expect(getEligibleRatingById).not.toHaveBeenCalled()
+  })
+})
+
+// A reader whose in-app threshold is 1★ and email threshold 3★ gets a 2-star
+// review by email only: its anchor is filed Low ratings, stored read with no
+// read time. Low ratings is on in the app, so the feed's switch check cannot
+// tell that anchor from a row the reader read — the rating that decided it is
+// not kept (ADR 0031) — and the anchor is left out on its own terms.
+describe.sequential('a Low ratings email-only anchor (real PostgreSQL)', () => {
+  const ANCHOR = '86900000-0000-4000-8000-000000000031'
+  const READ_ROW = '86900000-0000-4000-8000-000000000032'
+  const UNREAD_ROW = '86900000-0000-4000-8000-000000000033'
+  const scope = {
+    userId: userId(USER),
+    organizationId: organizationId(ORG),
+    visiblePropertyIds: null,
+  }
+
+  beforeEach(async () => {
+    for (const [id, type, status, readAt, minute] of [
+      [ANCHOR, 'review.created', 'read', null, 3],
+      [READ_ROW, 'review.updated', 'read', '2026-09-30T08:05:00Z', 2],
+      [UNREAD_ROW, 'feedback.created', 'unread', null, 1],
+    ] as const) {
+      await pool.query(
+        `INSERT INTO notifications (
+           id, user_id, organization_id, property_id, type, category, priority, status,
+           resource_type, resource_id, event_id, title, read_at, created_at, updated_at
+         ) VALUES ($1, $2, $3, $4, $5, 'low_ratings', 'normal', $6, 'inbox_item', $7, $8,
+                   'Test', $9, $10, $10)`,
+        [
+          id,
+          USER,
+          ORG,
+          HARBOUR,
+          type,
+          status,
+          `resource-${id}`,
+          `event-${id}`,
+          readAt,
+          `2026-09-30T08:0${minute}:00Z`,
+        ],
+      )
+    }
+  })
+
+  it('is left out of the feed, while rows the reader saw stay in it', async () => {
+    const head = await createNotificationRepository(getDb()).readFeedHead({
+      ...scope,
+      filter: 'all',
+      limit: 10,
+    })
+
+    expect(head.page.notifications.map((row) => row.id)).toEqual([READ_ROW, UNREAD_ROW])
+  })
+
+  it('is not dismissed by clearing the feed', async () => {
+    await createNotificationRepository(getDb()).markAllDismissed(scope, NOW)
+
+    const rows = await pool.query(
+      'SELECT id, status FROM notifications WHERE organization_id = $1 ORDER BY id',
+      [ORG],
+    )
+    expect(rows.rows).toEqual([
+      { id: ANCHOR, status: 'read' },
+      { id: READ_ROW, status: 'dismissed' },
+      { id: UNREAD_ROW, status: 'dismissed' },
+    ])
   })
 })

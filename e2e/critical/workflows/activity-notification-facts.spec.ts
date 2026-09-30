@@ -157,10 +157,11 @@ test.describe('Critical workflow: content-safe notification + activity facts', (
     // the app (3★ or lower), so the review reaches them as a Low ratings
     // notice — read from Review at routing time, kept only as the outcome,
     // and saying so without its stars (ADR 0046, amended 2026-09-30).
-    expect(notifications[0].category).toBe('low_ratings')
-    expect(notifications[0].title).toContain('Low-rated review')
-    expect(notifications[0].payload).toMatchObject({ lowRating: true })
-    expect(JSON.stringify(notifications[0])).not.toMatch(/"(star)?rating"/i)
+    const notice = notifications[0]!
+    expect(notice.category).toBe('low_ratings')
+    expect(notice.title).toContain('Low-rated review')
+    expect(notice.payload).toMatchObject({ lowRating: true })
+    expect(JSON.stringify(notice)).not.toMatch(/"(star)?rating"/i)
     expect(notifications[0].body ?? '').not.toContain(inboxItem.id)
     // The point of this test: the allowlisted payload cannot carry source
     // content. `payload` is stringified along with the row, so this now covers

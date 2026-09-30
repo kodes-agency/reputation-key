@@ -21,7 +21,7 @@ import {
 } from '#/contexts/feed/application/public-api'
 import type { NotificationPreferencePatch } from './notifications-settings-view'
 import type { PreferenceValues } from './notification-preference-saves'
-import { lowRatingWords } from './notification-inherited-defaults'
+import { lowRatingWords, spokenLowRatingWords } from './notification-inherited-defaults'
 import { named } from './notification-default-controls'
 
 const OFF = 'off'
@@ -42,6 +42,19 @@ const patchOf = (value: string): NotificationPreferencePatch =>
   value === OFF
     ? { enabled: false }
     : { enabled: true, maxRating: Number(value) as LowRatingThreshold }
+
+/**
+ * "3★ or lower" on screen and "3 stars or lower" read aloud — in the list and,
+ * since the select shows the chosen option's text, once chosen.
+ */
+function ThresholdWords({ threshold }: Readonly<{ threshold: LowRatingThreshold }>) {
+  return (
+    <>
+      <span aria-hidden="true">{lowRatingWords(threshold)}</span>
+      <span className="sr-only">{spokenLowRatingWords(threshold)}</span>
+    </>
+  )
+}
 
 export function LowRatingSelect({
   channel,
@@ -78,8 +91,12 @@ export function LowRatingSelect({
           <SelectGroup>
             <SelectItem value={OFF}>Off</SelectItem>
             {LOW_RATING_THRESHOLDS.map((threshold) => (
-              <SelectItem key={threshold} value={String(threshold)}>
-                {lowRatingWords(threshold)}
+              <SelectItem
+                key={threshold}
+                value={String(threshold)}
+                textValue={spokenLowRatingWords(threshold)}
+              >
+                <ThresholdWords threshold={threshold} />
               </SelectItem>
             ))}
           </SelectGroup>

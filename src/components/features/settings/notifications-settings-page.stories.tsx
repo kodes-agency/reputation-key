@@ -986,14 +986,19 @@ export const LowRatingsAskHowLow: Story = {
     ).toBeInTheDocument()
 
     await userEvent.click(row.getByRole('combobox', { name: 'Low ratings: By email' }))
-    const options = await within(document.body).findAllByRole('option')
-    expect(options.map((option) => option.textContent)).toEqual([
-      'Off',
-      '1★ only',
-      '2★ or lower',
-      '3★ or lower',
-      '4★ or lower',
-    ])
+    const list = within(document.body)
+    expect(await list.findAllByRole('option')).toHaveLength(5)
+    expect(list.getByRole('option', { name: 'Off' })).toBeVisible()
+    // Stars on screen, words when read aloud ("★" is spoken "black star").
+    for (const [shown, spoken] of [
+      ['1★ only', '1 star only'],
+      ['2★ or lower', '2 stars or lower'],
+      ['3★ or lower', '3 stars or lower'],
+      ['4★ or lower', '4 stars or lower'],
+    ]) {
+      const option = list.getByRole('option', { name: spoken })
+      expect(within(option).getByText(shown)).toBeVisible()
+    }
     await userEvent.keyboard('{Escape}')
   },
 }
@@ -1004,7 +1009,7 @@ export const ChoosingHowLowSavesIt: Story = {
     updatePreferenceMock.mockClear()
     const canvas = within(canvasElement)
 
-    await chooseLowRating(canvas, 'By email', '1★ only')
+    await chooseLowRating(canvas, 'By email', '1 star only')
     await waitFor(() =>
       expect(updatePreferenceMock).toHaveBeenCalledWith({
         data: {

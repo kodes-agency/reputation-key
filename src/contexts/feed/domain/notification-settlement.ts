@@ -158,9 +158,9 @@ const SETTLED_BY: Readonly<Record<SettlingFact, ReadonlyArray<NotificationType>>
  *
  * An assignment takes over the ARRIVAL it hands to its assignee ("New review"
  * becomes "Assigned to you: review"), so the bell shows one row for one piece
- * of work. Only an arrival, and only its row in the app: private feedback
- * rated 1-3 or unrated is Action needed, a guest concern that stays its own
- * notice (D4); an email-only anchor was never in the bell; and the arrival's
+ * of work. Only an arrival, and only its row in the app: a Low ratings notice
+ * and unrated private feedback (Action needed) stay their own notices; an
+ * email-only anchor was never in the bell; and the arrival's
  * email is cancelled only when the assignment sends one of its own, or the
  * reader would be left with no email about the item at all. It applies only
  * when the assignment is shown in the app, or the reader would be left with

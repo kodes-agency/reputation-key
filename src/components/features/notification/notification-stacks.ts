@@ -9,8 +9,8 @@
 //
 // Only kinds that are "more of the same" stack. A stack is never allowed to
 // hide one notice among others that ask less: the key carries the category,
-// so 2-star feedback (Action needed) never folds into a stack of 5-star
-// arrivals, and the waiting state, so a finished item never folds into work.
+// so low-rated reviews and feedback never fold into a stack of arrivals, and
+// the waiting state, so a finished item never folds into work.
 
 import {
   isStillWaiting,
