@@ -258,6 +258,11 @@ Each slice below lists: goal, scope, model changes, tests, gates beyond the stan
   - Every emitted `.css` file counts toward the closure (`scripts/check-bundle-budget.mjs:119,226`). The last measurement was 317,727 of 329,105 B, about 11.4 KB of headroom. Re-measure, and record the new figure in the script header.
 - **Depends on:** nothing (the v3 branch is inert until slice 19). **Size:** M.
 - **Risk:** font load order on app routes. **Owner:** no.
+- **Carried forward (from slice 7):**
+  - slice 19, or whichever slice first seeds a v3 fixture: the v3 guest journey calls `assertNoFontCdnRequests()` and asserts that `/fonts/guest/guest-fonts.css` and the preloaded pair are requested;
+  - the guest fonts have unversioned names and Nitro's static defaults (ETag, no max-age). A long immutable cache needs versioned paths (`/fonts/guest/v1/`) and a `Cache-Control: public, max-age=31536000, immutable` route rule;
+  - stock Android has neither Times New Roman nor Arial, so the size-adjusted fallbacks do nothing there. Add measured Noto Serif and Roboto fallback faces;
+  - slice 17's unavailable page and slice 30's live preview render the guest look without guest loader data: each links `GUEST_FONT_STYLESHEET` itself (or adds a route `staticData` flag).
 
 ### Phase 1: release A, snapshot v3 reader and content models
 
@@ -280,7 +285,8 @@ Each slice below lists: goal, scope, model changes, tests, gates beyond the stan
 - **Resolver:**
   - maps v3 into the extended `PublicPortalResult` (`application/public-api.ts`);
   - the guest `toPublicPortalLoaderData` allowlist is extended, and every new field goes into the resolved-configuration digest;
-  - `renderer: 'legacy' | 'immersive'` is derived from `schemaVersion`.
+  - `renderer: 'legacy' | 'immersive'` is derived from `schemaVersion`. Slice 7 already ships it as `guestSurface` on `PublicPortalResult` (`guestSurfaceOfConfiguration`, `schemaVersion >= 3`), and the guest fonts follow it; reuse that field rather than adding a second one.
+  - The verifier ties pack generation to schema, and a test fails if they can diverge: v3 requires generation 2 packs, v1/v2 generation 1. Nothing enforces this before this slice (only the hard-coded generation 1 checks in `resolve-public-portal-token.ts` and `portal-experience.ts`).
 - `portal-command-store.ts:781-795` writes the mirror columns from v3 correctly. It must never write `['en']` for a bg-primary portal.
 - `shortDescription` stays in v3 for `og:description` only and is never rendered. The owner can confirm (§5).
 - **No v3 writer in this slice.**

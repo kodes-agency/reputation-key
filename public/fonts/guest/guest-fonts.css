@@ -182,8 +182,8 @@
    so the swap moves neither the line breaks nor the page height. Metrics were
    measured from the woff2 files above against Times New Roman and Arial
    (average advance width over Latin letter frequencies, plus the hhea line
-   metrics); on platforms with neither, the browser continues down the
-   font-family list. */
+   metrics); on platforms with neither (stock Android ships Roboto and Noto
+   Serif), the browser continues down the font-family list unadjusted. */
 @font-face {
   font-family: 'Cormorant Garamond Fallback';
   src: local('Times New Roman'), local('TimesNewRoman'), local('Liberation Serif');

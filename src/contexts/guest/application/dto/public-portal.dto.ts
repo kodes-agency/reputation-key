@@ -1,6 +1,6 @@
 import type { GuestResponseView } from '../use-cases/guest-response-lifecycle'
 import type { PublicPortalResult } from '#/contexts/portal/application/public-api'
-import { guestFontSetForPack, type FontSet } from '#/shared/font-sets'
+import { fontSetForGuestSurface, type FontSet } from '#/shared/font-sets'
 
 // F066: Re-export ScanSource from domain/types instead of duplicating the union
 export type { ScanSource } from '../../domain/types'
@@ -45,9 +45,9 @@ export type PublicPortalLoaderData = Readonly<{
   localization: PublicPortalData['localization']
   /**
    * The web fonts the page loads. The root document reads it from the loader
-   * data to link the right stylesheets: 'guest' only for a portal published
-   * with a generation 2 language pack, so every portal live today keeps the
-   * app fonts.
+   * data to link the right stylesheets: 'guest' only for a portal on the
+   * Immersive Hub surface (snapshot schema v3), so every portal live today
+   * keeps the app fonts.
    */
   fontSet: FontSet
 }> &
@@ -83,7 +83,7 @@ export function toPublicPortalLoaderData(
       availableLocales: portal.localization.availableLocales,
       languagePackVersion: portal.localization.languagePackVersion,
     },
-    fontSet: guestFontSetForPack(portal.localization.languagePackVersion),
+    fontSet: fontSetForGuestSurface(portal.guestSurface),
     ...state,
   }
 }

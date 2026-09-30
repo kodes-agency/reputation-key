@@ -6,7 +6,7 @@ import {
   GUEST_FONT_STYLESHEET,
   fontSetLinks,
   fontSetOfMatches,
-  guestFontSetForPack,
+  fontSetForGuestSurface,
 } from './font-sets'
 
 const ROOT = join(import.meta.dirname, '..', '..')
@@ -36,21 +36,13 @@ describe('font set of a route match list', () => {
   })
 })
 
-describe('font set of a language pack', () => {
-  it('keeps every pack shipped today on the app fonts', () => {
-    expect(guestFontSetForPack('guest-ui-en-v1')).toBe('app')
-    expect(guestFontSetForPack('guest-ui-bg-v1')).toBe('app')
+describe('font set of a guest surface', () => {
+  it('keeps the legacy surface on the app fonts', () => {
+    expect(fontSetForGuestSurface('legacy')).toBe('app')
   })
 
-  it('moves a generation 2 pack to the guest fonts', () => {
-    const packs = {
-      en: { supported: [{ id: 'guest-ui-en-v2', generation: 2 }] },
-    } as const
-    expect(guestFontSetForPack('guest-ui-en-v2', packs)).toBe('guest')
-  })
-
-  it('falls back to the app fonts for a pack it does not know', () => {
-    expect(guestFontSetForPack('guest-ui-en-v9')).toBe('app')
+  it('moves the Immersive Hub to the guest fonts', () => {
+    expect(fontSetForGuestSurface('immersive')).toBe('guest')
   })
 })
 

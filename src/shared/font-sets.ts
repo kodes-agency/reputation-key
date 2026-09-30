@@ -9,14 +9,14 @@
 // into `<link>` tags. Both sets used to be `@import`ed by `styles.css`, which
 // made every page pay for the fonts of every other.
 //
+// A page with no guest loader data (the unavailable page, an admin live preview
+// of the guest look) does not go through this choice: it links
+// `GUEST_FONT_STYLESHEET` itself, as the Storybook story does. The choice below
+// is one set per document because `/p/$token` is the only route that makes it.
+//
 // Pure on purpose: no I/O, no framework import, so it is testable in node.
 
-import {
-  GUEST_LANGUAGE_PACKS,
-  GUEST_LOCALE_METADATA,
-  guestLanguagePackGeneration,
-  type GuestLocale,
-} from '#/shared/domain/guest-locale'
+import { GUEST_LOCALE_METADATA, type GuestLocale } from '#/shared/domain/guest-locale'
 
 export type FontSet = 'app' | 'guest'
 
@@ -76,17 +76,13 @@ export function fontSetOfMatches(
 }
 
 /**
- * The set a published portal is rendered with. Generation 2 language packs
- * belong to the Immersive Hub; every pack shipped today is generation 1, so
- * this answers 'app' for all existing guests. The publication verifier ties
- * pack generation to snapshot schema, which is why the pack id is enough to
- * tell a v3 snapshot from a v1/v2 one.
+ * The set a guest surface is rendered with. The surface comes from the
+ * snapshot's schema version, the same fact the renderer switches on, so the
+ * fonts and the page cannot disagree: the legacy page keeps the app fonts, the
+ * Immersive Hub gets the guest set. Every published snapshot is legacy today.
  */
-export function guestFontSetForPack(
-  languagePackVersion: string,
-  packs: Parameters<typeof guestLanguagePackGeneration>[1] = GUEST_LANGUAGE_PACKS,
-): FontSet {
-  return guestLanguagePackGeneration(languagePackVersion, packs) === 2 ? 'guest' : 'app'
+export function fontSetForGuestSurface(surface: 'legacy' | 'immersive'): FontSet {
+  return surface === 'immersive' ? 'guest' : 'app'
 }
 
 /** The `<link>` tags a set needs in the document head. */

@@ -217,6 +217,7 @@ describe('resolvePublicPortalToken', () => {
         },
         organizationId: 'org-1',
         propertyId: 'property-1',
+        guestSurface: 'legacy',
       },
     })
     expect(resolvePublication).toHaveBeenCalledWith(
@@ -373,6 +374,38 @@ describe('resolvePublicPortalToken', () => {
       propertyId('property-1'),
       portalId('portal-1'),
     )
+  })
+
+  it('keeps a schema version 2 snapshot on the legacy guest surface', async () => {
+    const harness = setup({
+      resolvePublication: vi.fn(async () => ({
+        token,
+        snapshot: buildLocalizedSnapshot(),
+      })),
+    })
+
+    await expect(harness.resolve('pt_key_secret')).resolves.toMatchObject({
+      status: 'found',
+      data: { guestSurface: 'legacy' },
+    })
+  })
+
+  it('reports the Immersive Hub surface from the snapshot schema, not from the language pack', async () => {
+    // No v3 snapshot exists until slice 8; this one is a v2 snapshot relabelled
+    // v3, still carrying generation 1 packs. The surface must follow the schema.
+    const localized = buildLocalizedSnapshot()
+    const relabelled = {
+      ...localized,
+      configuration: { ...localized.configuration, schemaVersion: 3 },
+    } as unknown as typeof localized
+    const harness = setup({
+      resolvePublication: vi.fn(async () => ({ token, snapshot: relabelled })),
+    })
+
+    await expect(harness.resolve('pt_key_secret')).resolves.toMatchObject({
+      status: 'found',
+      data: { guestSurface: 'immersive' },
+    })
   })
 
   it('honours Accept-Language q-values and never serves a locale outside the published set', async () => {

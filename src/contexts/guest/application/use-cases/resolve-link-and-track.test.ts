@@ -48,6 +48,7 @@ const portal = {
     languagePackVersion: 'guest-ui-en-v1',
     privateFeedbackThreshold: 3,
   },
+  guestSurface: 'legacy',
   organizationId: 'org-a',
   propertyId: 'property-p1',
 } as const

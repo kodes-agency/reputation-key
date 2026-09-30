@@ -38,6 +38,7 @@ const fakeData: PublicPortalData = {
     languagePackVersion: 'guest-ui-en-v1',
     privateFeedbackThreshold: 3,
   },
+  guestSurface: 'legacy',
   organizationId: 'org-1',
   propertyId: 'prop-1',
 }

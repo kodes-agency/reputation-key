@@ -477,12 +477,15 @@ export function attachErrorDetection(
  */
 export const test = base.extend({
   page: async ({ page }, use, testInfo) => {
-    // BQC-6.1 hermeticity: styles.css @imports font CSS from external CDNs
-    // (api.fontshare.com, fonts.googleapis.com — binaries from cdn.fontshare.com /
-    // fonts.gstatic.com). Tests must never depend on real network — fontshare
-    // returned 500 in CI once and gated a green suite (#274). Stub the four
-    // hosts with an empty stylesheet; glyph rendering is irrelevant to every
-    // assertion. Follow-up for the product: self-host the fonts.
+    // BQC-6.1 hermeticity: the app font set is linked by RootDocument from
+    // external CDNs (src/shared/font-sets.ts: api.fontshare.com,
+    // fonts.googleapis.com — binaries from cdn.fontshare.com / fonts.gstatic.com).
+    // Tests must never depend on real network — fontshare returned 500 in CI
+    // once and gated a green suite (#274). Stub the four hosts with an empty
+    // stylesheet; glyph rendering is irrelevant to every assertion. Guest
+    // (Immersive Hub) pages self-host their fonts under /fonts/guest and are
+    // not affected by this stub. Follow-up for the product: self-host the app
+    // fonts.
     //
     // The pattern is anchored at the scheme and terminated at the authority
     // delimiter so it matches the HOST and nothing else: an unanchored

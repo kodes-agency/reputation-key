@@ -16,6 +16,7 @@ import type {
 } from '../ports/portal-publication.repository'
 import type { PortalHealthRepository } from '../ports/portal-health.repository'
 import {
+  guestSurfaceOfConfiguration,
   isLocalizedConfiguration,
   type PortalGuestLocale,
   type PortalPublicationConfiguration,
@@ -329,6 +330,7 @@ export const resolvePublicPortalToken =
           languagePackVersion,
         },
         responseConfiguration,
+        guestSurface: guestSurfaceOfConfiguration(configuration),
         organizationId: snapshot.organizationId,
         propertyId: snapshot.propertyId,
       },

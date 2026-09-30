@@ -46,6 +46,7 @@ const portal: PublicPortalData = {
   },
   organizationId: 'org-secret-id',
   propertyId: 'property-secret-id',
+  guestSurface: 'legacy',
 }
 
 describe('public Portal loader projection', () => {
@@ -73,7 +74,7 @@ describe('public Portal loader projection', () => {
     expect(JSON.stringify(projected)).not.toContain('secret-sort')
   })
 
-  it('declares the app fonts for a portal published with a generation 1 pack', () => {
+  it('declares the app fonts for a portal on the legacy guest surface', () => {
     const projected = toPublicPortalLoaderData(portal, {
       guestSession: { csrfNonce: crypto.randomUUID() },
       response: null,
@@ -81,6 +82,20 @@ describe('public Portal loader projection', () => {
     })
 
     expect(projected.fontSet).toBe('app')
+  })
+
+  it('declares the guest fonts for a portal on the Immersive Hub surface', () => {
+    const projected = toPublicPortalLoaderData(
+      { ...portal, guestSurface: 'immersive' },
+      {
+        guestSession: { csrfNonce: crypto.randomUUID() },
+        response: null,
+        responseForm: { availability: 'available' },
+      },
+    )
+
+    expect(projected.fontSet).toBe('guest')
+    expect(projected).not.toHaveProperty('guestSurface')
   })
 
   it('cannot serialize a last-known Google URI in degraded state', () => {
