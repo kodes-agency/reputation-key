@@ -46,6 +46,7 @@ const COLLAPSED = 'inbox-replycomposer-collapsed--'
 const MOBILE_SHEET = 'inbox-mobile-390--'
 const DETAIL_SHEET = 'inbox-detail-sheet--'
 const DETAIL_PANEL = 'inbox-detail-panel--'
+const FILTER_SHEET = 'inbox-filter-sheet--'
 
 const REGION_GROUPS: ReadonlyArray<Group> = [
   // ── Region 2: the case toolbar ────────────────────────────────────────────
@@ -435,7 +436,7 @@ const REGION_GROUPS: ReadonlyArray<Group> = [
     prefix: DETAIL_SHEET,
     pane: PANE.sheet,
     widths: FOLLOWS_THE_WINDOW,
-    stories: ['open', 'loading', 'error-state'],
+    stories: ['open', 'phone-gutters', 'loading', 'error-state'],
   },
   {
     prefix: DETAIL_PANEL,
@@ -443,6 +444,31 @@ const REGION_GROUPS: ReadonlyArray<Group> = [
     widths: DESKTOP,
     stories: ['populated', 'loading', 'error-state'],
     withPrimary: ['populated'],
+  },
+  // ── The phone's filter sheet, not part of the detail pane ────────────────
+  // It is a bottom sheet over the list, and the only surface with 36 px choice
+  // chips, so it is held to rules 1-5 here (every chip a target, nothing
+  // overflowing, the footer in the window) and to the grid in
+  // `inbox-phone.metrics.ts`. Phones only: the header renders it below `md`.
+  // The stories that end with it CLOSED (`closed`, `active-count`,
+  // `results-button-closes-the-sheet`) have no pane to measure.
+  {
+    prefix: FILTER_SHEET,
+    pane: PANE.sheet,
+    widths: FOLLOWS_THE_WINDOW,
+    stories: [
+      'open',
+      'choose-source',
+      'choose-rating',
+      'arrow-keys-rove-the-group',
+      'choose-oldest',
+      'modifier-arrows-are-left-to-the-browser',
+      'clear-all',
+      'checked-chip-does-nothing',
+      'one-result',
+      'loading',
+      'no-results',
+    ],
   },
 ]
 

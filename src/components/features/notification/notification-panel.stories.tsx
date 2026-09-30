@@ -152,10 +152,16 @@ type Story = StoryObj<typeof NotificationPanel>
 export const Default: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(await canvas.findByRole('button', { name: counted })).toBeInTheDocument()
+    const bell = await canvas.findByRole('button', { name: counted })
+    expect(bell).toBeInTheDocument()
     expect(
       canvas.getByText(`${needsYouCount} notifications need you`),
     ).toBeInTheDocument()
+    // A 36 px control on a phone bar (size-8 elsewhere); geometry is the
+    // Playwright metrics gate's, since Tailwind is not compiled in this runner.
+    // This only pins the class; the real check is `inbox-phone-chrome.metrics.ts`
+    // ("notification bell").
+    expect(bell).toHaveClass('max-md:size-9')
   },
 }
 

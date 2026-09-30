@@ -73,8 +73,17 @@ export function BetaFeedbackLauncher({ submitFeedback, listFeedback }: Props) {
           starts with the visible word "Feedback" (WCAG 2.5.3), and the
           code-split marker can append "— 1 report updated" without the
           launcher carrying that state.
+
+          36 px tall below md. Where the label is hidden (below sm) the button
+          is a 36 px square: `max-sm:w-9`, not `max-sm:px-0`, because the
+          size's `has-[>svg]:px-2.5` outranks a breakpoint padding utility.
         */}
-        <Button type="button" variant="ghost" size="sm" className="relative gap-2">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="relative gap-2 max-md:h-9 max-sm:w-9"
+        >
           <MessageSquarePlus className="size-4" aria-hidden="true" />
           <span className="sr-only">Feedback: report a problem or share an idea</span>
           <span className="hidden sm:inline" aria-hidden="true">

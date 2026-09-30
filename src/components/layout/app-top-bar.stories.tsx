@@ -76,6 +76,11 @@ export const Default: Story = {
     const canvas = within(canvasElement)
     // User menu trigger shows the initials fallback (image is null).
     expect(await canvas.findByText(/^al$/i)).toBeInTheDocument()
+    // Every other page keeps its 52 px bar: only the inbox shrinks it to 44 px.
+    // A class pin: the real check is `inbox-phone-chrome.metrics.ts` ("app top bar").
+    const bar = canvasElement.querySelector('header')
+    expect(bar).toHaveClass('h-13')
+    expect(bar).not.toHaveClass('max-md:h-11')
   },
 }
 
@@ -116,8 +121,18 @@ export const SidebarLocked: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(await canvas.findByRole('button', { name: /toggle sidebar/i })).toHaveClass(
-      'md:hidden',
+    const trigger = await canvas.findByRole('button', { name: /toggle sidebar/i })
+    expect(trigger).toHaveClass('md:hidden')
+    // Phone grid: a 44 px bar, a 36 px trigger whose glyph (not its box) lands
+    // on the 16 px gutter, and the 28 px avatar's right edge on the gutter.
+    // Tailwind is not compiled in this runner, so the geometry itself is the
+    // Playwright metrics gate's; this pins the classes that produce it. The
+    // real check is `inbox-phone-chrome.metrics.ts` ("app top bar").
+    expect(canvasElement.querySelector('header')).toHaveClass('max-md:h-11')
+    expect(trigger).toHaveClass('max-md:size-9', 'max-md:-ml-2.5')
+    expect(canvas.getByRole('button', { name: 'Account menu' })).toHaveClass(
+      'max-md:size-9',
+      'max-md:-mr-1',
     )
   },
 }

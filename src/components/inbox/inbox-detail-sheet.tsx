@@ -89,11 +89,15 @@ export function InboxDetailSheet({
           column's own `scrollHeight === clientHeight` everywhere, so nothing
           double-scrolls, and `document.scrollWidth` never exceeds the viewport.
           At 768 px every `max-md:` treatment switches back off, which is how
-          the desktop density survives a shared header. */}
+          the desktop density survives a shared header.
+
+          `max-sm:border-l-0`: the sheet is the whole screen below `sm`, so the
+          primitive's 1 px `border-l` would be a stray line at x=0 and would
+          shift the 16 px gutter by 1 px. */}
       <SheetContent
         side="right"
         showCloseButton={false}
-        className="flex w-full flex-col gap-0 overflow-hidden sm:max-w-lg"
+        className="flex w-full flex-col gap-0 overflow-hidden max-sm:border-l-0 sm:max-w-lg"
       >
         <SheetHeader className="sr-only">
           <SheetTitle>
@@ -108,8 +112,8 @@ export function InboxDetailSheet({
             and no Escape key on a phone, so this control is the whole exit.
             `back`, not `close`: the row that opened this pushed a history entry
             (`inbox-state-helpers.ts:28`), so leaving is going back to the list,
-            and the arrow sits at the leading edge where the list's own drawer
-            trigger is. Nothing here is ever named exactly `Close`. */}
+            and the arrow's glyph sits on the 16 px gutter, the x the list's own
+            glyphs and text start at. Nothing here is ever named exactly `Close`. */}
         <InboxDetailHeader
           item={currentItem}
           detail={detailState.detail}

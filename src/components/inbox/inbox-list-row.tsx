@@ -41,9 +41,22 @@ function RowSelectionGutter({
   const label = selectionDisabled
     ? `Select item from ${view.name} (${INBOX_BULK_LIMIT} item limit reached)`
     : `Select item from ${view.name}`
+  const isSelecting = isChecked || selectionMode
 
   return (
-    <div className="relative mr-2 flex w-5 shrink-0 items-start justify-center pt-0.5">
+    <div
+      className={cn(
+        'relative mr-2 flex w-5 shrink-0 items-start justify-center pt-0.5',
+        // Phones select through the header's Select button, so at rest the
+        // gutter takes no width: the row text starts on the 16px gutter and the
+        // new dot sits centred in the row's left padding (row top padding 12px).
+        // While selecting, the checkbox's left edge sits on x=16, like the
+        // bulk bar's select-all.
+        isSelecting
+          ? 'max-md:justify-start'
+          : 'max-md:absolute max-md:top-3 max-md:left-0 max-md:mr-0 max-md:w-4',
+      )}
+    >
       {view.isNew && !isChecked && !selectionMode && (
         <span className="mt-1.5 size-2 rounded-full bg-foreground transition-opacity group-hover:opacity-0 group-focus-within:opacity-0">
           <span className="sr-only">New since your last visit</span>
@@ -53,8 +66,13 @@ function RowSelectionGutter({
         checked={isChecked}
         disabled={selectionDisabled}
         className={cn(
-          'absolute opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100',
-          (isChecked || selectionMode) && 'opacity-100',
+          // On a phone the after: box is a 40px tap target around the 16px
+          // checkbox. From md it is not wanted: desktop keeps the 16px target
+          // so it cannot overlap the open button beside it.
+          "absolute opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 max-md:after:absolute max-md:after:-inset-3 max-md:after:content-['']",
+          // On a touch screen the invisible checkbox would be a hidden tap
+          // target over the row text.
+          isSelecting ? 'opacity-100' : 'max-md:hidden',
         )}
         onCheckedChange={() => onToggleSelect(item.id)}
         aria-label={label}
@@ -68,19 +86,26 @@ function RowIdentity({
   view,
   allProperties,
 }: Pick<InboxListRowProps, 'item' | 'allProperties'> & Readonly<{ view: RowView }>) {
+  const showProperty = allProperties && Boolean(item.propertyName)
   return (
     <span className="flex h-[18px] min-w-0 items-center gap-1 text-[13px] leading-[18px]">
       {item.rating !== null ? (
         <>
-          <Star className={`size-3.5 ${STAR_FILLED_CLASS}`} aria-hidden="true" />
+          <Star className={`size-3.5 shrink-0 ${STAR_FILLED_CLASS}`} aria-hidden="true" />
           <span className="tabular-nums">{item.rating}</span>
         </>
       ) : item.sourceType === 'feedback' ? (
-        <MessageSquareText className="size-3.5" aria-hidden="true" />
+        <MessageSquareText className="size-3.5 shrink-0" aria-hidden="true" />
       ) : null}
-      <span className="truncate font-medium">{view.name}</span>
-      {allProperties && item.propertyName && (
-        <span className="truncate text-muted-foreground">· {item.propertyName}</span>
+      {/* The guest name is what the row is about, so the PROPERTY is what is
+          capped: it takes at most 40% of the line, and the name keeps the rest
+          and truncates only when it alone does not fit. Capping the name
+          instead made a short property force a long name to truncate. */}
+      <span className="min-w-0 truncate font-medium">{view.name}</span>
+      {showProperty && (
+        <span className="max-w-[40%] shrink-0 truncate text-muted-foreground">
+          · {item.propertyName}
+        </span>
       )}
     </span>
   )
@@ -194,7 +219,7 @@ export function InboxListRow({
       role="listitem"
       data-inbox-list-row
       className={cn(
-        'group flex h-[78px] overflow-hidden border-b px-3 py-3 transition-colors hover:bg-accent/40',
+        'group relative flex h-[78px] overflow-hidden border-b px-3 py-3 transition-colors hover:bg-accent/40 max-md:px-4',
         (isActive || isChecked) && 'bg-accent',
       )}
     >

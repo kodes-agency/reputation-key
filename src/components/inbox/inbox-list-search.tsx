@@ -31,10 +31,19 @@ export function InboxListSearch({
           if (event.key === 'Escape') close()
         }}
       />
-      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-        {totalCount} matches
-      </span>
-      <Button variant="ghost" size="icon-sm" onClick={close} aria-label="Close search">
+      {value ? (
+        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+          {totalCount} matches
+        </span>
+      ) : null}
+      {/* 36px on phones, pulled out 10px so the 16px X glyph sits on the right gutter. */}
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        className="max-md:-mr-2.5 max-md:size-9"
+        onClick={close}
+        aria-label="Close search"
+      >
         <X />
       </Button>
     </div>

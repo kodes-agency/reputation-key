@@ -103,6 +103,9 @@ export function InboxBulkActions({
     <div className="flex min-w-0 flex-1 items-center gap-2">
       <Checkbox
         checked={allSelectableSelected ? true : 'indeterminate'}
+        // On a phone the after: box is a 40px tap target around the 16px
+        // checkbox; desktop keeps the 16px one.
+        className="max-md:relative max-md:after:absolute max-md:after:-inset-3 max-md:after:content-['']"
         onCheckedChange={(checked) =>
           checked === true ? onSelectAll() : onClearSelection()
         }
@@ -147,9 +150,11 @@ export function InboxBulkActions({
             </Button>
           </InboxReopenDialog>
         </ButtonGroup>
+        {/* 36px on phones, pulled out 10px so the 16px X glyph sits on the right gutter. */}
         <Button
           variant="ghost"
           size="icon-sm"
+          className="max-md:-mr-2.5 max-md:size-9"
           onClick={onClearSelection}
           aria-label="Clear selection"
         >

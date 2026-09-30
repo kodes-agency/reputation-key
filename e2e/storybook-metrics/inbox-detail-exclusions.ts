@@ -128,12 +128,19 @@ export const EXCLUDED_STORIES: Readonly<Record<string, string>> = {
     'no item is open: the page shows only the list panel',
   'pages-inbox--property-scoped-load-preserves-organization-watermark':
     'no item is open: the page shows only the list panel',
-  'pages-inbox--loading': 'no item is open: the page shows only the list panel',
+  'pages-inbox--loading':
+    'no item is open: the page shows only the list panel; its phone skeleton rows are measured on the grid by inbox-phone.metrics.ts',
   'pages-inbox--property-scope':
     'no item is open: the page shows the rail and the list panel; the rail is measured by Inbox/Queue Rail',
   'pages-inbox--long-content': 'no item is open: the page shows only the list panel',
   'pages-inbox--mobile-viewport':
-    'no item is open: the phone list with its folders drawer; the detail sheet is measured by Inbox/Mobile 390',
+    'no item is open, and its play drives the phone layout (queue strip, Select items), which throws at 1440: the phone list (header, queue strip, rows) is measured on the grid by inbox-phone.metrics.ts at 320 and 390; the detail sheet by Inbox/Mobile 390',
+  'pages-inbox--mobile-filtered-viewport':
+    'no item is open, and it is a phone story: the list with its active-filter chips is measured on the grid by inbox-phone.metrics.ts at 320 and 390',
+  'pages-inbox--mobile-removing-every-filter':
+    'ends with every filter removed, so its last frame is pages-inbox--mobile-viewport again; that page is measured by inbox-phone.metrics.ts',
+  'pages-inbox--mobile-clear-all-filters':
+    'ends with the filters cleared, so its last frame is pages-inbox--mobile-viewport again; that page is measured by inbox-phone.metrics.ts',
   'pages-inbox--tablet-viewport':
     "its own window is 768 px, which the harness never loads (320, 390, 1440): at 320 and 390 it is pages-inbox--mobile-viewport again, and at 1440 its play (the compact layout's Select items button) throws, so the tablet composition is the page's own play",
   'inbox-escalation-shortcut--detail-loading':

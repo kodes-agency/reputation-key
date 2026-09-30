@@ -183,7 +183,7 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
     <Button
       variant="ghost"
       size="icon-sm"
-      className="relative"
+      className="relative max-md:size-9"
       onPointerEnter={preloadPopoverContent}
       onFocus={preloadPopoverContent}
       aria-label={`Notifications${count > 0 ? `, ${count} ${count === 1 ? 'needs' : 'need'} you` : ''}`}

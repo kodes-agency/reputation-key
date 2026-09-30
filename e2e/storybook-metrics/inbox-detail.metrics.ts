@@ -66,7 +66,7 @@ import {
   type StoryWidth,
 } from './inbox-detail-stories'
 import { expandDisclosures, probeLayers } from './layer-probe'
-import { measurePane } from './pane-metrics'
+import { PHONE_BELOW_PX, measurePane } from './pane-metrics'
 import { openStory } from './storybook-story'
 import {
   expansionViolations,
@@ -84,6 +84,13 @@ const WORKSPACE_METRIC_TITLES = new Set([
   'Inbox/Visit Badge',
   'Inbox/List Header',
   'Inbox/Queue Rail',
+  // Where these sit on a phone (16 px gutter, 44/36/32 px heights) is
+  // `inbox-phone.metrics.ts`'s; its `Inbox/Filter Sheet` stories that end open
+  // are also groups in `inbox-detail-stories.ts`, for rules 1-5.
+  'Inbox/Active Filters',
+  'Inbox/Filter Sheet',
+  'Inbox/List Search',
+  'Inbox/Queue Strip',
 ])
 const LIST_STORIES = [
   'default',
@@ -104,6 +111,14 @@ const HEADER_STORIES = [
   'all-properties',
   'compact-property-select',
 ] as const
+/**
+ * Stories whose play drives the md+ controls (the Sort combobox, the checkbox
+ * shown at rest), which a phone does not render: it sorts in the filter sheet
+ * and selects from the header's Select button. On a phone their counterparts
+ * are `inbox-list-header--phone-*` and `inbox-item-list--selecting-phone`,
+ * measured in `inbox-phone.metrics.ts`.
+ */
+const FROM_MD_ONLY = new Set(['resting', 'select-row'])
 const RAIL_STORIES = [
   'manager',
   'member',
@@ -196,7 +211,9 @@ test.describe('workspace list geometry', () => {
     test.describe(`${width} px`, () => {
       test.use({ viewport: VIEWPORTS[width] })
 
-      for (const story of LIST_STORIES) {
+      for (const story of LIST_STORIES.filter(
+        (name) => width >= PHONE_BELOW_PX || !FROM_MD_ONLY.has(name),
+      )) {
         test(`inbox-item-list--${story} keeps 78 px rows`, async ({ page }) => {
           await openStory(page, `inbox-item-list--${story}`)
           const heights = await page
@@ -207,13 +224,15 @@ test.describe('workspace list geometry', () => {
         })
       }
 
-      for (const story of HEADER_STORIES) {
+      for (const story of HEADER_STORIES.filter(
+        (name) => width >= PHONE_BELOW_PX || !FROM_MD_ONLY.has(name),
+      )) {
         test(`inbox-list-header--${story} keeps its header height`, async ({ page }) => {
           await openStory(page, `inbox-list-header--${story}`)
           const height = await page
             .locator('[data-inbox-list-header]')
             .evaluate((header) => header.getBoundingClientRect().height)
-          expect(height).toBe(width < 768 ? 44 : 56)
+          expect(height).toBe(width < PHONE_BELOW_PX ? 44 : 56)
         })
       }
     })

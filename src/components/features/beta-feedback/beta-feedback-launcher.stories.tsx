@@ -119,6 +119,16 @@ function submittedData(): Record<string, unknown> {
 
 export const Default: Story = {
   args: { submitFeedback: successfulSubmission, listFeedback },
+  play: async ({ canvasElement }) => {
+    const trigger = await within(canvasElement).findByRole('button', {
+      name: /feedback/i,
+    })
+    // 36 px tall below md, and a 36 px square where the "Feedback" label is
+    // hidden (below sm). Tailwind is not compiled in this runner, so the
+    // geometry is the Playwright metrics gate's; this pins the classes. The
+    // real check is `inbox-phone-chrome.metrics.ts` ("feedback launcher").
+    expect(trigger).toHaveClass('max-md:h-9', 'max-sm:w-9')
+  },
 }
 
 export const PrivacyAndValidation: Story = {

@@ -22,6 +22,7 @@ import {
 } from './inbox-page-parts'
 import { InboxDetailSheet } from './inbox-detail-sheet'
 import type { InboxAssignmentOption } from './inbox-owner-view'
+import { CLEARED_INBOX_LIST_FILTERS } from './inbox-filters'
 import { InboxQueueRail } from './inbox-queue-rail'
 import { InboxQueueStrip } from './inbox-queue-strip'
 import { InboxShortcutsDialog } from './inbox-shortcuts-dialog'
@@ -110,6 +111,18 @@ export function InboxPageV2({
       }),
     onSortChange: (sort) =>
       onNavigate({ to: '.', search: (p) => ({ ...p, sort, itemId: undefined }) }),
+    // One navigation, so one history entry: an absent `sort` is the newest
+    // first default (`search.sort ?? 'newest'` above).
+    onClearAll: () =>
+      onNavigate({
+        to: '.',
+        search: (p) => ({
+          ...p,
+          ...CLEARED_INBOX_LIST_FILTERS,
+          sort: undefined,
+          itemId: undefined,
+        }),
+      }),
     onToggleSelect: s.handleToggleSelect,
     onSelectAll: s.handleSelectAll,
     onDeselectAll: () => {

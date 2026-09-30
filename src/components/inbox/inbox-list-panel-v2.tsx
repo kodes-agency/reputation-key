@@ -2,6 +2,8 @@
 // Header + bulk bar + scroll area (content + load-more). Presentational parts
 // live in inbox-list-panel-parts.tsx.
 
+import { useIsMobile } from '#/components/hooks/use-mobile'
+import { InboxActiveFilters } from '#/components/inbox/inbox-active-filters'
 import { InboxListHeader } from '#/components/inbox/inbox-list-header'
 import {
   BulkActionBar,
@@ -30,6 +32,7 @@ export function InboxListPanel(props: InboxListPanelProps) {
     onSearchChange,
     onFiltersChange,
     onSortChange,
+    onClearAll,
     onSelectAll,
     onDeselectAll,
     onBulkDone,
@@ -41,9 +44,15 @@ export function InboxListPanel(props: InboxListPanelProps) {
     onStartSelection,
     queueStrip,
   } = props
+  const isMobile = useIsMobile()
 
   return (
-    <div className="flex h-full flex-col overflow-hidden border-r">
+    // The panel is the whole screen on a phone: a right border would be a 1px
+    // line at the screen edge that makes every bar 1px narrower.
+    <div
+      data-inbox-list-panel
+      className="flex h-full flex-col overflow-hidden border-r max-md:border-r-0"
+    >
       <InboxListHeader
         queueLabel={queueLabel}
         scopeLabel={scopeLabel}
@@ -54,7 +63,9 @@ export function InboxListPanel(props: InboxListPanelProps) {
         filters={filters}
         onFiltersChange={onFiltersChange}
         sort={sort}
+        isLoading={isLoading}
         onSortChange={onSortChange}
+        onClearAll={onClearAll}
         onStartSelection={onStartSelection}
         isCompactLayout={isCompactLayout}
         selectionToolbar={
@@ -73,6 +84,16 @@ export function InboxListPanel(props: InboxListPanelProps) {
         }
       />
       {queueStrip}
+      {/* Phone only, so it appears on hydration: `useIsMobile` is false on the server. */}
+      {isMobile && (
+        <InboxActiveFilters
+          filters={filters}
+          sort={sort}
+          onFiltersChange={onFiltersChange}
+          onSortChange={onSortChange}
+          onClearAll={onClearAll}
+        />
+      )}
       <div ref={listRef} className="flex-1 overflow-y-auto min-h-0">
         {renderListContent(props)}
         <LoadMoreButton
