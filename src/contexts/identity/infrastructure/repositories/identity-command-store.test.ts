@@ -67,6 +67,11 @@ async function truncateAll(p: Pool) {
   // Triggers disabled: guard_last_owner (deployed last-owner backstop) blocks
   // deleting an org's final owner row, including fixture teardown.
   await withLastOwnerGuardDisabled(p, async (client) => {
+    // First: deleting a member whose Google connection is still active fires
+    // the connector-departure trigger, which records a fact.
+    await client.query('DELETE FROM google_connections WHERE organization_id = $1', [
+      ORG_ID,
+    ])
     await client.query('DELETE FROM session WHERE "userId" IN ($1, $2)', [
       INVITER_ID,
       ACCEPTOR_ID,
@@ -742,5 +747,93 @@ describe.sequential('identityCommandStore (integration)', () => {
       [ORG_ID],
     )
     expect(facts.rows).toHaveLength(1)
+  })
+
+  // The member row's connector-departure trigger fences a demoted
+  // AccountAdmin's Google connection inside the demotion's own transaction, so
+  // updateMemberRole converges the connector only after the store commits.
+  const CONNECTION_A = '00000000-0000-4000-8000-0000000000a1'
+  const CONNECTION_B = '00000000-0000-4000-8000-0000000000b1'
+
+  const seedGoogleConnection = (connectionId: string, connectorUserId: string) =>
+    pool.query(
+      `INSERT INTO google_connections (
+         id, organization_id, google_subject, encrypted_access_token,
+         encrypted_refresh_token, token_expires_at, scopes, connected_by
+       )
+       VALUES (
+         $1::uuid, $2, $3, 'encrypted-access', 'encrypted-refresh',
+         NOW() + interval '1 hour',
+         ARRAY['https://www.googleapis.com/auth/business.manage']::text[], $4
+       )`,
+      [connectionId, ORG_ID, `subject-${connectionId}`, connectorUserId],
+    )
+
+  const connectionStates = async () =>
+    (
+      await pool.query(
+        `SELECT connected_by, status, status_reason FROM google_connections
+         WHERE organization_id = $1 ORDER BY connected_by`,
+        [ORG_ID],
+      )
+    ).rows
+
+  const reauthorizationFacts = async () =>
+    (
+      await pool.query(
+        `SELECT payload FROM outbox_events
+         WHERE organization_id = $1
+           AND event_type = 'integration.google_account.reauthorization_required'`,
+        [ORG_ID],
+      )
+    ).rows
+
+  it("changeMemberRole fences the demoted AccountAdmin's Google connection in the same transaction", async () => {
+    await seedTwoOwners()
+    await seedGoogleConnection(CONNECTION_A, INVITER_ID)
+    await seedGoogleConnection(CONNECTION_B, ACCEPTOR_ID)
+
+    await demoteOwner('member-idcmd-owner-b', ACCEPTOR_ID)
+
+    // Ordered by connector: the acceptor ('user-idcmd-a…') before the inviter.
+    expect(await connectionStates()).toEqual([
+      {
+        connected_by: ACCEPTOR_ID,
+        status: 'reauth_required',
+        status_reason: 'connector_departure_account_admin_role_lost',
+      },
+      { connected_by: INVITER_ID, status: 'active', status_reason: null },
+    ])
+    expect(await reauthorizationFacts()).toEqual([
+      {
+        payload: expect.objectContaining({
+          connectionId: CONNECTION_B,
+          cause: 'account_admin_role_lost',
+        }),
+      },
+    ])
+  })
+
+  it("a refused concurrent demotion leaves the remaining AccountAdmin's Google connection active", async () => {
+    await seedTwoOwners()
+    await seedGoogleConnection(CONNECTION_A, INVITER_ID)
+    await seedGoogleConnection(CONNECTION_B, ACCEPTOR_ID)
+
+    await Promise.allSettled([
+      demoteOwner('member-idcmd-owner-a', INVITER_ID),
+      demoteOwner('member-idcmd-owner-b', ACCEPTOR_ID),
+    ])
+
+    const owner = await pool.query<{ userId: string }>(
+      `SELECT "userId" FROM member WHERE "organizationId" = $1 AND role = 'owner'`,
+      [ORG_ID],
+    )
+    const remainingOwner = owner.rows[0]?.userId
+    const states = await connectionStates()
+    expect(states.filter((row) => row.status === 'active')).toEqual([
+      { connected_by: remainingOwner, status: 'active', status_reason: null },
+    ])
+    expect(states.filter((row) => row.status === 'reauth_required')).toHaveLength(1)
+    expect(await reauthorizationFacts()).toHaveLength(1)
   })
 })

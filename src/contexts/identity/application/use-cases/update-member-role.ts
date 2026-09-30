@@ -28,7 +28,10 @@ export type UpdateMemberRoleDeps = Readonly<{
     userId: string,
     actorId: string,
   ) => Promise<void>
-  /** Fence current OAuth authority before an AccountAdmin role is lost. */
+  /**
+   * Converge a demoted AccountAdmin's Google connector once the demotion has
+   * committed: cancel the imports of the connections it authorized.
+   */
   prepareGoogleConnectorDeparture?: (
     organizationId: string,
     userId: string,
@@ -47,7 +50,9 @@ export type UpdateMemberRole = ReturnType<typeof updateMemberRole>
  *    no self-change, no same-role change, then the last-owner UX guard (the
  *    command store re-enforces it under the org advisory lock)
  * 4. Persist — command store: role update + role_changed fact, atomic
- * 5. Return
+ * 5. Converge — reconcile Responsible Manager eligibility, then, for a demoted
+ *    AccountAdmin, the Google connector they authorized
+ * 6. Return
  */
 export const updateMemberRole =
   (deps: UpdateMemberRoleDeps) =>
@@ -86,7 +91,9 @@ export const updateMemberRole =
     // role string so a multi-role owner ('owner,editor') still counts as an owner
     // even though its built-in Role is null. The command store re-checks this
     // under the advisory lock (TOCTOU backstop).
-    if (isOwnerToken(targetMember.rawRole) && input.role !== ADMIN_ROLE) {
+    const demotesAccountAdmin =
+      isOwnerToken(targetMember.rawRole) && input.role !== ADMIN_ROLE
+    if (demotesAccountAdmin) {
       const members = await deps.identity.listMembers(ctx)
       const ownerCount = members.filter((m) => isOwnerToken(m.rawRole)).length
       if (ownerCount <= 1) {
@@ -95,14 +102,6 @@ export const updateMemberRole =
           'Cannot demote the last admin of the organization',
         )
       }
-    }
-
-    if (isOwnerToken(targetMember.rawRole) && input.role !== ADMIN_ROLE) {
-      await deps.prepareGoogleConnectorDeparture?.(
-        ctx.organizationId,
-        targetMember.userId,
-        'account_admin_role_lost',
-      )
     }
 
     // 4. Persist + fact — atomic via the command store
@@ -119,11 +118,26 @@ export const updateMemberRole =
         occurredAt: deps.clock(),
       }),
     })
+
+    // 5. Converge, only now that the demotion is known to have won: a store
+    // refusal (another AccountAdmin's concurrent demotion taking the last-owner
+    // slot, a removed member) must leave the connector and its imports alone.
+    // Provider use is not left open meanwhile — the member row's trigger fenced
+    // the connector in the role change's own transaction — so what remains is
+    // cancelling imports a reauth_required connection can no longer run. That
+    // is why the Responsible Manager reconcile goes first.
     await deps.reconcileResponsibleManagerEligibility?.(
       ctx.organizationId,
       targetMember.userId,
       ctx.userId,
     )
+    if (demotesAccountAdmin) {
+      await deps.prepareGoogleConnectorDeparture?.(
+        ctx.organizationId,
+        targetMember.userId,
+        'account_admin_role_lost',
+      )
+    }
 
     return { success: true }
   }
