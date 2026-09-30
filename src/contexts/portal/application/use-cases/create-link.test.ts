@@ -390,6 +390,16 @@ describe('createLink', () => {
       expect(portalLinkRepo.allCategories()).toHaveLength(2)
     })
 
+    it('refuses an empty label without starting a category', async () => {
+      const { useCase, portalRepo, portalLinkRepo } = setup()
+      portalRepo.seed([buildTestPortal({})])
+
+      await expect(useCase({ ...base, label: '  ' }, ctx())).rejects.toSatisfy(
+        (error: unknown) => isPortalError(error) && error.code === 'invalid_label',
+      )
+      expect(portalLinkRepo.allCategories()).toEqual([])
+    })
+
     it('still refuses a fifth link without leaving a category behind', async () => {
       const { useCase, portalRepo, portalLinkRepo } = setup()
       portalRepo.seed([buildTestPortal({})])

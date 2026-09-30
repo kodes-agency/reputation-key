@@ -300,12 +300,3 @@ export const saveLinktreeSettings = createServerFn({ method: 'POST' })
       'portalLink.saveLinktreeSettings',
     ),
   )
-
-// ── Re-exports from split files ────────────────────────────────────
-
-export {
-  createLinkCategory,
-  updateLinkCategory,
-  deleteLinkCategory,
-  reorderCategories,
-} from './portal-link-categories'

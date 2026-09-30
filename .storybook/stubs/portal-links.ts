@@ -25,7 +25,3 @@ export const savePortalLinkTexts = noop
 export const saveLinktreeSettings = noop
 export const listPortalLinks = async () => ({ categories: [], links: [] })
 export const getPortalLinktree = noop
-export const createLinkCategory = noop
-export const updateLinkCategory = noop
-export const deleteLinkCategory = noop
-export const reorderCategories = noop

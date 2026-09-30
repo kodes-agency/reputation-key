@@ -147,7 +147,11 @@ export function LinkTree({ view, mutations, memberNames, canEdit }: Props) {
               primaryLocale={view.primaryLocale}
               locales={view.locales}
               isOpen={openId === link.id}
-              onToggle={() => setOpenId(openId === link.id ? null : link.id)}
+              onToggle={() => {
+                // Closing a tile writes what was typed in it first.
+                void autosave.flush()
+                setOpenId(openId === link.id ? null : link.id)
+              }}
               canEdit={canEdit}
               canMoveUp={planLinkMove(view.links, link.id, 'up') !== null}
               canMoveDown={planLinkMove(view.links, link.id, 'down') !== null}

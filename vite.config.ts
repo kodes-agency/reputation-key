@@ -139,12 +139,6 @@ const config = defineConfig(({ mode }) => {
                     priority: 30,
                     includeDependenciesRecursively: false,
                   },
-                  {
-                    name: 'vendor-dnd',
-                    test: /node_modules[\\/]@dnd-kit/,
-                    priority: 30,
-                    includeDependenciesRecursively: false,
-                  },
                   // Components intentionally use Rolldown's default route-aware
                   // splitting. A broad `/src/components/` group re-joins eager
                   // route-validation leaves with their lazy feature trees.

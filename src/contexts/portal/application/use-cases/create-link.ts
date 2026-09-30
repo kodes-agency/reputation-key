@@ -4,6 +4,7 @@ import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { Portal, PortalLink, PortalLinkCategory } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalError } from '../../domain/errors'
+import { validateLinkIconKey, validateLinkLabel } from '../../domain/rules'
 import { buildPortalLink } from '../../domain/constructors'
 import {
   DEFAULT_LINK_CATEGORY_TITLE,
@@ -110,6 +111,15 @@ export const createLink =
     )
     if (!hasRoomForAnotherLink(linksOfPortal.length)) {
       throw portalError('link_limit_reached', 'A Portal can carry at most four links')
+    }
+
+    // What a link must say for itself is checked before anything is written, so
+    // a refused link cannot leave a category behind.
+    for (const check of [
+      validateLinkLabel(input.label),
+      validateLinkIconKey(input.iconKey),
+    ]) {
+      if (check.isErr()) throw check.error
     }
 
     const destination = await resolveApprovedPortalDestination(
