@@ -63,4 +63,33 @@ describe('SegmentedControl', () => {
     expect(html).not.toContain('aria-label="30')
     expect(html).toContain('>30 days<')
   })
+
+  it('draws the chosen segment as the boards do: card white, a control-grade ring, a drop', () => {
+    const html = render('en')
+
+    expect(html).toContain('data-[state=checked]:bg-card')
+    expect(html).toContain(
+      'data-[state=checked]:shadow-[0_0_0_1px_var(--border-control),0_1px_2px_rgb(0_0_0/0.1)]',
+    )
+    expect(html).toContain('dark:data-[state=checked]:bg-input/30')
+    expect(html).not.toContain('data-[state=checked]:bg-background')
+  })
+
+  it('leaves the arrow orientation to the radio-group default so Up and Down move the choice too', () => {
+    expect(render('en')).not.toContain('aria-orientation')
+  })
+
+  it('can be named by a visible label instead of an aria-label', () => {
+    const html = renderToStaticMarkup(
+      createElement(SegmentedControl, {
+        'aria-labelledby': 'print-side-label',
+        value: 'front',
+        onValueChange: () => undefined,
+        options: [{ value: 'front', label: 'Front' }],
+      }),
+    )
+
+    expect(html).toContain('aria-labelledby="print-side-label"')
+    expect(html).not.toContain('aria-label=')
+  })
 })

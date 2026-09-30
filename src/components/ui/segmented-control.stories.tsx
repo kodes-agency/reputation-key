@@ -89,7 +89,10 @@ export const ArrowKeys: Story = {
     // received it only while the arrow is still held. A real key press lasts
     // tens of milliseconds; `userEvent.keyboard('{ArrowRight}')` releases it in
     // the same tick, so the key is held until focus has arrived.
-    async function arrowTo(key: 'ArrowRight' | 'ArrowLeft', name: string) {
+    async function arrowTo(
+      key: 'ArrowRight' | 'ArrowLeft' | 'ArrowUp' | 'ArrowDown',
+      name: string,
+    ) {
       await userEvent.keyboard(`{${key}>}`)
       await waitFor(() => expect(canvas.getByRole('radio', { name })).toHaveFocus())
       await userEvent.keyboard(`{/${key}}`)
@@ -103,6 +106,9 @@ export const ArrowKeys: Story = {
     // And past the end it wraps to the first.
     await arrowTo('ArrowRight', 'EN English')
     await arrowTo('ArrowLeft', 'DE German')
+    // Up and Down step the choice as well (the radio-group pattern), and skip Spanish.
+    await arrowTo('ArrowUp', 'BG Bulgarian')
+    await arrowTo('ArrowDown', 'DE German')
   },
 }
 

@@ -1,5 +1,6 @@
-// The two looks a member of the case toolbar's `ButtonGroup` can wear (plan
-// v2.1 row 2), in one place so the three members cannot drift apart.
+// The case toolbar's control geometry and the edge rules that keep a control's
+// own border beside a fact (plan v2.1 row 2), in one place so the three members
+// cannot drift apart. The fact itself (`Fact`) now lives in `ui/fact.tsx`.
 //
 // Why this module exists. PR 2's first cut drew every no-move member as
 // `ButtonGroupText` with the primitive's own box — `rounded-md border bg-muted

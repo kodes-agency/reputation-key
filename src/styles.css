@@ -32,6 +32,10 @@
   --surface-elevated: oklch(1 0.004 270);
   --border: oklch(0.9 0.006 270);
   --border-strong: oklch(0.78 0.008 270);
+  /* The ring around a chosen segment and other control edges that must read as a
+     shape (WCAG 1.4.11, 3:1): 3.3:1 on --muted, 3.6:1 on --card. --border-strong
+     is a divider and is too light for that. The round-4 boards draw it #85878d. */
+  --border-control: oklch(0.62 0.008 270);
 
   /* Text tokens */
   --text-primary: oklch(0.18 0.008 270);
@@ -136,6 +140,8 @@
   --surface-elevated: oklch(0.22 0.012 270);
   --border: oklch(0.28 0.012 270);
   --border-strong: oklch(0.38 0.014 270);
+  /* 3.1:1 on --muted (0.22). */
+  --border-control: oklch(0.56 0.012 270);
 
   /* Text tokens */
   --text-primary: oklch(0.93 0.008 270);
@@ -246,6 +252,7 @@
      `fill-current`, so the one utility paints both outline and fill. */
   --color-rating: var(--rating);
   --color-border: var(--border);
+  --color-border-control: var(--border-control);
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-chart-1: var(--chart-1);

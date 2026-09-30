@@ -34,7 +34,10 @@ type Props = Readonly<{
    * for them, so a holder the directory cannot name is not drawn as "free".
    */
   isAssigned?: boolean
-  /** Extra classes for the disc. The fallback glyph takes none. */
+  /**
+   * Extra classes for the disc. The fallback glyph takes none. A stack of discs
+   * (the boards' responsible managers) passes `-ml-px ring-2 ring-card`.
+   */
   className?: string
 }>
 
@@ -61,7 +64,7 @@ export function OwnerDisc({
       aria-hidden="true"
       data-slot="owner-disc"
       className={cn(
-        'flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] leading-none font-semibold',
+        'flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] leading-none font-medium',
         DISC_TONE[tone],
         className,
       )}

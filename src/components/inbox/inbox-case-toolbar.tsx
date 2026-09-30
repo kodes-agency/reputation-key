@@ -362,7 +362,7 @@ function ReplyDueDetail({
  * escalation, in that order — then the reply-due detail on the trailing edge.
  * Row 2's rule is what the file is for: a control is an outlined button inside
  * the group, a fact is plain text with a glyph and no box (`Fact`, in
- * `inbox-case-member.tsx`, with the group's edge rules beside it), and a detail
+ * `ui/fact.tsx`, with the group's edge rules in `inbox-case-member.tsx`), and a detail
  * is that text with a dotted underline. Nothing here is a pill any
  * more; `INBOX_CHIP_TRIGGER_CLASS` is deleted, and `INBOX_CHIP_STATIC_CLASS`
  * now lives in `inbox-chip.ts` for the two thread chips that genuinely remain.
