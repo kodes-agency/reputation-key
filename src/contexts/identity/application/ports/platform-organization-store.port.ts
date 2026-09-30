@@ -40,7 +40,10 @@ export type PlatformOrganizationRow = Readonly<{
   accountAdminCount: number
   /** Invitations of any role stored 'pending' and not past expiry at `now`. */
   pendingInvitationCount: number
-  /** Newest first. */
+  /**
+   * Newest first, and only while the Organization has no AccountAdmin: the
+   * store never reads an administered Organization's invitee addresses.
+   */
   adminInvitations: ReadonlyArray<PlatformAdminInvitationRow>
 }>
 
@@ -50,7 +53,10 @@ export type OrganizationAdministration = Readonly<{
   name: string
   lifecycleState: OrganizationLifecycleState
   accountAdminCount: number
-  /** Ids of its open AccountAdmin invitations — the only ones the console touches. */
+  /**
+   * Ids of its open AccountAdmin invitations — the only ones the console
+   * touches; empty once it has an AccountAdmin.
+   */
   openAdminInvitationIds: ReadonlyArray<InvitationId>
 }>
 
