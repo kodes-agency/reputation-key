@@ -47,7 +47,58 @@ const portal: PublicPortalData = {
   organizationId: 'org-secret-id',
   propertyId: 'property-secret-id',
   guestSurface: 'legacy',
+  immersive: null,
 }
+
+const immersivePortal: PublicPortalData = {
+  ...portal,
+  guestSurface: 'immersive',
+  localization: {
+    selectedLocale: 'bg',
+    primaryLocale: 'en',
+    availableLocales: ['en', 'bg'],
+    languagePackVersion: 'guest-ui-bg-v2',
+  },
+  immersive: {
+    timeZone: 'Europe/Sofia',
+    brand: {
+      displayName: 'Harbor',
+      wordmark: 'HARBOR',
+      logo: { url: '/media/logo.webp', width: 480, height: 120 },
+      hero: {
+        url: '/media/hero.webp',
+        width: 1600,
+        height: 1000,
+        focalX: 0.4,
+        focalY: 0.6,
+      },
+      accentColour: '#C8A45A',
+      fieldColour: '#14110F',
+    },
+    content: {
+      title: { value: 'Разкажете ни', fallbackFrom: null },
+      shortDescription: { value: 'Вашето мнение.', fallbackFrom: null },
+      heroAlt: { value: 'Harbor at dusk', fallbackFrom: 'en' },
+      linktreeTitle: { value: 'Връзки', fallbackFrom: null },
+    },
+    linktree: { enabled: true },
+    links: [
+      {
+        id: 'link-1',
+        iconKey: 'utensils',
+        imageUrl: null,
+        label: 'Меню',
+        line: null,
+        fallbackFrom: null,
+      },
+    ],
+  },
+}
+const state = () => ({
+  guestSession: { csrfNonce: crypto.randomUUID() },
+  response: null,
+  responseForm: { availability: 'available' as const },
+})
 
 describe('public Portal loader projection', () => {
   it('does not serialize internal tenant identifiers to the guest page', () => {
@@ -116,5 +167,54 @@ describe('public Portal loader projection', () => {
 
     expect(projected.reviewGateway.googleReview).toEqual({ status: 'unavailable' })
     expect(JSON.stringify(projected)).not.toContain('writereview')
+  })
+
+  it('serves no Immersive Hub content for a legacy portal', () => {
+    expect(toPublicPortalLoaderData(portal, state()).immersive).toBeNull()
+  })
+
+  it('projects the Immersive Hub content for the browser, field by field', () => {
+    const projected = toPublicPortalLoaderData(immersivePortal, state())
+
+    expect(projected.immersive).toEqual(immersivePortal.immersive)
+    expect(projected.localization.selectedLocale).toBe('bg')
+  })
+
+  it('drops anything the server result carries beyond the reviewed fields', () => {
+    const { immersive } = immersivePortal
+    if (!immersive) throw new Error('fixture must be immersive')
+    const leaky = {
+      ...immersivePortal,
+      immersive: {
+        ...immersive,
+        provenance: { aiDraftTextKeys: ['title:bg'] },
+        brand: {
+          ...immersive.brand,
+          logoAssetId: 'asset-secret-1',
+          objectKey: 'k/secret',
+        },
+        content: { ...immersive.content, digest: 'digest-secret' },
+        links: immersive.links.map((link) => ({
+          ...link,
+          url: 'https://secondary-destination.example/private-path',
+          imageAssetId: 'asset-secret-2',
+        })),
+      },
+    } as PublicPortalData
+
+    const serialized = JSON.stringify(toPublicPortalLoaderData(leaky, state()))
+
+    for (const secret of [
+      'aiDraftTextKeys',
+      'provenance',
+      'asset-secret',
+      'k/secret',
+      'digest-secret',
+      'secondary-destination.example',
+      'org-secret-id',
+      'property-secret-id',
+    ]) {
+      expect(serialized).not.toContain(secret)
+    }
   })
 })

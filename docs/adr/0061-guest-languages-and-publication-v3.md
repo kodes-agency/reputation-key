@@ -73,7 +73,30 @@ immutable evidence:
    the closed beta that happens when the pack is drafted, with no
    native-speaker check (owner decision, 2026-09-30). Any later guest-visible
    field needs its own schema version and its own reader-first release.
-7. **The manager app stays English.** Guest languages are a property of the
+7. **Schema version 3 has one complete shape, and is read before it is
+   written.** Release A (this ADR, slice 8) ships the v3 reader, the verifier
+   and the resolver with no writer, so the JSON shape is fixed in full now. The
+   digest is recomputed over the zod-parsed object, so a field the reader does
+   not name would be stripped, change the digest and make the portal
+   unavailable; a later field therefore needs a v4. A v3 configuration
+   carries the locale set (primary first), generation 2 packs, per-locale
+   title, short description, hero alt text and Linktree title (each
+   `{value, fallbackFrom}`), the Linktree switch, a flat ordered link list
+   with per-locale wording, the brand profile (display name, wordmark, logo
+   and hero by asset id, accent and field colour, look version), the time zone
+   and optional provenance for history. The verifier requires every locale to
+   be complete, the primary never to be a fallback, and every fallback to be
+   an exact copy of another locale's own text. Media is an asset id in the
+   snapshot and a URL only when a page is read, so a takedown reaches an
+   immutable snapshot; until Portal media exists the resolver serves none.
+   `shortDescription` is kept for `og:description` only and is never rendered.
+   Provenance never leaves the server. A switched-off Linktree serves no links
+   at all, in either response shape, so none can be followed by id. The time
+   zone must be a canonical IANA name (`Europe/Sofia`), never an offset or an
+   abbreviation. The mirrored `brand_profile_version` column holds the Property
+   Brand Profile version on a v2 row and the look version on a v3 row; the
+   organisation export emits it under the same name.
+8. **The manager app stays English.** Guest languages are a property of the
    guest page. Geographic availability is not localization (BETA.md §3), and
    the operational email stays English.
 

@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import type { PortalPublicationSource } from '../domain/portal-publication-snapshot'
+import {
+  immersiveSnapshot,
+  immersiveSnapshotWith,
+} from './__fixtures__/immersive-snapshot'
 import { buildPortalPublicationSnapshot } from './portal-publication-snapshot'
 import {
   comparableWorkingContent,
@@ -135,5 +139,33 @@ describe('workingCopyMatchesSnapshot', () => {
     expect(publishedContent(snapshotOf(WITHOUT_EXPERIENCE))).not.toHaveProperty(
       'experience',
     )
+  })
+
+  describe('a schema version 3 snapshot', () => {
+    it('describes every v3 field a working copy will one day have to match', () => {
+      const published = publishedContent(immersiveSnapshot())
+
+      expect(published).toMatchObject({
+        schemaVersion: 3,
+        linktree: { enabled: true },
+        experience: { primaryGuestLocale: 'en', timeZone: 'Europe/Sofia' },
+      })
+      expect(published.links).toHaveLength(2)
+    })
+
+    it('reads as changed against a v2 working copy until the v3 writer exists', () => {
+      expect(workingCopyMatchesSnapshot(WITH_EXPERIENCE, immersiveSnapshot())).toBe(false)
+    })
+
+    it('moves when the look, the time zone or the Linktree moves', () => {
+      const digest = (snapshot: ReturnType<typeof immersiveSnapshot>) =>
+        JSON.stringify(publishedContent(snapshot))
+
+      const base = digest(immersiveSnapshot())
+      expect(digest(immersiveSnapshotWith({ timeZone: 'Europe/London' }))).not.toBe(base)
+      expect(digest(immersiveSnapshotWith({ linktree: { enabled: false } }))).not.toBe(
+        base,
+      )
+    })
   })
 })

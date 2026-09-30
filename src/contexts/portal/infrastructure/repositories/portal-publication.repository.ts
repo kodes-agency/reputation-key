@@ -38,6 +38,8 @@ import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import { portalId as toPortalId, unbrand } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import { isLocalizedConfiguration } from '../../domain/portal-publication-snapshot'
+import { immersiveConfigurationFields } from '../mappers/portal-immersive-configuration.schema'
+import { snapshotMirrorColumns } from '../mappers/portal-publication-snapshot.mapper'
 import { readPortalWorkingCopy } from '../portal-working-copy.reader'
 
 const jsonScalarSchema = z.union([z.string(), z.number(), z.boolean(), z.null()])
@@ -148,6 +150,10 @@ const publicationConfigurationSchema = z.discriminatedUnion('schemaVersion', [
         .readonly(),
     })
     .readonly(),
+  publicationConfigurationBaseSchema
+    .pick({ reviewGateway: true, googleReviewBinding: true })
+    .extend(immersiveConfigurationFields)
+    .readonly(),
 ])
 
 type SnapshotRow = typeof portalPublicationSnapshots.$inferSelect
@@ -186,21 +192,35 @@ function activationFromRow(row: ActivationRow): PortalPublicationActivation | nu
 /** Versions a chart marks inside one window; far more than anyone publishes in 180 days. */
 const MAX_ACTIVATIONS_BETWEEN = 100
 
+/**
+ * A localized row keeps its own copy of the configuration's locale and look
+ * facts. A row that disagrees with its configuration is never served.
+ */
+function mirrorColumnsMatchRow(
+  configuration: PortalPublicationConfiguration,
+  row: SnapshotRow,
+): boolean {
+  if (!isLocalizedConfiguration(configuration)) return true
+  const mirror = snapshotMirrorColumns(configuration)
+  return (
+    canonicalizeRfc8785(mirror.localeSet) === canonicalizeRfc8785(row.localeSet) &&
+    canonicalizeRfc8785(mirror.languagePackVersions) ===
+      canonicalizeRfc8785(row.languagePackVersions) &&
+    canonicalizeRfc8785(mirror.localizedContent) ===
+      canonicalizeRfc8785(row.localizedContent) &&
+    mirror.brandProfileVersion === row.brandProfileVersion
+  )
+}
+
 /** Exported for the golden-snapshot tests; production reads go through the repository. */
 export function snapshotFromRow(row: SnapshotRow): PortalPublicationSnapshot | null {
   const parsed = publicationConfigurationSchema.safeParse(row.configuration)
   if (!parsed.success) return null
+  const configuration = parsed.data as PortalPublicationConfiguration
   if (
-    parsed.data.guestLocale !== row.guestLocale ||
-    parsed.data.languagePackVersion !== row.languagePackVersion ||
-    (isLocalizedConfiguration(parsed.data) &&
-      (canonicalizeRfc8785(parsed.data.localeSet) !==
-        canonicalizeRfc8785(row.localeSet) ||
-        canonicalizeRfc8785(parsed.data.languagePackVersions) !==
-          canonicalizeRfc8785(row.languagePackVersions) ||
-        canonicalizeRfc8785(parsed.data.localizedContent) !==
-          canonicalizeRfc8785(row.localizedContent) ||
-        parsed.data.brandProfile.version !== row.brandProfileVersion))
+    configuration.guestLocale !== row.guestLocale ||
+    configuration.languagePackVersion !== row.languagePackVersion ||
+    !mirrorColumnsMatchRow(configuration, row)
   ) {
     return null
   }
@@ -211,7 +231,7 @@ export function snapshotFromRow(row: SnapshotRow): PortalPublicationSnapshot | n
     portalId: row.portalId,
     version: row.version,
     configurationDigest: row.configurationDigest,
-    configuration: parsed.data as PortalPublicationConfiguration,
+    configuration,
     destinationUri: row.destinationUri,
     destinationRetrievedAt: row.destinationRetrievedAt,
     destinationSourceEpoch: row.destinationSourceEpoch,

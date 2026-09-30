@@ -84,6 +84,55 @@ type PublicPortalResponseConfiguration = Readonly<{
   privateFeedbackThreshold: number
 }>
 
+/** A piece of guest-facing text, and the locale it was copied from when it is a fallback. */
+export type PublicPortalText = Readonly<{
+  value: string
+  fallbackFrom: GuestLocale | null
+}>
+
+/** A Portal image turned into a servable URL at read time; absent when taken down. */
+export type PublicPortalMedia = Readonly<{ url: string; width: number; height: number }>
+
+export type PublicPortalHero = PublicPortalMedia &
+  Readonly<{ focalX: number; focalY: number }>
+
+/**
+ * What the Immersive Hub renders beyond the legacy fields, present only for a
+ * schema version 3 publication. Media appears as URLs, never as asset ids, and
+ * history-only facts (provenance) never appear at all.
+ */
+export type PublicImmersiveExperience = Readonly<{
+  /** An IANA zone name: deadlines on the page read in it. */
+  timeZone: string
+  brand: Readonly<{
+    displayName: string
+    wordmark: string | null
+    logo: PublicPortalMedia | null
+    hero: PublicPortalHero | null
+    accentColour: string
+    fieldColour: string
+  }>
+  /** The selected locale's wording. `shortDescription` is for `og:description` only. */
+  content: Readonly<{
+    title: PublicPortalText
+    shortDescription: PublicPortalText
+    heroAlt: PublicPortalText
+    linktreeTitle: PublicPortalText
+  }>
+  linktree: Readonly<{ enabled: boolean }>
+  /** Approved links only, in display order. The destination stays server-side. */
+  links: ReadonlyArray<
+    Readonly<{
+      id: string
+      iconKey: string | null
+      imageUrl: string | null
+      label: string
+      line: string | null
+      fallbackFrom: GuestLocale | null
+    }>
+  >
+}>
+
 export type PublicPortalResult = Readonly<{
   portal: {
     id: string
@@ -123,6 +172,8 @@ export type PublicPortalResult = Readonly<{
    * version. The Guest projection derives the page's web fonts from it.
    */
   guestSurface: GuestSurface
+  /** The Immersive Hub's content: present exactly when `guestSurface` is 'immersive'. */
+  immersive: PublicImmersiveExperience | null
   organizationId: string
   propertyId: string
 }>

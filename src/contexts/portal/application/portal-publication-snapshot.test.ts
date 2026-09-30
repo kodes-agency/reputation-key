@@ -110,7 +110,9 @@ describe('Portal publication snapshot', () => {
     })
 
     expect(changed.configurationDigest).not.toBe(first.configurationDigest)
-    expect(first.configuration.portal.name).toBe('Lobby review gateway')
+    expect(first.configuration).toMatchObject({
+      portal: { name: 'Lobby review gateway' },
+    })
   })
 
   it('pins the complete accessible EN/BG brand experience in schema version 2', () => {
@@ -190,7 +192,7 @@ describe('Portal publication snapshot', () => {
         configuration: {
           ...snapshot.configuration,
           portal: { ...snapshot.configuration.portal, name: 'Tampered' },
-        },
+        } as PortalPublicationSnapshot['configuration'],
       }),
     ).toBe(false)
   })
@@ -257,7 +259,8 @@ describe('Portal publication snapshot', () => {
       ).toBe(false)
     })
 
-    it('rejects an unknown pack id and a missing pack', () => {
+    it('rejects a generation 2 pack in a v2 snapshot, and a missing pack', () => {
+      // guest-ui-en-v2 is a real pack, but only schema version 3 may carry it.
       expect(
         verifyPortalPublicationSnapshot(
           withConfiguration({
@@ -273,11 +276,16 @@ describe('Portal publication snapshot', () => {
     })
 
     it('fails closed on a schema version this build does not know', () => {
+      for (const schemaVersion of [0, 4, 99]) {
+        expect(
+          verifyPortalPublicationSnapshot(withConfiguration({ schemaVersion })),
+        ).toBe(false)
+      }
+    })
+
+    it('rejects a v2 configuration relabelled v3: its shape and packs are not v3', () => {
       expect(
         verifyPortalPublicationSnapshot(withConfiguration({ schemaVersion: 3 })),
-      ).toBe(false)
-      expect(
-        verifyPortalPublicationSnapshot(withConfiguration({ schemaVersion: 0 })),
       ).toBe(false)
     })
 

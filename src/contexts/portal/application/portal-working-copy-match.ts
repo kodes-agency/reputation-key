@@ -7,6 +7,7 @@
 
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import {
+  IMMERSIVE_HUB_SCHEMA_VERSION,
   isLocalizedConfiguration,
   type PortalPublicationSnapshot,
   type PortalPublicationSource,
@@ -15,6 +16,28 @@ import {
 /** What a snapshot published, in the shape of a working copy. */
 export function publishedContent(snapshot: PortalPublicationSnapshot) {
   const configuration = snapshot.configuration
+  if (configuration.schemaVersion === IMMERSIVE_HUB_SCHEMA_VERSION) {
+    // No v3 working copy exists until the v3 writer (slice 19), so nothing can
+    // equal this yet: a v3 snapshot reads as changed against any v2 working
+    // copy. The writer slice makes `comparableWorkingContent` produce this shape.
+    return {
+      schemaVersion: configuration.schemaVersion,
+      portal: configuration.portal,
+      links: configuration.links,
+      linktree: configuration.linktree,
+      privateFeedbackThreshold: configuration.reviewGateway.privateFeedbackThreshold,
+      organizationId: snapshot.organizationId,
+      propertyId: snapshot.propertyId,
+      experience: {
+        primaryGuestLocale: configuration.guestLocale,
+        localeSet: configuration.localeSet,
+        languagePackVersions: configuration.languagePackVersions,
+        localizedContent: configuration.localizedContent,
+        brandProfile: configuration.brandProfile,
+        timeZone: configuration.timeZone,
+      },
+    }
+  }
   return {
     portal: configuration.portal,
     categories: configuration.categories,
