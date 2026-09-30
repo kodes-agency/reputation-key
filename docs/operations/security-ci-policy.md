@@ -139,7 +139,10 @@ drizzle-kit` — build tooling, reported). Full tree: 11 high, 0 critical —
   moved to `node:22.23.2-trixie-slim` (Debian 13) on 2026-09-07; the one
   fixable class it shipped with — OpenSSL 3.5.6 (nine CVEs, two Critical) —
   is fixed by pinning `libssl3t64`/`openssl-provider-legacy` to
-  `3.5.7-1~deb13u2` in every base stage, not excepted. The families Debian
+  `3.5.7-1~deb13u3` in every base stage, not excepted (bumped from
+  `~deb13u2` on 2026-09-30 for DSA-6531-1, whose three High CVEs —
+  CVE-2026-72897 / -84782 / -84784 — failed every image scan once grype's
+  database listed them). The families Debian
   marks won't-fix (perl-base, glibc, util-linux, zlib, gzip, ncurses, libacl,
   sqlite, pcre2) are the same on trixie as they were on bookworm; their
   reachable surface stays removed (npm CLI stripped, setuid/setgid bits

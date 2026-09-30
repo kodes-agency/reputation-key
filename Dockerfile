@@ -70,9 +70,11 @@ ENV PNPM_HOME=/pnpm \
     HUSKY=0
 RUN corepack enable
 # OS packages this base ships with KNOWN FIXES, pinned to their exact
-# patched versions: OpenSSL 3.5.7-1~deb13u2 closes nine CVEs against the
-# 3.5.6 the image was published with (CVE-2026-63073 / CVE-2026-75803 are
-# Critical), and PCRE2 10.46-1~deb13u2 closes CVE-2026-89161 (High).
+# patched versions: OpenSSL 3.5.7-1~deb13u3 (DSA-6531-1, 2026-09-30) closes
+# the nine CVEs against the 3.5.6 the image was published with
+# (CVE-2026-63073 / CVE-2026-75803 are Critical) and thirteen more from the
+# 2026-09-29 OpenSSL advisory (CVE-2026-72897 / -84782 / -84784 High), and
+# PCRE2 10.46-1~deb13u2 closes CVE-2026-89161 (High).
 # Exact so the build FAILS if the archive stops carrying either version
 # rather than silently drifting; every other stage derives `FROM base`, so
 # patching here covers all of them. Everything else the scan reports is
@@ -80,8 +82,8 @@ RUN corepack enable
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libpcre2-8-0=10.46-1~deb13u2 \
-        libssl3t64=3.5.7-1~deb13u2 \
-        openssl-provider-legacy=3.5.7-1~deb13u2 \
+        libssl3t64=3.5.7-1~deb13u3 \
+        openssl-provider-legacy=3.5.7-1~deb13u3 \
     && rm -rf /var/lib/apt/lists/*
 WORKDIR /app
 RUN node -e "const expected={node:'22.23.2',icu:'78.2',unicode:'17.0'}; for (const [key,value] of Object.entries(expected)) if (process.versions[key] !== value) throw new Error(key+' runtime drift')"
