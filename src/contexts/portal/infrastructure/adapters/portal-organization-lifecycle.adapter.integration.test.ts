@@ -145,19 +145,26 @@ async function seedFixture(): Promise<Fixture> {
      VALUES ($1, $2, $3, 'Explore', 'a', now(), now())`,
     [categoryId, fixture.portalId, organizationId],
   )
+  const linkId = randomUUID()
   await q(
     `INSERT INTO portal_links (id, category_id, portal_id, organization_id, property_id,
                                label, destination_id, legacy_destination_state, sort_key,
                                created_at, updated_at)
      VALUES ($1, $2, $3, $4, $5, 'Menu', $6, 'migrated', 'a', now(), now())`,
     [
-      randomUUID(),
+      linkId,
       categoryId,
       fixture.portalId,
       organizationId,
       fixture.propertyId,
       fixture.destinationId,
     ],
+  )
+  await q(
+    `INSERT INTO portal_link_texts (id, organization_id, property_id, portal_id, link_id,
+                                    locale, label, line, updated_by, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, 'en', 'Menu', 'Open all day', $6, now(), now())`,
+    [randomUUID(), ...scope, linkId, actor],
   )
   await q(
     `INSERT INTO portal_responsible_managers (
@@ -332,6 +339,7 @@ const CLEANUP_ORDER = [
   'portal_publication_activations',
   'portal_publication_snapshots',
   'portal_health_intervals',
+  'portal_link_texts',
   'portal_links',
   'portal_link_categories',
   'portal_responsible_managers',
@@ -511,6 +519,11 @@ describe.sequential('Portal Organization lifecycle contributor', () => {
     const revision = await seedAuthority(fixture, lineage, 'purging')
     const bystanderBefore = await counts(bystander.organizationId)
     const contributor = createPortalOrganizationLifecycleContributor(db)
+    // Every planned table starts non-empty, so "empty after" proves the delete.
+    const seeded = await counts(fixture.organizationId)
+    for (const table of PORTAL_PURGE_PLAN) {
+      expect({ table, seeded: (seeded[table] ?? 0) > 0 }).toEqual({ table, seeded: true })
+    }
 
     const first = await contributor.purge(input(fixture, lineage, revision))
 

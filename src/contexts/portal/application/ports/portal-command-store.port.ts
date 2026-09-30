@@ -3,6 +3,7 @@
 // Production commits each command's Portal rows and every required outbox row
 // in one PostgreSQL transaction.
 
+import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type {
   OrganizationId,
   PortalGroupId,
@@ -50,6 +51,7 @@ import type {
   PortalPublicationRolledBack,
   PortalRestored,
 } from '../../domain/events'
+import type { PortalLinkTextProvenance } from '../../domain/portal-linktree'
 import type { PortalToken } from '../../domain/portal-token'
 import type { PortalAccessArtifact } from '../../domain/portal-access-artifact'
 import type { PortalHealth } from '../../domain/portal-health'
@@ -223,6 +225,8 @@ export type DeletePortalLinkCategoryCommand = PortalContentCommandBase &
 
 export type CreatePortalLinkCommand = PortalContentCommandBase &
   Readonly<{
+    /** Who wrote the link; recorded on its primary-language text. */
+    actorUserId: UserId
     link: PortalLink
     event: PortalLinkCreated
   }>
@@ -236,6 +240,8 @@ export type ReorderPortalLinksCommand = PortalContentCommandBase &
 
 export type UpdatePortalLinkCommand = PortalContentCommandBase &
   Readonly<{
+    /** Who changed the link; recorded on its primary-language text. */
+    actorUserId: UserId
     linkId: PortalLinkId
     categoryId: PortalLinkCategoryId
     patch: Readonly<
@@ -245,6 +251,46 @@ export type UpdatePortalLinkCommand = PortalContentCommandBase &
       >
     >
     event: PortalLinkUpdated
+  }>
+
+/** One language of one link, already validated and trimmed. */
+export type PortalLinkTextWrite = Readonly<{
+  locale: GuestLocale
+  label: string
+  line: string | null
+  provenance: PortalLinkTextProvenance | null
+}>
+
+/**
+ * Write the per-language texts of one link. The primary-language label is also
+ * written to the link's own `label` (the legacy column) in the same commit.
+ */
+export type SavePortalLinkTextsCommand = PortalContentCommandBase &
+  Readonly<{
+    actorUserId: UserId
+    linkId: PortalLinkId
+    categoryId: PortalLinkCategoryId
+    texts: ReadonlyArray<PortalLinkTextWrite>
+    event: PortalLinkUpdated
+  }>
+
+/**
+ * The link section's own settings: the on/off switch and a title per language
+ * (null resets that language to the pack's default). Either part may be absent.
+ */
+export type SavePortalLinktreeSettingsCommand = PortalContentCommandBase &
+  Readonly<{
+    actorUserId: UserId
+    enabled?: boolean
+    titles?: ReadonlyArray<
+      Readonly<{
+        locale: GuestLocale
+        title: string | null
+        /** Identifier for the override row if this save has to create one. */
+        overrideId: string
+      }>
+    >
+    event: PortalUpdated
   }>
 
 export type DeletePortalLinkCommand = PortalContentCommandBase &
@@ -302,6 +348,8 @@ export type PortalCommandStore = Readonly<{
   updatePortalLink(command: UpdatePortalLinkCommand): Promise<void>
   deletePortalLink(command: DeletePortalLinkCommand): Promise<void>
   reorderPortalLinks(command: ReorderPortalLinksCommand): Promise<void>
+  savePortalLinkTexts(command: SavePortalLinkTextsCommand): Promise<void>
+  savePortalLinktreeSettings(command: SavePortalLinktreeSettingsCommand): Promise<void>
   issuePortalToken(command: IssuePortalTokenCommand): Promise<void>
   rotatePortalToken(command: RotatePortalTokenCommand): Promise<void>
   revokePortalTokens(

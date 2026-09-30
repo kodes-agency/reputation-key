@@ -99,8 +99,12 @@ describe('architecture: core Portal lifecycle facts are atomic', () => {
   })
 
   it('captures child state and the Portal revision in one update/delete snapshot', () => {
+    // update-link reaches the snapshot through the shared opening step.
+    expect(read('src/contexts/portal/application/use-cases/update-link.ts')).toContain(
+      'authorizeLinkCommand',
+    )
     for (const file of [
-      'src/contexts/portal/application/use-cases/update-link.ts',
+      'src/contexts/portal/application/authorize-link-command.ts',
       'src/contexts/portal/application/use-cases/delete-link.ts',
     ]) {
       expect(read(file)).toContain('findLinkCommandTarget')

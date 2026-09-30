@@ -54,6 +54,8 @@ import { deleteLinkCategory } from './application/use-cases/delete-link-category
 import { reorderCategories } from './application/use-cases/reorder-categories'
 import { createLink } from './application/use-cases/create-link'
 import { updateLink } from './application/use-cases/update-link'
+import { savePortalLinkTexts } from './application/use-cases/save-portal-link-texts'
+import { saveLinktreeSettings } from './application/use-cases/save-linktree-settings'
 import { deleteLink } from './application/use-cases/delete-link'
 import { reorderLinks } from './application/use-cases/reorder-links'
 import { listPortalLinks } from './application/use-cases/list-portal-links'
@@ -402,6 +404,20 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       commandStore: portalCommandStore,
       destinationRepo: portalApprovedDestinationRepo,
       destinationNetworkValidator: portalDestinationNetworkValidator,
+      idGen: deps.idGen,
+      clock: deps.clock,
+    }),
+    savePortalLinkTexts: savePortalLinkTexts({
+      portalRepo,
+      portalLinkRepo,
+      staffPublicApi: deps.staffPublicApi,
+      commandStore: portalCommandStore,
+      clock: deps.clock,
+    }),
+    saveLinktreeSettings: saveLinktreeSettings({
+      portalRepo,
+      staffPublicApi: deps.staffPublicApi,
+      commandStore: portalCommandStore,
       idGen: deps.idGen,
       clock: deps.clock,
     }),

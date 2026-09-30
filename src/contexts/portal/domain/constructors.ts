@@ -29,6 +29,7 @@ import {
   validatePortalTheme,
   validateUrl,
   validateLinkLabel,
+  validateLinkIconKey,
   validateCategoryTitle,
   validateGroupName,
   validatePrivateFeedbackThreshold,
@@ -89,6 +90,7 @@ export const buildPortal = (input: BuildPortalInput): Result<Portal, PortalError
         input.hasInitialResponsibleManager === true ? null : input.now,
       primaryGuestLocale: input.primaryGuestLocale ?? 'en',
       additionalGuestLocales: input.additionalGuestLocales ?? [],
+      linktreeEnabled: true,
       createdAt: input.now,
       updatedAt: input.now,
       deletedAt: null,
@@ -171,23 +173,26 @@ export const buildPortalLink = (
 ): Result<PortalLink, PortalError> => {
   const label = validateLinkLabel(input.label)
   const url = validateUrl(input.url)
-  return Result.combine([label, url]).map(([validLabel, validUrl]): PortalLink => ({
-    id: input.id,
-    categoryId: input.categoryId,
-    portalId: input.portalId,
-    organizationId: input.organizationId,
-    propertyId: input.propertyId,
-    destinationId: input.destinationId ?? null,
-    legacyDestinationState:
-      input.legacyDestinationState ??
-      (input.destinationId === undefined || input.destinationId === null
-        ? 'unclassified'
-        : 'migrated'),
-    label: validLabel,
-    url: validUrl,
-    iconKey: input.iconKey ?? null,
-    sortKey: input.sortKey,
-    createdAt: input.now,
-    updatedAt: input.now,
-  }))
+  const iconKey = validateLinkIconKey(input.iconKey)
+  return Result.combine([label, url, iconKey]).map(
+    ([validLabel, validUrl, validIcon]): PortalLink => ({
+      id: input.id,
+      categoryId: input.categoryId,
+      portalId: input.portalId,
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      destinationId: input.destinationId ?? null,
+      legacyDestinationState:
+        input.legacyDestinationState ??
+        (input.destinationId === undefined || input.destinationId === null
+          ? 'unclassified'
+          : 'migrated'),
+      label: validLabel,
+      url: validUrl,
+      iconKey: validIcon,
+      sortKey: input.sortKey,
+      createdAt: input.now,
+      updatedAt: input.now,
+    }),
+  )
 }

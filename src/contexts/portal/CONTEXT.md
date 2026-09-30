@@ -31,6 +31,24 @@ Activations are append-only effective-dated routes from a stable token to one
 snapshot; publish and rollback append activations, while disable/archive close
 one. Groups remain Property-scoped, and one Portal has at most one active group.
 
+The link section of the guest page is the **Linktree**. Its working model is
+`portal_link_texts` (one label and optional line per link and language), a title
+per language in `portal_localized_overrides.linktree_title` (null means the
+language pack's default, "Useful links") and `portals.linktree_enabled`. Until the
+legacy column is dropped, `portal_links.label` mirrors the primary-language text:
+creating or renaming a link and saving the primary text all write both, and
+readers (`listLinkTexts`) fall back to the link's own label for a link with no
+primary-language row. Changing the Portal's primary language re-establishes the
+mirror in the same transaction: a link label takes the new primary's text where
+one exists, and the new primary's text starts from the label where none does.
+Old code that runs between migration 0044 and the new web rollout can still
+rename a link without touching its text; slice 19 reconciles that window before
+the v3 writer reads texts. A Portal carries at most four links, counted under the
+Portal fence on create; a Portal that already has more keeps them. Icons come
+from a closed catalogue (`src/shared/domain/portal-link-icon.ts`, 27 keys, every
+icon the round-4 editor offers), enforced by a CHECK and refused in the link
+constructor.
+
 The eligible creator is the initial Portal Responsible Manager. Multiple eligible
 managers may be assigned; losing the last sets `responsibilityNeededSince`, and
 nobody is auto-promoted. Only a live Portal of an active Property also raises
@@ -93,6 +111,7 @@ for Identity avatar and organization-logo uploads through `container.assetStorag
 12. The POR-01 report never copies names, localized content, raw URLs, token material, themes, or print-batch values and never infers creator, ownership, translation, brand, or destination provenance. Reported ambiguous Portal rows remain Disabled or Archived; raw secondary links are treated as quarantined and excluded from publication until a separately reviewed command resolves them.
 13. Closing is a **stop, not a delete**, and it is reversible: the immutable publication snapshot survives and `portals.publication_state` keeps the tenant's own published/draft intent, so explicit reactivation re-points a new activation at the same snapshot rather than guessing what each Portal used to be. Ordinary closure cancellation does not itself reactivate Portals — see `docs/operations/organization-lifecycle.md`.
 14. `portal_group_members` is purged as a **row delete only**. It is a physical-drop-blocked compatibility mirror: the rows are tenant content and must go, the table must not. No phase issues a DROP or TRUNCATE.
+15. Linktree edits (link texts, the section title, the switch) take the Portal fence like any content command and record `portal_links` pending changes under structured keys: `link:<id>:text:<locale>`, `linktree:title:<locale>` and `linktree:enabled`. Only a value that actually changed records one, and their facts carry identifiers, never the wording.
 
 ## Verification
 

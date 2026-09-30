@@ -1,3 +1,5 @@
+// fallow-ignore-file code-duplication
+
 // LIF-01 bullets 4 and 5 — the Portal context's Organization lifecycle
 // contribution (LIF-01-T12/T13/T14).
 //
@@ -39,6 +41,7 @@ import {
   portalPublicationActivations,
   portalPublicationSnapshots,
 } from '#/shared/db/schema/portal-publication.schema'
+import { portalLinkTexts } from '#/shared/db/schema/portal-localization.schema'
 import type { Tx } from '#/shared/outbox/commit'
 
 /**
@@ -69,6 +72,7 @@ export const PORTAL_PURGE_PLAN = Object.freeze([
   'portal_publication_activations',
   'portal_publication_snapshots',
   'portal_health_intervals',
+  'portal_link_texts',
   'portal_links',
   'portal_link_categories',
   'portal_approved_destinations',
@@ -182,6 +186,9 @@ const drizzlePortalLifecycleWorkbench: PortalLifecycleWorkbench = Object.freeze(
     await tx
       .delete(portalHealthIntervals)
       .where(eq(portalHealthIntervals.organizationId, organizationId))
+    await tx
+      .delete(portalLinkTexts)
+      .where(eq(portalLinkTexts.organizationId, organizationId))
     await tx.delete(portalLinks).where(eq(portalLinks.organizationId, organizationId))
     await tx
       .delete(portalLinkCategories)

@@ -50,6 +50,8 @@ export type Portal = Readonly<{
   readonly responsibilityNeededSince: Date | null
   primaryGuestLocale: GuestLocale
   additionalGuestLocales: readonly GuestLocale[]
+  /** The link section of the guest page; on unless a manager turns it off. */
+  linktreeEnabled: boolean
   createdAt: Date
   updatedAt: Date
   deletedAt: Date | null

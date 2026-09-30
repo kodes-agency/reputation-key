@@ -7,8 +7,11 @@ import type { PortalRepository } from '#/contexts/portal/application/ports/porta
 import type { PortalTokenRepository } from '#/contexts/portal/application/ports/portal-token.repository'
 import type { PortalGroupRepository } from '#/contexts/portal/application/ports/portal-group.repository'
 import type { PortalLinkRepository } from '#/contexts/portal/application/ports/portal-link.repository'
+import type { InMemoryPortalLinkRepo } from './in-memory-portal-link-repo'
 import { createRecordedOutbox, type RecordedOutbox } from './recorded-outbox'
 import { portalError } from '#/contexts/portal/domain/errors'
+import { hasRoomForAnotherLink } from '#/contexts/portal/domain/portal-linktree'
+import type { GuestLocale } from '#/shared/domain/guest-locale'
 
 export function createInMemoryPortalCommandStore(deps: {
   portalRepo: PortalRepository
@@ -19,6 +22,35 @@ export function createInMemoryPortalCommandStore(deps: {
 }): PortalCommandStore {
   const outbox = deps.outbox ?? createRecordedOutbox()
   const mutablePortalRepo = deps.portalRepo as InMemoryPortalRepo
+  const linkRepo = (): InMemoryPortalLinkRepo => {
+    if (!deps.portalLinkRepo) {
+      throw new Error('in-memory Portal Link repository is not configured')
+    }
+    return deps.portalLinkRepo as InMemoryPortalLinkRepo
+  }
+  /** What the Portal offers guests, read after the fence like the real store does. */
+  const localesOf = async (
+    organizationId: Parameters<InMemoryPortalRepo['findById']>[0],
+    portalId: Parameters<InMemoryPortalRepo['findById']>[1],
+  ) => {
+    const portal = await deps.portalRepo.findById(organizationId, portalId)
+    if (!portal) throw portalError('revision_conflict', 'Portal changed during command')
+    return {
+      primary: portal.primaryGuestLocale,
+      offered: [portal.primaryGuestLocale, ...portal.additionalGuestLocales],
+    }
+  }
+  const assertOffered = (
+    offered: readonly GuestLocale[],
+    requested: readonly GuestLocale[],
+  ) => {
+    if (new Set(requested).size !== requested.length) {
+      throw portalError('locale_not_offered', 'A language was given more than once')
+    }
+    if (requested.some((locale) => !offered.includes(locale))) {
+      throw portalError('locale_not_offered', 'This Portal does not offer that language')
+    }
+  }
   const fencePortal = async (
     organizationId: Parameters<InMemoryPortalRepo['findById']>[0],
     portalId: Parameters<InMemoryPortalRepo['findById']>[1],
@@ -217,7 +249,19 @@ export function createInMemoryPortalCommandStore(deps: {
         command.expectedPortalUpdatedAt,
         command.revision,
       )
+      const existing = await deps.portalLinkRepo.listAllLinks(
+        command.organizationId,
+        command.portalId,
+      )
+      if (!hasRoomForAnotherLink(existing.length)) {
+        throw portalError('link_limit_reached', 'A Portal can carry at most four links')
+      }
+      const { primary } = await localesOf(command.organizationId, command.portalId)
       await deps.portalLinkRepo.insertLink(command.organizationId, command.link)
+      linkRepo().syncPrimaryText(String(command.link.id), primary, command.link.label, {
+        actorUserId: String(command.actorUserId),
+        at: command.occurredAt,
+      })
       await outbox.record(command.event)
     },
     updatePortalLink: async (command) => {
@@ -236,6 +280,72 @@ export function createInMemoryPortalCommandStore(deps: {
         command.linkId,
         { ...command.patch, updatedAt: command.occurredAt },
       )
+      const { primary } = await localesOf(command.organizationId, command.portalId)
+      linkRepo().syncPrimaryText(String(command.linkId), primary, command.patch.label, {
+        actorUserId: String(command.actorUserId),
+        at: command.occurredAt,
+      })
+      await outbox.record(command.event)
+    },
+    savePortalLinkTexts: async (command) => {
+      await fencePortal(
+        command.organizationId,
+        command.portalId,
+        command.expectedPortalUpdatedAt,
+        command.revision,
+      )
+      const link = await linkRepo().findLinkById(command.organizationId, command.linkId)
+      if (
+        !link ||
+        link.portalId !== command.portalId ||
+        link.categoryId !== command.categoryId
+      ) {
+        throw portalError('revision_conflict', 'Portal link changed during update')
+      }
+      const locales = await localesOf(command.organizationId, command.portalId)
+      assertOffered(
+        locales.offered,
+        command.texts.map((text) => text.locale),
+      )
+      linkRepo().saveTexts(String(command.linkId), command.texts, {
+        actorUserId: String(command.actorUserId),
+        at: command.occurredAt,
+      })
+      const primary = command.texts.find((text) => text.locale === locales.primary)
+      if (primary) {
+        await linkRepo().updateLink(
+          command.organizationId,
+          command.portalId,
+          command.linkId,
+          {
+            label: primary.label,
+            updatedAt: command.occurredAt,
+          },
+        )
+      }
+      await outbox.record(command.event)
+    },
+    savePortalLinktreeSettings: async (command) => {
+      await fencePortal(
+        command.organizationId,
+        command.portalId,
+        command.expectedPortalUpdatedAt,
+        command.revision,
+      )
+      const titles = command.titles ?? []
+      const locales = await localesOf(command.organizationId, command.portalId)
+      assertOffered(
+        locales.offered,
+        titles.map((title) => title.locale),
+      )
+      if (command.enabled !== undefined) {
+        await mutablePortalRepo.update(command.organizationId, command.portalId, {
+          linktreeEnabled: command.enabled,
+        })
+      }
+      for (const { locale, title } of titles) {
+        linkRepo().saveLinktreeTitle(String(command.portalId), locale, title)
+      }
       await outbox.record(command.event)
     },
     deletePortalLink: async (command) => {

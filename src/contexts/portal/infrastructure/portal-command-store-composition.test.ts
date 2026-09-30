@@ -6,6 +6,7 @@ import type { Database } from '#/shared/db'
 import { createAtomicPortalCommandStore } from './portal-command-store'
 import { createPortalGroupCommands } from './portal-group-commands'
 import { createPortalLinkCommands } from './portal-link-commands'
+import { createPortalLinktreeCommands } from './portal-linktree-commands'
 import { createPortalTokenCommands } from './portal-token-commands'
 
 const db = {} as Database
@@ -20,6 +21,7 @@ const LINK = [
   'deletePortalLink',
   'reorderPortalLinks',
 ]
+const LINKTREE = ['savePortalLinkTexts', 'savePortalLinktreeSettings']
 const GROUP = [
   'createPortalGroup',
   'updatePortalGroup',
@@ -32,13 +34,18 @@ const CORE = ['createPortal', 'updatePortal', 'deletePortal']
 
 describe('Portal command store composition', () => {
   it('each family module owns exactly its commands', () => {
-    expect(Object.keys(createPortalLinkCommands(db)).sort()).toEqual([...LINK].sort())
+    expect(Object.keys(createPortalLinkCommands(db)).sort()).toEqual(
+      [...LINK, ...LINKTREE].sort(),
+    )
+    expect(Object.keys(createPortalLinktreeCommands(db)).sort()).toEqual(
+      [...LINKTREE].sort(),
+    )
     expect(Object.keys(createPortalGroupCommands(db)).sort()).toEqual([...GROUP].sort())
     expect(Object.keys(createPortalTokenCommands(db)).sort()).toEqual([...TOKEN].sort())
   })
 
   it('the atomic store exposes every command of the port once', () => {
     const keys = Object.keys(createAtomicPortalCommandStore(db)).sort()
-    expect(keys).toEqual([...CORE, ...LINK, ...GROUP, ...TOKEN].sort())
+    expect(keys).toEqual([...CORE, ...LINK, ...LINKTREE, ...GROUP, ...TOKEN].sort())
   })
 })

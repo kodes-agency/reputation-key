@@ -8,6 +8,10 @@ import type { PortalError } from './errors'
 import { portalError } from './errors'
 import type { PortalTheme } from './types'
 import { isPublicHttpsDestination } from './safe-link'
+import {
+  isPortalLinkIconKey,
+  type PortalLinkIconKey,
+} from '#/shared/domain/portal-link-icon'
 
 // ── Slug validation ────────────────────────────────────────────────
 
@@ -123,6 +127,36 @@ export const validateLinkLabel = (label: string): Result<string, PortalError> =>
     return err(portalError('invalid_label', 'Link label must be at most 100 characters'))
   }
   return ok(trimmed)
+}
+
+// ── Link icon validation ───────────────────────────────────────────
+
+/**
+ * An icon is a member of the closed catalogue or nothing. The database holds the
+ * same set in a CHECK, so a caller that skips the DTO gets a PortalError here
+ * rather than a constraint failure from the store.
+ */
+/** Languages a request names must be distinct and all offered by the Portal. */
+export const assertRequestedLocalesOffered = (
+  portal: { primaryGuestLocale: string; additionalGuestLocales: readonly string[] },
+  requested: readonly string[],
+): void => {
+  const offered = [portal.primaryGuestLocale, ...portal.additionalGuestLocales]
+  if (
+    new Set(requested).size !== requested.length ||
+    requested.some((locale) => !offered.includes(locale))
+  ) {
+    throw portalError('locale_not_offered', 'This Portal does not offer that language')
+  }
+}
+
+export const validateLinkIconKey = (
+  iconKey: string | null | undefined,
+): Result<PortalLinkIconKey | null, PortalError> => {
+  if (iconKey === undefined || iconKey === null) return ok(null)
+  return isPortalLinkIconKey(iconKey)
+    ? ok(iconKey)
+    : err(portalError('invalid_icon', 'Choose an icon from the list'))
 }
 
 // ── Category title validation ──────────────────────────────────────

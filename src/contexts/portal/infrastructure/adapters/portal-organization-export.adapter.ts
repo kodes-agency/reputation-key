@@ -26,6 +26,7 @@ type PortalOrganizationExportPayload = Readonly<{
   portalGroupMembers: readonly ExportRecord[]
   linkCategories: readonly ExportRecord[]
   links: readonly ExportRecord[]
+  linkTexts: readonly ExportRecord[]
   approvedDestinations: readonly ExportRecord[]
   localizedOverrides: readonly ExportRecord[]
   brandProfiles: readonly ExportRecord[]
@@ -156,6 +157,7 @@ function collectionsOf(
     ['portal_group_member', payload.portalGroupMembers],
     ['portal_link_category', payload.linkCategories],
     ['portal_link', payload.links],
+    ['portal_link_text', payload.linkTexts],
     ['approved_destination', payload.approvedDestinations],
     ['portal_localized_override', payload.localizedOverrides],
     ['property_brand_profile', payload.brandProfiles],
@@ -232,6 +234,7 @@ async function readPayload(
                    ${utc('responsibility_needed_since')} AS responsibility_needed_since,
                    primary_guest_locale,
                    additional_guest_locales::text AS additional_guest_locales,
+                   linktree_enabled,
                    ${utc('created_at')} AS created_at,
                    ${utc('updated_at')} AS updated_at,
                    ${utc('deleted_at')} AS deleted_at
@@ -269,6 +272,15 @@ async function readPayload(
                    ${utc('updated_at')} AS updated_at
             FROM portal_links WHERE organization_id = ${organizationId}`,
       )
+      const linkTexts = await readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id,
+                   portal_id::text AS portal_id, link_id::text AS link_id, locale,
+                   label, line, provenance, version, updated_by,
+                   ${utc('created_at')} AS created_at,
+                   ${utc('updated_at')} AS updated_at
+            FROM portal_link_texts WHERE organization_id = ${organizationId}`,
+      )
       const approvedDestinations = await readRows(
         snapshot,
         sql`SELECT id::text AS id, property_id::text AS property_id, normalized_uri,
@@ -285,7 +297,7 @@ async function readPayload(
         snapshot,
         sql`SELECT id::text AS id, property_id::text AS property_id,
                    portal_id::text AS portal_id, locale, title, short_description,
-                   hero_image_url, version, updated_by,
+                   hero_image_url, linktree_title, version, updated_by,
                    ${utc('created_at')} AS created_at,
                    ${utc('updated_at')} AS updated_at
             FROM portal_localized_overrides WHERE organization_id = ${organizationId}`,
@@ -383,6 +395,7 @@ async function readPayload(
         portalGroupMembers: sortRecords(portalGroupMembers, ['portal_id', 'id']),
         linkCategories: sortRecords(linkCategories, ['portal_id', 'sort_key', 'id']),
         links: sortRecords(links, ['portal_id', 'category_id', 'sort_key', 'id']),
+        linkTexts: sortRecords(linkTexts, ['portal_id', 'link_id', 'locale', 'id']),
         approvedDestinations: sortRecords(approvedDestinations, ['property_id', 'id']),
         localizedOverrides: sortRecords(localizedOverrides, [
           'portal_id',

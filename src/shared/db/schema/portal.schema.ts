@@ -8,6 +8,7 @@ import {
   GUEST_LOCALE_JSONB_LITERAL,
   GUEST_LOCALE_SQL_LIST,
 } from '../../guest-locale-schemas'
+import { PORTAL_LINK_ICON_SQL_LIST } from '../../portal-link-icon-schemas'
 import { portalGroups } from './portal-group.schema'
 import { properties } from './property.schema'
 export { portalGroups } from './portal-group.schema'
@@ -16,6 +17,7 @@ import {
   uuid,
   varchar,
   jsonb,
+  boolean,
   integer,
   text,
   timestamp,
@@ -57,6 +59,9 @@ export const portals = pgTable(
       .notNull()
       .default('en'),
     additionalGuestLocales: jsonb('additional_guest_locales').notNull().default([]),
+    // The Linktree (the link section of the guest page) is on unless a manager
+    // turns it off. Its links and texts live in portal_links/portal_link_texts.
+    linktreeEnabled: boolean('linktree_enabled').notNull().default(true),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
     deletedAt: deletedAtColumn(),
@@ -182,6 +187,8 @@ export const portalLocalizedOverrides = pgTable(
     title: varchar('title', { length: 120 }),
     shortDescription: varchar('short_description', { length: 500 }),
     heroImageUrl: varchar('hero_image_url', { length: 500 }),
+    // The manager's own title for the link section; null means the pack's default.
+    linktreeTitle: varchar('linktree_title', { length: 60 }),
     version: integer('version').notNull().default(1),
     updatedBy: varchar('updated_by', { length: 255 }).notNull(),
     createdAt: createdAtColumn(),
@@ -205,7 +212,7 @@ export const portalLocalizedOverrides = pgTable(
     check('portal_localized_overrides_version_positive', sql`${t.version} >= 1`),
     check(
       'portal_localized_overrides_has_value',
-      sql`${t.title} IS NOT NULL OR ${t.shortDescription} IS NOT NULL OR ${t.heroImageUrl} IS NOT NULL`,
+      sql`${t.title} IS NOT NULL OR ${t.shortDescription} IS NOT NULL OR ${t.heroImageUrl} IS NOT NULL OR ${t.linktreeTitle} IS NOT NULL`,
     ),
   ],
 )
@@ -555,6 +562,10 @@ export const portalLinks = pgTable(
     check(
       'portal_links_destination_authority_valid',
       sql`(${t.destinationId} IS NOT NULL AND ${t.url} IS NULL AND ${t.legacyDestinationState} = 'migrated') OR (${t.destinationId} IS NULL AND ${t.url} IS NOT NULL AND ${t.legacyDestinationState} IN ('unclassified', 'quarantined'))`,
+    ),
+    check(
+      'portal_links_icon_key_valid',
+      sql`${t.iconKey} IS NULL OR ${t.iconKey} IN (${sql.raw(PORTAL_LINK_ICON_SQL_LIST)})`,
     ),
   ],
 )

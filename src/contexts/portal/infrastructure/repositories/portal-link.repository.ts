@@ -10,6 +10,8 @@ import {
   portalApprovedDestinations,
   portals,
 } from '#/shared/db/schema/portal.schema'
+import { portalLinkTexts } from '#/shared/db/schema/portal-localization.schema'
+import { resolveLinkTexts } from '../../domain/portal-linktree'
 import type { PortalLinkRepository } from '../../application/ports/portal-link.repository'
 import type {
   OrganizationId,
@@ -22,6 +24,7 @@ import {
   categoryFromRow,
   categoryToRow,
   linkFromRow,
+  linkTextFromRow,
   linkToRow,
 } from '../mappers/portal-link.mapper'
 import { portalError } from '../../domain/errors'
@@ -105,6 +108,37 @@ export const createPortalLinkRepository = (
         .where(and(linkOrg(orgId), linkPortal(portalId)))
         .orderBy(portalLinks.sortKey)
       return rows.map((row) => linkFromRow(row.link, row.destinationUri))
+    })
+  },
+
+  listLinkTexts: async (orgId, portalId, primaryLocale) => {
+    return trace('portalLink.listLinkTexts', async () => {
+      const links = await db
+        .select({ id: portalLinks.id, label: portalLinks.label })
+        .from(portalLinks)
+        .innerJoin(
+          portalLinkCategories,
+          and(
+            eq(portalLinkCategories.organizationId, portalLinks.organizationId),
+            eq(portalLinkCategories.id, portalLinks.categoryId),
+          ),
+        )
+        .where(and(linkOrg(orgId), linkPortal(portalId)))
+        .orderBy(portalLinkCategories.sortKey, portalLinks.sortKey, portalLinks.id)
+      const texts = await db
+        .select()
+        .from(portalLinkTexts)
+        .where(
+          and(
+            eq(portalLinkTexts.organizationId, unbrand(orgId)),
+            eq(portalLinkTexts.portalId, unbrand(portalId)),
+          ),
+        )
+      return resolveLinkTexts({
+        links,
+        texts: texts.map(linkTextFromRow),
+        primaryLocale,
+      })
     })
   },
 

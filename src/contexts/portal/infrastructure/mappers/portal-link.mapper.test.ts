@@ -6,6 +6,7 @@ import {
   categoryFromRow,
   categoryToRow,
   linkFromRow,
+  linkTextFromRow,
   linkToRow,
 } from './portal-link.mapper'
 import {
@@ -91,6 +92,48 @@ describe('portal-link.mapper', () => {
       expect(row.url).toBe('https://concierge.example.com')
       expect(row.iconKey).toBe('bell')
       expect(row.sortKey).toBe('c2')
+    })
+  })
+
+  describe('linkTextFromRow', () => {
+    const row = {
+      id: 'text-1',
+      organizationId: 'org-1',
+      propertyId: 'property-1',
+      portalId: 'portal-1',
+      linkId: 'link-1',
+      locale: 'bg',
+      label: 'Меню',
+      line: 'Отворено всеки ден',
+      provenance: null,
+      version: 3,
+      updatedBy: 'user-1',
+      createdAt: new Date('2026-09-30T10:00:00Z'),
+      updatedAt: new Date('2026-09-30T11:00:00Z'),
+    }
+
+    it('maps a row to the stored text the reader resolves', () => {
+      expect(linkTextFromRow(row)).toEqual({
+        linkId: 'link-1',
+        locale: 'bg',
+        label: 'Меню',
+        line: 'Отворено всеки ден',
+        provenance: null,
+        version: 3,
+        updatedBy: 'user-1',
+        updatedAt: new Date('2026-09-30T11:00:00Z'),
+      })
+    })
+
+    it('keeps an AI draft marker', () => {
+      expect(linkTextFromRow({ ...row, provenance: 'ai_draft' }).provenance).toBe(
+        'ai_draft',
+      )
+    })
+
+    it('throws on a locale outside the catalogue and on an unknown provenance', () => {
+      expect(() => linkTextFromRow({ ...row, locale: 'pt' })).toThrow(/locale/)
+      expect(() => linkTextFromRow({ ...row, provenance: 'guess' })).toThrow(/provenance/)
     })
   })
 })

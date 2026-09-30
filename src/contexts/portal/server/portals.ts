@@ -53,7 +53,13 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
       'destination_not_found',
       () => 404,
     )
-    .with('slug_taken', 'revision_conflict', 'destination_not_approved', () => 409)
+    .with(
+      'slug_taken',
+      'revision_conflict',
+      'destination_not_approved',
+      'link_limit_reached',
+      () => 409,
+    )
     .with(
       'upload_failed',
       'token_unavailable',
@@ -77,7 +83,9 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
       'invalid_threshold',
       'invalid_url',
       'invalid_label',
+      'invalid_icon',
       'invalid_title',
+      'locale_not_offered',
       () => 400,
     )
     .exhaustive()
