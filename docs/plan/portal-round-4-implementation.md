@@ -665,7 +665,7 @@ The owner answered the §5 questions on 2026-09-30. Where this section differs f
 3. **AI translation: manual first.** Slice 43 stays deferred, and slice 29 ships without AI controls.
 4. **SAFE-01 prerequisites removed.** The owner is the sole developer and the beta is a closed team, so there is no signed completion record, named signer, independent reviewer or drill. Slice 42 ships uploads switched on: it changes the `portal.upload` fate and amends `docs/BETA.md` §8 and ADR 0032 in the same PR. The technical safeguards stay in the build: re-encoding, metadata stripping, size and type limits, and same-origin serving.
 5. **No native language checks during the closed beta.** BG v2 ships without a check, so slice 19 is not blocked. es, it, fr and de are offered as soon as their packs are drafted (slice 41).
-6. **Print-kit PDF:** decision pending.
+6. **Print-kit PDF: the small version, after the core.** It covers the table tent (A6, folded) and the counter card (A6), in one or two languages with one call to action. It is built as a new slice 45 once the guest page and the admin workspace are live (after slices 19, 31 and 32). Until then, Share offers the QR code as PNG and SVG plus the NFC address.
 
 ## 5. Owner and ops actions still needed
 
