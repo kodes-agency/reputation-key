@@ -309,7 +309,17 @@ describe('isValidTimeZone', () => {
     expect(isValidTimeZone(zone)).toBe(true)
   })
 
-  it.each(['', 'Sofia', 'Europe/Nowhere'])('rejects %j', (zone) => {
+  it.each([
+    '',
+    'Sofia',
+    'Europe/Nowhere',
+    '+02:00',
+    '-05:00',
+    'europe/sofia',
+    'EST',
+    'Europe/',
+    ' Europe/Sofia',
+  ])('rejects %j', (zone) => {
     expect(isValidTimeZone(zone)).toBe(false)
   })
 })

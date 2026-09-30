@@ -90,7 +90,12 @@ immutable evidence:
    snapshot and a URL only when a page is read, so a takedown reaches an
    immutable snapshot; until Portal media exists the resolver serves none.
    `shortDescription` is kept for `og:description` only and is never rendered.
-   Provenance never leaves the server.
+   Provenance never leaves the server. A switched-off Linktree serves no links
+   at all, in either response shape, so none can be followed by id. The time
+   zone must be a canonical IANA name (`Europe/Sofia`), never an offset or an
+   abbreviation. The mirrored `brand_profile_version` column holds the Property
+   Brand Profile version on a v2 row and the look version on a v3 row; the
+   organisation export emits it under the same name.
 8. **The manager app stays English.** Guest languages are a property of the
    guest page. Geographic availability is not localization (BETA.md §3), and
    the operational email stays English.

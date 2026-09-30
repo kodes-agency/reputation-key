@@ -4,6 +4,7 @@
 // so a Bulgarian-primary portal is never mirrored as ['en'].
 
 import {
+  IMMERSIVE_HUB_SCHEMA_VERSION,
   isLocalizedConfiguration,
   LEGACY_V1_GUEST_LOCALE,
   LEGACY_V1_LANGUAGE_PACK,
@@ -31,7 +32,7 @@ export function snapshotMirrorColumns(configuration: PortalPublicationConfigurat
     // The v2 brand profile's own version, or the v3 look version: the one
     // number that says which look this snapshot was published with.
     brandProfileVersion:
-      configuration.schemaVersion === 3
+      configuration.schemaVersion === IMMERSIVE_HUB_SCHEMA_VERSION
         ? configuration.brandProfile.lookVersion
         : configuration.brandProfile.version,
   }

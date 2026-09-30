@@ -40,9 +40,28 @@ function isBoundedId(value: string): boolean {
   return value.length > 0 && value.length <= IMMERSIVE_SNAPSHOT_LIMITS.idLength
 }
 
+// `Intl` also accepts offsets (`+02:00`), any letter case (`europe/sofia`) and
+// bare abbreviations (`EST`). Stored forever, those would be trouble the day the
+// zone reaches SQL, where a POSIX offset has its sign inverted, so only the
+// canonical IANA shape passes. Not compared with `resolvedOptions().timeZone`:
+// ICU renames zones between versions (Kiev to Kyiv) and would strand old rows.
+const ZONE_AREA_PATTERN = /^[A-Z][A-Za-z_]+$/u
+const ZONE_PLACE_PATTERN = /^[A-Za-z0-9_+-]+$/u
+
+function hasIanaShape(timeZone: string): boolean {
+  if (timeZone === 'UTC') return true
+  const [area, ...places] = timeZone.split('/')
+  return (
+    area !== undefined &&
+    ZONE_AREA_PATTERN.test(area) &&
+    places.length > 0 &&
+    places.every((place) => ZONE_PLACE_PATTERN.test(place))
+  )
+}
+
 /** An IANA zone name the runtime's `Intl` knows, such as `Europe/Sofia`. */
 export function isValidTimeZone(timeZone: string): boolean {
-  if (timeZone.length === 0) return false
+  if (!hasIanaShape(timeZone)) return false
   try {
     new Intl.DateTimeFormat('en', { timeZone })
     return true

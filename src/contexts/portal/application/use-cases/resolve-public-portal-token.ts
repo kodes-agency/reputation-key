@@ -1,5 +1,11 @@
 import { createHash } from 'node:crypto'
-import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  portalId,
+  propertyId,
+  type OrganizationId,
+  type PropertyId,
+} from '#/shared/domain/ids'
 import {
   isSupportedGuestLanguagePack,
   type GuestLanguagePackVersion,
@@ -26,6 +32,7 @@ import type {
 import type { PortalHealthRepository } from '../ports/portal-health.repository'
 import {
   guestSurfaceOfConfiguration,
+  IMMERSIVE_HUB_SCHEMA_VERSION,
   isLocalizedConfiguration,
   languagePackGenerationOf,
   type ImmersivePortalPublicationConfiguration,
@@ -61,8 +68,8 @@ export type ResolvePublicPortalTokenDeps = Readonly<{
   portalPublicationRepo: Pick<PortalPublicationRepository, 'resolveActiveByTokenDigest'>
   portalHealthRepo: Pick<PortalHealthRepository, 'getCurrent'>
   listApprovedSecondaryDestinationUris: (
-    organizationId: import('#/shared/domain/ids').OrganizationId,
-    propertyId: import('#/shared/domain/ids').PropertyId,
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
     uris: readonly string[],
     validatedAfter: Date,
   ) => Promise<readonly string[]>
@@ -85,8 +92,8 @@ export type ResolvePublicPortalTokenDeps = Readonly<{
    * look.
    */
   resolvePortalMediaUrls?: (
-    organizationId: import('#/shared/domain/ids').OrganizationId,
-    propertyId: import('#/shared/domain/ids').PropertyId,
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
     assetIds: readonly string[],
   ) => Promise<ServableMediaUrls>
   /** Fired when the media lookup fails: the page degrades to no media instead of failing. */
@@ -347,12 +354,14 @@ async function resolveServedContent(
   selectedLocale: PortalGuestLocale,
   now: Date,
 ): Promise<ServedContent | null> {
-  if (configuration.schemaVersion !== 3) {
+  if (configuration.schemaVersion !== IMMERSIVE_HUB_SCHEMA_VERSION) {
     const links = await resolveApprovedLinks(deps, token, configuration.links, now)
     return legacyContent(configuration, selectedLocale, links)
   }
+  // A switched-off Linktree shows no links, and none may be followed by id either.
+  const published = configuration.linktree.enabled ? configuration.links : []
   const [approvedLinks, mediaUrls] = await Promise.all([
-    resolveApprovedLinks(deps, token, configuration.links, now),
+    resolveApprovedLinks(deps, token, published, now),
     resolveMediaUrls(deps, token, configuration),
   ])
   const presented = presentImmersivePortal(

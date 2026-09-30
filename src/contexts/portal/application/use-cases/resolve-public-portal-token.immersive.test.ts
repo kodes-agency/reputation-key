@@ -11,6 +11,7 @@ import {
   immersiveSnapshot,
   immersiveSnapshotWith,
 } from '../__fixtures__/immersive-snapshot'
+import type { ImmersivePortalPublicationConfiguration } from '../../domain/portal-publication-snapshot'
 import {
   resolvePublicPortalToken,
   type ResolvePublicPortalTokenDeps,
@@ -385,22 +386,112 @@ describe('resolvePublicPortalToken for a schema version 3 publication', () => {
     )
   })
 
-  it('content-addresses every new field, including a taken-down photo', async () => {
-    const withPhoto = await found(
-      setup({ resolvePortalMediaUrls: servesAllMedia }).resolve,
-    )
-    const withoutPhoto = await found(setup().resolve)
-    const otherZone = await found(
-      setup({
-        snapshot: immersiveSnapshotWith({ timeZone: 'Europe/London' }),
-        resolvePortalMediaUrls: servesAllMedia,
-      }).resolve,
-    )
+  describe('a disabled Linktree', () => {
+    const disabled = () => immersiveSnapshotWith({ linktree: { enabled: false } })
 
-    const digests = [withPhoto, withoutPhoto, otherZone].map(
-      (data) => data.responseConfiguration.configurationDigest,
-    )
-    expect(new Set(digests).size).toBe(3)
+    it('serves no links in either shape and skips the approval lookup', async () => {
+      const reportApprovedDestinationsDropped = vi.fn()
+      const { resolve, listApproved } = setup({
+        snapshot: disabled(),
+        reportApprovedDestinationsDropped,
+      })
+      const data = await found(resolve)
+
+      expect(data.immersive?.linktree.enabled).toBe(false)
+      expect(data.immersive?.links).toEqual([])
+      expect(data.links).toEqual([])
+      expect(listApproved).not.toHaveBeenCalled()
+      expect(reportApprovedDestinationsDropped).not.toHaveBeenCalled()
+    })
+
+    it('leaves no published link id for click tracking to redirect to', async () => {
+      const data = await found(setup({ snapshot: disabled() }).resolve)
+      const publishedIds = immersiveConfiguration().links.map((link) => link.id)
+
+      for (const id of publishedIds) {
+        expect(data.links.find((link) => link.id === id)).toBeUndefined()
+      }
+    })
+
+    it('does not carry a link label to the browser', async () => {
+      const data = await found(setup({ snapshot: disabled() }).resolve)
+
+      expect(JSON.stringify(data)).not.toContain('Breakfast until 11')
+      expect(JSON.stringify(data)).not.toContain(MENU_URL)
+    })
+  })
+
+  describe('content addressing', () => {
+    // The row digest is held at the base snapshot's value, so a difference in the
+    // resolved digest can only come from the field the variant changed.
+    const base = immersiveConfiguration()
+    const baseDigest = immersiveSnapshot(base).configurationDigest
+    const digestOf = async (
+      overrides: Partial<ImmersivePortalPublicationConfiguration>,
+      media: () => Promise<Record<string, string>> = servesAllMedia,
+    ) => {
+      const snapshot = immersiveSnapshot(immersiveConfiguration(overrides), {
+        configurationDigest: baseDigest,
+      })
+      const data = await found(setup({ snapshot, resolvePortalMediaUrls: media }).resolve)
+      return data.responseConfiguration.configurationDigest
+    }
+    const [menu, spa] = base.links
+    if (!menu || !spa) throw new Error('fixture needs two links')
+    const english = base.localizedContent.en
+    if (!english) throw new Error('fixture needs English content')
+
+    it.each<[string, Partial<ImmersivePortalPublicationConfiguration>]>([
+      ['time zone', { timeZone: 'Europe/London' }],
+      [
+        'accent colour',
+        { brandProfile: { ...base.brandProfile, accentColour: '#112233' } },
+      ],
+      [
+        'field colour',
+        { brandProfile: { ...base.brandProfile, fieldColour: '#445566' } },
+      ],
+      ['wordmark', { brandProfile: { ...base.brandProfile, wordmark: 'HBR' } }],
+      ['Linktree switch', { linktree: { enabled: false } }],
+      [
+        'hero alt text',
+        {
+          localizedContent: {
+            ...base.localizedContent,
+            en: {
+              ...english,
+              heroAlt: { value: 'A different view', fallbackFrom: null },
+            },
+          },
+        },
+      ],
+      [
+        'link fallback tag',
+        {
+          links: [
+            {
+              ...menu,
+              texts: {
+                ...menu.texts,
+                en: { label: 'Menu', line: 'Breakfast until 11', fallbackFrom: 'bg' },
+              },
+            },
+            spa,
+          ],
+        },
+      ],
+    ])('changes with the %s', async (_name, overrides) => {
+      const reference = await digestOf({})
+
+      expect(await digestOf(overrides)).not.toBe(reference)
+    })
+
+    it('changes with a taken-down photo', async () => {
+      const withPhoto = await digestOf({})
+      const withoutPhoto = await digestOf({}, async () => ({}))
+
+      expect(withoutPhoto).not.toBe(withPhoto)
+    })
   })
 
   it('never exposes provenance, which is history only', async () => {

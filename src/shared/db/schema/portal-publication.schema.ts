@@ -52,6 +52,9 @@ export const portalPublicationSnapshots = pgTable(
       .notNull()
       .default(sql`'{"en": "guest-ui-en-v1"}'::jsonb`),
     localizedContent: jsonb('localized_content').notNull().default({}),
+    // The look's version for the row: the Property Brand Profile version on a
+    // schema version 2 snapshot, the look version (brandProfile.lookVersion) on a
+    // version 3 one. Null on version 1.
     brandProfileVersion: integer('brand_profile_version'),
     privateFeedbackThreshold: integer('private_feedback_threshold').notNull(),
     contactRequestEnabled: boolean('contact_request_enabled').notNull().default(false),

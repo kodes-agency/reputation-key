@@ -32,11 +32,16 @@ export function immersiveAssetIds(
   return [...new Set(ids.filter((id): id is string => typeof id === 'string'))]
 }
 
+/** The URL of an asset the caller allowed, never one inherited from Object.prototype. */
+function urlOf(urls: ServableMediaUrls, assetId: string): string | undefined {
+  return Object.hasOwn(urls, assetId) ? urls[assetId] : undefined
+}
+
 function mediaOf(
   reference: { assetId: string; width: number; height: number } | null,
   urls: ServableMediaUrls,
 ): PublicPortalMedia | null {
-  const url = reference ? urls[reference.assetId] : undefined
+  const url = reference ? urlOf(urls, reference.assetId) : undefined
   return reference && url
     ? { url, width: reference.width, height: reference.height }
     : null
@@ -110,7 +115,7 @@ export function presentImmersivePortal(
       links: links.map(({ link, text }) => ({
         id: link.id,
         iconKey: link.iconKey,
-        imageUrl: link.imageAssetId ? (mediaUrls[link.imageAssetId] ?? null) : null,
+        imageUrl: (link.imageAssetId && urlOf(mediaUrls, link.imageAssetId)) || null,
         label: text.label,
         line: text.line,
         fallbackFrom: text.fallbackFrom,
