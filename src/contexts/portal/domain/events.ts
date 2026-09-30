@@ -13,20 +13,69 @@ import type { PortalId } from './types'
 import type {
   OrganizationId,
   PortalGroupId,
-  PortalLinkCategoryId,
-  PortalLinkId,
   PortalAccessArtifactId,
   PortalApprovedDestinationId,
   PropertyId,
   UserId,
 } from '#/shared/domain/ids'
-import { portalError } from './errors'
 import type { PortalPublicationState } from './portal-publication'
 import type { PortalAccessArtifactChannel } from './portal-access-artifact'
 import type { PortalHealthReason, PortalHealthStatus } from './portal-health'
+import { assertPortalLifecycleFact, type PortalEventArgs } from './portal-event-base'
+import type {
+  PortalAddedToGroup,
+  PortalGroupCreated,
+  PortalGroupDeleted,
+  PortalGroupUpdated,
+  PortalRemovedFromGroup,
+} from './portal-group-events'
+import type {
+  PortalLinkCategoryCreated,
+  PortalLinkCategoryDeleted,
+  PortalLinkCategoryReordered,
+  PortalLinkCategoryUpdated,
+  PortalLinkCreated,
+  PortalLinkDeleted,
+  PortalLinkReordered,
+  PortalLinkUpdated,
+} from './portal-link-events'
 
-type PortalEventArgs<T> = Omit<T, '_tag' | 'eventId' | 'correlationId'> &
-  Readonly<{ correlationId?: string | null }>
+// Group and link facts live in flat sibling modules (round 4 F3). Re-exported
+// unchanged so every importer of './events' keeps working.
+export type {
+  PortalAddedToGroup,
+  PortalGroupCreated,
+  PortalGroupDeleted,
+  PortalGroupUpdated,
+  PortalRemovedFromGroup,
+} from './portal-group-events'
+export {
+  portalAddedToGroup,
+  portalGroupCreated,
+  portalGroupDeleted,
+  portalGroupUpdated,
+  portalRemovedFromGroup,
+} from './portal-group-events'
+export type {
+  PortalLinkCategoryCreated,
+  PortalLinkCategoryDeleted,
+  PortalLinkCategoryReordered,
+  PortalLinkCategoryUpdated,
+  PortalLinkCreated,
+  PortalLinkDeleted,
+  PortalLinkReordered,
+  PortalLinkUpdated,
+} from './portal-link-events'
+export {
+  portalLinkCategoryCreated,
+  portalLinkCategoryDeleted,
+  portalLinkCategoryReordered,
+  portalLinkCategoryUpdated,
+  portalLinkCreated,
+  portalLinkDeleted,
+  portalLinkReordered,
+  portalLinkUpdated,
+} from './portal-link-events'
 
 // ── Portal events ──────────────────────────────────────────────────
 
@@ -358,169 +407,6 @@ export type PortalApprovedDestinationRatioRecorded = Readonly<{
   correlationId: string | null
 }>
 
-// ── Link category events ───────────────────────────────────────────
-
-export type PortalLinkCategoryCreated = Readonly<{
-  _tag: 'portal_link_category.created'
-  eventId: string
-  portalId: PortalId
-  categoryId: PortalLinkCategoryId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
-
-export type PortalLinkCategoryReordered = Readonly<{
-  _tag: 'portal_link_category.reordered'
-  eventId: string
-  portalId: PortalId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
-
-export type PortalLinkCategoryUpdated = Readonly<{
-  _tag: 'portal_link_category.updated'
-  eventId: string
-  portalId: PortalId
-  categoryId: PortalLinkCategoryId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
-
-export type PortalLinkCategoryDeleted = Readonly<{
-  _tag: 'portal_link_category.deleted'
-  eventId: string
-  portalId: PortalId
-  categoryId: PortalLinkCategoryId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
-
-// ── Link events ────────────────────────────────────────────────────
-
-export type PortalLinkCreated = Readonly<{
-  _tag: 'portal_link.created'
-  eventId: string
-  portalId: PortalId
-  linkId: PortalLinkId
-  categoryId: PortalLinkCategoryId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
-
-export type PortalLinkReordered = Readonly<{
-  _tag: 'portal_link.reordered'
-  eventId: string
-  portalId: PortalId
-  categoryId: PortalLinkCategoryId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
-
-export type PortalLinkUpdated = Readonly<{
-  _tag: 'portal_link.updated'
-  eventId: string
-  portalId: PortalId
-  linkId: PortalLinkId
-  categoryId: PortalLinkCategoryId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
-
-export type PortalLinkDeleted = Readonly<{
-  _tag: 'portal_link.deleted'
-  eventId: string
-  portalId: PortalId
-  linkId: PortalLinkId
-  categoryId: PortalLinkCategoryId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
-
-// ── Portal group events ───────────────────────────────────────────
-
-export type PortalGroupCreated = Readonly<{
-  _tag: 'portal_group.created'
-  eventId: string
-  portalGroupId: PortalGroupId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  name: string
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
-
-export type PortalGroupUpdated = Readonly<{
-  _tag: 'portal_group.updated'
-  eventId: string
-  portalGroupId: PortalGroupId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  name: string
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
-
-export type PortalGroupDeleted = Readonly<{
-  _tag: 'portal_group.deleted'
-  eventId: string
-  portalGroupId: PortalGroupId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
-
-export type PortalAddedToGroup = Readonly<{
-  _tag: 'portal_group.portal_added'
-  eventId: string
-  portalGroupId: PortalGroupId
-  portalId: PortalId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
-
-export type PortalRemovedFromGroup = Readonly<{
-  _tag: 'portal_group.portal_removed'
-  eventId: string
-  portalGroupId: PortalGroupId
-  portalId: PortalId
-  organizationId: OrganizationId
-  propertyId: PropertyId
-  sourceAggregateVersion: string
-  occurredAt: Date
-  correlationId: string | null
-}>
-
 // ── Event union ────────────────────────────────────────────────────
 
 export type PortalEvent =
@@ -561,18 +447,6 @@ export type PortalEvent =
   | PortalRemovedFromGroup
 
 // ── Event constructors ─────────────────────────────────────────────
-
-function assertPortalLifecycleFact(args: {
-  occurredAt: Date
-  sourceAggregateVersion: string
-}): void {
-  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
-  assert(
-    !Number.isNaN(Date.parse(args.sourceAggregateVersion)) &&
-      new Date(args.sourceAggregateVersion).toISOString() === args.sourceAggregateVersion,
-    'sourceAggregateVersion must be an ISO timestamp',
-  )
-}
 
 export const portalCreated = (args: PortalEventArgs<PortalCreated>): PortalCreated => {
   assertPortalLifecycleFact(args)
@@ -897,170 +771,6 @@ export const portalAccessArtifactPublished = (
   assert(args.channel === 'qr' || args.channel === 'nfc', 'controlled channel required')
   return {
     _tag: 'portal.access_artifact.published',
-    eventId: newEventId(),
-    ...args,
-    correlationId: args.correlationId ?? null,
-  }
-}
-
-export const portalLinkCategoryCreated = (
-  args: PortalEventArgs<PortalLinkCategoryCreated>,
-): PortalLinkCategoryCreated => {
-  assertPortalLifecycleFact(args)
-  return {
-    _tag: 'portal_link_category.created',
-    eventId: newEventId(),
-    ...args,
-    correlationId: args.correlationId ?? null,
-  }
-}
-
-export const portalLinkCategoryReordered = (
-  args: PortalEventArgs<PortalLinkCategoryReordered>,
-): PortalLinkCategoryReordered => {
-  assertPortalLifecycleFact(args)
-  return {
-    _tag: 'portal_link_category.reordered',
-    eventId: newEventId(),
-    ...args,
-    correlationId: args.correlationId ?? null,
-  }
-}
-
-export const portalLinkCategoryUpdated = (
-  args: PortalEventArgs<PortalLinkCategoryUpdated>,
-): PortalLinkCategoryUpdated => {
-  assertPortalLifecycleFact(args)
-  return {
-    _tag: 'portal_link_category.updated',
-    eventId: newEventId(),
-    ...args,
-    correlationId: args.correlationId ?? null,
-  }
-}
-
-export const portalLinkCategoryDeleted = (
-  args: PortalEventArgs<PortalLinkCategoryDeleted>,
-): PortalLinkCategoryDeleted => {
-  assertPortalLifecycleFact(args)
-  return {
-    _tag: 'portal_link_category.deleted',
-    eventId: newEventId(),
-    ...args,
-    correlationId: args.correlationId ?? null,
-  }
-}
-
-export const portalLinkCreated = (
-  args: PortalEventArgs<PortalLinkCreated>,
-): PortalLinkCreated => {
-  assertPortalLifecycleFact(args)
-  return {
-    _tag: 'portal_link.created',
-    eventId: newEventId(),
-    ...args,
-    correlationId: args.correlationId ?? null,
-  }
-}
-
-export const portalLinkReordered = (
-  args: PortalEventArgs<PortalLinkReordered>,
-): PortalLinkReordered => {
-  assertPortalLifecycleFact(args)
-  return {
-    _tag: 'portal_link.reordered',
-    eventId: newEventId(),
-    ...args,
-    correlationId: args.correlationId ?? null,
-  }
-}
-
-export const portalLinkUpdated = (
-  args: PortalEventArgs<PortalLinkUpdated>,
-): PortalLinkUpdated => {
-  assertPortalLifecycleFact(args)
-  return {
-    _tag: 'portal_link.updated',
-    eventId: newEventId(),
-    ...args,
-    correlationId: args.correlationId ?? null,
-  }
-}
-
-export const portalLinkDeleted = (
-  args: PortalEventArgs<PortalLinkDeleted>,
-): PortalLinkDeleted => {
-  assertPortalLifecycleFact(args)
-  return {
-    _tag: 'portal_link.deleted',
-    eventId: newEventId(),
-    ...args,
-    correlationId: args.correlationId ?? null,
-  }
-}
-
-// ── Portal group event constructors ────────────────────────────────
-
-export const portalGroupCreated = (
-  args: PortalEventArgs<PortalGroupCreated>,
-): PortalGroupCreated => {
-  assertPortalLifecycleFact(args)
-  if (!args.name || args.name.trim().length === 0) {
-    throw portalError('invalid_name', 'name must be a non-empty string')
-  }
-  return {
-    _tag: 'portal_group.created',
-    eventId: newEventId(),
-    ...args,
-    correlationId: args.correlationId ?? null,
-  }
-}
-
-export const portalGroupUpdated = (
-  args: PortalEventArgs<PortalGroupUpdated>,
-): PortalGroupUpdated => {
-  assertPortalLifecycleFact(args)
-  if (!args.name || args.name.trim().length === 0) {
-    throw portalError('invalid_name', 'name must be a non-empty string')
-  }
-  return {
-    _tag: 'portal_group.updated',
-    eventId: newEventId(),
-    ...args,
-    correlationId: args.correlationId ?? null,
-  }
-}
-
-export const portalGroupDeleted = (
-  args: PortalEventArgs<PortalGroupDeleted>,
-): PortalGroupDeleted => {
-  assertPortalLifecycleFact(args)
-  return {
-    _tag: 'portal_group.deleted',
-    eventId: newEventId(),
-    ...args,
-    correlationId: args.correlationId ?? null,
-  }
-}
-
-export const portalAddedToGroup = (
-  args: PortalEventArgs<PortalAddedToGroup>,
-): PortalAddedToGroup => {
-  assertPortalLifecycleFact(args)
-  return {
-    _tag: 'portal_group.portal_added',
-    eventId: newEventId(),
-    ...args,
-    correlationId: args.correlationId ?? null,
-  }
-}
-
-export const portalRemovedFromGroup = (
-  args: PortalEventArgs<PortalRemovedFromGroup>,
-): PortalRemovedFromGroup => {
-  assertPortalLifecycleFact(args)
-  return {
-    _tag: 'portal_group.portal_removed',
     eventId: newEventId(),
     ...args,
     correlationId: args.correlationId ?? null,

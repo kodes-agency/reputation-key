@@ -387,7 +387,7 @@
         "reason": "The function is a single flat conjunction of ~20 independent equality checks \u2014 head identity, Review source position, head/observation denormalization agreement, the five decision fields, three enum-membership checks and the measured/startAt pairing \u2014 all compared against one expectation object. The"
       },
       {
-        "files": ["src/contexts/portal/infrastructure/portal-command-store.ts"],
+        "files": ["src/contexts/portal/infrastructure/portal-link-commands.ts"],
         "functions": ["assertPortalContentCommand"],
         "maxCyclomatic": 34,
         "reason": "This is the task brief's own canonical waiver shape: an exhaustive switch over a closed union of seven event tags, where each arm is a flat two-to-five-term conjunction that reads trivially. Cognitive is 10 \u2014 a third of the ceiling \u2014 which is the tell that the code is flat, not nested; only cyclomat"
