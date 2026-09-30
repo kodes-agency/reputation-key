@@ -663,4 +663,80 @@ describe.sequential('identityCommandStore (integration)', () => {
     expect(facts.rows[0].payload.memberUserId).toBe(ACCEPTOR_ID as string)
     expect(facts.rows[0].payload.userId).toBe(INVITER_ID as string)
   })
+
+  // D2: an AccountAdmin may demote another AccountAdmin; the Organization keeps
+  // at least one, and the lock decides a race between two demotions.
+  const demoteOwner = (memberId: string, memberUserId: typeof INVITER_ID) =>
+    createAtomicIdentityCommandStore(db).changeMemberRole({
+      organizationId: ORG_ID,
+      memberId,
+      newRole: 'admin',
+      event: identityMemberRoleChanged({
+        organizationId: ORG_ID,
+        memberUserId,
+        previousRole: 'AccountAdmin',
+        newRole: 'PropertyManager',
+        userId: memberUserId === INVITER_ID ? ACCEPTOR_ID : INVITER_ID,
+        occurredAt: NOW,
+      }),
+    })
+
+  const seedTwoOwners = () =>
+    pool.query(
+      `INSERT INTO member (id, "organizationId", "userId", role, "createdAt")
+       VALUES ('member-idcmd-owner-a', $1, $2, 'owner', NOW()),
+              ('member-idcmd-owner-b', $1, $3, 'owner', NOW())`,
+      [ORG_ID, INVITER_ID, ACCEPTOR_ID],
+    )
+
+  it('changeMemberRole lets one AccountAdmin demote another while an owner remains', async () => {
+    await seedTwoOwners()
+
+    await demoteOwner('member-idcmd-owner-b', ACCEPTOR_ID)
+
+    const members = await pool.query(
+      `SELECT id, role FROM member WHERE "organizationId" = $1 ORDER BY id`,
+      [ORG_ID],
+    )
+    expect(members.rows).toEqual([
+      { id: 'member-idcmd-owner-a', role: 'owner' },
+      { id: 'member-idcmd-owner-b', role: 'admin' },
+    ])
+    const facts = await pool.query(
+      `SELECT payload FROM outbox_events
+       WHERE organization_id = $1 AND event_type = 'identity.member.role_changed'`,
+      [ORG_ID],
+    )
+    expect(facts.rows).toHaveLength(1)
+  })
+
+  it('changeMemberRole leaves one AccountAdmin when both are demoted at once', async () => {
+    await seedTwoOwners()
+
+    const outcomes = await Promise.allSettled([
+      demoteOwner('member-idcmd-owner-a', INVITER_ID),
+      demoteOwner('member-idcmd-owner-b', ACCEPTOR_ID),
+    ])
+
+    const refused = outcomes.filter((outcome) => outcome.status === 'rejected')
+    expect(outcomes.filter((outcome) => outcome.status === 'fulfilled')).toHaveLength(1)
+    expect(refused).toHaveLength(1)
+    expect(
+      refused.every(
+        (outcome) =>
+          isIdentityError(outcome.reason) && outcome.reason.code === 'last_owner',
+      ),
+    ).toBe(true)
+    const owners = await pool.query(
+      `SELECT id FROM member WHERE "organizationId" = $1 AND role = 'owner'`,
+      [ORG_ID],
+    )
+    expect(owners.rows).toHaveLength(1)
+    const facts = await pool.query(
+      `SELECT id FROM outbox_events
+       WHERE organization_id = $1 AND event_type = 'identity.member.role_changed'`,
+      [ORG_ID],
+    )
+    expect(facts.rows).toHaveLength(1)
+  })
 })

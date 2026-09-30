@@ -183,6 +183,9 @@ describe('normalizeSlug', () => {
 
 // ── canChangeRole ────────────────────────────────────────────────────
 
+// D2: role administration is AccountAdmin-only, and an AccountAdmin may change
+// any member's role — another AccountAdmin's included. The last-AccountAdmin
+// guard (use case + command store) keeps the Organization owned.
 describe('canChangeRole', () => {
   it('allows AccountAdmin to change Member to PropertyManager', () => {
     expect(
@@ -196,35 +199,41 @@ describe('canChangeRole', () => {
     )
   })
 
-  it('allows PropertyManager to change Member role', () => {
-    expect(canChangeRole('PropertyManager', 'Member', 'Member')._unsafeUnwrap()).toBe(
-      true,
-    )
+  it('allows AccountAdmin to promote a PropertyManager to AccountAdmin', () => {
+    expect(
+      canChangeRole('AccountAdmin', 'PropertyManager', 'AccountAdmin')._unsafeUnwrap(),
+    ).toBe(true)
   })
 
-  it('prevents PropertyManager from changing PropertyManager role', () => {
-    const result = canChangeRole('PropertyManager', 'PropertyManager', 'Member')
-    expect(result.isErr()).toBe(true)
-    if (result.isErr()) {
-      expect(result.error.code).toBe('forbidden')
-    }
+  it('allows AccountAdmin to demote another AccountAdmin (D2)', () => {
+    expect(
+      canChangeRole('AccountAdmin', 'AccountAdmin', 'PropertyManager')._unsafeUnwrap(),
+    ).toBe(true)
   })
 
-  it('prevents PropertyManager from assigning AccountAdmin role', () => {
+  it.each([
+    ['Member', 'Member'],
+    ['Member', 'PropertyManager'],
+    ['PropertyManager', 'Member'],
+    ['AccountAdmin', 'PropertyManager'],
+  ] as const)(
+    'refuses a PropertyManager changing a %s to %s — role changes are AccountAdmin-only',
+    (currentTargetRole, newTargetRole) => {
+      const result = canChangeRole('PropertyManager', currentTargetRole, newTargetRole)
+      expect(result.isErr()).toBe(true)
+      if (result.isErr()) {
+        expect(result.error.code).toBe('forbidden')
+      }
+    },
+  )
+
+  it('refuses a PropertyManager assigning AccountAdmin', () => {
     const result = canChangeRole('PropertyManager', 'Member', 'AccountAdmin')
     expect(result.isErr()).toBe(true)
   })
 
-  it('prevents Member from changing any role', () => {
+  it('refuses a Member changing any role', () => {
     expect(canChangeRole('Member', 'Member', 'PropertyManager').isErr()).toBe(true)
     expect(canChangeRole('Member', 'PropertyManager', 'Member').isErr()).toBe(true)
-  })
-
-  it('prevents changing AccountAdmin role (even by AccountAdmin — equal role)', () => {
-    const result = canChangeRole('AccountAdmin', 'AccountAdmin', 'PropertyManager')
-    expect(result.isErr()).toBe(true)
-    if (result.isErr()) {
-      expect(result.error.code).toBe('forbidden')
-    }
   })
 })
