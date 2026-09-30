@@ -146,8 +146,12 @@ async function seed(tx: Tx): Promise<Fixture> {
       -- made this look like test-ordering flake in CI. now() is the
       -- transaction timestamp and is stable, so the pair is equal by
       -- construction.
+      -- '720 hours', not '30 days', to match that CHECK: timestamptz + days
+      -- counts calendar days in the session TimeZone, so on a server whose
+      -- TimeZone observes DST a 30-day span across a change is 719 or 721
+      -- hours and the INSERT fails.
       ${CONTACT_CIPHERTEXT}, 'guest-contact-v1', 'active', now(),
-      now() + interval '30 days', now(), now()
+      now() + interval '720 hours', now(), now()
     )
   `)
   await tx.execute(sql`
