@@ -105,6 +105,12 @@
 // so it adds no chunk. Measured 329,350 B (78 js + 1 css) against 329,105 B;
 // the budget moves to 329,700 B.
 //
+// 2026-09-30 (Portal round 4, s34): the Results tab adds Tailwind utilities to
+// the one global stylesheet (styles.css 25,162 B -> 25,598 B gzip, +436 B); the
+// JS closure is unchanged within +-50 B per chunk (the entry chunk shrank 78 B).
+// Fresh production builds of main (6264a7b2e) and of the change: 329,535 B ->
+// 329,971 B (78 js + 1 css). The budget moves to 330,300 B.
+//
 // When this fails: resolve the new static importer and cut that source edge. Do
 // NOT raise the budget without recording a fresh production measurement here.
 // When a cycle fails it: the chunk group that moved a module away from the
@@ -120,7 +126,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 329_700, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350
+  initialClosureGzip: 330_300, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 
