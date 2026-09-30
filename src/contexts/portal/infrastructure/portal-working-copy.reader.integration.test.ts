@@ -35,7 +35,7 @@ import {
   COMPLETE_GOLDEN,
   INCOMPLETE_GOLDEN,
   NO_BRAND_GOLDEN,
-} from './testing/portal-working-copy.golden'
+} from './__fixtures__/portal-working-copy.golden'
 
 const MANAGER = userId('manager-workingcopy-0000000000001')
 const SEEDED_AT = new Date('2026-08-26T10:00:00.000Z')

@@ -1,5 +1,5 @@
 // Pinned output of the Portal working-copy reader for the scenarios in
-// portal-working-copy-scenarios.ts. Captured from the three pre-refactor
+// testing/portal-working-copy-scenarios.ts. Captured from the three pre-refactor
 // assemblers (PortalPublicationRepository.loadWorkingCopy), before they became
 // one reader, so a change here is a change to what publish, the in-transaction
 // verification and the history comparison all see.
