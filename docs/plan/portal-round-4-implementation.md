@@ -419,7 +419,7 @@ Each slice below lists: goal, scope, model changes, tests, gates beyond the stan
   - Its three e2e assertions ("Portal Unavailable") change in the same PR.
 - `e2e/helpers/guest-consent.ts` gains a v3 path.
 - Depends on 12. Size M.
-- **Owner:** the short notice copy must still disclose the session cookie and the network marker (ADR 0044). Until the owner rules, the full disclosure copy is used.
+- **Owner:** the short notice copy must still disclose the session cookie and the network marker (ADR 0044). Until the owner rules, the full disclosure copy is used. The v2 packs carry it as `visitNoticeDetail` (session cookie, network marker, no ads or trackers); slice 17 renders that key, not the shorter `visitNotice`, until the owner approves shorter copy.
 
 **18. Guest quality gate (G9), re-scoped.** There is no `toHaveScreenshot` or LCP harness in `e2e/` today. This slice adds:
 

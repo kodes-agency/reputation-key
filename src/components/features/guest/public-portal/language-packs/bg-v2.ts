@@ -1,0 +1,136 @@
+import { defineGuestCopyV2 } from './guest-copy-v2'
+
+// Bulgarian guest copy, generation 2 (schema version 3 snapshots). Written to
+// read naturally in Bulgarian rather than to follow the English word for word;
+// the form of address is the polite plural (вие), as in the v1 pack. No native
+// check happens during the closed beta (owner decision 5, 2026-09-30).
+// Industry-neutral: no text names a kind of place.
+export const bgV2 = defineGuestCopyV2({
+  locale: 'bg',
+  version: 'guest-ui-bg-v2',
+  copy: {
+    languageChipLabel: 'Език',
+    languageSheetTitle: 'Език',
+    languageSheetHint:
+      'Страницата се отваря на езика на телефона ви, когато го поддържа.',
+    languageSheetClose: 'Затвори',
+    languageCurrent: 'Избран',
+    languageNameEn: 'Английски',
+    languageNameBg: 'Български',
+    languageNameEs: 'Испански',
+    languageNameIt: 'Италиански',
+    languageNameFr: 'Френски',
+    languageNameDe: 'Немски',
+    privacyNoticeLink: 'Поверителност',
+    footerMadeWith: 'Създадено с Reputation Key',
+    logoAlt: 'Лого на {name}',
+    visitNotice:
+      'Тази страница отчита посещенията за {name}. Без реклами и без проследяване от трети страни.',
+    visitNoticeDetail:
+      'Задължителна сесийна бисквитка защитава отговора ви. Отделно отчитаме това посещение за {name} чрез краткотраен, защитен мрежов маркер. Без реклами и без проследяване от трети страни.',
+    visitNoticeLabel: 'Отчитане на посещенията',
+    visitNoticeAcknowledge: 'Разбрах',
+
+    ratingTitle: 'Как беше преживяването ви?',
+    ratingWord1: 'Слабо',
+    ratingWord2: 'Задоволително',
+    ratingWord3: 'Добро',
+    ratingWord4: 'Много добро',
+    ratingWord5: 'Отлично',
+    ratingScaleLow: 'Слабо',
+    ratingScaleHigh: 'Отлично',
+    ratingGroupLabel: 'Оценка',
+    ratingOption: '{stars}, {word}',
+    ratingChoose: 'Изберете оценка от 1 до 5 звезди.',
+    ratingSend: 'Изпрати поверително',
+    ratingPrivacyLine: 'Споделя се поверително с {name}.',
+    ratingSaveFailed: 'Оценката ви не можа да бъде запазена. Моля, опитайте отново.',
+    sending: 'Изпращане…',
+    honeypotLabel: 'Уебсайт',
+    errorGeneric: 'Нещо се обърка. Моля, опитайте отново.',
+
+    ratingThanks: 'Благодарим ви.',
+    ratingSentTitle: 'Оценката е изпратена поверително',
+    ratingSentSummary: '{word} · изпратена поверително',
+    ratingChange: 'Промени',
+    ratingUpdated: 'Оценката ви беше променена.',
+
+    googleTitle: 'Споделете преживяването си в Google',
+    googleBody: 'Ако желаете, можете да оставите и публичен отзив в Google.',
+    googleAction: 'Продължи към Google',
+    googleOpensLabel: '(отваря Google)',
+    googleHint: 'Отваря Google · може да се наложи да влезете в профила си',
+    googleUnavailableTitle: 'В момента Google не може да се отвори оттук',
+    googleUnavailableBody: 'Оценката ви стигна поверително до {name}. Благодарим ви.',
+    googleOpenFailed: 'Google не можа да бъде отворен. Моля, опитайте отново.',
+
+    noteOfferTitle: 'Добавете поверителна бележка за екипа',
+    noteOfferBody: 'По желание. Споделя се поверително с {name}.',
+    noteOfferAction: 'Напиши поверителна бележка',
+    noteLabel: 'Вашата бележка (по желание)',
+    noteHint: 'Не е нужно да посочвате името си.',
+    noteSend: 'Изпрати бележката поверително',
+    noteDismiss: 'Не сега',
+    noteRequired: 'Напишете бележката си, преди да я изпратите.',
+    noteSent: 'Бележката ви беше изпратена поверително до {name}.',
+    noteSendFailed: 'Бележката ви не можа да бъде изпратена. Моля, опитайте отново.',
+
+    responseTitle: 'Вашият отговор',
+    responseSummary: 'Променете го, премахнете го или започнете отначало',
+    responseChangeTitle: 'Променете оценката си',
+    responseChangeSave: 'Запази новата оценка',
+    responseRemoveNoteTitle: 'Премахнете бележката си',
+    responseRemoveNoteAction: 'Премахни',
+    responseRemoveNoteDone: 'Бележката ви беше премахната. Оценката ви остава запазена.',
+    responseRemoveNoteFailed:
+      'Бележката ви не можа да бъде премахната. Моля, опитайте отново.',
+    responseRemoveAllTitle: 'Премахнете оценката и бележката си',
+    responseRemoveAllNote: 'Това, което сте публикували в Google, не се променя.',
+    responseRemoveAllAction: 'Премахни…',
+    responseRemoveAllConfirmTitle: 'Да се премахнат ли оценката и бележката?',
+    responseRemoveAllConfirmBody:
+      'И двете ще бъдат изтрити. Това не може да бъде отменено.',
+    responseRemoveAllConfirm: 'Премахни и двете',
+    responseRemoveAllCancel: 'Запази ги',
+    responseRemoveAllDoneTitle: 'Отговорът ви беше премахнат',
+    responseRemoveAllDoneBody: 'Оценката и бележката ви бяха изтрити.',
+    responseRemoveAllFailed:
+      'Отговорът ви не можа да бъде премахнат. Моля, опитайте отново.',
+
+    deadlineToday: 'До {time} днес, местно време в {zone}',
+    deadlineTomorrow: 'До {time} утре, местно време в {zone}',
+    deadlineDate: 'До {date}, {time}, местно време в {zone}',
+    windowEndedChange: 'Срокът за промяна на оценката изтече.',
+    windowEndedNote: 'Срокът за премахване на бележката изтече.',
+    windowEndedAll: 'Срокът за премахване на отговора изтече.',
+
+    sharedDeviceTitle: 'Споделен телефон или таблет?',
+    sharedDeviceBody: 'Започнете отначало, за да види следващият гост чиста страница.',
+    startOverAction: 'Започни отначало на това устройство',
+    startOverDone: 'Готово за следващия гост. Предишният ви отговор остава запазен.',
+    startOverFailed: 'Не успяхме да започнем отначало. Моля, опитайте отново.',
+
+    linktreeDefaultTitle: 'Полезни връзки',
+    linkOpensNewTab: '(отваря се в нов раздел)',
+    unavailableTitle: 'Тази страница не е достъпна в момента.',
+    unavailableBody: 'Моля, опитайте отново по-късно.',
+  },
+  plurals: {
+    ratingStars: { one: '{count} звезда', other: '{count} звезди' },
+  },
+  zoneNames: {
+    UTC: 'UTC',
+    'Europe/Sofia': 'София',
+    'Europe/London': 'Лондон',
+    'Europe/Berlin': 'Берлин',
+    'Europe/Paris': 'Париж',
+    'Europe/Madrid': 'Мадрид',
+    'Europe/Rome': 'Рим',
+    'Europe/Athens': 'Атина',
+    'Europe/Bucharest': 'Букурещ',
+    'Europe/Belgrade': 'Белград',
+    'Europe/Istanbul': 'Истанбул',
+    'Europe/Kyiv': 'Киев',
+    'Europe/Kiev': 'Киев',
+  },
+})
