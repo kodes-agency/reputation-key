@@ -20,7 +20,7 @@ import {
   updatePropertyResponsibleManagers,
 } from '#/contexts/property/server/property-responsible-managers'
 import { setMemberPropertyAccess } from '#/contexts/identity/server/organizations'
-import { responsibleManagersQuery } from '#/routes/-queries/responsible-managers-query'
+import { responsibleManagersQuery } from '#/routes/_authenticated/properties/$propertyId/-settings-queries'
 import { identityKeys, propertyKeys } from '#/shared/queries/query-keys'
 import {
   createSaveMemberAccess,

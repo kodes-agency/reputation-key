@@ -39,7 +39,7 @@ vi.mock('#/contexts/property/server/property-responsible-managers', () => ({
 vi.mock('#/routes/-queries/route-queries', () => ({
   propertiesQuery: {},
 }))
-vi.mock('#/routes/-queries/responsible-managers-query', () => ({
+vi.mock('#/routes/_authenticated/properties/$propertyId/-settings-queries', () => ({
   responsibleManagersQuery: vi.fn(),
 }))
 

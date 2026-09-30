@@ -1,5 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
 import { getMerchantAiAuthorizationFn } from '#/contexts/identity/server/merchant-ai'
+import { listPropertyResponsibleManagers } from '#/contexts/property/server/property-responsible-managers'
 import { getResponseTargetPolicySettingsFn } from '#/contexts/inbox/server/inbox'
 import { getPropertyPortalExperience } from '#/contexts/portal/server/portals'
 import { getPropertyReplyLibraryFn } from '#/contexts/review/server/reply'
@@ -7,10 +8,18 @@ import {
   identityKeys,
   inboxKeys,
   portalKeys,
+  propertyKeys,
   reviewKeys,
 } from '#/shared/queries/query-keys'
 
 /** Queries the property settings sections share; each section loads only its own. */
+export const responsibleManagersQuery = (propertyId: string) =>
+  queryOptions({
+    queryKey: propertyKeys.responsibleManagers(propertyId),
+    queryFn: () => listPropertyResponsibleManagers({ data: { propertyId } }),
+    staleTime: 30_000,
+  })
+
 export const responseTargetPolicyQuery = (propertyId: string) =>
   queryOptions({
     queryKey: inboxKeys.responseTargetPolicies(propertyId),
@@ -40,11 +49,9 @@ export const merchantAiAuthorizationQuery = (propertyId: string) =>
   })
 
 // Re-exported, not redefined: the people section reads the same members cache as
-// the inbox and portal routes, and the Responsible managers read is shared with
-// the Members access sheet. A second copy of these options could drift from their
-// key or staleTime without anything noticing.
+// the inbox and portal routes, and a second copy of these options could drift
+// from their key or staleTime without anything noticing.
 export {
   membersQuery,
   reviewAnalysisProgressQuery,
 } from '#/routes/-queries/route-queries'
-export { responsibleManagersQuery } from '#/routes/-queries/responsible-managers-query'
