@@ -34,10 +34,7 @@ import {
 } from '../src/shared/db/schema'
 import { propertyResponsibleManagers } from '../src/shared/db/schema/property.schema'
 import { buildPortalPublicationSnapshot } from '../src/contexts/portal/application/portal-publication-snapshot'
-import {
-  isLocalizedConfiguration,
-  PORTAL_LANGUAGE_PACK_VERSIONS,
-} from '../src/contexts/portal/domain/portal-publication-snapshot'
+import { PORTAL_LANGUAGE_PACK_VERSIONS } from '../src/contexts/portal/domain/portal-publication-snapshot'
 import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../src/contexts/portal/domain/approved-destination'
 import { portalGroups } from '../src/shared/db/schema/portal-group.schema'
 import { reviews } from '../src/shared/db/schema/review.schema'
@@ -509,7 +506,8 @@ function publishesSameConfiguration(
     return false
   }
   const configuration = snapshot.configuration
-  if (!isLocalizedConfiguration(configuration)) return true
+  // The seed builds v1 and v2 only; a v3 writer arrives with slice 19.
+  if (configuration.schemaVersion !== 2) return true
   return (
     existing.brandProfileVersion === configuration.brandProfile.version &&
     stableJson(existing.localizedContent ?? {}) ===
@@ -613,9 +611,8 @@ async function publishPortalSnapshot(input: {
       profileVersion: GOOGLE_REVIEW_DESTINATION.profileVersion,
     },
   })
-  const localized = isLocalizedConfiguration(snapshot.configuration)
-    ? snapshot.configuration
-    : null
+  const localized =
+    snapshot.configuration.schemaVersion === 2 ? snapshot.configuration : null
 
   // The production write surface only inserts publication snapshots; it never
   // rewrites them. Guest responses also hold a foreign key to the snapshot

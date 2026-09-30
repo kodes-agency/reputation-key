@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import {
   buildPortalPublicationSnapshot,
+  digestPortalPublicationConfiguration,
   verifyPortalPublicationSnapshot,
 } from '../application/portal-publication-snapshot'
 import { PORTAL_LANGUAGE_PACK_VERSIONS } from '../domain/portal-publication-snapshot'
@@ -11,9 +12,13 @@ import {
   GOLDEN_BUILDER_INPUTS,
   GOLDEN_SNAPSHOT_ROWS,
 } from '../application/__fixtures__/publication-snapshots.golden'
+import { GOLDEN_V3_BG_PRIMARY_ROW } from '../application/__fixtures__/publication-snapshot-v3.golden'
 import { snapshotFromRow } from './repositories/portal-publication.repository'
 
-const goldenRows = Object.entries(GOLDEN_SNAPSHOT_ROWS)
+const goldenRows = Object.entries({
+  ...GOLDEN_SNAPSHOT_ROWS,
+  v3BgPrimary: GOLDEN_V3_BG_PRIMARY_ROW,
+})
 
 function sha256OfCanonicalConfiguration(configuration: unknown): string {
   return createHash('sha256')
@@ -86,7 +91,7 @@ describe('golden publication snapshots', () => {
   it('rejects a stored row whose schema version this build does not know', () => {
     const seeded = GOLDEN_SNAPSHOT_ROWS.v2Seeded
 
-    for (const schemaVersion of [0, 3, 99]) {
+    for (const schemaVersion of [0, 4, 99]) {
       const row = {
         ...seeded,
         configuration: { ...seeded.configuration, schemaVersion },
@@ -101,7 +106,7 @@ describe('golden publication snapshots', () => {
     expect(snapshot).not.toBeNull()
     if (!snapshot) return
 
-    for (const schemaVersion of [0, 3, 99]) {
+    for (const schemaVersion of [0, 4, 99]) {
       const configuration = { ...snapshot.configuration, schemaVersion }
       const redigested = {
         ...snapshot,
@@ -110,6 +115,99 @@ describe('golden publication snapshots', () => {
       } as unknown as typeof snapshot
       expect(verifyPortalPublicationSnapshot(redigested)).toBe(false)
     }
+  })
+
+  it('refuses a v2 configuration relabelled v3, and a v3 one relabelled v2', () => {
+    const v2 = GOLDEN_SNAPSHOT_ROWS.v2Seeded
+    const v3 = GOLDEN_V3_BG_PRIMARY_ROW
+
+    expect(
+      snapshotFromRow({
+        ...v2,
+        configuration: { ...v2.configuration, schemaVersion: 3 },
+      }),
+    ).toBeNull()
+    expect(
+      snapshotFromRow({
+        ...v3,
+        configuration: { ...v3.configuration, schemaVersion: 2 },
+      }),
+    ).toBeNull()
+  })
+
+  describe('the v3 row', () => {
+    const row = GOLDEN_V3_BG_PRIMARY_ROW
+
+    it('is Bulgarian primary with English additional, mirrored in that order', () => {
+      expect([row.guestLocale, row.localeSet]).toEqual(['bg', ['bg', 'en']])
+      const snapshot = snapshotFromRow(row)
+
+      expect(snapshot && snapshotMirrorColumns(snapshot.configuration).localeSet).toEqual(
+        ['bg', 'en'],
+      )
+    })
+
+    it('mirrors the look version in the brand profile version column', () => {
+      expect(row.brandProfileVersion).toBe(3)
+      expect(snapshotFromRow({ ...row, brandProfileVersion: 1 })).toBeNull()
+    })
+
+    it('refuses a row whose mirror columns disagree with its configuration', () => {
+      expect(snapshotFromRow({ ...row, guestLocale: 'en' })).toBeNull()
+      expect(snapshotFromRow({ ...row, localeSet: ['en', 'bg'] })).toBeNull()
+      expect(snapshotFromRow({ ...row, localizedContent: {} })).toBeNull()
+      expect(
+        snapshotFromRow({
+          ...row,
+          languagePackVersions: { bg: 'guest-ui-bg-v2', en: 'guest-ui-en-v1' },
+        }),
+      ).toBeNull()
+    })
+
+    it('digests to its literal with the production digest function', () => {
+      const snapshot = snapshotFromRow(row)
+
+      expect(
+        snapshot && digestPortalPublicationConfiguration(snapshot.configuration),
+      ).toBe(row.configurationDigest)
+    })
+
+    it('keeps the optional provenance through the parse, so the digest still matches', () => {
+      const snapshot = snapshotFromRow(row)
+
+      expect(snapshot?.configuration).toHaveProperty('provenance.aiDraftTextKeys', [
+        'title:en',
+      ])
+    })
+
+    it('refuses a row digested over a field this reader does not know', () => {
+      // zod strips the unknown key, so the digest recomputed on read no longer
+      // matches the one stored at write. This is why the v3 shape is complete
+      // in this release: a later field needs a v4 with its own reader first.
+      const configuration = { ...row.configuration, futureField: { v: 4 } }
+      const digested = {
+        ...row,
+        configuration,
+        configurationDigest: sha256OfCanonicalConfiguration(configuration),
+      }
+
+      expect(snapshotFromRow(digested)).toBeNull()
+    })
+
+    it('rejects a configuration the v3 schema cannot type', () => {
+      const { timeZone: _timeZone, ...withoutZone } = row.configuration
+
+      expect(snapshotFromRow({ ...row, configuration: withoutZone })).toBeNull()
+      expect(
+        snapshotFromRow({
+          ...row,
+          configuration: {
+            ...row.configuration,
+            links: [{ ...row.configuration.links[0], url: 'http://example.com/reviews' }],
+          },
+        }),
+      ).toBeNull()
+    })
   })
 
   it('reproduces the hand-built v1 digest with the production builder', () => {

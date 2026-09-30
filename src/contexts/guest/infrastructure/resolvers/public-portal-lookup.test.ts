@@ -64,6 +64,7 @@ describe('createPublicPortalLookup', () => {
         privateFeedbackThreshold: 3,
       },
       guestSurface: 'legacy' as const,
+      immersive: null,
       organizationId: 'org-1',
       propertyId: 'property-1',
     }

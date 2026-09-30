@@ -1,10 +1,25 @@
 import { createHash } from 'node:crypto'
-import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  portalId,
+  propertyId,
+  type OrganizationId,
+  type PropertyId,
+} from '#/shared/domain/ids'
 import {
   isSupportedGuestLanguagePack,
   type GuestLanguagePackVersion,
 } from '#/shared/domain/guest-locale'
-import type { PublicGoogleReviewDestination, PublicPortalResult } from '../public-api'
+import type {
+  PublicGoogleReviewDestination,
+  PublicImmersiveExperience,
+  PublicPortalResult,
+} from '../public-api'
+import {
+  immersiveAssetIds,
+  presentImmersivePortal,
+  type ServableMediaUrls,
+} from '../public-portal-immersive'
 import type {
   PortalTokenCodec,
   PortalTokenDigest,
@@ -17,7 +32,10 @@ import type {
 import type { PortalHealthRepository } from '../ports/portal-health.repository'
 import {
   guestSurfaceOfConfiguration,
+  IMMERSIVE_HUB_SCHEMA_VERSION,
   isLocalizedConfiguration,
+  languagePackGenerationOf,
+  type ImmersivePortalPublicationConfiguration,
   type PortalGuestLocale,
   type PortalPublicationConfiguration,
   type PortalPublicationSnapshot,
@@ -50,8 +68,8 @@ export type ResolvePublicPortalTokenDeps = Readonly<{
   portalPublicationRepo: Pick<PortalPublicationRepository, 'resolveActiveByTokenDigest'>
   portalHealthRepo: Pick<PortalHealthRepository, 'getCurrent'>
   listApprovedSecondaryDestinationUris: (
-    organizationId: import('#/shared/domain/ids').OrganizationId,
-    propertyId: import('#/shared/domain/ids').PropertyId,
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
     uris: readonly string[],
     validatedAfter: Date,
   ) => Promise<readonly string[]>
@@ -67,6 +85,19 @@ export type ResolvePublicPortalTokenDeps = Readonly<{
    * the fail-closed empty list below is silent.
    */
   reportApprovedDestinationFailure?: (error: unknown) => void
+  /**
+   * The URL of each Portal media asset that may be served right now, by asset
+   * id; an asset left out (taken down, unknown) is not served. Absent until
+   * Portal media exists, which serves nothing: a v3 page then shows its no-photo
+   * look.
+   */
+  resolvePortalMediaUrls?: (
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+    assetIds: readonly string[],
+  ) => Promise<ServableMediaUrls>
+  /** Fired when the media lookup fails: the page degrades to no media instead of failing. */
+  reportPortalMediaFailure?: (error: unknown) => void
   /** Fired when approval filtering removes destinations the snapshot published. */
   reportApprovedDestinationsDropped?: (
     counts: Readonly<{ published: number; served: number }>,
@@ -177,29 +208,29 @@ async function resolveGoogleReviewGateway(
  * Secondary navigation fails closed on its own: an unreachable approval
  * authority drops the links but leaves the private review gateway useful.
  */
-async function resolveApprovedLinks(
+async function resolveApprovedLinks<L extends Readonly<{ url: string }>>(
   deps: ResolvePublicPortalTokenDeps,
   token: ResolvedPortalPublication['token'],
-  configuration: PortalPublicationConfiguration,
+  links: readonly L[],
   now: Date,
-): Promise<PortalPublicationConfiguration['links']> {
-  if (configuration.links.length === 0) return []
+): Promise<readonly L[]> {
+  if (links.length === 0) return []
   try {
     const approvedUris = new Set(
       await deps.listApprovedSecondaryDestinationUris(
         organizationId(token.organizationId),
         propertyId(token.propertyId),
-        configuration.links.map((link) => link.url),
+        links.map((link) => link.url),
         new Date(now.getTime() - SECONDARY_DESTINATION_MAX_VALIDATION_AGE_MS),
       ),
     )
-    const approved = configuration.links.filter((link) => approvedUris.has(link.url))
-    if (approved.length < configuration.links.length) {
+    const approved = links.filter((link) => approvedUris.has(link.url))
+    if (approved.length < links.length) {
       // Not an error — an approval can legitimately lapse — but a published
       // destination disappearing from a live Portal is invisible to the guest
       // and to the operator, so it is worth saying out loud.
       deps.reportApprovedDestinationsDropped?.({
-        published: configuration.links.length,
+        published: links.length,
         served: approved.length,
       })
     }
@@ -210,30 +241,49 @@ async function resolveApprovedLinks(
   }
 }
 
+/**
+ * Media URLs are looked up per read, so a takedown reaches a snapshot that can
+ * never change. A failing lookup serves no media rather than failing the page.
+ */
+async function resolveMediaUrls(
+  deps: ResolvePublicPortalTokenDeps,
+  token: ResolvedPortalPublication['token'],
+  configuration: ImmersivePortalPublicationConfiguration,
+): Promise<ServableMediaUrls> {
+  const assetIds = immersiveAssetIds(configuration)
+  if (assetIds.length === 0 || !deps.resolvePortalMediaUrls) return {}
+  try {
+    return await deps.resolvePortalMediaUrls(
+      organizationId(token.organizationId),
+      propertyId(token.propertyId),
+      assetIds,
+    )
+  } catch (error) {
+    deps.reportPortalMediaFailure?.(error)
+    return {}
+  }
+}
+
 type PortalPresentation = Readonly<{
   selectedLocale: PortalGuestLocale
-  localizedPortal: PublicPortalResult['portal']
   languagePackVersion: GuestLanguagePackVersion
 }>
 
 /**
- * Picks the guest locale and the exact content, branding and copy pack the
- * snapshot published for it. Returns null when the snapshot cannot serve that
- * locale, which fails the whole request closed.
+ * Picks the guest locale and the exact copy pack the snapshot published for
+ * it, from the pack generation its schema version allows. Returns null when the
+ * snapshot cannot serve that locale, which fails the whole request closed.
  */
-function resolvePortalPresentation(
+function selectPresentation(
   configuration: PortalPublicationConfiguration,
   preference: GuestLocalePreference,
 ): PortalPresentation | null {
+  const generation = languagePackGenerationOf(configuration.schemaVersion)
   if (!isLocalizedConfiguration(configuration)) {
     // Legacy v1: English only, and only the English v1 pack.
     const languagePackVersion = configuration.languagePackVersion
-    if (!isSupportedGuestLanguagePack('en', languagePackVersion, 1)) return null
-    return {
-      selectedLocale: 'en',
-      localizedPortal: configuration.portal,
-      languagePackVersion,
-    }
+    if (!isSupportedGuestLanguagePack('en', languagePackVersion, generation)) return null
+    return { selectedLocale: 'en', languagePackVersion }
   }
   const selectedLocale = selectPortalGuestLocale(
     configuration.localeSet,
@@ -242,13 +292,41 @@ function resolvePortalPresentation(
     preference.sessionLocale,
     preference.acceptLanguage,
   )
+  const languagePackVersion = configuration.languagePackVersions[selectedLocale]
+  if (!isSupportedGuestLanguagePack(selectedLocale, languagePackVersion, generation)) {
+    return null
+  }
+  return { selectedLocale, languagePackVersion }
+}
+
+type ServedContent = Readonly<{
+  portal: PublicPortalResult['portal']
+  links: PublicPortalResult['links']
+  categories: PublicPortalResult['categories']
+  immersive: PublicImmersiveExperience | null
+}>
+
+/** The schema version 1 and 2 content: one legacy page, branded from the brand profile. */
+function legacyContent(
+  configuration: Exclude<
+    PortalPublicationConfiguration,
+    ImmersivePortalPublicationConfiguration
+  >,
+  selectedLocale: PortalGuestLocale,
+  links: PublicPortalResult['links'],
+): ServedContent | null {
+  if (!isLocalizedConfiguration(configuration)) {
+    return {
+      portal: configuration.portal,
+      links,
+      categories: configuration.categories,
+      immersive: null,
+    }
+  }
   const selectedContent = configuration.localizedContent[selectedLocale]
   if (!selectedContent) return null
-  const languagePackVersion = configuration.languagePackVersions[selectedLocale]
-  if (!isSupportedGuestLanguagePack(selectedLocale, languagePackVersion, 1)) return null
   return {
-    selectedLocale,
-    localizedPortal: {
+    portal: {
       ...configuration.portal,
       name: selectedContent.title,
       description: selectedContent.shortDescription,
@@ -262,8 +340,37 @@ function resolvePortalPresentation(
         textColor: configuration.brandProfile.textColor,
       },
     },
-    languagePackVersion,
+    links,
+    categories: configuration.categories,
+    immersive: null,
   }
+}
+
+/** What the page shows for the selected locale, from whichever schema version published it. */
+async function resolveServedContent(
+  deps: ResolvePublicPortalTokenDeps,
+  token: ResolvedPortalPublication['token'],
+  configuration: PortalPublicationConfiguration,
+  selectedLocale: PortalGuestLocale,
+  now: Date,
+): Promise<ServedContent | null> {
+  if (configuration.schemaVersion !== IMMERSIVE_HUB_SCHEMA_VERSION) {
+    const links = await resolveApprovedLinks(deps, token, configuration.links, now)
+    return legacyContent(configuration, selectedLocale, links)
+  }
+  // A switched-off Linktree shows no links, and none may be followed by id either.
+  const published = configuration.linktree.enabled ? configuration.links : []
+  const [approvedLinks, mediaUrls] = await Promise.all([
+    resolveApprovedLinks(deps, token, published, now),
+    resolveMediaUrls(deps, token, configuration),
+  ])
+  const presented = presentImmersivePortal(
+    configuration,
+    selectedLocale,
+    approvedLinks,
+    mediaUrls,
+  )
+  return presented && { ...presented, categories: [] }
 }
 
 export const resolvePublicPortalToken =
@@ -282,11 +389,18 @@ export const resolvePublicPortalToken =
     const configuration = snapshot.configuration
 
     const googleReview = await resolveGoogleReviewGateway(deps, token, snapshot)
-    const links = await resolveApprovedLinks(deps, token, configuration, now)
-
-    const presentation = resolvePortalPresentation(configuration, preference)
+    const presentation = selectPresentation(configuration, preference)
     if (!presentation) return { status: 'unavailable' }
-    const { selectedLocale, localizedPortal, languagePackVersion } = presentation
+    const { selectedLocale, languagePackVersion } = presentation
+    const served = await resolveServedContent(
+      deps,
+      token,
+      configuration,
+      selectedLocale,
+      now,
+    )
+    if (!served) return { status: 'unavailable' }
+    const { portal: localizedPortal, links, categories, immersive } = served
 
     const reviewGateway = {
       privateFeedbackThreshold: configuration.reviewGateway.privateFeedbackThreshold,
@@ -300,9 +414,11 @@ export const resolvePublicPortalToken =
       guestLocale: selectedLocale,
       languagePackVersion,
       portal: localizedPortal,
-      categories: configuration.categories,
+      categories,
       links,
       reviewGateway,
+      // Only a v3 publication has one, so every v1 and v2 digest is unchanged.
+      ...(immersive ? { immersive } : {}),
     }
     const responseConfiguration = {
       publicationState: 'published' as const,
@@ -318,7 +434,7 @@ export const resolvePublicPortalToken =
       status: 'found',
       data: {
         portal: localizedPortal,
-        categories: configuration.categories,
+        categories,
         links,
         reviewGateway,
         localization: {
@@ -331,6 +447,7 @@ export const resolvePublicPortalToken =
         },
         responseConfiguration,
         guestSurface: guestSurfaceOfConfiguration(configuration),
+        immersive,
         organizationId: snapshot.organizationId,
         propertyId: snapshot.propertyId,
       },

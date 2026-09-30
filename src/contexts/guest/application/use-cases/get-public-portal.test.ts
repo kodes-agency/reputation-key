@@ -39,6 +39,7 @@ const fakeData: PublicPortalData = {
     privateFeedbackThreshold: 3,
   },
   guestSurface: 'legacy',
+  immersive: null,
   organizationId: 'org-1',
   propertyId: 'prop-1',
 }

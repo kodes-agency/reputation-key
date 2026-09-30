@@ -177,7 +177,9 @@ describe.sequential('Portal publication repository (real PostgreSQL)', () => {
       new Date(NOW.getTime() + 100),
     )
     expect(resolved?.snapshot.version).toBe(1)
-    expect(resolved?.snapshot.configuration.portal.name).toBe('Published immutable name')
+    expect(resolved?.snapshot.configuration).toMatchObject({
+      portal: { name: 'Published immutable name' },
+    })
     expect(resolved?.snapshot.configurationDigest).toBe(published.configurationDigest)
   })
 

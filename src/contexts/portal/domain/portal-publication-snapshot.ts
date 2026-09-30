@@ -83,10 +83,8 @@ export type VerifiedPublicationDestination = Readonly<{
   profileVersion: number
 }>
 
-type PortalPublicationConfigurationBase = Readonly<{
-  portal: PortalPublicationSource['portal']
-  categories: PortalPublicationSource['categories']
-  links: PortalPublicationSource['links']
+/** The review gateway and the Google destination binding every schema version carries. */
+type PortalPublicationGatewayFacts = Readonly<{
   reviewGateway: Readonly<{
     privateFeedbackThreshold: number
     googleReview: Readonly<{ status: 'available'; uri: string }>
@@ -97,6 +95,13 @@ type PortalPublicationConfigurationBase = Readonly<{
     profileVersion: number
   }>
 }>
+
+type PortalPublicationConfigurationBase = PortalPublicationGatewayFacts &
+  Readonly<{
+    portal: PortalPublicationSource['portal']
+    categories: PortalPublicationSource['categories']
+    links: PortalPublicationSource['links']
+  }>
 
 export type LegacyPortalPublicationConfiguration = PortalPublicationConfigurationBase &
   Readonly<{
@@ -118,19 +123,113 @@ export type LocalizedPortalPublicationConfiguration = PortalPublicationConfigura
     brandProfile: PortalBrandProfileSnapshot
   }>
 
-export type PortalPublicationConfiguration =
-  LegacyPortalPublicationConfiguration | LocalizedPortalPublicationConfiguration
+// ── schema version 3: the Immersive Hub shape ────────────────────────────────
+//
+// The complete v3 JSON shape is fixed here, in the release that only reads it
+// (ADR 0061). The digest is recomputed over the zod-parsed object on every
+// read, so a field this shape does not name would be stripped, change the
+// digest and turn the portal unavailable. Any later guest-visible field
+// therefore needs a v4 with its own reader-first release.
 
 /**
- * Whether a configuration carries per-locale content, a language-pack map and a
- * brand profile: schema version 2 today, and every later version that keeps
- * that shape. The one place that answers the question, so a new schema version
- * changes a single line instead of eleven branches.
+ * A piece of guest-facing text. `fallbackFrom` is null when the text was
+ * written in its own locale, and names the locale it was copied from when the
+ * publication filled a gap from the fallback language.
+ */
+export type PortalSnapshotText = Readonly<{
+  value: string
+  fallbackFrom: PortalGuestLocale | null
+}>
+
+export type ImmersiveLocalizedContent = Readonly<{
+  title: PortalSnapshotText
+  /** For `og:description` only; the Immersive Hub never renders it. */
+  shortDescription: PortalSnapshotText
+  /** Empty when the portal has no hero photo. */
+  heroAlt: PortalSnapshotText
+  linktreeTitle: PortalSnapshotText
+}>
+
+/** One locale's wording of a link, written or copied as a unit. */
+export type ImmersiveLinkText = Readonly<{
+  label: string
+  line: string | null
+  fallbackFrom: PortalGuestLocale | null
+}>
+
+/** A link tile, in display order: the array position is the order. */
+export type ImmersiveLink = Readonly<{
+  id: string
+  url: string
+  /** Names an icon in the guest page's icon map; null shows the default tile. */
+  iconKey: string | null
+  /** A Portal media asset, turned into a URL when the page is read. */
+  imageAssetId: string | null
+  texts: Readonly<Partial<Record<PortalGuestLocale, ImmersiveLinkText>>>
+}>
+
+export type ImmersiveMediaReference = Readonly<{
+  assetId: string
+  width: number
+  height: number
+}>
+
+export type ImmersiveHeroReference = ImmersiveMediaReference &
+  Readonly<{ focalX: number; focalY: number }>
+
+export type ImmersiveBrandProfile = Readonly<{
+  displayName: string
+  wordmark: string | null
+  logo: ImmersiveMediaReference | null
+  hero: ImmersiveHeroReference | null
+  accentColour: string
+  fieldColour: string
+  lookVersion: number
+}>
+
+export type ImmersivePortalPublicationConfiguration = PortalPublicationGatewayFacts &
+  Readonly<{
+    schemaVersion: typeof IMMERSIVE_HUB_SCHEMA_VERSION
+    portal: Readonly<{ id: string; slug: string }>
+    /** The primary locale; it is also `localeSet[0]`. */
+    guestLocale: PortalGuestLocale
+    /** The generation 2 pack of the primary locale. */
+    languagePackVersion: string
+    localeSet: readonly PortalGuestLocale[]
+    languagePackVersions: Readonly<Partial<Record<PortalGuestLocale, string>>>
+    localizedContent: Readonly<
+      Partial<Record<PortalGuestLocale, ImmersiveLocalizedContent>>
+    >
+    linktree: Readonly<{ enabled: boolean }>
+    links: readonly ImmersiveLink[]
+    brandProfile: ImmersiveBrandProfile
+    /** An IANA time zone: deadlines on the page read in it. */
+    timeZone: string
+    /** Which texts began as AI drafts, for history only. Never reaches a guest. */
+    provenance?: Readonly<{ aiDraftTextKeys: readonly string[] }>
+  }>
+
+export type PortalPublicationConfiguration =
+  | LegacyPortalPublicationConfiguration
+  | LocalizedPortalPublicationConfiguration
+  | ImmersivePortalPublicationConfiguration
+
+/**
+ * Whether a configuration carries a locale set and a language-pack map: schema
+ * version 2 and every later version. The one place that answers the question,
+ * so a new schema version changes a single line instead of eleven branches.
+ * What else the configuration carries (the v2 brand profile and content, or
+ * the v3 ones) still depends on the exact version.
  */
 export function isLocalizedConfiguration<C extends { readonly schemaVersion: number }>(
   configuration: C,
-): configuration is Extract<C, { readonly schemaVersion: 2 }> {
-  return configuration.schemaVersion === PORTAL_PUBLICATION_SCHEMA_VERSION
+): configuration is Extract<C, { readonly schemaVersion: 2 | 3 }> {
+  return configuration.schemaVersion >= PORTAL_PUBLICATION_SCHEMA_VERSION
+}
+
+/** The language-pack generation a snapshot schema version may carry (ADR 0061). */
+export function languagePackGenerationOf(schemaVersion: number): 1 | 2 {
+  return schemaVersion >= IMMERSIVE_HUB_SCHEMA_VERSION ? 2 : 1
 }
 
 /** Which guest page renders a snapshot: the pre-round-4 one, or the Immersive Hub. */

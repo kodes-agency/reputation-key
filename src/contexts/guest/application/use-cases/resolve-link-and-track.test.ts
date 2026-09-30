@@ -49,6 +49,7 @@ const portal = {
     privateFeedbackThreshold: 3,
   },
   guestSurface: 'legacy',
+  immersive: null,
   organizationId: 'org-a',
   propertyId: 'property-p1',
 } as const
