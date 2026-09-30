@@ -511,6 +511,13 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
 - **(b)** The results strip and measure cells, with "Too few".
 - Uses the slice 24 read for board 10 ("All properties"): Property subtotal rows, each Property's own window, and the per-Property "not in a group" row. Takes group Portal counts from `memberPortalIds`, and the "% of scans" figures from the row's `engagementFunnel`.
 - Depends on 21–24. Size L + M.
+- **As built (a).**
+  - Data comes from `listPortalOverview` for one Property; responsible managers are named from the organisation member list when the role may read it, and drawn as a disc without initials when not (never as an id).
+  - The row's code reads **QR and NFC** when the Portal has a live, scan-ready code, **Older code** when the live address predates access artifacts, and **No code yet** otherwise (one code per Portal, so the board's separate "QR" rows do not occur).
+  - The one quiet line is decided by `portal-attention.ts`: a draft, disabled or archived Portal names its state; a live one shows "N issues" (a popover that says what and where to fix it) or "N changes not live"; a live Portal that needs nothing shows nothing.
+  - URL state is `q`, `groupBy` (`group` | `none`), `show` (`attention`), `sort` (`name` | `attention`), `dir` and `page`, with the defaults left out. "Most scans" arrives with (b), which adds the measure columns between Portal and Responsible.
+  - Group heads have no link and no menu until the group page exists (slice 38); groups fold in local state.
+  - The overview read is always refetched on arrival (`staleTime: 0`), and every Portal Group write invalidates `portalKeys.overview`.
 
 **26. New portal: dialog and server side (A4 + F11).**
 

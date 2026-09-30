@@ -1,9 +1,14 @@
 // Portal list — shows all portals for a property
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import { queryOptions, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
+import {
+  queryOptions,
+  useQuery,
+  useQueryClient,
+  useSuspenseQuery,
+} from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { listPortals, updatePortal } from '#/contexts/portal/server/portals'
+import { listPortalOverview, updatePortal } from '#/contexts/portal/server/portals'
 import {
   addPortalToGroup,
   createPortalGroup,
@@ -12,22 +17,27 @@ import {
   updatePortalGroup,
 } from '#/contexts/portal/server/portal-groups'
 import { PortalListPage } from '#/components/features/portal/portal-list-page'
+import { portalOverviewSearchSchema } from '#/components/features/portal/portal-overview/portal-overview-search-schema'
 import {
   PortalListError,
   PortalListLoading,
 } from '#/components/features/portal/portal-route-fallbacks'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { portalKeys } from '#/shared/queries/query-keys'
-import { propertiesQuery } from '#/routes/-queries/route-queries'
+import { membersQuery, propertiesQuery } from '#/routes/-queries/route-queries'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { portalGroupsQuery } from './-portal-detail-data'
 import { portalGroupCachePolicy } from '#/components/features/portal/portal-group-cache-policy'
 
-const portalsQuery = (propertyId: string) =>
+// Read once for every Portal of the Property. A summary of state that changes in
+// many places (publishing, codes, managers, groups), so it is always refetched
+// on arrival; the cached copy still renders first.
+const portalOverviewQuery = (propertyId: string) =>
   queryOptions({
-    queryKey: portalKeys.list(propertyId),
-    queryFn: () => listPortals({ data: { propertyId } }),
-    staleTime: 30_000,
+    queryKey: portalKeys.overview(propertyId),
+    queryFn: () => listPortalOverview({ data: { propertyId } }),
+    staleTime: 0,
   })
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/portals/')({
@@ -42,10 +52,11 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/por
     const { role } = context as AuthRouteContext
     if (!can(role, 'portal.read')) throw redirect({ to: '/properties' })
   },
+  validateSearch: (search) => portalOverviewSearchSchema.parse(search),
   staleTime: 30_000,
   loader: async ({ params, context }) => {
     await Promise.all([
-      context.queryClient.ensureQueryData(portalsQuery(params.propertyId)),
+      context.queryClient.ensureQueryData(portalOverviewQuery(params.propertyId)),
       context.queryClient.ensureQueryData(portalGroupsQuery(params.propertyId)),
     ])
   },
@@ -56,11 +67,21 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/por
 
 function PortalListRoute() {
   const { propertyId } = Route.useParams()
+  const search = Route.useSearch()
+  const navigate = Route.useNavigate()
   const queryClient = useQueryClient()
-  const { data: portalsData } = useSuspenseQuery(portalsQuery(propertyId))
+  const { can: canDo } = usePermissions()
+  const { data: overviewData } = useSuspenseQuery(portalOverviewQuery(propertyId))
   const { data: portalGroupsData } = useSuspenseQuery(portalGroupsQuery(propertyId))
   const { data: propsData } = useSuspenseQuery(propertiesQuery)
-  const { portals } = portalsData
+  // Names for the responsible managers' discs. An enrichment, not the page: a
+  // role that cannot list members, or an outage, leaves the discs without initials.
+  const members = useQuery({
+    ...membersQuery,
+    enabled: canDo('member.list'),
+    retry: false,
+  })
+  const { portals } = overviewData
   const { groups } = portalGroupsData
   const { properties } = propsData
   const property = properties?.find((p) => p.id === propertyId)
@@ -104,9 +125,15 @@ function PortalListRoute() {
   // PortalGroupManagement's scoped `state="error"` + `onRetry` is the seam.
   return (
     <PortalListPage
-      portals={portals}
+      rows={portals}
+      members={members.data?.members.map((member) => ({
+        userId: member.userId,
+        name: member.name,
+      }))}
       propertyId={propertyId}
       propertyName={propertyName}
+      search={search}
+      onSearchChange={(next) => void navigate({ search: next, replace: true })}
       archiveMutation={archiveMutation}
       restoreMutation={restoreMutation}
       portalGroups={groups}

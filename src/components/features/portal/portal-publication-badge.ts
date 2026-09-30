@@ -1,4 +1,4 @@
-import type { PortalListItem } from './portal-list-types'
+import type { Portal } from '#/contexts/portal/application/public-api'
 
 /**
  * How a portal's publication state presents in the list: its human label and
@@ -9,7 +9,7 @@ import type { PortalListItem } from './portal-list-types'
  *
  * Kept free of JSX so the two rules are readable — and testable — on their own.
  */
-export type PublicationState = PortalListItem['publicationState']
+export type PublicationState = Portal['publicationState']
 
 export const PUBLICATION_LABELS: Record<PublicationState, string> = {
   draft: 'Draft',

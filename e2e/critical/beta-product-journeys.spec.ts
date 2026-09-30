@@ -124,7 +124,10 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(
       page.getByRole('link', { name: 'E2E Guest Portal P1', exact: true }),
     ).toBeVisible()
-    await expect(page.getByText('E2E Guest Services', { exact: true })).toBeVisible()
+    // The group's name is on its head row in the table and again in the group editor.
+    await expect(
+      page.getByText('E2E Guest Services', { exact: true }).first(),
+    ).toBeVisible()
 
     // Welcome is the Page tab's first section; its fields save themselves a
     // moment after the manager stops typing, and the header says so.
@@ -329,7 +332,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
 
     await page.goto(`/properties/${seed.p1PropertyId}/portals`)
     await expect(page.getByRole('link', { name: portalName, exact: true })).toBeVisible()
-    await expect(page.getByText(groupName, { exact: true })).toBeVisible()
+    await expect(page.getByText(groupName, { exact: true }).first()).toBeVisible()
     await page.reload()
     await expect(page.getByRole('link', { name: portalName, exact: true })).toBeVisible()
 

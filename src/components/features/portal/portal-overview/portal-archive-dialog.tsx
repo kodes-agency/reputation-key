@@ -1,8 +1,11 @@
-// Recoverable Portal archive/restore control. Archive preserves the Portal's
-// address, snapshots, metrics, assignments, and saved settings. Restore is
-// intentionally non-public: it always returns to Disabled and requires a later,
-// deliberate publication after the manager re-checks the retained configuration.
-
+// Recoverable Portal archive/restore confirmation. Archive preserves the
+// Portal's address, snapshots, metrics, assignments, and saved settings. Restore
+// is intentionally non-public: it always returns to Disabled and requires a
+// later, deliberate publication after the manager re-checks the retained
+// configuration.
+//
+// Controlled: the row's "more actions" menu opens it, because a dialog mounted
+// inside a menu item closes with the menu.
 import {
   AlertDialog,
   AlertDialogAction,
@@ -12,50 +15,40 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '#/components/ui/alert-dialog'
-import { Button } from '#/components/ui/button'
-import { Archive, RotateCcw } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
 
-interface PortalArchiveButtonProps {
-  portalId: string
-  portalName: string
-  publicationState: 'draft' | 'published' | 'disabled' | 'archived'
+export type PortalArchiveMutations = Readonly<{
   archiveMutation: Action<{
     data: { portalId: string; publicationState: 'archived' }
   }>
   restoreMutation: Action<{
     data: { portalId: string; publicationState: 'disabled' }
   }>
-}
+}>
 
-export function PortalArchiveButton({
+type Props = PortalArchiveMutations &
+  Readonly<{
+    portalId: string
+    portalName: string
+    /** Archived Portals are restored; every other state is archived. */
+    restoring: boolean
+    open: boolean
+    onOpenChange: (open: boolean) => void
+  }>
+
+export function PortalArchiveDialog({
   portalId,
   portalName,
-  publicationState,
+  restoring,
+  open,
+  onOpenChange,
   archiveMutation,
   restoreMutation,
-}: PortalArchiveButtonProps) {
-  const restoring = publicationState === 'archived'
+}: Props) {
   const mutation = restoring ? restoreMutation : archiveMutation
   return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button
-          size="sm"
-          variant="outline"
-          className="min-h-11 sm:min-h-8"
-          disabled={mutation.isPending}
-        >
-          {restoring ? (
-            <RotateCcw className="size-3.5" />
-          ) : (
-            <Archive className="size-3.5" />
-          )}
-          {restoring ? 'Restore' : 'Archive'}
-        </Button>
-      </AlertDialogTrigger>
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>
