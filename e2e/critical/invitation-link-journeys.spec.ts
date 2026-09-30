@@ -2,7 +2,7 @@
 //
 // An emailed link names one invitation. Before anything is created or
 // accepted, the pages read it (an anonymous preview) and show what it offers,
-// who sent it and as which role. Five journeys:
+// who sent it and as which role. Six journeys:
 //
 //   1. a new address lands on /join: the Organization, inviter, role and
 //      Properties are shown and the invited email is locked;
@@ -13,7 +13,9 @@
 //   4. an address that already has an account goes to sign in, then to a
 //      confirm step: opening the link never accepts, the button does;
 //   5. a visitor signed in as someone else sees the mismatch card, and
-//      signing out carries on as the invited address.
+//      signing out carries on as the invited address;
+//   6. the same, when the visitor signs out from the header's Account menu
+//      instead, which ends the session without navigating anywhere.
 //
 // Accounts and invitations are seeded directly (prefix-scoped, cleaned up
 // after); the registration saga itself is covered by e2e/auth.spec.ts. The
@@ -292,6 +294,28 @@ test.describe('Critical workflow: invitation link pages', () => {
     await clickWhenReady(page.getByRole('button', { name: 'Sign out' }))
 
     // Signed out, the same link is a new address's sign-up.
+    await expect(page).toHaveURL(/\/join\?invitationId=/, { timeout: 20_000 })
+    await waitForHydration(page)
+    await expect(page.getByLabel('Email')).toHaveValue(email)
+    expect(await invitationStatus(id)).toBe('pending')
+  })
+
+  test('signing out from the header hands the link back, not a confirm step on a dead session', async ({
+    page,
+  }) => {
+    const email = inviteeEmail('header-signout')
+    const id = await seedInvitation({ email })
+    await signIn(page, TEST_EMAIL, undefined, BASE_ORIGIN)
+
+    await page.goto(`/accept-invitation?id=${encodeURIComponent(id)}`)
+    await waitForHydration(page)
+    await expect(page.getByText('This invitation is for another address')).toBeVisible()
+
+    // The header's own menu: it ends the session and navigates nowhere, so the
+    // page has to notice for itself.
+    await clickWhenReady(page.getByRole('button', { name: 'Account' }))
+    await clickWhenReady(page.getByRole('menuitem', { name: 'Sign out' }))
+
     await expect(page).toHaveURL(/\/join\?invitationId=/, { timeout: 20_000 })
     await waitForHydration(page)
     await expect(page.getByLabel('Email')).toHaveValue(email)
