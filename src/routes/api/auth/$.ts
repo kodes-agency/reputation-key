@@ -29,6 +29,12 @@ import { clientIpFromHeaders } from '#/shared/security/client-ip'
 // invitation only. Refused here rather than by clearing better-auth's
 // emailAndPassword.enabled (src/shared/auth/auth.ts), which would also disable
 // sign-in and password reset for existing members.
+//
+// Verification email: the app-owned resendVerificationEmail server function is
+// the only entry point. It enforces the per-IP and per-address limits (ADR 0062
+// §6) and calls Better Auth in-process; the raw route has only per-IP limits,
+// so it would let anyone mail any unverified address repeatedly. The mailed
+// link's GET /verify-email stays open.
 const BLOCKED_RAW_WRITE_ENDPOINTS = [
   '/organization/create-role',
   '/organization/update-role',
@@ -42,6 +48,7 @@ const BLOCKED_RAW_WRITE_ENDPOINTS = [
   '/organization/delete',
   '/organization/leave',
   '/sign-up/email',
+  '/send-verification-email',
 ] as const
 
 /** One refusal log per process — the hatch is a boot-time posture, not per-request news. */

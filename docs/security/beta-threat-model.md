@@ -104,7 +104,7 @@
 ## Residual risks
 
 1. **Tenant-isolation regression floor** — 84 repository test files carry two-organization fixtures; `src/shared/architecture/tenant-predicate-canary.test.ts` is the mechanical floor.
-2. **Auth endpoint abuse** — the shared Redis limiter guards sign-in, registration, invitation send/resend, guest submissions and the better-auth catch-all, and fails closed in production; Better Auth's native limiter also uses atomic Redis storage across replicas (`docs/operations/runbooks.md` §Security posture). Raw self-service sign-up is refused at the HTTP boundary (invite-only beta). Residual: no proxy-level rate limiting in front of the app.
+2. **Auth endpoint abuse** — the shared Redis limiter guards sign-in, registration, invitation send/resend, guest submissions and the better-auth catch-all, and fails closed in production; Better Auth's native limiter also uses atomic Redis storage across replicas (`docs/operations/runbooks.md` §Security posture). Raw self-service sign-up is refused at the HTTP boundary (invite-only beta), and so is the raw verification-email send: the app-owned `resendVerificationEmail`, limited per IP and per pseudonymised address, is the only way to request a new link (ADR 0062). Residual: no proxy-level rate limiting in front of the app.
 3. **Supply chain** — Dependabot configured but initial advisory scan returned 0 vulnerabilities; continuous monitoring needed.
 4. **Manager-entered feedback content and provider proof** — a manager can
    disregard the notice and type personal/customer content that pattern

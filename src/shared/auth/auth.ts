@@ -141,7 +141,8 @@ export function createAuth() {
       expiresIn: EMAIL_VERIFICATION_EXPIRY_SECONDS,
       // Consuming the invitation verifies the address (ADR 0062), so sign-up
       // mails nothing. The sender stays for the unverified-login recovery
-      // path and Better Auth's own verification routes.
+      // path: resendVerificationEmail calls Better Auth in-process, and the
+      // raw send route is refused at the HTTP boundary (routes/api/auth/$.ts).
       sendOnSignUp: false,
       sendVerificationEmail: async ({ user, url }) => {
         await sendVerificationEmail(user.email, url)
