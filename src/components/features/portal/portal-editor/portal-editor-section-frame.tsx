@@ -1,5 +1,6 @@
 // The frame every editor section sits in: its name as the heading, one line on
-// what it is, and the section body beneath.
+// what it is, and the section body beneath. A section may put a control beside
+// its heading (the Linktree's switch).
 
 import type { ReactNode } from 'react'
 import {
@@ -10,20 +11,30 @@ import {
 type Props = Readonly<{
   section: PortalEditorSection
   description?: string
+  /** A control that belongs to the section as a whole, drawn beside its heading. */
+  actions?: ReactNode
   children: ReactNode
 }>
 
-export function PortalEditorSectionFrame({ section, description, children }: Props) {
+export function PortalEditorSectionFrame({
+  section,
+  description,
+  actions,
+  children,
+}: Props) {
   const headingId = `portal-editor-${section}-heading`
   return (
     <section aria-labelledby={headingId} className="space-y-6">
-      <header className="space-y-1">
-        <h2 id={headingId} className="text-lg font-semibold tracking-tight">
-          {PORTAL_EDITOR_SECTION_LABELS[section]}
-        </h2>
-        {description ? (
-          <p className="text-sm text-muted-foreground">{description}</p>
-        ) : null}
+      <header className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="space-y-1">
+          <h2 id={headingId} className="text-lg font-semibold tracking-tight">
+            {PORTAL_EDITOR_SECTION_LABELS[section]}
+          </h2>
+          {description ? (
+            <p className="text-sm text-muted-foreground">{description}</p>
+          ) : null}
+        </div>
+        {actions === undefined ? null : <div className="pt-1">{actions}</div>}
       </header>
       {children}
     </section>

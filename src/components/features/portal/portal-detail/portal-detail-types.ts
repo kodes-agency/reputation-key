@@ -21,6 +21,7 @@ import type {
 import type { getPortalAnalyticsFn } from '#/contexts/reporting/server/portal-analytics'
 import type {
   PortalLanguageCoverage,
+  PortalLinktreeView,
   PortalPublicationHistory,
   PortalTokenStatus,
 } from '#/contexts/portal/application/public-api'
@@ -63,6 +64,8 @@ export type PortalDetailResources = Readonly<{
   links: readonly LinkTreeLink[]
   /** Which wording each language has. Absent: the Languages section shows no counts. */
   languageCoverage?: PortalLanguageCoverage
+  /** The Linktree section: its switch and titles, and each tile with its texts. */
+  linktree: PortalLinktreeView
   /** Explicit portal writes: the publication toggle and the language Save. Toasts on success. */
   updateMutation: Action<UpdatePortalVariables>
   /**

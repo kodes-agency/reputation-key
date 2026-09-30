@@ -100,6 +100,36 @@ function makeResources(
         categoryId: 'cat-1',
       },
     ],
+    linktree: {
+      portalId: 'p-1',
+      enabled: true,
+      maxLinks: 4,
+      primaryLocale: 'en' as const,
+      locales: ['en' as const, 'bg' as const],
+      titles: {},
+      links: [
+        {
+          id: 'l-1',
+          categoryId: 'cat-1',
+          url: 'https://google.com',
+          iconKey: null,
+          sortKey: 'a',
+          texts: [
+            {
+              locale: 'en' as const,
+              label: 'Google Reviews',
+              line: null,
+              provenance: null,
+            },
+          ],
+          destination: {
+            state: 'approved' as const,
+            sourceType: 'recognized' as const,
+            approvedByUserId: 'u-1',
+          },
+        },
+      ],
+    },
     updateMutation: action(async (_input: UpdatePortalVariables) => undefined),
     autosaveUpdateMutation,
     completeReviewMutation: action(async (_input: CompleteReviewVariables) => ({
