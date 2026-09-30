@@ -13,7 +13,7 @@
 
 import { z } from 'zod/v4'
 import { registerEventSchema, isEventRegistered } from './schema-registry'
-import { offeredGuestLocaleSchema } from '../guest-locale-schemas'
+import { additionalGuestLocalesSchema, guestLocaleSchema } from '../guest-locale-schemas'
 import {
   goalMonthlyResultClosedSchema,
   goalMonthlyResultReconciledSchema,
@@ -1188,16 +1188,16 @@ const portalPropertyBrandProfileUpdatedSchema = portalPropertyFactSchema.extend(
   profileVersion: z.number().int().positive(),
 })
 const portalPropertyBrandContentUpdatedSchema = portalPropertyFactSchema.extend({
-  guestLocale: offeredGuestLocaleSchema,
+  guestLocale: guestLocaleSchema,
   contentVersion: z.number().int().positive(),
 })
 const portalLocalizedOverrideUpdatedSchema = portalLifecycleFactSchema.extend({
-  guestLocale: offeredGuestLocaleSchema,
+  guestLocale: guestLocaleSchema,
   overrideVersion: z.number().int().positive().nullable(),
 })
 const portalLocaleSetUpdatedSchema = portalLifecycleFactSchema.extend({
-  primaryGuestLocale: offeredGuestLocaleSchema,
-  additionalGuestLocales: z.array(offeredGuestLocaleSchema).max(1),
+  primaryGuestLocale: guestLocaleSchema,
+  additionalGuestLocales: additionalGuestLocalesSchema,
 })
 const portalApprovedDestinationUpdatedSchema = portalPropertyFactSchema.extend({
   approvedDestinationId: z.uuid(),

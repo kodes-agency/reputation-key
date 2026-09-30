@@ -7,6 +7,8 @@ import {
   currentGuestLanguagePack,
   guestLocaleFormatTag,
   isGuestLocale,
+  isValidAdditionalGuestLocales,
+  MAX_ADDITIONAL_GUEST_LOCALES,
   isSupportedGuestLanguagePack,
   matchGuestLocale,
   parseGuestLocale,
@@ -130,5 +132,30 @@ describe('guest language pack membership', () => {
     expect(isSupportedGuestLanguagePack('bg', 'guest-ui-bg-v2', 1)).toBe(false)
     expect(isSupportedGuestLanguagePack('en', 'guest-ui-bg-v2', 2)).toBe(false)
     expect(isSupportedGuestLanguagePack('bg', 'guest-ui-en-v1', 2)).toBe(false)
+  })
+})
+
+// The length clause is defence in depth: a unique list of catalogue locales
+// without the primary already has at most MAX_ADDITIONAL_GUEST_LOCALES entries,
+// so no case here can be refused by length alone.
+describe('additional guest locales beside a primary', () => {
+  it('leaves room for every catalogue locale except the primary', () => {
+    expect(MAX_ADDITIONAL_GUEST_LOCALES).toBe(5)
+    expect(isValidAdditionalGuestLocales('de', ['en', 'es', 'it', 'fr', 'bg'])).toBe(true)
+    expect(isValidAdditionalGuestLocales('en', [])).toBe(true)
+  })
+
+  it.each([
+    ['repeats the primary', 'en', ['en']],
+    ['repeats itself', 'en', ['bg', 'bg']],
+    ['names a locale outside the catalogue', 'en', ['pt']],
+    [
+      'repeats a locale at the catalogue size',
+      'en',
+      ['es', 'it', 'fr', 'de', 'bg', 'bg'],
+    ],
+    ['holds a non-string', 'en', [null]],
+  ] as const)('refuses a list that %s', (_label, primary, additional) => {
+    expect(isValidAdditionalGuestLocales(primary, additional)).toBe(false)
   })
 })

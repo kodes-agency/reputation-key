@@ -131,6 +131,9 @@ export const OFFERED_GUEST_LOCALES = Object.freeze([
 ] as const satisfies readonly GuestLocale[])
 export type OfferedGuestLocale = (typeof OFFERED_GUEST_LOCALES)[number]
 
+/** A Portal offers its primary locale plus at most this many more. */
+export const MAX_ADDITIONAL_GUEST_LOCALES = GUEST_LOCALES.length - 1
+
 export function isGuestLocale(value: unknown): value is GuestLocale {
   return typeof value === 'string' && (GUEST_LOCALES as readonly string[]).includes(value)
 }
@@ -138,6 +141,23 @@ export function isGuestLocale(value: unknown): value is GuestLocale {
 /** The locale a stored or presented value names, or null. Never a silent default. */
 export function parseGuestLocale(value: unknown): GuestLocale | null {
   return isGuestLocale(value) ? value : null
+}
+
+/**
+ * Whether `additional` can sit beside `primary` in a Portal's locale set: only
+ * catalogue locales, none twice, none equal to the primary, and no more than
+ * the catalogue leaves room for.
+ */
+export function isValidAdditionalGuestLocales(
+  primary: GuestLocale,
+  additional: readonly unknown[],
+): additional is readonly GuestLocale[] {
+  return (
+    additional.length <= MAX_ADDITIONAL_GUEST_LOCALES &&
+    additional.every(isGuestLocale) &&
+    new Set(additional).size === additional.length &&
+    !additional.includes(primary)
+  )
 }
 
 /** Maps a language tag such as `es-MX` or `DE-at` to its catalogue locale. */

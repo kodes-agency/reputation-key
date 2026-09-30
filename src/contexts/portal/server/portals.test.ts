@@ -310,6 +310,45 @@ describe('updatePortal input validation', () => {
     expect(result.success).toBe(true)
   })
 
+  it('still refuses locales that have no reviewed pack as manager input', () => {
+    for (const locale of ['es', 'it', 'fr', 'de', 'pt']) {
+      expect(
+        updatePortalInputSchema.safeParse({
+          portalId: 'portal-123',
+          primaryGuestLocale: locale,
+        }).success,
+      ).toBe(false)
+      expect(
+        updatePortalInputSchema.safeParse({
+          portalId: 'portal-123',
+          additionalGuestLocales: [locale],
+        }).success,
+      ).toBe(false)
+    }
+  })
+
+  it('keeps additional locales unique', () => {
+    expect(
+      updatePortalInputSchema.safeParse({
+        portalId: 'portal-123',
+        primaryGuestLocale: 'en',
+        additionalGuestLocales: ['bg'],
+      }).success,
+    ).toBe(true)
+    expect(
+      updatePortalInputSchema.safeParse({
+        portalId: 'portal-123',
+        additionalGuestLocales: ['bg', 'bg'],
+      }).success,
+    ).toBe(false)
+    expect(
+      updatePortalInputSchema.safeParse({
+        portalId: 'portal-123',
+        additionalGuestLocales: ['en', 'bg', 'en', 'bg', 'en', 'bg'],
+      }).success,
+    ).toBe(false)
+  })
+
   it('accepts hero removal but rejects a caller-supplied hero URL', () => {
     expect(
       updatePortalInputSchema.safeParse({

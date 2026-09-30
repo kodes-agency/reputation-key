@@ -304,6 +304,37 @@ describe('portal events', () => {
     ).toMatchObject({ sourceAggregateVersion, occurredAt: NOW })
   })
 
+  it('emits a locale set over any catalogue locale, never repeating or exceeding it', () => {
+    const base = {
+      organizationId: ORG_ID,
+      propertyId: PROP_ID,
+      portalId: PORTAL_ID,
+      sourceAggregateVersion: NOW.toISOString(),
+      occurredAt: NOW,
+    }
+    expect(
+      portalLocaleSetUpdated({
+        ...base,
+        primaryGuestLocale: 'de',
+        additionalGuestLocales: ['en', 'es', 'it', 'fr', 'bg'],
+      }),
+    ).toMatchObject({ primaryGuestLocale: 'de' })
+    expect(() =>
+      portalLocaleSetUpdated({
+        ...base,
+        primaryGuestLocale: 'de',
+        additionalGuestLocales: ['en', 'es', 'it', 'fr', 'bg', 'bg'],
+      }),
+    ).toThrow('Portal additional guest locales must be supported, unique')
+    expect(() =>
+      portalLocaleSetUpdated({
+        ...base,
+        primaryGuestLocale: 'de',
+        additionalGuestLocales: ['en', 'de'],
+      }),
+    ).toThrow('not repeat the primary')
+  })
+
   it('emits an identifier-only Portal Health transition with both persisted pairs', () => {
     expect(
       portalHealthChanged({
