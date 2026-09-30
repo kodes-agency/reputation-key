@@ -68,7 +68,7 @@ describe('renderNotification — invariants across every type', () => {
     // belongs to the Organization: the Property `reauthorization_required` is
     // filed under is only a delivery anchor, so naming it would mislead.
     if (
-      type.startsWith('account.organization_') ||
+      type.startsWith('account.') ||
       type.startsWith('integration.') ||
       type === 'beta_feedback.outcome'
     ) {
@@ -629,6 +629,9 @@ describe('renderNotification — coalescing (ADR 0046 r.2)', () => {
     ['review.updated', 'Updated 3 times.'],
     ['reply.pending_approval', 'This happened 3 times.'],
     ['reply.publish_failed', 'This happened 3 times.'],
+    // Notices of one type for one Organization merge into one unread row.
+    ['account.invitation_accepted', 'This happened 3 times.'],
+    ['account.organization_property_access_changed', 'This happened 3 times.'],
   ] as const)('ends a repeated %s with "%s"', (type, marker) => {
     const r = renderNotification(type, { occurrences: 3 })
 
@@ -689,6 +692,31 @@ describe('notificationLink', () => {
       path: '/settings/profile',
       search: {},
     })
+    expect(
+      notificationLink(
+        'organization',
+        'org-1',
+        null,
+        'account.organization_access_removed',
+      ),
+    ).toEqual({ path: '/settings/profile', search: {} })
+  })
+
+  it('sends the member to Properties when their property access changed', () => {
+    expect(
+      notificationLink(
+        'organization',
+        'org-1',
+        null,
+        'account.organization_property_access_changed',
+      ),
+    ).toEqual({ path: '/properties', search: {} })
+  })
+
+  it('sends the inviter to Members when their invitation was accepted', () => {
+    expect(
+      notificationLink('organization', 'org-1', null, 'account.invitation_accepted'),
+    ).toEqual({ path: '/settings/members', search: {} })
   })
 
   it('renders calm, actionable account-access copy', () => {
@@ -719,6 +747,148 @@ describe('notificationLink', () => {
       summary: 'organization access removed',
       whyReceived:
         'You received this because your access to an organization on Reputation Key ended.',
+    })
+  })
+
+  describe('account notices that name the organization and the role (ADR 0046 r.8)', () => {
+    const ORG = 'Riverside Group'
+
+    it('says which organization the member joined', () => {
+      expect(
+        renderNotification('account.organization_access_granted', {
+          organizationName: ORG,
+        }),
+      ).toEqual({
+        title: 'You joined Riverside Group',
+        body: 'Your account can now access this organization.',
+        detail: '',
+        actionLabel: 'Review account',
+        summary: 'Riverside Group · access added',
+        whyReceived:
+          'You received this because your account was given access to an organization on Reputation Key.',
+      })
+    })
+
+    it.each([
+      ['property_manager', 'You are now a Property Manager.'],
+      ['account_admin', 'You are now an Account Admin.'],
+    ] as const)('names the %s role a member now holds', (memberRole, body) => {
+      const rendered = renderNotification('account.organization_role_changed', {
+        organizationName: ORG,
+        memberRole,
+      })
+
+      expect(rendered).toMatchObject({
+        title: 'Your role at Riverside Group changed',
+        body,
+        // The role is news the title does not carry, so the row shows it.
+        detail: body,
+        summary: 'Riverside Group · role changed',
+        whyReceived:
+          'You received this because what your account may do in an organization on Reputation Key changed.',
+      })
+    })
+
+    it('falls back to the plain role-change sentence when the role is unknown', () => {
+      expect(
+        renderNotification('account.organization_role_changed', {
+          organizationName: ORG,
+        }),
+      ).toMatchObject({
+        title: 'Your role at Riverside Group changed',
+        body: 'Your account permissions for this organization were updated.',
+        detail: '',
+      })
+      expect(
+        renderNotification('account.organization_role_changed', {
+          memberRole: 'account_admin',
+        }),
+      ).toMatchObject({
+        title: 'Organization role updated',
+        body: 'You are now an Account Admin.',
+      })
+    })
+
+    it('names the organization a member left or was removed from', () => {
+      expect(
+        renderNotification('account.organization_access_removed', {
+          organizationName: ORG,
+          leftOrganization: true,
+        }),
+      ).toMatchObject({
+        title: 'You left Riverside Group',
+        summary: 'Riverside Group · left',
+      })
+      expect(
+        renderNotification('account.organization_access_removed', {
+          organizationName: ORG,
+        }),
+      ).toMatchObject({
+        title: 'Your access to Riverside Group was removed',
+        summary: 'Riverside Group · access removed',
+      })
+    })
+
+    it('tells a member their property access changed, naming the organization', () => {
+      expect(
+        renderNotification('account.organization_property_access_changed', {
+          organizationName: ORG,
+        }),
+      ).toEqual({
+        title: 'Your property access changed',
+        body: 'Your property access at Riverside Group changed. Open Properties to see what you can work.',
+        detail: '',
+        actionLabel: 'Open Properties',
+        summary: 'Riverside Group · property access changed',
+        whyReceived:
+          'You received this because an Account Admin changed which properties you can work.',
+      })
+      expect(
+        renderNotification('account.organization_property_access_changed', {}),
+      ).toMatchObject({
+        title: 'Your property access changed',
+        body: 'Open Properties to see what you can work.',
+        summary: 'property access changed',
+      })
+    })
+
+    it('tells an inviter their invitation was accepted without naming who accepted it', () => {
+      expect(
+        renderNotification('account.invitation_accepted', { organizationName: ORG }),
+      ).toEqual({
+        title: 'An invitation you sent was accepted',
+        body: 'Someone you invited joined Riverside Group. Review their properties in Members.',
+        detail: '',
+        actionLabel: 'Open Members',
+        summary: 'Riverside Group · invitation accepted',
+        whyReceived:
+          'You received this because an invitation you sent on Reputation Key was accepted.',
+      })
+      expect(renderNotification('account.invitation_accepted', {})).toMatchObject({
+        title: 'An invitation you sent was accepted',
+        body: 'Someone you invited joined. Review their properties in Members.',
+        summary: 'invitation accepted',
+      })
+    })
+
+    it('never renders an identifier or a repeat count into an account notice', () => {
+      const types = [
+        'account.organization_access_granted',
+        'account.organization_role_changed',
+        'account.organization_access_removed',
+        'account.organization_property_access_changed',
+        'account.invitation_accepted',
+      ] as const
+      for (const type of types) {
+        const rendered = renderNotification(type, {
+          organizationName: ORG,
+          memberRole: 'property_manager',
+          occurrences: 1,
+        })
+        expect(
+          [rendered.title, rendered.body, rendered.detail, rendered.summary].join(' '),
+        ).not.toMatch(/[0-9a-f]{8}-[0-9a-f]{4}|undefined/)
+      }
     })
   })
 
@@ -755,6 +925,8 @@ describe('notificationLink', () => {
       'account.organization_access_granted',
       'account.organization_role_changed',
       'account.organization_access_removed',
+      'account.organization_property_access_changed',
+      'account.invitation_accepted',
       'account.organization_purge_pending',
     ]
     const reasons = mandatory.map((type) => renderNotification(type, {}).whyReceived)

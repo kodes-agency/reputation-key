@@ -54,6 +54,7 @@ import {
 import {
   identityBetaFeedbackOutcomeReached,
   identityInvitationAccepted,
+  identityMemberPropertyAccessChanged,
   identityMemberRemoved,
   identityMemberRoleChanged,
   identityOrganizationLifecycleChanged,
@@ -206,6 +207,16 @@ const PRODUCED_FACTS: Readonly<Record<string, () => DomainEvent>> = {
       organizationId: ORG,
       userId: RECIPIENT,
       propertyIds: [PROPERTY],
+      inviterId: ACTOR,
+      occurredAt: OCCURRED_AT,
+    }),
+  'identity.member.property_access_changed': () =>
+    identityMemberPropertyAccessChanged({
+      organizationId: ORG,
+      memberUserId: RECIPIENT,
+      userId: ACTOR,
+      grantedPropertyIds: [PROPERTY],
+      revokedPropertyIds: [],
       occurredAt: OCCURRED_AT,
     }),
   'identity.member.role_changed': () =>
@@ -1149,8 +1160,17 @@ describe('every beta notification route queues its notice from its real producer
     (candidate) => candidate.settles === undefined,
   )) {
     it(`${route.eventType}: ${route.consumerName} queues its notification durably`, async () => {
-      const { envelope, receipts, gateDenials, queued } = await dispatch(
-        PRODUCED_FACTS[route.eventType]!(),
+      const {
+        envelope,
+        receipts,
+        gateDenials,
+        queued: everyJob,
+      } = await dispatch(PRODUCED_FACTS[route.eventType]!())
+      // A fact with two notice consumers (an accepted invitation tells the new
+      // member and its inviter) queues both; each route answers for its own.
+      const queued = everyJob.filter(
+        (job) =>
+          parseOutboxNotificationDelivery(job)?.consumerName === route.consumerName,
       )
       const routeTypes: ReadonlyArray<string> = route.notifications.map(
         ({ type }) => type,
@@ -1256,6 +1276,75 @@ describe('the Purge Pending final notice reaches its AccountAdmins', () => {
     deps.userLookup.findByRole.mockResolvedValue([])
 
     for (const job of queued) {
+      await expect(
+        authorizerFor(deps)({
+          userId: job.userId,
+          organizationId: job.organizationId,
+          propertyId: job.propertyId,
+          audience: parseNotificationAudience(job.audience)!,
+        }),
+      ).resolves.toBe(false)
+    }
+  })
+})
+
+/**
+ * The inviter's notice rides the new member's fact and reaches one person, the
+ * AccountAdmin who sent the invitation. It has no Property and is decided by
+ * the role alone, so an inviter who has since left, or an operator who never
+ * held the role in this Organization, is refused when the job is delivered.
+ */
+describe('the accepted-invitation notice reaches only its inviter, while they are an AccountAdmin', () => {
+  const authorizerFor = (deps: RouteDeps) =>
+    createNotificationAudienceAuthorizer({
+      ...deps,
+      portalHealthLookup: {
+        findPortalHealthNotificationFacts: vi.fn(async () => null),
+      },
+      organizationAccountAuthority: {
+        isAffectedRecipient: vi.fn(async () => false),
+      },
+    })
+
+  const inviterJobs = async (deps: RouteDeps) => {
+    const { queued } = await dispatch(
+      PRODUCED_FACTS['identity.invitation.accepted']!(),
+      deps,
+    )
+    return queued.filter((job) => job.type === 'account.invitation_accepted')
+  }
+
+  it('queues one job, for the inviter and never the person who joined', async () => {
+    const jobs = await inviterJobs(currentRouteDeps())
+
+    expect(jobs.map((job) => job.userId)).toEqual([ACTOR])
+    expect(JSON.stringify(jobs)).not.toContain(RECIPIENT)
+  })
+
+  it('passes the delivery check while the inviter is still an AccountAdmin', async () => {
+    const deps = currentRouteDeps()
+    const jobs = await inviterJobs(deps)
+    deps.userLookup.findByRole.mockResolvedValue([ACTOR])
+
+    for (const job of jobs) {
+      await expect(
+        authorizerFor(deps)({
+          userId: job.userId,
+          organizationId: job.organizationId,
+          propertyId: job.propertyId,
+          audience: parseNotificationAudience(job.audience)!,
+        }),
+      ).resolves.toBe(true)
+    }
+  })
+
+  it('refuses the notice for an inviter who has left or lost the role since', async () => {
+    const deps = currentRouteDeps()
+    const jobs = await inviterJobs(deps)
+    deps.userLookup.findByRole.mockResolvedValue([ADMIN])
+
+    expect(jobs).toHaveLength(1)
+    for (const job of jobs) {
       await expect(
         authorizerFor(deps)({
           userId: job.userId,

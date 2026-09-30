@@ -32,6 +32,10 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   'account.organization_access_granted': 'mandatory',
   'account.organization_role_changed': 'mandatory',
   'account.organization_access_removed': 'mandatory',
+  // Access and accountability facts about the reader's own account: neither
+  // can be muted, both are Organization-scoped like every mandatory notice.
+  'account.organization_property_access_changed': 'mandatory',
+  'account.invitation_accepted': 'mandatory',
   'account.organization_purge_pending': 'mandatory',
   // A new review is an arrival (D4, docs/design/notifications): off in the app
   // by default, like every arrival — unless its rating is at or below its
