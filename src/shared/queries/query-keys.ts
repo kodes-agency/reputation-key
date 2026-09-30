@@ -357,3 +357,11 @@ export const guestKeys = {
   publicPortal: (args: Readonly<Record<string, unknown>>) =>
     [...guestKeys.all, 'public-portal', args] as const,
 }
+
+// ── Platform operator console (ADR 0063) ─────────────────────────────────
+// Cross-tenant: the operator holds no role in the Organizations it lists, so
+// nothing here carries an Organization id and nothing belongs to `identityKeys`.
+export const platformKeys = {
+  all: ['platform'] as const,
+  organizations: () => [...platformKeys.all, 'organizations'] as const,
+}
