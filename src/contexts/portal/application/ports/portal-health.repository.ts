@@ -1,5 +1,6 @@
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 import type { PortalHealth, PortalHealthInterval } from '../../domain/portal-health'
+import type { HistoryBound } from '../../domain/portal-history'
 
 export type PortalHealthRepository = Readonly<{
   transition: (
@@ -32,5 +33,7 @@ export type PortalHealthRepository = Readonly<{
     propertyId: PropertyId,
     portalId: PortalId,
     limit: number,
+    /** Only intervals strictly before this History position; newest first. */
+    bound?: HistoryBound | null,
   ) => Promise<readonly PortalHealthInterval[]>
 }>

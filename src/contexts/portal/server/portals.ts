@@ -32,6 +32,7 @@ import {
   rotatePortalTokenInputSchema,
 } from '../application/dto/portal-token-lifecycle.dto'
 import { isPortalError, portalError } from '../domain/errors'
+import { PORTAL_HISTORY_CATEGORIES } from '../domain/portal-history'
 import type { PortalErrorCode } from '../domain/errors'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { Capability } from '#/shared/auth/beta-capabilities'
@@ -95,6 +96,13 @@ const rollbackPortalPublicationSchema = z.object({
 const portalPublicationHistorySchema = portalIdSchema.extend({
   cursor: z.number().int().positive().optional(),
   limit: z.number().int().min(1).max(50).optional(),
+})
+
+const portalHistorySchema = portalIdSchema.extend({
+  // Opaque: the use case decodes it and starts over on anything it did not issue.
+  cursor: z.string().max(100).optional(),
+  limit: z.number().int().min(1).max(50).optional(),
+  filter: z.enum(['all', ...PORTAL_HISTORY_CATEGORIES]).optional(),
 })
 
 const listPortalsSchema = z.object({
@@ -586,6 +594,33 @@ export const getPortalPublicationHistory = createServerFn({ method: 'GET' })
       },
       'GET',
       'portal.getPortalPublicationHistory',
+    ),
+  )
+
+/** The merged History timeline: publishing, codes and health, with actors. */
+export const getPortalHistory = createServerFn({ method: 'GET' })
+  .validator(portalHistorySchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        await authorizePortalResource(ctx, data.portalId, 'portal.read', 'portal.read')
+
+        try {
+          return await getContainer().portalPublicApi.management.getPortalHistory(
+            data,
+            ctx,
+          )
+        } catch (error) {
+          if (isPortalError(error)) {
+            throwContextError('PortalError', error, portalErrorStatus(error.code))
+          }
+          throw catchUntagged(error)
+        }
+      },
+      'GET',
+      'portal.getPortalHistory',
     ),
   )
 
