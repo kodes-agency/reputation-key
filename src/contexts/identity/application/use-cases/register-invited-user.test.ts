@@ -211,7 +211,7 @@ describe('registerInvitedUser', () => {
     fixture.reconcile.mockResolvedValueOnce({ kind: 'compensated' })
 
     await expect(fixture.useCase(fixture.input)).rejects.toSatisfy(
-      (error: unknown) => isIdentityError(error) && error.code === 'invitation_not_found',
+      (error: unknown) => isIdentityError(error) && error.code === 'invitation_expired',
     )
     expect(fixture.commandStore.invitationById(INVITATION_ID)?.status).toBe('pending')
   })

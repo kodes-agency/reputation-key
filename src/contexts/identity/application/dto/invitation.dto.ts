@@ -3,6 +3,7 @@
 // Per architecture: "Zod at HTTP boundaries (server function inputs)"
 
 import { z } from 'zod/v4'
+import type { Role } from '#/shared/domain/roles'
 
 export const inviteMemberInputSchema = z.object({
   email: z.email('A valid email address is required'),
@@ -77,8 +78,33 @@ const _invitationResponseSchema = z.object({
   id: z.string(),
   email: z.string(),
   role: roleSchema,
-  status: z.enum(['pending', 'accepted', 'rejected', 'canceled'] as const),
+  status: z.enum(['pending', 'accepted', 'rejected', 'canceled', 'expired'] as const),
   expiresAt: z.date(),
   createdAt: z.date(),
 })
 export type InvitationResponse = z.infer<typeof _invitationResponseSchema>
+
+/**
+ * One open invitation on an Organization's Members page. Browser-safe: the
+ * Members UI and the operator console read this shape.
+ */
+export type OrganizationInvitation = Readonly<{
+  id: string
+  email: string
+  /** null = a non-beta raw role; the UI falls back to rawRole. */
+  role: Role | null
+  rawRole: string
+  /** Stored 'pending' past its expiry, or stored 'expired', reads 'expired'. */
+  status: 'pending' | 'expired'
+  createdAt: Date
+  expiresAt: Date
+  /** user.name via invitation.inviterId; null when that user is gone. */
+  inviterName: string | null
+  /** [] for an AccountAdmin; deleted Properties are dropped. */
+  properties: ReadonlyArray<Readonly<{ id: string; name: string }>>
+}>
+
+/** listInvitations: the Organization's open invitations, newest first. */
+export type ListInvitationsOutput = Readonly<{
+  invitations: ReadonlyArray<OrganizationInvitation>
+}>

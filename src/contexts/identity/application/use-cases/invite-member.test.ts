@@ -132,6 +132,56 @@ describe('inviteMember', () => {
     expect(sendEmail).not.toHaveBeenCalled()
   })
 
+  it('points the admin at Resend when this Organization holds a lapsed invitation', async () => {
+    const { useCase, commandStore, outbox, sendEmail } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    commandStore.seedInvitation({
+      id: 'inv-lapsed',
+      organizationId: ctx.organizationId as string,
+      email: 'new@test.com',
+      role: 'admin',
+      status: 'pending',
+      expiresAt: new Date('2026-04-01T12:00:00Z'),
+      propertyIds: null,
+      inviterId: ctx.userId as string,
+      createdAt: new Date('2026-03-25T12:00:00Z'),
+    })
+
+    await expect(
+      useCase({ email: 'new@test.com', role: 'PropertyManager', propertyIds: [] }, ctx),
+    ).rejects.toSatisfy(
+      (e: unknown) =>
+        isIdentityError(e) && e.code === 'already_exists' && /Use Resend/.test(e.message),
+    )
+
+    expect(outbox.facts).toHaveLength(0)
+    expect(sendEmail).not.toHaveBeenCalled()
+  })
+
+  it("expires another Organization's lapsed invitation and invites", async () => {
+    const { useCase, commandStore } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    commandStore.seedInvitation({
+      id: 'inv-other-lapsed',
+      organizationId: 'org-other',
+      email: 'new@test.com',
+      role: 'admin',
+      status: 'pending',
+      expiresAt: new Date('2026-04-01T12:00:00Z'),
+      propertyIds: null,
+      inviterId: 'user-other',
+      createdAt: new Date('2026-03-25T12:00:00Z'),
+    })
+
+    await useCase(
+      { email: 'new@test.com', role: 'PropertyManager', propertyIds: [] },
+      ctx,
+    )
+
+    expect(commandStore.invitationById('inv-other-lapsed')?.status).toBe('expired')
+    expect(commandStore.invitationById('inv-test-1')?.status).toBe('pending')
+  })
+
   it('records the member.invited fact with correct data', async () => {
     const { useCase, outbox } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })

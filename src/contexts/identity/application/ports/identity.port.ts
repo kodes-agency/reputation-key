@@ -30,7 +30,7 @@ export type InvitationRecord = Readonly<{
   role: Role | null
   /** Raw better-auth role string — for display + owner detection. */
   rawRole: string
-  status: 'pending' | 'accepted' | 'rejected' | 'canceled'
+  status: 'pending' | 'accepted' | 'rejected' | 'canceled' | 'expired'
   expiresAt: Date
   createdAt: Date
   organizationId?: OrganizationId

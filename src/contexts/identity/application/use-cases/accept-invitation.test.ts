@@ -77,6 +77,9 @@ describe('acceptInvitation', () => {
         propertyIds: ['prop-a', 'prop-b'],
       },
     ])
+    // A signed-in acceptance proves nothing about the inbox: only the
+    // registration paths may verify the address.
+    expect(commandStore.verifiedUserIds).toEqual([])
   })
 
   it('rejects when there is no active session', async () => {

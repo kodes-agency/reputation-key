@@ -18,15 +18,19 @@
 //   the pre-BQC-3.5 withOrgLock serialization semantics.
 
 import { isBetaInteractiveMemberRoleToken } from '#/shared/domain/beta-interactive-role'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { invitation, member, session, user as userTable } from '#/shared/db/schema/auth'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { isOwnerToken } from '#/shared/domain/roles'
-import { organizationId as toOrganizationId } from '#/shared/domain/ids'
+import {
+  organizationId as toOrganizationId,
+  userId as toUserId,
+} from '#/shared/domain/ids'
 import { decideUserOrganizationMembership } from '#/shared/auth/user-organization-membership'
 import { identityError } from '../domain/errors'
+import { invitationState } from '../domain/invitation-state'
 import { revokeAllPropertyAccessForUser } from './repositories/property-access-grant.repository'
 import type {
   AcceptInvitationCommand,
@@ -35,8 +39,20 @@ import type {
   IdentityCommandStore,
   InviteMemberCommand,
   RemoveMemberCommand,
+  RenewInvitationCommand,
   ValidateInvitationRegistrationCommand,
 } from '../application/ports/identity-command-store.port'
+
+/** Invitee-facing copy: fixed text, never a stored status or provider wording. */
+const INVITATION_INACTIVE_MESSAGE =
+  'This invitation is no longer active. Ask your Account Admin for a new one.'
+const INVITATION_EXPIRED_MESSAGE =
+  'This invitation has expired. Ask your Account Admin to resend it.'
+const INVITATION_OTHER_ADDRESS_MESSAGE =
+  'This invitation was sent to a different email address. Sign out and open the link again.'
+const INVITATION_CONSUMED_MESSAGE = 'This invitation was already accepted or cancelled.'
+const REGISTRATION_FAILED_MESSAGE = 'Registration failed. Please try again.'
+const INELIGIBLE_ROLE_MESSAGE = 'This invitation is not eligible for beta manager access'
 
 /**
  * Invitation insert via raw SQL. The drizzle mirror for the better-auth
@@ -167,6 +183,166 @@ function parsePropertyIds(raw: string | null): ReadonlyArray<string> {
   }
 }
 
+/** Serialize every invitation write for one address, across Organizations. */
+async function lockInvitationEmail(tx: Tx, email: string): Promise<void> {
+  await tx.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`beta-invitation-email:${email}`}, 0))`,
+  )
+}
+
+/**
+ * Guard 1 — an existing membership must either be the current org (duplicate)
+ * or another org (closed-beta Organization conflict).
+ */
+async function assertAddressHasNoMembership(
+  tx: Tx,
+  email: string,
+  organizationId: string,
+): Promise<void> {
+  const memberRows = await tx
+    .select({ organizationId: member.organizationId })
+    .from(member)
+    .innerJoin(userTable, eq(member.userId, userTable.id))
+    .where(sql`LOWER(${userTable.email}) = ${email}`)
+  if (memberRows.some((row) => row.organizationId === organizationId)) {
+    throw identityError('already_exists', 'User is already a member of this organization')
+  }
+  if (memberRows.length > 0) {
+    throw identityError(
+      'organization_conflict',
+      'This account already belongs to another Organization',
+    )
+  }
+}
+
+type OpenInvitationRow = Readonly<{
+  id: string
+  organizationId: string
+  state: 'pending' | 'expired'
+  storedStatus: string
+}>
+
+/** The address's open (stored pending or expired) invitations, read as their state. */
+async function openInvitationsForAddress(
+  tx: Tx,
+  email: string,
+  now: Date,
+): Promise<ReadonlyArray<OpenInvitationRow>> {
+  const rows = await tx
+    .select({
+      id: invitation.id,
+      organizationId: invitation.organizationId,
+      status: invitation.status,
+      expiresAt: invitation.expiresAt,
+    })
+    .from(invitation)
+    .where(
+      and(
+        sql`LOWER(${invitation.email}) = ${email}`,
+        inArray(invitation.status, ['pending', 'expired']),
+      ),
+    )
+  return rows.flatMap((row) => {
+    const state = invitationState(row.status, row.expiresAt, now)
+    return state === 'pending' || state === 'expired'
+      ? [
+          {
+            id: row.id,
+            organizationId: row.organizationId,
+            state,
+            storedStatus: row.status,
+          },
+        ]
+      : []
+  })
+}
+
+/**
+ * Guard 2 — only one Organization may hold a live beta manager invitation for
+ * an address. A lapsed row of this Organization is renewed with Resend rather
+ * than duplicated; another Organization's lapsed row is marked 'expired' (no
+ * fact — the precedent is the 'rejected' write in acceptInvitation) so it
+ * stops blocking the address.
+ */
+async function assertNoCompetingInvitation(
+  tx: Tx,
+  input: Readonly<{ email: string; organizationId: string; now: Date }>,
+): Promise<void> {
+  const open = await openInvitationsForAddress(tx, input.email, input.now)
+  const mine = open.filter((row) => row.organizationId === input.organizationId)
+  const theirs = open.filter((row) => row.organizationId !== input.organizationId)
+  if (mine.some((row) => row.state === 'pending')) {
+    throw identityError('already_exists', 'User is already invited to this organization')
+  }
+  if (mine.length > 0) {
+    throw identityError(
+      'already_exists',
+      'This email has an expired invitation. Use Resend to renew it.',
+    )
+  }
+  if (theirs.some((row) => row.state === 'pending')) {
+    throw identityError(
+      'organization_conflict',
+      'This email already has a pending invitation from another Organization',
+    )
+  }
+  const lapsedIds = theirs
+    .filter((row) => row.storedStatus === 'pending')
+    .map((row) => row.id)
+  if (lapsedIds.length > 0) {
+    await tx
+      .update(invitation)
+      .set({ status: 'expired' })
+      .where(inArray(invitation.id, lapsedIds))
+  }
+}
+
+/**
+ * The renewed row must not compete with a live invitation elsewhere: another
+ * Organization may have invited the address while this one lapsed.
+ */
+async function assertRenewalHasNoCompetitor(
+  tx: Tx,
+  input: Readonly<{ id: string; email: string; organizationId: string; now: Date }>,
+): Promise<void> {
+  const open = await openInvitationsForAddress(tx, input.email, input.now)
+  const live = open.filter((row) => row.id !== input.id && row.state === 'pending')
+  if (live.some((row) => row.organizationId === input.organizationId)) {
+    throw identityError('already_exists', 'User is already invited to this organization')
+  }
+  if (live.length > 0) {
+    throw identityError(
+      'organization_conflict',
+      'This email already has a pending invitation from another Organization',
+    )
+  }
+}
+
+/**
+ * Registration paths only: consuming the emailed link proves the inbox. The
+ * row must be exactly the acceptor at the invited address; anything else —
+ * including Better Auth's synthetic duplicate-sign-up user, which was never
+ * written — rolls the acceptance back.
+ */
+async function markAcceptorEmailVerified(
+  tx: Tx,
+  input: Readonly<{ userId: string; email: string; now: Date }>,
+): Promise<void> {
+  const verified = await tx
+    .update(userTable)
+    .set({ emailVerified: true, updatedAt: input.now })
+    .where(
+      and(
+        eq(userTable.id, input.userId),
+        sql`LOWER(${userTable.email}) = ${input.email}`,
+      ),
+    )
+    .returning({ id: userTable.id })
+  if (!verified[0]) {
+    throw identityError('registration_failed', REGISTRATION_FAILED_MESSAGE)
+  }
+}
+
 export const createAtomicIdentityCommandStore = (
   db: Database,
   idGen: () => string,
@@ -193,10 +369,7 @@ export const createAtomicIdentityCommandStore = (
         throw identityError('forbidden', 'Invitation is not addressed to this email')
       }
       if (!isBetaInteractiveMemberRoleToken(inv.role ?? 'member')) {
-        throw identityError(
-          'forbidden',
-          'This invitation is not eligible for beta manager access',
-        )
+        throw identityError('forbidden', INELIGIBLE_ROLE_MESSAGE)
       }
     },
 
@@ -212,61 +385,13 @@ export const createAtomicIdentityCommandStore = (
         await db.transaction(async (tx) => {
           // Serialize all invitations for an address, including the
           // absent-row race across two Organizations.
-          await tx.execute(
-            sql`SELECT pg_advisory_xact_lock(hashtextextended(${`beta-invitation-email:${email}`}, 0))`,
-          )
-
-          // Guard 1 — an existing membership must either be the current org
-          // (duplicate) or another org (closed-beta Organization conflict).
-          const memberRows = await tx
-            .select({ organizationId: member.organizationId })
-            .from(member)
-            .innerJoin(userTable, eq(member.userId, userTable.id))
-            .where(sql`LOWER(${userTable.email}) = ${email}`)
-          if (
-            memberRows.some(
-              (row) => row.organizationId === (command.organizationId as string),
-            )
-          ) {
-            throw identityError(
-              'already_exists',
-              'User is already a member of this organization',
-            )
-          }
-          if (memberRows.length > 0) {
-            throw identityError(
-              'organization_conflict',
-              'This account already belongs to another Organization',
-            )
-          }
-
-          // Guard 2 — only one Organization may hold a pending beta manager
-          // invitation for an address at a time.
-          const pendingRows = await tx
-            .select({ organizationId: invitation.organizationId })
-            .from(invitation)
-            .where(
-              and(
-                sql`LOWER(${invitation.email}) = ${email}`,
-                eq(invitation.status, 'pending'),
-              ),
-            )
-          if (
-            pendingRows.some(
-              (row) => row.organizationId === (command.organizationId as string),
-            )
-          ) {
-            throw identityError(
-              'already_exists',
-              'User is already invited to this organization',
-            )
-          }
-          if (pendingRows.length > 0) {
-            throw identityError(
-              'organization_conflict',
-              'This email already has a pending invitation from another Organization',
-            )
-          }
+          await lockInvitationEmail(tx, email)
+          await assertAddressHasNoMembership(tx, email, command.organizationId as string)
+          await assertNoCompetingInvitation(tx, {
+            email,
+            organizationId: command.organizationId as string,
+            now: command.now,
+          })
 
           await insertInvitationRow(tx, {
             id: command.invitationId as string,
@@ -300,6 +425,7 @@ export const createAtomicIdentityCommandStore = (
               status: invitation.status,
               expiresAt: invitation.expiresAt,
               propertyIds: invitation.propertyIds,
+              inviterId: invitation.inviterId,
             })
             .from(invitation)
             .where(eq(invitation.id, command.invitationId as string))
@@ -310,17 +436,15 @@ export const createAtomicIdentityCommandStore = (
           }
           // 2. Email-match invariant — only the invitee may accept.
           if (inv.email.toLowerCase() !== acceptorEmail) {
-            throw identityError('forbidden', 'Invitation is not addressed to this user')
+            throw identityError('forbidden', INVITATION_OTHER_ADDRESS_MESSAGE)
           }
-          // 3. Lifecycle gate.
-          if (inv.status !== 'pending') {
-            throw identityError(
-              'invitation_not_found',
-              `Invitation is no longer pending (status: ${inv.status})`,
-            )
+          // 3. Lifecycle gate. The copy is fixed: it reaches the invitee.
+          const state = invitationState(inv.status, inv.expiresAt, command.now)
+          if (state === 'expired') {
+            throw identityError('invitation_expired', INVITATION_EXPIRED_MESSAGE)
           }
-          if (inv.expiresAt <= command.now) {
-            throw identityError('invitation_not_found', 'Invitation has expired')
+          if (state !== 'pending') {
+            throw identityError('invitation_not_found', INVITATION_INACTIVE_MESSAGE)
           }
           // 4. Re-validate the role at acceptance. Member users and custom
           //    roles are retained as data but cannot become beta logins.
@@ -332,7 +456,7 @@ export const createAtomicIdentityCommandStore = (
               .where(eq(invitation.id, inv.id))
             return {
               kind: 'rejected' as const,
-              message: 'This invitation is not eligible for beta manager access',
+              message: INELIGIBLE_ROLE_MESSAGE,
             }
           }
           // 5. Re-check Better Auth membership while the invitation is locked.
@@ -348,8 +472,17 @@ export const createAtomicIdentityCommandStore = (
               'User is already a member of this Organization',
             )
           }
+          // 6. Registration paths: the link proved the inbox. Verified in the
+          //    same transaction as the membership, or not at all.
+          if (command.markEmailVerified === true) {
+            await markAcceptorEmailVerified(tx, {
+              userId: command.acceptorUserId as string,
+              email: acceptorEmail,
+              now: command.now,
+            })
+          }
 
-          // 6. Create the membership + mark accepted.
+          // 7. Create the membership + mark accepted.
           await tx.insert(member).values({
             id: idGen(),
             organizationId: inv.organizationId,
@@ -361,10 +494,11 @@ export const createAtomicIdentityCommandStore = (
             .update(invitation)
             .set({ status: 'accepted' })
             .where(eq(invitation.id, inv.id))
-          // 7. The fact carries invitation-row data read under the lock.
+          // 8. The fact carries invitation-row data read under the lock.
           const accepted = {
             organizationId: toOrganizationId(inv.organizationId),
             propertyIds: parsePropertyIds(inv.propertyIds),
+            inviterId: inv.inviterId ? toUserId(inv.inviterId) : null,
           }
           const fact = command.buildEvent(accepted)
           await insertOutboxRow(tx, fact)
@@ -377,6 +511,64 @@ export const createAtomicIdentityCommandStore = (
       })
     },
 
+    renewInvitation: async (command: RenewInvitationCommand) => {
+      return trace('identity.commandStore.renewInvitation', async () =>
+        db.transaction(async (tx) => {
+          const scope = and(
+            eq(invitation.id, command.invitationId as string),
+            eq(invitation.organizationId, command.organizationId as string),
+          )
+          // The address names the lock, so read it before taking it.
+          const located = await tx
+            .select({ email: invitation.email })
+            .from(invitation)
+            .where(scope)
+            .limit(1)
+          if (!located[0]) {
+            throw identityError('invitation_not_found', 'Invitation not found')
+          }
+          const email = located[0].email.toLowerCase()
+          await lockInvitationEmail(tx, email)
+          const rows = await tx
+            .select({
+              id: invitation.id,
+              email: invitation.email,
+              role: invitation.role,
+              status: invitation.status,
+              propertyIds: invitation.propertyIds,
+            })
+            .from(invitation)
+            .where(scope)
+            .for('update')
+          const inv = rows[0]
+          if (!inv || (inv.status !== 'pending' && inv.status !== 'expired')) {
+            throw identityError('invitation_not_found', INVITATION_CONSUMED_MESSAGE)
+          }
+          const role = (inv.role ?? 'member').trim().toLowerCase()
+          if (!isBetaInteractiveMemberRoleToken(role)) {
+            throw identityError('forbidden', INELIGIBLE_ROLE_MESSAGE)
+          }
+          await assertAddressHasNoMembership(tx, email, command.organizationId as string)
+          await assertRenewalHasNoCompetitor(tx, {
+            id: inv.id,
+            email,
+            organizationId: command.organizationId as string,
+            now: command.now,
+          })
+          await tx
+            .update(invitation)
+            .set({ status: 'pending', expiresAt: command.expiresAt })
+            .where(eq(invitation.id, inv.id))
+          return {
+            email: inv.email,
+            role,
+            propertyIds: parsePropertyIds(inv.propertyIds),
+            expiresAt: command.expiresAt,
+          }
+        }),
+      )
+    },
+
     cancelInvitation: async (command: CancelInvitationCommand) => {
       return trace('identity.commandStore.cancelInvitation', async () => {
         await db.transaction(async (tx) => {
@@ -387,6 +579,9 @@ export const createAtomicIdentityCommandStore = (
               and(
                 eq(invitation.id, command.invitationId as string),
                 eq(invitation.organizationId, command.organizationId as string),
+                // An accepted, rejected or canceled invitation is history;
+                // only an open one can be withdrawn.
+                inArray(invitation.status, ['pending', 'expired']),
               ),
             )
             .returning({ id: invitation.id })
