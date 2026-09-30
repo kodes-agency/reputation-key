@@ -6,7 +6,7 @@
 // command, and its failures are returned rather than thrown: the access change
 // has already committed and is the part that matters.
 
-import type { SaveMemberAccessInput } from '#/components/features/identity/member-directory/member-access-sheet'
+import type { SaveMemberAccessInput } from '#/components/features/identity'
 
 type Ids = ReadonlyArray<string>
 
