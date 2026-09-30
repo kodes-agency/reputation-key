@@ -340,12 +340,14 @@ describe('createBetterAuthIdentityAdapter', () => {
         userId: 'user-1',
         organizationId: 'org-1',
         propertyIds: ['prop-1'],
+        inviterId: 'user-inviter',
       })
 
       expect(mockOnAcceptInvitation).toHaveBeenCalledWith({
         userId: 'user-1',
         organizationId: 'org-1',
         propertyIds: ['prop-1'],
+        inviterId: 'user-inviter',
       })
     })
 

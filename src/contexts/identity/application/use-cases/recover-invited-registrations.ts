@@ -33,6 +33,8 @@ type RecoverInvitedRegistrationsDeps = Readonly<{
       userId: string
       organizationId: string
       propertyIds: ReadonlyArray<string>
+      /** Who sent the invitation, when this pass accepted it itself. */
+      inviterId?: string
     }>,
   ) => Promise<void>
   clock: () => Date
@@ -84,6 +86,9 @@ export const recoverInvitedRegistrations =
           ),
         })
 
+        // Known only when this pass accepts; a settlement read back from
+        // Better Auth does not say who sent the invitation.
+        let inviterId: string | undefined
         if (settlement.kind === 'ready_to_accept') {
           const registration = settlement.registration
           const acceptanceNow = deps.clock()
@@ -101,6 +106,7 @@ export const recoverInvitedRegistrations =
                   userId: toUserId(registration.authIds.userId),
                   invitationId: registration.invitationId,
                   propertyIds: invitation.propertyIds,
+                  inviterId: invitation.inviterId ?? undefined,
                   occurredAt: acceptanceNow,
                 }),
             })
@@ -110,6 +116,7 @@ export const recoverInvitedRegistrations =
               propertyIds: accepted.propertyIds,
               userId: registration.authIds.userId,
             }
+            inviterId = accepted.inviterId ?? undefined
             try {
               await deps.registrationStore.complete(registration.verificationId)
             } catch (error) {
@@ -144,6 +151,7 @@ export const recoverInvitedRegistrations =
               userId: settlement.userId,
               organizationId: settlement.organizationId as string,
               propertyIds: settlement.propertyIds,
+              ...(inviterId ? { inviterId } : {}),
             })
           } catch (error) {
             // Membership authority already committed. This derivative access

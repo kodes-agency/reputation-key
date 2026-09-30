@@ -66,6 +66,8 @@ export type IdentityInvitationAccepted = Readonly<{
   organizationId: OrganizationId
   userId: UserId
   propertyIds: ReadonlyArray<string>
+  /** Who sent the invitation. Additive at version 1: older facts lack it. */
+  inviterId?: UserId
   occurredAt: Date
   correlationId: string | null
 }>
