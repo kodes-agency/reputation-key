@@ -21,6 +21,7 @@ import type { NotificationPreferencePatch } from './notifications-settings-view'
 import type { PreferenceValues } from './notification-preference-saves'
 import type { SetDifferently } from './notification-apply-everywhere'
 import { DefaultControls, named } from './notification-default-controls'
+import { LowRatingSelect } from './notifications-low-ratings-controls'
 
 const CADENCE_LABELS: Readonly<Record<NotificationCadence, string>> = {
   immediate: 'Immediate',
@@ -221,19 +222,42 @@ export function NotificationsCategoryRow({
       <p className="min-w-0 text-sm text-muted-foreground md:col-start-1">
         {description}
       </p>
-      <InAppSwitch {...control} inApp={inApp} />
-      <Label className="flex items-center gap-2 md:col-start-3 md:row-start-1">
-        <Switch
-          id={`${category}-email`}
-          checked={emailOn}
-          disabled={emailControlsDisabled}
-          aria-label={named(label, 'Email')}
-          onCheckedChange={(enabled) =>
-            void savePreference(category, 'email', { enabled })
-          }
-        />
-        Email
-      </Label>
+      {category === 'low_ratings' ? (
+        // How low, per channel, in place of an on/off switch.
+        <>
+          <LowRatingSelect
+            channel="in_app"
+            categoryLabel={label}
+            values={inApp}
+            onChange={(patch) => void savePreference(category, 'in_app', patch)}
+            className="w-auto md:col-start-2 md:row-start-1"
+          />
+          <LowRatingSelect
+            channel="email"
+            categoryLabel={label}
+            values={email}
+            disabled={emailControlsDisabled}
+            onChange={(patch) => void savePreference(category, 'email', patch)}
+            className="w-auto md:col-start-3 md:row-start-1"
+          />
+        </>
+      ) : (
+        <>
+          <InAppSwitch {...control} inApp={inApp} />
+          <Label className="flex items-center gap-2 md:col-start-3 md:row-start-1">
+            <Switch
+              id={`${category}-email`}
+              checked={emailOn}
+              disabled={emailControlsDisabled}
+              aria-label={named(label, 'Email')}
+              onCheckedChange={(enabled) =>
+                void savePreference(category, 'email', { enabled })
+              }
+            />
+            Email
+          </Label>
+        </>
+      )}
       <EmailTiming
         {...control}
         email={email}

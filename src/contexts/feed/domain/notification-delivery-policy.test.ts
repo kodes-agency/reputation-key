@@ -317,17 +317,25 @@ describe('notification delivery policy', () => {
 
   // D4 (docs/design/notifications): only a Portal rating decides, and only for
   // private feedback. A provider review's rating never enters Feed (r.8).
-  it('files pleasant private feedback as an arrival and keeps a guest concern urgent', () => {
+  it('files a rated notice its reader found low as Low ratings, other rated feedback as an arrival, and unrated feedback as a guest concern', () => {
+    // Whether a rating is low is the reader's threshold, decided when the
+    // notice is written and carried as `lowRating` — never the stars.
+    expect(
+      classifyNotification('feedback.created', { guestRating: 2, lowRating: true }),
+    ).toBe('low_ratings')
+    expect(classifyNotification('review.created', { lowRating: true })).toBe(
+      'low_ratings',
+    )
+    expect(classifyNotification('review.updated', { lowRating: true })).toBe(
+      'low_ratings',
+    )
     expect(classifyNotification('feedback.created', { guestRating: 5 })).toBe('arrivals')
-    expect(classifyNotification('feedback.created', { guestRating: 4 })).toBe('arrivals')
-    expect(classifyNotification('feedback.created', { guestRating: 3 })).toBe(
-      'urgent_operational',
-    )
+    expect(classifyNotification('feedback.created', { guestRating: 3 })).toBe('arrivals')
     expect(classifyNotification('feedback.created', {})).toBe('urgent_operational')
-    // A rating on anything else changes nothing.
-    expect(classifyNotification('inbox.escalated', { guestRating: 5 })).toBe(
-      'urgent_operational',
-    )
+    // Neither a rating nor the flag moves anything else.
+    expect(
+      classifyNotification('inbox.escalated', { guestRating: 5, lowRating: true }),
+    ).toBe('urgent_operational')
   })
 
   it('emails a guest edit of handled work by default, and an edit of unhandled work not at all', () => {
@@ -361,10 +369,13 @@ describe('notification delivery policy', () => {
     expect(NOTIFICATION_CATEGORIES).toContain('recognition')
     expect(NOTIFICATION_SETTINGS_CATEGORIES).toEqual([
       'urgent_operational',
+      'low_ratings',
       'arrivals',
       'workflow_collaboration',
       'recognition',
     ])
+    // Low ratings governs no type by itself (a rating decides it per reader),
+    // so it is not a filter.
     expect(GOVERNING_NOTIFICATION_CATEGORIES).toEqual([
       'mandatory',
       'urgent_operational',

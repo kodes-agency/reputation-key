@@ -92,3 +92,64 @@ describe('resolveCategoryPreference', () => {
     ).toEqual({ enabled: true, cadence: 'daily' })
   })
 })
+
+// ADR 0046, amended 2026-09-30: how low is part of the answer, and falls back
+// like the rest of it.
+describe('resolveCategoryPreference for Low ratings', () => {
+  const resolveLow = (
+    channel: 'in_app' | 'email',
+    property: Readonly<{
+      enabled: boolean
+      cadence: 'immediate'
+      maxRating: 1 | 2 | 3 | 4
+    }> | null,
+    personalDefault: Readonly<{
+      enabled: boolean
+      cadence: 'immediate'
+      maxRating: 1 | 2 | 3 | 4
+    }> | null = null,
+  ) =>
+    resolveCategoryPreference({
+      category: 'low_ratings',
+      channel,
+      property,
+      personalDefault,
+    })
+
+  it('is on, and immediate, at 3 stars or lower in the app and 2 by email when nobody chose', () => {
+    expect(resolveLow('in_app', null)).toEqual({
+      enabled: true,
+      cadence: 'immediate',
+      maxRating: 3,
+    })
+    expect(resolveLow('email', null)).toEqual({
+      enabled: true,
+      cadence: 'immediate',
+      maxRating: 2,
+    })
+  })
+
+  it("takes the Property's own threshold over the person's default", () => {
+    expect(
+      resolveLow(
+        'email',
+        { enabled: true, cadence: 'immediate', maxRating: 4 },
+        { enabled: true, cadence: 'immediate', maxRating: 1 },
+      ),
+    ).toMatchObject({ maxRating: 4 })
+    expect(
+      resolveLow('email', null, { enabled: true, cadence: 'immediate', maxRating: 1 }),
+    ).toMatchObject({ maxRating: 1 })
+  })
+
+  it('gives every other category no threshold at all', () => {
+    expect(
+      resolveCategoryPreference({
+        category: 'arrivals',
+        channel: 'email',
+        property: null,
+        personalDefault: null,
+      }),
+    ).not.toHaveProperty('maxRating')
+  })
+})

@@ -12,6 +12,7 @@ const quietTime = z
 /** Configurable Property categories; Organization mandatory policy is refused. */
 export const notificationPreferenceCategory = z.enum([
   'urgent_operational',
+  'low_ratings',
   'arrivals',
   'workflow_collaboration',
   'recognition',
@@ -28,14 +29,26 @@ const notificationChannel = z.enum(['in_app', 'email'])
  * `applyToAllProperties` makes the same answer the person's default for every
  * Property they have and every Property they are given next.
  */
-export const updateNotificationPreferenceDto = z.object({
-  propertyId: z.uuid(),
-  category: notificationPreferenceCategory,
-  channel: notificationChannel,
-  enabled: z.boolean(),
-  cadence: z.enum(['immediate', 'daily']),
-  applyToAllProperties: z.boolean().optional(),
-})
+export const updateNotificationPreferenceDto = z
+  .object({
+    propertyId: z.uuid(),
+    category: notificationPreferenceCategory,
+    channel: notificationChannel,
+    enabled: z.boolean(),
+    cadence: z.enum(['immediate', 'daily']),
+    /**
+     * Low ratings only, and required there: the highest rating this channel
+     * is on for ("N★ or lower"). Refused for every other category.
+     */
+    maxRating: z
+      .union([z.literal(1), z.literal(2), z.literal(3), z.literal(4)])
+      .optional(),
+    applyToAllProperties: z.boolean().optional(),
+  })
+  .refine(
+    (value) => (value.category === 'low_ratings') === (value.maxRating !== undefined),
+    'Choose how low a rating to be told about, for Low ratings only',
+  )
 
 /**
  * The person's quiet hours and urgent bypass, or one Property's override of

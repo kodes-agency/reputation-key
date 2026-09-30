@@ -36,6 +36,11 @@ import {
   SETTLED_EMAIL_REASON,
   SUPERSEDED_FOR_READER,
 } from '../../domain/notification-settlement'
+import { isLowFor, RATED_NOTIFICATION_TYPES } from '../../domain/notification-low-ratings'
+import { getDefaultMaxRating } from '../../domain/notification-policy'
+import { parseNotificationPayload } from '../../domain/notification-payload'
+import type { CategoryPreferenceValues } from '../../domain/notification-preference-resolution'
+import type { ReviewRatingForRouting } from '../ports/review-rating-lookup.port'
 
 // ── Input ───────────────────────────────────────────────────────────
 
@@ -62,6 +67,11 @@ export type InsertNotificationDeps = Readonly<{
    * refusing to queue there keeps purge readiness settleable.
    */
   organizationEmailStop: NotificationOrganizationEmailStopPort
+  /**
+   * A review's current eligible rating, read only to decide whether its notice
+   * is a Low ratings one for the reader; compared and dropped, never stored.
+   */
+  ratingForRouting: ReviewRatingForRouting
   enqueueImmediateEmail?: (data: {
     notificationEmailId: string
     organizationId: string
@@ -131,6 +141,89 @@ const resolveChannelPreferences = async (
     inAppEnabled: inApp.enabled,
     emailEnabled: email.enabled,
     emailCadence: email.cadence,
+  }
+}
+
+// ── Low ratings ─────────────────────────────────────────────────────
+
+/** Which channels a Low ratings notice reaches its reader on (ADR 0046, amended 2026-09-30). */
+type LowRatingRoute = Readonly<{
+  inApp: boolean
+  email: boolean
+  emailCadence: NotificationCadence
+}>
+
+/** The rating a rated notice goes by: private feedback's own, a review's from Review. */
+const ratingOf = async (
+  deps: InsertNotificationDeps,
+  input: InsertNotificationInput,
+): Promise<number | null> => {
+  if (input.type === 'feedback.created') {
+    return parseNotificationPayload(input.payload).guestRating ?? null
+  }
+  if (input.resourceType !== 'inbox_item') return null
+  return deps.ratingForRouting({
+    organizationId: input.organizationId,
+    inboxItemId: input.resourceId,
+  })
+}
+
+const thresholdOf = (
+  preference: CategoryPreferenceValues,
+  channel: 'in_app' | 'email',
+) => ({
+  enabled: preference.enabled,
+  maxRating: preference.maxRating ?? getDefaultMaxRating('low_ratings', channel) ?? 1,
+})
+
+/**
+ * Whether a rated notice is a Low ratings one for THIS reader, and on which
+ * channels: at or below their own threshold for each, from the Property's row,
+ * else their default, else 3★ in the app and 2★ by email. Null when it is not
+ * — not a rated type, no rating to go by (unrated feedback, or a Google review
+ * past its cache window), or above both thresholds.
+ */
+const lowRatingRoute = async (
+  deps: InsertNotificationDeps,
+  input: InsertNotificationInput,
+): Promise<LowRatingRoute | null> => {
+  if (!RATED_NOTIFICATION_TYPES.has(input.type) || input.propertyId === null) return null
+  const rating = await ratingOf(deps, input)
+  if (rating === null) return null
+  const [inApp, email] = await Promise.all(
+    (['in_app', 'email'] as const).map((channel) =>
+      deps.preferenceRepo.resolveForDelivery(
+        input.userId,
+        input.organizationId,
+        input.propertyId!,
+        'low_ratings',
+        channel,
+      ),
+    ),
+  )
+  const route = {
+    inApp: isLowFor(thresholdOf(inApp!, 'in_app'), rating),
+    email: isLowFor(thresholdOf(email!, 'email'), rating),
+    emailCadence: email!.cadence,
+  }
+  return route.inApp || route.email ? route : null
+}
+
+/**
+ * A Low ratings notice's channels: each one it is low enough for, and — on a
+ * channel it is not — the reader's New reviews and feedback answer, which
+ * still stands for every review.
+ */
+const lowRatingChannels = async (
+  deps: InsertNotificationDeps,
+  input: InsertNotificationInput,
+  route: LowRatingRoute,
+): Promise<ChannelPreferences> => {
+  const arrivals = await resolveChannelPreferences(deps, input, 'arrivals')
+  return {
+    inAppEnabled: route.inApp || arrivals.inAppEnabled,
+    emailEnabled: route.email || arrivals.emailEnabled,
+    emailCadence: route.email ? route.emailCadence : arrivals.emailCadence,
   }
 }
 
@@ -308,19 +401,28 @@ export const insertNotification =
   ): Promise<DomainNotification | null> => {
     const { logger } = deps
 
+    // 0. A rated notice may be a Low ratings one for this reader. Decided
+    // before the entity is built, so its category and copy say so; only the
+    // outcome is kept (`lowRating`), never the stars (ADR 0031).
+    const lowRating = await lowRatingRoute(deps, input)
+    const routed: InsertNotificationInput = lowRating
+      ? {
+          ...input,
+          payload: { ...parseNotificationPayload(input.payload), lowRating: true },
+        }
+      : input
+
     // 1. Construct + validate the domain entity
-    const result = createNotification({ ...input, id: deps.idGen() }, deps.clock)
+    const result = createNotification({ ...routed, id: deps.idGen() }, deps.clock)
     if (result.isErr()) {
       // BQC-7.3: the raw input (tenant/entity ids) is never logged.
       logger.warn({ error: result.error }, 'Failed to construct notification')
       throw result.error
     }
 
-    const { inAppEnabled, emailEnabled, emailCadence } = await resolveChannelPreferences(
-      deps,
-      input,
-      result.value.category,
-    )
+    const { inAppEnabled, emailEnabled, emailCadence } = lowRating
+      ? await lowRatingChannels(deps, routed, lowRating)
+      : await resolveChannelPreferences(deps, routed, result.value.category)
 
     if (!inAppEnabled && !emailEnabled) {
       logger.info(

@@ -226,27 +226,60 @@ const renderOrganizationPurgePending = (p: NotificationPayload): RendererCopy =>
   }
 }
 
-const renderReviewCreated = (p: NotificationPayload): RendererCopy => ({
-  title: `New ${'review'}${atProperty(p)}`,
-  body: 'Open it to read the review and reply.',
-  actionLabel: 'Read review',
-  summary: factsAt(p, 'review'),
-})
+// A Low ratings notice says so, and why — the reader's own threshold — but
+// never how many stars: a Google review's rating stays in Review's cache
+// (ADR 0031), and the Inbox shows it when the item is opened.
+const LOW_RATING_REASON = 'It is at or below the rating you asked to hear about.'
 
-const renderReviewUpdated = (p: NotificationPayload): RendererCopy => ({
-  title: `Review updated${atProperty(p)}`,
-  body: 'The guest changed their review. Open it to check the latest details.',
-  actionLabel: 'Review update',
-  summary: factsAt(p, 'updated review'),
-})
+const renderReviewCreated = (p: NotificationPayload): RendererCopy =>
+  p.lowRating === true
+    ? {
+        title: `Low-rated review${atProperty(p)}`,
+        body: sentence(LOW_RATING_REASON, 'Open it to read the review and reply.'),
+        actionLabel: 'Read review',
+        summary: factsAt(p, 'low-rated review'),
+      }
+    : {
+        title: `New ${'review'}${atProperty(p)}`,
+        body: 'Open it to read the review and reply.',
+        actionLabel: 'Read review',
+        summary: factsAt(p, 'review'),
+      }
+
+const renderReviewUpdated = (p: NotificationPayload): RendererCopy =>
+  p.lowRating === true
+    ? {
+        title: `Review edited to a low rating${atProperty(p)}`,
+        body: sentence(
+          'The guest changed their review, and it is now at or below the rating you asked to hear about.',
+          'Open it to check the latest details.',
+        ),
+        actionLabel: 'Review update',
+        summary: factsAt(p, 'review edited to a low rating'),
+      }
+    : {
+        title: `Review updated${atProperty(p)}`,
+        body: 'The guest changed their review. Open it to check the latest details.',
+        actionLabel: 'Review update',
+        summary: factsAt(p, 'updated review'),
+      }
 
 // Always feedback, even when the item lookup failed and left no platform.
-const renderFeedbackCreated = (p: NotificationPayload): RendererCopy => ({
-  title: `New guest feedback${atProperty(p)}`,
-  body: 'Open it to read the feedback.',
-  actionLabel: 'Read feedback',
-  summary: factsAt(p, ratedFeedback(p)),
-})
+// Its rating is RepKey's own (the Portal collected it), so it is shown.
+const renderFeedbackCreated = (p: NotificationPayload): RendererCopy =>
+  p.lowRating === true
+    ? {
+        title: `Low-rated guest feedback${atProperty(p)}`,
+        body: sentence(LOW_RATING_REASON, 'Open it to read the feedback.'),
+        actionLabel: 'Read feedback',
+        summary: factsAt(p, ratedFeedback(p)),
+      }
+    : {
+        title: `New guest feedback${atProperty(p)}`,
+        body: 'Open it to read the feedback.',
+        actionLabel: 'Read feedback',
+        summary: factsAt(p, ratedFeedback(p)),
+      }
 
 const renderReplyPendingApproval = (p: NotificationPayload): RendererCopy => ({
   title: `Approve a reply${atProperty(p)}`,

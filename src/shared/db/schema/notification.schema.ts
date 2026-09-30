@@ -15,6 +15,7 @@ import {
   jsonb,
   boolean,
   integer,
+  smallint,
   timestamp,
   time,
   date,
@@ -54,6 +55,9 @@ const categoryChannelColumns = () => ({
   channel: varchar('channel', { length: 16 }).notNull(),
   enabled: boolean('enabled').notNull().default(true),
   cadence: varchar('cadence', { length: 16 }).notNull().default('daily'),
+  // Low ratings only: the highest rating this channel is on for, "N★ or
+  // lower" (ADR 0046, amended 2026-09-30). Every other category has none.
+  maxRating: smallint('max_rating'),
 })
 
 // ── In-app notifications ────────────────────────────────────────────
@@ -519,6 +523,14 @@ export const notificationPreferences = pgTable(
       'notification_preferences_configurable_category_check',
       sql`${t.category} <> 'mandatory'`,
     ),
+    check(
+      'notification_preferences_max_rating_scope',
+      sql`(${t.category} = 'low_ratings') = (${t.maxRating} IS NOT NULL)`,
+    ),
+    check(
+      'notification_preferences_max_rating_range',
+      sql`${t.maxRating} IS NULL OR ${t.maxRating} BETWEEN 1 AND 4`,
+    ),
   ],
 )
 
@@ -641,6 +653,14 @@ export const notificationCategoryDefaults = pgTable(
     check(
       'notification_category_defaults_required_enabled',
       sql`${t.enabled} OR NOT (${t.category} = 'urgent_operational' AND ${t.channel} = 'in_app')`,
+    ),
+    check(
+      'notification_category_defaults_max_rating_scope',
+      sql`(${t.category} = 'low_ratings') = (${t.maxRating} IS NOT NULL)`,
+    ),
+    check(
+      'notification_category_defaults_max_rating_range',
+      sql`${t.maxRating} IS NULL OR ${t.maxRating} BETWEEN 1 AND 4`,
     ),
   ],
 )

@@ -8,6 +8,7 @@ import {
   effectiveEmailCadence,
   getDefaultCadence,
   getDefaultEnabled,
+  getDefaultMaxRating,
   type ConfigurableNotificationCategory,
   type NotificationChannel,
   type NotificationPreference,
@@ -18,7 +19,11 @@ import {
  * left it in ADR 0046's 2026-09-23 amendment: they are the person's, saved
  * once for every Property rather than once per (Property, category, channel).
  */
-export type PreferenceValues = Pick<NotificationPreference, 'enabled' | 'cadence'>
+export type PreferenceValues = Pick<NotificationPreference, 'enabled' | 'cadence'> &
+  Readonly<{
+    /** Low ratings only: "N★ or lower". */
+    maxRating?: NotificationPreference['maxRating']
+  }>
 
 export type PreferencePatch = Partial<PreferenceValues>
 
@@ -41,6 +46,10 @@ export function applyPreferencePatch(
   current: PreferenceValues | undefined,
   patch: PreferencePatch,
 ): PreferenceValues {
+  // Low ratings cannot be saved without its threshold, so every save of its
+  // row carries one: the patch's, the row's, or the default.
+  const maxRating =
+    patch.maxRating ?? current?.maxRating ?? getDefaultMaxRating(category, channel)
   return {
     enabled: patch.enabled ?? current?.enabled ?? getDefaultEnabled(category, channel),
     // A stored email cadence the category no longer offers (goal email saved
@@ -50,6 +59,16 @@ export function applyPreferencePatch(
       channel === 'email'
         ? effectiveEmailCadence(category, patch.cadence ?? current?.cadence)
         : (patch.cadence ?? current?.cadence ?? getDefaultCadence(category)),
+    ...(maxRating === null ? {} : { maxRating }),
+  }
+}
+
+/** What a save sends for a row: its values, a Low-ratings threshold only when it has one. */
+export function preferenceRequestValues(values: PreferenceValues) {
+  return {
+    enabled: values.enabled,
+    cadence: values.cadence,
+    ...(values.maxRating ? { maxRating: values.maxRating } : {}),
   }
 }
 

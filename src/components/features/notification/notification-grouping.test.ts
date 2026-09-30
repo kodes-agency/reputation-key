@@ -6,7 +6,7 @@
 import { describe, expect, it } from 'vitest'
 import { makeNotification } from './notification.stories.fixtures'
 import { byUrgency, groupByDay } from './notification-filters'
-import { stackNotifications } from './notification-stacks'
+import { notificationStackView, stackNotifications } from './notification-stacks'
 
 const NOW = new Date('2026-09-30T09:00:00.000Z') // 12:00 in Sofia
 const at = (iso: string) => new Date(iso)
@@ -158,5 +158,38 @@ describe('stackNotifications', () => {
       'row',
       'row',
     ])
+  })
+})
+
+// ADR 0046, amended 2026-09-30: low-rated reviews stack apart from new ones,
+// and the stack says what they are, never how many stars.
+describe('a stack of low-rated reviews', () => {
+  const at = (id: string, category: 'low_ratings' | 'arrivals') =>
+    makeNotification({
+      id,
+      type: 'review.created',
+      category,
+      propertyId: '10000000-0000-4000-8000-0000000000c1',
+      payload: { propertyName: 'Harbour View Suites', platform: 'google' },
+    })
+
+  it('never folds low-rated and new reviews together, and names the low ones', () => {
+    const entries = stackNotifications([
+      at('10000000-0000-4000-8000-0000000000c2', 'low_ratings'),
+      at('10000000-0000-4000-8000-0000000000c3', 'arrivals'),
+      at('10000000-0000-4000-8000-0000000000c4', 'low_ratings'),
+      at('10000000-0000-4000-8000-0000000000c5', 'arrivals'),
+    ])
+
+    expect(entries.map((entry) => entry.kind)).toEqual(['stack', 'stack'])
+    const [low, arrivals] = entries
+    if (low?.kind !== 'stack' || arrivals?.kind !== 'stack') throw new Error('not stacks')
+    expect(
+      notificationStackView(low.notifications, { showProperty: true, when: 'now' }).title,
+    ).toBe('2 low-rated reviews')
+    expect(
+      notificationStackView(arrivals.notifications, { showProperty: true, when: 'now' })
+        .title,
+    ).toBe('2 new reviews')
   })
 })

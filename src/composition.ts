@@ -793,6 +793,8 @@ function buildContainer(
       // Whether the work a notice asks for still waits: asked before it is
       // written and again before its email is sent.
       workState: notification.delivery.workState,
+      // A review's eligible rating, to route its notice as a Low ratings one.
+      ratingForRouting: notification.delivery.ratingForRouting,
     }),
     handleResendEvent: notification.delivery.handleResendEvent,
     notificationAudienceAuthorizer: notification.delivery.authorizeAudience,

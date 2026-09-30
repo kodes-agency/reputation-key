@@ -95,8 +95,13 @@ must not outrank the review itself with an immediate email. One that reopens a C
 `urgent_operational`: a reply written for the old revision does not answer the
 new one, so the old reply still live on Google does not close the reopened
 cycle, and the reply to the edit settles the notice. Urgency for an unanswered
-review comes from its Inbox Response Target, not from Feed, which never sees a
-rating class (ADR 0046, amended 2026-09-24 and 2026-09-28).
+review comes from its Inbox Response Target. A low rating is the reader's own
+threshold instead: when a new or edited review, or rated private feedback, is
+at or below it, the notice is Low ratings for that reader (per channel, 3★ or
+lower in the app and 2★ or lower by email unless they choose). Feed reads a
+Google review's rating for that decision only, through Review's eligible read,
+and keeps only the outcome — the category and the payload's `lowRating` flag,
+never the stars (ADR 0046, amended 2026-09-24, 2026-09-28 and 2026-09-30).
 
 Every new Inbox Item is announced to its responsible recipients except Google
 history: an item whose first Handling Cycle was observed as

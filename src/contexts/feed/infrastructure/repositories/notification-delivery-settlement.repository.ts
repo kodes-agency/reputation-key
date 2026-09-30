@@ -1,4 +1,5 @@
 import type { Database } from '#/shared/db'
+import type { ReviewRatingForRouting } from '../../application/ports/review-rating-lookup.port'
 import { eventConsumerReceipts, outboxEvents } from '#/shared/db/schema/outbox.schema'
 import { and, eq, isNull } from 'drizzle-orm'
 import type { LoggerPort } from '#/shared/domain/logger.port'
@@ -22,6 +23,8 @@ type SettlementDeps = Readonly<{
   idGen: () => NotificationId
   emailIdGen: () => NotificationEmailId
   logger: LoggerPort
+  /** Outside the transaction: Review's read, compared and dropped. */
+  ratingForRouting: ReviewRatingForRouting
   enqueueImmediateEmail?: (data: {
     notificationEmailId: string
     organizationId: string
@@ -141,6 +144,7 @@ export const createNotificationDeliverySettlement = (
             // Read inside the transaction, with the rows it decides about.
             organizationEmailStop:
               createNotificationOrganizationEmailStopReader(transactionDb),
+            ratingForRouting: deps.ratingForRouting,
             // Redis is deliberately outside the database transaction. The
             // captured immediate row is enqueued only after commit below.
           })(input, audience)

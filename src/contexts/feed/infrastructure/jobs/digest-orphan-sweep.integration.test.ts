@@ -111,6 +111,7 @@ describe.sequential(
       await queue.add('insert-notification', input)
       const logger = createFakeJobLogger()
       const settlement = createNotificationDeliverySettlement({
+        ratingForRouting: async () => null,
         db,
         clock: () => NOW,
         idGen: () => NOTIFICATION,

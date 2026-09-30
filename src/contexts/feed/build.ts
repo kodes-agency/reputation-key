@@ -93,6 +93,9 @@ import {
   NOTIFICATION_GAP_SCAN_LIMIT,
 } from './infrastructure/jobs/reconcile-missing-notifications.job'
 import { insertNotification } from './application/use-cases/insert-notification'
+import type { ReviewRatingLookupPort } from './application/ports/review-rating-lookup.port'
+import type { LowRatingThreshold } from './domain/notification-low-ratings'
+import { createReviewRatingForRouting } from './infrastructure/adapters/review-rating-routing.adapter'
 import {
   muteNotificationCategory,
   undoNotificationCategoryMute,
@@ -293,6 +296,11 @@ type NotificationBuildInput = Readonly<{
   replyApproval: ReplyApprovalAuthorityPort
   /** Review-owned reply status, so a notice never asks for a decided reply. */
   replyStates: ReplyWorkStateLookupPort
+  /**
+   * Review-owned eligible rating, read only to route a review's notice as a
+   * Low ratings one; never stored (ADR 0046 amended 2026-09-30, ADR 0031).
+   */
+  reviewRatings: ReviewRatingLookupPort
   /** Guest-owned source attribution; Notification never reads Guest tables. */
   feedbackPortalLookup: FeedbackPortalLookupPort
   googleConnectionProperties: GoogleConnectionPropertyLookup
@@ -458,6 +466,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   const enqueueImmediateEmail = input.queue
     ? createImmediateEmailEnqueue(input.queue, 'notification:urgent-enqueue')
     : undefined
+  const ratingForRouting = createReviewRatingForRouting(input.db, input.reviewRatings)
 
   const useCases = {
     insertNotification: insertNotification({
@@ -469,6 +478,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       emailIdGen: () => notificationEmailId(input.idGen()),
       logger: input.logger,
       organizationEmailStop,
+      ratingForRouting,
       enqueueImmediateEmail,
     }),
   } as const
@@ -482,6 +492,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     idGen: () => notificationId(input.idGen()),
     emailIdGen: () => notificationEmailId(input.idGen()),
     logger: input.logger,
+    ratingForRouting,
     enqueueImmediateEmail,
   })
 
@@ -601,6 +612,8 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
       enabled: boolean,
       cadence: NotificationCadence,
       applyToAllProperties: boolean,
+      /** Low ratings only: "N★ or lower". */
+      maxRating: LowRatingThreshold | null = null,
     ) => {
       const now = input.clock()
       const result = createNotificationPreference(
@@ -613,6 +626,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
           channel,
           enabled,
           cadence,
+          maxRating,
         },
         () => now,
       )
@@ -629,6 +643,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
           channel,
           enabled,
           cadence,
+          maxRating,
         },
         () => now,
       )
@@ -886,6 +901,7 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
         recipientStanding,
         workState,
         deliverySettlement,
+        ratingForRouting,
         reconcileMissingNotificationsHandler: reconcileMissingNotificationsHandler(),
       },
     }),

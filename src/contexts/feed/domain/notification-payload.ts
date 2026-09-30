@@ -15,8 +15,10 @@
 //   ALLOWED   tenant-authored organization, property and goal names, the locally collected
 //             1-5 guest rating, actor ROLE, counts, when a wait began, platform
 //             enum, whether an approver gave a reason, how a publication
-//             ended (closed enum), and an internal moderation reason
-//             (staff-authored; historical rows only).
+//             ended (closed enum), an internal moderation reason
+//             (staff-authored; historical rows only), and whether the notice
+//             is a Low ratings one for its reader (`lowRating`: the outcome of
+//             the reader's own threshold, never the stars).
 //   FORBIDDEN Google/provider review ratings and content, reply text,
 //             guest/reviewer name, media URLs, sentiment or any derived score,
 //             and any other employee's NAME or email.
@@ -85,6 +87,13 @@ export type NotificationPayload = Readonly<{
    * removed them, or the row predates the fact saying so.
    */
   leftOrganization?: boolean
+  /**
+   * This notice reached its reader because the review or feedback is at or
+   * below their own Low-ratings threshold (ADR 0046, amended 2026-09-30).
+   * Set only when true, and only on a rated type. The routing outcome, never
+   * the rating: a Google review's stars stay in Review's cache (ADR 0031).
+   */
+  lowRating?: true
   /**
    * How a publication ended without a confirmed live reply
    * (reply.publish_failed only). Absent on rows recorded before facts said.
@@ -367,6 +376,7 @@ export const parseNotificationPayload = (input: unknown): NotificationPayload =>
   set('moderationReason', takeText(raw.moderationReason, MAX_REASON_LENGTH))
   set('hasModerationReason', takeFlag(raw.hasModerationReason))
   set('leftOrganization', takeFlag(raw.leftOrganization))
+  set('lowRating', raw.lowRating === true ? true : undefined)
   set(
     'publishOutcome',
     takeMember<NotificationPublishOutcome>(raw.publishOutcome, PUBLISH_OUTCOMES),

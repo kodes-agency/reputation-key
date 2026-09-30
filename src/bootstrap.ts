@@ -703,6 +703,7 @@ async function registerNotificationJobs(
     workState: container.notificationWorkerRuntime.workState,
     deliverySettlement: container.notificationDeliverySettlement,
     organizationEmailStop: notificationOrganizationEmailStop,
+    ratingForRouting: container.notificationWorkerRuntime.ratingForRouting,
     enqueueImmediateEmail: container.jobQueue
       ? createImmediateEmailEnqueue(container.jobQueue, 'notification:urgent-enqueue')
       : undefined,

@@ -376,6 +376,7 @@ export const updateNotificationPreferenceFn = createServerFn({ method: 'POST' })
             data.enabled,
             data.cadence,
             data.applyToAllProperties === true,
+            data.maxRating ?? null,
           )
         } catch (error) {
           if (isNotificationError(error)) {

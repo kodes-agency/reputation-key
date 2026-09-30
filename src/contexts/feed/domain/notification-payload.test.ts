@@ -86,6 +86,7 @@ describe('parseNotificationPayload', () => {
       moderationReason: 'Tone is too defensive.',
       hasModerationReason: true,
       leftOrganization: true,
+      lowRating: true,
       publishOutcome: 'refused',
       goalName: 'Lobby QR scans',
       occurrences: 3,
@@ -300,5 +301,14 @@ describe('isEmptyNotificationPayload', () => {
   it('is true only when nothing survived parsing', () => {
     expect(isEmptyNotificationPayload({})).toBe(true)
     expect(isEmptyNotificationPayload({ guestRating: 4, platform: 'portal' })).toBe(false)
+  })
+})
+
+describe('the Low ratings flag', () => {
+  it('keeps only a literal true: the outcome, never a value or a rating', () => {
+    expect(parseNotificationPayload({ lowRating: true })).toEqual({ lowRating: true })
+    for (const value of [false, 'true', 1, 2, null]) {
+      expect(parseNotificationPayload({ lowRating: value })).toEqual({})
+    }
   })
 })

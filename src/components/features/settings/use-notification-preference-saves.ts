@@ -8,6 +8,7 @@ import type {
   NotificationPreference,
 } from '#/contexts/feed/application/public-api'
 import {
+  preferenceRequestValues,
   applyPreferencePatch,
   createSerialRunner,
   preferenceRowKey,
@@ -27,7 +28,7 @@ export type PreferenceUpdate = Readonly<{
       channel: NotificationChannel
       /** Make this the answer for every property, now and next. */
       applyToAllProperties?: boolean
-    } & PreferenceValues
+    } & ReturnType<typeof preferenceRequestValues>
   >
 }>
 
@@ -102,7 +103,9 @@ export function useNotificationPreferenceSaves({
     commit(new Map(latest.current).set(key, values))
     try {
       await runner.run(key, () =>
-        updatePreference({ data: { propertyId, category, channel, ...values } }),
+        updatePreference({
+          data: { propertyId, category, channel, ...preferenceRequestValues(values) },
+        }),
       )
       toast.success('Notification preference updated')
     } catch {
@@ -138,7 +141,7 @@ export function useNotificationPreferenceSaves({
             category,
             channel,
             applyToAllProperties: true,
-            ...values,
+            ...preferenceRequestValues(values),
           },
         }),
       )

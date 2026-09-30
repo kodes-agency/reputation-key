@@ -27,10 +27,12 @@ import type {
 import { notificationError, type NotificationError } from './notification-errors'
 import { isPreferenceDisableable } from './notification-policy'
 import { offeredEmailCadences } from './notification-cadence'
+import { isLowRatingThreshold, type LowRatingThreshold } from './notification-low-ratings'
 
 const CATEGORIES: Readonly<Record<NotificationCategory, true>> = {
   mandatory: true,
   urgent_operational: true,
+  low_ratings: true,
   arrivals: true,
   workflow_collaboration: true,
   recognition: true,
@@ -47,6 +49,7 @@ const configurableRowRefusal = (
     channel: NotificationChannel
     enabled: boolean
     cadence: NotificationCadence
+    maxRating?: number | null
   }>,
 ): NotificationError | null => {
   if (!CATEGORIES[input.category]) {
@@ -76,6 +79,14 @@ const configurableRowRefusal = (
       'This notification channel is required and cannot be disabled',
     )
   }
+  // "How low" belongs to Low ratings, which cannot be saved without it.
+  const hasMaxRating = input.maxRating !== undefined && input.maxRating !== null
+  if (input.category === 'low_ratings' && !isLowRatingThreshold(input.maxRating)) {
+    return notificationError('invalid_input', 'Choose a rating from 1 to 4 stars')
+  }
+  if (input.category !== 'low_ratings' && hasMaxRating) {
+    return notificationError('invalid_input', 'Only Low ratings has a star threshold')
+  }
   return null
 }
 
@@ -88,6 +99,7 @@ export type CreateNotificationPreferenceInput = Readonly<{
   channel: NotificationChannel
   enabled: boolean
   cadence: NotificationCadence
+  maxRating?: LowRatingThreshold | null
 }>
 
 export const createNotificationPreference = (
@@ -107,6 +119,7 @@ export type CreateNotificationCategoryDefaultInput = Readonly<{
   channel: NotificationChannel
   enabled: boolean
   cadence: NotificationCadence
+  maxRating?: LowRatingThreshold | null
 }>
 
 /**

@@ -25,6 +25,7 @@ import type {
   NotificationChannel,
 } from './notification-types'
 import type { NotificationPayload } from './notification-payload'
+import type { LowRatingThreshold } from './notification-low-ratings'
 import { renderNotification } from './notification-templates'
 
 export type { NotificationCategory, NotificationChannel }
@@ -44,6 +45,9 @@ const DEFAULT_POLICY: Readonly<
 > = {
   mandatory: { in_app: true, email: true },
   urgent_operational: { in_app: true, email: true },
+  // Low ratings are on by default on both channels; how low is the person's
+  // threshold per channel (`getDefaultMaxRating`), 3★ in the app, 2★ by email.
+  low_ratings: { in_app: true, email: true },
   arrivals: { in_app: false, email: false },
   workflow_collaboration: { in_app: true, email: false },
   recognition: { in_app: true, email: false },
@@ -63,9 +67,24 @@ export function getDefaultEnabled(
 export const DEFAULT_NOTIFICATION_LOCALE = 'en'
 
 export function getDefaultCadence(category: NotificationCategory): NotificationCadence {
-  return category === 'mandatory' || category === 'urgent_operational'
+  return category === 'mandatory' ||
+    category === 'urgent_operational' ||
+    category === 'low_ratings'
     ? 'immediate'
     : 'daily'
+}
+
+/**
+ * The highest rating a Low-ratings channel is on for, when the person never
+ * chose one: 3★ or lower in the app, 2★ or lower by email. Null for every
+ * other category, which has no threshold.
+ */
+export function getDefaultMaxRating(
+  category: NotificationCategory,
+  channel: NotificationChannel,
+): LowRatingThreshold | null {
+  if (category !== 'low_ratings') return null
+  return channel === 'in_app' ? 3 : 2
 }
 
 /**

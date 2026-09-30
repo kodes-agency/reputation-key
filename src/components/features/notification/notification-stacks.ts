@@ -101,13 +101,25 @@ export type NotificationStackView = Readonly<{
 }>
 
 /** What a stack row says; `when` is the newest member's time, in words. */
+/**
+ * A stack of Low ratings notices says so (the key keeps them apart from
+ * arrivals); never how many stars (ADR 0046, amended 2026-09-30).
+ */
+const LOW_RATING_TITLES: Partial<Record<NotificationType, (count: number) => string>> = {
+  'review.created': (count) => `${count} low-rated reviews`,
+  'review.updated': (count) => `${count} reviews edited to a low rating`,
+  'feedback.created': (count) => `${count} low-rated feedback items`,
+}
+
 export function notificationStackView(
   notifications: ReadonlyArray<NotificationView>,
   options: Readonly<{ showProperty: boolean; when: string }>,
 ): NotificationStackView {
   const newest = notifications[0]!
   const kind = STACK_KINDS[newest.type]!
-  const title = kind.title(notifications.length)
+  const lowTitle =
+    newest.category === 'low_ratings' ? LOW_RATING_TITLES[newest.type] : undefined
+  const title = (lowTitle ?? kind.title)(notifications.length)
   const propertyName = newest.payload.propertyName ?? null
   const unreadCount = notifications.filter(isStillWaiting).length
   const accessibleName = [

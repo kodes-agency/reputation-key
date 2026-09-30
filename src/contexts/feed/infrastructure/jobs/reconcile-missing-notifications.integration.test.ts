@@ -179,6 +179,7 @@ describe.sequential('missing-notification repair through the Feed build', () => 
           isEligibleForProperty: async () => true,
         },
         replyApproval: { canApproveReplies: async () => true },
+        reviewRatings: { getEligibleRatingById: async () => null },
         replyStates: { findReplyStatus: async () => 'pending_approval' },
         feedbackPortalLookup: { findPortalId: async () => PORTAL },
         googleConnectionProperties: { findGoogleNotificationAnchor: async () => null },
@@ -207,6 +208,7 @@ describe.sequential('missing-notification repair through the Feed build', () => 
       workState: delivery.workState,
       deliverySettlement: delivery.deliverySettlement,
       organizationEmailStop: createNotificationOrganizationEmailStopReader(db),
+      ratingForRouting: delivery.ratingForRouting,
     })
   }
 

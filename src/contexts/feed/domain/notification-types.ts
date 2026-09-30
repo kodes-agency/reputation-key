@@ -1,6 +1,7 @@
 // Feed notification surface — domain types
 // Per architecture: "Domain types use Readonly<> on every field."
 
+import type { LowRatingThreshold } from './notification-low-ratings'
 import type {
   NotificationId,
   NotificationEmailId,
@@ -94,6 +95,10 @@ export type NotificationPriority = 'urgent' | 'normal'
 export type NotificationCategory =
   | 'mandatory'
   | 'urgent_operational'
+  // A review or rated private feedback at or below the reader's own star
+  // threshold (ADR 0046, amended 2026-09-30). Decided per reader when the
+  // notice is written, never by type alone.
+  | 'low_ratings'
   | 'arrivals'
   | 'workflow_collaboration'
   | 'recognition'
@@ -221,6 +226,8 @@ export type NotificationPreference = Readonly<{
   channel: NotificationChannel
   enabled: boolean
   cadence: NotificationCadence
+  /** Low ratings only: "N★ or lower" (1-4). Null or absent for the others. */
+  maxRating?: LowRatingThreshold | null
   createdAt: Date
   updatedAt: Date
 }>
@@ -262,6 +269,8 @@ export type NotificationCategoryDefault = Readonly<{
   channel: NotificationChannel
   enabled: boolean
   cadence: NotificationCadence
+  /** Low ratings only: "N★ or lower" (1-4). Null or absent for the others. */
+  maxRating?: LowRatingThreshold | null
   createdAt: Date
   updatedAt: Date
 }>

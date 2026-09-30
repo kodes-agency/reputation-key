@@ -25,8 +25,13 @@ export type {
 export {
   getDefaultCadence,
   getDefaultEnabled,
+  getDefaultMaxRating,
   isPreferenceDisableable,
 } from '../domain/notification-policy'
+export {
+  LOW_RATING_THRESHOLDS,
+  type LowRatingThreshold,
+} from '../domain/notification-low-ratings'
 export {
   effectiveEmailCadence,
   offeredEmailCadences,

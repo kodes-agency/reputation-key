@@ -18,13 +18,19 @@ export const CATEGORY_COPY: Readonly<
   urgent_operational: {
     label: 'Action needed',
     description:
-      'Private feedback, escalations, and delivery issues that may need attention.',
+      'Private feedback without a rating, escalations, and delivery issues that may need attention.',
+  },
+  // ADR 0046, amended 2026-09-30: "how low" is the person's, per channel.
+  low_ratings: {
+    label: 'Low ratings',
+    description:
+      "Reviews and private feedback at or below the rating you choose. A Google review's stars show when you open it.",
   },
   // D4 (docs/design/notifications): off in the app by default.
   arrivals: {
     label: 'New reviews and feedback',
     description:
-      'Every new review, and private feedback rated 4 or 5 stars. Lower-rated feedback always reaches you under Action needed.',
+      'Every other new review and rated private feedback, above your Low ratings choice.',
   },
   workflow_collaboration: {
     label: 'Workflow and collaboration',
