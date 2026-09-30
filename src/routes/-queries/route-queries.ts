@@ -21,7 +21,6 @@ import {
 import { queryOptions } from '@tanstack/react-query'
 import { listProperties, getProperty } from '#/contexts/property/server/properties'
 import { listMembers } from '#/contexts/identity/server/organizations'
-import { listPropertyResponsibleManagers } from '#/contexts/property/server/property-responsible-managers'
 import { getNotificationUserSettingsFn } from '#/contexts/feed/server/notifications'
 import {
   aiKeys,
@@ -54,16 +53,6 @@ export const membersQuery = queryOptions({
   queryFn: () => listMembers(),
   staleTime: 30_000,
 })
-
-// One Property's Responsible managers. Shared by the Property settings sections
-// and the Members access sheet, so both read (and invalidate) the same cache
-// entry under propertyKeys.responsibleManagers.
-export const responsibleManagersQuery = (propertyId: string) =>
-  queryOptions({
-    queryKey: propertyKeys.responsibleManagers(propertyId),
-    queryFn: () => listPropertyResponsibleManagers({ data: { propertyId } }),
-    staleTime: 30_000,
-  })
 
 // A single property — consumed by the property layout + 9 property-scoped routes.
 export function propertyQuery(propertyId: string) {

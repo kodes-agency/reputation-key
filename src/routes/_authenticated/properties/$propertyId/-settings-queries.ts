@@ -45,6 +45,6 @@ export const merchantAiAuthorizationQuery = (propertyId: string) =>
 // key or staleTime without anything noticing.
 export {
   membersQuery,
-  responsibleManagersQuery,
   reviewAnalysisProgressQuery,
 } from '#/routes/-queries/route-queries'
+export { responsibleManagersQuery } from '#/routes/-queries/responsible-managers-query'
