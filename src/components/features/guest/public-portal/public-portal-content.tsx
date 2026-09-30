@@ -1,18 +1,19 @@
-import {
-  GuestResponseForm,
-  type GuestResponseAction,
-  type GuestResponseFormProps,
-} from './guest-response-form'
+import type { ReactNode } from 'react'
+import type { GuestResponseAction, GuestResponseFormProps } from './guest-response-form'
 import {
   PortalSecondaryLinks,
   type PortalCategory,
   type PortalLinkItem,
 } from './portal-secondary-links'
 import type { PublicGoogleReviewDestination } from '#/contexts/portal/application/public-api'
-import { getGuestPortalCopy } from './guest-language-pack'
-import { PortalLanguageNav } from './portal-language-nav'
+import {
+  GuestPageView,
+  type GuestPagePortal,
+  type GuestPageViewProps,
+} from './guest-page-view'
+import type { GuestPagePreviewState } from './guest-page-preview-state'
 import { resolvePortalLocale, type PortalLocalization } from './portal-localization'
-import { resolvePortalThemeStyle } from './portal-theme-style'
+import { useGuestResponseFormView } from './use-guest-response-form-view'
 
 export type { PortalCategory, PortalLinkItem } from './portal-secondary-links'
 
@@ -21,14 +22,7 @@ export type PublicPortalContentProps = Readonly<{
   token?: string
   /** Public channel marker preserved when the guest switches language. */
   accessArtifactId?: string
-  portal: {
-    name: string
-    description: string | null
-    organizationName: string
-    heroImageUrl: string | null
-    theme: Record<string, string | number | boolean | null> | null
-    logoUrl?: string | null
-  }
+  portal: GuestPagePortal
   categories: ReadonlyArray<PortalCategory>
   links: ReadonlyArray<PortalLinkItem>
   reviewGateway?: Readonly<{
@@ -44,135 +38,110 @@ export type PublicPortalContentProps = Readonly<{
     GuestResponseFormProps,
     'token' | 'googleReview' | 'locale' | 'languagePackVersion'
   >
+  /**
+   * Renders a controlled state from static data instead of the live form. No
+   * server action is mounted, so previews and stories can show any state.
+   */
+  previewState?: GuestPagePreviewState
 }>
 
-/**
- * Secondary text. See `resolvePortalThemeStyle` for why `--portal-text-muted`
- * is an opaque mixed colour rather than an `opacity-*` utility.
- */
-const MUTED_STYLE = { color: 'var(--portal-text-muted)' }
+type SecondaryLinksInput = Pick<
+  PublicPortalContentProps,
+  'token' | 'portal' | 'categories' | 'links' | 'selectSecondaryLink' | 'localization'
+>
 
-export function PublicPortalContent({
-  token,
-  accessArtifactId,
-  portal,
-  categories,
-  links,
-  reviewGateway,
-  localization,
-  selectSecondaryLink,
-  responseForm,
-}: PublicPortalContentProps) {
+/** The "More from" links, bound to the session nonce the caller supplies. */
+function secondaryLinksFor(
+  {
+    token,
+    portal,
+    categories,
+    links,
+    selectSecondaryLink,
+    localization,
+  }: SecondaryLinksInput,
+  csrfNonce: string,
+): ReactNode {
+  if (links.length === 0) return undefined
   const { selectedLocale, languagePackVersion } = resolvePortalLocale(localization)
-  const copy = getGuestPortalCopy(selectedLocale, languagePackVersion)
-  const themeStyle = resolvePortalThemeStyle(portal.theme)
-
-  const secondaryLinks =
-    links.length > 0
-      ? (activeCsrfNonce: string) => (
-          <PortalSecondaryLinks
-            token={token}
-            csrfNonce={activeCsrfNonce}
-            organizationName={portal.organizationName}
-            categories={categories}
-            links={links}
-            selectSecondaryLink={selectSecondaryLink}
-            locale={selectedLocale}
-            languagePackVersion={languagePackVersion}
-          />
-        )
-      : undefined
-
-  const isPublicPortal = token !== undefined
-  const publicGatewayReady =
-    isPublicPortal && responseForm !== undefined && reviewGateway !== undefined
-
   return (
-    <div
-      className="min-h-screen"
-      lang={selectedLocale}
-      dir="ltr"
-      style={{
-        backgroundColor: 'var(--portal-bg, #ffffff)',
-        color: 'var(--portal-text, #111827)',
-        ...themeStyle,
-      }}
-    >
-      {/* `main` is the landmark every word below belongs to. Without it a
-          screen-reader user navigating by landmark finds nothing on the guest
-          surface — axe reports it as landmark-one-main plus a region
-          violation for the heading. */}
-      <main className="mx-auto max-w-lg space-y-8 px-4 py-8">
-        <PortalLanguageNav
-          token={token}
-          accessArtifactId={accessArtifactId}
-          localization={localization}
-          navigationLabel={copy.languageNavigationLabel}
-        />
-        {portal.logoUrl && (
-          <img
-            src={portal.logoUrl}
-            alt={copy.portalLogoAlt(portal.organizationName)}
-            className="mx-auto h-16 max-w-48 object-contain"
-          />
-        )}
-        {portal.heroImageUrl && (
-          <img
-            src={portal.heroImageUrl}
-            alt=""
-            className="h-48 w-full rounded-lg object-cover"
-          />
-        )}
-
-        <div className="space-y-2 text-center">
-          <h1 className="text-2xl font-bold">{portal.name}</h1>
-          <div
-            className="mx-auto h-1 w-12 rounded-full"
-            style={{ backgroundColor: 'var(--portal-primary)' }}
-            aria-hidden
-          />
-          <p className="text-sm" style={MUTED_STYLE}>
-            {portal.organizationName}
-          </p>
-        </div>
-
-        {portal.description && (
-          <p className="text-center" style={MUTED_STYLE}>
-            {portal.description}
-          </p>
-        )}
-
-        {publicGatewayReady ? (
-          <GuestResponseForm
-            token={token}
-            googleReview={reviewGateway.googleReview}
-            locale={selectedLocale}
-            languagePackVersion={languagePackVersion}
-            secondaryLinks={secondaryLinks}
-            {...responseForm}
-          />
-        ) : isPublicPortal ? (
-          <section role="status" className="rounded-lg border p-5 text-center">
-            <h2 className="font-semibold">{copy.gatewayUnavailableTitle}</h2>
-            <p className="mt-2 text-sm">{copy.gatewayUnavailableBody}</p>
-          </section>
-        ) : (
-          <>
-            <section className="rounded-lg border p-5 text-center">
-              <h2 className="text-lg font-semibold">{copy.previewRatingTitle}</h2>
-              <p className="mt-1 text-sm" style={MUTED_STYLE}>
-                {copy.previewRatingBody}
-              </p>
-            </section>
-            {secondaryLinks?.(responseForm?.csrfNonce ?? '')}
-          </>
-        )}
-      </main>
-      <footer className="mx-auto max-w-lg px-4 pb-8 text-center text-sm">
-        <a href="/privacy" className="underline underline-offset-4" style={MUTED_STYLE}>
-          {copy.privacyNotice}
-        </a>
-      </footer>
-    </div>
+    <PortalSecondaryLinks
+      token={token}
+      csrfNonce={csrfNonce}
+      organizationName={portal.organizationName}
+      categories={categories}
+      links={links}
+      selectSecondaryLink={selectSecondaryLink}
+      locale={selectedLocale}
+      languagePackVersion={languagePackVersion}
+    />
   )
+}
+
+/**
+ * The guest page bound to its token: the container around `GuestPageView`.
+ * Only a public page with a resolved review gateway mounts the response
+ * actions. A preview state, a manager preview and a gateway that failed to
+ * resolve render the pure view alone.
+ */
+export function PublicPortalContent(props: PublicPortalContentProps) {
+  const { token, accessArtifactId, portal, localization, reviewGateway, responseForm } =
+    props
+  const isPublicPortal = token !== undefined
+  const height = isPublicPortal ? 'page' : 'container'
+  const view = { token, accessArtifactId, portal, localization, height } as const
+
+  if (props.previewState) {
+    return (
+      <GuestPageView
+        {...view}
+        body={{
+          kind: 'preview',
+          previewState: props.previewState,
+          privateFeedbackThreshold: reviewGateway?.privateFeedbackThreshold,
+          secondaryLinks: secondaryLinksFor(props, responseForm?.csrfNonce ?? ''),
+        }}
+      />
+    )
+  }
+  if (!isPublicPortal) {
+    return (
+      <GuestPageView
+        {...view}
+        body={{
+          kind: 'manager',
+          secondaryLinks: secondaryLinksFor(props, responseForm?.csrfNonce ?? ''),
+        }}
+      />
+    )
+  }
+  if (responseForm === undefined || reviewGateway === undefined) {
+    return <GuestPageView {...view} body={{ kind: 'unavailable' }} />
+  }
+  const { selectedLocale, languagePackVersion } = resolvePortalLocale(localization)
+  return (
+    <BoundGuestPage
+      view={view}
+      form={{
+        token,
+        googleReview: reviewGateway.googleReview,
+        locale: selectedLocale,
+        languagePackVersion,
+        secondaryLinks: (csrfNonce) => secondaryLinksFor(props, csrfNonce),
+        ...responseForm,
+      }}
+    />
+  )
+}
+
+/** Owns the response session, so its hooks run only for a live public page. */
+function BoundGuestPage({
+  view,
+  form,
+}: Readonly<{
+  view: Omit<GuestPageViewProps, 'body'>
+  form: GuestResponseFormProps
+}>) {
+  const formView = useGuestResponseFormView(form)
+  return <GuestPageView {...view} body={{ kind: 'live', form: formView }} />
 }

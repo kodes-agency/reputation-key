@@ -1,4 +1,6 @@
 // Guest feature — public API.
+export { GuestPageView } from './public-portal/guest-page-view'
+export type { GuestPagePreviewState } from './public-portal/guest-page-preview-state'
 export { PublicPortalContent } from './public-portal/public-portal-content'
 export type {
   PortalCategory,
