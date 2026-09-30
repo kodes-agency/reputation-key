@@ -10,6 +10,8 @@ export type PortalEditorSummaryInput = Readonly<{
   privateFeedbackThreshold: number
   linkCount: number
   languageCount: number
+  /** Texts missing across every language; absent while the coverage read is not known. */
+  missingTextCount?: number
   /** The group's name, or null for a portal outside any group. */
   groupName: string | null
   /** Full names of the responsible managers. */
@@ -20,6 +22,8 @@ export type PortalEditorSectionSummary = Readonly<{
   text: string
   /** Fixed by the product: shown with a lock, not something to edit. */
   locked: boolean
+  /** Something the section needs, shown beside the line in the warning colour. */
+  attention?: string
 }>
 
 const plural = (count: number, one: string, many: string) =>
@@ -46,7 +50,12 @@ export function summarizePortalEditorSections(
       input.linkCount === 0 ? 'No links yet' : plural(input.linkCount, 'link', 'links'),
     ),
     footer: fixed('Privacy notice'),
-    languages: open(plural(input.languageCount, 'language', 'languages')),
+    languages: {
+      ...open(plural(input.languageCount, 'language', 'languages')),
+      ...((input.missingTextCount ?? 0) > 0
+        ? { attention: `${input.missingTextCount} missing` }
+        : {}),
+    },
     group: open(input.groupName ?? 'Not in a group'),
     responsible: open(firstNames(input.responsibleNames)),
   }

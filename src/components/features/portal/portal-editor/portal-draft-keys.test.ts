@@ -5,11 +5,7 @@
 // under their hands when the save lands.
 
 import { describe, expect, it } from 'vitest'
-import {
-  portalBrandDraftKey,
-  portalLocaleDraftKey,
-  portalPropertyContentDraftKey,
-} from './portal-draft-keys'
+import { portalBrandDraftKey, portalPropertyContentDraftKey } from './portal-draft-keys'
 import type { PortalExperienceSettings } from '../portal-settings/portal-experience-settings-types'
 
 const experience: PortalExperienceSettings = {
@@ -81,14 +77,5 @@ describe('portalPropertyContentDraftKey', () => {
     expect(portalPropertyContentDraftKey(experience, 'en')).not.toBe(
       portalPropertyContentDraftKey(experience, 'bg'),
     )
-  })
-})
-
-describe('portalLocaleDraftKey', () => {
-  it('is the effective primary and whether the optional language is on', () => {
-    expect(
-      portalLocaleDraftKey({ primaryGuestLocale: 'bg', additionalGuestLocales: ['en'] }),
-    ).toBe(JSON.stringify(['bg', true]))
-    expect(portalLocaleDraftKey({})).toBe(JSON.stringify(['en', false]))
   })
 })

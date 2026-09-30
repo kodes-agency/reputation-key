@@ -34,6 +34,22 @@ describe('summarizePortalEditorSections', () => {
     })
   })
 
+  it('flags what a language is missing beside the language count', () => {
+    const flagged = summarizePortalEditorSections({ ...base, missingTextCount: 1 })
+    expect(flagged.languages).toEqual({
+      text: '4 languages',
+      locked: false,
+      attention: '1 missing',
+    })
+  })
+
+  it('flags nothing when no text is missing, or when coverage is not known', () => {
+    expect(
+      summarizePortalEditorSections({ ...base, missingTextCount: 0 }).languages,
+    ).not.toHaveProperty('attention')
+    expect(summarizePortalEditorSections(base).languages).not.toHaveProperty('attention')
+  })
+
   it('says "No links yet" rather than "0 links"', () => {
     expect(summarizePortalEditorSections({ ...base, linkCount: 0 }).linktree.text).toBe(
       'No links yet',

@@ -39,6 +39,7 @@ function PortalWorkspaceEditor() {
       loadMorePublicationHistory={data.loadMorePublicationHistory}
       categories={categories}
       links={links}
+      languageCoverage={data.languageCoverage}
       activeTab={tab}
       activeSection={section}
       updateMutation={actions.update}

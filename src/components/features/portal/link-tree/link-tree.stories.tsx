@@ -76,7 +76,13 @@ function portalLinksFake(): PortalLinksFake {
   return fake
 }
 
-function LinkTreeFromLinksQuery({ portalId }: { portalId: string }) {
+function LinkTreeFromLinksQuery({
+  propertyId,
+  portalId,
+}: {
+  propertyId: string
+  portalId: string
+}) {
   const { data } = useQuery<LinkTreeQueryData>({
     queryKey: portalKeys.links(portalId),
     // Narrowed to the view shape the component consumes, so the story is not
@@ -92,7 +98,14 @@ function LinkTreeFromLinksQuery({ portalId }: { portalId: string }) {
     initialData: () => portalLinksFake().read(),
   })
 
-  return <LinkTree portalId={portalId} categories={data.categories} links={data.links} />
+  return (
+    <LinkTree
+      propertyId={propertyId}
+      portalId={portalId}
+      categories={data.categories}
+      links={data.links}
+    />
+  )
 }
 
 const meta: Meta<typeof LinkTree> = {
@@ -111,7 +124,9 @@ const meta: Meta<typeof LinkTree> = {
     portalLinksFake().seed(args.categories, args.links)
     return () => portalLinksFake().seed()
   },
-  render: (args) => <LinkTreeFromLinksQuery portalId={args.portalId} />,
+  render: (args) => (
+    <LinkTreeFromLinksQuery propertyId={args.propertyId} portalId={args.portalId} />
+  ),
   decorators: [
     (Story) => (
       <div className="w-[480px] bg-background text-foreground">
@@ -154,7 +169,7 @@ const links: readonly LinkTreeLink[] = [
 
 // Seeded tree: two categories with links, the CategoryAddForm visible (owner).
 export const Default: Story = {
-  args: { portalId: 'portal-1', categories, links },
+  args: { propertyId: 'property-1', portalId: 'portal-1', categories, links },
   // Restores the play deleted in eef8c716 ("simplify … to pass vitest
   // storybook"). Asserts the SEEDED TREE, not that something mounted: both
   // categories in sortKey order, and each link under its own category. The
@@ -186,13 +201,13 @@ export const Default: Story = {
 
 // Empty tree renders the empty-state affordance.
 export const Empty: Story = {
-  args: { portalId: 'portal-1', categories: [], links: [] },
+  args: { propertyId: 'property-1', portalId: 'portal-1', categories: [], links: [] },
 }
 
 // Add-category flow: type a name → submit → the new category appears.
 // (The stubbed createLinkCategory echoes the input title.)
 export const AddCategory: Story = {
-  args: { portalId: 'portal-1', categories, links },
+  args: { propertyId: 'property-1', portalId: 'portal-1', categories, links },
   // Restores the play deleted in eef8c716. Drives the real flow through
   // CategoryAddForm → useLinkTreeState.handleAddCategory →
   // useActionMutation(createLinkCategory) → the stub, which echoes the title.

@@ -8,14 +8,25 @@ import { PortalApprovedDestinationsEditor } from '../../portal-settings/portal-a
 import type { PortalEditorSectionProps } from '../portal-editor-types'
 
 export function LinktreeSection({ resources, canEdit }: PortalEditorSectionProps) {
-  const { portal, categories, links, approvedDestinations, portalExperienceActions } =
-    resources
+  const {
+    portal,
+    propertyId,
+    categories,
+    links,
+    approvedDestinations,
+    portalExperienceActions,
+  } = resources
   return (
     <PortalEditorSectionFrame
       section="linktree"
       description="Links shown under the rating card. Each change to a link is saved when you make it."
     >
-      <LinkTree portalId={portal.id} categories={categories} links={links} />
+      <LinkTree
+        propertyId={propertyId}
+        portalId={portal.id}
+        categories={categories}
+        links={links}
+      />
       {approvedDestinations && portalExperienceActions ? (
         <PortalApprovedDestinationsEditor
           portalId={portal.id}

@@ -39,6 +39,11 @@ export type {
   GetPortalHistoryInput,
 } from './use-cases/get-portal-history'
 export type {
+  MissingPortalText,
+  PortalLanguageCoverage,
+  PortalLanguageCoverageRow,
+} from '../domain/portal-language-coverage'
+export type {
   PortalHistoryCategory,
   PortalHistoryDetail,
   PortalHistoryFilter,

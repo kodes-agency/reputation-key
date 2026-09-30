@@ -254,6 +254,13 @@ export const portalKeys = {
     [...portalKeys.forProperty(propertyId), 'experience'] as const,
   experience: (propertyId: string, portalId: string) =>
     [...portalKeys.propertyExperience(propertyId), 'portal', portalId] as const,
+  /**
+   * Which of a Portal's wording is written per language. Under the Portal's
+   * `experience`, so a write of its title or description (a Portal override, or
+   * the Property's content or profile) and every Portal update refresh it.
+   */
+  languageCoverage: (propertyId: string, portalId: string) =>
+    [...portalKeys.experience(propertyId, portalId), 'language-coverage'] as const,
   approvedDestinations: (portalId: string) =>
     [...portalKeys.detail(portalId), 'approved-destinations'] as const,
   groups: (propertyId: string) => [...portalKeys.all, 'groups', propertyId] as const,

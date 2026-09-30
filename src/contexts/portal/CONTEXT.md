@@ -94,6 +94,24 @@ compares them), so each batched read returns what its single-Portal read returns
 including the token's grace end. It is scoped like
 `listPortals` (`portal.read`, assigned Properties) and carries no content.
 
+`getPortalLanguageCoverage` is the read behind the editor's Languages section. For each
+language a Portal offers (the fallback language first) it counts the wording guests read
+that is written and names what is missing: a title and a description and one label per
+link. A title or description counts as written only when the Property has wording (a content
+row) for that language, the Portal's own override then taking the place of it: publishing
+drops a language without Property wording and refuses to publish, so an override alone does
+not count, and such a gap is flagged `blocksPublish` (its wording is written by an account
+admin in the Property Brand Profile; until the builder copies the fallback language into a gap, slice 19, it is a real block). A missing link label does not block publishing. Every
+link in the tree is counted, approved destination or not, because its label is needed once the
+destination is approved. The Linktree title, a link's line and the hero description are
+optional, so they are never "missing". It carries
+identifiers and kinds, plus the fallback-language label of a link with a gap so a manager can
+tell which link it is, and nothing else; nothing is stored for it. Managers add only the
+languages that are offered and have a generation 2 guest copy pack, and a language change
+goes through the ordinary `updatePortal` command. The fallback language is never removed;
+another one has to become the fallback first. There are no AI controls: the wording is
+written by hand in the Welcome and Linktree sections.
+
 `getPortalHistory` is the one merged, read-only timeline for a Portal: its
 creation, each publish and restore, each change of health (from
 `portal_health_intervals`) and each public-address event, newest first, with the

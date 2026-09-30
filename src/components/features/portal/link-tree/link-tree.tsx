@@ -14,12 +14,14 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import type { LinkTreeCategory, LinkTreeLink } from './link-tree-types'
 
 type Props = Readonly<{
+  propertyId: string
   portalId: string
   categories: readonly LinkTreeCategory[]
   links: readonly LinkTreeLink[]
 }>
 
 export function LinkTree({
+  propertyId,
   portalId,
   categories: initialCategories,
   links: initialLinks,
@@ -54,7 +56,7 @@ export function LinkTree({
     handleUpdateLink,
     handleDragEnd,
     handleReorderLinks,
-  } = useLinkTreeState(portalId, initialCategories, initialLinks)
+  } = useLinkTreeState(propertyId, portalId, initialCategories, initialLinks)
   const canEdit = can('portal.update')
 
   return (

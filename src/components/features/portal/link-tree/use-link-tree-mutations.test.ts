@@ -31,6 +31,7 @@ vi.mock('#/contexts/portal/server/portal-links', () => ({
 import { useLinkTreeMutations } from './use-link-tree-mutations'
 
 const PORTAL_ID = 'portal-1'
+const PROPERTY_ID = 'property-1'
 
 describe('useLinkTreeMutations invalidation', () => {
   beforeEach(() => {
@@ -38,18 +39,27 @@ describe('useLinkTreeMutations invalidation', () => {
   })
 
   it('declares all eight mutations', () => {
-    useLinkTreeMutations(PORTAL_ID)
+    useLinkTreeMutations(PROPERTY_ID, PORTAL_ID)
     expect(captured).toHaveLength(8)
   })
 
   it('refreshes the links and the publication history after every mutation', () => {
-    useLinkTreeMutations(PORTAL_ID)
+    useLinkTreeMutations(PROPERTY_ID, PORTAL_ID)
     for (const options of captured) {
       expect(options?.invalidateKeys).toEqual(
         expect.arrayContaining([
           portalKeys.links(PORTAL_ID),
           portalKeys.publicationHistory(PORTAL_ID),
         ]),
+      )
+    }
+  })
+
+  it('refreshes the language coverage after every mutation, since a link label may be missing or gone', () => {
+    useLinkTreeMutations(PROPERTY_ID, PORTAL_ID)
+    for (const options of captured) {
+      expect(options?.invalidateKeys).toContainEqual(
+        portalKeys.languageCoverage(PROPERTY_ID, PORTAL_ID),
       )
     }
   })
