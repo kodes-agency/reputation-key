@@ -75,6 +75,11 @@ of any Organization that has no AccountAdmin yet.
   an AccountAdmin accepts, the Organization's own admins manage invitations and
   the console stops showing its invitee addresses. Closing an empty Organization
   is still an ops task.
+- **One live admin invitation.** Every open AccountAdmin invitation stays
+  acceptable after the first one is accepted, so two live invitations can give
+  the Organization two AccountAdmins, and once one has joined the console can no
+  longer cancel the other. Cancel a mistaken invitation before inviting the
+  right address; the console warns on a row while more than one is live.
 - **Allowlist.** A new Organization is dark for every controlled-beta capability
   unless `BETA_ALLOWLIST_ORGS` is `*` or names its ID, on web **and** worker. The
   console flags such an Organization and shows the ID to add; redeploy both after

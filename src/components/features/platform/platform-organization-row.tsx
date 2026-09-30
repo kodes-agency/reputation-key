@@ -2,7 +2,9 @@
 // the operator, and — only while it has no Account Admin — its open admin
 // invitations and a form to invite another. Once an Account Admin has joined,
 // the console stops acting on the Organization (and stops showing invitee
-// addresses), so the row says so instead of offering controls.
+// addresses), so the row says so instead of offering controls. Every live
+// invitation stays acceptable after the first, so the row warns while more
+// than one is out.
 
 import { Badge } from '#/components/ui/badge'
 import { cn } from '#/lib/utils'
@@ -21,6 +23,7 @@ import {
 import {
   canInviteAdmin,
   formatConsoleDate,
+  hasCompetingAdminInvitations,
   organizationFlags,
   type OrganizationFlag,
 } from './platform-console-model'
@@ -74,6 +77,13 @@ function AdministrationSection({ organization, inviteAdmin, resend, cancel }: Pr
         />
         {organization.pendingAdminInvitations.length === 0 ? (
           <p className="text-sm text-muted-foreground">No open invitation.</p>
+        ) : null}
+        {hasCompetingAdminInvitations(organization) ? (
+          <p className="rounded-md border border-warn-line bg-warn-muted px-3 py-2 text-sm text-warn">
+            More than one invitation is live. Everyone who accepts becomes an Account
+            Admin, and once one has joined only they can cancel the rest. Cancel any you
+            did not mean to send.
+          </p>
         ) : null}
       </div>
       {invitable ? (

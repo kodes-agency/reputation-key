@@ -89,7 +89,14 @@ denies everyone it does not list. The beta has no MFA.
 - A stolen operator session within 30 minutes of sign-in can create empty
   Organizations or seed ownerless ones, up to the hourly budget. It cannot touch
   an Organization that has an AccountAdmin.
-- An acceptance that commits while the operator invites a second admin can
-  leave two AccountAdmins. That is benign and not prevented.
+- Every open AccountAdmin invitation outlives the first acceptance. If the
+  operator invites a second address without cancelling the first (a mistyped
+  address, say), both invitees can accept and the Organization gets two
+  AccountAdmins; once the first has joined, the console may no longer cancel
+  the other, and only the new AccountAdmin can, from their own invitation list.
+  The operator must cancel unwanted admin invitations before anyone accepts,
+  and the console warns on a row while more than one is live. Withdrawing the
+  sibling invitations at the first acceptance belongs to the invitation command
+  store (ADR 0062) and is not done here.
 - The console reads every Organization across tenants. It exposes only counts
   and, for ownerless Organizations, the pending AccountAdmin invitees' emails.
