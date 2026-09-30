@@ -67,9 +67,9 @@ describe('portalGroupCachePolicy', () => {
 
     expect(
       affected.map((queryKey) => queryClient.getQueryState(queryKey)?.isInvalidated),
-    ).toEqual([true, true, true])
+    ).toEqual([true, true, true, true])
     expect(
       unaffected.map((queryKey) => queryClient.getQueryState(queryKey)?.isInvalidated),
-    ).toEqual([false, false, false, false])
+    ).toEqual([false, false, false, false, false])
   })
 })
