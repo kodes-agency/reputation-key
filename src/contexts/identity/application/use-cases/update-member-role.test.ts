@@ -6,8 +6,8 @@
 // command-store fake. Members are seeded in BOTH surfaces: the identity port
 // backs the read-side UX guards, the command store backs the atomic write.
 
-import { describe, it, expect } from 'vitest'
-import { updateMemberRole } from './update-member-role'
+import { describe, it, expect, vi } from 'vitest'
+import { updateMemberRole, type UpdateMemberRoleDeps } from './update-member-role'
 import { createInMemoryIdentityPort } from '#/shared/testing/in-memory-identity-port'
 import { createSequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
 import type { SequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
@@ -90,6 +90,7 @@ const setup = (
     userId: string,
     actorId: string,
   ) => Promise<void>,
+  prepareGoogleConnectorDeparture?: UpdateMemberRoleDeps['prepareGoogleConnectorDeparture'],
 ) => {
   const identity = createInMemoryIdentityPort()
   const outbox = createRecordedOutbox()
@@ -99,6 +100,7 @@ const setup = (
     commandStore,
     clock: () => FIXED_TIME,
     reconcileResponsibleManagerEligibility,
+    prepareGoogleConnectorDeparture,
   })
   return { useCase, identity, outbox, commandStore }
 }
@@ -298,6 +300,56 @@ describe('updateMemberRole', () => {
     await expect(
       useCase({ memberId: 'member-admin', role: 'AccountAdmin' }, ctx),
     ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'validation_error')
+  })
+
+  it("fences the demoted AccountAdmin's Google connector only once the demotion has committed", async () => {
+    const roleWhenFenced: Array<string | undefined> = []
+    const fence = vi.fn(async () => {
+      roleWhenFenced.push(commandStore.memberById(ADMIN_MEMBER.id)?.role)
+    })
+    const { useCase, identity, commandStore } = setup(undefined, fence)
+    seedMemberBoth(identity, commandStore, ADMIN_MEMBER)
+    seedMemberBoth(identity, commandStore, ADMIN_MEMBER_2)
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin', userId: ADMIN_ACTOR })
+
+    await useCase({ memberId: ADMIN_MEMBER.id, role: 'PropertyManager' }, ctx)
+
+    expect(fence).toHaveBeenCalledExactlyOnceWith(
+      ctx.organizationId,
+      ADMIN_MEMBER.userId,
+      'account_admin_role_lost',
+    )
+    // The demotion was already written when the connector was fenced.
+    expect(roleWhenFenced).toEqual(['admin'])
+  })
+
+  it('leaves the Google connector alone when the store refuses the demotion as the last owner', async () => {
+    const fence = vi.fn(async () => undefined)
+    const { useCase, identity, outbox, commandStore } = setup(undefined, fence)
+    // The read side still sees two AccountAdmins, so the UX guard passes; the
+    // store holds one, as when a concurrent demotion of the other one won.
+    identity.seedMembers([ADMIN_MEMBER_2])
+    seedMemberBoth(identity, commandStore, ADMIN_MEMBER)
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin', userId: ADMIN_ACTOR })
+
+    await expect(
+      useCase({ memberId: ADMIN_MEMBER.id, role: 'PropertyManager' }, ctx),
+    ).rejects.toSatisfy((e) => isIdentityError(e) && e.code === 'last_owner')
+
+    expect(fence).not.toHaveBeenCalled()
+    expect(commandStore.memberById(ADMIN_MEMBER.id)?.role).toBe('owner')
+    expect(outbox.byTag('identity.member.role_changed')).toHaveLength(0)
+  })
+
+  it('does not fence any Google connector for a change that demotes no AccountAdmin', async () => {
+    const fence = vi.fn(async () => undefined)
+    const { useCase, identity, commandStore } = setup(undefined, fence)
+    seedMemberBoth(identity, commandStore, MEMBER_RECORD)
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await useCase({ memberId: MEMBER_RECORD.id, role: 'PropertyManager' }, ctx)
+
+    expect(fence).not.toHaveBeenCalled()
   })
 
   it('counts a multi-role owner via rawRole for the last-owner guard (H2/M4)', async () => {
