@@ -218,6 +218,7 @@ describe('resolvePublicPortalToken', () => {
         organizationId: 'org-1',
         propertyId: 'property-1',
         guestSurface: 'legacy',
+        immersive: null,
       },
     })
     expect(resolvePublication).toHaveBeenCalledWith(
@@ -387,24 +388,6 @@ describe('resolvePublicPortalToken', () => {
     await expect(harness.resolve('pt_key_secret')).resolves.toMatchObject({
       status: 'found',
       data: { guestSurface: 'legacy' },
-    })
-  })
-
-  it('reports the Immersive Hub surface from the snapshot schema, not from the language pack', async () => {
-    // No v3 snapshot exists until slice 8; this one is a v2 snapshot relabelled
-    // v3, still carrying generation 1 packs. The surface must follow the schema.
-    const localized = buildLocalizedSnapshot()
-    const relabelled = {
-      ...localized,
-      configuration: { ...localized.configuration, schemaVersion: 3 },
-    } as unknown as typeof localized
-    const harness = setup({
-      resolvePublication: vi.fn(async () => ({ token, snapshot: relabelled })),
-    })
-
-    await expect(harness.resolve('pt_key_secret')).resolves.toMatchObject({
-      status: 'found',
-      data: { guestSurface: 'immersive' },
     })
   })
 

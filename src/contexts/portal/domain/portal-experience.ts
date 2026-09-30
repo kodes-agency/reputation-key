@@ -4,6 +4,8 @@ import {
   matchGuestLocale,
 } from '#/shared/domain/guest-locale'
 import {
+  languagePackGenerationOf,
+  PORTAL_PUBLICATION_SCHEMA_VERSION,
   PRIMARY_GUEST_LOCALE,
   type PortalGuestLocale,
   type PortalPublicationExperienceSource,
@@ -78,7 +80,11 @@ export function assertCompletePortalPublicationExperience(
       content.title.length > 120 ||
       content.shortDescription.trim().length === 0 ||
       content.shortDescription.length > 500 ||
-      !isSupportedGuestLanguagePack(locale, experience.languagePackVersions[locale], 1)
+      !isSupportedGuestLanguagePack(
+        locale,
+        experience.languagePackVersions[locale],
+        languagePackGenerationOf(PORTAL_PUBLICATION_SCHEMA_VERSION),
+      )
     ) {
       throw portalError(
         'publication_snapshot_unavailable',

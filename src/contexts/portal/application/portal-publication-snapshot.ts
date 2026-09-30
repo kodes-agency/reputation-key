@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import { portalError } from '../domain/errors'
 import {
+  IMMERSIVE_HUB_SCHEMA_VERSION,
   LEGACY_PORTAL_PUBLICATION_SCHEMA_VERSION,
   PORTAL_PUBLICATION_SCHEMA_VERSION,
   LEGACY_V1_GUEST_LOCALE,
@@ -14,8 +15,12 @@ import {
   type VerifiedPublicationDestination,
 } from '../domain/portal-publication-snapshot'
 import { assertCompletePortalPublicationExperience } from '../domain/portal-experience'
+import { isCompleteImmersiveConfiguration } from '../domain/portal-immersive-snapshot'
 
-function digestConfiguration(configuration: PortalPublicationConfiguration): string {
+/** SHA-256 over the RFC 8785 canonical form: the digest every snapshot row stores. */
+export function digestPortalPublicationConfiguration(
+  configuration: PortalPublicationConfiguration,
+): string {
   return createHash('sha256')
     .update(canonicalizeRfc8785(configuration), 'utf8')
     .digest('hex')
@@ -163,7 +168,7 @@ export function buildPortalPublicationSnapshot(
     propertyId: input.propertyId,
     portalId: input.portalId,
     version: input.version,
-    configurationDigest: digestConfiguration(configuration),
+    configurationDigest: digestPortalPublicationConfiguration(configuration),
     configuration,
     destinationUri: input.destination.uri,
     destinationRetrievedAt: input.destination.retrievedAt,
@@ -215,6 +220,8 @@ function hasCompleteSchemaVersionedContent(
       )
     case PORTAL_PUBLICATION_SCHEMA_VERSION:
       return hasCompleteLocalizedExperience(configuration)
+    case IMMERSIVE_HUB_SCHEMA_VERSION:
+      return isCompleteImmersiveConfiguration(configuration)
     default: {
       const unhandled: never = configuration
       void unhandled
@@ -247,5 +254,7 @@ export function verifyPortalPublicationSnapshot(
   if (!hasConsistentSnapshotBinding(snapshot)) return false
   const configuration = snapshot.configuration
   if (!hasCompleteSchemaVersionedContent(configuration)) return false
-  return digestConfiguration(configuration) === snapshot.configurationDigest
+  return (
+    digestPortalPublicationConfiguration(configuration) === snapshot.configurationDigest
+  )
 }

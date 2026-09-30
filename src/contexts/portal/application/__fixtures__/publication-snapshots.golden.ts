@@ -25,19 +25,19 @@
 //   `digestConfiguration`), then written down as literals here. The builder
 //   inputs below are kept so a test can prove that claim on every run.
 
-const GOLDEN_AT = new Date('2026-08-01T12:00:00.000Z')
+export const GOLDEN_AT = new Date('2026-08-01T12:00:00.000Z')
 
-const GOLDEN_SCOPE = {
+export const GOLDEN_SCOPE = {
   organizationId: 'golden-org',
   propertyId: '80000000-0000-4000-8000-000000000001',
   portalId: '90000000-0000-4000-8000-000000000001',
 } as const
 
-const GOLDEN_GOOGLE_URI =
+export const GOLDEN_GOOGLE_URI =
   'https://search.google.com/local/writereview?placeid=golden-place'
 
 /** Columns every row carries the same way; contact evidence stays at its defaults. */
-const CONTACT_DEFAULTS = {
+export const CONTACT_DEFAULTS = {
   contactRequestEnabled: false,
   contactNoticeId: null,
   contactNoticeVersion: null,
