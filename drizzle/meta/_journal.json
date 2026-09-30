@@ -316,6 +316,13 @@
       "when": 1792500000000,
       "tag": "0044_portal_linktree_model",
       "breakpoints": true
+    },
+    {
+      "idx": 45,
+      "version": "7",
+      "when": 1792600000000,
+      "tag": "0045_property_look_model",
+      "breakpoints": true
     }
   ]
 }

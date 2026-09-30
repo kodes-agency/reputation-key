@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
+import { contrastRatio } from '#/shared/domain/portal-field-colour'
 import {
   assertCompletePortalPublicationExperience,
-  contrastRatio,
   selectPortalGuestLocale,
 } from './portal-experience'
 
@@ -48,7 +48,7 @@ describe('Portal localized publication experience', () => {
   })
 
   it('rejects inaccessible body text', () => {
-    expect(contrastRatio('#777777', '#FFFFFF')).toBeLessThan(4.5)
+    expect(contrastRatio('#777777', '#FFFFFF') ?? 99).toBeLessThan(4.5)
     expect(() =>
       assertCompletePortalPublicationExperience({
         ...experience,

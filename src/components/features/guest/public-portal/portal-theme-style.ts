@@ -1,4 +1,4 @@
-import { readableForegroundOn } from './portal-contrast'
+import { readableForegroundOn } from '#/shared/domain/portal-field-colour'
 
 /** Domain default theme, mirrored here so a missing/partial record still renders. */
 const DEFAULT_PRIMARY = '#6366F1'

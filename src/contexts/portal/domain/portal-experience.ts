@@ -1,3 +1,4 @@
+import { contrastRatio, MIN_TEXT_CONTRAST } from '#/shared/domain/portal-field-colour'
 import {
   isGuestLocale,
   isSupportedGuestLanguagePack,
@@ -32,29 +33,6 @@ export function isPublicDisplayNameConfirmed(
   profile: Readonly<{ updatedBy: string }> | null,
 ): boolean {
   return profile !== null && profile.updatedBy !== AUTOMATIC_PUBLIC_DISPLAY_NAME_ACTOR
-}
-
-function channel(hex: string): number {
-  const value = Number.parseInt(hex, 16) / 255
-  return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4
-}
-
-function luminance(color: string): number | null {
-  if (!/^#[0-9a-f]{6}$/iu.test(color)) return null
-  return (
-    0.2126 * channel(color.slice(1, 3)) +
-    0.7152 * channel(color.slice(3, 5)) +
-    0.0722 * channel(color.slice(5, 7))
-  )
-}
-
-export function contrastRatio(foreground: string, background: string): number | null {
-  const foregroundLuminance = luminance(foreground)
-  const backgroundLuminance = luminance(background)
-  if (foregroundLuminance === null || backgroundLuminance === null) return null
-  const lighter = Math.max(foregroundLuminance, backgroundLuminance)
-  const darker = Math.min(foregroundLuminance, backgroundLuminance)
-  return (lighter + 0.05) / (darker + 0.05)
 }
 
 export function assertCompletePortalPublicationExperience(
@@ -101,7 +79,7 @@ export function assertCompletePortalPublicationExperience(
     brand.version < 1 ||
     contrastRatio(brand.primaryColor, brand.backgroundColor) === null ||
     textContrast === null ||
-    textContrast < 4.5
+    textContrast < MIN_TEXT_CONTRAST
   ) {
     throw portalError(
       'publication_snapshot_unavailable',

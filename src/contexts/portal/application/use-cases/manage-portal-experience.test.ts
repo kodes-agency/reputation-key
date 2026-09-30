@@ -23,6 +23,7 @@ import {
   ensureDefaultPublicDisplayName,
   getPropertyPortalExperience,
   savePortalLocalizedOverride,
+  savePropertyDefaultGuestLocales,
   savePropertyPortalBrandContent,
   savePropertyPortalBrandProfile,
   savePropertyPublicDisplayName,
@@ -56,6 +57,10 @@ const createExperienceRepo = () => ({
   savePropertyProfile: vi.fn<PortalExperienceRepository['savePropertyProfile']>(
     async (input) => ({
       ...input.profile,
+      wordmark: input.profile.wordmark ?? null,
+      backgroundMode: input.profile.backgroundMode ?? 'auto',
+      defaultGuestLocales: ['en'],
+      lookVersion: 1,
       id: input.id,
       organizationId: input.organizationId,
       propertyId: input.propertyId,
@@ -79,10 +84,35 @@ const createExperienceRepo = () => ({
       primaryColor: '#2563EB',
       backgroundColor: '#FFFFFF',
       textColor: '#111827',
+      wordmark: null,
+      backgroundMode: 'auto',
+      defaultGuestLocales: ['en'],
+      lookVersion: 1,
       version: 1,
       updatedBy: input.updatedBy,
       createdAt: input.at,
       updatedAt: input.at,
+    }),
+  ),
+  saveDefaultGuestLocales: vi.fn<PortalExperienceRepository['saveDefaultGuestLocales']>(
+    async (input) => ({
+      id: GENERATED_ID,
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      displayName: 'Seaside Retreat',
+      logoUrl: null,
+      defaultHeroImageUrl: null,
+      primaryColor: '#2563EB',
+      backgroundColor: '#FFFFFF',
+      textColor: '#111827',
+      wordmark: null,
+      backgroundMode: 'auto',
+      defaultGuestLocales: input.locales,
+      lookVersion: 1,
+      version: 1,
+      updatedBy: 'admin-user' as never,
+      createdAt: NOW,
+      updatedAt: NOW,
     }),
   ),
   savePropertyContent: vi.fn<PortalExperienceRepository['savePropertyContent']>(
@@ -93,6 +123,7 @@ const createExperienceRepo = () => ({
       locale: input.locale,
       title: input.content.title,
       shortDescription: input.content.shortDescription,
+      heroAltText: input.content.heroAltText ?? null,
       version: 1,
       updatedBy: input.updatedBy,
       createdAt: input.at,
@@ -237,6 +268,10 @@ describe('getPropertyPortalExperience', () => {
         primaryColor: '#2563EB',
         backgroundColor: '#FFFFFF',
         textColor: '#111827',
+        wordmark: null,
+        backgroundMode: 'auto' as const,
+        defaultGuestLocales: ['en' as const],
+        lookVersion: 1,
         version: 1,
         updatedBy: updatedBy as never,
         createdAt: NOW,
@@ -360,6 +395,65 @@ describe('savePropertyPortalBrandProfile', () => {
     ).rejects.toSatisfy(failsWith('invalid_theme'))
   })
 
+  it('passes a trimmed wordmark and the background mode through, and only when the caller gave them', async () => {
+    const { deps, experienceRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await savePropertyPortalBrandProfile(deps)(
+      brandProfileInput({ wordmark: '  HARBOUR  ', backgroundMode: 'manual' }),
+      ctx,
+    )
+    expect(experienceRepo.savePropertyProfile).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        profile: expect.objectContaining({
+          wordmark: 'HARBOUR',
+          backgroundMode: 'manual',
+        }),
+      }),
+    )
+
+    await savePropertyPortalBrandProfile(deps)(brandProfileInput(), ctx)
+    const plain = experienceRepo.savePropertyProfile.mock.lastCall?.[0].profile
+    expect(plain).not.toHaveProperty('wordmark')
+    expect(plain).not.toHaveProperty('backgroundMode')
+  })
+
+  it('clears the wordmark when given null or only spaces', async () => {
+    const { deps, experienceRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await savePropertyPortalBrandProfile(deps)(brandProfileInput({ wordmark: null }), ctx)
+    expect(
+      experienceRepo.savePropertyProfile.mock.lastCall?.[0].profile.wordmark,
+    ).toBeNull()
+    await savePropertyPortalBrandProfile(deps)(
+      brandProfileInput({ wordmark: '   ' }),
+      ctx,
+    )
+    expect(
+      experienceRepo.savePropertyProfile.mock.lastCall?.[0].profile.wordmark,
+    ).toBeNull()
+  })
+
+  it('refuses a wordmark over 24 characters and an unknown background mode before anything persists', async () => {
+    const { deps, experienceRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await expect(
+      savePropertyPortalBrandProfile(deps)(
+        brandProfileInput({ wordmark: 'x'.repeat(25) }),
+        ctx,
+      ),
+    ).rejects.toSatisfy(failsWith('invalid_description'))
+    await expect(
+      savePropertyPortalBrandProfile(deps)(
+        brandProfileInput({ backgroundMode: 'dark' }),
+        ctx,
+      ),
+    ).rejects.toSatisfy(failsWith('invalid_theme'))
+    expect(experienceRepo.savePropertyProfile).not.toHaveBeenCalled()
+  })
+
   it('refuses a blank or over-long display name', async () => {
     const { deps } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
@@ -469,6 +563,67 @@ describe('ensureDefaultPublicDisplayName', () => {
   })
 })
 
+describe('savePropertyDefaultGuestLocales', () => {
+  it('refuses a PropertyManager — default languages are Property-wide branding', async () => {
+    const { deps, experienceRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+
+    await expect(
+      savePropertyDefaultGuestLocales(deps)(
+        { propertyId: PROPERTY, locales: ['en'] },
+        ctx,
+      ),
+    ).rejects.toSatisfy(failsWith('forbidden'))
+    expect(experienceRepo.saveDefaultGuestLocales).not.toHaveBeenCalled()
+  })
+
+  it('saves the ordered set for the signed-in organisation and returns the profile', async () => {
+    const { deps, experienceRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    const saved = await savePropertyDefaultGuestLocales(deps)(
+      { propertyId: PROPERTY, locales: ['bg', 'en'] },
+      ctx,
+    )
+
+    expect(experienceRepo.saveDefaultGuestLocales).toHaveBeenCalledWith({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      locales: ['bg', 'en'],
+    })
+    expect(saved.defaultGuestLocales).toEqual(['bg', 'en'])
+  })
+
+  it('refuses an empty set and a repeated language before anything persists', async () => {
+    const { deps, experienceRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await expect(
+      savePropertyDefaultGuestLocales(deps)({ propertyId: PROPERTY, locales: [] }, ctx),
+    ).rejects.toSatisfy(failsWith('locale_not_offered'))
+    await expect(
+      savePropertyDefaultGuestLocales(deps)(
+        { propertyId: PROPERTY, locales: ['en', 'en'] },
+        ctx,
+      ),
+    ).rejects.toSatisfy(failsWith('locale_not_offered'))
+    expect(experienceRepo.saveDefaultGuestLocales).not.toHaveBeenCalled()
+  })
+
+  it('says so when the Property has no Brand Profile to hold them', async () => {
+    const { deps, experienceRepo } = setup()
+    experienceRepo.saveDefaultGuestLocales.mockResolvedValueOnce(null)
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await expect(
+      savePropertyDefaultGuestLocales(deps)(
+        { propertyId: PROPERTY, locales: ['en'] },
+        ctx,
+      ),
+    ).rejects.toSatisfy(failsWith('brand_profile_missing'))
+  })
+})
+
 describe('savePropertyPortalBrandContent', () => {
   const content = {
     propertyId: PROPERTY,
@@ -505,6 +660,40 @@ describe('savePropertyPortalBrandContent', () => {
       updatedBy: ctx.userId,
       at: NOW,
     })
+  })
+
+  it('passes a trimmed hero alt text through, null to clear it, and nothing when left out', async () => {
+    const { deps, experienceRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const lastContent = () =>
+      experienceRepo.savePropertyContent.mock.lastCall?.[0].content
+
+    await savePropertyPortalBrandContent(deps)(
+      { ...content, heroAltText: '  Лодки в пристанището  ' },
+      ctx,
+    )
+    expect(lastContent()?.heroAltText).toBe('Лодки в пристанището')
+
+    await savePropertyPortalBrandContent(deps)({ ...content, heroAltText: null }, ctx)
+    expect(lastContent()?.heroAltText).toBeNull()
+    await savePropertyPortalBrandContent(deps)({ ...content, heroAltText: '  ' }, ctx)
+    expect(lastContent()?.heroAltText).toBeNull()
+
+    await savePropertyPortalBrandContent(deps)(content, ctx)
+    expect(lastContent()).not.toHaveProperty('heroAltText')
+  })
+
+  it('refuses a hero alt text over 160 characters', async () => {
+    const { deps, experienceRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await expect(
+      savePropertyPortalBrandContent(deps)(
+        { ...content, heroAltText: 'x'.repeat(161) },
+        ctx,
+      ),
+    ).rejects.toSatisfy(failsWith('invalid_description'))
+    expect(experienceRepo.savePropertyContent).not.toHaveBeenCalled()
   })
 
   it('refuses a title over 120 or a description over 500 characters', async () => {

@@ -306,7 +306,9 @@ async function readPayload(
         snapshot,
         sql`SELECT id::text AS id, property_id::text AS property_id, display_name,
                    logo_url, default_hero_image_url, primary_color, background_color,
-                   text_color, version, updated_by,
+                   text_color, wordmark, background_mode,
+                   default_guest_locales::text AS default_guest_locales,
+                   look_version, version, updated_by,
                    ${utc('created_at')} AS created_at,
                    ${utc('updated_at')} AS updated_at
             FROM property_portal_brand_profiles
@@ -315,7 +317,7 @@ async function readPayload(
       const brandContents = await readRows(
         snapshot,
         sql`SELECT id::text AS id, property_id::text AS property_id, locale, title,
-                   short_description, version, updated_by,
+                   short_description, hero_alt_text, version, updated_by,
                    ${utc('created_at')} AS created_at,
                    ${utc('updated_at')} AS updated_at
             FROM property_portal_brand_contents

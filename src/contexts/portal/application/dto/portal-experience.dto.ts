@@ -1,7 +1,7 @@
 import { z } from 'zod/v4'
 import { offeredGuestLocaleSchema } from '#/shared/guest-locale-schemas'
 import { validatePortalDestinationUri } from '../../domain/approved-destination'
-import { contrastRatio } from '../../domain/portal-experience'
+import { contrastRatio, MIN_TEXT_CONTRAST } from '#/shared/domain/portal-field-colour'
 
 const portalGuestLocaleSchema = offeredGuestLocaleSchema
 
@@ -32,7 +32,11 @@ export const portalBrandFormInputSchema = z
   .superRefine((value, ctx) => {
     const primaryContrast = contrastRatio(value.primaryColor, value.backgroundColor)
     const textContrast = contrastRatio(value.textColor, value.backgroundColor)
-    if (primaryContrast === null || textContrast === null || textContrast < 4.5) {
+    if (
+      primaryContrast === null ||
+      textContrast === null ||
+      textContrast < MIN_TEXT_CONTRAST
+    ) {
       ctx.addIssue({
         code: 'custom',
         path: ['textColor'],

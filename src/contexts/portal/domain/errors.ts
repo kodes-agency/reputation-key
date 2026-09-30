@@ -24,6 +24,7 @@ export type PortalErrorCode =
   | 'destination_not_found'
   | 'destination_not_approved'
   | 'property_not_found'
+  | 'brand_profile_missing'
   | 'group_not_found'
   | 'group_name_taken'
   | 'portal_already_grouped'
