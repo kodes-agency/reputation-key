@@ -1,5 +1,11 @@
-export type PortalLocale = 'en' | 'bg'
-export type PortalLanguagePackVersion = 'guest-ui-en-v1' | 'guest-ui-bg-v1'
+import {
+  currentGuestLanguagePack,
+  type GuestLanguagePackVersion,
+  type GuestLocale,
+} from '#/shared/domain/guest-locale'
+
+export type PortalLocale = GuestLocale
+export type PortalLanguagePackVersion = GuestLanguagePackVersion
 
 /** Public channel localization state, resolved once per render by the portal. */
 export type PortalLocalization = Readonly<{
@@ -22,9 +28,12 @@ export function resolvePortalLocale(
   localization: PortalLocalization | undefined,
 ): ResolvedPortalLocale {
   const selectedLocale = localization?.selectedLocale ?? 'en'
-  const fallbackPack = selectedLocale === 'bg' ? 'guest-ui-bg-v1' : 'guest-ui-en-v1'
-  return {
-    selectedLocale,
-    languagePackVersion: localization?.languagePackVersion ?? fallbackPack,
+  const languagePackVersion =
+    localization?.languagePackVersion ?? currentGuestLanguagePack(selectedLocale)
+  if (!languagePackVersion) {
+    // The server never serves a locale that has no reviewed pack, so this is a
+    // programming error, not a state to paper over with another language.
+    throw new Error(`No guest language pack exists for locale ${selectedLocale}`)
   }
+  return { selectedLocale, languagePackVersion }
 }

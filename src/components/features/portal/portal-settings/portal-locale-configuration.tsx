@@ -5,9 +5,16 @@ import { Label } from '#/components/ui/label'
 import type { PortalData, UpdatePortalVariables } from '../shared/types'
 import { PortalExperienceActionError } from './portal-experience-action-error'
 import {
-  PORTAL_GUEST_LOCALE_LABEL,
+  OFFERED_GUEST_LOCALES,
   type GuestLocale,
+  type OfferedGuestLocale,
+} from '#/shared/domain/guest-locale'
+import {
+  isOptionalGuestLocaleEnabled,
+  PORTAL_GUEST_LOCALE_LABEL,
 } from './portal-experience-settings-types'
+
+const ENGLISH_ONLY: readonly OfferedGuestLocale[] = ['en']
 
 export function PortalLocaleConfiguration({
   portal,
@@ -19,15 +26,14 @@ export function PortalLocaleConfiguration({
   disabled: boolean
 }>) {
   const persistedPrimary = portal.primaryGuestLocale ?? 'en'
-  const persistedBulgarian =
-    persistedPrimary === 'bg' || portal.additionalGuestLocales?.includes('bg') === true
+  const persistedBulgarian = isOptionalGuestLocaleEnabled(portal)
   const [primary, setPrimary] = useState<GuestLocale>(persistedPrimary)
   const [bulgarianEnabled, setBulgarianEnabled] = useState(persistedBulgarian)
-  const enabled = useMemo<readonly GuestLocale[]>(
-    () => (bulgarianEnabled ? ['en', 'bg'] : ['en']),
+  const enabled = useMemo<readonly OfferedGuestLocale[]>(
+    () => (bulgarianEnabled ? OFFERED_GUEST_LOCALES : ENGLISH_ONLY),
     [bulgarianEnabled],
   )
-  const effectivePrimary = enabled.includes(primary) ? primary : 'en'
+  const effectivePrimary = enabled.find((locale) => locale === primary) ?? 'en'
 
   return (
     <div className="space-y-3 rounded-md border p-4">
@@ -57,7 +63,9 @@ export function PortalLocaleConfiguration({
           className="h-9 w-full rounded-md border bg-background px-3 text-sm"
           value={effectivePrimary}
           disabled={disabled || update.isPending}
-          onChange={(event) => setPrimary(event.currentTarget.value as GuestLocale)}
+          onChange={(event) =>
+            setPrimary(event.currentTarget.value as OfferedGuestLocale)
+          }
         >
           {enabled.map((locale) => (
             <option key={locale} value={locale}>

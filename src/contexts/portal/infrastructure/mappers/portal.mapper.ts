@@ -4,6 +4,7 @@
 import type { portals } from '#/shared/db/schema/portal.schema'
 import type { Portal, PortalTheme, EntityType } from '../../domain/types'
 import type { PropertyId, TeamId, UserId } from '#/shared/domain/ids'
+import { parseGuestLocale, type GuestLocale } from '#/shared/domain/guest-locale'
 import {
   portalId,
   organizationId,
@@ -42,6 +43,24 @@ function parsePublicationState(value: string): PortalPublicationState {
     )
   }
   return value as PortalPublicationState
+}
+
+function parseGuestLocaleColumn(value: unknown): GuestLocale {
+  const locale = parseGuestLocale(value)
+  if (!locale) {
+    throw portalError(
+      'portal_not_found',
+      `[portal.mapper] invalid guest locale: ${String(value)}`,
+    )
+  }
+  return locale
+}
+
+function parseGuestLocaleList(value: unknown): GuestLocale[] {
+  if (!Array.isArray(value)) {
+    throw portalError('portal_not_found', '[portal.mapper] invalid guest locale list')
+  }
+  return value.map(parseGuestLocaleColumn)
 }
 
 function brandEntityId(
@@ -91,8 +110,8 @@ export const portalFromRow = (row: PortalRow): Portal => ({
   createdBy: row.createdBy ? userId(row.createdBy) : null,
   responsibleManagerRevision: row.responsibleManagerRevision,
   responsibilityNeededSince: row.responsibilityNeededSince,
-  primaryGuestLocale: row.primaryGuestLocale as 'en' | 'bg',
-  additionalGuestLocales: row.additionalGuestLocales as ('en' | 'bg')[],
+  primaryGuestLocale: parseGuestLocaleColumn(row.primaryGuestLocale),
+  additionalGuestLocales: parseGuestLocaleList(row.additionalGuestLocales),
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
   deletedAt: row.deletedAt,

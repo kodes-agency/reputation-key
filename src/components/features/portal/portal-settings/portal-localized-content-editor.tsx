@@ -2,9 +2,9 @@ import { Badge } from '#/components/ui/badge'
 import { PortalExperienceActionError } from './portal-experience-action-error'
 import { PortalLocalizedOverrideForm } from './portal-localized-override-form'
 import { PortalPropertyContentForm } from './portal-property-content-form'
+import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import {
   PORTAL_GUEST_LOCALE_LABEL,
-  type GuestLocale,
   type PortalExperienceActions,
   type PortalExperienceSettings,
 } from './portal-experience-settings-types'
@@ -17,7 +17,7 @@ export function PortalLocalizedContentEditor({
   actions,
   disabled,
 }: Readonly<{
-  locale: GuestLocale
+  locale: OfferedGuestLocale
   propertyId: string
   portalId: string
   experience: PortalExperienceSettings

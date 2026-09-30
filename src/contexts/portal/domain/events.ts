@@ -4,6 +4,7 @@
 
 import { newEventId } from '#/shared/domain/event-id'
 import { assert } from '#/shared/domain/assert'
+import { isGuestLocale, type GuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalId } from './types'
 import type {
   OrganizationId,
@@ -194,7 +195,7 @@ export type PortalPropertyBrandContentUpdated = Readonly<{
   eventId: string
   organizationId: OrganizationId
   propertyId: PropertyId
-  guestLocale: 'en' | 'bg'
+  guestLocale: GuestLocale
   contentVersion: number
   sourceAggregateVersion: string
   occurredAt: Date
@@ -207,7 +208,7 @@ export type PortalLocalizedOverrideUpdated = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   portalId: PortalId
-  guestLocale: 'en' | 'bg'
+  guestLocale: GuestLocale
   overrideVersion: number | null
   sourceAggregateVersion: string
   occurredAt: Date
@@ -220,8 +221,8 @@ export type PortalLocaleSetUpdated = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
   portalId: PortalId
-  primaryGuestLocale: 'en' | 'bg'
-  additionalGuestLocales: readonly ('en' | 'bg')[]
+  primaryGuestLocale: GuestLocale
+  additionalGuestLocales: readonly GuestLocale[]
   sourceAggregateVersion: string
   occurredAt: Date
   correlationId: string | null
@@ -782,10 +783,7 @@ export const portalPropertyBrandContentUpdated = (
   args: PortalEventArgs<PortalPropertyBrandContentUpdated>,
 ): PortalPropertyBrandContentUpdated => {
   assertPortalLifecycleFact(args)
-  assert(
-    args.guestLocale === 'en' || args.guestLocale === 'bg',
-    'Portal brand content locale must be supported',
-  )
+  assert(isGuestLocale(args.guestLocale), 'Portal brand content locale must be supported')
   assert(
     Number.isInteger(args.contentVersion) && args.contentVersion > 0,
     'Portal brand content version must be a positive integer',
@@ -803,7 +801,7 @@ export const portalLocalizedOverrideUpdated = (
 ): PortalLocalizedOverrideUpdated => {
   assertPortalLifecycleFact(args)
   assert(
-    args.guestLocale === 'en' || args.guestLocale === 'bg',
+    isGuestLocale(args.guestLocale),
     'Portal localized override locale must be supported',
   )
   assert(
@@ -824,11 +822,11 @@ export const portalLocaleSetUpdated = (
 ): PortalLocaleSetUpdated => {
   assertPortalLifecycleFact(args)
   assert(
-    args.primaryGuestLocale === 'en' || args.primaryGuestLocale === 'bg',
+    isGuestLocale(args.primaryGuestLocale),
     'Portal primary guest locale must be supported',
   )
   assert(
-    args.additionalGuestLocales.every((locale) => locale === 'en' || locale === 'bg'),
+    args.additionalGuestLocales.every(isGuestLocale),
     'Portal additional guest locales must be supported',
   )
   assert(

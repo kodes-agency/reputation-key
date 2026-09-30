@@ -9,6 +9,7 @@ import {
 import type { GuestResponseFormAvailability } from '../application/dto/public-portal.dto'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { z } from 'zod/v4'
+import { guestLocaleSchema } from '#/shared/guest-locale-schemas'
 import { match } from 'ts-pattern'
 import { HTTP_STATUS } from '#/shared/http/status'
 import { getContainer } from '#/composition'
@@ -202,7 +203,7 @@ export const recordScanFn = createServerFn({ method: 'POST' })
 
 const publicPortalSchema = z.object({
   token: z.string().min(1).max(256),
-  locale: z.enum(['en', 'bg']).optional(),
+  locale: guestLocaleSchema.optional(),
 })
 
 // Transient deny reasons: the capability may return without any tenant

@@ -37,7 +37,7 @@ export function PortalSecondaryLinks({
   links,
   selectSecondaryLink,
   locale = 'en',
-  languagePackVersion = locale === 'bg' ? 'guest-ui-bg-v1' : 'guest-ui-en-v1',
+  languagePackVersion,
 }: Readonly<{
   token?: string
   csrfNonce?: string

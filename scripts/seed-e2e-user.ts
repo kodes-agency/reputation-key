@@ -34,6 +34,11 @@ import {
 } from '../src/shared/db/schema'
 import { propertyResponsibleManagers } from '../src/shared/db/schema/property.schema'
 import { buildPortalPublicationSnapshot } from '../src/contexts/portal/application/portal-publication-snapshot'
+import { OFFERED_GUEST_LOCALES } from '../src/shared/domain/guest-locale'
+import {
+  isLocalizedConfiguration,
+  PORTAL_LANGUAGE_PACK_VERSIONS,
+} from '../src/contexts/portal/domain/portal-publication-snapshot'
 import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../src/contexts/portal/domain/approved-destination'
 import { portalGroups } from '../src/shared/db/schema/portal-group.schema'
 import { reviews } from '../src/shared/db/schema/review.schema'
@@ -471,11 +476,7 @@ function stableJson(value: unknown): string {
   )
 }
 
-const PORTAL_LOCALE_SET = ['en', 'bg'] as const
-const PORTAL_LANGUAGE_PACK_VERSIONS: Readonly<Record<string, string>> = {
-  en: 'guest-ui-en-v1',
-  bg: 'guest-ui-bg-v1',
-}
+const PORTAL_LOCALE_SET = OFFERED_GUEST_LOCALES
 
 /**
  * Whether the stored snapshot already publishes exactly what this seed would.
@@ -506,7 +507,7 @@ function publishesSameConfiguration(
     return false
   }
   const configuration = snapshot.configuration
-  if (configuration.schemaVersion !== 2) return true
+  if (!isLocalizedConfiguration(configuration)) return true
   return (
     existing.brandProfileVersion === configuration.brandProfile.version &&
     stableJson(existing.localizedContent ?? {}) ===
@@ -669,14 +670,12 @@ async function publishPortalSnapshot(input: {
       // profile) makes the snapshot describe two different portals.
       localeSet: [...PORTAL_LOCALE_SET],
       languagePackVersions: PORTAL_LANGUAGE_PACK_VERSIONS,
-      localizedContent:
-        snapshot.configuration.schemaVersion === 2
-          ? snapshot.configuration.localizedContent
-          : {},
-      brandProfileVersion:
-        snapshot.configuration.schemaVersion === 2
-          ? snapshot.configuration.brandProfile.version
-          : null,
+      localizedContent: isLocalizedConfiguration(snapshot.configuration)
+        ? snapshot.configuration.localizedContent
+        : {},
+      brandProfileVersion: isLocalizedConfiguration(snapshot.configuration)
+        ? snapshot.configuration.brandProfile.version
+        : null,
       privateFeedbackThreshold:
         snapshot.configuration.reviewGateway.privateFeedbackThreshold,
       destinationUri: snapshot.destinationUri,

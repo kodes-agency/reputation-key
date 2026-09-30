@@ -1,6 +1,7 @@
 // Portal context — update portal DTO
 
 import { z } from 'zod/v4'
+import { offeredGuestLocaleSchema } from '#/shared/guest-locale-schemas'
 
 export const updatePortalInputSchema = z
   .object({
@@ -20,9 +21,9 @@ export const updatePortalInputSchema = z
       })
       .optional(),
     publicationState: z.enum(['draft', 'published', 'disabled', 'archived']).optional(),
-    primaryGuestLocale: z.enum(['en', 'bg']).optional(),
+    primaryGuestLocale: offeredGuestLocaleSchema.optional(),
     additionalGuestLocales: z
-      .array(z.enum(['en', 'bg']))
+      .array(offeredGuestLocaleSchema)
       .max(1)
       .refine((locales) => new Set(locales).size === locales.length, {
         message: 'Guest locales must be unique',

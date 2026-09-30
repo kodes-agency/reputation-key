@@ -9,9 +9,7 @@ export type {
 
 export function GuestResponseForm(props: GuestResponseFormProps) {
   const locale = props.locale ?? 'en'
-  const languagePackVersion =
-    props.languagePackVersion ?? (locale === 'bg' ? 'guest-ui-bg-v1' : 'guest-ui-en-v1')
-  const copy = getGuestPortalCopy(locale, languagePackVersion)
+  const copy = getGuestPortalCopy(locale, props.languagePackVersion)
   const controller = useGuestResponseController(props, copy)
   const { activeCsrfNonce, ...viewProps } = controller
 

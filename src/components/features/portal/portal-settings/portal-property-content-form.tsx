@@ -7,10 +7,8 @@ import type { BaseFieldApiTextarea } from '#/components/forms/form-textarea'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { FieldGroup } from '#/components/ui/field'
 import { propertyPortalBrandContentInputSchema } from '#/contexts/portal/application/dto/portal-experience.dto'
-import type {
-  GuestLocale,
-  PortalExperienceActions,
-} from './portal-experience-settings-types'
+import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
+import type { PortalExperienceActions } from './portal-experience-settings-types'
 
 const propertyContentFormSchema = propertyPortalBrandContentInputSchema
   .pick({ title: true, shortDescription: true })
@@ -24,7 +22,7 @@ export function PortalPropertyContentForm({
   action,
   readOnly,
 }: Readonly<{
-  locale: GuestLocale
+  locale: OfferedGuestLocale
   propertyId: string
   initialTitle: string
   initialDescription: string

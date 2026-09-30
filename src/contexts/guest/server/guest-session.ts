@@ -13,6 +13,7 @@ import type {
   RateLimitResult,
 } from '#/shared/rate-limit/middleware'
 import { guestSessionId, organizationId, portalId, propertyId } from '#/shared/domain/ids'
+import { parseGuestLocale, type GuestLocale } from '#/shared/domain/guest-locale'
 
 export type GuestSessionScope = Readonly<{
   organizationId: string
@@ -23,12 +24,12 @@ export type GuestSessionScope = Readonly<{
 export type GuestSessionManager = Readonly<{
   issue(
     scope: GuestSessionScope,
-    guestLocale?: 'en' | 'bg',
+    guestLocale?: GuestLocale,
   ): Readonly<{ session: GuestSession; cookies: readonly [string, string, string] }>
   /** Re-sign the same scoped identity with the guest's explicit/effective locale. */
   selectLocale(
     session: GuestSession,
-    guestLocale: 'en' | 'bg',
+    guestLocale: GuestLocale,
   ): Readonly<{ session: GuestSession; cookies: readonly [string, string, string] }>
   /** Re-sign the same recovery identity only until an existing domain deadline. */
   renewUntil(
@@ -52,7 +53,7 @@ type SignedSessionPayload = Readonly<{
   issued: string
   expires: string
   /** Optional for backward compatibility with already-issued v1 cookies. */
-  locale?: 'en' | 'bg'
+  locale?: GuestLocale
 }>
 
 function readCookie(cookieHeader: string): string | null {
@@ -189,8 +190,7 @@ export function createGuestSessionManager(
           issuedAt: new Date(payload.issued),
           expiresAt: new Date(payload.expires),
           campaignMediumHint: null,
-          guestLocale:
-            payload.locale === 'en' || payload.locale === 'bg' ? payload.locale : null,
+          guestLocale: parseGuestLocale(payload.locale),
         }
         if (
           !Number.isFinite(session.issuedAt.getTime()) ||

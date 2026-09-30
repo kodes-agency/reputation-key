@@ -1,5 +1,9 @@
 import { createHash } from 'node:crypto'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
+import {
+  isSupportedGuestLanguagePack,
+  type GuestLanguagePackVersion,
+} from '#/shared/domain/guest-locale'
 import type { PublicGoogleReviewDestination, PublicPortalResult } from '../public-api'
 import type {
   PortalTokenCodec,
@@ -11,10 +15,11 @@ import type {
   ResolvedPortalPublication,
 } from '../ports/portal-publication.repository'
 import type { PortalHealthRepository } from '../ports/portal-health.repository'
-import type {
-  PortalGuestLocale,
-  PortalPublicationConfiguration,
-  PortalPublicationSnapshot,
+import {
+  isLocalizedConfiguration,
+  type PortalGuestLocale,
+  type PortalPublicationConfiguration,
+  type PortalPublicationSnapshot,
 } from '../../domain/portal-publication-snapshot'
 import { selectPortalGuestLocale } from '../../domain/portal-experience'
 
@@ -114,11 +119,12 @@ async function admitPublicPortalRequest(
     return null
   }
 
-  // Schema-v2 publications are created only after Portal Health became part
-  // of the public contract. Fail closed when that durable current posture is
-  // missing or explicitly unavailable. Legacy v1 snapshots remain readable
-  // so existing printed addresses survive the rolling upgrade.
-  if (snapshot.configuration.schemaVersion === 2) {
+  // Localized publications (schema v2 and later) are created only after
+  // Portal Health became part of the public contract. Fail closed when that
+  // durable current posture is missing or explicitly unavailable. Legacy v1
+  // snapshots remain readable so existing printed addresses survive the
+  // rolling upgrade.
+  if (isLocalizedConfiguration(snapshot.configuration)) {
     const health = await deps.portalHealthRepo.getCurrent(
       organizationId(token.organizationId),
       propertyId(token.propertyId),
@@ -206,7 +212,7 @@ async function resolveApprovedLinks(
 type PortalPresentation = Readonly<{
   selectedLocale: PortalGuestLocale
   localizedPortal: PublicPortalResult['portal']
-  languagePackVersion: 'guest-ui-en-v1' | 'guest-ui-bg-v1'
+  languagePackVersion: GuestLanguagePackVersion
 }>
 
 /**
@@ -218,49 +224,45 @@ function resolvePortalPresentation(
   configuration: PortalPublicationConfiguration,
   preference: GuestLocalePreference,
 ): PortalPresentation | null {
-  const selectedLocale =
-    configuration.schemaVersion === 2
-      ? selectPortalGuestLocale(
-          configuration.localeSet,
-          configuration.guestLocale,
-          preference.requestedLocale,
-          preference.sessionLocale,
-          preference.acceptLanguage,
-        )
-      : 'en'
-  const selectedContent =
-    configuration.schemaVersion === 2
-      ? configuration.localizedContent[selectedLocale]
-      : undefined
-  if (configuration.schemaVersion === 2 && !selectedContent) return null
-  const localizedPortal =
-    configuration.schemaVersion === 2 && selectedContent
-      ? {
-          ...configuration.portal,
-          name: selectedContent.title,
-          description: selectedContent.shortDescription,
-          heroImageUrl: selectedContent.heroImageUrl,
-          organizationName: configuration.brandProfile.displayName,
-          logoUrl: configuration.brandProfile.logoUrl,
-          theme: {
-            ...configuration.portal.theme,
-            primaryColor: configuration.brandProfile.primaryColor,
-            backgroundColor: configuration.brandProfile.backgroundColor,
-            textColor: configuration.brandProfile.textColor,
-          },
-        }
-      : configuration.portal
-  const languagePackVersion =
-    configuration.schemaVersion === 2
-      ? configuration.languagePackVersions[selectedLocale]
-      : configuration.languagePackVersion
-  if (
-    languagePackVersion !== 'guest-ui-en-v1' &&
-    languagePackVersion !== 'guest-ui-bg-v1'
-  ) {
-    return null
+  if (!isLocalizedConfiguration(configuration)) {
+    // Legacy v1: English only, and only the English v1 pack.
+    const languagePackVersion = configuration.languagePackVersion
+    if (!isSupportedGuestLanguagePack('en', languagePackVersion, 1)) return null
+    return {
+      selectedLocale: 'en',
+      localizedPortal: configuration.portal,
+      languagePackVersion,
+    }
   }
-  return { selectedLocale, localizedPortal, languagePackVersion }
+  const selectedLocale = selectPortalGuestLocale(
+    configuration.localeSet,
+    configuration.guestLocale,
+    preference.requestedLocale,
+    preference.sessionLocale,
+    preference.acceptLanguage,
+  )
+  const selectedContent = configuration.localizedContent[selectedLocale]
+  if (!selectedContent) return null
+  const languagePackVersion = configuration.languagePackVersions[selectedLocale]
+  if (!isSupportedGuestLanguagePack(selectedLocale, languagePackVersion, 1)) return null
+  return {
+    selectedLocale,
+    localizedPortal: {
+      ...configuration.portal,
+      name: selectedContent.title,
+      description: selectedContent.shortDescription,
+      heroImageUrl: selectedContent.heroImageUrl,
+      organizationName: configuration.brandProfile.displayName,
+      logoUrl: configuration.brandProfile.logoUrl,
+      theme: {
+        ...configuration.portal.theme,
+        primaryColor: configuration.brandProfile.primaryColor,
+        backgroundColor: configuration.brandProfile.backgroundColor,
+        textColor: configuration.brandProfile.textColor,
+      },
+    },
+    languagePackVersion,
+  }
 }
 
 export const resolvePublicPortalToken =
@@ -321,8 +323,9 @@ export const resolvePublicPortalToken =
         localization: {
           selectedLocale,
           primaryLocale: configuration.guestLocale,
-          availableLocales:
-            configuration.schemaVersion === 2 ? configuration.localeSet : ['en'],
+          availableLocales: isLocalizedConfiguration(configuration)
+            ? configuration.localeSet
+            : ['en'],
           languagePackVersion,
         },
         responseConfiguration,

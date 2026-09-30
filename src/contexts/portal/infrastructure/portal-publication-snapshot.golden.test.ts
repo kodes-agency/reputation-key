@@ -5,7 +5,10 @@ import {
   buildPortalPublicationSnapshot,
   verifyPortalPublicationSnapshot,
 } from '../application/portal-publication-snapshot'
-import { PORTAL_LANGUAGE_PACK_VERSIONS } from '../domain/portal-publication-snapshot'
+import {
+  PORTAL_LANGUAGE_PACK_VERSIONS,
+  snapshotMirrorColumns,
+} from '../domain/portal-publication-snapshot'
 import {
   GOLDEN_BUILDER_INPUTS,
   GOLDEN_SNAPSHOT_ROWS,
@@ -50,6 +53,17 @@ describe('golden publication snapshots', () => {
       )
     })
 
+    it('derives the row mirror columns from the configuration exactly as stored', () => {
+      const snapshot = snapshotFromRow(row)
+
+      expect(snapshot && snapshotMirrorColumns(snapshot.configuration)).toEqual({
+        localeSet: row.localeSet,
+        languagePackVersions: row.languagePackVersions,
+        localizedContent: row.localizedContent,
+        brandProfileVersion: row.brandProfileVersion,
+      })
+    })
+
     it('fails closed when one character of the stored digest changes', () => {
       const flipped = row.configurationDigest.replace(/^./u, (first) =>
         first === '0' ? '1' : '0',
@@ -69,6 +83,18 @@ describe('golden publication snapshots', () => {
     expect([bgPrimary.guestLocale, bgPrimary.localeSet]).toEqual(['bg', ['bg', 'en']])
     expect(snapshotFromRow({ ...bgPrimary, guestLocale: 'en' })).toBeNull()
     expect(snapshotFromRow({ ...seeded, brandProfileVersion: 2 })).toBeNull()
+  })
+
+  it('fails closed on a schema version this build does not know', () => {
+    const seeded = GOLDEN_SNAPSHOT_ROWS.v2Seeded
+
+    for (const schemaVersion of [0, 3, 99]) {
+      const row = {
+        ...seeded,
+        configuration: { ...seeded.configuration, schemaVersion },
+      }
+      expect(snapshotFromRow(row)).toBeNull()
+    }
   })
 
   it('reproduces the hand-built v1 digest with the production builder', () => {

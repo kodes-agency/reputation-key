@@ -7,9 +7,10 @@ import type {
   PortalPublicationActivationRecord,
   PortalPublicationRepository,
 } from '../ports/portal-publication.repository'
-import type {
-  PortalPublicationSnapshot,
-  PortalPublicationSource,
+import {
+  isLocalizedConfiguration,
+  type PortalPublicationSnapshot,
+  type PortalPublicationSource,
 } from '../../domain/portal-publication-snapshot'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import { portalError } from '../../domain/errors'
@@ -55,7 +56,7 @@ function publishedContent(snapshot: PortalPublicationSnapshot) {
     privateFeedbackThreshold: configuration.reviewGateway.privateFeedbackThreshold,
     organizationId: snapshot.organizationId,
     propertyId: snapshot.propertyId,
-    ...(configuration.schemaVersion === 2
+    ...(isLocalizedConfiguration(configuration)
       ? {
           experience: {
             primaryGuestLocale: configuration.guestLocale,

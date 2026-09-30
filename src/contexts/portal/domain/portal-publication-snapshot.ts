@@ -1,13 +1,24 @@
+import type { GuestLocale } from '#/shared/domain/guest-locale'
+
 export const LEGACY_PORTAL_PUBLICATION_SCHEMA_VERSION = 1 as const
 export const PORTAL_PUBLICATION_SCHEMA_VERSION = 2 as const
 export const PRIMARY_GUEST_LOCALE = 'en' as const
-export const PRIMARY_GUEST_LANGUAGE_PACK_VERSION = 'guest-ui-en-v1' as const
-export const PORTAL_LANGUAGE_PACK_VERSIONS = {
+
+// Historical pins. Snapshots are immutable and must verify forever, so these
+// stay literal: they are never derived from a "current" pack, and adding a
+// pack elsewhere must not change what a v1 or v2 digest covers.
+export const LEGACY_V1_GUEST_LOCALE = 'en' as const
+export const LEGACY_V1_LANGUAGE_PACK = 'guest-ui-en-v1' as const
+/** Old name of {@link LEGACY_V1_LANGUAGE_PACK}. */
+export const PRIMARY_GUEST_LANGUAGE_PACK_VERSION = LEGACY_V1_LANGUAGE_PACK
+export const V2_LANGUAGE_PACK_VERSIONS = {
   en: 'guest-ui-en-v1',
   bg: 'guest-ui-bg-v1',
 } as const
+/** Old name of {@link V2_LANGUAGE_PACK_VERSIONS}. */
+export const PORTAL_LANGUAGE_PACK_VERSIONS = V2_LANGUAGE_PACK_VERSIONS
 
-export type PortalGuestLocale = keyof typeof PORTAL_LANGUAGE_PACK_VERSIONS
+export type PortalGuestLocale = GuestLocale
 
 export type PortalBrandProfileSnapshot = Readonly<{
   displayName: string
@@ -28,7 +39,7 @@ export type PortalLocalizedContentSnapshot = Readonly<{
 export type PortalPublicationExperienceSource = Readonly<{
   primaryGuestLocale: PortalGuestLocale
   localeSet: readonly PortalGuestLocale[]
-  languagePackVersions: Readonly<Record<PortalGuestLocale, string>>
+  languagePackVersions: Readonly<Partial<Record<PortalGuestLocale, string>>>
   localizedContent: Readonly<
     Partial<Record<PortalGuestLocale, PortalLocalizedContentSnapshot>>
   >
@@ -88,8 +99,8 @@ type PortalPublicationConfigurationBase = Readonly<{
 export type LegacyPortalPublicationConfiguration = PortalPublicationConfigurationBase &
   Readonly<{
     schemaVersion: typeof LEGACY_PORTAL_PUBLICATION_SCHEMA_VERSION
-    guestLocale: typeof PRIMARY_GUEST_LOCALE
-    languagePackVersion: typeof PRIMARY_GUEST_LANGUAGE_PACK_VERSION
+    guestLocale: typeof LEGACY_V1_GUEST_LOCALE
+    languagePackVersion: typeof LEGACY_V1_LANGUAGE_PACK
   }>
 
 export type LocalizedPortalPublicationConfiguration = PortalPublicationConfigurationBase &
@@ -107,6 +118,40 @@ export type LocalizedPortalPublicationConfiguration = PortalPublicationConfigura
 
 export type PortalPublicationConfiguration =
   LegacyPortalPublicationConfiguration | LocalizedPortalPublicationConfiguration
+
+/**
+ * Whether a configuration carries per-locale content, a language-pack map and a
+ * brand profile: schema version 2 today, and every later version that keeps
+ * that shape. The one place that answers the question, so a new schema version
+ * changes a single line instead of eleven branches.
+ */
+export function isLocalizedConfiguration<C extends { readonly schemaVersion: number }>(
+  configuration: C,
+): configuration is Extract<C, { readonly schemaVersion: 2 }> {
+  return configuration.schemaVersion === PORTAL_PUBLICATION_SCHEMA_VERSION
+}
+
+/**
+ * The columns a snapshot row keeps as its own copy of the configuration's
+ * locale and brand facts. The reader refuses a row that disagrees with its
+ * configuration, so both are derived from the configuration here.
+ */
+export function snapshotMirrorColumns(configuration: PortalPublicationConfiguration) {
+  if (!isLocalizedConfiguration(configuration)) {
+    return {
+      localeSet: [LEGACY_V1_GUEST_LOCALE],
+      languagePackVersions: { [LEGACY_V1_GUEST_LOCALE]: LEGACY_V1_LANGUAGE_PACK },
+      localizedContent: {},
+      brandProfileVersion: null,
+    }
+  }
+  return {
+    localeSet: configuration.localeSet,
+    languagePackVersions: configuration.languagePackVersions,
+    localizedContent: configuration.localizedContent,
+    brandProfileVersion: configuration.brandProfile.version,
+  }
+}
 
 export type PortalPublicationSnapshot = Readonly<{
   id: string

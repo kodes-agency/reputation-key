@@ -4,6 +4,7 @@
 // Pure — ID and time are inputs, no side effects.
 
 import { Result } from '#/shared/domain'
+import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type {
   Portal,
   PortalId,
@@ -47,8 +48,8 @@ export type BuildPortalInput = Readonly<{
   publicationState?: Portal['publicationState']
   createdBy?: UserId | null
   hasInitialResponsibleManager?: boolean
-  primaryGuestLocale?: 'en' | 'bg'
-  additionalGuestLocales?: readonly ('en' | 'bg')[]
+  primaryGuestLocale?: GuestLocale
+  additionalGuestLocales?: readonly GuestLocale[]
   now: Date
 }>
 

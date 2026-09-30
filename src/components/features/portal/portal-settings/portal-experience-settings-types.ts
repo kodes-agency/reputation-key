@@ -1,12 +1,33 @@
 import type { Action } from '#/components/hooks/use-action'
+import {
+  GUEST_LOCALE_METADATA,
+  OFFERED_GUEST_LOCALES,
+  type GuestLocale,
+  type OfferedGuestLocale,
+} from '#/shared/domain/guest-locale'
 
-export type GuestLocale = 'en' | 'bg'
+/** The locales a manager can edit and publish today. */
+export const PORTAL_GUEST_LOCALES: readonly OfferedGuestLocale[] = OFFERED_GUEST_LOCALES
 
-export const PORTAL_GUEST_LOCALES: readonly GuestLocale[] = ['en', 'bg']
+export const PORTAL_GUEST_LOCALE_LABEL: Readonly<Record<OfferedGuestLocale, string>> = {
+  en: GUEST_LOCALE_METADATA.en.englishName,
+  bg: GUEST_LOCALE_METADATA.bg.englishName,
+}
 
-export const PORTAL_GUEST_LOCALE_LABEL: Readonly<Record<GuestLocale, string>> = {
-  en: 'English',
-  bg: 'Bulgarian',
+/** The one locale a manager can switch on beside English today. */
+export const OPTIONAL_GUEST_LOCALE = 'bg' satisfies OfferedGuestLocale
+
+/** Whether the Portal offers the optional locale, as primary or additional. */
+export function isOptionalGuestLocaleEnabled(
+  portal: Readonly<{
+    primaryGuestLocale?: GuestLocale
+    additionalGuestLocales?: readonly GuestLocale[]
+  }>,
+): boolean {
+  return (
+    portal.primaryGuestLocale === OPTIONAL_GUEST_LOCALE ||
+    portal.additionalGuestLocales?.includes(OPTIONAL_GUEST_LOCALE) === true
+  )
 }
 
 export type PortalExperienceSettings = Readonly<{
@@ -58,7 +79,7 @@ export type PortalExperienceActions = Readonly<{
   saveContent: Action<{
     data: {
       propertyId: string
-      locale: GuestLocale
+      locale: OfferedGuestLocale
       title: string
       shortDescription: string
     }
@@ -66,7 +87,7 @@ export type PortalExperienceActions = Readonly<{
   saveOverride: Action<{
     data: {
       portalId: string
-      locale: GuestLocale
+      locale: OfferedGuestLocale
       title: string | null
       shortDescription: string | null
     }

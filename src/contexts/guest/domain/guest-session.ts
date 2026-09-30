@@ -13,6 +13,7 @@ import type {
   PortalId,
   PropertyId,
 } from '#/shared/domain/ids'
+import type { GuestLocale } from '#/shared/domain/guest-locale'
 
 export interface GuestSession {
   readonly sessionId: GuestSessionId
@@ -25,7 +26,7 @@ export interface GuestSession {
   readonly expiresAt: Date
   readonly campaignMediumHint: string | null
   /** Human-reviewed public copy selected for this signed Portal session. */
-  readonly guestLocale: 'en' | 'bg' | null
+  readonly guestLocale: GuestLocale | null
 }
 
 export interface SessionCookieAttributes {
@@ -49,7 +50,7 @@ export function createSession(params: {
   propertyId: PropertyId
   tokenVersion: number
   campaignMediumHint?: string
-  guestLocale?: 'en' | 'bg' | null
+  guestLocale?: GuestLocale | null
   durationMs?: number
   now: Date
 }): GuestSession {

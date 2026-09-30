@@ -5,23 +5,15 @@ import {
   propertyPortalBrandContents,
   propertyPortalBrandProfiles,
 } from '#/shared/db/schema/portal.schema'
-import {
-  organizationId,
-  portalId,
-  propertyId,
-  unbrand,
-  userId,
-  type OrganizationId,
-  type PropertyId,
-} from '#/shared/domain/ids'
-import type {
-  PortalExperienceRepository,
-  PortalLocalizedOverride,
-  PropertyPortalBrandContent,
-  PropertyPortalBrandProfile,
-} from '../../application/ports/portal-experience.repository'
+import { unbrand, type OrganizationId, type PropertyId } from '#/shared/domain/ids'
+import type { PortalExperienceRepository } from '../../application/ports/portal-experience.repository'
 import type { PortalBrandProfileSnapshot } from '../../domain/portal-publication-snapshot'
 import { trace } from '#/shared/observability/trace'
+import {
+  contentFromRow,
+  overrideFromRow,
+  profileFromRow,
+} from '../mappers/portal-experience.mapper'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import {
   lockPortalPublicationProperty,
@@ -37,56 +29,6 @@ import {
   AUTOMATIC_PUBLIC_DISPLAY_NAME_ACTOR,
   DEFAULT_PROPERTY_BRAND_PALETTE,
 } from '../../domain/portal-experience'
-
-const profileFromRow = (
-  row: typeof propertyPortalBrandProfiles.$inferSelect,
-): PropertyPortalBrandProfile => ({
-  id: row.id,
-  organizationId: organizationId(row.organizationId),
-  propertyId: propertyId(row.propertyId),
-  displayName: row.displayName,
-  logoUrl: row.logoUrl,
-  defaultHeroImageUrl: row.defaultHeroImageUrl,
-  primaryColor: row.primaryColor,
-  backgroundColor: row.backgroundColor,
-  textColor: row.textColor,
-  version: row.version,
-  updatedBy: userId(row.updatedBy),
-  createdAt: row.createdAt,
-  updatedAt: row.updatedAt,
-})
-
-const contentFromRow = (
-  row: typeof propertyPortalBrandContents.$inferSelect,
-): PropertyPortalBrandContent => ({
-  id: row.id,
-  organizationId: organizationId(row.organizationId),
-  propertyId: propertyId(row.propertyId),
-  locale: row.locale === 'bg' ? 'bg' : 'en',
-  title: row.title,
-  shortDescription: row.shortDescription,
-  version: row.version,
-  updatedBy: userId(row.updatedBy),
-  createdAt: row.createdAt,
-  updatedAt: row.updatedAt,
-})
-
-const overrideFromRow = (
-  row: typeof portalLocalizedOverrides.$inferSelect,
-): PortalLocalizedOverride => ({
-  id: row.id,
-  organizationId: organizationId(row.organizationId),
-  propertyId: propertyId(row.propertyId),
-  portalId: portalId(row.portalId),
-  locale: row.locale === 'bg' ? 'bg' : 'en',
-  title: row.title,
-  shortDescription: row.shortDescription,
-  heroImageUrl: row.heroImageUrl,
-  version: row.version,
-  updatedBy: userId(row.updatedBy),
-  createdAt: row.createdAt,
-  updatedAt: row.updatedAt,
-})
 
 type PropertyScope = Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>
 type BrandProfileFields = Omit<PortalBrandProfileSnapshot, 'version'>
