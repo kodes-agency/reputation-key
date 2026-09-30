@@ -71,33 +71,11 @@ export const seededArgs = {
       revision: 1,
     },
   ],
-  members: [
-    {
-      userId: 'u1',
-      role: 'admin',
-      email: 'alice@acme.com',
-      name: 'Alice Adams',
-    },
-    {
-      userId: 'u2',
-      role: 'member',
-      email: 'bob@acme.com',
-      name: 'Bob Baker',
-    },
-    {
-      userId: 'u3',
-      role: 'member',
-      email: 'chris@acme.com',
-      name: 'Chris Chen',
-    },
-  ],
   portals: [
     { id: 'p1', name: 'Main Portal' },
     { id: 'p2', name: 'Guest Portal' },
   ],
   portalsDenied: false,
-  tab: 'staff',
-  onTabChange: () => {},
   createParticipationMutation,
   archiveParticipationMutation,
   updateResponsibilitiesMutation,
