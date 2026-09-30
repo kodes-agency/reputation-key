@@ -1,7 +1,12 @@
 // Join page — creates a beta manager account from one exact invitation.
-// The server-side saga consumes the invitation atomically, which verifies the
-// address, and then signs the new member in; the page lands them in the app
-// the way a sign-in does. If that sign-in failed, the card asks them to sign in.
+// `beforeLoad` reads the invitation first: an address that already has an
+// account goes to sign in, a signed-in visitor to the confirm step, and a link
+// that is expired, cancelled, used or unknown says so instead of offering a
+// form. For a usable one the page shows what is being joined and locks the
+// invited address. The server-side saga consumes the invitation atomically,
+// which verifies the address, and then signs the new member in; the page lands
+// them in the app the way a sign-in does. If that sign-in failed, the card asks
+// them to sign in.
 import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { useQueryClient } from '@tanstack/react-query'
@@ -9,9 +14,17 @@ import { z } from 'zod/v4'
 import { ensureActiveOrg, getSession } from '#/shared/auth/auth.functions'
 import { clearTenantCacheBeforeNavigation } from '#/shared/queries/tenant-cache-transition'
 import { AuthCard, AuthFooterLink } from '#/components/layout/auth-layout'
-import { RegisterForm } from '#/components/features/identity'
+import {
+  InvitationStateCard,
+  InvitationSummary,
+  RegisterForm,
+  type InvitationLink,
+} from '#/components/features/identity'
+import { JoinEntryCard } from '#/components/features/identity/registration/join-entry-card'
 import { registerMember } from '#/contexts/identity/server/organizations'
 import { useAction, wrapAction } from '#/components/hooks/use-action'
+import { enterWorkspace } from './-join-entry'
+import { loadInvitationEntry, signInToAcceptInvitation } from './-invitation-entry'
 
 /**
  * The link names one invitation. Anything the router parsed into something else
@@ -23,34 +36,55 @@ export const joinSearch = z.object({
   invitationId: z.string().min(1).optional().catch(undefined),
 })
 
+async function resolveLink(
+  invitationId: string | undefined,
+): Promise<{ link: InvitationLink | null }> {
+  if (!invitationId) {
+    if (await getSession()) throw redirect({ to: '/properties' })
+    return { link: null }
+  }
+  const { link, accountExists, signedInEmail } = await loadInvitationEntry(invitationId)
+  // Signed in already: accepting is a confirm step, not a sign-up.
+  if (signedInEmail !== null) {
+    throw redirect({ to: '/accept-invitation', search: { id: invitationId } })
+  }
+  // The address has an account, so this form could only fail: sign in instead.
+  if (link.state === 'pending' && accountExists)
+    throw signInToAcceptInvitation(invitationId)
+  return { link }
+}
+
 export const Route = createFileRoute('/join')({
   validateSearch: joinSearch,
-  beforeLoad: async () => {
-    const session = await getSession()
-    if (session) {
-      throw redirect({ to: '/properties' })
-    }
-  },
+  beforeLoad: ({ search }) => resolveLink(search.invitationId),
   component: JoinPage,
 })
 
 function JoinPage() {
-  const { invitationId } = Route.useSearch()
+  const { link } = Route.useRouteContext()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const register = useAction(useServerFn(registerMember))
+  // The session cookie is already set once registration returns, so a failed
+  // follow-up has no form to land its error in: `enter` keeps it for the card.
+  const enter = useAction(() =>
+    enterWorkspace({
+      ensureActiveOrg,
+      // /join never held an authenticated match, and the _authenticated layout
+      // re-reads the session on navigation, so no whole-router invalidation.
+      navigateToWorkspace: () =>
+        clearTenantCacheBeforeNavigation(queryClient, () =>
+          navigate({ to: '/properties' }),
+        ),
+    }),
+  )
+  const retryEnter = () => void enter(undefined).catch(() => undefined)
 
   const mutation = wrapAction(register, async ({ signedIn }) => {
-    if (!signedIn) return
-    await ensureActiveOrg()
-    // /join never held an authenticated match, and the _authenticated layout
-    // re-reads the session on navigation, so no whole-router invalidation.
-    await clearTenantCacheBeforeNavigation(queryClient, () =>
-      navigate({ to: '/properties' }),
-    )
+    if (signedIn) await enter(undefined).catch(() => undefined)
   })
 
-  if (!invitationId) {
+  if (link === null) {
     return (
       <AuthCard
         title="Invitation required"
@@ -68,24 +102,21 @@ function JoinPage() {
     )
   }
 
-  // The session cookie is already set here. If the follow-up (ensureActiveOrg
-  // or the navigation) fails, its error has no mounted form to land in, so the
-  // card must never be a dead end: the link is the manual way into the app.
+  if (link.state !== 'pending') {
+    return link.state === 'unavailable' ? (
+      <InvitationStateCard state="unavailable" />
+    ) : (
+      <InvitationStateCard
+        state={link.state}
+        organizationName={link.organizationName}
+        inviterName={link.inviterName}
+      />
+    )
+  }
+
   if (mutation.isSuccess && mutation.data?.signedIn === true) {
     return (
-      <AuthCard title="Account created!" description="Your email is verified.">
-        <div className="space-y-3 text-center">
-          <p className="text-sm text-muted-foreground" role="status">
-            Signing you in…
-          </p>
-          <Link
-            to="/properties"
-            className="text-sm font-medium text-link underline-offset-4 hover:underline"
-          >
-            Continue to your workspace
-          </Link>
-        </div>
-      </AuthCard>
+      <JoinEntryCard status={enter.error ? 'failed' : 'entering'} onRetry={retryEnter} />
     )
   }
 
@@ -108,8 +139,19 @@ function JoinPage() {
   }
 
   return (
-    <AuthCard title="Create your account" description="Join your team on Reputation Key">
-      <RegisterForm mode="join" mutation={mutation} invitationId={invitationId} />
+    <AuthCard
+      title="Create your account"
+      description={`Join ${link.details.organizationName} on Reputation Key`}
+    >
+      <div className="space-y-4">
+        <InvitationSummary invitation={link.details} />
+        <RegisterForm
+          mode="join"
+          mutation={mutation}
+          invitationId={link.invitationId}
+          lockedEmail={link.invitedEmail}
+        />
+      </div>
       <p className="mt-4 text-center text-xs leading-relaxed text-muted-foreground">
         By joining you accept the{' '}
         <Link
