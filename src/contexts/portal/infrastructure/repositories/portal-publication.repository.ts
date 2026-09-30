@@ -6,14 +6,16 @@ import {
   portalLinks,
   portalApprovedDestinations,
   portalLocalizedOverrides,
-  portalPublicationActivations,
-  portalPublicationSnapshots,
-  portalPendingContentChanges,
   propertyPortalBrandContents,
   propertyPortalBrandProfiles,
   portals,
   portalTokens,
 } from '#/shared/db/schema/portal.schema'
+import {
+  portalPublicationActivations,
+  portalPublicationSnapshots,
+  portalPendingContentChanges,
+} from '#/shared/db/schema/portal-publication.schema'
 import type {
   PortalPublicationActivationRecord,
   PortalPublicationActivationPage,
@@ -181,7 +183,8 @@ function activationFromRow(row: ActivationRow): PortalPublicationActivation | nu
   }
 }
 
-function snapshotFromRow(row: SnapshotRow): PortalPublicationSnapshot | null {
+/** Exported for the golden-snapshot tests; production reads go through the repository. */
+export function snapshotFromRow(row: SnapshotRow): PortalPublicationSnapshot | null {
   const parsed = publicationConfigurationSchema.safeParse(row.configuration)
   if (!parsed.success) return null
   if (

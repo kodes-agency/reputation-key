@@ -16,11 +16,8 @@ import {
   foreignKey,
   check,
 } from 'drizzle-orm/pg-core'
-import {
-  portalAccessArtifacts,
-  portalPublicationSnapshots,
-  portals,
-} from './portal.schema'
+import { portalAccessArtifacts, portals } from './portal.schema'
+import { portalPublicationSnapshots } from './portal-publication.schema'
 import { portalGroups } from './portal-group.schema'
 import { portalResponsibilities, staffParticipations } from './people-access.schema'
 import { createdAtColumn, updatedAtColumn, deletedAtColumn } from '../columns'

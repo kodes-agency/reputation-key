@@ -6,8 +6,6 @@
 import { and, desc, eq, gte, inArray, isNull, lt, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
-  portalPublicationActivations,
-  portalPublicationSnapshots,
   portalLinkCategories,
   portalLinks,
   portalResponsibleManagers,
@@ -19,7 +17,9 @@ import {
   portalHealthIntervals,
   portals,
   portalTokens,
-} from '#/shared/db/schema/portal.schema'
+  portalPublicationActivations,
+  portalPublicationSnapshots,
+} from '#/shared/db/schema'
 import { portalGroups } from '#/shared/db/schema/portal-group.schema'
 import { portalGroupMemberships } from '#/shared/db/schema/people-access.schema'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'

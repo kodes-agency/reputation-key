@@ -2,11 +2,11 @@ import { and, asc, eq, gte, isNull, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   portalHealthIntervals,
-  portalPublicationActivations,
   portalResponsibleManagers,
   portalTokens,
   portals,
 } from '#/shared/db/schema/portal.schema'
+import { portalPublicationActivations } from '#/shared/db/schema/portal-publication.schema'
 import { properties } from '#/shared/db/schema/property.schema'
 import { eventConsumerReceipts } from '#/shared/db/schema/outbox.schema'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'

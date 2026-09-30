@@ -5,7 +5,7 @@ import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 import {
   portalPublicationActivations,
   portalPublicationSnapshots,
-} from '#/shared/db/schema/portal.schema'
+} from '#/shared/db/schema/portal-publication.schema'
 import {
   guestResponseExperienceSnapshots,
   guestResponses,
