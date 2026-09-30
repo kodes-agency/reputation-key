@@ -258,6 +258,24 @@
       "policy": "Seed from the loader response, then replace only with confirmed response-mutation results; route-token remount remains the reset boundary."
     },
     {
+      "id": "src/components/features/identity/member-directory/change-role-dialog.tsx:useState(chosen)",
+      "classification": "server_draft",
+      "owner": "Members access",
+      "policy": "Seeded once from the member's current role (null when it is not an assignable role) when the dialog body mounts. The body mounts per open and is keyed by member, so a later members refresh never overwrites the choice in progress and the next member starts from their own role; the chosen role reaches the server only through the explicit Change role confirmation."
+    },
+    {
+      "id": "src/components/features/identity/member-directory/member-access-sheet.tsx:useState(selectedIds)",
+      "classification": "server_draft",
+      "owner": "Members access",
+      "policy": "Seeded once from the member's active grants, limited to the properties the checklist lists, when the sheet body mounts. The body mounts per open, keyed by member, and only after the responsibility read has settled, so a members or access refresh never overwrites a selection in progress; the diff against the seeded grants is what Save sends, and a successful save closes the sheet so the next open reseeds from the refreshed grants."
+    },
+    {
+      "id": "src/components/features/identity/member-directory/member-access-sheet.tsx:useState(responsibleIds)",
+      "classification": "server_draft",
+      "owner": "Members access",
+      "policy": "Seeded once from the properties whose Responsible managers already include the member, read per property by the route, when the sheet body mounts. It has the same per-open, per-member mount boundary as the selected properties, and only a change against the seeded set is sent to each property's Responsible managers command."
+    },
+    {
       "id": "src/components/features/identity/profile-settings-form.tsx:useState(avatarUrl)",
       "classification": "server_snapshot",
       "owner": "Profile avatar editor",
