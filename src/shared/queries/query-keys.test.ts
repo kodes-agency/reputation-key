@@ -4,6 +4,7 @@ import {
   goalKeys,
   identityKeys,
   integrationKeys,
+  platformKeys,
   portalKeys,
   propertyKeys,
 } from './query-keys'
@@ -218,5 +219,15 @@ describe('portal analytics query keys', () => {
     expect(portalKeys.analytics('property-1', 'portal-1', '30d', true)).not.toEqual(
       portalKeys.analytics('property-1', 'portal-1', '30d', false),
     )
+  })
+})
+
+describe('platform operator console query keys', () => {
+  it('holds the Organization list under its own root, apart from every tenant key', () => {
+    expect(platformKeys.organizations()).toEqual(['platform', 'organizations'])
+    expect(platformKeys.organizations().slice(0, -1)).toEqual(platformKeys.all)
+    // The console reads across tenants: no Organization id, and no overlap
+    // with the identity subtree a tenant switch tears down.
+    expect(platformKeys.all).not.toEqual(identityKeys.all)
   })
 })
