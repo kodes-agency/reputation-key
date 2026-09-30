@@ -11,9 +11,11 @@ import {
   createLinkInputSchema,
   updateLinkInputSchema,
   reorderLinksInputSchema,
+} from '#/contexts/portal/application/dto/portal-link.dto'
+import {
   saveLinktreeSettingsInputSchema,
   savePortalLinkTextsInputSchema,
-} from '#/contexts/portal/application/dto/portal-link.dto'
+} from '#/contexts/portal/application/dto/portal-linktree.dto'
 
 // ── Category DTO validation ────────────────────────────────────────
 
