@@ -34,6 +34,8 @@ import {
 import { createPortalApprovedDestinationRepository } from './infrastructure/repositories/portal-approved-destination.repository'
 import { createPortalExperienceRepository } from './infrastructure/repositories/portal-experience.repository'
 import { createPortalHealthRepository } from './infrastructure/repositories/portal-health.repository'
+import { createPortalHistoryRepository } from './infrastructure/repositories/portal-history.repository'
+import { createPortalActorDirectoryAdapter } from './infrastructure/adapters/portal-actor-directory.adapter'
 import { createPortalAiReplyBrandProfileAuthority } from './infrastructure/ai-reply-brand-profile-authority'
 import type { StoragePort } from './application/ports/storage.port'
 import { createPortalTokenCodec } from './infrastructure/adapters/portal-token-codec'
@@ -42,6 +44,7 @@ import { updatePortal } from './application/use-cases/update-portal'
 import { rollbackPortalPublication } from './application/use-cases/rollback-portal-publication'
 import { getPortal } from './application/use-cases/get-portal'
 import { getPortalPublicationHistory } from './application/use-cases/get-portal-publication-history'
+import { getPortalHistory } from './application/use-cases/get-portal-history'
 import { listPortals } from './application/use-cases/list-portals'
 import { softDeletePortal } from './application/use-cases/soft-delete-portal'
 import { createLinkCategory } from './application/use-cases/create-link-category'
@@ -327,6 +330,13 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalRepo,
       publicationRepo: portalPublicationRepo,
       staffPublicApi: deps.staffPublicApi,
+    }),
+    getPortalHistory: getPortalHistory({
+      portalRepo,
+      staffPublicApi: deps.staffPublicApi,
+      historyRepo: createPortalHistoryRepository(deps.db),
+      healthRepo: portalHealthRepo,
+      actorDirectory: createPortalActorDirectoryAdapter(deps.db),
     }),
     listPortals: listPortals({ portalRepo, staffPublicApi: deps.staffPublicApi }),
     softDeletePortal: softDeletePortal({

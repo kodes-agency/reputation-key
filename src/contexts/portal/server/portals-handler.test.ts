@@ -15,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   decide: vi.fn(),
   resolvePortalManagementScope: vi.fn(),
   getPortalPublicationHistory: vi.fn(),
+  getPortalHistory: vi.fn(),
   updatePortal: vi.fn(),
   rotatePortalToken: vi.fn(),
   softDeletePortal: vi.fn(),
@@ -50,6 +51,7 @@ vi.mock('#/composition', () => ({
         listPortalManagementPropertyIds: mocks.listPortalManagementPropertyIds,
         resolvePortalManagementScope: mocks.resolvePortalManagementScope,
         getPortalPublicationHistory: mocks.getPortalPublicationHistory,
+        getPortalHistory: mocks.getPortalHistory,
         updatePortal: mocks.updatePortal,
         rotatePortalToken: mocks.rotatePortalToken,
         softDeletePortal: mocks.softDeletePortal,
@@ -77,6 +79,7 @@ vi.mock('#/shared/observability/logger', async (importOriginal) => {
 
 import {
   deletePortal,
+  getPortalHistory,
   getPortalPublicationHistory,
   listPortals,
   rotatePortalToken,
@@ -158,6 +161,32 @@ describe('listPortals handler (executable)', () => {
       { portalId: 'portal-p2' },
       TEST_CTX,
     )
+  })
+
+  it('authorizes the Portal scope, then returns the merged history for the caller', async () => {
+    const history = { entries: [], nextCursor: null } as const
+    mocks.getPortalHistory.mockResolvedValue(history)
+
+    await withStartContext(() =>
+      getPortalHistory({
+        data: { portalId: 'portal-p2', filter: 'codes', limit: 10, cursor: '1|health:a' },
+      }),
+    )
+
+    expect(mocks.resolvePortalManagementScope).toHaveBeenCalled()
+    expect(mocks.getPortalHistory).toHaveBeenCalledWith(
+      { portalId: 'portal-p2', filter: 'codes', limit: 10, cursor: '1|health:a' },
+      TEST_CTX,
+    )
+  })
+
+  it('does not read history when the Portal scope is denied', async () => {
+    mocks.requireExecutionAllowed.mockRejectedValue(propertyDisabled())
+
+    await expect(
+      withStartContext(() => getPortalHistory({ data: { portalId: 'portal-p2' } })),
+    ).rejects.toBeDefined()
+    expect(mocks.getPortalHistory).not.toHaveBeenCalled()
   })
 
   it('resolves auth context and invokes the listPortals use case with caller context', async () => {

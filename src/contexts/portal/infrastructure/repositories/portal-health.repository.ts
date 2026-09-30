@@ -1,4 +1,5 @@
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
+import { historyBoundCondition, historyIdOrder } from '../portal-history-bound'
 import type { Database } from '#/shared/db'
 import { portalHealthIntervals } from '#/shared/db/schema/portal.schema'
 import { organizationId, portalId, propertyId, unbrand } from '#/shared/domain/ids'
@@ -132,11 +133,12 @@ export const createPortalHealthRepository = (db: Database): PortalHealthReposito
       return row ? fromRow(row) : null
     }),
 
-  listHistory: (orgId, propertyIdValue, portalIdValue, requestedLimit) =>
+  listHistory: (orgId, propertyIdValue, portalIdValue, requestedLimit, bound) =>
     trace('portalHealth.listHistory', async () => {
       const limit = Number.isSafeInteger(requestedLimit)
         ? Math.min(100, Math.max(1, requestedLimit))
         : 25
+      const idText = sql`${portalHealthIntervals.id}::text`
       const rows = await db
         .select()
         .from(portalHealthIntervals)
@@ -145,9 +147,10 @@ export const createPortalHealthRepository = (db: Database): PortalHealthReposito
             eq(portalHealthIntervals.organizationId, unbrand(orgId)),
             eq(portalHealthIntervals.propertyId, unbrand(propertyIdValue)),
             eq(portalHealthIntervals.portalId, unbrand(portalIdValue)),
+            historyBoundCondition(portalHealthIntervals.effectiveFrom, idText, bound),
           ),
         )
-        .orderBy(desc(portalHealthIntervals.effectiveFrom))
+        .orderBy(desc(portalHealthIntervals.effectiveFrom), desc(historyIdOrder(idText)))
         .limit(limit)
       return rows.map(fromRow)
     }),

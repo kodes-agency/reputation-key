@@ -29,6 +29,16 @@ export type {
   PortalPublicationHistory,
   PortalPublicationHistoryItem,
 } from './use-cases/get-portal-publication-history'
+export type {
+  PortalHistory,
+  PortalHistoryEntry,
+  GetPortalHistoryInput,
+} from './use-cases/get-portal-history'
+export type {
+  PortalHistoryCategory,
+  PortalHistoryDetail,
+  PortalHistoryFilter,
+} from '../domain/portal-history'
 
 import type {
   OrganizationId,

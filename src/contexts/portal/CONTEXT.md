@@ -50,6 +50,16 @@ public token resolution returns only the current open, digest-verified snapshot.
 Portal, Group, content, responsibility, and token commands use Portal-owned stores
 that commit state, revisions, receipts, and identifier-only outbox facts together.
 
+`getPortalHistory` is the one merged, read-only timeline for a Portal: its
+creation, each publish and restore, each change of health (from
+`portal_health_intervals`) and each public-address event, newest first, with the
+actor's display name where one was recorded. It merges four independently
+ordered sources under one (instant, key) order and one opaque cursor, and it
+resolves names through a bounded, Organization-fenced directory that returns
+only `user.name`. Nothing is stored for it: it derives from the ledgers that
+already exist. Who issued an address is not recorded yet, so that entry has no
+actor; page edits join the timeline with the page-edit ledger.
+
 The dormant issued-image implementation has been removed. The nullable
 `portals.hero_image_url` column and read path remain so published historical
 rows still render, while the shared arbitrary-key storage stack remains live
