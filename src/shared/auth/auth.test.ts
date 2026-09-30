@@ -93,8 +93,12 @@ describe('Auth configuration', () => {
   it('a password reset verifies an unverified address, and only that user', async () => {
     const { markEmailVerifiedOnPasswordReset } = await import('#/shared/auth/auth')
     const query = vi.fn().mockResolvedValue({ rowCount: 1 })
+    const logger = { error: vi.fn() }
 
-    await markEmailVerifiedOnPasswordReset({ query })({
+    await markEmailVerifiedOnPasswordReset(
+      { query },
+      logger,
+    )({
       user: { id: 'user-reset-1' },
     })
 
@@ -103,6 +107,33 @@ describe('Auth configuration', () => {
     expect(sql).toMatch(/UPDATE "user" SET "emailVerified" = true/)
     expect(sql).toMatch(/WHERE id = \$1 AND "emailVerified" = false/)
     expect(params).toEqual(['user-reset-1'])
+    expect(logger.error).not.toHaveBeenCalled()
+  })
+
+  it('a failed verification write cannot fail the reset, and is logged by user id only', async () => {
+    // Better Auth awaits this hook after the password update and BEFORE it
+    // revokes the user's sessions. A throw here would spend the token, change
+    // the password and leave every old session — a stolen one included —
+    // alive. Verification is best-effort; resend-verification still recovers.
+    const { markEmailVerifiedOnPasswordReset } = await import('#/shared/auth/auth')
+    const failure = new Error('canceling statement due to statement timeout')
+    const query = vi.fn().mockRejectedValue(failure)
+    const logger = { error: vi.fn() }
+    // Better Auth hands the hook its whole user row, address included.
+    const user = { id: 'user-reset-2', email: 'reset-2@example.test' }
+
+    await expect(
+      markEmailVerifiedOnPasswordReset({ query }, logger)({ user }),
+    ).resolves.toBeUndefined()
+
+    expect(logger.error).toHaveBeenCalledTimes(1)
+    const [fields, message] = logger.error.mock.calls[0] as [
+      Record<string, unknown>,
+      string,
+    ]
+    expect(fields).toEqual({ userId: 'user-reset-2', error: failure })
+    expect(message).toMatch(/auth\.password_reset_verify_failed/)
+    expect(JSON.stringify(fields)).not.toContain('reset-2@example.test')
   })
 
   it('keeps verification tokens valid for the 24-hour email promise', async () => {

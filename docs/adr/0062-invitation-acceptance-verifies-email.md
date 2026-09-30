@@ -50,8 +50,11 @@ to allow for:
 5. **The signed-in accept path does not verify.** A signed-in user accepting an
    invitation proved nothing about the invited address in that step.
 6. **A password reset verifies.** The reset token was mailed to the address, so
-   `onPasswordReset` marks it verified. Sign-in reports an unverified address as
-   `email_not_verified` (403), and `resendVerificationEmail` sends a new link.
+   `onPasswordReset` marks it verified. That write is best-effort: Better Auth
+   revokes the user's sessions only after the hook returns, so a failure is
+   logged by user id and never fails the reset. Sign-in reports an unverified
+   address as `email_not_verified` (403), and `resendVerificationEmail` sends a
+   new link.
    It is rate-limited per IP and per pseudonymised address, and it always
    answers the same.
 

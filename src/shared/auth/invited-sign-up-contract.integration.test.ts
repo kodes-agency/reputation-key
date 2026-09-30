@@ -3,13 +3,14 @@
 // verification required, as production runs:
 //   - an unverified address is refused at sign-in with EMAIL_NOT_VERIFIED,
 //     after the password check;
-//   - a password reset verifies the address;
+//   - a password reset verifies the address, and a failure to verify never
+//     stops it revoking the user's sessions;
 //   - sign-up opens no session and mails nothing;
 //   - sign-up for an existing address answers with a synthetic user that is
 //     never written — which is why registration refuses that address first.
 
 import { randomUUID } from 'node:crypto'
-import { afterAll, beforeAll, describe, expect, it } from 'vitest'
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
 import { hashPassword } from 'better-auth/crypto'
 import { resetEnv } from '#/shared/config/env'
 import { getPool } from '#/shared/db/pool'
@@ -54,6 +55,33 @@ async function signIn(email: string, password = PASSWORD): Promise<Response> {
   )
 }
 
+/** A reset token as Better Auth stores the one it mails. */
+async function seedResetToken(userId: string): Promise<string> {
+  const token = randomUUID()
+  await getPool().query(
+    `INSERT INTO verification (id, identifier, value, "expiresAt", "createdAt", "updatedAt")
+     VALUES ($1, $2, $3, now() + interval '10 minutes', now(), now())`,
+    [`verification-${randomUUID()}`, `reset-password:${token}`, userId],
+  )
+  return token
+}
+
+/** A live session the reset must revoke — a stolen one, as far as it knows. */
+async function seedSession(userId: string): Promise<void> {
+  await getPool().query(
+    `INSERT INTO session (id, "expiresAt", token, "userId", "createdAt", "updatedAt")
+     VALUES ($1, now() + interval '1 hour', $2, $3, now(), now())`,
+    [`session-${randomUUID()}`, `token-${randomUUID()}`, userId],
+  )
+}
+
+async function sessionCount(userId: string): Promise<number> {
+  const rows = await getPool().query('SELECT id FROM session WHERE "userId" = $1', [
+    userId,
+  ])
+  return rows.rows.length
+}
+
 async function emailVerified(id: string): Promise<boolean | null> {
   const rows = await getPool().query<{ emailVerified: boolean }>(
     'SELECT "emailVerified" FROM "user" WHERE id = $1',
@@ -96,17 +124,45 @@ describe('Better Auth behaviour behind invitation registration', () => {
 
   it('verifies the address when a password reset consumes the mailed token', async () => {
     const user = await seedUser({ emailVerified: false })
-    const token = randomUUID()
-    await getPool().query(
-      `INSERT INTO verification (id, identifier, value, "expiresAt", "createdAt", "updatedAt")
-       VALUES ($1, $2, $3, now() + interval '10 minutes', now(), now())`,
-      [`verification-${randomUUID()}`, `reset-password:${token}`, user.id],
-    )
+    const token = await seedResetToken(user.id)
 
     await auth.api.resetPassword({ body: { token, newPassword: NEW_PASSWORD } })
 
     expect(await emailVerified(user.id)).toBe(true)
     expect((await signIn(user.email, NEW_PASSWORD)).status).toBe(200)
+  })
+
+  it('still revokes every session when the verification write fails', async () => {
+    // onPasswordReset runs between the password update and the session
+    // revocation. Verification is best-effort; revocation is the guarantee.
+    const user = await seedUser({ emailVerified: false })
+    const token = await seedResetToken(user.id)
+    await seedSession(user.id)
+    expect(await sessionCount(user.id)).toBe(1)
+    const pool = getPool()
+    const passThrough = pool.query.bind(pool) as (...args: unknown[]) => Promise<unknown>
+    const failVerification = vi
+      .spyOn(pool, 'query')
+      .mockImplementation(((...args: unknown[]) =>
+        typeof args[0] === 'string' &&
+        args[0].startsWith('UPDATE "user" SET "emailVerified"')
+          ? Promise.reject(new Error('canceling statement due to statement timeout'))
+          : passThrough(...args)) as never)
+
+    try {
+      await expect(
+        auth.api.resetPassword({ body: { token, newPassword: NEW_PASSWORD } }),
+      ).resolves.toEqual({ status: true })
+      expect(failVerification).toHaveBeenCalledWith(
+        expect.stringMatching(/^UPDATE "user" SET "emailVerified"/),
+        [user.id],
+      )
+    } finally {
+      failVerification.mockRestore()
+    }
+
+    expect(await sessionCount(user.id)).toBe(0)
+    expect(await emailVerified(user.id)).toBe(false)
   })
 
   it('creates the user with no session and no verification mail', async () => {

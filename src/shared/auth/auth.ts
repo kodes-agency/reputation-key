@@ -47,20 +47,36 @@ type VerificationWriter = Readonly<{
   query: (text: string, params: unknown[]) => Promise<unknown>
 }>
 
+type VerificationFailureLog = Readonly<{
+  error: (fields: Readonly<Record<string, unknown>>, message: string) => void
+}>
+
 /**
  * A password reset consumes a token mailed to the address, which proves the
  * inbox as well as an emailed verification link does. Marking the address
  * verified here is how an unverified user recovers without a second mail.
- * Better Auth calls this after the password update and before it revokes the
- * user's sessions; the write is idempotent and touches only this user.
+ * The write is idempotent and touches only this user.
+ *
+ * Better Auth awaits this after the password update and BEFORE it revokes the
+ * user's sessions, so a throw would leave every old session (a stolen one
+ * included) alive. Verification is therefore best-effort and never fails the
+ * reset: a user it misses recovers through resendVerificationEmail. The log
+ * names the user id only, never the address.
  */
 export const markEmailVerifiedOnPasswordReset =
-  (pool: VerificationWriter) =>
+  (pool: VerificationWriter, logger: VerificationFailureLog) =>
   async ({ user }: Readonly<{ user: Readonly<{ id: string }> }>): Promise<void> => {
-    await pool.query(
-      'UPDATE "user" SET "emailVerified" = true, "updatedAt" = now() WHERE id = $1 AND "emailVerified" = false',
-      [user.id],
-    )
+    try {
+      await pool.query(
+        'UPDATE "user" SET "emailVerified" = true, "updatedAt" = now() WHERE id = $1 AND "emailVerified" = false',
+        [user.id],
+      )
+    } catch (error) {
+      logger.error(
+        { userId: user.id, error },
+        'auth.password_reset_verify_failed: the address stays unverified; sessions are still revoked',
+      )
+    }
   }
 
 export function createAuth() {
@@ -119,7 +135,7 @@ export function createAuth() {
       sendResetPassword: async ({ user, url }) => {
         await sendResetPasswordEmail(user.email, url)
       },
-      onPasswordReset: markEmailVerifiedOnPasswordReset(pool),
+      onPasswordReset: markEmailVerifiedOnPasswordReset(pool, getLogger()),
     },
     emailVerification: {
       expiresIn: EMAIL_VERIFICATION_EXPIRY_SECONDS,
