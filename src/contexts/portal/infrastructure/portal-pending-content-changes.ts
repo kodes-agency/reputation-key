@@ -2,7 +2,7 @@ import { and, eq, inArray, isNull, lte } from 'drizzle-orm'
 import {
   portalPendingContentChanges,
   portalPublicationSnapshots,
-} from '#/shared/db/schema/portal.schema'
+} from '#/shared/db/schema/portal-publication.schema'
 import type { Tx } from '#/shared/outbox/commit'
 
 export type PortalPendingContentChangeKind =

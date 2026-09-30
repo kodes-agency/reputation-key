@@ -8,7 +8,7 @@ import {
   guestResponses,
 } from '#/shared/db/schema/guest.schema'
 import { idempotencyReceipts } from '#/shared/db/schema/outbox.schema'
-import { portalPublicationSnapshots } from '#/shared/db/schema/portal.schema'
+import { portalPublicationSnapshots } from '#/shared/db/schema/portal-publication.schema'
 import type { ContactRequestEncryptionPort } from '../../application/ports/contact-request-encryption.port'
 import type { ContactRequestRepository } from '../../application/ports/contact-request.repository'
 

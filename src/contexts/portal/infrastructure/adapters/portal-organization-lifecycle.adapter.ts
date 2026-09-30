@@ -28,15 +28,17 @@ import {
   portalLinkCategories,
   portalLinks,
   portalLocalizedOverrides,
-  portalPendingContentChanges,
-  portalPublicationActivations,
-  portalPublicationSnapshots,
   portalResponsibleManagers,
   portalTokens,
   portals,
   propertyPortalBrandContents,
   propertyPortalBrandProfiles,
 } from '#/shared/db/schema/portal.schema'
+import {
+  portalPendingContentChanges,
+  portalPublicationActivations,
+  portalPublicationSnapshots,
+} from '#/shared/db/schema/portal-publication.schema'
 import type { Tx } from '#/shared/outbox/commit'
 
 /**

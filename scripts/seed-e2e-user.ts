@@ -27,11 +27,11 @@ import {
   portalLinks,
   portalGroupMembers,
   portalApprovedDestinations,
-  portalPublicationSnapshots,
-  portalPublicationActivations,
   portalHealthIntervals,
   portalResponsibleManagers,
-} from '../src/shared/db/schema/portal.schema'
+  portalPublicationSnapshots,
+  portalPublicationActivations,
+} from '../src/shared/db/schema'
 import { propertyResponsibleManagers } from '../src/shared/db/schema/property.schema'
 import { buildPortalPublicationSnapshot } from '../src/contexts/portal/application/portal-publication-snapshot'
 import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../src/contexts/portal/domain/approved-destination'

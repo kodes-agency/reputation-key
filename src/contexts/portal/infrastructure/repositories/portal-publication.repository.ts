@@ -6,14 +6,16 @@ import {
   portalLinks,
   portalApprovedDestinations,
   portalLocalizedOverrides,
-  portalPublicationActivations,
-  portalPublicationSnapshots,
-  portalPendingContentChanges,
   propertyPortalBrandContents,
   propertyPortalBrandProfiles,
   portals,
   portalTokens,
 } from '#/shared/db/schema/portal.schema'
+import {
+  portalPublicationActivations,
+  portalPublicationSnapshots,
+  portalPendingContentChanges,
+} from '#/shared/db/schema/portal-publication.schema'
 import type {
   PortalPublicationActivationRecord,
   PortalPublicationActivationPage,

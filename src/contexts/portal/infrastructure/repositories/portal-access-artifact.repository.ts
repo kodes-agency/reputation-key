@@ -2,10 +2,10 @@ import { and, eq, gt, isNull, lte, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   portalAccessArtifacts,
-  portalPublicationActivations,
   portals,
   portalTokens,
 } from '#/shared/db/schema/portal.schema'
+import { portalPublicationActivations } from '#/shared/db/schema/portal-publication.schema'
 import type {
   OrganizationId,
   PortalAccessArtifactId,
