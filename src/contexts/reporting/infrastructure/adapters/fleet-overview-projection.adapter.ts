@@ -15,10 +15,8 @@ import type {
   FleetOverviewProjectionRow,
 } from '../../application/ports/fleet-overview-projection.port'
 import { FLEET_PAGE_SIZE } from '../../application/ports/fleet-overview-projection.port'
-import {
-  MIN_RATING_COMPARISON_SAMPLE,
-  RATING_DROP_THRESHOLD,
-} from '../../application/utils'
+import { RATING_DROP_THRESHOLD } from '../../application/utils'
+import { MIN_RATING_COMPARISON_SAMPLE } from '../../domain/portal-results-thresholds'
 import { DASHBOARD_READ_BUDGET_MS, withStatementTimeout } from '../read-facade'
 
 const FRESHNESS_WINDOW_MS = 48 * 60 * 60 * 1_000
