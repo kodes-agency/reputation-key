@@ -6,6 +6,7 @@
 // operator's hourly budget) before it reaches the console capability.
 
 import { createServerFn, createServerOnlyFn } from '@tanstack/react-start'
+import { setResponseHeader } from '@tanstack/react-start/server'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { catchUntagged } from '#/shared/auth/server-errors'
@@ -66,9 +67,17 @@ async function asOperator<T>(
   }
 }
 
+/** The list names the invitees of ownerless Organizations: no cache keeps it. */
+function keepListPrivate(): void {
+  setResponseHeader('Cache-Control', 'private, no-store, max-age=0')
+  setResponseHeader('Vary', 'Cookie')
+}
+
 export const listPlatformOrganizationsHandler = createServerOnlyFn(
-  (): Promise<ReadonlyArray<PlatformOrganizationView>> =>
-    asOperator(false, () => getContainer().identityPlatform.listOrganizations()),
+  (): Promise<ReadonlyArray<PlatformOrganizationView>> => {
+    keepListPrivate()
+    return asOperator(false, () => getContainer().identityPlatform.listOrganizations())
+  },
 )
 
 export const provisionOrganizationHandler = createServerOnlyFn(

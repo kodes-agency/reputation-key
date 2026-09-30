@@ -15,6 +15,12 @@ const mocks = vi.hoisted(() => ({
   cancelInvitation: vi.fn(),
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
   rateLimiter: { check: vi.fn() },
+  setResponseHeader: vi.fn(),
+}))
+
+vi.mock('@tanstack/react-start/server', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@tanstack/react-start/server')>()),
+  setResponseHeader: mocks.setResponseHeader,
 }))
 
 vi.mock('#/composition', () => ({
@@ -84,6 +90,18 @@ describe('platform console server functions', () => {
       logger: mocks.logger,
     })
     expect(mocks.enforceRateLimit).not.toHaveBeenCalled()
+  })
+
+  it('keeps the list, which names invitees, out of every cache', async () => {
+    mocks.listOrganizations.mockResolvedValue([])
+
+    await withStartContext(() => listPlatformOrganizationsHandler())
+
+    expect(mocks.setResponseHeader).toHaveBeenCalledWith(
+      'Cache-Control',
+      'private, no-store, max-age=0',
+    )
+    expect(mocks.setResponseHeader).toHaveBeenCalledWith('Vary', 'Cookie')
   })
 
   it('refuses a non-operator with the guard error and reads nothing', async () => {
