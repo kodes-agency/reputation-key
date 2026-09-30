@@ -7,7 +7,7 @@
 // getPortalAnalytics is a server-fn-typed prop (analytics tab fires it on mount
 // via useServerFn(getPortalAnalytics)) → mock via mockServerFn + type cast.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { PortalDetailPage } from './portal-detail-page'
 import { PortalDraftAutosaveProvider } from '../portal-editor/portal-draft-autosave-context'
 import type {
@@ -237,6 +237,47 @@ export const PageTab: Story = {
     await expect(
       canvas.queryByRole('heading', { name: 'Publication history' }),
     ).not.toBeInTheDocument()
+  },
+}
+
+// The palette is chosen from presets and saves itself: one click, one write,
+// with no Save button. The page owns the draft, so the preview follows the click.
+const paletteSpy = fn(async (_input: UpdatePortalVariables) => ({
+  success: true as const,
+}))
+export const PaletteAutosaves: Story = {
+  args: {
+    ...baseArgs,
+    activeSection: 'look',
+    autosaveUpdateMutation: Object.assign(paletteSpy, {
+      isPending: false,
+      error: null as unknown,
+      isSuccess: false,
+      data: null,
+    }) as unknown as Action<UpdatePortalVariables, { success: true }>,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /^Dark/ }))
+    await expect(canvas.getByRole('button', { name: /^Dark/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    await waitFor(
+      () =>
+        expect(paletteSpy).toHaveBeenCalledWith({
+          data: {
+            portalId: 'p-1',
+            theme: {
+              primaryColor: '#a5b4fc',
+              backgroundColor: '#111827',
+              textColor: '#f9fafb',
+            },
+          },
+        }),
+      { timeout: 3000 },
+    )
+    await expect(paletteSpy).toHaveBeenCalledTimes(1)
   },
 }
 
