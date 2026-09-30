@@ -44,8 +44,8 @@ export const PROPERTY_SETTINGS_SECTIONS: ReadonlyArray<PropertySettingsSection> 
     },
     {
       key: 'people',
-      label: 'People',
-      description: 'Responsible managers',
+      label: 'Responsible managers',
+      description: 'Who gets review, feedback and health updates',
       anyOf: ['property.read'],
     },
     {

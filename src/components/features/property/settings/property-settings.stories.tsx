@@ -60,7 +60,7 @@ export const SectionNavigation: Story = {
       'Google',
       'Replies',
       'AI',
-      'People',
+      'Responsible managers',
       'Targets',
       'Danger zone',
     ])

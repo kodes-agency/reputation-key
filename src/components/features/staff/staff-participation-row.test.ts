@@ -84,7 +84,7 @@ afterEach(() => {
   vi.unstubAllEnvs()
 })
 
-// The People page is server-rendered in the container's zone (UTC) and then
+// The Staff page is server-rendered in the container's zone (UTC) and then
 // hydrated in the viewer's. A participation date formatted with the runtime's
 // own zone printed one day on the server and another in the browser, and React
 // threw a hydration mismatch (#418). Rendering the row under two process zones
@@ -124,7 +124,7 @@ describe('StaffParticipationRow archive', () => {
       {
         data: {
           staffParticipationId: 'sp-1',
-          reason: 'Archived from property People page',
+          reason: 'Archived from property Staff page',
           expectedRevision: 2,
         },
       },
