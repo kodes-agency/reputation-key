@@ -184,10 +184,13 @@ const BG: GuestPortalCopy = {
   analyticsAcknowledge: 'Разбрах',
 }
 
-const PACKS: Readonly<Record<GuestPortalLanguagePackVersion, GuestPortalCopy>> = {
-  'guest-ui-en-v1': EN,
-  'guest-ui-bg-v1': BG,
-}
+// Generation 1 packs only. The template-based v2 packs are loaded, one per
+// request, by `loadGuestPortalCopyV2`; a v2 id here is a wiring error.
+const PACKS: Readonly<Partial<Record<GuestPortalLanguagePackVersion, GuestPortalCopy>>> =
+  {
+    'guest-ui-en-v1': EN,
+    'guest-ui-bg-v1': BG,
+  }
 
 export function getGuestPortalCopy(
   locale: GuestPortalLocale = 'en',
@@ -196,6 +199,7 @@ export function getGuestPortalCopy(
   const resolved = version ?? currentGuestLanguagePack(locale)
   if (!resolved) throw new Error(`No guest language pack exists for locale ${locale}`)
   const pack = PACKS[resolved]
+  if (!pack) throw new Error(`${resolved} is not a generation 1 guest language pack`)
   if (pack.locale !== locale) {
     throw new Error('Guest locale and immutable language pack do not match')
   }

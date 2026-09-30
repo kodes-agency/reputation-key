@@ -73,15 +73,29 @@ export const GUEST_LOCALE_METADATA: Readonly<Record<GuestLocale, GuestLocaleMeta
   })
 
 /**
- * Language packs per locale. `supported` is append-only forever: a snapshot
- * pins the pack it was published with and must verify for as long as it
- * exists. `generation` ties a pack to the snapshot schemas that may carry it
- * (1 for schema versions 1 and 2, 2 for the next). `current` is the pack a new
- * publication uses, or null while the locale has no reviewed pack.
+ * Language packs per locale. `supported` is append-only forever, oldest first:
+ * a snapshot pins the pack it was published with and must verify for as long
+ * as it exists. `generation` ties a pack to the snapshot schemas that may
+ * carry it (1 for schema versions 1 and 2, 2 for version 3). `current` is the
+ * generation 1 pack a publication uses today, or null while the locale has no
+ * reviewed pack; `currentGuestLanguagePack(locale, 2)` names the generation 2
+ * pack, which only version 3 snapshots may carry.
  */
 export const GUEST_LANGUAGE_PACKS = Object.freeze({
-  en: { current: 'guest-ui-en-v1', supported: [{ id: 'guest-ui-en-v1', generation: 1 }] },
-  bg: { current: 'guest-ui-bg-v1', supported: [{ id: 'guest-ui-bg-v1', generation: 1 }] },
+  en: {
+    current: 'guest-ui-en-v1',
+    supported: [
+      { id: 'guest-ui-en-v1', generation: 1 },
+      { id: 'guest-ui-en-v2', generation: 2 },
+    ],
+  },
+  bg: {
+    current: 'guest-ui-bg-v1',
+    supported: [
+      { id: 'guest-ui-bg-v1', generation: 1 },
+      { id: 'guest-ui-bg-v2', generation: 2 },
+    ],
+  },
   es: { current: null, supported: [] },
   it: { current: null, supported: [] },
   fr: { current: null, supported: [] },
@@ -94,9 +108,21 @@ export const GUEST_LANGUAGE_PACKS = Object.freeze({
   }
 >)
 
+type SupportedGuestLanguagePack =
+  (typeof GUEST_LANGUAGE_PACKS)[GuestLocale]['supported'][number]
+
 /** Every pack id ever supported, for any locale. */
-export type GuestLanguagePackVersion =
-  (typeof GUEST_LANGUAGE_PACKS)[GuestLocale]['supported'][number]['id']
+export type GuestLanguagePackVersion = SupportedGuestLanguagePack['id']
+/** The packs schema versions 1 and 2 carry: function-based copy, frozen. */
+export type GuestLanguagePackV1 = Extract<
+  SupportedGuestLanguagePack,
+  { generation: 1 }
+>['id']
+/** The packs a schema version 3 snapshot carries: template-based, JSON copy. */
+export type GuestLanguagePackV2 = Extract<
+  SupportedGuestLanguagePack,
+  { generation: 2 }
+>['id']
 
 /** The locales a manager may choose today: those with a reviewed current pack. */
 export const OFFERED_GUEST_LOCALES = Object.freeze([
@@ -132,11 +158,27 @@ export function isSupportedGuestLanguagePack(
   return supported.some((pack) => pack.id === version && pack.generation === generation)
 }
 
-/** The pack a new publication uses for `locale`, or null while none is reviewed. */
+/**
+ * The pack a new publication uses for `locale`, or null while none is
+ * reviewed. Generation 1 (the default) is what every publication writes today;
+ * generation 2 is the newest pack a version 3 snapshot may carry.
+ */
 export function currentGuestLanguagePack(
   locale: GuestLocale,
+  generation?: 1,
+): GuestLanguagePackV1 | null
+export function currentGuestLanguagePack(
+  locale: GuestLocale,
+  generation: 2,
+): GuestLanguagePackV2 | null
+export function currentGuestLanguagePack(
+  locale: GuestLocale,
+  generation: 1 | 2 = 1,
 ): GuestLanguagePackVersion | null {
-  return GUEST_LANGUAGE_PACKS[locale].current
+  const { current, supported } = GUEST_LANGUAGE_PACKS[locale]
+  if (generation === 1) return current
+  const packs: readonly { id: GuestLanguagePackVersion; generation: 1 | 2 }[] = supported
+  return packs.filter((pack) => pack.generation === generation).at(-1)?.id ?? null
 }
 
 export function guestLocaleFormatTag(locale: GuestLocale): string {

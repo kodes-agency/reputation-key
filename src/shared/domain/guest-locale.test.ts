@@ -61,6 +61,23 @@ describe('guest locale catalogue', () => {
     expect(currentGuestLanguagePack('bg')).toBe('guest-ui-bg-v1')
     expect(currentGuestLanguagePack('de')).toBeNull()
   })
+
+  it('keeps generation 1 as the pack a publication uses today, and names the v2 pack per generation', () => {
+    expect(currentGuestLanguagePack('en', 1)).toBe('guest-ui-en-v1')
+    expect(currentGuestLanguagePack('bg', 1)).toBe('guest-ui-bg-v1')
+    expect(currentGuestLanguagePack('en', 2)).toBe('guest-ui-en-v2')
+    expect(currentGuestLanguagePack('bg', 2)).toBe('guest-ui-bg-v2')
+    expect(currentGuestLanguagePack('de', 2)).toBeNull()
+  })
+
+  it('lists the v1 packs before the v2 packs and never renumbers an id', () => {
+    for (const locale of ['en', 'bg'] as const) {
+      expect(GUEST_LANGUAGE_PACKS[locale].supported).toEqual([
+        { id: `guest-ui-${locale}-v1`, generation: 1 },
+        { id: `guest-ui-${locale}-v2`, generation: 2 },
+      ])
+    }
+  })
 })
 
 describe('guest locale parsing', () => {
@@ -102,6 +119,16 @@ describe('guest language pack membership', () => {
     expect(isSupportedGuestLanguagePack('en', undefined, 1)).toBe(false)
     expect(isSupportedGuestLanguagePack('en', 7, 1)).toBe(false)
     expect(isSupportedGuestLanguagePack('en', 'guest-ui-en-v1', 2)).toBe(false)
+    expect(isSupportedGuestLanguagePack('en', 'guest-ui-en-v3', 2)).toBe(false)
     expect(isSupportedGuestLanguagePack('de', 'guest-ui-de-v1', 1)).toBe(false)
+  })
+
+  it('accepts the v2 packs for generation 2 only, so v1 and v2 snapshots still reject them', () => {
+    expect(isSupportedGuestLanguagePack('en', 'guest-ui-en-v2', 2)).toBe(true)
+    expect(isSupportedGuestLanguagePack('bg', 'guest-ui-bg-v2', 2)).toBe(true)
+    expect(isSupportedGuestLanguagePack('en', 'guest-ui-en-v2', 1)).toBe(false)
+    expect(isSupportedGuestLanguagePack('bg', 'guest-ui-bg-v2', 1)).toBe(false)
+    expect(isSupportedGuestLanguagePack('en', 'guest-ui-bg-v2', 2)).toBe(false)
+    expect(isSupportedGuestLanguagePack('bg', 'guest-ui-en-v1', 2)).toBe(false)
   })
 })
