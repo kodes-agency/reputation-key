@@ -181,7 +181,8 @@ function activationFromRow(row: ActivationRow): PortalPublicationActivation | nu
   }
 }
 
-function snapshotFromRow(row: SnapshotRow): PortalPublicationSnapshot | null {
+/** Exported for the golden-snapshot tests; production reads go through the repository. */
+export function snapshotFromRow(row: SnapshotRow): PortalPublicationSnapshot | null {
   const parsed = publicationConfigurationSchema.safeParse(row.configuration)
   if (!parsed.success) return null
   if (
