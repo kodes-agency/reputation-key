@@ -68,12 +68,23 @@ function JoinPage() {
     )
   }
 
+  // The session cookie is already set here. If the follow-up (ensureActiveOrg
+  // or the navigation) fails, its error has no mounted form to land in, so the
+  // card must never be a dead end: the link is the manual way into the app.
   if (mutation.isSuccess && mutation.data?.signedIn === true) {
     return (
       <AuthCard title="Account created!" description="Your email is verified.">
-        <p className="text-center text-sm text-muted-foreground" role="status">
-          Signing you in…
-        </p>
+        <div className="space-y-3 text-center">
+          <p className="text-sm text-muted-foreground" role="status">
+            Signing you in…
+          </p>
+          <Link
+            to="/properties"
+            className="text-sm font-medium text-link underline-offset-4 hover:underline"
+          >
+            Continue to your workspace
+          </Link>
+        </div>
       </AuthCard>
     )
   }
