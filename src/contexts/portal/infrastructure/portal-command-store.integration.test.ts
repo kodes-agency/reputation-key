@@ -2153,7 +2153,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
         url: 'https://example.test/updated-guide',
         destinationId: null,
         legacyDestinationState: 'quarantined',
-        iconKey: 'guide',
+        iconKey: 'info',
       },
       event: portalLinkUpdated({
         portalId: PORTAL_A,

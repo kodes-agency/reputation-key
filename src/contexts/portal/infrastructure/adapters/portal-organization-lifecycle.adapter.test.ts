@@ -30,6 +30,13 @@ describe('Portal Organization lifecycle contributor', () => {
     }
   })
 
+  it('deletes link texts before the links they hang from', () => {
+    expect(PORTAL_PURGE_PLAN).toContain('portal_link_texts')
+    expect(PORTAL_PURGE_PLAN.indexOf('portal_link_texts')).toBeLessThan(
+      PORTAL_PURGE_PLAN.indexOf('portal_links'),
+    )
+  })
+
   it('keeps the dark Portal upload capability dark', () => {
     // Portal upload has no public issuance surface. A lifecycle contributor
     // must not be the thing that makes a dark capability reachable, so the

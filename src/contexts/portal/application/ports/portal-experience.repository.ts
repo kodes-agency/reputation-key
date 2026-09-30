@@ -37,6 +37,8 @@ export type PortalLocalizedOverride = Readonly<{
   title: string | null
   shortDescription: string | null
   heroImageUrl: string | null
+  /** The manager's own title for the link section; null means the pack's default. */
+  linktreeTitle: string | null
   version: number
   updatedBy: UserId
   createdAt: Date

@@ -66,6 +66,7 @@ export const overrideFromRow = (
   title: row.title,
   shortDescription: row.shortDescription,
   heroImageUrl: row.heroImageUrl,
+  linktreeTitle: row.linktreeTitle,
   version: row.version,
   updatedBy: userId(row.updatedBy),
   createdAt: row.createdAt,

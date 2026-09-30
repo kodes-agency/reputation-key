@@ -26,6 +26,7 @@ const sampleRow: PortalRow = {
   responsibilityNeededSince: null,
   primaryGuestLocale: 'en',
   additionalGuestLocales: [],
+  linktreeEnabled: true,
   createdAt: now,
   updatedAt: now,
   deletedAt: null,
@@ -46,6 +47,13 @@ describe('portalFromRow', () => {
     expect(portal.entityType).toBe('property')
     expect(portal.publicationState).toBe('published')
     expect(portal.privateFeedbackThreshold).toBe(3)
+  })
+
+  it('carries the Linktree switch both ways', () => {
+    expect(portalFromRow(sampleRow).linktreeEnabled).toBe(true)
+    const off = portalFromRow({ ...sampleRow, linktreeEnabled: false })
+    expect(off.linktreeEnabled).toBe(false)
+    expect(portalToRow(off).linktreeEnabled).toBe(false)
   })
 
   it('defaults theme when null', () => {

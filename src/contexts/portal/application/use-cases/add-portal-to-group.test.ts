@@ -124,6 +124,7 @@ const seedPortal = (): Portal => ({
   responsibilityNeededSince: FIXED_TIME,
   primaryGuestLocale: 'en',
   additionalGuestLocales: [],
+  linktreeEnabled: true,
   createdAt: FIXED_TIME,
   updatedAt: FIXED_TIME,
   deletedAt: null,

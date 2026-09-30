@@ -102,6 +102,7 @@ const createExperienceRepo = () => ({
   savePortalOverride: vi.fn<PortalExperienceRepository['savePortalOverride']>(
     async (input) => ({
       ...input.override,
+      linktreeTitle: null,
       id: input.id,
       organizationId: input.organizationId,
       propertyId: input.propertyId,

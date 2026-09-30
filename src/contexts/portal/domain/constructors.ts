@@ -89,6 +89,7 @@ export const buildPortal = (input: BuildPortalInput): Result<Portal, PortalError
         input.hasInitialResponsibleManager === true ? null : input.now,
       primaryGuestLocale: input.primaryGuestLocale ?? 'en',
       additionalGuestLocales: input.additionalGuestLocales ?? [],
+      linktreeEnabled: true,
       createdAt: input.now,
       updatedAt: input.now,
       deletedAt: null,

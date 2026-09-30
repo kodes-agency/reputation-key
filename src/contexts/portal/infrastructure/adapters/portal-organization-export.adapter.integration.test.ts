@@ -25,6 +25,7 @@ const CHILD_TABLES = [
   'portal_health_intervals',
   'portal_responsible_managers',
   'portal_localized_overrides',
+  'portal_link_texts',
   'portal_links',
   'portal_link_categories',
   'portal_group_members',
@@ -147,10 +148,24 @@ async function seedFixture(): Promise<Fixture> {
     ],
   )
   await q(
+    `INSERT INTO portal_link_texts (
+       id, organization_id, property_id, portal_id, link_id, locale, label, line,
+       version, updated_by, created_at, updated_at
+     ) VALUES ($1, $2, $3, $4, $5, 'en', 'Review us', 'Two minutes', 1, $6, now(), now())`,
+    [
+      randomUUID(),
+      organizationId,
+      fixture.propertyId,
+      fixture.portalId,
+      fixture.linkId,
+      fixture.userId,
+    ],
+  )
+  await q(
     `INSERT INTO portal_localized_overrides (
-       id, organization_id, property_id, portal_id, locale, title, version,
-       updated_by, created_at, updated_at
-     ) VALUES ($1, $2, $3, $4, 'bg', 'Рецепция', 1, $5, now(), now())`,
+       id, organization_id, property_id, portal_id, locale, title, linktree_title,
+       version, updated_by, created_at, updated_at
+     ) VALUES ($1, $2, $3, $4, 'bg', 'Рецепция', 'Полезни връзки', 1, $5, now(), now())`,
     [randomUUID(), organizationId, fixture.propertyId, fixture.portalId, fixture.userId],
   )
   await q(
@@ -314,6 +329,7 @@ describe.sequential('Portal Organization Export contributor', () => {
       'portalGroupMembers',
       'linkCategories',
       'links',
+      'linkTexts',
       'approvedDestinations',
       'localizedOverrides',
       'brandProfiles',
@@ -332,10 +348,19 @@ describe.sequential('Portal Organization Export contributor', () => {
       name: 'Front Desk',
       slug: 'front-desk',
       publication_state: 'published',
+      linktree_enabled: true,
+    })
+    expect(payload.linkTexts?.[0]).toMatchObject({
+      link_id: fixture.linkId,
+      locale: 'en',
+      label: 'Review us',
+      line: 'Two minutes',
+      provenance: null,
     })
     expect(payload.localizedOverrides?.[0]).toMatchObject({
       locale: 'bg',
       title: 'Рецепция',
+      linktree_title: 'Полезни връзки',
     })
     expect(payload.publicationSnapshots?.[0]).toMatchObject({
       id: fixture.snapshotId,

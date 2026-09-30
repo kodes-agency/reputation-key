@@ -302,6 +302,62 @@ describe.sequential('Portal beta contract repositories (real PostgreSQL)', () =>
     )
   })
 
+  it('keeps a Portal-local override that still carries a Linktree title when its other fields are cleared', async () => {
+    const repo = createPortalExperienceRepository(getDb())
+    await getPool().query(
+      `INSERT INTO portal_localized_overrides
+         (id, organization_id, property_id, portal_id, locale, title,
+          linktree_title, version, updated_by, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, 'en', 'Lobby', 'Around town', 1, $5, $6, $6)`,
+      ['fa600000-0000-4000-8000-000000000011', ORG_A, PROPERTY_A, PORTAL_A, MANAGER, NOW],
+    )
+
+    const cleared = await repo.savePortalOverride({
+      id: 'fa600000-0000-4000-8000-000000000012',
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      portalId: PORTAL_A,
+      locale: 'en',
+      override: { title: null, shortDescription: null, heroImageUrl: null },
+      updatedBy: MANAGER,
+      at: new Date(NOW.getTime() + 1_000),
+    })
+
+    expect(cleared).toMatchObject({
+      title: null,
+      linktreeTitle: 'Around town',
+      version: 2,
+    })
+    const rows = await repo.listPortalOverrides(ORG_A, PROPERTY_A, PORTAL_A)
+    expect(rows.map((row) => [row.locale, row.title, row.linktreeTitle])).toEqual([
+      ['en', null, 'Around town'],
+    ])
+  })
+
+  it('does not touch the Linktree title when other override fields are saved', async () => {
+    const repo = createPortalExperienceRepository(getDb())
+    await getPool().query(
+      `INSERT INTO portal_localized_overrides
+         (id, organization_id, property_id, portal_id, locale, title,
+          linktree_title, version, updated_by, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, 'en', 'Lobby', 'Around town', 1, $5, $6, $6)`,
+      ['fa600000-0000-4000-8000-000000000021', ORG_A, PROPERTY_A, PORTAL_A, MANAGER, NOW],
+    )
+
+    const saved = await repo.savePortalOverride({
+      id: 'fa600000-0000-4000-8000-000000000022',
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      portalId: PORTAL_A,
+      locale: 'en',
+      override: { title: 'Front desk', shortDescription: null, heroImageUrl: null },
+      updatedBy: MANAGER,
+      at: new Date(NOW.getTime() + 1_000),
+    })
+
+    expect(saved).toMatchObject({ title: 'Front desk', linktreeTitle: 'Around town' })
+  })
+
   it('keeps one current effective-dated Health interval with bounded history', async () => {
     const repo = createPortalHealthRepository(getDb())
     await repo.transition({

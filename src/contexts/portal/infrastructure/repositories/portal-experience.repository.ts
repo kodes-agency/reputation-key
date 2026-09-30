@@ -1,13 +1,21 @@
-import { and, asc, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, isNotNull, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
   portalLocalizedOverrides,
   propertyPortalBrandContents,
   propertyPortalBrandProfiles,
 } from '#/shared/db/schema/portal.schema'
-import { unbrand, type OrganizationId, type PropertyId } from '#/shared/domain/ids'
+import {
+  unbrand,
+  type OrganizationId,
+  type PortalId,
+  type PropertyId,
+} from '#/shared/domain/ids'
 import type { PortalExperienceRepository } from '../../application/ports/portal-experience.repository'
-import type { PortalBrandProfileSnapshot } from '../../domain/portal-publication-snapshot'
+import type {
+  PortalBrandProfileSnapshot,
+  PortalGuestLocale,
+} from '../../domain/portal-publication-snapshot'
 import { trace } from '#/shared/observability/trace'
 import {
   contentFromRow,
@@ -87,6 +95,41 @@ async function recordPropertyProfileChange(
     organizationId: input.organizationId,
     propertyId: input.propertyId,
     profileVersion: version,
+    sourceAggregateVersion: input.at.toISOString(),
+    occurredAt: input.at,
+  })
+  await insertOutboxRow(tx, event, { recordedAt: input.at })
+}
+
+type OverrideChange = Readonly<{
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  portalId: PortalId
+  locale: PortalGuestLocale
+  at: Date
+}>
+
+/** Every override write fences Portal publication and announces the version (null: cleared). */
+async function recordOverrideChange(
+  tx: Tx,
+  input: OverrideChange,
+  version: number | null,
+): Promise<void> {
+  await recordPortalPendingContentChange(tx, {
+    organizationId: unbrand(input.organizationId),
+    propertyId: unbrand(input.propertyId),
+    portalId: unbrand(input.portalId),
+    kind: 'portal_localized_override',
+    key: input.locale,
+    sourceVersion: version === null ? `cleared:${input.at.toISOString()}` : `v${version}`,
+    changedAt: input.at,
+  })
+  const event = portalLocalizedOverrideUpdated({
+    organizationId: input.organizationId,
+    propertyId: input.propertyId,
+    portalId: input.portalId,
+    guestLocale: input.locale,
+    overrideVersion: version,
     sourceAggregateVersion: input.at.toISOString(),
     occurredAt: input.at,
   })
@@ -314,42 +357,35 @@ export const createPortalExperienceRepository = (
         if (!exists) throw new Error('Portal localized override scope is unavailable')
         const hasValue = Object.values(input.override).some((value) => value !== null)
         if (!hasValue) {
+          const scope = and(
+            eq(portalLocalizedOverrides.organizationId, unbrand(input.organizationId)),
+            eq(portalLocalizedOverrides.propertyId, unbrand(input.propertyId)),
+            eq(portalLocalizedOverrides.portalId, unbrand(input.portalId)),
+            eq(portalLocalizedOverrides.locale, input.locale),
+          )
+          // A row that still carries the Linktree title is not empty: clear the
+          // fields this writer owns and keep the row for the title's sake.
+          const [kept] = await tx
+            .update(portalLocalizedOverrides)
+            .set({
+              title: null,
+              shortDescription: null,
+              heroImageUrl: null,
+              version: sql`${portalLocalizedOverrides.version} + 1`,
+              updatedBy: unbrand(input.updatedBy),
+              updatedAt: input.at,
+            })
+            .where(and(scope, isNotNull(portalLocalizedOverrides.linktreeTitle)))
+            .returning()
+          if (kept) {
+            await recordOverrideChange(tx, input, kept.version)
+            return overrideFromRow(kept)
+          }
           const deleted = await tx
             .delete(portalLocalizedOverrides)
-            .where(
-              and(
-                eq(
-                  portalLocalizedOverrides.organizationId,
-                  unbrand(input.organizationId),
-                ),
-                eq(portalLocalizedOverrides.propertyId, unbrand(input.propertyId)),
-                eq(portalLocalizedOverrides.portalId, unbrand(input.portalId)),
-                eq(portalLocalizedOverrides.locale, input.locale),
-              ),
-            )
+            .where(scope)
             .returning({ id: portalLocalizedOverrides.id })
-          if (deleted.length > 0) {
-            await recordPortalPendingContentChange(tx, {
-              organizationId: unbrand(input.organizationId),
-              propertyId: unbrand(input.propertyId),
-              portalId: unbrand(input.portalId),
-              kind: 'portal_localized_override',
-              key: input.locale,
-              sourceVersion: `cleared:${input.at.toISOString()}`,
-              changedAt: input.at,
-            })
-            const event = portalLocalizedOverrideUpdated({
-              organizationId: input.organizationId,
-              propertyId: input.propertyId,
-              portalId: input.portalId,
-              guestLocale: input.locale,
-              overrideVersion: null,
-              sourceAggregateVersion: input.at.toISOString(),
-              occurredAt: input.at,
-            })
-            await insertOutboxRow(tx, event, { recordedAt: input.at })
-            return null
-          }
+          if (deleted.length > 0) await recordOverrideChange(tx, input, null)
           return null
         }
         const [row] = await tx
@@ -381,25 +417,7 @@ export const createPortalExperienceRepository = (
           })
           .returning()
         if (!row) throw new Error('Portal localized override was not saved')
-        await recordPortalPendingContentChange(tx, {
-          organizationId: unbrand(input.organizationId),
-          propertyId: unbrand(input.propertyId),
-          portalId: unbrand(input.portalId),
-          kind: 'portal_localized_override',
-          key: input.locale,
-          sourceVersion: `v${row.version}`,
-          changedAt: input.at,
-        })
-        const event = portalLocalizedOverrideUpdated({
-          organizationId: input.organizationId,
-          propertyId: input.propertyId,
-          portalId: input.portalId,
-          guestLocale: input.locale,
-          overrideVersion: row.version,
-          sourceAggregateVersion: input.at.toISOString(),
-          occurredAt: input.at,
-        })
-        await insertOutboxRow(tx, event, { recordedAt: input.at })
+        await recordOverrideChange(tx, input, row.version)
         return overrideFromRow(row)
       })
 
