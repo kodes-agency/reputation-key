@@ -62,6 +62,10 @@ function muteConfirmation(notification: NotificationView): string {
   return `In-app ${category} notices muted for ${property}, including earlier ones.`
 }
 
+/** Whether a row is inside the page's Property filter; no filter holds every row. */
+const inProperty = (row: NotificationView, propertyId: string | undefined) =>
+  propertyId === undefined || row.propertyId === propertyId
+
 /** How long a toast offering Undo stays: long enough to notice it and act. */
 const UNDO_TOAST_MS = 6_000
 
@@ -72,9 +76,14 @@ export type NotificationFeedMutations = Readonly<{
   onMarkManyRead: (notificationIds: ReadonlyArray<string>) => void
   onDismissMany: (notificationIds: ReadonlyArray<string>) => void
   onMuteCategory: (notification: NotificationView) => void
-  /** Marks read the unread rows `filter` holds: the tab the reader is on, not every tab. */
-  markAllRead: (filter: NotificationListFilter) => void
-  dismissAll: () => void
+  /**
+   * Marks read the unread rows `filter` holds: the tab the reader is on, not
+   * every tab — and, with `propertyId`, only that Property's (the page's
+   * Property filter).
+   */
+  markAllRead: (filter: NotificationListFilter, propertyId?: string) => void
+  /** Dismisses every row the feed shows, or, with `propertyId`, that Property's. */
+  dismissAll: (propertyId?: string) => void
   isMarkingAllRead: boolean
   isDismissingAll: boolean
 }>
@@ -118,23 +127,32 @@ export function useNotificationMutations(
     errorMessage: failed("Couldn't mark those notifications as read."),
     optimistic: (input) => {
       const filter = input?.data?.filter ?? 'all'
+      const propertyId = input?.data?.propertyId
       return patchFeed(
         (row) =>
-          row.status === 'unread' && matchesNotificationFilter(row, filter)
+          row.status === 'unread' &&
+          matchesNotificationFilter(row, filter) &&
+          inProperty(row, propertyId)
             ? readNow(row)
             : row,
-        { clearsUnreadOf: filter },
+        // One Property's share is not the filter's: the loaded rows say what
+        // moved, and the invalidation reads the rest.
+        propertyId ? {} : { clearsUnreadOf: filter },
       )
     },
   })
   const dismissAll = useActionMutation(fns.dismissAll, {
     invalidateKeys,
     errorMessage: failed("Couldn't dismiss all notifications."),
-    optimistic: () =>
-      patchFeed(() => null, {
+    optimistic: (input) => {
+      const propertyId = input?.data?.propertyId
+      if (propertyId)
+        return patchFeed((row) => (inProperty(row, propertyId) ? null : row))
+      return patchFeed(() => null, {
         clearContinuation: true,
         clearsUnreadOf: 'all',
-      }),
+      })
+    },
   })
   // An Undo brings rows back through the next read, not optimistically: the
   // server decides whether a restored row is unread (another row may have
@@ -243,14 +261,24 @@ export function useNotificationMutations(
         }),
       )
     },
-    markAllRead: (filter) => {
-      void run(markAllRead({ data: { filter } }), () =>
-        announce(`${notificationFilterScope(filter)} marked as read.`),
+    markAllRead: (filter, propertyId) => {
+      void run(
+        markAllRead({ data: propertyId ? { filter, propertyId } : { filter } }),
+        () =>
+          announce(
+            propertyId
+              ? `${notificationFilterScope(filter)} at this property marked as read.`
+              : `${notificationFilterScope(filter)} marked as read.`,
+          ),
       )
     },
-    dismissAll: () => {
-      void run(dismissAll({ data: undefined }), () =>
-        announce('All notifications dismissed.'),
+    dismissAll: (propertyId) => {
+      void run(dismissAll({ data: propertyId ? { propertyId } : undefined }), () =>
+        announce(
+          propertyId
+            ? "This property's notifications dismissed."
+            : 'All notifications dismissed.',
+        ),
       )
     },
     isMarkingAllRead: markAllRead.isPending,

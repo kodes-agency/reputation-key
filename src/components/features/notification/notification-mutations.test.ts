@@ -216,6 +216,102 @@ describe('notification optimistic cache updates', () => {
     expect([page?.unreadCount, page?.filterUnreadCount]).toEqual([3, 0])
   })
 
+  // The page's Property filter: a filtered head holds one Property's share.
+  describe('a head filtered to one Property', () => {
+    const HARBOUR = '10000000-0000-4000-8000-0000000000a1'
+    const RIVERSIDE = '10000000-0000-4000-8000-0000000000a2'
+    const harbour = makeNotification({
+      id: '10000000-0000-4000-8000-000000000070',
+      type: 'inbox.escalated',
+      propertyId: HARBOUR,
+    })
+    const riverside = makeNotification({
+      id: '10000000-0000-4000-8000-000000000071',
+      type: 'inbox.escalated',
+      propertyId: RIVERSIDE,
+    })
+    const readNow = (row: typeof harbour) => ({
+      ...row,
+      status: 'read' as const,
+      readAt: new Date(0),
+    })
+    const bellHead = notificationKeys.head('org-1', 20, 'needs_you')
+    const pageHead = notificationKeys.head('org-1', 50, 'all', HARBOUR)
+
+    beforeEach(() => {
+      // The bell: four waiting across Properties, two loaded. The page,
+      // filtered to Harbour: its one.
+      client.setQueryData(bellHead, {
+        ...notificationFeedHeadFixture([harbour, riverside], 4, true),
+        filterUnreadCount: 4,
+      })
+      client.setQueryData(pageHead, {
+        ...notificationFeedHeadFixture([harbour], 1, false),
+        filterUnreadCount: 1,
+      })
+    })
+
+    it('a Property-scoped "Mark all read" moves the bell by the loaded rows, never to zero', () => {
+      patchNotificationFeedCache(client, 'org-1', (row) =>
+        row.propertyId === HARBOUR && row.status === 'unread' ? readNow(row) : row,
+      )
+
+      const bell = client.getQueryData<NotificationFeedHead>(bellHead)
+      const page = client.getQueryData<NotificationFeedHead>(pageHead)
+      // Read now, Harbour's row leaves Needs you; Riverside's stays.
+      expect(bell?.page.notifications.map((row) => row.id)).toEqual([riverside.id])
+      expect([bell?.unreadCount, bell?.filterUnreadCount]).toEqual([3, 3])
+      expect([page?.unreadCount, page?.filterUnreadCount]).toEqual([0, 0])
+    })
+
+    it("does not move for another Property's row", () => {
+      patchNotificationFeedCache(client, 'org-1', (row) =>
+        row.id === riverside.id ? readNow(row) : row,
+      )
+
+      const page = client.getQueryData<NotificationFeedHead>(pageHead)
+      expect([page?.unreadCount, page?.filterUnreadCount]).toEqual([1, 1])
+    })
+
+    it('an unscoped tab\'s "Mark all read" moves a filtered head by its own rows, not the tab\'s count', () => {
+      // Harbour also holds an unread note, which Needs you does not.
+      const note = makeNotification({
+        id: '10000000-0000-4000-8000-000000000072',
+        type: 'inbox_note.added',
+        propertyId: HARBOUR,
+      })
+      client.setQueryData(pageHead, {
+        ...notificationFeedHeadFixture([harbour, note], 2, false),
+        filterUnreadCount: 2,
+      })
+
+      // "Mark all read" on the page's Needs you tab, unfiltered: the bell's
+      // head says four rows went, but only one of them was Harbour's.
+      patchNotificationFeedCache(
+        client,
+        'org-1',
+        (row) =>
+          row.type === 'inbox.escalated' && row.status === 'unread' ? readNow(row) : row,
+        { clearsUnreadOf: 'needs_you' },
+      )
+
+      const page = client.getQueryData<NotificationFeedHead>(pageHead)
+      expect([page?.unreadCount, page?.filterUnreadCount]).toEqual([1, 1])
+    })
+
+    it('an unscoped tab\'s "Mark all read" takes a filtered head\'s count only when every unread row went', () => {
+      patchNotificationFeedCache(
+        client,
+        'org-1',
+        (row) => (row.status === 'unread' ? readNow(row) : row),
+        { clearsUnreadOf: 'all' },
+      )
+
+      const page = client.getQueryData<NotificationFeedHead>(pageHead)
+      expect([page?.unreadCount, page?.filterUnreadCount]).toEqual([0, 0])
+    })
+  })
+
   it("moves another tab's share by the loaded rows a row action changes", () => {
     const urgentWorkflow = makeNotification({
       id: '10000000-0000-4000-8000-000000000070',

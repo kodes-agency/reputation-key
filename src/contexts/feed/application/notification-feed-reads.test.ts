@@ -86,6 +86,30 @@ describe('notification feed reads follow current Property access', () => {
     expect(heads[0]?.visiblePropertyIds).toEqual([])
   })
 
+  it("narrows the reads and both bulk actions to the page's Property filter", async () => {
+    const { reads, heads, pages, bulk } = readsFor([HARBOR])
+    const manager: AuthContext = { ...READER, role: 'PropertyManager' }
+
+    await reads.getFeedHead(manager, { limit: 50, filter: 'all', propertyId: HARBOR })
+    await reads.getNotifications(manager, {
+      limit: 50,
+      filter: 'needs_you',
+      propertyId: HARBOR,
+      before: null,
+    })
+    await reads.markAllRead(manager, 'needs_you', HARBOR)
+    await reads.dismissAll(manager, HARBOR)
+
+    const scope = { ...READER, visiblePropertyIds: [HARBOR], propertyId: HARBOR }
+    const at = new Date('2026-09-22T09:00:00.000Z')
+    expect(heads).toEqual([{ ...scope, limit: 50, filter: 'all' }])
+    expect(pages).toEqual([{ ...scope, limit: 50, filter: 'needs_you', before: null }])
+    expect(bulk).toEqual([
+      ['read', scope, 'needs_you', at],
+      ['dismissed', scope, at],
+    ])
+  })
+
   it('scopes "Mark all read" and "Clear all" to the rows the reads show', async () => {
     const { reads, bulk } = readsFor([HARBOR])
     const manager: AuthContext = { ...READER, role: 'PropertyManager' }
