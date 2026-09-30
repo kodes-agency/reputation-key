@@ -168,7 +168,7 @@
       "id": "platformKeys",
       "members": ["all", "organizations"],
       "owner": "Platform operator console query lifecycle",
-      "policy": "One cross-tenant Organization list beneath a Platform-only root, apart from every tenant subtree: the operator holds no role in the Organizations it lists, so the key carries no Organization id, and a tenant switch neither reaches it nor is reached by it. Every console change (create, invite, resend, cancel) invalidates the list, which is the only read the console has."
+      "policy": "One cross-tenant Organization list beneath a Platform-only root, apart from every tenant subtree: the operator holds no role in the Organizations it lists, so the key carries no Organization id. Every tenant switch and every session end clears it together with the rest of the cache (queryClient.clear()), which is what keeps a cached cross-tenant list from surviving a sign-out into a later user's session in the same tab. Every console change (create, invite, resend, cancel) invalidates the list, which is the only read the console has."
     }
   ],
   "queryKeyDelegates": [
