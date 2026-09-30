@@ -20,21 +20,22 @@
 
 ## Assets
 
-| Asset                      | Sensitivity                         | Location                                     |
-| -------------------------- | ----------------------------------- | -------------------------------------------- |
-| User email, name           | PII                                 | `user` table                                 |
-| Session tokens             | Secret                              | `session` table                              |
-| OAuth tokens (Google)      | Secret (encrypted)                  | `account`, `google_connections` tables       |
-| Google refresh token       | Secret (encrypted)                  | `google_connections` table                   |
-| Review text, reviewer name | Google-sourced PII (30-day TTL)     | `reviews` table                              |
-| Reply text                 | User-authored content               | `replies` table                              |
-| Guest network pressure     | Short-lived Portal-scoped pseudonym | `guest_network_pressure_records` table       |
-| Audit log details          | Operational metadata                | `audit_logs` table                           |
-| Notification body          | Content                             | `notifications` table                        |
-| Beta feedback text         | User-authored restricted content    | US-region Sentry project                     |
-| Optional masked Bug layout | Content-free visual geometry        | Restricted Sentry attachment, ≤30-day clock  |
-| Beta feedback correlation  | Pseudonymous identifier             | HMAC-only Sentry tags / Redis abuse budgets  |
-| Beta feedback triage       | Content-free support evidence       | PostgreSQL receipt + append-only transitions |
+| Asset                          | Sensitivity                                                                    | Location                                     |
+| ------------------------------ | ------------------------------------------------------------------------------ | -------------------------------------------- |
+| User email, name               | PII                                                                            | `user` table                                 |
+| Session tokens                 | Secret                                                                         | `session` table                              |
+| OAuth tokens (Google)          | Secret (encrypted)                                                             | `account`, `google_connections` tables       |
+| Google refresh token           | Secret (encrypted)                                                             | `google_connections` table                   |
+| Review text, reviewer name     | Google-sourced PII (30-day TTL)                                                | `reviews` table                              |
+| Reply text                     | User-authored content                                                          | `replies` table                              |
+| Guest network pressure         | Short-lived Portal-scoped pseudonym                                            | `guest_network_pressure_records` table       |
+| Audit log details              | Operational metadata                                                           | `audit_logs` table                           |
+| Notification body              | Content                                                                        | `notifications` table                        |
+| Beta feedback text             | User-authored restricted content                                               | US-region Sentry project                     |
+| Optional masked Bug layout     | Content-free visual geometry                                                   | Restricted Sentry attachment, ≤30-day clock  |
+| Beta feedback correlation      | Pseudonymous identifier                                                        | HMAC-only Sentry tags / Redis abuse budgets  |
+| Beta feedback triage           | Content-free support evidence                                                  | PostgreSQL receipt + append-only transitions |
+| Cross-tenant Organization list | Operator-only PII (pending admin-invitation emails of ownerless Organizations) | `/operator`                                  |
 
 ## STRIDE analysis
 
@@ -93,13 +94,14 @@
 
 ### Elevation of Privilege
 
-| Threat                                   | Mitigation                                                                                               | Status                                                                         |
-| ---------------------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
-| Non-owner accesses admin functions       | AccountAdmin / PropertyManager beta roles (`isBetaInteractiveMemberRoleToken`) plus per-permission scope | ✅ Enforced                                                                    |
-| Custom role grants unexpected permission | Provider `dynamicAccessControl: { enabled: false }`; custom-role schema remains dormant                  | ✅ Enforced                                                                    |
-| Last owner removed/demoted               | `member_last_owner_upd` trigger prevents removal                                                         | ✅ Enforced                                                                    |
-| Worker job runs for disabled capability  | Jobs re-check capability before side effects                                                             | ✅ Enforced                                                                    |
-| API route discovered despite UI disabled | Routes and APIs require capability and authorization checks                                              | ✅ Enforced (dark-capability-enforcement.test.ts, dark-context-matrix.test.ts) |
+| Threat                                                               | Mitigation                                                                                                                                                                                                                                                                            | Status                                                                                                        |
+| -------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| Non-owner accesses admin functions                                   | AccountAdmin / PropertyManager beta roles (`isBetaInteractiveMemberRoleToken`) plus per-permission scope                                                                                                                                                                              | ✅ Enforced                                                                                                   |
+| Custom role grants unexpected permission                             | Provider `dynamicAccessControl: { enabled: false }`; custom-role schema remains dormant                                                                                                                                                                                               | ✅ Enforced                                                                                                   |
+| Last owner removed/demoted                                           | `member_last_owner_upd` trigger prevents removal                                                                                                                                                                                                                                      | ✅ Enforced                                                                                                   |
+| Worker job runs for disabled capability                              | Jobs re-check capability before side effects                                                                                                                                                                                                                                          | ✅ Enforced                                                                                                   |
+| API route discovered despite UI disabled                             | Routes and APIs require capability and authorization checks                                                                                                                                                                                                                           | ✅ Enforced (dark-capability-enforcement.test.ts, dark-context-matrix.test.ts)                                |
+| Stolen operator session mints an Organization or invites an attacker | Verified-email allowlist (`OPS_OPERATOR_IDENTITIES`, fail-closed when absent); a session signed in within 30 minutes for every change; the console acts only on Organizations with no AccountAdmin; 30 changes per hour per operator; one content-free log line per change (ADR 0063) | ✅ Enforced (`platform-operator-access.server.test.ts`, `platform-administration.test.ts`); no MFA — residual |
 
 ## Residual risks
 

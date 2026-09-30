@@ -36,6 +36,9 @@ adapter; no other context reads its tables directly.
   the new member is signed in (ADR 0062). An invitation reads as expired once its
   expiry passes; Resend renews the same invitation for another 7 days, and
   inviting that address to another Organization marks the stale row expired.
+- Platform operators create Organizations from `/operator` without joining them,
+  and invite the first AccountAdmin. They act on an Organization only while it
+  has no AccountAdmin (ADR 0063).
 - Property authorization derives only from current Identity-owned grants. Staff
   Participation, login links, Portal Responsibility, Team history, and responsible
   manager assignments never grant membership or Property access, and never gate

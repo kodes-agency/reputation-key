@@ -45,6 +45,43 @@ The commands:
 - Current on Google has no operator mutation or standalone rebuild command. Review publishes its content-minimal aggregate only after a double-scan-verified provider run and bounded reconciliation; Metric stores it outside bounded-period readings and hides it after a source-epoch rebind.
 - Organization lifecycle has an Identity-owned request/status/recoverable-cancel application seam, quarantined bounded worker families, and a read-only `ops:report-organization-lifecycle` diagnostic. It still has no manager route, mutating independently authorized operator command, reviewed contributor set, cleanup/export/purge apply, or reactivation command. Follow `organization-lifecycle.md`. Never clear the Organization suspension merely because a lifecycle request was canceled.
 
+### Operator console (web)
+
+`/operator` on the web service is where a platform operator creates each
+Organization after the first, without joining it, and invites its first
+AccountAdmin (ADR 0063). It lists every Organization with its member,
+AccountAdmin and pending-invitation counts, and the open AccountAdmin invitations
+of any Organization that has no AccountAdmin yet.
+
+- **Who.** The same `OPS_OPERATOR_IDENTITIES` list that gates the `ops:*`
+  commands gates the console, on the **web** service (the worker does not need
+  it). A signed-in user whose **verified** email, lowercased, is listed is an
+  operator; everyone else gets Not Found, and an absent or empty list means
+  nobody. The list itself is not case-folded, so write every entry in lowercase.
+  An entry that is not an email never matches on web, which is safe.
+- **Recent sign-in.** A change (create, invite, resend, cancel) needs a session
+  signed in within the last 30 minutes; the page then asks the operator to sign
+  in again. Reading the list does not. There is no MFA in the beta, so this is
+  the only step-up.
+- **Budget.** An operator may make 30 changes an hour; past that the console
+  answers 429.
+- **Ownerless only.** The console acts on an Organization only while it has no
+  AccountAdmin: it can invite another admin, resend or cancel an open admin
+  invitation, and (for an invitation) only while the Organization is active. After
+  an AccountAdmin accepts, the Organization's own admins manage invitations and
+  the console stops showing its invitee addresses. Closing an empty Organization
+  is still an ops task.
+- **Allowlist.** A new Organization is dark for every controlled-beta capability
+  unless `BETA_ALLOWLIST_ORGS` is `*` or names its ID, on web **and** worker. The
+  console flags such an Organization and shows the ID to add; redeploy both after
+  changing the list.
+- **Trace.** Each change writes a content-free log line
+  (`platform.organization_provisioned`, `platform.admin_invited`,
+  `platform.admin_invitation_resent`, `platform.admin_invitation_canceled`) that
+  the request's trace correlates. An invitation's `identity.member.invited` fact
+  names the operator's user as its inviter; `identity.invitation.canceled` names
+  no actor, and a refused attempt logs `platform.operator_denied`.
+
 ### Canonical synthetic Google resource
 
 Incident notes, logs, evidence, and provider-support records must never paste a
