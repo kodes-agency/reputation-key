@@ -1,4 +1,3 @@
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
@@ -7,11 +6,7 @@ import type {
   PortalPublicationActivationRecord,
   PortalPublicationRepository,
 } from '../ports/portal-publication.repository'
-import {
-  isLocalizedConfiguration,
-  type PortalPublicationSnapshot,
-  type PortalPublicationSource,
-} from '../../domain/portal-publication-snapshot'
+import { workingCopyMatchesSnapshot } from '../portal-working-copy-match'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import { portalError } from '../../domain/errors'
 
@@ -46,72 +41,6 @@ type Deps = Readonly<{
   publicationRepo: PortalPublicationRepository
   staffPublicApi: StaffPublicApi
 }>
-
-function publishedContent(snapshot: PortalPublicationSnapshot) {
-  const configuration = snapshot.configuration
-  return {
-    portal: configuration.portal,
-    categories: configuration.categories,
-    links: configuration.links,
-    privateFeedbackThreshold: configuration.reviewGateway.privateFeedbackThreshold,
-    organizationId: snapshot.organizationId,
-    propertyId: snapshot.propertyId,
-    ...(isLocalizedConfiguration(configuration)
-      ? {
-          experience: {
-            primaryGuestLocale: configuration.guestLocale,
-            localeSet: configuration.localeSet,
-            languagePackVersions: configuration.languagePackVersions,
-            localizedContent: configuration.localizedContent,
-            brandProfile: configuration.brandProfile,
-          },
-        }
-      : {}),
-  }
-}
-
-function comparableWorkingContent(workingCopy: PortalPublicationSource) {
-  const experience = workingCopy.experience
-  return {
-    portal: workingCopy.portal,
-    categories: workingCopy.categories,
-    links: workingCopy.links,
-    privateFeedbackThreshold: workingCopy.privateFeedbackThreshold,
-    organizationId: workingCopy.organizationId,
-    propertyId: workingCopy.propertyId,
-    ...(experience
-      ? {
-          experience: {
-            primaryGuestLocale: experience.primaryGuestLocale,
-            localeSet: experience.localeSet,
-            languagePackVersions: Object.fromEntries(
-              experience.localeSet.map((locale) => [
-                locale,
-                experience.languagePackVersions[locale],
-              ]),
-            ),
-            localizedContent: Object.fromEntries(
-              experience.localeSet.map((locale) => [
-                locale,
-                experience.localizedContent[locale],
-              ]),
-            ),
-            brandProfile: experience.brandProfile,
-          },
-        }
-      : {}),
-  }
-}
-
-function workingCopyMatches(
-  workingCopy: PortalPublicationSource,
-  snapshot: PortalPublicationSnapshot,
-): boolean {
-  return (
-    canonicalizeRfc8785(comparableWorkingContent(workingCopy)) ===
-    canonicalizeRfc8785(publishedContent(snapshot))
-  )
-}
 
 function historyItem(
   record: PortalPublicationActivationRecord,
@@ -179,7 +108,7 @@ export const getPortalPublicationHistory =
         .map(historyItem),
       hasPendingChanges:
         pendingChanges.length > 0 ||
-        (baseline ? !workingCopyMatches(workingCopy, baseline.snapshot) : false),
+        (baseline ? !workingCopyMatchesSnapshot(workingCopy, baseline.snapshot) : false),
       pendingChanges: pendingChanges.map((change) => ({
         kind: change.kind,
         key: change.key,

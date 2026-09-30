@@ -1,16 +1,7 @@
-import { and, asc, desc, eq, gte, isNull, lt, lte, max, or, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, isNull, lt, lte, max, or } from 'drizzle-orm'
 import { z } from 'zod/v4'
 import type { Database } from '#/shared/db'
-import {
-  portalLinkCategories,
-  portalLinks,
-  portalApprovedDestinations,
-  portalLocalizedOverrides,
-  propertyPortalBrandContents,
-  propertyPortalBrandProfiles,
-  portals,
-  portalTokens,
-} from '#/shared/db/schema/portal.schema'
+import { portals, portalTokens } from '#/shared/db/schema/portal.schema'
 import {
   portalPublicationActivations,
   portalPublicationSnapshots,
@@ -29,21 +20,12 @@ import type {
   PortalPublicationActivation,
   PortalPublicationConfiguration,
   PortalPublicationSnapshot,
-  PortalPublicationSource,
 } from '../../domain/portal-publication-snapshot'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import { unbrand } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
-import {
-  isLocalizedConfiguration,
-  PORTAL_LANGUAGE_PACK_VERSIONS,
-} from '../../domain/portal-publication-snapshot'
-import { parseGuestLocale } from '#/shared/domain/guest-locale'
-import { guestLocaleSchema } from '#/shared/guest-locale-schemas'
-import type {
-  PortalGuestLocale,
-  PortalLocalizedContentSnapshot,
-} from '../../domain/portal-publication-snapshot'
+import { isLocalizedConfiguration } from '../../domain/portal-publication-snapshot'
+import { readPortalWorkingCopy } from '../portal-working-copy.reader'
 
 const jsonScalarSchema = z.union([z.string(), z.number(), z.boolean(), z.null()])
 const publicationConfigurationBaseSchema = z.object({
@@ -233,191 +215,6 @@ function activationRecordFromRows(
   return activation && snapshot ? { activation, snapshot } : null
 }
 
-async function loadWorkingCopy(
-  db: Database,
-  organizationId: string,
-  portalId: string,
-): Promise<PortalPublicationSource | null> {
-  const [portal] = await db
-    .select()
-    .from(portals)
-    .where(
-      and(
-        eq(portals.organizationId, organizationId),
-        eq(portals.id, portalId),
-        isNull(portals.deletedAt),
-      ),
-    )
-    .limit(1)
-  if (!portal) return null
-  // The working copy's locales are read as stored: an unknown one is a corrupt
-  // row, so the source does not resolve at all rather than publishing English.
-  const primaryGuestLocale = parseGuestLocale(portal.primaryGuestLocale)
-  const additionalGuestLocales = z
-    .array(guestLocaleSchema)
-    .safeParse(portal.additionalGuestLocales)
-  if (!primaryGuestLocale || !additionalGuestLocales.success) return null
-
-  const [organizationResult, categories, links, brandProfiles, brandContents, overrides] =
-    await Promise.all([
-      // The Better Auth organization table is intentionally outside the
-      // Drizzle application schema, so this narrow display-name read is SQL.
-      db.execute(
-        sql`SELECT name FROM "organization" WHERE id = ${organizationId} LIMIT 1`,
-      ),
-      db
-        .select()
-        .from(portalLinkCategories)
-        .where(
-          and(
-            eq(portalLinkCategories.organizationId, organizationId),
-            eq(portalLinkCategories.portalId, portalId),
-          ),
-        )
-        .orderBy(portalLinkCategories.sortKey, portalLinkCategories.id),
-      db
-        .select({
-          link: portalLinks,
-          destinationUri: portalApprovedDestinations.normalizedUri,
-          destinationApprovalState: portalApprovedDestinations.approvalState,
-        })
-        .from(portalLinks)
-        .leftJoin(
-          portalApprovedDestinations,
-          and(
-            eq(portalApprovedDestinations.organizationId, portalLinks.organizationId),
-            eq(portalApprovedDestinations.propertyId, portalLinks.propertyId),
-            eq(portalApprovedDestinations.id, portalLinks.destinationId),
-          ),
-        )
-        .where(
-          and(
-            eq(portalLinks.organizationId, organizationId),
-            eq(portalLinks.portalId, portalId),
-          ),
-        )
-        .orderBy(portalLinks.sortKey, portalLinks.id),
-      db
-        .select()
-        .from(propertyPortalBrandProfiles)
-        .where(
-          and(
-            eq(propertyPortalBrandProfiles.organizationId, organizationId),
-            eq(propertyPortalBrandProfiles.propertyId, portal.propertyId),
-          ),
-        )
-        .limit(1),
-      db
-        .select()
-        .from(propertyPortalBrandContents)
-        .where(
-          and(
-            eq(propertyPortalBrandContents.organizationId, organizationId),
-            eq(propertyPortalBrandContents.propertyId, portal.propertyId),
-          ),
-        ),
-      db
-        .select()
-        .from(portalLocalizedOverrides)
-        .where(
-          and(
-            eq(portalLocalizedOverrides.organizationId, organizationId),
-            eq(portalLocalizedOverrides.propertyId, portal.propertyId),
-            eq(portalLocalizedOverrides.portalId, portalId),
-          ),
-        ),
-    ])
-  const organization = organizationResult.rows[0] as { name?: unknown } | undefined
-  if (!organization || typeof organization.name !== 'string') return null
-
-  const localeCandidates: PortalGuestLocale[] = [
-    primaryGuestLocale,
-    ...additionalGuestLocales.data,
-  ]
-  const localeSet: PortalGuestLocale[] = localeCandidates.filter(
-    (locale, index, all) => all.indexOf(locale) === index,
-  )
-  const brand = brandProfiles[0]
-  const contentByLocale = new Map(
-    brandContents.map((content) => [content.locale, content]),
-  )
-  const overrideByLocale = new Map(
-    overrides.map((override) => [override.locale, override]),
-  )
-  const resolvedLocalizedContent = Object.fromEntries(
-    localeSet.flatMap((locale) => {
-      const content = contentByLocale.get(locale)
-      if (!content) return []
-      const override = overrideByLocale.get(locale)
-      return [
-        [
-          locale,
-          {
-            title: override?.title ?? content.title,
-            shortDescription: override?.shortDescription ?? content.shortDescription,
-            heroImageUrl: override?.heroImageUrl ?? brand?.defaultHeroImageUrl ?? null,
-          },
-        ],
-      ]
-    }),
-  ) as Partial<Record<PortalGuestLocale, PortalLocalizedContentSnapshot>>
-  const hasCompleteExperience =
-    brand !== undefined &&
-    localeSet.length > 0 &&
-    localeSet.every((locale) => resolvedLocalizedContent[locale] !== undefined)
-
-  return {
-    portal: {
-      id: portal.id,
-      name: portal.name,
-      slug: portal.slug,
-      description: portal.description,
-      heroImageUrl: portal.heroImageUrl,
-      theme: portal.theme as Record<string, string | number | boolean | null> | null,
-      organizationName: brand?.displayName ?? organization.name,
-    },
-    categories: categories.map((category) => ({
-      id: category.id,
-      title: category.title,
-      sortKey: category.sortKey,
-    })),
-    links: links.flatMap(({ link, destinationUri, destinationApprovalState }) => {
-      const url = destinationApprovalState === 'approved' ? destinationUri : null
-      return url
-        ? [
-            {
-              id: link.id,
-              label: link.label,
-              url,
-              categoryId: link.categoryId,
-              sortKey: link.sortKey,
-            },
-          ]
-        : []
-    }),
-    privateFeedbackThreshold: portal.privateFeedbackThreshold,
-    organizationId,
-    propertyId: portal.propertyId,
-    experience: hasCompleteExperience
-      ? {
-          primaryGuestLocale,
-          localeSet,
-          languagePackVersions: PORTAL_LANGUAGE_PACK_VERSIONS,
-          localizedContent: resolvedLocalizedContent,
-          brandProfile: {
-            displayName: brand.displayName,
-            logoUrl: brand.logoUrl,
-            defaultHeroImageUrl: brand.defaultHeroImageUrl,
-            primaryColor: brand.primaryColor,
-            backgroundColor: brand.backgroundColor,
-            textColor: brand.textColor,
-            version: brand.version,
-          },
-        }
-      : undefined,
-  }
-}
-
 const resolvableTokenAsOf = (asOf: Date) =>
   or(
     eq(portalTokens.status, 'active'),
@@ -429,7 +226,10 @@ export const createPortalPublicationRepository = (
 ): PortalPublicationRepository => ({
   loadWorkingCopy: (organizationId, portalId) =>
     trace('portalPublication.loadWorkingCopy', () =>
-      loadWorkingCopy(db, unbrand(organizationId), unbrand(portalId)),
+      readPortalWorkingCopy(db, {
+        organizationId: unbrand(organizationId),
+        portalId: unbrand(portalId),
+      }),
     ),
 
   getCursor: async (organizationId, portalId) =>
