@@ -4,6 +4,7 @@
  */
 
 import type { Role } from '#/shared/domain/roles'
+import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 
 export function roleLabel(role: Role, style: 'short' | 'full' = 'short'): string {
   if (style === 'full') {
@@ -28,6 +29,20 @@ export function roleLabel(role: Role, style: 'short' | 'full' = 'short'): string
       return 'Manager'
     case 'Member':
       return 'Member'
+    default: {
+      const _exhaustive: never = role
+      return String(_exhaustive)
+    }
+  }
+}
+
+/** One line on what a role can do, shown wherever a person picks or reviews a role. */
+export function roleDescription(role: BetaInteractiveRole): string {
+  switch (role) {
+    case 'AccountAdmin':
+      return 'Sees every property. Manages members, the Google connection, AI consent and organization settings.'
+    case 'PropertyManager':
+      return "Works on the properties you choose: inbox, replies, portals and goals. Can't invite people or change organization settings."
     default: {
       const _exhaustive: never = role
       return String(_exhaustive)
