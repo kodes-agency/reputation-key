@@ -71,6 +71,8 @@ import { Route as AuthenticatedPropertiesPropertyIdSettingsPeopleRouteImport } f
 import { Route as AuthenticatedPropertiesPropertyIdSettingsProfileRouteImport } from './routes/_authenticated/properties/$propertyId/settings/profile'
 import { Route as AuthenticatedPropertiesPropertyIdSettingsRepliesRouteImport } from './routes/_authenticated/properties/$propertyId/settings/replies'
 import { Route as AuthenticatedPropertiesPropertyIdSettingsTargetsRouteImport } from './routes/_authenticated/properties/$propertyId/settings/targets'
+import { Route as AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRouteImport } from './routes/_authenticated/properties/$propertyId/portals/$portalId/index'
+import { Route as AuthenticatedPropertiesPropertyIdPortalsPortalIdReviewRouteImport } from './routes/_authenticated/properties/$propertyId/portals/$portalId/review'
 import { Route as ApiPublicPTokenClickLinkIdRouteImport } from './routes/api/public/p/$token/click/$linkId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -421,6 +423,18 @@ const AuthenticatedPropertiesPropertyIdSettingsTargetsRoute =
     path: '/targets',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdSettingsRoute,
   } as any)
+const AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRoute =
+  AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRouteImport.update({
+    id: '/',
+    path: '/',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute,
+  } as any)
+const AuthenticatedPropertiesPropertyIdPortalsPortalIdReviewRoute =
+  AuthenticatedPropertiesPropertyIdPortalsPortalIdReviewRouteImport.update({
+    id: '/review',
+    path: '/review',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute,
+  } as any)
 const ApiPublicPTokenClickLinkIdRoute =
   ApiPublicPTokenClickLinkIdRouteImport.update({
     id: '/api/public/p/$token/click/$linkId',
@@ -478,7 +492,7 @@ export interface FileRoutesByFullPath {
   '/properties/import-google/': typeof AuthenticatedPropertiesImportGoogleIndexRoute
   '/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
   '/properties/$propertyId/goals/new': typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
-  '/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
+  '/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteWithChildren
   '/properties/$propertyId/portals/new': typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
   '/properties/$propertyId/settings/ai': typeof AuthenticatedPropertiesPropertyIdSettingsAiRoute
   '/properties/$propertyId/settings/danger': typeof AuthenticatedPropertiesPropertyIdSettingsDangerRoute
@@ -490,7 +504,9 @@ export interface FileRoutesByFullPath {
   '/properties/$propertyId/goals/': typeof AuthenticatedPropertiesPropertyIdGoalsIndexRoute
   '/properties/$propertyId/portals/': typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
   '/properties/$propertyId/settings/': typeof AuthenticatedPropertiesPropertyIdSettingsIndexRoute
+  '/properties/$propertyId/portals/$portalId/review': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdReviewRoute
   '/api/public/p/$token/click/$linkId': typeof ApiPublicPTokenClickLinkIdRoute
+  '/properties/$propertyId/portals/$portalId/': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -538,7 +554,6 @@ export interface FileRoutesByTo {
   '/properties/import-google': typeof AuthenticatedPropertiesImportGoogleIndexRoute
   '/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
   '/properties/$propertyId/goals/new': typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
-  '/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
   '/properties/$propertyId/portals/new': typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
   '/properties/$propertyId/settings/ai': typeof AuthenticatedPropertiesPropertyIdSettingsAiRoute
   '/properties/$propertyId/settings/danger': typeof AuthenticatedPropertiesPropertyIdSettingsDangerRoute
@@ -550,7 +565,9 @@ export interface FileRoutesByTo {
   '/properties/$propertyId/goals': typeof AuthenticatedPropertiesPropertyIdGoalsIndexRoute
   '/properties/$propertyId/portals': typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
   '/properties/$propertyId/settings': typeof AuthenticatedPropertiesPropertyIdSettingsIndexRoute
+  '/properties/$propertyId/portals/$portalId/review': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdReviewRoute
   '/api/public/p/$token/click/$linkId': typeof ApiPublicPTokenClickLinkIdRoute
+  '/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -604,7 +621,7 @@ export interface FileRoutesById {
   '/_authenticated/properties/import-google/': typeof AuthenticatedPropertiesImportGoogleIndexRoute
   '/_authenticated/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
   '/_authenticated/properties/$propertyId/goals/new': typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
-  '/_authenticated/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
+  '/_authenticated/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteWithChildren
   '/_authenticated/properties/$propertyId/portals/new': typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
   '/_authenticated/properties/$propertyId/settings/ai': typeof AuthenticatedPropertiesPropertyIdSettingsAiRoute
   '/_authenticated/properties/$propertyId/settings/danger': typeof AuthenticatedPropertiesPropertyIdSettingsDangerRoute
@@ -616,7 +633,9 @@ export interface FileRoutesById {
   '/_authenticated/properties/$propertyId/goals/': typeof AuthenticatedPropertiesPropertyIdGoalsIndexRoute
   '/_authenticated/properties/$propertyId/portals/': typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
   '/_authenticated/properties/$propertyId/settings/': typeof AuthenticatedPropertiesPropertyIdSettingsIndexRoute
+  '/_authenticated/properties/$propertyId/portals/$portalId/review': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdReviewRoute
   '/api/public/p/$token/click/$linkId': typeof ApiPublicPTokenClickLinkIdRoute
+  '/_authenticated/properties/$propertyId/portals/$portalId/': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -682,7 +701,9 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/goals/'
     | '/properties/$propertyId/portals/'
     | '/properties/$propertyId/settings/'
+    | '/properties/$propertyId/portals/$portalId/review'
     | '/api/public/p/$token/click/$linkId'
+    | '/properties/$propertyId/portals/$portalId/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -730,7 +751,6 @@ export interface FileRouteTypes {
     | '/properties/import-google'
     | '/properties/$propertyId/goals/$goalId'
     | '/properties/$propertyId/goals/new'
-    | '/properties/$propertyId/portals/$portalId'
     | '/properties/$propertyId/portals/new'
     | '/properties/$propertyId/settings/ai'
     | '/properties/$propertyId/settings/danger'
@@ -742,7 +762,9 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/goals'
     | '/properties/$propertyId/portals'
     | '/properties/$propertyId/settings'
+    | '/properties/$propertyId/portals/$portalId/review'
     | '/api/public/p/$token/click/$linkId'
+    | '/properties/$propertyId/portals/$portalId'
   id:
     | '__root__'
     | '/'
@@ -807,7 +829,9 @@ export interface FileRouteTypes {
     | '/_authenticated/properties/$propertyId/goals/'
     | '/_authenticated/properties/$propertyId/portals/'
     | '/_authenticated/properties/$propertyId/settings/'
+    | '/_authenticated/properties/$propertyId/portals/$portalId/review'
     | '/api/public/p/$token/click/$linkId'
+    | '/_authenticated/properties/$propertyId/portals/$portalId/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -1271,6 +1295,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdSettingsTargetsRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdSettingsRoute
     }
+    '/_authenticated/properties/$propertyId/portals/$portalId/': {
+      id: '/_authenticated/properties/$propertyId/portals/$portalId/'
+      path: '/'
+      fullPath: '/properties/$propertyId/portals/$portalId/'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
+    }
+    '/_authenticated/properties/$propertyId/portals/$portalId/review': {
+      id: '/_authenticated/properties/$propertyId/portals/$portalId/review'
+      path: '/review'
+      fullPath: '/properties/$propertyId/portals/$portalId/review'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdReviewRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
+    }
     '/api/public/p/$token/click/$linkId': {
       id: '/api/public/p/$token/click/$linkId'
       path: '/api/public/p/$token/click/$linkId'
@@ -1370,6 +1408,24 @@ const AuthenticatedPropertiesPropertyIdSettingsRouteWithChildren =
     AuthenticatedPropertiesPropertyIdSettingsRouteChildren,
   )
 
+interface AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteChildren {
+  AuthenticatedPropertiesPropertyIdPortalsPortalIdReviewRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdReviewRoute
+  AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRoute
+}
+
+const AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteChildren: AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteChildren =
+  {
+    AuthenticatedPropertiesPropertyIdPortalsPortalIdReviewRoute:
+      AuthenticatedPropertiesPropertyIdPortalsPortalIdReviewRoute,
+    AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRoute:
+      AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRoute,
+  }
+
+const AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteWithChildren =
+  AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute._addFileChildren(
+    AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteChildren,
+  )
+
 interface AuthenticatedPropertiesPropertyIdRouteChildren {
   AuthenticatedPropertiesPropertyIdGoalsRoute: typeof AuthenticatedPropertiesPropertyIdGoalsRouteWithChildren
   AuthenticatedPropertiesPropertyIdGoogleRoute: typeof AuthenticatedPropertiesPropertyIdGoogleRoute
@@ -1380,7 +1436,7 @@ interface AuthenticatedPropertiesPropertyIdRouteChildren {
   AuthenticatedPropertiesPropertyIdReviewsRoute: typeof AuthenticatedPropertiesPropertyIdReviewsRoute
   AuthenticatedPropertiesPropertyIdSettingsRoute: typeof AuthenticatedPropertiesPropertyIdSettingsRouteWithChildren
   AuthenticatedPropertiesPropertyIdIndexRoute: typeof AuthenticatedPropertiesPropertyIdIndexRoute
-  AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
+  AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteWithChildren
   AuthenticatedPropertiesPropertyIdPortalsNewRoute: typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
   AuthenticatedPropertiesPropertyIdPortalsIndexRoute: typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
 }
@@ -1406,7 +1462,7 @@ const AuthenticatedPropertiesPropertyIdRouteChildren: AuthenticatedPropertiesPro
     AuthenticatedPropertiesPropertyIdIndexRoute:
       AuthenticatedPropertiesPropertyIdIndexRoute,
     AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute:
-      AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute,
+      AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteWithChildren,
     AuthenticatedPropertiesPropertyIdPortalsNewRoute:
       AuthenticatedPropertiesPropertyIdPortalsNewRoute,
     AuthenticatedPropertiesPropertyIdPortalsIndexRoute:

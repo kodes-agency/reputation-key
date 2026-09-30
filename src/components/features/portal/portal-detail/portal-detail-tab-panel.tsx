@@ -1,55 +1,52 @@
-// The body of the active detail tab.
+// The body of the active workspace tab.
 //
-// `PortalDetailTabs` mounts a panel for every tab so each trigger's
-// aria-controls idref resolves, but only ever passes children to the active one
-// — so this switch renders exactly what four sibling `{tab === '…' && …}` guards
-// used to, with one decision instead of four nested ones.
+// The route mounts exactly one of these, so this switch is the single decision
+// about what a tab shows. The route hands down one bag of resources for all
+// four tabs, and each tab below maps its slice of that bag onto its own
+// component's contract; doing it for all of them in one function is what made
+// the old inline guards hard to read.
 //
-// Each tab keeps its own component below: the route hands down one bag of
-// resources for all four tabs, and mapping that bag onto four different
-// component contracts in a single function is what made the old inline guards
-// hard to read.
+// The Page tab is the old Settings and Links tabs, stacked, until the section
+// list (slice 27) splits them into sections.
 
 import { LinkTree } from '../link-tree/link-tree'
 import { PortalAnalyticsTab } from '../portal-analytics/portal-analytics-tab'
+import { PortalPublicationHistoryCard } from '../portal-settings/portal-publication-history-card'
 import { PortalSettings } from '../portal-settings/portal-settings'
 import { PortalShare } from '../portal-share/portal-share'
 import type { RefObject } from 'react'
-import type { IssuedPortalLink } from '../portal-share/portal-share-types'
+import type { PortalLinkIssuance } from '../portal-workspace/portal-link-issuance'
 import type { FormLike, PortalThemeDraft } from '../shared/types'
 import type { PortalDetailTab } from './portal-detail-rules'
 import type { PortalDetailResources } from './portal-detail-types'
 
-/** The shell-owned draft state the Settings tab edits. */
+/** The shell-owned draft state the Settings section edits. */
 type ThemeDraft = Readonly<{
   theme: PortalThemeDraft
   onThemeChange: (theme: PortalThemeDraft) => void
   formRef: RefObject<FormLike | null>
 }>
 
-/** The once-shown public link, held by the shell so a tab switch cannot lose it. */
-type LinkIssuance = Readonly<{
-  issuedLink: IssuedPortalLink | null
-  linksRevoked: boolean
-  onLinkIssued: (link: IssuedPortalLink) => void
-  onLinksRevoked: () => void
-}>
-
 type Props = PortalDetailResources &
   ThemeDraft &
-  LinkIssuance &
+  PortalLinkIssuance &
   Readonly<{ tab: PortalDetailTab }>
 
 export function PortalDetailTabPanel(props: Props) {
   switch (props.tab) {
-    case 'settings':
-      return <SettingsPanel {...props} />
-    case 'links':
-      return <LinksPanel {...props} />
+    case 'page':
+      return (
+        <div className="space-y-6">
+          <SettingsPanel {...props} />
+          <LinksPanel {...props} />
+        </div>
+      )
     case 'share':
       return <SharePanel {...props} />
-    case 'analytics':
+    case 'results':
       return <AnalyticsPanel {...props} />
+    case 'history':
+      return <HistoryPanel {...props} />
   }
 }
 
@@ -58,8 +55,6 @@ type SettingsPanelProps = Pick<
   | 'portal'
   | 'propertyId'
   | 'googleReviewDestination'
-  | 'publicationHistory'
-  | 'loadMorePublicationHistory'
   | 'updateMutation'
   | 'completeReviewMutation'
   | 'responsibleManagers'
@@ -75,8 +70,6 @@ function SettingsPanel({
   portal,
   propertyId,
   googleReviewDestination,
-  publicationHistory,
-  loadMorePublicationHistory,
   updateMutation,
   completeReviewMutation,
   theme,
@@ -94,8 +87,6 @@ function SettingsPanel({
       portal={portal}
       propertyId={propertyId}
       googleReviewDestination={googleReviewDestination}
-      publicationHistory={publicationHistory}
-      loadMorePublicationHistory={loadMorePublicationHistory}
       mutation={updateMutation}
       completeReviewMutation={completeReviewMutation}
       theme={theme}
@@ -127,7 +118,7 @@ type SharePanelProps = Pick<
   | 'rotateTokenMutation'
   | 'revokeTokenMutation'
 > &
-  LinkIssuance
+  PortalLinkIssuance
 
 function SharePanel({
   portal,
@@ -166,6 +157,23 @@ function AnalyticsPanel({
       portalId={portal.id}
       propertyId={propertyId}
       getPortalAnalytics={getPortalAnalytics}
+    />
+  )
+}
+
+function HistoryPanel({
+  portal,
+  publicationHistory,
+  loadMorePublicationHistory,
+}: Pick<
+  PortalDetailResources,
+  'portal' | 'publicationHistory' | 'loadMorePublicationHistory'
+>) {
+  return (
+    <PortalPublicationHistoryCard
+      history={publicationHistory}
+      portalId={portal.id}
+      loadMoreAction={loadMorePublicationHistory}
     />
   )
 }

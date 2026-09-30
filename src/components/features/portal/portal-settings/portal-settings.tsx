@@ -1,4 +1,5 @@
-// Portal settings — publication, identity, theme, and content review.
+// Portal settings — publication, identity, theme, and content review. The
+// publication history has its own tab in the workspace.
 // Mutation state is owned by the route and reflected through the query-backed portal prop.
 // The publication decisions live in portal-settings-rules.ts, so this file is a
 // flat list of the blocks on screen plus the one permission fact they share.
@@ -7,7 +8,6 @@ import { EditPortalForm } from '../portal-form/edit-portal-form'
 import { ThemePresetSelector } from './theme-preset-selector'
 import { ContentReviewCard } from './content-review-card'
 import { PortalPublicationRow } from './portal-publication-row'
-import { PortalPublicationHistoryCard } from './portal-publication-history-card'
 import { saveStatusMessage } from './portal-settings-rules'
 import { ResponsibleManagersCard } from './responsible-managers-card'
 import { Button } from '#/components/ui/button'
@@ -27,7 +27,6 @@ import type {
 } from '../portal-detail/portal-detail-types'
 import { GoogleReviewDestinationCard } from './google-review-destination-card'
 import type { GoogleReviewDestinationStatus } from './google-review-destination-status'
-import type { PortalPublicationHistory } from '#/contexts/portal/application/public-api'
 import {
   PortalExperienceSettingsCard,
   type PortalApprovedDestinationList,
@@ -38,11 +37,6 @@ type Props = Readonly<{
   portal: PortalData
   propertyId?: string
   googleReviewDestination: GoogleReviewDestinationStatus
-  publicationHistory: PortalPublicationHistory
-  loadMorePublicationHistory?: Action<
-    { data: { portalId: string; cursor?: number; limit?: number } },
-    PortalPublicationHistory
-  >
   mutation: Action<UpdatePortalVariables>
   completeReviewMutation: Action<CompleteReviewVariables, CompleteReviewResult>
   theme: PortalThemeDraft
@@ -68,8 +62,6 @@ export function PortalSettings({
   portal,
   propertyId,
   googleReviewDestination,
-  publicationHistory,
-  loadMorePublicationHistory,
   mutation,
   completeReviewMutation,
   theme,
@@ -104,12 +96,6 @@ export function PortalSettings({
       </div>
 
       <PortalPublicationRow portal={portal} mutation={mutation} canManage={canManage} />
-
-      <PortalPublicationHistoryCard
-        history={publicationHistory}
-        portalId={portal.id}
-        loadMoreAction={loadMorePublicationHistory}
-      />
 
       <GoogleReviewDestinationCard destination={googleReviewDestination} />
 

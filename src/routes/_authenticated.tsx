@@ -20,6 +20,7 @@ import {
   type CapabilitySet,
 } from '#/shared/auth/capability-set'
 import { propertyIdFromLocation } from '#/components/hooks/use-property-id'
+import { isWorkspaceRoute } from '#/components/features/portal/portal-workspace/portal-workspace-route'
 import { httpStatus } from '#/shared/security/expected-refusal'
 import { SidebarProvider } from '#/components/ui/sidebar'
 import { ManagerSidebar } from '#/components/layout/manager-sidebar'
@@ -196,14 +197,20 @@ function AuthenticatedLayout() {
   const properties = partitionWorkspaceProperties(propsData.properties).workspace
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const isSettings = pathname.startsWith('/settings')
-  const isInbox = pathname.startsWith('/inbox') || pathname.includes('/reviews')
+  // Both surfaces are full-bleed: the sidebar collapses to the icon rail and
+  // the surface scrolls its own panes. The Inbox and the portal workspace share
+  // the treatment.
+  const isFullBleed =
+    pathname.startsWith('/inbox') ||
+    pathname.includes('/reviews') ||
+    isWorkspaceRoute(pathname)
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
   const content = (
     <SidebarProvider
-      open={isInbox ? false : sidebarOpen}
+      open={isFullBleed ? false : sidebarOpen}
       onOpenChange={(next) => {
-        if (!isInbox) setSidebarOpen(next)
+        if (!isFullBleed) setSidebarOpen(next)
       }}
     >
       {isSettings ? (
@@ -223,12 +230,12 @@ function AuthenticatedLayout() {
       <div
         data-slot="sidebar-inset"
         className={`relative flex w-full flex-1 flex-col bg-background min-w-0 ${
-          isInbox ? 'overflow-hidden' : ''
+          isFullBleed ? 'overflow-hidden' : ''
         }`}
       >
         <AppTopBar
           user={ctx.user}
-          sidebarLocked={isInbox}
+          sidebarLocked={isFullBleed}
           organizationId={ctx.activeOrganization?.id ?? 'no-active-organization'}
           notificationFns={notificationFns}
           submitBetaFeedback={
@@ -240,7 +247,7 @@ function AuthenticatedLayout() {
         />
         <main
           className={`min-w-0 flex-1 ${
-            isInbox ? 'overflow-hidden' : 'overflow-auto px-4 py-5 md:px-6 md:py-8'
+            isFullBleed ? 'overflow-hidden' : 'overflow-auto px-4 py-5 md:px-6 md:py-8'
           }`}
         >
           <Outlet />
@@ -249,7 +256,7 @@ function AuthenticatedLayout() {
     </SidebarProvider>
   )
 
-  return isInbox ? (
+  return isFullBleed ? (
     <div className="h-screen overflow-hidden flex flex-col">
       <style>{`[data-slot="sidebar-wrapper"]{flex:1 1 0%;overflow:hidden}`}</style>
       {content}

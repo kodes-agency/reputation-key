@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import type { ErrorComponentProps } from '@tanstack/react-router'
 
 import { PageHeader } from '#/components/layout/page-header'
@@ -44,19 +45,33 @@ export function CreatePortalError({ error }: ErrorComponentProps) {
   )
 }
 
+/**
+ * The portal workspace is full-bleed (see `isWorkspaceRoute`): the layout above
+ * it clips overflow and pads nothing. Its loading, error and not-found states
+ * render in that same frame, so they bring their own padding and their own
+ * scroll instead of being cut off at the viewport.
+ */
+export function PortalFallbackFrame({ children }: Readonly<{ children: ReactNode }>) {
+  return (
+    <div className="h-full overflow-y-auto px-4 py-5 md:px-6 md:py-8">
+      <PageShell>{children}</PageShell>
+    </div>
+  )
+}
+
 export function PortalDetailLoading() {
   return (
-    <PageShell>
+    <PortalFallbackFrame>
       <LoadingState label="Loading portal details" />
-    </PageShell>
+    </PortalFallbackFrame>
   )
 }
 
 export function PortalDetailError({ error }: ErrorComponentProps) {
   return (
-    <PageShell>
+    <PortalFallbackFrame>
       <PageHeader title="Portal" description="Manage this property’s public page." />
       <ErrorState message={errorMessage(error) || 'This portal could not be loaded.'} />
-    </PageShell>
+    </PortalFallbackFrame>
   )
 }

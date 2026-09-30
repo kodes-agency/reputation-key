@@ -843,7 +843,8 @@ describe('notificationLink', () => {
     )
     expect(notificationLink('portal', 'portal-1', 'prop-1')).toEqual({
       path: '/properties/prop-1/portals/portal-1',
-      search: { tab: 'settings' },
+      // The responsible-managers card lives on the workspace's Page tab.
+      search: { tab: 'page' },
     })
   })
 

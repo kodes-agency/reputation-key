@@ -14,38 +14,45 @@ import {
 } from '#/contexts/portal/server/portal-links'
 
 export function useLinkTreeMutations(portalId: string) {
+  // Any link or category edit changes the working copy, so the workspace
+  // header's "N changes not live" note (read from the publication history) must
+  // refresh with the tree.
+  const invalidateKeys = [
+    portalKeys.links(portalId),
+    portalKeys.publicationHistory(portalId),
+  ]
   const createCategoryMutation = useActionMutation(createLinkCategory, {
     successMessage: 'Category created',
-    invalidateKeys: [portalKeys.links(portalId)],
+    invalidateKeys,
   })
   const createLinkMutation = useActionMutation(createLink, {
     successMessage: 'Link created',
-    invalidateKeys: [portalKeys.links(portalId)],
+    invalidateKeys,
   })
   // Deletes were silent on BOTH paths: no toast on success, no rendered error on
   // failure, so the user could not tell one from the other. A success message
   // here plus the FormErrorBanner in LinkTree makes both outcomes observable.
   const deleteCategoryMutation = useActionMutation(deleteLinkCategory, {
     successMessage: 'Category deleted',
-    invalidateKeys: [portalKeys.links(portalId)],
+    invalidateKeys,
   })
   const deleteLinkMutation = useActionMutation(deleteLink, {
     successMessage: 'Link deleted',
-    invalidateKeys: [portalKeys.links(portalId)],
+    invalidateKeys,
   })
   const reorderCategoriesMutation = useActionMutation(reorderCategories, {
-    invalidateKeys: [portalKeys.links(portalId)],
+    invalidateKeys,
   })
   const reorderLinksMutation = useActionMutation(reorderLinks, {
-    invalidateKeys: [portalKeys.links(portalId)],
+    invalidateKeys,
   })
   const updateLinkMutation = useActionMutation(updateLink, {
     successMessage: 'Link updated',
-    invalidateKeys: [portalKeys.links(portalId)],
+    invalidateKeys,
   })
   const updateCategoryMutation = useActionMutation(updateLinkCategory, {
     successMessage: 'Category updated',
-    invalidateKeys: [portalKeys.links(portalId)],
+    invalidateKeys,
   })
 
   return {

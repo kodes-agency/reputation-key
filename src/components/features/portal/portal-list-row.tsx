@@ -40,7 +40,7 @@ export function PortalListRow({
         <Link
           to="/properties/$propertyId/portals/$portalId"
           params={{ propertyId, portalId: portal.id }}
-          search={{ tab: 'settings' }}
+          search={{ tab: 'page' }}
           className="font-medium hover:underline"
         >
           {portal.name}
@@ -86,7 +86,7 @@ function PortalRowActions({
           to="/properties/$propertyId/portals/$portalId"
           params={{ propertyId, portalId: portal.id }}
           aria-label={`View ${portal.name}`}
-          search={{ tab: 'settings' }}
+          search={{ tab: 'page' }}
         >
           <Eye className="size-3.5" />
         </Link>

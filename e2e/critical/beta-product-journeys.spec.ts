@@ -126,9 +126,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     ).toBeVisible()
     await expect(page.getByText('E2E Guest Services', { exact: true })).toBeVisible()
 
-    await page.goto(
-      `/properties/${seed.p1PropertyId}/portals/${seed.portalId}?tab=settings`,
-    )
+    await page.goto(`/properties/${seed.p1PropertyId}/portals/${seed.portalId}?tab=page`)
     await waitForHydration(page)
     await expect(page.getByRole('heading', { name: 'E2E Guest Portal P1' })).toBeVisible()
     // By id, not by label: the localized content editor also renders a field
@@ -437,7 +435,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // the route indistinguishable from a successful render) and the copy (a
     // blank page is not a clean denial). Neither portal name may appear.
     const denial = await page.goto(
-      `/properties/${seed.p1PropertyId}/portals/${seed.p2PortalId}?tab=settings`,
+      `/properties/${seed.p1PropertyId}/portals/${seed.p2PortalId}?tab=page`,
     )
     expect(denial?.status()).toBe(404)
     await expect(page.getByText('This portal is no longer available')).toBeVisible()

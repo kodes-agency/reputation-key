@@ -61,7 +61,7 @@ function CreatePortalPage() {
       await navigate({
         to: '/properties/$propertyId/portals/$portalId',
         params: { propertyId, portalId: output.portal.id },
-        search: { tab: 'settings' },
+        search: { tab: 'page' },
       })
     },
   })

@@ -5,7 +5,7 @@
 // getPortalAnalytics is a server-fn-typed prop (analytics tab fires it on mount
 // via useServerFn(getPortalAnalytics)) → mock via mockServerFn + type cast.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, within } from 'storybook/test'
+import { expect, userEvent, within } from 'storybook/test'
 import { PortalDetailPage } from './portal-detail-page'
 import type {
   getPortalAnalyticsFn,
@@ -210,11 +210,11 @@ const baseArgs = {
   rotateTokenMutation,
   revokeTokenMutation,
   getPortalAnalytics,
-  activeTab: 'settings' as const,
-  onTabChange: fn(),
+  activeTab: 'page' as const,
 }
 
-export const SettingsTab: Story = {
+// The Page tab: the old Settings and Links tabs stacked, until the section list.
+export const PageTab: Story = {
   args: baseArgs,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -222,18 +222,28 @@ export const SettingsTab: Story = {
     await expect(
       canvas.getByRole('heading', { name: 'Google review destination' }),
     ).toBeInTheDocument()
-    await expect(
-      canvas.getByRole('heading', { name: 'Publication history' }),
-    ).toBeInTheDocument()
     await expect(canvas.getByText('Ready')).toBeInTheDocument()
     await expect(
       canvas.queryByRole('textbox', { name: /google review/i }),
     ).not.toBeInTheDocument()
+    // The links are the second half of the same tab, not a tab of their own.
+    await expect(canvas.getByText('Google Reviews')).toBeInTheDocument()
+    await expect(
+      canvas.queryByRole('heading', { name: 'Publication history' }),
+    ).not.toBeInTheDocument()
   },
 }
 
-export const LinksTab: Story = {
-  args: { ...baseArgs, activeTab: 'links' },
+// History tab: the publication history that used to sit inside Settings.
+export const HistoryTab: Story = {
+  args: { ...baseArgs, activeTab: 'history' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getByRole('heading', { name: 'Publication history' }),
+    ).toBeInTheDocument()
+    await expect(canvas.getByText(/version 1 is live/i)).toBeInTheDocument()
+  },
 }
 
 // Share tab generates and displays the opaque URL through the route-owned action.
@@ -250,15 +260,15 @@ export const ShareTab: Story = {
   },
 }
 
-// Analytics tab → fires getPortalAnalytics on mount (mock returns empty →
+// Results tab → fires getPortalAnalytics on mount (mock returns empty →
 // the "no analytics data yet" empty state renders).
-export const AnalyticsTab: Story = {
-  args: { ...baseArgs, activeTab: 'analytics' },
+export const ResultsTab: Story = {
+  args: { ...baseArgs, activeTab: 'results' },
 }
 
 // Settings tab while a save is in flight.
 export const SettingsSaving: Story = {
-  args: { ...baseArgs, activeTab: 'settings', updateMutation: pendingMutation },
+  args: { ...baseArgs, activeTab: 'page', updateMutation: pendingMutation },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('button', { name: /saving/i })).toBeInTheDocument()

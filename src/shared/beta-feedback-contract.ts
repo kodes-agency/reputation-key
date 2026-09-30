@@ -101,6 +101,7 @@ export type BetaFeedbackRouteKey =
   | 'properties.property.portals.list'
   | 'properties.property.portals.new'
   | 'properties.property.portals.detail'
+  | 'properties.property.portals.review'
   | 'settings.overview'
   | 'settings.ai'
   | 'settings.integrations'
@@ -164,6 +165,10 @@ const PROPERTY_ROUTE_SUFFIXES: Readonly<Array<readonly [RegExp, BetaFeedbackRout
     [/^\/properties\/[^/]+\/portals$/, 'properties.property.portals.list'],
     [/^\/properties\/[^/]+\/portals\/new$/, 'properties.property.portals.new'],
     [/^\/properties\/[^/]+\/portals\/[^/]+$/, 'properties.property.portals.detail'],
+    [
+      /^\/properties\/[^/]+\/portals\/[^/]+\/review$/,
+      'properties.property.portals.review',
+    ],
     [/^\/properties\/[^/]+$/, 'properties.property.overview'],
   ]
 
