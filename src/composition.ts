@@ -498,8 +498,6 @@ function buildContainer(
     authorizeCommand: createInboxCommandAuthority({
       decideManagerPropertyAuthorities:
         identity.authority.decideManagerPropertyAuthorities,
-      decideUserParticipationAuthority:
-        identity.authority.decideUserParticipationAuthority,
     }),
     // BQC-1.4: review.publicApi IS the governed read interface — it satisfies
     // the inbox ReviewLookupPort and metric ReviewRatingLookupPort directly.
