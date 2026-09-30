@@ -1,17 +1,16 @@
-// E2E: invitation-bound beta manager registration and login.
+// E2E: invitation-bound beta manager registration.
 //
 // Public registration and Organization creation cannot be reopened by an E2E
 // override. The positive account journey therefore uses the same exact,
 // email-bound manager invitation as beta.
 //
-// Identity mail is asserted against the fake outbox: exactly one verification
-// send to the registrant. The real Resend API is unreachable in e2e
-// (RESEND_BASE_URL pins the client at the stub), so the test follows the
-// captured one-time link before sign-in. This proves delivery intent, content
-// classification, and the required verification transition end to end.
+// The stack runs with email verification required, as production does.
+// Consuming the invitation verifies the address (ADR 0062): the invitee lands
+// signed in, in the app, and no separate verification email is sent — the
+// fake outbox must record none.
 
 import { test, expect } from './helpers/error-detection'
-import { signIn, registerInvitedAccount } from './helpers/auth'
+import { registerInvitedAccount } from './helpers/auth'
 import { mailStubControl } from './fixtures/mail-stub'
 import { cleanupE2eData, dbQuery, e2eRunId } from './helpers/fixtures'
 import { requireE2eSeedState } from './helpers/seed-state'
@@ -30,7 +29,9 @@ test.describe('Authentication', () => {
     await cleanupE2eData({ organizationId: seed.organizationId, prefix: PREFIX })
   })
 
-  test('create an invited manager account and sign in', async ({ page }) => {
+  test('an invited manager creates an account and lands signed in, verified', async ({
+    page,
+  }) => {
     const seed = requireE2eSeedState()
     const suffix = crypto.randomUUID().slice(0, 8)
     const uniqueEmail = `${PREFIX}-${suffix}@example.com`
@@ -44,16 +45,18 @@ test.describe('Authentication', () => {
     )
 
     await registerInvitedAccount(page, invitationId, uniqueEmail, password)
-    await expect(page.getByText(/account created/i)).toBeVisible()
+    await expect(page).toHaveURL(/\/(dashboard|properties|home|inbox)/)
 
     const authority = await dbQuery<{
       invitation_status: string
       member_role: string
       organization_id: string
+      email_verified: boolean
     }>(
       `SELECT i.status AS invitation_status,
               m.role AS member_role,
-              m."organizationId" AS organization_id
+              m."organizationId" AS organization_id,
+              u."emailVerified" AS email_verified
          FROM invitation i
          JOIN "user" u ON LOWER(u.email) = LOWER(i.email)
          JOIN member m ON m."userId" = u.id AND m."organizationId" = i."organizationId"
@@ -65,25 +68,20 @@ test.describe('Authentication', () => {
         invitation_status: 'accepted',
         member_role: 'admin',
         organization_id: seed.organizationId,
+        email_verified: true,
       },
     ])
 
-    // Fake outbox: exactly one send, verification classification (subject),
-    // correct recipient. Poll — the send is awaited inside better-auth's
-    // sign-up but the round trip may land just after the UI updates.
-    await expect
-      .poll(async () => (await mailStubControl.sends()).length, { timeout: 15_000 })
-      .toBe(1)
-    const [send] = await mailStubControl.sends()
-    expect(send.to).toBe(uniqueEmail)
-    expect(send.subject).toContain('Verify your email')
+    // The session is real: a fresh navigation into the app stays signed in.
+    await page.goto('/properties')
+    await expect(page).toHaveURL(/\/properties/)
 
-    const verificationHref = send.html.match(/href="([^"]+)"/)?.[1]
-    expect(verificationHref).toBeTruthy()
-    const verificationUrl = new URL(verificationHref!.replaceAll('&amp;', '&'))
-    await page.goto(`${verificationUrl.pathname}${verificationUrl.search}`)
-
-    await signIn(page, uniqueEmail, password)
-    await expect(page).toHaveURL(/\/(dashboard|properties|home|inbox)/)
+    // No verification email: consuming the invitation was the verification.
+    // Registration and the sign-in are both complete by now, so the outbox
+    // has its final count. (Mail to other people, such as a notice to the
+    // inviter, is not this journey's concern.)
+    const sends = await mailStubControl.sends()
+    expect(sends.filter((send) => send.to === uniqueEmail)).toEqual([])
+    expect(sends.filter((send) => /verify your email/i.test(send.subject))).toEqual([])
   })
 })

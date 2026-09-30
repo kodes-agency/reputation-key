@@ -66,16 +66,11 @@ test.describe('Password Reset', () => {
        VALUES ($1, $2, $3, 'admin', 'pending', NOW() + INTERVAL '1 day', $4, NOW())`,
       [invitationId, seed.organizationId, testEmail, seed.managerUserId],
     )
+    // Registration consumes the invitation, which verifies the address and
+    // signs the member in (ADR 0062) — so the fresh sign-in at the end needs
+    // no manual verification.
     await registerInvitedAccount(page, invitationId, testEmail, originalPassword)
-    // The seeded manager this spec used to borrow is emailVerified; a freshly
-    // invited account is not, and an unverified account cannot complete a fresh
-    // sign-in — which would fail the last step for a reason that has nothing to
-    // do with password recovery.
-    await dbQuery('UPDATE "user" SET "emailVerified" = true WHERE email = $1', [
-      testEmail,
-    ])
-    // Registration sends its own mail; the outbox assertion below counts only
-    // the reset.
+    // The outbox assertion below counts only the reset.
     await mailStubControl.reset()
     // A guest who forgot their password is not signed in. Registration leaves
     // an active session, and recovering while holding one is not the journey
