@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  DEFAULT_LINKTREE_TITLE,
   LINKTREE_TITLE_MAX_LENGTH,
   LINK_TEXT_LABEL_MAX_LENGTH,
   LINK_TEXT_LINE_MAX_LENGTH,
@@ -32,9 +31,8 @@ const stored = (
 })
 
 describe('Linktree constants', () => {
-  it('caps a Portal at four links and names the default section title', () => {
+  it('caps a Portal at four links', () => {
     expect(MAX_PORTAL_LINKS).toBe(4)
-    expect(DEFAULT_LINKTREE_TITLE).toBe('Useful links')
   })
 
   it('keeps every writer limit inside the published-snapshot reader limits', () => {

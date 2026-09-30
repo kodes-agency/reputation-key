@@ -113,9 +113,15 @@ export function assertPortalContentCommand(command: PortalContentCommand): void 
         event.categoryId === command.categoryId
       break
     case 'portal.updated':
-      // The Linktree settings command is the only content command that reports
-      // a Portal fact, and its event type already pins that variant.
-      scoped = true
+      // Only the Linktree settings command reports a Portal fact; a link,
+      // category or text command carrying one is a mismatched pair.
+      scoped =
+        ('titles' in command || 'enabled' in command) &&
+        !('linkId' in command) &&
+        !('link' in command) &&
+        !('categoryId' in command) &&
+        !('category' in command) &&
+        !('updates' in command)
       break
   }
   if (

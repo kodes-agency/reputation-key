@@ -38,10 +38,16 @@ language pack's default, "Useful links") and `portals.linktree_enabled`. Until t
 legacy column is dropped, `portal_links.label` mirrors the primary-language text:
 creating or renaming a link and saving the primary text all write both, and
 readers (`listLinkTexts`) fall back to the link's own label for a link with no
-primary-language row. A Portal carries at most four links, counted under the
+primary-language row. Changing the Portal's primary language re-establishes the
+mirror in the same transaction: a link label takes the new primary's text where
+one exists, and the new primary's text starts from the label where none does.
+Old code that runs between migration 0044 and the new web rollout can still
+rename a link without touching its text; slice 19 reconciles that window before
+the v3 writer reads texts. A Portal carries at most four links, counted under the
 Portal fence on create; a Portal that already has more keeps them. Icons come
-from a closed catalogue (`src/shared/domain/portal-link-icon.ts`), enforced by a
-CHECK.
+from a closed catalogue (`src/shared/domain/portal-link-icon.ts`, 27 keys, every
+icon the round-4 editor offers), enforced by a CHECK and refused in the link
+constructor.
 
 The eligible creator is the initial Portal Responsible Manager. Multiple eligible
 managers may be assigned; losing the last sets `responsibilityNeededSince`, and

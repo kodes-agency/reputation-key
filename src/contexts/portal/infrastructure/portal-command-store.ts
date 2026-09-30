@@ -42,6 +42,7 @@ import { verifyPortalPublicationSnapshot } from '../application/portal-publicati
 import { assertCommittedRevision, sameInstant } from './portal-command-guards'
 import { createPortalGroupCommands } from './portal-group-commands'
 import { createPortalLinkCommands } from './portal-link-commands'
+import { assertLocaleSetFact, watchPrimaryLocaleChange } from './portal-locale-set'
 import { createPortalTokenCommands } from './portal-token-commands'
 
 type PortalSetValues = {
@@ -192,24 +193,6 @@ function assertUpdateScopeAndRevision(command: UpdatePortalCommand): void {
       'revision_conflict',
       'Portal command revision must advance monotonically',
     )
-  }
-}
-
-/** An emitted locale-set fact must restate exactly the locales this patch writes. */
-function assertLocaleSetFact(command: UpdatePortalCommand): void {
-  const fact = command.localeSetEvent
-  if (!fact) return
-  if (
-    fact.organizationId !== command.organizationId ||
-    fact.propertyId !== command.propertyId ||
-    fact.portalId !== command.portalId ||
-    fact.sourceAggregateVersion !== command.revision.toISOString() ||
-    !sameInstant(fact.occurredAt, command.occurredAt) ||
-    fact.primaryGuestLocale !== command.patch.primaryGuestLocale ||
-    JSON.stringify(fact.additionalGuestLocales) !==
-      JSON.stringify(command.patch.additionalGuestLocales)
-  ) {
-    throw portalError('forbidden', 'Portal locale-set fact does not match its update')
   }
 }
 
@@ -693,6 +676,7 @@ export const createAtomicPortalCommandStore = (db: Database): PortalCommandStore
               unbrand(command.propertyId),
             )
           }
+          const reconcileLinkTexts = await watchPrimaryLocaleChange(tx, command)
           const [updated] = await tx
             .update(portals)
             .set({ ...buildPortalSetClause(command.patch), updatedAt: command.revision })
@@ -713,6 +697,7 @@ export const createAtomicPortalCommandStore = (db: Database): PortalCommandStore
             'Portal',
             'Portal changed while the update was being committed',
           )
+          await reconcileLinkTexts()
 
           if (command.publication?.kind === 'publish') {
             // The Portal row is already locked (above); the working-copy

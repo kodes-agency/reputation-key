@@ -23,6 +23,7 @@ import {
   portalLinkCreated,
   portalLinkDeleted,
   portalLinkUpdated,
+  portalLocaleSetUpdated,
   portalUpdated,
 } from '../domain/events'
 import { createAtomicPortalCommandStore } from './portal-command-store'
@@ -244,6 +245,65 @@ async function saveSettings(input: {
   })
 }
 
+/** The Portal's language set changed through the legacy settings path. */
+async function switchPrimary(primary: 'en' | 'bg', additional: readonly ('en' | 'bg')[]) {
+  const command = await base()
+  await store().updatePortal({
+    organizationId: ORG_A,
+    propertyId: PROPERTY_A,
+    portalId: PORTAL_A,
+    actorUserId: MANAGER,
+    expectedUpdatedAt: command.expectedPortalUpdatedAt,
+    revision: command.revision,
+    occurredAt: command.occurredAt,
+    patch: { primaryGuestLocale: primary, additionalGuestLocales: [...additional] },
+    localeSetEvent: portalLocaleSetUpdated({
+      portalId: PORTAL_A,
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      primaryGuestLocale: primary,
+      additionalGuestLocales: [...additional],
+      sourceAggregateVersion: command.revision.toISOString(),
+      occurredAt: command.occurredAt,
+    }),
+    event: portalUpdated({
+      portalId: PORTAL_A,
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      previousPublicationState: 'published',
+      publicationState: 'published',
+      sourceAggregateVersion: command.revision.toISOString(),
+      occurredAt: command.occurredAt,
+    }),
+  })
+}
+
+async function renameLink(id: string, label: string) {
+  const command = await base()
+  await store().updatePortalLink({
+    ...command,
+    actorUserId: MANAGER,
+    linkId: portalLinkId(id),
+    categoryId: CATEGORY_A,
+    patch: {
+      label,
+      url: `https://example.test/${id}`,
+      destinationId: null,
+      legacyDestinationState: 'unclassified',
+      iconKey: null,
+    },
+    event: portalLinkUpdated({
+      portalId: PORTAL_A,
+      linkId: portalLinkId(id),
+      categoryId: CATEGORY_A,
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      sourceAggregateVersion: command.revision.toISOString(),
+      occurredAt: command.occurredAt,
+    }),
+  })
+}
+
 const textRows = async (linkId: string) =>
   (
     await getPool().query(
@@ -342,7 +402,7 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
       expect(await linkCount()).toBe(6)
     })
 
-    it('admits exactly one of two concurrent creates at the boundary', async () => {
+    it('serialises two creates from one revision: the Portal fence lets one in, the other is a revision conflict', async () => {
       for (const [index, label] of ['One', 'Two', 'Three'].entries()) {
         await createLink(label, `a${index}`)
       }
@@ -383,7 +443,13 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
         store().createPortalLink(second),
       ])
 
+      // Both commands read the same Portal revision, so the fence (not the cap)
+      // rejects the loser; the cap itself is covered by 'refuses a fifth link'.
       expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
+      const rejected = results.find((result) => result.status === 'rejected')
+      expect(rejected?.status === 'rejected' && rejected.reason).toMatchObject({
+        code: 'revision_conflict',
+      })
       expect(await linkCount()).toBe(4)
     })
   })
@@ -619,6 +685,61 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
       })
 
       expect(await textRows(id)).toEqual([])
+    })
+  })
+
+  describe('changing the Portal primary language', () => {
+    it('keeps the primary text and the label in step when a link is renamed after the switch', async () => {
+      const id = await createLink('Menu', 'a0')
+
+      await switchPrimary('bg', ['en'])
+      await renameLink(id, 'Food menu')
+
+      const rows = await textRows(id)
+      expect(rows.map((row) => [row.locale, row.label])).toEqual([
+        ['bg', 'Food menu'],
+        ['en', 'Menu'],
+      ])
+      expect(await linkLabel(id)).toBe('Food menu')
+    })
+
+    it('starts the new primary text from the current label when it has none', async () => {
+      const id = await createLink('Menu', 'a0')
+
+      await switchPrimary('bg', ['en'])
+
+      expect((await textRows(id)).map((row) => [row.locale, row.label])).toEqual([
+        ['bg', 'Menu'],
+        ['en', 'Menu'],
+      ])
+      expect(await linkLabel(id)).toBe('Menu')
+    })
+
+    it('takes the label from a text saved in the new primary language before the switch', async () => {
+      const id = await createLink('Menu', 'a0')
+      await saveTexts(id, [{ locale: 'bg', label: 'Меню' }])
+      expect(await linkLabel(id)).toBe('Menu')
+
+      await switchPrimary('bg', ['en'])
+
+      expect(await linkLabel(id)).toBe('Меню')
+      expect((await textRows(id)).map((row) => [row.locale, row.label])).toEqual([
+        ['bg', 'Меню'],
+        ['en', 'Menu'],
+      ])
+    })
+
+    it('leaves texts and labels alone when the primary language is not what changed', async () => {
+      const id = await createLink('Menu', 'a0')
+      await saveTexts(id, [{ locale: 'bg', label: 'Меню' }])
+
+      await switchPrimary('en', ['bg'])
+
+      expect(await linkLabel(id)).toBe('Menu')
+      expect((await textRows(id)).map((row) => [row.locale, row.label])).toEqual([
+        ['bg', 'Меню'],
+        ['en', 'Menu'],
+      ])
     })
   })
 

@@ -14,8 +14,9 @@ import { portalError, type PortalError } from './errors'
 /** A Portal carries at most this many links; portals that already have more keep them. */
 export const MAX_PORTAL_LINKS = 4
 
-/** Shown when the manager has not written a section title. Translated in the v2 packs. */
-export const DEFAULT_LINKTREE_TITLE = 'Useful links'
+// A section title the manager has not written is null, never a stored default:
+// readers show the guest language pack's `linktreeDefaultTitle` (the v2 packs
+// translate it), so there is one source for the default wording.
 
 /** Equal to the legacy `portal_links.label` column, which the primary text is mirrored into. */
 export const LINK_TEXT_LABEL_MAX_LENGTH = 100

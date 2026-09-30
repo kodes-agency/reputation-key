@@ -6,7 +6,7 @@
 // Portal fence (ADR 0060), so a locale read here cannot change before commit.
 
 import { and, eq, sql } from 'drizzle-orm'
-import { portalLinkTexts, portals } from '#/shared/db/schema'
+import { portalLinks, portalLinkTexts, portals } from '#/shared/db/schema'
 import { parseGuestLocale, type GuestLocale } from '#/shared/domain/guest-locale'
 import type { Tx } from '#/shared/outbox/commit'
 import type { PortalLinkTextWrite } from '../application/ports/portal-command-store.port'
@@ -163,4 +163,59 @@ export async function syncPrimaryLinkText(
       },
       setWhere: sql`${portalLinkTexts.label} IS DISTINCT FROM excluded.label`,
     })
+}
+
+/**
+ * A Portal's primary language just changed: bring every link back to the
+ * invariant "the link's label mirrors its primary-language text". Where the new
+ * primary already has a text, the link label takes it; where it has none, the
+ * text starts from the current label (a link holds at most four, so a plain
+ * per-link pass is cheap). Runs inside the Portal update transaction.
+ */
+export async function reconcileLinkTextsToPrimary(
+  tx: Tx,
+  scope: Omit<PortalLinkTextScope, 'linkId'>,
+  writer: Writer,
+  primary: GuestLocale,
+): Promise<void> {
+  const links = await tx
+    .select({ id: portalLinks.id, label: portalLinks.label })
+    .from(portalLinks)
+    .where(
+      and(
+        eq(portalLinks.organizationId, scope.organizationId),
+        eq(portalLinks.portalId, scope.portalId),
+      ),
+    )
+  if (links.length === 0) return
+  const texts = await tx
+    .select({ linkId: portalLinkTexts.linkId, label: portalLinkTexts.label })
+    .from(portalLinkTexts)
+    .where(
+      and(
+        eq(portalLinkTexts.organizationId, scope.organizationId),
+        eq(portalLinkTexts.portalId, scope.portalId),
+        eq(portalLinkTexts.locale, primary),
+      ),
+    )
+  const textLabelByLink = new Map(texts.map((text) => [text.linkId, text.label]))
+  for (const link of links) {
+    const textLabel = textLabelByLink.get(link.id)
+    if (textLabel === undefined) {
+      await syncPrimaryLinkText(tx, { ...scope, linkId: link.id }, writer, {
+        locale: primary,
+        label: link.label,
+      })
+    } else if (textLabel !== link.label) {
+      await tx
+        .update(portalLinks)
+        .set({ label: textLabel, updatedAt: writer.at })
+        .where(
+          and(
+            eq(portalLinks.organizationId, scope.organizationId),
+            eq(portalLinks.id, link.id),
+          ),
+        )
+    }
+  }
 }
