@@ -21,7 +21,7 @@ export type OrderableBucket<T extends Orderable> = Readonly<{
   items: readonly T[]
 }>
 
-export const compareText = (a: string, b: string): number =>
+const compareText = (a: string, b: string): number =>
   a.toLowerCase().localeCompare(b.toLowerCase())
 
 const applyDirection = (order: number, dir: SortDirection): number =>

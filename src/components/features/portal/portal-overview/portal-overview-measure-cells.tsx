@@ -22,7 +22,7 @@ export const MEASURE_COLUMNS = [
   { key: 'notes', label: 'Private notes' },
 ] as const satisfies ReadonlyArray<{ key: keyof RowMeasures; label: string }>
 
-export const MEASURE_COLUMN_COUNT = MEASURE_COLUMNS.length
+const MEASURE_COLUMN_COUNT = MEASURE_COLUMNS.length
 
 const CELL = 'hidden px-2 py-3 text-right text-sm tabular-nums @4xl:table-cell @4xl:w-24'
 

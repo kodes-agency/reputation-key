@@ -9,6 +9,7 @@
 // are optional: a role that may not read results gets the list without them.
 // Portal Group management stays below the table until the group page (slice 38)
 // replaces it.
+import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Globe, Plus, SearchX } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
@@ -71,6 +72,92 @@ const describe = (count: number, propertyName: string): string | undefined => {
   return `${count === 1 ? '1 portal' : `${count} portals`} at ${propertyName}`
 }
 
+type PortalListBodyProps = Readonly<{
+  isEmpty: boolean
+  newPortalButton: ReactNode
+  results: PortalListPageProps['results']
+  resultsState: PortalOverviewResultsState
+  listSearch: PortalOverviewSearch
+  overview: ReturnType<typeof buildPortalOverview>
+  propertyId: string
+  propertyName: string
+  archiveMutation: PortalListPageProps['archiveMutation']
+  restoreMutation: PortalListPageProps['restoreMutation']
+  onChange: (patch: Partial<PortalOverviewSearch>) => void
+}>
+
+function PortalListBody({
+  isEmpty,
+  newPortalButton,
+  results,
+  resultsState,
+  listSearch,
+  overview,
+  propertyId,
+  propertyName,
+  archiveMutation,
+  restoreMutation,
+  onChange,
+}: PortalListBodyProps) {
+  return isEmpty ? (
+    <EmptyState icon={Globe} title="No portals yet">
+      <p className="text-sm text-muted-foreground">
+        Create a portal to set up a guest-facing page with links.
+      </p>
+      {newPortalButton}
+    </EmptyState>
+  ) : (
+    <>
+      {results ? (
+        <PortalOverviewResultsStrip controls={results} propertyId={propertyId} />
+      ) : null}
+      <section aria-label="Portal list" className="flex flex-col gap-4">
+        <PortalOverviewToolbar
+          search={listSearch}
+          matched={overview.matched}
+          total={overview.total}
+          canSortByScans={resultsState.status !== 'off'}
+          onChange={onChange}
+        />
+        {overview.matched === 0 ? (
+          <EmptyState icon={SearchX} title="No portals match">
+            <Button
+              variant="outline"
+              onClick={() => onChange({ q: undefined, show: undefined })}
+            >
+              Clear search and filter
+            </Button>
+          </EmptyState>
+        ) : (
+          <>
+            <PortalOverviewTable
+              sections={overview.sections}
+              propertyId={propertyId}
+              propertyName={propertyName}
+              archiveMutation={archiveMutation}
+              restoreMutation={restoreMutation}
+              results={resultsState}
+              busy={results?.busy}
+              scansOrder={
+                listSearch.sort === 'scans'
+                  ? (listSearch.dir ?? defaultSortDirection('scans'))
+                  : undefined
+              }
+            />
+            <PortalOverviewPager
+              overview={overview}
+              onPage={(page) => onChange({ page })}
+            />
+            {results ? (
+              <PortalOverviewResultsFooter controls={results} propertyId={propertyId} />
+            ) : null}
+          </>
+        )}
+      </section>
+    </>
+  )
+}
+
 export function PortalListPage({
   rows,
   members = [],
@@ -128,66 +215,19 @@ export function PortalListPage({
       />
       <FormErrorBanner error={archiveMutation.error ?? restoreMutation.error} />
 
-      {rows.length === 0 ? (
-        <EmptyState icon={Globe} title="No portals yet">
-          <p className="text-sm text-muted-foreground">
-            Create a portal to set up a guest-facing page with links.
-          </p>
-          {newPortalButton}
-        </EmptyState>
-      ) : (
-        <>
-          {results ? (
-            <PortalOverviewResultsStrip controls={results} propertyId={propertyId} />
-          ) : null}
-          <section aria-label="Portal list" className="flex flex-col gap-4">
-            <PortalOverviewToolbar
-              search={listSearch}
-              matched={overview.matched}
-              total={overview.total}
-              canSortByScans={resultsState.status !== 'off'}
-              onChange={update}
-            />
-            {overview.matched === 0 ? (
-              <EmptyState icon={SearchX} title="No portals match">
-                <Button
-                  variant="outline"
-                  onClick={() => update({ q: undefined, show: undefined })}
-                >
-                  Clear search and filter
-                </Button>
-              </EmptyState>
-            ) : (
-              <>
-                <PortalOverviewTable
-                  sections={overview.sections}
-                  propertyId={propertyId}
-                  propertyName={propertyName}
-                  archiveMutation={archiveMutation}
-                  restoreMutation={restoreMutation}
-                  results={resultsState}
-                  busy={results?.busy}
-                  scansOrder={
-                    listSearch.sort === 'scans'
-                      ? (listSearch.dir ?? defaultSortDirection('scans'))
-                      : undefined
-                  }
-                />
-                <PortalOverviewPager
-                  overview={overview}
-                  onPage={(page) => update({ page })}
-                />
-                {results ? (
-                  <PortalOverviewResultsFooter
-                    controls={results}
-                    propertyId={propertyId}
-                  />
-                ) : null}
-              </>
-            )}
-          </section>
-        </>
-      )}
+      <PortalListBody
+        isEmpty={rows.length === 0}
+        newPortalButton={newPortalButton}
+        results={results}
+        resultsState={resultsState}
+        listSearch={listSearch}
+        overview={overview}
+        propertyId={propertyId}
+        propertyName={propertyName}
+        archiveMutation={archiveMutation}
+        restoreMutation={restoreMutation}
+        onChange={update}
+      />
       <PortalGroupManagement
         propertyId={propertyId}
         groups={portalGroups}

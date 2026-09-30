@@ -98,7 +98,7 @@ function changeLine(kpi: Count, data: ResultsMeasuresInput, options: Options) {
   return `${signed(kpi.value - kpi.priorValue)} vs ${priorName(data)}`
 }
 
-export function notReadyLine(
+function notReadyLine(
   subject: MetricEvidenceSubject,
   evidence: PortalMetricEvidence,
   timeZone: string,

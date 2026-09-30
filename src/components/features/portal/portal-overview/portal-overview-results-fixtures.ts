@@ -97,7 +97,7 @@ export function updatingMeasures(): PortalResultsMeasures {
   }
 }
 
-export const portalResultsRow = (
+const portalResultsRow = (
   id: string,
   group: string | null,
   measures: PortalResultsMeasures,
@@ -121,7 +121,7 @@ export const groupResultsRow = (
   ...measures,
 })
 
-export const ungroupedResultsRow = (
+const ungroupedResultsRow = (
   members: readonly string[],
   measures: PortalResultsMeasures,
 ): PortalResultsUngroupedRow => ({
@@ -160,29 +160,29 @@ export const propertyResultsRow = (
 })
 
 /** Avela Resort as boards 01 and 10 print it (the draft Pool bar has no reading). */
-export const POOL_TERRACE = {
+const POOL_TERRACE = {
   scans: 412,
   ratings: 118,
   average: 4.4,
   googleOpens: 64,
   notes: 9,
 }
-export const SPA = { scans: 286, ratings: 91, average: 4.6, googleOpens: 52, notes: 4 }
-export const RECEPTION = {
+const SPA = { scans: 286, ratings: 91, average: 4.6, googleOpens: 52, notes: 4 }
+const RECEPTION = {
   scans: 520,
   ratings: 140,
   average: 4.5,
   googleOpens: 77,
   notes: 12,
 }
-export const GUEST_ROOMS = {
+const GUEST_ROOMS = {
   scans: 38,
   ratings: 4,
   average: null,
   googleOpens: 2,
   notes: 0,
 }
-export const OLIVE = { scans: 351, ratings: 97, average: 4.2, googleOpens: 41, notes: 11 }
+const OLIVE = { scans: 351, ratings: 97, average: 4.2, googleOpens: 41, notes: 11 }
 const POOL_SIDE = { scans: 698, ratings: 209, average: 4.5, googleOpens: 116, notes: 13 }
 const FRONT = { scans: 558, ratings: 144, average: 4.5, googleOpens: 79, notes: 12 }
 const PROPERTY_TOTAL = {

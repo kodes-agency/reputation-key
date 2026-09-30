@@ -20,7 +20,7 @@ export function ControlledPage(
   return <PortalListPage {...props} search={search} onSearchChange={setSearch} />
 }
 
-export const action = <TInput,>(): Action<TInput> =>
+const action = <TInput,>(): Action<TInput> =>
   Object.assign(async (_input: TInput) => undefined, {
     isPending: false,
     error: null,
@@ -72,7 +72,7 @@ export const rows = [
   }),
 ]
 
-export const members = [
+const members = [
   { userId: 'u-georgi', name: 'Georgi Ivanov' },
   { userId: 'u-elena', name: 'Elena Petrova' },
 ]
