@@ -23,6 +23,12 @@ business rules or persistence.
 Missing Organization access or role resolves to the appropriate unavailable state.
 Never synthesize a fallback role or run tenant loaders before both bindings exist.
 
+Its loader also returns the request's viewport hint (`-viewport-hint.ts`) and the
+layout provides it to the breakpoint hooks, so the server renders the layout the
+browser will show. The hint is read in the loader because loader data is what
+hydration reuses. One cookie serves every window of a browser, so after a narrow
+window a wide one can paint compact first and switch once hydrated.
+
 Route `beforeLoad` checks improve navigation and availability copy; they are not
 the mutation authority. Server functions and owning contexts re-resolve current
 tenant, permission, capability, and Property scope for every protected operation.

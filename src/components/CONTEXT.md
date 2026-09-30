@@ -61,6 +61,14 @@ work. `use-hydrated` provides an SSR-safe client signal;
 `use-page-visible` pauses sensitive polling while the page is hidden (focus is deliberately not part of it); `use-property-id` reads
 Property route scope; `use-theme-mode` owns persisted theme state.
 
+Viewport breakpoints go through `useViewportBelow` (`useIsMobile`,
+`useInboxCompactLayout`). It reads `matchMedia` in the browser, and on the
+server, and during the hydration that must match it, it answers from the
+request's viewport hint: the width the authenticated layout keeps in the
+`rk_viewport` cookie, else a mobile user agent. A phone's first paint is then
+already the phone layout. Do not add a `matchMedia` hook with a fixed server
+answer.
+
 ## Presentation
 
 Use `src/components/ui/chart.tsx` for Recharts composition. Define a `ChartConfig`,
