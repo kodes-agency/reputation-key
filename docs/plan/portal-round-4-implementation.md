@@ -488,7 +488,12 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
 
 **24. Batched results overview read (R2).**
 
-- `getPortalResultsOverview({scope, range, compare})` returns portal, group, ungrouped and total rows for the five measures, with evidence states and never a coerced zero.
+- `getPortalResultsOverview({scope, portals, properties, timeRange, compare})` returns Portal rows, Portal Group rows, one "not in a group" row and one subtotal row per Property, and a total, for the five measures, with evidence states and never a coerced zero. Every row also carries the scan funnel.
+- **Each Property is read through its own window.** The caller lists each Property's time zone; Reporting builds the window with the same `timeRangeToDates` and `priorPeriodDates` a Portal's own Results view uses. Properties in the same time zone share one read, so the statements follow the number of distinct time zones, not Portals. The total adds Property readings and carries no period of its own; each Property row carries its `period` and `comparePeriod`.
+- **All Time is not read here.** `timeRange` excludes `all`, because a lifetime figure comes from the lifetime aggregate, not from readings, and the two would disagree. Slice 25 hides the All time choice on the overview (it stays on a single Portal's Results view).
+- A group speaks for every Portal whose readings in the window sit under it, counted or not (`readingGroups`), so a Portal that moved out is not left out of its old group's evidence. Rows split `memberPortalIds` (the Portals in the group today, for "3 portals") from `contributingPortalIds`.
+- Known limit: a source fact that no consumer has applied yet has no reading, so its group is not known. A moved Portal's still-unapplied facts show as "updating" on its current group and Portal row, and on an old group only once a reading exists there. The outbox fact carries `portalGroupId`; reading it would take a second outbox scan.
+- Known cost: the evidence statement filters the outbox on `payload->>'occurredAt'`, which no index covers, so each read scans the Organization's guest events from all time (about 1.2 s for 690k rows). It grows with history and is tracked as a follow-up (an expression index, or a `created_at` prefilter once late arrival is bounded); the single-Portal read has the same shape.
 - Benchmark it, and avoid the CTE shape that made the Fleet projection quadratic.
 - Align the property dashboard and Fleet scan vocabulary as a follow-up.
 - Depends on 3. Size L.
@@ -497,6 +502,7 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
 
 - **(a)** A table with one `<tbody>` per group, a pure `portal-attention.ts`, a row menu, the phone card layout in the same component, and URL state. **`PortalGroupManagement` stays until slice 38 lands.** The theme swatch and badge columns are retired.
 - **(b)** The results strip and measure cells, with "Too few".
+- Uses the slice 24 read for board 10 ("All properties"): Property subtotal rows, each Property's own window, and the per-Property "not in a group" row. Takes group Portal counts from `memberPortalIds`, and the "% of scans" figures from the row's `engagementFunnel`.
 - Depends on 21–24. Size L + M.
 
 **26. New portal: dialog and server side (A4 + F11).**

@@ -36,6 +36,7 @@ import type { MetricReadingsQuery } from './application/ports/metric.repository'
 import { queryGoalMetric } from './application/use-cases/query-goal-metric'
 import { queryPortalAnalytics } from './application/use-cases/query-portal-analytics'
 import { createPortalAnalyticsRepository } from './infrastructure/repositories/portal-analytics.repository'
+import { createPortalResultsOverviewRepository } from './infrastructure/repositories/portal-results-overview.repository'
 import { createPortalLifetimeAggregateRepository } from './infrastructure/repositories/portal-lifetime-aggregate.repository'
 import { createGoalMetricCorrectionImpactLookup } from './infrastructure/repositories/goal-metric-correction-impact.lookup'
 import {
@@ -77,6 +78,7 @@ import {
   getPortalAnalytics,
   type GetPortalAnalyticsDeps,
 } from './application/use-cases/get-portal-analytics'
+import { getPortalResultsOverview } from './application/use-cases/get-portal-results-overview'
 import { getStaffDashboardData } from './application/use-cases/get-staff-dashboard-data'
 import {
   getAttentionSignals,
@@ -348,6 +350,10 @@ function buildDashboardModule(
     portalLifetime,
     responseIntegrity: input.guestResponseIntegrity,
   })
+  const getResultsOverview = getPortalResultsOverview({
+    results: createPortalResultsOverviewRepository(input.db, input.clock),
+    now: input.clock,
+  })
   const getStaffDashboard = getStaffDashboardData({
     repo: dashboardRepo,
     staffPortalResolver,
@@ -389,6 +395,7 @@ function buildDashboardModule(
     publicApi: {
       getDashboardData: getDashboard,
       getPortalAnalytics: getPortal,
+      getPortalResultsOverview: getResultsOverview,
       getStaffDashboardData: getStaffDashboard,
       getAttentionSignals: getAttention,
       getPropertyOverview: getOverview,
@@ -404,6 +411,7 @@ function buildDashboardModule(
       useCases: {
         getDashboardData: getDashboard,
         getPortalAnalytics: getPortal,
+        getPortalResultsOverview: getResultsOverview,
         getStaffDashboardData: getStaffDashboard,
         getAttentionSignals: getAttention,
         getPropertyOverview: getOverview,

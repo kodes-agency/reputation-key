@@ -1,45 +1,47 @@
 // Metric context — governed Portal analytics repository.
 // This owner pins immutable definition versions, registry consumer/source
 // policy, exact quality, current correction tips, half-open business time,
-// tenant scope, and a statement-level budget.
+// tenant scope, and a statement-level budget. What it shares with the batched
+// Portals overview lives in portal-analytics-shared.ts.
 // TRAP: `metricReadings.occurredAt` is the INGESTION column (`recorded_at`);
 // the guest-action time is `metricReadings.eventAt`; every period below is
 // bounded on that business timestamp.
 
 import type { Database, Tx } from '#/shared/db'
-import { metricCorrections, metricReadings } from '#/shared/db/schema'
+import { metricReadings } from '#/shared/db/schema'
 import {
   and,
   avg,
   count,
   eq,
   gte,
-  inArray,
   isNotNull,
   isNull,
   lt,
-  or,
   sql,
   type SQL,
 } from 'drizzle-orm'
 import { trace } from '#/shared/observability/trace'
 import { portalMetricEvidenceSql } from './portal-analytics-evidence.sql'
+import {
+  PORTAL_DESTINATION_CLICK_KEY,
+  PORTAL_RATING_KEY,
+  countedPortalReadingWhere,
+  currentCorrectionTips,
+  effectiveValue,
+  foldEvidenceRows,
+  governedPortalWhere,
+  portalEvidenceFamilies,
+  withStatementTimeout,
+  type EvidenceRow,
+} from './portal-analytics-shared'
 import type {
-  MetricPortalMetricEvidence,
   MetricPortalMetricEvidenceSet,
   MetricPortalRatingTrendPoint,
   PortalAnalyticsRepository,
-  PortalMetricFamily,
   PortalRatingBucket,
 } from '../../application/ports/portal-analytics.repository'
 import type { OrganizationId, PropertyId, PortalId } from '#/shared/domain/ids'
-import {
-  METRIC_VERSION_IDS,
-  findMetricVersionById,
-  type GovernedMetricVersion,
-} from '../../domain/metric-registry'
-
-const METRIC_PORTAL_READ_BUDGET_MS = 5_000
 
 function metricPortalWhere(
   organizationId: OrganizationId,
@@ -56,211 +58,6 @@ function metricPortalWhere(
     lt(metricReadings.eventAt, endDate),
   )
 }
-
-async function withStatementTimeout<T>(
-  db: Database,
-  read: (tx: Tx) => Promise<T>,
-): Promise<T> {
-  return db.transaction(async (tx) => {
-    await tx.execute(
-      sql`SELECT set_config('statement_timeout', ${String(METRIC_PORTAL_READ_BUDGET_MS)}, true)`,
-    )
-    return read(tx)
-  })
-}
-
-type PortalMetricPolicy = Readonly<{
-  metric: GovernedMetricVersion
-  sourcePolicies: SQL
-}>
-
-function portalMetricPolicy(versionId: string): PortalMetricPolicy {
-  const metric = findMetricVersionById(versionId)
-  if (!metric || !metric.version.permittedConsumers.includes('portal_analytics')) {
-    throw new Error(`Portal metric catalogue entry is unavailable: ${versionId}`)
-  }
-  return Object.freeze({
-    metric,
-    sourcePolicies: sql.join(
-      metric.version.sourcePolicyAllowlist.map((policy) => sql`${policy}`),
-      sql`, `,
-    ),
-  })
-}
-
-// "Scans" on the Portal results are QUALIFIED scans: server-verified Access
-// Artifact arrivals, deduplicated per response session over 24 hours. The raw
-// `portal.scan` metric counts every page open (bots, refreshes) and stays out
-// of Portal results.
-const QUALIFIED_SCAN_POLICY = portalMetricPolicy(METRIC_VERSION_IDS.qualifiedScanGoal)
-const PORTAL_RATING_POLICY = portalMetricPolicy(METRIC_VERSION_IDS.portalRatingAnalytics)
-const PORTAL_FEEDBACK_POLICY = portalMetricPolicy(
-  METRIC_VERSION_IDS.portalFeedbackAnalytics,
-)
-const PORTAL_DESTINATION_CLICK_POLICY = portalMetricPolicy(
-  METRIC_VERSION_IDS.portalDestinationClickAnalytics,
-)
-const PORTAL_ANALYTICS_POLICIES = Object.freeze([
-  QUALIFIED_SCAN_POLICY,
-  PORTAL_RATING_POLICY,
-  PORTAL_FEEDBACK_POLICY,
-  PORTAL_DESTINATION_CLICK_POLICY,
-])
-const PORTAL_ANALYTICS_VERSION_IDS = Object.freeze(
-  PORTAL_ANALYTICS_POLICIES.map(({ metric }) => metric.version.id),
-)
-const PORTAL_ANALYTICS_POLICY = or(
-  ...PORTAL_ANALYTICS_POLICIES.map(({ metric }) =>
-    and(
-      eq(metricReadings.definitionVersionId, metric.version.id),
-      eq(metricReadings.metricKey, metric.definition.key),
-      inArray(metricReadings.sourcePolicy, [...metric.version.sourcePolicyAllowlist]),
-    ),
-  ),
-)
-if (!PORTAL_ANALYTICS_POLICY) throw new Error('Portal metric catalogue is empty')
-const PORTAL_RATING_KEY = PORTAL_RATING_POLICY.metric.definition.key
-const PORTAL_DESTINATION_CLICK_KEY = PORTAL_DESTINATION_CLICK_POLICY.metric.definition.key
-/** Evidence reason when click readings never recorded which link was opened. */
-const DESTINATION_UNATTRIBUTED_REASON = 'destination_unattributed'
-
-type EvidenceRow = Readonly<{
-  family: unknown
-  definition_version_id: unknown
-  source_count: unknown
-  applied_count: unknown
-  obsolete_present: unknown
-  projection_missing: unknown
-  invalid_reading_count: unknown
-  latest_activity: unknown
-  correction_head: unknown
-}>
-
-function dateOrNull(value: unknown): Date | null {
-  if (value === null || value === undefined) return null
-  const date = value instanceof Date ? value : new Date(String(value))
-  if (Number.isNaN(date.getTime())) {
-    throw new Error('Portal metric evidence contains an invalid timestamp')
-  }
-  return date
-}
-
-/** The first condition that makes this family's evidence unusable, if any. */
-function unavailableEvidenceReason(
-  row: EvidenceRow,
-  invalidReadingCount: number,
-): string | null {
-  if (invalidReadingCount > 0) return 'invalid_governed_reading'
-  if (row.obsolete_present === true) return 'source_fact_obsolete'
-  if (row.projection_missing === true) return 'projection_missing'
-  return null
-}
-
-function evidenceState(row: EvidenceRow, computedAt: Date): MetricPortalMetricEvidence {
-  if (typeof row.definition_version_id !== 'string') {
-    throw new Error('Portal metric evidence definition is invalid')
-  }
-  const sourceCount = Number(row.source_count ?? 0)
-  const appliedCount = Number(row.applied_count ?? 0)
-  const invalidReadingCount = Number(row.invalid_reading_count ?? 0)
-  const unavailableReason = unavailableEvidenceReason(row, invalidReadingCount)
-  const state =
-    unavailableReason !== null
-      ? 'unavailable'
-      : appliedCount < sourceCount
-        ? 'updating'
-        : 'ready'
-  return {
-    definitionVersionId: row.definition_version_id,
-    state,
-    verifiedThrough: state === 'ready' ? computedAt : null,
-    latestActivity: dateOrNull(row.latest_activity),
-    computedAt,
-    completeness:
-      sourceCount === 0 ? 1 : Math.min(1, Math.max(0, appliedCount / sourceCount)),
-    availabilityReason:
-      unavailableReason ?? (state === 'updating' ? 'consumer_receipt_pending' : null),
-    correctionHead: dateOrNull(row.correction_head),
-  }
-}
-
-/**
- * Google opens need every click reading to say which link was opened. When some
- * never did, the pipeline is complete but the figure is unanswerable, which is
- * a different state from "updating" or "unavailable". Those stronger states
- * win: an incomplete pipeline is reported as incomplete first.
- */
-function withDestinationAttribution(
-  evidence: MetricPortalMetricEvidence,
-  unattributedClicks: number,
-): MetricPortalMetricEvidence {
-  if (evidence.state !== 'ready' || unattributedClicks === 0) return evidence
-  return {
-    ...evidence,
-    state: 'insufficient',
-    verifiedThrough: null,
-    availabilityReason: DESTINATION_UNATTRIBUTED_REASON,
-  }
-}
-
-function isPortalMetricFamily(value: unknown): value is PortalMetricFamily {
-  return (
-    value === 'scans' ||
-    value === 'privateRatings' ||
-    value === 'privateFeedback' ||
-    value === 'reviewLinkClicks'
-  )
-}
-
-function currentCorrectionTips(db: Database) {
-  return db
-    .select({
-      readingId: metricCorrections.readingId,
-      kind: metricCorrections.kind,
-      exactDelta: metricCorrections.exactDelta,
-      replacementValue: metricCorrections.replacementValue,
-    })
-    .from(metricCorrections)
-    .where(
-      sql`NOT EXISTS (
-        SELECT 1
-        FROM metric_corrections AS successor
-        WHERE successor.supersedes_correction_id = ${metricCorrections.id}
-      )`,
-    )
-    .as('portal_metric_correction_tips')
-}
-
-type CorrectionTips = ReturnType<typeof currentCorrectionTips>
-
-function effectiveValue(correctionTips: CorrectionTips) {
-  return sql<number>`CASE
-    WHEN ${correctionTips.kind} = 'retract' THEN NULL
-    WHEN ${correctionTips.kind} = 'replace' THEN ${correctionTips.replacementValue}
-    WHEN ${correctionTips.kind} = 'adjust'
-      THEN ${metricReadings.exactValue} + ${correctionTips.exactDelta}
-    ELSE ${metricReadings.exactValue}
-  END`
-}
-
-function governedPortalWhere(scope: SQL | undefined) {
-  return and(
-    scope,
-    inArray(metricReadings.definitionVersionId, PORTAL_ANALYTICS_VERSION_IDS),
-    isNotNull(metricReadings.exactValue),
-    eq(metricReadings.dataQuality, 'exact'),
-    sql`${metricReadings.attributionQuality} <> 'unresolved'`,
-    PORTAL_ANALYTICS_POLICY,
-  )
-}
-
-/**
- * Destination clicks count as Google opens only when the reading says the
- * destination was the Google review link. A secondary-link click, or a click
- * that never recorded a destination, is not a Google open.
- */
-const GOOGLE_OPENS_ONLY = sql`(${metricReadings.metricKey} <> ${PORTAL_DESTINATION_CLICK_KEY}
-  OR ${metricReadings.portalDestinationKind} = 'google_review')`
 
 async function countUnattributedClicks(
   db: Database,
@@ -309,14 +106,7 @@ export const createPortalAnalyticsRepository = (
           })
           .from(metricReadings)
           .leftJoin(correctionTips, eq(correctionTips.readingId, metricReadings.id))
-          .where(
-            and(
-              scope,
-              GOOGLE_OPENS_ONLY,
-              sql`(${metricReadings.metricKey} <> ${PORTAL_RATING_KEY}
-                OR (${value} BETWEEN 1 AND 5 AND ${value} = TRUNC(${value})))`,
-            ),
-          )
+          .where(and(scope, countedPortalReadingWhere(value)))
           .groupBy(metricReadings.metricKey),
       )
       return rows.map((row) => ({
@@ -444,62 +234,27 @@ export const createPortalAnalyticsRepository = (
             metricPortalWhere(organizationId, propertyId, portalId, startDate, endDate),
           ),
           result: await tx.execute(
-            portalMetricEvidenceSql(
-              sql`
-              (
-                'scans', ${QUALIFIED_SCAN_POLICY.metric.version.id}::uuid,
-                ${QUALIFIED_SCAN_POLICY.metric.definition.key},
-                ARRAY[${QUALIFIED_SCAN_POLICY.sourcePolicies}]::text[],
-                ARRAY['guest.qualified_scan.recorded', 'guest.qualified_scan.retracted']::text[]
-              ),
-              (
-                'privateRatings', ${PORTAL_RATING_POLICY.metric.version.id}::uuid,
-                ${PORTAL_RATING_POLICY.metric.definition.key},
-                ARRAY[${PORTAL_RATING_POLICY.sourcePolicies}]::text[],
-                ARRAY['guest.rating.submitted', 'guest.rating.retracted']::text[]
-              ),
-              (
-                'privateFeedback', ${PORTAL_FEEDBACK_POLICY.metric.version.id}::uuid,
-                ${PORTAL_FEEDBACK_POLICY.metric.definition.key},
-                ARRAY[${PORTAL_FEEDBACK_POLICY.sourcePolicies}]::text[],
-                ARRAY['guest.feedback.submitted', 'guest.feedback.retracted']::text[]
-              ),
-              (
-                'reviewLinkClicks',
-                ${PORTAL_DESTINATION_CLICK_POLICY.metric.version.id}::uuid,
-                ${PORTAL_DESTINATION_CLICK_POLICY.metric.definition.key},
-                ARRAY[${PORTAL_DESTINATION_CLICK_POLICY.sourcePolicies}]::text[],
-                ARRAY['guest.review_link.clicked']::text[]
-              )
-            `,
-              { organizationId, propertyId, portalId, startDate, endDate },
-            ),
+            portalMetricEvidenceSql(portalEvidenceFamilies(), {
+              organizationId,
+              portalIds: [portalId],
+              propertyIds: [propertyId],
+              startDate,
+              endDate,
+            }),
           ),
         }),
       )
 
-      const parsed = {} as Record<PortalMetricFamily, MetricPortalMetricEvidence>
-      for (const row of result.rows as EvidenceRow[]) {
-        if (!isPortalMetricFamily(row.family)) {
-          throw new Error('Portal metric evidence family is invalid')
-        }
-        parsed[row.family] = evidenceState(row, computedAt)
-      }
-      if (
-        !parsed.scans ||
-        !parsed.privateRatings ||
-        !parsed.privateFeedback ||
-        !parsed.reviewLinkClicks
-      ) {
-        throw new Error('Portal metric evidence is incomplete')
-      }
-      return {
-        ...parsed,
-        reviewLinkClicks: withDestinationAttribution(
-          parsed.reviewLinkClicks,
-          unattributedClicks,
-        ),
-      }
+      // The database prints a uuid lower-cased; the statement's rows say so too.
+      const key = portalId.toLowerCase()
+      const evidence = foldEvidenceRows(
+        result.rows as EvidenceRow[],
+        [key],
+        new Map([[key, unattributedClicks]]),
+        computedAt,
+      ).get(key)
+      if (!evidence) throw new Error('Portal metric evidence is incomplete')
+      return evidence
     })
   },
 })

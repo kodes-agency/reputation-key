@@ -37,22 +37,22 @@ Board sources are in [boards/src](boards/src/). They render only inside the desi
 
 ## Owner decisions (2026-09-30)
 
-| Decision                                                                           | What it means for the build                                                                                                                     |
-| ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| Status stays quiet: no status panel, one line only where something needs attention | Nothing new; it is a presentation rule                                                                                                          |
-| No small copies of the guest page in lists                                         | Nothing new                                                                                                                                     |
-| Managers can download an existing code again                                       | Keep an encrypted copy of the address (the unused `portal_tokens.encrypted_raw_token` column fits) and record each download in History          |
-| No design picker: one design at first                                              | No design name is shown anywhere                                                                                                                |
-| One code per portal                                                                | Matches today's model of one address with at most one QR and one NFC marker; no named codes                                                     |
-| Photo, link-tile photo and logo uploads are allowed                                | `portal.upload` stays safety-blocked until the SAFE-01 sign-off                                                                                 |
-| No place types, because the product serves hotels, restaurants, barbers and salons | New portal asks for a name, a group, languages and starting wording; lists show QR or NFC instead of a place                                    |
-| Portal groups are part of the admin                                                | Groups exist today for goals. Group totals exist for scans, ratings and the average; Google opens and private notes are counted per portal only |
-| The first languages are English, Spanish, Italian, French, German and Bulgarian    | Open the English/Bulgarian checks, add four guest phrase packs and a label per language for links                                               |
-| Each portal picks its own languages; most will use one or two                      | A portal with one language shows guests no language switch                                                                                      |
-| AI may translate the property's own text                                           | A new governed AI operation; drafts carry an "AI draft" tag until someone checks them, and they do not block publishing                         |
-| "Guests" stays the word for every industry                                         | Nothing new                                                                                                                                     |
-| The link section is called the Linktree, with an editable title                    | The default title, "Useful links", ships in every language pack; a custom title is translated like other text                                   |
-| Properties can upload a logo in Property look                                      | The logo replaces the wordmark on guest pages and printed codes                                                                                 |
+| Decision                                                                           | What it means for the build                                                                                                                                                                                            |
+| ---------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Status stays quiet: no status panel, one line only where something needs attention | Nothing new; it is a presentation rule                                                                                                                                                                                 |
+| No small copies of the guest page in lists                                         | Nothing new                                                                                                                                                                                                            |
+| Managers can download an existing code again                                       | Keep an encrypted copy of the address (the unused `portal_tokens.encrypted_raw_token` column fits) and record each download in History                                                                                 |
+| No design picker: one design at first                                              | No design name is shown anywhere                                                                                                                                                                                       |
+| One code per portal                                                                | Matches today's model of one address with at most one QR and one NFC marker; no named codes                                                                                                                            |
+| Photo, link-tile photo and logo uploads are allowed                                | `portal.upload` stays safety-blocked until the SAFE-01 sign-off                                                                                                                                                        |
+| No place types, because the product serves hotels, restaurants, barbers and salons | New portal asks for a name, a group, languages and starting wording; lists show QR or NFC instead of a place                                                                                                           |
+| Portal groups are part of the admin                                                | Groups exist today for goals. Group rows, group pages and totals show all five results measures (owner decision 2026-09-30: the metric registry now admits Google opens and private notes at group and property scope) |
+| The first languages are English, Spanish, Italian, French, German and Bulgarian    | Open the English/Bulgarian checks, add four guest phrase packs and a label per language for links                                                                                                                      |
+| Each portal picks its own languages; most will use one or two                      | A portal with one language shows guests no language switch                                                                                                                                                             |
+| AI may translate the property's own text                                           | A new governed AI operation; drafts carry an "AI draft" tag until someone checks them, and they do not block publishing                                                                                                |
+| "Guests" stays the word for every industry                                         | Nothing new                                                                                                                                                                                                            |
+| The link section is called the Linktree, with an editable title                    | The default title, "Useful links", ships in every language pack; a custom title is translated like other text                                                                                                          |
+| Properties can upload a logo in Property look                                      | The logo replaces the wordmark on guest pages and printed codes                                                                                                                                                        |
 
 ## What exists today and what is new
 
@@ -72,7 +72,7 @@ New in this design:
 - The workspace itself: tabs, the three-column editor with a live preview, Review & publish, Share, Results and History.
 - Downloading a code again, and uploads.
 - Per-language link labels, four new languages and AI translation.
-- Group totals for Google opens and private notes, and "Guests by language" in Results.
+- Group and total rows for Google opens and private notes (readings already exist; the registry scopes were widened, ADR 0041), and "Guests by language" in Results.
 
 ## Open
 

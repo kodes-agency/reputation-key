@@ -11,7 +11,7 @@ metric authority.
 - Maintain anonymous Portal lifetime aggregates and Current on Google snapshots.
 - Resolve governed metric availability, provenance, completeness, and correction impact.
 - Create, revise, assign, schedule, evaluate, and close monthly Goal Programs.
-- Produce property, fleet, staff, Portal analytics, attention, setup-checklist, and
+- Produce property, fleet, staff, Portal analytics, Portals overview results, attention, setup-checklist, and
   per-Property setup reads.
 - Register metric projection consumers, Goal correction consumers, and Goal maintenance.
 - Contribute Reporting-owned records to organization export and lifecycle operations.
@@ -30,6 +30,18 @@ metric authority.
   ratings, the average private rating, guests who opened Google (Google review link opens
   only; a secondary link is not one), and private notes. The reading floors live in
   `domain/portal-results-thresholds.ts`.
+- **Portals overview results**: the same five measures for every Portal at once, then per Portal
+  Group, per Property for its Portals in no group, per Property as a subtotal, and in total
+  (`getPortalResultsOverview`, read in a fixed number of statements per distinct time zone however
+  many Portals are asked about). Every row is assembled by the code that assembles a single
+  Portal's Results, and each Property is read through its own window (its time zone, built the way a
+  Portal's Results view builds it), so a Portal's row says what its own Results view says. The total
+  adds Property readings and has no window of its own. All Time is not read here. A group's figures
+  are its readings under the group each Portal had when the guest acted (ADR 0040), so a Portal that
+  moves keeps its earlier results with its old group. A group's evidence is the weakest of the
+  Portals with readings under it, whether they are in the group today (`memberPortalIds`) or only
+  contributed (`contributingPortalIds`). The caller supplies the roster (Portal owns the list and
+  each Portal's current group) and each Property's time zone; Reporting supplies the numbers.
 - **Property setup**: seven per-Property steps derived at read time from current facts
   (Google binding, first sync, reply language, AI decision, responsible manager, reply
   voice, published Portal). It records no milestones, unlike the Organization checklist.
