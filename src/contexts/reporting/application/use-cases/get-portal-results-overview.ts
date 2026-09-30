@@ -27,6 +27,7 @@
 // evidence is the weakest of the Portals that feed it, and a Portal feeds every
 // group any of its readings in the window sit under.
 
+import { dashboardError } from '../../domain/dashboard-errors'
 import type { PortalGroupId, PortalId, PropertyId } from '#/shared/domain/ids'
 import type {
   PortalResultsGroupRow,
@@ -101,7 +102,9 @@ function assertValidInput(input: GetPortalResultsOverviewInput): void {
     throw new Error('Portal results need a bounded time range, not All Time')
   }
   if (input.portals.length > PORTAL_RESULTS_PORTAL_LIMIT) {
-    throw new Error(
+    // A tagged error, not a bug: the page tells this from a failure it could retry.
+    throw dashboardError(
+      'too_many_portals',
       `Portal results asked about too many Portals (limit ${PORTAL_RESULTS_PORTAL_LIMIT})`,
     )
   }

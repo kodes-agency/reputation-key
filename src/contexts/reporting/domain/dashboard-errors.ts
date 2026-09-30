@@ -2,7 +2,12 @@
 
 import { createErrorFactory } from '#/shared/domain/errors'
 
-export type DashboardErrorCode = 'forbidden' | 'not_found' | 'invalid_input'
+export type DashboardErrorCode =
+  | 'forbidden'
+  | 'not_found'
+  | 'invalid_input'
+  /** A Property has more Portals than one results read answers for; retrying cannot help. */
+  | 'too_many_portals'
 
 export type DashboardError = Readonly<{
   _tag: 'DashboardError'

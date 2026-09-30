@@ -14,12 +14,28 @@ import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
-import { standardErrorStatus as dashboardErrorStatus } from '#/shared/http/status'
+import { HTTP_STATUS } from '#/shared/http/status'
 import { portalGroupId, portalId, propertyId } from '#/shared/domain/ids'
 import { getPortalResultsOverviewDto } from '../application/dto/dashboard.dto'
 import type { PortalResultsRosterEntry } from '../application/public-api'
 import { isDashboardError } from '../domain/dashboard-errors'
 import { assertDashboardPropertyAccessible } from './assert-property-access'
+import { dashboardErrorStatus } from './dashboard-error-status'
+
+/** A refusal Portal tagged while listing its own Portals. Reporting does not import Portal's
+ *  error types; it reads the shape and answers with the status a caller expects. */
+type PortalListError = Readonly<{ _tag: 'PortalError'; code: string; message: string }>
+
+function isPortalListError(e: unknown): e is PortalListError {
+  if (typeof e !== 'object' || e === null) return false
+  const { _tag, code, message } = e as Partial<PortalListError>
+  return _tag === 'PortalError' && typeof code === 'string' && typeof message === 'string'
+}
+
+function portalListErrorStatus(code: string): number {
+  if (code === 'forbidden') return HTTP_STATUS.FORBIDDEN
+  return code.endsWith('_not_found') ? HTTP_STATUS.NOT_FOUND : HTTP_STATUS.SERVER_ERROR
+}
 
 export const getPortalResultsOverviewFn = createServerFn({ method: 'GET' })
   .validator(getPortalResultsOverviewDto)
@@ -83,6 +99,8 @@ export const getPortalResultsOverviewFn = createServerFn({ method: 'GET' })
         } catch (e) {
           if (isDashboardError(e))
             throwContextError('DashboardError', e, dashboardErrorStatus(e.code))
+          if (isPortalListError(e))
+            throwContextError('PortalError', e, portalListErrorStatus(e.code))
           throw catchUntagged(e)
         }
       },

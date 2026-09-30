@@ -16,7 +16,7 @@ import { timeRangePreset } from '../application/dto/dashboard.dto'
 import { isDashboardError } from '../domain/dashboard-errors'
 import { scopeForPermission } from '#/shared/domain/permissions'
 import { checkScopedCapability } from '#/shared/auth/beta-capabilities'
-import { standardErrorStatus as fleetOverviewErrorStatus } from '#/shared/http/status'
+import { dashboardErrorStatus as fleetOverviewErrorStatus } from './dashboard-error-status'
 
 /** Local error constructor — server must not import domain error constructors. */
 

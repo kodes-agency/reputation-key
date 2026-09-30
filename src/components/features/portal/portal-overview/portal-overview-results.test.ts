@@ -300,6 +300,16 @@ describe('resultsStateOf', () => {
     )
   })
 
+  it('shows no results when the Property has more Portals than one read answers for', () => {
+    const tooMany = Object.assign(new Error('Too many Portals'), {
+      code: 'too_many_portals',
+    })
+
+    expect(resultsStateOf({ allowed: true, error: tooMany }, null)).toEqual({
+      status: 'off',
+    })
+  })
+
   it('says it failed on a real error, so the list can say so', () => {
     expect(
       resultsStateOf({ allowed: true, error: new Error('database down') }, null),

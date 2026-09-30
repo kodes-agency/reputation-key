@@ -1,8 +1,11 @@
 // The Portals overview's results as the page prints them: a figure per measure
 // for every Portal, group and Property row, and the strip above the table. Pure:
 // the read (`getPortalResultsOverview`) says what was counted and how sure it is,
-// and every word here comes from the same cells a single Portal's Results view
-// prints (`measureCells`), so the two can never disagree about a figure.
+// and every word here comes from the same cell builder a single Portal's Results
+// view prints with (`measureCells`). The strip's "% of scans" is the exception
+// to "the same cells": it is the engagement funnel's share, which is withheld
+// unless scans, ratings and Google opens are all ready, where the Results tab
+// works a share out from the counts it has.
 //
 // A figure that is not safe to serve is a dash with its reason, never a zero.
 // An average the sample is too small to show says "Too few" and how many there
@@ -15,6 +18,7 @@ import type {
 } from '#/contexts/reporting/application/public-api'
 import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'
 import {
+  BELOW_MINIMUM_SAMPLE,
   DASH,
   formatCount,
   measureCells,
@@ -54,7 +58,6 @@ export type MeasureFrame = Readonly<{
 }>
 
 const TOO_FEW = 'Too few'
-const BELOW_MINIMUM_SAMPLE = 'below_minimum_sample'
 
 function figureOf(cell: ResultsCell | undefined): MeasureFigure {
   if (!cell || cell.value === DASH) {
@@ -279,6 +282,16 @@ export function groupSlot(
   }
 }
 
+/** The Property has more Portals than one read answers for. Retrying cannot help,
+ *  so the page shows its list without results rather than a "Try again". */
+function isTooManyPortals(e: unknown): boolean {
+  return (
+    typeof e === 'object' &&
+    e !== null &&
+    (e as { code?: unknown }).code === 'too_many_portals'
+  )
+}
+
 /**
  * What the route knows about the read, as the page's state. The read needs
  * `dashboard.read`, a different capability from the `portal.read` that got the
@@ -292,5 +305,7 @@ export function resultsStateOf(
   if (!facts.allowed) return { status: 'off' }
   if (index) return { status: 'ready', index }
   if (facts.error === null) return { status: 'loading' }
-  return isDarkCapabilityDenial(facts.error) ? { status: 'off' } : { status: 'failed' }
+  return isDarkCapabilityDenial(facts.error) || isTooManyPortals(facts.error)
+    ? { status: 'off' }
+    : { status: 'failed' }
 }

@@ -124,7 +124,7 @@ describe('getPortalResultsOverviewFn', () => {
     )
   })
 
-  it('reads nothing when a gate refuses', async () => {
+  it('reads nothing when the Portal gate refuses', async () => {
     mocks.requireExecutionAllowed.mockRejectedValue(
       new ServerFunctionError(
         'AuthError',
@@ -137,6 +137,86 @@ describe('getPortalResultsOverviewFn', () => {
     await expect(read()).rejects.toMatchObject({ code: 'org_not_allowlisted' })
     expect(mocks.listPortalOverview).not.toHaveBeenCalled()
     expect(mocks.getPortalResultsOverview).not.toHaveBeenCalled()
+  })
+
+  it('reads nothing when the dashboard gate alone refuses', async () => {
+    mocks.requireExecutionAllowed
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(
+        new ServerFunctionError('AuthError', 'Not allowed', 'capability_disabled', 403),
+      )
+
+    await expect(read()).rejects.toMatchObject({ code: 'capability_disabled' })
+    expect(mocks.requireExecutionAllowed).toHaveBeenCalledTimes(2)
+    expect(mocks.listPortalOverview).not.toHaveBeenCalled()
+    expect(mocks.getPortalResultsOverview).not.toHaveBeenCalled()
+  })
+
+  it('reads nothing when the caller may not see this Property (D6-001)', async () => {
+    mocks.assertDashboardPropertyAccessible.mockRejectedValue(
+      new ServerFunctionError('DashboardError', 'Forbidden', 'forbidden', 403),
+    )
+
+    await expect(read()).rejects.toMatchObject({ code: 'forbidden', status: 403 })
+    expect(mocks.listPortalOverview).not.toHaveBeenCalled()
+    expect(mocks.getPortalResultsOverview).not.toHaveBeenCalled()
+  })
+
+  it('asks every gate before it reads anything', async () => {
+    await read()
+
+    const gateOrders = [
+      ...mocks.requireExecutionAllowed.mock.invocationCallOrder,
+      ...mocks.assertDashboardPropertyAccessible.mock.invocationCallOrder,
+    ]
+    const readOrders = [
+      ...mocks.listPortalOverview.mock.invocationCallOrder,
+      ...mocks.getPropertyTimezone.mock.invocationCallOrder,
+      ...mocks.getPortalResultsOverview.mock.invocationCallOrder,
+    ]
+    expect(Math.max(...gateOrders)).toBeLessThan(Math.min(...readOrders))
+  })
+
+  it('answers with Portal’s own refusal, tagged, when it will not list the Portals', async () => {
+    mocks.listPortalOverview.mockRejectedValue({
+      _tag: 'PortalError',
+      code: 'forbidden',
+      message: 'Not allowed to read Portals',
+    })
+
+    await expect(read()).rejects.toMatchObject({
+      _tag: 'PortalError',
+      code: 'forbidden',
+      status: 403,
+    })
+    expect(mocks.getPortalResultsOverview).not.toHaveBeenCalled()
+  })
+
+  it('answers a Portal error naming something missing with a 404', async () => {
+    mocks.listPortalOverview.mockRejectedValue({
+      _tag: 'PortalError',
+      code: 'property_not_found',
+      message: 'Property not found',
+    })
+
+    await expect(read()).rejects.toMatchObject({
+      code: 'property_not_found',
+      status: 404,
+    })
+  })
+
+  it('answers a Property with too many Portals with a 422 the page can tell from a failure', async () => {
+    mocks.getPortalResultsOverview.mockRejectedValue({
+      _tag: 'DashboardError',
+      code: 'too_many_portals',
+      message: 'Too many Portals',
+    })
+
+    await expect(read()).rejects.toMatchObject({
+      _tag: 'DashboardError',
+      code: 'too_many_portals',
+      status: 422,
+    })
   })
 
   it('answers a not found when the Property has no time zone', async () => {

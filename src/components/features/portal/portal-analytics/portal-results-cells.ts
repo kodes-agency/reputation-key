@@ -167,6 +167,9 @@ function ratingsWord(count: number): string {
   return count === 1 ? '1 rating' : `${formatCount(count)} ratings`
 }
 
+/** The reason an average is withheld for want of ratings (the domain's `AVERAGE_BELOW_MINIMUM_REASON`). */
+export const BELOW_MINIMUM_SAMPLE = 'below_minimum_sample'
+
 function averageCell(data: ResultsMeasuresInput, options: Options): ResultsCell {
   const { avgRating } = data.kpis
   const base = {
@@ -177,7 +180,7 @@ function averageCell(data: ResultsMeasuresInput, options: Options): ResultsCell 
   if (avgRating.value === null) {
     const { evidence, sampleCount } = avgRating
     const detail =
-      evidence.availabilityReason === 'below_minimum_sample'
+      evidence.availabilityReason === BELOW_MINIMUM_SAMPLE
         ? `${ratingsWord(sampleCount)}, needs ${data.thresholds.averageMinSample} to show an average`
         : evidence.state === 'insufficient_data' && sampleCount === 0
           ? 'No private ratings yet'

@@ -860,7 +860,10 @@ describe('getPortalResultsOverview', () => {
         propertyId: PROP,
         groupId: null,
       }))
-      await expect(run({ portals: tooMany })).rejects.toThrow('too many Portals')
+      await expect(run({ portals: tooMany })).rejects.toMatchObject({
+        _tag: 'DashboardError',
+        code: 'too_many_portals',
+      })
     })
 
     it('fails loudly when the store returns no evidence for a Portal', async () => {

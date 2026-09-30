@@ -14,7 +14,7 @@ import { getPortalAnalyticsDto } from '../application/dto/dashboard.dto'
 export type { PortalAnalyticsData } from '../domain/dashboard-types'
 import { propertyId, portalId } from '#/shared/domain/ids'
 import { isDashboardError } from '../domain/dashboard-errors'
-import { standardErrorStatus as dashboardErrorStatus } from '#/shared/http/status'
+import { dashboardErrorStatus } from './dashboard-error-status'
 import { assertDashboardPropertyAccessible } from './assert-property-access'
 import { resolvePropertyPeriod } from './resolve-property-period'
 

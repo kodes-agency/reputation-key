@@ -11,6 +11,7 @@ describe('dashboardError', () => {
     ['forbidden', 403],
     ['not_found', 404],
     ['invalid_input', 400],
+    ['too_many_portals', 422],
   ] as const)('%s code maps to %i status', (code, expectedStatus) => {
     const err = dashboardError(code, `Error: ${code}`)
     expect(err._tag).toBe('DashboardError')
@@ -26,6 +27,7 @@ describe('dashboardError', () => {
       forbidden: 403,
       not_found: 404,
       invalid_input: 400,
+      too_many_portals: 422,
     }
     expect(expectedMapping[code]).toBe(expectedStatus)
   })
