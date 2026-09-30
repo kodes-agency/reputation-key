@@ -33,3 +33,4 @@ Missing numbers are retired, merged, or never issued: `0001–0006`, `0009–001
 | [0060](0060-property-fence-and-worker-pool-budget.md)                     | Property source fence and the worker pool budget             | accepted | —             |
 | [0061](0061-guest-languages-and-publication-v3.md)                        | Guest languages and publication v3                           | accepted | —             |
 | [0062](0062-invitation-acceptance-verifies-email.md)                      | Invitation acceptance verifies email                         | accepted | —             |
+| [0063](0063-platform-operators-provision-organizations.md)                | Platform operators provision Organizations                   | accepted | —             |
