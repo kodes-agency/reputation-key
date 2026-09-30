@@ -56,13 +56,10 @@ export const resendOrganizationAdminInvitation =
       now,
       expiresAt: new Date(now.getTime() + deps.invitationExpiresInMs),
     })
+    // Content-free (observability schema): the request's trace correlates
+    // it, and the rows it names already record the operator as inviter.
     deps.logger.info(
-      {
-        event: 'platform.admin_invitation_resent',
-        operatorUserId: operator.userId,
-        organizationId,
-        invitationId,
-      },
+      { event: 'platform.admin_invitation_resent' },
       'Platform operator renewed an Account Admin invitation',
     )
 

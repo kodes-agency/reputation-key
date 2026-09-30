@@ -75,20 +75,17 @@ describe('cancelOrganizationAdminInvitation', () => {
     expect(cancelInvitation).toHaveBeenCalledOnce()
   })
 
-  it('logs the cancellation by identifiers only', async () => {
+  it('logs the cancellation content-free: no identifiers, no address', async () => {
     const { cancel, logger } = setup()
 
     await cancel(INPUT, OPERATOR)
 
     expect(logger.info).toHaveBeenCalledWith(
-      {
-        event: 'platform.admin_invitation_canceled',
-        operatorUserId: 'user-operator',
-        organizationId: 'org-new',
-        invitationId: 'inv-open',
-      },
+      { event: 'platform.admin_invitation_canceled' },
       expect.any(String),
     )
+    const logged = JSON.stringify(logger.info.mock.calls)
+    expect(logged).not.toMatch(/user-operator|org-new|inv-|@riviera/)
   })
 
   it.each([

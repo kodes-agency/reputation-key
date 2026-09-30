@@ -132,7 +132,7 @@ describe('requirePlatformOperator', () => {
     })
   })
 
-  it('logs a refusal by user id only, never by email', async () => {
+  it('logs a refusal content-free: the reason, no user id or email', async () => {
     mocks.getSession.mockResolvedValue(
       sessionFor({ email: 'manager-one@example.com', emailVerified: true }),
     )
@@ -140,14 +140,10 @@ describe('requirePlatformOperator', () => {
     await expect(read()).rejects.toMatchObject({ status: 403 })
 
     expect(mocks.warn).toHaveBeenCalledWith(
-      {
-        event: 'platform.operator_denied',
-        userId: 'user-operator',
-        reason: 'operator_not_registered',
-      },
+      { event: 'platform.operator_denied', reason: 'operator_not_registered' },
       expect.any(String),
     )
-    expect(JSON.stringify(mocks.warn.mock.calls)).not.toContain('manager-one')
+    expect(JSON.stringify(mocks.warn.mock.calls)).not.toMatch(/manager-one|user-operator/)
   })
 
   it('matches a mixed-case session email against a lowercase entry', async () => {

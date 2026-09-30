@@ -117,7 +117,7 @@ describe('provisionOrganization', () => {
     ])
   })
 
-  it('logs the provisioning by identifiers only', async () => {
+  it('logs the provisioning content-free: no identifiers, no address', async () => {
     const { provision, logger } = setup()
 
     await provision(
@@ -126,14 +126,11 @@ describe('provisionOrganization', () => {
     )
 
     expect(logger.info).toHaveBeenCalledWith(
-      {
-        event: 'platform.organization_provisioned',
-        operatorUserId: 'user-operator',
-        organizationId: 'org-new',
-        invitationId: 'inv-first',
-      },
+      { event: 'platform.organization_provisioned' },
       expect.any(String),
     )
+    const logged = JSON.stringify(logger.info.mock.calls)
+    expect(logged).not.toMatch(/user-operator|org-new|inv-first|@riviera/)
   })
 
   it('refuses a name whose derived slug is too short before writing anything', async () => {

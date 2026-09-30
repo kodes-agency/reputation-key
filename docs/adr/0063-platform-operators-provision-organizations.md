@@ -54,9 +54,11 @@ denies everyone it does not list. The beta has no MFA.
 6. **No new fact.** Provisioning records no fact of its own, as
    `ops:bootstrap-owner` records none. The Organization row, its lifecycle
    authority row and the first invitation's `identity.member.invited` fact are
-   the record; the operator is on record as that invitation's `inviterId`. A
-   structured log line per change names the operator's user id, the
-   Organization and the invitation.
+   the record; the operator is on record as that invitation's `inviterId`. Each
+   change and each refusal also writes a content-free log line
+   (`platform.organization_provisioned`, `platform.operator_denied`, …) that
+   the request's trace correlates; like every log line, it carries no tenant
+   identifier or address.
 7. **Its own composition seam.** The console is the container key
    `identityPlatform`, built by `identity/build-platform.ts`. It is not on
    `identityPublicApi`: no other context receives it.
