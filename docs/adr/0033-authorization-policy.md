@@ -33,3 +33,15 @@ action and scope; an unavailable or unknown policy input fails closed.
   tenant-cross sweep and the per-item work it discovers are separate actions:
   one Property-scoped job once made every Organization-scoped notification
   consumer that shared its action deny `missing_scope`.
+
+## Amended 2026-10-01 — manager administration is AccountAdmin-only
+
+An AccountAdmin may change any member's role, another AccountAdmin's included,
+but nobody changes their own role, and a change that leaves the role as it was
+is refused; both refusals come before the last-AccountAdmin guard, so they are
+never reported as it, and that guard still holds under the Organization lock.
+Only an AccountAdmin invites, cancels or resends invitations, creates members,
+and changes a PropertyManager's Property scope (`member.update` at Organization
+scope); a PropertyManager can only list members. Only an AccountAdmin edits
+Organization settings, response targets included, which the server already
+required.
