@@ -228,6 +228,70 @@ describe.sequential('one-click unsubscribe repository (real PostgreSQL)', () => 
     expect(mandatory).toEqual([])
   })
 
+  // ADR 0046, amended 2026-09-30: a Low ratings row cannot be stored without
+  // its threshold, and an unsubscribe must still write one.
+  it('turns off a Low ratings email, keeping the threshold its row requires', async () => {
+    const LOW_EMAIL = '85000000-0000-4000-8000-000000000014'
+    const LOW_NOTIFICATION = '85000000-0000-4000-8000-000000000104'
+    await db.insert(notifications).values({
+      id: LOW_NOTIFICATION,
+      userId: USER,
+      organizationId: ORG,
+      propertyId: PROPERTY_B,
+      type: 'review.created',
+      category: 'low_ratings',
+      priority: 'normal',
+      status: 'unread',
+      resourceType: 'inbox_item',
+      resourceId: `one-click-${LOW_EMAIL}`,
+      eventId: `one-click-event-${LOW_EMAIL}`,
+      title: 'Low-rated review',
+      payload: { lowRating: true },
+      createdAt: NOW,
+      updatedAt: NOW,
+    })
+    await db.insert(notificationEmailQueue).values({
+      id: LOW_EMAIL,
+      notificationId: LOW_NOTIFICATION,
+      userId: USER,
+      organizationId: ORG,
+      propertyId: PROPERTY_B,
+      category: 'low_ratings',
+      cadence: 'immediate',
+      status: 'accepted',
+      priority: 'normal',
+      idempotencyKey: `one-click-${LOW_EMAIL}`,
+      createdAt: NOW,
+      updatedAt: NOW,
+    })
+
+    await expect(
+      createOneClickUnsubscribeRepository(db).apply(
+        { kind: 'email', id: LOW_EMAIL },
+        NOW,
+      ),
+    ).resolves.toBe(1)
+
+    const rows = await db
+      .select()
+      .from(notificationPreferences)
+      .where(
+        and(
+          eq(notificationPreferences.organizationId, ORG),
+          eq(notificationPreferences.category, 'low_ratings'),
+        ),
+      )
+    expect(rows).toEqual([
+      expect.objectContaining({
+        propertyId: PROPERTY_B,
+        channel: 'email',
+        enabled: false,
+        cadence: 'immediate',
+        maxRating: 2,
+      }),
+    ])
+  })
+
   it('treats a valid capability whose retained target is gone as a neutral no-op', async () => {
     const repo = createOneClickUnsubscribeRepository(db)
 

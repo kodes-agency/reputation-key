@@ -58,6 +58,7 @@ export const createOneClickUnsubscribeRepository = (db: Database) => ({
         channel,
         enabled,
         cadence,
+        max_rating,
         created_at,
         updated_at
       )
@@ -69,7 +70,10 @@ export const createOneClickUnsubscribeRepository = (db: Database) => ({
         category,
         'email',
         FALSE,
-        CASE WHEN category = 'urgent_operational' THEN 'immediate' ELSE 'daily' END,
+        CASE WHEN category IN ('urgent_operational', 'low_ratings') THEN 'immediate' ELSE 'daily' END,
+        -- Low ratings cannot be stored without its threshold (ADR 0046,
+        -- amended 2026-09-30): the email default, kept while it is off.
+        CASE WHEN category = 'low_ratings' THEN 2 ELSE NULL END,
         ${now},
         ${now}
       FROM optional_scopes
