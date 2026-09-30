@@ -18,6 +18,13 @@ export const MAX_PORTAL_LINKS = 4
 // readers show the guest language pack's `linktreeDefaultTitle` (the v2 packs
 // translate it), so there is one source for the default wording.
 
+/**
+ * The title of the one category a Portal's links sit in once the editor no
+ * longer shows categories. Only the legacy guest page, which still groups links
+ * under their category, ever prints it.
+ */
+export const DEFAULT_LINK_CATEGORY_TITLE = 'Links'
+
 /** Equal to the legacy `portal_links.label` column, which the primary text is mirrored into. */
 export const LINK_TEXT_LABEL_MAX_LENGTH = 100
 export const LINK_TEXT_LINE_MAX_LENGTH = 160

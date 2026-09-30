@@ -13,6 +13,10 @@ import {
   updateLinkInputSchema,
   reorderLinksInputSchema,
 } from '../application/dto/portal-link.dto'
+import {
+  saveLinktreeSettingsInputSchema,
+  savePortalLinkTextsInputSchema,
+} from '../application/dto/portal-linktree.dto'
 import { isPortalError, portalError } from '../domain/errors'
 import { portalErrorStatus } from './portals'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -57,15 +61,21 @@ export const createLink = createServerFn({ method: 'POST' })
       async ({ data }) => {
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
+        const { categoryId } = data
         await authorizePortalLinkScopes(ctx, 'portal.create', [
           () =>
             getContainer().portalPublicApi.management.resolvePortalManagementScope(
               toPortalId(data.portalId),
             ),
-          () =>
-            getContainer().portalPublicApi.management.resolvePortalCategoryManagementScope(
-              toCategoryId(data.categoryId),
-            ),
+          // The editor leaves the category out; the use case then picks it.
+          ...(categoryId === undefined
+            ? []
+            : [
+                () =>
+                  getContainer().portalPublicApi.management.resolvePortalCategoryManagementScope(
+                    toCategoryId(categoryId),
+                  ),
+              ]),
         ])
         try {
           const { management: useCases } = getContainer().portalPublicApi
@@ -203,6 +213,91 @@ export const listPortalLinks = createServerFn({ method: 'GET' })
       },
       'GET',
       'portalLink.listPortalLinks',
+    ),
+  )
+
+// ── Linktree working model ─────────────────────────────────────────
+
+export const getPortalLinktree = createServerFn({ method: 'GET' })
+  .validator(z.object({ portalId: z.string().min(1) }))
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        await authorizePortalLinkScopes(ctx, 'portal.read', [
+          () =>
+            getContainer().portalPublicApi.management.resolvePortalManagementScope(
+              toPortalId(data.portalId),
+            ),
+        ])
+        try {
+          const { management: useCases } = getContainer().portalPublicApi
+          return await useCases.getPortalLinktree(data, ctx)
+        } catch (e) {
+          if (isPortalError(e))
+            throwContextError('PortalError', e, portalErrorStatus(e.code))
+          throw catchUntagged(e)
+        }
+      },
+      'GET',
+      'portalLink.getPortalLinktree',
+    ),
+  )
+
+export const savePortalLinkTexts = createServerFn({ method: 'POST' })
+  .validator(savePortalLinkTextsInputSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        await authorizePortalLinkScopes(ctx, 'portal.update', [
+          () =>
+            getContainer().portalPublicApi.management.resolvePortalLinkManagementScope(
+              toLinkId(data.linkId),
+            ),
+        ])
+        try {
+          const { management: useCases } = getContainer().portalPublicApi
+          await useCases.savePortalLinkTexts(data, ctx)
+          return { saved: true }
+        } catch (e) {
+          if (isPortalError(e))
+            throwContextError('PortalError', e, portalErrorStatus(e.code))
+          throw catchUntagged(e)
+        }
+      },
+      'POST',
+      'portalLink.savePortalLinkTexts',
+    ),
+  )
+
+export const saveLinktreeSettings = createServerFn({ method: 'POST' })
+  .validator(saveLinktreeSettingsInputSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        await authorizePortalLinkScopes(ctx, 'portal.update', [
+          () =>
+            getContainer().portalPublicApi.management.resolvePortalManagementScope(
+              toPortalId(data.portalId),
+            ),
+        ])
+        try {
+          const { management: useCases } = getContainer().portalPublicApi
+          await useCases.saveLinktreeSettings(data, ctx)
+          return { saved: true }
+        } catch (e) {
+          if (isPortalError(e))
+            throwContextError('PortalError', e, portalErrorStatus(e.code))
+          throw catchUntagged(e)
+        }
+      },
+      'POST',
+      'portalLink.saveLinktreeSettings',
     ),
   )
 

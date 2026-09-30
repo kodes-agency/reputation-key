@@ -16,6 +16,7 @@ import { isPortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import {
   portalId,
+  portalLinkCategoryId,
   portalLinkId,
   propertyId,
   type PropertyId,
@@ -346,6 +347,67 @@ describe('createLink', () => {
           .storedTexts()
           .map((text) => [text.linkId, text.locale, text.label, text.line]),
       ).toEqual([[link.id, 'en', 'City guide', null]])
+    })
+  })
+  describe('without a category, as the Linktree editor adds a link', () => {
+    const base = {
+      portalId: 'd0000000-0000-0000-0000-000000000001',
+      label: 'Olive Terrace menu',
+      url: 'https://avela.bg/olive-terrace/menu',
+    }
+    const ctx = () => buildTestAuthContext({ role: 'PropertyManager' })
+
+    it("starts the Portal's first category when it has none, and puts the link in it", async () => {
+      const { useCase, portalRepo, portalLinkRepo, outbox } = setup()
+      portalRepo.seed([buildTestPortal({})])
+
+      const link = await useCase(base, ctx())
+
+      const categories = portalLinkRepo.allCategories()
+      expect(categories.map((category) => category.title)).toEqual(['Links'])
+      expect(link.categoryId).toBe(categories[0]?.id)
+      expect(portalLinkRepo.allLinks()).toHaveLength(1)
+      expect(outbox.byTag('portal_link_category.created')).toHaveLength(1)
+      expect(outbox.byTag('portal_link.created')).toHaveLength(1)
+    })
+
+    it('puts the link in the last category when the Portal already has some', async () => {
+      const { useCase, portalRepo, portalLinkRepo } = setup()
+      portalRepo.seed([buildTestPortal({})])
+      const first = buildTestPortalLinkCategory({
+        id: portalLinkCategoryId('c0000000-0000-0000-0000-000000000001'),
+        sortKey: 'a0',
+      })
+      const last = buildTestPortalLinkCategory({
+        id: portalLinkCategoryId('c0000000-0000-0000-0000-000000000002'),
+        sortKey: 'a1',
+      })
+      portalLinkRepo.seedCategories([last, first])
+
+      const link = await useCase(base, ctx())
+
+      expect(link.categoryId).toBe(last.id)
+      expect(portalLinkRepo.allCategories()).toHaveLength(2)
+    })
+
+    it('still refuses a fifth link without leaving a category behind', async () => {
+      const { useCase, portalRepo, portalLinkRepo } = setup()
+      portalRepo.seed([buildTestPortal({})])
+      const category = buildTestPortalLinkCategory({})
+      portalLinkRepo.seedCategories([category])
+      portalLinkRepo.seedLinks(
+        Array.from({ length: 4 }, (_, index) =>
+          buildTestPortalLink({
+            id: portalLinkId(`10000000-0000-0000-0000-00000000020${index}`),
+            sortKey: `a${index}`,
+          }),
+        ),
+      )
+
+      await expect(useCase(base, ctx())).rejects.toSatisfy(
+        (error: unknown) => isPortalError(error) && error.code === 'link_limit_reached',
+      )
+      expect(portalLinkRepo.allCategories()).toHaveLength(1)
     })
   })
 })

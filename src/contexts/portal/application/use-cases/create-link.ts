@@ -1,14 +1,18 @@
 // Portal context — create link use case
 
 import type { PortalLinkRepository } from '../ports/portal-link.repository'
-import type { PortalLink } from '../../domain/types'
+import type { Portal, PortalLink, PortalLinkCategory } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalError } from '../../domain/errors'
 import { buildPortalLink } from '../../domain/constructors'
-import { hasRoomForAnotherLink } from '../../domain/portal-linktree'
+import {
+  DEFAULT_LINK_CATEGORY_TITLE,
+  hasRoomForAnotherLink,
+} from '../../domain/portal-linktree'
 import { generateKeyBetween } from 'fractional-indexing'
 import { portalLinkCreated } from '../../domain/events'
 import { portalId, portalLinkCategoryId, portalLinkId } from '#/shared/domain/ids'
+import { createLinkCategory } from './create-link-category'
 
 import type { PortalRepository } from '../ports/portal.repository'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
@@ -21,7 +25,11 @@ import { resolveApprovedPortalDestination } from '../resolve-approved-portal-des
 import type { PortalDestinationNetworkValidator } from '../ports/portal-destination-network-validator.port'
 
 export type CreateLinkInput = Readonly<{
-  categoryId: string
+  /**
+   * Left out by the Linktree editor, which no longer shows categories: the link
+   * then joins the Portal's last category, and the first link starts one.
+   */
+  categoryId?: string
   portalId: string
   label: string
   url: string
@@ -39,23 +47,56 @@ export type CreateLinkDeps = Readonly<{
   clock: () => Date
 }>
 
+async function loadRequestedCategory(
+  deps: CreateLinkDeps,
+  ctx: AuthContext,
+  categoryId: string,
+  portalIdInput: string,
+): Promise<PortalLinkCategory> {
+  const category = await deps.portalLinkRepo.findCategoryById(
+    ctx.organizationId,
+    portalLinkCategoryId(categoryId),
+  )
+  if (!category) {
+    throw portalError('category_not_found', 'category not found')
+  }
+  if (category.portalId !== portalId(portalIdInput)) {
+    throw portalError('forbidden', 'Category does not belong to this portal')
+  }
+  return category
+}
+
+/** The Portal's last category, or a new one when it has none. */
+async function ensureLinkCategory(
+  deps: CreateLinkDeps,
+  ctx: AuthContext,
+  portal: Portal,
+): Promise<Readonly<{ category: PortalLinkCategory; portal: Portal }>> {
+  const existing = await deps.portalLinkRepo.listCategories(ctx.organizationId, portal.id)
+  const last = existing[existing.length - 1]
+  if (last) return { category: last, portal }
+  const category = await createLinkCategory(deps)(
+    { portalId: portal.id, title: DEFAULT_LINK_CATEGORY_TITLE },
+    ctx,
+  )
+  const refreshed = await loadPortalOrThrow(deps, ctx, portal.id, {
+    permission: 'portal.update',
+    forbiddenMessage: 'Insufficient permissions to create portal links',
+  })
+  return { category, portal: refreshed }
+}
+
 export const createLink =
   (deps: CreateLinkDeps) =>
   async (input: CreateLinkInput, ctx: AuthContext): Promise<PortalLink> => {
     if (!canForContext(ctx, 'portal.update')) {
       throw portalError('forbidden', 'Insufficient permissions to create portal links')
     }
-    const category = await deps.portalLinkRepo.findCategoryById(
-      ctx.organizationId,
-      portalLinkCategoryId(input.categoryId),
-    )
-    if (!category) {
-      throw portalError('category_not_found', 'category not found')
-    }
-    if (category.portalId !== portalId(input.portalId)) {
-      throw portalError('forbidden', 'Category does not belong to this portal')
-    }
-    const portal = await loadPortalOrThrow(deps, ctx, portalId(input.portalId), {
+    const requested =
+      input.categoryId === undefined
+        ? null
+        : await loadRequestedCategory(deps, ctx, input.categoryId, input.portalId)
+    const loaded = await loadPortalOrThrow(deps, ctx, portalId(input.portalId), {
       permission: 'portal.update',
       forbiddenMessage: 'Insufficient permissions to create portal links',
     })
@@ -73,14 +114,21 @@ export const createLink =
 
     const destination = await resolveApprovedPortalDestination(
       deps,
-      { uri: input.url, propertyId: portal.propertyId },
+      { uri: input.url, propertyId: loaded.propertyId },
       ctx,
     )
+
+    // A category is only started once the link fits and its destination is
+    // approved, so a refused link leaves nothing behind. Starting one moves the
+    // Portal's revision, so the Portal is read again for the writes that follow.
+    const { category, portal } = requested
+      ? { category: requested, portal: loaded }
+      : await ensureLinkCategory(deps, ctx, loaded)
 
     const existing = await deps.portalLinkRepo.listLinks(
       ctx.organizationId,
       portalId(input.portalId),
-      portalLinkCategoryId(input.categoryId),
+      category.id,
     )
     const lastSortKey = existing.length > 0 ? existing[existing.length - 1].sortKey : null
     const sortKey = generateKeyBetween(lastSortKey, null)
@@ -89,7 +137,7 @@ export const createLink =
     const revision = nextPortalCommandAt(occurredAt, portal.updatedAt)
     const result = buildPortalLink({
       id: portalLinkId(deps.idGen()),
-      categoryId: portalLinkCategoryId(input.categoryId),
+      categoryId: category.id,
       portalId: portalId(input.portalId),
       organizationId: ctx.organizationId,
       propertyId: portal.propertyId,
@@ -107,7 +155,7 @@ export const createLink =
     const event = portalLinkCreated({
       portalId: portalId(input.portalId),
       linkId: result.value.id,
-      categoryId: portalLinkCategoryId(input.categoryId),
+      categoryId: category.id,
       organizationId: ctx.organizationId,
       propertyId: portal.propertyId,
       sourceAggregateVersion: revision.toISOString(),

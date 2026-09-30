@@ -34,6 +34,13 @@ export type {
   PortalPublicationHistoryItem,
 } from './use-cases/get-portal-publication-history'
 export type {
+  PortalLinktreeDestination,
+  PortalLinktreeDestinationState,
+  PortalLinktreeLink,
+  PortalLinktreeText,
+  PortalLinktreeView,
+} from '../domain/portal-linktree-view'
+export type {
   PortalHistory,
   PortalHistoryEntry,
   GetPortalHistoryInput,
