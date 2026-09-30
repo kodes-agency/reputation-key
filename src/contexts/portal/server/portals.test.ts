@@ -327,7 +327,7 @@ describe('updatePortal input validation', () => {
     }
   })
 
-  it('bounds additional locales by the catalogue and keeps them unique', () => {
+  it('keeps additional locales unique', () => {
     expect(
       updatePortalInputSchema.safeParse({
         portalId: 'portal-123',

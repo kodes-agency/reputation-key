@@ -41,9 +41,11 @@ immutable evidence:
    `portal_localized_overrides` and `portal_publication_snapshots` accept every
    catalogue locale, and any pack id shaped `guest-ui-<locale>-v<n>`. Which
    locales a manager may offer and which packs exist is decided by the
-   application registry, which fails closed. Adding a language or a pack
-   therefore needs no migration. Migration 0043 widened the CHECKs; it is
-   hand-written SQL with a journal entry, because `drizzle/meta` stops at
+   application registry, which fails closed. Offering any of the six catalogue
+   locales, or adding a pack id for one of them, therefore needs no migration.
+   Adding a locale to the catalogue itself needs a new widening migration, and
+   `check:schema-drift` fails until one exists. Migration 0043 widened the
+   CHECKs; it is hand-written SQL with a journal entry, because `drizzle/meta` stops at
    snapshot 0013. The model renders the same expressions from the catalogue,
    so `pnpm check:schema-drift` compares them at expression level and a parity
    test pins the migration to the catalogue.
@@ -66,21 +68,25 @@ immutable evidence:
    new schema version first ships in a release that only reads it. Migration
    0043 and the widened readers (event schemas, the Portal mapper, the
    experience mapper, the additional-locales cap) are that release for
-   locales. Writers keep accepting only en and bg until each language has a
-   reviewed pack. Any later guest-visible field needs its own schema version
-   and its own reader-first release.
+   locales. Writers accept only the locales in `OFFERED_GUEST_LOCALES`. A
+   language is added there when its pack is registered in the catalogue; during
+   the closed beta that happens when the pack is drafted, with no
+   native-speaker check (owner decision, 2026-09-30). Any later guest-visible
+   field needs its own schema version and its own reader-first release.
 7. **The manager app stays English.** Guest languages are a property of the
    guest page. Geographic availability is not localization (BETA.md §3), and
    the operational email stays English.
 
 ## Consequences
 
-- Offering a language later is a registry entry and a reviewed pack, not a
-  migration. The database accepts any of the six from migration 0043 on.
-- The application, not the database, is what keeps an unreviewed language away
+- Offering a language later is a registry entry and a pack, not a migration.
+  The database accepts any of the six from migration 0043 on.
+- The application, not the database, is what keeps an unregistered language away
   from guests. A snapshot row naming `guest-ui-de-v2` passes the CHECK and is
   still rejected by the reader; an integration test proves both halves.
 - Re-narrowing the CHECKs is safe only while no row uses a new locale. That
   holds until the first non-en, non-bg language is offered.
-- The same catalogue feeds events, DTOs, mappers and schema, so a change to
-  the language set is one edit and one migration-free release.
+- The same catalogue feeds events, DTOs, mappers and schema. Offering one of
+  the six is one edit and a migration-free release; adding a seventh locale to
+  the catalogue is one edit plus a widening migration, which drift detection
+  demands.

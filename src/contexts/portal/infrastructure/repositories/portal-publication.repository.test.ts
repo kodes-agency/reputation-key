@@ -1,6 +1,8 @@
+import { createHash } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, it } from 'vitest'
 import { eq } from 'drizzle-orm'
 import { getDb } from '#/shared/db'
+import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 import {
@@ -433,6 +435,9 @@ describe.sequential('Portal publication repository (real PostgreSQL)', () => {
 
 describe.sequential('Snapshot guest locale CHECKs (real PostgreSQL)', () => {
   const SNAPSHOT_ID = 'f5000000-0000-4000-8000-000000000031'
+  const CONTROL_ID = 'f5000000-0000-4000-8000-000000000032'
+  const DE_V2_ID = 'f5000000-0000-4000-8000-000000000033'
+  const DE_V1_ID = 'f5000000-0000-4000-8000-000000000034'
   type SnapshotInsert = typeof portalPublicationSnapshots.$inferInsert
 
   async function insertRow(overrides: Partial<SnapshotInsert>) {
@@ -456,16 +461,29 @@ describe.sequential('Snapshot guest locale CHECKs (real PostgreSQL)', () => {
     return undefined
   }
 
-  it('accepts a German pack row at the database while the reader stays closed', async () => {
-    const built = snapshot(1, 'Locale layering', SNAPSHOT_ID)
+  // A v2 snapshot of one locale whose digest is recomputed, so the only thing
+  // that can make a reader refuse it is the locale or pack gate.
+  function localizedRow(
+    version: number,
+    id: string,
+    guestLocale: string,
+    languagePackVersion: string,
+  ) {
+    const built = snapshot(1, 'Locale layering', id)
     const configuration = {
       ...built.configuration,
       schemaVersion: 2,
-      guestLocale: 'de',
-      languagePackVersion: 'guest-ui-de-v2',
-      localeSet: ['de'],
-      languagePackVersions: { de: 'guest-ui-de-v2' },
-      localizedContent: {},
+      guestLocale,
+      languagePackVersion,
+      localeSet: [guestLocale],
+      languagePackVersions: { [guestLocale]: languagePackVersion },
+      localizedContent: {
+        [guestLocale]: {
+          title: 'Layering',
+          shortDescription: 'A portal used to prove locale layering.',
+          heroImageUrl: null,
+        },
+      },
       brandProfile: {
         displayName: 'Layering',
         logoUrl: null,
@@ -476,32 +494,62 @@ describe.sequential('Snapshot guest locale CHECKs (real PostgreSQL)', () => {
         version: 1,
       },
     }
-    await insertRow({
-      configuration,
-      guestLocale: 'de',
-      languagePackVersion: 'guest-ui-de-v2',
-      localeSet: ['de'],
-      languagePackVersions: { de: 'guest-ui-de-v2' },
-      brandProfileVersion: 1,
-    })
+    const digest = createHash('sha256')
+      .update(canonicalizeRfc8785(configuration), 'utf8')
+      .digest('hex')
+    const value = {
+      ...built,
+      version,
+      configuration: configuration as never,
+      configurationDigest: digest,
+    }
+    return {
+      value,
+      row: {
+        ...snapshotRow(value),
+        guestLocale,
+        languagePackVersion,
+        localeSet: [guestLocale],
+        languagePackVersions: { [guestLocale]: languagePackVersion },
+        localizedContent: configuration.localizedContent,
+        brandProfileVersion: 1,
+      },
+    }
+  }
 
+  async function storedRow(id: string) {
     const [stored] = await getDb()
       .select()
       .from(portalPublicationSnapshots)
-      .where(eq(portalPublicationSnapshots.id, SNAPSHOT_ID))
-    expect(stored).toMatchObject({
-      guestLocale: 'de',
-      languagePackVersion: 'guest-ui-de-v2',
-    })
-    // The database is broad; the application registry is authoritative.
-    expect(stored && snapshotFromRow(stored)).toBeNull()
-    expect(
-      verifyPortalPublicationSnapshot({
-        ...built,
-        configuration: configuration as never,
-      }),
-    ).toBe(false)
+      .where(eq(portalPublicationSnapshots.id, id))
+    if (!stored) throw new Error(`snapshot ${id} was not stored`)
+    return stored
+  }
+
+  it('reads a Bulgarian v2 control row, so the refusals below are the locale gate', async () => {
+    const control = localizedRow(2, CONTROL_ID, 'bg', 'guest-ui-bg-v1')
+    await getDb().insert(portalPublicationSnapshots).values(control.row)
+
+    expect(verifyPortalPublicationSnapshot(control.value)).toBe(true)
+    expect(snapshotFromRow(await storedRow(CONTROL_ID))).not.toBeNull()
   })
+
+  it.each([
+    ['guest-ui-de-v2', 'a pack generation the registry does not have', 3, DE_V2_ID],
+    ['guest-ui-de-v1', 'a locale whose pack is not registered yet', 4, DE_V1_ID],
+  ])(
+    'accepts %s at the database while the readers refuse %s',
+    async (pack, _why, version, id) => {
+      const german = localizedRow(version, id, 'de', pack)
+      await getDb().insert(portalPublicationSnapshots).values(german.row)
+
+      const stored = await storedRow(id)
+      expect(stored).toMatchObject({ guestLocale: 'de', languagePackVersion: pack })
+      // The database is broad; the application registry is authoritative.
+      expect(snapshotFromRow(stored)).toBeNull()
+      expect(verifyPortalPublicationSnapshot(german.value)).toBe(false)
+    },
+  )
 
   it('rejects a primary locale outside the catalogue', async () => {
     // A row this wrong breaks both locale checks; Postgres reports whichever

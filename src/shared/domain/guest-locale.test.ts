@@ -135,6 +135,9 @@ describe('guest language pack membership', () => {
   })
 })
 
+// The length clause is defence in depth: a unique list of catalogue locales
+// without the primary already has at most MAX_ADDITIONAL_GUEST_LOCALES entries,
+// so no case here can be refused by length alone.
 describe('additional guest locales beside a primary', () => {
   it('leaves room for every catalogue locale except the primary', () => {
     expect(MAX_ADDITIONAL_GUEST_LOCALES).toBe(5)
@@ -146,7 +149,11 @@ describe('additional guest locales beside a primary', () => {
     ['repeats the primary', 'en', ['en']],
     ['repeats itself', 'en', ['bg', 'bg']],
     ['names a locale outside the catalogue', 'en', ['pt']],
-    ['is longer than the catalogue allows', 'en', ['es', 'it', 'fr', 'de', 'bg', 'bg']],
+    [
+      'repeats a locale at the catalogue size',
+      'en',
+      ['es', 'it', 'fr', 'de', 'bg', 'bg'],
+    ],
     ['holds a non-string', 'en', [null]],
   ] as const)('refuses a list that %s', (_label, primary, additional) => {
     expect(isValidAdditionalGuestLocales(primary, additional)).toBe(false)

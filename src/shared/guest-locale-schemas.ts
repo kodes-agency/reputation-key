@@ -31,9 +31,10 @@ export const GUEST_LOCALE_SQL_LIST = GUEST_LOCALES.map((locale) => `'${locale}'`
 )
 
 /**
- * The catalogue as a jsonb literal. Comma-space separators on purpose: that is
- * how Postgres prints jsonb, so the model expression equals the migrated
- * catalog expression (`JSON.stringify` has no spaces and would drift).
+ * The catalogue as a jsonb literal. Comma-space separators match the text of
+ * migration 0043 and how Postgres prints jsonb (`pg_get_constraintdef`, the
+ * parity test). `check:schema-drift` ignores the spacing, so this is about
+ * textual parity, not drift.
  */
 export const GUEST_LOCALE_JSONB_LITERAL = `[${GUEST_LOCALES.map((locale) => `"${locale}"`).join(', ')}]`
 

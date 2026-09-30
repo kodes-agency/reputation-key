@@ -1,8 +1,10 @@
 // Migration 0043 is hand-written SQL (drizzle/meta stops at 0013, so there is
-// no generator to keep it honest). This test pins its seven CHECK bodies to the
-// catalogue renderings the Drizzle model uses, so the two cannot drift apart
-// silently. `pnpm check:schema-drift` proves the same against a migrated
-// database.
+// no generator to keep it honest). An applied migration is history and never
+// changes, so its expected CHECK bodies are pinned here as literals. The
+// tripwire below ties the live catalogue renderings to those literals: when the
+// catalogue grows it fails and asks for a new widening migration, instead of
+// tempting anyone to edit 0043. `pnpm check:schema-drift` proves the model
+// matches a migrated database.
 
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -28,41 +30,46 @@ type CheckExpectation = Readonly<{
   fragment: string
 }>
 
+// What migration 0043 wrote, spelled out on purpose.
+const IN_LIST_0043 = `'en', 'es', 'it', 'fr', 'de', 'bg'`
+const JSONB_LITERAL_0043 = `["en", "es", "it", "fr", "de", "bg"]`
+const PACK_PATTERN_0043 = `^guest-ui-(en|es|it|fr|de|bg)-v[1-9][0-9]{0,2}$`
+
 const CHECKS: readonly CheckExpectation[] = [
   {
     constraint: 'portals_primary_guest_locale_active',
     table: 'portals',
-    fragment: `IN (${GUEST_LOCALE_SQL_LIST})`,
+    fragment: `IN (${IN_LIST_0043})`,
   },
   {
     constraint: 'portals_additional_guest_locales_array',
     table: 'portals',
-    fragment: `<@ '${GUEST_LOCALE_JSONB_LITERAL}'::jsonb`,
+    fragment: `<@ '${JSONB_LITERAL_0043}'::jsonb`,
   },
   {
     constraint: 'property_portal_brand_contents_locale_active',
     table: 'property_portal_brand_contents',
-    fragment: `IN (${GUEST_LOCALE_SQL_LIST})`,
+    fragment: `IN (${IN_LIST_0043})`,
   },
   {
     constraint: 'portal_localized_overrides_locale_active',
     table: 'portal_localized_overrides',
-    fragment: `IN (${GUEST_LOCALE_SQL_LIST})`,
+    fragment: `IN (${IN_LIST_0043})`,
   },
   {
     constraint: 'portal_publication_snapshots_locale_valid',
     table: 'portal_publication_snapshots',
-    fragment: `IN (${GUEST_LOCALE_SQL_LIST})`,
+    fragment: `IN (${IN_LIST_0043})`,
   },
   {
     constraint: 'portal_publication_snapshots_locale_set_valid',
     table: 'portal_publication_snapshots',
-    fragment: `<@ '${GUEST_LOCALE_JSONB_LITERAL}'::jsonb`,
+    fragment: `<@ '${JSONB_LITERAL_0043}'::jsonb`,
   },
   {
     constraint: 'portal_publication_snapshots_language_pack_valid',
     table: 'portal_publication_snapshots',
-    fragment: `~ '${GUEST_LANGUAGE_PACK_SQL_PATTERN}'`,
+    fragment: `~ '${PACK_PATTERN_0043}'`,
   },
 ]
 
@@ -77,6 +84,14 @@ function statementsFor(constraint: string, verb: 'DROP' | 'ADD'): string[] {
 }
 
 describe('migration 0043 guest locale CHECKs', () => {
+  it('tripwire: the catalogue still renders what 0043 wrote', () => {
+    // Fails when a locale is added to the catalogue. Write a new widening
+    // migration for it; never edit 0043 to make this pass.
+    expect(GUEST_LOCALE_SQL_LIST).toBe(IN_LIST_0043)
+    expect(GUEST_LOCALE_JSONB_LITERAL).toBe(JSONB_LITERAL_0043)
+    expect(GUEST_LANGUAGE_PACK_SQL_PATTERN).toBe(PACK_PATTERN_0043)
+  })
+
   it.each(CHECKS)(
     'drops and re-adds $constraint with the catalogue rendering',
     ({ constraint, table, fragment }) => {
