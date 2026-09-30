@@ -2,29 +2,24 @@
 // Split out of portal-command-store.ts (round 4 F3); composed back behind the
 // same PortalCommandStore port by createAtomicPortalCommandStore.
 
-import { and, eq, inArray } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { portalLinkCategories, portalLinks } from '#/shared/db/schema'
-import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
+import { insertOutboxRow } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { unbrand } from '#/shared/domain/ids'
-import type {
-  CreatePortalLinkCategoryCommand,
-  CreatePortalLinkCommand,
-  DeletePortalLinkCategoryCommand,
-  DeletePortalLinkCommand,
-  PortalCommandStore,
-  ReorderPortalLinkCategoriesCommand,
-  ReorderPortalLinksCommand,
-  UpdatePortalCommand,
-  UpdatePortalLinkCategoryCommand,
-  UpdatePortalLinkCommand,
-} from '../application/ports/portal-command-store.port'
+import type { PortalCommandStore } from '../application/ports/portal-command-store.port'
 import { portalError } from '../domain/errors'
+import { hasRoomForAnotherLink } from '../domain/portal-linktree'
 import { categoryToRow, linkToRow } from './mappers/portal-link.mapper'
 import { fencePortalContent } from './portal-aggregate-fence'
-import { sameInstant } from './portal-command-guards'
-import { recordPortalPendingContentChange } from './portal-pending-content-changes'
+import {
+  assertPortalContentCommand,
+  contentScope,
+  recordPortalContentCommandPending,
+} from './portal-content-command-guards'
+import { createPortalLinktreeCommands } from './portal-linktree-commands'
+import { readPortalLocales, syncPrimaryLinkText } from './portal-link-texts-store'
 
 export type PortalLinkCommandStore = Pick<
   PortalCommandStore,
@@ -36,97 +31,15 @@ export type PortalLinkCommandStore = Pick<
   | 'updatePortalLink'
   | 'deletePortalLink'
   | 'reorderPortalLinks'
+  | 'savePortalLinkTexts'
+  | 'savePortalLinktreeSettings'
 >
-
-async function recordPortalContentCommandPending(
-  tx: Tx,
-  command: Readonly<{
-    organizationId: UpdatePortalCommand['organizationId']
-    propertyId: UpdatePortalCommand['propertyId']
-    portalId: UpdatePortalCommand['portalId']
-    revision: Date
-    occurredAt: Date
-  }>,
-): Promise<void> {
-  await recordPortalPendingContentChange(tx, {
-    organizationId: unbrand(command.organizationId),
-    propertyId: unbrand(command.propertyId),
-    portalId: unbrand(command.portalId),
-    kind: 'portal_links',
-    sourceVersion: command.revision.toISOString(),
-    changedAt: command.occurredAt,
-  })
-}
-
-type PortalContentCommand =
-  | CreatePortalLinkCategoryCommand
-  | UpdatePortalLinkCategoryCommand
-  | DeletePortalLinkCategoryCommand
-  | ReorderPortalLinkCategoriesCommand
-  | CreatePortalLinkCommand
-  | UpdatePortalLinkCommand
-  | DeletePortalLinkCommand
-  | ReorderPortalLinksCommand
-
-function assertPortalContentCommand(command: PortalContentCommand): void {
-  const event = command.event
-  let scoped = false
-  switch (event._tag) {
-    case 'portal_link_category.created':
-      scoped =
-        'category' in command &&
-        command.category.organizationId === command.organizationId &&
-        command.category.portalId === command.portalId &&
-        event.categoryId === command.category.id
-      break
-    case 'portal_link_category.updated':
-      scoped = 'title' in command && event.categoryId === command.categoryId
-      break
-    case 'portal_link_category.deleted':
-      scoped =
-        'categoryId' in command &&
-        !('linkId' in command) &&
-        event.categoryId === command.categoryId
-      break
-    case 'portal_link_category.reordered':
-      scoped = 'updates' in command && !('categoryId' in command)
-      break
-    case 'portal_link.created':
-      scoped =
-        'link' in command &&
-        command.link.organizationId === command.organizationId &&
-        command.link.portalId === command.portalId &&
-        event.linkId === command.link.id &&
-        event.categoryId === command.link.categoryId
-      break
-    case 'portal_link.updated':
-    case 'portal_link.deleted':
-      scoped =
-        'linkId' in command &&
-        event.linkId === command.linkId &&
-        event.categoryId === command.categoryId
-      break
-    case 'portal_link.reordered':
-      scoped =
-        'updates' in command &&
-        'categoryId' in command &&
-        event.categoryId === command.categoryId
-      break
-  }
-  if (
-    event.organizationId !== command.organizationId ||
-    event.propertyId !== command.propertyId ||
-    event.portalId !== command.portalId ||
-    event.sourceAggregateVersion !== command.revision.toISOString() ||
-    !sameInstant(event.occurredAt, command.occurredAt) ||
-    !scoped
-  ) {
-    throw portalError('forbidden', 'Tenant or resource mismatch on Portal content change')
-  }
-}
 
 export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore => {
   return {
+    // The Linktree working model is part of the link family; its own module
+    // keeps the texts, title and switch commands out of this file.
+    ...createPortalLinktreeCommands(db),
     createPortalLinkCategory: async (command) =>
       trace('portal.commandStore.createPortalLinkCategory', async () => {
         assertPortalContentCommand(command)
@@ -248,7 +161,31 @@ export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore =
         assertPortalContentCommand(command)
         await db.transaction(async (tx) => {
           await fencePortalContent(tx, command)
+          const scope = contentScope(command)
+          // Counted under the Portal fence, so two creates cannot both take the last place.
+          const [existing] = await tx
+            .select({ count: sql<number>`count(*)::int` })
+            .from(portalLinks)
+            .where(
+              and(
+                eq(portalLinks.organizationId, scope.organizationId),
+                eq(portalLinks.portalId, scope.portalId),
+              ),
+            )
+          if (!hasRoomForAnotherLink(existing?.count ?? 0)) {
+            throw portalError(
+              'link_limit_reached',
+              'A Portal can carry at most four links',
+            )
+          }
+          const locales = await readPortalLocales(tx, scope)
           await tx.insert(portalLinks).values(linkToRow(command.link))
+          await syncPrimaryLinkText(
+            tx,
+            { ...scope, linkId: unbrand(command.link.id) },
+            { actorUserId: unbrand(command.actorUserId), at: command.occurredAt },
+            { locale: locales.primary, label: command.link.label },
+          )
           await recordPortalContentCommandPending(tx, command)
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,
@@ -285,6 +222,14 @@ export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore =
           if (!updated) {
             throw portalError('revision_conflict', 'Portal link changed during update')
           }
+          const scope = contentScope(command)
+          const locales = await readPortalLocales(tx, scope)
+          await syncPrimaryLinkText(
+            tx,
+            { ...scope, linkId: unbrand(command.linkId) },
+            { actorUserId: unbrand(command.actorUserId), at: command.occurredAt },
+            { locale: locales.primary, label: command.patch.label },
+          )
           await recordPortalContentCommandPending(tx, command)
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,

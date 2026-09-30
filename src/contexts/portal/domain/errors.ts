@@ -18,6 +18,8 @@ export type PortalErrorCode =
   | 'portal_not_found'
   | 'category_not_found'
   | 'link_not_found'
+  | 'link_limit_reached'
+  | 'locale_not_offered'
   | 'destination_not_found'
   | 'destination_not_approved'
   | 'property_not_found'

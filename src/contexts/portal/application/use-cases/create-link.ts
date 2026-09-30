@@ -5,6 +5,7 @@ import type { PortalLink } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalError } from '../../domain/errors'
 import { buildPortalLink } from '../../domain/constructors'
+import { hasRoomForAnotherLink } from '../../domain/portal-linktree'
 import { generateKeyBetween } from 'fractional-indexing'
 import { portalLinkCreated } from '../../domain/events'
 import { portalId, portalLinkCategoryId, portalLinkId } from '#/shared/domain/ids'
@@ -59,6 +60,17 @@ export const createLink =
       forbiddenMessage: 'Insufficient permissions to create portal links',
     })
 
+    // Checked before the destination is requested, which is a write of its own.
+    // The command store checks again under the Portal lock; this one only spares
+    // a pointless destination request and gives the manager the answer early.
+    const linksOfPortal = await deps.portalLinkRepo.listAllLinks(
+      ctx.organizationId,
+      portalId(input.portalId),
+    )
+    if (!hasRoomForAnotherLink(linksOfPortal.length)) {
+      throw portalError('link_limit_reached', 'A Portal can carry at most four links')
+    }
+
     const destination = await resolveApprovedPortalDestination(
       deps,
       { uri: input.url, propertyId: portal.propertyId },
@@ -106,6 +118,7 @@ export const createLink =
       propertyId: portal.propertyId,
       portalId: portal.id,
       expectedPortalUpdatedAt: portal.updatedAt,
+      actorUserId: ctx.userId,
       link: result.value,
       revision,
       occurredAt,

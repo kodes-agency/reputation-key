@@ -61,6 +61,7 @@ function setup(categories = sampleCategories, links = sampleLinks) {
       listCategories: async () => categories,
       listAllLinks: async () => links,
       listLinks: async () => [],
+      listLinkTexts: async () => [],
       insertCategory: async () => {},
       updateCategory: async () => {},
       deleteCategory: async () => {},

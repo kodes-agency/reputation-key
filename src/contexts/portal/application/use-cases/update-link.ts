@@ -101,6 +101,7 @@ export const updateLink =
       expectedPortalUpdatedAt,
       revision,
       occurredAt,
+      actorUserId: ctx.userId,
       linkId: existing.id,
       categoryId: existing.categoryId,
       patch: {

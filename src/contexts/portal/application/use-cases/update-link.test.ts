@@ -100,6 +100,41 @@ describe('updateLink', () => {
     ])
   })
 
+  it('keeps the primary-language text in step with the label, and keeps its line', async () => {
+    const { useCase, portalRepo, portalLinkRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    portalRepo.seed([buildTestPortal({})])
+    const link = buildTestPortalLink({ label: 'Old label' })
+    portalLinkRepo.seedLinks([link])
+    portalLinkRepo.saveTexts(
+      link.id,
+      [{ locale: 'en', label: 'Old label', line: 'Open daily', provenance: null }],
+      { actorUserId: 'user-1', at: FIXED_TIME },
+    )
+
+    await useCase({ linkId: link.id, label: 'New label' }, ctx)
+
+    expect(
+      portalLinkRepo
+        .storedTexts()
+        .map((text) => [text.locale, text.label, text.line, text.version]),
+    ).toEqual([['en', 'New label', 'Open daily', 2]])
+  })
+
+  it('creates the primary-language text for a link that never had one', async () => {
+    const { useCase, portalRepo, portalLinkRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    portalRepo.seed([buildTestPortal({})])
+    const link = buildTestPortalLink({ label: 'Old label' })
+    portalLinkRepo.seedLinks([link])
+
+    await useCase({ linkId: link.id, label: 'New label' }, ctx)
+
+    expect(portalLinkRepo.storedTexts().map((text) => [text.locale, text.label])).toEqual(
+      [['en', 'New label']],
+    )
+  })
+
   it('rejects when the Portal revision advanced after the atomic child snapshot', async () => {
     const { useCase, portalRepo, portalLinkRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })

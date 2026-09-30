@@ -11,6 +11,8 @@ import {
   createLinkInputSchema,
   updateLinkInputSchema,
   reorderLinksInputSchema,
+  saveLinktreeSettingsInputSchema,
+  savePortalLinkTextsInputSchema,
 } from '#/contexts/portal/application/dto/portal-link.dto'
 
 // ── Category DTO validation ────────────────────────────────────────
@@ -142,9 +144,20 @@ describe('createLink input validation', () => {
       portalId: 'portal-123',
       label: 'Google Review',
       url: 'https://google.com/review',
-      iconKey: 'google',
+      iconKey: 'globe',
     })
     expect(result.success).toBe(true)
+  })
+
+  it('rejects an iconKey outside the closed icon set', () => {
+    const result = createLinkInputSchema.safeParse({
+      categoryId: 'cat-123',
+      portalId: 'portal-123',
+      label: 'Google Review',
+      url: 'https://google.com/review',
+      iconKey: 'google',
+    })
+    expect(result.success).toBe(false)
   })
 
   it('rejects missing categoryId', () => {
@@ -231,11 +244,98 @@ describe('updateLink input validation', () => {
     expect(result.success).toBe(true)
   })
 
+  it('rejects an iconKey outside the closed icon set', () => {
+    const result = updateLinkInputSchema.safeParse({
+      linkId: 'link-123',
+      iconKey: 'not-an-icon',
+    })
+    expect(result.success).toBe(false)
+  })
+
   it('rejects missing linkId', () => {
     const result = updateLinkInputSchema.safeParse({
       label: 'Updated',
     })
     expect(result.success).toBe(false)
+  })
+})
+
+describe('savePortalLinkTexts input validation', () => {
+  const valid = {
+    linkId: 'link-123',
+    texts: [{ locale: 'en', label: 'Menu', line: 'Open all day' }],
+  }
+
+  it('accepts a label with or without a line', () => {
+    expect(savePortalLinkTextsInputSchema.safeParse(valid).success).toBe(true)
+    expect(
+      savePortalLinkTextsInputSchema.safeParse({
+        linkId: 'link-123',
+        texts: [{ locale: 'bg', label: 'Меню' }],
+      }).success,
+    ).toBe(true)
+  })
+
+  it('takes only the languages managers may offer today', () => {
+    expect(
+      savePortalLinkTextsInputSchema.safeParse({
+        linkId: 'link-123',
+        texts: [{ locale: 'de', label: 'Speisekarte' }],
+      }).success,
+    ).toBe(false)
+  })
+
+  it('takes no provenance: what a manager saves is theirs', () => {
+    const parsed = savePortalLinkTextsInputSchema.safeParse({
+      linkId: 'link-123',
+      texts: [{ locale: 'en', label: 'Menu', provenance: 'ai_draft' }],
+    })
+    expect(parsed.success && 'provenance' in parsed.data.texts[0]!).toBe(false)
+  })
+
+  it.each([
+    ['no texts', { linkId: 'link-123', texts: [] }],
+    ['a missing linkId', { texts: valid.texts }],
+    [
+      'more texts than languages',
+      {
+        linkId: 'link-123',
+        texts: Array.from({ length: 7 }, () => ({ locale: 'en', label: 'Menu' })),
+      },
+    ],
+  ])('rejects %s', (_name, input) => {
+    expect(savePortalLinkTextsInputSchema.safeParse(input).success).toBe(false)
+  })
+})
+
+describe('saveLinktreeSettings input validation', () => {
+  it('accepts the switch, titles, or both', () => {
+    expect(
+      saveLinktreeSettingsInputSchema.safeParse({ portalId: 'p-1', enabled: false })
+        .success,
+    ).toBe(true)
+    expect(
+      saveLinktreeSettingsInputSchema.safeParse({
+        portalId: 'p-1',
+        titles: [{ locale: 'en', title: 'Around town' }],
+      }).success,
+    ).toBe(true)
+    expect(
+      saveLinktreeSettingsInputSchema.safeParse({
+        portalId: 'p-1',
+        enabled: true,
+        titles: [{ locale: 'bg', title: null }],
+      }).success,
+    ).toBe(true)
+  })
+
+  it('refuses a call that changes nothing, and a missing portalId', () => {
+    expect(saveLinktreeSettingsInputSchema.safeParse({ portalId: 'p-1' }).success).toBe(
+      false,
+    )
+    expect(saveLinktreeSettingsInputSchema.safeParse({ enabled: true }).success).toBe(
+      false,
+    )
   })
 })
 

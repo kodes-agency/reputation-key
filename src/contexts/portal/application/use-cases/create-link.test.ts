@@ -9,11 +9,18 @@ import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-por
 import {
   buildTestAuthContext,
   buildTestPortal,
+  buildTestPortalLink,
   buildTestPortalLinkCategory,
 } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { portalId, propertyId, type PropertyId, userId } from '#/shared/domain/ids'
+import {
+  portalId,
+  portalLinkId,
+  propertyId,
+  type PropertyId,
+  userId,
+} from '#/shared/domain/ids'
 import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../../domain/approved-destination'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
@@ -27,6 +34,7 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalRepo = createInMemoryPortalRepo()
   const portalLinkRepo = createInMemoryPortalLinkRepo()
   const outbox = createRecordedOutbox()
+  const destinationRequests: string[] = []
   const deps = {
     portalRepo,
     portalLinkRepo,
@@ -41,24 +49,27 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
         input: Parameters<
           import('../ports/portal-approved-destination.repository').PortalApprovedDestinationRepository['request']
         >[0],
-      ) => ({
-        id: input.id,
-        organizationId: input.organizationId,
-        propertyId: input.propertyId,
-        normalizedUri: input.destination.normalizedUri,
-        hostname: input.destination.hostname,
-        sourceType: input.destination.sourceType,
-        approvalState: 'approved' as const,
-        validationVersion: PORTAL_DESTINATION_VALIDATION_VERSION,
-        requestedBy: input.requestedBy,
-        approvedBy: userId('admin-1'),
-        approvedAt: input.at,
-        disabledAt: null,
-        disabledReason: null,
-        lastValidatedAt: input.at,
-        createdAt: input.at,
-        updatedAt: input.at,
-      }),
+      ) => {
+        destinationRequests.push(input.destination.normalizedUri)
+        return {
+          id: input.id,
+          organizationId: input.organizationId,
+          propertyId: input.propertyId,
+          normalizedUri: input.destination.normalizedUri,
+          hostname: input.destination.hostname,
+          sourceType: input.destination.sourceType,
+          approvalState: 'approved' as const,
+          validationVersion: PORTAL_DESTINATION_VALIDATION_VERSION,
+          requestedBy: input.requestedBy,
+          approvedBy: userId('admin-1'),
+          approvedAt: input.at,
+          disabledAt: null,
+          disabledReason: null,
+          lastValidatedAt: input.at,
+          createdAt: input.at,
+          updatedAt: input.at,
+        }
+      },
     },
     destinationNetworkValidator: {
       validate: async (uri: string) => ({
@@ -72,7 +83,7 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
     clock: () => FIXED_TIME,
   }
   const useCase = createLink(deps)
-  return { useCase, portalRepo, portalLinkRepo, outbox }
+  return { useCase, portalRepo, portalLinkRepo, outbox, destinationRequests }
 }
 
 describe('createLink', () => {
@@ -269,5 +280,72 @@ describe('createLink', () => {
     )
 
     expect(link.label).toBe('Test')
+  })
+
+  describe('the Linktree working model', () => {
+    const seededPortal = (linkCount: number) => {
+      const fixture = setup()
+      fixture.portalRepo.seed([buildTestPortal({ additionalGuestLocales: ['bg'] })])
+      fixture.portalLinkRepo.seedCategories([buildTestPortalLinkCategory({})])
+      fixture.portalLinkRepo.seedLinks(
+        Array.from({ length: linkCount }, (_, index) =>
+          buildTestPortalLink({
+            id: portalLinkId(`10000000-0000-0000-0000-00000000010${index}`),
+            label: `Existing ${index}`,
+            sortKey: `a${index}`,
+          }),
+        ),
+      )
+      return fixture
+    }
+    const input = {
+      categoryId: 'c0000000-0000-0000-0000-000000000001',
+      portalId: 'd0000000-0000-0000-0000-000000000001',
+      label: 'Fifth',
+      url: 'https://example.com/fifth',
+    }
+    const ctx = () => buildTestAuthContext({ role: 'PropertyManager' })
+
+    it('takes the fourth link', async () => {
+      const { useCase, portalLinkRepo } = seededPortal(3)
+
+      await useCase(input, ctx())
+
+      expect(portalLinkRepo.allLinks()).toHaveLength(4)
+    })
+
+    it('refuses a fifth link before asking for a destination, and writes nothing', async () => {
+      const { useCase, portalLinkRepo, destinationRequests, outbox } = seededPortal(4)
+
+      await expect(useCase(input, ctx())).rejects.toSatisfy(
+        (error: unknown) => isPortalError(error) && error.code === 'link_limit_reached',
+      )
+
+      expect(destinationRequests).toEqual([])
+      expect(portalLinkRepo.allLinks()).toHaveLength(4)
+      expect(outbox.byTag('portal_link.created')).toEqual([])
+    })
+
+    it('keeps a Portal that already has more than four, and adds no more', async () => {
+      const { useCase, portalLinkRepo } = seededPortal(6)
+
+      await expect(useCase(input, ctx())).rejects.toSatisfy(
+        (error: unknown) => isPortalError(error) && error.code === 'link_limit_reached',
+      )
+
+      expect(portalLinkRepo.allLinks()).toHaveLength(6)
+    })
+
+    it('writes the label as the primary-language text as well', async () => {
+      const { useCase, portalLinkRepo } = seededPortal(0)
+
+      const link = await useCase({ ...input, label: 'City guide' }, ctx())
+
+      expect(
+        portalLinkRepo
+          .storedTexts()
+          .map((text) => [text.linkId, text.locale, text.label, text.line]),
+      ).toEqual([[link.id, 'en', 'City guide', null]])
+    })
   })
 })

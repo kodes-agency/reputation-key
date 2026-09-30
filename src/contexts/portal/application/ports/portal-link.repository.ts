@@ -3,6 +3,8 @@
 // Every method takes organizationId as the first parameter (tenant isolation).
 
 import type { PortalLinkCategory, PortalLink } from '../../domain/types'
+import type { GuestLocale } from '#/shared/domain/guest-locale'
+import type { ResolvedPortalLinkText } from '../../domain/portal-linktree'
 import type {
   OrganizationId,
   PortalId,
@@ -24,6 +26,16 @@ export type PortalLinkRepository = Readonly<{
     orgId: OrganizationId,
     portalId: PortalId,
   ) => Promise<ReadonlyArray<PortalLink>>
+  /**
+   * Every text of every link of a Portal, in category-then-link order with the
+   * primary language first. A link with no primary-language row is given its
+   * legacy label as that row (`source: 'legacy_label'`), so no link is unnamed.
+   */
+  listLinkTexts: (
+    orgId: OrganizationId,
+    portalId: PortalId,
+    primaryLocale: GuestLocale,
+  ) => Promise<ReadonlyArray<ResolvedPortalLinkText>>
   insertCategory: (orgId: OrganizationId, cat: PortalLinkCategory) => Promise<void>
   updateCategory: (
     orgId: OrganizationId,

@@ -2,7 +2,13 @@
 // Per architecture: pure functions, the only place where both row and domain shapes are known.
 
 import type { portalLinkCategories, portalLinks } from '#/shared/db/schema/portal.schema'
+import type { portalLinkTexts } from '#/shared/db/schema/portal-localization.schema'
+import { parseGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalLinkCategory, PortalLink } from '../../domain/types'
+import type {
+  PortalLinkTextProvenance,
+  StoredPortalLinkText,
+} from '../../domain/portal-linktree'
 import {
   organizationId,
   propertyId,
@@ -81,3 +87,31 @@ export const linkToRow = (link: PortalLink): LinkInsertRow => ({
   createdAt: link.createdAt,
   updatedAt: link.updatedAt,
 })
+
+// ── Link text mapper ───────────────────────────────────────────────
+
+type LinkTextRow = typeof portalLinkTexts.$inferSelect
+
+function provenanceFromRow(value: string | null): PortalLinkTextProvenance | null {
+  if (value === null) return null
+  if (value === 'ai_draft') return value
+  throw new Error(`Portal link text has an unknown provenance: ${value}`)
+}
+
+/** A stored locale outside the catalogue is a corrupt row, never a quiet English. */
+export const linkTextFromRow = (row: LinkTextRow): StoredPortalLinkText => {
+  const locale = parseGuestLocale(row.locale)
+  if (!locale) {
+    throw new Error(`Portal link text has an unknown guest locale: ${row.locale}`)
+  }
+  return {
+    linkId: row.linkId,
+    locale,
+    label: row.label,
+    line: row.line,
+    provenance: provenanceFromRow(row.provenance),
+    version: row.version,
+    updatedBy: row.updatedBy,
+    updatedAt: row.updatedAt,
+  }
+}
