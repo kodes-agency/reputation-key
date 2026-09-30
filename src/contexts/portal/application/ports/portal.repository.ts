@@ -3,7 +3,7 @@
 // Every method takes organizationId as the first parameter (tenant isolation).
 
 import type { Portal, PortalId } from '../../domain/types'
-import type { OrganizationId, PropertyId, PortalGroupId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 
 export type PublicPortalRepositoryResult = Readonly<{
   portal: Readonly<{
@@ -55,12 +55,4 @@ export type PortalRepository = Readonly<{
     orgId: OrganizationId,
     portalId: PortalId,
   ) => Promise<PublicPortalRepositoryResult | null>
-
-  // ── Staff goal resolution ────────────────────────────────────────────
-  // Given portal IDs, return the distinct group IDs those portals belong to.
-  // Portals without a group are excluded from the result.
-  findGroupIdsByPortalIds: (
-    orgId: OrganizationId,
-    portalIds: ReadonlyArray<PortalId>,
-  ) => Promise<ReadonlyArray<PortalGroupId>>
 }>

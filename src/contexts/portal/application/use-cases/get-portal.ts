@@ -9,39 +9,16 @@ import { portalId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
+import { toPortalTokenStatus, type PortalTokenStatus } from '../portal-token-status'
 
 export type GetPortalInput = Readonly<{
   portalId: string
-}>
-
-/**
- * PB2.1 / ADR 0044: whether the portal currently has a reachable public token,
- * plus the metadata the Share tab needs to label it. Existence only — never the
- * raw token or its digest, which issue/rotate alone return. Without this the
- * client cannot know a live token exists after a reload and so cannot offer
- * rotate/revoke, the only mitigations for a leaked opaque token.
- */
-export type PortalTokenStatus = Readonly<{
-  hasActiveToken: boolean
-  /** False means the live legacy address must be rotated/reprinted for scan goals. */
-  qualifiedScanReady: boolean
-  version: number | null
-  issuedAt: string | null
-  graceExpiresAt: string | null
 }>
 
 export type GetPortalResult = Readonly<{
   portal: Portal
   tokenStatus: PortalTokenStatus
 }>
-
-const NO_ACTIVE_TOKEN: PortalTokenStatus = {
-  hasActiveToken: false,
-  qualifiedScanReady: false,
-  version: null,
-  issuedAt: null,
-  graceExpiresAt: null,
-}
 
 export type GetPortalDeps = Readonly<{
   portalRepo: PortalRepository
@@ -71,15 +48,7 @@ export const getPortal =
     )
     return {
       portal,
-      tokenStatus: token
-        ? {
-            hasActiveToken: true,
-            qualifiedScanReady: token.hasPublishedAccessArtifact,
-            version: token.version,
-            issuedAt: token.issuedAt.toISOString(),
-            graceExpiresAt: token.gracePeriodEnds?.toISOString() ?? null,
-          }
-        : NO_ACTIVE_TOKEN,
+      tokenStatus: toPortalTokenStatus(token),
     }
   }
 

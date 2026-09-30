@@ -51,6 +51,7 @@ function setup(notFound = false, accessible: ReadonlyArray<PropertyId> | null = 
     findPortalMembership: async () => null,
     getGroupPortalIds: async () => [],
     findGroupIdsByPortalIds: async () => [],
+    listGroupsForPortals: async () => [],
     findGroupForPortal: async () => null,
   }
   const useCase = updatePortalGroup({

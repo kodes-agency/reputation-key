@@ -33,6 +33,7 @@ const setup = (
   let generatedId = 0
   const baseCommandStore = createInMemoryPortalCommandStore({ portalRepo, outbox })
   const publicationRepo: PortalPublicationRepository = {
+    countOpenPendingContentChanges: async () => [],
     loadWorkingCopy: async (organizationId, portalId) => {
       const portal = await portalRepo.findById(organizationId, portalId)
       return portal

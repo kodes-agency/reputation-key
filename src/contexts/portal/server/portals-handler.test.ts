@@ -5,10 +5,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { withStartContext } from '#/shared/testing/tanstack-start-als'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
+import { portalError } from '#/contexts/portal/domain/errors'
 
 // Stable mock functions so we can control return values per-test.
 const mocks = vi.hoisted(() => ({
   listPortals: vi.fn(),
+  listPortalOverview: vi.fn(),
   listPortalManagementPropertyIds: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
@@ -48,6 +50,7 @@ vi.mock('#/composition', () => ({
     portalPublicApi: {
       management: {
         listPortals: mocks.listPortals,
+        listPortalOverview: mocks.listPortalOverview,
         listPortalManagementPropertyIds: mocks.listPortalManagementPropertyIds,
         resolvePortalManagementScope: mocks.resolvePortalManagementScope,
         getPortalPublicationHistory: mocks.getPortalPublicationHistory,
@@ -81,6 +84,7 @@ import {
   deletePortal,
   getPortalHistory,
   getPortalPublicationHistory,
+  listPortalOverview,
   listPortals,
   rotatePortalToken,
   updatePortal,
@@ -279,5 +283,71 @@ describe('listPortals handler (executable)', () => {
       TEST_CTX,
     )
     expect(mocks.softDeletePortal).not.toHaveBeenCalled()
+  })
+})
+
+describe('listPortalOverview handler (executable)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.resolveTenantContext.mockResolvedValue(TEST_CTX)
+    mocks.requireExecutionAllowed.mockResolvedValue(undefined)
+    mocks.listPortalManagementPropertyIds.mockResolvedValue(['property-p1'])
+    mocks.decide.mockResolvedValue({ allowed: true, reason: 'allowed' })
+  })
+
+  it('reads one property after checking the capability for it', async () => {
+    mocks.listPortalOverview.mockResolvedValue([{ portalId: 'p1' }])
+
+    await withStartContext(() =>
+      listPortalOverview({ data: { propertyId: 'property-p1' } }),
+    )
+
+    expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith(
+      expect.objectContaining({ capability: 'portal.read', propertyId: 'property-p1' }),
+    )
+    expect(mocks.listPortalOverview).toHaveBeenCalledTimes(1)
+    expect(mocks.listPortalOverview).toHaveBeenCalledWith(
+      { scope: 'property', propertyId: 'property-p1' },
+      expect.objectContaining({ organizationId: 'org-test-aaaa' }),
+    )
+  })
+
+  it('reads the organisation in one call, narrowed to the properties the policy allows', async () => {
+    mocks.resolveTenantContext.mockResolvedValue({ ...TEST_CTX, role: 'Member' })
+    mocks.listPortalManagementPropertyIds.mockResolvedValue([
+      'property-p1',
+      'property-p2',
+    ])
+    mocks.decide.mockImplementation(async ({ propertyId }) => ({
+      allowed: propertyId === 'property-p1',
+      reason: propertyId === 'property-p1' ? 'allowed' : 'property_disabled',
+    }))
+    mocks.listPortalOverview.mockResolvedValue([])
+
+    await withStartContext(() => listPortalOverview({ data: {} }))
+
+    expect(mocks.listPortalOverview).toHaveBeenCalledTimes(1)
+    expect(mocks.listPortalOverview).toHaveBeenCalledWith(
+      { scope: 'organization', propertyIds: ['property-p1'] },
+      expect.objectContaining({ role: 'Member' }),
+    )
+  })
+
+  it('denies a direct read of a disabled property without querying Portal content', async () => {
+    mocks.requireExecutionAllowed.mockRejectedValue(propertyDisabled())
+
+    await expect(
+      withStartContext(() => listPortalOverview({ data: { propertyId: 'property-p2' } })),
+    ).rejects.toMatchObject({ _tag: 'AuthError', code: 'property_disabled', status: 403 })
+
+    expect(mocks.listPortalOverview).not.toHaveBeenCalled()
+  })
+
+  it('translates a Portal error into its status', async () => {
+    mocks.listPortalOverview.mockRejectedValue(portalError('forbidden', 'no read'))
+
+    await expect(
+      withStartContext(() => listPortalOverview({ data: {} })),
+    ).rejects.toMatchObject({ _tag: 'PortalError', code: 'forbidden', status: 403 })
   })
 })

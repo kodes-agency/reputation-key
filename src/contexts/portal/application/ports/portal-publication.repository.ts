@@ -92,6 +92,14 @@ export type PortalPublicationRepository = Readonly<{
     propertyId: PropertyId,
     portalId: PortalId,
   ) => Promise<readonly PortalPendingContentChange[]>
+  /**
+   * How many open changes each Portal has, counted as `listOpenPendingContentChanges`
+   * would list them, for a set of Portals in one read. A Portal with none is absent.
+   */
+  countOpenPendingContentChanges: (
+    organizationId: OrganizationId,
+    portalIds: readonly PortalId[],
+  ) => Promise<readonly Readonly<{ portalId: PortalId; count: number }>[]>
   resolveActiveByTokenDigest: (
     digest: Readonly<{
       tokenIdentifier: string

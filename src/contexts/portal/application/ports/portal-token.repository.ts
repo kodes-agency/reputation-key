@@ -42,6 +42,18 @@ export type PortalTokenRepository = Readonly<{
     portalId: PortalId,
     asOf: Date,
   ) => Promise<ResolvablePortalTokenSummary | null>
+  /**
+   * `findResolvableSummaryForPortal` for a set of Portals in one read, with the
+   * same predicate and the same "newest version governs" rule. A Portal with no
+   * live token is absent.
+   */
+  findResolvableSummariesForPortals: (
+    organizationId: OrganizationId,
+    portalIds: readonly PortalId[],
+    asOf: Date,
+  ) => Promise<
+    readonly (ResolvablePortalTokenSummary & Readonly<{ portalId: PortalId }>)[]
+  >
   findResolvableByDigest: (
     digest: Readonly<{
       tokenIdentifier: string

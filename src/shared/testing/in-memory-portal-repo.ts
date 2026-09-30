@@ -82,7 +82,6 @@ export const createInMemoryPortalRepo = (): InMemoryPortalRepo => {
 
     resolvePortalContext: async (_portalIdParam) => null,
     findPublicPortalById: async (_orgId, _portalId) => null,
-    findGroupIdsByPortalIds: async (_orgId, _portalIds) => [],
 
     // ── Test-only helpers ───────────────────────────────────────────
 

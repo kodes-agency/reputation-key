@@ -5,6 +5,14 @@ export type PortalResponsibleManagerRepository = Readonly<{
     organizationId: string,
     portalId: string,
   ) => Promise<readonly PortalResponsibleManager[]>
+  /**
+   * `listActive` for a set of Portals in one read, ordered by Portal then
+   * user. A Portal with no active manager is absent.
+   */
+  listActiveForPortals: (
+    organizationId: string,
+    portalIds: readonly string[],
+  ) => Promise<readonly PortalResponsibleManager[]>
   listActiveForUser: (
     organizationId: string,
     userId: string,

@@ -41,6 +41,7 @@ const { getPool } = setupIntegrationDb({
   tables: [
     'guest_response_experience_snapshots',
     'guest_responses',
+    'portal_pending_content_changes',
     'portal_publication_activations',
     'portal_publication_snapshots',
     'portal_tokens',
@@ -473,6 +474,48 @@ describe.sequential('Portal publication repository (real PostgreSQL)', () => {
         new Date(NOW.getTime() + 100),
       ),
     ).resolves.toBeNull()
+  })
+
+  it('counts only the open pending changes of each Portal, as the single read lists them', async () => {
+    const published = snapshot(
+      1,
+      'Published immutable name',
+      'f5000000-0000-4000-8000-000000000001',
+    )
+    await getDb().insert(portalPublicationSnapshots).values(snapshotRow(published))
+    const change = (kind: string, key: string, resolved: boolean) =>
+      getPool().query(
+        `INSERT INTO portal_pending_content_changes
+           (organization_id, property_id, portal_id, change_kind, change_key,
+            source_version, changed_at, resolved_snapshot_id, resolved_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+        [
+          ORG,
+          PROPERTY,
+          PORTAL,
+          kind,
+          key,
+          `${kind}:${key}`,
+          NOW,
+          resolved ? published.id : null,
+          resolved ? NOW : null,
+        ],
+      )
+    await change('portal_configuration', 'all', false)
+    await change('portal_links', 'all', false)
+    await change('portal_links', 'settled', true)
+
+    const repo = createPortalPublicationRepository(getDb())
+    const open = await repo.listOpenPendingContentChanges?.(ORG, PROPERTY, PORTAL)
+
+    expect(open).toHaveLength(2)
+    await expect(repo.countOpenPendingContentChanges(ORG, [PORTAL])).resolves.toEqual([
+      { portalId: PORTAL, count: 2 },
+    ])
+    // Another tenant is told nothing about this Portal.
+    await expect(
+      repo.countOpenPendingContentChanges(OTHER_ORG, [PORTAL]),
+    ).resolves.toEqual([])
   })
 
   it('rejects guest evidence that names the right snapshot with the wrong version', async () => {

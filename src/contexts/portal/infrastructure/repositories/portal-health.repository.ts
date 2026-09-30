@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNull, sql } from 'drizzle-orm'
 import { historyBoundCondition, historyIdOrder } from '../portal-history-bound'
 import type { Database } from '#/shared/db'
 import { portalHealthIntervals } from '#/shared/db/schema/portal.schema'
@@ -131,6 +131,25 @@ export const createPortalHealthRepository = (db: Database): PortalHealthReposito
         )
         .limit(1)
       return row ? fromRow(row) : null
+    }),
+
+  listCurrentForPortals: (orgId, portalIds) =>
+    trace('portalHealth.listCurrentForPortals', async () => {
+      if (portalIds.length === 0) return []
+      const rows = await db
+        .select()
+        .from(portalHealthIntervals)
+        .where(
+          and(
+            eq(portalHealthIntervals.organizationId, unbrand(orgId)),
+            inArray(
+              portalHealthIntervals.portalId,
+              portalIds.map((id) => unbrand(id)),
+            ),
+            isNull(portalHealthIntervals.effectiveTo),
+          ),
+        )
+      return rows.map(fromRow)
     }),
 
   listHistory: (orgId, propertyIdValue, portalIdValue, requestedLimit, bound) =>

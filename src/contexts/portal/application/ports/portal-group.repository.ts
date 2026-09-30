@@ -60,4 +60,13 @@ export type PortalGroupRepository = Readonly<{
     portalId: PortalId,
     asOf: Date,
   ) => Promise<PortalGroup | null>
+  /**
+   * `findGroupForPortal` for a set of Portals in one read: the group each held
+   * at `asOf`. A Portal in no group is absent. One row per Portal at most.
+   */
+  listGroupsForPortals: (
+    orgId: OrganizationId,
+    portalIds: ReadonlyArray<PortalId>,
+    asOf: Date,
+  ) => Promise<ReadonlyArray<Readonly<{ portalId: PortalId; group: PortalGroup }>>>
 }>

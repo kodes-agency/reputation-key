@@ -109,6 +109,10 @@ const listPortalsSchema = z.object({
   propertyId: z.string().optional(),
 })
 
+const listPortalOverviewSchema = z.object({
+  propertyId: z.string().min(1).optional(),
+})
+
 async function runPortalExperienceCommand<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn()
@@ -495,6 +499,47 @@ export const listPortals = createServerFn({ method: 'GET' })
       },
       'GET',
       'portal.listPortals',
+    ),
+  )
+
+// ── listPortalOverview ─────────────────────────────────────────────
+// The Portals overview in one batched read. The organisation read is narrowed
+// to the Properties whose execution policy allows `portal.read`, as listPortals
+// enumerates them, but answered once for all of them rather than once each.
+
+export const listPortalOverview = createServerFn({ method: 'GET' })
+  .validator(listPortalOverviewSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        const { management: useCases } = getContainer().portalPublicApi
+        if (data.propertyId) {
+          await requireExecutionAllowed({
+            actor: ctx,
+            action: 'portal.read',
+            capability: 'portal.read',
+            propertyId: data.propertyId,
+          })
+        }
+        const input = data.propertyId
+          ? ({ scope: 'property', propertyId: data.propertyId } as const)
+          : ({
+              scope: 'organization',
+              propertyIds: await listAuthorizedPortalPropertyIds(ctx),
+            } as const)
+
+        try {
+          return { portals: await useCases.listPortalOverview(input, ctx) }
+        } catch (e) {
+          if (isPortalError(e))
+            throwContextError('PortalError', e, portalErrorStatus(e.code))
+          throw catchUntagged(e)
+        }
+      },
+      'GET',
+      'portal.listPortalOverview',
     ),
   )
 

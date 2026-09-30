@@ -60,6 +60,7 @@ const setup = (group: PortalGroup, accessible: ReadonlyArray<PropertyId> | null)
     removePortal: async () => false,
     findPortalMembership: async () => null,
     findGroupIdsByPortalIds: async () => [],
+    listGroupsForPortals: async () => [],
     findGroupForPortal: async () => null,
   }
   const useCase = getPortalGroup({
