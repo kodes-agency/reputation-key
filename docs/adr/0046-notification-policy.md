@@ -941,9 +941,11 @@ admits that shape for every mandatory type.
   under the `account_admin` audience, which is decided by the role alone and so
   needs no Property, and opens Members. Its job id is
   `<eventId>-inviter-<inviterId>`. A fact recorded before it named its inviter
-  gets an `obsolete` receipt and notifies nobody. An inviter who is no longer
-  an AccountAdmin of the Organization, such as a platform operator who invited
-  through the console, is refused at delivery.
+  gets an `obsolete` receipt and notifies nobody. An inviter who is not an
+  AccountAdmin of the Organization at delivery is refused there: a former
+  AccountAdmin, a platform operator who invited through the console, or a
+  PropertyManager, who can still invite until the PropertyManager permission
+  change of ADR 0033's 2026-10-01 amendment lands.
 - **No notice names another person (r.8).** The access notice says "Your
   property access at {organization} changed", the invitation notice "Someone
   you invited joined {organization}". Neither counts Properties or people:
@@ -955,8 +957,8 @@ admits that shape for every mandatory type.
   Rows written before this render their earlier sentences from the payload
   they have.
 
-Each accepted invitation therefore sends its inviter a mandatory notice, by
-email too. An in-app-only exception would need a migration and an ADR, as
+Each invitation an AccountAdmin sent therefore sends them a mandatory notice
+when it is accepted, by email too. An in-app-only exception would need a migration and an ADR, as
 ADR 0059 did.
 
 ## Consequences

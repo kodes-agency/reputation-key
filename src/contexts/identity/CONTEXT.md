@@ -95,9 +95,9 @@ lock as the operator's grant; an invitation's grants record the inviter as
 `createdBy`, and a Property that could not be granted is logged, never silent. An
 AccountAdmin may change another AccountAdmin's role; nobody changes their own role;
 the last-AccountAdmin guard holds under the Organization lock. The member hears
-about a change to their own Property access, and an inviter hears that their
-invitation was accepted; Feed's notices name the Organization, never the other
-person.
+about a change to their own Property access, and an inviter who is an
+AccountAdmin hears that their invitation was accepted; Feed's notices name the
+Organization, never the other person.
 
 Identity produces identifier-minimal invitation, member, merchant-AI, and Organization
 lifecycle facts through the durable outbox. It subscribes to no foreign events.
