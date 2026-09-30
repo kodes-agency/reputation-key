@@ -12,9 +12,27 @@ const portalTokenGracePeriodDaysSchema = z
   .min(1, 'Transition period must be at least 1 day')
   .max(90, 'Transition period must be no more than 90 days')
 
-export const plannedPortalTokenReplacementFormSchema = z.object({
-  gracePeriodDays: portalTokenGracePeriodDaysSchema,
-})
+/**
+ * The replace-code form: a planned replacement keeps the old code working for a
+ * transition period; a security replacement stops it now. The days field is only
+ * checked for a planned replacement, because the form hides it otherwise and a
+ * stale or blank value there must not block the submit.
+ */
+export const portalCodeReplacementFormSchema = z
+  .object({
+    replacementKind: z.enum(['planned', 'security']),
+    gracePeriodDays: z.union([z.number(), z.nan()]),
+  })
+  .superRefine((value, ctx) => {
+    if (value.replacementKind !== 'planned') return
+    const days = portalTokenGracePeriodDaysSchema.safeParse(value.gracePeriodDays)
+    if (days.success) return
+    for (const issue of days.error.issues) {
+      ctx.addIssue({ code: 'custom', message: issue.message, path: ['gracePeriodDays'] })
+    }
+  })
+
+export type PortalCodeReplacementForm = z.infer<typeof portalCodeReplacementFormSchema>
 
 export const rotatePortalTokenInputSchema = issuePortalTokenInputSchema
   .extend({
@@ -41,4 +59,18 @@ export const revokePortalTokensInputSchema = issuePortalTokenInputSchema.extend(
 })
 
 export type RotatePortalTokenInput = z.infer<typeof rotatePortalTokenInputSchema>
+
+/** The rotate command for a validated replace-code choice. */
+export function toRotatePortalTokenInput(
+  portalId: string,
+  choice: PortalCodeReplacementForm,
+): RotatePortalTokenInput {
+  return choice.replacementKind === 'planned'
+    ? {
+        portalId,
+        replacementKind: 'planned',
+        gracePeriodDays: choice.gracePeriodDays,
+      }
+    : { portalId, replacementKind: 'security' }
+}
 export type RevokePortalTokensInput = z.infer<typeof revokePortalTokensInputSchema>
