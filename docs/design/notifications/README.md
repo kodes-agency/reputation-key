@@ -182,24 +182,36 @@ decision made at fan-out, from the Inbox's rating, without storing it.
 Built while the owner was away, from the answers above; each pull request's
 description records the decisions made on the way.
 
-| Plan | Pull request | Shipped                                                                                               | Where it differs from the plan                                                                                                                                                                                                                    |
-| ---- | ------------ | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1    | #637         | The row, Undo for dismiss and mute, the "Apply to all" warning                                        | —                                                                                                                                                                                                                                                 |
-| 2    | #638         | Needs you / Updates, badge = Needs you, stacks, the page's tabs and day groups                        | The page's **Property filter** is not built (below).                                                                                                                                                                                              |
-| 3    | #640         | D3 and D4, ADR 0046 amended, migration 0041 keeps everyone's review email                             | **Low-rated Google reviews** cannot be told apart at fan-out: ADR 0046 r.8 forbids Feed reading a provider's rating. They reach people through Response Target reminders. A grouped assignment settles when opened or archived, not item by item. |
-| 4    | #639         | D7: a default keeps other properties' own settings; "Reset them to my default", "Use my default here" | The one-matrix "your setup + exceptions" page is not built; D6 became its own pull request.                                                                                                                                                       |
-| 5    | #641         | D8 full-screen sheet below 768 px; D9 toast for urgent arrivals only                                  | The sheet is **not modal**, like the popover: a modal dialog would make the Undo toasts unclickable and hide the live regions.                                                                                                                    |
-| 6    | #642         | D6: timezone and date format on Profile                                                               | The stored row stays per Organization membership, so the card names the Organization.                                                                                                                                                             |
+| Plan | Pull request | Shipped                                                                                                           | Where it differs from the plan                                                                                                                                                                                                                    |
+| ---- | ------------ | ----------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | #637         | The row, Undo for dismiss and mute, the "Apply to all" warning                                                    | —                                                                                                                                                                                                                                                 |
+| 2    | #638, #643   | Needs you / Updates, badge = Needs you, stacks, the page's tabs and day groups; the page's Property filter (#643) | The Property filter came separately (#643): workspace Properties only, offered with two or more, and a filtered view leaves Organization notices out.                                                                                             |
+| 3    | #640         | D3 and D4, ADR 0046 amended, migration 0041 keeps everyone's review email                                         | **Low-rated Google reviews** cannot be told apart at fan-out: ADR 0046 r.8 forbids Feed reading a provider's rating. They reach people through Response Target reminders. A grouped assignment settles when opened or archived, not item by item. |
+| 4    | #639         | D7: a default keeps other properties' own settings; "Reset them to my default", "Use my default here"             | The one-matrix "your setup + exceptions" page is not built; D6 became its own pull request.                                                                                                                                                       |
+| 5    | #641         | D8 full-screen sheet below 768 px; D9 toast for urgent arrivals only                                              | The sheet is **not modal**, like the popover: a modal dialog would make the Undo toasts unclickable and hide the live regions.                                                                                                                    |
+| 6    | #642         | D6: timezone and date format on Profile                                                                           | The stored row stays per Organization membership, so the card names the Organization.                                                                                                                                                             |
+
+### Found by review after merging, and fixed
+
+Independent reviews of each merged pull request found:
+
+- **#645** (for #640): email-only arrival notices were listed under Updates
+  and All (the feed assumed "on in the app" for a reader with no in-app
+  setting); "Assigned to you" outlived a handoff its holder made themselves,
+  or a bulk move; and an assignment retired email-only notices and
+  Action-needed feedback — which then read "Done" — cancelling their email.
+- **#646** (for #641, #642): the phone sheet had no name and no Close until
+  its lazy body loaded, and the page behind it scrolled; the toast also fires
+  for replies waiting for approval and failed publishes, which the domain
+  marks urgent (the tests now say so); Profile's Try again dropped focus.
 
 ### Still open
 
-- **The page's Property filter** — in progress as draft #643. The server needs a `propertyId` on the list,
-  the head, "Mark all read" and "Dismiss all" (one more condition beside
-  `withinVisibleProperties`, which already makes an inaccessible Property read
-  as empty). The client's optimistic counts (`notification-feed-cache.ts`)
-  are kept per filter across every cached head, so a Property-scoped "Mark all
-  read" must either learn the scope or skip `clearsUnreadOf` and let the
-  refetch settle the counts.
+- **A plain release** (an item unassigned to nobody) has no Feed consumer, so
+  its holder's "Assigned to you" waits until the cycle closes; settling it
+  needs a consumer on `inbox.inbox_item.unassigned` (and the event-job
+  catalogue and trigger matrix with it). A reassignment back and forth within
+  seconds can still leave one stale row.
 - **Settings as one setup plus exceptions** (`shots/proposed-s-*.jpg`): one
   matrix for every property, cadence folded into the email choice, and the
   properties that differ listed under it.
