@@ -4,6 +4,7 @@ import { ZodError } from 'zod/v4'
 import {
   getDashboardDataDto,
   getPortalAnalyticsDto,
+  getPortalResultsOverviewDto,
   timeRangePreset,
 } from './dashboard.dto'
 
@@ -73,5 +74,29 @@ describe('getPortalAnalyticsDto', () => {
       portalId: 'b0000000-0000-4000-8000-000000000001',
     })
     expect(result.timeRange).toBe('30d')
+  })
+})
+
+describe('getPortalResultsOverviewDto', () => {
+  const propertyId = 'a0000000-0000-4000-8000-000000000001'
+
+  it('defaults to the last 30 days, compared with the period before', () => {
+    expect(getPortalResultsOverviewDto.parse({ propertyId })).toEqual({
+      propertyId,
+      timeRange: '30d',
+      compare: true,
+    })
+  })
+
+  it('refuses All Time, which is a lifetime figure and not a window of readings', () => {
+    expect(() =>
+      getPortalResultsOverviewDto.parse({ propertyId, timeRange: 'all' }),
+    ).toThrow(ZodError)
+  })
+
+  it('refuses a Property that is not a uuid', () => {
+    expect(() => getPortalResultsOverviewDto.parse({ propertyId: 'nope' })).toThrow(
+      ZodError,
+    )
   })
 })

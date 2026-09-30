@@ -13,7 +13,11 @@
 
 import type {
   PortalAnalyticsData,
+  PortalCountKPIValue,
+  PortalEngagementFunnel,
+  PortalKPIs,
   PortalMetricEvidence,
+  PortalResultsThresholds,
 } from '#/contexts/reporting/application/public-api'
 import {
   metricAvailabilityDetail,
@@ -37,11 +41,30 @@ export type ResultsCell = Readonly<{
 }>
 
 type Options = Readonly<{ compare: boolean }>
-type Count = PortalAnalyticsData['kpis']['scans']
+type Count = PortalCountKPIValue
+type LocalDays = NonNullable<PortalAnalyticsData['localDays']>
 
-const DASH = '—'
+/**
+ * What the five cells need, so a strip over many Portals (the overview) and one
+ * Portal's own Results view print the same words from the same figures.
+ */
+export type ResultsMeasuresInput = Readonly<{
+  kpis: PortalKPIs
+  thresholds: PortalResultsThresholds
+  timezone: string
+  /** The window and its comparison in local days; null for All Time. */
+  localDays: LocalDays | null
+  /**
+   * Where "% of scans" comes from. Left out, each share is worked out from the
+   * counts. Given, it is read from the scan funnel, and a funnel that is
+   * withheld (null) gives no share at all.
+   */
+  funnel?: PortalEngagementFunnel | null
+}>
 
-const formatCount = (value: number) => value.toLocaleString('en-US')
+export const DASH = '—'
+
+export const formatCount = (value: number) => value.toLocaleString('en-US')
 
 function signed(delta: number): string {
   if (delta === 0) return 'No change'
@@ -49,14 +72,14 @@ function signed(delta: number): string {
 }
 
 /** "the 30 days before", from the window's own local days. */
-function priorName(data: PortalAnalyticsData): string {
+function priorName(data: ResultsMeasuresInput): string {
   const days = data.localDays
   if (days === null) return 'the period before'
   const length = dayCount(days.start, days.end)
   return length === 1 ? 'the day before' : `the ${length} days before`
 }
 
-function changeLine(kpi: Count, data: PortalAnalyticsData, options: Options) {
+function changeLine(kpi: Count, data: ResultsMeasuresInput, options: Options) {
   if (!options.compare || kpi.value === null) return null
   if (kpi.priorValue === null) {
     return kpi.priorUnavailableReason === undefined
@@ -66,7 +89,7 @@ function changeLine(kpi: Count, data: PortalAnalyticsData, options: Options) {
   return `${signed(kpi.value - kpi.priorValue)} vs ${priorName(data)}`
 }
 
-function notReadyLine(
+export function notReadyLine(
   subject: MetricEvidenceSubject,
   evidence: PortalMetricEvidence,
   timeZone: string,
@@ -86,11 +109,23 @@ function notReadyLine(
   )
 }
 
+function shareLine(count: number, scans: number): string | null {
+  if (scans === 0 || count > scans) return null
+  return `${Math.round((count / scans) * 100)}% of scans`
+}
+
 /** A share of qualified scans, only where the scan count is known and not exceeded. */
-function shareOfScans(kpi: Count, scans: Count): string | null {
-  if (kpi.value === null || scans.value === null) return null
-  if (scans.value === 0 || kpi.value > scans.value) return null
-  return `${Math.round((kpi.value / scans.value) * 100)}% of scans`
+function shareOfScans(
+  key: 'ratings' | 'googleOpens',
+  data: ResultsMeasuresInput,
+): string | null {
+  const { funnel, kpis } = data
+  if (funnel !== undefined) {
+    return funnel === null ? null : shareLine(funnel[key], funnel.qualifiedScans)
+  }
+  const count = kpis[key].value
+  if (count === null || kpis.scans.value === null) return null
+  return shareLine(count, kpis.scans.value)
 }
 
 function countCell(
@@ -123,7 +158,7 @@ function ratingsWord(count: number): string {
   return count === 1 ? '1 rating' : `${formatCount(count)} ratings`
 }
 
-function averageCell(data: PortalAnalyticsData, options: Options): ResultsCell {
+function averageCell(data: ResultsMeasuresInput, options: Options): ResultsCell {
   const { avgRating } = data.kpis
   const base = {
     key: 'average',
@@ -137,7 +172,7 @@ function averageCell(data: PortalAnalyticsData, options: Options): ResultsCell {
         ? `${ratingsWord(sampleCount)}, needs ${data.thresholds.averageMinSample} to show an average`
         : evidence.state === 'insufficient_data' && sampleCount === 0
           ? 'No private ratings yet'
-          : notReadyLine('ratings', evidence, data.period.timezone)
+          : notReadyLine('ratings', evidence, data.timezone)
     return { ...base, value: DASH, unit: null, detail }
   }
   const parts = [`from ${formatCount(avgRating.sampleCount)}`]
@@ -155,12 +190,11 @@ function averageCell(data: PortalAnalyticsData, options: Options): ResultsCell {
   }
 }
 
-export function resultsCells(
-  data: PortalAnalyticsData,
+export function measureCells(
+  data: ResultsMeasuresInput,
   options: Options,
 ): readonly ResultsCell[] {
-  const { kpis, period } = data
-  const zone = period.timezone
+  const { kpis, timezone: zone } = data
   return [
     countCell(
       'scans',
@@ -175,7 +209,7 @@ export function resultsCells(
       'Private ratings',
       'ratings',
       kpis.ratings,
-      shareOfScans(kpis.ratings, kpis.scans) ?? changeLine(kpis.ratings, data, options),
+      shareOfScans('ratings', data) ?? changeLine(kpis.ratings, data, options),
       zone,
     ),
     averageCell(data, options),
@@ -184,8 +218,7 @@ export function resultsCells(
       'Guests who opened Google',
       'google_opens',
       kpis.googleOpens,
-      shareOfScans(kpis.googleOpens, kpis.scans) ??
-        changeLine(kpis.googleOpens, data, options),
+      shareOfScans('googleOpens', data) ?? changeLine(kpis.googleOpens, data, options),
       zone,
     ),
     countCell(
@@ -197,4 +230,19 @@ export function resultsCells(
       zone,
     ),
   ]
+}
+
+export function resultsCells(
+  data: PortalAnalyticsData,
+  options: Options,
+): readonly ResultsCell[] {
+  return measureCells(
+    {
+      kpis: data.kpis,
+      thresholds: data.thresholds,
+      timezone: data.period.timezone,
+      localDays: data.localDays,
+    },
+    options,
+  )
 }

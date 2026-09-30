@@ -740,6 +740,42 @@ describe('getPortalResultsOverview', () => {
     })
   })
 
+  it('names each Property window in its own local days and time zone, for the labels', async () => {
+    const repo = fakeRepository({})
+
+    const overview = await ask(repo, roster([[P1, null]]), { compare: true })
+
+    // 30 whole local days ending today, and the 30 before them.
+    expect(overview.properties[0]).toMatchObject({
+      timezone: UTC,
+      localDays: {
+        start: '2026-09-01',
+        end: '2026-09-30',
+        compareStart: '2026-08-02',
+        compareEnd: '2026-08-31',
+      },
+    })
+  })
+
+  it('leaves the comparison days out when no comparison was asked for', async () => {
+    const repo = fakeRepository({})
+
+    const overview = await ask(repo, roster([[P1, null]]))
+
+    expect(overview.properties[0]?.localDays).toMatchObject({
+      compareStart: null,
+      compareEnd: null,
+    })
+  })
+
+  it('hands over the sample floors it applied, so the client keeps no copy', async () => {
+    const repo = fakeRepository({})
+
+    const overview = await ask(repo, roster([[P1, null]]))
+
+    expect(overview.thresholds).toEqual({ averageMinSample: 5, comparisonMinSample: 10 })
+  })
+
   it('returns an empty overview for no Portals, with a ready zero total', async () => {
     const repo = fakeRepository({})
 
