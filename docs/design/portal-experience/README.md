@@ -4,6 +4,8 @@ Date: 2026-09-14. Branch: `codex/portal-experience-design`.
 
 Status: first-round design exploration. No implementation or approved product-policy changes. Recommendations below are hypotheses to discuss, not a specification to build.
 
+Update 2026-09-30: round 4 took the guest page and the admin separately. The product owner chose **Immersive Hub** for the guest page and the **A+ Workspace** for the admin, and settled codes, groups, uploads and languages along the way. Where they differ from earlier rounds, round 4 wins. See [round-4-guest/README.md](round-4-guest/README.md) and [round-4-admin/README.md](round-4-admin/README.md). Still design only: nothing is implemented.
+
 Update 2026-09-19: round 3 researched competitors more widely and drew three guest directions as rendered phone boards. See [round-3-guest/README.md](round-3-guest/README.md).
 
 Update: the product owner selected the third guest visual direction, Signature Stay, and asked to improve the second admin direction, Local Character. See [the second admin exploration](admin-round-2.md) for the critique and new alternatives. Administration remains undecided; the no-implementation constraint continues.

@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pool &amp; Terrace — Share</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700&family=Cormorant+Garamond:ital,wght@0,600;1,500&family=Ysabeau+Office:wght@400;600&display=swap">
+<style>
+@font-face{font-family:'Satoshi';src:url('/_blob/bc9aed933eebd2242e24e1a874f3e980') format('woff2');font-weight:400;font-style:normal;font-display:swap}
+@font-face{font-family:'Satoshi';src:url('/_blob/b4176652b3bb793da8608143a4c2d4d1') format('woff2');font-weight:500;font-style:normal;font-display:swap}
+@font-face{font-family:'Satoshi';src:url('/_blob/d97bb02bcf4b472111e2170c4170bd0c') format('woff2');font-weight:700;font-style:normal;font-display:swap}
+body{margin:0}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
+a{color:#512da6}a:hover{color:#431096}
+:focus-visible{outline:2px solid #7b65d1;outline-offset:2px}
+button,input,select,textarea{font-family:inherit;font-size:inherit;line-height:inherit;color:inherit}
+.rk-primary{background:#512da6}.rk-primary:hover{background:#6242ae}
+.rk-outline{background:#f7f8fa}.rk-outline:hover{background:#e7e4ff}
+.rk-ghost{background:transparent}.rk-ghost:hover{background:#e7e4ff}
+.rk-destructive{background:#df202e}.rk-destructive:hover{background:#e23743}
+.rk-nav:hover{background:#e7e4ff}
+.rk-row:hover>td,.rk-row:hover>th{background:#f9fafb}
+.rk-sort:hover{color:#101115!important}
+.rk-name:hover{text-decoration:underline!important;text-underline-offset:4px}
+.rk-detail:hover>span{text-decoration-style:solid!important}
+.rk-cell{background:#feffff}.rk-cell-i:hover,.rk-cell-i.is-on{background:#f0f2f5}
+.rk-stretch::after{content:"";position:absolute;inset:0}
+.rk-stretch:focus-visible{outline:none}.rk-stretch:focus-visible::after{outline:2px solid #7b65d1;outline-offset:-3px}
+.rk-input::placeholder{color:#5b5d63;opacity:1}
+.rk-input:focus-visible{outline:none;border-color:#7b65d1!important;box-shadow:0 0 0 3px rgba(123,101,209,.5)!important}
+.rk-menuitem{background:transparent}.rk-menuitem:hover,.rk-menuitem:focus-visible{background:#e7e4ff;outline:none}
+.rk-menuitem-danger{background:transparent}.rk-menuitem-danger:hover,.rk-menuitem-danger:focus-visible{background:#fef3f2;outline:none}
+.rk-check:focus-visible+span{outline:2px solid #7b65d1;outline-offset:2px}
+.rk-tile{background:transparent}.rk-tile:hover{background:#f4f5f8}
+.rk-rowbtn:focus-visible{outline-offset:-2px}
+.rk-check:checked+span{border-color:#512da6!important;background:#f6f5fb!important}
+.rk-state:hover .rk-state-cap{color:#101115!important}
+</style>
+</helmet>
+<div style="width: 1440px; height: 960px; box-sizing: border-box; overflow: hidden; position: relative; display: flex; background: #f7f8fa; color: #101115; font-family: 'Satoshi', 'Manrope', system-ui, sans-serif; font-size: 14px; line-height: 20px;">
+<nav aria-label="Primary navigation" style="width: 49px; flex: none; height: 960px; box-sizing: border-box; padding: 8px; display: flex; flex-direction: column; background: #f7f8fa; border-right: 1px solid #dcdee2;">
+<button type="button" class="rk-ghost" aria-label="Avela Resort, switch property" aria-haspopup="menu" aria-expanded="false" style="width: 32px; height: 32px; padding: 0; border: 0; border-radius: 8px; display: flex; align-items: center; justify-content: center; cursor: pointer;"><span aria-hidden="true" style="width: 32px; height: 32px; border-radius: 8px; background: #e7e4ff; color: #512da6; display: flex; align-items: center; justify-content: center; font-size: 12px; line-height: 16px; font-weight: 500;">AR</span></button>
+<ul style="list-style: none; margin: 16px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px;">
+<li><a href="#" class="rk-nav" aria-label="Dashboard" style="width: 32px; height: 32px; box-sizing: border-box; border-radius: 6px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg></a></li>
+<li><a href="#" class="rk-nav" aria-label="Reviews, 3 new" style="width: 32px; height: 32px; box-sizing: border-box; border-radius: 6px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/></svg></a></li>
+<li><a href="#" class="rk-nav" aria-label="People" style="width: 32px; height: 32px; box-sizing: border-box; border-radius: 6px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><path d="M16 3.128a4 4 0 0 1 0 7.744"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><circle cx="9" cy="7" r="4"/></svg></a></li>
+<li><a href="AVA3-overview-improved.dc.html" aria-current="page" aria-label="Portals" style="width: 32px; height: 32px; box-sizing: border-box; border-radius: 6px; background: #e7e4ff; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></a></li>
+<li><a href="#" class="rk-nav" aria-label="Goals" style="width: 32px; height: 32px; box-sizing: border-box; border-radius: 6px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/></svg></a></li>
+<li><a href="#" class="rk-nav" aria-label="Property settings" style="width: 32px; height: 32px; box-sizing: border-box; border-radius: 6px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M10 5H3"/><path d="M12 19H3"/><path d="M14 3v4"/><path d="M16 17v4"/><path d="M21 12h-9"/><path d="M21 19h-5"/><path d="M21 5h-7"/><path d="M8 10v4"/><path d="M8 12H3"/></svg></a></li>
+</ul>
+<a href="#" class="rk-nav" aria-label="Settings" style="margin-top: auto; width: 32px; height: 32px; box-sizing: border-box; border-radius: 6px; display: flex; align-items: center; justify-content: center;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#512da6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/></svg></a>
+</nav>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; background: #f7f8fa;">
+<header style="height: 52px; flex: none; box-sizing: border-box; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid #dcdee2; background: #f7f8fa;">
+<span style="flex: 1;"></span>
+<button type="button" class="rk-ghost" style="height: 32px; padding: 0 10px; display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M22 17a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 21.286V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2z"/><path d="M12 8v6"/><path d="M9 11h6"/></svg>Feedback</button>
+<button type="button" class="rk-ghost" aria-label="Notifications, 2 unread" style="position: relative; width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; display: flex; align-items: center; justify-content: center; color: #101115; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M10.268 21a2 2 0 0 0 3.464 0"/><path d="M3.262 15.326A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.673C19.41 13.956 18 12.499 18 8A6 6 0 0 0 6 8c0 4.499-1.411 5.956-2.738 7.326"/></svg><span aria-hidden="true" style="position: absolute; top: -2px; right: -2px; width: 16px; height: 16px; border-radius: 9999px; background: #512da6; color: #feffff; font-size: 9px; line-height: 16px; font-weight: 700; text-align: center;">2</span></button>
+<button type="button" class="rk-ghost" aria-label="Account menu, Elena Petrova" aria-haspopup="menu" aria-expanded="false" style="width: 32px; height: 32px; padding: 0; border: 0; border-radius: 9999px; display: flex; align-items: center; justify-content: center; cursor: pointer;"><span aria-hidden="true" style="width: 28px; height: 28px; border-radius: 9999px; background: #512da6; color: #feffff; font-size: 10px; line-height: 12px; font-weight: 500; display: flex; align-items: center; justify-content: center;">EP</span></button>
+</header>
+<main style="flex: 1; min-height: 0; display: flex; flex-direction: column;">
+<header style="height: 56px; flex: none; box-sizing: border-box; display: flex; align-items: center; gap: 12px; padding: 0 24px; border-bottom: 1px solid #dcdee2;">
+<a href="AVA3-overview-improved.dc.html" class="rk-ghost" style="height: 32px; box-sizing: border-box; padding: 0 10px 0 8px; margin-left: -8px; display: inline-flex; align-items: center; gap: 6px; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg>Portals</a>
+<span aria-hidden="true" style="width: 1px; height: 24px; flex: none; background: #dcdee2;"></span>
+<div style="min-width: 0; display: flex; flex-direction: column;">
+<div style="display: flex; align-items: center; gap: 10px;">
+<h1 style="margin: 0; font-size: 16px; line-height: 22px; font-weight: 600; color: #101115; white-space: nowrap;">Pool &amp; Terrace</h1>
+<span style="display: inline-flex; align-items: center; gap: 6px; font-size: 12px; line-height: 16px; color: #5b5d63; white-space: nowrap;"><span aria-hidden="true" style="width: 6px; height: 6px; flex: none; border-radius: 50%; background: #5b5d63;"></span>Live · version 5</span>
+</div>
+<p style="margin: 0; font-size: 12px; line-height: 16px; color: #5b5d63;">Avela Resort</p>
+</div>
+<span style="flex: 1;"></span>
+<div style="display: flex; align-items: center; gap: 16px;">
+<span role="status" style="display: inline-flex; align-items: center; gap: 4px; font-size: 12px; line-height: 16px; color: #5b5d63; white-space: nowrap;"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M20 6 9 17l-5-5"/></svg>Draft saved · just now</span>
+<span style="position: relative; display: inline-flex;">
+<button type="button" class="rk-detail" aria-haspopup="dialog" aria-expanded="{{ popChanges }}" onClick="{{ toggleChangesPop }}" style="min-height: 32px; display: inline-flex; align-items: center; gap: 6px; padding: 0; border: 0; background: none; font-size: 13px; line-height: 20px; color: #101115; cursor: help; white-space: nowrap;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M21.174 6.812a1 1 0 0 0-3.986-3.987L3.842 16.174a2 2 0 0 0-.5.83l-1.321 4.352a.5.5 0 0 0 .623.622l4.353-1.32a2 2 0 0 0 .83-.497z"/><path d="m15 5 4 4"/></svg><span style="text-decoration: underline dotted currentColor; text-underline-offset: 4px;">2 changes not live</span></button>
+<sc-if value="{{ popChanges }}" hint-placeholder-val="{{ false }}">
+<div role="dialog" aria-labelledby="pop-changes-title" style="position: absolute; top: 38px; left: -16px; z-index: 30; width: 320px; box-sizing: border-box; padding: 16px; background: #feffff; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1);">
+<p id="pop-changes-title" style="margin: 0; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115;">2 changes not live</p>
+<p style="margin: 4px 0 0; font-size: 14px; line-height: 20px; color: #5b5d63;">Guests see version 5 until you publish. Printed codes keep working.</p>
+<ul style="list-style: none; margin: 12px 0 0; padding: 0; display: flex; flex-direction: column; gap: 8px; font-size: 13px; line-height: 20px; color: #5b5d63;">
+<li><span style="font-weight: 500; color: #101115;">Linktree</span> · ‘Dinner menu’ renamed ‘Olive Terrace menu’</li>
+<li><span style="font-weight: 500; color: #101115;">Welcome</span> · Spanish line reworded</li>
+</ul>
+</div>
+</sc-if>
+</span>
+</div>
+<div style="margin-left: 12px; display: flex; align-items: center; gap: 8px;">
+<a href="#" target="_blank" rel="noopener" class="rk-ghost" style="height: 32px; box-sizing: border-box; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; text-decoration: none;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M15 3h6v6"/><path d="M10 14 21 3"/><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/></svg>Open page<span class="sr-only"> (live guest page, opens in a new tab)</span></a>
+<button type="button" class="rk-primary" style="height: 32px; box-sizing: border-box; padding: 0 12px; display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 500; color: #feffff; cursor: pointer;">Review &amp; publish</button>
+</div>
+</header>
+<div style="height: 48px; flex: none; box-sizing: border-box; display: flex; border-bottom: 1px solid #dcdee2;">
+<div style="width: 692px; flex: none; box-sizing: border-box; padding: 0 24px; border-right: 1px solid #dcdee2; display: flex; align-items: stretch;">
+<div role="tablist" aria-label="Portal" style="display: flex; align-items: stretch; gap: 24px; height: 47px;">
+<a href="AVA4-editor-improved.dc.html" role="tab" aria-selected="false" tabindex="-1" class="rk-sort" style="height: 47px; display: inline-flex; align-items: center; font-size: 14px; line-height: 20px; font-weight: 500; color: #6a6b6f; text-decoration: none;">Page</a>
+<button type="button" role="tab" id="tab-share" aria-selected="true" aria-controls="panel-share" style="position: relative; height: 47px; padding: 0; border: 0; background: none; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer;">Share<span aria-hidden="true" style="position: absolute; left: 0; right: 0; bottom: -1px; height: 2px; background: #101115;"></span></button>
+<a href="AP07-results.dc.html" role="tab" aria-selected="false" tabindex="-1" class="rk-sort" style="height: 47px; display: inline-flex; align-items: center; font-size: 14px; line-height: 20px; font-weight: 500; color: #6a6b6f; text-decoration: none;">Results</a>
+<a href="AP08-history.dc.html" role="tab" aria-selected="false" tabindex="-1" class="rk-sort" style="height: 47px; display: inline-flex; align-items: center; font-size: 14px; line-height: 20px; font-weight: 500; color: #6a6b6f; text-decoration: none;">History</a>
+</div>
+</div>
+<div style="flex: 1; min-width: 0; box-sizing: border-box; padding: 0 16px 0 24px; display: flex; align-items: center; gap: 8px;">
+<div role="radiogroup" aria-label="Side of the print" style="display: inline-flex; align-items: center; gap: 2px; padding: 2px; border-radius: 6px; background: #f0f2f5;">
+<button type="button" role="radio" aria-checked="{{ fFront.on }}" tabindex="{{ fFront.tab }}" onClick="{{ fFront.pick }}" onKeyDown="{{ rove }}" style="height: 26px; padding: 0 10px; border: 0; border-radius: 4px; font-size: 13px; line-height: 20px; cursor: pointer; {{ fFront.look }}">Front</button>
+<button type="button" role="radio" aria-checked="{{ fBack.on }}" tabindex="{{ fBack.tab }}" onClick="{{ fBack.pick }}" onKeyDown="{{ rove }}" style="height: 26px; padding: 0 10px; border: 0; border-radius: 4px; font-size: 13px; line-height: 20px; cursor: pointer; {{ fBack.look }}">Back</button>
+</div>
+<span style="flex: 1;"></span>
+<button type="button" class="rk-outline" aria-haspopup="dialog" style="height: 32px; box-sizing: border-box; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>Try as guest</button>
+</div>
+</div>
+<div role="tabpanel" id="panel-share" aria-labelledby="tab-share" style="flex: 1; min-height: 0; display: flex;">
+<div style="width: 692px; flex: none; box-sizing: border-box; padding: 24px 24px 0; border-right: 1px solid #dcdee2; overflow: hidden; background: #f7f8fa; display: flex; flex-direction: column;">
+
+<section aria-labelledby="addr-title">
+<h2 id="addr-title" style="margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; color: #101115;">Public address</h2>
+<div style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
+<code id="addr" style="flex: 1; min-width: 0; height: 32px; box-sizing: border-box; padding: 0 10px; display: flex; align-items: center; border: 1px solid #dcdee2; border-radius: 6px; background: #feffff; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; line-height: 20px; color: #101115; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">app.reputationkey.app/p/r4Tn8wQ2mLx6</code>
+<button type="button" class="rk-outline" aria-describedby="addr" style="height: 32px; box-sizing: border-box; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>Copy<span class="sr-only"> public address</span></button>
+</div>
+<p style="margin: 8px 0 0; display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 20px; color: #5b5d63;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg><span><span style="color: #101115;">Opens the live version (5)</span> · for your website, emails and booking messages</span></p>
+</section>
+
+<section aria-labelledby="code-title" style="margin-top: 36px;">
+<h2 id="code-title" style="margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; color: #101115;">Code</h2>
+<div style="margin-top: 12px; display: flex; align-items: flex-start; gap: 16px;">
+<div role="img" aria-label="The QR code for Pool &amp; Terrace" style="width: 130px; height: 130px; flex: none; box-sizing: border-box; padding: 16px; border: 1px solid #dcdee2; border-radius: 8px; background: #feffff;"><svg width="96" height="96" viewBox="4 4 29 29" shape-rendering="crispEdges" aria-hidden="true" style="display: block;"><path fill="#101115" d="M4 4h7v1h-7zM16 4h1v1h-1zM19 4h2v1h-2zM26 4h7v1h-7zM4 5h1v1h-1zM10 5h1v1h-1zM12 5h2v1h-2zM17 5h2v1h-2zM23 5h2v1h-2zM26 5h1v1h-1zM32 5h1v1h-1zM4 6h1v1h-1zM6 6h3v1h-3zM10 6h1v1h-1zM14 6h2v1h-2zM17 6h1v1h-1zM19 6h1v1h-1zM21 6h1v1h-1zM23 6h1v1h-1zM26 6h1v1h-1zM28 6h3v1h-3zM32 6h1v1h-1zM4 7h1v1h-1zM6 7h3v1h-3zM10 7h1v1h-1zM15 7h2v1h-2zM20 7h4v1h-4zM26 7h1v1h-1zM28 7h3v1h-3zM32 7h1v1h-1zM4 8h1v1h-1zM6 8h3v1h-3zM10 8h1v1h-1zM12 8h2v1h-2zM16 8h3v1h-3zM21 8h3v1h-3zM26 8h1v1h-1zM28 8h3v1h-3zM32 8h1v1h-1zM4 9h1v1h-1zM10 9h1v1h-1zM13 9h1v1h-1zM15 9h2v1h-2zM18 9h1v1h-1zM24 9h1v1h-1zM26 9h1v1h-1zM32 9h1v1h-1zM4 10h7v1h-7zM12 10h1v1h-1zM14 10h1v1h-1zM16 10h1v1h-1zM18 10h1v1h-1zM20 10h1v1h-1zM22 10h1v1h-1zM24 10h1v1h-1zM26 10h7v1h-7zM16 11h1v1h-1zM18 11h1v1h-1zM22 11h1v1h-1zM24 11h1v1h-1zM5 12h1v1h-1zM7 12h1v1h-1zM10 12h4v1h-4zM15 12h3v1h-3zM20 12h2v1h-2zM23 12h2v1h-2zM27 12h1v1h-1zM29 12h1v1h-1zM31 12h1v1h-1zM6 13h1v1h-1zM9 13h1v1h-1zM11 13h4v1h-4zM16 13h1v1h-1zM22 13h2v1h-2zM25 13h1v1h-1zM32 13h1v1h-1zM4 14h1v1h-1zM7 14h2v1h-2zM10 14h1v1h-1zM13 14h3v1h-3zM17 14h1v1h-1zM21 14h1v1h-1zM23 14h1v1h-1zM25 14h1v1h-1zM29 14h2v1h-2zM4 15h4v1h-4zM11 15h1v1h-1zM13 15h1v1h-1zM16 15h1v1h-1zM23 15h2v1h-2zM28 15h3v1h-3zM32 15h1v1h-1zM5 16h1v1h-1zM10 16h3v1h-3zM16 16h3v1h-3zM22 16h1v1h-1zM24 16h1v1h-1zM26 16h1v1h-1zM29 16h2v1h-2zM6 17h2v1h-2zM11 17h2v1h-2zM15 17h1v1h-1zM19 17h3v1h-3zM23 17h2v1h-2zM26 17h1v1h-1zM32 17h1v1h-1zM7 18h2v1h-2zM10 18h1v1h-1zM12 18h1v1h-1zM14 18h2v1h-2zM18 18h5v1h-5zM24 18h1v1h-1zM26 18h5v1h-5zM4 19h1v1h-1zM6 19h3v1h-3zM14 19h2v1h-2zM19 19h1v1h-1zM23 19h3v1h-3zM28 19h1v1h-1zM30 19h3v1h-3zM6 20h1v1h-1zM8 20h3v1h-3zM12 20h1v1h-1zM14 20h1v1h-1zM16 20h2v1h-2zM20 20h5v1h-5zM28 20h1v1h-1zM31 20h2v1h-2zM6 21h1v1h-1zM8 21h1v1h-1zM11 21h1v1h-1zM13 21h4v1h-4zM20 21h1v1h-1zM24 21h1v1h-1zM26 21h3v1h-3zM8 22h4v1h-4zM15 22h3v1h-3zM21 22h3v1h-3zM25 22h1v1h-1zM29 22h3v1h-3zM4 23h1v1h-1zM6 23h1v1h-1zM8 23h2v1h-2zM11 23h2v1h-2zM14 23h1v1h-1zM16 23h9v1h-9zM26 23h1v1h-1zM29 23h1v1h-1zM31 23h1v1h-1zM4 24h2v1h-2zM7 24h1v1h-1zM10 24h1v1h-1zM13 24h1v1h-1zM16 24h1v1h-1zM19 24h1v1h-1zM21 24h2v1h-2zM24 24h7v1h-7zM12 25h1v1h-1zM17 25h1v1h-1zM19 25h1v1h-1zM21 25h2v1h-2zM24 25h1v1h-1zM28 25h2v1h-2zM31 25h1v1h-1zM4 26h7v1h-7zM13 26h1v1h-1zM17 26h1v1h-1zM19 26h3v1h-3zM23 26h2v1h-2zM26 26h1v1h-1zM28 26h4v1h-4zM4 27h1v1h-1zM10 27h1v1h-1zM14 27h1v1h-1zM16 27h1v1h-1zM20 27h2v1h-2zM23 27h2v1h-2zM28 27h3v1h-3zM32 27h1v1h-1zM4 28h1v1h-1zM6 28h3v1h-3zM10 28h1v1h-1zM12 28h2v1h-2zM15 28h1v1h-1zM21 28h1v1h-1zM24 28h6v1h-6zM4 29h1v1h-1zM6 29h3v1h-3zM10 29h1v1h-1zM12 29h1v1h-1zM14 29h2v1h-2zM17 29h2v1h-2zM20 29h1v1h-1zM22 29h1v1h-1zM30 29h3v1h-3zM4 30h1v1h-1zM6 30h3v1h-3zM10 30h1v1h-1zM12 30h1v1h-1zM16 30h3v1h-3zM23 30h5v1h-5zM30 30h1v1h-1zM32 30h1v1h-1zM4 31h1v1h-1zM10 31h1v1h-1zM13 31h4v1h-4zM19 31h3v1h-3zM25 31h2v1h-2zM30 31h1v1h-1zM32 31h1v1h-1zM4 32h7v1h-7zM13 32h1v1h-1zM16 32h2v1h-2zM20 32h5v1h-5zM28 32h1v1h-1zM30 32h3v1h-3z"/></svg></div>
+<div style="flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start;">
+<p style="margin: 0; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115;">QR code and NFC tag</p>
+<p style="margin: 2px 0 0; font-size: 12px; line-height: 16px; color: #5b5d63;">Both open Pool &amp; Terrace. We count them separately.</p>
+<ul style="list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column;">
+<li style="display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 20px; color: #101115; white-space: nowrap;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg>Made 12 Mar by Georgi Ivanov</li>
+<li style="display: flex; align-items: center; gap: 6px; font-size: 13px; line-height: 20px; color: #101115; white-space: nowrap;"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#007a3a" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M20 6 9 17l-5-5"/></svg>Printed codes keep working when you publish changes.</li>
+</ul>
+<div style="margin-top: 12px; display: flex; align-items: center; gap: 8px;">
+<button type="button" class="rk-outline" aria-haspopup="menu" aria-expanded="false" style="height: 32px; box-sizing: border-box; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer; white-space: nowrap;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg>Download again<span class="sr-only">, as PNG for print or SVG for designers</span><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="m6 9 6 6 6-6"/></svg></button>
+<button type="button" class="rk-outline" style="height: 32px; box-sizing: border-box; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 1px 2px rgba(0,0,0,.05); font-size: 14px; line-height: 20px; font-weight: 500; color: #101115; cursor: pointer; white-space: nowrap;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>Copy NFC address</button>
+<span style="position: relative; display: inline-flex;">
+<button type="button" class="rk-ghost" aria-label="More actions for the code" aria-haspopup="menu" aria-expanded="{{ m.code.open }}" onClick="{{ m.code.toggle }}" style="width: 32px; height: 32px; padding: 0; border: 0; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; color: #5b5d63; cursor: pointer; {{ m.code.look }}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+<sc-if value="{{ m.code.open }}" hint-placeholder-val="{{ true }}">
+<div role="menu" aria-label="More actions for the code" style="position: absolute; top: 36px; right: 0; z-index: 20; width: 264px; box-sizing: border-box; padding: 4px; background: #feffff; border: 1px solid #dcdee2; border-radius: 6px; box-shadow: 0 4px 6px -1px rgba(0,0,0,.1), 0 2px 4px -2px rgba(0,0,0,.1); display: flex; flex-direction: column;">
+<button type="button" role="menuitem" class="rk-menuitem" style="display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px; border: 0; border-radius: 4px; text-align: left; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#5b5d63" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;margin-top:2px"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg><span style="display: flex; flex-direction: column;"><span style="font-size: 14px; line-height: 20px; color: #101115;">Replace code…</span><span style="font-size: 12px; line-height: 16px; color: #5b5d63;">Planned, or at once for security</span></span></button>
+<div role="separator" style="height: 1px; margin: 4px -4px; background: #dcdee2;"></div>
+<button type="button" role="menuitem" class="rk-menuitem-danger" style="display: flex; align-items: flex-start; gap: 8px; padding: 6px 8px; border: 0; border-radius: 4px; text-align: left; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#b42318" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;margin-top:2px"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg><span style="display: flex; flex-direction: column;"><span style="font-size: 14px; line-height: 20px; color: #b42318;">Stop all codes…</span><span style="font-size: 12px; line-height: 16px; color: #5b5d63;">Turns off the public address at once</span></span></button>
+</div>
+</sc-if>
+</span>
+</div>
+</div>
+</div>
+</section>
+
+<section aria-labelledby="kit-title" style="margin-top: 52px;">
+<h2 id="kit-title" style="margin: 0; font-size: 16px; line-height: 24px; font-weight: 600; color: #101115;">Print kit</h2>
+<fieldset style="margin: 12px 0 0; padding: 0; border: 0; min-width: 0;">
+<legend class="sr-only">Piece</legend>
+<div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px;">
+<label style="position: relative; height: 84px; box-sizing: border-box; padding: 10px 12px; display: flex; flex-direction: column; border: 1px solid {{ pc.tent.edge }}; border-radius: 6px; background: {{ pc.tent.fill }}; cursor: pointer;">
+<input type="radio" name="kit-piece" class="rk-check sr-only" checked="{{ pc.tent.on }}" onChange="{{ pc.tent.pick }}">
+<span aria-hidden="true" style="position: absolute; top: 10px; right: 10px; width: 16px; height: 16px; box-sizing: border-box; border: 1px solid {{ pc.tent.ring }}; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ pc.tent.dot }};"></span></span>
+<svg width="32" height="24" viewBox="0 0 32 24" fill="none" stroke="#5b5d63" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;margin-left:-4px"><path d="M4 20.5 10 4.5l6 16z"/><path d="M10 4.5h11l6 16H16"/></svg>
+<span style="margin-top: auto; font-size: 13px; line-height: 18px; font-weight: 500; color: #101115; white-space: nowrap;">Table tent</span>
+<span style="font-size: 12px; line-height: 16px; color: #5b5d63; white-space: nowrap;">A6, folded</span>
+</label>
+<label style="position: relative; height: 84px; box-sizing: border-box; padding: 10px 12px; display: flex; flex-direction: column; border: 1px solid {{ pc.counter.edge }}; border-radius: 6px; background: {{ pc.counter.fill }}; cursor: pointer;">
+<input type="radio" name="kit-piece" class="rk-check sr-only" checked="{{ pc.counter.on }}" onChange="{{ pc.counter.pick }}">
+<span aria-hidden="true" style="position: absolute; top: 10px; right: 10px; width: 16px; height: 16px; box-sizing: border-box; border: 1px solid {{ pc.counter.ring }}; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ pc.counter.dot }};"></span></span>
+<svg width="32" height="24" viewBox="0 0 32 24" fill="none" stroke="#5b5d63" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;margin-left:-4px"><rect x="10" y="2.5" width="12" height="19" rx="1.5"/><rect x="13" y="11" width="6" height="6" rx="0.5"/></svg>
+<span style="margin-top: auto; font-size: 13px; line-height: 18px; font-weight: 500; color: #101115; white-space: nowrap;">Counter card</span>
+<span style="font-size: 12px; line-height: 16px; color: #5b5d63; white-space: nowrap;">A6</span>
+</label>
+<label style="position: relative; height: 84px; box-sizing: border-box; padding: 10px 12px; display: flex; flex-direction: column; border: 1px solid {{ pc.nfc.edge }}; border-radius: 6px; background: {{ pc.nfc.fill }}; cursor: pointer;">
+<input type="radio" name="kit-piece" class="rk-check sr-only" checked="{{ pc.nfc.on }}" onChange="{{ pc.nfc.pick }}">
+<span aria-hidden="true" style="position: absolute; top: 10px; right: 10px; width: 16px; height: 16px; box-sizing: border-box; border: 1px solid {{ pc.nfc.ring }}; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ pc.nfc.dot }};"></span></span>
+<svg width="32" height="24" viewBox="0 0 32 24" fill="none" stroke="#5b5d63" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;margin-left:-4px"><rect x="4" y="4.5" width="24" height="15" rx="2.5"/><rect x="8" y="9.5" width="5" height="4" rx="1"/><path d="M18 10a3 3 0 0 1 0 4"/><path d="M20.5 8.5a5.5 5.5 0 0 1 0 7"/></svg>
+<span style="margin-top: auto; font-size: 13px; line-height: 18px; font-weight: 500; color: #101115; white-space: nowrap;">NFC card</span>
+<span style="font-size: 12px; line-height: 16px; color: #5b5d63; white-space: nowrap;">85 × 54 mm</span>
+</label>
+<label style="position: relative; height: 84px; box-sizing: border-box; padding: 10px 12px; display: flex; flex-direction: column; border: 1px solid {{ pc.sticker.edge }}; border-radius: 6px; background: {{ pc.sticker.fill }}; cursor: pointer;">
+<input type="radio" name="kit-piece" class="rk-check sr-only" checked="{{ pc.sticker.on }}" onChange="{{ pc.sticker.pick }}">
+<span aria-hidden="true" style="position: absolute; top: 10px; right: 10px; width: 16px; height: 16px; box-sizing: border-box; border: 1px solid {{ pc.sticker.ring }}; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ pc.sticker.dot }};"></span></span>
+<svg width="32" height="24" viewBox="0 0 32 24" fill="none" stroke="#5b5d63" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;margin-left:-4px"><circle cx="16" cy="12" r="9.5"/><rect x="13" y="9" width="6" height="6" rx="0.5"/></svg>
+<span style="margin-top: auto; font-size: 13px; line-height: 18px; font-weight: 500; color: #101115; white-space: nowrap;">Sticker</span>
+<span style="font-size: 12px; line-height: 16px; color: #5b5d63; white-space: nowrap;">60 mm round</span>
+</label>
+<label style="position: relative; height: 84px; box-sizing: border-box; padding: 10px 12px; display: flex; flex-direction: column; border: 1px solid {{ pc.poster.edge }}; border-radius: 6px; background: {{ pc.poster.fill }}; cursor: pointer;">
+<input type="radio" name="kit-piece" class="rk-check sr-only" checked="{{ pc.poster.on }}" onChange="{{ pc.poster.pick }}">
+<span aria-hidden="true" style="position: absolute; top: 10px; right: 10px; width: 16px; height: 16px; box-sizing: border-box; border: 1px solid {{ pc.poster.ring }}; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ pc.poster.dot }};"></span></span>
+<svg width="32" height="24" viewBox="0 0 32 24" fill="none" stroke="#5b5d63" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none;margin-left:-4px"><rect x="9" y="1.5" width="14" height="21" rx="1"/><path d="M12 5.5h8"/><rect x="13" y="12" width="6" height="6" rx="0.5"/></svg>
+<span style="margin-top: auto; font-size: 13px; line-height: 18px; font-weight: 500; color: #101115; white-space: nowrap;">Poster</span>
+<span style="font-size: 12px; line-height: 16px; color: #5b5d63; white-space: nowrap;">A4</span>
+</label>
+</div>
+</fieldset>
+<fieldset style="margin: 20px 0 0; padding: 0; border: 0; min-width: 0;">
+<legend style="padding: 0; margin-bottom: 8px; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115;">Languages on the print</legend>
+<div style="display: flex; align-items: center; gap: 20px;">
+<label style="display: flex; align-items: center; gap: 8px; font-size: 14px; line-height: 20px; color: #101115; cursor: pointer; white-space: nowrap;">
+<input type="radio" name="kit-lang" class="rk-check sr-only" checked="{{ kl.enbg.on }}" onChange="{{ kl.enbg.pick }}">
+<span aria-hidden="true" style="width: 16px; height: 16px; box-sizing: border-box; flex: none; border: 1px solid {{ kl.enbg.ring }}; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ kl.enbg.dot }};"></span></span>
+<span>English + <span lang="bg">Български</span></span>
+</label>
+<label style="display: flex; align-items: center; gap: 8px; font-size: 14px; line-height: 20px; color: #101115; cursor: pointer; white-space: nowrap;">
+<input type="radio" name="kit-lang" class="rk-check sr-only" checked="{{ kl.en.on }}" onChange="{{ kl.en.pick }}">
+<span aria-hidden="true" style="width: 16px; height: 16px; box-sizing: border-box; flex: none; border: 1px solid {{ kl.en.ring }}; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ kl.en.dot }};"></span></span>
+<span>English</span>
+</label>
+<label style="display: flex; align-items: center; gap: 8px; font-size: 14px; line-height: 20px; color: #101115; cursor: pointer; white-space: nowrap;">
+<input type="radio" name="kit-lang" class="rk-check sr-only" checked="{{ kl.bg.on }}" onChange="{{ kl.bg.pick }}">
+<span aria-hidden="true" style="width: 16px; height: 16px; box-sizing: border-box; flex: none; border: 1px solid {{ kl.bg.ring }}; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ kl.bg.dot }};"></span></span>
+<span><span lang="bg">Български</span></span>
+</label>
+<label style="display: flex; align-items: center; gap: 8px; font-size: 14px; line-height: 20px; color: #101115; cursor: pointer; white-space: nowrap;">
+<input type="radio" name="kit-lang" class="rk-check sr-only" checked="{{ kl.es.on }}" onChange="{{ kl.es.pick }}">
+<span aria-hidden="true" style="width: 16px; height: 16px; box-sizing: border-box; flex: none; border: 1px solid {{ kl.es.ring }}; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ kl.es.dot }};"></span></span>
+<span><span lang="es">Español</span></span>
+</label>
+<label style="display: flex; align-items: center; gap: 8px; font-size: 14px; line-height: 20px; color: #101115; cursor: pointer; white-space: nowrap;">
+<input type="radio" name="kit-lang" class="rk-check sr-only" checked="{{ kl.de.on }}" onChange="{{ kl.de.pick }}">
+<span aria-hidden="true" style="width: 16px; height: 16px; box-sizing: border-box; flex: none; border: 1px solid {{ kl.de.ring }}; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ kl.de.dot }};"></span></span>
+<span><span lang="de">Deutsch</span></span>
+</label>
+</div>
+</fieldset>
+<fieldset style="margin: 20px 0 0; padding: 0; border: 0; min-width: 0;">
+<legend style="padding: 0; margin-bottom: 8px; font-size: 14px; line-height: 20px; font-weight: 500; color: #101115;">Call to action</legend>
+<div style="display: flex; flex-direction: column; gap: 8px;">
+<label style="display: flex; align-items: center; gap: 8px; font-size: 14px; line-height: 20px; color: #101115; cursor: pointer; white-space: nowrap;">
+<input type="radio" name="kit-cta" class="rk-check sr-only" checked="{{ kc.rate.on }}" onChange="{{ kc.rate.pick }}">
+<span aria-hidden="true" style="width: 16px; height: 16px; box-sizing: border-box; flex: none; border: 1px solid {{ kc.rate.ring }}; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ kc.rate.dot }};"></span></span>
+<span>Rate your visit — private, about 30 seconds</span>
+</label>
+<label style="display: flex; align-items: center; gap: 8px; font-size: 14px; line-height: 20px; color: #101115; cursor: pointer; white-space: nowrap;">
+<input type="radio" name="kit-cta" class="rk-check sr-only" checked="{{ kc.stay.on }}" onChange="{{ kc.stay.pick }}">
+<span aria-hidden="true" style="width: 16px; height: 16px; box-sizing: border-box; flex: none; border: 1px solid {{ kc.stay.ring }}; border-radius: 50%; display: flex; align-items: center; justify-content: center;"><span style="width: 6px; height: 6px; border-radius: 50%; background: {{ kc.stay.dot }};"></span></span>
+<span>How was your stay? Tell us privately</span>
+</label>
+</div>
+</fieldset>
+<div style="margin-top: 24px; display: flex; align-items: center; gap: 8px;">
+<button type="button" class="rk-primary" style="height: 36px; box-sizing: border-box; padding: 0 14px 0 12px; display: inline-flex; align-items: center; gap: 8px; border: 0; border-radius: 6px; font-size: 14px; line-height: 20px; font-weight: 500; color: #feffff; cursor: pointer;"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:none"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg>Download print kit (PDF)</button>
+
+</div>
+</section>
+</div>
+
+<section aria-labelledby="stage-title" style="flex: 1; min-width: 0; box-sizing: border-box; padding: 16px 0 24px; display: flex; flex-direction: column; justify-content: center; align-items: center; overflow: hidden; background: #f0f2f5;">
+<h2 id="stage-title" class="sr-only">Print preview</h2>
+<p style="margin: 0; height: 20px; font-size: 13px; line-height: 20px; color: #5b5d63; white-space: nowrap;">{{ caption }}</p>
+<div style="position: relative; margin-top: 16px; width: 451px; height: 613px; flex: none;">
+<span aria-hidden="true" style="position: absolute; left: 0; top: 27px; width: 12px; height: 1px; background: #101115;"></span>
+<span aria-hidden="true" style="position: absolute; left: 27px; top: 0; width: 1px; height: 12px; background: #101115;"></span>
+<span aria-hidden="true" style="position: absolute; left: 439px; top: 27px; width: 12px; height: 1px; background: #101115;"></span>
+<span aria-hidden="true" style="position: absolute; left: 424px; top: 0; width: 1px; height: 12px; background: #101115;"></span>
+<span aria-hidden="true" style="position: absolute; left: 0; top: 586px; width: 12px; height: 1px; background: #101115;"></span>
+<span aria-hidden="true" style="position: absolute; left: 27px; top: 601px; width: 1px; height: 12px; background: #101115;"></span>
+<span aria-hidden="true" style="position: absolute; left: 439px; top: 586px; width: 12px; height: 1px; background: #101115;"></span>
+<span aria-hidden="true" style="position: absolute; left: 424px; top: 601px; width: 1px; height: 12px; background: #101115;"></span>
+<div role="img" aria-label="{{ art.label }}" style="position: absolute; left: 16px; top: 16px; width: 419px; height: 581px; overflow: hidden; background: #0d1210; box-shadow: 0 1px 2px rgba(16,17,21,.14), 0 16px 40px -12px rgba(16,17,21,.38); color: #f6f1e8; font-family: 'Ysabeau Office', 'Manrope', system-ui, sans-serif;">
+<img src="/_blob/cfcf9382aa0363912c000cbcefd37ae8" alt="" width="414" height="280" style="position: absolute; left: -90px; top: -60px; width: 600px; height: 760px; object-fit: cover; object-position: 50% 62%; filter: blur(36px) saturate(1.35) brightness(0.5);">
+<div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: 419px; height: 581px; background: radial-gradient(circle at 12% 88%, rgba(234,214,168,0.2) 0%, rgba(234,214,168,0) 46%), radial-gradient(circle at 96% 58%, rgba(126,160,146,0.2) 0%, rgba(126,160,146,0) 42%);"></div>
+<img src="/_blob/cfcf9382aa0363912c000cbcefd37ae8" alt="" width="414" height="280" style="position: absolute; left: 0; top: 0; width: 419px; height: 262px; object-fit: cover; object-position: 50% 42%; -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 48%, rgba(0,0,0,0.5) 74%, rgba(0,0,0,0) 100%); mask-image: linear-gradient(180deg, #000 0%, #000 48%, rgba(0,0,0,0.5) 74%, rgba(0,0,0,0) 100%);">
+<div aria-hidden="true" style="position: absolute; left: 0; top: 0; width: 419px; height: 110px; background: linear-gradient(180deg, rgba(6,9,8,0.62) 0%, rgba(6,9,8,0) 100%);"></div>
+<div aria-hidden="true" style="position: absolute; left: 0; top: 104px; width: 419px; height: 180px; background: radial-gradient(ellipse 72% 60% at 50% 62%, rgba(8,10,9,0.6) 0%, rgba(8,10,9,0) 100%);"></div>
+<div style="position: absolute; left: 11px; top: 11px; width: 397px; height: 559px; box-sizing: border-box; padding: 0 28px; display: flex; flex-direction: column; align-items: center; text-align: center;">
+<p style="margin: 22px 0 0; padding-left: 0.38em; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 17px; line-height: 20px; letter-spacing: 0.38em; text-transform: uppercase; color: #ffffff;">Avela</p>
+<p lang="{{ art.l1 }}" style="margin: 108px 0 0; padding-left: 0.3em; font-weight: 600; font-size: 10.5px; line-height: 14px; letter-spacing: 0.3em; text-transform: uppercase; color: #efdcb4;">{{ art.kicker }}</p>
+<p lang="{{ art.l1 }}" style="margin: 8px 0 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 38px; line-height: 40px; color: #ffffff; text-shadow: 0 2px 30px rgba(0,0,0,0.45); text-wrap: balance;">{{ art.h1 }}</p>
+<p lang="{{ art.l1 }}" style="margin: 4px 0 0; font-size: 14px; line-height: 20px; color: rgba(255,255,255,0.84);">{{ art.s1 }}</p>
+<sc-if value="{{ art.two }}" hint-placeholder-val="{{ true }}">
+<span aria-hidden="true" style="margin-top: 14px; width: 32px; height: 1px; flex: none; background: rgba(234,214,168,0.55);"></span>
+<p lang="{{ art.l2 }}" style="margin: 13px 0 0; font-family: 'Cormorant Garamond', Georgia, serif; font-weight: 600; font-size: 23px; line-height: 28px; color: rgba(255,255,255,0.94);">{{ art.h2 }}</p>
+<p lang="{{ art.l2 }}" style="margin: 2px 0 0; font-size: 12.5px; line-height: 18px; color: rgba(255,255,255,0.72);">{{ art.s2 }}</p>
+</sc-if>
+<div style="margin-top: 18px; width: 176px; height: 176px; flex: none; box-sizing: border-box; padding: 13px; border-radius: 24px; background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 18px 44px rgba(0,0,0,0.3), inset 0 1px 0 rgba(255,255,255,0.16);">
+<div style="width: 148px; height: 148px; border-radius: 6px; overflow: hidden; background: #f6f1e6;"><svg width="148" height="148" viewBox="0 0 37 37" shape-rendering="crispEdges" aria-hidden="true" style="display: block;"><path fill="#121614" d="M4 4h7v1h-7zM16 4h1v1h-1zM19 4h2v1h-2zM26 4h7v1h-7zM4 5h1v1h-1zM10 5h1v1h-1zM12 5h2v1h-2zM17 5h2v1h-2zM23 5h2v1h-2zM26 5h1v1h-1zM32 5h1v1h-1zM4 6h1v1h-1zM6 6h3v1h-3zM10 6h1v1h-1zM14 6h2v1h-2zM17 6h1v1h-1zM19 6h1v1h-1zM21 6h1v1h-1zM23 6h1v1h-1zM26 6h1v1h-1zM28 6h3v1h-3zM32 6h1v1h-1zM4 7h1v1h-1zM6 7h3v1h-3zM10 7h1v1h-1zM15 7h2v1h-2zM20 7h4v1h-4zM26 7h1v1h-1zM28 7h3v1h-3zM32 7h1v1h-1zM4 8h1v1h-1zM6 8h3v1h-3zM10 8h1v1h-1zM12 8h2v1h-2zM16 8h3v1h-3zM21 8h3v1h-3zM26 8h1v1h-1zM28 8h3v1h-3zM32 8h1v1h-1zM4 9h1v1h-1zM10 9h1v1h-1zM13 9h1v1h-1zM15 9h2v1h-2zM18 9h1v1h-1zM24 9h1v1h-1zM26 9h1v1h-1zM32 9h1v1h-1zM4 10h7v1h-7zM12 10h1v1h-1zM14 10h1v1h-1zM16 10h1v1h-1zM18 10h1v1h-1zM20 10h1v1h-1zM22 10h1v1h-1zM24 10h1v1h-1zM26 10h7v1h-7zM16 11h1v1h-1zM18 11h1v1h-1zM22 11h1v1h-1zM24 11h1v1h-1zM5 12h1v1h-1zM7 12h1v1h-1zM10 12h4v1h-4zM15 12h3v1h-3zM20 12h2v1h-2zM23 12h2v1h-2zM27 12h1v1h-1zM29 12h1v1h-1zM31 12h1v1h-1zM6 13h1v1h-1zM9 13h1v1h-1zM11 13h4v1h-4zM16 13h1v1h-1zM22 13h2v1h-2zM25 13h1v1h-1zM32 13h1v1h-1zM4 14h1v1h-1zM7 14h2v1h-2zM10 14h1v1h-1zM13 14h3v1h-3zM17 14h1v1h-1zM21 14h1v1h-1zM23 14h1v1h-1zM25 14h1v1h-1zM29 14h2v1h-2zM4 15h4v1h-4zM11 15h1v1h-1zM13 15h1v1h-1zM16 15h1v1h-1zM23 15h2v1h-2zM28 15h3v1h-3zM32 15h1v1h-1zM5 16h1v1h-1zM10 16h3v1h-3zM16 16h3v1h-3zM22 16h1v1h-1zM24 16h1v1h-1zM26 16h1v1h-1zM29 16h2v1h-2zM6 17h2v1h-2zM11 17h2v1h-2zM15 17h1v1h-1zM19 17h3v1h-3zM23 17h2v1h-2zM26 17h1v1h-1zM32 17h1v1h-1zM7 18h2v1h-2zM10 18h1v1h-1zM12 18h1v1h-1zM14 18h2v1h-2zM18 18h5v1h-5zM24 18h1v1h-1zM26 18h5v1h-5zM4 19h1v1h-1zM6 19h3v1h-3zM14 19h2v1h-2zM19 19h1v1h-1zM23 19h3v1h-3zM28 19h1v1h-1zM30 19h3v1h-3zM6 20h1v1h-1zM8 20h3v1h-3zM12 20h1v1h-1zM14 20h1v1h-1zM16 20h2v1h-2zM20 20h5v1h-5zM28 20h1v1h-1zM31 20h2v1h-2zM6 21h1v1h-1zM8 21h1v1h-1zM11 21h1v1h-1zM13 21h4v1h-4zM20 21h1v1h-1zM24 21h1v1h-1zM26 21h3v1h-3zM8 22h4v1h-4zM15 22h3v1h-3zM21 22h3v1h-3zM25 22h1v1h-1zM29 22h3v1h-3zM4 23h1v1h-1zM6 23h1v1h-1zM8 23h2v1h-2zM11 23h2v1h-2zM14 23h1v1h-1zM16 23h9v1h-9zM26 23h1v1h-1zM29 23h1v1h-1zM31 23h1v1h-1zM4 24h2v1h-2zM7 24h1v1h-1zM10 24h1v1h-1zM13 24h1v1h-1zM16 24h1v1h-1zM19 24h1v1h-1zM21 24h2v1h-2zM24 24h7v1h-7zM12 25h1v1h-1zM17 25h1v1h-1zM19 25h1v1h-1zM21 25h2v1h-2zM24 25h1v1h-1zM28 25h2v1h-2zM31 25h1v1h-1zM4 26h7v1h-7zM13 26h1v1h-1zM17 26h1v1h-1zM19 26h3v1h-3zM23 26h2v1h-2zM26 26h1v1h-1zM28 26h4v1h-4zM4 27h1v1h-1zM10 27h1v1h-1zM14 27h1v1h-1zM16 27h1v1h-1zM20 27h2v1h-2zM23 27h2v1h-2zM28 27h3v1h-3zM32 27h1v1h-1zM4 28h1v1h-1zM6 28h3v1h-3zM10 28h1v1h-1zM12 28h2v1h-2zM15 28h1v1h-1zM21 28h1v1h-1zM24 28h6v1h-6zM4 29h1v1h-1zM6 29h3v1h-3zM10 29h1v1h-1zM12 29h1v1h-1zM14 29h2v1h-2zM17 29h2v1h-2zM20 29h1v1h-1zM22 29h1v1h-1zM30 29h3v1h-3zM4 30h1v1h-1zM6 30h3v1h-3zM10 30h1v1h-1zM12 30h1v1h-1zM16 30h3v1h-3zM23 30h5v1h-5zM30 30h1v1h-1zM32 30h1v1h-1zM4 31h1v1h-1zM10 31h1v1h-1zM13 31h4v1h-4zM19 31h3v1h-3zM25 31h2v1h-2zM30 31h1v1h-1zM32 31h1v1h-1zM4 32h7v1h-7zM13 32h1v1h-1zM16 32h2v1h-2zM20 32h5v1h-5zM28 32h1v1h-1zM30 32h3v1h-3z"/></svg></div>
+</div>
+<p style="margin: 12px 0 0; font-size: 11px; line-height: 14px; letter-spacing: 0.02em; color: rgba(255,255,255,0.66);">app.reputationkey.app/p/r4Tn8wQ2mLx6</p>
+</div>
+</div>
+</div>
+<p style="margin: 14px 0 0; font-size: 12px; line-height: 16px; color: #5b5d63; white-space: nowrap;">{{ captionBottom }}</p>
+</section>
+</div>
+</main>
+</div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":960}}'>
+class Component extends DCLogic {
+  setPop(key) {
+    var current = (this.state && this.state.pop) || '';
+    this.setState({ pop: current === key ? '' : key });
+  }
+  setMenu(key) {
+    var current = this.state && this.state.menu !== undefined ? this.state.menu : 'code';
+    this.setState({ menu: current === key ? '' : key });
+  }
+  rove(e) {
+    var key = e.key;
+    if (key !== 'ArrowRight' && key !== 'ArrowLeft' && key !== 'ArrowDown' && key !== 'ArrowUp') return;
+    e.preventDefault();
+    var group = e.currentTarget.closest('[role="radiogroup"]');
+    if (!group) return;
+    var items = Array.prototype.slice.call(group.querySelectorAll('[role="radio"]'));
+    var step = key === 'ArrowRight' || key === 'ArrowDown' ? 1 : -1;
+    var next = items[(items.indexOf(e.currentTarget) + step + items.length) % items.length];
+    if (next) { next.focus(); next.click(); }
+  }
+  renderVals() {
+    var s = this.state || {};
+    var self = this;
+    var face = s.face || 'front';
+    var piece = s.piece || 'tent';
+    var lang = s.lang || 'enbg';
+    var cta = s.cta || 'rate';
+    var menu = s.menu !== undefined ? s.menu : 'code';
+    var pop = s.pop || '';
+
+    // Print copy per language: [call to action, line under it] for each call-to-action choice.
+    var copy = {
+      en: { kicker: 'Pool & Terrace', rate: ['Rate your visit', 'Private, about 30 seconds'], stay: ['How was your stay?', 'Tell us privately'], words: 'English' },
+      bg: { kicker: 'Басейн и тераса', rate: ['Оценете посещението си', 'Поверително, около 30 секунди'], stay: ['Как беше престоят ви?', 'Кажете ни поверително'], words: 'Bulgarian' },
+      es: { kicker: 'Piscina y terraza', rate: ['Valore su visita', 'En privado, unos 30 segundos'], stay: ['¿Qué tal su estancia?', 'Cuéntenoslo en privado'], words: 'Spanish' },
+      de: { kicker: 'Pool & Terrasse', rate: ['Bewerten Sie Ihren Besuch', 'Privat, etwa 30 Sekunden'], stay: ['Wie war Ihr Aufenthalt?', 'Sagen Sie es uns privat'], words: 'German' }
+    };
+    var first = lang === 'enbg' ? (face === 'front' ? 'en' : 'bg') : lang;
+    var second = lang === 'enbg' ? (face === 'front' ? 'bg' : 'en') : '';
+    var a = copy[first];
+    var b = second ? copy[second] : null;
+
+    var pieces = {
+      tent: ['Table tent A6', '105 × 148 mm', 'table tent'],
+      counter: ['Counter card A6', '105 × 148 mm', 'counter card'],
+      nfc: ['NFC card', '85 × 54 mm', 'NFC card'],
+      sticker: ['Sticker', '60 mm round', 'sticker'],
+      poster: ['Poster A4', '210 × 297 mm', 'poster']
+    };
+    var p = pieces[piece];
+    var twoSided = piece === 'tent' || piece === 'counter' || piece === 'nfc';
+    var caption = p[0] + (twoSided ? ' · ' + face : '') + ' · ' + p[1] + ' · QR with a 4-module quiet zone';
+    var captionBottom = piece === 'tent'
+      ? 'Shown at actual size · PDF with 3 mm bleed and crop marks'
+      : 'PDF with 3 mm bleed and crop marks';
+
+    function seg(on, pick) {
+      return {
+        on: on,
+        tab: on ? '0' : '-1',
+        look: on ? 'background: #feffff; box-shadow: 0 0 0 1px #85878d, 0 1px 2px rgba(0,0,0,.1); font-weight: 500; color: #101115;' : 'background: transparent; box-shadow: none; font-weight: 400; color: #5b5d63;',
+        pick: pick
+      };
+    }
+    function choice(on, pick) {
+      return {
+        on: on,
+        edge: on ? '#512da6' : '#dcdee2',
+        fill: on ? '#f6f5fb' : 'transparent',
+        ring: on ? '#512da6' : '#85878d',
+        dot: on ? '#512da6' : 'transparent',
+        pick: pick
+      };
+    }
+    function set(key, value) { return function () { var o = {}; o[key] = value; self.setState(o); }; }
+    function menuOf(key) {
+      return { open: menu === key, look: menu === key ? 'background: #f0f2f5;' : '', toggle: function () { self.setMenu(key); } };
+    }
+
+    return {
+      fFront: seg(face === 'front', set('face', 'front')),
+      fBack: seg(face === 'back', set('face', 'back')),
+      pc: {
+        tent: choice(piece === 'tent', set('piece', 'tent')),
+        counter: choice(piece === 'counter', set('piece', 'counter')),
+        nfc: choice(piece === 'nfc', set('piece', 'nfc')),
+        sticker: choice(piece === 'sticker', set('piece', 'sticker')),
+        poster: choice(piece === 'poster', set('piece', 'poster'))
+      },
+      kl: {
+        enbg: choice(lang === 'enbg', set('lang', 'enbg')),
+        en: choice(lang === 'en', set('lang', 'en')),
+        bg: choice(lang === 'bg', set('lang', 'bg')),
+        es: choice(lang === 'es', set('lang', 'es')),
+        de: choice(lang === 'de', set('lang', 'de'))
+      },
+      kc: {
+        rate: choice(cta === 'rate', set('cta', 'rate')),
+        stay: choice(cta === 'stay', set('cta', 'stay'))
+      },
+      art: {
+        l1: first,
+        l2: second || first,
+        kicker: a.kicker,
+        h1: a[cta][0],
+        s1: a[cta][1],
+        two: !!b,
+        h2: b ? b[cta][0] : '',
+        s2: b ? b[cta][1] : '',
+        label: 'Print preview: ' + p[2] + ', ' + (twoSided ? face + ', ' : '') + a.words + (b ? ' and ' + b.words : '') + ', "' + a[cta][0] + '", the QR code on a light plate and the address as text'
+      },
+      caption: caption,
+      captionBottom: captionBottom,
+      m: {
+        code: menuOf('code')
+      },
+      rove: function (e) { self.rove(e); },
+      popChanges: pop === 'changes',
+      toggleChangesPop: function () { self.setPop('changes'); }
+    };
+  }
+}
+</script>
+</body>
+</html>

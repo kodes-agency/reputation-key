@@ -1,0 +1,195 @@
+{
+  "v": 3,
+  "attachments": {},
+  "boards": {
+    "AVA3-overview-improved.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 1440,
+      "h": 960,
+      "page": "improved",
+      "title": "1 · Portals overview"
+    },
+    "AVA4-editor-improved.dc.html": {
+      "x": 1520,
+      "y": 0,
+      "w": 1440,
+      "h": 960,
+      "page": "improved",
+      "title": "2 · Editor · Page tab",
+      "is_interactive": true
+    },
+    "AP03-new-portal.dc.html": {
+      "x": 3040,
+      "y": 0,
+      "w": 1440,
+      "h": 960,
+      "page": "improved",
+      "title": "3 · New portal",
+      "is_interactive": true
+    },
+    "AP04-editor-languages.dc.html": {
+      "x": 4560,
+      "y": 0,
+      "w": 1440,
+      "h": 960,
+      "page": "improved",
+      "title": "4 · Editor · Languages",
+      "is_interactive": true
+    },
+    "AP05-review-and-publish.dc.html": {
+      "x": 0,
+      "y": 1380,
+      "w": 1440,
+      "h": 960,
+      "page": "improved",
+      "title": "5 · Review & publish",
+      "is_interactive": true
+    },
+    "AP06-share.dc.html": {
+      "x": 1520,
+      "y": 1380,
+      "w": 1440,
+      "h": 960,
+      "page": "improved",
+      "title": "6 · Share · the code and print kit",
+      "is_interactive": true
+    },
+    "AP07-results.dc.html": {
+      "x": 3040,
+      "y": 1380,
+      "w": 1440,
+      "h": 960,
+      "page": "improved",
+      "title": "7 · Results",
+      "is_interactive": true
+    },
+    "AP08-history.dc.html": {
+      "x": 4560,
+      "y": 1380,
+      "w": 1440,
+      "h": 960,
+      "page": "improved",
+      "title": "8 · History and versions",
+      "is_interactive": true
+    },
+    "AP09-property-look.dc.html": {
+      "x": 0,
+      "y": 2760,
+      "w": 1440,
+      "h": 960,
+      "page": "improved",
+      "title": "9 · Property look (Account admin)",
+      "is_interactive": true
+    },
+    "AP10-all-properties.dc.html": {
+      "x": 1520,
+      "y": 2760,
+      "w": 1440,
+      "h": 960,
+      "page": "improved",
+      "title": "10 · All properties",
+      "is_interactive": true
+    },
+    "AP11-phone-portals.dc.html": {
+      "x": 3040,
+      "y": 2760,
+      "w": 390,
+      "h": 844,
+      "page": "improved",
+      "title": "11 · Phone · Portals"
+    },
+    "AP12-new-group.dc.html": {
+      "x": 0,
+      "y": 4140,
+      "w": 1440,
+      "h": 960,
+      "page": "improved",
+      "title": "12 · New group",
+      "is_interactive": true
+    },
+    "AP13-group.dc.html": {
+      "x": 1520,
+      "y": 4140,
+      "w": 1440,
+      "h": 960,
+      "page": "improved",
+      "title": "13 · Group · Pool side"
+    },
+    "AP14-photo-upload.dc.html": {
+      "x": 3040,
+      "y": 4140,
+      "w": 1440,
+      "h": 960,
+      "page": "improved",
+      "title": "14 · Replace photo (upload)",
+      "is_interactive": true
+    }
+  },
+  "createdOnFiles": {
+    "at": "2026-09-19T03:12:00+03:00",
+    "v": 1
+  },
+  "designSystems": [],
+  "launch": {
+    "view": "canvas",
+    "page": "improved"
+  },
+  "notes": {
+    "aplus1": {
+      "kind": "title1",
+      "maxW": 6000,
+      "text": "Portals and editing",
+      "x": 0,
+      "y": -300,
+      "page": "improved"
+    },
+    "aplus2": {
+      "kind": "title1",
+      "maxW": 6000,
+      "text": "Publishing, sharing, results and history",
+      "x": 0,
+      "y": 1080,
+      "page": "improved"
+    },
+    "aplus3": {
+      "kind": "title1",
+      "maxW": 3430,
+      "text": "Property look, all properties and phone",
+      "x": 0,
+      "y": 2460,
+      "page": "improved"
+    },
+    "aplus4": {
+      "kind": "title1",
+      "maxW": 4480,
+      "text": "Groups and photo upload",
+      "x": 0,
+      "y": 3840,
+      "page": "improved"
+    }
+  },
+  "order": [
+    "AVA3-overview-improved.dc.html",
+    "AVA4-editor-improved.dc.html",
+    "AP03-new-portal.dc.html",
+    "AP04-editor-languages.dc.html",
+    "AP05-review-and-publish.dc.html",
+    "AP06-share.dc.html",
+    "AP07-results.dc.html",
+    "AP08-history.dc.html",
+    "AP09-property-look.dc.html",
+    "AP10-all-properties.dc.html",
+    "AP11-phone-portals.dc.html",
+    "AP12-new-group.dc.html",
+    "AP13-group.dc.html",
+    "AP14-photo-upload.dc.html"
+  ],
+  "pages": [
+    {
+      "id": "improved",
+      "name": "A+ · Workspace · full set"
+    }
+  ],
+  "title": "Portal Admin Redesign"
+}

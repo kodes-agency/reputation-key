@@ -1,0 +1,170 @@
+{
+  "v": 3,
+  "createdOnFiles": {
+    "v": 1,
+    "at": "2026-09-29T23:10:00+03:00"
+  },
+  "title": "Guest Portal Versions",
+  "launch": {
+    "view": "canvas",
+    "page": "screens"
+  },
+  "pages": [
+    {
+      "id": "screens",
+      "name": "Immersive Hub · all screens"
+    },
+    {
+      "id": "versions",
+      "name": "Versions"
+    }
+  ],
+  "boards": {
+    "G01-arrival.dc.html": {
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "G01 · Arrival",
+      "page": "screens"
+    },
+    "G02-language-sheet.dc.html": {
+      "x": 470,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "G02 · Language sheet (any number of languages)",
+      "page": "screens"
+    },
+    "G03-rating-selected.dc.html": {
+      "x": 940,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "G03 · Rating chosen",
+      "page": "screens"
+    },
+    "G04-after-low.dc.html": {
+      "x": 1410,
+      "y": 0,
+      "w": 390,
+      "h": 1100,
+      "title": "G04 · After 2★ · Google + private note",
+      "page": "screens"
+    },
+    "G05-after-high.dc.html": {
+      "x": 1880,
+      "y": 0,
+      "w": 390,
+      "h": 944,
+      "title": "G05 · After 5★ · same Google card, no note",
+      "page": "screens"
+    },
+    "G06-note-writing.dc.html": {
+      "x": 2350,
+      "y": 0,
+      "w": 390,
+      "h": 1300,
+      "title": "G06 · Writing a private note",
+      "page": "screens"
+    },
+    "G07-done.dc.html": {
+      "x": 2820,
+      "y": 0,
+      "w": 390,
+      "h": 1360,
+      "title": "G07 · Done · your response open",
+      "page": "screens"
+    },
+    "G08-google-unavailable.dc.html": {
+      "x": 0,
+      "y": 1780,
+      "w": 390,
+      "h": 1030,
+      "title": "G08 · Google unavailable (3★)",
+      "page": "screens"
+    },
+    "G09-no-photo.dc.html": {
+      "x": 470,
+      "y": 1780,
+      "w": 390,
+      "h": 844,
+      "title": "G09 · No photo yet (colour field)",
+      "page": "screens"
+    },
+    "G11-bulgarian-error.dc.html": {
+      "x": 1410,
+      "y": 1780,
+      "w": 390,
+      "h": 912,
+      "title": "G11 · Bulgarian · no rating chosen",
+      "page": "screens"
+    },
+    "G12-unavailable.dc.html": {
+      "x": 1880,
+      "y": 1780,
+      "w": 390,
+      "h": 844,
+      "title": "G12 · Page unavailable (brand-free)",
+      "page": "screens"
+    },
+    "V4-immersive-hub.dc.html": {
+      "x": 1410,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "title": "4 · Immersive Hub (1 + 3) · chosen",
+      "page": "versions"
+    },
+    "G10-german.dc.html": {
+      "x": 940,
+      "y": 1780,
+      "w": 390,
+      "h": 844,
+      "title": "G10 · German (long words)",
+      "page": "screens"
+    }
+  },
+  "order": [
+    "G01-arrival.dc.html",
+    "G02-language-sheet.dc.html",
+    "G03-rating-selected.dc.html",
+    "G04-after-low.dc.html",
+    "G05-after-high.dc.html",
+    "G06-note-writing.dc.html",
+    "G07-done.dc.html",
+    "G08-google-unavailable.dc.html",
+    "G09-no-photo.dc.html",
+    "G10-german.dc.html",
+    "G11-bulgarian-error.dc.html",
+    "G12-unavailable.dc.html",
+    "V4-immersive-hub.dc.html"
+  ],
+  "notes": {
+    "journey": {
+      "x": 0,
+      "y": -300,
+      "kind": "title1",
+      "text": "Immersive Hub · the guest journey",
+      "maxW": 3210,
+      "page": "screens"
+    },
+    "variants": {
+      "x": 0,
+      "y": 1480,
+      "kind": "title1",
+      "text": "Languages, fallbacks and edge cases",
+      "maxW": 2270,
+      "page": "screens"
+    },
+    "row": {
+      "x": 0,
+      "y": -300,
+      "kind": "title1",
+      "text": "Guest portal · versions",
+      "maxW": 1800,
+      "page": "versions"
+    }
+  },
+  "designSystems": []
+}
