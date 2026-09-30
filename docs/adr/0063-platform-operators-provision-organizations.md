@@ -39,8 +39,10 @@ denies everyone it does not list. The beta has no MFA.
    The invitation is the ordinary invitation command, with the same guards, and
    the operator is its inviter. If the invitation is refused (the address
    belongs to, or is invited by, another Organization) nothing is created. A
-   slug is taken once, under a per-slug lock. Invitation-bound registration
-   remains the only way an account is created.
+   slug is taken once: the Organization insert comes first, so the slug's
+   unique index refuses a second one (a concurrent one as soon as the first
+   commits) as `already_exists` before anyone is invited. Invitation-bound
+   registration remains the only way an account is created.
 3. **Ownerless only.** The console acts on an Organization only while it has
    no AccountAdmin. It can invite another admin, and resend or cancel an open
    AccountAdmin invitation. Inviting and resending need an active

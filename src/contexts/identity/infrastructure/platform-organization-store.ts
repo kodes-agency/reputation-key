@@ -2,13 +2,13 @@
 // organization, member, invitation and organization_lifecycle_authority, plus
 // the `audit_logs` rows it writes.
 //
-// Provisioning is ONE transaction: a per-slug advisory lock and slug check,
-// the Organization insert (its insert trigger writes the lifecycle authority
-// row), then the ordinary AccountAdmin invitation command — the same guards,
-// row and `identity.member.invited` fact as any invitation — running in a
-// savepoint of this transaction. A refused invitation therefore rolls the
-// Organization back too, and no Organization is ever left half-made. The
-// operator never gets a member row.
+// Provisioning is ONE transaction: the Organization insert (its insert
+// trigger writes the lifecycle authority row; the slug's unique index refuses
+// a taken slug as `already_exists`), then the ordinary AccountAdmin
+// invitation command — the same guards, row and `identity.member.invited`
+// fact as any invitation — running in a savepoint of this transaction. A
+// refused invitation therefore rolls the Organization back too, and no
+// Organization is ever left half-made. The operator never gets a member row.
 //
 // Every change (provision, invite, resend, cancel) commits one `audit_logs`
 // row in the same transaction: the Organization, the operator and the action.
@@ -238,20 +238,6 @@ function toRow(
   }
 }
 
-async function takeSlug(tx: Tx, slug: string): Promise<void> {
-  // Serialize provisioning per slug so a concurrent attempt waits, then sees
-  // the committed row; the unique index stays the backstop.
-  await tx.execute(
-    sql`SELECT pg_advisory_xact_lock(hashtextextended(${`organization-slug:${slug}`}, 0))`,
-  )
-  const taken = await tx
-    .select({ id: organization.id })
-    .from(organization)
-    .where(eq(organization.slug, slug))
-    .limit(1)
-  if (taken[0]) throw identityError('already_exists', SLUG_TAKEN_MESSAGE)
-}
-
 export function createPlatformOrganizationStore(
   db: Database,
   idGen: () => string,
@@ -339,7 +325,9 @@ export function createPlatformOrganizationStore(
         }
         try {
           await db.transaction(async (tx) => {
-            await takeSlug(tx, command.slug)
+            // The slug's unique index is the only guard it needs: a second
+            // insert of a taken slug fails (a concurrent one once the first
+            // commits), before this transaction invites anyone.
             await tx.insert(organization).values({
               id: command.organizationId as string,
               name: command.name,
