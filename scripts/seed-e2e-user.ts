@@ -34,10 +34,10 @@ import {
 } from '../src/shared/db/schema'
 import { propertyResponsibleManagers } from '../src/shared/db/schema/property.schema'
 import { buildPortalPublicationSnapshot } from '../src/contexts/portal/application/portal-publication-snapshot'
-import { OFFERED_GUEST_LOCALES } from '../src/shared/domain/guest-locale'
 import {
   isLocalizedConfiguration,
   PORTAL_LANGUAGE_PACK_VERSIONS,
+  type PortalGuestLocale,
 } from '../src/contexts/portal/domain/portal-publication-snapshot'
 import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../src/contexts/portal/domain/approved-destination'
 import { portalGroups } from '../src/shared/db/schema/portal-group.schema'
@@ -476,7 +476,10 @@ function stableJson(value: unknown): string {
   )
 }
 
-const PORTAL_LOCALE_SET = OFFERED_GUEST_LOCALES
+// The seed publishes a schema-v2 snapshot, so its locale set is the pinned v2 one.
+const PORTAL_LOCALE_SET = Object.keys(
+  PORTAL_LANGUAGE_PACK_VERSIONS,
+) as PortalGuestLocale[]
 
 /**
  * Whether the stored snapshot already publishes exactly what this seed would.

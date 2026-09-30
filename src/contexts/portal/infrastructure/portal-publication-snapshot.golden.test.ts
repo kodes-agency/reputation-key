@@ -5,10 +5,8 @@ import {
   buildPortalPublicationSnapshot,
   verifyPortalPublicationSnapshot,
 } from '../application/portal-publication-snapshot'
-import {
-  PORTAL_LANGUAGE_PACK_VERSIONS,
-  snapshotMirrorColumns,
-} from '../domain/portal-publication-snapshot'
+import { PORTAL_LANGUAGE_PACK_VERSIONS } from '../domain/portal-publication-snapshot'
+import { snapshotMirrorColumns } from './mappers/portal-publication-snapshot.mapper'
 import {
   GOLDEN_BUILDER_INPUTS,
   GOLDEN_SNAPSHOT_ROWS,
@@ -85,7 +83,7 @@ describe('golden publication snapshots', () => {
     expect(snapshotFromRow({ ...seeded, brandProfileVersion: 2 })).toBeNull()
   })
 
-  it('fails closed on a schema version this build does not know', () => {
+  it('rejects a stored row whose schema version this build does not know', () => {
     const seeded = GOLDEN_SNAPSHOT_ROWS.v2Seeded
 
     for (const schemaVersion of [0, 3, 99]) {
@@ -94,6 +92,23 @@ describe('golden publication snapshots', () => {
         configuration: { ...seeded.configuration, schemaVersion },
       }
       expect(snapshotFromRow(row)).toBeNull()
+    }
+  })
+
+  it('makes the verifier itself refuse a re-digested unknown schema version', () => {
+    const seeded = GOLDEN_SNAPSHOT_ROWS.v2Seeded
+    const snapshot = snapshotFromRow(seeded)
+    expect(snapshot).not.toBeNull()
+    if (!snapshot) return
+
+    for (const schemaVersion of [0, 3, 99]) {
+      const configuration = { ...snapshot.configuration, schemaVersion }
+      const redigested = {
+        ...snapshot,
+        configuration,
+        configurationDigest: sha256OfCanonicalConfiguration(configuration),
+      } as unknown as typeof snapshot
+      expect(verifyPortalPublicationSnapshot(redigested)).toBe(false)
     }
   })
 

@@ -50,10 +50,15 @@ const ALLOWLIST: ReadonlyArray<
 ]
 
 const FORBIDDEN: ReadonlyArray<Readonly<{ label: string; pattern: RegExp }>> = [
-  { label: "'en' | 'bg' union", pattern: /'en'\s*\|\s*'bg'/ },
-  { label: "['en', 'bg'] list", pattern: /\[\s*'en'\s*,\s*'bg'\s*\]/ },
-  { label: "=== 'bg' comparison", pattern: /[=!]==\s*'bg'/ },
-  { label: "'bg' === comparison", pattern: /'bg'\s*[=!]==/ },
+  { label: "'en' | 'bg' union", pattern: /'(?:en|bg)'\s*\|\s*'(?:bg|en)'/ },
+  {
+    label: "['en', 'bg'] list",
+    pattern: /\[\s*'(?:en|bg)'\s*,\s*'(?:bg|en)'\s*\]/,
+  },
+  { label: "== 'bg' comparison", pattern: /[=!]==?\s*'bg'/ },
+  { label: "'bg' == comparison", pattern: /'bg'\s*[=!]==?/ },
+  { label: "'bg' ternary", pattern: /'bg'\s*\?/ },
+  { label: ".includes('bg') lookup", pattern: /\.includes\(\s*'bg'\s*\)/ },
   { label: 'pinned pack id', pattern: /guest-ui-(?:en|bg)-v1/ },
 ]
 
@@ -77,6 +82,20 @@ function productionFiles(): string[] {
 }
 
 describe('guest locale literals', () => {
+  it.each([
+    ["type L = 'bg' | 'en'", "'en' | 'bg' union"],
+    ["const l = ['bg', 'en']", "['en', 'bg'] list"],
+    ["x == 'bg'", "== 'bg' comparison"],
+    ["'bg' != x", "'bg' == comparison"],
+    ["x = 'bg' ? 1 : 2", "'bg' ternary"],
+    ["list.includes('bg')", ".includes('bg') lookup"],
+  ])('recognises the spelling %s', (source, label) => {
+    const hits = FORBIDDEN.filter((rule) => rule.pattern.test(source)).map(
+      (rule) => rule.label,
+    )
+    expect(hits).toContain(label)
+  })
+
   it('keeps the two-locale checks and pinned pack ids out of production code', () => {
     const offenders = productionFiles().flatMap((path) => {
       if (ALLOWLIST.some((entry) => entry.match(path))) return []

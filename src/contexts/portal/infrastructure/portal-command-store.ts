@@ -56,10 +56,8 @@ import type {
 } from '../application/ports/portal-command-store.port'
 import type { Portal, PortalTheme } from '../domain/types'
 import { portalError } from '../domain/errors'
-import {
-  isLocalizedConfiguration,
-  snapshotMirrorColumns,
-} from '../domain/portal-publication-snapshot'
+import { isLocalizedConfiguration } from '../domain/portal-publication-snapshot'
+import { snapshotMirrorColumns } from './mappers/portal-publication-snapshot.mapper'
 import { portalToRow } from './mappers/portal.mapper'
 import { portalGroupToRow } from './mappers/portal-group.mapper'
 import { categoryToRow, linkToRow } from './mappers/portal-link.mapper'

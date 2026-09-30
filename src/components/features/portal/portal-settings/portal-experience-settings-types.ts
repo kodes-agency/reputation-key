@@ -17,6 +17,13 @@ export const PORTAL_GUEST_LOCALE_LABEL: Readonly<Record<OfferedGuestLocale, stri
 /** The one locale a manager can switch on beside English today. */
 export const OPTIONAL_GUEST_LOCALE = 'bg' satisfies OfferedGuestLocale
 
+/** The locales a Portal offers with the optional locale switched on or off. */
+export function guestLocalesWithOptional(
+  isOptionalEnabled: boolean,
+): readonly OfferedGuestLocale[] {
+  return isOptionalEnabled ? ['en', OPTIONAL_GUEST_LOCALE] : ['en']
+}
+
 /** Whether the Portal offers the optional locale, as primary or additional. */
 export function isOptionalGuestLocaleEnabled(
   portal: Readonly<{

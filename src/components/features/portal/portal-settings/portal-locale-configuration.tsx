@@ -4,17 +4,12 @@ import { Button } from '#/components/ui/button'
 import { Label } from '#/components/ui/label'
 import type { PortalData, UpdatePortalVariables } from '../shared/types'
 import { PortalExperienceActionError } from './portal-experience-action-error'
+import { type GuestLocale, type OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import {
-  OFFERED_GUEST_LOCALES,
-  type GuestLocale,
-  type OfferedGuestLocale,
-} from '#/shared/domain/guest-locale'
-import {
+  guestLocalesWithOptional,
   isOptionalGuestLocaleEnabled,
   PORTAL_GUEST_LOCALE_LABEL,
 } from './portal-experience-settings-types'
-
-const ENGLISH_ONLY: readonly OfferedGuestLocale[] = ['en']
 
 export function PortalLocaleConfiguration({
   portal,
@@ -29,8 +24,8 @@ export function PortalLocaleConfiguration({
   const persistedBulgarian = isOptionalGuestLocaleEnabled(portal)
   const [primary, setPrimary] = useState<GuestLocale>(persistedPrimary)
   const [bulgarianEnabled, setBulgarianEnabled] = useState(persistedBulgarian)
-  const enabled = useMemo<readonly OfferedGuestLocale[]>(
-    () => (bulgarianEnabled ? OFFERED_GUEST_LOCALES : ENGLISH_ONLY),
+  const enabled = useMemo(
+    () => guestLocalesWithOptional(bulgarianEnabled),
     [bulgarianEnabled],
   )
   const effectivePrimary = enabled.find((locale) => locale === primary) ?? 'en'

@@ -204,8 +204,9 @@ function hasConsistentSnapshotBinding(snapshot: PortalPublicationSnapshot): bool
 function hasCompleteSchemaVersionedContent(
   configuration: PortalPublicationConfiguration,
 ): boolean {
-  // Exhaustive on purpose: a schema version this build cannot check must fail
-  // closed, and adding a version to the union makes this switch stop compiling.
+  // Exhaustive on purpose: adding a version to the union makes `unhandled`
+  // stop being `never`, so this switch stops compiling. At runtime a version
+  // this build cannot check still fails closed.
   switch (configuration.schemaVersion) {
     case LEGACY_PORTAL_PUBLICATION_SCHEMA_VERSION:
       return (
@@ -214,8 +215,11 @@ function hasCompleteSchemaVersionedContent(
       )
     case PORTAL_PUBLICATION_SCHEMA_VERSION:
       return hasCompleteLocalizedExperience(configuration)
-    default:
+    default: {
+      const unhandled: never = configuration
+      void unhandled
       return false
+    }
   }
 }
 
