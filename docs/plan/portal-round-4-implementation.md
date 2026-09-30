@@ -529,6 +529,7 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
   - Measure columns sit between Portal and Responsible. Group heads carry all five measures and a count from `memberPortalIds`; a draft says "No results until it's published". Below 56 rem the same row carries one summary line ("412 qualified scans · 4.4 ★ from 118").
   - "Sort: Qualified scans" is offered only with results; groups follow their own scans and a row with no figure follows the others. The default sort stays Name, so the list does not reorder when the results arrive.
   - Not built: "Open results" and "N waiting in Inbox" on the strip (no destination or read exists for them yet).
+  - Review fixes. The overview reads the stored window first on every render, so a range picked on a Results tab is what the overview shows next; a pick storage refused is held for the page only. A Portal's own refusal while listing (`PortalError`) is answered tagged (403, 404), not as an untagged 500. A Property with more than 1000 Portals gets a tagged `too_many_portals` (422), and the page shows its list without results rather than a "Try again" that can never succeed. While a new window loads, the table and footer are dimmed and `aria-busy` like the strip. The measure headers wrap so the table fits from 56 rem up; `e2e/storybook-metrics/portal-overview.metrics.ts` holds that (no sideways scroll from 900 to 1920 px, cards and one summary line below).
 
 **26. New portal: dialog and server side (A4 + F11).**
 
@@ -637,6 +638,10 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
 **40. All properties view (A15).**
 
 - `src/routes/_authenticated/portals/index.tsx`, an org-scope branch in `ManagerNavRow`, grouping by property, and organisation totals kept separate from the Google review average.
+- Inherited from 25b (the read already answers an organisation scope; nothing calls it that way yet):
+  - an organisation branch of `getPortalResultsOverviewFn` over the reader's Properties, which needs one roster and one zone per Property (the use case takes `properties[]`);
+  - rendering of the Property subtotal rows, each Property's own window on board 10 (Properties in different time zones read different windows), and the per-Property "not in a group" row;
+  - stories for board 10, and the 1000-Portal roster limit (`too_many_portals`) decided for a whole organisation, which can exceed it where one Property cannot.
 - Depends on 23–25. Size L.
 
 **41. es, it, fr and de packs (L2).**
