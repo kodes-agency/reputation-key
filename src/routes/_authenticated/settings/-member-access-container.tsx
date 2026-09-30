@@ -9,12 +9,12 @@ import type { Action } from '#/components/hooks/use-action'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import {
   MemberAccessSheet,
+  joinNames,
   type MemberAccessTarget,
+  type PropertyRef,
   type ResponsibilityState,
   type SaveMemberAccessInput,
-} from '#/components/features/identity/member-directory/member-access-sheet'
-import type { PropertyRef } from '#/components/features/identity/member-directory/member-table'
-import { joinNames } from '#/components/features/identity/member-directory/member-access-diff'
+} from '#/components/features/identity'
 import {
   listPropertyResponsibleManagers,
   updatePropertyResponsibleManagers,

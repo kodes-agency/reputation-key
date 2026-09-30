@@ -8,6 +8,13 @@ export { AcceptInvitationPage } from './registration/accept-invitation-page'
 export { MemberTable } from './member-directory/member-table'
 export type { MemberRow, PropertyRef } from './member-directory/member-table'
 export { ChangeRoleDialog } from './member-directory/change-role-dialog'
+export { MemberAccessSheet } from './member-directory/member-access-sheet'
+export type {
+  MemberAccessTarget,
+  ResponsibilityState,
+  SaveMemberAccessInput,
+} from './member-directory/member-access-sheet'
+export { joinNames } from './member-directory/member-access-diff'
 export {
   memberRowsWithProperties,
   propertyIdsByUser,
