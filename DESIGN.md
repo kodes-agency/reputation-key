@@ -187,7 +187,16 @@ A restrained palette built on tinted violet-graphite neutrals with one deliberat
 
 **The Fixed Scale Rule.** Product UI uses fixed rem sizes, not fluid clamps. Headings that shrink in sidebars or data panels look broken, not responsive. The only exceptions are Display and Headline, which use conservative clamps for page-level hierarchy.
 
-**The Three-Family Cap.** Satoshi, Plus Jakarta Sans, JetBrains Mono. No fourth font. One well-tuned sans with weight contrast carries more authority than three competing faces.
+**The Three-Family Cap.** Satoshi, Plus Jakarta Sans, JetBrains Mono. No fourth font. One well-tuned sans with weight contrast carries more authority than three competing faces. The one exception is the guest surface, below.
+
+### Guest surface exception
+
+The public guest page (`/p/$token`, the Immersive Hub) is not product UI. It is a hospitality surface a guest sees for a few seconds on a phone, so it has its own pair and is exempt from the Three-Family Cap and the Fixed Scale Rule:
+
+- **Display:** Cormorant Garamond (600, and 500 italic), `--font-guest-display`.
+- **Body:** Ysabeau Office (400, 600), `--font-guest-body`.
+
+Both are SIL OFL 1.1 and self-hosted from `public/fonts/guest/` in four subsets (latin, latin-ext, cyrillic, cyrillic-ext), so a guest's phone contacts no font CDN. Each has a local fallback face sized to it (`size-adjust`, `ascent-override`, `descent-override`), so the swap from `font-display: swap` does not move the layout. A page opts in through its loader (`fontSet: 'guest'`, `src/shared/font-sets.ts`); the root document then links `guest-fonts.css` and preloads the above-the-fold pair, in the Cyrillic subset for Bulgarian. Every other page, including login, `/privacy`, invites and guest pages published before the Immersive Hub (snapshot v1/v2), keeps Satoshi, Plus Jakarta Sans and JetBrains Mono from the app stylesheets. The two sets are never loaded together.
 
 ## 4. Elevation
 

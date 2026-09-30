@@ -88,6 +88,16 @@
 // use Rolldown's default route-aware splitting. A broad components group would
 // rejoin eager validation leaves to the lazy feature trees.
 //
+// Re-measured 2026-09-30 for the guest font split (portal round 4, slice 7),
+// on fresh production builds of main and of the change: 326,771 B (76 js + 1
+// css) → 327,187 B (76 js + 1 css), +416 B, leaving 1,918 B of headroom. `main`
+// had already drifted up from 317,727 B since 2026-09-22 (2,334 B of headroom).
+// The +416 B is the root document's font-set choice (src/shared/font-sets.ts and
+// its <link> component); the two third-party @imports left styles.css, which
+// only shrinks that stylesheet. The guest stylesheet and its 16 woff2 files sit
+// in public/fonts/guest, outside .output/public/assets, so they are not part of
+// this closure and stay off every other page. The budget is unchanged.
+//
 // When this fails: resolve the new static importer and cut that source edge. Do
 // NOT raise the budget without recording a fresh production measurement here.
 // When a cycle fails it: the chunk group that moved a module away from the
