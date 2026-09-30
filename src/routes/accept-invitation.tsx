@@ -4,10 +4,9 @@
 // load. Without an id, the signed-in list of pending invitations stays (the
 // workspace-access screen links to it).
 
-import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { queryOptions, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
-import { getSession } from '#/shared/auth/auth.functions'
 import { authClient } from '#/shared/auth/auth-client'
 import { identityKeys } from '#/shared/queries/query-keys'
 import {
@@ -25,7 +24,6 @@ import {
   type InvitationLink,
 } from '#/components/features/identity'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import { loadInvitationEntry, signInToAcceptInvitation } from './-invitation-entry'
 
 // Shared query options — the loader (ensureQueryData) and component
 // (useSuspenseQuery) reference the SAME options object so the primed cache is
@@ -57,33 +55,15 @@ export const acceptInvitationSearch = z.object({
   id: z.string().min(1).optional().catch(undefined),
 })
 
-/** What the page renders, decided once in `beforeLoad`. */
-type AcceptEntry =
-  | Readonly<{ kind: 'list' }>
-  | Readonly<{ kind: 'link'; link: InvitationLink; signedInEmail: string }>
-  // Signed out, and the link needs no account to explain itself.
-  | Readonly<{ kind: 'unusable'; link: Exclude<InvitationLink, { state: 'pending' }> }>
-
-async function resolveEntry(id: string | undefined): Promise<{ entry: AcceptEntry }> {
-  if (!id) {
-    const session = await getSession()
-    if (!session) throw redirect({ to: '/join', search: { invitationId: undefined } })
-    return { entry: { kind: 'list' } }
-  }
-  const { link, accountExists, signedInEmail } = await loadInvitationEntry(id)
-  if (signedInEmail !== null) {
-    return { entry: { kind: 'link', link, signedInEmail } }
-  }
-  if (link.state !== 'pending') return { entry: { kind: 'unusable', link } }
-  // An address with an account cannot sign up again: it signs in, then returns.
-  if (accountExists) throw signInToAcceptInvitation(id)
-  throw redirect({ to: '/join', search: { invitationId: id } })
-}
-
 export const Route = createFileRoute('/accept-invitation')({
   validateSearch: acceptInvitationSearch,
   staleTime: 30_000,
-  beforeLoad: ({ search }) => resolveEntry(search.id),
+  beforeLoad: async ({ search }) => {
+    // Loaded on demand: first-paint bytes are budgeted, and this only runs for
+    // a visitor who opened an invitation link.
+    const { resolveAcceptEntry } = await import('./-invitation-entry')
+    return resolveAcceptEntry(search.id)
+  },
   loader: async ({ context }) => {
     if (context.entry.kind === 'list') {
       await context.queryClient.ensureQueryData(invitationsQuery)
