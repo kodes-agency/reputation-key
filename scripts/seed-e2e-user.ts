@@ -37,7 +37,6 @@ import { buildPortalPublicationSnapshot } from '../src/contexts/portal/applicati
 import {
   isLocalizedConfiguration,
   PORTAL_LANGUAGE_PACK_VERSIONS,
-  type PortalGuestLocale,
 } from '../src/contexts/portal/domain/portal-publication-snapshot'
 import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../src/contexts/portal/domain/approved-destination'
 import { portalGroups } from '../src/shared/db/schema/portal-group.schema'
@@ -479,7 +478,7 @@ function stableJson(value: unknown): string {
 // The seed publishes a schema-v2 snapshot, so its locale set is the pinned v2 one.
 const PORTAL_LOCALE_SET = Object.keys(
   PORTAL_LANGUAGE_PACK_VERSIONS,
-) as PortalGuestLocale[]
+) as (keyof typeof PORTAL_LANGUAGE_PACK_VERSIONS)[]
 
 /**
  * Whether the stored snapshot already publishes exactly what this seed would.
@@ -614,6 +613,9 @@ async function publishPortalSnapshot(input: {
       profileVersion: GOOGLE_REVIEW_DESTINATION.profileVersion,
     },
   })
+  const localized = isLocalizedConfiguration(snapshot.configuration)
+    ? snapshot.configuration
+    : null
 
   // The production write surface only inserts publication snapshots; it never
   // rewrites them. Guest responses also hold a foreign key to the snapshot
@@ -673,12 +675,8 @@ async function publishPortalSnapshot(input: {
       // profile) makes the snapshot describe two different portals.
       localeSet: [...PORTAL_LOCALE_SET],
       languagePackVersions: PORTAL_LANGUAGE_PACK_VERSIONS,
-      localizedContent: isLocalizedConfiguration(snapshot.configuration)
-        ? snapshot.configuration.localizedContent
-        : {},
-      brandProfileVersion: isLocalizedConfiguration(snapshot.configuration)
-        ? snapshot.configuration.brandProfile.version
-        : null,
+      localizedContent: localized?.localizedContent ?? {},
+      brandProfileVersion: localized?.brandProfile.version ?? null,
       privateFeedbackThreshold:
         snapshot.configuration.reviewGateway.privateFeedbackThreshold,
       destinationUri: snapshot.destinationUri,
