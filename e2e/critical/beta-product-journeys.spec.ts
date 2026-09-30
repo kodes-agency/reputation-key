@@ -1084,7 +1084,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     })
   })
 
-  test('member invitation sends once, persists, and can be cancelled', async ({
+  test('member invitation sends once, persists, renews on resend, and can be cancelled', async ({
     page,
   }) => {
     await mailStubControl.reset()
@@ -1094,10 +1094,18 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await clickWhenReady(page.getByRole('button', { name: /invite member/i }))
     await page.getByPlaceholder('colleague@example.com').fill(inviteEmail)
     // Only the two manager roles are invitable during the closed beta
-    // (isBetaInteractiveRole) — Member logins are inactive and the selector
-    // does not offer them.
-    await page.getByRole('combobox', { name: 'Role' }).click()
-    await page.getByRole('option', { name: 'Property Manager', exact: true }).click()
+    // (isBetaInteractiveRole) — Member logins are inactive and the form does
+    // not offer them. The invitation starts as a Property Manager, the least
+    // privilege, with the property picker in view.
+    await expect(page.getByRole('radio', { name: /property manager/i })).toBeChecked()
+    await expect(page.getByText('Properties they can work')).toBeVisible()
+    // An Account Admin reaches every property, so choosing one drops the picker.
+    await page.getByRole('radio', { name: /account admin/i }).click()
+    await expect(page.getByText('Properties they can work')).toHaveCount(0)
+    await expect(
+      page.getByText('Account Admins can access every property.'),
+    ).toBeVisible()
+    await page.getByRole('radio', { name: /property manager/i }).click()
     await clickWhenReady(page.getByRole('button', { name: /send invitation/i }))
     await expect(page.getByText(inviteEmail, { exact: true })).toBeVisible()
     await page.reload()
@@ -1117,7 +1125,38 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       (send) => send.to === inviteEmail,
     )
     expect(invite.subject).toContain('invited you to join')
-    await page.getByRole('button', { name: 'Cancel', exact: true }).click()
+
+    // The table says who sent it and when it lapses, not a raw status token.
+    const inviteRow = page.getByRole('row').filter({ hasText: inviteEmail })
+    await expect(inviteRow.getByText('Expired')).toHaveCount(0)
+    await expect(inviteRow.getByText(seed.managerName, { exact: true })).toBeVisible()
+
+    // Resend renews the same invitation's expiry (one row per person) and mails
+    // it again. The Expires column prints a day, so the renewal is read from
+    // the invitation itself.
+    const expiryOf = async () => {
+      const { invitations } = await callServerFnGet<{
+        invitations: ReadonlyArray<{ email: string; expiresAt: string | Date }>
+      }>(page, {
+        file: 'src/contexts/identity/server/organizations.invitations.ts',
+        exportName: 'listInvitations',
+      })
+      const row = invitations.find((candidate) => candidate.email === inviteEmail)
+      if (!row) throw new Error('the invitation is not listed')
+      return new Date(row.expiresAt).getTime()
+    }
+    const expiryBefore = await expiryOf()
+    await clickWhenReady(inviteRow.getByRole('button', { name: 'Resend' }))
+    await expect(page.getByText('Invitation renewed and sent')).toBeVisible()
+    await expect.poll(expiryOf).toBeGreaterThan(expiryBefore)
+    await expect
+      .poll(async () =>
+        (await mailStubControl.sends()).filter((send) => send.to === inviteEmail),
+      )
+      .toHaveLength(2)
+    await expect(page.getByText(inviteEmail, { exact: true })).toHaveCount(1)
+
+    await inviteRow.getByRole('button', { name: 'Cancel', exact: true }).click()
     await page.getByRole('button', { name: /cancel invitation/i }).click()
     await expect(page.getByText(inviteEmail, { exact: true })).toHaveCount(0)
   })
