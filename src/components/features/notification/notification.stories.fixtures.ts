@@ -249,10 +249,14 @@ type FeedRead = Readonly<{
   data: Readonly<{
     limit: number
     filter?: NotificationListFilter
+    /** The page's Property filter, as the endpoint takes it. */
+    propertyId?: string
     before?: NotificationFeedCursor
   }>
 }>
-type BulkRead = Readonly<{ data?: Readonly<{ filter?: NotificationListFilter }> }>
+type BulkRead = Readonly<{
+  data?: Readonly<{ filter?: NotificationListFilter; propertyId?: string }>
+}>
 type RowCommand = Readonly<{ data: Readonly<{ notificationId: string }> }>
 type MuteCommand = Readonly<{ data: Readonly<{ propertyId: string; category: string }> }>
 
@@ -297,8 +301,14 @@ export function makeStatefulNotificationFns(
   const pageOf = (candidates: ReadonlyArray<NotificationView>, limit: number) =>
     notificationPageFixture(candidates.slice(0, limit), candidates.length > limit)
 
-  const inFilter = (filter: NotificationListFilter = 'all') =>
-    rows.filter((row) => matchesNotificationFilter(row, filter))
+  // A Property filter narrows to that Property's rows, Organization notices
+  // left out, exactly as the endpoint does.
+  const inProperty = (row: NotificationView, propertyId: string | undefined) =>
+    propertyId === undefined || row.propertyId === propertyId
+  const inFilter = (filter: NotificationListFilter = 'all', propertyId?: string) =>
+    rows.filter(
+      (row) => matchesNotificationFilter(row, filter) && inProperty(row, propertyId),
+    )
   // The badge and a tab's share count what the endpoint counts: rows still
   // waiting on the reader, never a settled row that kept its unread status.
   const unread = (candidates: ReadonlyArray<NotificationView>) =>
@@ -306,13 +316,13 @@ export function makeStatefulNotificationFns(
 
   const server = {
     getFeedHead: async ({ data }: FeedRead): Promise<NotificationFeedHead> => ({
-      page: pageOf(inFilter(data.filter), data.limit),
-      unreadCount: unread(rows),
-      filterUnreadCount: unread(inFilter(data.filter)),
+      page: pageOf(inFilter(data.filter, data.propertyId), data.limit),
+      unreadCount: unread(inFilter('all', data.propertyId)),
+      filterUnreadCount: unread(inFilter(data.filter, data.propertyId)),
       watermark: 'stateful-feed-head',
     }),
     getList: async ({ data }: FeedRead) => {
-      const candidates = inFilter(data.filter)
+      const candidates = inFilter(data.filter, data.propertyId)
       return pageOf(
         data.before ? rowsAfter(candidates, data.before) : candidates,
         data.limit,
@@ -334,10 +344,14 @@ export function makeStatefulNotificationFns(
     },
     markAllRead: async ({ data }: BulkRead) => {
       const filter = data?.filter ?? 'all'
-      rows = rows.map((row) => (matchesNotificationFilter(row, filter) ? read(row) : row))
+      rows = rows.map((row) =>
+        matchesNotificationFilter(row, filter) && inProperty(row, data?.propertyId)
+          ? read(row)
+          : row,
+      )
     },
-    dismissAll: async () => {
-      rows = []
+    dismissAll: async ({ data }: BulkRead = {}) => {
+      rows = rows.filter((row) => !inProperty(row, data?.propertyId))
     },
     // The server hides every row of a muted in-app category for that Property.
     muteCategory: async ({ data }: MuteCommand) => {

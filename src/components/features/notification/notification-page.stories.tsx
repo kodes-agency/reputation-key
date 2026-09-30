@@ -526,3 +526,117 @@ export const FocusLeftElsewhereStaysThere: Story = {
     expect(document.activeElement).toBe(document.body)
   },
 }
+
+// ── The Property filter (direction B) ───────────────────────────────────────
+
+const PROPERTIES = [
+  { id: HARBOUR, name: 'Harbour View Suites' },
+  { id: RIVERSIDE, name: 'Riverside Hotel' },
+]
+
+/** Two Properties' notes, and an Organization notice that belongs to neither. */
+const twoPropertyFeed = [
+  makeNotification({
+    id: '68000000-0000-4000-8000-000000000001',
+    type: 'inbox.escalated',
+    propertyId: HARBOUR,
+    payload: { propertyName: 'Harbour View Suites' },
+    createdAt: new Date(Date.now() - 2 * MINUTE),
+  }),
+  makeNotification({
+    id: '68000000-0000-4000-8000-000000000002',
+    type: 'inbox.escalated',
+    propertyId: RIVERSIDE,
+    payload: { propertyName: 'Riverside Hotel' },
+    createdAt: new Date(Date.now() - 4 * MINUTE),
+  }),
+  makeNotification({
+    id: '68000000-0000-4000-8000-000000000003',
+    type: 'account.organization_role_changed',
+    propertyId: null,
+    createdAt: new Date(Date.now() - 6 * MINUTE),
+  }),
+]
+const twoPropertyServer = makeStatefulNotificationFns(twoPropertyFeed)
+const markPropertyRead = fn(twoPropertyServer.markAllRead)
+const dismissPropertyRows = fn(twoPropertyServer.dismissAll)
+const onPropertyChange = fn()
+
+/**
+ * A reader with several Properties reads one at a time: its rows only, no
+ * Organization notices, and "All properties" puts the whole feed back.
+ */
+export const FiltersToOneProperty: Story = {
+  args: {
+    filter: 'all',
+    properties: PROPERTIES,
+    propertyId: RIVERSIDE,
+    onPropertyChange,
+    notificationFns: makeStatefulNotificationFns(twoPropertyFeed),
+  },
+  play: async ({ canvasElement }) => {
+    onPropertyChange.mockClear()
+    const canvas = within(canvasElement)
+    await waitFor(() => expect(canvas.getAllByRole('listitem')).toHaveLength(1))
+    expect(
+      canvas.getByRole('link', { name: /^Escalated: .* at Riverside Hotel,/ }),
+    ).toBeVisible()
+
+    await userEvent.click(
+      canvas.getByRole('combobox', { name: 'Property: Riverside Hotel' }),
+    )
+    await userEvent.click(
+      await within(document.body).findByRole('option', { name: 'All properties' }),
+    )
+    expect(onPropertyChange).toHaveBeenCalledWith(null)
+  },
+}
+
+/** One Property, or none: the filter is not offered to a reader with one. */
+export const NoFilterForOneProperty: Story = {
+  args: {
+    properties: [PROPERTIES[0]!],
+    notificationFns: makeStatefulNotificationFns(twoPropertyFeed),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await waitFor(() => expect(canvas.getAllByRole('listitem')).toHaveLength(3))
+    expect(canvas.queryByRole('combobox', { name: /^Property:/ })).toBeNull()
+  },
+}
+
+/**
+ * Under the filter, "Mark all read" and "Dismiss all" reach that Property's
+ * rows only, and the dismiss dialog names it.
+ */
+export const BulkActionsStayInTheProperty: Story = {
+  args: {
+    filter: 'all',
+    properties: PROPERTIES,
+    propertyId: HARBOUR,
+    notificationFns: {
+      ...twoPropertyServer,
+      markAllRead: markPropertyRead as unknown as NotificationServerFns['markAllRead'],
+      dismissAll: dismissPropertyRows as unknown as NotificationServerFns['dismissAll'],
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await waitFor(() => expect(canvas.getAllByRole('listitem')).toHaveLength(1))
+
+    await userEvent.click(canvas.getByRole('button', { name: /mark all read/i }))
+    expect(markPropertyRead).toHaveBeenCalledWith({
+      data: { filter: 'all', propertyId: HARBOUR },
+    })
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Dismiss all' }))
+    const dialog = within(await within(document.body).findByRole('alertdialog'))
+    expect(
+      dialog.getByRole('heading', {
+        name: 'Dismiss all notifications about Harbour View Suites?',
+      }),
+    ).toBeInTheDocument()
+    await userEvent.click(dialog.getByRole('button', { name: 'Dismiss all' }))
+    expect(dismissPropertyRows).toHaveBeenCalledWith({ data: { propertyId: HARBOUR } })
+  },
+}
