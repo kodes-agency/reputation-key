@@ -80,10 +80,24 @@ Three `server/policy-admin.ts` functions have no UI caller on purpose:
 - `explainPolicyDecisionFn` is the live, read-only policy and capability-refusal
   diagnostic for an operator holding `policy.admin`;
   `scripts/ops/report-capability-refusal.ts` is its local-stack twin (#403/#408).
-- `grantPropertyAccessFn` and `revokePropertyAccessFn` are the operator surface for
-  changing a PropertyManager's Property scope after invitation; there is no access UI.
+- `grantPropertyAccessFn` and `revokePropertyAccessFn` remain the operator surface for
+  changing a PropertyManager's Property scope; they have no UI caller.
   Follow-up: a grant requires `reason` and `ticketRef` but persists neither (a revoke
   keeps its `reason` as `revoke_reason`).
+
+AccountAdmins change a PropertyManager's Property scope from Settings → Members
+through `setMemberPropertyAccess` (`server/organizations.member-access.ts`; the
+current grants come from `listMemberPropertyAccess`). Its grants and revokes commit
+atomically with one `identity.member.property_access_changed` fact (identifiers
+only), and a change that alters nothing records none. A grant from a person uses
+`source='operator'` with `createdBy` = that person, and takes the same per-Property
+lock as the operator's grant; an invitation's grants record the inviter as
+`createdBy`, and a Property that could not be granted is logged, never silent. An
+AccountAdmin may change another AccountAdmin's role; nobody changes their own role;
+the last-AccountAdmin guard holds under the Organization lock. The member hears
+about a change to their own Property access, and an inviter hears that their
+invitation was accepted; Feed's notices name the Organization, never the other
+person.
 
 Identity produces identifier-minimal invitation, member, merchant-AI, and Organization
 lifecycle facts through the durable outbox. It subscribes to no foreign events.
