@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from 'react'
 import { ChevronDown, Clock3, RotateCcw } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { Fact } from '#/components/ui/fact'
 import { ButtonGroup } from '#/components/ui/button-group'
 import {
   DropdownMenu,
@@ -24,7 +25,7 @@ import type {
   ResponseTargetView,
 } from '#/contexts/inbox/application/public-api'
 import { feedbackHandlingStatusLabel } from './feedback-handling-presentation'
-import { CASE_GROUP_CLASS, CaseFact } from './inbox-case-member'
+import { CASE_GROUP_CLASS } from './inbox-case-member'
 import type { InboxCaseToolbarProps } from './inbox-case-toolbar-props'
 import { InboxDetailManagerActions } from './inbox-detail-manager-actions'
 import { INBOX_SOURCE_HANDLE_PERMISSION, InboxOwnerControl } from './inbox-owner-control'
@@ -132,7 +133,7 @@ type StatusMemberProps = Readonly<{
  * no status move to offer, because `update-inbox-status.ts:165` refuses every
  * manual close ("Every close is source-specific" — Google observation closes
  * review work, a manager's outcome closes private feedback). v1 still dressed
- * the open status as a chip beside the controls; here it is a `CaseFact` —
+ * the open status as a chip beside the controls; here it is a `Fact` —
  * `ButtonGroupText`, as row 3 names it, with row 2's box taken off: text and a
  * dot, no chevron, nothing to press. Only a CLOSED
  * item gets a trigger, and its only item is `Reopen`, so the pane never carries
@@ -209,14 +210,14 @@ function StatusMember({
     // No height of its own: the group stretches it to the controls beside
     // it. The word never drops at any width — it is the one member whose label
     // IS the information. It may only TRUNCATE, and only when the whole group
-    // is wider than the toolbar (see `InboxCaseToolbar`): `CaseFact`'s
+    // is wider than the toolbar (see `InboxCaseToolbar`): `Fact`'s
     // `min-w-0` lets it give, and the text stays whole in the DOM, so the
     // fact's name — which on a `div` is its text — never loses a word.
     return (
-      <CaseFact className="gap-2">
+      <Fact className="gap-2">
         {dot}
         <span className="truncate">{label}</span>
-      </CaseFact>
+      </Fact>
     )
   }
 
@@ -360,8 +361,8 @@ function ReplyDueDetail({
  * Region 2 of the pane (plan v2.1 row 3): ONE `ButtonGroup` — status, owner,
  * escalation, in that order — then the reply-due detail on the trailing edge.
  * Row 2's rule is what the file is for: a control is an outlined button inside
- * the group, a fact is plain text with a glyph and no box (`CaseFact`, in
- * `inbox-case-member.tsx`, with the group's edge rules beside it), and a detail
+ * the group, a fact is plain text with a glyph and no box (`Fact`, in
+ * `ui/fact.tsx`, with the group's edge rules in `inbox-case-member.tsx`), and a detail
  * is that text with a dotted underline. Nothing here is a pill any
  * more; `INBOX_CHIP_TRIGGER_CLASS` is deleted, and `INBOX_CHIP_STATIC_CLASS`
  * now lives in `inbox-chip.ts` for the two thread chips that genuinely remain.

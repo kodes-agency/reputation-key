@@ -8,7 +8,9 @@ Components own reusable UI primitives, forms, layouts, hooks, and feature-facing
 presentation. Business state and effects remain in bounded contexts; route loaders
 and actions supply server state.
 
-- `ui/` contains vendored shadcn primitives.
+- `ui/` holds vendored shadcn primitives plus app-wide presentation primitives
+  that no feature owns (Fact, OwnerDisc, MetricStrip, SegmentedControl, Timeline,
+  StarRating).
 - `forms/` contains shared TanStack Form fields, submission, and error UI.
 - `layout/` contains app-shell and navigation pieces.
 - `hooks/` contains cross-feature React behavior and action wrappers.

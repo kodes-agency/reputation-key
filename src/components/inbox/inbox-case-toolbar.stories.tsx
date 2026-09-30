@@ -12,7 +12,7 @@
 // What a play here CAN prove is the half of that idea that lives in the
 // accessibility tree and the DOM: which of the three is a `button`, what it is
 // named and described by, what it opens, which callback a press issues, which
-// glyph a mark draws, and which members carry `data-case-fact` — the hook the
+// glyph a mark draws, and which members carry `data-fact` — the hook the
 // group's edge rules find facts by (`inbox-case-member.tsx`). What it CANNOT
 // prove is the other half — outline vs no box, 32 vs 36 px, the dotted
 // underline, a control's label dropping to `sr-only` below `md`. `vitest.config.ts`'s storybook project
@@ -337,12 +337,12 @@ function controlsOf(canvas: Canvas): Canvas {
 
 /**
  * The text of every FACT in the group, in order. A fact is marked
- * `data-case-fact` — the attribute `CASE_GROUP_CLASS` restores a neighbouring
+ * `data-fact` — the attribute `CASE_GROUP_CLASS` restores a neighbouring
  * control's edge by — so a fact that lost it would still read here as missing.
  */
 function factTexts(canvas: Canvas): ReadonlyArray<string> {
   const group = within(toolbarOf(canvas)).getByRole('group')
-  return Array.from(group.querySelectorAll(':scope > [data-case-fact]'), (fact) =>
+  return Array.from(group.querySelectorAll(':scope > [data-fact]'), (fact) =>
     (fact.textContent ?? '').trim(),
   )
 }

@@ -1,0 +1,144 @@
+// A row of headline figures as a description list: each cell is a term (what is
+// measured) and its figure (`MetricValue`: the number, then one line of context).
+// Extracted from the property list's portfolio strip
+// (`features/property/property-list-summary.tsx`) so the portal Results tab and
+// the portal home can print the same strip.
+//
+// Two looks, one structure:
+//
+// - `boxed` (the default): a bordered, rounded strip of `bg-card` cells one
+//   hairline apart. The property list uses it.
+// - `ruled`: no fill, hairlines above and below and between the cells, the first
+//   cell flush left. The portal Results and Activity strips use it. Narrow, it
+//   turns into the phone board's (AP11) bordered, rounded card of two columns
+//   with internal hairlines and a smaller figure.
+//
+// The strip is a `@container`, so it lays itself out by the width of the column
+// it sits in, not the window: two columns in a narrow pane, one row from `3xl`.
+import { cva, type VariantProps } from 'class-variance-authority'
+import { Skeleton } from '#/components/ui/skeleton'
+import { cn } from '#/lib/utils'
+import { createContext, use, type ReactNode } from 'react'
+
+const metricStripVariants = cva('m-0 grid grid-cols-2 @3xl:flex', {
+  variants: {
+    variant: {
+      boxed: 'gap-px overflow-hidden rounded-lg border bg-border',
+      ruled: 'rounded-lg border @3xl:rounded-none @3xl:border-x-0',
+    },
+  },
+  defaultVariants: { variant: 'boxed' },
+})
+
+/** A cell's chrome, per look. `ruled` draws its dividers on the cells. */
+const metricCellVariants = cva('flex min-w-0 flex-col odd:last:col-span-2 @3xl:flex-1', {
+  variants: {
+    variant: {
+      boxed: 'gap-1 bg-card px-4 py-3',
+      ruled:
+        'gap-0.5 px-3 py-2.5 nth-[n+3]:border-t even:border-l @3xl:px-4 @3xl:py-3 @3xl:nth-[n+3]:border-t-0 @3xl:border-l @3xl:first:border-l-0 @3xl:first:pl-0',
+    },
+  },
+  defaultVariants: { variant: 'boxed' },
+})
+
+type Variant = NonNullable<VariantProps<typeof metricStripVariants>['variant']>
+
+/** The cells take their look from the strip, so a caller states it once. */
+const MetricStripVariantContext = createContext<Variant>('boxed')
+
+type StripProps = Readonly<{
+  /** Names the list: a strip of numbers with no name is noise to a screen reader. */
+  'aria-label': string
+  variant?: Variant
+  className?: string
+  children?: ReactNode
+}>
+
+export function MetricStrip({
+  'aria-label': ariaLabel,
+  variant = 'boxed',
+  className,
+  children,
+}: StripProps) {
+  return (
+    <div className="@container">
+      <dl
+        aria-label={ariaLabel}
+        data-slot="metric-strip"
+        data-variant={variant}
+        className={cn(metricStripVariants({ variant }), className)}
+      >
+        <MetricStripVariantContext value={variant}>{children}</MetricStripVariantContext>
+      </dl>
+    </div>
+  )
+}
+
+/**
+ * Whether a measure has a figure yet. `unavailable` leaves the cell out
+ * altogether — a strip with a hollow cell says a number exists that we will not
+ * show — and `loading` keeps the term and shows a skeleton where the figure goes.
+ */
+export type MetricState = 'ready' | 'loading' | 'unavailable'
+
+type MetricProps = Readonly<{
+  label: string
+  state?: MetricState
+  className?: string
+  children?: ReactNode
+}>
+
+/**
+ * The skeleton stands where the figure and its detail will: 28 + 16 in a boxed
+ * cell, 32 + 2 + 16 (rounded to 48) in a ruled one, so a figure arriving does
+ * not move the cell.
+ */
+const SKELETON_CLASS = {
+  boxed: 'h-11 w-24',
+  ruled: 'h-12 w-24',
+} as const satisfies Record<Variant, string>
+
+export function Metric({ label, state = 'ready', className, children }: MetricProps) {
+  const variant = use(MetricStripVariantContext)
+  if (state === 'unavailable') return null
+  return (
+    <div className={cn(metricCellVariants({ variant }), className)}>
+      <dt className="text-xs font-medium text-muted-foreground">{label}</dt>
+      <dd className="m-0">
+        {state === 'loading' ? (
+          <Skeleton className={SKELETON_CLASS[variant]} aria-hidden="true" />
+        ) : (
+          children
+        )}
+      </dd>
+    </div>
+  )
+}
+
+type ValueProps = Readonly<{
+  value: ReactNode
+  /** One line of context under the figure: a share, a comparison, a count. */
+  detail?: ReactNode
+}>
+
+/**
+ * The figure's type: 18/28 semibold in a boxed strip; in a ruled one 24/32 bold
+ * from `3xl` and 20/24 bold in the phone card, tightened by 0.3 px as the boards do.
+ */
+const FIGURE_CLASS = {
+  boxed: 'text-lg leading-7 font-semibold',
+  ruled: 'text-xl leading-6 font-bold tracking-[-0.3px] @3xl:text-2xl @3xl:leading-8',
+} as const satisfies Record<Variant, string>
+
+export function MetricValue({ value, detail }: ValueProps) {
+  const variant = use(MetricStripVariantContext)
+  return (
+    <span className="flex flex-col items-start gap-0.5">
+      <span className={cn('tabular-nums', FIGURE_CLASS[variant])}>{value}</span>
+      {detail === undefined ? null : (
+        <span className="text-xs text-muted-foreground">{detail}</span>
+      )}
+    </span>
+  )
+}
