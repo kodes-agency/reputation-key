@@ -42,7 +42,16 @@ const meta: Meta<typeof InviteMemberForm> = {
   component: InviteMemberForm,
   tags: ['autodocs'],
   parameters: { layout: 'centered' },
-  decorators: [AuthedRouterDecorator],
+  decorators: [
+    AuthedRouterDecorator,
+    // The form fills the invite dialog (max-w-lg); centered layout alone would
+    // shrink it to its content and wrap the role descriptions a word a line.
+    (Story) => (
+      <div className="w-[28rem] max-w-full">
+        <Story />
+      </div>
+    ),
+  ],
 }
 export default meta
 type Story = StoryObj<typeof InviteMemberForm>
