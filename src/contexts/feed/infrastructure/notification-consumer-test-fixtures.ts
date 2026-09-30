@@ -33,6 +33,8 @@ export type FakeNotificationConsumerDeps = Readonly<{
   displayNames: MockedPort<DisplayNameLookupPort>
   /** Whether the Property is still active; archived and later states are not. */
   activeProperty: Mock
+  /** Retires the previous holder's "Assigned to you" once an item moves on. */
+  retireMovedAssignment: Mock
   clock: () => Date
   logger: MockedPort<LoggerPort>
 }>
@@ -118,6 +120,7 @@ export const createNotificationConsumerDeps = (): FakeNotificationConsumerDeps =
     inboxItemLookup,
     displayNames,
     activeProperty: vi.fn(async () => true),
+    retireMovedAssignment: vi.fn(async () => {}),
     clock: () => new Date('2026-06-01T12:00:00.000Z'),
   }
 }

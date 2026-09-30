@@ -88,10 +88,10 @@ correlation id, the frozen title/body snapshot, `updatedAt` and the recipient
 and Organization ids stay on the server.
 
 A guest revision is categorised by the work it lands on. One that supersedes
-an OPEN cycle is `review.updated` and is `workflow_collaboration`, like the
-`review.created` it amends: the item was already unhandled and already
-announced, so an edited comma must not outrank the review itself with an
-immediate email. One that reopens a CLOSED cycle is `inbox.reopened` and stays
+an OPEN cycle is `review.updated` and is `arrivals`, like the `review.created`
+it amends (D4: off in the app and by email until the person turns arrivals
+on): the item was already unhandled and already announced, so an edited comma
+must not outrank the review itself with an immediate email. One that reopens a CLOSED cycle is `inbox.reopened` and stays
 `urgent_operational`: a reply written for the old revision does not answer the
 new one, so the old reply still live on Google does not close the reopened
 cycle, and the reply to the edit settles the notice. Urgency for an unanswered

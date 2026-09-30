@@ -47,6 +47,7 @@ const makeDeps = (): Deps => {
     inboxItemLookup: fakes.inboxItemLookup,
     replyApproval: fakes.replyApproval,
     activeProperty: fakes.activeProperty,
+    retireMovedAssignment: fakes.retireMovedAssignment,
     clock: fakes.clock,
     logger: fakes.logger,
     receipts: { insertReceipt: vi.fn(async () => {}) },
@@ -273,6 +274,60 @@ describe('durable workflow notification consumers', () => {
       'notification.on-inbox-inbox_item-assigned',
       'applied',
     )
+  })
+
+  // D3: "Assigned to you" stops waiting on whoever held the item once it
+  // moves on, whether or not they are told.
+  describe('an item moving away from its holder', () => {
+    const moved = (extra: Readonly<Record<string, unknown>> = {}) =>
+      event('inbox.inbox_item.assigned', {
+        inboxItemId: unbrand(NOTIF_TEST_IDS.inboxItemId),
+        assignedTo: unbrand(NOTIF_TEST_IDS.manager2),
+        previousAssignee: unbrand(NOTIF_TEST_IDS.manager1),
+        userId: unbrand(NOTIF_TEST_IDS.manager1),
+        source: 'web',
+        ...extra,
+      })
+
+    it('retires the holder\'s "Assigned to you" when they hand it on themselves', async () => {
+      const deps = makeDeps()
+
+      await handleWorkflowNotificationEvent(deps, moved())
+
+      expect(deps.fakes.retireMovedAssignment).toHaveBeenCalledWith({
+        organizationId: NOTIF_TEST_IDS.orgId,
+        userId: NOTIF_TEST_IDS.manager1,
+        inboxItemId: NOTIF_TEST_IDS.inboxItemId,
+        at: expect.any(Date),
+      })
+      // They are not told about their own handoff; only the new holder is.
+      expect(
+        deps.fakes.jobs.map((job) => (job.data as InsertNotificationJobData).type),
+      ).toEqual(['inbox.assigned'])
+    })
+
+    it('retires it when the item moves in bulk, which notifies per group', async () => {
+      const deps = makeDeps()
+
+      await handleWorkflowNotificationEvent(
+        deps,
+        moved({ bulkId: '30000000-0000-4000-8000-000000000099' }),
+      )
+
+      expect(deps.fakes.retireMovedAssignment).toHaveBeenCalledOnce()
+      expect(deps.fakes.jobs).toEqual([])
+    })
+
+    it('retires nothing for a first assignment', async () => {
+      const deps = makeDeps()
+
+      await handleWorkflowNotificationEvent(
+        deps,
+        moved({ previousAssignee: null, userId: unbrand(NOTIF_TEST_IDS.submitter) }),
+      )
+
+      expect(deps.fakes.retireMovedAssignment).not.toHaveBeenCalled()
+    })
   })
 
   describe('never tells a person about their own action', () => {

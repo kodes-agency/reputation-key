@@ -27,6 +27,7 @@ const makeDeps = () => {
     inboxItemLookup: fakes.inboxItemLookup,
     replyApproval: fakes.replyApproval,
     activeProperty: fakes.activeProperty,
+    retireMovedAssignment: fakes.retireMovedAssignment,
     clock: fakes.clock,
     logger: fakes.logger,
     receipts: { insertReceipt: vi.fn(async () => {}) },
