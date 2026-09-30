@@ -40,8 +40,13 @@ An AccountAdmin may change any member's role, another AccountAdmin's included,
 but nobody changes their own role, and a change that leaves the role as it was
 is refused; both refusals come before the last-AccountAdmin guard, so they are
 never reported as it, and that guard still holds under the Organization lock.
-Only an AccountAdmin invites, cancels or resends invitations, creates members,
-and changes a PropertyManager's Property scope (`member.update` at Organization
-scope); a PropertyManager can only list members. Only an AccountAdmin edits
-Organization settings, response targets included, which the server already
-required.
+Only an AccountAdmin changes a PropertyManager's Property scope (`member.update`
+at Organization scope).
+
+The rest of the decision takes effect with the PropertyManager permission
+change in `shared/auth/permissions.ts` that ships with the Members page, not
+with the rules above: from then on only an AccountAdmin invites, cancels or
+resends invitations, creates members, and edits Organization settings, response
+targets included, which the server already required; a PropertyManager can only
+list members. Until then a PropertyManager keeps its invitation, member-create
+and Organization-update permissions.

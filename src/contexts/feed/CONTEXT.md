@@ -168,8 +168,10 @@ the accepted fact's `inviterId`, audience `account_admin`, opening Members; a
 fact recorded before it named its inviter gets an `obsolete` receipt). Neither
 names another person, and neither counts Properties or people in its copy:
 repeats of a type merge into one unread row, which says only that it happened
-again. An inviter who is no longer an AccountAdmin of the Organization, such as
-an operator who invited through the console, is refused at delivery.
+again. An inviter who is not an AccountAdmin of the Organization at delivery is
+refused there: a former AccountAdmin, an operator who invited through the
+console, or a PropertyManager, who can invite until PropertyManagers lose
+invitations (ADR 0033, amended 2026-10-01).
 
 Mandatory notices coalesce in-app like any other: every account notice keys
 on the Organization, so a second role change while the first is unread bumps

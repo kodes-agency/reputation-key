@@ -33,9 +33,10 @@ type InvitationAcceptedPayload = Readonly<{
  *
  * `obsolete` is a real, recorded outcome: a fact recorded before it named its
  * inviter cannot produce one, and treating that as a failure would retry
- * forever. An inviter who is not an AccountAdmin of the Organization any more
- * (they left, were demoted, or are a platform operator who never was one) is
- * refused when the job is delivered, by the `account_admin` audience.
+ * forever. An inviter who is not an AccountAdmin of the Organization when the
+ * job is delivered (they left, were demoted, are a platform operator who never
+ * was one, or are a PropertyManager, who can invite until PropertyManagers
+ * lose invitations) is refused then, by the `account_admin` audience.
  */
 export async function handleInvitationAcceptedInviterNotice(
   deps: InvitationAcceptedInviterNoticeDeps,
