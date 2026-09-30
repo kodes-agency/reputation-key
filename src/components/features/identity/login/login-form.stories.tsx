@@ -6,6 +6,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { LoginForm } from './login-form'
 
 type LoginInput = { data: { email: string; password: string } }
@@ -22,11 +23,33 @@ function makeAction(
   })
 }
 
+type ResendInput = { data: { email: string } }
+
+const resendSpy = fn()
+
+function makeResend(
+  overrides: { isPending?: boolean; error?: unknown; isSuccess?: boolean } = {},
+): Action<ResendInput, unknown> {
+  return Object.assign(
+    async (input: ResendInput) => {
+      resendSpy(input)
+      return { sent: true }
+    },
+    {
+      isPending: overrides.isPending ?? false,
+      error: overrides.error ?? null,
+      isSuccess: overrides.isSuccess ?? false,
+      data: null,
+    },
+  )
+}
+
 const meta: Meta<typeof LoginForm> = {
   title: 'Identity/LoginForm',
   component: LoginForm,
   tags: ['autodocs'],
   parameters: { layout: 'centered' },
+  args: { resendVerification: makeResend() },
 }
 export default meta
 type Story = StoryObj<typeof LoginForm>
@@ -95,5 +118,72 @@ export const Success: Story = {
     })
     // No field-level validation alerts render once the form is valid.
     expect(canvas.queryByRole('alert')).not.toBeInTheDocument()
+  },
+}
+
+// Sign-in found the address unverified (the refusal only comes after the
+// password checked out): the notice offers a new link instead of a bare error.
+const unverifiedRefusal = new ServerFunctionError(
+  'AuthError',
+  'Verify your email before signing in.',
+  'email_not_verified',
+  403,
+)
+
+export const UnverifiedEmail: Story = {
+  args: {
+    mutation: makeAction(
+      async () => {
+        throw unverifiedRefusal
+      },
+      { error: unverifiedRefusal },
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    resendSpy.mockClear()
+    const canvas = within(canvasElement)
+    await userEvent.type(canvas.getByLabelText(/email/i), 'user@example.com')
+    await userEvent.type(canvas.getByLabelText(/password/i), 'correct-horse-battery')
+    await userEvent.click(canvas.getByRole('button', { name: /^sign in$/i }))
+
+    await expect(await canvas.findByText('Verify your email first')).toBeInTheDocument()
+    await expect(
+      canvas.getByText(/until user@example\.com is verified/i),
+    ).toBeInTheDocument()
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Send a new link' }))
+    await waitFor(() =>
+      expect(resendSpy).toHaveBeenCalledWith({ data: { email: 'user@example.com' } }),
+    )
+  },
+}
+
+export const UnverifiedEmailLinkSent: Story = {
+  args: {
+    mutation: makeAction(async () => undefined, { error: unverifiedRefusal }),
+    resendVerification: makeResend({ isSuccess: true }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('status')).toHaveTextContent(
+      /a new link is on its way/i,
+    )
+    await expect(
+      canvas.queryByRole('button', { name: 'Send a new link' }),
+    ).not.toBeInTheDocument()
+  },
+}
+
+export const UnverifiedEmailResendRefused: Story = {
+  args: {
+    mutation: makeAction(async () => undefined, { error: unverifiedRefusal }),
+    resendVerification: makeResend({
+      error: new Error('Too many requests. Try again later.'),
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    await expect(
+      await within(canvasElement).findByText('Too many requests. Try again later.'),
+    ).toBeInTheDocument()
   },
 }
