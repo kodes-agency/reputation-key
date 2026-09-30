@@ -55,10 +55,14 @@ of any Organization that has no AccountAdmin yet.
 
 - **Who.** The same `OPS_OPERATOR_IDENTITIES` list that gates the `ops:*`
   commands gates the console, on the **web** service (the worker does not need
-  it). A signed-in user whose **verified** email, lowercased, is listed is an
+  it). A signed-in user whose **account** is listed as `user:<user id>` is an
   operator; everyone else gets Not Found, and an absent or empty list means
-  nobody. The list itself is not case-folded, so write every entry in lowercase.
-  An entry that is not an email never matches on web, which is safe.
+  nobody. Email entries keep working for the CLI but never match on web: an
+  AccountAdmin can invite a listed address that has no account yet and register
+  it through the invitation, so an address proves nothing about who holds the
+  account. To add an operator, have them sign in once, read their id
+  (`SELECT id FROM "user" WHERE email = '<their email>'`), and append
+  `user:<id>` to the list on web.
 - **Recent sign-in.** A change (create, invite, resend, cancel) needs a session
   signed in within the last 30 minutes; the page then asks the operator to sign
   in again. Reading the list does not. There is no MFA in the beta, so this is

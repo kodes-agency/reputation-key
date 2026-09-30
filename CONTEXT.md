@@ -60,7 +60,7 @@ the presence of a route, table, or retained legacy module.
 | **Permission**             | A `resource.action` string (e.g. `portal.create`). The atomic unit of authorization.                                              |
 | **Dynamic Access Control** | Better-auth feature that loads org-specific role overrides from the DB at permission-check time. Built-in roles are the fallback. |
 | **Staff Assignment**       | Legacy combined row retained for reconciliation only; it is not an access or Portal-attribution authority.                        |
-| **Platform Operator**      | A named person whose verified email is in `OPS_OPERATOR_IDENTITIES`; provisions Organizations and holds no role in them.          |
+| **Platform Operator**      | A named person whose account is in `OPS_OPERATOR_IDENTITIES` (`user:<user id>`); provisions Organizations, holds no role in them. |
 
 ### Auth Architecture
 

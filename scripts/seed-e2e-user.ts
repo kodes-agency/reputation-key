@@ -61,7 +61,11 @@ import {
 } from '../src/contexts/identity/infrastructure/adapters/better-auth-schemas'
 import { createPortalTokenCodec } from '../src/contexts/portal/infrastructure/adapters/portal-token-codec'
 import { assertLocalToolExecutionIdentity } from '../src/shared/config/local-tool-execution'
-import { LOCAL_E2E_ORGANIZATION_ID } from '../src/shared/config/local-stack-contract'
+import {
+  LOCAL_E2E_OPERATOR_USER_ID,
+  LOCAL_E2E_ORGANIZATION_ID,
+} from '../src/shared/config/local-stack-contract'
+import { runWithRegistrationAuthIds } from '../src/shared/auth/registration-user-id'
 import { GOOGLE_CONTENT_CAPABILITIES } from '../src/shared/domain/google-content-capability'
 import { createGoogleContentAuthorityRepository } from '../src/contexts/identity/infrastructure/repositories/google-content-authority.repository'
 import { createAiControlAdapter } from '../src/contexts/ai/infrastructure/adapters/ai-control.adapter'
@@ -187,12 +191,42 @@ function writeSeedState(state: E2eSeedState) {
   console.log(`E2E seed state written: ${seedStatePath}`)
 }
 
+/** Better Auth sign-up, under a fixed user id when the caller names one. */
+async function signUpCredentialUser(input: {
+  email: string
+  password: string
+  name: string
+  userId?: string
+}): Promise<string> {
+  const signUp = () =>
+    getAuth().api.signUpEmail({
+      body: { name: input.name, email: input.email, password: input.password },
+    })
+  const response = input.userId
+    ? await runWithRegistrationAuthIds(
+        {
+          userId: input.userId,
+          credentialAccountId: randomUUID(),
+          initialSessionId: randomUUID(),
+        },
+        signUp,
+      )
+    : await signUp()
+  return parseBetterAuthResponse(
+    signUpResponseSchema,
+    response,
+    'registration_failed',
+    `Could not create E2E user ${input.email}`,
+  ).user.id
+}
+
 async function ensureCredentialUser(input: {
   email: string
   password: string
   name: string
+  /** A fixed id for a new user; an existing user keeps the id it has. */
+  userId?: string
 }): Promise<string> {
-  const auth = getAuth()
   const db = getDb()
   const [existing] = await db
     .select({ id: user.id })
@@ -201,16 +235,14 @@ async function ensureCredentialUser(input: {
     .limit(1)
 
   let userId = existing?.id
+  if (userId && input.userId && userId !== input.userId) {
+    console.warn(
+      `E2E user ${input.email} predates its fixed id ${input.userId}; ` +
+        'reseed an empty database for anything keyed by that id (the operator console).',
+    )
+  }
   if (!userId) {
-    const signUp = await auth.api.signUpEmail({
-      body: { name: input.name, email: input.email, password: input.password },
-    })
-    userId = parseBetterAuthResponse(
-      signUpResponseSchema,
-      signUp,
-      'registration_failed',
-      `Could not create E2E user ${input.email}`,
-    ).user.id
+    userId = await signUpCredentialUser(input)
   }
 
   await db
@@ -1328,10 +1360,12 @@ async function ensureLocalAiCapabilitiesEnabled(): Promise<void> {
 async function main(): Promise<void> {
   await ensureLocalGoogleContentCapabilitiesAllowed()
   await ensureLocalAiCapabilitiesEnabled()
+  // A fixed id: e2e/stack.env lists this account as the platform operator.
   const managerUserId = await ensureCredentialUser({
     email: managerEmail,
     password: managerPassword,
     name: managerName,
+    userId: LOCAL_E2E_OPERATOR_USER_ID,
   })
   const staffUserId = await ensureCredentialUser({
     email: staffEmail,

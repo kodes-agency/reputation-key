@@ -22,13 +22,16 @@ denies everyone it does not list. The beta has no MFA.
 ## Decision
 
 1. **Who is an operator.** A platform operator is a signed-in user whose
-   verified email is listed in `OPS_OPERATOR_IDENTITIES` on the web service.
-   The console at `/operator` evaluates the existing ExecutionPolicy operator
-   branch (`system:ops`) with that email, trimmed and lowercased. The list itself
-   is not case-folded, so its entries must be written in lowercase. An absent or
-   empty list means no one. An unverified email never matches. Anyone else gets
-   Not Found at `/operator`, and every console server function re-checks the
-   operator.
+   account is listed in `OPS_OPERATOR_IDENTITIES` on the web service as
+   `user:<user id>`. The console at `/operator` evaluates the existing
+   ExecutionPolicy operator branch (`system:ops`) with that principal. An absent
+   or empty list means no one. Anyone else gets Not Found at `/operator`, and
+   every console server function re-checks the operator. The principal is never
+   the email: an AccountAdmin can invite any address that has no account yet and
+   register it through that invitation, which verifies it (ADR 0062), so a
+   listed email would belong to whoever invites it first. A user id exists only
+   once its account does. Email entries still name operators for the `ops:*`
+   commands; on web they never match.
 2. **Provisioning is one transaction.** The operator creates an Organization
    without becoming its member and invites its first AccountAdmin in the same
    transaction: the Organization row, the lifecycle authority row its insert

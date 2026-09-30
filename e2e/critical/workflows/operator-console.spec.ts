@@ -1,9 +1,10 @@
 // Platform operator console (ADR 0063) — /operator.
 //
-// The seeded owner (OPS_OPERATOR_IDENTITIES in e2e/stack.env) creates an
-// Organization without joining it and invites its first Account Admin; the
-// invitee follows the emailed link, registers and lands signed in (ADR 0062);
-// the console then reports one Account Admin and stops offering controls.
+// The seeded owner (listed by user id, `user:<id>`, in e2e/stack.env's
+// OPS_OPERATOR_IDENTITIES) creates an Organization without joining it and
+// invites its first Account Admin; the invitee follows the emailed link,
+// registers and lands signed in (ADR 0062); the console then reports one
+// Account Admin and stops offering controls.
 //
 // Transitions verified:
 //   signed-out visitor          → /login?redirect=/operator

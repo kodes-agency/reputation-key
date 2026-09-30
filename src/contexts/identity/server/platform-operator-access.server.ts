@@ -1,10 +1,16 @@
 // Identity context — who may use the platform operator console (ADR 0063).
 //
-// An operator is a signed-in user whose VERIFIED email, trimmed and
-// lowercased, is registered in OPS_OPERATOR_IDENTITIES on the web service. The
-// check is the ExecutionPolicy operator branch (`system:ops`) the ops CLI
-// already uses, so an absent or empty list means no one. The list itself is
-// not case-folded: its entries must be written in lowercase.
+// An operator is a signed-in user whose ACCOUNT is registered in
+// OPS_OPERATOR_IDENTITIES on the web service, as `user:<user id>`. The check
+// is the ExecutionPolicy operator branch (`system:ops`) the ops CLI already
+// uses, so an absent or empty list means no one.
+//
+// The principal is the user id, never the email. An AccountAdmin can invite
+// any address that has no account yet and register it through that
+// invitation, which verifies the address (ADR 0062); a listed email would
+// belong to whoever invites it first. A user id exists only once its account
+// does, and the owner copies their own into the list. Email entries still
+// name operators for the ops CLI; on web they never match.
 //
 // A console change also needs a recent sign-in. There is no MFA in the beta;
 // the 30-minute rule is its only step-up, and reads are exempt so the list
@@ -25,8 +31,6 @@ const OPERATOR_ACTION = 'system:ops'
 
 export type PlatformOperator = Readonly<{
   userId: UserId
-  /** The registered principal: the verified email, lowercased. */
-  email: string
   name: string
 }>
 
@@ -38,11 +42,9 @@ export type PlatformOperatorCheck = Readonly<{
   correlationId?: string
 }>
 
-/** The operator principal a user can present: a verified email, or nothing. */
-export function operatorPrincipalId(
-  user: Readonly<{ email: string; emailVerified: boolean }>,
-): string | null {
-  return user.emailVerified ? user.email.trim().toLowerCase() : null
+/** The allowlist entry that names a user's account: `user:<user id>`. */
+export function operatorPrincipalId(user: Readonly<{ id: string }>): string {
+  return `user:${user.id}`
 }
 
 function refuseOperator(logger: Pick<LoggerPort, 'warn'>, reason: string): never {
@@ -72,13 +74,9 @@ export async function requirePlatformOperator(
     throwAuthError('unauthorized', 'Valid session required')
   }
   const { session, user } = signedIn
-  const principal = operatorPrincipalId(user)
-  if (principal === null) {
-    refuseOperator(options.logger, 'operator_not_registered')
-  }
 
   const decision = await getExecutionPolicy().decide({
-    principal: { kind: 'operator', id: principal },
+    principal: { kind: 'operator', id: operatorPrincipalId(user) },
     action: OPERATOR_ACTION,
     executionKind: 'operator',
     now: options.now,
@@ -97,5 +95,5 @@ export async function requirePlatformOperator(
       403,
     )
   }
-  return { userId: toUserId(user.id), email: principal, name: user.name }
+  return { userId: toUserId(user.id), name: user.name }
 }

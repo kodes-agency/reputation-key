@@ -36,20 +36,21 @@ function installPolicy(allowlist: string | undefined): void {
 }
 
 function sessionFor(
-  user: Readonly<{ email: string; emailVerified: boolean; name?: string }>,
+  user: Readonly<{ id?: string; email?: string; name?: string }> = {},
   signedInMsAgo = 60_000,
 ) {
+  const id = user.id ?? 'user-operator'
   return {
     session: {
       id: 'session-1',
-      userId: 'user-operator',
+      userId: id,
       createdAt: new Date(NOW.getTime() - signedInMsAgo),
     },
     user: {
-      id: 'user-operator',
+      id,
       name: user.name ?? 'Owner Name',
-      email: user.email,
-      emailVerified: user.emailVerified,
+      email: user.email ?? 'owner@example.com',
+      emailVerified: true,
     },
   }
 }
@@ -66,23 +67,15 @@ const read = (mutation = false) =>
   requirePlatformOperator(HEADERS, { mutation, now: NOW, logger })
 
 describe('operatorPrincipalId', () => {
-  it('is the trimmed, lowercased email of a verified user', () => {
-    expect(
-      operatorPrincipalId({ email: ' Owner@Example.COM ', emailVerified: true }),
-    ).toBe('owner@example.com')
-  })
-
-  it('is null for an unverified email', () => {
-    expect(
-      operatorPrincipalId({ email: 'owner@example.com', emailVerified: false }),
-    ).toBe(null)
+  it('names the account, never the address: user:<user id>', () => {
+    expect(operatorPrincipalId({ id: 'user-operator' })).toBe('user:user-operator')
   })
 })
 
 describe('requirePlatformOperator', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    installPolicy('owner@example.com,ops-cli-name')
+    installPolicy('user:user-operator,owner@example.com,ops-cli-name')
   })
   afterEach(() => resetExecutionPolicy())
 
@@ -96,9 +89,9 @@ describe('requirePlatformOperator', () => {
     })
   })
 
-  it('refuses an unverified email even when the allowlist names it', async () => {
+  it('refuses a user whose account the allowlist does not name', async () => {
     mocks.getSession.mockResolvedValue(
-      sessionFor({ email: 'owner@example.com', emailVerified: false }),
+      sessionFor({ id: 'user-manager-one', email: 'manager-one@example.com' }),
     )
 
     await expect(read()).rejects.toMatchObject({
@@ -108,9 +101,12 @@ describe('requirePlatformOperator', () => {
     })
   })
 
-  it('refuses a verified email the allowlist does not name', async () => {
+  it('refuses a verified email the allowlist names, when its account is not listed', async () => {
+    // An AccountAdmin can invite a listed address that has no account yet and
+    // register it through the invitation, which verifies it (ADR 0062): the
+    // address proves nothing about who holds the account.
     mocks.getSession.mockResolvedValue(
-      sessionFor({ email: 'manager-one@example.com', emailVerified: true }),
+      sessionFor({ id: 'user-claimed-by-inviter', email: 'owner@example.com' }),
     )
 
     await expect(read()).rejects.toMatchObject({
@@ -122,9 +118,7 @@ describe('requirePlatformOperator', () => {
   it('refuses everyone when no allowlist is configured', async () => {
     resetExecutionPolicy()
     installPolicy(undefined)
-    mocks.getSession.mockResolvedValue(
-      sessionFor({ email: 'owner@example.com', emailVerified: true }),
-    )
+    mocks.getSession.mockResolvedValue(sessionFor())
 
     await expect(read()).rejects.toMatchObject({
       code: 'operator_not_registered',
@@ -134,7 +128,7 @@ describe('requirePlatformOperator', () => {
 
   it('logs a refusal content-free: the reason, no user id or email', async () => {
     mocks.getSession.mockResolvedValue(
-      sessionFor({ email: 'manager-one@example.com', emailVerified: true }),
+      sessionFor({ id: 'user-manager-one', email: 'manager-one@example.com' }),
     )
 
     await expect(read()).rejects.toMatchObject({ status: 403 })
@@ -143,25 +137,19 @@ describe('requirePlatformOperator', () => {
       { event: 'platform.operator_denied', reason: 'operator_not_registered' },
       expect.any(String),
     )
-    expect(JSON.stringify(mocks.warn.mock.calls)).not.toMatch(/manager-one|user-operator/)
+    expect(JSON.stringify(mocks.warn.mock.calls)).not.toMatch(/manager-one/)
   })
 
-  it('matches a mixed-case session email against a lowercase entry', async () => {
+  it('admits the listed account, whatever its address', async () => {
     mocks.getSession.mockResolvedValue(
-      sessionFor({ email: 'Owner@Example.com', emailVerified: true, name: 'Bo' }),
+      sessionFor({ email: 'renamed@example.com', name: 'Bo' }),
     )
 
-    await expect(read()).resolves.toEqual({
-      userId: 'user-operator',
-      email: 'owner@example.com',
-      name: 'Bo',
-    })
+    await expect(read()).resolves.toEqual({ userId: 'user-operator', name: 'Bo' })
   })
 
   it('lets a read through on a session signed in long ago', async () => {
-    mocks.getSession.mockResolvedValue(
-      sessionFor({ email: 'owner@example.com', emailVerified: true }, 5 * 60 * 60_000),
-    )
+    mocks.getSession.mockResolvedValue(sessionFor({}, 5 * 60 * 60_000))
 
     await expect(read(false)).resolves.toMatchObject({ userId: 'user-operator' })
   })
@@ -169,10 +157,7 @@ describe('requirePlatformOperator', () => {
   it('asks for a fresh sign-in before a change on an older session', async () => {
     expect(OPERATOR_MUTATION_SESSION_MAX_AGE_MS).toBe(30 * 60 * 1000)
     mocks.getSession.mockResolvedValue(
-      sessionFor(
-        { email: 'owner@example.com', emailVerified: true },
-        OPERATOR_MUTATION_SESSION_MAX_AGE_MS + 1,
-      ),
+      sessionFor({}, OPERATOR_MUTATION_SESSION_MAX_AGE_MS + 1),
     )
 
     await expect(read(true)).rejects.toMatchObject({
@@ -184,12 +169,9 @@ describe('requirePlatformOperator', () => {
 
   it('allows a change on a session signed in within 30 minutes', async () => {
     mocks.getSession.mockResolvedValue(
-      sessionFor(
-        { email: 'owner@example.com', emailVerified: true },
-        OPERATOR_MUTATION_SESSION_MAX_AGE_MS,
-      ),
+      sessionFor({}, OPERATOR_MUTATION_SESSION_MAX_AGE_MS),
     )
 
-    await expect(read(true)).resolves.toMatchObject({ email: 'owner@example.com' })
+    await expect(read(true)).resolves.toMatchObject({ userId: 'user-operator' })
   })
 })
