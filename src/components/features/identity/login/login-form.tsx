@@ -2,6 +2,7 @@
 // Per conventions: receives mutation as prop, uses TanStack Form + Zod schema from DTO.
 // Never imports server functions directly (dependency rules).
 
+import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import { FieldGroup } from '#/components/ui/field'
 import { SubmitButton } from '#/components/forms/submit-button'
@@ -10,6 +11,8 @@ import { submitForm } from '#/components/forms/form-submit'
 import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import { signInInputSchema } from '#/contexts/identity/application/dto/invitation.dto'
+import { isEmailNotVerified } from './email-not-verified'
+import { UnverifiedEmailNotice } from './unverified-email-notice'
 
 type SignInVariables = { email: string; password: string }
 
@@ -17,9 +20,14 @@ import type { Action } from '#/components/hooks/use-action'
 
 type Props = Readonly<{
   mutation: Action<{ data: SignInVariables }>
+  /** Mails a fresh verification link, for an address sign-in found unverified. */
+  resendVerification: Action<{ data: { email: string } }>
 }>
 
-export function LoginForm({ mutation }: Props) {
+export function LoginForm({ mutation, resendVerification }: Props) {
+  // The address the failed attempt used: the field may be edited afterwards,
+  // but the notice is about the attempt.
+  const [attemptedEmail, setAttemptedEmail] = useState('')
   const form = useForm({
     defaultValues: {
       email: '',
@@ -29,6 +37,7 @@ export function LoginForm({ mutation }: Props) {
       onSubmit: signInInputSchema,
     },
     onSubmit: async ({ value }: { value: SignInVariables }) => {
+      setAttemptedEmail(value.email)
       await mutation({ data: value })
     },
   })
@@ -43,7 +52,11 @@ export function LoginForm({ mutation }: Props) {
       }}
       className="space-y-4"
     >
-      <FormErrorBanner error={mutation.error} />
+      {isEmailNotVerified(mutation.error) ? (
+        <UnverifiedEmailNotice email={attemptedEmail} resend={resendVerification} />
+      ) : (
+        <FormErrorBanner error={mutation.error} />
+      )}
 
       <FieldGroup>
         <form.Field name="email">
