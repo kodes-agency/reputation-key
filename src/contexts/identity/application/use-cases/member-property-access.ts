@@ -1,7 +1,7 @@
 // Identity context — AccountAdmins read and edit which Properties each
 // PropertyManager can work, from Members. Grants and revokes commit with one
-// identity.member.property_access_changed fact; a revoke then releases any
-// Responsible Manager duty the member can no longer hold.
+// identity.member.property_access_changed fact; a request that revokes then
+// releases any Responsible Manager duty the member can no longer hold.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext, scopeForPermission } from '#/shared/domain/permissions'
@@ -55,7 +55,10 @@ const unique = (ids: ReadonlyArray<string>): ReadonlyArray<string> => [...new Se
  * 2. Validate the target — a member of this Organization, not the caller,
  *    and a PropertyManager (an AccountAdmin already reaches every Property)
  * 3. Persist — the store applies what changes and records the fact atomically
- * 4. Reconcile — a revoke releases responsibilities the member lost
+ * 4. Reconcile — a request that revokes releases responsibilities the member
+ *    lost. Decided by the request, not by what this call revoked: the
+ *    reconcile runs after the commit, so if it fails, repeating the request
+ *    (which then revokes nothing) must still run it. It is idempotent.
  */
 export const setMemberPropertyAccess =
   (deps: SetMemberPropertyAccessDeps) =>
@@ -81,12 +84,13 @@ export const setMemberPropertyAccess =
 
     const now = deps.clock()
     const memberUserId = toUserId(target.userId)
+    const revokePropertyIds = unique(input.revokePropertyIds)
     const applied = await deps.store.setPropertyAccess({
       organizationId: ctx.organizationId,
       userId: memberUserId,
       actorUserId: ctx.userId,
       grantPropertyIds: unique(input.grantPropertyIds),
-      revokePropertyIds: unique(input.revokePropertyIds),
+      revokePropertyIds,
       now,
       buildEvent: (changed) =>
         identityMemberPropertyAccessChanged({
@@ -99,7 +103,7 @@ export const setMemberPropertyAccess =
         }),
     })
 
-    if (applied.revokedPropertyIds.length > 0) {
+    if (revokePropertyIds.length > 0) {
       await deps.reconcileResponsibleManagerEligibility?.(
         ctx.organizationId,
         target.userId,

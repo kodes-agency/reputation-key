@@ -62,7 +62,12 @@ export const setMemberPropertyAccess = createServerFn({ method: 'POST' })
           resetTenantCache()
           return applied
         } catch (e) {
+          // An Identity refusal changed nothing: the checks run first and the
+          // store's refusals roll back its transaction.
           if (isIdentityError(e)) throwIdentityError(e)
+          // Anything else may follow a committed change (the responsibility
+          // reconcile runs after the commit), so drop the cached scope too.
+          resetTenantCache()
           throw catchUntagged(e)
         }
       },
