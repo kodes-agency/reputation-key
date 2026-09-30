@@ -1038,6 +1038,8 @@ describe('getPortalAnalytics: All Time counts Google selections only', () => {
 const SOFIA_START = new Date('2026-08-31T21:00:00.000Z') // 1 Sep 00:00 in Sofia
 const SOFIA_END = new Date('2026-09-30T11:23:00.000Z')
 const SOFIA_PRIOR_START = new Date('2026-08-01T21:00:00.000Z') // 2 Aug 00:00
+// The same elapsed time of day, 30 days earlier: the two windows are equally long.
+const SOFIA_PRIOR_END = new Date('2026-08-31T11:23:00.000Z')
 
 function resultsTabDeps(
   overrides?: Readonly<{
@@ -1113,12 +1115,12 @@ describe('getPortalAnalytics: the Results tab', () => {
       PROP,
       PORT,
       SOFIA_PRIOR_START,
-      SOFIA_START,
+      SOFIA_PRIOR_END,
       '2026-08-02',
     )
     expect(result.comparePeriod).toEqual({
       startAt: SOFIA_PRIOR_START,
-      endAt: SOFIA_START,
+      endAt: SOFIA_PRIOR_END,
     })
   })
 

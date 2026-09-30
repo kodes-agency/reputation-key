@@ -64,11 +64,65 @@ describe('chartModel', () => {
     expect(last?.averageNote).toBe('4 ratings, too few')
   })
 
+  it('says nothing about too few ratings while the ratings are not ready', () => {
+    const updating = chartModel(
+      {
+        weeks: SERIES.weeks.map((week) => ({
+          ...week,
+          ratings: null,
+          average: null,
+          averageWithheld: 'not_ready' as const,
+        })),
+      },
+      [],
+    )
+
+    expect(updating.columns.every((column) => column.averageNote === null)).toBe(true)
+    expect(updating.columns.every((column) => column.averageFromTop === null)).toBe(true)
+  })
+
   it('places a version marker on its day within its bucket, with its own words', () => {
-    // Week 3 of 5, first day: 3/5 of the way across.
+    // Week 3 of 5, first of 7 days: the middle of that day, (3 + 0.5/7) / 5 across.
     expect(model.markers).toEqual([
-      { key: 'v5-2026-09-22', label: 'v5 published 22 Sep', leftPercent: 60 },
+      {
+        key: 'v5-2026-09-22',
+        label: 'v5 published 22 Sep',
+        leftPercent: ((3 + 0.5 / 7) / 5) * 100,
+        labelBeforeLine: true,
+      },
     ])
+  })
+
+  it('places a marker in a short last bucket on its own day, not as if the bucket had 7', () => {
+    // 30 Sep is the second of the last bucket's two days.
+    const last = chartModel(SERIES, [
+      {
+        version: 6,
+        kind: 'publish',
+        activatedAt: new Date('2026-09-30T06:00:00.000Z'),
+        localDate: '2026-09-30',
+        week: 4,
+        dayInWeek: 1,
+      },
+    ])
+
+    expect(last.markers[0]?.leftPercent).toBeCloseTo(((4 + 1.5 / 2) / 5) * 100)
+    expect(last.markers[0]?.labelBeforeLine).toBe(true)
+  })
+
+  it('writes a label to the right of its line only while there is room for it', () => {
+    const early = chartModel(SERIES, [
+      {
+        version: 4,
+        kind: 'publish',
+        activatedAt: new Date('2026-09-02T06:00:00.000Z'),
+        localDate: '2026-09-02',
+        week: 0,
+        dayInWeek: 1,
+      },
+    ])
+
+    expect(early.markers[0]?.labelBeforeLine).toBe(false)
   })
 
   it('says a rollback made an earlier version live again', () => {
@@ -84,7 +138,7 @@ describe('chartModel', () => {
     ])
 
     expect(rolled.markers[0]?.label).toBe('v3 made live again 10 Sep')
-    expect(rolled.markers[0]?.leftPercent).toBeCloseTo(((1 + 2 / 7) / 5) * 100)
+    expect(rolled.markers[0]?.leftPercent).toBeCloseTo(((1 + 2.5 / 7) / 5) * 100)
   })
 
   it('draws no prior bars when the series carries no prior figure', () => {

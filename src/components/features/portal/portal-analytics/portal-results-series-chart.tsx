@@ -146,12 +146,15 @@ function ScanBars({ model }: Readonly<{ model: ChartModel }>) {
 export function PortalResultsSeriesChart({
   model,
   rangeLabel,
+  priorLabel,
   description,
   labelledBy,
 }: Readonly<{
   model: ChartModel
   /** The period's name in the legend: "Last 30 days". */
   rangeLabel: string
+  /** The period before in the legend: "The 30 days before". */
+  priorLabel: string
   description: string
   labelledBy: string
 }>) {
@@ -173,7 +176,7 @@ export function PortalResultsSeriesChart({
               aria-hidden="true"
               className="size-2.5 rounded-[2px] border-2 border-foreground/50"
             />
-            The period before
+            {priorLabel}
           </li>
         ) : null}
         <li className="flex items-center gap-1.5">
@@ -225,7 +228,12 @@ export function PortalResultsSeriesChart({
               className="absolute inset-y-6 border-l border-primary"
               style={{ left: `${marker.leftPercent}%` }}
             >
-              <span className="absolute -top-5 left-1 text-xs whitespace-nowrap text-primary">
+              <span
+                className={cn(
+                  'absolute -top-5 text-xs whitespace-nowrap text-primary',
+                  marker.labelBeforeLine ? 'right-1 text-right' : 'left-1',
+                )}
+              >
                 {marker.label}
               </span>
             </span>

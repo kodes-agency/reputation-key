@@ -2,15 +2,19 @@
 // the guest saw. A new measure, so the board tags it.
 import { Badge } from '#/components/ui/badge'
 import type { PortalAnalyticsData } from '#/contexts/reporting/application/public-api'
-import { languageRows } from './portal-results-languages'
+import { languageRows, languagesAreHeldBack } from './portal-results-languages'
 
 export function PortalResultsLanguages({
   breakdown,
+  ratingsState,
   headingId,
 }: Readonly<{
   breakdown: PortalAnalyticsData['ratingLanguages']
+  /** State of the governed ratings count the languages are captioned against. */
+  ratingsState: PortalAnalyticsData['kpis']['ratings']['evidence']['state']
   headingId: string
 }>) {
+  const heldBack = languagesAreHeldBack(ratingsState)
   const { rows, caption } = languageRows(breakdown)
   return (
     <div className="space-y-3">
@@ -20,7 +24,7 @@ export function PortalResultsLanguages({
           New measure
         </Badge>
       </h3>
-      {rows.length === 0 ? null : (
+      {heldBack || rows.length === 0 ? null : (
         <ol aria-labelledby={headingId} className="space-y-2.5">
           {rows.map((row) => (
             <li
@@ -39,7 +43,9 @@ export function PortalResultsLanguages({
           ))}
         </ol>
       )}
-      <p className="text-sm text-muted-foreground">{caption}</p>
+      <p className="text-sm text-muted-foreground">
+        {heldBack ? 'Languages appear once the ratings are counted.' : caption}
+      </p>
     </div>
   )
 }

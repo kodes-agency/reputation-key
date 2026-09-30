@@ -57,6 +57,7 @@ export const RESULTS_WEEKS: readonly PortalSeriesWeek[] = WEEK_DATES.map(
     priorScans: PRIOR_SCANS[index] ?? 0,
     ratings: RATINGS[index] ?? 0,
     average: AVERAGES[index] ?? null,
+    averageWithheld: AVERAGES[index] === null ? 'below_floor' : null,
   }),
 )
 

@@ -32,7 +32,8 @@ metric authority.
   `domain/portal-results-thresholds.ts`.
 - **Results window**: a bounded range is that many whole Property-local calendar days ending with
   today, opening at local midnight (`localDaysWindow`); the period before is the same number of
-  days before that. "Last 30 days" on 30 Sep is 1-30 Sep against 2-31 Aug. A Portal's Results tab
+  days before that, cut at the same time of day so both are equally long (today is still in
+  progress). "Last 30 days" on 30 Sep is 1-30 Sep against 2-31 Aug. A Portal's Results tab
   and the Portals overview read the same window, so a Portal's row and its own tab agree.
 - **Results series**: a Portal's window cut into weekly buckets anchored to its own first day
   (`domain/portal-results-series.ts`). A bucket carries qualified scans, the prior window's scans

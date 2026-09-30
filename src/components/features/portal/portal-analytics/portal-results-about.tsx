@@ -38,7 +38,7 @@ function definitions(data: PortalAnalyticsData): readonly Definition[] {
     {
       term: 'Guests by language',
       meaning:
-        'Private ratings counted by the language of the page the guest saw when they rated.',
+        'Private ratings counted by the language of the page the guest saw when they rated. The languages are read from the responses themselves, so for a short while after new ratings arrive they can run ahead of the private ratings figure above; the list waits while that figure is updating.',
     },
     {
       term: 'Weeks',

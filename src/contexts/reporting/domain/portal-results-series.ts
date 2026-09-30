@@ -41,10 +41,16 @@ export type PortalSeriesWeek = Readonly<{
   scans: number | null
   /** The prior window's scans in the same bucket. Null when not comparable. */
   priorScans: number | null
-  /** Eligible private ratings in the bucket. */
-  ratings: number
+  /** Eligible private ratings in the bucket. Null while ratings are not ready. */
+  ratings: number | null
   /** Sum over count; null below the floor or while ratings are not ready. */
   average: number | null
+  /**
+   * Why there is no average: too few ratings to average, or the ratings are
+   * not ready (updating, unavailable). Only the first is a statement about the
+   * bucket's ratings. Null while the average is shown.
+   */
+  averageWithheld: 'below_floor' | 'not_ready' | null
 }>
 
 export type PortalResultsSeries = Readonly<{
@@ -160,6 +166,10 @@ export function buildPortalResultsSeries(
     const rating = sumOf(current.rows, index, RATING_KEY)
     const ratingCount = rating?.count ?? 0
     const priorScans = prior && sumOf(prior.rows, index, QUALIFIED_SCAN_KEY)
+    const average =
+      ready.ratings && rating && ratingCount >= averageMinSample
+        ? roundedAverage(rating.total, ratingCount)
+        : null
     return {
       index,
       startLocalDate: addLocalDays(startLocalDate, offset),
@@ -170,11 +180,10 @@ export function buildPortalResultsSeries(
         prior !== null && ready.scans && ready.priorScans
           ? (priorScans?.total ?? 0)
           : null,
-      ratings: ratingCount,
-      average:
-        ready.ratings && rating && ratingCount >= averageMinSample
-          ? roundedAverage(rating.total, ratingCount)
-          : null,
+      ratings: ready.ratings ? ratingCount : null,
+      average,
+      averageWithheld:
+        average !== null ? null : ready.ratings ? 'below_floor' : 'not_ready',
     }
   })
   return { weeks }

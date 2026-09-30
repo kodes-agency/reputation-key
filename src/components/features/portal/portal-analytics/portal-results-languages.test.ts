@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { languageRows } from './portal-results-languages'
+import { languageRows, languagesAreHeldBack } from './portal-results-languages'
 
 describe('languageRows', () => {
   it('names each language in its own script, most ratings first', () => {
@@ -100,5 +100,23 @@ describe('languageRows', () => {
     })
 
     expect(caption).toBe('From 1 private rating, by page language.')
+  })
+})
+
+describe('languagesAreHeldBack', () => {
+  // The languages come straight from the guests' responses, the ratings count
+  // from the governed readings that trail them: while those are still catching
+  // up, the two captions could disagree, so the list waits.
+  it('waits while the governed ratings are updating or unavailable', () => {
+    expect(languagesAreHeldBack('updating')).toBe(true)
+    expect(languagesAreHeldBack('temporarily_unavailable')).toBe(true)
+  })
+
+  it('shows once the ratings are counted', () => {
+    expect(languagesAreHeldBack('ready')).toBe(false)
+  })
+
+  it('does not hold the list for a figure that simply has too few to say', () => {
+    expect(languagesAreHeldBack('insufficient_data')).toBe(false)
   })
 })

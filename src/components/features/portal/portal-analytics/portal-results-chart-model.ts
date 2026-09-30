@@ -65,19 +65,21 @@ export type ChartColumn = Readonly<{
   /** Bar heights, percent of the scan axis. Null when the figure is not known. */
   scansPercent: number | null
   priorScansPercent: number | null
-  ratings: number
+  ratings: number | null
   average: number | null
   /** Distance of the average's dot from the top of its plot, percent. */
   averageFromTop: number | null
-  /** Why a bucket with ratings has no average: "4 ratings, too few". */
+  /** Why a bucket with ratings has no average: "4 ratings, too few". Only for a bucket below the floor, never while ratings are not ready. */
   averageNote: string | null
 }>
 
 export type ChartMarker = Readonly<{
   key: string
   label: string
-  /** Distance from the left of the plot, percent. */
+  /** Distance from the left of the plot, percent: the middle of its day. */
   leftPercent: number
+  /** Write the label to the left of the line, so it stays inside the plot. */
+  labelBeforeLine: boolean
 }>
 
 export type ChartModel = Readonly<{
@@ -89,6 +91,8 @@ export type ChartModel = Readonly<{
 }>
 
 const DAYS_PER_BUCKET = 7
+/** Past this share of the plot a label written to the right of its line runs off the edge. */
+const LABEL_FLIP_PERCENT = 60
 
 function percentOf(value: number | null, ceiling: number): number | null {
   return value === null ? null : (value / ceiling) * 100
@@ -98,7 +102,8 @@ function ratingsNote(count: number): string {
   return `${count} ${count === 1 ? 'rating' : 'ratings'}, too few`
 }
 
-function markerLabel(marker: PortalVersionMarker): string {
+/** "v5 published 22 Sep": the chart's words, also listed under its values. */
+export function markerLabel(marker: PortalVersionMarker): string {
   const day = formatDayRange(marker.localDate, marker.localDate)
   return marker.kind === 'rollback'
     ? `v${marker.version} made live again ${day}`
@@ -128,14 +133,22 @@ export function chartModel(
     averageFromTop:
       week.average === null ? null : ((average.high - week.average) / span) * 100,
     averageNote:
-      week.average === null && week.ratings > 0 ? ratingsNote(week.ratings) : null,
+      week.averageWithheld === 'below_floor' && (week.ratings ?? 0) > 0
+        ? ratingsNote(week.ratings ?? 0)
+        : null,
   }))
-  const markers = versionMarkers.map((marker): ChartMarker => ({
-    key: `v${marker.version}-${marker.localDate}`,
-    label: markerLabel(marker),
-    leftPercent:
-      ((marker.week + marker.dayInWeek / DAYS_PER_BUCKET) / weeks.length) * 100,
-  }))
+  const markers = versionMarkers.map((marker): ChartMarker => {
+    // The last bucket can be shorter than a week: its days are wider.
+    const bucketDays = weeks[marker.week]?.days ?? DAYS_PER_BUCKET
+    const leftPercent =
+      ((marker.week + (marker.dayInWeek + 0.5) / bucketDays) / weeks.length) * 100
+    return {
+      key: `v${marker.version}-${marker.localDate}`,
+      label: markerLabel(marker),
+      leftPercent,
+      labelBeforeLine: leftPercent > LABEL_FLIP_PERCENT,
+    }
+  })
   return {
     columns,
     scans,

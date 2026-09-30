@@ -37,8 +37,8 @@ const P4 = portalId('b0000000-0000-4000-8000-000000000004')
 const G1 = portalGroupId('c0000000-0000-4000-8000-000000000001')
 const G2 = portalGroupId('c0000000-0000-4000-8000-000000000002')
 
-// "Last 30 days" on 30 Sep is 1-30 Sep, the 30 local days before are 2 Aug-1 Sep:
-// both windows sit after qualified scans began (2026-08-01).
+// "Last 30 days" on 30 Sep (noon) is 1 Sep to now, and the 30 days before are 2 Aug
+// to noon on 31 Aug: equally long, and both after qualified scans began (2026-08-01).
 const NOW = new Date('2026-09-30T12:00:00.000Z')
 const RANGE = {
   startAt: new Date('2026-09-01T00:00:00.000Z'),
@@ -46,7 +46,7 @@ const RANGE = {
 }
 const PRIOR = {
   startAt: new Date('2026-08-02T00:00:00.000Z'),
-  endAt: new Date('2026-09-01T00:00:00.000Z'),
+  endAt: new Date('2026-08-31T12:00:00.000Z'),
 }
 const UTC = 'UTC'
 const AUCKLAND = 'Pacific/Auckland'

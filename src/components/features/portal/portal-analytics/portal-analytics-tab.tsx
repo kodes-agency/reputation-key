@@ -6,13 +6,11 @@ import { useState, useEffect } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import type { getPortalAnalyticsFn } from '#/contexts/reporting/server/portal-analytics'
 import { portalKeys } from '#/shared/queries/query-keys'
-import {
-  timeRangePreset,
-  type TimeRangePreset,
-} from '#/contexts/reporting/application/dto/dashboard.dto'
+import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
 import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'
 import { BarChart3 } from 'lucide-react'
 import { PortalAnalyticsContent } from './portal-analytics-content'
+import { storedResultsRange } from './portal-results-window'
 
 type Props = Readonly<{
   portalId: string
@@ -25,15 +23,15 @@ type Props = Readonly<{
 const TIME_RANGE_KEY = 'portal-analytics-time-range'
 const COMPARE_KEY = 'portal-analytics-compare'
 
-/** Stored preset, validated against the schema the server DTO uses. An
- * unchecked cast let any stale, hand-edited or since-removed value through to
- * getPortalAnalyticsFn, where it failed the DTO and pinned the tab on its error
- * branch until the reader happened to click another range. */
+/** Stored preset, validated against the schema the server DTO uses and against
+ * the ranges this tab offers. An unchecked cast let any stale, hand-edited or
+ * since-removed value through to getPortalAnalyticsFn, where it failed the DTO
+ * and pinned the tab on its error branch until the reader happened to click
+ * another range. */
 function readStoredTimeRange(): TimeRangePreset {
   if (typeof window === 'undefined') return '30d'
   try {
-    const parsed = timeRangePreset.safeParse(localStorage.getItem(TIME_RANGE_KEY))
-    return parsed.success ? parsed.data : '30d'
+    return storedResultsRange(localStorage.getItem(TIME_RANGE_KEY))
   } catch {
     return '30d'
   }
@@ -70,6 +68,7 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
     data,
     isLoading: loading,
     error: queryError,
+    isPlaceholderData: stale,
   } = useQuery({
     queryKey: portalKeys.analytics(propertyId, portalId, timeRange, compare),
     queryFn: () =>
@@ -122,6 +121,7 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
       onTimeRangeChange={setTimeRange}
       compare={compare}
       onCompareChange={setCompare}
+      busy={stale}
     />
   )
 }

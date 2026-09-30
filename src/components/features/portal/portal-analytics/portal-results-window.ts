@@ -6,7 +6,10 @@
 // "Sept" in some locales and the boards say "Sep".
 
 import type { PortalAnalyticsData } from '#/contexts/reporting/application/public-api'
-import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
+import {
+  timeRangePreset,
+  type TimeRangePreset,
+} from '#/contexts/reporting/application/dto/dashboard.dto'
 
 type LocalDays = NonNullable<PortalAnalyticsData['localDays']>
 
@@ -20,6 +23,17 @@ export const PORTAL_RESULTS_RANGES: ReadonlyArray<{
   { value: '90d', label: 'Last 90 days' },
   { value: 'all', label: 'All time' },
 ]
+
+const DEFAULT_RANGE: TimeRangePreset = '30d'
+
+/** A remembered range, if the picker still offers it: the server accepts more presets than this tab shows. */
+export function storedResultsRange(stored: string | null): TimeRangePreset {
+  const parsed = timeRangePreset.safeParse(stored)
+  if (!parsed.success) return DEFAULT_RANGE
+  return PORTAL_RESULTS_RANGES.some((range) => range.value === parsed.data)
+    ? parsed.data
+    : DEFAULT_RANGE
+}
 
 const MONTHS = [
   'Jan',
@@ -89,12 +103,25 @@ export function compareLabel(days: LocalDays): string {
     : `Compare with the ${length} days before`
 }
 
-/** The footer line: both periods, the zone, and the floor a comparison needs. */
+/** The current period as the legend names it: "Last 30 days", from the days the figures cover. */
+export function currentPeriodLabel(days: LocalDays): string {
+  return `Last ${dayCount(days.start, days.end)} days`
+}
+
+/** The period before as the legend and the table name it: "The 30 days before". */
+export function priorPeriodLabel(days: LocalDays): string {
+  const length = dayCount(days.start, days.end)
+  return length === 1 ? 'The day before' : `The ${length} days before`
+}
+
+/** The footer line: both periods, the zone, and the floor a comparison needs.
+ *  All Time (`days` is null) has no comparison, so it has no floor to state. */
 export function windowFooter(
-  days: LocalDays,
+  days: LocalDays | null,
   timezone: string,
   comparisonMinSample: number,
 ): string {
+  if (days === null) return `All time, ${timezone} time`
   const current = formatDayRange(days.start, days.end)
   if (days.compareStart === null || days.compareEnd === null) {
     return `${current}, ${timezone} time`

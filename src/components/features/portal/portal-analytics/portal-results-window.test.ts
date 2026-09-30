@@ -2,8 +2,11 @@ import { describe, expect, it } from 'vitest'
 import {
   PORTAL_RESULTS_RANGES,
   compareLabel,
+  currentPeriodLabel,
   dayCount,
   formatDayRange,
+  priorPeriodLabel,
+  storedResultsRange,
   windowCaption,
   windowFooter,
 } from './portal-results-window'
@@ -61,10 +64,28 @@ describe('the window texts', () => {
     )
   })
 
+  it('names the periods in the legend and the table from the days the figures cover', () => {
+    expect(currentPeriodLabel(days)).toBe('Last 30 days')
+    expect(priorPeriodLabel(days)).toBe('The 30 days before')
+    const week = {
+      ...days,
+      start: '2026-09-24',
+      compareStart: '2026-09-17',
+      compareEnd: '2026-09-23',
+    }
+    expect(currentPeriodLabel(week)).toBe('Last 7 days')
+    expect(priorPeriodLabel(week)).toBe('The 7 days before')
+    expect(priorPeriodLabel({ ...days, start: '2026-09-30' })).toBe('The day before')
+  })
+
   it('puts both periods and the comparison floor in the footer', () => {
     expect(windowFooter(days, 'Europe/Sofia', 10)).toBe(
       '1–30 Sep against 2–31 Aug, Europe/Sofia time · Averages compare only when both periods have at least 10 private ratings.',
     )
+  })
+
+  it('has no comparison sentence when the comparison is off or All Time has none', () => {
+    expect(windowFooter(null, 'Europe/Sofia', 10)).toBe('All time, Europe/Sofia time')
   })
 
   it('leaves the comparison out of the footer when it is off', () => {
@@ -84,5 +105,22 @@ describe('PORTAL_RESULTS_RANGES', () => {
       'all',
     ])
     expect(PORTAL_RESULTS_RANGES[1]?.label).toBe('Last 30 days')
+  })
+})
+
+describe('storedResultsRange', () => {
+  it('keeps a remembered range the picker offers', () => {
+    expect(storedResultsRange('7d')).toBe('7d')
+    expect(storedResultsRange('all')).toBe('all')
+  })
+
+  it('falls back to 30 days for a range the server reads but the picker does not offer', () => {
+    // 180d is a valid preset for other views; here it would leave the Select empty.
+    expect(storedResultsRange('180d')).toBe('30d')
+  })
+
+  it('falls back to 30 days for nothing, or for something stale or hand-edited', () => {
+    expect(storedResultsRange(null)).toBe('30d')
+    expect(storedResultsRange('yesterday')).toBe('30d')
   })
 })

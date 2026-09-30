@@ -42,7 +42,8 @@ export const BoardSeven: Story = {
       canvas.getByText('From 118 private ratings, by page language.'),
     ).toBeVisible()
     await expect(canvas.getByText('Български')).toBeVisible()
-    await expect(canvas.getByText('v5 published 22 Sep')).toBeVisible()
+    // Once on the chart, once in the list under its values.
+    await expect(canvas.getAllByText('v5 published 22 Sep')[0]).toBeVisible()
     await expect(
       canvas.getByText(/1–30 Sep against 2–31 Aug, Europe\/Sofia time/),
     ).toBeVisible()
@@ -58,6 +59,10 @@ export const ChartValuesAsATable: Story = {
     await expect(within(table).getByText('29–30 Sep')).toBeVisible()
     // The last week has four ratings: too few for an average, and it says so.
     await expect(within(table).getByText('Too few')).toBeVisible()
+    // The prior column is named for the days it covers, and the table lists
+    // the version marker the picture draws.
+    await expect(within(table).getByText('The 30 days before')).toBeVisible()
+    await expect(canvas.getAllByText('v5 published 22 Sep').length).toBeGreaterThan(1)
   },
 }
 
@@ -234,7 +239,7 @@ export const VersionMadeLiveAgain: Story = {
     },
   },
   play: async ({ canvas }) => {
-    await expect(canvas.getByText('v3 made live again 10 Sep')).toBeVisible()
+    await expect(canvas.getAllByText('v3 made live again 10 Sep')[0]).toBeVisible()
   },
 }
 
@@ -259,6 +264,9 @@ export const AllTime: Story = {
       canvas.getByText('Weekly figures need a chosen range. All time shows totals only.'),
     ).toBeVisible()
     expect(canvas.queryByRole('checkbox')).toBeNull()
+    // All Time has no comparison, so the footer states no floor for one.
+    await expect(canvas.getByText('All time, Europe/Sofia time')).toBeVisible()
+    expect(canvas.queryByText(/Averages compare only/)).toBeNull()
   },
 }
 
@@ -296,10 +304,94 @@ export const NoDataYet: Story = {
   },
 }
 
+/** The ratings are still being counted: weeks say nothing about "too few", and the languages wait. */
+export const RatingsStillUpdating: Story = {
+  args: {
+    data: {
+      ...healthy,
+      kpis: {
+        ...healthy.kpis,
+        ratings: {
+          ...healthy.kpis.ratings,
+          value: null,
+          trend: null,
+          evidence: resultsEvidence({ state: 'updating' }),
+        },
+        avgRating: {
+          ...healthy.kpis.avgRating,
+          value: null,
+          comparison: null,
+          evidence: resultsEvidence({ state: 'updating' }),
+        },
+      },
+      ratingDistribution: [],
+      series: {
+        weeks: RESULTS_WEEKS.map((week) => ({
+          ...week,
+          ratings: null,
+          average: null,
+          averageWithheld: 'not_ready' as const,
+        })),
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    expect(canvas.queryByText(/too few/i)).toBeNull()
+    await userEvent.click(canvas.getByText('View chart values'))
+    const table = canvas.getByRole('table', {
+      name: 'Qualified scans and average rating by week',
+    })
+    expect(within(table).queryByText('Too few')).toBeNull()
+    await expect(
+      canvas.getByText('Languages appear once the ratings are counted.'),
+    ).toBeVisible()
+    expect(canvas.queryByText('Български')).toBeNull()
+  },
+}
+
+/** The previous range's figures stay on screen while the new ones load. */
+export const NewRangeLoading: Story = {
+  args: { busy: true },
+  play: async ({ canvasElement }) => {
+    await expect(canvasElement.querySelector('[aria-busy="true"]')).not.toBeNull()
+  },
+}
+
 export const Narrow320: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
   play: async ({ canvas }) => {
     await expect(canvas.getAllByText('Guests who opened Google')[0]).toBeVisible()
     await expect(canvas.getByText('Over time')).toBeVisible()
+  },
+}
+
+/** A version that went live on the last day: its label must stay inside the plot. */
+export const VersionLiveInTheLastWeekNarrow320: Story = {
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+  args: {
+    data: {
+      ...healthy,
+      versionMarkers: [
+        {
+          version: 6,
+          kind: 'publish',
+          activatedAt: new Date('2026-09-30T06:00:00.000Z'),
+          localDate: '2026-09-30',
+          week: 4,
+          dayInWeek: 1,
+        },
+      ],
+    },
+  },
+  play: async ({ canvas, canvasElement }) => {
+    const label = canvas.getAllByText('v6 published 30 Sep')[0]
+    await expect(label).toBeVisible()
+    const plot = label?.closest('[role="img"]')?.getBoundingClientRect()
+    const box = label?.getBoundingClientRect()
+    if (plot === undefined || box === undefined) throw new Error('no chart')
+    // The label ends inside the picture rather than running off its right edge.
+    expect(box.right).toBeLessThanOrEqual(plot.right + 1)
+    const page = canvasElement.ownerDocument.documentElement
+    expect(page.scrollWidth).toBeLessThanOrEqual(page.clientWidth)
   },
 }

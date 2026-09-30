@@ -170,10 +170,10 @@ function activationFromRow(row: ActivationRow): PortalPublicationActivation | nu
   }
 }
 
-/** Exported for the golden-snapshot tests; production reads go through the repository. */
 /** Versions a chart marks inside one window; far more than anyone publishes in 180 days. */
 const MAX_ACTIVATIONS_BETWEEN = 100
 
+/** Exported for the golden-snapshot tests; production reads go through the repository. */
 export function snapshotFromRow(row: SnapshotRow): PortalPublicationSnapshot | null {
   const parsed = publicationConfigurationSchema.safeParse(row.configuration)
   if (!parsed.success) return null

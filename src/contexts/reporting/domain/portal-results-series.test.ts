@@ -161,6 +161,22 @@ describe('buildPortalResultsSeries', () => {
     expect(weeks[0]).toMatchObject({ scans: 3, average: null })
   })
 
+  it('says why an average is absent: below the floor, or ratings not ready', () => {
+    const below = build([ratings(4, 17, 4)], null).weeks
+    const shown = build([ratings(0, 25, 5)], null).weeks
+    const unready = build([ratings(0, 200, 40)], null, { ...READY, ratings: false }).weeks
+
+    expect(below[4]?.averageWithheld).toBe('below_floor')
+    expect(shown[0]?.averageWithheld).toBeNull()
+    expect(unready[0]?.averageWithheld).toBe('not_ready')
+  })
+
+  it('does not count ratings while ratings are not ready, as it does not count scans', () => {
+    const { weeks } = build([ratings(0, 200, 40)], null, { ...READY, ratings: false })
+
+    expect(weeks.every((week) => week.ratings === null)).toBe(true)
+  })
+
   it('ignores a reading that lands outside the window rather than invent a bucket', () => {
     const { weeks } = build([scans(9, 500), scans(-1, 500)], null)
 

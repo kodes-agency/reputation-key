@@ -1,11 +1,10 @@
 // "Over time": the weekly chart with its heading, its reading and its values.
 import { useId } from 'react'
 import type { PortalAnalyticsData } from '#/contexts/reporting/application/public-api'
-import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
 import { chartModel } from './portal-results-chart-model'
 import { PortalResultsSeriesChart } from './portal-results-series-chart'
 import { PortalResultsSeriesTable } from './portal-results-series-table'
-import { PORTAL_RESULTS_RANGES } from './portal-results-window'
+import { currentPeriodLabel, priorPeriodLabel } from './portal-results-window'
 
 function describe(data: PortalAnalyticsData): string {
   const last = data.series?.weeks.at(-1)
@@ -17,18 +16,19 @@ function describe(data: PortalAnalyticsData): string {
 
 export function PortalResultsSeries({
   data,
-  timeRange,
   comparing,
 }: Readonly<{
   data: PortalAnalyticsData
-  timeRange: TimeRangePreset
   comparing: boolean
 }>) {
   const headingId = useId()
   const { series } = data
+  // Named from the days the figures cover, not from the range picked a moment
+  // ago: while a new range loads the old bars are still on screen.
   const rangeLabel =
-    PORTAL_RESULTS_RANGES.find((range) => range.value === timeRange)?.label ??
-    'This period'
+    data.localDays === null ? 'This period' : currentPeriodLabel(data.localDays)
+  const priorLabel =
+    data.localDays === null ? 'The period before' : priorPeriodLabel(data.localDays)
   return (
     <section aria-labelledby={headingId} className="min-w-0 space-y-3">
       <h3 id={headingId} className="text-base font-semibold">
@@ -43,10 +43,16 @@ export function PortalResultsSeries({
           <PortalResultsSeriesChart
             model={chartModel(series, data.versionMarkers)}
             rangeLabel={rangeLabel}
+            priorLabel={priorLabel}
             description={describe(data)}
             labelledBy={headingId}
           />
-          <PortalResultsSeriesTable series={series} showPrior={comparing} />
+          <PortalResultsSeriesTable
+            series={series}
+            versionMarkers={data.versionMarkers}
+            showPrior={comparing}
+            priorLabel={priorLabel}
+          />
         </>
       )}
     </section>

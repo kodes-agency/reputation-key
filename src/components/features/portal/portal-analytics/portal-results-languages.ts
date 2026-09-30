@@ -27,6 +27,13 @@ export type ResultsLanguages = Readonly<{
   caption: string
 }>
 
+/** Whether the governed ratings figure is still catching up with the guests' responses. */
+export function languagesAreHeldBack(
+  ratingsState: PortalAnalyticsData['kpis']['ratings']['evidence']['state'],
+): boolean {
+  return ratingsState === 'updating' || ratingsState === 'temporarily_unavailable'
+}
+
 const UNRECORDED_LABEL = 'Language not recorded'
 
 type Tally = { key: string; label: string; count: number }
