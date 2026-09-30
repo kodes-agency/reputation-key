@@ -1,18 +1,31 @@
-// Accept invitation route — thin route wrapping AcceptInvitationPage
-// Fixed: auto-accept now uses useEffect instead of side-effect-in-render
+// Accept invitation route. The emailed link (`?id=`) resolves in `beforeLoad`:
+// a signed-out visitor goes to sign up (new address) or sign in (existing
+// account), and a signed-in one sees a confirm step. Nothing is accepted on
+// load. Without an id, the signed-in list of pending invitations stays (the
+// workspace-access screen links to it).
 
-import { createFileRoute, Link, redirect } from '@tanstack/react-router'
+import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router'
 import { queryOptions, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import { getSession } from '#/shared/auth/auth.functions'
+import { authClient } from '#/shared/auth/auth-client'
 import { identityKeys } from '#/shared/queries/query-keys'
-import { clearTenantCacheAfterTenantChange } from '#/shared/queries/tenant-cache-transition'
+import {
+  clearTenantCacheAfterSessionEnd,
+  clearTenantCacheAfterTenantChange,
+} from '#/shared/queries/tenant-cache-transition'
 import {
   listUserInvitations,
   acceptInvitation,
 } from '#/contexts/identity/server/organizations'
-import { AcceptInvitationPage } from '#/components/features/identity'
+import {
+  AcceptInvitationPage,
+  InvitationLinkPage,
+  InvitationStateCard,
+  type InvitationLink,
+} from '#/components/features/identity'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import { loadInvitationEntry, signInToAcceptInvitation } from './-invitation-entry'
 
 // Shared query options — the loader (ensureQueryData) and component
 // (useSuspenseQuery) reference the SAME options object so the primed cache is
@@ -44,26 +57,120 @@ export const acceptInvitationSearch = z.object({
   id: z.string().min(1).optional().catch(undefined),
 })
 
+/** What the page renders, decided once in `beforeLoad`. */
+type AcceptEntry =
+  | Readonly<{ kind: 'list' }>
+  | Readonly<{ kind: 'link'; link: InvitationLink; signedInEmail: string }>
+  // Signed out, and the link needs no account to explain itself.
+  | Readonly<{ kind: 'unusable'; link: Exclude<InvitationLink, { state: 'pending' }> }>
+
+async function resolveEntry(id: string | undefined): Promise<{ entry: AcceptEntry }> {
+  if (!id) {
+    const session = await getSession()
+    if (!session) throw redirect({ to: '/join', search: { invitationId: undefined } })
+    return { entry: { kind: 'list' } }
+  }
+  const { link, accountExists, signedInEmail } = await loadInvitationEntry(id)
+  if (signedInEmail !== null) {
+    return { entry: { kind: 'link', link, signedInEmail } }
+  }
+  if (link.state !== 'pending') return { entry: { kind: 'unusable', link } }
+  // An address with an account cannot sign up again: it signs in, then returns.
+  if (accountExists) throw signInToAcceptInvitation(id)
+  throw redirect({ to: '/join', search: { invitationId: id } })
+}
+
 export const Route = createFileRoute('/accept-invitation')({
   validateSearch: acceptInvitationSearch,
   staleTime: 30_000,
-  beforeLoad: async ({ search }) => {
-    const session = await getSession()
-    if (!session) {
-      throw redirect({
-        to: '/join',
-        search: { invitationId: search.id },
-      })
-    }
-  },
+  beforeLoad: ({ search }) => resolveEntry(search.id),
   loader: async ({ context }) => {
-    await context.queryClient.ensureQueryData(invitationsQuery)
+    if (context.entry.kind === 'list') {
+      await context.queryClient.ensureQueryData(invitationsQuery)
+    }
   },
   component: AcceptInvitationRoute,
 })
 
+function JoiningNotice() {
+  return (
+    <p className="mt-4 text-center text-xs leading-relaxed text-muted-foreground">
+      By joining you accept the{' '}
+      <Link
+        to="/privacy/beta-agreement"
+        className="font-medium text-link underline underline-offset-4"
+      >
+        Beta Agreement
+      </Link>{' '}
+      and the{' '}
+      <Link to="/privacy" className="font-medium text-link underline underline-offset-4">
+        Privacy Notice
+      </Link>
+      .
+    </p>
+  )
+}
+
 function AcceptInvitationRoute() {
-  const { id } = Route.useSearch()
+  const { entry } = Route.useRouteContext()
+  if (entry.kind === 'unusable') {
+    const { link } = entry
+    return link.state === 'unavailable' ? (
+      <InvitationStateCard state="unavailable" />
+    ) : (
+      <InvitationStateCard
+        state={link.state}
+        organizationName={link.organizationName}
+        inviterName={link.inviterName}
+      />
+    )
+  }
+  if (entry.kind === 'link') {
+    return <InvitationLinkRoute link={entry.link} signedInEmail={entry.signedInEmail} />
+  }
+  return <PendingInvitationsRoute />
+}
+
+function InvitationLinkRoute({
+  link,
+  signedInEmail,
+}: Readonly<{ link: InvitationLink; signedInEmail: string }>) {
+  const queryClient = useQueryClient()
+  const navigate = useNavigate()
+  const acceptInvitationFn = useActionMutation(acceptInvitation, {
+    successMessage: 'Invitation accepted',
+    onSuccess: () => clearTenantCacheAfterTenantChange(queryClient),
+  })
+  // Signing out hands the link back to /join, whose `beforeLoad` now sees a
+  // signed-out visitor and sends them to sign up or sign in.
+  const signOut = () =>
+    clearTenantCacheAfterSessionEnd(
+      queryClient,
+      async () => {
+        const result = await authClient.signOut()
+        if (result.error) throw new Error('Could not sign out. Please try again.')
+      },
+      () =>
+        navigate({
+          to: '/join',
+          search: {
+            invitationId: link.state === 'pending' ? link.invitationId : undefined,
+          },
+        }),
+    )
+
+  return (
+    <InvitationLinkPage
+      link={link}
+      signedInEmail={signedInEmail}
+      acceptInvitation={acceptInvitationFn}
+      signOut={signOut}
+      joiningNotice={<JoiningNotice />}
+    />
+  )
+}
+
+function PendingInvitationsRoute() {
   const { data: invitations } = useSuspenseQuery(invitationsQuery)
   const queryClient = useQueryClient()
   const acceptInvitationFn = useActionMutation(acceptInvitation, {
@@ -73,28 +180,9 @@ function AcceptInvitationRoute() {
 
   return (
     <AcceptInvitationPage
-      invitationId={id}
       invitations={invitations}
       acceptInvitation={acceptInvitationFn}
-      joiningNotice={
-        <p className="mt-4 text-center text-xs leading-relaxed text-muted-foreground">
-          By joining you accept the{' '}
-          <Link
-            to="/privacy/beta-agreement"
-            className="font-medium text-link underline underline-offset-4"
-          >
-            Beta Agreement
-          </Link>{' '}
-          and the{' '}
-          <Link
-            to="/privacy"
-            className="font-medium text-link underline underline-offset-4"
-          >
-            Privacy Notice
-          </Link>
-          .
-        </p>
-      }
+      joiningNotice={<JoiningNotice />}
     />
   )
 }
