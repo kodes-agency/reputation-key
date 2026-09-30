@@ -44,8 +44,8 @@ export type UpdateMemberRole = ReturnType<typeof updateMemberRole>
  * 1. Authorize — check that the changer's role allows the target role assignment
  * 2. Validate referenced entities — load the target member to get their current role
  * 3. Check business invariants — role hierarchy with the actual current role,
- *    plus the last-owner UX guard (the command store re-enforces it under the
- *    org advisory lock)
+ *    no self-change, no same-role change, then the last-owner UX guard (the
+ *    command store re-enforces it under the org advisory lock)
  * 4. Persist — command store: role update + role_changed fact, atomic
  * 5. Return
  */
@@ -70,6 +70,16 @@ export const updateMemberRole =
     const authResult = canChangeRole(ctx.role, targetMember.role ?? 'Member', input.role)
     if (authResult.isErr()) {
       throw identityError(authResult.error.code, authResult.error.message)
+    }
+
+    // 3a. Nobody changes their own role, and a change must change something —
+    // both before the last-owner guard, so they are never reported as it. The
+    // role_changed fact also asserts a real transition.
+    if (targetMember.userId === ctx.userId) {
+      throw identityError('forbidden', 'Ask another Account Admin to change your role')
+    }
+    if (targetMember.role === input.role) {
+      throw identityError('validation_error', 'The member already has this role')
     }
 
     // 3b. Last-owner UX guard — cannot demote the last owner. Detected via the raw
