@@ -14,6 +14,7 @@ function repository(): PortalAnalyticsRepository {
     getPortalKpiSums: vi.fn(async () => []),
     getPortalRatingDistribution: vi.fn(async () => []),
     getPortalRatingTrend: vi.fn(async () => []),
+    countUnattributedDestinationClicks: vi.fn(async () => 0),
     getPortalMetricEvidence: vi.fn(async () => ({
       scans: evidence('scan-version'),
       privateRatings: evidence('rating-version'),
@@ -73,6 +74,25 @@ describe('queryPortalAnalytics', () => {
     await queries.getPortalMetricEvidence(ORG, PROPERTY, PORTAL, START, END)
 
     expect(repo.getPortalMetricEvidence).toHaveBeenCalledWith(
+      ORG,
+      PROPERTY,
+      PORTAL,
+      START,
+      END,
+    )
+  })
+
+  it('validates the period before counting unattributed destination clicks', async () => {
+    const repo = repository()
+    const queries = queryPortalAnalytics(repo)
+
+    await queries.countUnattributedDestinationClicks(ORG, PROPERTY, PORTAL, START, END)
+    await expect(
+      queries.countUnattributedDestinationClicks(ORG, PROPERTY, PORTAL, END, START),
+    ).rejects.toThrow('Portal analytics period is invalid')
+
+    expect(repo.countUnattributedDestinationClicks).toHaveBeenCalledTimes(1)
+    expect(repo.countUnattributedDestinationClicks).toHaveBeenCalledWith(
       ORG,
       PROPERTY,
       PORTAL,

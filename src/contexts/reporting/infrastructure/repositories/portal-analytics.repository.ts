@@ -16,12 +16,14 @@ import {
   gte,
   inArray,
   isNotNull,
+  isNull,
   lt,
   or,
   sql,
   type SQL,
 } from 'drizzle-orm'
 import { trace } from '#/shared/observability/trace'
+import { portalMetricEvidenceSql } from './portal-analytics-evidence.sql'
 import type {
   MetricPortalMetricEvidence,
   MetricPortalMetricEvidenceSet,
@@ -86,7 +88,11 @@ function portalMetricPolicy(versionId: string): PortalMetricPolicy {
   })
 }
 
-const PORTAL_SCAN_POLICY = portalMetricPolicy(METRIC_VERSION_IDS.portalScanAnalytics)
+// "Scans" on the Portal results are QUALIFIED scans: server-verified Access
+// Artifact arrivals, deduplicated per response session over 24 hours. The raw
+// `portal.scan` metric counts every page open (bots, refreshes) and stays out
+// of Portal results.
+const QUALIFIED_SCAN_POLICY = portalMetricPolicy(METRIC_VERSION_IDS.qualifiedScanGoal)
 const PORTAL_RATING_POLICY = portalMetricPolicy(METRIC_VERSION_IDS.portalRatingAnalytics)
 const PORTAL_FEEDBACK_POLICY = portalMetricPolicy(
   METRIC_VERSION_IDS.portalFeedbackAnalytics,
@@ -95,7 +101,7 @@ const PORTAL_DESTINATION_CLICK_POLICY = portalMetricPolicy(
   METRIC_VERSION_IDS.portalDestinationClickAnalytics,
 )
 const PORTAL_ANALYTICS_POLICIES = Object.freeze([
-  PORTAL_SCAN_POLICY,
+  QUALIFIED_SCAN_POLICY,
   PORTAL_RATING_POLICY,
   PORTAL_FEEDBACK_POLICY,
   PORTAL_DESTINATION_CLICK_POLICY,
@@ -114,6 +120,9 @@ const PORTAL_ANALYTICS_POLICY = or(
 )
 if (!PORTAL_ANALYTICS_POLICY) throw new Error('Portal metric catalogue is empty')
 const PORTAL_RATING_KEY = PORTAL_RATING_POLICY.metric.definition.key
+const PORTAL_DESTINATION_CLICK_KEY = PORTAL_DESTINATION_CLICK_POLICY.metric.definition.key
+/** Evidence reason when click readings never recorded which link was opened. */
+const DESTINATION_UNATTRIBUTED_REASON = 'destination_unattributed'
 
 type EvidenceRow = Readonly<{
   family: unknown
@@ -175,6 +184,25 @@ function evidenceState(row: EvidenceRow, computedAt: Date): MetricPortalMetricEv
   }
 }
 
+/**
+ * Google opens need every click reading to say which link was opened. When some
+ * never did, the pipeline is complete but the figure is unanswerable, which is
+ * a different state from "updating" or "unavailable". Those stronger states
+ * win: an incomplete pipeline is reported as incomplete first.
+ */
+function withDestinationAttribution(
+  evidence: MetricPortalMetricEvidence,
+  unattributedClicks: number,
+): MetricPortalMetricEvidence {
+  if (evidence.state !== 'ready' || unattributedClicks === 0) return evidence
+  return {
+    ...evidence,
+    state: 'insufficient',
+    verifiedThrough: null,
+    availabilityReason: DESTINATION_UNATTRIBUTED_REASON,
+  }
+}
+
 function isPortalMetricFamily(value: unknown): value is PortalMetricFamily {
   return (
     value === 'scans' ||
@@ -226,6 +254,35 @@ function governedPortalWhere(scope: SQL | undefined) {
   )
 }
 
+/**
+ * Destination clicks count as Google opens only when the reading says the
+ * destination was the Google review link. A secondary-link click, or a click
+ * that never recorded a destination, is not a Google open.
+ */
+const GOOGLE_OPENS_ONLY = sql`(${metricReadings.metricKey} <> ${PORTAL_DESTINATION_CLICK_KEY}
+  OR ${metricReadings.portalDestinationKind} = 'google_review')`
+
+async function countUnattributedClicks(
+  db: Database,
+  tx: Tx,
+  scope: SQL | undefined,
+): Promise<number> {
+  const correctionTips = currentCorrectionTips(db)
+  const value = effectiveValue(correctionTips)
+  const [row] = await tx
+    .select({ total: count(value) })
+    .from(metricReadings)
+    .leftJoin(correctionTips, eq(correctionTips.readingId, metricReadings.id))
+    .where(
+      and(
+        governedPortalWhere(scope),
+        eq(metricReadings.metricKey, PORTAL_DESTINATION_CLICK_KEY),
+        isNull(metricReadings.portalDestinationKind),
+      ),
+    )
+  return Number(row?.total ?? 0)
+}
+
 export const createPortalAnalyticsRepository = (
   db: Database,
   clock: () => Date,
@@ -255,6 +312,7 @@ export const createPortalAnalyticsRepository = (
           .where(
             and(
               scope,
+              GOOGLE_OPENS_ONLY,
               sql`(${metricReadings.metricKey} <> ${PORTAL_RATING_KEY}
                 OR (${value} BETWEEN 1 AND 5 AND ${value} = TRUNC(${value})))`,
             ),
@@ -368,6 +426,24 @@ export const createPortalAnalyticsRepository = (
     })
   },
 
+  async countUnattributedDestinationClicks(
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+    portalId: PortalId,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<number> {
+    return trace('metric.portalAnalytics.countUnattributedDestinationClicks', () =>
+      withStatementTimeout(db, (tx) =>
+        countUnattributedClicks(
+          db,
+          tx,
+          metricPortalWhere(organizationId, propertyId, portalId, startDate, endDate),
+        ),
+      ),
+    )
+  },
+
   async getPortalMetricEvidence(
     organizationId: OrganizationId,
     propertyId: PropertyId,
@@ -377,17 +453,22 @@ export const createPortalAnalyticsRepository = (
   ): Promise<MetricPortalMetricEvidenceSet> {
     return trace('metric.portalAnalytics.getPortalMetricEvidence', async () => {
       const computedAt = clock()
-      const result = await withStatementTimeout(db, (tx) =>
-        tx.execute(sql`
-          WITH families (
-            family, definition_version_id, metric_key, source_policies, event_types
-          ) AS (
-            VALUES
+      const { result, unattributedClicks } = await withStatementTimeout(
+        db,
+        async (tx) => ({
+          unattributedClicks: await countUnattributedClicks(
+            db,
+            tx,
+            metricPortalWhere(organizationId, propertyId, portalId, startDate, endDate),
+          ),
+          result: await tx.execute(
+            portalMetricEvidenceSql(
+              sql`
               (
-                'scans', ${PORTAL_SCAN_POLICY.metric.version.id}::uuid,
-                ${PORTAL_SCAN_POLICY.metric.definition.key},
-                ARRAY[${PORTAL_SCAN_POLICY.sourcePolicies}]::text[],
-                ARRAY['guest.scan.recorded']::text[]
+                'scans', ${QUALIFIED_SCAN_POLICY.metric.version.id}::uuid,
+                ${QUALIFIED_SCAN_POLICY.metric.definition.key},
+                ARRAY[${QUALIFIED_SCAN_POLICY.sourcePolicies}]::text[],
+                ARRAY['guest.qualified_scan.recorded', 'guest.qualified_scan.retracted']::text[]
               ),
               (
                 'privateRatings', ${PORTAL_RATING_POLICY.metric.version.id}::uuid,
@@ -408,126 +489,11 @@ export const createPortalAnalyticsRepository = (
                 ARRAY[${PORTAL_DESTINATION_CLICK_POLICY.sourcePolicies}]::text[],
                 ARRAY['guest.review_link.clicked']::text[]
               )
-          ), source_status AS (
-            SELECT
-              families.family,
-              count(DISTINCT source.id) AS source_count,
-              count(DISTINCT source.id) FILTER (
-                WHERE receipt.status IN ('applied', 'duplicate')
-              ) AS applied_count,
-              bool_or(coalesce(receipt.status = 'obsolete', false)) AS obsolete_present,
-              bool_or(
-                coalesce(receipt.status IN ('applied', 'duplicate'), false)
-                AND CASE
-                  WHEN source.event_type LIKE '%.retracted' THEN NOT EXISTS (
-                    SELECT 1
-                    FROM metric_corrections AS expected_correction
-                    JOIN metric_readings AS corrected_reading
-                      ON corrected_reading.id = expected_correction.reading_id
-                    WHERE expected_correction.source_event_id =
-                            source.id::text || ':' || families.definition_version_id::text
-                      AND expected_correction.kind = 'retract'
-                      AND corrected_reading.definition_version_id =
-                            families.definition_version_id
-                      AND corrected_reading.source_event_id =
-                            source.payload ->> 'supersedesSourceEventId'
-                      AND corrected_reading.organization_id = ${organizationId}
-                      AND corrected_reading.property_id = ${propertyId}
-                      AND corrected_reading.portal_id = ${portalId}
-                  )
-                  ELSE
-                    NOT EXISTS (
-                      SELECT 1
-                      FROM metric_readings AS expected_reading
-                      WHERE expected_reading.definition_version_id =
-                              families.definition_version_id
-                        AND expected_reading.source_event_id = source.id::text
-                        AND expected_reading.organization_id = ${organizationId}
-                        AND expected_reading.property_id = ${propertyId}
-                        AND expected_reading.portal_id = ${portalId}
-                    )
-                    OR (
-                      source.payload ->> 'supersedesSourceEventId' IS NOT NULL
-                      AND NOT EXISTS (
-                        SELECT 1
-                        FROM metric_corrections AS replacement_correction
-                        JOIN metric_readings AS superseded_reading
-                          ON superseded_reading.id = replacement_correction.reading_id
-                        WHERE replacement_correction.source_event_id =
-                                source.id::text || ':retract'
-                          AND replacement_correction.kind = 'retract'
-                          AND superseded_reading.definition_version_id =
-                                families.definition_version_id
-                          AND superseded_reading.source_event_id =
-                                source.payload ->> 'supersedesSourceEventId'
-                          AND superseded_reading.organization_id = ${organizationId}
-                          AND superseded_reading.property_id = ${propertyId}
-                          AND superseded_reading.portal_id = ${portalId}
-                      )
-                    )
-                END
-              ) AS projection_missing,
-              max((source.payload ->> 'occurredAt')::timestamptz) AS latest_activity
-            FROM families
-            LEFT JOIN outbox_events AS source
-              ON source.organization_id = ${organizationId}
-             AND source.property_id = ${propertyId}
-             AND source.source_context = 'guest'
-             AND source.event_type = ANY(families.event_types)
-             AND source.payload ->> 'portalId' = ${portalId}
-             AND (source.payload ->> 'occurredAt')::timestamptz >= ${startDate}
-             AND (source.payload ->> 'occurredAt')::timestamptz < ${endDate}
-            LEFT JOIN event_consumer_receipts AS receipt
-              ON receipt.event_id = source.id
-             AND receipt.consumer_name = 'metric.guest-analytics'
-            GROUP BY families.family
-          ), reading_status AS (
-            SELECT
-              families.family,
-              count(DISTINCT reading.id) FILTER (
-                WHERE (
-                  reading.definition_version_id = families.definition_version_id
-                  AND reading.metric_key = families.metric_key
-                  AND reading.exact_value IS NOT NULL
-                  AND reading.data_quality = 'exact'
-                  AND reading.attribution_quality <> 'unresolved'
-                  AND reading.source_policy = ANY(families.source_policies)
-                  AND (
-                    families.family <> 'privateRatings'
-                    OR (
-                      reading.exact_value BETWEEN 1 AND 5
-                      AND reading.exact_value = trunc(reading.exact_value)
-                    )
-                  )
-                ) IS NOT TRUE
-              ) AS invalid_reading_count,
-              max(correction.recorded_at) AS correction_head
-            FROM families
-            LEFT JOIN metric_readings AS reading
-              ON reading.organization_id = ${organizationId}
-             AND reading.property_id = ${propertyId}
-             AND reading.portal_id = ${portalId}
-             AND reading.metric_key = families.metric_key
-             AND reading.event_at >= ${startDate}
-             AND reading.event_at < ${endDate}
-            LEFT JOIN metric_corrections AS correction
-              ON correction.reading_id = reading.id
-            GROUP BY families.family
-          )
-          SELECT
-            families.family,
-            families.definition_version_id,
-            source_status.source_count,
-            source_status.applied_count,
-            source_status.obsolete_present,
-            source_status.projection_missing,
-            reading_status.invalid_reading_count,
-            source_status.latest_activity,
-            reading_status.correction_head
-          FROM families
-          JOIN source_status USING (family)
-          JOIN reading_status USING (family)
-        `),
+            `,
+              { organizationId, propertyId, portalId, startDate, endDate },
+            ),
+          ),
+        }),
       )
 
       const parsed = {} as Record<PortalMetricFamily, MetricPortalMetricEvidence>
@@ -545,7 +511,13 @@ export const createPortalAnalyticsRepository = (
       ) {
         throw new Error('Portal metric evidence is incomplete')
       }
-      return parsed
+      return {
+        ...parsed,
+        reviewLinkClicks: withDestinationAttribution(
+          parsed.reviewLinkClicks,
+          unattributedClicks,
+        ),
+      }
     })
   },
 })

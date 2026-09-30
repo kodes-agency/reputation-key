@@ -28,6 +28,10 @@ export function queryPortalAnalytics(
       assertValidPeriod(args[3], args[4])
       return repository.getPortalRatingTrend(...args)
     },
+    countUnattributedDestinationClicks: async (...args) => {
+      assertValidPeriod(args[3], args[4])
+      return repository.countUnattributedDestinationClicks(...args)
+    },
     getPortalMetricEvidence: async (...args) => {
       assertValidPeriod(args[3], args[4])
       return repository.getPortalMetricEvidence(...args)

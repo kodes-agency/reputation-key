@@ -10,6 +10,12 @@ export type PortalRatingBucket = Readonly<{
   count: number
 }>
 
+/**
+ * One governed Portal measure summed over a period. `portal.qualified_scan` is
+ * the scan measure (raw `portal.scan` page opens are never summed here) and
+ * `portal.review_link_click` carries Google opens only: readings whose
+ * destination is a secondary link, or was never recorded, are excluded.
+ */
 export type PortalMetricSumRow = Readonly<{
   metricKey: string
   total: number
@@ -21,7 +27,12 @@ export type PortalMetricFamily =
 
 export type MetricPortalMetricEvidence = Readonly<{
   definitionVersionId: string
-  state: 'ready' | 'updating' | 'unavailable'
+  /**
+   * `insufficient` means the pipeline is complete but the readings cannot
+   * answer the question (Google opens with readings that never recorded which
+   * destination was opened). Nothing is wrong, and nothing can be shown.
+   */
+  state: 'ready' | 'updating' | 'unavailable' | 'insufficient'
   verifiedThrough: Date | null
   latestActivity: Date | null
   computedAt: Date
@@ -56,6 +67,18 @@ export type PortalAnalyticsRepository = Readonly<{
     startDate: Date,
     endDate: Date,
   ): Promise<readonly MetricPortalRatingTrendPoint[]>
+  /**
+   * Currently effective click readings in the period that never recorded a
+   * destination kind. They cannot be told apart as Google opens or secondary
+   * links, so any of them makes the Google-opens figure unanswerable.
+   */
+  countUnattributedDestinationClicks(
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+    portalId: PortalId,
+    startDate: Date,
+    endDate: Date,
+  ): Promise<number>
   getPortalMetricEvidence(
     organizationId: OrganizationId,
     propertyId: PropertyId,

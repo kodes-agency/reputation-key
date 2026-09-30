@@ -30,9 +30,10 @@ import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import {
   metricReadingId,
   organizationId,
+  portalAccessArtifactId,
   portalId,
   propertyId,
-  scanEventId,
+  qualifiedScanId,
 } from '#/shared/domain/ids'
 import { METRIC_VERSION_IDS } from '../../application/public-api'
 import { createPortalAnalyticsRepository } from './portal-analytics.repository'
@@ -40,7 +41,7 @@ import { createAtomicMetricCommandStore } from '../metric-command-store'
 import { createMetricRegistryRepository } from './metric-registry.repository'
 import { createPropertyLocalDateResolver } from './property-local-date'
 import { recordMetrics } from '../../application/use-cases/record-metric'
-import { onScanRecordedDurably } from '../record-portal-metric'
+import { onQualifiedScanRecordedDurably } from '../record-portal-metric'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 
@@ -149,8 +150,16 @@ beforeAll(async () => {
   )
 
   for (const source of [
-    [SOURCE_EVENTS.scanPending, 'guest.scan.recorded', '2026-06-11T10:00:00.000Z'],
-    [SOURCE_EVENTS.scanAtomic, 'guest.scan.recorded', ATOMIC_OCCURRED_AT.toISOString()],
+    [
+      SOURCE_EVENTS.scanPending,
+      'guest.qualified_scan.recorded',
+      '2026-06-11T10:00:00.000Z',
+    ],
+    [
+      SOURCE_EVENTS.scanAtomic,
+      'guest.qualified_scan.recorded',
+      ATOMIC_OCCURRED_AT.toISOString(),
+    ],
     [SOURCE_EVENTS.ratingApplied, 'guest.rating.submitted', '2026-06-12T10:00:00.000Z'],
     [
       SOURCE_EVENTS.feedbackObsolete,
@@ -334,7 +343,7 @@ describe('governed Portal analytics repository (integration)', () => {
     ).getPortalMetricEvidence(ORG, PROP, PORTAL, WINDOW_START, WINDOW_END)
 
     expect(evidence.scans).toMatchObject({
-      definitionVersionId: METRIC_VERSION_IDS.portalScanAnalytics,
+      definitionVersionId: METRIC_VERSION_IDS.qualifiedScanGoal,
       state: 'updating',
       completeness: 0,
       verifiedThrough: null,
@@ -366,7 +375,7 @@ describe('governed Portal analytics repository (integration)', () => {
     })
   })
 
-  it('marks scan evidence ready after one atomic consumer delivery', async () => {
+  it('marks qualified-scan evidence ready after one atomic consumer delivery', async () => {
     const project = recordMetrics({
       commandStore: createAtomicMetricCommandStore(db, randomUUID),
       registry: createMetricRegistryRepository(),
@@ -374,18 +383,19 @@ describe('governed Portal analytics repository (integration)', () => {
       idGen: () => metricReadingId(randomUUID()),
       resolvePropertyLocalDate: createPropertyLocalDateResolver(db),
     })
-    await onScanRecordedDurably({
+    await onQualifiedScanRecordedDurably({
       recordMetrics: project,
       findGroupForPortal: async () => null,
     })({
-      _tag: 'guest.scan.recorded',
+      _tag: 'guest.qualified_scan.recorded',
       eventId: SOURCE_EVENTS.scanAtomic,
       correlationId: null,
-      scanId: scanEventId('c4000000-0000-4000-8000-000000000001'),
+      qualifiedScanId: qualifiedScanId('c4000000-0000-4000-8000-000000000001'),
       organizationId: ORG,
       propertyId: PROP,
       portalId: PORTAL,
-      scanSource: 'qr',
+      portalGroupId: null,
+      accessArtifactId: portalAccessArtifactId('c5000000-0000-4000-8000-000000000001'),
       occurredAt: ATOMIC_OCCURRED_AT,
     })
 

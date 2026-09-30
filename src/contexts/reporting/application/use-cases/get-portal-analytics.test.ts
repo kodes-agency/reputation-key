@@ -57,6 +57,10 @@ function createFakePortalMetrics(overrides?: {
         ]
       )
     },
+    async countUnattributedDestinationClicks() {
+      calls.push('countUnattributedDestinationClicks')
+      return 0
+    },
     async getPortalMetricEvidence() {
       calls.push('getPortalMetricEvidence')
       return overrides?.evidence ?? readyEvidence()
