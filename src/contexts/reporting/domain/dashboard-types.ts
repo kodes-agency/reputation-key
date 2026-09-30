@@ -134,11 +134,32 @@ export type DashboardData = Readonly<{
 
 // ─── Portal Analytics ───
 
+/**
+ * The Portal results measures, each named for what it counts.
+ *
+ * - `scans` are QUALIFIED scans (server-verified, deduplicated per session),
+ *   counted from the day qualified scans began, not raw page opens.
+ * - `ratings` is the number of eligible private ratings.
+ * - `avgRating` is withheld (value null, evidence `insufficient_data`) below
+ *   the average sample floor; `sampleCount` is always the true n.
+ * - `googleOpens` counts guests who opened the Google review link. Secondary
+ *   links are not Google opens.
+ * - `feedback` is private notes.
+ * Every count carries `priorValue`, the absolute figure for the prior window.
+ */
 export type PortalKPIs = Readonly<{
   scans: PortalCountKPIValue
+  ratings: PortalCountKPIValue
   avgRating: RatingKPIValue
   feedback: PortalCountKPIValue
-  reviewLinkClicks: PortalCountKPIValue
+  googleOpens: PortalCountKPIValue
+}>
+
+/** Qualified scans -> private ratings -> Google opens. */
+export type PortalEngagementFunnel = Readonly<{
+  qualifiedScans: number
+  ratings: number
+  googleOpens: number
 }>
 
 export type PortalMetricEvidence = Readonly<{
@@ -175,7 +196,7 @@ export type RatingKPIValue = Readonly<{
   /** Eligible rating average. Null means there is no eligible sample. */
   value: number | null
   priorValue: number | null
-  /** Absolute star difference; shown only when both bounded periods have 10+ ratings. */
+  /** Absolute star difference; shown only when both bounded periods clear the comparison floor. */
   comparison: number | null
   sampleCount: number
   priorSampleCount: number
@@ -194,7 +215,7 @@ export type PortalAnalyticsData = Readonly<{
   /** Present only for the anonymous, non-comparative All Time projection. */
   lifetimeReconciliation: PortalLifetimeReconciliationState | null
   kpis: PortalKPIs
-  engagementFunnel: EngagementFunnel | null
+  engagementFunnel: PortalEngagementFunnel | null
   ratingDistribution: RatingDistribution
   ratingTrend: PortalRatingTrendPoint[]
   responseIntegrity: PortalResponseIntegritySummary

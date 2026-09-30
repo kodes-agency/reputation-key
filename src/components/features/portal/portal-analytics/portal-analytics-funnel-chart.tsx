@@ -1,131 +1,110 @@
-// Portal engagement funnel — geometry is monotonic by construction.
+// Portal engagement funnel: qualified scans -> private ratings -> Google opens.
 //
-// Recharts maps each row's `dataKey` value straight onto trapezoid width, so a
-// stage larger than the stage above it draws an inverted cone that reads as a
-// rendering bug rather than as data. That shape is not hypothetical: with the
-// portal.scan / portal.rating emission gaps the live payload is
-// `{ scans: 0, ratings: 0, reviewLinkClicks: N }`, and it stays reachable once
-// the producers are fixed because a scan can fail to record independently of a
-// rating that follows it. So widths are clamped to the stage above while the
-// readout keeps the true counts — geometry never lies about ordering, labels
-// never lie about totals.
+// What is drawn, and whether a chart is drawn at all, is decided by
+// portalFunnelPresentation. A chart only appears when the steps really narrow;
+// when one out-counts the step before it (qualified scans exist only from
+// August 2026) the readout shows the counts alone with a note, so the shape is
+// never asked to say something the data does not.
 import { Cell, Funnel, FunnelChart } from 'recharts'
 import { ChartContainer, type ChartConfig } from '#/components/ui/chart'
+import type { PortalEngagementFunnel } from '#/contexts/reporting/application/public-api'
+import { portalFunnelPresentation, type FunnelStage } from './portal-funnel-presentation'
 
 const funnelConfig = {
-  scans: { label: 'Scans', color: 'var(--chart-1)' },
+  qualifiedScans: { label: 'Qualified scans', color: 'var(--chart-1)' },
   ratings: { label: 'Private ratings', color: 'var(--chart-2)' },
-  reviewLinkClicks: { label: 'Review Clicks', color: 'var(--chart-3)' },
+  googleOpens: { label: 'Guests who opened Google', color: 'var(--chart-3)' },
 } satisfies ChartConfig
 
-/** A funnel step before clamping: the name, the recorded count, and the unit
- * noun the readout appends so a bare number never stands alone. */
-type Stage = Readonly<{
-  key: keyof typeof funnelConfig
-  name: string
-  actual: number
-  singular: string
-  plural: string
-}>
+function stageCount(stage: FunnelStage): string {
+  const noun = stage.actual === 1 ? stage.singular : stage.plural
+  return `${stage.actual.toLocaleString('en-US')} ${noun}`
+}
+
+function FunnelReadout({
+  stages,
+  showSwatches,
+}: {
+  stages: readonly FunnelStage[]
+  showSwatches: boolean
+}) {
+  return (
+    <ol className="space-y-1 text-xs">
+      {stages.map((stage, index) => (
+        <li key={stage.key} className="flex items-center gap-2">
+          {showSwatches ? (
+            <span
+              aria-hidden="true"
+              className="size-2 shrink-0 rounded-[2px]"
+              style={{ backgroundColor: `var(--color-${stage.key})` }}
+            />
+          ) : null}
+          <span className="text-muted-foreground">{stage.name}</span>
+          <span className="ml-auto font-medium tabular-nums">
+            {stageCount(stage)}
+            {stage.conversion === null ? null : (
+              <span className="ml-2 font-normal text-muted-foreground">
+                {stage.conversion}% of {stages[index - 1]?.plural}
+              </span>
+            )}
+          </span>
+        </li>
+      ))}
+    </ol>
+  )
+}
 
 export function EngagementFunnelChart({
   funnel,
   labelledBy,
 }: {
-  funnel: { scans: number; ratings: number; reviewLinkClicks: number }
+  funnel: PortalEngagementFunnel
   labelledBy: string
 }) {
-  const stages: readonly Stage[] = [
-    {
-      key: 'scans',
-      name: 'Scans',
-      actual: funnel.scans,
-      singular: 'scan',
-      plural: 'scans',
-    },
-    {
-      key: 'ratings',
-      name: 'Private ratings',
-      actual: funnel.ratings,
-      singular: 'rating',
-      plural: 'ratings',
-    },
-    {
-      key: 'reviewLinkClicks',
-      name: 'Review Clicks',
-      actual: funnel.reviewLinkClicks,
-      singular: 'review click',
-      plural: 'review clicks',
-    },
-  ]
+  const { stages, mode, note } = portalFunnelPresentation(funnel)
 
-  // Scans are the entry step, so a zero there clamps every width to zero: the
-  // chart would be a blank strip. Say so instead of drawing nothing.
-  if (funnel.scans === 0) {
+  if (mode === 'empty') {
     return (
       <p className="py-12 text-center text-sm text-muted-foreground">
-        No funnel data yet — scans are the first step and none were recorded in this
-        period.
+        No funnel data yet: no qualified scans, ratings or Google opens were recorded in
+        this period.
       </p>
     )
   }
 
-  let ceiling = Number.POSITIVE_INFINITY
-  const rows = stages.map((stage) => {
-    const value = Math.min(stage.actual, ceiling)
-    ceiling = value
-    return {
-      ...stage,
-      value,
-      clamped: value < stage.actual,
-      fill: `var(--color-${stage.key})`,
-    }
-  })
-
-  const anyClamped = rows.some((row) => row.clamped)
+  if (mode === 'counts_only') {
+    return (
+      <div className="space-y-3">
+        <FunnelReadout stages={stages} showSwatches={false} />
+        {note === null ? null : <p className="text-xs text-muted-foreground">{note}</p>}
+      </div>
+    )
+  }
 
   return (
     <div className="space-y-3">
       <ChartContainer
         config={funnelConfig}
-        // The trapezoids deliberately carry no in-shape text: a clamped stage
-        // would print a count that disagrees with its own width, and a recharts
-        // tooltip would report the clamped geometry value. The shape is one
-        // named graphic; the counts live in the DOM readout below, where screen
-        // readers and copy-paste both reach them.
+        // The trapezoids carry no in-shape text. The shape is one named graphic;
+        // the counts live in the DOM readout below, where screen readers and
+        // copy-paste both reach them.
         role="img"
         aria-labelledby={labelledBy}
         className="min-h-[200px] w-full"
       >
         <FunnelChart>
-          <Funnel dataKey="value" data={rows} isAnimationActive>
-            {rows.map((row) => (
-              <Cell key={row.key} fill={row.fill} />
+          <Funnel
+            dataKey="actual"
+            data={stages.map((stage) => ({ ...stage }))}
+            isAnimationActive
+          >
+            {stages.map((stage) => (
+              <Cell key={stage.key} fill={`var(--color-${stage.key})`} />
             ))}
           </Funnel>
         </FunnelChart>
       </ChartContainer>
-      <ol className="space-y-1 text-xs">
-        {rows.map((row) => (
-          <li key={row.key} className="flex items-center gap-2">
-            <span
-              aria-hidden="true"
-              className="size-2 shrink-0 rounded-[2px]"
-              style={{ backgroundColor: row.fill }}
-            />
-            <span className="text-muted-foreground">{row.name}</span>
-            <span className="ml-auto font-medium tabular-nums">
-              {row.actual.toLocaleString()} {row.actual === 1 ? row.singular : row.plural}
-            </span>
-          </li>
-        ))}
-      </ol>
-      {anyClamped && (
-        <p className="text-xs text-muted-foreground">
-          Bar widths are capped to the step above — a later step can out-count an earlier
-          one when a step fails to record.
-        </p>
-      )}
+      <FunnelReadout stages={stages} showSwatches />
     </div>
   )
 }

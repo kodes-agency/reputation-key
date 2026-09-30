@@ -156,12 +156,8 @@ const emptyAnalytics: PortalAnalyticsData = {
       evidence: emptyEvidence,
     },
     feedback: { value: 0, priorValue: null, trend: null, evidence: emptyEvidence },
-    reviewLinkClicks: {
-      value: 0,
-      priorValue: null,
-      trend: null,
-      evidence: emptyEvidence,
-    },
+    ratings: { value: 0, priorValue: null, trend: null, evidence: emptyEvidence },
+    googleOpens: { value: 0, priorValue: null, trend: null, evidence: emptyEvidence },
   },
   engagementFunnel: null,
   ratingDistribution: [

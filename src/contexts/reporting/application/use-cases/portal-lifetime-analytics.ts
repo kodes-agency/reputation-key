@@ -1,3 +1,7 @@
+import {
+  averageWithholdReason,
+  isAverageShowable,
+} from '../../domain/portal-results-thresholds'
 import type {
   PortalAnalyticsData,
   PortalMetricEvidence,
@@ -15,17 +19,15 @@ function lifetimeEvidence(
   sampleCount: number,
   aggregate: PortalLifetimeAggregate,
   computedAt: Date,
-  insufficientWhenEmpty = false,
+  /** An average is insufficient below its sample floor; a count never is. */
+  isAverage = false,
 ): PortalMetricEvidence {
   const awaitingReconciliation = aggregate.lastRebuiltAt === null
+  const withheld = isAverage && !isAverageShowable(sampleCount)
   return {
     basis: 'anonymous_lifetime',
     definitionVersionId,
-    state: awaitingReconciliation
-      ? 'updating'
-      : insufficientWhenEmpty && sampleCount === 0
-        ? 'insufficient_data'
-        : 'ready',
+    state: awaitingReconciliation ? 'updating' : withheld ? 'insufficient_data' : 'ready',
     // A reconciliation time is not a business watermark. The dedicated
     // lifetime block below exposes it without relabelling it as data time.
     verifiedThrough: null,
@@ -34,7 +36,11 @@ function lifetimeEvidence(
     latestActivity: null,
     computedAt,
     completeness: awaitingReconciliation ? 0 : 1,
-    availabilityReason: awaitingReconciliation ? 'lifetime_reconciliation_pending' : null,
+    availabilityReason: awaitingReconciliation
+      ? 'lifetime_reconciliation_pending'
+      : withheld
+        ? averageWithholdReason(sampleCount)
+        : null,
     correctionHead: null,
     sampleCount,
   }
@@ -77,6 +83,7 @@ export function portalLifetimeAnalyticsData(
       },
       kpis: {
         scans: { value: null, priorValue: null, trend: null, evidence },
+        ratings: { value: null, priorValue: null, trend: null, evidence },
         avgRating: {
           value: null,
           priorValue: null,
@@ -86,12 +93,7 @@ export function portalLifetimeAnalyticsData(
           evidence,
         },
         feedback: { value: null, priorValue: null, trend: null, evidence },
-        reviewLinkClicks: {
-          value: null,
-          priorValue: null,
-          trend: null,
-          evidence,
-        },
+        googleOpens: { value: null, priorValue: null, trend: null, evidence },
       },
       engagementFunnel: null,
       ratingDistribution: [],
@@ -101,12 +103,13 @@ export function portalLifetimeAnalyticsData(
   }
 
   const values = aggregate.values
-  const destinationSelectionCount =
-    values.googleReviewSelectionCount + values.secondaryLinkSelectionCount
-  const ratingValue =
-    values.privateRatingCount === 0
-      ? null
-      : roundedRating(values.privateRatingSum / values.privateRatingCount)
+  // Google opens are Google review selections only: a secondary link is not a
+  // Google open. The aggregate keeps both counts; this measure reads one.
+  const googleOpens = values.googleReviewSelectionCount
+  const averageShowable = isAverageShowable(values.privateRatingCount)
+  const ratingValue = averageShowable
+    ? roundedRating(values.privateRatingSum / values.privateRatingCount)
+    : null
   const evidence = {
     scans: lifetimeEvidence(
       aggregate.definitionVersionIds.qualifiedScans,
@@ -121,6 +124,12 @@ export function portalLifetimeAnalyticsData(
       input.endDate,
       true,
     ),
+    ratingCount: lifetimeEvidence(
+      aggregate.definitionVersionIds.privateRatings,
+      values.privateRatingCount,
+      aggregate,
+      input.endDate,
+    ),
     feedback: lifetimeEvidence(
       aggregate.definitionVersionIds.privateFeedback,
       values.privateFeedbackCount,
@@ -129,7 +138,7 @@ export function portalLifetimeAnalyticsData(
     ),
     destinations: lifetimeEvidence(
       aggregate.definitionVersionIds.destinationSelections,
-      destinationSelectionCount,
+      googleOpens,
       aggregate,
       input.endDate,
     ),
@@ -156,6 +165,12 @@ export function portalLifetimeAnalyticsData(
         trend: null,
         evidence: evidence.scans,
       },
+      ratings: {
+        value: values.privateRatingCount,
+        priorValue: null,
+        trend: null,
+        evidence: evidence.ratingCount,
+      },
       avgRating: {
         value: ratingValue,
         priorValue: null,
@@ -170,25 +185,28 @@ export function portalLifetimeAnalyticsData(
         trend: null,
         evidence: evidence.feedback,
       },
-      reviewLinkClicks: {
-        value: destinationSelectionCount,
+      googleOpens: {
+        value: googleOpens,
         priorValue: null,
         trend: null,
         evidence: evidence.destinations,
       },
     },
     engagementFunnel: {
-      scans: values.qualifiedScanCount,
+      qualifiedScans: values.qualifiedScanCount,
       ratings: values.privateRatingCount,
-      reviewLinkClicks: destinationSelectionCount,
+      googleOpens,
     },
-    ratingDistribution: [
-      { stars: 1, count: values.privateRating1Count },
-      { stars: 2, count: values.privateRating2Count },
-      { stars: 3, count: values.privateRating3Count },
-      { stars: 4, count: values.privateRating4Count },
-      { stars: 5, count: values.privateRating5Count },
-    ],
+    // A distribution would give a withheld average away.
+    ratingDistribution: averageShowable
+      ? [
+          { stars: 1, count: values.privateRating1Count },
+          { stars: 2, count: values.privateRating2Count },
+          { stars: 3, count: values.privateRating3Count },
+          { stars: 4, count: values.privateRating4Count },
+          { stars: 5, count: values.privateRating5Count },
+        ]
+      : [],
     // An anonymous total has no daily points. Deriving a chart from it would
     // invent time semantics the lifetime projection intentionally does not own.
     ratingTrend: [],

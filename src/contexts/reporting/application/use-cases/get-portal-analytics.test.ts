@@ -32,7 +32,7 @@ function createFakePortalMetrics(overrides?: {
       calls.push('getPortalKpiSums')
       return (
         overrides?.kpiSums ?? [
-          { metricKey: 'portal.scan', total: 100, count: 10 },
+          { metricKey: 'portal.qualified_scan', total: 100, count: 10 },
           { metricKey: 'portal.feedback', total: 20, count: 5 },
           { metricKey: 'portal.rating', total: 22, count: 5 },
           { metricKey: 'portal.review_link_click', total: 8, count: 3 },
@@ -177,9 +177,9 @@ describe('getPortalAnalytics (use case)', () => {
     })
 
     expect(result.engagementFunnel).toEqual({
-      scans: 100,
+      qualifiedScans: 100,
       ratings: 5,
-      reviewLinkClicks: 8,
+      googleOpens: 8,
     })
 
     // Rating data from metrics port
@@ -197,7 +197,7 @@ describe('getPortalAnalytics (use case)', () => {
   it('handles zero metric values gracefully', async () => {
     const metrics = createFakePortalMetrics({
       kpiSums: [
-        { metricKey: 'portal.scan', total: 0, count: 0 },
+        { metricKey: 'portal.qualified_scan', total: 0, count: 0 },
         { metricKey: 'portal.feedback', total: 0, count: 0 },
         { metricKey: 'portal.rating', total: 0, count: 0 },
         { metricKey: 'portal.review_link_click', total: 0, count: 0 },
@@ -238,14 +238,14 @@ describe('getPortalAnalytics (use case)', () => {
         callCount++
         if (callCount === 1) {
           return [
-            { metricKey: 'portal.scan', total: 200, count: 20 },
+            { metricKey: 'portal.qualified_scan', total: 200, count: 20 },
             { metricKey: 'portal.feedback', total: 40, count: 10 },
             { metricKey: 'portal.rating', total: 45, count: 10 },
             { metricKey: 'portal.review_link_click', total: 16, count: 6 },
           ]
         }
         return [
-          { metricKey: 'portal.scan', total: 100, count: 10 },
+          { metricKey: 'portal.qualified_scan', total: 100, count: 10 },
           { metricKey: 'portal.feedback', total: 20, count: 5 },
           { metricKey: 'portal.rating', total: 40, count: 10 },
           { metricKey: 'portal.review_link_click', total: 8, count: 3 },
@@ -372,7 +372,8 @@ describe('getPortalAnalytics (use case)', () => {
     expect(result.kpis.avgRating.value).toBe(4)
     expect(result.kpis.avgRating.sampleCount).toBe(5)
     expect(result.kpis.feedback.value).toBe(7)
-    expect(result.kpis.reviewLinkClicks.value).toBe(11)
+    // 9 Google selections; the 2 secondary-link selections are not Google opens.
+    expect(result.kpis.googleOpens.value).toBe(9)
     expect(result.ratingDistribution).toEqual([
       { stars: 1, count: 0 },
       { stars: 2, count: 1 },
@@ -386,7 +387,7 @@ describe('getPortalAnalytics (use case)', () => {
     expect(result.kpis.scans.trend).toBeNull()
     expect(result.kpis.avgRating.comparison).toBeNull()
     expect(result.kpis.feedback.trend).toBeNull()
-    expect(result.kpis.reviewLinkClicks.trend).toBeNull()
+    expect(result.kpis.googleOpens.trend).toBeNull()
     expect(result.ratingTrend).toEqual([])
 
     expect(result.kpis.scans.priorValue).toBeNull()
@@ -425,7 +426,7 @@ describe('getPortalAnalytics (use case)', () => {
     })
     expect(result.kpis.scans.value).toBeNull()
     expect(result.kpis.feedback.value).toBeNull()
-    expect(result.kpis.reviewLinkClicks.value).toBeNull()
+    expect(result.kpis.googleOpens.value).toBeNull()
     expect(result.kpis.avgRating.value).toBeNull()
     expect(result.ratingTrend).toEqual([])
   })
@@ -450,9 +451,9 @@ describe('getPortalAnalytics (use case)', () => {
     })
 
     expect(result.engagementFunnel).toEqual({
-      scans: 100,
+      qualifiedScans: 100,
       ratings: 5,
-      reviewLinkClicks: 8,
+      googleOpens: 8,
     })
   })
 
@@ -498,5 +499,319 @@ describe('getPortalAnalytics (use case)', () => {
     expect(result.kpis.avgRating.value).toBeNull()
     expect(result.kpis.avgRating.evidence.state).toBe('temporarily_unavailable')
     expect(result.engagementFunnel).toBeNull()
+  })
+})
+
+// ── Results measures tell the truth (R1) ──
+
+type WindowSums = Readonly<{
+  scans?: number
+  ratingCount?: number
+  ratingTotal?: number
+  googleOpens?: number
+  feedback?: number
+}>
+
+function windowSums(values: WindowSums): readonly PortalMetricSumRow[] {
+  const ratingCount = values.ratingCount ?? 0
+  return [
+    {
+      metricKey: 'portal.qualified_scan',
+      total: values.scans ?? 0,
+      count: values.scans ?? 0,
+    },
+    {
+      metricKey: 'portal.feedback',
+      total: values.feedback ?? 0,
+      count: values.feedback ?? 0,
+    },
+    { metricKey: 'portal.rating', total: values.ratingTotal ?? 0, count: ratingCount },
+    {
+      metricKey: 'portal.review_link_click',
+      total: values.googleOpens ?? 0,
+      count: values.googleOpens ?? 0,
+    },
+  ]
+}
+
+/** Current window first, prior window second, like the use case asks. */
+function metricsForWindows(
+  current: WindowSums,
+  prior: WindowSums,
+  evidence?: Readonly<{
+    current?: MetricPortalMetricEvidenceSet
+    prior?: MetricPortalMetricEvidenceSet
+  }>,
+): PortalAnalyticsRepository {
+  const base = createFakePortalMetrics()
+  let sums = 0
+  let evidenceReads = 0
+  return {
+    ...base,
+    async getPortalKpiSums() {
+      sums += 1
+      return windowSums(sums === 1 ? current : prior)
+    },
+    async getPortalMetricEvidence() {
+      evidenceReads += 1
+      return (
+        (evidenceReads === 1 ? evidence?.current : evidence?.prior) ?? readyEvidence()
+      )
+    },
+  }
+}
+
+async function run30Days(portalMetrics: PortalAnalyticsRepository) {
+  const now = new Date()
+  return getPortalAnalytics({
+    portalMetrics,
+    portalLifetime: createUnusedPortalLifetime(),
+    responseIntegrity: createFakeResponseIntegrity(),
+  })({
+    organizationId: ORG,
+    propertyId: PROP,
+    portalId: PORT,
+    startDate: new Date(now.getTime() - 30 * 86_400_000),
+    endDate: now,
+    timeRange: '30d',
+    propertyTimezone: 'UTC',
+  })
+}
+
+describe('getPortalAnalytics: the average is held back below the floor', () => {
+  it('shows no average at n = 4 and says why, keeping the true n', async () => {
+    const result = await run30Days(
+      metricsForWindows(
+        { ratingCount: 4, ratingTotal: 18 },
+        { ratingCount: 4, ratingTotal: 18 },
+      ),
+    )
+
+    expect(result.kpis.avgRating.value).toBeNull()
+    expect(result.kpis.avgRating.priorValue).toBeNull()
+    expect(result.kpis.avgRating.comparison).toBeNull()
+    expect(result.kpis.avgRating.sampleCount).toBe(4)
+    expect(result.kpis.avgRating.evidence).toMatchObject({
+      state: 'insufficient_data',
+      availabilityReason: 'below_minimum_sample',
+      sampleCount: 4,
+    })
+    // The count itself is not withheld: four ratings is four ratings.
+    expect(result.kpis.ratings.value).toBe(4)
+    // A distribution or daily averages would reveal the withheld average.
+    expect(result.ratingDistribution).toEqual([])
+    expect(result.ratingTrend).toEqual([])
+  })
+
+  it('shows the average from n = 5', async () => {
+    const result = await run30Days(
+      metricsForWindows(
+        { ratingCount: 5, ratingTotal: 22 },
+        { ratingCount: 5, ratingTotal: 20 },
+      ),
+    )
+
+    expect(result.kpis.avgRating.value).toBe(4.4)
+    expect(result.kpis.avgRating.priorValue).toBe(4)
+    expect(result.kpis.avgRating.evidence).toMatchObject({
+      state: 'ready',
+      availabilityReason: null,
+    })
+    expect(result.ratingDistribution).toHaveLength(2)
+    expect(result.ratingTrend).toHaveLength(2)
+  })
+
+  it('withholds only the side of the period that is too small', async () => {
+    const result = await run30Days(
+      metricsForWindows(
+        { ratingCount: 6, ratingTotal: 27 },
+        { ratingCount: 3, ratingTotal: 12 },
+      ),
+    )
+
+    expect(result.kpis.avgRating.value).toBe(4.5)
+    expect(result.kpis.avgRating.priorValue).toBeNull()
+    expect(result.kpis.avgRating.priorSampleCount).toBe(3)
+    expect(result.kpis.avgRating.comparison).toBeNull()
+  })
+
+  it('keeps the comparison at its own floor of 10 ratings per period', async () => {
+    const belowFloor = await run30Days(
+      metricsForWindows(
+        { ratingCount: 9, ratingTotal: 42 },
+        { ratingCount: 12, ratingTotal: 48 },
+      ),
+    )
+    expect(belowFloor.kpis.avgRating.value).toBe(4.7)
+    expect(belowFloor.kpis.avgRating.priorValue).toBe(4)
+    expect(belowFloor.kpis.avgRating.comparison).toBeNull()
+
+    const atFloor = await run30Days(
+      metricsForWindows(
+        { ratingCount: 10, ratingTotal: 45 },
+        { ratingCount: 10, ratingTotal: 40 },
+      ),
+    )
+    expect(atFloor.kpis.avgRating.comparison).toBe(0.5)
+  })
+})
+
+describe('getPortalAnalytics: Google opens and qualified scans', () => {
+  it('returns absolute prior values for every count', async () => {
+    const result = await run30Days(
+      metricsForWindows(
+        { scans: 60, ratingCount: 12, ratingTotal: 50, googleOpens: 9, feedback: 4 },
+        { scans: 40, ratingCount: 6, ratingTotal: 25, googleOpens: 0, feedback: 2 },
+      ),
+    )
+
+    expect(result.kpis.scans).toMatchObject({ value: 60, priorValue: 40, trend: 50 })
+    expect(result.kpis.ratings).toMatchObject({ value: 12, priorValue: 6, trend: 100 })
+    expect(result.kpis.feedback).toMatchObject({ value: 4, priorValue: 2, trend: 100 })
+    // A zero prior is an absolute value, and a percentage over zero is not one.
+    expect(result.kpis.googleOpens).toMatchObject({
+      value: 9,
+      priorValue: 0,
+      trend: null,
+    })
+  })
+
+  it('builds the funnel from qualified scans, ratings and Google opens', async () => {
+    const result = await run30Days(
+      metricsForWindows(
+        { scans: 3, ratingCount: 7, ratingTotal: 30, googleOpens: 5 },
+        {},
+      ),
+    )
+
+    // More ratings than scans is real data for windows before qualified scans
+    // began, and the use case reports it as it is. Presentation decides how.
+    expect(result.engagementFunnel).toEqual({
+      qualifiedScans: 3,
+      ratings: 7,
+      googleOpens: 5,
+    })
+  })
+
+  it('reports unattributed destinations as insufficient, never as a smaller count', async () => {
+    const result = await run30Days(
+      metricsForWindows(
+        { scans: 10, googleOpens: 2 },
+        { scans: 10, googleOpens: 2 },
+        {
+          current: {
+            ...readyEvidence(),
+            reviewLinkClicks: {
+              ...metricEvidence('click-version'),
+              state: 'insufficient',
+              verifiedThrough: null,
+              availabilityReason: 'destination_unattributed',
+            },
+          },
+        },
+      ),
+    )
+
+    expect(result.kpis.googleOpens.value).toBeNull()
+    expect(result.kpis.googleOpens.trend).toBeNull()
+    expect(result.kpis.googleOpens.evidence).toMatchObject({
+      state: 'insufficient_data',
+      availabilityReason: 'destination_unattributed',
+    })
+    // The other counts are unaffected, and the funnel cannot include the step.
+    expect(result.kpis.scans.value).toBe(10)
+    expect(result.engagementFunnel).toBeNull()
+  })
+
+  it('withholds a prior Google-opens figure whose own window is unattributed', async () => {
+    const result = await run30Days(
+      metricsForWindows(
+        { googleOpens: 4 },
+        { googleOpens: 3 },
+        {
+          prior: {
+            ...readyEvidence(),
+            reviewLinkClicks: {
+              ...metricEvidence('click-version'),
+              state: 'insufficient',
+              verifiedThrough: null,
+              availabilityReason: 'destination_unattributed',
+            },
+          },
+        },
+      ),
+    )
+
+    expect(result.kpis.googleOpens.value).toBe(4)
+    expect(result.kpis.googleOpens.priorValue).toBeNull()
+    expect(result.kpis.googleOpens.trend).toBeNull()
+  })
+})
+
+describe('getPortalAnalytics: All Time counts Google selections only', () => {
+  type LifetimeValues = Record<
+    keyof ReturnType<typeof emptyPortalLifetimeAggregate>['values'],
+    number
+  >
+  function lifetimeWith(overrides: Partial<LifetimeValues>) {
+    const aggregate = emptyPortalLifetimeAggregate()
+    return { ...aggregate, values: { ...aggregate.values, ...overrides } }
+  }
+
+  async function runAllTime(aggregate: ReturnType<typeof lifetimeWith>) {
+    return getPortalAnalytics({
+      portalMetrics: createFakePortalMetrics(),
+      portalLifetime: { get: vi.fn(async () => aggregate) },
+      responseIntegrity: createFakeResponseIntegrity(),
+    })({
+      organizationId: ORG,
+      propertyId: PROP,
+      portalId: PORT,
+      startDate: new Date(0),
+      endDate: new Date(),
+      timeRange: 'all',
+      propertyTimezone: 'UTC',
+    })
+  }
+
+  it('leaves secondary-link selections out of Google opens and the funnel', async () => {
+    const result = await runAllTime(
+      lifetimeWith({
+        qualifiedScanCount: 30,
+        privateRatingCount: 6,
+        privateRatingSum: 27,
+        googleReviewSelectionCount: 4,
+        secondaryLinkSelectionCount: 9,
+      }),
+    )
+
+    expect(result.kpis.googleOpens.value).toBe(4)
+    expect(result.kpis.googleOpens.priorValue).toBeNull()
+    expect(result.kpis.ratings.value).toBe(6)
+    expect(result.engagementFunnel).toEqual({
+      qualifiedScans: 30,
+      ratings: 6,
+      googleOpens: 4,
+    })
+  })
+
+  it('holds the all-time average back below five ratings too', async () => {
+    const result = await runAllTime(
+      lifetimeWith({
+        privateRatingCount: 4,
+        privateRatingSum: 18,
+        privateRating4Count: 2,
+        privateRating5Count: 2,
+      }),
+    )
+
+    expect(result.kpis.avgRating.value).toBeNull()
+    expect(result.kpis.avgRating.sampleCount).toBe(4)
+    expect(result.kpis.avgRating.evidence).toMatchObject({
+      state: 'insufficient_data',
+      availabilityReason: 'below_minimum_sample',
+    })
+    expect(result.ratingDistribution).toEqual([])
+    expect(result.kpis.ratings.value).toBe(4)
   })
 })

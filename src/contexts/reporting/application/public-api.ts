@@ -92,6 +92,7 @@ export type {
   PortalMetricEvidence,
   RatingKPIValue,
   PortalAnalyticsData,
+  PortalEngagementFunnel,
   PortalLifetimeReconciliationState,
   PortalResponseIntegritySummary,
   PortalRatingTrendPoint,

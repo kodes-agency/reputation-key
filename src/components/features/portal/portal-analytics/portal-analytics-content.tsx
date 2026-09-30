@@ -5,8 +5,7 @@ import { BarChart3 } from 'lucide-react'
 import { ChartCard, RatingTrendChart } from './portal-analytics-charts'
 import { RatingDistributionChart } from '#/components/features/shared/rating-distribution-chart'
 import { EngagementFunnelChart } from './portal-analytics-funnel-chart'
-import { StatCard } from '#/components/features/shared/stat-card'
-import { ratingPresentation } from '#/components/features/dashboard/rating-presentation'
+import { PortalKpiCards } from './portal-analytics-kpi-cards'
 import { PortalMetricEvidenceSummary } from './portal-metric-evidence-summary'
 import { PortalResponseIntegritySummary } from './portal-response-integrity-summary'
 import { PortalLifetimeReconciliationSummary } from './portal-lifetime-reconciliation-summary'
@@ -17,28 +16,26 @@ type Props = Readonly<{
   onTimeRangeChange: (timeRange: TimeRangePreset) => void
 }>
 
-function trendHint(trend: number | null): string {
-  if (trend === null) return '—'
-  const direction = trend > 0 ? '↑' : trend < 0 ? '↓' : '—'
-  return `${direction} ${Math.abs(trend)}%`
-}
-
 export function PortalAnalyticsContent({ data, timeRange, onTimeRangeChange }: Props) {
   const propertyTimezone = data.period.timezone
   const hasData =
     (data.kpis.scans.value ?? 0) > 0 ||
     (data.kpis.feedback.value ?? 0) > 0 ||
-    (data.kpis.reviewLinkClicks.value ?? 0) > 0 ||
+    (data.kpis.googleOpens.value ?? 0) > 0 ||
     data.kpis.avgRating.sampleCount > 0 ||
     data.responseIntegrity.total > 0
   const hasPendingState = [
     data.kpis.scans.evidence.state,
+    data.kpis.ratings.evidence.state,
     data.kpis.avgRating.evidence.state,
     data.kpis.feedback.evidence.state,
-    data.kpis.reviewLinkClicks.evidence.state,
+    data.kpis.googleOpens.evidence.state,
   ].some((state) => state === 'updating' || state === 'temporarily_unavailable')
+  // Clicks exist but cannot be told apart: an empty page would be a false "no data".
+  const hasWithheldGoogleOpens =
+    data.kpis.googleOpens.evidence.availabilityReason === 'destination_unattributed'
 
-  if (!hasData && !hasPendingState) {
+  if (!hasData && !hasPendingState && !hasWithheldGoogleOpens) {
     return (
       <div className="space-y-6">
         <TimeRangePicker timeRange={timeRange} onChange={onTimeRangeChange} />
@@ -59,7 +56,6 @@ export function PortalAnalyticsContent({ data, timeRange, onTimeRangeChange }: P
     )
   }
 
-  const rating = ratingPresentation(data.kpis.avgRating, timeRange)
   const engagementFunnel = data.engagementFunnel
   return (
     <div className="space-y-8">
@@ -70,80 +66,22 @@ export function PortalAnalyticsContent({ data, timeRange, onTimeRangeChange }: P
           timeZone={propertyTimezone}
         />
       )}
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard
-          label="Scans"
-          value={
-            data.kpis.scans.value === null ? '—' : data.kpis.scans.value.toLocaleString()
-          }
-          hint={trendHint(data.kpis.scans.trend)}
-          availability={{
-            subject: 'scans',
-            state: data.kpis.scans.evidence.state,
-            dataThrough: data.kpis.scans.evidence.verifiedThrough,
-            reason: data.kpis.scans.evidence.availabilityReason,
-            timeZone: propertyTimezone,
-          }}
-        />
-        <StatCard
-          label="Private rating avg"
-          value={rating.value}
-          hint={
-            <>
-              <span>{rating.comparison}</span>
-              {data.kpis.avgRating.evidence.state === 'ready' ? (
-                <span className="block">{rating.evidence}</span>
-              ) : null}
-            </>
-          }
-          availability={{
-            subject: 'ratings',
-            state: data.kpis.avgRating.evidence.state,
-            dataThrough: data.kpis.avgRating.evidence.verifiedThrough,
-            reason: data.kpis.avgRating.evidence.availabilityReason,
-            timeZone: propertyTimezone,
-          }}
-        />
-        <StatCard
-          label="Feedback"
-          value={
-            data.kpis.feedback.value === null
-              ? '—'
-              : data.kpis.feedback.value.toLocaleString()
-          }
-          hint={trendHint(data.kpis.feedback.trend)}
-          availability={{
-            subject: 'private_feedback',
-            state: data.kpis.feedback.evidence.state,
-            dataThrough: data.kpis.feedback.evidence.verifiedThrough,
-            reason: data.kpis.feedback.evidence.availabilityReason,
-            timeZone: propertyTimezone,
-          }}
-        />
-        <StatCard
-          label="Review Clicks"
-          value={
-            data.kpis.reviewLinkClicks.value === null
-              ? '—'
-              : data.kpis.reviewLinkClicks.value.toLocaleString()
-          }
-          hint={trendHint(data.kpis.reviewLinkClicks.trend)}
-          availability={{
-            subject: 'review_clicks',
-            state: data.kpis.reviewLinkClicks.evidence.state,
-            dataThrough: data.kpis.reviewLinkClicks.evidence.verifiedThrough,
-            reason: data.kpis.reviewLinkClicks.evidence.availabilityReason,
-            timeZone: propertyTimezone,
-          }}
-        />
-      </div>
+      <PortalKpiCards
+        kpis={data.kpis}
+        timeRange={timeRange}
+        timeZone={propertyTimezone}
+      />
       {data.lifetimeReconciliation === null && (
         <PortalMetricEvidenceSummary
           entries={[
-            { label: 'Scans', evidence: data.kpis.scans.evidence },
-            { label: 'Private ratings', evidence: data.kpis.avgRating.evidence },
-            { label: 'Private feedback', evidence: data.kpis.feedback.evidence },
-            { label: 'Review clicks', evidence: data.kpis.reviewLinkClicks.evidence },
+            { label: 'Qualified scans', evidence: data.kpis.scans.evidence },
+            { label: 'Private ratings', evidence: data.kpis.ratings.evidence },
+            { label: 'Average private rating', evidence: data.kpis.avgRating.evidence },
+            {
+              label: 'Guests who opened Google',
+              evidence: data.kpis.googleOpens.evidence,
+            },
+            { label: 'Private notes', evidence: data.kpis.feedback.evidence },
           ]}
           timeZone={propertyTimezone}
         />

@@ -22,7 +22,11 @@ export function AvailabilityLine({
   timeZone?: string
 }>) {
   const detail = reason === null ? null : metricAvailabilityDetail(reason)
-  const evidence = metricEvidenceLine({ subject, state, dataThrough }, locale, timeZone)
+  const evidence = metricEvidenceLine(
+    { subject, state, dataThrough, reason },
+    locale,
+    timeZone,
+  )
 
   return (
     <span className="text-xs text-muted-foreground">

@@ -3,14 +3,27 @@ import type { MetricAvailabilityState } from '#/contexts/reporting/application/p
 import { formatDateTime } from '#/lib/format-date-time'
 
 export type MetricEvidenceSubject =
-  'reviews' | 'ratings' | 'scans' | 'private_feedback' | 'review_clicks'
+  | 'reviews'
+  | 'ratings'
+  | 'scans'
+  | 'qualified_scans'
+  | 'private_feedback'
+  | 'google_opens'
 
 export type MetricEvidenceLineInput = Readonly<{
   basis?: 'governed_period' | 'anonymous_lifetime'
   subject: MetricEvidenceSubject
   state: MetricAvailabilityState
   dataThrough: Date | null
+  /** A reason that explains the state better than "nothing was recorded". */
+  reason?: string | null
 }>
+
+/** Reasons whose detail line already says why, so no empty-window line is shown. */
+const SELF_EXPLAINING_REASONS: ReadonlySet<string> = new Set([
+  'destination_unattributed',
+  'below_minimum_sample',
+])
 
 export function metricStateLabel(state: MetricAvailabilityState): string {
   return match(state)
@@ -53,6 +66,10 @@ export function metricAvailabilityDetail(reason: string | null): string {
       return 'The first all-time consistency check is still finishing.'
     case 'lifetime_projection_missing':
       return 'All-time totals are preparing.'
+    case 'destination_unattributed':
+      return 'Some clicks did not record which link was opened, so Google opens cannot be counted for this period.'
+    case 'below_minimum_sample':
+      return 'Too few ratings to show an average yet.'
     case null:
       return '—'
     default:
@@ -69,8 +86,9 @@ function insufficientDataLine(
     .with('reviews', () => `No eligible reviews in ${period}.`)
     .with('ratings', () => `No eligible ratings in ${period}.`)
     .with('scans', () => `No scans recorded in ${period}.`)
+    .with('qualified_scans', () => `No qualified scans recorded in ${period}.`)
     .with('private_feedback', () => `No private feedback received in ${period}.`)
-    .with('review_clicks', () => `No review clicks recorded in ${period}.`)
+    .with('google_opens', () => `No Google opens recorded in ${period}.`)
     .exhaustive()
 }
 
@@ -79,6 +97,14 @@ export function metricEvidenceLine(
   locale?: string,
   timeZone?: string,
 ): string | null {
+  if (
+    evidence.state === 'insufficient_data' &&
+    typeof evidence.reason === 'string' &&
+    SELF_EXPLAINING_REASONS.has(evidence.reason)
+  ) {
+    return null
+  }
+
   if (evidence.basis === 'anonymous_lifetime') {
     return match(evidence.state)
       .with('ready', () => 'All-time aggregate')
