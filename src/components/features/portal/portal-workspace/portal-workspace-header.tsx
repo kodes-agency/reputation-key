@@ -9,7 +9,9 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import type { ReactNode } from 'react'
 import type { PortalDetailTab } from '../portal-detail/portal-detail-rules'
+import type { PortalEditorSection } from '../portal-editor/portal-editor-sections'
 
 export type PortalWorkspaceHeaderProps = Readonly<{
   propertyId: string
@@ -28,6 +30,13 @@ export type PortalWorkspaceHeaderProps = Readonly<{
    * editing" returns to it.
    */
   activeTab: PortalDetailTab
+  /** The Page tab's section; carried the same way, so review returns to it. */
+  activeSection?: PortalEditorSection
+  /**
+   * The autosave line ("Saving…", "Draft saved"). A slot, so the header stays
+   * presentational and the layout supplies the one that reads the coordinator.
+   */
+  saveStatus?: ReactNode
 }>
 
 export function PortalWorkspaceHeader(props: PortalWorkspaceHeaderProps) {
@@ -40,7 +49,7 @@ export function PortalWorkspaceHeader(props: PortalWorkspaceHeaderProps) {
           <Link
             to="/properties/$propertyId/portals/$portalId"
             params={{ propertyId, portalId }}
-            search={{ tab: props.activeTab }}
+            search={{ tab: props.activeTab, section: props.activeSection }}
           >
             <ArrowLeft aria-hidden /> Back to editing
           </Link>
@@ -75,19 +84,27 @@ function ReviewActions({
   pendingNote,
   canReview,
   activeTab,
+  activeSection,
+  saveStatus,
 }: PortalWorkspaceHeaderProps) {
   if (!canReview) {
-    return pendingNote === null ? null : (
-      <p className="text-sm text-muted-foreground">{pendingNote}</p>
+    return (
+      <div className="flex flex-wrap items-center gap-3">
+        {saveStatus}
+        {pendingNote === null ? null : (
+          <p className="text-sm text-muted-foreground">{pendingNote}</p>
+        )}
+      </div>
     )
   }
   return (
     <div className="flex flex-wrap items-center gap-3">
+      {saveStatus}
       {pendingNote === null ? null : (
         <Link
           to="/properties/$propertyId/portals/$portalId/review"
           params={{ propertyId, portalId }}
-          search={{ tab: activeTab }}
+          search={{ tab: activeTab, section: activeSection }}
           className="text-sm text-muted-foreground underline decoration-dotted underline-offset-4 hover:text-foreground"
         >
           {pendingNote}
@@ -97,7 +114,7 @@ function ReviewActions({
         <Link
           to="/properties/$propertyId/portals/$portalId/review"
           params={{ propertyId, portalId }}
-          search={{ tab: activeTab }}
+          search={{ tab: activeTab, section: activeSection }}
         >
           Review &amp; publish
         </Link>

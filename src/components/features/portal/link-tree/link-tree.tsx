@@ -1,6 +1,7 @@
 // Server import exception: 8+ mutations (CRUD categories + CRUD links + reorder categories + reorder links)
 // Link tree — full CRUD for categories and links with DnD support.
-// Extracted from portal-detail-page to separate the link-tree concern.
+// Extracted from portal-detail-page to separate the link-tree concern. Its
+// heading is the editor's Linktree section frame's, so it renders none of its own.
 
 import { useRef } from 'react'
 import { LinkAddInlineForm } from './link-add-inline-form'
@@ -57,9 +58,7 @@ export function LinkTree({
   const canEdit = can('portal.update')
 
   return (
-    <section className="rounded-lg border p-4 space-y-4">
-      <h2 className="text-lg font-semibold">Link Tree</h2>
-
+    <div className="space-y-4">
       {/* Deletes and drag-reorders have no inline form to report into; without
           this banner a failure was indistinguishable from success. */}
       <FormErrorBanner error={actionError} />
@@ -109,6 +108,6 @@ export function LinkTree({
         updateCategoryError={updateCategoryError}
         updateLinkError={updateLinkError}
       />
-    </section>
+    </div>
   )
 }

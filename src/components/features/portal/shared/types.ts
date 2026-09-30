@@ -1,18 +1,8 @@
 // Shared types for portal feature components.
-// Extracted from portal-detail-page, portal-settings, and edit-portal-form
-// to eliminate duplication and ensure consistency.
+// Extracted from portal-detail-page and the portal editor sections to eliminate
+// duplication and ensure consistency.
 
 import type { GuestLocale, OfferedGuestLocale } from '#/shared/domain/guest-locale'
-
-export type FormLike = {
-  handleSubmit: () => void
-  /**
-   * Value-based (not touched-based) so it flips back to false once the user
-   * undoes every edit. Read lazily from a ref by the route-level unsaved-changes
-   * blocker, which only needs the answer at navigation time.
-   */
-  hasUnsavedChanges: () => boolean
-}
 
 export type PortalPublicationState = 'draft' | 'published' | 'disabled' | 'archived'
 

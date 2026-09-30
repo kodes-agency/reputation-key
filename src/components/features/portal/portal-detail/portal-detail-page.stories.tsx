@@ -1,12 +1,15 @@
-// Portal detail page — tabbed layout driven by the owning route's typed search state.
-// Components receive the active tab and navigation callback, so stories and SSR use
-// the same deterministic state without reading or mutating window.location.
+// Portal detail page — the tab (and, on the Page tab, the editor section) is
+// driven by the owning route's typed search state. Components receive it as
+// props, so stories and SSR use the same deterministic state without reading or
+// mutating window.location. The workspace layout provides the autosave
+// coordinator; the decorator below stands in for it.
 //
 // getPortalAnalytics is a server-fn-typed prop (analytics tab fires it on mount
 // via useServerFn(getPortalAnalytics)) → mock via mockServerFn + type cast.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
 import { PortalDetailPage } from './portal-detail-page'
+import { PortalDraftAutosaveProvider } from '../portal-editor/portal-draft-autosave-context'
 import type {
   getPortalAnalyticsFn,
   PortalAnalyticsData,
@@ -27,7 +30,14 @@ const meta: Meta<typeof PortalDetailPage> = {
   component: PortalDetailPage,
   tags: ['autodocs'],
   parameters: { layout: 'fullscreen' },
-  decorators: [AuthedRouterDecorator],
+  decorators: [
+    (Story) => (
+      <PortalDraftAutosaveProvider>
+        <Story />
+      </PortalDraftAutosaveProvider>
+    ),
+    AuthedRouterDecorator,
+  ],
 }
 export default meta
 type Story = StoryObj<typeof PortalDetailPage>
@@ -65,13 +75,6 @@ const links: readonly LinkTreeLink[] = [
     categoryId: 'cat-2',
   },
 ]
-// Never-resolving promise → mutation stays pending (Save button reads isPending).
-const { promise: neverResolves } = Promise.withResolvers<{ success: true }>()
-const pendingMutation = Object.assign(
-  async (_input: UpdatePortalVariables) => neverResolves,
-  { isPending: true, error: null as unknown, isSuccess: false, data: null },
-) as Action<UpdatePortalVariables, { success: true }>
-
 // Action mock: callable + reactive state props (matches the Action<T> shape).
 const idleMutation = Object.assign(
   async (_input: UpdatePortalVariables) => ({ success: true as const }),
@@ -204,6 +207,7 @@ const baseArgs = {
   categories,
   links,
   updateMutation: idleMutation,
+  autosaveUpdateMutation: idleMutation,
   completeReviewMutation,
   tokenStatus,
   issueTokenMutation,
@@ -213,12 +217,34 @@ const baseArgs = {
   activeTab: 'page' as const,
 }
 
-// The Page tab: the old Settings and Links tabs stacked, until the section list.
+// The Page tab opens on Welcome: the section list beside the portal's name,
+// address and description.
 export const PageTab: Story = {
   args: baseArgs,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('heading', { name: /settings/i })).toBeInTheDocument()
+    await expect(canvas.getByRole('heading', { name: 'Welcome' })).toBeInTheDocument()
+    await expect(canvas.getByLabelText('Name')).toHaveValue('Guest Services')
+    const nav = within(canvas.getByRole('navigation', { name: 'Editor sections' }))
+    await expect(nav.getByRole('link', { name: /welcome/i })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    // The publication toggle moved to Review & publish, and history to its tab.
+    await expect(
+      canvas.queryByRole('button', { name: /publish portal|disable public page/i }),
+    ).not.toBeInTheDocument()
+    await expect(
+      canvas.queryByRole('heading', { name: 'Publication history' }),
+    ).not.toBeInTheDocument()
+  },
+}
+
+// The old Settings' Google card is the Rating & Google section now.
+export const RatingSection: Story = {
+  args: { ...baseArgs, activeSection: 'rating' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
     await expect(
       canvas.getByRole('heading', { name: 'Google review destination' }),
     ).toBeInTheDocument()
@@ -226,11 +252,16 @@ export const PageTab: Story = {
     await expect(
       canvas.queryByRole('textbox', { name: /google review/i }),
     ).not.toBeInTheDocument()
-    // The links are the second half of the same tab, not a tab of their own.
+  },
+}
+
+// The old Links tab is the Linktree section: the links are still there.
+export const LinktreeSection: Story = {
+  args: { ...baseArgs, activeSection: 'linktree' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('heading', { name: 'Linktree' })).toBeInTheDocument()
     await expect(canvas.getByText('Google Reviews')).toBeInTheDocument()
-    await expect(
-      canvas.queryByRole('heading', { name: 'Publication history' }),
-    ).not.toBeInTheDocument()
   },
 }
 
@@ -264,13 +295,4 @@ export const ShareTab: Story = {
 // the "no analytics data yet" empty state renders).
 export const ResultsTab: Story = {
   args: { ...baseArgs, activeTab: 'results' },
-}
-
-// Settings tab while a save is in flight.
-export const SettingsSaving: Story = {
-  args: { ...baseArgs, activeTab: 'page', updateMutation: pendingMutation },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(canvas.getByRole('button', { name: /saving/i })).toBeInTheDocument()
-  },
 }

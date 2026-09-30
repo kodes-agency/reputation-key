@@ -35,7 +35,7 @@ export function ContentReviewCard({ portal, mutation, disabled }: Props) {
         <p className="text-xs text-muted-foreground">
           Review the saved gateway details — name, description, appearance, categories and
           destinations — and confirm every destination opens the intended review page.
-          Save pending edits before recording the review.
+          Changes to this portal save as you make them.
         </p>
       </div>
 

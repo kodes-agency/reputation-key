@@ -48,13 +48,3 @@ export const PUBLICATION_TOGGLES: Record<
   disabled: { label: 'Publish portal', nextState: 'published', variant: 'default' },
   archived: null,
 }
-
-/**
- * The settings live region. An in-flight save takes precedence over the last
- * successful one, so a second save is never announced as already finished; once
- * neither holds there is nothing to announce and the region stays empty.
- */
-export function saveStatusMessage(isPending: boolean, isSuccess: boolean): string {
-  if (isPending) return 'Saving portal settings'
-  return isSuccess ? 'Portal settings saved' : ''
-}

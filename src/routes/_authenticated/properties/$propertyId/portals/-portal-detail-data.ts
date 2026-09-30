@@ -6,6 +6,7 @@ import {
   listPortals,
   listPortalApprovedDestinations,
 } from '#/contexts/portal/server/portals'
+import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortalLinks } from '#/contexts/portal/server/portal-links'
 import { listPortalResponsibleManagers } from '#/contexts/portal/server/portal-responsible-managers'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
@@ -29,6 +30,13 @@ const propertyPortalsQuery = (propertyId: string) =>
   queryOptions({
     queryKey: portalKeys.list(propertyId),
     queryFn: () => listPortals({ data: { propertyId } }),
+    staleTime: 30_000,
+  })
+
+export const portalGroupsQuery = (propertyId: string) =>
+  queryOptions({
+    queryKey: portalKeys.groups(propertyId),
+    queryFn: () => listPortalGroups({ data: { propertyId } }),
     staleTime: 30_000,
   })
 
@@ -100,6 +108,7 @@ export const findAuthorizedPortal = async (
 export function usePortalDetailData(propertyId: string, portalId: string) {
   const { data: portalData } = useSuspenseQuery(portalQuery(portalId))
   const { data: linksData } = useSuspenseQuery(portalLinksQuery(portalId))
+  const { data: groupsData } = useSuspenseQuery(portalGroupsQuery(propertyId))
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: responsibleManagers } = useSuspenseQuery(
     responsibleManagersQuery(portalId),
@@ -119,6 +128,7 @@ export function usePortalDetailData(propertyId: string, portalId: string) {
   return {
     portalData,
     linksData,
+    groupsData,
     propData,
     responsibleManagers,
     membersData,

@@ -1,14 +1,20 @@
-// Navigation guard for unsaved portal edits.
+// Navigation guard for the portal editor.
 //
-// The theme draft lives in portal-detail-page state and the field edits live in
-// the settings form; neither is router state, so a breadcrumb click, the Back
-// button, or a tab switch (which unmounts the settings panel) used to discard
-// them with no warning. useBlocker intercepts the navigation and asks first.
+// Edits save themselves, so leaving is safe in the usual case and this guard
+// stays quiet. It does two things. Before any in-app navigation it writes
+// whatever is still waiting out its debounce (`flush`) — the section forms
+// unmount on a section switch, and a form remounted from a cache the write has
+// not reached yet would show stale text. Then it asks only if something could
+// not be saved: a write that failed, a form that refused its values, or a
+// property-wide form with edits and no Save yet. A reload or tab close is
+// guarded whenever anything at all is unsaved, because a write in flight does
+// not survive it.
 // The repo confirms destructive actions with AlertDialog — window.confirm is
 // used nowhere in src/ — so the blocker runs `withResolver` and drives a dialog.
 
 import { useCallback } from 'react'
 import { useBlocker } from '@tanstack/react-router'
+import { usePortalDraftAutosave } from '../portal-editor/portal-draft-autosave-context'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -20,21 +26,16 @@ import {
   AlertDialogTitle,
 } from '#/components/ui/alert-dialog'
 
-type Props = Readonly<{
-  /**
-   * Read at navigation time, not render time: the settings form's dirty flag
-   * lives in TanStack Form, not in React state here. Pass a stable callback —
-   * useBlocker re-registers its history subscription whenever it changes.
-   */
-  isDirty: () => boolean
-}>
-
-export function PortalUnsavedChangesPrompt({ isDirty }: Props) {
-  const shouldBlockFn = useCallback(() => isDirty(), [isDirty])
+export function PortalUnsavedChangesPrompt() {
+  const autosave = usePortalDraftAutosave()
+  const shouldBlockFn = useCallback(async () => {
+    await autosave.flush()
+    return autosave.needsAttention()
+  }, [autosave])
+  const warnBeforeUnload = useCallback(() => autosave.hasUnsaved(), [autosave])
   const blocker = useBlocker({
     shouldBlockFn,
-    // Also guard a reload / tab close; evaluated when beforeunload fires.
-    enableBeforeUnload: shouldBlockFn,
+    enableBeforeUnload: warnBeforeUnload,
     withResolver: true,
   })
 
@@ -49,18 +50,21 @@ export function PortalUnsavedChangesPrompt({ isDirty }: Props) {
     >
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Discard unsaved portal changes?</AlertDialogTitle>
+          <AlertDialogTitle>Leave without saving?</AlertDialogTitle>
           <AlertDialogDescription>
-            This portal has edits that have not been saved. Leaving now discards them.
+            Some changes to this portal have not been saved. Leaving now discards them.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Keep editing</AlertDialogCancel>
           <AlertDialogAction
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            onClick={() => blocker.proceed?.()}
+            onClick={() => {
+              autosave.discard()
+              blocker.proceed?.()
+            }}
           >
-            Discard changes
+            Leave and discard
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

@@ -24,12 +24,14 @@ import type {
   PortalTokenStatus,
 } from '#/contexts/portal/application/public-api'
 import type { PortalDetailTab } from './portal-detail-rules'
+import type { PortalEditorSection } from '../portal-editor/portal-editor-sections'
+import type { PortalGroupView } from '../portal-group-types'
 import type { GoogleReviewDestinationStatus } from '../portal-settings/google-review-destination-status'
 import type {
   PortalApprovedDestinationList,
   PortalExperienceActions,
   PortalExperienceSettings,
-} from '../portal-settings/portal-experience-settings-card'
+} from '../portal-settings/portal-experience-settings-types'
 
 export type PortalDetailPortal = Readonly<{
   id: string
@@ -46,7 +48,7 @@ export type PortalDetailPortal = Readonly<{
   additionalGuestLocales?: readonly GuestLocale[]
 }>
 
-/** What the route owns and the four tab panels consume unchanged. */
+/** What the route owns and the tab panels and the editor consume unchanged. */
 export type PortalDetailResources = Readonly<{
   portal: PortalDetailPortal
   propertyId: string
@@ -58,7 +60,13 @@ export type PortalDetailResources = Readonly<{
   >
   categories: readonly LinkTreeCategory[]
   links: readonly LinkTreeLink[]
+  /** Explicit portal writes: the publication toggle and the language Save. Toasts on success. */
   updateMutation: Action<UpdatePortalVariables>
+  /**
+   * The same write for the autosaved sections. Silent on success: the header's
+   * "Draft saved" is the acknowledgement, and a toast per keystroke pause is noise.
+   */
+  autosaveUpdateMutation: Action<UpdatePortalVariables>
   completeReviewMutation: Action<CompleteReviewVariables, CompleteReviewResult>
   issueTokenMutation: Action<{ data: { portalId: string } }, IssuedPortalLink>
   rotateTokenMutation: Action<{ data: RotatePortalLinkInput }, IssuedPortalLink>
@@ -75,6 +83,8 @@ export type PortalDetailResources = Readonly<{
       expectedRevision: number
     }
   }>
+  /** The property's groups, for the Group section. Absent: the section is not offered. */
+  portalGroups?: readonly PortalGroupView[]
   portalExperience?: PortalExperienceSettings
   approvedDestinations?: PortalApprovedDestinationList
   portalExperienceActions?: PortalExperienceActions
@@ -103,4 +113,6 @@ export type PortalDetailPageProps = PortalDetailResources &
     organizationName: string
     /** The tab the URL asks for; the page applies the capability filter itself. */
     activeTab: PortalDetailTab
+    /** The Page tab's section the URL asks for; the editor falls back when it is not offered. */
+    activeSection?: PortalEditorSection
   }>

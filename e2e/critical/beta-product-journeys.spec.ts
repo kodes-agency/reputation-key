@@ -126,22 +126,27 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     ).toBeVisible()
     await expect(page.getByText('E2E Guest Services', { exact: true })).toBeVisible()
 
-    await page.goto(`/properties/${seed.p1PropertyId}/portals/${seed.portalId}?tab=page`)
+    // Welcome is the Page tab's first section; its fields save themselves a
+    // moment after the manager stops typing, and the header says so.
+    await page.goto(
+      `/properties/${seed.p1PropertyId}/portals/${seed.portalId}?tab=page&section=welcome`,
+    )
     await waitForHydration(page)
     await expect(page.getByRole('heading', { name: 'E2E Guest Portal P1' })).toBeVisible()
     // By id, not by label: the localized content editor also renders a field
     // whose accessible name is exactly "Description", so getByLabel resolves
-    // three elements. This is the one the "Save changes" button submits.
+    // three elements. This is the one the autosave writes.
     const description = page.locator('#edit-portal-description')
     await description.fill('Persisted Portal manager change.')
-    await clickWhenReady(page.getByRole('button', { name: /save changes/i }))
-    await expect(page.getByText('Portal updated')).toBeVisible()
+    await expect(page.getByText('Draft saved')).toBeVisible()
     await page.reload()
     await expect(description).toHaveValue('Persisted Portal manager change.')
     await description.fill('Published Portal fixture for local beta acceptance.')
-    await clickWhenReady(page.getByRole('button', { name: /save changes/i }))
-    await expect(page.getByText('Portal updated')).toBeVisible()
+    await expect(page.getByText('Draft saved')).toBeVisible()
     await page.reload()
+    await expect(description).toHaveValue(
+      'Published Portal fixture for local beta acceptance.',
+    )
     await expect(page.getByRole('heading', { name: 'E2E Guest Portal P1' })).toBeVisible()
 
     await page.goto(`/p/${seed.portalToken}`)

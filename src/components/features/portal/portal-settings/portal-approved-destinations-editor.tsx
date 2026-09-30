@@ -21,7 +21,7 @@ export function PortalApprovedDestinationsEditor({
   return (
     <div className="space-y-3 rounded-md border p-4">
       <div>
-        <h4 className="font-medium">Approved link destinations</h4>
+        <h3 className="font-medium">Approved link destinations</h3>
         <p className="text-sm text-muted-foreground">
           Recognized services are approved automatically. Other sites wait for an Account
           Admin before they can appear on a published Portal.

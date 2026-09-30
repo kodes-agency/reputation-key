@@ -1,14 +1,13 @@
 import { useForm } from '@tanstack/react-form'
-import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import { FormTextarea } from '#/components/forms/form-textarea'
 import type { BaseFieldApiTextarea } from '#/components/forms/form-textarea'
-import { SubmitButton } from '#/components/forms/submit-button'
 import { FieldGroup } from '#/components/ui/field'
 import { portalLocalizedOverrideFormInputSchema } from '#/contexts/portal/application/dto/portal-experience.dto'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalExperienceActions } from './portal-experience-settings-types'
+import { usePortalFormAutosave } from '../portal-editor/use-portal-form-autosave'
 
 export function PortalLocalizedOverrideForm({
   locale,
@@ -29,8 +28,13 @@ export function PortalLocalizedOverrideForm({
   action: PortalExperienceActions['saveOverride']
   disabled: boolean
 }>) {
+  // This portal's own wording is part of its draft, so it saves as it is typed
+  // (unlike the property-wide fallback above it, which keeps an explicit Save).
+  const defaults = { title: initialTitle, shortDescription: initialDescription }
+  const autosave = usePortalFormAutosave(`override-${locale}`, defaults)
   const form = useForm({
-    defaultValues: { title: initialTitle, shortDescription: initialDescription },
+    defaultValues: defaults,
+    listeners: autosave,
     validators: { onSubmit: portalLocalizedOverrideFormInputSchema },
     onSubmit: async ({ value }) => {
       const parsed = portalLocalizedOverrideFormInputSchema.parse(value)
@@ -38,7 +42,11 @@ export function PortalLocalizedOverrideForm({
     },
   })
   return (
-    <form className="space-y-3 border-t pt-4" onSubmit={submitHandler(form)}>
+    // The write is the coordinator's, so Enter must not also submit natively.
+    <form
+      className="space-y-3 border-t pt-4"
+      onSubmit={(event) => event.preventDefault()}
+    >
       <div>
         <p className="text-sm font-medium">This Portal only</p>
         <p className="text-xs text-muted-foreground">
@@ -54,7 +62,7 @@ export function PortalLocalizedOverrideForm({
               label="Title override"
               placeholder={titlePlaceholder}
               maxLength={120}
-              disabled={disabled || action.isPending}
+              disabled={disabled}
             />
           )}
         </form.Field>
@@ -66,14 +74,11 @@ export function PortalLocalizedOverrideForm({
               label="Description override"
               placeholder={descriptionPlaceholder}
               maxLength={500}
-              disabled={disabled || action.isPending}
+              disabled={disabled}
             />
           )}
         </form.Field>
       </FieldGroup>
-      <SubmitButton mutation={action} form={form} variant="outline" disabled={disabled}>
-        Save Portal override
-      </SubmitButton>
     </form>
   )
 }
