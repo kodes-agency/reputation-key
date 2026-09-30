@@ -23,17 +23,20 @@ const ownerless: OrganizationAdministration = {
 }
 
 function setup(administration: OrganizationAdministration | null = ownerless) {
-  const store = {
-    listOrganizations: vi.fn(),
-    readAdministration: vi.fn(async () => administration),
-    provisionOrganization: vi.fn(),
-  } satisfies PlatformOrganizationStore
-  const renewInvitation = vi.fn(async (): Promise<RenewedInvitation> => ({
+  const renewAdminInvitation = vi.fn(async (): Promise<RenewedInvitation> => ({
     email: 'admin@riviera.example',
     role: 'owner',
     propertyIds: [],
     expiresAt: RENEWED_EXPIRY,
   }))
+  const store = {
+    listOrganizations: vi.fn(),
+    readAdministration: vi.fn(async () => administration),
+    provisionOrganization: vi.fn(),
+    inviteAdmin: vi.fn(),
+    renewAdminInvitation,
+    cancelAdminInvitation: vi.fn(),
+  } satisfies PlatformOrganizationStore
   const sent: InvitationEmail[] = []
   const sendEmail = vi.fn(async (email: InvitationEmail) => {
     sent.push(email)
@@ -47,14 +50,13 @@ function setup(administration: OrganizationAdministration | null = ownerless) {
   }
   const resend = resendOrganizationAdminInvitation({
     store,
-    commandStore: { renewInvitation },
     clock: () => NOW,
     invitationExpiresInMs: SEVEN_DAYS_MS,
     sendEmail,
     baseUrl: 'https://app.example.test',
     logger,
   })
-  return { resend, store, renewInvitation, sendEmail, sent, logger }
+  return { resend, store, renewAdminInvitation, sendEmail, sent, logger }
 }
 
 const INPUT = { organizationId: 'org-new', invitationId: 'inv-lapsed' }
@@ -62,19 +64,22 @@ const INPUT = { organizationId: 'org-new', invitationId: 'inv-lapsed' }
 describe('resendOrganizationAdminInvitation', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('renews the same invitation, scoped to its Organization, for a full lifetime', async () => {
-    const { resend, renewInvitation } = setup()
+  it('renews the same invitation, scoped to its Organization, for a full lifetime, audited to the operator', async () => {
+    const { resend, renewAdminInvitation } = setup()
 
     await expect(resend(INPUT, OPERATOR)).resolves.toEqual({
       expiresAt: RENEWED_EXPIRY.toISOString(),
       emailSent: true,
     })
-    expect(renewInvitation).toHaveBeenCalledWith({
-      invitationId: 'inv-lapsed',
-      organizationId: 'org-new',
-      now: NOW,
-      expiresAt: RENEWED_EXPIRY,
-    })
+    expect(renewAdminInvitation).toHaveBeenCalledWith(
+      {
+        invitationId: 'inv-lapsed',
+        organizationId: 'org-new',
+        now: NOW,
+        expiresAt: RENEWED_EXPIRY,
+      },
+      'user-operator',
+    )
   })
 
   it('mails the renewed address as an AccountAdmin invitation', async () => {
@@ -128,13 +133,13 @@ describe('resendOrganizationAdminInvitation', () => {
       'forbidden',
     ],
   ])('refuses %s without renewing', async (_label, input, administration, code) => {
-    const { resend, renewInvitation, sendEmail } = setup(administration)
+    const { resend, renewAdminInvitation, sendEmail } = setup(administration)
 
     await expect(resend(input, OPERATOR)).rejects.toMatchObject({
       _tag: 'IdentityError',
       code,
     })
-    expect(renewInvitation).not.toHaveBeenCalled()
+    expect(renewAdminInvitation).not.toHaveBeenCalled()
     expect(sendEmail).not.toHaveBeenCalled()
   })
 })

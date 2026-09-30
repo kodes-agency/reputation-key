@@ -2,8 +2,8 @@
 //
 // Its own composition seam, off `IdentityPublicApi`: no other context ever
 // receives it, and only the console's server functions reach it, after
-// requirePlatformOperator. It builds its own command store over the same
-// database, so identity/build.ts stays untouched.
+// requirePlatformOperator. Its store runs the ordinary invitation commands
+// inside its own audited transactions, so identity/build.ts stays untouched.
 
 import type { Database } from '#/shared/db'
 import type { Clock } from '#/shared/domain/clock'
@@ -30,7 +30,6 @@ import {
   cancelOrganizationAdminInvitation,
   type CancelOrganizationAdminInvitation,
 } from './application/use-cases/cancel-organization-admin-invitation'
-import { createAtomicIdentityCommandStore } from './infrastructure/identity-command-store'
 import { createPlatformOrganizationStore } from './infrastructure/platform-organization-store'
 
 export type PlatformConsoleDeps = Readonly<{
@@ -55,7 +54,6 @@ export type PlatformConsole = Readonly<{
 
 export function buildPlatformConsole(deps: PlatformConsoleDeps): PlatformConsole {
   const store = createPlatformOrganizationStore(deps.db, deps.idGen)
-  const commandStore = createAtomicIdentityCommandStore(deps.db, deps.idGen)
   const { clock, logger } = deps
   const email = {
     sendEmail: deps.sendEmail,
@@ -80,19 +78,16 @@ export function buildPlatformConsole(deps: PlatformConsoleDeps): PlatformConsole
     inviteAdmin: inviteOrganizationAdmin({
       ...email,
       store,
-      commandStore,
       clock,
       idGen: () => invitationId(deps.idGen()),
     }),
     resendInvitation: resendOrganizationAdminInvitation({
       ...email,
       store,
-      commandStore,
       clock,
     }),
     cancelInvitation: cancelOrganizationAdminInvitation({
       store,
-      commandStore,
       clock,
       logger,
     }),

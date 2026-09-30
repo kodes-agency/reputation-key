@@ -5,7 +5,8 @@
 // 1. The console may act: the Organization exists, is active and has no
 //    AccountAdmin.
 // 2. Persist — the ordinary invitation command commits the row and its
-//    `identity.member.invited` fact (userId = the operator) atomically.
+//    `identity.member.invited` fact (userId = the operator) atomically, with
+//    an audit row naming the operator and the Organization.
 // 3. Send the email post-commit; a failure reports `emailSent: false`.
 
 import type { Clock } from '#/shared/domain/clock'
@@ -19,7 +20,6 @@ import type {
   InviteOrganizationAdminResult,
   PlatformOperatorActor,
 } from '../dto/platform-console.dto'
-import type { IdentityCommandStore } from '../ports/identity-command-store.port'
 import type { PlatformOrganizationStore } from '../ports/platform-organization-store.port'
 import { assertOperatorMayAdminister } from '../platform-administration'
 import {
@@ -30,8 +30,7 @@ import {
 
 export type InviteOrganizationAdminDeps = AdminInvitationEmailDeps &
   Readonly<{
-    store: Pick<PlatformOrganizationStore, 'readAdministration'>
-    commandStore: Pick<IdentityCommandStore, 'inviteMember'>
+    store: Pick<PlatformOrganizationStore, 'readAdministration' | 'inviteAdmin'>
     clock: Clock
     idGen: () => InvitationId
     logger: Pick<LoggerPort, 'info' | 'error'>
@@ -50,14 +49,14 @@ export const inviteOrganizationAdmin =
     assertOperatorMayAdminister(administration, { requireActive: true })
 
     const invitationId = deps.idGen()
-    await deps.commandStore.inviteMember(
+    await deps.store.inviteAdmin(
       adminInvitationCommand(
         { invitationId, organizationId, email: input.email, operator },
         { now: deps.clock(), invitationExpiresInMs: deps.invitationExpiresInMs },
       ),
     )
-    // Content-free (observability schema): the request's trace correlates
-    // it, and the rows it names already record the operator as inviter.
+    // Content-free (observability schema): the audit row names the
+    // Organization and the operator; the request's trace correlates this.
     deps.logger.info(
       { event: 'platform.admin_invited' },
       'Platform operator invited an Account Admin',

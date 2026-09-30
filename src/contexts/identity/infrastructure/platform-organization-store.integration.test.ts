@@ -7,7 +7,9 @@
 //     open invitations;
 //   - the first-admin round trip ends with exactly one AccountAdmin, after
 //     which the console refuses to act; cancel and resend (of a lapsed row)
-//     stay inside the Organization.
+//     stay inside the Organization;
+//   - every change commits one audit_logs row naming the Organization, the
+//     operator and the action; a refused change writes none.
 
 import { randomUUID } from 'node:crypto'
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest'
@@ -20,7 +22,11 @@ import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { createMockLogger } from '#/shared/testing/mock-logger'
 import { invitationId, organizationId, userId } from '#/shared/domain/ids'
-import { identityInvitationAccepted, identityMemberInvited } from '../domain/events'
+import {
+  identityInvitationAccepted,
+  identityInvitationCanceled,
+  identityMemberInvited,
+} from '../domain/events'
 import type { InvitationEmail } from '../application/ports/invitation-email.port'
 import type { ProvisionOrganizationCommand } from '../application/ports/platform-organization-store.port'
 import { buildPlatformConsole } from '../build-platform'
@@ -89,6 +95,24 @@ async function count(text: string, values: unknown[]): Promise<number> {
   return row?.n ?? 0
 }
 
+type AuditRow = Readonly<{
+  user_id: string
+  action: string
+  resource_type: string
+  resource_id: string | null
+  details: unknown
+}>
+
+/** The audit rows for one Organization, by action (the fixed clock ties their times). */
+async function auditRows(orgId: string): Promise<ReadonlyArray<AuditRow>> {
+  const result = await pool.query<AuditRow>(
+    `SELECT user_id, action, resource_type, resource_id, details
+       FROM audit_logs WHERE organization_id = $1 ORDER BY action, resource_id`,
+    [orgId],
+  )
+  return result.rows
+}
+
 async function seed(): Promise<void> {
   await pool.query(
     `INSERT INTO organization (id, name, slug, "createdAt")
@@ -119,6 +143,7 @@ async function cleanup(): Promise<void> {
     await client.query(
       `DELETE FROM outbox_events WHERE organization_id LIKE 'org-plat-%'`,
     )
+    await client.query(`DELETE FROM audit_logs WHERE organization_id LIKE 'org-plat-%'`)
     await client.query(
       `DELETE FROM invitation
         WHERE "organizationId" LIKE 'org-plat-%' OR email LIKE 'plat-%@test.com'`,
@@ -211,6 +236,16 @@ describe.sequential('provisionOrganization', () => {
       invitation_id: command.firstAdmin.invitationId,
       role: 'AccountAdmin',
     })
+    // Who made the change: the audit row, committed with it.
+    expect(await auditRows(command.organizationId)).toEqual([
+      {
+        user_id: OPERATOR.userId,
+        action: 'platform.organization_provisioned',
+        resource_type: 'organization',
+        resource_id: command.organizationId,
+        details: { invitationId: command.firstAdmin.invitationId },
+      },
+    ])
   })
 
   it('refuses a slug another Organization uses and writes nothing for the attempt', async () => {
@@ -291,6 +326,7 @@ describe.sequential('provisionOrganization', () => {
         [command.organizationId],
       ),
     ).toBe(0)
+    expect(await auditRows(command.organizationId)).toEqual([])
   })
 })
 
@@ -542,5 +578,71 @@ describe.sequential('the platform console end to end', () => {
         inviteLink: `https://app.example.test/accept-invitation?id=${provisioned.invitationId}`,
       }),
     ])
+  })
+
+  it('audits every change to the operator and the Organization, and nothing it refuses', async () => {
+    const provisioned = await platform.provisionOrganization(
+      { name: 'Platform Audit', adminEmail: 'plat-audit-first@test.com' },
+      OPERATOR,
+    )
+    const orgId = provisioned.organizationId
+    const second = await platform.inviteAdmin(
+      { organizationId: orgId, email: 'plat-audit-second@test.com' },
+      OPERATOR,
+    )
+    await platform.resendInvitation(
+      { organizationId: orgId, invitationId: provisioned.invitationId },
+      OPERATOR,
+    )
+    await platform.cancelInvitation(
+      { organizationId: orgId, invitationId: second.invitationId },
+      OPERATOR,
+    )
+    // A change the command refuses writes no audit row: the second invitation
+    // is canceled now, so it cannot be canceled again.
+    await expect(
+      store.cancelAdminInvitation(
+        {
+          invitationId: invitationId(second.invitationId),
+          organizationId: organizationId(orgId),
+          event: identityInvitationCanceled({
+            organizationId: organizationId(orgId),
+            invitationId: invitationId(second.invitationId),
+            occurredAt: NOW,
+          }),
+        },
+        OPERATOR.userId,
+      ),
+    ).rejects.toMatchObject({ code: 'invitation_not_found' })
+
+    const rows = await auditRows(orgId)
+    expect(rows.map(({ details: _details, ...row }) => row)).toEqual([
+      {
+        user_id: OPERATOR.userId,
+        action: 'platform.admin_invitation_canceled',
+        resource_type: 'invitation',
+        resource_id: second.invitationId,
+      },
+      {
+        user_id: OPERATOR.userId,
+        action: 'platform.admin_invitation_resent',
+        resource_type: 'invitation',
+        resource_id: provisioned.invitationId,
+      },
+      {
+        user_id: OPERATOR.userId,
+        action: 'platform.admin_invited',
+        resource_type: 'invitation',
+        resource_id: second.invitationId,
+      },
+      {
+        user_id: OPERATOR.userId,
+        action: 'platform.organization_provisioned',
+        resource_type: 'organization',
+        resource_id: orgId,
+      },
+    ])
+    // Content-free: ids and actions, never an invitee address.
+    expect(JSON.stringify(rows)).not.toContain('@')
   })
 })

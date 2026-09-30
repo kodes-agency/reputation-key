@@ -15,6 +15,9 @@ function setup() {
     listOrganizations: vi.fn(),
     readAdministration: vi.fn(),
     provisionOrganization: vi.fn(async () => {}),
+    inviteAdmin: vi.fn(),
+    renewAdminInvitation: vi.fn(),
+    cancelAdminInvitation: vi.fn(),
   } satisfies PlatformOrganizationStore
   const sent: InvitationEmail[] = []
   const sendEmail = vi.fn(async (email: InvitationEmail) => {

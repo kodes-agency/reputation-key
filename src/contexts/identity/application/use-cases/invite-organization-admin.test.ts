@@ -22,12 +22,15 @@ const ownerless: OrganizationAdministration = {
 }
 
 function setup(administration: OrganizationAdministration | null = ownerless) {
+  const inviteAdmin = vi.fn(async () => {})
   const store = {
     listOrganizations: vi.fn(),
     readAdministration: vi.fn(async () => administration),
     provisionOrganization: vi.fn(),
+    inviteAdmin,
+    renewAdminInvitation: vi.fn(),
+    cancelAdminInvitation: vi.fn(),
   } satisfies PlatformOrganizationStore
-  const inviteMember = vi.fn(async () => {})
   const sent: InvitationEmail[] = []
   const sendEmail = vi.fn(async (email: InvitationEmail) => {
     sent.push(email)
@@ -41,7 +44,6 @@ function setup(administration: OrganizationAdministration | null = ownerless) {
   }
   const invite = inviteOrganizationAdmin({
     store,
-    commandStore: { inviteMember },
     clock: () => NOW,
     idGen: () => invitationId('inv-1'),
     invitationExpiresInMs: SEVEN_DAYS_MS,
@@ -49,7 +51,7 @@ function setup(administration: OrganizationAdministration | null = ownerless) {
     baseUrl: 'https://app.example.test/',
     logger,
   })
-  return { invite, store, inviteMember, sendEmail, sent, logger }
+  return { invite, store, inviteAdmin, sendEmail, sent, logger }
 }
 
 const INPUT = { organizationId: 'org-new', email: 'admin@riviera.example' }
@@ -57,15 +59,15 @@ const INPUT = { organizationId: 'org-new', email: 'admin@riviera.example' }
 describe('inviteOrganizationAdmin', () => {
   beforeEach(() => vi.clearAllMocks())
 
-  it('invites an AccountAdmin through the ordinary command, the operator as inviter', async () => {
-    const { invite, inviteMember } = setup()
+  it('invites an AccountAdmin through the audited store call, the operator as inviter', async () => {
+    const { invite, inviteAdmin } = setup()
 
     await expect(invite(INPUT, OPERATOR)).resolves.toEqual({
       invitationId: 'inv-1',
       emailSent: true,
     })
 
-    expect(inviteMember).toHaveBeenCalledWith({
+    expect(inviteAdmin).toHaveBeenCalledWith({
       invitationId: 'inv-1',
       organizationId: ORG,
       email: 'admin@riviera.example',
@@ -148,23 +150,23 @@ describe('inviteOrganizationAdmin', () => {
       'forbidden',
     ],
   ])('refuses %s before inviting anyone', async (_label, administration, code) => {
-    const { invite, inviteMember, sendEmail } = setup(administration)
+    const { invite, inviteAdmin, sendEmail } = setup(administration)
 
     await expect(invite(INPUT, OPERATOR)).rejects.toMatchObject({
       _tag: 'IdentityError',
       code,
     })
-    expect(inviteMember).not.toHaveBeenCalled()
+    expect(inviteAdmin).not.toHaveBeenCalled()
     expect(sendEmail).not.toHaveBeenCalled()
   })
 
-  it('sends nothing when the command store refuses the address', async () => {
-    const { invite, inviteMember, sendEmail } = setup()
+  it('sends nothing when the store refuses the address', async () => {
+    const { invite, inviteAdmin, sendEmail } = setup()
     const conflict = Object.assign(new Error('another Organization'), {
       _tag: 'IdentityError',
       code: 'organization_conflict',
     })
-    inviteMember.mockRejectedValueOnce(conflict)
+    inviteAdmin.mockRejectedValueOnce(conflict)
 
     await expect(invite(INPUT, OPERATOR)).rejects.toBe(conflict)
     expect(sendEmail).not.toHaveBeenCalled()

@@ -1,5 +1,6 @@
-// Platform operator console store (ADR 0063) over Identity-owned tables only:
-// organization, member, invitation and organization_lifecycle_authority.
+// Platform operator console store (ADR 0063) over the Identity-owned tables
+// organization, member, invitation and organization_lifecycle_authority, plus
+// the `audit_logs` rows it writes.
 //
 // Provisioning is ONE transaction: a per-slug advisory lock and slug check,
 // the Organization insert (its insert trigger writes the lifecycle authority
@@ -8,9 +9,15 @@
 // savepoint of this transaction. A refused invitation therefore rolls the
 // Organization back too, and no Organization is ever left half-made. The
 // operator never gets a member row.
+//
+// Every change (provision, invite, resend, cancel) commits one `audit_logs`
+// row in the same transaction: the Organization, the operator and the action.
+// It is the durable record of who made the change — log lines, spans and the
+// canceled fact name no one — and it carries ids only, never an address.
 
 import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 import type { Database, Tx } from '#/shared/db'
+import { auditLogs } from '#/shared/db/schema/audit'
 import { invitation, member, organization } from '#/shared/db/schema/auth'
 import { organizationLifecycleAuthority } from '#/shared/db/schema/organization-lifecycle.schema'
 import { trace } from '#/shared/observability/trace'
@@ -19,6 +26,7 @@ import {
   invitationId as toInvitationId,
   organizationId as toOrganizationId,
   type OrganizationId,
+  type UserId,
 } from '#/shared/domain/ids'
 import { identityError } from '../domain/errors'
 import { invitationState } from '../domain/invitation-state'
@@ -26,6 +34,12 @@ import {
   ORGANIZATION_LIFECYCLE_STATES,
   type OrganizationLifecycleState,
 } from '../domain/organization-lifecycle'
+import type {
+  CancelInvitationCommand,
+  IdentityCommandStore,
+  InviteMemberCommand,
+  RenewInvitationCommand,
+} from '../application/ports/identity-command-store.port'
 import type {
   OrganizationAdministration,
   PlatformAdminInvitationRow,
@@ -41,6 +55,35 @@ const SLUG_UNIQUE_INDEX = 'organization_slug_key'
 
 /** Open invitation statuses: the ones Resend and Cancel still act on. */
 const OPEN_INVITATION_STATUSES = ['pending', 'expired'] as const
+
+/** One `audit_logs` row per console change: who, on which Organization, what. */
+type OperatorAudit = Readonly<{
+  organizationId: OrganizationId
+  operatorUserId: UserId
+  action:
+    | 'platform.organization_provisioned'
+    | 'platform.admin_invited'
+    | 'platform.admin_invitation_resent'
+    | 'platform.admin_invitation_canceled'
+  resourceType: 'organization' | 'invitation'
+  resourceId: string
+  /** Ids only: the row never carries an address. */
+  details?: Readonly<Record<string, string>>
+  at: Date
+}>
+
+async function writeOperatorAudit(tx: Tx, audit: OperatorAudit): Promise<void> {
+  await tx.insert(auditLogs).values({
+    organizationId: audit.organizationId as string,
+    userId: audit.operatorUserId as string,
+    action: audit.action,
+    resourceType: audit.resourceType,
+    resourceId: audit.resourceId,
+    details: audit.details ?? null,
+    createdAt: audit.at,
+    updatedAt: audit.at,
+  })
+}
 
 type OrganizationHead = Readonly<{
   id: string
@@ -183,6 +226,24 @@ export function createPlatformOrganizationStore(
   db: Database,
   idGen: () => string,
 ): PlatformOrganizationStore {
+  /**
+   * Run one ordinary invitation command and its audit row in ONE transaction.
+   * The command's own transaction becomes a savepoint of this one, so a
+   * refusal there writes no audit row, and a failed audit row undoes the
+   * change.
+   */
+  const audited = <T>(
+    run: (commands: IdentityCommandStore) => Promise<T>,
+    audit: OperatorAudit,
+  ): Promise<T> =>
+    db.transaction(async (tx) => {
+      const result = await run(
+        createAtomicIdentityCommandStore(tx as unknown as Database, idGen),
+      )
+      await writeOperatorAudit(tx, audit)
+      return result
+    })
+
   return {
     listOrganizations: ({ limit, now }) =>
       trace('identity.platformStore.listOrganizations', async () => {
@@ -249,6 +310,15 @@ export function createPlatformOrganizationStore(
               tx as unknown as Database,
               idGen,
             ).inviteMember(command.firstAdmin)
+            await writeOperatorAudit(tx, {
+              organizationId: command.organizationId,
+              operatorUserId: command.firstAdmin.inviterId,
+              action: 'platform.organization_provisioned',
+              resourceType: 'organization',
+              resourceId: command.organizationId as string,
+              details: { invitationId: command.firstAdmin.invitationId as string },
+              at: command.now,
+            })
           })
         } catch (error) {
           if (violatesSlugUniqueness(error)) {
@@ -257,5 +327,42 @@ export function createPlatformOrganizationStore(
           throw error
         }
       }),
+
+    inviteAdmin: (command: InviteMemberCommand) =>
+      trace('identity.platformStore.inviteAdmin', () =>
+        audited((commands) => commands.inviteMember(command), {
+          organizationId: command.organizationId,
+          // The operator is the invitation's inviter.
+          operatorUserId: command.inviterId,
+          action: 'platform.admin_invited',
+          resourceType: 'invitation',
+          resourceId: command.invitationId as string,
+          at: command.now,
+        }),
+      ),
+
+    renewAdminInvitation: (command: RenewInvitationCommand, operatorUserId: UserId) =>
+      trace('identity.platformStore.renewAdminInvitation', () =>
+        audited((commands) => commands.renewInvitation(command), {
+          organizationId: command.organizationId,
+          operatorUserId,
+          action: 'platform.admin_invitation_resent',
+          resourceType: 'invitation',
+          resourceId: command.invitationId as string,
+          at: command.now,
+        }),
+      ),
+
+    cancelAdminInvitation: (command: CancelInvitationCommand, operatorUserId: UserId) =>
+      trace('identity.platformStore.cancelAdminInvitation', () =>
+        audited((commands) => commands.cancelInvitation(command), {
+          organizationId: command.organizationId,
+          operatorUserId,
+          action: 'platform.admin_invitation_canceled',
+          resourceType: 'invitation',
+          resourceId: command.invitationId as string,
+          at: command.event.occurredAt,
+        }),
+      ),
   }
 }
