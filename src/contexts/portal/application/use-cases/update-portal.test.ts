@@ -91,6 +91,7 @@ const setup = (
       current: null,
       nextCursor: null,
     }),
+    listActivationsBetween: async () => [],
     resolveActiveByTokenDigest: async () => null,
   }
   const deps = {

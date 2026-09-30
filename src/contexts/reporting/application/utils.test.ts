@@ -4,6 +4,7 @@
 
 import { describe, it, expect } from 'vitest'
 import {
+  localDaysWindow,
   timeRangeToDates,
   computeTrend,
   priorPeriodDates,
@@ -128,6 +129,76 @@ describe('priorPeriodDates', () => {
     expect(priorPeriodDates('30d', startDate, endDate, 'America/New_York')).toEqual({
       priorStartDate: new Date('2026-01-19T17:00:00.000Z'),
       priorEndDate: startDate,
+    })
+  })
+})
+
+describe('localDaysWindow', () => {
+  // 14:23 on 30 Sep in Sofia (UTC+3 in summer).
+  const now = new Date('2026-09-30T11:23:00.000Z')
+  const SOFIA = 'Europe/Sofia'
+
+  it('opens a 30-day window at Property-local midnight, today included', () => {
+    const { startDate, endDate } = localDaysWindow('30d', now, SOFIA)
+
+    // 1 Sep 00:00 in Sofia, so the window reads "1-30 Sep".
+    expect(startDate).toEqual(new Date('2026-08-31T21:00:00.000Z'))
+    expect(endDate).toEqual(now)
+  })
+
+  it('gives 7d seven local calendar days, not seven times 24 hours', () => {
+    const { startDate } = localDaysWindow('7d', now, SOFIA)
+
+    expect(startDate).toEqual(new Date('2026-09-23T21:00:00.000Z'))
+  })
+
+  it('lines the prior window up with whole local days, 2-31 Aug', () => {
+    const { startDate, endDate } = localDaysWindow('30d', now, SOFIA)
+
+    // Same elapsed time of day as the current window, so it ends at 14:23 on 31 Aug.
+    expect(priorPeriodDates('30d', startDate, endDate, SOFIA)).toEqual({
+      priorStartDate: new Date('2026-08-01T21:00:00.000Z'),
+      priorEndDate: new Date('2026-08-31T11:23:00.000Z'),
+    })
+  })
+
+  it('compares like with like: the prior window is as long as the current one, just after midnight too', () => {
+    // 00:30 on 30 Sep in Sofia: the current 7d window holds six whole days and 30 minutes.
+    const early = new Date('2026-09-29T21:30:00.000Z')
+    const { startDate, endDate } = localDaysWindow('7d', early, SOFIA)
+    const prior = priorPeriodDates('7d', startDate, endDate, SOFIA)
+
+    expect(prior).not.toBeNull()
+    const current = endDate.getTime() - startDate.getTime()
+    const before = prior!.priorEndDate.getTime() - prior!.priorStartDate.getTime()
+    expect(before).toBe(current)
+    // The period before opens on local midnight and ends at the same time of day.
+    expect(prior!.priorStartDate).toEqual(new Date('2026-09-16T21:00:00.000Z'))
+    expect(prior!.priorEndDate).toEqual(new Date('2026-09-22T21:30:00.000Z'))
+  })
+
+  it('counts local days across a DST change, not elapsed hours', () => {
+    // New York springs forward on 8 Mar 2026; 14 Mar 12:00 local is 16:00Z.
+    const dstNow = new Date('2026-03-14T16:00:00.000Z')
+    const { startDate } = localDaysWindow('7d', dstNow, 'America/New_York')
+
+    // 8 Mar 00:00 EST (before the change), which is 05:00Z.
+    expect(startDate).toEqual(new Date('2026-03-08T05:00:00.000Z'))
+  })
+
+  it('takes the local date from the Property zone, not from UTC', () => {
+    // 22:30Z on 30 Sep is already 1 Oct in Auckland (UTC+13 since 27 Sep).
+    const lateNow = new Date('2026-09-30T22:30:00.000Z')
+    const { startDate } = localDaysWindow('7d', lateNow, 'Pacific/Auckland')
+
+    // 25 Sep 00:00 NZST (DST only begins on the 27th) is 24 Sep 12:00Z.
+    expect(startDate).toEqual(new Date('2026-09-24T12:00:00.000Z'))
+  })
+
+  it('leaves All Time unbounded: from the epoch to now', () => {
+    expect(localDaysWindow('all', now, SOFIA)).toEqual({
+      startDate: new Date(0),
+      endDate: now,
     })
   })
 })

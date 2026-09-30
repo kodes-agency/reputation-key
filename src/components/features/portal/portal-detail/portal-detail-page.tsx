@@ -44,7 +44,7 @@ export function PortalDetailPage(props: PortalDetailPageProps) {
           onPreviewToggle={setPreviewOpen}
         />
       ) : (
-        <PortalWorkspaceBodyFrame>
+        <PortalWorkspaceBodyFrame wide={view.tab === 'results'}>
           <PortalDetailTabPanel {...props} {...issuance} tab={view.tab} />
         </PortalWorkspaceBodyFrame>
       )}

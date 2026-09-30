@@ -354,6 +354,89 @@ describe.sequential('Portal publication repository (real PostgreSQL)', () => {
     ).resolves.toMatchObject({ records: [], latest: null, current: null })
   })
 
+  it('lists the versions that went live inside a window, oldest first, in scope only', async () => {
+    const first = snapshot(
+      1,
+      'First published name',
+      'f5000000-0000-4000-8000-000000000001',
+    )
+    const second = snapshot(
+      2,
+      'Second published name',
+      'f5000000-0000-4000-8000-000000000002',
+    )
+    await getDb()
+      .insert(portalPublicationSnapshots)
+      .values([snapshotRow(first), snapshotRow(second)])
+    const at = (seconds: number) => new Date(NOW.getTime() + seconds * 1000)
+    await getDb()
+      .insert(portalPublicationActivations)
+      .values([
+        {
+          id: 'f5100000-0000-4000-8000-000000000011',
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          portalId: PORTAL,
+          snapshotId: first.id,
+          activationSequence: 1,
+          kind: 'publish',
+          activatedBy: 'manager-publication-1',
+          activatedAt: at(0),
+          deactivatedAt: at(10),
+          deactivationReason: 'replaced',
+        },
+        {
+          id: 'f5100000-0000-4000-8000-000000000012',
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          portalId: PORTAL,
+          snapshotId: second.id,
+          activationSequence: 2,
+          kind: 'publish',
+          activatedBy: 'manager-publication-1',
+          activatedAt: at(10),
+          deactivatedAt: at(20),
+          deactivationReason: 'replaced',
+        },
+        {
+          id: 'f5100000-0000-4000-8000-000000000013',
+          organizationId: ORG,
+          propertyId: PROPERTY,
+          portalId: PORTAL,
+          snapshotId: first.id,
+          activationSequence: 3,
+          kind: 'rollback',
+          activatedBy: 'manager-publication-2',
+          activatedAt: at(20),
+        },
+      ])
+    const repo = createPortalPublicationRepository(getDb())
+
+    // Half-open: the first instant is in, the last is out.
+    await expect(
+      repo.listActivationsBetween(ORG, PROPERTY, PORTAL, {
+        startAt: at(10),
+        endAt: at(20),
+      }),
+    ).resolves.toEqual([{ version: 2, kind: 'publish', activatedAt: at(10) }])
+    await expect(
+      repo.listActivationsBetween(ORG, PROPERTY, PORTAL, {
+        startAt: at(0),
+        endAt: at(60),
+      }),
+    ).resolves.toEqual([
+      { version: 1, kind: 'publish', activatedAt: at(0) },
+      { version: 2, kind: 'publish', activatedAt: at(10) },
+      { version: 1, kind: 'rollback', activatedAt: at(20) },
+    ])
+    await expect(
+      repo.listActivationsBetween(OTHER_ORG, PROPERTY, PORTAL, {
+        startAt: at(0),
+        endAt: at(60),
+      }),
+    ).resolves.toEqual([])
+  })
+
   it('fails closed if durable snapshot content no longer matches its digest', async () => {
     const published = snapshot(
       1,

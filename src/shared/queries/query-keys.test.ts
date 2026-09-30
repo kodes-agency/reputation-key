@@ -140,7 +140,7 @@ describe('goal query keys', () => {
 
 describe('portal analytics query keys', () => {
   it('isolates each range within a property-scoped portal analytics subtree', () => {
-    expect(portalKeys.analytics('property-1', 'portal-1', 'last_30_days')).toEqual([
+    expect(portalKeys.analytics('property-1', 'portal-1', 'last_30_days', true)).toEqual([
       'portals',
       'property',
       'property-1',
@@ -148,6 +148,13 @@ describe('portal analytics query keys', () => {
       'portal-1',
       'analytics',
       'last_30_days',
+      'compare',
     ])
+  })
+
+  it('keeps a window read with its comparison apart from one without', () => {
+    expect(portalKeys.analytics('property-1', 'portal-1', '30d', true)).not.toEqual(
+      portalKeys.analytics('property-1', 'portal-1', '30d', false),
+    )
   })
 })

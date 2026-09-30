@@ -8,19 +8,6 @@ export const timeRangePreset = z.enum(['7d', '30d', '60d', '90d', '180d', 'all']
 
 export type TimeRangePreset = z.infer<typeof timeRangePreset>
 
-/**
- * Options for the legacy `TimeRangePicker`, which portal analytics still uses.
- * The dashboard's topic pages use `DASHBOARD_RANGE_OPTIONS` instead
- * (`#/shared/dashboard-range`) — one window, four presets, sentence case.
- */
-export const TIME_RANGE_OPTIONS: { value: TimeRangePreset; label: string }[] = [
-  { value: '7d', label: '7 Days' },
-  { value: '30d', label: '30 Days' },
-  { value: '60d', label: '60 Days' },
-  { value: '90d', label: '90 Days' },
-  { value: 'all', label: 'All Time' },
-]
-
 // GET dashboard data — query params
 export const getDashboardDataDto = z.object({
   propertyId: z.uuid(),
@@ -33,4 +20,6 @@ export const getPortalAnalyticsDto = z.object({
   propertyId: z.uuid(),
   portalId: z.uuid(),
   timeRange: timeRangePreset.default('30d'),
+  /** Also read the equal-length window before. */
+  compare: z.boolean().default(true),
 })

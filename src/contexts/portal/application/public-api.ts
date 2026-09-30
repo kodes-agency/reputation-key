@@ -239,6 +239,21 @@ export type PortalPublicApi = Readonly<{
     portalGroupId: PortalGroupId | null
     channel: PortalAccessArtifactChannel
   }> | null>
+  /**
+   * The versions that went live in `[startAt, endAt)`, oldest first: a
+   * publication or a rollback, by version number. For markers on the Results
+   * chart; identifiers and instants only, no content.
+   */
+  listPublicationActivationsBetween: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+    portalId: PortalId,
+    window: Readonly<{ startAt: Date; endAt: Date }>,
+  ) => Promise<
+    ReadonlyArray<
+      Readonly<{ version: number; kind: 'publish' | 'rollback'; activatedAt: Date }>
+    >
+  >
   /** Current assigned managers, revalidated against role/access/participation. */
   getResponsibleManagerUserIds: (
     orgId: OrganizationId,

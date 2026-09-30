@@ -152,6 +152,13 @@ const emptyAnalytics: PortalAnalyticsData = {
     endAt: analyticsComputedAt,
     timezone: 'Europe/Sofia',
   },
+  comparePeriod: null,
+  localDays: {
+    start: '2026-07-26',
+    end: '2026-08-24',
+    compareStart: null,
+    compareEnd: null,
+  },
   qualifiedScansSince: new Date('2026-08-01T00:00:00.000Z'),
   lifetimeReconciliation: null,
   kpis: {
@@ -176,7 +183,10 @@ const emptyAnalytics: PortalAnalyticsData = {
     { stars: 4, count: 0 },
     { stars: 5, count: 0 },
   ],
-  ratingTrend: [],
+  series: null,
+  versionMarkers: [],
+  ratingLanguages: { total: 0, languages: [], unrecorded: 0 },
+  thresholds: { averageMinSample: 5, comparisonMinSample: 10 },
   responseIntegrity: {
     accepted: 0,
     filteredAutomatically: 0,

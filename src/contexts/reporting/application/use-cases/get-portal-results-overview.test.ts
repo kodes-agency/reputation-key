@@ -19,7 +19,7 @@ import type {
   PortalResultsWindow,
   PortalResultsWindowReading,
 } from '../ports/portal-results-overview.repository'
-import { priorPeriodDates, timeRangeToDates } from '../utils'
+import { localDaysWindow, priorPeriodDates } from '../utils'
 import {
   PORTAL_RESULTS_PORTAL_LIMIT,
   getPortalResultsOverview,
@@ -37,16 +37,16 @@ const P4 = portalId('b0000000-0000-4000-8000-000000000004')
 const G1 = portalGroupId('c0000000-0000-4000-8000-000000000001')
 const G2 = portalGroupId('c0000000-0000-4000-8000-000000000002')
 
-// 30 days ending at NOW, in UTC: both windows sit after qualified scans began
-// (2026-08-01).
-const NOW = new Date('2026-10-01T00:00:00.000Z')
+// "Last 30 days" on 30 Sep (noon) is 1 Sep to now, and the 30 days before are 2 Aug
+// to noon on 31 Aug: equally long, and both after qualified scans began (2026-08-01).
+const NOW = new Date('2026-09-30T12:00:00.000Z')
 const RANGE = {
   startAt: new Date('2026-09-01T00:00:00.000Z'),
-  endAt: new Date('2026-10-01T00:00:00.000Z'),
+  endAt: NOW,
 }
 const PRIOR = {
   startAt: new Date('2026-08-02T00:00:00.000Z'),
-  endAt: new Date('2026-09-01T00:00:00.000Z'),
+  endAt: new Date('2026-08-31T12:00:00.000Z'),
 }
 const UTC = 'UTC'
 const AUCKLAND = 'Pacific/Auckland'
@@ -195,7 +195,7 @@ describe('getPortalResultsOverview', () => {
   })
 
   describe('Properties in different time zones', () => {
-    const local = timeRangeToDates('30d', NOW, AUCKLAND)
+    const local = localDaysWindow('30d', NOW, AUCKLAND)
     const localPrior = priorPeriodDates('30d', local.startDate, local.endDate, AUCKLAND)
     const AUCKLAND_RANGE = { startAt: local.startDate, endAt: local.endDate }
     const AUCKLAND_PRIOR = {
@@ -724,7 +724,7 @@ describe('getPortalResultsOverview', () => {
   it('says a prior window before qualified scans began has no prior figure', async () => {
     const repo = fakeRepository({ by: () => ({ cells: [scans(P1, null, 2)] }) })
 
-    // 30 days ending 2026-09-15 open 08-16; the 30 before them open 07-17, before
+    // 30 days ending 2026-09-15 open 08-17; the 30 before them open 07-18, before
     // qualified scans began.
     const { total } = await ask(
       repo,

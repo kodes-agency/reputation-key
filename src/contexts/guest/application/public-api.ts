@@ -4,7 +4,10 @@
 
 export type { ScanEvent, Rating, Feedback } from '../domain/types'
 
-export type { PortalResponseIntegritySummary } from './ports/guest-response.repository'
+export type {
+  PortalRatingLanguageBreakdown,
+  PortalResponseIntegritySummary,
+} from './ports/guest-response.repository'
 
 export {
   guestScanRecorded,

@@ -308,6 +308,59 @@ export const createGuestResponseRepository = (
       return summary
     },
 
+    summarizePortalRatingLanguages: async (scope, startAt, endAt) => {
+      // The same business time and eligibility as the integrity summary, for
+      // the accepted outcome only: the ratings the Results measures count.
+      const ratingBusinessAt = sql<Date>`COALESCE(
+        ${guestResponses.correctedAt}, ${guestResponses.submittedAt}
+      )`
+      const rows = await db
+        .select({
+          locale: guestResponseExperienceSnapshots.guestLocale,
+          count: count(),
+        })
+        .from(guestResponses)
+        .leftJoin(
+          guestResponseExperienceSnapshots,
+          and(
+            eq(guestResponseExperienceSnapshots.responseId, guestResponses.id),
+            eq(
+              guestResponseExperienceSnapshots.organizationId,
+              guestResponses.organizationId,
+            ),
+          ),
+        )
+        .where(
+          and(
+            eq(guestResponses.organizationId, scope.organizationId),
+            eq(guestResponses.propertyId, scope.propertyId),
+            eq(guestResponses.portalId, scope.portalId),
+            eq(guestResponses.integrityOutcome, 'accepted'),
+            eq(guestResponses.responseConsent, true),
+            isNotNull(guestResponses.rating),
+            isNotNull(guestResponses.submittedAt),
+            isNull(guestResponses.deletedAt),
+            gte(ratingBusinessAt, startAt),
+            lt(ratingBusinessAt, endAt),
+          ),
+        )
+        .groupBy(guestResponseExperienceSnapshots.guestLocale)
+      const languages = rows
+        .flatMap((row) =>
+          row.locale === null ? [] : [{ locale: row.locale, count: row.count }],
+        )
+        .sort(
+          (left, right) =>
+            right.count - left.count || left.locale.localeCompare(right.locale),
+        )
+      const unrecorded = rows.find((row) => row.locale === null)?.count ?? 0
+      return {
+        total: languages.reduce((sum, row) => sum + row.count, unrecorded),
+        languages,
+        unrecorded,
+      }
+    },
+
     saveModeration: async (response) => {
       const updatedAt = response.moderatedAt ?? clock()
       const updated = await db

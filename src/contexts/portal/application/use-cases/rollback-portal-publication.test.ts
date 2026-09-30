@@ -90,6 +90,7 @@ function setup(
       current: null,
       nextCursor: null,
     }),
+    listActivationsBetween: async () => [],
     resolveActiveByTokenDigest: async () => null,
   }
   const useCase = rollbackPortalPublication({
