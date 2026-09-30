@@ -1,7 +1,9 @@
 // Invite member form — used in the members page dialog
 // Per architecture: receives mutation as prop, uses Zod schema for validation.
-// The `allowedRoles` prop controls which roles appear in the dropdown.
-// The `properties` prop provides properties for the assignment multi-select.
+// The `allowedRoles` prop controls which roles are offered; the invitation
+// starts as a Property Manager, the least privilege. The `properties` prop
+// feeds the property picker, which only a Property Manager needs: an Account
+// Admin sees every property.
 // The server still validates — this is UI-level gating for UX, not security.
 
 import { useForm } from '@tanstack/react-form'
@@ -13,6 +15,7 @@ import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { submitForm } from '#/components/forms/form-submit'
 import { inviteMemberInputSchema } from '#/contexts/identity/application/dto/invitation.dto'
 import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
+import { isGrantScopedRole } from '#/shared/domain/beta-interactive-role'
 import { z } from 'zod/v4'
 import { RoleSelector } from './role-selector'
 import { PropertyAssignmentSelector } from './property-assignment-selector'
@@ -42,18 +45,30 @@ type Props = Readonly<{
   properties: ReadonlyArray<PropertyOption>
 }>
 
+/** Least privilege first: an invitation is a Property Manager's unless chosen otherwise. */
+function defaultRole(
+  allowedRoles: ReadonlyArray<BetaInteractiveRole>,
+): BetaInteractiveRole {
+  return allowedRoles.includes('PropertyManager')
+    ? 'PropertyManager'
+    : (allowedRoles[0] ?? 'PropertyManager')
+}
+
 export function InviteMemberForm({ mutation, allowedRoles, properties }: Props) {
   const form = useForm({
     defaultValues: {
       email: '',
-      role: allowedRoles[0] ?? 'PropertyManager',
+      role: defaultRole(allowedRoles),
       propertyIds: [] as string[],
     } satisfies InviteVariables,
     validators: {
       onSubmit: inviteFormSchema,
     },
     onSubmit: async ({ value }) => {
-      await mutation({ data: value })
+      // An Account Admin reaches every property, so no grants are sent for one.
+      await mutation({
+        data: isGrantScopedRole(value.role) ? value : { ...value, propertyIds: [] },
+      })
     },
   })
 
@@ -108,20 +123,30 @@ export function InviteMemberForm({ mutation, allowedRoles, properties }: Props) 
           {(field) => <RoleSelector field={field} allowedRoles={allowedRoles} />}
         </form.Field>
 
-        <form.Field name="propertyIds">
-          {(field) => (
-            <PropertyAssignmentSelector
-              field={field}
-              properties={properties}
-              onToggleProperty={toggleProperty}
-              onRemoveProperty={removeProperty}
-            />
-          )}
-        </form.Field>
+        <form.Subscribe selector={(state) => state.values.role}>
+          {(role) =>
+            isGrantScopedRole(role) ? (
+              <form.Field name="propertyIds">
+                {(field) => (
+                  <PropertyAssignmentSelector
+                    field={field}
+                    properties={properties}
+                    onToggleProperty={toggleProperty}
+                    onRemoveProperty={removeProperty}
+                  />
+                )}
+              </form.Field>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Account Admins can access every property.
+              </p>
+            )
+          }
+        </form.Subscribe>
       </FieldGroup>
 
       <SubmitButton mutation={mutation} form={form}>
-        Send Invitation
+        Send invitation
       </SubmitButton>
     </form>
   )

@@ -37,7 +37,11 @@ export function PropertyAssignmentSelector({
 
   return (
     <Field>
-      <FieldLabel>Assign to properties (optional)</FieldLabel>
+      <FieldLabel>Properties they can work</FieldLabel>
+      <p className="text-sm text-muted-foreground">
+        Choose the properties this manager can work. You can change this later from
+        Members.
+      </p>
 
       {/* Selected properties as removable badges */}
       {selectedIds.length > 0 && (
@@ -81,7 +85,14 @@ export function PropertyAssignmentSelector({
 
       {properties.length === 0 && (
         <p className="text-sm text-muted-foreground">
-          No properties yet. The member can be assigned later.
+          No properties yet. Import one first, then give this manager access from Members.
+        </p>
+      )}
+
+      {properties.length > 0 && selectedIds.length === 0 && (
+        <p className="text-sm text-warn">
+          With no properties chosen, they will sign in to an empty app until you give them
+          access.
         </p>
       )}
     </Field>
