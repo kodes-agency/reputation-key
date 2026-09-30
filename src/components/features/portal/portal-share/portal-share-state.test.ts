@@ -15,7 +15,7 @@
 // into conflict with the others rather than checking one flag at a time.
 
 import { describe, it, expect } from 'vitest'
-import { derivePortalShareView } from './portal-share-state'
+import { derivePortalShareView, directPortalAddress } from './portal-share-state'
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
 
 const NO_TOKEN: PortalTokenStatus = {
@@ -217,5 +217,51 @@ describe('derivePortalShareView — when the code was made', () => {
     expect(graceLabel('2026-02-10T09:00:00Z')).toBe('10 Feb 2026')
     // A malformed timestamp hides the row; it must not render "Invalid Date".
     expect(graceLabel('soon')).toBeNull()
+  })
+})
+
+describe('directPortalAddress — the address for websites, emails and messages', () => {
+  it('drops the access-artifact marker so a click is not counted as a QR scan', () => {
+    // A visit carrying a published access artifact is recorded as a scan from
+    // that artifact's channel; the QR address must never reach the public row.
+    const qr = 'https://portal.example.com/p/9f3c?accessArtifact=art-qr-1'
+    expect(directPortalAddress(qr)).toBe('https://portal.example.com/p/9f3c')
+    expect(directPortalAddress(qr)).not.toContain('accessArtifact')
+  })
+
+  it('keeps the rest of the address untouched', () => {
+    expect(directPortalAddress(PUBLIC_URL)).toBe(PUBLIC_URL)
+    expect(directPortalAddress(`${PUBLIC_URL}?accessArtifact=a&x=1`)).toBe(
+      `${PUBLIC_URL}?x=1`,
+    )
+  })
+
+  it('passes a value that is not a URL through rather than throwing', () => {
+    expect(directPortalAddress('not a url')).toBe('not a url')
+  })
+})
+
+describe('derivePortalShareView — a code made in this session', () => {
+  it('says it was made today, not on the day of the code it replaced', () => {
+    // tokenStatus has not refetched yet: it still describes the old code.
+    const view = derivePortalShareView({
+      canManage: true,
+      revoked: false,
+      publicUrl: PUBLIC_URL,
+      tokenStatus: LIVE_TOKEN,
+      now: new Date('2026-09-30T23:30:00Z'),
+    })
+    expect(view.madeLabel).toBe('30 Sept 2026')
+  })
+
+  it('says it was made today after a first make, when tokenStatus knows no token', () => {
+    const view = derivePortalShareView({
+      canManage: true,
+      revoked: false,
+      publicUrl: PUBLIC_URL,
+      tokenStatus: NO_TOKEN,
+      now: new Date('2026-09-30T08:00:00Z'),
+    })
+    expect(view.madeLabel).toBe('30 Sept 2026')
   })
 })

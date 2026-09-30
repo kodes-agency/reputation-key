@@ -13,6 +13,7 @@ import {
 } from './portal-share-notices'
 import {
   derivePortalShareView,
+  directPortalAddress,
   liveStatusMessage,
   resolveMutationState,
 } from './portal-share-state'
@@ -23,9 +24,12 @@ export type { IssuedPortalLink } from './portal-share-types'
 
 export function PortalShare(props: PortalShareProps) {
   const { can } = usePermissions()
+  // The QR address (it carries the access-artifact marker) draws the image; the
+  // address row and its Copy button show the direct one.
   const publicUrl = props.issuedLink?.publicUrl ?? null
+  const directUrl = publicUrl === null ? null : directPortalAddress(publicUrl)
   const nfcPublicUrl = props.issuedLink?.publicUrls?.nfc ?? null
-  const { linkRef, copied, copyFailed, copyLink } = useCopyLink(publicUrl)
+  const { linkRef, copied, copyFailed, copyLink } = useCopyLink(directUrl)
   const {
     linkRef: nfcLinkRef,
     copied: nfcCopied,
@@ -50,7 +54,7 @@ export function PortalShare(props: PortalShareProps) {
 
       {view.showAddress && (
         <PortalLinkReveal
-          publicUrl={publicUrl}
+          publicUrl={directUrl}
           linkRef={linkRef}
           copied={copied}
           copyFailed={copyFailed}

@@ -7,6 +7,7 @@ import { Calendar, Check, Clock, Copy, Info, QrCode } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { PortalCodeActions } from './portal-code-actions'
 import { PortalDownloadMenu } from './portal-download-menu'
+import { QR_INK, QR_PAPER } from './portal-qr'
 import { COPY_FAILED_MESSAGE } from './use-copy-link'
 import { usePortalCodeDownload } from './use-portal-code-download'
 import { usePortalQrPreview } from './use-portal-qr-preview'
@@ -149,7 +150,8 @@ function QrTile({
   const { qrDataUrl, generationError } = usePortalQrPreview(address)
   return (
     <div
-      className="flex size-36 shrink-0 items-center justify-center self-start rounded-lg border bg-[#faf9fc]"
+      className="flex size-36 shrink-0 items-center justify-center self-start rounded-lg border"
+      style={{ backgroundColor: QR_PAPER }}
       aria-busy={address !== null && qrDataUrl === null && !generationError}
     >
       {qrDataUrl !== null ? (
@@ -161,7 +163,11 @@ function QrTile({
           className="size-[136px] rounded-md"
         />
       ) : (
-        <QrCode className="size-10 text-muted-foreground" aria-hidden="true" />
+        <QrCode
+          className="size-10 opacity-40"
+          style={{ color: QR_INK }}
+          aria-hidden="true"
+        />
       )}
     </div>
   )

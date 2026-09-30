@@ -17,6 +17,13 @@ const DEFAULT_TRANSITION_DAYS = 30
 
 type Kind = PortalCodeReplacementForm['replacementKind']
 
+// A security replacement breaks every printed and programmed code at once, so its
+// button says so instead of sharing the neutral label of a planned swap.
+function submitLabel(kind: Kind, isPending: boolean): string {
+  if (isPending) return 'Replacing…'
+  return kind === 'security' ? 'Replace now and stop the old code' : 'Replace code'
+}
+
 export function PortalReplaceCodeForm({
   portalId,
   mutation,
@@ -104,9 +111,17 @@ export function PortalReplaceCodeForm({
       </form.Subscribe>
       <AlertDialogFooter>
         <AlertDialogCancel type="button">Cancel</AlertDialogCancel>
-        <Button type="submit" disabled={mutation.isPending}>
-          {mutation.isPending ? 'Replacing…' : 'Replace code'}
-        </Button>
+        <form.Subscribe selector={(state) => state.values.replacementKind}>
+          {(kind) => (
+            <Button
+              type="submit"
+              variant={kind === 'security' ? 'destructive' : 'default'}
+              disabled={mutation.isPending}
+            >
+              {submitLabel(kind, mutation.isPending)}
+            </Button>
+          )}
+        </form.Subscribe>
       </AlertDialogFooter>
     </form>
   )

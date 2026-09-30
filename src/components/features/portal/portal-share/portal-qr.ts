@@ -14,9 +14,11 @@ const PREVIEW_PIXELS_PER_MODULE = 6
 
 // Near-black on near-white: enough contrast for a phone to read it in dim light,
 // and the colours the modal this replaced already used.
-const DARK = '#16151a'
-const LIGHT = '#faf9fc'
-const COLORS = { dark: DARK, light: LIGHT } as const
+// Exported because the tile the image sits on must be the same paper, in either
+// colour scheme, or the quiet zone stops reading as white.
+export const QR_INK = '#16151a'
+export const QR_PAPER = '#faf9fc'
+const COLORS = { dark: QR_INK, light: QR_PAPER } as const
 
 export type QrFormat = 'png' | 'svg'
 

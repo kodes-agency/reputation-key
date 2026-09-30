@@ -129,14 +129,20 @@ function usePortalExperienceActions(propertyId: string, portalId: string) {
 export function usePortalDetailActions(propertyId: string, portalId: string) {
   const update = usePortalUpdateAction(propertyId, portalId, true)
   const autosaveUpdate = usePortalUpdateAction(propertyId, portalId, false)
+  // Refetch the detail so `tokenStatus` (when the code was made, its transition
+  // window) follows the code that was just made, replaced or stopped.
+  const tokenInvalidations = [portalKeys.detail(portalId)]
   const issueToken = useActionMutation(issuePortalToken, {
-    successMessage: 'Public link generated',
+    successMessage: 'Code made',
+    invalidateKeys: tokenInvalidations,
   })
   const rotateToken = useActionMutation(rotatePortalToken, {
-    successMessage: 'Public link rotated',
+    successMessage: 'Code replaced',
+    invalidateKeys: tokenInvalidations,
   })
   const revokeToken = useActionMutation(revokePortalTokens, {
-    successMessage: 'Public links revoked',
+    successMessage: 'All codes stopped',
+    invalidateKeys: tokenInvalidations,
   })
   // The only producer of the governed portal.content_review.completed /
   // configuration_completeness / approved_destination_ratio facts. Legacy

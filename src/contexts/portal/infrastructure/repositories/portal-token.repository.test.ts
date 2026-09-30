@@ -303,6 +303,39 @@ describe('portal token repository', () => {
     ).resolves.toBeNull()
   })
 
+  it('reports the outgoing code grace end while the newer code is current', async () => {
+    const repo = createPortalTokenRepository(getDb())
+    const current = makeToken()
+    await repo.insert(current)
+    const rotation = rotateToken(
+      current,
+      {
+        id: 'de000000-0000-4000-8000-000000000026',
+        tokenIdentifier: 'lookup-key-five',
+        tokenHash: fixtureTokenHash('planned-v2'),
+        tokenKeyVersion: 1,
+        version: 2,
+      },
+      60_000,
+      NOW,
+    )
+    if (!('oldToken' in rotation)) throw new Error('rotation failed')
+    await repo.saveRotation(rotation)
+
+    // The current token is v2 and has no grace of its own: the window that
+    // matters to a reader is the one the printed (v1) code is still inside.
+    await expect(
+      repo.findResolvableSummaryForPortal(ORG, PORTAL, NOW),
+    ).resolves.toMatchObject({
+      version: 2,
+      gracePeriodEnds: rotation.oldToken.gracePeriodEnds,
+    })
+    // Once the window closes there is nothing left to report.
+    await expect(
+      repo.findResolvableSummaryForPortal(ORG, PORTAL, new Date(NOW.getTime() + 60_001)),
+    ).resolves.toMatchObject({ version: 2, gracePeriodEnds: null })
+  })
+
   it('reports legacy-address readiness and permits a retired channel marker to be replaced', async () => {
     const repo = createPortalTokenRepository(getDb())
     const token = makeToken()

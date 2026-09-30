@@ -13,6 +13,7 @@ import {
   QR_QUIET_ZONE_MODULES,
   qrDownloadFileName,
   renderQrPngDataUrl,
+  renderQrPreviewDataUrl,
   renderQrSvg,
 } from './portal-qr'
 
@@ -24,6 +25,32 @@ function svgSideInModules(svg: string): number {
   expect(match).not.toBeNull()
   expect(match?.[1]).toBe(match?.[2])
   return Number(match?.[1])
+}
+
+type DarkRun = Readonly<{ x: number; length: number; y: number }>
+
+/**
+ * Every dark horizontal run in the SVG path. The path is an absolute `M<x> <y>`
+ * start followed by `h<n>` runs and relative `m<dx> <dy>` moves, so the right-hand
+ * edge of a run is only known by walking the commands.
+ */
+function darkRuns(svg: string): readonly DarkRun[] {
+  const path = /<path stroke="[^"]+" d="([^"]+)"/.exec(svg)?.[1] ?? ''
+  const runs: DarkRun[] = []
+  let x = 0
+  let y = 0
+  for (const [, command, first, second] of path.matchAll(
+    /([Mmh])(-?\d+(?:\.\d+)?)(?: (-?\d+(?:\.\d+)?))?/g,
+  )) {
+    const a = Number(first)
+    if (command === 'M') [x, y] = [a, Number(second)]
+    else if (command === 'm') [x, y] = [x + a, y + Number(second)]
+    else {
+      runs.push({ x, length: a, y })
+      x += a
+    }
+  }
+  return runs
 }
 
 function pngWidth(dataUrl: string): number {
@@ -45,21 +72,16 @@ describe('portal code rendering', () => {
     expect((svgSideInModules(bare) - 17) % 4).toBe(0)
   })
 
-  it('draws no dark module inside the quiet zone', async () => {
+  it('draws no dark module inside the quiet zone, on any of the four sides', async () => {
     const svg = await renderQrSvg(ADDRESS)
     const side = svgSideInModules(svg)
-    const path = /<path stroke="[^"]+" d="([^"]+)"/.exec(svg)?.[1] ?? ''
-    // Each dark run is `M<x> <y>.5h<n>` or a relative `m`/`h` continuation; the
-    // absolute starts are the ones that can reach the margin.
-    const starts = [...path.matchAll(/M(\d+) (\d+(?:\.\d+)?)/g)].map((m) => ({
-      x: Number(m[1]),
-      y: Number(m[2]),
-    }))
-    expect(starts.length).toBeGreaterThan(0)
-    for (const { x, y } of starts) {
-      expect(x).toBeGreaterThanOrEqual(4)
-      expect(y).toBeGreaterThanOrEqual(4)
-      expect(y).toBeLessThanOrEqual(side - 4)
+    const runs = darkRuns(svg)
+    expect(runs.length).toBeGreaterThan(0)
+    for (const { x, length, y } of runs) {
+      expect(x).toBeGreaterThanOrEqual(QR_QUIET_ZONE_MODULES)
+      expect(x + length).toBeLessThanOrEqual(side - QR_QUIET_ZONE_MODULES)
+      expect(y).toBeGreaterThanOrEqual(QR_QUIET_ZONE_MODULES)
+      expect(y).toBeLessThanOrEqual(side - QR_QUIET_ZONE_MODULES)
     }
   })
 
@@ -81,7 +103,7 @@ describe('portal code rendering', () => {
   })
 
   it('renders a smaller PNG for the on-screen preview', async () => {
-    const preview = await renderQrPngDataUrl(ADDRESS, { pixelsPerModule: 6 })
+    const preview = await renderQrPreviewDataUrl(ADDRESS)
     expect(pngWidth(preview)).toBeLessThan(pngWidth(await renderQrPngDataUrl(ADDRESS)))
   })
 })

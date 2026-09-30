@@ -41,10 +41,28 @@ type ViewInput = Readonly<{
   revoked: boolean
   publicUrl: string | null
   tokenStatus: PortalTokenStatus
+  /** The clock; injectable so "made today" is testable. */
+  now?: Date
 }>
 
+/**
+ * The address for websites, emails and booking messages. Issue and rotate return
+ * the QR address, which carries an `accessArtifact` marker: a visit that carries
+ * it is recorded as a scan from that artifact's channel, so showing it here
+ * would count every website click as a QR scan.
+ */
+export function directPortalAddress(address: string): string {
+  try {
+    const url = new URL(address)
+    url.searchParams.delete('accessArtifact')
+    return url.toString()
+  } catch {
+    return address
+  }
+}
+
 export function derivePortalShareView(input: ViewInput): PortalShareView {
-  const { canManage, revoked, publicUrl, tokenStatus } = input
+  const { canManage, revoked, publicUrl, tokenStatus, now = new Date() } = input
 
   // The raw URL only exists in memory for the render that issued or rotated it,
   // so `publicUrl` cannot answer "is a code live?" after a reload — deriving the
@@ -61,7 +79,11 @@ export function derivePortalShareView(input: ViewInput): PortalShareView {
     showCode: hasActiveToken,
     showAddress: hasActiveToken && publicUrl !== null,
     showActions: canManage && hasActiveToken,
-    madeLabel: formatTimestamp(tokenStatus.issuedAt),
+    // A code made in this session is newer than whatever tokenStatus last saw.
+    madeLabel:
+      !revoked && publicUrl !== null
+        ? formatTimestamp(now.toISOString())
+        : formatTimestamp(tokenStatus.issuedAt),
     graceLabel: formatTimestamp(tokenStatus.graceExpiresAt),
   }
 }

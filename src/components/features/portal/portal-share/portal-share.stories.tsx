@@ -23,10 +23,13 @@ type LinkResult = {
 }
 
 const publicUrl = 'https://portal.example/p/opaque-token-shown-once'
-const nfcPublicUrl = 'https://portal.example/p/opaque-token-shown-once?nfc'
+// What issue and rotate return: the QR and NFC addresses each carry an
+// access-artifact marker. The address row must show the bare `publicUrl`.
+const qrPublicUrl = `${publicUrl}?accessArtifact=artifact-qr-1`
+const nfcPublicUrl = `${publicUrl}?accessArtifact=artifact-nfc-1`
 const issuedLink = {
-  publicUrl,
-  publicUrls: { qr: publicUrl, nfc: nfcPublicUrl },
+  publicUrl: qrPublicUrl,
+  publicUrls: { qr: qrPublicUrl, nfc: nfcPublicUrl },
 }
 
 const noActiveToken: PortalTokenStatus = {
@@ -117,6 +120,8 @@ export const NewlyMade: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText(publicUrl)).toBeInTheDocument()
+    // A website or email click must not be counted as a QR scan.
+    await expect(canvas.queryByText(/accessArtifact/i)).toBeNull()
     await expect(canvas.getByText(/save this address now/i)).toBeInTheDocument()
     await expect(canvas.getByText(/qr code and nfc tag/i)).toBeInTheDocument()
     await expect(
@@ -239,6 +244,17 @@ export const ReplacedWithinTransition: Story = {
   },
 }
 
+// The detail query has not refetched, so tokenStatus still describes the code
+// that was just replaced: the block must not show that code's date.
+export const ReplacedInSessionWithOldStatus: Story = {
+  args: { ...baseArgs, issuedLink, tokenStatus: activeToken },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText(/^made \d+ \w+ \d{4}$/i)).toBeInTheDocument()
+    await expect(canvas.queryByText(/made 12 aug 2026/i)).toBeNull()
+  },
+}
+
 export const ReplaceMenuOffersBothWays: Story = {
   args: { ...baseArgs, issuedLink },
   play: async ({ canvasElement }) => {
@@ -279,6 +295,10 @@ export const SecurityReplacementHidesTransition: Story = {
     const dialog = await openReplaceDialog(canvasElement)
     await userEvent.click(dialog.getByRole('radio', { name: /at once, for security/i }))
     await expect(dialog.queryByLabelText(/transition period \(days\)/i)).toBeNull()
+    // The submit says what it does: every printed code stops now.
+    await expect(
+      dialog.getByRole('button', { name: /replace now and stop the old code/i }),
+    ).toBeInTheDocument()
   },
 }
 
@@ -309,7 +329,9 @@ export const SecurityReplacementSendsNoGracePeriod: Story = {
   play: async ({ canvasElement, args }) => {
     const dialog = await openReplaceDialog(canvasElement)
     await userEvent.click(dialog.getByRole('radio', { name: /at once, for security/i }))
-    await userEvent.click(dialog.getByRole('button', { name: /replace code/i }))
+    await userEvent.click(
+      dialog.getByRole('button', { name: /replace now and stop the old code/i }),
+    )
     await waitFor(() =>
       expect(args.rotateMutation).toHaveBeenCalledWith({
         data: { portalId: 'portal-1', replacementKind: 'security' },
