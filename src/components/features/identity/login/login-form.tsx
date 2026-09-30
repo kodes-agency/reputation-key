@@ -21,13 +21,16 @@ import type { Action } from '#/components/hooks/use-action'
 type Props = Readonly<{
   mutation: Action<{ data: SignInVariables }>
   /** Mails a fresh verification link, for an address sign-in found unverified. */
-  resendVerification: Action<{ data: { email: string } }>
+  resendVerification: (input: { data: { email: string } }) => Promise<unknown>
 }>
 
 export function LoginForm({ mutation, resendVerification }: Props) {
-  // The address the failed attempt used: the field may be edited afterwards,
-  // but the notice is about the attempt.
-  const [attemptedEmail, setAttemptedEmail] = useState('')
+  // The attempt that was just made: the field may be edited afterwards, but the
+  // notice is about the attempt. Its id keys the notice, so each attempt gets a
+  // fresh one: what a resend did for one attempt (link sent, or refused by the
+  // rate limit) is never shown for the next, even when the refusal comes back
+  // before React has rendered the pending state in between.
+  const [attempt, setAttempt] = useState({ id: 0, email: '' })
   const form = useForm({
     defaultValues: {
       email: '',
@@ -37,7 +40,7 @@ export function LoginForm({ mutation, resendVerification }: Props) {
       onSubmit: signInInputSchema,
     },
     onSubmit: async ({ value }: { value: SignInVariables }) => {
-      setAttemptedEmail(value.email)
+      setAttempt((previous) => ({ id: previous.id + 1, email: value.email }))
       await mutation({ data: value })
     },
   })
@@ -53,7 +56,11 @@ export function LoginForm({ mutation, resendVerification }: Props) {
       className="space-y-4"
     >
       {isEmailNotVerified(mutation.error) ? (
-        <UnverifiedEmailNotice email={attemptedEmail} resend={resendVerification} />
+        <UnverifiedEmailNotice
+          key={attempt.id}
+          email={attempt.email}
+          resendVerification={resendVerification}
+        />
       ) : (
         <FormErrorBanner error={mutation.error} />
       )}
