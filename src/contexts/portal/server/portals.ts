@@ -58,6 +58,7 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
       'revision_conflict',
       'destination_not_approved',
       'link_limit_reached',
+      'brand_profile_missing',
       () => 409,
     )
     .with(

@@ -8,6 +8,7 @@ import {
   GUEST_LOCALE_JSONB_LITERAL,
   GUEST_LOCALE_SQL_LIST,
 } from '../../guest-locale-schemas'
+import { GUEST_LOCALES } from '../../domain/guest-locale'
 import { PORTAL_LINK_ICON_SQL_LIST } from '../../portal-link-icon-schemas'
 import { portalGroups } from './portal-group.schema'
 import { properties } from './property.schema'
@@ -115,6 +116,17 @@ export const propertyPortalBrandProfiles = pgTable(
     primaryColor: varchar('primary_color', { length: 7 }).notNull(),
     backgroundColor: varchar('background_color', { length: 7 }).notNull(),
     textColor: varchar('text_color', { length: 7 }).notNull(),
+    // The short name set in the page's header when there is no logo.
+    wordmark: varchar('wordmark', { length: 24 }),
+    // 'auto': the page's dark field is derived from the accent colour;
+    // 'manual': `backgroundColor` is the field.
+    backgroundMode: varchar('background_mode', { length: 10 }).notNull().default('auto'),
+    // The languages a new Portal starts with, first = its primary. They only
+    // seed new Portals, so editing them changes no version.
+    defaultGuestLocales: jsonb('default_guest_locales').notNull().default(['en']),
+    // `version` moves only with the public display name (AI reply drafts fence
+    // on it); `lookVersion` moves with everything a guest sees of the look.
+    lookVersion: integer('look_version').notNull().default(1),
     version: integer('version').notNull().default(1),
     updatedBy: varchar('updated_by', { length: 255 }).notNull(),
     createdAt: createdAtColumn(),
@@ -140,6 +152,22 @@ export const propertyPortalBrandProfiles = pgTable(
       sql`${t.primaryColor} ~ '^#[0-9A-Fa-f]{6}$' AND ${t.backgroundColor} ~ '^#[0-9A-Fa-f]{6}$' AND ${t.textColor} ~ '^#[0-9A-Fa-f]{6}$'`,
     ),
     check('property_portal_brand_profiles_version_positive', sql`${t.version} >= 1`),
+    check(
+      'property_portal_brand_profiles_look_version_positive',
+      sql`${t.lookVersion} >= 1`,
+    ),
+    check(
+      'property_portal_brand_profiles_wordmark_present',
+      sql`${t.wordmark} IS NULL OR length(btrim(${t.wordmark})) > 0`,
+    ),
+    check(
+      'property_portal_brand_profiles_background_mode_valid',
+      sql`${t.backgroundMode} IN ('auto', 'manual')`,
+    ),
+    check(
+      'property_portal_brand_profiles_default_locales_valid',
+      sql`jsonb_typeof(${t.defaultGuestLocales}) = 'array' AND jsonb_array_length(${t.defaultGuestLocales}) BETWEEN 1 AND ${sql.raw(String(GUEST_LOCALES.length))} AND ${t.defaultGuestLocales} <@ '${sql.raw(GUEST_LOCALE_JSONB_LITERAL)}'::jsonb`,
+    ),
   ],
 )
 
@@ -152,6 +180,8 @@ export const propertyPortalBrandContents = pgTable(
     locale: varchar('locale', { length: 35 }).notNull(),
     title: varchar('title', { length: 120 }).notNull(),
     shortDescription: varchar('short_description', { length: 500 }).notNull(),
+    // Alt text of the hero photo in this language; null until one is written.
+    heroAltText: varchar('hero_alt_text', { length: 160 }),
     version: integer('version').notNull().default(1),
     updatedBy: varchar('updated_by', { length: 255 }).notNull(),
     createdAt: createdAtColumn(),
@@ -173,6 +203,10 @@ export const propertyPortalBrandContents = pgTable(
       sql`${t.locale} IN (${sql.raw(GUEST_LOCALE_SQL_LIST)})`,
     ),
     check('property_portal_brand_contents_version_positive', sql`${t.version} >= 1`),
+    check(
+      'property_portal_brand_contents_hero_alt_present',
+      sql`${t.heroAltText} IS NULL OR length(btrim(${t.heroAltText})) > 0`,
+    ),
   ],
 )
 

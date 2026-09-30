@@ -37,9 +37,22 @@ import {
   AUTOMATIC_PUBLIC_DISPLAY_NAME_ACTOR,
   DEFAULT_PROPERTY_BRAND_PALETTE,
 } from '../../domain/portal-experience'
+import {
+  changedLookFacets,
+  lookPendingKey,
+  type BackgroundMode,
+  type LookFacet,
+  type PropertyLook,
+} from '../../domain/property-look'
 
 type PropertyScope = Readonly<{ organizationId: OrganizationId; propertyId: PropertyId }>
-type BrandProfileFields = Omit<PortalBrandProfileSnapshot, 'version'>
+type BrandProfileFields = Omit<PortalBrandProfileSnapshot, 'version'> &
+  Readonly<{
+    /** Left out, a first profile has none and an existing one keeps its own. */
+    wordmark?: string | null
+    /** Left out, a first profile is automatic and an existing one keeps its own. */
+    backgroundMode?: BackgroundMode
+  }>
 
 /** Brand writes take the Property's publication lock before touching a row. */
 function lockPropertyPublication(tx: Tx, scope: PropertyScope): Promise<void> {
@@ -47,6 +60,14 @@ function lockPropertyPublication(tx: Tx, scope: PropertyScope): Promise<void> {
     tx,
     unbrand(scope.organizationId),
     unbrand(scope.propertyId),
+  )
+}
+
+/** The one Brand Profile row of a Property, in its organisation. */
+function propertyProfileScope(scope: PropertyScope) {
+  return and(
+    eq(propertyPortalBrandProfiles.organizationId, unbrand(scope.organizationId)),
+    eq(propertyPortalBrandProfiles.propertyId, unbrand(scope.propertyId)),
   )
 }
 
@@ -78,27 +99,69 @@ function displayNameOnlyProfile(displayName: string): BrandProfileFields {
   }
 }
 
-/** Every Brand Profile write fences Portal publication and announces the version. */
+/** What a Brand Profile write moved, and so what it has to fence and announce. */
+type ProfileChange = Readonly<{
+  /** The public display name changed, or the profile was just created. */
+  nameChanged: boolean
+  /** The facets of the look that changed. */
+  facets: readonly LookFacet[]
+  version: number
+  lookVersion: number
+}>
+
+/**
+ * Every Brand Profile write that moved something fences Portal publication:
+ * a name change with one row under `all` (sourced at `version`), each look
+ * facet with its own `look:<facet>` row (sourced at `lookVersion`). The fact
+ * announces the profile version, which look edits leave where it was.
+ */
 async function recordPropertyProfileChange(
   tx: Tx,
   input: PropertyScope & Readonly<{ at: Date }>,
-  version: number,
+  change: ProfileChange,
 ): Promise<void> {
-  await recordPortalPendingContentChange(tx, {
+  const fence = {
     organizationId: unbrand(input.organizationId),
     propertyId: unbrand(input.propertyId),
-    kind: 'property_brand_profile',
-    sourceVersion: `v${version}`,
+    kind: 'property_brand_profile' as const,
     changedAt: input.at,
-  })
+  }
+  if (change.nameChanged) {
+    await recordPortalPendingContentChange(tx, {
+      ...fence,
+      sourceVersion: `v${change.version}`,
+    })
+  }
+  for (const facet of change.facets) {
+    await recordPortalPendingContentChange(tx, {
+      ...fence,
+      key: lookPendingKey(facet),
+      sourceVersion: `v${change.lookVersion}`,
+    })
+  }
+  if (!change.nameChanged && change.facets.length === 0) return
   const event = portalPropertyBrandProfileUpdated({
     organizationId: input.organizationId,
     propertyId: input.propertyId,
-    profileVersion: version,
+    profileVersion: change.version,
     sourceAggregateVersion: input.at.toISOString(),
     occurredAt: input.at,
   })
   await insertOutboxRow(tx, event, { recordedAt: input.at })
+}
+
+/** The look-bearing fields of a stored profile, for comparing with a save. */
+function lookOfRow(row: typeof propertyPortalBrandProfiles.$inferSelect): PropertyLook {
+  const profile = profileFromRow(row)
+  return {
+    primaryColor: profile.primaryColor,
+    backgroundColor: profile.backgroundColor,
+    textColor: profile.textColor,
+    backgroundMode: profile.backgroundMode,
+    wordmark: profile.wordmark,
+    logoUrl: profile.logoUrl,
+    defaultHeroImageUrl: profile.defaultHeroImageUrl,
+  }
 }
 
 type OverrideChange = Readonly<{
@@ -189,28 +252,75 @@ export const createPortalExperienceRepository = (
     trace('portalExperience.savePropertyProfile', async () => {
       const committed = await db.transaction(async (tx) => {
         await lockPropertyPublication(tx, input)
-        const [row] = await tx
-          .insert(propertyPortalBrandProfiles)
-          .values(firstProfileRow(input, input.profile, unbrand(input.updatedBy)))
-          .onConflictDoUpdate({
-            target: [
-              propertyPortalBrandProfiles.organizationId,
-              propertyPortalBrandProfiles.propertyId,
-            ],
-            set: {
-              ...input.profile,
-              version: sql`${propertyPortalBrandProfiles.version} + 1`,
-              updatedBy: unbrand(input.updatedBy),
-              updatedAt: input.at,
-            },
+        const scope = propertyProfileScope(input)
+        const [current] = await tx
+          .select()
+          .from(propertyPortalBrandProfiles)
+          .where(scope)
+          .limit(1)
+        if (!current) {
+          const [created] = await tx
+            .insert(propertyPortalBrandProfiles)
+            .values(firstProfileRow(input, input.profile, unbrand(input.updatedBy)))
+            .returning()
+          if (!created) throw new Error('Property Brand Profile was not saved')
+          await recordPropertyProfileChange(tx, input, {
+            nameChanged: true,
+            facets: [],
+            version: created.version,
+            lookVersion: created.lookVersion,
           })
+          return profileFromRow(created)
+        }
+        const { wordmark, backgroundMode, ...fields } = input.profile
+        const next = {
+          ...fields,
+          wordmark: wordmark === undefined ? current.wordmark : wordmark,
+          backgroundMode: backgroundMode ?? profileFromRow(current).backgroundMode,
+        }
+        const facets = changedLookFacets(lookOfRow(current), next)
+        const nameChanged = current.displayName !== next.displayName
+        // A save that moves nothing still records who confirmed the profile.
+        const [row] = await tx
+          .update(propertyPortalBrandProfiles)
+          .set({
+            ...next,
+            version: nameChanged
+              ? sql`${propertyPortalBrandProfiles.version} + 1`
+              : current.version,
+            lookVersion:
+              facets.length > 0
+                ? sql`${propertyPortalBrandProfiles.lookVersion} + 1`
+                : current.lookVersion,
+            updatedBy: unbrand(input.updatedBy),
+            updatedAt: input.at,
+          })
+          .where(scope)
           .returning()
         if (!row) throw new Error('Property Brand Profile was not saved')
-        await recordPropertyProfileChange(tx, input, row.version)
+        await recordPropertyProfileChange(tx, input, {
+          nameChanged,
+          facets,
+          version: row.version,
+          lookVersion: row.lookVersion,
+        })
         return profileFromRow(row)
       })
 
       return committed
+    }),
+
+  saveDefaultGuestLocales: (input) =>
+    trace('portalExperience.saveDefaultGuestLocales', async () => {
+      // Only the one column moves: no version, no fence, no fact, and not the
+      // person who last saved the profile (that decides whether the public
+      // display name counts as confirmed).
+      const [row] = await db
+        .update(propertyPortalBrandProfiles)
+        .set({ defaultGuestLocales: [...input.locales] })
+        .where(propertyProfileScope(input))
+        .returning()
+      return row ? profileFromRow(row) : null
     }),
 
   ensurePropertyDisplayName: (input) =>
@@ -234,7 +344,12 @@ export const createPortalExperienceRepository = (
           })
           .returning()
         if (!row) return false
-        await recordPropertyProfileChange(tx, input, row.version)
+        await recordPropertyProfileChange(tx, input, {
+          nameChanged: true,
+          facets: [],
+          version: row.version,
+          lookVersion: row.lookVersion,
+        })
         return true
       }),
     ),
@@ -285,7 +400,12 @@ export const createPortalExperienceRepository = (
               )
               .returning()
         if (!row) throw new Error('Property Brand Profile was not saved')
-        await recordPropertyProfileChange(tx, input, row.version)
+        await recordPropertyProfileChange(tx, input, {
+          nameChanged: true,
+          facets: [],
+          version: row.version,
+          lookVersion: row.lookVersion,
+        })
         return profileFromRow(row)
       }),
     ),
@@ -313,6 +433,8 @@ export const createPortalExperienceRepository = (
               propertyPortalBrandContents.propertyId,
               propertyPortalBrandContents.locale,
             ],
+            // An omitted alt text is left alone: `undefined` drops out of the
+            // update set, while `null` clears it.
             set: {
               ...input.content,
               version: sql`${propertyPortalBrandContents.version} + 1`,

@@ -1,4 +1,5 @@
 import type { OrganizationId, PortalId, PropertyId, UserId } from '#/shared/domain/ids'
+import type { BackgroundMode } from '../../domain/property-look'
 import type {
   PortalBrandProfileSnapshot,
   PortalGuestLocale,
@@ -7,6 +8,16 @@ import type {
 
 export type PropertyPortalBrandProfile = PortalBrandProfileSnapshot &
   Readonly<{
+    /** Short name for the page header when there is no logo; null for none. */
+    wordmark: string | null
+    backgroundMode: BackgroundMode
+    /** The languages a new Portal starts with, first = its primary. */
+    defaultGuestLocales: readonly PortalGuestLocale[]
+    /**
+     * Moves with everything a guest sees of the look. `version` (the snapshot's
+     * own field) moves only with the public display name.
+     */
+    lookVersion: number
     id: string
     organizationId: OrganizationId
     propertyId: PropertyId
@@ -22,6 +33,8 @@ export type PropertyPortalBrandContent = Readonly<{
   locale: PortalGuestLocale
   title: string
   shortDescription: string
+  /** Alt text of the hero photo in this language; null until one is written. */
+  heroAltText: string | null
   version: number
   updatedBy: UserId
   createdAt: Date
@@ -65,11 +78,30 @@ export type PortalExperienceRepository = Readonly<{
       id: string
       organizationId: OrganizationId
       propertyId: PropertyId
-      profile: Omit<PortalBrandProfileSnapshot, 'version'>
+      profile: Omit<PortalBrandProfileSnapshot, 'version'> &
+        Readonly<{
+          /** Left as it is when omitted; null clears it. */
+          wordmark?: string | null
+          /** Left as it is when omitted. */
+          backgroundMode?: BackgroundMode
+        }>
       updatedBy: UserId
       at: Date
     }>,
   ) => Promise<PropertyPortalBrandProfile>
+  /**
+   * Choose the languages a new Portal starts with. They only seed new Portals,
+   * so this moves neither version, records no pending change, emits no fact
+   * and does not touch who last saved the profile. Null when the Property has
+   * no Brand Profile.
+   */
+  saveDefaultGuestLocales: (
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      locales: readonly PortalGuestLocale[]
+    }>,
+  ) => Promise<PropertyPortalBrandProfile | null>
   /**
    * Insert the automatic public display name when the Property has no Brand
    * Profile yet. An existing profile is never touched. True when inserted.
@@ -103,7 +135,11 @@ export type PortalExperienceRepository = Readonly<{
       organizationId: OrganizationId
       propertyId: PropertyId
       locale: PortalGuestLocale
-      content: Pick<PortalLocalizedContentSnapshot, 'title' | 'shortDescription'>
+      content: Pick<PortalLocalizedContentSnapshot, 'title' | 'shortDescription'> &
+        Readonly<{
+          /** Left as it is when omitted; null clears it. */
+          heroAltText?: string | null
+        }>
       updatedBy: UserId
       at: Date
     }>,

@@ -15,6 +15,13 @@ import { loadPortalOrThrow } from '../load-accessible-portal'
 import { isPublicDisplayNameConfirmed } from '../../domain/portal-experience'
 import { contrastRatio, MIN_TEXT_CONTRAST } from '#/shared/domain/portal-field-colour'
 import { portalError } from '../../domain/errors'
+import {
+  BACKGROUND_MODES,
+  normaliseDefaultGuestLocales,
+  normaliseHeroAltText,
+  normaliseWordmark,
+  type BackgroundMode,
+} from '../../domain/property-look'
 
 type Deps = Readonly<{
   experienceRepo: PortalExperienceRepository
@@ -142,6 +149,10 @@ export const savePropertyPortalBrandProfile =
       primaryColor: string
       backgroundColor: string
       textColor: string
+      /** Left as it is when omitted; null (or only spaces) clears it. */
+      wordmark?: string | null
+      /** Left as it is when omitted. */
+      backgroundMode?: BackgroundMode
     }>,
     ctx: AuthContext,
   ) => {
@@ -149,6 +160,14 @@ export const savePropertyPortalBrandProfile =
     const pid = propertyId(input.propertyId)
     await assertPropertyAccess(deps.staffPublicApi, ctx, 'portal.update', pid)
     const displayName = normalizedRequired(input.displayName, 'Display name', 120)
+    const wordmark =
+      input.wordmark === undefined ? undefined : normaliseWordmark(input.wordmark)
+    if (
+      input.backgroundMode !== undefined &&
+      !BACKGROUND_MODES.includes(input.backgroundMode)
+    ) {
+      throw portalError('invalid_theme', 'Choose an automatic or a manual background')
+    }
     const textContrast = contrastRatio(input.textColor, input.backgroundColor)
     if (
       contrastRatio(input.primaryColor, input.backgroundColor) === null ||
@@ -173,10 +192,42 @@ export const savePropertyPortalBrandProfile =
         primaryColor: input.primaryColor.toUpperCase(),
         backgroundColor: input.backgroundColor.toUpperCase(),
         textColor: input.textColor.toUpperCase(),
+        // Only what the caller named: an omitted look field keeps its value.
+        ...(wordmark === undefined ? {} : { wordmark }),
+        ...(input.backgroundMode === undefined
+          ? {}
+          : { backgroundMode: input.backgroundMode }),
       },
       updatedBy: ctx.userId,
       at: deps.clock(),
     })
+  }
+
+/**
+ * Choose the languages a new Portal of this Property starts with (first is its
+ * primary). They only seed new Portals, so nothing already published changes.
+ */
+export const savePropertyDefaultGuestLocales =
+  (deps: Deps) =>
+  async (
+    input: Readonly<{ propertyId: string; locales: readonly OfferedGuestLocale[] }>,
+    ctx: AuthContext,
+  ) => {
+    assertPortalAdmin(ctx)
+    const pid = propertyId(input.propertyId)
+    await assertPropertyAccess(deps.staffPublicApi, ctx, 'portal.update', pid)
+    const saved = await deps.experienceRepo.saveDefaultGuestLocales({
+      organizationId: ctx.organizationId,
+      propertyId: pid,
+      locales: normaliseDefaultGuestLocales(input.locales),
+    })
+    if (!saved) {
+      throw portalError(
+        'brand_profile_missing',
+        'Set the public display name before choosing default languages',
+      )
+    }
+    return saved
   }
 
 export const savePropertyPortalBrandContent =
@@ -187,6 +238,8 @@ export const savePropertyPortalBrandContent =
       locale: OfferedGuestLocale
       title: string
       shortDescription: string
+      /** Left as it is when omitted; null (or only spaces) clears it. */
+      heroAltText?: string | null
     }>,
     ctx: AuthContext,
   ) => {
@@ -205,6 +258,9 @@ export const savePropertyPortalBrandContent =
           'Guest description',
           500,
         ),
+        ...(input.heroAltText === undefined
+          ? {}
+          : { heroAltText: normaliseHeroAltText(input.heroAltText) }),
       },
       updatedBy: ctx.userId,
       at: deps.clock(),

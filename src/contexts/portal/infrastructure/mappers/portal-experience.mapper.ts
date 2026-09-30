@@ -8,11 +8,27 @@ import type {
 } from '#/shared/db/schema/portal.schema'
 import { parseGuestLocale, type GuestLocale } from '#/shared/domain/guest-locale'
 import { organizationId, portalId, propertyId, userId } from '#/shared/domain/ids'
+import { BACKGROUND_MODES, type BackgroundMode } from '../../domain/property-look'
 import type {
   PortalLocalizedOverride,
   PropertyPortalBrandContent,
   PropertyPortalBrandProfile,
 } from '../../application/ports/portal-experience.repository'
+
+/** A stored mode outside the closed set is a corrupt row, never a quiet 'auto'. */
+function backgroundModeFromRow(value: string): BackgroundMode {
+  const mode = BACKGROUND_MODES.find((candidate) => candidate === value)
+  if (!mode) throw new Error(`Brand profile row has an unknown background mode: ${value}`)
+  return mode
+}
+
+/** The stored default languages, each checked against the catalogue. */
+function defaultLocalesFromRow(value: unknown): readonly GuestLocale[] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error('Brand profile row has no default guest languages')
+  }
+  return value.map((entry) => localeFromRow(String(entry)))
+}
 
 export const profileFromRow = (
   row: typeof propertyPortalBrandProfiles.$inferSelect,
@@ -26,6 +42,10 @@ export const profileFromRow = (
   primaryColor: row.primaryColor,
   backgroundColor: row.backgroundColor,
   textColor: row.textColor,
+  wordmark: row.wordmark,
+  backgroundMode: backgroundModeFromRow(row.backgroundMode),
+  defaultGuestLocales: defaultLocalesFromRow(row.defaultGuestLocales),
+  lookVersion: row.lookVersion,
   version: row.version,
   updatedBy: userId(row.updatedBy),
   createdAt: row.createdAt,
@@ -49,6 +69,7 @@ export const contentFromRow = (
   locale: localeFromRow(row.locale),
   title: row.title,
   shortDescription: row.shortDescription,
+  heroAltText: row.heroAltText,
   version: row.version,
   updatedBy: userId(row.updatedBy),
   createdAt: row.createdAt,

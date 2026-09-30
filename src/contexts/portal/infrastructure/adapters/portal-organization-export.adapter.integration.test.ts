@@ -171,16 +171,18 @@ async function seedFixture(): Promise<Fixture> {
   await q(
     `INSERT INTO property_portal_brand_profiles (
        id, organization_id, property_id, display_name, primary_color,
-       background_color, text_color, version, updated_by, created_at, updated_at
-     ) VALUES ($1, $2, $3, 'Harbour House', '#101010', '#FFFFFF', '#202020', 1, $4,
-               now(), now())`,
+       background_color, text_color, wordmark, background_mode, default_guest_locales,
+       look_version, version, updated_by, created_at, updated_at
+     ) VALUES ($1, $2, $3, 'Harbour House', '#101010', '#FFFFFF', '#202020', 'HARBOUR',
+               'manual', '["bg","en"]'::jsonb, 3, 1, $4, now(), now())`,
     [randomUUID(), organizationId, fixture.propertyId, fixture.userId],
   )
   await q(
     `INSERT INTO property_portal_brand_contents (
-       id, organization_id, property_id, locale, title, short_description, version,
-       updated_by, created_at, updated_at
-     ) VALUES ($1, $2, $3, 'en', 'Harbour House', 'By the water', 1, $4, now(), now())`,
+       id, organization_id, property_id, locale, title, short_description, hero_alt_text,
+       version, updated_by, created_at, updated_at
+     ) VALUES ($1, $2, $3, 'en', 'Harbour House', 'By the water', 'Boats in the harbour', 1,
+               $4, now(), now())`,
     [randomUUID(), organizationId, fixture.propertyId, fixture.userId],
   )
   await q(
@@ -361,6 +363,18 @@ describe.sequential('Portal Organization Export contributor', () => {
       locale: 'bg',
       title: 'Рецепция',
       linktree_title: 'Полезни връзки',
+    })
+    // The Property look is the customer's own data: every column is exported.
+    expect(payload.brandProfiles?.[0]).toMatchObject({
+      display_name: 'Harbour House',
+      wordmark: 'HARBOUR',
+      background_mode: 'manual',
+      default_guest_locales: '["bg", "en"]',
+      look_version: 3,
+    })
+    expect(payload.brandContents?.[0]).toMatchObject({
+      locale: 'en',
+      hero_alt_text: 'Boats in the harbour',
     })
     expect(payload.publicationSnapshots?.[0]).toMatchObject({
       id: fixture.snapshotId,
