@@ -91,12 +91,10 @@ export async function deliverInvitationEmail(
     await deps.sendEmail(await composeInvitationEmail(deps, ctx, delivery))
     return true
   } catch (error) {
+    // Identifiers stay out of logs (observability schema); the request's
+    // trace span already correlates this line.
     deps.logger.error(
-      {
-        invitationId: delivery.invitationId,
-        organizationId: ctx.organizationId,
-        failure: failureIdentity(error),
-      },
+      { failure: failureIdentity(error) },
       '[identity] invitation email could not be sent',
     )
     return false

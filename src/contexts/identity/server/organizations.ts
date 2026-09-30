@@ -17,9 +17,12 @@ export {
 export {
   registerMember,
   signInUser,
+  resendVerificationEmail,
   setActiveOrganization,
   listUserInvitations,
 } from './organizations.registration'
+
+export { getInvitationPreview } from './invitation-preview'
 
 export { updateOrganization } from './organizations.update'
 

@@ -53,6 +53,23 @@ export const setActiveOrgInputSchema = z.object({
 })
 export type SetActiveOrgInput = z.infer<typeof setActiveOrgInputSchema>
 
+/**
+ * The anonymous invitation-link preview. The id is a bearer secret; e2e ids
+ * are not UUIDs, so only the length is bounded.
+ */
+export const invitationPreviewInputSchema = z.object({
+  invitationId: z.string().min(1, 'Invitation ID is required').max(128),
+})
+export type InvitationPreviewInput = z.infer<typeof invitationPreviewInputSchema>
+
+/** Ask for a fresh email-verification link (anonymous, rate-limited). */
+export const resendVerificationEmailInputSchema = z.object({
+  email: z.email('A valid email address is required'),
+})
+export type ResendVerificationEmailInput = z.infer<
+  typeof resendVerificationEmailInputSchema
+>
+
 export const signInInputSchema = z.object({
   email: z.email('A valid email address is required'),
   password: z.string().min(1, 'Password is required'),

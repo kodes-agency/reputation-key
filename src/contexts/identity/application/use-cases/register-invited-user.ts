@@ -7,6 +7,7 @@ import {
   isIdentityError,
 } from '../../domain/errors'
 import { identityInvitationAccepted } from '../../domain/events'
+import { providerRefusalCode } from '../provider-refusal'
 import type { RegistrationAuthIds } from '#/shared/domain/registration-auth-ids'
 import type {
   InvitedRegistrationStore,
@@ -137,20 +138,6 @@ type SignUpRecoveryFinding =
       >
     }>
   | Readonly<{ reconciliationError: ErrorIdentity }>
-
-/** The reason code on a Better Auth refusal, read structurally from `unknown`. */
-function providerRefusalCode(error: unknown): string | null {
-  if (!(error instanceof Error) || error.name !== 'APIError' || !('body' in error)) {
-    return null
-  }
-  const body: unknown = error.body
-  return typeof body === 'object' &&
-    body !== null &&
-    'code' in body &&
-    typeof body.code === 'string'
-    ? body.code
-    : null
-}
 
 const ownCode = (value: unknown): unknown =>
   typeof value === 'object' && value !== null && 'code' in value ? value.code : undefined

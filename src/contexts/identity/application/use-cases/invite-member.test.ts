@@ -270,11 +270,7 @@ describe('inviteMember', () => {
     expect(commandStore.invitationById('inv-test-1')?.status).toBe('pending')
     expect(outbox.facts).toHaveLength(1)
     expect(logger.error).toHaveBeenCalledWith(
-      {
-        invitationId: 'inv-test-1',
-        organizationId: ctx.organizationId,
-        failure: { name: 'EmailError', code: 'send_failed' },
-      },
+      { failure: { name: 'EmailError', code: 'send_failed' } },
       '[identity] invitation email could not be sent',
     )
     expect(JSON.stringify(logger.error.mock.calls)).not.toContain('new@test.com')
