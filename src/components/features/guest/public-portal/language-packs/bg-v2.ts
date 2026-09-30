@@ -15,11 +15,19 @@ export const bgV2 = defineGuestCopyV2({
       'Страницата се отваря на езика на телефона ви, когато го поддържа.',
     languageSheetClose: 'Затвори',
     languageCurrent: 'Избран',
+    languageNameEn: 'Английски',
+    languageNameBg: 'Български',
+    languageNameEs: 'Испански',
+    languageNameIt: 'Италиански',
+    languageNameFr: 'Френски',
+    languageNameDe: 'Немски',
     privacyNoticeLink: 'Поверителност',
     footerMadeWith: 'Създадено с Reputation Key',
     logoAlt: 'Лого на {name}',
     visitNotice:
       'Тази страница отчита посещенията за {name}. Без реклами и без проследяване от трети страни.',
+    visitNoticeDetail:
+      'Задължителна сесийна бисквитка защитава отговора ви. Отделно отчитаме това посещение за {name} чрез краткотраен, защитен мрежов маркер. Без реклами и без проследяване от трети страни.',
     visitNoticeLabel: 'Отчитане на посещенията',
     visitNoticeAcknowledge: 'Разбрах',
 
@@ -103,10 +111,26 @@ export const bgV2 = defineGuestCopyV2({
     startOverFailed: 'Не успяхме да започнем отначало. Моля, опитайте отново.',
 
     linktreeDefaultTitle: 'Полезни връзки',
+    linkOpensNewTab: '(отваря се в нов раздел)',
     unavailableTitle: 'Тази страница не е достъпна в момента.',
     unavailableBody: 'Моля, опитайте отново по-късно.',
   },
   plurals: {
     ratingStars: { one: '{count} звезда', other: '{count} звезди' },
+  },
+  zoneNames: {
+    UTC: 'UTC',
+    'Europe/Sofia': 'София',
+    'Europe/London': 'Лондон',
+    'Europe/Berlin': 'Берлин',
+    'Europe/Paris': 'Париж',
+    'Europe/Madrid': 'Мадрид',
+    'Europe/Rome': 'Рим',
+    'Europe/Athens': 'Атина',
+    'Europe/Bucharest': 'Букурещ',
+    'Europe/Belgrade': 'Белград',
+    'Europe/Istanbul': 'Истанбул',
+    'Europe/Kyiv': 'Киев',
+    'Europe/Kiev': 'Киев',
   },
 })

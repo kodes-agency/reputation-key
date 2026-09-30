@@ -20,10 +20,20 @@ export const GUEST_COPY_V2_PLACEHOLDERS = {
   languageSheetHint: [],
   languageSheetClose: [],
   languageCurrent: [],
+  // Each guest locale named in this pack's language: the sheet's second line.
+  languageNameEn: [],
+  languageNameBg: [],
+  languageNameEs: [],
+  languageNameIt: [],
+  languageNameFr: [],
+  languageNameDe: [],
   privacyNoticeLink: [],
   footerMadeWith: [],
   logoAlt: ['name'],
   visitNotice: ['name'],
+  // The full disclosure (ADR 0044): the essential session cookie and the
+  // network marker. Slice 17 renders this until the owner approves shorter copy.
+  visitNoticeDetail: ['name'],
   visitNoticeLabel: [],
   visitNoticeAcknowledge: [],
   // The rating card.
@@ -104,6 +114,7 @@ export const GUEST_COPY_V2_PLACEHOLDERS = {
   startOverFailed: [],
   // The Linktree and the page that has nothing to show.
   linktreeDefaultTitle: [],
+  linkOpensNewTab: [],
   unavailableTitle: [],
   unavailableBody: [],
 } as const satisfies Readonly<Record<string, readonly GuestCopyPlaceholder[]>>
@@ -130,6 +141,8 @@ export type GuestPortalCopyV2 = Readonly<{
   version: GuestLanguagePackV2
   copy: Readonly<Record<GuestCopyKeyV2, string>>
   plurals: Readonly<Record<GuestPluralKeyV2, GuestPluralForms>>
+  /** Place names by IANA zone id, for the zones the product offers; others print the id's own place name. */
+  zoneNames: Readonly<Record<string, string>>
 }>
 
 /** Freezes a pack so one request can never change the copy another request reads. */
@@ -137,5 +150,6 @@ export function defineGuestCopyV2(pack: GuestPortalCopyV2): GuestPortalCopyV2 {
   for (const forms of Object.values(pack.plurals)) Object.freeze(forms)
   Object.freeze(pack.copy)
   Object.freeze(pack.plurals)
+  Object.freeze(pack.zoneNames)
   return Object.freeze(pack)
 }

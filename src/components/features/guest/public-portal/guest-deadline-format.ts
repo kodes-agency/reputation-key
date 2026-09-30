@@ -50,7 +50,17 @@ function parseInstant(value: string, label: string): Date {
   return instant
 }
 
+const FIXED_OFFSET_ZONE = /^Etc\/GMT([+-]\d{1,2})$/
+
 function zonePlaceName(timeZone: string): string {
+  if (timeZone === 'Etc/UTC' || timeZone === 'Etc/GMT') return 'UTC'
+  // `Etc/GMT-3` is three hours AHEAD of UTC (POSIX sign); print the real offset.
+  const offset = FIXED_OFFSET_ZONE.exec(timeZone)?.[1]
+  if (offset !== undefined) {
+    const hours = Number(offset.slice(1))
+    if (hours === 0) return 'UTC'
+    return `UTC${offset.startsWith('-') ? '+' : '-'}${hours}`
+  }
   const last = timeZone.split('/').at(-1) ?? timeZone
   return last.replaceAll('_', ' ')
 }
@@ -68,25 +78,32 @@ export function describeGuestDeadline(
   return { when, time: deadline.time, zone: zonePlaceName(timeZone) }
 }
 
-type DeadlineTemplates = Pick<
-  GuestPortalCopyV2['copy'],
-  'deadlineToday' | 'deadlineTomorrow' | 'deadlineDate'
->
+type DeadlinePack = Readonly<{
+  copy: Pick<
+    GuestPortalCopyV2['copy'],
+    'deadlineToday' | 'deadlineTomorrow' | 'deadlineDate'
+  >
+  zoneNames: GuestPortalCopyV2['zoneNames']
+}>
 
 /**
- * The deadline sentence for one pack. `localeTag` (an `Intl` tag such as
+ * The deadline sentence for one pack, with the zone named in the pack's own
+ * language where it has a name for it. `localeTag` (an `Intl` tag such as
  * `bg-BG`) is used only for the date of a later day, which is the one part
  * that varies by language; the date and the time are joined by the pack's own
  * template, never by the engine.
  */
 export function formatGuestDeadline(
-  templates: DeadlineTemplates,
+  pack: DeadlinePack,
   deadlineIso: string,
   nowIso: string,
   timeZone: string,
   localeTag: string,
 ): string {
-  const { when, time, zone } = describeGuestDeadline(deadlineIso, nowIso, timeZone)
+  const described = describeGuestDeadline(deadlineIso, nowIso, timeZone)
+  const { when, time } = described
+  const templates = pack.copy
+  const zone = pack.zoneNames[timeZone] ?? described.zone
   if (when === 'today') return fillGuestTemplate(templates.deadlineToday, { time, zone })
   if (when === 'tomorrow')
     return fillGuestTemplate(templates.deadlineTomorrow, { time, zone })

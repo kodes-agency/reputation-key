@@ -23,7 +23,13 @@ describe('loadGuestPortalCopyV2', () => {
     const bg = await loadGuestPortalCopyV2('bg')
     expect(en).toMatchObject({ locale: 'en', version: 'guest-ui-en-v2' })
     expect(bg).toMatchObject({ locale: 'bg', version: 'guest-ui-bg-v2' })
-    expect(Object.keys(en).sort()).toEqual(['copy', 'locale', 'plurals', 'version'])
+    expect(Object.keys(en).sort()).toEqual([
+      'copy',
+      'locale',
+      'plurals',
+      'version',
+      'zoneNames',
+    ])
   })
 
   it('loads the pinned version when the snapshot names one', async () => {
@@ -33,6 +39,12 @@ describe('loadGuestPortalCopyV2', () => {
 
   it('throws when the pinned pack belongs to another locale', async () => {
     await expect(loadGuestPortalCopyV2('bg', 'guest-ui-en-v2')).rejects.toThrow(
+      'Guest locale and immutable language pack do not match',
+    )
+  })
+
+  it('throws for an explicit null pin instead of loading the current pack', async () => {
+    await expect(loadGuestPortalCopyV2('en', null)).rejects.toThrow(
       'Guest locale and immutable language pack do not match',
     )
   })

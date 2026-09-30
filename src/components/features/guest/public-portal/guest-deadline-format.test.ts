@@ -1,15 +1,11 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { GUEST_LOCALES, guestLocaleFormatTag } from '#/shared/domain/guest-locale'
 import { describeGuestDeadline, formatGuestDeadline } from './guest-deadline-format'
+import { bgV2 } from './language-packs/bg-v2'
+import { enV2 } from './language-packs/en-v2'
 
 // 12:32 UTC = 15:32 in Sofia (UTC+3 in summer), 14:32 in Europe/Berlin.
 const NOW = '2026-09-30T09:00:00.000Z'
-const TEMPLATES = {
-  deadlineToday: 'Until {time} today, {zone} time',
-  deadlineTomorrow: 'Until {time} tomorrow, {zone} time',
-  deadlineDate: 'Until {date}, {time}, {zone} time',
-} as const
-
 describe('describeGuestDeadline', () => {
   it('says today for a deadline on the same calendar day in the portal zone', () => {
     expect(
@@ -65,6 +61,15 @@ describe('describeGuestDeadline', () => {
     expect(describeGuestDeadline('2026-09-30T12:00:00.000Z', NOW, 'UTC').zone).toBe('UTC')
   })
 
+  it('labels a fixed-offset zone by its real UTC offset, not by its inverted GMT name', () => {
+    const zone = (id: string) =>
+      describeGuestDeadline('2026-09-30T12:00:00.000Z', NOW, id).zone
+    expect(zone('Etc/GMT-3')).toBe('UTC+3')
+    expect(zone('Etc/GMT+5')).toBe('UTC-5')
+    expect(zone('Etc/GMT')).toBe('UTC')
+    expect(zone('Etc/UTC')).toBe('UTC')
+  })
+
   it('rejects an invalid instant or zone instead of printing garbage', () => {
     expect(() => describeGuestDeadline('not a date', NOW, 'Europe/Sofia')).toThrow(
       'Invalid deadline instant: not a date',
@@ -74,34 +79,38 @@ describe('describeGuestDeadline', () => {
 })
 
 describe('formatGuestDeadline', () => {
-  it('fills the today, tomorrow and date templates', () => {
-    expect(
-      formatGuestDeadline(
-        TEMPLATES,
-        '2026-09-30T12:32:00.000Z',
-        NOW,
-        'Europe/Sofia',
-        'en',
-      ),
-    ).toBe('Until 15:32 today, Sofia time')
-    expect(
-      formatGuestDeadline(
-        TEMPLATES,
-        '2026-10-01T11:32:00.000Z',
-        NOW,
-        'Europe/Sofia',
-        'en',
-      ),
-    ).toBe('Until 14:32 tomorrow, Sofia time')
-    expect(
-      formatGuestDeadline(
-        TEMPLATES,
-        '2026-10-04T09:05:00.000Z',
-        NOW,
-        'Europe/Sofia',
-        'en',
-      ),
-    ).toBe('Until Oct 4, 2026, 12:05, Sofia time')
+  const at = (pack: typeof enV2, deadline: string, zone: string, tag: string): string =>
+    formatGuestDeadline(pack, deadline, NOW, zone, tag)
+
+  it('fills the today, tomorrow and date templates in English', () => {
+    expect(at(enV2, '2026-09-30T12:32:00.000Z', 'Europe/Sofia', 'en')).toBe(
+      'Until 15:32 today, Sofia time',
+    )
+    expect(at(enV2, '2026-10-01T11:32:00.000Z', 'Europe/Sofia', 'en')).toBe(
+      'Until 14:32 tomorrow, Sofia time',
+    )
+    expect(at(enV2, '2026-10-04T09:05:00.000Z', 'Europe/Sofia', 'en')).toBe(
+      'Until Oct 4, 2026, 12:05, Sofia time',
+    )
+  })
+
+  it('fills the templates of the Bulgarian pack, zone name and all', () => {
+    expect(at(bgV2, '2026-09-30T12:32:00.000Z', 'Europe/Sofia', 'bg-BG')).toBe(
+      'До 15:32 днес, местно време в София',
+    )
+    expect(at(bgV2, '2026-10-01T11:32:00.000Z', 'Europe/Sofia', 'bg-BG')).toBe(
+      'До 14:32 утре, местно време в София',
+    )
+    expect(at(bgV2, '2026-10-04T09:05:00.000Z', 'Europe/Sofia', 'bg-BG')).toBe(
+      'До 4.10.2026 г., 12:05, местно време в София',
+    )
+  })
+
+  it('falls back to the place name of the zone id when the pack has no name for it', () => {
+    expect(bgV2.zoneNames['America/Los_Angeles']).toBeUndefined()
+    expect(at(bgV2, '2026-09-30T12:00:00.000Z', 'America/Los_Angeles', 'bg-BG')).toBe(
+      'До 05:00 днес, местно време в Los Angeles',
+    )
   })
 
   describe('React #418: the server and the browser must print the same text', () => {
@@ -113,13 +122,7 @@ describe('formatGuestDeadline', () => {
 
     it.each(GUEST_LOCALES)('is identical in every runtime zone for %s', (locale) => {
       const render = () =>
-        formatGuestDeadline(
-          TEMPLATES,
-          '2026-10-04T09:05:00.000Z',
-          NOW,
-          'Europe/Sofia',
-          guestLocaleFormatTag(locale),
-        )
+        at(enV2, '2026-10-04T09:05:00.000Z', 'Europe/Sofia', guestLocaleFormatTag(locale))
       const results = [
         'UTC',
         'America/Los_Angeles',
@@ -133,27 +136,15 @@ describe('formatGuestDeadline', () => {
     })
 
     it.each(GUEST_LOCALES)('joins date and time with our own glue for %s', (locale) => {
-      const text = formatGuestDeadline(
-        TEMPLATES,
-        '2026-10-04T09:05:00.000Z',
-        NOW,
-        'Europe/Sofia',
-        guestLocaleFormatTag(locale),
-      )
-      // WebKit would write "Oct 4, 2026 at 12:05"; the glue comes from the pack.
-      expect(text).not.toMatch(/\bat\b|\bum\b|\bà\b|\ba las\b|\balle\b|\bв\b/)
-      expect(text).toContain('12:05')
-    })
-
-    it('prints the date in the locale of the pack', () => {
-      const bg = formatGuestDeadline(
-        { ...TEMPLATES, deadlineDate: 'До {date}, {time}, {zone}' },
-        '2026-10-04T09:05:00.000Z',
-        NOW,
-        'Europe/Sofia',
-        'bg-BG',
-      )
-      expect(bg).toMatch(/^До 4\.10\.2026 г\., 12:05, Sofia$/)
+      const tag = guestLocaleFormatTag(locale)
+      const text = at(enV2, '2026-10-04T09:05:00.000Z', 'Europe/Sofia', tag)
+      // WebKit would write "Oct 4, 2026 at 12:05" from one date-time call; the
+      // engine only writes the date here and the pack's template adds the rest.
+      const date = new Intl.DateTimeFormat(tag, {
+        dateStyle: 'medium',
+        timeZone: 'Europe/Sofia',
+      }).format(new Date('2026-10-04T09:05:00.000Z'))
+      expect(text).toBe(`Until ${date}, 12:05, Sofia time`)
     })
   })
 })

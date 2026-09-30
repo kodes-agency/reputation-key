@@ -192,6 +192,11 @@ const PACKS: Readonly<Partial<Record<GuestPortalLanguagePackVersion, GuestPortal
     'guest-ui-bg-v1': BG,
   }
 
+// TODO(r4 slices 8 and 19): `version` is typed with every pack id, so a v2 id
+// compiles here and throws at runtime. Narrowing it to `GuestLanguagePackV1`
+// cascades through `public-portal-content.tsx`, `routes/p/$token.tsx`, the
+// legacy components' `languagePackVersion` props and `public-api.ts`, which
+// slice 8 (public-api) and slice 19 (v3 snapshots) own; narrow them together.
 export function getGuestPortalCopy(
   locale: GuestPortalLocale = 'en',
   version?: GuestPortalLanguagePackVersion,

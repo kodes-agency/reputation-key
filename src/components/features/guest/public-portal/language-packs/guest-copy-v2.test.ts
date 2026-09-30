@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import type { GuestLanguagePackV2, GuestLocale } from '#/shared/domain/guest-locale'
+import {
+  GUEST_LOCALES,
+  type GuestLanguagePackV2,
+  type GuestLocale,
+} from '#/shared/domain/guest-locale'
 import { formatGuestPlural, templatePlaceholders } from '../guest-copy-format'
 import { bgV2 } from './bg-v2'
 import { enV2 } from './en-v2'
@@ -15,6 +19,12 @@ const PACKS: ReadonlyArray<
   { locale: 'en', version: 'guest-ui-en-v2', pack: enV2 },
   { locale: 'bg', version: 'guest-ui-bg-v2', pack: bgV2 },
 ]
+
+// Exact CLDR forms: en has one/other, bg has one/other with 2 falling in other.
+const EXPECTED_STARS: Partial<Record<GuestLocale, Record<number, string>>> = {
+  en: { 1: '1 star', 2: '2 stars', 5: '5 stars' },
+  bg: { 1: '1 звезда', 2: '2 звезди', 5: '5 звезди' },
+}
 
 const COPY_KEYS = Object.keys(GUEST_COPY_V2_PLACEHOLDERS)
 const PLURAL_KEYS = Object.keys(GUEST_PLURAL_V2_PLACEHOLDERS)
@@ -72,10 +82,18 @@ describe.each(PACKS)('guest copy pack $version', ({ locale, version, pack }) => 
     expect(Object.isFrozen(pack.plurals)).toBe(true)
   })
 
-  it.each([1, 2, 5])('writes a star count for %i that carries the number', (count) => {
-    const text = formatGuestPlural(pack.plurals.ratingStars, count, locale)
-    expect(text).toContain(String(count))
-    expect(text).not.toContain('{')
+  it.each([1, 2, 5])('writes the exact star count form for %i', (count) => {
+    expect(formatGuestPlural(pack.plurals.ratingStars, count, locale)).toBe(
+      EXPECTED_STARS[locale]?.[count],
+    )
+  })
+
+  it('names every zone it translates by its IANA id, with a written place name', () => {
+    for (const [zone, name] of Object.entries(pack.zoneNames)) {
+      expect(zone).toMatch(/^[A-Z][A-Za-z_+-]*(\/[A-Z][A-Za-z_+-]*)*$/)
+      expect(name).toBe(name.trim())
+      expect(name.length).toBeGreaterThan(0)
+    }
   })
 })
 
@@ -104,6 +122,64 @@ describe('the copy is industry-neutral', () => {
   it('uses "visit" for the counting notice', () => {
     expect(enV2.copy.visitNotice).toMatch(/\bvisits\b/)
     expect(bgV2.copy.visitNotice).toMatch(/посещения/)
+    expect(enV2.copy.visitNoticeDetail).toMatch(/\bvisit\b/)
+    expect(bgV2.copy.visitNoticeDetail).toMatch(/посещение/)
+  })
+})
+
+// ADR 0044: whatever notice a guest reads must disclose the essential session
+// cookie and the network marker. `visitNoticeDetail` is the full disclosure;
+// slice 17 renders it until the owner approves shorter copy (plan section 5,
+// action 2).
+describe('the full visit disclosure (ADR 0044)', () => {
+  it('names the essential session cookie and the network marker in English', () => {
+    expect(enV2.copy.visitNoticeDetail).toMatch(/\bcookie\b/i)
+    expect(enV2.copy.visitNoticeDetail).toMatch(/\bmarker\b/i)
+  })
+
+  it('names the essential session cookie and the network marker in Bulgarian', () => {
+    expect(bgV2.copy.visitNoticeDetail).toMatch(/бисквитка/i)
+    expect(bgV2.copy.visitNoticeDetail).toMatch(/маркер/i)
+  })
+
+  it('also promises no ads or third-party trackers', () => {
+    expect(enV2.copy.visitNoticeDetail).toMatch(/third.party trackers/i)
+    expect(bgV2.copy.visitNoticeDetail).toMatch(/трети страни/)
+  })
+})
+
+describe('the language sheet and link labels', () => {
+  it('names every guest locale in the pack’s own language', () => {
+    expect(enV2.copy).toMatchObject({
+      languageNameEn: 'English',
+      languageNameBg: 'Bulgarian',
+      languageNameEs: 'Spanish',
+      languageNameIt: 'Italian',
+      languageNameFr: 'French',
+      languageNameDe: 'German',
+    })
+    expect(bgV2.copy).toMatchObject({
+      languageNameEn: 'Английски',
+      languageNameBg: 'Български',
+      languageNameEs: 'Испански',
+      languageNameIt: 'Италиански',
+      languageNameFr: 'Френски',
+      languageNameDe: 'Немски',
+    })
+  })
+
+  it('has one language name key per guest locale', () => {
+    const keys = COPY_KEYS.filter((key) => key.startsWith('languageName')).sort()
+    expect(keys).toEqual(
+      GUEST_LOCALES.map(
+        (code) => `languageName${code[0]?.toUpperCase()}${code[1]}`,
+      ).sort(),
+    )
+  })
+
+  it('has a generic screen-reader label for a link that opens a new tab', () => {
+    expect(enV2.copy.linkOpensNewTab).toBe('(opens in a new tab)')
+    expect(bgV2.copy.linkOpensNewTab).toBe('(отваря се в нов раздел)')
   })
 })
 
