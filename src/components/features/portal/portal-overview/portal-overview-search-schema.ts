@@ -4,7 +4,7 @@
 // than refusing the page (the same rule as the Properties list).
 import { z } from 'zod/v4'
 
-export const PORTAL_OVERVIEW_SORTS = ['name', 'attention'] as const
+export const PORTAL_OVERVIEW_SORTS = ['name', 'attention', 'scans'] as const
 export type PortalOverviewSort = (typeof PORTAL_OVERVIEW_SORTS)[number]
 
 export const PORTAL_OVERVIEW_GROUP_BYS = ['group', 'none'] as const
@@ -21,7 +21,7 @@ export const MAX_SEARCH_LENGTH = 100
 export const DEFAULT_PORTAL_OVERVIEW_SORT: PortalOverviewSort = 'name'
 export const DEFAULT_PORTAL_OVERVIEW_GROUP_BY: PortalOverviewGroupBy = 'group'
 
-/** A name reads A to Z; attention reads most pressing first. */
+/** A name reads A to Z; attention and scans read the most first. */
 export function defaultSortDirection(sort: PortalOverviewSort): SortDirection {
   return sort === 'name' ? 'asc' : 'desc'
 }

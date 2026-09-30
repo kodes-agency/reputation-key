@@ -275,6 +275,16 @@ export const portalKeys = {
   /** The Portals overview: every Portal of a Property, read in one batch. */
   overview: (propertyId: string) =>
     [...portalKeys.forProperty(propertyId), 'overview'] as const,
+  /** Every window of the overview's results for a Property. */
+  resultsOverviewRoot: (propertyId: string) =>
+    [...portalKeys.forProperty(propertyId), 'results-overview'] as const,
+  /** One window, with or without the period before: each is its own read. */
+  resultsOverview: (propertyId: string, timeRange: string, compare: boolean) =>
+    [
+      ...portalKeys.resultsOverviewRoot(propertyId),
+      timeRange,
+      compare ? 'compare' : 'alone',
+    ] as const,
   analyticsRoot: (propertyId: string, portalId: string) =>
     [...portalKeys.forPropertyPortal(propertyId, portalId), 'analytics'] as const,
   /** One window, with or without the period before: each is its own read. */

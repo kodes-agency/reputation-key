@@ -5,18 +5,14 @@
 import { personInitials } from '#/components/inbox/person-initials'
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
 import { GUEST_LOCALE_METADATA, type GuestLocale } from '#/shared/domain/guest-locale'
-import {
-  attentionRank,
-  needsAttention,
-  portalAttention,
-  type PortalAttention,
-} from './portal-attention'
+import { needsAttention, portalAttention, type PortalAttention } from './portal-attention'
+import { compareItems, orderGroups } from './portal-overview-order'
+import type { OverviewSortFigures } from './portal-overview-results'
 import {
   DEFAULT_PORTAL_OVERVIEW_GROUP_BY,
   DEFAULT_PORTAL_OVERVIEW_SORT,
   defaultSortDirection,
   type PortalOverviewSearch,
-  type SortDirection,
 } from './portal-overview-search-schema'
 
 /** A QR code per room means a Property can hold hundreds of Portals: the list is paged. */
@@ -154,15 +150,6 @@ export function describeRange(
   return page.matched === 0 ? '' : `Showing ${page.from}–${page.to} of ${page.matched}`
 }
 
-const compareText = (a: string, b: string): number =>
-  a.toLowerCase().localeCompare(b.toLowerCase())
-
-const applyDirection = (order: number, dir: SortDirection): number =>
-  dir === 'asc' ? order : -order
-
-const isArchived = (item: PortalOverviewItem): boolean =>
-  item.row.publicationState === 'archived'
-
 function toItem(
   row: PortalOverviewRow,
   members: readonly PortalManagerName[],
@@ -183,23 +170,6 @@ function matchesSearch(item: PortalOverviewItem, search: PortalOverviewSearch): 
     if (!haystack.includes(needle)) return false
   }
   return search.show !== 'attention' || needsAttention(item.attention)
-}
-
-function compareItems(
-  sort: NonNullable<PortalOverviewSearch['sort']>,
-  dir: SortDirection,
-): (a: PortalOverviewItem, b: PortalOverviewItem) => number {
-  return (a, b) => {
-    // Archived Portals are finished, so they follow the others in either order.
-    if (isArchived(a) !== isArchived(b)) return isArchived(a) ? 1 : -1
-    const byName = applyDirection(compareText(a.row.name, b.row.name), dir)
-    if (sort === 'name') return byName || compareText(a.row.slug, b.row.slug)
-    const byAttention = applyDirection(
-      attentionRank(a.attention) - attentionRank(b.attention),
-      dir,
-    )
-    return byAttention || compareText(a.row.name, b.row.name)
-  }
 }
 
 type Bucket = Readonly<{
@@ -251,23 +221,6 @@ function bucketByGroup(
   ]
 }
 
-function orderGroups(
-  buckets: readonly Bucket[],
-  sort: NonNullable<PortalOverviewSearch['sort']>,
-  dir: SortDirection,
-): readonly Bucket[] {
-  const pressing = (bucket: Bucket): number =>
-    Math.max(...bucket.items.map((item) => attentionRank(item.attention)))
-  const groups = buckets
-    .filter((bucket) => bucket.kind === 'group')
-    .sort((a, b) => {
-      const byName = compareText(a.group?.name ?? '', b.group?.name ?? '')
-      if (sort === 'name') return applyDirection(byName, dir) || 0
-      return applyDirection(pressing(a) - pressing(b), dir) || byName
-    })
-  return [...groups, ...buckets.filter((bucket) => bucket.kind === 'ungrouped')]
-}
-
 const clamp = (value: number, low: number, high: number): number =>
   Math.min(Math.max(value, low), high)
 
@@ -276,6 +229,8 @@ export function buildPortalOverview(
   search: PortalOverviewSearch,
   members: readonly PortalManagerName[],
   pageSize: number = PORTAL_OVERVIEW_PAGE_SIZE,
+  /** What the results say each row counted, for the scans sort; none until they arrive. */
+  figures?: OverviewSortFigures,
 ): PortalOverviewPage {
   const sort = search.sort ?? DEFAULT_PORTAL_OVERVIEW_SORT
   const dir = search.dir ?? defaultSortDirection(sort)
@@ -284,7 +239,7 @@ export function buildPortalOverview(
   const all = rows.map((row) => toItem(row, members))
   const matched = all
     .filter((item) => matchesSearch(item, search))
-    .sort(compareItems(sort, dir))
+    .sort(compareItems(sort, dir, figures))
 
   const memberCounts = new Map<string, number>()
   for (const item of all) {
@@ -294,7 +249,12 @@ export function buildPortalOverview(
   const ungroupedCount = all.filter((item) => !item.row.group).length
 
   const buckets: readonly Bucket[] = grouping
-    ? orderGroups(bucketByGroup(matched, memberCounts, ungroupedCount), sort, dir)
+    ? orderGroups(
+        bucketByGroup(matched, memberCounts, ungroupedCount),
+        sort,
+        dir,
+        figures,
+      )
     : matched.length === 0
       ? []
       : [
