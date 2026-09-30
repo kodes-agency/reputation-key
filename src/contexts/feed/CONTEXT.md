@@ -170,7 +170,7 @@ names another person, and neither counts Properties or people in its copy:
 repeats of a type merge into one unread row, which says only that it happened
 again. An inviter who is not an AccountAdmin of the Organization at delivery is
 refused there: a former AccountAdmin, an operator who invited through the
-console, or a PropertyManager, who can invite until PropertyManagers lose
+console, or a PropertyManager who invited before PropertyManagers lost
 invitations (ADR 0033, amended 2026-10-01).
 
 Mandatory notices coalesce in-app like any other: every account notice keys

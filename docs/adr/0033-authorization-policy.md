@@ -43,10 +43,11 @@ never reported as it, and that guard still holds under the Organization lock.
 Only an AccountAdmin changes a PropertyManager's Property scope (`member.update`
 at Organization scope).
 
-The rest of the decision takes effect with the PropertyManager permission
-change in `shared/auth/permissions.ts` that ships with the Members page, not
-with the rules above: from then on only an AccountAdmin invites, cancels or
-resends invitations, creates members, and edits Organization settings, response
-targets included, which the server already required; a PropertyManager can only
-list members. Until then a PropertyManager keeps its invitation, member-create
-and Organization-update permissions.
+The PropertyManager permission table matches. Only an AccountAdmin invites,
+cancels or resends invitations, creates members, and edits Organization
+settings, response targets included, which the server already required; a
+PropertyManager holds `member.list` and nothing else about members,
+invitations or the Organization, and keeps it because Inbox assignment and
+Responsible managers read the member list. The Members page reads only what the
+viewer's role may read, so a PropertyManager's page issues no invitation or
+grant read.

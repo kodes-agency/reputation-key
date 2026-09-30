@@ -94,7 +94,11 @@ only), and a change that alters nothing records none. A grant from a person uses
 lock as the operator's grant; an invitation's grants record the inviter as
 `createdBy`, and a Property that could not be granted is logged, never silent. An
 AccountAdmin may change another AccountAdmin's role; nobody changes their own role;
-the last-AccountAdmin guard holds under the Organization lock. The member hears
+the last-AccountAdmin guard holds under the Organization lock. Only an AccountAdmin
+invites, cancels or resends invitations, creates members, edits a PropertyManager's
+Property scope and edits Organization settings; a PropertyManager holds `member.list`
+(Inbox assignment and Responsible managers read it) and nothing else about members,
+invitations or the Organization (ADR 0033). The member hears
 about a change to their own Property access, and an inviter who is an
 AccountAdmin hears that their invitation was accepted; Feed's notices name the
 Organization, never the other person.

@@ -117,12 +117,7 @@ describe('owner role (AccountAdmin)', () => {
 
 describe('admin role (PropertyManager)', () => {
   const allowedPermissions: Permission[] = [
-    'member.create',
     'member.list',
-    'invitation.create',
-    'invitation.list',
-    'invitation.cancel',
-    'invitation.resend',
     'property.create',
     'property.update',
     'property.read',
@@ -142,7 +137,6 @@ describe('admin role (PropertyManager)', () => {
     'inbox.read',
     'inbox.write',
     'inbox.manage',
-    'organization.update',
     'ai.reply.generate',
     'ai.trends.read',
     'ai.manage',
@@ -155,7 +149,9 @@ describe('admin role (PropertyManager)', () => {
   ]
 
   const deniedPermissions: Permission[] = [
+    'organization.update',
     'organization.delete',
+    'member.create',
     'member.update',
     'member.delete',
     'property.delete',
@@ -179,6 +175,50 @@ describe('admin role (PropertyManager)', () => {
     for (const permission of deniedPermissions) {
       expect(can('PropertyManager', permission)).toBe(false)
     }
+  })
+
+  // Manager administration belongs to the AccountAdmin alone (ADR 0033,
+  // amended 2026-10): a PropertyManager reads the member list and nothing else
+  // about members, invitations or the Organization.
+  describe('cannot administer people or the Organization', () => {
+    it.each<Permission>([
+      'invitation.create',
+      'invitation.list',
+      'invitation.cancel',
+      'invitation.resend',
+    ])('cannot %s', (permission) => {
+      expect(can('PropertyManager', permission)).toBe(false)
+    })
+
+    it('cannot create, change or remove members', () => {
+      expect(can('PropertyManager', 'member.create')).toBe(false)
+      expect(can('PropertyManager', 'member.update')).toBe(false)
+      expect(can('PropertyManager', 'member.delete')).toBe(false)
+    })
+
+    it('cannot edit Organization settings', () => {
+      expect(can('PropertyManager', 'organization.update')).toBe(false)
+    })
+
+    it('still lists members, which Inbox assignment and Responsible managers read', () => {
+      expect(can('PropertyManager', 'member.list')).toBe(true)
+    })
+
+    it('leaves every one of those to the AccountAdmin', () => {
+      const adminOnly: Permission[] = [
+        'invitation.create',
+        'invitation.list',
+        'invitation.cancel',
+        'invitation.resend',
+        'member.create',
+        'member.update',
+        'member.delete',
+        'organization.update',
+      ]
+      for (const permission of adminOnly) {
+        expect(can('AccountAdmin', permission)).toBe(true)
+      }
+    })
   })
 })
 

@@ -944,8 +944,8 @@ admits that shape for every mandatory type.
   gets an `obsolete` receipt and notifies nobody. An inviter who is not an
   AccountAdmin of the Organization at delivery is refused there: a former
   AccountAdmin, a platform operator who invited through the console, or a
-  PropertyManager, who can still invite until the PropertyManager permission
-  change of ADR 0033's 2026-10-01 amendment lands.
+  PropertyManager who invited before PropertyManagers lost invitations (ADR
+  0033's 2026-10-01 amendment).
 - **No notice names another person (r.8).** The access notice says "Your
   property access at {organization} changed", the invitation notice "Someone
   you invited joined {organization}". Neither counts Properties or people:
