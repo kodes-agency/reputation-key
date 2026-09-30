@@ -40,9 +40,13 @@ export function portalRowMenu(
     ...(waiting && canReviewAndPublish(access, state)
       ? [item('review', 'Review & publish')]
       : []),
-    ...(state !== 'archived' && access.canArchive
+    // Archiving and restoring are Portal updates, which the server also
+    // refuses while the organisation's `portal.write` capability is off.
+    ...(state !== 'archived' && access.canArchive && access.portalWriteEnabled
       ? [item('archive', 'Archive…', true)]
       : []),
-    ...(state === 'archived' && access.canUpdate ? [item('restore', 'Restore…')] : []),
+    ...(state === 'archived' && access.canUpdate && access.portalWriteEnabled
+      ? [item('restore', 'Restore…')]
+      : []),
   ]
 }

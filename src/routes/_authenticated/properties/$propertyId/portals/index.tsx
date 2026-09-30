@@ -31,13 +31,16 @@ import { portalGroupsQuery } from './-portal-detail-data'
 import { portalGroupCachePolicy } from '#/components/features/portal/portal-group-cache-policy'
 
 // Read once for every Portal of the Property. A summary of state that changes in
-// many places (publishing, codes, managers, groups), so it is always refetched
-// on arrival; the cached copy still renders first.
+// many places (publishing, codes, managers, groups), so it is refetched on
+// arrival; the cached copy still renders first. Short, not zero: the loader has
+// just fetched it, and a zero would read the same six sources a second time.
+const OVERVIEW_STALE_MS = 5_000
+
 const portalOverviewQuery = (propertyId: string) =>
   queryOptions({
     queryKey: portalKeys.overview(propertyId),
     queryFn: () => listPortalOverview({ data: { propertyId } }),
-    staleTime: 0,
+    staleTime: OVERVIEW_STALE_MS,
   })
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/portals/')({

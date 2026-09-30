@@ -1,12 +1,12 @@
 // The Portals overview as one table with one `<tbody>` per group. Below a 56 rem
 // container each row is a card and the header row is not shown; from 56 rem it
-// is a table (see `portal-overview-row.tsx`). Groups fold away; the fold is the
+// is a table (see `portal-overview-table-row.tsx`). Groups fold away; the fold is the
 // reader's own, kept here rather than in the URL.
 import { useState } from 'react'
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '#/components/ui/table'
 import type { PortalArchiveMutations } from './portal-archive-dialog'
 import { PortalOverviewGroupHead } from './portal-overview-group-head'
-import { PortalOverviewRow } from './portal-overview-row'
+import { PortalOverviewTableRow } from './portal-overview-table-row'
 import type { PortalOverviewSection } from './portal-overview-view'
 
 type Props = PortalArchiveMutations &
@@ -61,7 +61,7 @@ export function PortalOverviewTable({
               ) : null}
               {expanded
                 ? section.items.map((item) => (
-                    <PortalOverviewRow
+                    <PortalOverviewTableRow
                       key={item.row.portalId}
                       item={item}
                       propertyId={propertyId}

@@ -12,9 +12,8 @@ export function PortalOverviewPager({ overview, onPage }: Props) {
   const { page, lastPage } = overview
   return (
     <div className="flex items-center justify-between gap-4">
-      <p aria-live="polite" className="text-sm text-muted-foreground">
-        {describeRange(overview)}
-      </p>
+      {/* Plain text: the toolbar's count is the one live region for a search. */}
+      <p className="text-sm text-muted-foreground">{describeRange(overview)}</p>
       {lastPage > 1 && (
         <div className="flex items-center gap-2">
           <Button

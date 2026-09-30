@@ -20,7 +20,6 @@ export type PortalIssueCode =
   | 'property_unavailable'
   | 'no_live_version'
   | 'no_code'
-  | 'code_needs_reprint'
   | 'no_responsible'
   | 'google_refreshing'
   | 'google_unavailable'
@@ -59,12 +58,6 @@ const ISSUES: Readonly<Record<PortalIssueCode, Omit<PortalIssue, 'code'>>> = {
     detail: 'Guests cannot reach this portal. Make a code on the Share tab.',
     fix: 'share',
   },
-  code_needs_reprint: {
-    title: 'The code needs reprinting',
-    detail:
-      'This code was made before scans could be counted. Replace it on the Share tab and print the new one.',
-    fix: 'share',
-  },
   no_responsible: {
     title: 'No one is responsible',
     detail: 'Nobody gets this portal’s notices. Choose a manager.',
@@ -95,8 +88,9 @@ function liveIssues(input: PortalAttentionInput): readonly PortalIssue[] {
   const codes: PortalIssueCode[] = []
   if (reason === 'property_unavailable') codes.push('property_unavailable')
   if (reason === 'publication_snapshot_unavailable') codes.push('no_live_version')
+  // An older code still works; the Share tab alone says its scans are left out
+  // of scan-based goals, so the overview does not turn it into an issue.
   if (!input.token.hasActiveToken) codes.push('no_code')
-  else if (!input.token.qualifiedScanReady) codes.push('code_needs_reprint')
   if (input.responsibleManagerUserIds.length === 0) codes.push('no_responsible')
   if (reason === 'google_destination_awaiting_refresh') codes.push('google_refreshing')
   if (reason === 'google_destination_unavailable') codes.push('google_unavailable')

@@ -513,11 +513,14 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
 - Depends on 21–24. Size L + M.
 - **As built (a).**
   - Data comes from `listPortalOverview` for one Property; responsible managers are named from the organisation member list when the role may read it, and drawn as a disc without initials when not (never as an id).
-  - The row's code reads **QR and NFC** when the Portal has a live, scan-ready code, **Older code** when the live address predates access artifacts, and **No code yet** otherwise (one code per Portal, so the board's separate "QR" rows do not occur).
+  - The row's code reads **QR and NFC** whenever the Portal has a code, and **No code yet** otherwise; a code from before access artifacts is not called out here or counted as an issue (it works, and the Share tab alone says its scans are left out of scan-based goals) (one code per Portal, so the board's separate "QR" rows do not occur).
   - The one quiet line is decided by `portal-attention.ts`: a draft, disabled or archived Portal names its state; a live one shows "N issues" (a popover that says what and where to fix it) or "N changes not live"; a live Portal that needs nothing shows nothing.
   - URL state is `q`, `groupBy` (`group` | `none`), `show` (`attention`), `sort` (`name` | `attention`), `dir` and `page`, with the defaults left out. "Most scans" arrives with (b), which adds the measure columns between Portal and Responsible.
   - Group heads have no link and no menu until the group page exists (slice 38); groups fold in local state.
-  - The overview read is always refetched on arrival (`staleTime: 0`), and every Portal Group write invalidates `portalKeys.overview`.
+  - The overview read is refetched on arrival (a 5 s `staleTime`, so the loader's fetch is not repeated at once), and every Portal Group write invalidates `portalKeys.overview`.
+  - Archived Portals are listed, and so are counted: in the page description and in the group heads. Slice 25b, which takes group counts from `memberPortalIds`, must keep the two counts aligned with this rule.
+  - Phone differs from board 11 in two small ways: "New portal" stays in the page header (no sticky bottom action), and there is no "N portals · By group" summary line.
+  - Archive and Restore need the organisation's `portal.write` capability as well as the role, because the server refuses both without it.
 
 **26. New portal: dialog and server side (A4 + F11).**
 

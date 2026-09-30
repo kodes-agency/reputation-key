@@ -58,7 +58,7 @@ describe('portalAttention', () => {
     expect(attention.issues.map((issue) => issue.code)).toEqual(['no_code'])
   })
 
-  it('reports an older code whose scans cannot be counted', () => {
+  it('does not raise an older code as an issue; the Share tab says it', () => {
     const attention = attentionOf({
       token: {
         hasActiveToken: true,
@@ -68,8 +68,7 @@ describe('portalAttention', () => {
         graceExpiresAt: null,
       },
     })
-    if (attention.kind !== 'issues') throw new Error('expected issues')
-    expect(attention.issues.map((issue) => issue.code)).toEqual(['code_needs_reprint'])
+    expect(attention).toEqual({ kind: 'none' })
   })
 
   it('reads what Health knows and the row cannot: property, version, Google', () => {

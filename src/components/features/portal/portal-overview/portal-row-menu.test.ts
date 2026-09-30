@@ -57,7 +57,6 @@ describe('portalRowMenu', () => {
     expect(ids(row, { ...manager, portalWriteEnabled: false })).toEqual([
       'results',
       'history',
-      'archive',
     ])
     expect(ids(row, { ...manager, canArchive: false })).toEqual([
       'results',
@@ -68,6 +67,12 @@ describe('portalRowMenu', () => {
       ids(overviewRow('a', { publicationState: 'archived' }), {
         ...manager,
         canUpdate: false,
+      }),
+    ).toEqual(['results', 'history'])
+    expect(
+      ids(overviewRow('a', { publicationState: 'archived' }), {
+        ...manager,
+        portalWriteEnabled: false,
       }),
     ).toEqual(['results', 'history'])
   })

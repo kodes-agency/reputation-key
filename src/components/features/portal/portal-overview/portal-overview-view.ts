@@ -87,8 +87,7 @@ export type PortalOverviewPage = Readonly<{
 }>
 
 export function channelLabel(token: PortalOverviewRow['token']): string {
-  if (!token.hasActiveToken) return 'No code yet'
-  return token.qualifiedScanReady ? 'QR and NFC' : 'Older code'
+  return token.hasActiveToken ? 'QR and NFC' : 'No code yet'
 }
 
 export function localeChips(

@@ -7,7 +7,10 @@ import {
   overviewGroup,
   overviewRow,
 } from './portal-overview/portal-overview-fixtures'
-import type { PortalOverviewSearch } from './portal-overview/portal-overview-search-schema'
+import {
+  MAX_SEARCH_LENGTH,
+  type PortalOverviewSearch,
+} from './portal-overview/portal-overview-search-schema'
 import type { Action } from '#/components/hooks/use-action'
 import {
   AuthedRouterDecorator,
@@ -163,7 +166,7 @@ export const StatusOnlyByException: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('2 changes not live')).toBeInTheDocument()
     await expect(canvas.getByText(/draft · not published/i)).toBeInTheDocument()
-    await expect(canvas.getByRole('button', { name: /2 issues/i })).toBeInTheDocument()
+    await expect(canvas.getByRole('button', { name: /1 issue/i })).toBeInTheDocument()
     await expect(canvas.queryByText(/live ·/i)).toBeNull()
     await expect(canvas.queryByText('Published')).toBeNull()
   },
@@ -172,14 +175,10 @@ export const StatusOnlyByException: Story = {
 export const IssuesSaySpecifically: Story = {
   args: baseArgs,
   play: async ({ canvasElement }) => {
-    await userEvent.click(
-      within(canvasElement).getByRole('button', { name: /2 issues/i }),
-    )
+    await userEvent.click(within(canvasElement).getByRole('button', { name: /1 issue/i }))
     const dialog = await within(document.body).findByRole('dialog')
     await expect(within(dialog).getByText('No one is responsible')).toBeInTheDocument()
-    await expect(
-      within(dialog).getByText('The code needs reprinting'),
-    ).toBeInTheDocument()
+    await expect(within(dialog).queryByText(/reprint/i)).toBeNull()
   },
 }
 
@@ -369,6 +368,16 @@ export const Phone: Story = {
     await expect(
       canvas.getByRole('link', { name: 'Share Pool & Terrace' }),
     ).toBeInTheDocument()
+  },
+}
+
+export const SearchStopsAtItsLimit: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    const box = within(canvasElement).getByRole('searchbox', { name: 'Search portals' })
+    await userEvent.click(box)
+    await userEvent.paste('a'.repeat(MAX_SEARCH_LENGTH + 20))
+    await expect(box).toHaveValue('a'.repeat(MAX_SEARCH_LENGTH))
   },
 }
 

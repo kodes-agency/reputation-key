@@ -30,7 +30,7 @@ const CARD_ROW =
   'grid grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-3 rounded-lg border bg-card p-4 ' +
   '@4xl:table-row @4xl:rounded-none @4xl:border-0 @4xl:border-b @4xl:bg-transparent @4xl:p-0'
 
-export function PortalOverviewRow({
+export function PortalOverviewTableRow({
   item,
   propertyId,
   showGroup,

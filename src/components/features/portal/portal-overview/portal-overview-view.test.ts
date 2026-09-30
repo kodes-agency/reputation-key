@@ -187,7 +187,7 @@ describe('channelLabel', () => {
     expect(channelLabel(overviewRow('a').token)).toBe('QR and NFC')
     expect(channelLabel(NO_CODE)).toBe('No code yet')
     expect(channelLabel({ ...overviewRow('a').token, qualifiedScanReady: false })).toBe(
-      'Older code',
+      'QR and NFC',
     )
   })
 })

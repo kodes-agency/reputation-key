@@ -17,6 +17,7 @@ import { InputGroup, InputGroupAddon, InputGroupInput } from '#/components/ui/in
 import {
   DEFAULT_PORTAL_OVERVIEW_GROUP_BY,
   DEFAULT_PORTAL_OVERVIEW_SORT,
+  MAX_SEARCH_LENGTH,
   PORTAL_OVERVIEW_GROUP_BYS,
   PORTAL_OVERVIEW_SORTS,
   defaultSortDirection,
@@ -73,6 +74,7 @@ export function PortalOverviewToolbar({ search, matched, total, onChange }: Prop
           type="search"
           aria-label="Search portals"
           placeholder="Search portals"
+          maxLength={MAX_SEARCH_LENGTH}
           value={search.q ?? ''}
           onChange={(event) => onChange({ q: event.target.value })}
         />

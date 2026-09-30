@@ -4,7 +4,7 @@
 // stays below the table until then.
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { TableHead, TableRow } from '#/components/ui/table'
-import { PORTAL_OVERVIEW_COLUMNS } from './portal-overview-row'
+import { PORTAL_OVERVIEW_COLUMNS } from './portal-overview-table-row'
 import { describeGroupCount, type PortalOverviewSection } from './portal-overview-view'
 
 type Props = Readonly<{
