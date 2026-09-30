@@ -71,6 +71,22 @@ narrow container operation, and return protocol-appropriate responses. They may
 use shared authentication helpers and the application container, but must not
 construct repositories, context use cases, or Queue instances.
 
+## Invitation links
+
+`/join` and `/accept-invitation` read the link's anonymous preview in `beforeLoad`
+(`-invitation-entry.ts`: one `getInvitationPreview` plus the session), so a link
+never renders a page that cannot work. `/accept-invitation` never accepts on load.
+Signed-out visitors go to `/join` (a new address) or `/login` (an address that
+already has an account, with the way back to the link kept). Signed-in visitors
+confirm explicitly: the page shows what is offered and the signed-in address, with
+a mismatch card and Sign out when the address differs. `/join` shows the
+Organization, inviter, role and Properties and locks the invited email. An expired,
+cancelled, used or unknown link renders a state card with a next step instead of a
+form. `/accept-invitation` without an id stays as the signed-in list of pending
+invitations, which `/unavailable` links to. After registration signs the member in,
+`-join-entry.ts` makes the Organization active and navigates; a failure there shows
+a retry, because the session already exists.
+
 ## Verification
 
 Colocated route tests cover auth redirects, search normalization, server-function
