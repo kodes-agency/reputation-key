@@ -107,6 +107,10 @@ describe('beta feedback contract', () => {
       '/properties/private-property-id/portals/private-portal-id',
       'properties.property.portals.detail',
     ],
+    [
+      '/properties/private-property-id/portals/private-portal-id/review',
+      'properties.property.portals.review',
+    ],
     ['/settings/notifications', 'settings.notifications'],
     ['/not-a-known-route/private-value', 'other_authenticated'],
   ] as const)('classifies %s without retaining route identifiers', (path, expected) => {

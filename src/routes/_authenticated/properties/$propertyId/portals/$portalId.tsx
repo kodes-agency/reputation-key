@@ -1,25 +1,40 @@
-import { createFileRoute, Link, notFound, redirect } from '@tanstack/react-router'
+import {
+  createFileRoute,
+  Link,
+  notFound,
+  Outlet,
+  redirect,
+  useRouterState,
+} from '@tanstack/react-router'
+import { useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { getPortalAnalyticsFn } from '#/contexts/reporting/server/portal-analytics'
-import { PortalDetailPage } from '#/components/features/portal/portal-detail/portal-detail-page'
+import { useCapabilities } from '#/shared/hooks/useCapabilities'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import {
-  PORTAL_DETAIL_TABS,
-  type PortalDetailTab,
+  canReviewAndPublish,
+  derivePortalDetailView,
+  describePendingChanges,
+  describePortalStatus,
+  normalizePortalWorkspaceSearch,
 } from '#/components/features/portal/portal-detail/portal-detail-rules'
 import {
   PortalDetailError,
   PortalDetailLoading,
+  PortalFallbackFrame,
 } from '#/components/features/portal/portal-route-fallbacks'
-import { PageShell } from '#/components/layout/page-shell'
+import { PortalLinkIssuanceProvider } from '#/components/features/portal/portal-workspace/portal-link-issuance'
+import { PortalWorkspaceHeader } from '#/components/features/portal/portal-workspace/portal-workspace-header'
+import { isWorkspaceReviewRoute } from '#/components/features/portal/portal-workspace/portal-workspace-route'
+import { PortalWorkspaceShell } from '#/components/features/portal/portal-workspace/portal-workspace-shell'
+import { PortalWorkspaceTabs } from '#/components/features/portal/portal-workspace/portal-workspace-tabs'
 import { PageHeader } from '#/components/layout/page-header'
 import { EmptyState } from '#/components/ui/empty-state'
 import { Button } from '#/components/ui/button'
 import { AlertCircle } from 'lucide-react'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
-import { membersQuery } from '#/routes/-queries/route-queries'
-import { usePortalDetailActions } from './-portal-detail-actions'
+import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import {
   findAuthorizedPortal,
   portalApprovedDestinationsQuery,
@@ -28,20 +43,18 @@ import {
   portalPublicationHistoryQuery,
   portalQuery,
   responsibleManagersQuery,
-  usePortalDetailData,
 } from './-portal-detail-data'
 
-const portalDetailSearchSchema = z.object({
-  tab: z.enum(PORTAL_DETAIL_TABS).catch('settings').default('settings'),
-})
-
-const normalizePortalDetailSearch = (search: unknown): { tab: PortalDetailTab } =>
-  portalDetailSearchSchema.parse(search)
+// `tab` is optional on the way in, so links may omit it (the Page tab is the
+// default); normalization accepts any value and maps the pre-workspace names.
+const portalWorkspaceSearchSchema = z
+  .object({ tab: z.unknown().optional() })
+  .transform(normalizePortalWorkspaceSearch)
 
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/$portalId',
 )({
-  validateSearch: normalizePortalDetailSearch,
+  validateSearch: portalWorkspaceSearchSchema,
   beforeLoad: async ({ context, params }) => {
     await gateControlledRoute({
       data: {
@@ -87,7 +100,7 @@ export const Route = createFileRoute(
       ),
     ])
   },
-  component: PortalDetailRoute,
+  component: PortalWorkspaceLayout,
   pendingComponent: PortalDetailLoading,
   errorComponent: PortalDetailError,
   notFoundComponent: PortalNoLongerAvailable,
@@ -102,7 +115,7 @@ export const Route = createFileRoute(
 function PortalNoLongerAvailable() {
   const { propertyId } = Route.useParams()
   return (
-    <PageShell>
+    <PortalFallbackFrame>
       <PageHeader
         title="Portal unavailable"
         breadcrumbs={[
@@ -121,67 +134,61 @@ function PortalNoLongerAvailable() {
           </Link>
         </Button>
       </EmptyState>
-    </PageShell>
+    </PortalFallbackFrame>
   )
 }
 
-function PortalDetailRoute() {
+/**
+ * The workspace layout: header, tab strip and one scrolling body, with the
+ * editor (`index`) or the review page (`review`) rendered inside it. Every read
+ * the header needs was seeded by the loader, so these resolve from cache.
+ */
+function PortalWorkspaceLayout() {
   const { propertyId, portalId } = Route.useParams()
   const { tab } = Route.useSearch()
-  const navigate = Route.useNavigate()
-  const data = usePortalDetailData(propertyId, portalId)
-  const { portal, tokenStatus } = data.portalData
-  const { categories, links } = data.linksData
-  const { property } = data.propData
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const { has } = useCapabilities()
+  const { can: canDo } = usePermissions()
+  const { data: portalData } = useSuspenseQuery(portalQuery(portalId))
+  const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
+  const { data: history } = useSuspenseQuery(portalPublicationHistoryQuery(portalId))
+  const { portal } = portalData
   if (!portal) throw notFound()
-  const ctx = Route.useRouteContext()
-  const actions = usePortalDetailActions(propertyId, portalId)
+
+  const reviewing = isWorkspaceReviewRoute(pathname)
+  const view = derivePortalDetailView(tab, has('dashboard.use'))
+  const header = (
+    <PortalWorkspaceHeader
+      mode={reviewing ? 'review' : 'edit'}
+      propertyId={propertyId}
+      portalId={portalId}
+      portalName={portal.name}
+      propertyName={propData.property.name}
+      statusLine={describePortalStatus(
+        portal.publicationState,
+        history.current?.version ?? null,
+      )}
+      pendingNote={describePendingChanges(history)}
+      canReview={canReviewAndPublish(canDo('portal.update'), portal.publicationState)}
+      returnTab={view.tab}
+    />
+  )
+  const tabs = reviewing ? undefined : (
+    <PortalWorkspaceTabs
+      propertyId={propertyId}
+      portalId={portalId}
+      activeTab={view.tab}
+      hiddenTabs={view.hiddenTabs}
+    />
+  )
 
   return (
-    <PageShell>
-      <PageHeader
-        title={portal.name}
-        breadcrumbs={[
-          { label: 'Properties', to: '/properties' },
-          { label: property.name, to: `/properties/${propertyId}` },
-          { label: 'Portals', to: `/properties/${propertyId}/portals` },
-          { label: portal.name },
-        ]}
-      />
-      <PortalDetailPage
-        key={portal.id}
-        portal={portal}
-        tokenStatus={tokenStatus}
-        propertyId={propertyId}
-        googleReviewDestination={{
-          state: property.googleReviewDestination?.state ?? 'unavailable',
-          retrievedAt: property.googleReviewDestination?.retrievedAt ?? null,
-        }}
-        publicationHistory={data.publicationHistory}
-        loadMorePublicationHistory={data.loadMorePublicationHistory}
-        categories={categories}
-        links={links}
-        activeTab={tab}
-        onTabChange={(nextTab) => {
-          // No `replace: true`: replacing the entry made browser Back leave the
-          // portal entirely instead of returning to the previously viewed tab.
-          // Deep links via ?tab= are unaffected.
-          void navigate({ search: { tab: nextTab } })
-        }}
-        updateMutation={actions.update}
-        organizationName={ctx.activeOrganization?.name ?? 'Your Organization'}
-        issueTokenMutation={actions.issueToken}
-        rotateTokenMutation={actions.rotateToken}
-        revokeTokenMutation={actions.revokeToken}
-        getPortalAnalytics={getPortalAnalyticsFn}
-        completeReviewMutation={actions.completeReview}
-        responsibleManagers={data.responsibleManagers}
-        responsibleManagerMembers={data.membersData.members}
-        updateResponsibleManagersMutation={actions.updateResponsibleManagers}
-        portalExperience={data.portalExperience}
-        approvedDestinations={data.approvedDestinations}
-        portalExperienceActions={actions.experience}
-      />
-    </PageShell>
+    // Keyed so a once-shown public link can never follow the manager into a
+    // different portal when the router reuses this layout for a new `portalId`.
+    <PortalLinkIssuanceProvider key={portalId}>
+      <PortalWorkspaceShell header={header} tabs={tabs}>
+        <Outlet />
+      </PortalWorkspaceShell>
+    </PortalLinkIssuanceProvider>
   )
 }

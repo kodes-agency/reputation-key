@@ -13,6 +13,7 @@ import { can } from '#/shared/domain/permissions'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { ErrorState } from '#/components/layout/page-states'
+import { isWorkspaceRoute } from '#/components/features/portal/portal-workspace/portal-workspace-route'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
   beforeLoad: ({ context, params }) => {
@@ -60,7 +61,7 @@ function PropertyLayout() {
   // propertyId available via Route.useParams() if needed
   const navigate = useNavigate()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const isFullHeight = pathname.includes('/reviews')
+  const isFullHeight = pathname.includes('/reviews') || isWorkspaceRoute(pathname)
   const { propertyId } = Route.useParams()
   const { data } = useSuspenseQuery(propertyQuery(propertyId))
   const property = data.property

@@ -101,6 +101,6 @@ export type ResponsibleManagerMember = Readonly<{
 export type PortalDetailPageProps = PortalDetailResources &
   Readonly<{
     organizationName: string
+    /** The tab the URL asks for; the page applies the capability filter itself. */
     activeTab: PortalDetailTab
-    onTabChange: (tab: PortalDetailTab) => void
   }>

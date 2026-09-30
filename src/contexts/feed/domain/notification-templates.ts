@@ -1078,7 +1078,7 @@ export const notificationLink = (
     case 'badge':
       return propertyLink(propertyId, '')
     case 'portal':
-      return propertyLink(propertyId, `/portals/${resourceId}`, { tab: 'settings' })
+      return propertyLink(propertyId, `/portals/${resourceId}`, { tab: 'page' })
     case 'property':
       // An imported history is a queue of reviews to answer, so its notice
       // opens the Property's open Inbox queue rather than the Property page.

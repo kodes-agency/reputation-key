@@ -1,32 +1,67 @@
-// Every decision the portal detail shell makes, with no JSX and no hooks: which
-// tab is really active, which tabs are offered, whether that tab has a preview,
-// and whether the theme draft diverges from what is saved. The shell reads as a
-// flat description of what is on screen because the answers are derived here —
-// the same split portal-share-state.ts makes for the Share tab.
+// Every decision the portal workspace shell makes, with no JSX and no hooks:
+// which tab the URL really asks for, which tabs are offered, whether that tab
+// has a preview, what the quiet status line says, and whether the theme draft
+// diverges from what is saved. The shell reads as a flat description of what is
+// on screen because the answers are derived here — the same split
+// portal-share-state.ts makes for the Share tab.
 
-import type { PortalThemeDraft } from '../shared/types'
+import type { PortalPublicationHistory } from '#/contexts/portal/application/public-api'
+import type { PortalPublicationState, PortalThemeDraft } from '../shared/types'
 
-export const PORTAL_DETAIL_TABS = ['settings', 'links', 'share', 'analytics'] as const
+export const PORTAL_DETAIL_TABS = ['page', 'share', 'results', 'history'] as const
 export type PortalDetailTab = (typeof PORTAL_DETAIL_TABS)[number]
+
+/**
+ * The tab names the workspace replaced. Bookmarks, notification rows already
+ * delivered and the e2e journeys still carry them, so they resolve to the tab
+ * that now holds what they used to show: Settings and Links are both sections
+ * of the Page tab, and Analytics became Results.
+ */
+const LEGACY_TABS: Readonly<Record<string, PortalDetailTab>> = {
+  settings: 'page',
+  links: 'page',
+  analytics: 'results',
+}
+
+const isPortalDetailTab = (value: string): value is PortalDetailTab =>
+  (PORTAL_DETAIL_TABS as readonly string[]).includes(value)
+
+/**
+ * The workspace's route search: only `tab`, always one of the four current
+ * tabs. Anything else — an unknown name, a non-string, a missing key, other
+ * keys — resolves to the Page tab rather than an error page, because a stale
+ * link should still open the portal.
+ */
+export function normalizePortalWorkspaceSearch(search: unknown): {
+  tab: PortalDetailTab
+} {
+  const raw =
+    typeof search === 'object' && search !== null && 'tab' in search
+      ? (search as { tab: unknown }).tab
+      : undefined
+  if (typeof raw !== 'string') return { tab: 'page' }
+  if (isPortalDetailTab(raw)) return { tab: raw }
+  return { tab: LEGACY_TABS[raw] ?? 'page' }
+}
 
 // getPortalAnalyticsFn authorizes on the `dashboard.read` permission, which maps
 // to the `dashboard.use` capability (shared/auth/capability-for-permission.ts) —
 // independent of `portal.read`. With portals enabled and the dashboard
-// capability off, opening the tab rendered the raw policy-denial reason in
-// destructive red, so the tab is not offered at all. The route gate and the
+// capability off, opening the Results tab rendered the raw policy-denial reason
+// in destructive red, so the tab is not offered at all. The route gate and the
 // server assert are unchanged; this only prevents a dead end.
 //
-// Module-level singletons: `PortalDetailTabs` re-filters its trigger list
+// Module-level singletons: `PortalWorkspaceTabs` re-filters its link list
 // whenever this value changes identity.
-const ANALYTICS_HIDDEN: ReadonlyArray<PortalDetailTab> = ['analytics']
+const RESULTS_HIDDEN: ReadonlyArray<PortalDetailTab> = ['results']
 const NONE_HIDDEN: ReadonlyArray<PortalDetailTab> = []
 
 /**
  * The live preview mirrors the theme draft and the link tree, so it only means
- * anything on the two tabs that edit them; Share and Analytics get neither the
- * toggle nor the panel.
+ * anything on the tab that edits them; Share, Results and History get neither
+ * the toggle nor the panel.
  */
-const TABS_WITH_PREVIEW: ReadonlyArray<PortalDetailTab> = ['settings', 'links']
+const TABS_WITH_PREVIEW: ReadonlyArray<PortalDetailTab> = ['page']
 
 export type PortalDetailView = Readonly<{
   /** The tab actually rendered — not always the one the URL asked for. */
@@ -37,17 +72,63 @@ export type PortalDetailView = Readonly<{
 
 export function derivePortalDetailView(
   requestedTab: PortalDetailTab,
-  analyticsAvailable: boolean,
+  resultsAvailable: boolean,
 ): PortalDetailView {
-  // A `?tab=analytics` deep link must not resurrect the withheld tab: its panel
-  // would render with no trigger to leave by.
-  const analyticsWithheld = requestedTab === 'analytics' && !analyticsAvailable
-  const tab = analyticsWithheld ? 'settings' : requestedTab
+  // A `?tab=results` deep link must not resurrect the withheld tab: its panel
+  // would render with no link to leave by.
+  const resultsWithheld = requestedTab === 'results' && !resultsAvailable
+  const tab = resultsWithheld ? 'page' : requestedTab
   return {
     tab,
-    hiddenTabs: analyticsAvailable ? NONE_HIDDEN : ANALYTICS_HIDDEN,
+    hiddenTabs: resultsAvailable ? NONE_HIDDEN : RESULTS_HIDDEN,
     showPreview: TABS_WITH_PREVIEW.includes(tab),
   }
+}
+
+/**
+ * The one quiet line under the portal name. Status is not the point of this
+ * page, so it is a phrase, not a panel: what guests can open right now, and
+ * which version that is when there is one.
+ */
+export function describePortalStatus(
+  state: PortalPublicationState,
+  liveVersion: number | null,
+): string {
+  switch (state) {
+    case 'published':
+      return liveVersion === null ? 'Live' : `Live · version ${liveVersion}`
+    case 'draft':
+      return 'Draft · not published'
+    case 'disabled':
+      return 'Paused'
+    case 'archived':
+      return 'Archived'
+  }
+}
+
+/**
+ * Whether the header offers "Review & publish". Archival is terminal in this
+ * UI (see PUBLICATION_TOGGLES), so there is nothing left to publish, and the
+ * server refuses the write for anyone without `portal.update` either way — this
+ * only keeps a dead button off the page.
+ */
+export function canReviewAndPublish(
+  canUpdate: boolean,
+  state: PortalPublicationState,
+): boolean {
+  return canUpdate && state !== 'archived'
+}
+
+/**
+ * The header's "N changes not live" note, or null when the saved draft matches
+ * what guests see. The count is the read's own list when it gives one; without
+ * it the note still says something is waiting, which is all the flag knows.
+ */
+export function describePendingChanges(history: PortalPublicationHistory): string | null {
+  if (!history.hasPendingChanges) return null
+  const count = history.pendingChanges?.length ?? 0
+  if (count === 0) return 'Changes not live'
+  return count === 1 ? '1 change not live' : `${count} changes not live`
 }
 
 /**
