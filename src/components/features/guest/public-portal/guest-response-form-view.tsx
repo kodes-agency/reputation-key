@@ -18,7 +18,7 @@ type MutationState = Readonly<{ isPending?: boolean; error?: unknown }>
 type RatingValue = Readonly<{ rating: number; honeypot: string }>
 type FeedbackValue = Readonly<{ text: string; honeypot: string }>
 
-type GuestResponseFormViewProps = Readonly<{
+export type GuestResponseFormViewProps = Readonly<{
   availability: 'available' | 'loading' | 'permission_denied' | 'error'
   copy: GuestPortalCopy
   response: GuestResponseView | null
