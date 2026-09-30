@@ -13,7 +13,7 @@ import { clientIpFromHeaders } from '#/shared/security/client-ip'
 //
 // This list is PATH-PINNED against better-auth's own route table, so it is only
 // as correct as the version it was verified against: every path below was
-// re-verified present in better-auth 1.6.23 (the exact pin in package.json).
+// re-verified present in better-auth 1.7.5 (the exact pin in package.json).
 // A bump can rename a route and silently narrow this refusal to nothing, so
 // the colocated test asserts the installed version and fails on drift —
 // re-verify the org plugin route files, then move the pin.

@@ -20,12 +20,7 @@ import { getEnv } from '#/shared/config/env'
 import { getPool } from '#/shared/db/pool'
 import { getRedis } from '#/shared/cache/redis'
 import { getLogger } from '#/shared/observability/logger'
-import { absoluteUrl } from '#/shared/email/urls'
-import {
-  sendResetPasswordEmail,
-  sendInvitationEmail,
-  sendVerificationEmail,
-} from './emails'
+import { sendResetPasswordEmail, sendVerificationEmail } from './emails'
 import { organizationSchema } from './org-schema'
 import { ac, owner, admin, memberRole } from './permissions'
 import {
@@ -47,6 +42,26 @@ async function denyRawOrganizationLifecycleWrite(): Promise<never> {
     'Raw Better Auth organization lifecycle write denied; use an app-owned Identity command',
   )
 }
+
+type VerificationWriter = Readonly<{
+  query: (text: string, params: unknown[]) => Promise<unknown>
+}>
+
+/**
+ * A password reset consumes a token mailed to the address, which proves the
+ * inbox as well as an emailed verification link does. Marking the address
+ * verified here is how an unverified user recovers without a second mail.
+ * Better Auth calls this after the password update and before it revokes the
+ * user's sessions; the write is idempotent and touches only this user.
+ */
+export const markEmailVerifiedOnPasswordReset =
+  (pool: VerificationWriter) =>
+  async ({ user }: Readonly<{ user: Readonly<{ id: string }> }>): Promise<void> => {
+    await pool.query(
+      'UPDATE "user" SET "emailVerified" = true, "updatedAt" = now() WHERE id = $1 AND "emailVerified" = false',
+      [user.id],
+    )
+  }
 
 export function createAuth() {
   const env = getEnv()
@@ -90,21 +105,28 @@ export function createAuth() {
       // previously issued sessions are invalidated so a stolen session cannot
       // survive the recovery event.
       revokeSessionsOnPasswordReset: true,
-      // Enable email verification in production
-      // Prerequisites:
-      //   1. Verify Resend domain ownership (currently using sandbox)
-      //   2. Test sendVerificationEmail flow end-to-end
-      //   3. Update login/register UX to show "check your email" state
       // Email verification follows the parsed environment policy. Production
       // defaults to enabled; explicitly disabling it is an operator decision.
+      // Sign-in refuses an unverified address with EMAIL_NOT_VERIFIED, which
+      // the app reports as `email_not_verified` (ADR 0062).
       requireEmailVerification: env.EMAIL_VERIFICATION_REQUIRED,
+      // The only sign-up caller is invitation-bound registration, which signs
+      // the new member in explicitly once acceptance has verified the email.
+      // Better Auth 1.7.5 answers a sign-up for an existing address with a
+      // synthetic user when this is false; registration refuses that address
+      // before sign-up (account_exists) and acceptance fences the user row.
+      autoSignIn: false,
       sendResetPassword: async ({ user, url }) => {
         await sendResetPasswordEmail(user.email, url)
       },
+      onPasswordReset: markEmailVerifiedOnPasswordReset(pool),
     },
     emailVerification: {
       expiresIn: EMAIL_VERIFICATION_EXPIRY_SECONDS,
-      sendOnSignUp: true,
+      // Consuming the invitation verifies the address (ADR 0062), so sign-up
+      // mails nothing. The sender stays for the unverified-login recovery
+      // path and Better Auth's own verification routes.
+      sendOnSignUp: false,
       sendVerificationEmail: async ({ user, url }) => {
         await sendVerificationEmail(user.email, url)
       },
@@ -183,25 +205,16 @@ export function createAuth() {
         invitationExpiresIn: INVITATION_EXPIRY_SECONDS, // 7 days
         // Use the same validated/defaulted policy as password signup. Reading
         // process.env here previously made an unset production variable mean
-        // true above but false for invitation acceptance.
+        // true above but false for invitation acceptance. Inert while the raw
+        // accept-invitation route stays blocked; kept aligned regardless.
         requireEmailVerificationOnInvitation: env.EMAIL_VERIFICATION_REQUIRED,
         // Custom fields on invitation (propertyIds) and supported Organization
         // settings (contact/response target).
         // Shared with auth-cli.ts via ./org-schema so the migration CLI manages
         // the same columns as the runtime (prevents drift).
         schema: organizationSchema,
-        // Send invitation emails via Resend
-        async sendInvitationEmail(data) {
-          const inviteLink = absoluteUrl(env.BETTER_AUTH_URL, '/accept-invitation', {
-            id: data.id,
-          })
-          await sendInvitationEmail({
-            email: data.email,
-            invitedByUsername: data.inviter.user.name,
-            organizationName: data.organization.name,
-            inviteLink,
-          })
-        },
+        // No sendInvitationEmail: invitations are app-owned. invite-member and
+        // resend-invitation send the mail, and raw invite-member is blocked.
         // Membership and invitation lifecycle writes are app-owned. Keep the
         // provider hooks fail-closed as defense in depth behind the raw-route
         // HTTP refusal; no mutable composition callback lives in this module.
