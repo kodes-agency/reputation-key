@@ -1,7 +1,11 @@
 import type { IdentityCommandStore } from '../ports/identity-command-store.port'
 import type { InvitationId, OrganizationId, UserId } from '#/shared/domain/ids'
 import { userId as toUserId } from '#/shared/domain/ids'
-import { identityError, isIdentityError } from '../../domain/errors'
+import {
+  ACCOUNT_EXISTS_MESSAGE,
+  identityError,
+  isIdentityError,
+} from '../../domain/errors'
 import { identityInvitationAccepted } from '../../domain/events'
 import type { RegistrationAuthIds } from '#/shared/domain/registration-auth-ids'
 import type {
@@ -100,9 +104,6 @@ type SignUpRecovery =
  * SQL and bound parameters.
  */
 const REGISTRATION_FAILED_MESSAGE = 'Registration failed. Please try again.'
-
-const ACCOUNT_EXISTS_MESSAGE =
-  'An account already exists for this email. Sign in, then open your invitation link again.'
 
 /**
  * Sign-up refusals the invitee can act on, keyed by the reason code Better Auth
@@ -351,6 +352,8 @@ export const registerInvitedUser =
         acceptorEmail,
         acceptorUserId: acceptedUserId,
         now: acceptanceNow,
+        // Consuming the emailed link proves the inbox: no second mail.
+        markEmailVerified: true,
         buildEvent: (invitation) =>
           identityInvitationAccepted({
             organizationId: invitation.organizationId,

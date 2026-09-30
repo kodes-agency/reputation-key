@@ -11,7 +11,7 @@ import {
 } from '#/shared/db/schema/auth'
 import { isBetaInteractiveMemberRoleToken } from '#/shared/domain/beta-interactive-role'
 import { organizationId as toOrganizationId } from '#/shared/domain/ids'
-import { identityError } from '../domain/errors'
+import { ACCOUNT_EXISTS_MESSAGE, identityError } from '../domain/errors'
 import {
   classifyInvitedRegistrationRecovery,
   type InvitedRegistrationRecoveryDecision,
@@ -233,6 +233,26 @@ async function applyRecoveryDecision(
   return { kind: 'manual_review' }
 }
 
+/**
+ * An address that already has an account cannot be registered again. Better
+ * Auth would not say so: with verification required or autoSignIn off, its
+ * sign-up answers an existing email with a synthetic user that carries our
+ * preallocated id and writes nothing. Only this attempt's own user — one a
+ * retry of the same verification created — may exist already.
+ */
+async function assertAddressIsUnclaimed(
+  tx: InvitedRegistrationTx,
+  input: Readonly<{ email: string; ownAttemptUserId: string | null }>,
+): Promise<void> {
+  const users = await tx
+    .select({ id: userTable.id })
+    .from(userTable)
+    .where(sql`LOWER(${userTable.email}) = ${input.email.toLowerCase()}`)
+  if (users.some((user) => user.id !== input.ownAttemptUserId)) {
+    throw identityError('account_exists', ACCOUNT_EXISTS_MESSAGE)
+  }
+}
+
 /** Persist recovery identity in Better Auth before it starts creating records. */
 export const createInvitedRegistrationStore = (
   db: Database,
@@ -282,6 +302,10 @@ export const createInvitedRegistrationStore = (
         .where(eq(verification.identifier, identifier))
         .for('update')
       const existing = existingRows[0]
+      await assertAddressIsUnclaimed(tx, {
+        email: command.email,
+        ownAttemptUserId: existing ? toPrepared(existing).authIds.userId : null,
+      })
       if (existing) {
         const prepared = toPrepared(existing)
         if (prepared.organizationId !== currentInvitation.organizationId) {

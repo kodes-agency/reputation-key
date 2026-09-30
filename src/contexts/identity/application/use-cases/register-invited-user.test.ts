@@ -3,7 +3,11 @@ import { describe, expect, it, vi } from 'vitest'
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createSequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
 import { invitationId } from '#/shared/domain/ids'
-import { isIdentityError } from '../../domain/errors'
+import {
+  ACCOUNT_EXISTS_MESSAGE,
+  identityError,
+  isIdentityError,
+} from '../../domain/errors'
 import { registerInvitedUser } from './register-invited-user'
 
 const NOW = new Date('2026-08-25T12:00:00.000Z')
@@ -124,6 +128,35 @@ describe('registerInvitedUser', () => {
       propertyIds: ['property-1'],
       displayName: 'New Manager',
     })
+  })
+
+  it('verifies the email by consuming the invitation, inside the acceptance', async () => {
+    const fixture = setup()
+
+    await fixture.useCase(fixture.input)
+
+    expect(fixture.acceptInvitation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        acceptorUserId: 'user-preallocated-manager',
+        markEmailVerified: true,
+      }),
+    )
+    expect(fixture.commandStore.verifiedUserIds).toEqual(['user-preallocated-manager'])
+  })
+
+  it('refuses an address that already has an account before creating anything', async () => {
+    const fixture = setup()
+    fixture.prepare.mockRejectedValueOnce(
+      identityError('account_exists', ACCOUNT_EXISTS_MESSAGE),
+    )
+
+    await expect(fixture.useCase(fixture.input)).rejects.toMatchObject({
+      code: 'account_exists',
+      message:
+        'An account already exists for this email. Sign in, then open your invitation link again.',
+    })
+    expect(fixture.signUp).not.toHaveBeenCalled()
+    expect(fixture.acceptInvitation).not.toHaveBeenCalled()
   })
 
   it('preflights the email before creating an account', async () => {
