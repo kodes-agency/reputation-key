@@ -6,7 +6,7 @@ import {
   listPortals,
   listPortalApprovedDestinations,
 } from '#/contexts/portal/server/portals'
-import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
+import { portalGroupsQuery } from './-portal-groups-query'
 import { listPortalLinks } from '#/contexts/portal/server/portal-links'
 import { listPortalResponsibleManagers } from '#/contexts/portal/server/portal-responsible-managers'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
@@ -30,13 +30,6 @@ const propertyPortalsQuery = (propertyId: string) =>
   queryOptions({
     queryKey: portalKeys.list(propertyId),
     queryFn: () => listPortals({ data: { propertyId } }),
-    staleTime: 30_000,
-  })
-
-export const portalGroupsQuery = (propertyId: string) =>
-  queryOptions({
-    queryKey: portalKeys.groups(propertyId),
-    queryFn: () => listPortalGroups({ data: { propertyId } }),
     staleTime: 30_000,
   })
 

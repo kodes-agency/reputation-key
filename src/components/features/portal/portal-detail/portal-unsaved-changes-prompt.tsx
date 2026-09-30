@@ -52,7 +52,8 @@ export function PortalUnsavedChangesPrompt() {
         <AlertDialogHeader>
           <AlertDialogTitle>Leave without saving?</AlertDialogTitle>
           <AlertDialogDescription>
-            Some changes to this portal have not been saved. Leaving now discards them.
+            Some changes to this portal have not been saved. If you go on, they are
+            discarded.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

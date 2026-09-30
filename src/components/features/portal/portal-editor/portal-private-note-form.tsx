@@ -32,7 +32,7 @@ export function PortalPrivateNoteForm({ portal, mutation, disabled = false }: Pr
 
   const form = useForm({
     defaultValues: defaults,
-    listeners: autosave,
+    listeners: autosave.listeners,
     validators: { onSubmit: privateNoteFormSchema },
     onSubmit: async ({ value }) => {
       await mutation({

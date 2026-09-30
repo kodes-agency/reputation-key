@@ -115,6 +115,34 @@ describe('status', () => {
     expect(autosave.getState()).toEqual({ status: 'saved', savedAt: 1_000, error: null })
   })
 
+  it('does not claim "Draft saved" for a save that wrote nothing', async () => {
+    const { autosave } = harness()
+    autosave.schedule('welcome', async () => 'unchanged')
+    await vi.advanceTimersByTimeAsync(800)
+
+    expect(autosave.getState()).toEqual({ status: 'idle', savedAt: null, error: null })
+  })
+
+  it('keeps the time of the last real write when a later save wrote nothing', async () => {
+    const { autosave } = harness()
+    autosave.schedule('welcome', saved)
+    await vi.advanceTimersByTimeAsync(800)
+    autosave.schedule('welcome', async () => 'unchanged')
+    await vi.advanceTimersByTimeAsync(800)
+
+    expect(autosave.getState()).toEqual({ status: 'saved', savedAt: 1_000, error: null })
+  })
+
+  it('clears "invalid" when a later save finds nothing to write', async () => {
+    const { autosave } = harness()
+    autosave.schedule('welcome', async () => 'invalid')
+    await vi.advanceTimersByTimeAsync(800)
+    autosave.schedule('welcome', async () => 'unchanged')
+    await vi.advanceTimersByTimeAsync(800)
+
+    expect(autosave.needsAttention()).toBe(false)
+  })
+
   it('stays "saving" until every queued save is done', async () => {
     const { autosave } = harness()
     autosave.schedule('a', async () => {

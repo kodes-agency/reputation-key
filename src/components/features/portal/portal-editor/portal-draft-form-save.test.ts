@@ -32,7 +32,7 @@ describe('saveDraftForm', () => {
     const form = fakeForm({ name: 'Pool', slug: 'pool' })
     const tracker = createDraftFormSaveTracker({ name: 'Pool', slug: 'pool' })
 
-    await expect(saveDraftForm(form, tracker)).resolves.toBe('saved')
+    await expect(saveDraftForm(form, tracker)).resolves.toBe('unchanged')
     expect(form.handleSubmit).not.toHaveBeenCalled()
   })
 
@@ -79,16 +79,56 @@ describe('saveDraftForm', () => {
     expect(form.handleSubmit).toHaveBeenCalledTimes(2)
   })
 
-  it('lets a rejected submit reach the coordinator and does not move the baseline', async () => {
+  it('lets a rejected submit reach the coordinator', async () => {
     const form = fakeForm({ name: 'Pool 2' }, async () => {
       throw new Error('offline')
     })
     const tracker = createDraftFormSaveTracker({ name: 'Pool' })
 
     await expect(saveDraftForm(form, tracker)).rejects.toThrow('offline')
+  })
 
+  it('writes again after a rejected submit even when the values are typed back to the old ones', async () => {
+    // The failed request may have landed (a timeout, a 5xx after the commit), so
+    // the old baseline is no longer known to be what the server holds.
+    const form = fakeForm({ name: 'Pool 2' }, async () => {
+      throw new Error('offline')
+    })
+    const tracker = createDraftFormSaveTracker({ name: 'Pool' })
+    await expect(saveDraftForm(form, tracker)).rejects.toThrow('offline')
+
+    form.state.values = { name: 'Pool' }
+    form.handleSubmit = vi.fn(async () => undefined)
+    await expect(saveDraftForm(form, tracker)).resolves.toBe('saved')
+
+    expect(form.handleSubmit).toHaveBeenCalledTimes(1)
+  })
+
+  it('trusts the baseline again once a write has landed after a failure', async () => {
+    const form = fakeForm({ name: 'Pool 2' }, async () => {
+      throw new Error('offline')
+    })
+    const tracker = createDraftFormSaveTracker({ name: 'Pool' })
+    await expect(saveDraftForm(form, tracker)).rejects.toThrow('offline')
     form.handleSubmit = vi.fn(async () => undefined)
     await saveDraftForm(form, tracker)
+
+    await expect(saveDraftForm(form, tracker)).resolves.toBe('unchanged')
     expect(form.handleSubmit).toHaveBeenCalledTimes(1)
+  })
+
+  it('compares and records the projected values, not what is in the fields', async () => {
+    // A blur-committed field (the slug) is written as its committed value, so
+    // that is what the server holds and what the baseline must say.
+    const form = fakeForm({ name: 'Pool 2', slug: 'po' })
+    const tracker = createDraftFormSaveTracker({ name: 'Pool', slug: 'pool' })
+    const project = (values: unknown) => ({ ...(values as object), slug: 'pool' })
+
+    await saveDraftForm(form, tracker, project)
+    await expect(saveDraftForm(form, tracker, project)).resolves.toBe('unchanged')
+    expect(form.handleSubmit).toHaveBeenCalledTimes(1)
+
+    form.state.values = { name: 'Pool 2', slug: 'pool' }
+    await expect(saveDraftForm(form, tracker)).resolves.toBe('unchanged')
   })
 })

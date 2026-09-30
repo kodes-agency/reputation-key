@@ -112,6 +112,54 @@ describe('discard', () => {
   })
 })
 
+describe('onDiscard', () => {
+  async function failTheme(autosave: ReturnType<typeof harness>['autosave']) {
+    autosave.schedule('theme', async () => {
+      throw new Error('offline')
+    })
+    await vi.advanceTimersByTimeAsync(800)
+  }
+
+  it('tells every listener which saves were given up when the person chose to leave', async () => {
+    const { autosave } = harness()
+    const first = vi.fn()
+    const second = vi.fn()
+    autosave.onDiscard(first)
+    autosave.onDiscard(second)
+    await failTheme(autosave)
+    autosave.schedule('private-note', async () => 'invalid')
+    await vi.advanceTimersByTimeAsync(800)
+
+    autosave.discard()
+
+    expect(first).toHaveBeenCalledTimes(1)
+    expect([...first.mock.calls[0][0]].sort()).toEqual(['private-note', 'theme'])
+    expect(second).toHaveBeenCalledTimes(1)
+  })
+
+  it('stays quiet when nothing had failed', () => {
+    const { autosave } = harness()
+    const listener = vi.fn()
+    autosave.onDiscard(listener)
+
+    autosave.discard()
+
+    expect(listener).not.toHaveBeenCalled()
+  })
+
+  it('stops calling a listener once it has unsubscribed', async () => {
+    const { autosave } = harness()
+    const listener = vi.fn()
+    const stop = autosave.onDiscard(listener)
+    await failTheme(autosave)
+
+    stop()
+    autosave.discard()
+
+    expect(listener).not.toHaveBeenCalled()
+  })
+})
+
 describe('flush', () => {
   it('writes what is waiting now and resolves once every save is done', async () => {
     const { autosave } = harness()

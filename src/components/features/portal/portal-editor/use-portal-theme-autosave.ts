@@ -5,13 +5,18 @@
 // the click at once) and written through the coordinator after the same short
 // quiet as a keystroke. The draft is dropped only when the write landed and the
 // person has not chosen again meanwhile, so a second click during a save is
-// never overwritten by the first save's refetch.
+// never overwritten by the first save's refetch. A write that failed keeps the
+// draft (the header offers Retry); choosing to leave without it drops the draft
+// too, or the selector and the preview would go on showing a palette that will
+// never be written.
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Action } from '#/components/hooks/use-action'
 import { isThemeDraftDirty } from '../portal-detail/portal-detail-rules'
 import { usePortalDraftAutosave } from './portal-draft-autosave-context'
 import type { PortalThemeDraft, UpdatePortalVariables } from '../shared/types'
+
+const THEME_KEY = 'theme'
 
 type Portal = Readonly<{ id: string; theme: PortalThemeDraft }>
 
@@ -31,21 +36,31 @@ export function usePortalThemeAutosave(
   })
   const portalId = portal.id
 
+  useEffect(
+    () =>
+      autosave.onDiscard((keys) => {
+        if (!keys.has(THEME_KEY)) return
+        draftRef.current = null
+        setDraft(null)
+      }),
+    [autosave],
+  )
+
   const setTheme = useCallback(
     (next: PortalThemeDraft) => {
       draftRef.current = next
       setDraft(next)
-      autosave.schedule('theme', async () => {
+      autosave.schedule(THEME_KEY, async () => {
         const submitted = draftRef.current
-        if (submitted !== null && isThemeDraftDirty(submitted, savedRef.current)) {
-          await updateRef.current({ data: { portalId, theme: submitted } })
-        }
+        const isWrite =
+          submitted !== null && isThemeDraftDirty(submitted, savedRef.current)
+        if (isWrite) await updateRef.current({ data: { portalId, theme: submitted } })
         // Chosen again while the write ran: that newer choice has its own save.
         if (draftRef.current === submitted) {
           draftRef.current = null
           setDraft(null)
         }
-        return 'saved'
+        return isWrite ? 'saved' : 'unchanged'
       })
     },
     [autosave, portalId],

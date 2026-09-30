@@ -23,9 +23,10 @@ export const PORTAL_DRAFT_AUTOSAVE_DELAY_MS = 800
 /**
  * What one write came to. `invalid` means the form itself refused the values
  * (its submit-time schema), which is not a failure to retry but an edit the
- * person still has to fix.
+ * person still has to fix. `unchanged` means the server already held these
+ * values, so nothing was written and there is nothing new to announce.
  */
-export type PortalDraftSaveOutcome = 'saved' | 'invalid'
+export type PortalDraftSaveOutcome = 'saved' | 'unchanged' | 'invalid'
 export type PortalDraftSave = () => Promise<PortalDraftSaveOutcome>
 
 export type PortalDraftAutosaveStatus =
@@ -67,6 +68,7 @@ export function createPortalDraftAutosave(options: PortalDraftAutosaveOptions = 
   const invalid = new Set<string>()
   const explicit = new Map<string, () => boolean>()
   const listeners = new Set<() => void>()
+  const discardListeners = new Set<(keys: ReadonlySet<string>) => void>()
 
   /** Saves queued or running: enqueued synchronously, so it covers the wait too. */
   let inFlight = 0
@@ -179,9 +181,25 @@ export function createPortalDraftAutosave(options: PortalDraftAutosaveOptions = 
      * "Not saved" and ask again on the next navigation.
      */
     discard(): void {
+      const given = new Set([...failed.keys(), ...invalid])
       failed.clear()
       invalid.clear()
       publish()
+      if (given.size === 0) return
+      for (const listener of [...discardListeners]) listener(given)
+    },
+
+    /**
+     * Hear which saves `discard` gave up. An edit that lives outside the
+     * coordinator (the palette draft, which the preview reads) must be dropped
+     * with it, or it would keep showing something that will never be written.
+     * Returns the function that stops listening.
+     */
+    onDiscard(listener: (keys: ReadonlySet<string>) => void): () => void {
+      discardListeners.add(listener)
+      return () => {
+        discardListeners.delete(listener)
+      }
     },
 
     /**

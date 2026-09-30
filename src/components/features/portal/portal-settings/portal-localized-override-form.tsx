@@ -34,7 +34,7 @@ export function PortalLocalizedOverrideForm({
   const autosave = usePortalFormAutosave(`override-${locale}`, defaults)
   const form = useForm({
     defaultValues: defaults,
-    listeners: autosave,
+    listeners: autosave.listeners,
     validators: { onSubmit: portalLocalizedOverrideFormInputSchema },
     onSubmit: async ({ value }) => {
       const parsed = portalLocalizedOverrideFormInputSchema.parse(value)

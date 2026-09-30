@@ -44,9 +44,11 @@ export function PortalWelcomeForm({ portal, mutation, disabled = false }: Props)
 
   const form = useForm({
     defaultValues: defaults,
-    listeners: autosave,
+    listeners: autosave.listeners,
     validators: { onSubmit: welcomeFormSchema },
-    onSubmit: async ({ value }) => {
+    onSubmit: async ({ value: typed }) => {
+      // The slug is the one last left, not one still being typed.
+      const value = autosave.effective(typed)
       await mutation({
         data: {
           portalId: portal.id,

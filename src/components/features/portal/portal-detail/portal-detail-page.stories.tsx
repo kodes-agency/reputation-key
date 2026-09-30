@@ -9,7 +9,12 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { PortalDetailPage } from './portal-detail-page'
-import { PortalDraftAutosaveProvider } from '../portal-editor/portal-draft-autosave-context'
+import {
+  PortalDraftAutosaveProvider,
+  usePortalDraftAutosave,
+} from '../portal-editor/portal-draft-autosave-context'
+import { PortalDraftSaveStatus } from '../portal-editor/portal-draft-save-status'
+import { Button } from '#/components/ui/button'
 import type {
   getPortalAnalyticsFn,
   PortalAnalyticsData,
@@ -278,6 +283,71 @@ export const PaletteAutosaves: Story = {
       { timeout: 3000 },
     )
     await expect(paletteSpy).toHaveBeenCalledTimes(1)
+  },
+}
+
+// A palette whose write failed is a draft the person has not been able to save.
+// Choosing to leave without it (the navigation prompt's "Leave and discard" calls
+// the same `discard`) must drop it, or the selector and the preview would go on
+// showing a palette that will never be written.
+function DiscardFailedSaves() {
+  const autosave = usePortalDraftAutosave()
+  return (
+    <Button variant="outline" onClick={() => autosave.discard()}>
+      Discard failed saves
+    </Button>
+  )
+}
+
+const failingPaletteSpy = fn(async (_input: UpdatePortalVariables) => ({
+  success: true as const,
+}))
+export const PaletteDraftIsDroppedWhenItsFailedSaveIsDiscarded: Story = {
+  args: {
+    ...baseArgs,
+    activeSection: 'look',
+    autosaveUpdateMutation: Object.assign(failingPaletteSpy, {
+      isPending: false,
+      error: null as unknown,
+      isSuccess: false,
+      data: null,
+    }) as unknown as Action<UpdatePortalVariables, { success: true }>,
+  },
+  render: (args) => (
+    <>
+      <DiscardFailedSaves />
+      <PortalDraftSaveStatus />
+      <PortalDetailPage {...args} />
+    </>
+  ),
+  play: async ({ canvasElement }) => {
+    failingPaletteSpy.mockRejectedValue(new Error('offline'))
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /^Dark/ }))
+    await waitFor(
+      () => expect(canvas.getByRole('status')).toHaveTextContent('Not saved'),
+      {
+        timeout: 3000,
+      },
+    )
+    // Not saved: the choice is still shown, so the person can retry it.
+    await expect(canvas.getByRole('button', { name: /^Dark/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Discard failed saves' }))
+
+    await waitFor(() =>
+      expect(canvas.getByRole('button', { name: /^Light/ })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      ),
+    )
+    await expect(canvas.getByRole('button', { name: /^Dark/ })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
   },
 }
 

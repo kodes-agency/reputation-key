@@ -317,6 +317,41 @@ export const SlugIsSavedWhenLeftNotWhileTyped: Story = {
   },
 }
 
+// Every write of the form sends the whole form, so a name write that fires while
+// the slug is being typed must still send the slug the person last left it with.
+export const AnotherWriteKeepsTheCommittedSlug: Story = {
+  args: { resources: makeResources(action(async () => undefined)) },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await userEvent.type(canvas.getByLabelText('Name'), ' 2')
+    await userEvent.click(canvas.getByRole('button', { name: /change slug/i }))
+    const slug = canvas.getByRole('textbox', { name: /url slug/i })
+    await userEvent.clear(slug)
+    await userEvent.type(slug, 'pool-side')
+    await waitFor(
+      () =>
+        expect(args.resources.autosaveUpdateMutation).toHaveBeenCalledWith({
+          data: expect.objectContaining({
+            name: 'Pool & Terrace 2',
+            slug: 'pool-terrace',
+          }),
+        }),
+      AUTOSAVE_WAIT,
+    )
+    await expect(args.resources.autosaveUpdateMutation).not.toHaveBeenCalledWith({
+      data: expect.objectContaining({ slug: 'pool-side' }),
+    })
+    await userEvent.tab()
+    await waitFor(
+      () =>
+        expect(args.resources.autosaveUpdateMutation).toHaveBeenCalledWith({
+          data: expect.objectContaining({ slug: 'pool-side' }),
+        }),
+      AUTOSAVE_WAIT,
+    )
+  },
+}
+
 export const PrivateNoteThreshold: Story = {
   args: {
     resources: makeResources(action(async () => undefined)),

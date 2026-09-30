@@ -43,12 +43,12 @@ import {
   findAuthorizedPortal,
   portalApprovedDestinationsQuery,
   portalExperienceQuery,
-  portalGroupsQuery,
   portalLinksQuery,
   portalPublicationHistoryQuery,
   portalQuery,
   responsibleManagersQuery,
 } from './-portal-detail-data'
+import { portalGroupsQuery } from './-portal-groups-query'
 
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/$portalId',

@@ -1,19 +1,24 @@
 // Wires one TanStack Form into the portal's autosave.
 //
-//   const form = useForm({ ..., listeners: usePortalFormAutosave('welcome', values) })
+//   const { listeners, effective } = usePortalFormAutosave('welcome', values)
+//   const form = useForm({ ..., listeners, onSubmit: ({ value }) => write(effective(value)) })
 //
 // Every change schedules one debounced write of the whole form through the
 // coordinator (which runs it after the other forms' writes, never beside them).
 // The form still owns its schema and its `onSubmit`; autosave only decides WHEN
 // `handleSubmit` runs.
 //
-// Fields named in `blurOnly` are not written while they are being typed in: the
-// write waits for the field to lose focus. The URL slug is the case — a
+// Fields named in `blurOnly` are committed when they lose focus, not while they
+// are typed in (portal-draft-blur-fields.ts): the URL slug is the case — a
 // half-typed address would otherwise be saved, and a saved slug unlinks
-// hand-typed URLs.
+// hand-typed URLs. Every write of the form sends all of its fields, so
+// `onSubmit` must send `effective(value)`, which puts each such field at its
+// last committed value. A field with something typed and not yet committed
+// counts as unsaved, so leaving the editor asks first.
 
 import { useEffect, useMemo, useState } from 'react'
 import { usePortalDraftAutosave } from './portal-draft-autosave-context'
+import { createBlurCommittedFields } from './portal-draft-blur-fields'
 import {
   createDraftFormSaveTracker,
   saveDraftForm,
@@ -27,26 +32,46 @@ type FieldEvent = Readonly<{
 
 const NO_BLUR_ONLY_FIELDS: ReadonlyArray<string> = []
 
-export function usePortalFormAutosave(
+const valueOf = ({ formApi, fieldApi }: FieldEvent): unknown =>
+  (formApi.state.values as Readonly<Record<string, unknown>>)[fieldApi.name]
+
+export function usePortalFormAutosave<T extends Readonly<Record<string, unknown>>>(
   key: string,
-  initialValues: unknown,
+  initialValues: T,
   blurOnly: ReadonlyArray<string> = NO_BLUR_ONLY_FIELDS,
 ) {
   const autosave = usePortalDraftAutosave()
   const [tracker] = useState(() => createDraftFormSaveTracker(initialValues))
+  const [fields] = useState(() => createBlurCommittedFields(blurOnly, initialValues))
+
+  useEffect(
+    () => autosave.guardExplicit(`${key}-uncommitted`, fields.hasUncommitted),
+    [autosave, key, fields],
+  )
 
   return useMemo(() => {
     const schedule = (form: DraftFormApi) =>
-      autosave.schedule(key, () => saveDraftForm(form, tracker))
+      autosave.schedule(key, () =>
+        saveDraftForm(form, tracker, (values) => fields.apply(values as object)),
+      )
     return {
-      onChange: ({ formApi, fieldApi }: FieldEvent) => {
-        if (!blurOnly.includes(fieldApi.name)) schedule(formApi)
+      listeners: {
+        onChange: (event: FieldEvent) => {
+          const { name } = event.fieldApi
+          if (!blurOnly.includes(name)) return schedule(event.formApi)
+          fields.type(name, valueOf(event))
+        },
+        onBlur: (event: FieldEvent) => {
+          const { name } = event.fieldApi
+          if (!blurOnly.includes(name)) return
+          fields.commit(name, valueOf(event))
+          schedule(event.formApi)
+        },
       },
-      onBlur: ({ formApi, fieldApi }: FieldEvent) => {
-        if (blurOnly.includes(fieldApi.name)) schedule(formApi)
-      },
+      /** The values to write: blur-committed fields at their committed value. */
+      effective: fields.apply,
     }
-  }, [autosave, key, tracker, blurOnly])
+  }, [autosave, key, tracker, fields, blurOnly])
 }
 
 /**

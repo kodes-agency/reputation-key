@@ -14,8 +14,12 @@ export type DraftFormApi = Readonly<{
   state: Readonly<{ values: unknown; isValid: boolean }>
 }>
 
-/** What the server is known to hold for one form, as a stable string. */
-export type DraftFormSaveTracker = { saved: string }
+/**
+ * What the server is known to hold for one form, as a stable string, or `null`
+ * when that is not known (a write failed, and a failed request may still have
+ * landed).
+ */
+export type DraftFormSaveTracker = { saved: string | null }
 
 /** Key order must not make equal values look different. */
 function stableSerialize(value: unknown): string {
@@ -35,17 +39,29 @@ export function createDraftFormSaveTracker(initialValues: unknown): DraftFormSav
 }
 
 /**
- * Submit the form if its values differ from the tracker. A rejected submit
- * (the server said no) propagates for the coordinator to report; the baseline
- * moves only after a submit that the form accepted and the server took.
+ * Submit the form if its values differ from the tracker. `project` maps the
+ * form's values to what is actually written (a blur-committed field is written
+ * as its committed value), so the comparison and the baseline are about what
+ * the server holds, not about what is typed.
+ *
+ * A rejected submit (the server said no) propagates for the coordinator to
+ * report, and the baseline becomes unknown: the next attempt always writes, even
+ * if the person has typed the old values back. Only a submit that the form
+ * accepted and the server took sets it again.
  */
 export async function saveDraftForm(
   form: DraftFormApi,
   tracker: DraftFormSaveTracker,
+  project: (values: unknown) => unknown = (values) => values,
 ): Promise<PortalDraftSaveOutcome> {
-  const submitted = stableSerialize(form.state.values)
-  if (submitted === tracker.saved) return 'saved'
-  await form.handleSubmit()
+  const submitted = stableSerialize(project(form.state.values))
+  if (submitted === tracker.saved) return 'unchanged'
+  try {
+    await form.handleSubmit()
+  } catch (error) {
+    tracker.saved = null
+    throw error
+  }
   if (!form.state.isValid) return 'invalid'
   tracker.saved = submitted
   return 'saved'
