@@ -63,6 +63,7 @@ import {
   nullableString as nullablePayloadString,
   requiredString as requiredPayloadString,
 } from './outbox-payload-fields'
+import type { RetireMovedAssignment } from '../application/retire-moved-assignment'
 
 export const WORKFLOW_NOTIFICATION_CONSUMERS = [
   {
@@ -125,6 +126,8 @@ export type WorkflowNotificationConsumerDeps = Readonly<{
   replyApproval: ReplyApprovalAuthorityPort
   /** Whether the Property is still inside the workspace. */
   activeProperty: ActivePropertyLookup
+  /** Retires the previous holder's "Assigned to you" once an item moves on. */
+  retireMovedAssignment: RetireMovedAssignment
   clock: () => Date
   logger: LoggerPort
   receipts: Pick<OutboxRepository, 'insertReceipt'>
@@ -161,6 +164,18 @@ async function enqueueAssignmentNotification(
   deps: WorkflowNotificationDeliveryDeps,
   event: InboxItemAssigned,
 ): Promise<void> {
+  // The item moved away from whoever held it: their "Assigned to you" stops
+  // waiting on them now, whether or not they are told — nobody is told about
+  // a handoff they made themselves, and a bulk move notifies per group.
+  const previous = event.previousAssignee ?? null
+  if (previous !== null && previous !== event.assignedTo) {
+    await deps.retireMovedAssignment({
+      organizationId: event.organizationId,
+      userId: previous,
+      inboxItemId: event.inboxItemId,
+      at: deps.clock(),
+    })
+  }
   // The atomic bulk-completion fact owns grouped delivery. Per-item facts
   // remain activity/audit facts but must not also produce N notifications.
   if (event.bulkId) return

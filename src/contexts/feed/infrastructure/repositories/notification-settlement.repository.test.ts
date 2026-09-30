@@ -146,8 +146,60 @@ describe.sequential('settling a notice whose work is done (real PostgreSQL)', ()
     })
 
     expect(settled).toEqual(['86000000-0000-4000-8000-000000000031'])
-    expect((await feedHead(SECOND_APPROVER)).unreadCount).toBe(1)
-    expect((await feedHead(APPROVER)).unreadCount).toBe(0)
+    // Read from the rows, not the feed: arrivals are off in the app by
+    // default (D4), so neither reader's feed lists them at all.
+    const stored = await Promise.all(
+      [
+        '86000000-0000-4000-8000-000000000031',
+        '86000000-0000-4000-8000-000000000032',
+      ].map((id) => repo.findById(notificationId(id), ORG)),
+    )
+    expect(stored.map((row) => row?.resolvedAt?.toISOString() ?? null)).toEqual([
+      SETTLED_AT.toISOString(),
+      null,
+    ])
+  })
+
+  // D3 with D4: an assignment takes over an arrival's row in the app — never
+  // a guest concern (unrated feedback is Action needed), and never an
+  // email-only anchor, whose email may be the reader's only word of the item.
+  it('retires only the unread arrival when asked for in-app arrival rows', async () => {
+    const repo = createNotificationRepository(db)
+    const arrival = notice(
+      '86000000-0000-4000-8000-000000000041',
+      APPROVER,
+      'review.created',
+    )
+    const concern = notice(
+      '86000000-0000-4000-8000-000000000042',
+      APPROVER,
+      'feedback.created',
+    )
+    const anchor = {
+      ...notice('86000000-0000-4000-8000-000000000043', APPROVER, 'review.updated'),
+      status: 'read' as const,
+      readAt: null,
+    }
+    expect([arrival.category, concern.category, anchor.category]).toEqual([
+      'arrivals',
+      'urgent_operational',
+      'arrivals',
+    ])
+    await repo.insert(arrival)
+    await repo.insert(concern)
+    await repo.insert(anchor)
+
+    const settled = await repo.settleUnreadForReader({
+      organizationId: ORG,
+      userId: APPROVER,
+      types: ['review.created', 'review.updated', 'feedback.created'],
+      categories: ['arrivals'],
+      inAppOnly: true,
+      resourceId: ITEM,
+      resolvedAt: SETTLED_AT,
+    })
+
+    expect(settled).toEqual([arrival.id])
   })
 
   it('leaves the row unread, because read is not resolved', async () => {

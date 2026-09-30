@@ -611,7 +611,7 @@ describe('insertNotification', () => {
   describe("a notice that takes over its reader's earlier ones", () => {
     const assigned = { ...input, type: 'inbox.assigned' as const, eventId: 'assign-1' }
 
-    it("retires the assignee's arrival notice about the item, and its queued email", async () => {
+    it("retires the assignee's arrival row in the app, and keeps its email when the assignment sends none", async () => {
       vi.mocked(deps.notificationRepo.settleUnreadForReader).mockResolvedValueOnce([
         'arrival-1' as never,
       ])
@@ -622,9 +622,35 @@ describe('insertNotification', () => {
         organizationId: ORG_ID,
         userId: USER_ID,
         types: ['review.created', 'review.updated', 'feedback.created'],
+        categories: ['arrivals'],
+        inAppOnly: true,
         resourceId: 'item-1',
         resolvedAt: expect.any(Date),
       })
+      // Workflow email is off by default: the arrival's email is the reader's
+      // only email about the item.
+      expect(deps.emailRepo.cancelQueuedForNotifications).not.toHaveBeenCalled()
+    })
+
+    it("cancels the arrival's queued email when the assignment sends one of its own", async () => {
+      deps = {
+        ...deps,
+        preferenceRepo: {
+          ...deps.preferenceRepo,
+          resolveForDelivery: vi.fn(
+            storedRows({
+              in_app: preference('in_app', true),
+              email: preference('email', true),
+            }),
+          ),
+        },
+      }
+      vi.mocked(deps.notificationRepo.settleUnreadForReader).mockResolvedValueOnce([
+        'arrival-1' as never,
+      ])
+
+      await insertNotification(deps)(assigned)
+
       expect(deps.emailRepo.cancelQueuedForNotifications).toHaveBeenCalledWith(
         ['arrival-1'],
         ORG_ID,

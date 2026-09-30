@@ -6,6 +6,7 @@
 
 import type {
   Notification,
+  NotificationCategory,
   NotificationStatus,
   NotificationType,
 } from '../../domain/notification-types'
@@ -127,6 +128,10 @@ export type NotificationRepositoryPort = Readonly<{
       organizationId: OrganizationId
       userId: UserId
       types: ReadonlyArray<NotificationType>
+      /** Only rows of these categories; absent or null for any. */
+      categories?: ReadonlyArray<NotificationCategory> | null
+      /** Only rows still waiting in the app, never an email-only anchor. */
+      inAppOnly?: boolean
       resourceId: string
       resolvedAt: Date
     }>,

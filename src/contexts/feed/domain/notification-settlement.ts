@@ -13,7 +13,11 @@
 // looked. Everything here is keyed on (type, resource): the settling fact
 // names a resource, and every actionable notice about that resource retires.
 
-import type { Notification, NotificationType } from './notification-types'
+import type {
+  Notification,
+  NotificationCategory,
+  NotificationType,
+} from './notification-types'
 
 /**
  * The notice types that stand for work still waiting on their reader. A
@@ -150,26 +154,49 @@ const SETTLED_BY: Readonly<Record<SettlingFact, ReadonlyArray<NotificationType>>
 
 /**
  * A notice that retires its own reader's earlier notices about the same item
- * when it is written — never anybody else's. An assignment takes over the
- * arrival it hands to its assignee, so the bell shows one row for one piece of
- * work; it does so only when it is shown in the app itself, or the reader
- * would be left with nothing there. An item moving to somebody else retires
- * its previous holder's "Assigned to you" whatever their channels: the work
- * is no longer waiting on them.
+ * when it is written — never anybody else's.
+ *
+ * An assignment takes over the ARRIVAL it hands to its assignee ("New review"
+ * becomes "Assigned to you: review"), so the bell shows one row for one piece
+ * of work. Only an arrival, and only its row in the app: private feedback
+ * rated 1-3 or unrated is Action needed, a guest concern that stays its own
+ * notice (D4); an email-only anchor was never in the bell; and the arrival's
+ * email is cancelled only when the assignment sends one of its own, or the
+ * reader would be left with no email about the item at all. It applies only
+ * when the assignment is shown in the app, or the reader would be left with
+ * nothing there.
+ *
+ * An item moving to somebody else retires its previous holder's "Assigned to
+ * you" whatever their channels, email included: the work is no longer
+ * waiting on them.
  */
+export type SupersedeRule = Readonly<{
+  types: ReadonlyArray<NotificationType>
+  /** Only rows of these categories; null for any. */
+  categories: ReadonlyArray<NotificationCategory> | null
+  onlyWhenShownInApp: boolean
+  /**
+   * Retire only rows the reader still sees in the app — never an email-only
+   * anchor — and cancel their email only when the new notice sends one.
+   */
+  keepsEmail: boolean
+}>
+
 export const SUPERSEDED_FOR_READER: Readonly<
-  Partial<
-    Record<
-      NotificationType,
-      Readonly<{ types: ReadonlyArray<NotificationType>; onlyWhenShownInApp: boolean }>
-    >
-  >
+  Partial<Record<NotificationType, SupersedeRule>>
 > = {
   'inbox.assigned': {
     types: ['review.created', 'review.updated', 'feedback.created'],
+    categories: ['arrivals'],
     onlyWhenShownInApp: true,
+    keepsEmail: true,
   },
-  'inbox.unassigned': { types: ['inbox.assigned'], onlyWhenShownInApp: false },
+  'inbox.unassigned': {
+    types: ['inbox.assigned'],
+    categories: null,
+    onlyWhenShownInApp: false,
+    keepsEmail: false,
+  },
 }
 
 export const settledNotificationTypes = (

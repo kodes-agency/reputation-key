@@ -64,6 +64,7 @@ import { createDisplayNameLookupAdapter } from './infrastructure/adapters/displa
 import { createEscalationResolutionLookupAdapter } from './infrastructure/adapters/escalation-resolution-lookup.adapter'
 import { registerNotificationConsumers } from './infrastructure/notification-outbox-consumers'
 import { registerWorkflowNotificationConsumers } from './infrastructure/workflow-outbox-consumers'
+import { createRetireMovedAssignment } from './application/retire-moved-assignment'
 import { registerPortalNotificationConsumers } from './infrastructure/portal-outbox-consumers'
 import { registerPropertyNotificationConsumers } from './infrastructure/property-outbox-consumers'
 import {
@@ -736,6 +737,10 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
     registerWorkflowNotificationConsumers(consumerRegistry, {
       ...fanoutReads,
       queue,
+      retireMovedAssignment: createRetireMovedAssignment({
+        notifications: notificationRepo,
+        emails: emailRepo,
+      }),
       receipts: input.outboxRepo,
     })
     registerBulkAssignmentNotificationConsumer(consumerRegistry, {

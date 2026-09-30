@@ -267,25 +267,28 @@ const asEmailOnlyAnchor = (notification: DomainNotification): DomainNotification
 })
 
 /**
- * Retires the reader's own earlier notices this one takes over, and the emails
- * still queued behind them (`SUPERSEDED_FOR_READER`).
+ * Retires the reader's own earlier notices this one takes over, and — unless
+ * the rule keeps their email and this notice sends none — the emails still
+ * queued behind them (`SUPERSEDED_FOR_READER`).
  */
 const settleSupersededForReader = async (
   deps: InsertNotificationDeps,
   notification: DomainNotification,
-  shownInApp: boolean,
+  channels: Readonly<{ shownInApp: boolean; sendsEmail: boolean }>,
 ): Promise<void> => {
   const rule = SUPERSEDED_FOR_READER[notification.type]
-  if (rule === undefined || (rule.onlyWhenShownInApp && !shownInApp)) return
+  if (rule === undefined || (rule.onlyWhenShownInApp && !channels.shownInApp)) return
   const resolvedAt = deps.clock()
   const settled = await deps.notificationRepo.settleUnreadForReader({
     organizationId: notification.organizationId,
     userId: notification.userId,
     types: rule.types,
+    categories: rule.categories,
+    inAppOnly: rule.keepsEmail,
     resourceId: notification.resourceId,
     resolvedAt,
   })
-  if (settled.length === 0) return
+  if (settled.length === 0 || (rule.keepsEmail && !channels.sendsEmail)) return
   await deps.emailRepo.cancelQueuedForNotifications(
     settled,
     notification.organizationId,
@@ -363,6 +366,13 @@ export const insertNotification =
               audience,
             )
           }
+          // A repeat still takes over what it takes over: a second "No
+          // longer yours" folding into an unread first one must still retire
+          // the "Assigned to you" written in between.
+          await settleSupersededForReader(deps, coalesced, {
+            shownInApp: true,
+            sendsEmail: emailEnabled && isMandatoryRepeat(coalesced, input),
+          })
           return coalesced
         }
       }
@@ -387,7 +397,10 @@ export const insertNotification =
     }
 
     // 4b. This notice takes over the reader's own earlier ones about the item.
-    await settleSupersededForReader(deps, inserted, inAppEnabled)
+    await settleSupersededForReader(deps, inserted, {
+      shownInApp: inAppEnabled,
+      sendsEmail: emailEnabled,
+    })
 
     // 5. Return notification only if in-app channel is enabled
     if (!inAppEnabled) {

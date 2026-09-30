@@ -143,17 +143,23 @@ describe('an assignment waits on its reader', () => {
     )
   })
 
-  it('takes over the arrival it hands over, but only while shown in the app', () => {
+  it('takes over only the arrival it hands over, only its row in the app, and only while shown there', () => {
+    // A guest concern (feedback rated 1-3 or unrated) is Action needed, not an
+    // arrival: it stays its own notice, and so does its email.
     expect(SUPERSEDED_FOR_READER['inbox.assigned']).toEqual({
       types: ['review.created', 'review.updated', 'feedback.created'],
+      categories: ['arrivals'],
       onlyWhenShownInApp: true,
+      keepsEmail: true,
     })
   })
 
   it('retires the previous holder\'s "Assigned to you" when the item moves on', () => {
     expect(SUPERSEDED_FOR_READER['inbox.unassigned']).toEqual({
       types: ['inbox.assigned'],
+      categories: null,
       onlyWhenShownInApp: false,
+      keepsEmail: false,
     })
   })
 

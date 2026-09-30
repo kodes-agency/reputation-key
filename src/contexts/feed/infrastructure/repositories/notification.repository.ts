@@ -15,6 +15,8 @@ import type { Notification, NotificationStatus } from '../../domain/notification
 import { notificationFromRow } from './notification-row.mapper'
 import { notificationError } from '../../domain/notification-errors'
 import { ACTIONABLE_NOTIFICATION_TYPES } from '../../domain/notification-settlement'
+import { NOTIFICATION_CATEGORIES } from '../../domain/notification-delivery-policy'
+import { getDefaultEnabled } from '../../domain/notification-policy'
 import type { NotificationListFilter } from '../../application/notification-list-filter'
 import type { NotificationFeedScope } from '../../application/ports/notification-repository.port'
 import {
@@ -25,14 +27,30 @@ import {
 
 // ── Repository ──────────────────────────────────────────────────────
 
+// The versioned default's in-app answer for the row's category, as SQL: on for
+// every category but those the policy keeps off (arrivals, D4). Read from the
+// policy, so a category turned off by default can never be listed by a
+// fallback that still assumed "on for every category".
+const IN_APP_OFF_BY_DEFAULT = NOTIFICATION_CATEGORIES.filter(
+  (category) => !getDefaultEnabled(category, 'in_app'),
+)
+const inAppByDefault =
+  IN_APP_OFF_BY_DEFAULT.length === 0
+    ? sql`true`
+    : sql`notifications.category NOT IN (${sql.join(
+        IN_APP_OFF_BY_DEFAULT.map((category) => sql`${category}`),
+        sql`, `,
+      )})`
+
 // Email-only notifications remain durable anchors, but are excluded from the
 // in-app list while the reader has in-app off for that Property and category.
 // It resolves exactly as delivery does (resolveCategoryPreference): the
 // Property's own row, else the person's category default, else the versioned
-// default, which is on in-app for every category. "Apply to all my properties"
-// writes the default and deletes the Property rows, so reading the Property
-// table alone brought every muted row back. Organization notices ignore
-// preferences on delivery, so they are never hidden here either.
+// default (`inAppByDefault`). "Apply to all my properties" wrote the default
+// and deleted the Property rows, so reading the Property table alone brought
+// every muted row back; and a fallback of "on" listed every email-only
+// arrival anchor of a reader who only ever chose arrivals email. Organization
+// notices ignore preferences on delivery, so they are never hidden here.
 const notOptedOutInApp = sql`NOT (
   notifications.property_id IS NOT NULL
   AND notifications.category NOT IN ('mandatory', 'urgent_operational')
@@ -48,7 +66,7 @@ const notOptedOutInApp = sql`NOT (
         AND organization_id = notifications.organization_id
         AND category = notifications.category
         AND channel = 'in_app'),
-    true
+    ${inAppByDefault}
   )
 )`
 
@@ -338,6 +356,10 @@ export const createNotificationRepository = (db: Database) => ({
     organizationId: string
     userId: string
     types: ReadonlyArray<string>
+    /** Only rows of these categories; absent or null for any. */
+    categories?: ReadonlyArray<string> | null
+    /** Only rows still waiting in the app, never an email-only anchor. */
+    inAppOnly?: boolean
     resourceId: string
     resolvedAt: Date
   }): Promise<readonly NotificationId[]> => {
@@ -351,7 +373,10 @@ export const createNotificationRepository = (db: Database) => ({
           eq(notifications.userId, input.userId),
           eq(notifications.resourceId, input.resourceId),
           inArray(notifications.type, [...input.types]),
-          awaitingSettlement,
+          input.categories
+            ? inArray(notifications.category, [...input.categories])
+            : undefined,
+          input.inAppOnly ? stillWaiting : awaitingSettlement,
         ),
       )
       .returning({ id: notifications.id })
