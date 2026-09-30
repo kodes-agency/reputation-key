@@ -106,6 +106,19 @@ export type {
   FleetTotals,
 } from '../domain/dashboard-types'
 export type {
+  PortalResultsAggregateRow,
+  PortalResultsGroupRow,
+  PortalResultsOverview,
+  PortalResultsPeriod,
+  PortalResultsPortalRow,
+  PortalResultsScope,
+} from '../domain/portal-results-overview'
+export {
+  PORTAL_RESULTS_PORTAL_LIMIT,
+  type GetPortalResultsOverviewInput,
+  type PortalResultsRosterEntry,
+} from './use-cases/get-portal-results-overview'
+export type {
   SetupChecklist,
   SetupChecklistAction,
   SetupChecklistStep,
