@@ -4,9 +4,11 @@ import { Button } from '#/components/ui/button'
 import { Label } from '#/components/ui/label'
 import type { PortalData, UpdatePortalVariables } from '../shared/types'
 import { PortalExperienceActionError } from './portal-experience-action-error'
+import { type GuestLocale, type OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import {
+  guestLocalesWithOptional,
+  isOptionalGuestLocaleEnabled,
   PORTAL_GUEST_LOCALE_LABEL,
-  type GuestLocale,
 } from './portal-experience-settings-types'
 
 export function PortalLocaleConfiguration({
@@ -19,15 +21,14 @@ export function PortalLocaleConfiguration({
   disabled: boolean
 }>) {
   const persistedPrimary = portal.primaryGuestLocale ?? 'en'
-  const persistedBulgarian =
-    persistedPrimary === 'bg' || portal.additionalGuestLocales?.includes('bg') === true
+  const persistedBulgarian = isOptionalGuestLocaleEnabled(portal)
   const [primary, setPrimary] = useState<GuestLocale>(persistedPrimary)
   const [bulgarianEnabled, setBulgarianEnabled] = useState(persistedBulgarian)
-  const enabled = useMemo<readonly GuestLocale[]>(
-    () => (bulgarianEnabled ? ['en', 'bg'] : ['en']),
+  const enabled = useMemo(
+    () => guestLocalesWithOptional(bulgarianEnabled),
     [bulgarianEnabled],
   )
-  const effectivePrimary = enabled.includes(primary) ? primary : 'en'
+  const effectivePrimary = enabled.find((locale) => locale === primary) ?? 'en'
 
   return (
     <div className="space-y-3 rounded-md border p-4">
@@ -57,7 +58,9 @@ export function PortalLocaleConfiguration({
           className="h-9 w-full rounded-md border bg-background px-3 text-sm"
           value={effectivePrimary}
           disabled={disabled || update.isPending}
-          onChange={(event) => setPrimary(event.currentTarget.value as GuestLocale)}
+          onChange={(event) =>
+            setPrimary(event.currentTarget.value as OfferedGuestLocale)
+          }
         >
           {enabled.map((locale) => (
             <option key={locale} value={locale}>

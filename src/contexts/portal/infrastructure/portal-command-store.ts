@@ -56,6 +56,8 @@ import type {
 } from '../application/ports/portal-command-store.port'
 import type { Portal, PortalTheme } from '../domain/types'
 import { portalError } from '../domain/errors'
+import { isLocalizedConfiguration } from '../domain/portal-publication-snapshot'
+import { snapshotMirrorColumns } from './mappers/portal-publication-snapshot.mapper'
 import { portalToRow } from './mappers/portal.mapper'
 import { portalGroupToRow } from './mappers/portal-group.mapper'
 import { categoryToRow, linkToRow } from './mappers/portal-link.mapper'
@@ -622,7 +624,7 @@ async function assertSnapshotMatchesCommittedWorkingCopy(
   }
 
   const approved = command.publication.snapshot.configuration
-  const localized = approved.schemaVersion === 2
+  const localized = isLocalizedConfiguration(approved)
   const [brandProfile, brandContents, localizedOverrides] = localized
     ? await Promise.all([
         tx
@@ -777,8 +779,6 @@ async function assertSnapshotMatchesCommittedWorkingCopy(
 function snapshotToRow(
   snapshot: import('../domain/portal-publication-snapshot').PortalPublicationSnapshot,
 ) {
-  const localized =
-    snapshot.configuration.schemaVersion === 2 ? snapshot.configuration : null
   return {
     id: snapshot.id,
     organizationId: snapshot.organizationId,
@@ -789,12 +789,7 @@ function snapshotToRow(
     configuration: snapshot.configuration,
     guestLocale: snapshot.configuration.guestLocale,
     languagePackVersion: snapshot.configuration.languagePackVersion,
-    localeSet: localized?.localeSet ?? ['en'],
-    languagePackVersions: localized?.languagePackVersions ?? {
-      en: 'guest-ui-en-v1',
-    },
-    localizedContent: localized?.localizedContent ?? {},
-    brandProfileVersion: localized?.brandProfile.version ?? null,
+    ...snapshotMirrorColumns(snapshot.configuration),
     privateFeedbackThreshold:
       snapshot.configuration.reviewGateway.privateFeedbackThreshold,
     destinationUri: snapshot.destinationUri,

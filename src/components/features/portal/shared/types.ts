@@ -2,6 +2,8 @@
 // Extracted from portal-detail-page, portal-settings, and edit-portal-form
 // to eliminate duplication and ensure consistency.
 
+import type { GuestLocale, OfferedGuestLocale } from '#/shared/domain/guest-locale'
+
 export type FormLike = {
   handleSubmit: () => void
   /**
@@ -35,8 +37,8 @@ export type PortalData = Readonly<{
   theme: PortalThemeDraft
   privateFeedbackThreshold: number
   publicationState: PortalPublicationState
-  primaryGuestLocale?: 'en' | 'bg'
-  additionalGuestLocales?: readonly ('en' | 'bg')[]
+  primaryGuestLocale?: GuestLocale
+  additionalGuestLocales?: readonly GuestLocale[]
 }>
 
 export type UpdatePortalVariables = {
@@ -49,8 +51,8 @@ export type UpdatePortalVariables = {
     theme?: PortalThemeDraft
     privateFeedbackThreshold?: number
     publicationState?: PortalPublicationState
-    primaryGuestLocale?: 'en' | 'bg'
-    additionalGuestLocales?: ('en' | 'bg')[]
+    primaryGuestLocale?: OfferedGuestLocale
+    additionalGuestLocales?: OfferedGuestLocale[]
   }
 }
 

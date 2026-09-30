@@ -1,4 +1,7 @@
+import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
+import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import type { PortalPublicationSnapshot } from '../domain/portal-publication-snapshot'
 import {
   buildPortalPublicationSnapshot,
   verifyPortalPublicationSnapshot,
@@ -190,5 +193,116 @@ describe('Portal publication snapshot', () => {
         },
       }),
     ).toBe(false)
+  })
+
+  describe('language pack and schema version binding', () => {
+    const localized = buildPortalPublicationSnapshot({
+      id: '30000000-0000-4000-8000-000000000020',
+      portalId: source.portal.id,
+      organizationId: source.organizationId,
+      propertyId: source.propertyId,
+      version: 2,
+      source: {
+        ...source,
+        experience: {
+          primaryGuestLocale: 'en',
+          localeSet: ['en', 'bg'],
+          languagePackVersions: { en: 'guest-ui-en-v1', bg: 'guest-ui-bg-v1' },
+          localizedContent: {
+            en: { title: 'Tell us', shortDescription: 'Your view.', heroImageUrl: null },
+            bg: { title: 'Кажете ни', shortDescription: 'Мнението.', heroImageUrl: null },
+          },
+          brandProfile: {
+            displayName: 'Example Hotel',
+            logoUrl: null,
+            defaultHeroImageUrl: null,
+            primaryColor: '#1D4ED8',
+            backgroundColor: '#FFFFFF',
+            textColor: '#111827',
+            version: 1,
+          },
+        },
+      },
+      destination,
+      createdBy: 'manager-1',
+      createdAt: NOW,
+    })
+
+    /** Rewrites the configuration and re-digests it, so only the content check can object. */
+    function withConfiguration(
+      overrides: Record<string, unknown>,
+    ): PortalPublicationSnapshot {
+      const configuration = { ...localized.configuration, ...overrides }
+      return {
+        ...localized,
+        configuration: configuration as PortalPublicationSnapshot['configuration'],
+        configurationDigest: createHash('sha256')
+          .update(canonicalizeRfc8785(configuration), 'utf8')
+          .digest('hex'),
+      }
+    }
+
+    it('accepts the untouched localized snapshot', () => {
+      expect(verifyPortalPublicationSnapshot(localized)).toBe(true)
+      expect(verifyPortalPublicationSnapshot(withConfiguration({}))).toBe(true)
+    })
+
+    it('rejects the Bulgarian pack recorded for English', () => {
+      expect(
+        verifyPortalPublicationSnapshot(
+          withConfiguration({
+            languagePackVersions: { en: 'guest-ui-bg-v1', bg: 'guest-ui-bg-v1' },
+          }),
+        ),
+      ).toBe(false)
+    })
+
+    it('rejects an unknown pack id and a missing pack', () => {
+      expect(
+        verifyPortalPublicationSnapshot(
+          withConfiguration({
+            languagePackVersions: { en: 'guest-ui-en-v2', bg: 'guest-ui-bg-v1' },
+          }),
+        ),
+      ).toBe(false)
+      expect(
+        verifyPortalPublicationSnapshot(
+          withConfiguration({ languagePackVersions: { en: 'guest-ui-en-v1' } }),
+        ),
+      ).toBe(false)
+    })
+
+    it('fails closed on a schema version this build does not know', () => {
+      expect(
+        verifyPortalPublicationSnapshot(withConfiguration({ schemaVersion: 3 })),
+      ).toBe(false)
+      expect(
+        verifyPortalPublicationSnapshot(withConfiguration({ schemaVersion: 0 })),
+      ).toBe(false)
+    })
+
+    it('rejects a v1 configuration that carries any pack but the English v1 pack', () => {
+      const v1 = buildPortalPublicationSnapshot({
+        id: '30000000-0000-4000-8000-000000000021',
+        portalId: source.portal.id,
+        organizationId: source.organizationId,
+        propertyId: source.propertyId,
+        version: 1,
+        source,
+        destination,
+        createdBy: 'manager-1',
+        createdAt: NOW,
+      })
+      const bgPack = { ...v1.configuration, languagePackVersion: 'guest-ui-bg-v1' }
+      expect(
+        verifyPortalPublicationSnapshot({
+          ...v1,
+          configuration: bgPack as PortalPublicationSnapshot['configuration'],
+          configurationDigest: createHash('sha256')
+            .update(canonicalizeRfc8785(bgPack), 'utf8')
+            .digest('hex'),
+        }),
+      ).toBe(false)
+    })
   })
 })

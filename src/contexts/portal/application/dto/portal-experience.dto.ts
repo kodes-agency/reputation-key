@@ -1,8 +1,9 @@
 import { z } from 'zod/v4'
+import { offeredGuestLocaleSchema } from '#/shared/guest-locale-schemas'
 import { validatePortalDestinationUri } from '../../domain/approved-destination'
 import { contrastRatio } from '../../domain/portal-experience'
 
-const portalGuestLocaleSchema = z.enum(['en', 'bg'])
+const portalGuestLocaleSchema = offeredGuestLocaleSchema
 
 const portalExperienceScopeSchema = z.object({
   propertyId: z.string().min(1, 'Property ID is required'),

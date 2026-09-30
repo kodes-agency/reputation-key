@@ -34,7 +34,12 @@ import type {
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import { unbrand } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
-import { PORTAL_LANGUAGE_PACK_VERSIONS } from '../../domain/portal-publication-snapshot'
+import {
+  isLocalizedConfiguration,
+  PORTAL_LANGUAGE_PACK_VERSIONS,
+} from '../../domain/portal-publication-snapshot'
+import { parseGuestLocale } from '#/shared/domain/guest-locale'
+import { guestLocaleSchema } from '#/shared/guest-locale-schemas'
 import type {
   PortalGuestLocale,
   PortalLocalizedContentSnapshot,
@@ -190,7 +195,7 @@ export function snapshotFromRow(row: SnapshotRow): PortalPublicationSnapshot | n
   if (
     parsed.data.guestLocale !== row.guestLocale ||
     parsed.data.languagePackVersion !== row.languagePackVersion ||
-    (parsed.data.schemaVersion === 2 &&
+    (isLocalizedConfiguration(parsed.data) &&
       (canonicalizeRfc8785(parsed.data.localeSet) !==
         canonicalizeRfc8785(row.localeSet) ||
         canonicalizeRfc8785(parsed.data.languagePackVersions) !==
@@ -245,6 +250,13 @@ async function loadWorkingCopy(
     )
     .limit(1)
   if (!portal) return null
+  // The working copy's locales are read as stored: an unknown one is a corrupt
+  // row, so the source does not resolve at all rather than publishing English.
+  const primaryGuestLocale = parseGuestLocale(portal.primaryGuestLocale)
+  const additionalGuestLocales = z
+    .array(guestLocaleSchema)
+    .safeParse(portal.additionalGuestLocales)
+  if (!primaryGuestLocale || !additionalGuestLocales.success) return null
 
   const [organizationResult, categories, links, brandProfiles, brandContents, overrides] =
     await Promise.all([
@@ -318,13 +330,9 @@ async function loadWorkingCopy(
   const organization = organizationResult.rows[0] as { name?: unknown } | undefined
   if (!organization || typeof organization.name !== 'string') return null
 
-  const primaryGuestLocale = portal.primaryGuestLocale === 'bg' ? 'bg' : 'en'
-  const additionalGuestLocales = z
-    .array(z.enum(['en', 'bg']))
-    .safeParse(portal.additionalGuestLocales)
   const localeCandidates: PortalGuestLocale[] = [
     primaryGuestLocale,
-    ...(additionalGuestLocales.success ? additionalGuestLocales.data : []),
+    ...additionalGuestLocales.data,
   ]
   const localeSet: PortalGuestLocale[] = localeCandidates.filter(
     (locale, index, all) => all.indexOf(locale) === index,

@@ -5,6 +5,7 @@
 // panel share one declaration instead of restating the resource props.
 
 import type { Action } from '#/components/hooks/use-action'
+import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { LinkTreeCategory, LinkTreeLink } from '../link-tree/link-tree-types'
 import type {
   IssuedPortalLink,
@@ -41,8 +42,8 @@ export type PortalDetailPortal = Readonly<{
   propertyId: string
   organizationId: string
   publicationState: PortalPublicationState
-  primaryGuestLocale?: 'en' | 'bg'
-  additionalGuestLocales?: readonly ('en' | 'bg')[]
+  primaryGuestLocale?: GuestLocale
+  additionalGuestLocales?: readonly GuestLocale[]
 }>
 
 /** What the route owns and the four tab panels consume unchanged. */

@@ -144,7 +144,7 @@ export function GuestAnalyticsNotice({
   sessionKey,
   onPortalVisit,
   locale = 'en',
-  languagePackVersion = locale === 'bg' ? 'guest-ui-bg-v1' : 'guest-ui-en-v1',
+  languagePackVersion,
 }: GuestAnalyticsNoticeProps) {
   const copy = getGuestPortalCopy(locale, languagePackVersion)
   const acknowledged = useSyncExternalStore(

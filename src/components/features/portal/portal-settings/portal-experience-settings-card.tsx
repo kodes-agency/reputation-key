@@ -1,9 +1,10 @@
 import type { Action } from '#/components/hooks/use-action'
 import type { PortalData, UpdatePortalVariables } from '../shared/types'
 import { PortalApprovedDestinationsEditor } from './portal-approved-destinations-editor'
+import type { GuestLocale, OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import {
+  isOptionalGuestLocaleEnabled,
   PORTAL_GUEST_LOCALES,
-  type GuestLocale,
   type PortalApprovedDestinationList,
   type PortalExperienceActions,
   type PortalExperienceSettings,
@@ -20,9 +21,7 @@ export type {
 
 function portalLocaleDraftKey(portal: PortalData): string {
   const primary = portal.primaryGuestLocale ?? 'en'
-  const bulgarianEnabled =
-    primary === 'bg' || portal.additionalGuestLocales?.includes('bg') === true
-  return JSON.stringify([primary, bulgarianEnabled])
+  return JSON.stringify([primary, isOptionalGuestLocaleEnabled(portal)])
 }
 
 function portalBrandDraftKey(experience: PortalExperienceSettings): string {
@@ -36,7 +35,7 @@ function portalBrandDraftKey(experience: PortalExperienceSettings): string {
 
 function portalLocalizedContentDraftKey(
   experience: PortalExperienceSettings,
-  locale: GuestLocale,
+  locale: OfferedGuestLocale,
 ): string {
   const baseline = experience.content.find((item) => item.locale === locale)
   const override = experience.overrides.find((item) => item.locale === locale)

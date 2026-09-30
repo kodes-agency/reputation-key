@@ -375,6 +375,45 @@ describe('resolvePublicPortalToken', () => {
     )
   })
 
+  it('honours Accept-Language q-values and never serves a locale outside the published set', async () => {
+    const harness = setup({
+      resolvePublication: vi.fn(async () => ({
+        token,
+        snapshot: buildLocalizedSnapshot(),
+      })),
+    })
+
+    await expect(
+      harness.resolve('pt_key_secret', { acceptLanguage: 'de;q=1, bg;q=0.9, en;q=0.1' }),
+    ).resolves.toMatchObject({ data: { localization: { selectedLocale: 'bg' } } })
+    await expect(
+      harness.resolve('pt_key_secret', { requestedLocale: 'de' }),
+    ).resolves.toMatchObject({ data: { localization: { selectedLocale: 'en' } } })
+  })
+
+  it('fails closed when the snapshot pins a pack that belongs to another locale', async () => {
+    const snapshot = buildLocalizedSnapshot()
+    const configuration = snapshot.configuration
+    if (configuration.schemaVersion !== 2)
+      throw new Error('expected a localized snapshot')
+    const harness = setup({
+      resolvePublication: vi.fn(async () => ({
+        token,
+        snapshot: {
+          ...snapshot,
+          configuration: {
+            ...configuration,
+            languagePackVersions: { en: 'guest-ui-en-v1', bg: 'guest-ui-en-v1' },
+          },
+        },
+      })),
+    })
+
+    await expect(
+      harness.resolve('pt_key_secret', { requestedLocale: 'bg' }),
+    ).resolves.toEqual({ status: 'unavailable' })
+  })
+
   it.each([
     null,
     {

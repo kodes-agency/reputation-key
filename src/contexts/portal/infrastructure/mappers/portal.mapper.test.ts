@@ -55,6 +55,33 @@ describe('portalFromRow', () => {
   })
 })
 
+describe('portalFromRow guest locales', () => {
+  it('reads every locale of the catalogue', () => {
+    const portal = portalFromRow({
+      ...sampleRow,
+      primaryGuestLocale: 'de',
+      additionalGuestLocales: ['bg', 'es'],
+    })
+    expect(portal.primaryGuestLocale).toBe('de')
+    expect(portal.additionalGuestLocales).toEqual(['bg', 'es'])
+  })
+
+  it('throws on a primary locale it does not know instead of reading it as English', () => {
+    expect(() => portalFromRow({ ...sampleRow, primaryGuestLocale: 'pt' })).toThrow(
+      /guest locale/,
+    )
+  })
+
+  it('throws on an unknown additional locale or a malformed list', () => {
+    expect(() =>
+      portalFromRow({ ...sampleRow, additionalGuestLocales: ['bg', 'pt'] }),
+    ).toThrow(/guest locale/)
+    expect(() =>
+      portalFromRow({ ...sampleRow, additionalGuestLocales: 'bg' as never }),
+    ).toThrow(/guest locale/)
+  })
+})
+
 describe('portalToRow', () => {
   it('round-trips all fields through fromRow → toRow', () => {
     const portal = portalFromRow(sampleRow)

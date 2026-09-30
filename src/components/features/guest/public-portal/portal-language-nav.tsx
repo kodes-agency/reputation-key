@@ -1,3 +1,4 @@
+import { GUEST_LOCALE_METADATA } from '#/shared/domain/guest-locale'
 import type { PortalLocalization } from './portal-localization'
 
 /** Portal chrome colours, so the switcher never inherits app `--accent`. */
@@ -34,6 +35,7 @@ export function PortalLanguageNav({
           key={locale}
           href={`/p/${encodeURIComponent(token)}?locale=${locale}${artifactParam}`}
           hrefLang={locale}
+          lang={locale}
           aria-current={locale === localization.selectedLocale ? 'page' : undefined}
           // The guest portal must not inherit app chrome colours: the global
           // bare-anchor rule paints links with `--accent`, which measures
@@ -42,7 +44,7 @@ export function PortalLanguageNav({
           className="rounded-md border px-2 py-1"
           style={LANGUAGE_LINK_STYLE}
         >
-          {locale === 'bg' ? 'Български' : 'English'}
+          {GUEST_LOCALE_METADATA[locale].nativeName}
         </a>
       ))}
     </nav>

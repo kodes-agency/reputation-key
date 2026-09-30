@@ -1,5 +1,6 @@
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { canForContext } from '#/shared/domain/permissions'
+import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import {
   portalId,
   propertyId,
@@ -185,7 +186,7 @@ export const savePropertyPortalBrandContent =
   async (
     input: Readonly<{
       propertyId: string
-      locale: 'en' | 'bg'
+      locale: OfferedGuestLocale
       title: string
       shortDescription: string
     }>,
@@ -217,7 +218,7 @@ export const savePortalLocalizedOverride =
   async (
     input: Readonly<{
       portalId: string
-      locale: 'en' | 'bg'
+      locale: OfferedGuestLocale
       title: string | null
       shortDescription: string | null
       heroImageUrl?: null

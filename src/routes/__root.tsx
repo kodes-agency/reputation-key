@@ -12,6 +12,7 @@ import { Footer } from '#/components/layout/footer'
 import { Header } from '#/components/layout/header'
 import { initWebVitals } from '#/components/hooks/web-vitals'
 import { authClient } from '#/shared/auth/auth-client'
+import { isGuestLocale } from '#/shared/domain/guest-locale'
 import { Toaster } from '#/components/ui/sonner'
 import appCss from '#/styles.css?url'
 import { notificationFns } from '#/routes/-notification-fns'
@@ -68,7 +69,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         portalMatch?.loaderData as
           { localization?: { selectedLocale?: string } } | undefined
       )?.localization?.selectedLocale
-      return locale === 'bg' ? 'bg' : 'en'
+      return isGuestLocale(locale) ? locale : 'en'
     },
   })
 

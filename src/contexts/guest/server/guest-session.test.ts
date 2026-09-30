@@ -1,3 +1,4 @@
+import { createHmac } from 'node:crypto'
 import { describe, expect, it, vi } from 'vitest'
 import {
   checkLayeredGuestRateLimit,
@@ -44,6 +45,47 @@ describe('signed guest session', () => {
     expect(codec.verify(cookieHeader, scope)?.guestLocale).toBe('bg')
     expect(codec.verify(cookieHeader, { ...scope, organizationId: 'org-2' })).toBeNull()
     expect(codec.verify(`${cookieHeader}x`, scope)).toBeNull()
+  })
+
+  describe('a cookie signed before the catalogue widened', () => {
+    const secret = '0123456789abcdef0123456789abcdef'
+    const now = new Date('2026-08-09T12:00:00Z')
+    const codec = createGuestSessionManager({
+      secret,
+      secureCookies: true,
+      clock: () => now,
+      randomId: () => crypto.randomUUID(),
+    })
+
+    function cookieWithLocale(locale: string | undefined): string {
+      const payload = {
+        v: 1,
+        sid: '00000000-0000-4000-8000-000000000009',
+        csrf: 'csrf-nonce',
+        org: scope.organizationId,
+        property: scope.propertyId,
+        portal: scope.portalId,
+        issued: now.toISOString(),
+        expires: new Date(now.getTime() + 60 * 60 * 1000).toISOString(),
+        ...(locale === undefined ? {} : { locale }),
+      }
+      const encoded = Buffer.from(JSON.stringify(payload)).toString('base64url')
+      const signature = createHmac('sha256', secret).update(encoded).digest('base64url')
+      return `rk_guest_session=${encodeURIComponent(`${encoded}.${signature}`)}`
+    }
+
+    it('still verifies with its bg or en locale', () => {
+      expect(codec.verify(cookieWithLocale('bg'), scope)?.guestLocale).toBe('bg')
+      expect(codec.verify(cookieWithLocale('en'), scope)?.guestLocale).toBe('en')
+    })
+
+    it('verifies with no locale at all', () => {
+      expect(codec.verify(cookieWithLocale(undefined), scope)?.guestLocale).toBeNull()
+    })
+
+    it('reads a locale outside the catalogue as no choice, not as English', () => {
+      expect(codec.verify(cookieWithLocale('pt'), scope)?.guestLocale).toBeNull()
+    })
   })
 
   it('re-signs the same scoped identity when the guest explicitly selects a locale', () => {

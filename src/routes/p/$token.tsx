@@ -2,6 +2,8 @@ import { createFileRoute } from '@tanstack/react-router'
 import { queryOptions, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { useCallback } from 'react'
 import { z } from 'zod/v4'
+import { guestLocaleSchema } from '#/shared/guest-locale-schemas'
+import type { GuestLocale } from '#/shared/domain/guest-locale'
 import {
   correctGuestResponseFn,
   selectSecondaryLinkFn,
@@ -24,7 +26,7 @@ import { useAction } from '#/components/hooks/use-action'
 // address and exact live publication before it can qualify an observation.
 const portalSearchSchema = z.object({
   accessArtifact: z.uuid().optional().catch(undefined),
-  locale: z.enum(['en', 'bg']).optional().catch(undefined),
+  locale: guestLocaleSchema.optional().catch(undefined),
 })
 
 /**
@@ -53,7 +55,7 @@ function isUnavailablePosture(error: unknown): boolean {
   return typeof status === 'number' && unavailablePostureStatus[status] === true
 }
 
-const publicPortalQuery = (token: string, locale?: 'en' | 'bg') =>
+const publicPortalQuery = (token: string, locale?: GuestLocale) =>
   queryOptions({
     queryKey: guestKeys.publicPortal({ token, locale: locale ?? 'auto' }),
     queryFn: async () => {

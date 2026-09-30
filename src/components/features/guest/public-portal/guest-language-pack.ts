@@ -4,6 +4,10 @@ import type {
   GuestPortalLocale,
 } from './guest-language-pack-types'
 import { formatDateTime } from '#/lib/format-date-time'
+import {
+  currentGuestLanguagePack,
+  guestLocaleFormatTag,
+} from '#/shared/domain/guest-locale'
 
 export type {
   GuestPortalCopy,
@@ -24,7 +28,7 @@ export type {
  */
 const formatDate = (value: string, locale: GuestPortalLocale): string =>
   formatDateTime(new Date(value), {
-    locale: locale === 'bg' ? 'bg-BG' : 'en',
+    locale: guestLocaleFormatTag(locale),
     timeZone: 'UTC',
   })
 
@@ -187,11 +191,11 @@ const PACKS: Readonly<Record<GuestPortalLanguagePackVersion, GuestPortalCopy>> =
 
 export function getGuestPortalCopy(
   locale: GuestPortalLocale = 'en',
-  version: GuestPortalLanguagePackVersion = locale === 'bg'
-    ? 'guest-ui-bg-v1'
-    : 'guest-ui-en-v1',
+  version?: GuestPortalLanguagePackVersion,
 ): GuestPortalCopy {
-  const pack = PACKS[version]
+  const resolved = version ?? currentGuestLanguagePack(locale)
+  if (!resolved) throw new Error(`No guest language pack exists for locale ${locale}`)
+  const pack = PACKS[resolved]
   if (pack.locale !== locale) {
     throw new Error('Guest locale and immutable language pack do not match')
   }

@@ -14,6 +14,7 @@ import type {
   TeamId,
   UserId,
 } from '#/shared/domain/ids'
+import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalPublicationState } from './portal-publication'
 
 // ── Theme ──────────────────────────────────────────────────────────
@@ -47,8 +48,8 @@ export type Portal = Readonly<{
   readonly createdBy: UserId | null
   readonly responsibleManagerRevision: number
   readonly responsibilityNeededSince: Date | null
-  primaryGuestLocale: 'en' | 'bg'
-  additionalGuestLocales: readonly ('en' | 'bg')[]
+  primaryGuestLocale: GuestLocale
+  additionalGuestLocales: readonly GuestLocale[]
   createdAt: Date
   updatedAt: Date
   deletedAt: Date | null

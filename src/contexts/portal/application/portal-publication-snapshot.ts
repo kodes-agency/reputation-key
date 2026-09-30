@@ -4,9 +4,11 @@ import { portalError } from '../domain/errors'
 import {
   LEGACY_PORTAL_PUBLICATION_SCHEMA_VERSION,
   PORTAL_PUBLICATION_SCHEMA_VERSION,
-  PRIMARY_GUEST_LANGUAGE_PACK_VERSION,
-  PRIMARY_GUEST_LOCALE,
+  LEGACY_V1_GUEST_LOCALE,
+  LEGACY_V1_LANGUAGE_PACK,
+  type LocalizedPortalPublicationConfiguration,
   type PortalPublicationConfiguration,
+  type PortalPublicationExperienceSource,
   type PortalPublicationSnapshot,
   type PortalPublicationSource,
   type VerifiedPublicationDestination,
@@ -97,6 +99,18 @@ function assertPublicationInput(input: PublicationInput): void {
   }
 }
 
+/** The pack of the primary locale; never a default, because completeness was asserted first. */
+function primaryLanguagePack(experience: PortalPublicationExperienceSource): string {
+  const pack = experience.languagePackVersions[experience.primaryGuestLocale]
+  if (pack === undefined) {
+    throw portalError(
+      'publication_snapshot_unavailable',
+      'Portal publication has no language pack for its primary locale',
+    )
+  }
+  return pack
+}
+
 export function buildPortalPublicationSnapshot(
   input: PublicationInput,
 ): PortalPublicationSnapshot {
@@ -121,8 +135,7 @@ export function buildPortalPublicationSnapshot(
         ...common,
         schemaVersion: PORTAL_PUBLICATION_SCHEMA_VERSION,
         guestLocale: experience.primaryGuestLocale,
-        languagePackVersion:
-          experience.languagePackVersions[experience.primaryGuestLocale],
+        languagePackVersion: primaryLanguagePack(experience),
         localeSet: experience.localeSet,
         languagePackVersions: Object.fromEntries(
           experience.localeSet.map((locale) => [
@@ -141,8 +154,8 @@ export function buildPortalPublicationSnapshot(
     : {
         ...common,
         schemaVersion: LEGACY_PORTAL_PUBLICATION_SCHEMA_VERSION,
-        guestLocale: PRIMARY_GUEST_LOCALE,
-        languagePackVersion: PRIMARY_GUEST_LANGUAGE_PACK_VERSION,
+        guestLocale: LEGACY_V1_GUEST_LOCALE,
+        languagePackVersion: LEGACY_V1_LANGUAGE_PACK,
       }
   return {
     id: input.id,
@@ -191,22 +204,33 @@ function hasConsistentSnapshotBinding(snapshot: PortalPublicationSnapshot): bool
 function hasCompleteSchemaVersionedContent(
   configuration: PortalPublicationConfiguration,
 ): boolean {
-  if (configuration.schemaVersion === LEGACY_PORTAL_PUBLICATION_SCHEMA_VERSION) {
-    return (
-      configuration.guestLocale === PRIMARY_GUEST_LOCALE &&
-      configuration.languagePackVersion === PRIMARY_GUEST_LANGUAGE_PACK_VERSION
-    )
+  // Exhaustive on purpose: adding a version to the union makes `unhandled`
+  // stop being `never`, so this switch stops compiling. At runtime a version
+  // this build cannot check still fails closed.
+  switch (configuration.schemaVersion) {
+    case LEGACY_PORTAL_PUBLICATION_SCHEMA_VERSION:
+      return (
+        configuration.guestLocale === LEGACY_V1_GUEST_LOCALE &&
+        configuration.languagePackVersion === LEGACY_V1_LANGUAGE_PACK
+      )
+    case PORTAL_PUBLICATION_SCHEMA_VERSION:
+      return hasCompleteLocalizedExperience(configuration)
+    default: {
+      const unhandled: never = configuration
+      void unhandled
+      return false
+    }
   }
-  // Fail closed on any schema version this build does not know how to check.
-  if (configuration.schemaVersion !== PORTAL_PUBLICATION_SCHEMA_VERSION) return false
+}
+
+function hasCompleteLocalizedExperience(
+  configuration: LocalizedPortalPublicationConfiguration,
+): boolean {
   try {
     assertCompletePortalPublicationExperience({
       primaryGuestLocale: configuration.guestLocale,
       localeSet: configuration.localeSet,
-      languagePackVersions: {
-        en: configuration.languagePackVersions.en ?? '',
-        bg: configuration.languagePackVersions.bg ?? '',
-      },
+      languagePackVersions: configuration.languagePackVersions,
       localizedContent: configuration.localizedContent,
       brandProfile: configuration.brandProfile,
     })

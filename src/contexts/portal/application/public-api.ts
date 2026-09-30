@@ -3,6 +3,7 @@
  * Re-exports ports for cross-context dependency injection.
  */
 export type { StoragePort } from './ports/storage.port'
+import type { GuestLanguagePackVersion, GuestLocale } from '#/shared/domain/guest-locale'
 
 // Event re-exports — cross-context consumers must import events from public-api, not domain/events.
 export type {
@@ -95,11 +96,11 @@ export type PublicPortalResult = Readonly<{
     googleReview: PublicGoogleReviewDestination
   }>
   localization: Readonly<{
-    selectedLocale: 'en' | 'bg'
-    primaryLocale: 'en' | 'bg'
-    availableLocales: readonly ('en' | 'bg')[]
+    selectedLocale: GuestLocale
+    primaryLocale: GuestLocale
+    availableLocales: readonly GuestLocale[]
     /** Exact immutable UI copy pack pinned by the Publication Snapshot. */
-    languagePackVersion: 'guest-ui-en-v1' | 'guest-ui-bg-v1'
+    languagePackVersion: GuestLanguagePackVersion
   }>
   responseConfiguration: PublicPortalResponseConfiguration
   organizationId: string

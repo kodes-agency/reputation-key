@@ -7,10 +7,8 @@ import type { BaseFieldApiTextarea } from '#/components/forms/form-textarea'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { FieldGroup } from '#/components/ui/field'
 import { portalLocalizedOverrideFormInputSchema } from '#/contexts/portal/application/dto/portal-experience.dto'
-import type {
-  GuestLocale,
-  PortalExperienceActions,
-} from './portal-experience-settings-types'
+import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
+import type { PortalExperienceActions } from './portal-experience-settings-types'
 
 export function PortalLocalizedOverrideForm({
   locale,
@@ -22,7 +20,7 @@ export function PortalLocalizedOverrideForm({
   action,
   disabled,
 }: Readonly<{
-  locale: GuestLocale
+  locale: OfferedGuestLocale
   portalId: string
   initialTitle: string
   initialDescription: string

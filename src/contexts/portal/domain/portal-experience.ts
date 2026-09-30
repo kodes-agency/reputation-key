@@ -1,11 +1,14 @@
 import {
-  PORTAL_LANGUAGE_PACK_VERSIONS,
+  isGuestLocale,
+  isSupportedGuestLanguagePack,
+  matchGuestLocale,
+} from '#/shared/domain/guest-locale'
+import {
+  PRIMARY_GUEST_LOCALE,
   type PortalGuestLocale,
   type PortalPublicationExperienceSource,
 } from './portal-publication-snapshot'
 import { portalError } from './errors'
-
-const ACTIVE_PORTAL_GUEST_LOCALES = ['en', 'bg'] as const
 
 /**
  * Recorded as `updatedBy` on a public display name RepKey filled in itself:
@@ -60,9 +63,7 @@ export function assertCompletePortalPublicationExperience(
     localeSet.length === 0 ||
     localeSet.length !== experience.localeSet.length ||
     !localeSet.includes(experience.primaryGuestLocale) ||
-    localeSet.some(
-      (locale) => !ACTIVE_PORTAL_GUEST_LOCALES.includes(locale as PortalGuestLocale),
-    )
+    localeSet.some((locale) => !isGuestLocale(locale))
   ) {
     throw portalError(
       'publication_snapshot_unavailable',
@@ -77,7 +78,7 @@ export function assertCompletePortalPublicationExperience(
       content.title.length > 120 ||
       content.shortDescription.trim().length === 0 ||
       content.shortDescription.length > 500 ||
-      experience.languagePackVersions[locale] !== PORTAL_LANGUAGE_PACK_VERSIONS[locale]
+      !isSupportedGuestLanguagePack(locale, experience.languagePackVersions[locale], 1)
     ) {
       throw portalError(
         'publication_snapshot_unavailable',
@@ -103,6 +104,21 @@ export function assertCompletePortalPublicationExperience(
   }
 }
 
+/** The locales an Accept-Language header names, best first; `q=0` entries are dropped. */
+function acceptedLocales(header: string | null | undefined): PortalGuestLocale[] {
+  const ranked = (header ?? '').split(',').flatMap((part, position) => {
+    const [tag = '', ...parameters] = part.split(';').map((piece) => piece.trim())
+    const locale = matchGuestLocale(tag)
+    if (!locale) return []
+    const weight = parameters.find((piece) => /^q=/iu.test(piece))
+    const quality = weight === undefined ? 1 : Number(weight.slice(2))
+    return Number.isFinite(quality) && quality > 0 ? [{ locale, quality, position }] : []
+  })
+  // Stable: equal weights keep the header's own order.
+  ranked.sort((a, b) => b.quality - a.quality || a.position - b.position)
+  return ranked.map((entry) => entry.locale)
+}
+
 export function selectPortalGuestLocale(
   localeSet: readonly PortalGuestLocale[],
   primary: PortalGuestLocale,
@@ -112,16 +128,13 @@ export function selectPortalGuestLocale(
 ): PortalGuestLocale {
   const allowed = new Set(localeSet)
   const candidates = [
-    requested,
-    signedSession,
-    ...(acceptLanguage ?? '')
-      .split(',')
-      .map((part) => part.split(';')[0]?.trim())
-      .filter((part): part is string => Boolean(part)),
+    ...[requested, signedSession].flatMap((tag) => {
+      const locale = tag ? matchGuestLocale(tag) : null
+      return locale ? [locale] : []
+    }),
+    ...acceptedLocales(acceptLanguage),
   ]
-  for (const candidate of candidates) {
-    const base = candidate?.toLowerCase().split('-')[0]
-    if ((base === 'en' || base === 'bg') && allowed.has(base)) return base
-  }
-  return allowed.has(primary) ? primary : (localeSet[0] ?? 'en')
+  const match = candidates.find((locale) => allowed.has(locale))
+  if (match) return match
+  return allowed.has(primary) ? primary : (localeSet[0] ?? PRIMARY_GUEST_LOCALE)
 }

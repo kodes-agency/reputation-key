@@ -1,6 +1,8 @@
-/** Supported public Portal locales. */
-export type GuestPortalLocale = 'en' | 'bg'
-export type GuestPortalLanguagePackVersion = 'guest-ui-en-v1' | 'guest-ui-bg-v1'
+import type { GuestLanguagePackVersion, GuestLocale } from '#/shared/domain/guest-locale'
+
+/** Public Portal locales; the catalogue in `shared/domain/guest-locale` owns the set. */
+export type GuestPortalLocale = GuestLocale
+export type GuestPortalLanguagePackVersion = GuestLanguagePackVersion
 
 export type GuestPortalCopy = Readonly<{
   locale: GuestPortalLocale
