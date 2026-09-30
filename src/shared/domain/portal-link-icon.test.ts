@@ -20,6 +20,20 @@ describe('portal link icon catalogue', () => {
     }
   })
 
+  it('carries every icon the round-4 editor picker offers', () => {
+    // Knife and fork, Open book, Waves, Map pin, Bed, Reception bell.
+    for (const key of [
+      'utensils',
+      'book-open',
+      'waves',
+      'map-pin',
+      'bed-double',
+      'concierge-bell',
+    ]) {
+      expect(isPortalLinkIconKey(key)).toBe(true)
+    }
+  })
+
   it('recognises members and refuses everything else', () => {
     expect(isPortalLinkIconKey('map-pin')).toBe(true)
     expect(isPortalLinkIconKey('guide')).toBe(false)

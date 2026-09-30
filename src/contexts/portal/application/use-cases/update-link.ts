@@ -4,7 +4,7 @@ import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { PortalLink } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalError } from '../../domain/errors'
-import { validateLinkLabel } from '../../domain/rules'
+import { validateLinkIconKey, validateLinkLabel } from '../../domain/rules'
 import { canForContext } from '#/shared/domain/permissions'
 import { portalLinkId } from '#/shared/domain/ids'
 import type { PortalRepository } from '../ports/portal.repository'
@@ -81,6 +81,8 @@ export const updateLink =
     if (destination) needsUpdate = true
 
     if (input.iconKey !== undefined) {
+      const r = validateLinkIconKey(input.iconKey)
+      if (r.isErr()) throw r.error
       needsUpdate = true
     }
 

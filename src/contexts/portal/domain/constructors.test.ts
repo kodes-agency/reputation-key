@@ -179,13 +179,32 @@ describe('buildPortalLink', () => {
       propertyId: propertyId('prop-1'),
       label: 'Test',
       url: 'https://example.com',
-      iconKey: 'google',
+      iconKey: 'map-pin',
       sortKey: 'a0',
       now,
     })
     expect(result.isOk()).toBe(true)
     if (result.isOk()) {
-      expect(result.value.iconKey).toBe('google')
+      expect(result.value.iconKey).toBe('map-pin')
+    }
+  })
+
+  it('refuses an iconKey outside the closed icon set', () => {
+    const result = buildPortalLink({
+      id: portalLinkId('link-1'),
+      categoryId: portalLinkCategoryId('cat-1'),
+      portalId: portalId('portal-1'),
+      organizationId: organizationId('org-1'),
+      propertyId: propertyId('prop-1'),
+      label: 'Test',
+      url: 'https://example.com',
+      iconKey: 'google',
+      sortKey: 'a0',
+      now,
+    })
+    expect(result.isErr()).toBe(true)
+    if (result.isErr()) {
+      expect(result.error.code).toBe('invalid_icon')
     }
   })
 

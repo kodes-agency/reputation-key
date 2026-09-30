@@ -361,6 +361,11 @@ describe('Linktree backfill and constraints (real PostgreSQL)', () => {
       await expect(
         q(`UPDATE portal_links SET icon_key = 'map-pin' WHERE id = $1`, [linkId]),
       ).resolves.toBeDefined()
+      for (const key of ['waves', 'concierge-bell', 'bed-double', 'utensils']) {
+        await expect(
+          q(`UPDATE portal_links SET icon_key = $2 WHERE id = $1`, [linkId, key]),
+        ).resolves.toBeDefined()
+      }
       await expect(
         q(`UPDATE portal_links SET icon_key = 'guide' WHERE id = $1`, [linkId]),
       ).rejects.toThrow(/portal_links_icon_key_valid/)

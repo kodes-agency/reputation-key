@@ -21,7 +21,7 @@ const JOURNAL = JSON.parse(
 ) as { entries: ReadonlyArray<{ idx: number; tag: string; when: number }> }
 
 // What migration 0044 wrote, spelled out on purpose.
-const ICON_LIST_0044 = `'link', 'external-link', 'globe', 'utensils', 'coffee', 'wine', 'bed-double', 'map-pin', 'phone', 'mail', 'calendar', 'clock', 'star', 'gift', 'shopping-bag', 'music', 'ticket', 'wifi', 'car', 'info', 'heart', 'scissors', 'sparkles', 'camera', 'book-open'`
+const ICON_LIST_0044 = `'link', 'external-link', 'globe', 'utensils', 'coffee', 'wine', 'bed-double', 'map-pin', 'phone', 'mail', 'calendar', 'clock', 'star', 'gift', 'shopping-bag', 'music', 'ticket', 'wifi', 'car', 'info', 'heart', 'scissors', 'sparkles', 'camera', 'book-open', 'waves', 'concierge-bell'`
 const LOCALE_LIST_0044 = `'en', 'es', 'it', 'fr', 'de', 'bg'`
 
 const statements = MIGRATION.split('--> statement-breakpoint')

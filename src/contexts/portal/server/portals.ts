@@ -83,6 +83,7 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
       'invalid_threshold',
       'invalid_url',
       'invalid_label',
+      'invalid_icon',
       'invalid_title',
       'locale_not_offered',
       () => 400,

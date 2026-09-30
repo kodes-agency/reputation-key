@@ -12,6 +12,7 @@ import {
   validateUrl,
   isValidExternalUrl,
   validateLinkLabel,
+  validateLinkIconKey,
   validateCategoryTitle,
 } from './rules'
 
@@ -286,6 +287,29 @@ describe('validateUrl', () => {
     expect(result.isErr()).toBe(true)
     if (result.isErr()) {
       expect(result.error.code).toBe('invalid_url')
+    }
+  })
+})
+
+// ── validateLinkIconKey ────────────────────────────────────────────
+
+describe('validateLinkIconKey', () => {
+  it('accepts a member of the icon set and keeps it', () => {
+    const result = validateLinkIconKey('waves')
+    expect(result.isOk() && result.value).toBe('waves')
+  })
+
+  it('reads an absent or null key as no icon', () => {
+    const absent = validateLinkIconKey(undefined)
+    const cleared = validateLinkIconKey(null)
+    expect(absent.isOk() && absent.value).toBeNull()
+    expect(cleared.isOk() && cleared.value).toBeNull()
+  })
+
+  it('refuses anything outside the set with invalid_icon', () => {
+    for (const key of ['google', '', 'Waves', 'waves ']) {
+      const result = validateLinkIconKey(key)
+      expect(result.isErr() && result.error.code).toBe('invalid_icon')
     }
   })
 })

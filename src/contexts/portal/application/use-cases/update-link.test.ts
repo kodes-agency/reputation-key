@@ -135,6 +135,31 @@ describe('updateLink', () => {
     )
   })
 
+  it('refuses an icon outside the closed set with a PortalError, before any write', async () => {
+    const { useCase, portalRepo, portalLinkRepo, outbox } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    portalRepo.seed([buildTestPortal({})])
+    const link = buildTestPortalLink({ iconKey: 'star' })
+    portalLinkRepo.seedLinks([link])
+
+    const attempt = useCase({ linkId: link.id, iconKey: 'google' }, ctx)
+
+    await expect(attempt).rejects.toMatchObject({ code: 'invalid_icon' })
+    expect(outbox.byTag('portal_link.updated')).toEqual([])
+  })
+
+  it('clears the icon when given null', async () => {
+    const { useCase, portalRepo, portalLinkRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    portalRepo.seed([buildTestPortal({})])
+    const link = buildTestPortalLink({ iconKey: 'star' })
+    portalLinkRepo.seedLinks([link])
+
+    const updated = await useCase({ linkId: link.id, iconKey: null }, ctx)
+
+    expect(updated.iconKey).toBeNull()
+  })
+
   it('rejects when the Portal revision advanced after the atomic child snapshot', async () => {
     const { useCase, portalRepo, portalLinkRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })

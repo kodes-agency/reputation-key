@@ -13,6 +13,7 @@ export type PortalErrorCode =
   | 'invalid_threshold'
   | 'invalid_url'
   | 'invalid_label'
+  | 'invalid_icon'
   | 'invalid_title'
   | 'slug_taken'
   | 'portal_not_found'
