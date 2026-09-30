@@ -359,12 +359,14 @@ describe.sequential('identityCommandStore (integration)', () => {
           userId: ACCEPTOR_ID,
           invitationId: invitationId('inv-idcmd-accept'),
           propertyIds: accepted.propertyIds,
+          inviterId: accepted.inviterId ?? undefined,
           occurredAt: NOW,
         }),
     })
 
     expect(result.organizationId).toBe(ORG_ID)
     expect(result.propertyIds).toEqual(['prop-a', 'prop-b'])
+    expect(result.inviterId).toBe(INVITER_ID)
     const members = await pool.query(
       'SELECT "userId", role FROM member WHERE "organizationId" = $1',
       [ORG_ID],
@@ -375,11 +377,13 @@ describe.sequential('identityCommandStore (integration)', () => {
     )
     expect(invitations.rows[0].status).toBe('accepted')
     const facts = await pool.query(
-      `SELECT event_type FROM outbox_events
+      `SELECT event_type, payload FROM outbox_events
        WHERE organization_id = $1 AND event_type = 'identity.invitation.accepted'`,
       [ORG_ID],
     )
     expect(facts.rows).toHaveLength(1)
+    // The recorded fact names the inviter, so Feed can tell them.
+    expect(facts.rows[0].payload.inviterId).toBe(INVITER_ID as string)
   })
 
   it('rejects and consumes no authority for a legacy Member invitation', async () => {
