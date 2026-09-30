@@ -14,10 +14,8 @@ import { homedir } from 'node:os'
 import { dirname, resolve } from 'node:path'
 import type { E2eSeedState } from '../e2e/helpers/seed-state'
 import { and, desc, eq, isNull, sql } from 'drizzle-orm'
-import { hashPassword } from 'better-auth/crypto'
-import { getAuth } from '../src/shared/auth/auth'
 import { getDb } from '../src/shared/db'
-import { account, user, member, organization } from '../src/shared/db/schema/auth'
+import { member, organization } from '../src/shared/db/schema/auth'
 
 import { properties } from '../src/shared/db/schema/property.schema'
 import {
@@ -55,17 +53,12 @@ import {
   grantPropertyAccess,
   hasActiveGrant,
 } from '../src/contexts/identity/infrastructure/repositories/property-access-grant.repository'
-import {
-  parseBetterAuthResponse,
-  signUpResponseSchema,
-} from '../src/contexts/identity/infrastructure/adapters/better-auth-schemas'
 import { createPortalTokenCodec } from '../src/contexts/portal/infrastructure/adapters/portal-token-codec'
 import { assertLocalToolExecutionIdentity } from '../src/shared/config/local-tool-execution'
 import {
   LOCAL_E2E_OPERATOR_USER_ID,
   LOCAL_E2E_ORGANIZATION_ID,
 } from '../src/shared/config/local-stack-contract'
-import { runWithRegistrationAuthIds } from '../src/shared/auth/registration-user-id'
 import { GOOGLE_CONTENT_CAPABILITIES } from '../src/shared/domain/google-content-capability'
 import { createGoogleContentAuthorityRepository } from '../src/contexts/identity/infrastructure/repositories/google-content-authority.repository'
 import { createAiControlAdapter } from '../src/contexts/ai/infrastructure/adapters/ai-control.adapter'
@@ -76,6 +69,7 @@ import { execFileSync } from 'node:child_process'
 import { createHash, randomUUID } from 'node:crypto'
 import { Redis } from 'ioredis'
 import { localEnvOverlayPaths, localEnvSetting } from './local/provider-modes'
+import { ensureCredentialUser } from './local/seed-credential-user'
 
 assertLocalToolExecutionIdentity(process.env)
 
@@ -189,73 +183,6 @@ function writeSeedState(state: E2eSeedState) {
   mkdirSync(dirname(seedStatePath), { recursive: true })
   writeFileSync(seedStatePath, `${JSON.stringify(state, null, 2)}\n`, 'utf8')
   console.log(`E2E seed state written: ${seedStatePath}`)
-}
-
-/** Better Auth sign-up, under a fixed user id when the caller names one. */
-async function signUpCredentialUser(input: {
-  email: string
-  password: string
-  name: string
-  userId?: string
-}): Promise<string> {
-  const signUp = () =>
-    getAuth().api.signUpEmail({
-      body: { name: input.name, email: input.email, password: input.password },
-    })
-  const response = input.userId
-    ? await runWithRegistrationAuthIds(
-        {
-          userId: input.userId,
-          credentialAccountId: randomUUID(),
-          initialSessionId: randomUUID(),
-        },
-        signUp,
-      )
-    : await signUp()
-  return parseBetterAuthResponse(
-    signUpResponseSchema,
-    response,
-    'registration_failed',
-    `Could not create E2E user ${input.email}`,
-  ).user.id
-}
-
-async function ensureCredentialUser(input: {
-  email: string
-  password: string
-  name: string
-  /** A fixed id for a new user; an existing user keeps the id it has. */
-  userId?: string
-}): Promise<string> {
-  const db = getDb()
-  const [existing] = await db
-    .select({ id: user.id })
-    .from(user)
-    .where(eq(user.email, input.email))
-    .limit(1)
-
-  let userId = existing?.id
-  if (userId && input.userId && userId !== input.userId) {
-    console.warn(
-      `E2E user ${input.email} predates its fixed id ${input.userId}; ` +
-        'reseed an empty database for anything keyed by that id (the operator console).',
-    )
-  }
-  if (!userId) {
-    userId = await signUpCredentialUser(input)
-  }
-
-  await db
-    .update(user)
-    .set({ name: input.name, emailVerified: true, updatedAt: new Date() })
-    .where(eq(user.id, userId))
-  const [credential] = await db
-    .update(account)
-    .set({ password: await hashPassword(input.password), updatedAt: new Date() })
-    .where(and(eq(account.userId, userId), eq(account.providerId, 'credential')))
-    .returning({ id: account.id })
-  if (!credential) throw new Error(`Credential account missing for ${input.email}`)
-  return userId
 }
 
 async function ensureOrgA(managerUserId: string): Promise<string> {
