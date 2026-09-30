@@ -241,7 +241,13 @@ export const LanguagesFlagMissingText: Story = {
             total: 3,
             present: 2,
             missing: [
-              { key: 'link:l-1', kind: 'link_label', linkId: 'l-1', linkLabel: 'Menu' },
+              {
+                key: 'link:l-1',
+                kind: 'link_label',
+                linkId: 'l-1',
+                linkLabel: 'Menu',
+                blocksPublish: false,
+              },
             ],
           },
         ],

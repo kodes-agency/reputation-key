@@ -7,6 +7,7 @@ import type { LinkTreeCategory, LinkTreeLink } from './link-tree-types'
 import { useServerSnapshotOverride } from './use-server-snapshot-override'
 
 export function useLinkTreeState(
+  propertyId: string,
   portalId: string,
   initialCategories: readonly LinkTreeCategory[],
   initialLinks: readonly LinkTreeLink[],
@@ -22,7 +23,7 @@ export function useLinkTreeState(
 
   // Reorder overrides reset whenever the Query snapshot identity changes;
   // CRUD handlers rely on the invalidation/refetch and do not patch them.
-  const mutations = useLinkTreeMutations(portalId)
+  const mutations = useLinkTreeMutations(propertyId, portalId)
 
   // Opening, switching or cancelling any inline form discards a stale error.
   const setAddingToCategory = (catId: string | null) => {

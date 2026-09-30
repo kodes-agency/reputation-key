@@ -5,6 +5,7 @@
 
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
+import { CircleAlert } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import {
@@ -12,14 +13,17 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '#/components/ui/collapsible'
-import type { PortalLanguageCoverageRow } from '#/contexts/portal/application/public-api'
+import type {
+  MissingPortalText,
+  PortalLanguageCoverageRow,
+} from '#/contexts/portal/application/public-api'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { PortalLanguageMenu } from './portal-language-menu'
 import {
   describeCoverage,
   describeMissingText,
   languageDisplayName,
-  missingTextSection,
+  missingTextAction,
   type PortalLanguageChange,
 } from './portal-languages-rules'
 
@@ -71,16 +75,24 @@ export function PortalLanguageRow({
               <span
                 className={
                   description.tone === 'missing'
-                    ? 'text-sm font-medium text-warn'
+                    ? 'flex items-center gap-1 text-sm font-medium text-warn'
                     : 'text-sm text-muted-foreground'
                 }
               >
+                {description.tone === 'missing' ? (
+                  <CircleAlert className="size-3.5 shrink-0" aria-hidden />
+                ) : null}
                 {description.text}
               </span>
             )}
             {gaps.length > 0 ? (
               <CollapsibleTrigger asChild>
-                <Button variant="link" size="sm" className="h-auto px-1 py-2 text-link">
+                <Button
+                  variant="link"
+                  size="sm"
+                  aria-label={`${showingMissing ? 'Hide' : 'Show'} missing texts in ${name.english}`}
+                  className="h-auto px-1 py-2 text-link"
+                >
                   {showingMissing ? 'Hide missing' : 'Show missing'}
                 </Button>
               </CollapsibleTrigger>
@@ -107,15 +119,11 @@ export function PortalLanguageRow({
                   className="flex flex-wrap items-center justify-between gap-2"
                 >
                   <span>{describeMissingText(text)}</span>
-                  <Link
-                    to="/properties/$propertyId/portals/$portalId"
-                    params={{ propertyId, portalId }}
-                    search={{ tab: 'page', section: missingTextSection(text) }}
-                    className="min-h-8 py-1 text-link underline-offset-4 hover:underline"
-                  >
-                    Write it in{' '}
-                    {missingTextSection(text) === 'welcome' ? 'Welcome' : 'Linktree'}
-                  </Link>
+                  <MissingTextAction
+                    text={text}
+                    propertyId={propertyId}
+                    portalId={portalId}
+                  />
                 </li>
               ))}
             </ul>
@@ -123,5 +131,28 @@ export function PortalLanguageRow({
         ) : null}
       </Collapsible>
     </li>
+  )
+}
+
+function MissingTextAction({
+  text,
+  propertyId,
+  portalId,
+}: Readonly<{ text: MissingPortalText; propertyId: string; portalId: string }>) {
+  const action = missingTextAction(text)
+  if (action.kind === 'needs_property_wording') {
+    return (
+      <span className="text-muted-foreground">Needs the Property&rsquo;s wording</span>
+    )
+  }
+  return (
+    <Link
+      to="/properties/$propertyId/portals/$portalId"
+      params={{ propertyId, portalId }}
+      search={{ tab: 'page', section: action.section }}
+      className="min-h-8 py-1 text-link underline-offset-4 hover:underline"
+    >
+      Write it in {action.section === 'welcome' ? 'Welcome' : 'Linktree'}
+    </Link>
   )
 }

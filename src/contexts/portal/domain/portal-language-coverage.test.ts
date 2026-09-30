@@ -42,16 +42,49 @@ describe('computePortalLanguageCoverage', () => {
     expect(coverage.missingTotal).toBe(2)
   })
 
-  it('reads the portal override before the property wording', () => {
+  it('counts a portal override when the Property has wording for that language', () => {
     const coverage = computePortalLanguageCoverage(
       base({
         additionalLocales: ['bg'],
-        overrides: [{ locale: 'bg', title: 'Авела', shortDescription: null }],
+        propertyContent: [
+          { locale: 'en', title: 'Avela Resort', shortDescription: 'By the sea' },
+          { locale: 'bg', title: 'Авела', shortDescription: 'До морето' },
+        ],
+        overrides: [{ locale: 'bg', title: 'Авела Вила', shortDescription: null }],
+      }),
+    )
+    expect(coverage.languages[1]).toMatchObject({ present: 2, missing: [] })
+  })
+
+  it('an override without Property wording still leaves the language incomplete', () => {
+    // Publishing drops a language that has no Property content row, whatever the
+    // Portal's own overrides say, so the title and description are still missing.
+    const coverage = computePortalLanguageCoverage(
+      base({
+        additionalLocales: ['bg'],
+        overrides: [{ locale: 'bg', title: 'Авела', shortDescription: 'До морето' }],
       }),
     )
     const bg = coverage.languages[1]
-    expect(bg?.missing.map((text) => text.kind)).toEqual(['description'])
-    expect(bg?.present).toBe(1)
+    expect(bg?.missing.map((text) => text.kind)).toEqual(['title', 'description'])
+    expect(bg?.present).toBe(0)
+  })
+
+  it('marks a missing title or description as blocking publishing, and a link label as not', () => {
+    const coverage = computePortalLanguageCoverage(
+      base({
+        additionalLocales: ['bg'],
+        links: [{ id: 'l-1', label: 'Menu' }],
+        linkTexts: [{ linkId: 'l-1', locale: 'en', label: 'Menu' }],
+      }),
+    )
+    expect(
+      coverage.languages[1]?.missing.map((text) => [text.kind, text.blocksPublish]),
+    ).toEqual([
+      ['title', true],
+      ['description', true],
+      ['link_label', false],
+    ])
   })
 
   it('falls back to the property wording when the override is blank', () => {
@@ -95,7 +128,13 @@ describe('computePortalLanguageCoverage', () => {
     expect(en).toMatchObject({ total: 4, present: 4 })
     expect(bg).toMatchObject({ total: 4, present: 3 })
     expect(bg?.missing).toEqual([
-      { key: 'link:l-2', kind: 'link_label', linkId: 'l-2', linkLabel: 'Spa' },
+      {
+        key: 'link:l-2',
+        kind: 'link_label',
+        linkId: 'l-2',
+        linkLabel: 'Spa',
+        blocksPublish: false,
+      },
     ])
   })
 

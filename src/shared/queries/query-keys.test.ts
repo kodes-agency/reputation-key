@@ -148,6 +148,22 @@ describe('goal query keys', () => {
   })
 })
 
+describe('portal language coverage query key', () => {
+  it('descends from the Portal experience, so a Property-wide or Portal content write refreshes it', () => {
+    const key = portalKeys.languageCoverage('property-1', 'portal-1')
+    expect(key.slice(0, -1)).toEqual(portalKeys.experience('property-1', 'portal-1'))
+    expect(key.slice(0, portalKeys.propertyExperience('property-1').length)).toEqual(
+      portalKeys.propertyExperience('property-1'),
+    )
+  })
+
+  it('is isolated per Portal', () => {
+    expect(portalKeys.languageCoverage('property-1', 'portal-1')).not.toEqual(
+      portalKeys.languageCoverage('property-1', 'portal-2'),
+    )
+  })
+})
+
 describe('portal analytics query keys', () => {
   it('isolates each range within a property-scoped portal analytics subtree', () => {
     expect(portalKeys.analytics('property-1', 'portal-1', 'last_30_days', true)).toEqual([

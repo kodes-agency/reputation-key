@@ -13,14 +13,14 @@ import {
   reorderLinks,
 } from '#/contexts/portal/server/portal-links'
 
-export function useLinkTreeMutations(portalId: string) {
+export function useLinkTreeMutations(propertyId: string, portalId: string) {
   // Any link or category edit changes the working copy, so the workspace
   // header's "N changes not live" note (read from the publication history) must
   // refresh with the tree.
   // The same edit changes which wording a language is missing.
   const invalidateKeys = [
     portalKeys.links(portalId),
-    portalKeys.languageCoverage(portalId),
+    portalKeys.languageCoverage(propertyId, portalId),
     portalKeys.publicationHistory(portalId),
   ]
   const createCategoryMutation = useActionMutation(createLinkCategory, {

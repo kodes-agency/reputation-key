@@ -50,9 +50,9 @@ export const portalLinksQuery = (portalId: string) =>
     staleTime: 30_000,
   })
 
-export const portalLanguageCoverageQuery = (portalId: string) =>
+export const portalLanguageCoverageQuery = (propertyId: string, portalId: string) =>
   queryOptions({
-    queryKey: portalKeys.languageCoverage(portalId),
+    queryKey: portalKeys.languageCoverage(propertyId, portalId),
     queryFn: () => getPortalLanguageCoverage({ data: { portalId } }),
     staleTime: 30_000,
   })
@@ -119,7 +119,7 @@ export function usePortalDetailData(propertyId: string, portalId: string) {
   const { data: portalData } = useSuspenseQuery(portalQuery(portalId))
   const { data: linksData } = useSuspenseQuery(portalLinksQuery(portalId))
   const { data: languageCoverage } = useSuspenseQuery(
-    portalLanguageCoverageQuery(portalId),
+    portalLanguageCoverageQuery(propertyId, portalId),
   )
   const { data: groupsData } = useSuspenseQuery(portalGroupsQuery(propertyId))
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))

@@ -4,8 +4,16 @@
 // Pure: no I/O. The wording a Portal needs per language is its title, its
 // description and one label per link. The Linktree title, a link's line and the
 // hero description are optional (the language pack or nothing stands in for
-// them), so they are never "missing". Where a Portal's own wording is blank the
-// Property's wording for that language stands in, exactly as publishing reads it.
+// them), so they are never "missing".
+//
+// A title and a description are read the way publishing reads them: a language
+// only has them when the Property has wording (a content row) for it, and the
+// Portal's own override then takes the place of that wording. A Portal override
+// with no Property wording behind it does not count, because publishing drops a
+// language that has no Property content row and refuses to publish. Until the
+// builder copies the fallback language into a gap, a missing title or description
+// therefore blocks publishing (`blocksPublish`), while a missing link label does
+// not.
 //
 // The result names gaps by kind and link, never by wording: the only words it
 // carries are the fallback-language label of a link with a gap, so a manager
@@ -22,6 +30,8 @@ export type MissingPortalText = Readonly<{
   linkId: string | null
   /** The link's name in the fallback language, for a missing link label. */
   linkLabel: string | null
+  /** True for a title or description: publishing is refused while one is missing. */
+  blocksPublish: boolean
 }>
 
 export type PortalLanguageCoverageRow = Readonly<{
@@ -93,15 +103,25 @@ function missingTexts(
 ): { total: number; missing: MissingPortalText[] } {
   const content = input.propertyContent.find((item) => item.locale === locale)
   const override = input.overrides.find((item) => item.locale === locale)
+  // No Property wording for the language: nothing is written, whatever the
+  // overrides say (publishing drops the language).
+  const hasPropertyWording = content !== undefined
   const wording: ReadonlyArray<Readonly<{ kind: PortalTextKind; written: boolean }>> = [
-    { kind: 'title', written: anyWritten(override?.title, content?.title) },
+    {
+      kind: 'title',
+      written: hasPropertyWording && anyWritten(override?.title, content.title),
+    },
     {
       kind: 'description',
-      written: anyWritten(override?.shortDescription, content?.shortDescription),
+      written:
+        hasPropertyWording &&
+        anyWritten(override?.shortDescription, content.shortDescription),
     },
   ]
   const missing: MissingPortalText[] = wording.flatMap(({ kind, written }) =>
-    written ? [] : [{ key: kind, kind, linkId: null, linkLabel: null }],
+    written
+      ? []
+      : [{ key: kind, kind, linkId: null, linkLabel: null, blocksPublish: true }],
   )
   for (const link of input.links) {
     const written = input.linkTexts.some(
@@ -114,6 +134,7 @@ function missingTexts(
         kind: 'link_label',
         linkId: link.id,
         linkLabel: linkNameIn(input, link),
+        blocksPublish: false,
       })
     }
   }

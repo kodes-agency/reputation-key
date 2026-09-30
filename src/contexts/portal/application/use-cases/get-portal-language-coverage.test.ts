@@ -41,6 +41,11 @@ function setup(
     accessible?: ReadonlyArray<PropertyId> | null
     additional?: ReadonlyArray<'bg' | 'de'>
     content?: ReturnType<typeof propertyContent>[]
+    overrides?: ReadonlyArray<{
+      locale: 'en' | 'bg'
+      title: string | null
+      shortDescription: string | null
+    }>
   } = {},
 ) {
   const portalRepo = createInMemoryPortalRepo()
@@ -64,7 +69,7 @@ function setup(
       profile: null,
       content: options.content ?? [propertyContent('en', 'Avela')],
     }),
-    listPortalOverrides: async () => [],
+    listPortalOverrides: async () => options.overrides ?? [],
   } as unknown as PortalExperienceRepository
   const useCase = getPortalLanguageCoverage({
     portalRepo,
@@ -115,6 +120,24 @@ describe('getPortalLanguageCoverage', () => {
     expect(coverage.languages[1]?.missing.map((text) => text.kind)).toEqual([
       'link_label',
     ])
+  })
+
+  it('does not count a Portal override for a language the Property has no wording for', async () => {
+    const { useCase } = setup({
+      overrides: [{ locale: 'bg', title: 'Авела', shortDescription: 'До морето' }],
+    })
+    const coverage = await useCase(
+      { portalId: PORTAL },
+      buildTestAuthContext({ role: 'PropertyManager' }),
+    )
+    expect(coverage.languages[1]?.missing.map((text) => text.kind)).toEqual([
+      'title',
+      'description',
+      'link_label',
+    ])
+    expect(
+      coverage.languages[1]?.missing.filter((text) => text.blocksPublish),
+    ).toHaveLength(2)
   })
 
   it('refuses a caller who holds no Portal read permission', async () => {

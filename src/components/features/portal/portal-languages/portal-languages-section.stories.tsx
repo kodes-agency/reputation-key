@@ -55,8 +55,20 @@ const coverage: PortalLanguageCoverage = {
       total: 5,
       present: 3,
       missing: [
-        { key: 'description', kind: 'description', linkId: null, linkLabel: null },
-        { key: 'link:l-2', kind: 'link_label', linkId: 'l-2', linkLabel: 'Spa' },
+        {
+          key: 'description',
+          kind: 'description',
+          linkId: null,
+          linkLabel: null,
+          blocksPublish: true,
+        },
+        {
+          key: 'link:l-2',
+          kind: 'link_label',
+          linkId: 'l-2',
+          linkLabel: 'Spa',
+          blocksPublish: false,
+        },
       ],
     },
   ],
@@ -87,7 +99,9 @@ export const WithGaps: Story = {
     await expect(canvas.getByText('All 5 texts')).toBeVisible()
     await expect(canvas.getByText('3 of 5 · 2 missing')).toBeVisible()
     await expect(
-      canvas.getByText('Now: Bulgarian guests see 2 texts in English.'),
+      canvas.getByText(
+        'Now: Bulgarian is missing 1 text that publishing needs, and its guests see 1 link label in English.',
+      ),
     ).toBeVisible()
     // There is no AI translation control.
     await expect(canvas.queryByText(/translate with ai/i)).not.toBeInTheDocument()
@@ -98,14 +112,19 @@ export const ShowMissingNamesEachGap: Story = {
   args: { ...WithGaps.args, update: update() },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: 'Show missing' }))
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Show missing texts in Bulgarian' }),
+    )
     const list = canvas.getByRole('list', { name: 'Missing in Bulgarian' })
     await expect(within(list).getByText('Description')).toBeVisible()
+    await expect(within(list).getByText('Needs the Property’s wording')).toBeVisible()
     await expect(within(list).getByText('Label for “Spa”')).toBeVisible()
     await expect(
       within(list).getByRole('link', { name: 'Write it in Linktree' }),
     ).toBeVisible()
-    await expect(canvas.getByRole('button', { name: 'Hide missing' })).toBeVisible()
+    await expect(
+      canvas.getByRole('button', { name: 'Hide missing texts in Bulgarian' }),
+    ).toBeVisible()
   },
 }
 

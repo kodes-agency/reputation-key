@@ -32,14 +32,29 @@ export type OfferedPortalLanguageSet = Readonly<{
   additional: readonly OfferedGuestLocale[]
 }>
 
-const isOffered = (locale: GuestLocale): locale is OfferedGuestLocale =>
+/**
+ * What the rules read of the language registry: the catalogue, which languages
+ * managers may offer, and which have a guest copy pack. Passed in so the rules
+ * can be tested without depending on the packs that have shipped today.
+ */
+export type LanguageRegistry = Readonly<{
+  locales: readonly GuestLocale[]
+  isOffered: (locale: GuestLocale) => boolean
+  hasGuestCopyPack: (locale: GuestLocale) => boolean
+}>
+
+const isOfferedLocale = (locale: GuestLocale): locale is OfferedGuestLocale =>
   (OFFERED_GUEST_LOCALES as readonly GuestLocale[]).includes(locale)
 
 // A language can be added when managers may offer it and its guest copy pack
 // exists (generation 2, the pack the new guest page reads). There is no native
 // speaker check in the closed beta (owner decision 5), so the pack is the gate.
-const hasGuestCopyPack = (locale: GuestLocale): boolean =>
-  GUEST_LANGUAGE_PACKS[locale].supported.some((pack) => pack.generation === 2)
+const LIVE_REGISTRY: LanguageRegistry = {
+  locales: GUEST_LOCALES,
+  isOffered: isOfferedLocale,
+  hasGuestCopyPack: (locale) =>
+    GUEST_LANGUAGE_PACKS[locale].supported.some((pack) => pack.generation === 2),
+}
 
 const languagesOf = (set: PortalLanguageSet): GuestLocale[] => [
   set.primary,
@@ -47,28 +62,41 @@ const languagesOf = (set: PortalLanguageSet): GuestLocale[] => [
 ]
 
 /** The languages the add menu offers: launch languages with a pack, not yet on the Portal. */
-export function addableLanguages(set: PortalLanguageSet): OfferedGuestLocale[] {
+export function addableLanguages(
+  set: PortalLanguageSet,
+  registry: LanguageRegistry = LIVE_REGISTRY,
+): OfferedGuestLocale[] {
   const present = languagesOf(set)
-  return GUEST_LOCALES.filter(
+  return registry.locales.filter(
     (locale): locale is OfferedGuestLocale =>
-      isOffered(locale) && hasGuestCopyPack(locale) && !present.includes(locale),
+      registry.isOffered(locale) &&
+      registry.hasGuestCopyPack(locale) &&
+      !present.includes(locale),
   )
 }
 
 /** Whether the catalogue holds languages that cannot be added yet ("More languages later"). */
-export const hasLaterLanguages = (): boolean =>
-  GUEST_LOCALES.some((locale) => !isOffered(locale) || !hasGuestCopyPack(locale))
+export const hasLaterLanguages = (registry: LanguageRegistry = LIVE_REGISTRY): boolean =>
+  registry.locales.some(
+    (locale) => !registry.isOffered(locale) || !registry.hasGuestCopyPack(locale),
+  )
 
 function asOfferedSet(set: PortalLanguageSet): OfferedPortalLanguageSet | null {
-  if (!isOffered(set.primary) || !set.additional.every(isOffered)) return null
+  if (!isOfferedLocale(set.primary) || !set.additional.every(isOfferedLocale)) {
+    return null
+  }
   return { primary: set.primary, additional: [...set.additional] as OfferedGuestLocale[] }
 }
 
-function nextSet(set: PortalLanguageSet, change: PortalLanguageChange) {
+function nextSet(
+  set: PortalLanguageSet,
+  change: PortalLanguageChange,
+  registry: LanguageRegistry,
+) {
   const { locale } = change
   switch (change.kind) {
     case 'add':
-      return addableLanguages(set).includes(locale as OfferedGuestLocale)
+      return addableLanguages(set, registry).includes(locale as OfferedGuestLocale)
         ? { primary: set.primary, additional: [...set.additional, locale] }
         : null
     case 'remove':
@@ -100,8 +128,9 @@ function nextSet(set: PortalLanguageSet, change: PortalLanguageChange) {
 export function applyLanguageChange(
   set: PortalLanguageSet,
   change: PortalLanguageChange,
+  registry: LanguageRegistry = LIVE_REGISTRY,
 ): OfferedPortalLanguageSet | null {
-  const next = nextSet(set, change)
+  const next = nextSet(set, change, registry)
   return next === null ? null : asOfferedSet(next)
 }
 
@@ -152,22 +181,44 @@ export function missingTextSection(text: MissingPortalText): 'welcome' | 'linktr
   return text.kind === 'link_label' ? 'linktree' : 'welcome'
 }
 
-/** What guests of a language see while it has gaps; null when there is nothing to say. */
+/**
+ * What a manager does about a missing text. A title or description that blocks
+ * publishing is missing because the Property has no wording for the language (an
+ * override alone does not count), which an account admin writes; a link label is
+ * written in the Linktree section.
+ */
+export type MissingTextAction =
+  | Readonly<{ kind: 'write'; section: 'welcome' | 'linktree' }>
+  | Readonly<{ kind: 'needs_property_wording' }>
+
+export function missingTextAction(text: MissingPortalText): MissingTextAction {
+  return text.blocksPublish
+    ? { kind: 'needs_property_wording' }
+    : { kind: 'write', section: missingTextSection(text) }
+}
+
+/**
+ * What a language's gaps mean for publishing and for guests; null when there is
+ * nothing to say. A missing title or description stops the Portal being
+ * published (there is no fallback copy for them yet); a missing link label is
+ * shown in the fallback language, which the fallback language itself has no
+ * other language to do.
+ */
 export function describeFallbackEffect(
   row: PortalLanguageCoverageRow,
   fallbackLocale: GuestLocale,
 ): string | null {
-  if (row.isFallback || row.missing.length === 0) return null
+  const blocking = row.missing.filter((text) => text.blocksPublish).length
+  const labels = row.isFallback ? 0 : row.missing.length - blocking
   const language = languageDisplayName(row.locale).english
   const fallback = languageDisplayName(fallbackLocale).english
-  return `${language} guests see ${plural(row.missing.length, 'text', 'texts')} in ${fallback}`
-}
-
-export function summarizeLanguageCoverage(
-  input: Readonly<{ languageCount: number; missingTotal: number }>,
-): { text: string; attention: string | null } {
-  return {
-    text: plural(input.languageCount, 'language', 'languages'),
-    attention: input.missingTotal > 0 ? `${input.missingTotal} missing` : null,
-  }
+  const needs =
+    blocking > 0
+      ? `${language} is missing ${plural(blocking, 'text', 'texts')} that publishing needs`
+      : null
+  const shown =
+    labels > 0
+      ? `${needs === null ? `${language} guests` : 'its guests'} see ${plural(labels, 'link label', 'link labels')} in ${fallback}`
+      : null
+  return needs !== null && shown !== null ? `${needs}, and ${shown}` : (needs ?? shown)
 }
