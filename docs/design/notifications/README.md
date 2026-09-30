@@ -176,3 +176,32 @@ decision made at fan-out, from the Inbox's rating, without storing it.
 | 3   | D3 (assignments need their reader and settle) and D4 (arrivals off in-app by default; escalations and low ratings stay on).                                                                                                                                                                                               |
 | 4   | Preferences as one setup plus Property exceptions (D7: exceptions stay when a default changes); timezone and date format move to Profile (D6).                                                                                                                                                                            |
 | 5   | Phones: the bell as a full-screen sheet (D8); a toast for urgent arrivals (D9).                                                                                                                                                                                                                                           |
+
+## 7. What shipped (2026-09-30)
+
+Built while the owner was away, from the answers above; each pull request's
+description records the decisions made on the way.
+
+| Plan | Pull request | Shipped                                                                                               | Where it differs from the plan                                                                                                                                                                                                                    |
+| ---- | ------------ | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1    | #637         | The row, Undo for dismiss and mute, the "Apply to all" warning                                        | —                                                                                                                                                                                                                                                 |
+| 2    | #638         | Needs you / Updates, badge = Needs you, stacks, the page's tabs and day groups                        | The page's **Property filter** is not built (below).                                                                                                                                                                                              |
+| 3    | #640         | D3 and D4, ADR 0046 amended, migration 0041 keeps everyone's review email                             | **Low-rated Google reviews** cannot be told apart at fan-out: ADR 0046 r.8 forbids Feed reading a provider's rating. They reach people through Response Target reminders. A grouped assignment settles when opened or archived, not item by item. |
+| 4    | #639         | D7: a default keeps other properties' own settings; "Reset them to my default", "Use my default here" | The one-matrix "your setup + exceptions" page is not built; D6 became its own pull request.                                                                                                                                                       |
+| 5    | #641         | D8 full-screen sheet below 768 px; D9 toast for urgent arrivals only                                  | The sheet is **not modal**, like the popover: a modal dialog would make the Undo toasts unclickable and hide the live regions.                                                                                                                    |
+| 6    | #642         | D6: timezone and date format on Profile                                                               | The stored row stays per Organization membership, so the card names the Organization.                                                                                                                                                             |
+
+### Still open
+
+- **The page's Property filter** — in progress as draft #643. The server needs a `propertyId` on the list,
+  the head, "Mark all read" and "Dismiss all" (one more condition beside
+  `withinVisibleProperties`, which already makes an inaccessible Property read
+  as empty). The client's optimistic counts (`notification-feed-cache.ts`)
+  are kept per filter across every cached head, so a Property-scoped "Mark all
+  read" must either learn the scope or skip `clearsUnreadOf` and let the
+  refetch settle the counts.
+- **Settings as one setup plus exceptions** (`shots/proposed-s-*.jpg`): one
+  matrix for every property, cadence folded into the email choice, and the
+  properties that differ listed under it.
+- **Grouped assignments settling item by item** (needs the grouped-reopen
+  store generalised).
