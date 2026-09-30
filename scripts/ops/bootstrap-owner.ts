@@ -17,6 +17,9 @@
 // brand-new Organization is exactly the one an explicit BETA_ALLOWLIST_ORGS
 // list does not name yet.
 //
+// Every later Organization is created from the operator console (/operator,
+// ADR 0063), which invites its first AccountAdmin instead of creating one.
+//
 // Usage:
 //   printf '%s' "$INITIAL_PASSWORD" | pnpm ops bootstrap-owner \
 //     owner@example.com "Owner Name" "Organization Name" \
@@ -35,6 +38,7 @@ import {
   parseBetterAuthResponse,
   signUpResponseSchema,
 } from '../../src/contexts/identity/infrastructure/adapters/better-auth-schemas'
+import { deriveOrganizationSlug } from '../../src/shared/domain/organization-slug'
 import { bootstrapAllowlistReport } from '../../src/shared/ops/bootstrap-owner-allowlist'
 import {
   bootstrapState,
@@ -82,15 +86,6 @@ function readPasswordFromStdin(): string {
     usage(`stdin must carry the initial password (${MIN_PASSWORD_LENGTH}-128 characters)`)
   }
   return password
-}
-
-function slugFor(name: string): string {
-  const slug = name
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/gu, '-')
-    .replace(/^-|-$/gu, '')
-    .slice(0, 60)
-  return slug || 'organization'
 }
 
 async function readBootstrapSnapshot(db: Database): Promise<BootstrapSnapshot> {
@@ -148,7 +143,7 @@ async function completeOwnerBootstrap(
     await tx.insert(organization).values({
       id: organizationId,
       name: input.organizationName,
-      slug: slugFor(input.organizationName),
+      slug: deriveOrganizationSlug(input.organizationName),
       createdAt: now,
     })
     await tx.insert(member).values({
@@ -187,7 +182,7 @@ async function main(): Promise<void> {
               email: input.email,
               ownerAccount: state.kind === 'resume' ? 'reuse' : 'create',
               organizationName: input.organizationName,
-              slug: slugFor(input.organizationName),
+              slug: deriveOrganizationSlug(input.organizationName),
               role: 'owner',
               ...bootstrapAllowlistReport(process.env),
             },
