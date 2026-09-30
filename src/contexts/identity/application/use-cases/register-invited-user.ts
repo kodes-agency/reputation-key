@@ -36,6 +36,8 @@ export type RegisterInvitedUserDeps = Readonly<{
     userId: string
     organizationId: string
     propertyIds: ReadonlyArray<string>
+    /** Who sent the invitation, when this path read it under the lock. */
+    inviterId?: string
     displayName?: string
   }) => Promise<void>
   clock: () => Date
@@ -59,6 +61,7 @@ async function runPostAcceptHook(
     userId: string
     organizationId: string
     propertyIds: ReadonlyArray<string>
+    inviterId?: string
     displayName?: string
   }>,
 ): Promise<void> {
@@ -339,6 +342,7 @@ export const registerInvitedUser =
             userId: acceptedUserId,
             invitationId: input.invitationId,
             propertyIds: invitation.propertyIds,
+            inviterId: invitation.inviterId ?? undefined,
             occurredAt: acceptanceNow,
           }),
       })
@@ -359,6 +363,7 @@ export const registerInvitedUser =
       userId: createdUserId,
       organizationId: accepted.organizationId as string,
       propertyIds: accepted.propertyIds,
+      ...(accepted.inviterId ? { inviterId: accepted.inviterId as string } : {}),
       displayName: input.name,
     })
     return { organizationId: accepted.organizationId }

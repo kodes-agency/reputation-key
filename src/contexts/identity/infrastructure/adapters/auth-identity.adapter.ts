@@ -101,6 +101,7 @@ type BetterAuthIdentityAdapterDeps = Readonly<{
     userId: string
     organizationId: string
     propertyIds: ReadonlyArray<string>
+    inviterId?: string
   }) => Promise<void>
 }>
 
@@ -251,6 +252,7 @@ export const createBetterAuthIdentityAdapter = (
       userId: string
       organizationId: string
       propertyIds: ReadonlyArray<string>
+      inviterId?: string
     }): Promise<void> {
       // Post-commit side effect — provision explicit invited-Property access
       // grants through the provisioner owned by this adapter/container. Staff
