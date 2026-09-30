@@ -92,24 +92,6 @@ function DefaultNotFoundComponent() {
   )
 }
 
-/** What the request middleware in `start.ts` puts on the start context. */
-type RequestCspContext = Readonly<{ cspNonce?: string }>
-
-/**
- * The CSP nonce the request middleware minted for this request, if any.
- *
- * `getGlobalStartContext()` is typed from `Register`, and `Register['router']`
- * is `ReturnType<typeof getRouter>`, so the route tree's size decides how that
- * type resolves: at the current size adding ANY route made it `never`, and
- * `cspNonce` then failed to typecheck with no route to blame. The shape is
- * stated here, where it is read, so the route tree can grow without this line
- * changing meaning. `start.ts` is where the nonce is set.
- */
-function requestCspNonce(): string | undefined {
-  const context = getGlobalStartContext() as unknown as RequestCspContext | undefined
-  return context?.cspNonce
-}
-
 export function getRouter() {
   // TanStack Query client cache. The ssr-query integration handles per-request
   // dehydration/hydration + streaming during SSR, and auto-wraps the app in
@@ -120,7 +102,7 @@ export function getRouter() {
     },
   })
 
-  const cspNonce = requestCspNonce()
+  const cspNonce = getGlobalStartContext()?.cspNonce
 
   const router = createTanStackRouter({
     routeTree,
