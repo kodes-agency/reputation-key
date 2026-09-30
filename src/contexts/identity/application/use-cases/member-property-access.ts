@@ -78,8 +78,14 @@ export const setMemberPropertyAccess =
     if (target.userId === ctx.userId) {
       throw identityError('forbidden', 'You cannot change your own property access')
     }
-    if (target.role !== 'PropertyManager') {
+    if (target.role === 'AccountAdmin') {
       throw identityError('validation_error', 'Account Admins can access every property')
+    }
+    if (target.role !== 'PropertyManager') {
+      throw identityError(
+        'validation_error',
+        'Property access can be edited only for a Property Manager',
+      )
     }
 
     const now = deps.clock()
