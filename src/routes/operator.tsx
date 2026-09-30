@@ -45,7 +45,7 @@ export const Route = createFileRoute('/operator')({
     try {
       await context.queryClient.ensureQueryData(platformOrganizationsQuery)
     } catch (error) {
-      // Not an operator (unregistered, unverified, or not on the list): the
+      // Not an operator (their account is not on the list): the
       // route does not exist for them. Any other failure is shown as itself.
       if (httpStatus(error) === 403) throw notFound()
       throw error

@@ -7,6 +7,7 @@ import {
 } from '#/shared/auth/beta-capabilities'
 import {
   LOCAL_E2E_EXECUTION_IDENTITY,
+  LOCAL_E2E_OPERATOR_USER_ID,
   LOCAL_E2E_ORGANIZATION_ID,
 } from './local-stack-contract'
 import { localStackPlaywrightEnv } from '#/shared/testing/local-stack-playwright-env'
@@ -28,6 +29,14 @@ describe('local stack contract', () => {
     expect(env.BETA_ALLOWLIST_ORGS).toBe(LOCAL_E2E_ORGANIZATION_ID)
     expect(env.E2E_EXTERNAL_STACK).toBe('1')
     expect(env.QUEUE_REDIS_URL).toBe(env.REDIS_URL)
+  })
+
+  it('lists the seeded owner as the platform operator by account, not by address', () => {
+    const env = localStackPlaywrightEnv(resolve(process.cwd(), 'e2e/stack.env'))
+
+    // The console's principal is `user:<user id>` (ADR 0063); the seed creates
+    // the owner with this id so the committed list can name it.
+    expect(env.OPS_OPERATOR_IDENTITIES).toBe(`user:${LOCAL_E2E_OPERATOR_USER_ID}`)
   })
 
   it('allows non-core product capabilities only for the seeded organization', () => {
