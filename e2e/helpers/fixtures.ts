@@ -611,12 +611,13 @@ export async function getUserByEmail(
  * property-access.spec.ts and dashboard-governance.spec.ts want: a login that
  * is deliberately NOT beta-interactive, so they can assert property scoping.
  *
- * Inbox specs must pass 'owner'. Assignment now authorizes the ASSIGNEE as its
- * own principal, and Member is not a beta-interactive role, so handing an Inbox
- * item to a Member user is refused with "Inbox command authority is no longer
- * current" before any permission or grant is read. 'admin' (PropertyManager)
- * does not work either without more fixture work — it requires Staff
- * Participation links this database does not have.
+ * Inbox specs must pass 'admin' (a grant-only PropertyManager) or 'owner'.
+ * Assignment authorizes the ASSIGNEE as its own principal, and Member is not a
+ * beta-interactive role, so handing an Inbox item to a Member user is refused
+ * with "Inbox command authority is no longer current" before any permission or
+ * grant is read. A PropertyManager needs only this grant: Staff Participation
+ * and login links are attribution facts and gate nothing (ADR 0052, amended
+ * 2026-09-30), so no Staff rows are seeded here.
  */
 export async function seedMemberUserWithGrant(input: {
   organizationId: string
