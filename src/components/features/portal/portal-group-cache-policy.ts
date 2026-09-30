@@ -2,7 +2,9 @@ import type { QueryClient, QueryKey } from '@tanstack/react-query'
 import { portalKeys } from '#/shared/queries/query-keys'
 
 /**
- * Portal Group writes affect three independent server projections. Keeping the
+ * Portal Group writes affect four independent server projections: the group
+ * list, the two Goal subject reads, and the Portals overview (which names each
+ * Portal's group). Keeping the
  * complete property-scoped fan-out here prevents a mutation route from updating
  * the management list while leaving Goal subject labels stale.
  */
@@ -11,6 +13,7 @@ function affectedProjectionKeys(propertyId: string): readonly QueryKey[] {
     portalKeys.groups(propertyId),
     portalKeys.goalSubjects(propertyId),
     portalKeys.goalSubjectNames(propertyId),
+    portalKeys.overview(propertyId),
   ]
 }
 

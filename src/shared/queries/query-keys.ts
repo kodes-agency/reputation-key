@@ -265,6 +265,9 @@ export const portalKeys = {
     [...portalKeys.all, 'property', propertyId] as const,
   forPropertyPortal: (propertyId: string, portalId: string) =>
     [...portalKeys.forProperty(propertyId), 'portal', portalId] as const,
+  /** The Portals overview: every Portal of a Property, read in one batch. */
+  overview: (propertyId: string) =>
+    [...portalKeys.forProperty(propertyId), 'overview'] as const,
   analyticsRoot: (propertyId: string, portalId: string) =>
     [...portalKeys.forPropertyPortal(propertyId, portalId), 'analytics'] as const,
   /** One window, with or without the period before: each is its own read. */
