@@ -168,3 +168,15 @@ export const AlreadyUsed: Story = {
 export const Unavailable: Story = {
   args: { link: { state: 'unavailable' } },
 }
+
+// Signed in, and the preview's per-IP limit ran out: nothing is known about
+// the link, so there is nothing to confirm. The card says to wait.
+export const RateLimited: Story = {
+  args: { link: { state: 'rate_limited' } },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Too many attempts')).toBeInTheDocument()
+    await expect(canvas.getByRole('link', { name: 'Go to your workspace' })).toBeVisible()
+    await expect(args.acceptInvitation).not.toHaveBeenCalled()
+  },
+}

@@ -8,9 +8,14 @@
 // request, so the hop costs a browser nothing on the way in).
 
 import { redirect } from '@tanstack/react-router'
-import type { InvitationLink } from '#/components/features/identity'
+import type { QueryClient } from '@tanstack/react-query'
+import type {
+  InvitationLink,
+  UnusableInvitationLink,
+} from '#/components/features/identity'
 import { getSession } from '#/shared/auth/auth.functions'
 import { getInvitationPreview } from '#/contexts/identity/server/organizations'
+import { pendingInvitationsQuery } from './-pending-invitations-query'
 
 type InvitationEntry = Readonly<{
   link: InvitationLink
@@ -20,11 +25,35 @@ type InvitationEntry = Readonly<{
   signedInEmail: string | null
 }>
 
+const RATE_LIMITED_LINK: UnusableInvitationLink = { state: 'rate_limited' }
+
+/**
+ * The preview's per-IP limit is an expected state, not a fault: opening a link
+ * spends some of it, so a shared address can run out. Recognised by the code
+ * the server throws (the shape `isServerFunctionError` checks, without
+ * importing it: that module is part of first paint, and a second, lazy
+ * importer would split it into a chunk of its own in the budgeted closure).
+ * Anything else is a real failure and keeps going to the error page, where it
+ * is reported.
+ */
+function isRateLimited(error: unknown): boolean {
+  return (
+    error instanceof Error &&
+    (error as Error & { code?: unknown }).code === 'rate_limited'
+  )
+}
+
+async function readPreview(invitationId: string) {
+  try {
+    return await getInvitationPreview({ data: { invitationId } })
+  } catch (error) {
+    if (isRateLimited(error)) return RATE_LIMITED_LINK
+    throw error
+  }
+}
+
 async function loadInvitationEntry(invitationId: string): Promise<InvitationEntry> {
-  const [session, preview] = await Promise.all([
-    getSession(),
-    getInvitationPreview({ data: { invitationId } }),
-  ])
+  const [session, preview] = await Promise.all([getSession(), readPreview(invitationId)])
   const signedInEmail = session?.user.email ?? null
   if (preview.state !== 'pending') {
     return { link: preview, accountExists: false, signedInEmail }
@@ -60,15 +89,19 @@ export type AcceptEntry =
   | Readonly<{ kind: 'list' }>
   | Readonly<{ kind: 'link'; link: InvitationLink; signedInEmail: string }>
   // Signed out, and the link needs no account to explain itself.
-  | Readonly<{ kind: 'unusable'; link: Exclude<InvitationLink, { state: 'pending' }> }>
+  | Readonly<{ kind: 'unusable'; link: UnusableInvitationLink }>
 
 export async function resolveAcceptEntry(
   id: string | undefined,
+  queryClient: Pick<QueryClient, 'ensureQueryData'>,
 ): Promise<{ entry: AcceptEntry }> {
   if (!id) {
     if (!(await getSession())) {
       throw redirect({ to: '/join', search: { invitationId: undefined } })
     }
+    // The list page reads this same query; priming it here, where the page is
+    // chosen, keeps a `loader` (and its code) out of the first-paint bundle.
+    await queryClient.ensureQueryData(pendingInvitationsQuery)
     return { entry: { kind: 'list' } }
   }
   const { link, accountExists, signedInEmail } = await loadInvitationEntry(id)

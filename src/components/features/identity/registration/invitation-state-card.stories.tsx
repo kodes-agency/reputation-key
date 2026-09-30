@@ -53,6 +53,18 @@ export const Unavailable: Story = {
   args: { state: 'unavailable' },
 }
 
+// The preview's per-IP limit ran out: say to wait, and offer no retry button
+// (each retry would spend more of the same budget).
+export const RateLimited: Story = {
+  args: { state: 'rate_limited' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Too many attempts')).toBeInTheDocument()
+    await expect(canvas.getByText(/wait a few minutes/i)).toBeInTheDocument()
+    await expect(canvas.queryByRole('button')).not.toBeInTheDocument()
+  },
+}
+
 // Light surfaces need their own contrast proof.
 export const ExpiredLight: Story = {
   ...Expired,

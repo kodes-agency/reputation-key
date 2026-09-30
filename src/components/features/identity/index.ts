@@ -6,9 +6,12 @@ export { LoginForm } from './login/login-form'
 export { RegisterForm } from './registration/register-form'
 export { AcceptInvitationPage } from './registration/accept-invitation-page'
 export { InvitationLinkPage } from './registration/invitation-link-page'
-export { InvitationStateCard } from './registration/invitation-state-card'
+export { InvitationLinkStateCard } from './registration/invitation-state-card'
 export { InvitationSummary } from './registration/invitation-summary'
-export type { InvitationLink } from './registration/invitation-link'
+export type {
+  InvitationLink,
+  UnusableInvitationLink,
+} from './registration/invitation-link'
 export { MemberTable } from './member-directory/member-table'
 export type { MemberRow, PropertyRef } from './member-directory/member-table'
 export { ChangeRoleDialog } from './member-directory/change-role-dialog'

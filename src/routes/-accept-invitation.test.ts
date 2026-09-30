@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
+import { identityKeys } from '#/shared/queries/query-keys'
 
 const { getSession, getInvitationPreview } = vi.hoisted(() => ({
   getSession: vi.fn(),
@@ -12,6 +14,8 @@ vi.mock('#/contexts/identity/server/organizations', () => ({
   getInvitationPreview,
 }))
 
+import { invitationPreviewInputSchema } from '#/contexts/identity/application/dto/invitation.dto'
+import { INVITATION_ID_MAX_LENGTH } from '#/shared/domain/ids'
 import { acceptInvitationSearch, Route } from './accept-invitation'
 
 const INVITATION_ID = 'b3c1f0de-4a52-4d7e-9f61-2f1c7a9e5d10'
@@ -38,6 +42,22 @@ describe('accept-invitation search', () => {
   it('reads a link without an id as no invitation', () => {
     expect(acceptInvitationSearch.parse({})).toEqual({})
   })
+
+  // The preview refuses an id longer than INVITATION_ID_MAX_LENGTH. A link
+  // whose id is longer than any id we issue is not an invitation, so it reads
+  // as none instead of reaching the server to be refused there.
+  it('keeps an id at the longest length the server accepts', () => {
+    const id = 'a'.repeat(INVITATION_ID_MAX_LENGTH)
+    expect(acceptInvitationSearch.parse({ id }).id).toBe(id)
+  })
+
+  it('reads an id longer than the server accepts as no invitation', () => {
+    const id = 'a'.repeat(INVITATION_ID_MAX_LENGTH + 1)
+    expect(acceptInvitationSearch.parse({ id }).id).toBeUndefined()
+    expect(invitationPreviewInputSchema.safeParse({ invitationId: id }).success).toBe(
+      false,
+    )
+  })
 })
 
 const EXPIRES_AT = new Date('2026-10-07T12:00:00.000Z')
@@ -56,14 +76,26 @@ const pendingPreview = (accountExists: boolean) => ({
 
 const signedInAs = (email: string) => ({ user: { email }, session: {} })
 
+const ensureQueryData = vi.fn()
+
 function runBeforeLoad(id: string | undefined) {
   const beforeLoad = Route.options.beforeLoad
   if (!beforeLoad) throw new Error('accept-invitation must define beforeLoad')
   return beforeLoad({
     search: { id },
+    context: { queryClient: { ensureQueryData } },
     location: { href: `/accept-invitation?id=${id ?? ''}` },
   } as never)
 }
+
+// What the preview server function throws past its per-IP limit.
+const rateLimited = () =>
+  new ServerFunctionError(
+    'AuthError',
+    'Too many requests. Try again later.',
+    'rate_limited',
+    429,
+  )
 
 describe('accept-invitation route', () => {
   beforeEach(() => {
@@ -88,6 +120,19 @@ describe('accept-invitation route', () => {
         entry: { kind: 'list' },
       })
       expect(getInvitationPreview).not.toHaveBeenCalled()
+    })
+
+    // The list is primed where the page is chosen, not in a `loader`: a loader
+    // would sit in the first-paint bundle, which is budgeted to the byte.
+    it('primes the pending list for the page it chose', async () => {
+      getSession.mockResolvedValue(signedInAs('dana@meridian.test'))
+
+      await runBeforeLoad(undefined)
+
+      expect(ensureQueryData).toHaveBeenCalledTimes(1)
+      expect(ensureQueryData).toHaveBeenCalledWith(
+        expect.objectContaining({ queryKey: identityKeys.userInvitations() }),
+      )
     })
   })
 
@@ -142,6 +187,30 @@ describe('accept-invitation route', () => {
         entry: { kind: 'unusable', link: { state: 'unavailable' } },
       })
     })
+
+    // Every open of a link spends some of the anonymous preview's per-IP
+    // budget, so running out is an expected state. It says to wait, instead of
+    // the generic error page (which offers Try again, and each retry spends
+    // more of the same budget).
+    it('says to wait when the preview is rate limited', async () => {
+      getInvitationPreview.mockRejectedValue(rateLimited())
+
+      await expect(runBeforeLoad(INVITATION_ID)).resolves.toEqual({
+        entry: { kind: 'unusable', link: { state: 'rate_limited' } },
+      })
+    })
+
+    it.each([
+      [
+        'a server error',
+        new ServerFunctionError('InternalError', 'Failed', 'internal', 500),
+      ],
+      ['an error with no code', new Error('network down')],
+    ])('does not mistake %s for a rate limit', async (_label, failure) => {
+      getInvitationPreview.mockRejectedValue(failure)
+
+      await expect(runBeforeLoad(INVITATION_ID)).rejects.toBe(failure)
+    })
   })
 
   describe('signed in, with an invitation id', () => {
@@ -167,6 +236,20 @@ describe('accept-invitation route', () => {
           },
         },
       })
+    })
+
+    it('tells a signed-in visitor to wait when the preview is rate limited', async () => {
+      getSession.mockResolvedValue(signedInAs('new.hire@meridian.test'))
+      getInvitationPreview.mockRejectedValue(rateLimited())
+
+      await expect(runBeforeLoad(INVITATION_ID)).resolves.toEqual({
+        entry: {
+          kind: 'link',
+          signedInEmail: 'new.hire@meridian.test',
+          link: { state: 'rate_limited' },
+        },
+      })
+      expect(ensureQueryData).not.toHaveBeenCalled()
     })
 
     it('still shows a signed-in visitor a used link instead of the list', async () => {
