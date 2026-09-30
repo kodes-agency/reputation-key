@@ -1,0 +1,211 @@
+/* Guest fonts, self-hosted: Cormorant Garamond (600, 500 italic) and Ysabeau
+   Office (400, 600). Both are licensed under the SIL Open Font License 1.1;
+   the licence texts sit beside the files (OFL-*.txt).
+
+   Source: the woff2 subsets published by Fontsource, @fontsource/cormorant-
+   garamond 5.3.0 and @fontsource/ysabeau-office 5.3.0, unmodified. Four
+   subsets each (latin, latin-ext, cyrillic, cyrillic-ext), so a guest
+   downloads only the ranges the page uses. Vietnamese, Greek, math and symbol
+   subsets are left out: none of the six guest languages needs them.
+
+   Loaded only by pages whose loader declares the 'guest' font set (see
+   src/shared/font-sets.ts). The app fonts stay on every other page. Kept
+   outside the Vite pipeline on purpose: the bundle budget counts every emitted
+   stylesheet, and this one is needed on guest pages alone. */
+
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/guest/cormorant-garamond-latin-600-normal.woff2) format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/guest/cormorant-garamond-latin-ext-600-normal.woff2) format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0,
+    U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/guest/cormorant-garamond-cyrillic-600-normal.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/guest/cormorant-garamond-cyrillic-ext-600-normal.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: italic;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/guest/cormorant-garamond-latin-500-italic.woff2) format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: italic;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/guest/cormorant-garamond-latin-ext-500-italic.woff2) format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0,
+    U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: italic;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/guest/cormorant-garamond-cyrillic-500-italic.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+@font-face {
+  font-family: 'Cormorant Garamond';
+  font-style: italic;
+  font-weight: 500;
+  font-display: swap;
+  src: url(/fonts/guest/cormorant-garamond-cyrillic-ext-500-italic.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+
+@font-face {
+  font-family: 'Ysabeau Office';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/guest/ysabeau-office-latin-400-normal.woff2) format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Ysabeau Office';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/guest/ysabeau-office-latin-ext-400-normal.woff2) format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0,
+    U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Ysabeau Office';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/guest/ysabeau-office-cyrillic-400-normal.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+@font-face {
+  font-family: 'Ysabeau Office';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(/fonts/guest/ysabeau-office-cyrillic-ext-400-normal.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+
+@font-face {
+  font-family: 'Ysabeau Office';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/guest/ysabeau-office-latin-600-normal.woff2) format('woff2');
+  unicode-range:
+    U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308,
+    U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Ysabeau Office';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/guest/ysabeau-office-latin-ext-600-normal.woff2) format('woff2');
+  unicode-range:
+    U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308,
+    U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C0,
+    U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+
+@font-face {
+  font-family: 'Ysabeau Office';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/guest/ysabeau-office-cyrillic-600-normal.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+
+@font-face {
+  font-family: 'Ysabeau Office';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(/fonts/guest/ysabeau-office-cyrillic-ext-600-normal.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C8A, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+
+/* Fallbacks sized to the web fonts. While a web font loads (font-display:
+   swap), text is set in a local face stretched to the same width and line box,
+   so the swap moves neither the line breaks nor the page height. Metrics were
+   measured from the woff2 files above against Times New Roman and Arial
+   (average advance width over Latin letter frequencies, plus the hhea line
+   metrics); on platforms with neither (stock Android ships Roboto and Noto
+   Serif), the browser continues down the font-family list unadjusted. */
+@font-face {
+  font-family: 'Cormorant Garamond Fallback';
+  src: local('Times New Roman'), local('TimesNewRoman'), local('Liberation Serif');
+  size-adjust: 98.04%;
+  ascent-override: 94.25%;
+  descent-override: 29.27%;
+  line-gap-override: 0%;
+}
+
+@font-face {
+  font-family: 'Ysabeau Office Fallback';
+  src: local('Arial'), local('ArialMT'), local('Liberation Sans');
+  size-adjust: 93.88%;
+  ascent-override: 112.27%;
+  descent-override: 30.78%;
+  line-gap-override: 0%;
+}
+
+:root {
+  --font-guest-display:
+    'Cormorant Garamond', 'Cormorant Garamond Fallback', Georgia, 'Times New Roman', serif;
+  --font-guest-body:
+    'Ysabeau Office', 'Ysabeau Office Fallback', system-ui, -apple-system, 'Segoe UI',
+    sans-serif;
+}

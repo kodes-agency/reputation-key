@@ -37,6 +37,7 @@ import type {
   PortalId,
   PortalGroupId,
 } from '#/shared/domain/ids'
+import type { GuestSurface } from '../domain/portal-publication-snapshot'
 import type { PortalAccessArtifactChannel } from '../domain/portal-access-artifact'
 import type { PortalHealthReason, PortalHealthStatus } from '../domain/portal-health'
 import type { PortalContactRequestManagerAuthorityFacts } from './use-cases/portal-contact-request-authority'
@@ -103,6 +104,11 @@ export type PublicPortalResult = Readonly<{
     languagePackVersion: GuestLanguagePackVersion
   }>
   responseConfiguration: PublicPortalResponseConfiguration
+  /**
+   * Which guest page renders this publication, from its snapshot schema
+   * version. The Guest projection derives the page's web fonts from it.
+   */
+  guestSurface: GuestSurface
   organizationId: string
   propertyId: string
 }>

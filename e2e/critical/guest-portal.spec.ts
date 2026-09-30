@@ -53,6 +53,16 @@ test.describe('Critical: public Portal basics', () => {
 
     await expect(page.getByRole('heading', { name: 'E2E Guest Portal P1' })).toBeVisible()
     await expect(page.getByRole('radio', { name: '1 star' })).toBeVisible()
+    // The seeded portal is a legacy (v1/v2) publication, so it keeps the app
+    // fonts and loads none of the self-hosted guest fonts. The Immersive Hub
+    // page asserts the opposite (assertNoFontCdnRequests) once a v3 fixture
+    // exists.
+    expect(log.fontCdnHostsRequested()).toEqual(
+      expect.arrayContaining(['api.fontshare.com', 'fonts.googleapis.com']),
+    )
+    expect(log.requests.some((request) => request.url.includes('/fonts/guest/'))).toBe(
+      false,
+    )
     const sessionCookies = (await context.cookies()).filter(
       (cookie) => cookie.name === 'rk_guest_session',
     )

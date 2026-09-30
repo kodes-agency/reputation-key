@@ -62,6 +62,7 @@ describe('createPublicPortalLookup', () => {
         languagePackVersion: 'guest-ui-en-v1',
         privateFeedbackThreshold: 3,
       },
+      guestSurface: 'legacy' as const,
       organizationId: 'org-1',
       propertyId: 'property-1',
     }

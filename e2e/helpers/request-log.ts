@@ -14,12 +14,18 @@
 // events — page.request APIRequestContext calls (signIn's auth API posts) are
 // never recorded here. WebSockets are separate page events and not recorded.
 //
-// Font CDNs: styles.css @imports Satoshi (api.fontshare.com → cdn.fontshare.com
+// Font CDNs: the app fonts are Satoshi (api.fontshare.com → cdn.fontshare.com
 // binaries) and Plus Jakarta Sans/JetBrains Mono (fonts.googleapis.com →
-// fonts.gstatic.com binaries). Those are the app's OWN static assets shipped
-// with every page — not external service/data calls — so they are
+// fonts.gstatic.com binaries), linked by the root document on every page that
+// uses the 'app' font set (src/shared/font-sets.ts). Those are the app's OWN
+// static assets — not external service/data calls — so they are
 // default-allowed in assertNoExternalHosts. Anything else external (Resend,
 // Google APIs, AI providers, analytics) still fails the assertion.
+//
+// The Immersive Hub guest page uses the 'guest' set, self-hosted under
+// /fonts/guest/. A journey on such a page asserts it with
+// assertNoFontCdnRequests(); a legacy guest page keeps the app fonts, which
+// fontCdnHostsRequested() lets a journey prove.
 
 import { expect, type Page, type Request } from '@playwright/test'
 
@@ -45,6 +51,13 @@ export type RequestLog = Readonly<{
    * intends to touch (e.g. ['localhost:3001']).
    */
   assertNoExternalHosts(allowedHosts: readonly string[]): void
+  /**
+   * Fails when any request went to one of the app's font CDNs. For pages that
+   * self-host their fonts, where "allowed by default" is not good enough.
+   */
+  assertNoFontCdnRequests(): void
+  /** The distinct font CDN hosts contacted so far, in first-request order. */
+  fontCdnHostsRequested(): readonly string[]
   /** Detach the listener (collector stops recording). */
   detach(): void
 }>
@@ -105,6 +118,21 @@ export function attachRequestLog(page: Page): RequestLog {
         violations,
         `expected zero requests outside ${[...allowed].join(', ')}, recorded:\n  ${formatViolations(violations)}`,
       ).toEqual([])
+    },
+    assertNoFontCdnRequests() {
+      const violations = requests.filter(
+        (r) => isHttp(r.url) && FONT_CDN_HOSTS.includes(r.host),
+      )
+      expect(
+        violations,
+        `expected zero font CDN requests, recorded:\n  ${formatViolations(violations)}`,
+      ).toEqual([])
+    },
+    fontCdnHostsRequested() {
+      const hosts = requests
+        .filter((r) => isHttp(r.url) && FONT_CDN_HOSTS.includes(r.host))
+        .map((r) => r.host)
+      return [...new Set(hosts)]
     },
     detach() {
       page.off('request', onRequest)

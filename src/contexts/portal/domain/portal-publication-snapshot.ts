@@ -2,6 +2,8 @@ import type { GuestLocale } from '#/shared/domain/guest-locale'
 
 export const LEGACY_PORTAL_PUBLICATION_SCHEMA_VERSION = 1 as const
 export const PORTAL_PUBLICATION_SCHEMA_VERSION = 2 as const
+/** First snapshot schema rendered by the Immersive Hub guest page. */
+export const IMMERSIVE_HUB_SCHEMA_VERSION = 3 as const
 export const PRIMARY_GUEST_LOCALE = 'en' as const
 
 // Historical pins. Snapshots are immutable and must verify forever, so these
@@ -129,6 +131,23 @@ export function isLocalizedConfiguration<C extends { readonly schemaVersion: num
   configuration: C,
 ): configuration is Extract<C, { readonly schemaVersion: 2 }> {
   return configuration.schemaVersion === PORTAL_PUBLICATION_SCHEMA_VERSION
+}
+
+/** Which guest page renders a snapshot: the pre-round-4 one, or the Immersive Hub. */
+export type GuestSurface = 'legacy' | 'immersive'
+
+/**
+ * The guest surface a configuration is rendered on: schema version 3 and later
+ * are the Immersive Hub, versions 1 and 2 stay on the legacy page. Everything
+ * that must agree with the renderer (the web fonts today) derives from this one
+ * fact instead of guessing from another field.
+ */
+export function guestSurfaceOfConfiguration(
+  configuration: Readonly<{ schemaVersion: number }>,
+): GuestSurface {
+  return configuration.schemaVersion >= IMMERSIVE_HUB_SCHEMA_VERSION
+    ? 'immersive'
+    : 'legacy'
 }
 
 export type PortalPublicationSnapshot = Readonly<{
