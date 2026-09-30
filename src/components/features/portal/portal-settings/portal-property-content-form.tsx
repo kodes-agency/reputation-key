@@ -9,6 +9,7 @@ import { FieldGroup } from '#/components/ui/field'
 import { propertyPortalBrandContentInputSchema } from '#/contexts/portal/application/dto/portal-experience.dto'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalExperienceActions } from './portal-experience-settings-types'
+import { useExplicitDraftGuard } from '../portal-editor/use-portal-form-autosave'
 
 const propertyContentFormSchema = propertyPortalBrandContentInputSchema
   .pick({ title: true, shortDescription: true })
@@ -37,6 +38,7 @@ export function PortalPropertyContentForm({
       await action({ data: { propertyId, locale, ...parsed } })
     },
   })
+  useExplicitDraftGuard(`content-${locale}`, form)
   return (
     <form className="space-y-3" onSubmit={submitHandler(form)}>
       <p className="text-sm text-muted-foreground">Property-wide fallback</p>

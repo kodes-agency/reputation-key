@@ -20,7 +20,13 @@ import { portalKeys } from '#/shared/queries/query-keys'
 import type { UpdatePortalVariables } from '#/components/features/portal/shared/types'
 import type { PortalQueryResult } from './-portal-detail-data'
 
-function usePortalUpdateAction(propertyId: string, portalId: string) {
+/**
+ * The portal patch. `announce` decides whether success toasts: the explicit
+ * writes (publication toggle, language Save) say "Portal updated", while the
+ * autosaved sections stay silent because the header's "Draft saved" is their
+ * acknowledgement and a toast per pause in typing would be noise.
+ */
+function usePortalUpdateAction(propertyId: string, portalId: string, announce: boolean) {
   const queryClient = useQueryClient()
   const mutation = useMutation({
     mutationFn: (input: UpdatePortalVariables) => updatePortal(input),
@@ -43,7 +49,7 @@ function usePortalUpdateAction(propertyId: string, portalId: string) {
       await queryClient.refetchQueries({ queryKey, exact: true })
     },
     onSuccess: async () => {
-      toast.success('Portal updated')
+      if (announce) toast.success('Portal updated')
       await Promise.all([
         queryClient.invalidateQueries({ queryKey: portalKeys.detail(portalId) }),
         queryClient.invalidateQueries({ queryKey: portalKeys.links(portalId) }),
@@ -89,8 +95,8 @@ function usePortalExperienceActions(propertyId: string, portalId: string) {
     successMessage: 'Guest content saved',
     invalidateKeys: experienceInvalidations,
   })
+  // Autosaved as it is typed, so silent on success (see usePortalUpdateAction).
   const saveOverride = useActionMutation(savePortalLocalizedOverride, {
-    successMessage: 'Portal wording saved',
     invalidateKeys: experienceInvalidations,
   })
   const requestDestination = useActionMutation(requestPortalApprovedDestination, {
@@ -121,7 +127,8 @@ function usePortalExperienceActions(propertyId: string, portalId: string) {
  * same way the individual hooks were.
  */
 export function usePortalDetailActions(propertyId: string, portalId: string) {
-  const update = usePortalUpdateAction(propertyId, portalId)
+  const update = usePortalUpdateAction(propertyId, portalId, true)
+  const autosaveUpdate = usePortalUpdateAction(propertyId, portalId, false)
   const issueToken = useActionMutation(issuePortalToken, {
     successMessage: 'Public link generated',
   })
@@ -149,6 +156,7 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
 
   return {
     update,
+    autosaveUpdate,
     issueToken,
     rotateToken,
     revokeToken,

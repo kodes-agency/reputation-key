@@ -28,7 +28,10 @@ describe('normalizePortalWorkspaceSearch — which tab the URL asks for', () => 
   it('maps the legacy tab names onto the tab that now holds their content', () => {
     // Bookmarks, notification links and the e2e journeys still carry these.
     expect(normalizePortalWorkspaceSearch({ tab: 'settings' })).toEqual({ tab: 'page' })
-    expect(normalizePortalWorkspaceSearch({ tab: 'links' })).toEqual({ tab: 'page' })
+    expect(normalizePortalWorkspaceSearch({ tab: 'links' })).toEqual({
+      tab: 'page',
+      section: 'linktree',
+    })
     expect(normalizePortalWorkspaceSearch({ tab: 'analytics' })).toEqual({
       tab: 'results',
     })
@@ -40,6 +43,47 @@ describe('normalizePortalWorkspaceSearch — which tab the URL asks for', () => 
       expect(normalizePortalWorkspaceSearch({ tab })).toEqual({ tab: 'page' })
     },
   )
+
+  it('keeps a valid section on the Page tab', () => {
+    expect(normalizePortalWorkspaceSearch({ tab: 'page', section: 'linktree' })).toEqual({
+      tab: 'page',
+      section: 'linktree',
+    })
+  })
+
+  it('lets a section stand alone, since the Page tab is the default', () => {
+    expect(normalizePortalWorkspaceSearch({ section: 'private-note' })).toEqual({
+      tab: 'page',
+      section: 'private-note',
+    })
+  })
+
+  it.each([['nonsense'], [''], [7], [null], [['look']]])(
+    'drops the unknown section %j rather than failing the page',
+    (section) => {
+      expect(normalizePortalWorkspaceSearch({ tab: 'page', section })).toEqual({
+        tab: 'page',
+      })
+    },
+  )
+
+  it('drops a section on any tab that has no sections', () => {
+    expect(normalizePortalWorkspaceSearch({ tab: 'share', section: 'look' })).toEqual({
+      tab: 'share',
+    })
+    expect(normalizePortalWorkspaceSearch({ tab: 'analytics', section: 'look' })).toEqual(
+      {
+        tab: 'results',
+      },
+    )
+  })
+
+  it('lets an explicit section beat the one a legacy tab name implies', () => {
+    expect(normalizePortalWorkspaceSearch({ tab: 'links', section: 'footer' })).toEqual({
+      tab: 'page',
+      section: 'footer',
+    })
+  })
 
   it('drops every other search key, so a stray parameter cannot reach the page', () => {
     expect(normalizePortalWorkspaceSearch({ tab: 'share', propertyId: 'x' })).toEqual({

@@ -11,6 +11,7 @@ import type {
   PortalExperienceActions,
   PortalExperienceSettings,
 } from './portal-experience-settings-types'
+import { useExplicitDraftGuard } from '../portal-editor/use-portal-form-autosave'
 
 export function PortalPropertyBrandEditor({
   propertyId,
@@ -36,6 +37,7 @@ export function PortalPropertyBrandEditor({
       await action({ data: { propertyId, ...parsed } })
     },
   })
+  useExplicitDraftGuard('brand', form)
   const readOnly = disabled || !experience.canManagePropertyBrand
   // The public display name is owned by Property settings → Profile. It is
   // still sent unchanged, because the brand profile saves as one record.
@@ -44,7 +46,7 @@ export function PortalPropertyBrandEditor({
   return (
     <form className="space-y-3 rounded-md border p-4" onSubmit={submitHandler(form)}>
       <div>
-        <h4 className="font-medium">Property brand</h4>
+        <h3 className="font-medium">Property brand</h3>
         <p className="text-sm text-muted-foreground">
           Shared defaults used by every Portal for this Property.
           {!experience.canManagePropertyBrand

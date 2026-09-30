@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
+import { PortalDraftAutosaveProvider } from '../portal-editor/portal-draft-autosave-context'
 import { PortalApprovedDestinationsEditor } from './portal-approved-destinations-editor'
 import { PortalLocalizedContentEditor } from './portal-localized-content-editor'
 import { PortalPropertyBrandEditor } from './portal-property-brand-editor'
@@ -90,6 +91,15 @@ const meta: Meta<typeof PortalExperienceFormsShowcase> = {
   title: 'Portal/PortalExperienceForms',
   component: PortalExperienceFormsShowcase,
   parameters: { layout: 'fullscreen' },
+  // The forms register with the portal's autosave coordinator, which the
+  // workspace layout provides in the app.
+  decorators: [
+    (Story) => (
+      <PortalDraftAutosaveProvider>
+        <Story />
+      </PortalDraftAutosaveProvider>
+    ),
+  ],
 }
 export default meta
 type Story = StoryObj<typeof PortalExperienceFormsShowcase>
@@ -130,16 +140,23 @@ export const CommandsUseSharedDtos: Story = {
       }),
     )
 
-    await userEvent.click(canvas.getByRole('button', { name: /save portal override/i }))
-    await waitFor(() =>
-      expect(args.actions.saveOverride).toHaveBeenCalledWith({
-        data: {
-          portalId: 'portal-1',
-          locale: 'en',
-          title: null,
-          shortDescription: null,
-        },
-      }),
+    // This portal's own wording is part of its draft: no Save button, it is
+    // written a moment after the person stops typing.
+    await expect(
+      canvas.queryByRole('button', { name: /save portal override/i }),
+    ).not.toBeInTheDocument()
+    await userEvent.type(canvas.getByLabelText('Title override'), 'Pool')
+    await waitFor(
+      () =>
+        expect(args.actions.saveOverride).toHaveBeenCalledWith({
+          data: {
+            portalId: 'portal-1',
+            locale: 'en',
+            title: 'Pool',
+            shortDescription: null,
+          },
+        }),
+      { timeout: 3000 },
     )
 
     await userEvent.type(

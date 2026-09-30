@@ -33,7 +33,7 @@ export function PortalLocaleConfiguration({
   return (
     <div className="space-y-3 rounded-md border p-4">
       <div>
-        <h4 className="font-medium">Guest languages</h4>
+        <h3 className="font-medium">Guest languages</h3>
         <p className="text-sm text-muted-foreground">
           English is always available. Add Bulgarian and choose the fallback language.
         </p>

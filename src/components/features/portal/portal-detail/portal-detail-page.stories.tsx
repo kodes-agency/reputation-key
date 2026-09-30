@@ -1,12 +1,20 @@
-// Portal detail page — tabbed layout driven by the owning route's typed search state.
-// Components receive the active tab and navigation callback, so stories and SSR use
-// the same deterministic state without reading or mutating window.location.
+// Portal detail page — the tab (and, on the Page tab, the editor section) is
+// driven by the owning route's typed search state. Components receive it as
+// props, so stories and SSR use the same deterministic state without reading or
+// mutating window.location. The workspace layout provides the autosave
+// coordinator; the decorator below stands in for it.
 //
 // getPortalAnalytics is a server-fn-typed prop (analytics tab fires it on mount
 // via useServerFn(getPortalAnalytics)) → mock via mockServerFn + type cast.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { PortalDetailPage } from './portal-detail-page'
+import {
+  PortalDraftAutosaveProvider,
+  usePortalDraftAutosave,
+} from '../portal-editor/portal-draft-autosave-context'
+import { PortalDraftSaveStatus } from '../portal-editor/portal-draft-save-status'
+import { Button } from '#/components/ui/button'
 import type {
   getPortalAnalyticsFn,
   PortalAnalyticsData,
@@ -27,7 +35,14 @@ const meta: Meta<typeof PortalDetailPage> = {
   component: PortalDetailPage,
   tags: ['autodocs'],
   parameters: { layout: 'fullscreen' },
-  decorators: [AuthedRouterDecorator],
+  decorators: [
+    (Story) => (
+      <PortalDraftAutosaveProvider>
+        <Story />
+      </PortalDraftAutosaveProvider>
+    ),
+    AuthedRouterDecorator,
+  ],
 }
 export default meta
 type Story = StoryObj<typeof PortalDetailPage>
@@ -65,13 +80,6 @@ const links: readonly LinkTreeLink[] = [
     categoryId: 'cat-2',
   },
 ]
-// Never-resolving promise → mutation stays pending (Save button reads isPending).
-const { promise: neverResolves } = Promise.withResolvers<{ success: true }>()
-const pendingMutation = Object.assign(
-  async (_input: UpdatePortalVariables) => neverResolves,
-  { isPending: true, error: null as unknown, isSuccess: false, data: null },
-) as Action<UpdatePortalVariables, { success: true }>
-
 // Action mock: callable + reactive state props (matches the Action<T> shape).
 const idleMutation = Object.assign(
   async (_input: UpdatePortalVariables) => ({ success: true as const }),
@@ -204,6 +212,7 @@ const baseArgs = {
   categories,
   links,
   updateMutation: idleMutation,
+  autosaveUpdateMutation: idleMutation,
   completeReviewMutation,
   tokenStatus,
   issueTokenMutation,
@@ -213,12 +222,140 @@ const baseArgs = {
   activeTab: 'page' as const,
 }
 
-// The Page tab: the old Settings and Links tabs stacked, until the section list.
+// The Page tab opens on Welcome: the section list beside the portal's name,
+// address and description.
 export const PageTab: Story = {
   args: baseArgs,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('heading', { name: /settings/i })).toBeInTheDocument()
+    await expect(canvas.getByRole('heading', { name: 'Welcome' })).toBeInTheDocument()
+    await expect(canvas.getByLabelText('Name')).toHaveValue('Guest Services')
+    const nav = within(canvas.getByRole('navigation', { name: 'Editor sections' }))
+    await expect(nav.getByRole('link', { name: /welcome/i })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    // The publication toggle moved to Review & publish, and history to its tab.
+    await expect(
+      canvas.queryByRole('button', { name: /publish portal|disable public page/i }),
+    ).not.toBeInTheDocument()
+    await expect(
+      canvas.queryByRole('heading', { name: 'Publication history' }),
+    ).not.toBeInTheDocument()
+  },
+}
+
+// The palette is chosen from presets and saves itself: one click, one write,
+// with no Save button. The page owns the draft, so the preview follows the click.
+const paletteSpy = fn(async (_input: UpdatePortalVariables) => ({
+  success: true as const,
+}))
+export const PaletteAutosaves: Story = {
+  args: {
+    ...baseArgs,
+    activeSection: 'look',
+    autosaveUpdateMutation: Object.assign(paletteSpy, {
+      isPending: false,
+      error: null as unknown,
+      isSuccess: false,
+      data: null,
+    }) as unknown as Action<UpdatePortalVariables, { success: true }>,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /^Dark/ }))
+    await expect(canvas.getByRole('button', { name: /^Dark/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    await waitFor(
+      () =>
+        expect(paletteSpy).toHaveBeenCalledWith({
+          data: {
+            portalId: 'p-1',
+            theme: {
+              primaryColor: '#a5b4fc',
+              backgroundColor: '#111827',
+              textColor: '#f9fafb',
+            },
+          },
+        }),
+      { timeout: 3000 },
+    )
+    await expect(paletteSpy).toHaveBeenCalledTimes(1)
+  },
+}
+
+// A palette whose write failed is a draft the person has not been able to save.
+// Choosing to leave without it (the navigation prompt's "Leave and discard" calls
+// the same `discard`) must drop it, or the selector and the preview would go on
+// showing a palette that will never be written.
+function DiscardFailedSaves() {
+  const autosave = usePortalDraftAutosave()
+  return (
+    <Button variant="outline" onClick={() => autosave.discard()}>
+      Discard failed saves
+    </Button>
+  )
+}
+
+const failingPaletteSpy = fn(async (_input: UpdatePortalVariables) => ({
+  success: true as const,
+}))
+export const PaletteDraftIsDroppedWhenItsFailedSaveIsDiscarded: Story = {
+  args: {
+    ...baseArgs,
+    activeSection: 'look',
+    autosaveUpdateMutation: Object.assign(failingPaletteSpy, {
+      isPending: false,
+      error: null as unknown,
+      isSuccess: false,
+      data: null,
+    }) as unknown as Action<UpdatePortalVariables, { success: true }>,
+  },
+  render: (args) => (
+    <>
+      <DiscardFailedSaves />
+      <PortalDraftSaveStatus />
+      <PortalDetailPage {...args} />
+    </>
+  ),
+  play: async ({ canvasElement }) => {
+    failingPaletteSpy.mockRejectedValue(new Error('offline'))
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /^Dark/ }))
+    await waitFor(
+      () => expect(canvas.getByRole('status')).toHaveTextContent('Not saved'),
+      {
+        timeout: 3000,
+      },
+    )
+    // Not saved: the choice is still shown, so the person can retry it.
+    await expect(canvas.getByRole('button', { name: /^Dark/ })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+
+    await userEvent.click(canvas.getByRole('button', { name: 'Discard failed saves' }))
+
+    await waitFor(() =>
+      expect(canvas.getByRole('button', { name: /^Light/ })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      ),
+    )
+    await expect(canvas.getByRole('button', { name: /^Dark/ })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+  },
+}
+
+// The old Settings' Google card is the Rating & Google section now.
+export const RatingSection: Story = {
+  args: { ...baseArgs, activeSection: 'rating' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
     await expect(
       canvas.getByRole('heading', { name: 'Google review destination' }),
     ).toBeInTheDocument()
@@ -226,11 +363,16 @@ export const PageTab: Story = {
     await expect(
       canvas.queryByRole('textbox', { name: /google review/i }),
     ).not.toBeInTheDocument()
-    // The links are the second half of the same tab, not a tab of their own.
+  },
+}
+
+// The old Links tab is the Linktree section: the links are still there.
+export const LinktreeSection: Story = {
+  args: { ...baseArgs, activeSection: 'linktree' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('heading', { name: 'Linktree' })).toBeInTheDocument()
     await expect(canvas.getByText('Google Reviews')).toBeInTheDocument()
-    await expect(
-      canvas.queryByRole('heading', { name: 'Publication history' }),
-    ).not.toBeInTheDocument()
   },
 }
 
@@ -264,13 +406,4 @@ export const ShareTab: Story = {
 // the "no analytics data yet" empty state renders).
 export const ResultsTab: Story = {
   args: { ...baseArgs, activeTab: 'results' },
-}
-
-// Settings tab while a save is in flight.
-export const SettingsSaving: Story = {
-  args: { ...baseArgs, activeTab: 'page', updateMutation: pendingMutation },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(canvas.getByRole('button', { name: /saving/i })).toBeInTheDocument()
-  },
 }

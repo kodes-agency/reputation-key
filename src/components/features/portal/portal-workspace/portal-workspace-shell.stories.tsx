@@ -8,6 +8,7 @@ import { PortalWorkspaceHeader } from './portal-workspace-header'
 import { PortalWorkspaceShell } from './portal-workspace-shell'
 import { PortalWorkspaceTabs } from './portal-workspace-tabs'
 import type { PortalDetailTab } from '../portal-detail/portal-detail-rules'
+import type { PortalEditorSection } from '../portal-editor/portal-editor-sections'
 
 const PROPERTY_ID = '0b6f8a52-4c2e-4d61-9a55-2f1d3c7e9b10'
 const PORTAL_ID = '7c1e5a90-3b44-4f0d-8e21-6a9d0b2c4f33'
@@ -18,6 +19,7 @@ type FrameProps = Readonly<{
   pendingNote: string | null
   canReview: boolean
   activeTab: PortalDetailTab
+  activeSection?: PortalEditorSection
   hiddenTabs: ReadonlyArray<PortalDetailTab>
 }>
 
@@ -27,6 +29,7 @@ function Frame({
   pendingNote,
   canReview,
   activeTab,
+  activeSection,
   hiddenTabs,
 }: FrameProps) {
   return (
@@ -43,6 +46,8 @@ function Frame({
             pendingNote={pendingNote}
             canReview={canReview}
             activeTab={activeTab}
+            activeSection={activeSection}
+            saveStatus={<p className="text-xs text-muted-foreground">Draft saved</p>}
           />
         }
         tabs={
@@ -144,6 +149,25 @@ export const ReviewLinkKeepsTheTab: Story = {
     await expect(
       canvas.getByRole('link', { name: '2 changes not live' }),
     ).toHaveAttribute('href', review)
+  },
+}
+
+export const ReviewLinkKeepsTheSection: Story = {
+  args: { activeTab: 'page', activeSection: 'linktree' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // The section rides along with the tab, so review returns to where the
+    // manager was working; a page with no section names none.
+    await expect(canvas.getByRole('link', { name: 'Review & publish' })).toHaveAttribute(
+      'href',
+      `/properties/${PROPERTY_ID}/portals/${PORTAL_ID}/review?tab=page&section=linktree`,
+    )
+  },
+}
+
+export const ShowsTheAutosaveLine: Story = {
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByText('Draft saved')).toBeInTheDocument()
   },
 }
 

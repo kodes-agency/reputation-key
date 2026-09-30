@@ -20,11 +20,14 @@ import {
   normalizePortalWorkspaceSearch,
   type PortalDetailTab,
 } from '#/components/features/portal/portal-detail/portal-detail-rules'
+import type { PortalEditorSection } from '#/components/features/portal/portal-editor/portal-editor-sections'
 import {
   PortalDetailError,
   PortalDetailLoading,
   PortalFallbackFrame,
 } from '#/components/features/portal/portal-route-fallbacks'
+import { PortalDraftAutosaveProvider } from '#/components/features/portal/portal-editor/portal-draft-autosave-context'
+import { PortalDraftSaveStatus } from '#/components/features/portal/portal-editor/portal-draft-save-status'
 import { PortalLinkIssuanceProvider } from '#/components/features/portal/portal-workspace/portal-link-issuance'
 import { PortalWorkspaceHeader } from '#/components/features/portal/portal-workspace/portal-workspace-header'
 import { isWorkspaceReviewRoute } from '#/components/features/portal/portal-workspace/portal-workspace-route'
@@ -38,6 +41,7 @@ import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import {
   findAuthorizedPortal,
+  portalGroupsQuery,
   portalApprovedDestinationsQuery,
   portalExperienceQuery,
   portalLinksQuery,
@@ -52,8 +56,9 @@ export const Route = createFileRoute(
   // The input is typed so a Link can only name a current tab, and `tab` stays
   // optional (the Page tab is the default). At runtime the value can be
   // anything a bookmark carries; normalization maps the pre-workspace names.
-  validateSearch: (search: { tab?: PortalDetailTab } & SearchSchemaInput) =>
-    normalizePortalWorkspaceSearch(search),
+  validateSearch: (
+    search: { tab?: PortalDetailTab; section?: PortalEditorSection } & SearchSchemaInput,
+  ) => normalizePortalWorkspaceSearch(search),
   beforeLoad: async ({ context, params }) => {
     await gateControlledRoute({
       data: {
@@ -88,6 +93,7 @@ export const Route = createFileRoute(
       // `tokenStatus` as undefined instead of triggering a fetch.
       context.queryClient.ensureQueryData(portalQuery(params.portalId)),
       context.queryClient.ensureQueryData(portalLinksQuery(params.portalId)),
+      context.queryClient.ensureQueryData(portalGroupsQuery(params.propertyId)),
       context.queryClient.ensureQueryData(responsibleManagersQuery(params.portalId)),
       context.queryClient.ensureQueryData(membersQuery),
       context.queryClient.ensureQueryData(portalPublicationHistoryQuery(params.portalId)),
@@ -144,7 +150,7 @@ function PortalNoLongerAvailable() {
  */
 function PortalWorkspaceLayout() {
   const { propertyId, portalId } = Route.useParams()
-  const { tab } = Route.useSearch()
+  const { tab, section } = Route.useSearch()
   const pathname = useRouterState({ select: (state) => state.location.pathname })
   const { has } = useCapabilities()
   const { can: canDo } = usePermissions()
@@ -173,6 +179,8 @@ function PortalWorkspaceLayout() {
         portal.publicationState,
       )}
       activeTab={view.tab}
+      activeSection={section}
+      saveStatus={<PortalDraftSaveStatus />}
     />
   )
   const tabs = reviewing ? undefined : (
@@ -187,10 +195,14 @@ function PortalWorkspaceLayout() {
   return (
     // Keyed so a once-shown public link can never follow the manager into a
     // different portal when the router reuses this layout for a new `portalId`.
+    // The autosave coordinator is keyed the same way, so one portal's unsaved
+    // edits can never be written into another.
     <PortalLinkIssuanceProvider key={portalId}>
-      <PortalWorkspaceShell header={header} tabs={tabs}>
-        <Outlet />
-      </PortalWorkspaceShell>
+      <PortalDraftAutosaveProvider key={portalId}>
+        <PortalWorkspaceShell header={header} tabs={tabs}>
+          <Outlet />
+        </PortalWorkspaceShell>
+      </PortalDraftAutosaveProvider>
     </PortalLinkIssuanceProvider>
   )
 }
