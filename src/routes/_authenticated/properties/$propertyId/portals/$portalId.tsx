@@ -5,9 +5,9 @@ import {
   Outlet,
   redirect,
   useRouterState,
+  type SearchSchemaInput,
 } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
-import { z } from 'zod/v4'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
@@ -18,6 +18,7 @@ import {
   describePendingChanges,
   describePortalStatus,
   normalizePortalWorkspaceSearch,
+  type PortalDetailTab,
 } from '#/components/features/portal/portal-detail/portal-detail-rules'
 import {
   PortalDetailError,
@@ -45,16 +46,14 @@ import {
   responsibleManagersQuery,
 } from './-portal-detail-data'
 
-// `tab` is optional on the way in, so links may omit it (the Page tab is the
-// default); normalization accepts any value and maps the pre-workspace names.
-const portalWorkspaceSearchSchema = z
-  .object({ tab: z.unknown().optional() })
-  .transform(normalizePortalWorkspaceSearch)
-
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/$portalId',
 )({
-  validateSearch: portalWorkspaceSearchSchema,
+  // The input is typed so a Link can only name a current tab, and `tab` stays
+  // optional (the Page tab is the default). At runtime the value can be
+  // anything a bookmark carries; normalization maps the pre-workspace names.
+  validateSearch: (search: { tab?: PortalDetailTab } & SearchSchemaInput) =>
+    normalizePortalWorkspaceSearch(search),
   beforeLoad: async ({ context, params }) => {
     await gateControlledRoute({
       data: {
@@ -169,8 +168,11 @@ function PortalWorkspaceLayout() {
         history.current?.version ?? null,
       )}
       pendingNote={describePendingChanges(history)}
-      canReview={canReviewAndPublish(canDo('portal.update'), portal.publicationState)}
-      returnTab={view.tab}
+      canReview={canReviewAndPublish(
+        { canUpdate: canDo('portal.update'), portalWriteEnabled: has('portal.write') },
+        portal.publicationState,
+      )}
+      activeTab={view.tab}
     />
   )
   const tabs = reviewing ? undefined : (

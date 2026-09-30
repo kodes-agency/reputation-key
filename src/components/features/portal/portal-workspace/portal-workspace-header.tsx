@@ -23,8 +23,11 @@ export type PortalWorkspaceHeaderProps = Readonly<{
   /** Whether "Review & publish" is offered (`canReviewAndPublish`). */
   canReview: boolean
   mode: 'edit' | 'review'
-  /** The tab "Back to editing" returns to. */
-  returnTab: PortalDetailTab
+  /**
+   * The tab being edited. The review links carry it as `?tab=`, so "Back to
+   * editing" returns to it.
+   */
+  activeTab: PortalDetailTab
 }>
 
 export function PortalWorkspaceHeader(props: PortalWorkspaceHeaderProps) {
@@ -37,7 +40,7 @@ export function PortalWorkspaceHeader(props: PortalWorkspaceHeaderProps) {
           <Link
             to="/properties/$propertyId/portals/$portalId"
             params={{ propertyId, portalId }}
-            search={{ tab: props.returnTab }}
+            search={{ tab: props.activeTab }}
           >
             <ArrowLeft aria-hidden /> Back to editing
           </Link>
@@ -71,6 +74,7 @@ function ReviewActions({
   portalId,
   pendingNote,
   canReview,
+  activeTab,
 }: PortalWorkspaceHeaderProps) {
   if (!canReview) {
     return pendingNote === null ? null : (
@@ -83,6 +87,7 @@ function ReviewActions({
         <Link
           to="/properties/$propertyId/portals/$portalId/review"
           params={{ propertyId, portalId }}
+          search={{ tab: activeTab }}
           className="text-sm text-muted-foreground underline decoration-dotted underline-offset-4 hover:text-foreground"
         >
           {pendingNote}
@@ -92,6 +97,7 @@ function ReviewActions({
         <Link
           to="/properties/$propertyId/portals/$portalId/review"
           params={{ propertyId, portalId }}
+          search={{ tab: activeTab }}
         >
           Review &amp; publish
         </Link>

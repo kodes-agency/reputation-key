@@ -100,7 +100,7 @@ export function describePortalStatus(
     case 'draft':
       return 'Draft · not published'
     case 'disabled':
-      return 'Paused'
+      return 'Disabled'
     case 'archived':
       return 'Archived'
   }
@@ -108,15 +108,17 @@ export function describePortalStatus(
 
 /**
  * Whether the header offers "Review & publish". Archival is terminal in this
- * UI (see PUBLICATION_TOGGLES), so there is nothing left to publish, and the
- * server refuses the write for anyone without `portal.update` either way — this
- * only keeps a dead button off the page.
+ * UI (see PUBLICATION_TOGGLES), so there is nothing left to publish. The review
+ * route needs both the role's `portal.update` permission and the organisation's
+ * `portal.write` capability (a separate controlled-beta switch from reading), and
+ * the server refuses the write without either — this only keeps a button off the
+ * page that would lead to a denial.
  */
 export function canReviewAndPublish(
-  canUpdate: boolean,
+  access: Readonly<{ canUpdate: boolean; portalWriteEnabled: boolean }>,
   state: PortalPublicationState,
 ): boolean {
-  return canUpdate && state !== 'archived'
+  return access.canUpdate && access.portalWriteEnabled && state !== 'archived'
 }
 
 /**

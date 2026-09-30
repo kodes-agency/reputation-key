@@ -5,6 +5,7 @@
 
 import type { Action } from '#/components/hooks/use-action'
 import type { PortalPublicationHistory } from '#/contexts/portal/application/public-api'
+import { PortalWorkspaceBodyFrame } from './portal-workspace-body-frame'
 import { PortalPublicationRow } from '../portal-settings/portal-publication-row'
 import { PortalSavedSettingsStatus } from '../portal-settings/portal-saved-settings-status'
 import type { PortalData, UpdatePortalVariables } from '../shared/types'
@@ -23,14 +24,16 @@ export function PortalReviewPage({
   canManage,
 }: Props) {
   return (
-    <section className="space-y-4" aria-labelledby="portal-review-heading">
-      <div className="space-y-1">
-        <h2 id="portal-review-heading" className="text-lg font-semibold">
-          Publication
-        </h2>
-        <PortalSavedSettingsStatus history={publicationHistory} />
-      </div>
-      <PortalPublicationRow portal={portal} mutation={mutation} canManage={canManage} />
-    </section>
+    <PortalWorkspaceBodyFrame>
+      <section className="space-y-4" aria-labelledby="portal-review-heading">
+        <div className="space-y-1">
+          <h2 id="portal-review-heading" className="text-lg font-semibold">
+            Publication
+          </h2>
+          <PortalSavedSettingsStatus history={publicationHistory} />
+        </div>
+        <PortalPublicationRow portal={portal} mutation={mutation} canManage={canManage} />
+      </section>
+    </PortalWorkspaceBodyFrame>
   )
 }

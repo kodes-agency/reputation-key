@@ -15,6 +15,7 @@ import { PortalPreviewToggle } from './portal-preview-toggle'
 import { PortalUnsavedChangesPrompt } from './portal-unsaved-changes-prompt'
 import { derivePortalDetailView, isThemeDraftDirty } from './portal-detail-rules'
 import { usePreviewToggle } from '../portal-preview/use-preview-toggle'
+import { PortalWorkspaceBodyFrame } from '../portal-workspace/portal-workspace-body-frame'
 import { usePortalLinkIssuance } from '../portal-workspace/portal-link-issuance'
 import type { FormLike, PortalThemeDraft } from '../shared/types'
 import type { PortalDetailPageProps } from './portal-detail-types'
@@ -49,36 +50,38 @@ export function PortalDetailPage(props: PortalDetailPageProps) {
   )
 
   return (
-    <div className="space-y-6">
-      <PortalUnsavedChangesPrompt isDirty={hasUnsavedChanges} />
+    <PortalWorkspaceBodyFrame>
+      <div className="space-y-6">
+        <PortalUnsavedChangesPrompt isDirty={hasUnsavedChanges} />
 
-      <PortalPreviewToggle
-        show={view.showPreview}
-        open={previewOpen}
-        onToggle={setPreviewOpen}
-      />
+        <PortalPreviewToggle
+          show={view.showPreview}
+          open={previewOpen}
+          onToggle={setPreviewOpen}
+        />
 
-      {/* The panel forwards the route-owned resources untouched; the page's own
+        {/* The panel forwards the route-owned resources untouched; the page's own
           props (organizationName, activeTab) are unused there. */}
-      <PortalDetailTabPanel
-        {...props}
-        {...issuance}
-        tab={view.tab}
-        theme={theme}
-        onThemeChange={setTheme}
-        formRef={editFormRef}
-      />
+        <PortalDetailTabPanel
+          {...props}
+          {...issuance}
+          tab={view.tab}
+          theme={theme}
+          onThemeChange={setTheme}
+          formRef={editFormRef}
+        />
 
-      <PortalDetailPreview
-        show={view.showPreview}
-        open={previewOpen}
-        onOpenChange={setPreviewOpen}
-        portal={portal}
-        organizationName={organizationName}
-        theme={theme}
-        categories={categories}
-        links={links}
-      />
-    </div>
+        <PortalDetailPreview
+          show={view.showPreview}
+          open={previewOpen}
+          onOpenChange={setPreviewOpen}
+          portal={portal}
+          organizationName={organizationName}
+          theme={theme}
+          categories={categories}
+          links={links}
+        />
+      </div>
+    </PortalWorkspaceBodyFrame>
   )
 }

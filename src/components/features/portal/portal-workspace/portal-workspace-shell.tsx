@@ -20,11 +20,8 @@ export function PortalWorkspaceShell({ header, tabs, children }: Props) {
     <div className="flex h-full min-h-0 flex-col bg-background">
       {header}
       {tabs}
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-5xl px-4 py-5 md:px-6 md:py-8">
-          {children}
-        </div>
-      </div>
+      {/* Full width: a tab body decides its own frame (see PortalWorkspaceBodyFrame). */}
+      <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
     </div>
   )
 }

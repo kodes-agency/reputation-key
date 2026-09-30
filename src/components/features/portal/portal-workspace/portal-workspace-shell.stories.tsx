@@ -42,7 +42,7 @@ function Frame({
             statusLine={statusLine}
             pendingNote={pendingNote}
             canReview={canReview}
-            returnTab={activeTab}
+            activeTab={activeTab}
           />
         }
         tabs={
@@ -89,7 +89,7 @@ export const LiveWithChangesWaiting: Story = {
     await expect(canvas.getByText('Avela Resort')).toBeInTheDocument()
     await expect(canvas.getByRole('link', { name: 'Review & publish' })).toHaveAttribute(
       'href',
-      `/properties/${PROPERTY_ID}/portals/${PORTAL_ID}/review`,
+      `/properties/${PROPERTY_ID}/portals/${PORTAL_ID}/review?tab=page`,
     )
     await expect(canvas.getByRole('link', { name: '2 changes not live' })).toBeVisible()
     const tabs = within(canvas.getByRole('navigation', { name: 'Portal sections' }))
@@ -131,6 +131,22 @@ export const ShareTabActive: Story = {
   },
 }
 
+export const ReviewLinkKeepsTheTab: Story = {
+  args: { activeTab: 'share' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // Both ways in carry the tab, so "Back to editing" can return to it.
+    const review = `/properties/${PROPERTY_ID}/portals/${PORTAL_ID}/review?tab=share`
+    await expect(canvas.getByRole('link', { name: 'Review & publish' })).toHaveAttribute(
+      'href',
+      review,
+    )
+    await expect(
+      canvas.getByRole('link', { name: '2 changes not live' }),
+    ).toHaveAttribute('href', review)
+  },
+}
+
 export const ResultsWithheld: Story = {
   args: { hiddenTabs: ['results'] },
   play: async ({ canvasElement }) => {
@@ -164,7 +180,7 @@ export const ReviewMode: Story = {
     await expect(
       canvas.getByRole('heading', { level: 1, name: 'Review changes to Pool & Terrace' }),
     ).toBeInTheDocument()
-    // The way back keeps the tab the manager came from.
+    // The route reads the tab from the review URL's `?tab=`; the way back returns to it.
     await expect(canvas.getByRole('link', { name: /back to editing/i })).toHaveAttribute(
       'href',
       `/properties/${PROPERTY_ID}/portals/${PORTAL_ID}?tab=share`,

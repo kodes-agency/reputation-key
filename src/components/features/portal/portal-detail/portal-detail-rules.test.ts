@@ -116,26 +116,36 @@ describe('describePortalStatus — the quiet line under the portal name', () => 
     expect(describePortalStatus('draft', null)).toBe('Draft · not published')
   })
 
-  it('does not call a paused or archived portal live, whatever version it last had', () => {
-    expect(describePortalStatus('disabled', null)).toBe('Paused')
-    expect(describePortalStatus('disabled', 4)).toBe('Paused')
+  it('does not call a disabled or archived portal live, whatever version it last had', () => {
+    expect(describePortalStatus('disabled', null)).toBe('Disabled')
+    expect(describePortalStatus('disabled', 4)).toBe('Disabled')
     expect(describePortalStatus('archived', 4)).toBe('Archived')
   })
 })
 
 describe('canReviewAndPublish — who is offered the publish step', () => {
+  const allowed = { canUpdate: true, portalWriteEnabled: true } as const
+
   it('offers it to a manager who can update the portal', () => {
-    expect(canReviewAndPublish(true, 'draft')).toBe(true)
-    expect(canReviewAndPublish(true, 'published')).toBe(true)
-    expect(canReviewAndPublish(true, 'disabled')).toBe(true)
+    expect(canReviewAndPublish(allowed, 'draft')).toBe(true)
+    expect(canReviewAndPublish(allowed, 'published')).toBe(true)
+    expect(canReviewAndPublish(allowed, 'disabled')).toBe(true)
   })
 
   it('never offers it to someone who cannot update the portal', () => {
-    expect(canReviewAndPublish(false, 'published')).toBe(false)
+    expect(canReviewAndPublish({ ...allowed, canUpdate: false }, 'published')).toBe(false)
+  })
+
+  it('never offers it while the organisation has portal writes switched off', () => {
+    // The review route is gated on the write capability, so the button would
+    // lead to the capability-denied page.
+    expect(
+      canReviewAndPublish({ ...allowed, portalWriteEnabled: false }, 'published'),
+    ).toBe(false)
   })
 
   it('never offers it for an archived portal, which nothing can publish', () => {
-    expect(canReviewAndPublish(true, 'archived')).toBe(false)
+    expect(canReviewAndPublish(allowed, 'archived')).toBe(false)
   })
 })
 
