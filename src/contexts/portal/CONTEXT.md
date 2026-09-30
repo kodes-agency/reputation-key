@@ -49,6 +49,22 @@ from a closed catalogue (`src/shared/domain/portal-link-icon.ts`, 27 keys, every
 icon the round-4 editor offers), enforced by a CHECK and refused in the link
 constructor.
 
+The **Property look** is the part of the Property Brand Profile a guest sees:
+accent colour, background (`background_mode` `auto` derives the dark page field
+from the accent with `src/shared/domain/portal-field-colour.ts`, `manual` uses
+`background_color`), wordmark and, in later releases, logo and photo, plus the
+per-language hero alt text on the brand content. The profile keeps two versions
+on purpose. `version` moves only with the public display name, because AI reply
+drafts fence on it (`ai-reply-brand-profile-authority.ts`); `look_version` moves
+with the look. A look edit writes one `property_brand_profile` pending change
+per look facet (`look:accent`, `look:field`, `look:text`, `look:wordmark`,
+`look:images`) for each Portal that has a snapshot, sourced at `look_version`;
+a name edit writes the `all` row sourced at `version`. A save that changes
+nothing only records who saved. `default_guest_locales` (ordered, one to six,
+first is the primary) only seeds new Portals, so editing it bumps no version,
+records no pending change, emits no fact and leaves `updated_by` alone (that
+column decides whether the public display name counts as confirmed).
+
 The eligible creator is the initial Portal Responsible Manager. Multiple eligible
 managers may be assigned; losing the last sets `responsibilityNeededSince`, and
 nobody is auto-promoted. Only a live Portal of an active Property also raises

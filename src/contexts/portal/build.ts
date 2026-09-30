@@ -98,6 +98,7 @@ import { createPortalDestinationNetworkValidator } from './infrastructure/adapte
 import {
   getPropertyPortalExperience,
   savePortalLocalizedOverride,
+  savePropertyDefaultGuestLocales,
   savePropertyPortalBrandContent,
   savePropertyPortalBrandProfile,
   savePropertyPublicDisplayName,
@@ -249,6 +250,13 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       clock: deps.clock,
     }),
     savePropertyPublicDisplayName: savePropertyPublicDisplayName({
+      experienceRepo: portalExperienceRepo,
+      portalRepo,
+      staffPublicApi: deps.staffPublicApi,
+      idGen: deps.idGen,
+      clock: deps.clock,
+    }),
+    savePropertyDefaultGuestLocales: savePropertyDefaultGuestLocales({
       experienceRepo: portalExperienceRepo,
       portalRepo,
       staffPublicApi: deps.staffPublicApi,
