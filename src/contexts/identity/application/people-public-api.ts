@@ -24,11 +24,6 @@ export type StaffPublicApi = Readonly<{
     organizationId: OrganizationId,
     staffParticipationId: string,
   ) => Promise<StaffParticipation | null>
-  findActiveParticipation?: (
-    organizationId: OrganizationId,
-    propertyId: PropertyId,
-    userId: UserId,
-  ) => Promise<StaffParticipation | null>
   listActiveParticipations?: (
     organizationId: OrganizationId,
     propertyId: PropertyId,

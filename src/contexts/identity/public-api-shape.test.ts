@@ -79,7 +79,6 @@ describe('Identity public API', () => {
       'selfServiceLeaveAvailable',
     ])
     expect(Object.keys(api.people).sort()).toEqual([
-      'findActiveParticipation',
       'findParticipationById',
       'getAccessiblePropertyIds',
       'getAssignedPortals',

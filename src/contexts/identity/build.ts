@@ -129,10 +129,6 @@ import {
   listStaffParticipations,
   updatePortalResponsibilities,
 } from './application/use-cases/staff-participations'
-import {
-  decideCurrentUserParticipationAuthority,
-  type CurrentUserParticipationAuthorityDatabase,
-} from './infrastructure/repositories/current-user-participation-authority'
 import { createPrimaryStaffAttributionResolver } from './infrastructure/primary-staff-attribution'
 import { submitBetaFeedback } from './application/use-cases/submit-beta-feedback'
 import { listMyBetaFeedback } from './application/use-cases/list-my-beta-feedback'
@@ -465,12 +461,7 @@ function buildOrganizationLifecycleComposition(
   return { organizationLifecycle, runtime: organizationLifecycleRuntime }
 }
 
-function buildPeopleSurface(
-  deps: Pick<
-    IdentityContextDeps,
-    'db' | 'clock' | 'idGen' | 'reconcileResponsibleManagerEligibility'
-  >,
-) {
+function buildPeopleSurface(deps: Pick<IdentityContextDeps, 'db' | 'clock' | 'idGen'>) {
   const accessiblePropertyLookup = createGrantAccessLookup(deps.db, deps.clock)
   const participationRepo = createStaffParticipationRepository(deps.db)
   const resolvePrimaryStaffAttribution = createPrimaryStaffAttributionResolver(deps.db)
@@ -518,11 +509,6 @@ function buildPeopleSurface(
     resolvePrimaryStaffAttribution,
     findParticipationById: (organizationId: OrganizationId, participationId: string) =>
       participationRepo.findById(organizationId, participationId),
-    findActiveParticipation: (
-      organizationId: OrganizationId,
-      propertyId: PropertyId,
-      userId: UserId,
-    ) => participationRepo.findActiveByUser(organizationId, propertyId, userId),
     listActiveParticipations: (organizationId: OrganizationId, propertyId: PropertyId) =>
       participationRepo.list(organizationId, { propertyId, activeOnly: true }),
   })
@@ -545,7 +531,6 @@ function buildPeopleSurface(
       accessibleProperties: accessiblePropertyLookup,
       clock: deps.clock,
       idGen: deps.idGen,
-      reconcileResponsibleManagerEligibility: deps.reconcileResponsibleManagerEligibility,
     }),
     updatePortalResponsibilities: updatePortalResponsibilities({
       repo: participationRepo,
@@ -555,19 +540,8 @@ function buildPeopleSurface(
     }),
   })
 
-  const decideUserParticipationAuthority = (
-    tx: CurrentUserParticipationAuthorityDatabase,
-    input: Readonly<{
-      organizationId: string
-      propertyId: string
-      userId: string
-      at: Date
-    }>,
-  ) => decideCurrentUserParticipationAuthority(tx, input)
-
   return {
     publicApi: Object.freeze({ ...facts, management }),
-    decideUserParticipationAuthority,
   } as const
 }
 
@@ -970,7 +944,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       hasActivePropertyGrant,
       decideManagerPropertyAuthority,
       decideManagerPropertyAuthorities,
-      decideUserParticipationAuthority: people.decideUserParticipationAuthority,
       decidePublicationActorAuthority,
       // Property-scoped recipient resolution for other contexts (notification
       // fan-out). Identity owns the grant table, so the read lives here.

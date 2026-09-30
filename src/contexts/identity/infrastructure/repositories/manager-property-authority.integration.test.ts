@@ -115,7 +115,6 @@ describe.sequential('current manager Property authority', () => {
       allowed: true,
       role: 'AccountAdmin',
       scope: 'organization',
-      requiresStaffParticipation: false,
     })
   })
 
@@ -124,7 +123,6 @@ describe.sequential('current manager Property authority', () => {
       allowed: true,
       role: 'PropertyManager',
       scope: 'assigned-properties',
-      requiresStaffParticipation: true,
     })
   })
 
