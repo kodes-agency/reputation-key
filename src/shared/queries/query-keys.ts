@@ -246,6 +246,9 @@ export const portalKeys = {
   list: (propertyId: string) => [...portalKeys.all, 'list', propertyId] as const,
   detail: (portalId: string) => [...portalKeys.all, 'detail', portalId] as const,
   links: (portalId: string) => [...portalKeys.detail(portalId), 'links'] as const,
+  /** Which of a Portal's wording is written per language. Under `detail`, so a Portal write refreshes it. */
+  languageCoverage: (portalId: string) =>
+    [...portalKeys.detail(portalId), 'language-coverage'] as const,
   responsibleManagers: (portalId: string) =>
     [...portalKeys.detail(portalId), 'responsible-managers'] as const,
   publicationHistory: (portalId: string) =>

@@ -94,6 +94,18 @@ compares them), so each batched read returns what its single-Portal read returns
 including the token's grace end. It is scoped like
 `listPortals` (`portal.read`, assigned Properties) and carries no content.
 
+`getPortalLanguageCoverage` is the read behind the editor's Languages section. For each
+language a Portal offers (the fallback language first) it counts the wording guests read
+that is written and names what is missing: a title and a description (the Portal's own
+wording, else the Property's for that language) and one label per link. The Linktree title,
+a link's line and the hero description are optional, so they are never "missing". It carries
+identifiers and kinds, plus the fallback-language label of a link with a gap so a manager can
+tell which link it is, and nothing else; nothing is stored for it. Managers add only the
+languages that are offered and have a generation 2 guest copy pack, and a language change
+goes through the ordinary `updatePortal` command. The fallback language is never removed;
+another one has to become the fallback first. There are no AI controls: the wording is
+written by hand in the Welcome and Linktree sections.
+
 `getPortalHistory` is the one merged, read-only timeline for a Portal: its
 creation, each publish and restore, each change of health (from
 `portal_health_intervals`) and each public-address event, newest first, with the

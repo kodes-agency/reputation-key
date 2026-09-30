@@ -43,6 +43,7 @@ import {
   findAuthorizedPortal,
   portalGroupsQuery,
   portalApprovedDestinationsQuery,
+  portalLanguageCoverageQuery,
   portalExperienceQuery,
   portalLinksQuery,
   portalPublicationHistoryQuery,
@@ -93,6 +94,7 @@ export const Route = createFileRoute(
       // `tokenStatus` as undefined instead of triggering a fetch.
       context.queryClient.ensureQueryData(portalQuery(params.portalId)),
       context.queryClient.ensureQueryData(portalLinksQuery(params.portalId)),
+      context.queryClient.ensureQueryData(portalLanguageCoverageQuery(params.portalId)),
       context.queryClient.ensureQueryData(portalGroupsQuery(params.propertyId)),
       context.queryClient.ensureQueryData(responsibleManagersQuery(params.portalId)),
       context.queryClient.ensureQueryData(membersQuery),

@@ -59,6 +59,7 @@ import { saveLinktreeSettings } from './application/use-cases/save-linktree-sett
 import { deleteLink } from './application/use-cases/delete-link'
 import { reorderLinks } from './application/use-cases/reorder-links'
 import { listPortalLinks } from './application/use-cases/list-portal-links'
+import { getPortalLanguageCoverage } from './application/use-cases/get-portal-language-coverage'
 import { createPortalGroup } from './application/use-cases/create-portal-group'
 import { updatePortalGroup } from './application/use-cases/update-portal-group'
 import { listPortalGroups } from './application/use-cases/list-portal-groups'
@@ -446,6 +447,12 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     listPortalLinks: listPortalLinks({
       portalLinkRepo,
       portalRepo,
+      staffPublicApi: deps.staffPublicApi,
+    }),
+    getPortalLanguageCoverage: getPortalLanguageCoverage({
+      portalRepo,
+      portalLinkRepo,
+      experienceRepo: portalExperienceRepo,
       staffPublicApi: deps.staffPublicApi,
     }),
     createPortalGroup: createPortalGroup({
