@@ -51,7 +51,18 @@ const inAppByDefault =
 // every muted row back; and a fallback of "on" listed every email-only
 // arrival anchor of a reader who only ever chose arrivals email. Organization
 // notices ignore preferences on delivery, so they are never hidden here.
-const notOptedOutInApp = sql`NOT (
+//
+// A Low ratings email-only anchor is hidden outright: whether a rating was low
+// enough for the app was the reader's threshold at the moment it was routed,
+// and the rating is not kept (ADR 0031), so no later read can re-derive it —
+// the one category whose anchors a switch cannot tell apart. Read rows keep
+// their read time; only an anchor has none.
+const notOptedOutInApp = sql`(
+NOT (
+  notifications.category = 'low_ratings'
+  AND notifications.status = 'read'
+  AND notifications.read_at IS NULL
+) AND NOT (
   notifications.property_id IS NOT NULL
   AND notifications.category NOT IN ('mandatory', 'urgent_operational')
   AND NOT COALESCE(
@@ -68,6 +79,7 @@ const notOptedOutInApp = sql`NOT (
         AND channel = 'in_app'),
     ${inAppByDefault}
   )
+)
 )`
 
 // Latest activity: a coalesced row sorts by its newest absorbed event, so a

@@ -185,6 +185,7 @@ describe.sequential('notification repository (real PostgreSQL)', () => {
         notificationRepo: racedRepo,
         emailRepo: createNotificationEmailRepository(db),
         preferenceRepo: createNotificationPreferenceRepository(db),
+        ratingForRouting: async () => null,
         clock: () => NOW,
         idGen: () =>
           notificationId(`85000000-0000-4000-8000-0000000000${String(nextId++)}`),

@@ -194,6 +194,9 @@ export function buildReadAndNotifyContexts(input: ReadAndNotifyContextsInput) {
       replyApproval: {
         canApproveReplies: input.identity.publicApi.managerFacts.canApproveReplies,
       },
+      // Review owns the rating: Feed reads it, through the eligible lookup, only
+      // to route a review's notice as a Low ratings one, and keeps none of it.
+      reviewRatings: input.review.publicApi,
       // Review owns the reply: Feed asks where the RepKey-authored one stands
       // before it asks anybody to approve or retry it.
       replyStates: {

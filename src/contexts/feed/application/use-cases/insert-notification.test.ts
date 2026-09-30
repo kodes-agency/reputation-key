@@ -7,6 +7,7 @@ import {
 import { buildFakeInsertNotificationDeps } from './test-fixtures'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import type { Notification, NotificationCategory } from '../../domain/notification-types'
+import { SETTLED_EMAIL_REASON } from '../../domain/notification-settlement'
 import {
   resolveCategoryPreference,
   type CategoryPreferenceValues,
@@ -730,20 +731,268 @@ describe('insertNotification', () => {
       )
     })
 
-    it.each([undefined, 1, 3] as const)(
-      'keeps private feedback rated %s as Action needed, always in the app',
-      async (guestRating) => {
-        const result = await insertNotification(deps)({
-          ...arrival,
-          type: 'feedback.created',
-          payload: {
-            platform: 'portal',
-            ...(guestRating === undefined ? {} : { guestRating }),
-          },
-        })
+    it('keeps private feedback with no rating as Action needed, always in the app', async () => {
+      const result = await insertNotification(deps)({
+        ...arrival,
+        type: 'feedback.created',
+        payload: { platform: 'portal' },
+      })
 
-        expect(result).toMatchObject({ category: 'urgent_operational' })
+      expect(result).toMatchObject({ category: 'urgent_operational' })
+    })
+  })
+
+  // ADR 0046, amended 2026-09-30: how low is the reader's, per channel —
+  // 3★ or lower in the app and 2★ or lower by email unless they chose.
+  describe('a low rating', () => {
+    const feedback = (guestRating: number) => ({
+      ...input,
+      type: 'feedback.created' as const,
+      eventId: `feedback-${guestRating}`,
+      payload: {
+        propertyName: 'Riverside Hotel',
+        platform: 'portal' as const,
+        guestRating,
       },
-    )
+    })
+    const review = { ...input, type: 'review.created' as const, eventId: 'review-low' }
+    const DEFAULT_THRESHOLDS = {
+      in_app: { enabled: true, maxRating: 3 },
+      email: { enabled: true, maxRating: 2 },
+    } as const
+    /** The reader's Low ratings answers, and any New reviews answer they chose. */
+    const withLowRatings = (
+      values: Readonly<{
+        in_app: Readonly<{ enabled: boolean; maxRating: 1 | 2 | 3 | 4 }>
+        email: Readonly<{ enabled: boolean; maxRating: 1 | 2 | 3 | 4 }>
+      }>,
+      arrivals: Partial<Record<'in_app' | 'email', CategoryPreferenceValues>> = {},
+    ) => {
+      const fallback = deps.preferenceRepo.resolveForDelivery
+      deps = {
+        ...deps,
+        preferenceRepo: {
+          ...deps.preferenceRepo,
+          resolveForDelivery: vi.fn(
+            async (userId, orgId, propertyId, category, channel) => {
+              const key = channel as 'in_app' | 'email'
+              if (category === 'low_ratings') {
+                return { ...values[key], cadence: 'immediate' as const }
+              }
+              const chosen = category === 'arrivals' ? arrivals[key] : undefined
+              return chosen ?? fallback(userId, orgId, propertyId, category, channel)
+            },
+          ),
+        },
+      }
+    }
+
+    it('files private feedback rated 1 as Low ratings, in the app and by email', async () => {
+      const result = await insertNotification(deps)(feedback(1))
+
+      expect(result).toMatchObject({
+        category: 'low_ratings',
+        title: 'Low-rated guest feedback at Riverside Hotel',
+      })
+      expect(result?.payload).toMatchObject({ lowRating: true, guestRating: 1 })
+      expect(deps.emailRepo.insert).toHaveBeenCalledOnce()
+    })
+
+    it('tells about 3-star feedback in the app only, since email is 2 stars or lower by default', async () => {
+      const result = await insertNotification(deps)(feedback(3))
+
+      expect(result).toMatchObject({ category: 'low_ratings' })
+      // Above the email threshold, the reader's New reviews answer stands:
+      // off by default.
+      expect(deps.emailRepo.insert).not.toHaveBeenCalled()
+    })
+
+    it('files feedback above both thresholds as an arrival, off by default', async () => {
+      await expect(insertNotification(deps)(feedback(4))).resolves.toBeNull()
+
+      expect(deps.notificationRepo.insert).not.toHaveBeenCalled()
+    })
+
+    it("routes a Google review by Review's eligible rating and keeps only the outcome", async () => {
+      vi.mocked(deps.ratingForRouting).mockResolvedValue(2)
+
+      const result = await insertNotification(deps)(review)
+
+      expect(deps.ratingForRouting).toHaveBeenCalledWith({
+        organizationId: ORG_ID,
+        inboxItemId: 'item-1',
+      })
+      expect(result).toMatchObject({
+        category: 'low_ratings',
+        title: 'Low-rated review at Riverside Hotel',
+      })
+      // The flag, never the stars: a Google rating stays in Review (ADR 0031).
+      expect(result?.payload).toEqual({
+        propertyName: 'Riverside Hotel',
+        platform: 'google',
+        lowRating: true,
+      })
+      expect(JSON.stringify(vi.mocked(deps.emailRepo.insert).mock.calls)).not.toContain(
+        '"rating"',
+      )
+    })
+
+    it('stores nothing for a Google review above both thresholds, like any new review', async () => {
+      vi.mocked(deps.ratingForRouting).mockResolvedValue(4)
+
+      await expect(insertNotification(deps)(review)).resolves.toBeNull()
+
+      expect(deps.notificationRepo.insert).not.toHaveBeenCalled()
+    })
+
+    it('routes a review whose rating Review no longer holds as a new review', async () => {
+      // Past Google's cache window the eligible read answers null.
+      vi.mocked(deps.ratingForRouting).mockResolvedValue(null)
+
+      await expect(insertNotification(deps)(review)).resolves.toBeNull()
+
+      expect(deps.notificationRepo.insert).not.toHaveBeenCalled()
+    })
+
+    it("follows the reader's own thresholds: off in the app still mails a 1-star review", async () => {
+      withLowRatings({
+        in_app: { enabled: false, maxRating: 3 },
+        email: { enabled: true, maxRating: 1 },
+      })
+      vi.mocked(deps.ratingForRouting).mockResolvedValue(1)
+
+      // Not shown in the app, so nothing comes back to display.
+      await expect(insertNotification(deps)(review)).resolves.toBeNull()
+
+      expect(deps.notificationRepo.insert).toHaveBeenCalledWith(
+        expect.objectContaining({
+          category: 'low_ratings',
+          status: 'read',
+          readAt: null,
+        }),
+      )
+      expect(deps.emailRepo.insert).toHaveBeenCalledOnce()
+      expect(deps.emailRepo.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ category: 'low_ratings', cadence: 'immediate' }),
+      )
+    })
+
+    // Each channel admits a rated notice under its own category, and the
+    // later checks read exactly that one: the feed the row's, the pre-send
+    // recheck and the unsubscribe link the email's.
+    it('files the row as the arrival its reader shows, and mails it as a low rating', async () => {
+      withLowRatings(
+        {
+          in_app: { enabled: true, maxRating: 1 },
+          email: { enabled: true, maxRating: 3 },
+        },
+        { in_app: preference('in_app', true) },
+      )
+      vi.mocked(deps.ratingForRouting).mockResolvedValue(2)
+
+      const result = await insertNotification(deps)(review)
+
+      expect(result).toMatchObject({ category: 'arrivals' })
+      expect(result?.payload).not.toHaveProperty('lowRating')
+      expect(deps.emailRepo.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ category: 'low_ratings', cadence: 'immediate' }),
+      )
+    })
+
+    it('files the row as a low rating, and mails it under the New reviews answer', async () => {
+      withLowRatings(
+        {
+          in_app: { enabled: true, maxRating: 3 },
+          email: { enabled: true, maxRating: 1 },
+        },
+        { email: preference('email', true, 'daily') },
+      )
+      vi.mocked(deps.ratingForRouting).mockResolvedValue(3)
+
+      const result = await insertNotification(deps)(review)
+
+      expect(result).toMatchObject({ category: 'low_ratings' })
+      expect(deps.emailRepo.insert).toHaveBeenCalledWith(
+        expect.objectContaining({ category: 'arrivals', cadence: 'daily' }),
+      )
+    })
+
+    describe('an edit to a review whose notice still waits', () => {
+      const edit = (eventId: string) => ({
+        ...review,
+        type: 'review.updated' as const,
+        eventId,
+      })
+
+      it("replaces the waiting row when the edit crosses the reader's threshold", async () => {
+        // The first edit, to four stars, is an arrival the reader shows.
+        withLowRatings(DEFAULT_THRESHOLDS, { in_app: preference('in_app', true) })
+        vi.mocked(deps.ratingForRouting).mockResolvedValue(4)
+        const waiting = (await insertNotification(deps)(edit('edit-1'))) as Notification
+        expect(waiting).toMatchObject({ category: 'arrivals' })
+        vi.mocked(deps.notificationRepo.findUnreadByUserTypeResource).mockResolvedValue(
+          waiting,
+        )
+        vi.mocked(deps.notificationRepo.insert).mockClear()
+        vi.mocked(deps.ratingForRouting).mockResolvedValue(1)
+
+        const result = await insertNotification(deps)(edit('edit-2'))
+
+        expect(result).toMatchObject({
+          category: 'low_ratings',
+          title: 'Review edited to a low rating at Riverside Hotel',
+        })
+        expect(deps.notificationRepo.refreshUnread).not.toHaveBeenCalled()
+        // Dismissed, not settled: the review still waits for a reply.
+        expect(deps.notificationRepo.updateStatus).toHaveBeenCalledWith(
+          waiting.id,
+          USER_ID,
+          ORG_ID,
+          'dismissed',
+          NOW,
+        )
+        expect(deps.emailRepo.cancelQueuedForNotifications).toHaveBeenCalledWith(
+          [waiting.id],
+          ORG_ID,
+          SETTLED_EMAIL_REASON,
+          NOW,
+        )
+        expect(deps.notificationRepo.insert).toHaveBeenCalledOnce()
+      })
+
+      it('folds an edit that stays on the same side of the threshold', async () => {
+        vi.mocked(deps.ratingForRouting).mockResolvedValue(2)
+        const waiting = (await insertNotification(deps)(edit('edit-1'))) as Notification
+        vi.mocked(deps.notificationRepo.findUnreadByUserTypeResource).mockResolvedValue(
+          waiting,
+        )
+        vi.mocked(deps.ratingForRouting).mockResolvedValue(1)
+
+        const result = await insertNotification(deps)(edit('edit-2'))
+
+        expect(result).toMatchObject({
+          id: waiting.id,
+          category: 'low_ratings',
+          coalescedCount: 2,
+        })
+        expect(deps.notificationRepo.updateStatus).not.toHaveBeenCalled()
+      })
+    })
+
+    it('is not low for a reader whose thresholds are lower than the rating', async () => {
+      withLowRatings({
+        in_app: { enabled: true, maxRating: 1 },
+        email: { enabled: true, maxRating: 1 },
+      })
+      vi.mocked(deps.ratingForRouting).mockResolvedValue(2)
+
+      await expect(insertNotification(deps)(review)).resolves.toBeNull()
+    })
+
+    it('does not look for a rating on a notice that has none', async () => {
+      await insertNotification(deps)(input)
+
+      expect(deps.ratingForRouting).not.toHaveBeenCalled()
+    })
   })
 })

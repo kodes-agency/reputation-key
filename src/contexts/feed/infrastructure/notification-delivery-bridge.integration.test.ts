@@ -164,6 +164,7 @@ describe.sequential('notification Redis to PostgreSQL settlement', () => {
     expect(firstJob).toBeDefined()
     let id = 100
     const settlement = createNotificationDeliverySettlement({
+      ratingForRouting: async () => null,
       db,
       clock: () => NOW,
       idGen: () =>

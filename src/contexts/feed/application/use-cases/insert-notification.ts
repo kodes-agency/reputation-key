@@ -36,6 +36,11 @@ import {
   SETTLED_EMAIL_REASON,
   SUPERSEDED_FOR_READER,
 } from '../../domain/notification-settlement'
+import { isLowFor, RATED_NOTIFICATION_TYPES } from '../../domain/notification-low-ratings'
+import { getDefaultMaxRating } from '../../domain/notification-policy'
+import { parseNotificationPayload } from '../../domain/notification-payload'
+import type { CategoryPreferenceValues } from '../../domain/notification-preference-resolution'
+import type { ReviewRatingForRouting } from '../ports/review-rating-lookup.port'
 
 // ── Input ───────────────────────────────────────────────────────────
 
@@ -62,6 +67,11 @@ export type InsertNotificationDeps = Readonly<{
    * refusing to queue there keeps purge readiness settleable.
    */
   organizationEmailStop: NotificationOrganizationEmailStopPort
+  /**
+   * A review's current eligible rating, read only to decide whether its notice
+   * is a Low ratings one for the reader; compared and dropped, never stored.
+   */
+  ratingForRouting: ReviewRatingForRouting
   enqueueImmediateEmail?: (data: {
     notificationEmailId: string
     organizationId: string
@@ -132,6 +142,116 @@ const resolveChannelPreferences = async (
     emailEnabled: email.enabled,
     emailCadence: email.cadence,
   }
+}
+
+// ── Low ratings ─────────────────────────────────────────────────────
+
+/**
+ * Where a rated notice goes for one reader (ADR 0046, amended 2026-09-30).
+ * Each channel admits it under its own category, and the later checks read
+ * exactly that category: the feed reads the row's, the pre-send recheck and
+ * the unsubscribe link read the email's. So the row is filed by the channel
+ * that shows it — Low ratings when it is low in the app, else New reviews
+ * when that shows it — and an email-only anchor is filed by its email.
+ */
+type RatedPlan = Readonly<{
+  inApp: boolean
+  email: Readonly<{
+    category: 'low_ratings' | 'arrivals'
+    cadence: NotificationCadence
+  }> | null
+  /** The payload flag, which files the row under Low ratings. */
+  lowRating: boolean
+}>
+
+/** The rating a rated notice goes by: private feedback's own, a review's from Review. */
+const ratingOf = async (
+  deps: InsertNotificationDeps,
+  input: InsertNotificationInput,
+): Promise<number | null> => {
+  if (input.type === 'feedback.created') {
+    return parseNotificationPayload(input.payload).guestRating ?? null
+  }
+  if (input.resourceType !== 'inbox_item') return null
+  return deps.ratingForRouting({
+    organizationId: input.organizationId,
+    inboxItemId: input.resourceId,
+  })
+}
+
+const thresholdOf = (
+  preference: CategoryPreferenceValues,
+  channel: 'in_app' | 'email',
+) => ({
+  enabled: preference.enabled,
+  maxRating: preference.maxRating ?? getDefaultMaxRating('low_ratings', channel) ?? 1,
+})
+
+/**
+ * The plan for a rated notice that is low for THIS reader on at least one
+ * channel: at or below their own threshold, from the Property's row, else
+ * their default, else 3★ in the app and 2★ by email. On a channel it is not
+ * low enough for, their New reviews answer still applies. Null when it is
+ * low on neither — not a rated type, no rating to go by (unrated feedback, or
+ * a Google review past its cache window), or above both thresholds — and the
+ * notice takes the ordinary path as an arrival.
+ */
+const ratedPlan = async (
+  deps: InsertNotificationDeps,
+  input: InsertNotificationInput,
+): Promise<RatedPlan | null> => {
+  if (!RATED_NOTIFICATION_TYPES.has(input.type) || input.propertyId === null) return null
+  const rating = await ratingOf(deps, input)
+  if (rating === null) return null
+  const [inAppLow, emailLow] = await Promise.all(
+    (['in_app', 'email'] as const).map((channel) =>
+      deps.preferenceRepo.resolveForDelivery(
+        input.userId,
+        input.organizationId,
+        input.propertyId!,
+        'low_ratings',
+        channel,
+      ),
+    ),
+  )
+  const low = {
+    inApp: isLowFor(thresholdOf(inAppLow!, 'in_app'), rating),
+    email: isLowFor(thresholdOf(emailLow!, 'email'), rating),
+  }
+  if (!low.inApp && !low.email) return null
+  const arrivals = await resolveChannelPreferences(deps, input, 'arrivals')
+  const inApp = low.inApp || arrivals.inAppEnabled
+  const email = low.email
+    ? { category: 'low_ratings' as const, cadence: emailLow!.cadence }
+    : arrivals.emailEnabled
+      ? { category: 'arrivals' as const, cadence: arrivals.emailCadence }
+      : null
+  return { inApp, email, lowRating: low.inApp || (!inApp && low.email) }
+}
+
+/**
+ * The waiting row a rated repeat replaces: dismissed rather than settled, so
+ * it does not read "Done" for work that still waits, and its queued email
+ * cancelled — the new notice carries the item now.
+ */
+const retireReplacedRow = async (
+  deps: InsertNotificationDeps,
+  existing: DomainNotification,
+): Promise<void> => {
+  const now = deps.clock()
+  await deps.notificationRepo.updateStatus(
+    existing.id,
+    existing.userId,
+    existing.organizationId,
+    'dismissed',
+    now,
+  )
+  await deps.emailRepo.cancelQueuedForNotifications(
+    [existing.id],
+    existing.organizationId,
+    SETTLED_EMAIL_REASON,
+    now,
+  )
 }
 
 // ── Email-queue enqueue ─────────────────────────────────────────────
@@ -209,9 +329,15 @@ const enqueueEmailEntry = async (
   cadence: NotificationCadence,
   idempotencyKey: string,
   audience: NotificationAudience | null,
+  /**
+   * The category the email channel admitted it under, when that is not the
+   * row's (a rated notice, `RatedPlan`): what the pre-send recheck and the
+   * unsubscribe link read.
+   */
+  category: DomainNotification['category'] = notification.category,
 ): Promise<void> => {
   const stop = await deps.organizationEmailStop(unbrand(notification.organizationId))
-  if (isEmailStopped(stop, notification.category)) {
+  if (isEmailStopped(stop, category)) {
     deps.logger.info(
       { cadence, reason: ORGANIZATION_CLOSING_REASON },
       'Notification email not queued — the Organization is closing',
@@ -225,7 +351,7 @@ const enqueueEmailEntry = async (
       userId: notification.userId,
       organizationId: notification.organizationId,
       propertyId: notification.propertyId,
-      category: notification.category,
+      category,
       cadence,
       priority: notification.priority,
       idempotencyKey,
@@ -297,6 +423,116 @@ const settleSupersededForReader = async (
   )
 }
 
+// ── Channels ────────────────────────────────────────────────────────
+
+type Channels = ChannelPreferences &
+  Readonly<{
+    /**
+     * The category the email is admitted under: a rated notice's may differ
+     * from its row's (`RatedPlan`).
+     */
+    emailCategory: NotificationCategory
+  }>
+
+const channelsFor = async (
+  deps: InsertNotificationDeps,
+  input: InsertNotificationInput,
+  notification: DomainNotification,
+  plan: RatedPlan | null,
+): Promise<Channels> => {
+  if (plan) {
+    return {
+      inAppEnabled: plan.inApp,
+      emailEnabled: plan.email !== null,
+      emailCadence: plan.email?.cadence ?? 'daily',
+      emailCategory: plan.email?.category ?? notification.category,
+    }
+  }
+  const preferences = await resolveChannelPreferences(deps, input, notification.category)
+  return { ...preferences, emailCategory: notification.category }
+}
+
+/**
+ * The input a Low ratings row is built from: the outcome as a payload flag,
+ * so its category and copy say so; the stars are never added (ADR 0031).
+ */
+const withLowRatingFlag = (
+  input: InsertNotificationInput,
+  plan: RatedPlan | null,
+): InsertNotificationInput =>
+  plan?.lowRating
+    ? {
+        ...input,
+        payload: { ...parseNotificationPayload(input.payload), lowRating: true },
+      }
+    : input
+
+// ── Coalescence ─────────────────────────────────────────────────────
+
+/**
+ * ADR 0046 r.2: at most one UNREAD row per (user, type, resource). A repeat
+ * event ABSORBS into that row — count bumped, latest arrival stamped, payload
+ * merged newest-wins, copy re-rendered from the merged facts (so a row of
+ * three notes now reads "…3 notes added"). No second email: the original
+ * queue entry still stands for the same resource — except for a mandatory
+ * notice, which is mailed once per event (`isMandatoryRepeat`). A settled row
+ * is not absorbed into: its work is done and its email sent or cancelled, so
+ * a repeat is a new request and gets a row and an email of its own.
+ *
+ * Resolves to the row the event folded into, or null when it gets its own.
+ */
+const foldIntoWaitingRow = async (
+  deps: InsertNotificationDeps,
+  input: InsertNotificationInput,
+  notification: DomainNotification,
+  channels: Channels,
+  audience: NotificationAudience | null,
+): Promise<DomainNotification | null> => {
+  const existing = await deps.notificationRepo.findUnreadByUserTypeResource(
+    input.userId,
+    input.organizationId,
+    input.propertyId,
+    input.type,
+    input.resourceId,
+  )
+  if (existing === null) return null
+  // A rated repeat whose rating moved it across the reader's threshold (an
+  // edit down to one star, or back up) says something the waiting row does
+  // not, under another category: it replaces that row rather than folding
+  // into it, so the row's category, copy and flag stay one decision.
+  if (
+    RATED_NOTIFICATION_TYPES.has(input.type) &&
+    existing.category !== notification.category
+  ) {
+    await retireReplacedRow(deps, existing)
+    return null
+  }
+  const coalesced = applyCoalescence(existing, notification.payload, deps.clock())
+  // The bump only lands on a row that is still waiting. When a read, dismiss
+  // or settlement committed after the lookup, the event is not the user's old
+  // news: it falls through to a fresh unread row, whose upsert re-coalesces
+  // atomically if yet another waiting row appeared meanwhile.
+  if (!(await deps.notificationRepo.refreshUnread(coalesced))) return null
+  const mailsRepeat = channels.emailEnabled && isMandatoryRepeat(coalesced, input)
+  if (mailsRepeat) {
+    await enqueueEmailEntry(
+      deps,
+      coalesced,
+      channels.emailCadence,
+      emailKeyFor(coalesced, input),
+      audience,
+    )
+  }
+  // A repeat still takes over what it takes over: a second "No longer yours"
+  // folding into an unread first one must still retire the "Assigned to you"
+  // written in between.
+  await settleSupersededForReader(deps, coalesced, {
+    shownInApp: true,
+    sendsEmail: mailsRepeat,
+  })
+  return coalesced
+}
+
 // ── Use case ────────────────────────────────────────────────────────
 
 export const insertNotification =
@@ -308,21 +544,22 @@ export const insertNotification =
   ): Promise<DomainNotification | null> => {
     const { logger } = deps
 
+    // 0. A rated notice may be a Low ratings one for this reader, decided
+    // before the entity is built (`ratedPlan`).
+    const plan = await ratedPlan(deps, input)
+    const routed = withLowRatingFlag(input, plan)
+
     // 1. Construct + validate the domain entity
-    const result = createNotification({ ...input, id: deps.idGen() }, deps.clock)
+    const result = createNotification({ ...routed, id: deps.idGen() }, deps.clock)
     if (result.isErr()) {
       // BQC-7.3: the raw input (tenant/entity ids) is never logged.
       logger.warn({ error: result.error }, 'Failed to construct notification')
       throw result.error
     }
 
-    const { inAppEnabled, emailEnabled, emailCadence } = await resolveChannelPreferences(
-      deps,
-      input,
-      result.value.category,
-    )
-
-    if (!inAppEnabled && !emailEnabled) {
+    // 2. Which channels carry it, and under which categories.
+    const channels = await channelsFor(deps, routed, result.value, plan)
+    if (!channels.inAppEnabled && !channels.emailEnabled) {
       logger.info(
         { type: input.type },
         'Notification skipped — both in-app and email disabled by preference',
@@ -330,80 +567,48 @@ export const insertNotification =
       return null
     }
 
-    // 2b. ADR 0046 r.2: at most one UNREAD row per (user, type, resource). A
-    // repeat event ABSORBS into that row — count bumped, latest arrival
-    // stamped, payload merged newest-wins, copy re-rendered from the merged
-    // facts (so a row of three notes now reads "…3 notes added"). No second
-    // email: the original queue entry still stands for the same resource —
-    // except for a mandatory notice, which is mailed once per event
-    // (`isMandatoryRepeat`). A settled row is not absorbed into: its work is
-    // done and its email sent or cancelled, so a repeat is a new request and
-    // falls through to a row and an email of its own. In-app only — an
-    // email-only recipient has no unread row to absorb into, and their anchor
-    // is stored read (step 3) so the database cannot absorb into it either.
-    if (inAppEnabled) {
-      const existing = await deps.notificationRepo.findUnreadByUserTypeResource(
-        input.userId,
-        input.organizationId,
-        input.propertyId,
-        input.type,
-        input.resourceId,
+    // 2b. A repeat folds into the reader's waiting row (`foldIntoWaitingRow`).
+    // In-app only — an email-only recipient has no unread row to absorb into,
+    // and their anchor is stored read (step 3) so the database cannot absorb
+    // into it either.
+    if (channels.inAppEnabled) {
+      const folded = await foldIntoWaitingRow(
+        deps,
+        input,
+        result.value,
+        channels,
+        audience,
       )
-      if (existing) {
-        const coalesced = applyCoalescence(existing, result.value.payload, deps.clock())
-        // The bump only lands on a row that is still waiting. When a read,
-        // dismiss or settlement committed after the lookup, the event is not
-        // the user's old news: it falls through to a fresh unread row (step 3),
-        // whose upsert re-coalesces atomically if yet another waiting row
-        // appeared meanwhile.
-        if (await deps.notificationRepo.refreshUnread(coalesced)) {
-          if (emailEnabled && isMandatoryRepeat(coalesced, input)) {
-            await enqueueEmailEntry(
-              deps,
-              coalesced,
-              emailCadence,
-              emailKeyFor(coalesced, input),
-              audience,
-            )
-          }
-          // A repeat still takes over what it takes over: a second "No
-          // longer yours" folding into an unread first one must still retire
-          // the "Assigned to you" written in between.
-          await settleSupersededForReader(deps, coalesced, {
-            shownInApp: true,
-            sendsEmail: emailEnabled && isMandatoryRepeat(coalesced, input),
-          })
-          return coalesced
-        }
-      }
+      if (folded) return folded
     }
 
     // 3. Persist the notification row (in-app anchor + email FK). The upsert
     // can still fold this event into an unread row that raced past the lookup;
     // `emailKeyFor` then treats it as the repeat it is.
     const inserted = await deps.notificationRepo.insert(
-      inAppEnabled ? result.value : asEmailOnlyAnchor(result.value),
+      channels.inAppEnabled ? result.value : asEmailOnlyAnchor(result.value),
     )
 
     // 4. Enqueue the email-queue entry when the email channel is on
-    if (emailEnabled) {
+    if (channels.emailEnabled) {
       await enqueueEmailEntry(
         deps,
         inserted,
-        emailCadence,
+        channels.emailCadence,
         emailKeyFor(inserted, input),
         audience,
+        channels.emailCategory,
       )
     }
 
     // 4b. This notice takes over the reader's own earlier ones about the item.
     await settleSupersededForReader(deps, inserted, {
-      shownInApp: inAppEnabled,
-      sendsEmail: emailEnabled,
+      shownInApp: channels.inAppEnabled,
+      sendsEmail: channels.emailEnabled,
     })
 
     // 5. Return notification only if in-app channel is enabled
-    if (!inAppEnabled) {
+    if (!channels.inAppEnabled) {
       logger.info(
         'Notification persisted for email only — not returned for in-app display',
       )

@@ -213,6 +213,8 @@ const PREFERENCE_COLUMNS = [
   'channel',
   'enabled',
   'cadence',
+  // Low ratings only: "N★ or lower" (ADR 0046, amended 2026-09-30).
+  'max_rating',
   'created_at',
   'updated_at',
 ] as const
@@ -323,6 +325,7 @@ async function readPayload(
               channel,
               enabled,
               cadence,
+              max_rating,
               to_char(created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS created_at,
               to_char(updated_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS updated_at
             FROM notification_preferences

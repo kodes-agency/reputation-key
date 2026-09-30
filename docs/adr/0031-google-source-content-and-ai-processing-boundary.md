@@ -58,6 +58,8 @@ production identifiers.
 
 ## Consequences
 
+- Feed may read a review's rating through the eligible read at the moment a notification is written, to route it by its reader's Low ratings threshold, and persists only the routing outcome — never the rating (ADR 0046, amended 2026-09-30). A read neither extends the cache clock nor copies content.
+
 - PRE17 must establish the raw-content lifecycle, property processing profile, source-policy evaluator, deletion participation, and evidence hooks before Phase 17 can call a model.
 - Phase 17/18 schemas must keep raw content and derivatives separate and record policy, prompt/schema/model, aspect-taxonomy, redaction, consent, provider deployment, and region versions without retaining prompt bodies.
 - Backups and restores need purge-ledger or approved erasure behavior so restoration cannot resurrect expired content into service.

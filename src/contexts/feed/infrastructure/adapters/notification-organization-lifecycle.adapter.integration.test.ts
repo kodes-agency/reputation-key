@@ -654,6 +654,7 @@ describe.sequential('Notification Organization lifecycle contributor', () => {
         emailRepo: createNotificationEmailRepository(db),
         preferenceRepo: createNotificationPreferenceRepository(db),
         organizationEmailStop: createNotificationOrganizationEmailStopReader(db),
+        ratingForRouting: async () => null,
         clock: () => OCCURRED_AT,
         idGen: () => notificationId(randomUUID()),
         emailIdGen: () => notificationEmailId(randomUUID()),

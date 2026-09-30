@@ -70,6 +70,7 @@ function feedPublicApi() {
       logger,
       responsibleManagers: {} as never,
       replyApproval: {} as never,
+      reviewRatings: { getEligibleRatingById: async () => null },
       replyStates: {} as never,
       feedbackPortalLookup: {} as never,
       googleConnectionProperties: {} as never,

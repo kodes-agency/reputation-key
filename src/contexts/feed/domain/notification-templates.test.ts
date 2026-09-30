@@ -1141,3 +1141,44 @@ describe('renderNotification — the in-app detail line', () => {
     }
   })
 })
+
+// ADR 0046, amended 2026-09-30 (with ADR 0031): a Low ratings notice says so,
+// and why, but never how many stars a Google review has.
+describe('a Low ratings notice', () => {
+  const low = {
+    propertyName: 'Harbour View Suites',
+    platform: 'google' as const,
+    lowRating: true as const,
+  }
+
+  it('names a new review low-rated, without its stars', () => {
+    const copy = renderNotification('review.created', low)
+
+    expect(copy.title).toBe('Low-rated review at Harbour View Suites')
+    expect(copy.body).toContain('at or below the rating you asked to hear about')
+    expect(`${copy.title} ${copy.body}`).not.toMatch(/\d\s*(★|star)/i)
+  })
+
+  it('names an edit that brought a review down', () => {
+    expect(renderNotification('review.updated', low).title).toBe(
+      'Review edited to a low rating at Harbour View Suites',
+    )
+  })
+
+  it("names private feedback low-rated; its Portal rating is RepKey's own", () => {
+    expect(
+      renderNotification('feedback.created', {
+        propertyName: 'Harbour View Suites',
+        platform: 'portal',
+        guestRating: 2,
+        lowRating: true,
+      }).title,
+    ).toBe('Low-rated guest feedback at Harbour View Suites')
+  })
+
+  it('keeps the plain copy without the flag', () => {
+    expect(
+      renderNotification('review.created', { propertyName: 'Harbour View Suites' }).title,
+    ).toBe('New review at Harbour View Suites')
+  })
+})

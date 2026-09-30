@@ -28,8 +28,16 @@ const defaultFor = (
   )
   return stored === undefined
     ? null
-    : { enabled: stored.enabled, cadence: stored.cadence }
+    : { enabled: stored.enabled, cadence: stored.cadence, maxRating: stored.maxRating }
 }
+
+/** "N★ or lower", said so it reads in a sentence. */
+export const lowRatingWords = (maxRating: number): string =>
+  maxRating === 1 ? '1★ only' : `${maxRating}★ or lower`
+
+/** The same read aloud: a screen reader says "★" as "black star". */
+export const spokenLowRatingWords = (maxRating: number): string =>
+  maxRating === 1 ? '1 star only' : `${maxRating} stars or lower`
 
 export function describeInheritedDefault(
   category: ConfigurableNotificationCategory,
@@ -44,6 +52,12 @@ export function describeInheritedDefault(
     })
   const inApp = resolve('in_app')
   const email = resolve('email')
+  if (category === 'low_ratings') {
+    const words = (values: typeof inApp) =>
+      values.enabled && values.maxRating ? lowRatingWords(values.maxRating) : 'off'
+    const when = email.enabled ? `, ${CADENCE_WORDS[email.cadence]}` : ''
+    return `A new property gets ${words(inApp)} in the app, ${words(email)} by email${when}.`
+  }
   const emailWords = email.enabled ? CADENCE_WORDS[email.cadence] : 'off'
   return `A new property gets in-app ${inApp.enabled ? 'on' : 'off'}, email ${emailWords}.`
 }

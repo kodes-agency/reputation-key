@@ -1,6 +1,10 @@
 // Feed notification surface — Drizzle repository adapter for notification preferences
 // Per architecture: factory pattern `createXxxRepository(db)` returning port interface.
 
+import {
+  isLowRatingThreshold,
+  type LowRatingThreshold,
+} from '../../domain/notification-low-ratings'
 import { and, eq } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
@@ -39,6 +43,10 @@ type CategoryDefaultRow = typeof notificationCategoryDefaults.$inferSelect
 type DeliveryWindowRow = typeof notificationPropertyDeliveryWindows.$inferSelect
 type UserSettingsRow = typeof notificationUserSettings.$inferSelect
 
+/** A stored Low-ratings threshold; anything else, and every other category, is none. */
+const maxRatingOf = (value: number | null): LowRatingThreshold | null =>
+  isLowRatingThreshold(value) ? value : null
+
 const preferenceFromRow = (row: PreferenceRow): NotificationPreference => {
   const category = row.category as NotificationCategory
   const channel = row.channel as NotificationChannel
@@ -53,6 +61,7 @@ const preferenceFromRow = (row: PreferenceRow): NotificationPreference => {
     // channel appear disabled while the backfill/constraint rolls out.
     enabled: isPreferenceDisableable(category, channel) ? row.enabled : true,
     cadence: row.cadence as NotificationCadence,
+    maxRating: maxRatingOf(row.maxRating),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -68,6 +77,7 @@ const categoryDefaultFromRow = (row: CategoryDefaultRow): NotificationCategoryDe
     channel,
     enabled: isPreferenceDisableable(category, channel) ? row.enabled : true,
     cadence: row.cadence as NotificationCadence,
+    maxRating: maxRatingOf(row.maxRating),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   }
@@ -168,7 +178,11 @@ export const createNotificationPreferenceRepository = (db: Database) => {
       .limit(1)
     if (!rows[0]) return null
     const preference = preferenceFromRow(rows[0])
-    return { enabled: preference.enabled, cadence: preference.cadence }
+    return {
+      enabled: preference.enabled,
+      cadence: preference.cadence,
+      maxRating: preference.maxRating,
+    }
   }
 
   const categoryDefault = async (
@@ -191,7 +205,11 @@ export const createNotificationPreferenceRepository = (db: Database) => {
       .limit(1)
     if (!rows[0]) return null
     const stored = categoryDefaultFromRow(rows[0])
-    return { enabled: stored.enabled, cadence: stored.cadence }
+    return {
+      enabled: stored.enabled,
+      cadence: stored.cadence,
+      maxRating: stored.maxRating,
+    }
   }
 
   const personalWindow = async (
@@ -223,7 +241,12 @@ export const createNotificationPreferenceRepository = (db: Database) => {
 
   const writePreference = async (
     preference: NotificationPreference,
-    set: Readonly<{ enabled: boolean; cadence?: NotificationCadence; updatedAt: Date }>,
+    set: Readonly<{
+      enabled: boolean
+      cadence?: NotificationCadence
+      maxRating?: number | null
+      updatedAt: Date
+    }>,
   ): Promise<NotificationPreference> => {
     refuseMandatory(preference.category)
     const rows = await db
@@ -237,6 +260,7 @@ export const createNotificationPreferenceRepository = (db: Database) => {
         channel: preference.channel,
         enabled: preference.enabled,
         cadence: preference.cadence,
+        maxRating: preference.maxRating ?? null,
         createdAt: preference.createdAt,
         updatedAt: preference.updatedAt,
       })
@@ -323,6 +347,7 @@ export const createNotificationPreferenceRepository = (db: Database) => {
       writePreference(preference, {
         enabled: preference.enabled,
         cadence: preference.cadence,
+        maxRating: preference.maxRating ?? null,
         updatedAt: preference.updatedAt,
       }),
 
@@ -376,6 +401,7 @@ export const createNotificationPreferenceRepository = (db: Database) => {
             channel: categoryDefaultRow.channel,
             enabled: categoryDefaultRow.enabled,
             cadence: categoryDefaultRow.cadence,
+            maxRating: categoryDefaultRow.maxRating ?? null,
             createdAt: categoryDefaultRow.createdAt,
             updatedAt: categoryDefaultRow.updatedAt,
           })
@@ -389,6 +415,7 @@ export const createNotificationPreferenceRepository = (db: Database) => {
             set: {
               enabled: categoryDefaultRow.enabled,
               cadence: categoryDefaultRow.cadence,
+              maxRating: categoryDefaultRow.maxRating ?? null,
               updatedAt: categoryDefaultRow.updatedAt,
             },
           })

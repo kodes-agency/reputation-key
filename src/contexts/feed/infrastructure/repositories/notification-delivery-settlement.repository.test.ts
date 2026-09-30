@@ -179,6 +179,7 @@ describe.sequential('notification delivery settlement (real PostgreSQL)', () => 
       child: () => logger,
     }
     const settlement = createNotificationDeliverySettlement({
+      ratingForRouting: async () => null,
       db,
       clock: () => NOW,
       idGen: () =>
@@ -263,6 +264,7 @@ describe.sequential('notification delivery settlement (real PostgreSQL)', () => 
       child: () => logger,
     }
     const settlement = createNotificationDeliverySettlement({
+      ratingForRouting: async () => null,
       db,
       clock: () => NOW,
       idGen: () =>
@@ -336,6 +338,7 @@ describe.sequential('notification delivery settlement (real PostgreSQL)', () => 
       child: () => logger,
     }
     const settlement = createNotificationDeliverySettlement({
+      ratingForRouting: async () => null,
       db,
       clock: () => NOW,
       idGen: () => notificationId('82000000-0000-4000-8000-000000000014'),
@@ -410,6 +413,7 @@ describe.sequential('notification delivery settlement (real PostgreSQL)', () => 
       child: () => logger,
     }
     const settlement = createNotificationDeliverySettlement({
+      ratingForRouting: async () => null,
       db,
       clock: () => NOW,
       idGen: () => notificationId('82000000-0000-4000-8000-000000000012'),
@@ -544,6 +548,7 @@ describe.sequential('email-only notification delivery (real PostgreSQL)', () => 
       child: () => logger,
     }
     return createNotificationDeliverySettlement({
+      ratingForRouting: async () => null,
       db,
       clock: () => NOW,
       idGen: () =>
@@ -723,6 +728,7 @@ describe.sequential('mandatory repeat delivery (real PostgreSQL)', () => {
       child: () => logger,
     }
     const settlement = createNotificationDeliverySettlement({
+      ratingForRouting: async () => null,
       db,
       clock: () => NOW,
       idGen: () =>

@@ -131,3 +131,42 @@ describe('createNotificationCategoryDefault', () => {
     }
   })
 })
+
+describe('a Low ratings row', () => {
+  const low = {
+    userId: USER,
+    organizationId: ORG,
+    category: 'low_ratings' as const,
+    channel: 'email' as const,
+    enabled: true,
+    cadence: 'immediate' as const,
+  }
+
+  it('keeps the chosen threshold', () => {
+    const result = createNotificationCategoryDefault({ ...low, maxRating: 2 }, () => NOW)
+
+    expect(result.isOk() && result.value.maxRating).toBe(2)
+  })
+
+  it.each([undefined, null, 0, 5])('refuses a threshold of %s', (maxRating) => {
+    const result = createNotificationCategoryDefault(
+      { ...low, maxRating: maxRating as never },
+      () => NOW,
+    )
+
+    expect(result.isErr() && result.error.message).toBe(
+      'Choose a rating from 1 to 4 stars',
+    )
+  })
+
+  it('refuses a threshold on any other category', () => {
+    const result = createNotificationCategoryDefault(
+      { ...low, category: 'arrivals', maxRating: 2 },
+      () => NOW,
+    )
+
+    expect(result.isErr() && result.error.message).toBe(
+      'Only Low ratings has a star threshold',
+    )
+  })
+})

@@ -944,3 +944,126 @@ export const EmailAvailabilityCheckFailed: Story = {
     expect(retryEmailAvailability).toHaveBeenCalledOnce()
   },
 }
+
+// ── Low ratings (ADR 0046, amended 2026-09-30) ──────────────────────────────
+
+/** Picks one option of a Low ratings select; the list opens outside the canvas. */
+async function chooseLowRating(
+  canvas: ReturnType<typeof within>,
+  channel: 'In the app' | 'By email',
+  option: string,
+) {
+  await userEvent.click(canvas.getByRole('combobox', { name: `Low ratings: ${channel}` }))
+  await userEvent.click(
+    await within(document.body).findByRole('option', { name: option }),
+  )
+}
+
+/**
+ * How low is the person's, per channel: 3★ or lower in the app and 2★ or
+ * lower by email until they choose, and the row says what a new property gets.
+ */
+export const LowRatingsAskHowLow: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const row = within(canvas.getByRole('group', { name: 'Low ratings' }))
+    expect(
+      row.getByRole('combobox', { name: 'Low ratings: In the app' }),
+    ).toHaveTextContent('3★ or lower')
+    expect(
+      row.getByRole('combobox', { name: 'Low ratings: By email' }),
+    ).toHaveTextContent('2★ or lower')
+    // A threshold, not a switch.
+    expect(row.queryByRole('switch')).toBeNull()
+    expect(
+      row.getByText(
+        'A new property gets 3★ or lower in the app, 2★ or lower by email, immediately.',
+      ),
+    ).toBeInTheDocument()
+    // What the row means, and that a Google review's stars stay out of it.
+    expect(
+      row.getByText(/A Google review's stars show when you open it/),
+    ).toBeInTheDocument()
+
+    await userEvent.click(row.getByRole('combobox', { name: 'Low ratings: By email' }))
+    const list = within(document.body)
+    expect(await list.findAllByRole('option')).toHaveLength(5)
+    expect(list.getByRole('option', { name: 'Off' })).toBeVisible()
+    // Stars on screen, words when read aloud ("★" is spoken "black star").
+    for (const [shown, spoken] of [
+      ['1★ only', '1 star only'],
+      ['2★ or lower', '2 stars or lower'],
+      ['3★ or lower', '3 stars or lower'],
+      ['4★ or lower', '4 stars or lower'],
+    ] as const) {
+      const option = list.getByRole('option', { name: spoken })
+      expect(within(option).getByText(shown)).toBeVisible()
+    }
+    await userEvent.keyboard('{Escape}')
+  },
+}
+
+/** A choice saves its threshold; Off turns the channel off and keeps it. */
+export const ChoosingHowLowSavesIt: Story = {
+  play: async ({ canvasElement }) => {
+    updatePreferenceMock.mockClear()
+    const canvas = within(canvasElement)
+
+    await chooseLowRating(canvas, 'By email', '1 star only')
+    await waitFor(() =>
+      expect(updatePreferenceMock).toHaveBeenCalledWith({
+        data: {
+          propertyId: PROPERTY_ID,
+          category: 'low_ratings',
+          channel: 'email',
+          enabled: true,
+          cadence: 'immediate',
+          maxRating: 1,
+        },
+      }),
+    )
+
+    await chooseLowRating(canvas, 'In the app', 'Off')
+    await waitFor(() =>
+      expect(updatePreferenceMock).toHaveBeenLastCalledWith({
+        data: {
+          propertyId: PROPERTY_ID,
+          category: 'low_ratings',
+          channel: 'in_app',
+          enabled: false,
+          cadence: 'immediate',
+          maxRating: 3,
+        },
+      }),
+    )
+  },
+}
+
+/** "Make this my default" carries the threshold to every property that follows it. */
+export const LowRatingsDefaultCarriesTheThreshold: Story = {
+  play: async ({ canvasElement }) => {
+    updatePreferenceMock.mockClear()
+    const canvas = within(canvasElement)
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'Low ratings: Make this my default' }),
+    )
+
+    await waitFor(() => expect(updatePreferenceMock).toHaveBeenCalledTimes(2))
+    expect(updatePreferenceMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        category: 'low_ratings',
+        channel: 'in_app',
+        maxRating: 3,
+        applyToAllProperties: true,
+      }),
+    })
+    expect(updatePreferenceMock).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        category: 'low_ratings',
+        channel: 'email',
+        maxRating: 2,
+        applyToAllProperties: true,
+      }),
+    })
+  },
+}

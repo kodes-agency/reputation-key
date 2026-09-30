@@ -874,6 +874,54 @@ Property's. Nothing about storage changed: the row is still per Organization
 membership (r.3), so the card names the Organization it sets them for, and the
 quiet-hours card names the clock it runs on and links to Profile.
 
+## Amended 2026-09-30 — a low rating reaches people by their own threshold
+
+With new reviews off in the bell by default (D4), a new one-star Google review
+sent nothing until its Response Target's halfway reminder — unless someone
+escalated it. The owner asked for low reviews to notify, with a setting for
+how low, per channel.
+
+**Low ratings is a category** (`low_ratings`). Each channel is on or off, and
+on for ratings **at or below a threshold the person chooses**: 1★ only, or 2,
+3 or 4★ or lower. Unless they choose, it is **3★ or lower in the app and 2★ or
+lower by email**, emailed immediately. Like every other category it is set
+per Property and as the person's default, and a Property's own setting is
+kept when the default changes (D7). The bell's Mute turns it off in the app
+at that Property.
+
+It covers a new review (`review.created`), a guest's edit of unhandled work
+(`review.updated`, so an edit down to one star notifies), and private feedback
+with a rating. The decision is made **for each reader when the notice is
+written**: at or below their threshold on a channel, the notice is a Low
+ratings one there; on a channel it is not low enough for, the reader's New
+reviews and feedback answer still applies (off by default). Above both, the
+notice is an arrival. Private feedback **without a rating** stays Action
+needed: a guest concern. Priority stays normal — no toast, no quiet-hours
+bypass — and an assignment still takes over only an arrival (#645).
+
+**Rule 8 is narrowed, for reading only.** Feed may read a provider review's
+**current rating at the moment a notice is written**, through Review's
+eligible read (`getEligibleRatingById`), to decide that routing. Past
+Google's cache window the read answers nothing, and the review is routed as an
+arrival. Feed stores **only the outcome** — the `low_ratings` category and
+the payload's `lowRating` flag — never the rating: job data, notification
+rows, emails and logs carry no star count, and a Low ratings notice about a
+Google review says "Low-rated review", with the stars shown in the Inbox when
+it is opened. This is the pattern the Inbox's low-rating Response Target
+already follows (a threshold-derived decision is kept, the rating is not), and
+it leaves ADR 0031's cache lifecycle untouched: a read does not extend the
+clock, and nothing is copied. Private feedback's rating is RepKey's own, still
+carried in the payload and shown. The statements above that Feed "neither
+stores nor reads a rating class" and that "a provider review is classified by
+type alone" are superseded as to reading; storing stays forbidden.
+
+**Nobody's email changes without deciding to.** Rated private feedback used to
+be Action needed (1–3★). Migration `0042_notification_low_ratings` copies each
+person's Action needed EMAIL choice — per Property and as their default, on or
+off — to Low ratings at 3★ or lower, so their feedback email continues as it
+was; everyone else gets the 2★ default. In-app needs no carry-over: Action
+needed could not be turned off there, and 3★ or lower is what it covered.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

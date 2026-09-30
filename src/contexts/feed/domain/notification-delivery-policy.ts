@@ -1,3 +1,4 @@
+import { RATED_NOTIFICATION_TYPES } from './notification-low-ratings'
 import type {
   ConfigurableNotificationCategory,
   DeliveryErrorClass,
@@ -33,9 +34,9 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
   'account.organization_access_removed': 'mandatory',
   'account.organization_purge_pending': 'mandatory',
   // A new review is an arrival (D4, docs/design/notifications): off in the app
-  // by default, like every arrival. Feed cannot tell a low-rated provider
-  // review from a glowing one (ADR 0046 r.8); its urgency reaches people
-  // through the Response Target reminders, which a low rating may shorten.
+  // by default, like every arrival — unless its rating is at or below its
+  // reader's Low ratings threshold, decided when the notice is written
+  // (`classifyNotification`, ADR 0046 amended 2026-09-30).
   'review.created': 'arrivals',
   // A guest revision that SUPERSEDES AN OPEN CYCLE — work nobody has handled
   // yet. It was `urgent_operational`, so a guest fixing a comma sent an
@@ -111,26 +112,23 @@ const CATEGORY_BY_TYPE: Readonly<Record<NotificationType, NotificationCategory>>
 }
 
 /**
- * The locally collected Portal rating from which private feedback is a pleasant
- * arrival rather than a guest concern (D4). Feedback rated below it, or not
- * rated at all, stays Action needed: always in the app, emailed by default.
- */
-const ARRIVAL_FEEDBACK_MIN_RATING = 4
-
-/**
- * The category a notice is governed by. By type, except private feedback,
- * whose locally collected rating decides it (ADR 0046 r.8 admits that rating;
- * a provider review's never enters Feed, so it is decided by type alone).
+ * The category a notice is governed by. By type, except where a rating
+ * decides it (ADR 0046, amended 2026-09-30):
+ *
+ * - a review or rated private feedback at or below its reader's own threshold
+ *   is Low ratings — decided per reader when the notice is written, and
+ *   carried as the payload's `lowRating` flag, never as the stars;
+ * - rated private feedback above it is an arrival, like a new review;
+ * - private feedback with no rating stays Action needed: a guest concern.
  */
 export function classifyNotification(
   type: NotificationType,
-  payload: Readonly<{ guestRating?: number }> = {},
+  payload: Readonly<{ guestRating?: number; lowRating?: boolean }> = {},
 ): NotificationCategory {
-  if (
-    type === 'feedback.created' &&
-    payload.guestRating !== undefined &&
-    payload.guestRating >= ARRIVAL_FEEDBACK_MIN_RATING
-  ) {
+  if (payload.lowRating === true && RATED_NOTIFICATION_TYPES.has(type)) {
+    return 'low_ratings'
+  }
+  if (type === 'feedback.created' && payload.guestRating !== undefined) {
     return 'arrivals'
   }
   return CATEGORY_BY_TYPE[type]
@@ -217,6 +215,7 @@ export function notificationScopeForType(
 export const NOTIFICATION_CATEGORIES: ReadonlyArray<NotificationCategory> = [
   'mandatory',
   'urgent_operational',
+  'low_ratings',
   'arrivals',
   'workflow_collaboration',
   'recognition',
@@ -229,7 +228,13 @@ export const NOTIFICATION_CATEGORIES: ReadonlyArray<NotificationCategory> = [
  * others: in-app on by default, email opt-in (ADR 0046).
  */
 export const NOTIFICATION_SETTINGS_CATEGORIES: ReadonlyArray<ConfigurableNotificationCategory> =
-  ['urgent_operational', 'arrivals', 'workflow_collaboration', 'recognition']
+  [
+    'urgent_operational',
+    'low_ratings',
+    'arrivals',
+    'workflow_collaboration',
+    'recognition',
+  ]
 
 /**
  * Categories that govern at least one notification type — derived from

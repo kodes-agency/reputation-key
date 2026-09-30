@@ -5,7 +5,7 @@ import type {
   UserId,
 } from '#/shared/domain/ids'
 import { createNotificationPreference } from '../../domain/constructors-preference'
-import { getDefaultCadence } from '../../domain/notification-policy'
+import { getDefaultCadence, getDefaultMaxRating } from '../../domain/notification-policy'
 import type {
   NotificationCategory,
   NotificationChannel,
@@ -59,6 +59,10 @@ const preferenceWith = (
       channel: input.channel,
       enabled,
       cadence: getDefaultCadence(input.category),
+      // A Low ratings row cannot be stored without a threshold. A mute only
+      // turns it off (a later conflict updates `enabled` alone), so a new
+      // row takes the default and an existing one keeps its own.
+      maxRating: getDefaultMaxRating(input.category, input.channel),
     },
     deps.clock,
   )

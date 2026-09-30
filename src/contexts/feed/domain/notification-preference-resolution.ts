@@ -15,7 +15,12 @@
 // ever seen. `personalDefault` is that inheritance.
 
 import { effectiveEmailCadence } from './notification-cadence'
-import { getDefaultCadence, getDefaultEnabled } from './notification-policy'
+import {
+  getDefaultCadence,
+  getDefaultEnabled,
+  getDefaultMaxRating,
+} from './notification-policy'
+import type { LowRatingThreshold } from './notification-low-ratings'
 import type {
   NotificationCadence,
   NotificationCategory,
@@ -50,6 +55,11 @@ export function resolveDeliveryWindow(
 export type CategoryPreferenceValues = Readonly<{
   enabled: boolean
   cadence: NotificationCadence
+  /**
+   * Low ratings only: the highest rating this channel is on for ("N★ or
+   * lower"). Absent or null for every other category.
+   */
+  maxRating?: LowRatingThreshold | null
 }>
 
 /**
@@ -68,11 +78,14 @@ export function resolveCategoryPreference(
 ): CategoryPreferenceValues {
   const chosen = input.property ?? input.personalDefault
   const cadence = chosen?.cadence ?? getDefaultCadence(input.category)
+  const maxRating =
+    chosen?.maxRating ?? getDefaultMaxRating(input.category, input.channel)
   return {
     enabled: chosen?.enabled ?? getDefaultEnabled(input.category, input.channel),
     cadence:
       input.channel === 'email'
         ? effectiveEmailCadence(input.category, cadence)
         : cadence,
+    ...(maxRating === null ? {} : { maxRating }),
   }
 }

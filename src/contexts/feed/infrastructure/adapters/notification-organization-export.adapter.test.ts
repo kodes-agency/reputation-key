@@ -155,7 +155,7 @@ describe('Notification Organization Export entries', () => {
 
     expect(headers).toEqual([
       'id,user_id,property_id,type,category,priority,status,resource_type,resource_id,title,body,payload,coalesced_count,coalesced_latest_at,read_at,created_at,updated_at',
-      'id,user_id,property_id,category,channel,enabled,cadence,created_at,updated_at',
+      'id,user_id,property_id,category,channel,enabled,cadence,max_rating,created_at,updated_at',
       'id,user_id,locale,timezone,quiet_hours_start,quiet_hours_end,urgent_bypass_enabled,created_at,updated_at',
     ])
     const archive = entries
