@@ -9,7 +9,7 @@
   "src/contexts/integration/build.ts": 1211,
   "src/contexts/integration/infrastructure/adapters/google-review-api.adapter.ts": 925,
   "src/contexts/integration/infrastructure/google-import-v2-store.ts": 1838,
-  "src/contexts/portal/infrastructure/portal-command-store.ts": 1029,
+  "src/contexts/portal/infrastructure/portal-command-store.ts": 835,
   "src/contexts/property/infrastructure/property-google-binding-store.ts": 900,
   "src/contexts/reporting/application/use-cases/goal-programs.ts": 1215,
   "src/contexts/reporting/infrastructure/repositories/goal-program.repository.ts": 1012,

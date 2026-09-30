@@ -3,16 +3,10 @@
 // Portal state, responsibility/token side effects, and every required durable
 // lifecycle fact commit together in one PostgreSQL transaction.
 
-import { and, eq, isNull, or, sql } from 'drizzle-orm'
+import { and, eq, isNull, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
-  portalLinkCategories,
-  portalLinks,
   portalResponsibleManagers,
-  portalApprovedDestinations,
-  portalLocalizedOverrides,
-  propertyPortalBrandContents,
-  propertyPortalBrandProfiles,
   portalHealthIntervals,
   portals,
   portalTokens,
@@ -37,11 +31,14 @@ import type {
 } from '../application/ports/portal-command-store.port'
 import type { Portal, PortalTheme } from '../domain/types'
 import { portalError } from '../domain/errors'
-import { isLocalizedConfiguration } from '../domain/portal-publication-snapshot'
+import {
+  lockPortalWorkingCopyTables,
+  readPortalWorkingCopy,
+} from './portal-working-copy.reader'
+import { workingCopyMatchesSnapshot } from '../application/portal-working-copy-match'
 import { snapshotMirrorColumns } from './mappers/portal-publication-snapshot.mapper'
 import { portalToRow } from './mappers/portal.mapper'
 import { verifyPortalPublicationSnapshot } from '../application/portal-publication-snapshot'
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import { assertCommittedRevision, sameInstant } from './portal-command-guards'
 import { createPortalGroupCommands } from './portal-group-commands'
 import { createPortalLinkCommands } from './portal-link-commands'
@@ -495,6 +492,11 @@ async function applyPortalHealthMutation(
   })
 }
 
+/**
+ * The snapshot about to be inserted must say exactly what the committed working
+ * rows say. The rows are read by the same reader that built the snapshot, so a
+ * difference means content moved between the read and this commit.
+ */
 async function assertSnapshotMatchesCommittedWorkingCopy(
   tx: Parameters<Parameters<Database['transaction']>[0]>[0],
   command: UpdatePortalCommand &
@@ -505,217 +507,26 @@ async function assertSnapshotMatchesCommittedWorkingCopy(
       >
     }>,
 ): Promise<void> {
-  const [portal] = await tx
-    .select()
-    .from(portals)
-    .where(
-      and(
-        eq(portals.organizationId, unbrand(command.organizationId)),
-        eq(portals.propertyId, unbrand(command.propertyId)),
-        eq(portals.id, unbrand(command.portalId)),
-        isNull(portals.deletedAt),
-      ),
-    )
-    .limit(1)
-  if (!portal) {
-    throw portalError(
-      'publication_snapshot_unavailable',
-      'Portal disappeared while its publication snapshot was being committed',
-    )
-  }
-  const organizationResult = await tx.execute(
-    sql`SELECT name FROM "organization" WHERE id = ${unbrand(command.organizationId)} LIMIT 1 FOR SHARE`,
-  )
-  const categories = await tx
-    .select()
-    .from(portalLinkCategories)
-    .where(
-      and(
-        eq(portalLinkCategories.organizationId, unbrand(command.organizationId)),
-        eq(portalLinkCategories.portalId, unbrand(command.portalId)),
-      ),
-    )
-    .orderBy(portalLinkCategories.sortKey, portalLinkCategories.id)
-  const links = await tx
-    .select({
-      link: portalLinks,
-      destinationUri: portalApprovedDestinations.normalizedUri,
-      destinationApprovalState: portalApprovedDestinations.approvalState,
-    })
-    .from(portalLinks)
-    .leftJoin(
-      portalApprovedDestinations,
-      and(
-        eq(portalApprovedDestinations.organizationId, portalLinks.organizationId),
-        eq(portalApprovedDestinations.propertyId, portalLinks.propertyId),
-        eq(portalApprovedDestinations.id, portalLinks.destinationId),
-      ),
-    )
-    .where(
-      and(
-        eq(portalLinks.organizationId, unbrand(command.organizationId)),
-        eq(portalLinks.portalId, unbrand(command.portalId)),
-      ),
-    )
-    .orderBy(portalLinks.sortKey, portalLinks.id)
-  const organization = organizationResult.rows[0] as { name?: unknown } | undefined
-  if (!organization || typeof organization.name !== 'string') {
-    throw portalError(
-      'publication_snapshot_unavailable',
-      'Portal organization display content is unavailable',
-    )
-  }
-
-  const approved = command.publication.snapshot.configuration
-  const localized = isLocalizedConfiguration(approved)
-  const [brandProfile, brandContents, localizedOverrides] = localized
-    ? await Promise.all([
-        tx
-          .select()
-          .from(propertyPortalBrandProfiles)
-          .where(
-            and(
-              eq(
-                propertyPortalBrandProfiles.organizationId,
-                unbrand(command.organizationId),
-              ),
-              eq(propertyPortalBrandProfiles.propertyId, unbrand(command.propertyId)),
-            ),
-          )
-          .limit(1),
-        tx
-          .select()
-          .from(propertyPortalBrandContents)
-          .where(
-            and(
-              eq(
-                propertyPortalBrandContents.organizationId,
-                unbrand(command.organizationId),
-              ),
-              eq(propertyPortalBrandContents.propertyId, unbrand(command.propertyId)),
-            ),
-          ),
-        tx
-          .select()
-          .from(portalLocalizedOverrides)
-          .where(
-            and(
-              eq(
-                portalLocalizedOverrides.organizationId,
-                unbrand(command.organizationId),
-              ),
-              eq(portalLocalizedOverrides.propertyId, unbrand(command.propertyId)),
-              eq(portalLocalizedOverrides.portalId, unbrand(command.portalId)),
-            ),
-          ),
-      ])
-    : [[], [], []]
-  const brand = brandProfile[0]
-
-  const committed = {
-    portal: {
-      id: portal.id,
-      name: portal.name,
-      slug: portal.slug,
-      description: portal.description,
-      heroImageUrl: portal.heroImageUrl,
-      theme: portal.theme,
-      organizationName: localized ? brand?.displayName : organization.name,
+  const committed = await readPortalWorkingCopy(
+    tx,
+    {
+      organizationId: unbrand(command.organizationId),
+      propertyId: unbrand(command.propertyId),
+      portalId: unbrand(command.portalId),
     },
-    categories: categories.map((category) => ({
-      id: category.id,
-      title: category.title,
-      sortKey: category.sortKey,
-    })),
-    links: links.flatMap(({ link, destinationUri, destinationApprovalState }) => {
-      const url = localized
-        ? destinationApprovalState === 'approved'
-          ? destinationUri
-          : null
-        : link.url
-      return url
-        ? [
-            {
-              id: link.id,
-              label: link.label,
-              url,
-              categoryId: link.categoryId,
-              sortKey: link.sortKey,
-            },
-          ]
-        : []
-    }),
-    privateFeedbackThreshold: portal.privateFeedbackThreshold,
+    { lockOrganization: true },
+  )
+  if (!committed) {
+    throw portalError(
+      'publication_snapshot_unavailable',
+      'Portal working copy disappeared while its publication snapshot was being committed',
+    )
   }
-  const snapshotted = {
-    portal: approved.portal,
-    categories: approved.categories,
-    links: approved.links,
-    privateFeedbackThreshold: approved.reviewGateway.privateFeedbackThreshold,
-  }
-  if (canonicalizeRfc8785(committed) !== canonicalizeRfc8785(snapshotted)) {
+  if (!workingCopyMatchesSnapshot(committed, command.publication.snapshot)) {
     throw portalError(
       'revision_conflict',
       'Portal content changed while the publication snapshot was being committed',
     )
-  }
-  if (localized) {
-    if (!brand) {
-      throw portalError(
-        'revision_conflict',
-        'Property Brand Profile changed while the publication snapshot was committed',
-      )
-    }
-    const contents = new Map(brandContents.map((item) => [item.locale, item]))
-    const overrides = new Map(localizedOverrides.map((item) => [item.locale, item]))
-    const localizedContent = Object.fromEntries(
-      approved.localeSet.flatMap((locale) => {
-        const content = contents.get(locale)
-        if (!content) return []
-        const override = overrides.get(locale)
-        return [
-          [
-            locale,
-            {
-              title: override?.title ?? content.title,
-              shortDescription: override?.shortDescription ?? content.shortDescription,
-              heroImageUrl: override?.heroImageUrl ?? brand.defaultHeroImageUrl ?? null,
-            },
-          ],
-        ]
-      }),
-    )
-    const expectedExperience = {
-      localeSet: [
-        portal.primaryGuestLocale,
-        ...((Array.isArray(portal.additionalGuestLocales)
-          ? portal.additionalGuestLocales
-          : []) as string[]),
-      ].filter((locale, index, all) => all.indexOf(locale) === index),
-      localizedContent,
-      brandProfile: {
-        displayName: brand.displayName,
-        logoUrl: brand.logoUrl,
-        defaultHeroImageUrl: brand.defaultHeroImageUrl,
-        primaryColor: brand.primaryColor,
-        backgroundColor: brand.backgroundColor,
-        textColor: brand.textColor,
-        version: brand.version,
-      },
-    }
-    const approvedExperience = {
-      localeSet: approved.localeSet,
-      localizedContent: approved.localizedContent,
-      brandProfile: approved.brandProfile,
-    }
-    if (
-      canonicalizeRfc8785(expectedExperience) !== canonicalizeRfc8785(approvedExperience)
-    ) {
-      throw portalError(
-        'revision_conflict',
-        'Portal brand or localized content changed during publication',
-      )
-    }
   }
 }
 
@@ -904,13 +715,9 @@ export const createAtomicPortalCommandStore = (db: Database): PortalCommandStore
           )
 
           if (command.publication?.kind === 'publish') {
-            // Every content path locks the Portal aggregate first. Taking the
-            // bounded working-copy table locks second preserves that universal
-            // order while still preventing child writers from crossing the
-            // committed snapshot comparison below.
-            await tx.execute(
-              sql`LOCK TABLE ${portalLinkCategories}, ${portalLinks} IN SHARE ROW EXCLUSIVE MODE`,
-            )
+            // The Portal row is already locked (above); the working-copy
+            // table locks come second, then the comparison reads the rows.
+            await lockPortalWorkingCopyTables(tx)
             await assertSnapshotMatchesCommittedWorkingCopy(
               tx,
               command as UpdatePortalCommand & {
