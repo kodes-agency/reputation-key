@@ -1,52 +1,71 @@
-// Portal list page — extracted from route for testability and separation of concerns
-import { useMemo, useState } from 'react'
+// Portals — every portal of a property, grouped, with the few that need
+// something marked (docs/design/portal-experience/round-4-admin, boards 01 and
+// 11). Status is deliberately not a panel: a live portal that needs nothing
+// shows only its name, its code and its languages.
+//
+// Presentational: the route owns the reads and the URL; this page receives the
+// search and reports changes through `onSearchChange`. The results strip and the
+// measure columns join in slice 25b. Portal Group management stays below the
+// table until the group page (slice 38) replaces it.
 import { Link } from '@tanstack/react-router'
+import { Globe, Plus, SearchX } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
-import { Input } from '#/components/ui/input'
 import { EmptyState } from '#/components/ui/empty-state'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-import { Plus, Globe, Search } from 'lucide-react'
-import { PortalListTable } from './portal-list-table'
+import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
 import { PortalGroupManagement, type PortalGroupView } from './portal-group-management'
-import type { PortalListItem } from './portal-list-types'
+import type { PortalArchiveMutations } from './portal-overview/portal-archive-dialog'
+import { PortalOverviewPager } from './portal-overview/portal-overview-pager'
+import {
+  portalOverviewSearchPatch,
+  type PortalOverviewSearch,
+} from './portal-overview/portal-overview-search-schema'
+import { PortalOverviewTable } from './portal-overview/portal-overview-table'
+import { PortalOverviewToolbar } from './portal-overview/portal-overview-toolbar'
+import {
+  buildPortalOverview,
+  type PortalManagerName,
+} from './portal-overview/portal-overview-view'
 import type { Action } from '#/components/hooks/use-action'
 
-// A QR code per room means a property can hold hundreds of portals, so the table
-// is paged. Client-side: `listPortals` returns the whole authorized collection
-// in one call and the group editor below needs every portal anyway.
-const PAGE_SIZE = 20
+export type PortalListPageProps = PortalArchiveMutations &
+  Readonly<{
+    rows: readonly PortalOverviewRow[]
+    /** Names for the responsible managers; without them a disc has no initials. */
+    members?: readonly PortalManagerName[]
+    propertyId: string
+    propertyName: string
+    search: PortalOverviewSearch
+    onSearchChange: (next: PortalOverviewSearch) => void
+    portalGroups: readonly PortalGroupView[]
+    createGroupMutation: Action<{
+      data: { propertyId: string; name: string; portalIds?: string[] }
+    }>
+    updateGroupMutation: Action<{ data: { portalGroupId: string; name: string } }>
+    deleteGroupMutation: Action<{ data: { portalGroupId: string } }>
+    addPortalToGroupMutation: Action<{
+      data: { portalGroupId: string; portalId: string }
+    }>
+    removePortalFromGroupMutation: Action<{
+      data: { portalGroupId: string; portalId: string }
+    }>
+  }>
 
-export interface PortalListPageProps {
-  portals: readonly PortalListItem[]
-  propertyId: string
-  propertyName: string
-  archiveMutation: Action<{
-    data: { portalId: string; publicationState: 'archived' }
-  }>
-  restoreMutation: Action<{
-    data: { portalId: string; publicationState: 'disabled' }
-  }>
-  portalGroups: readonly PortalGroupView[]
-  createGroupMutation: Action<{
-    data: { propertyId: string; name: string; portalIds?: string[] }
-  }>
-  updateGroupMutation: Action<{ data: { portalGroupId: string; name: string } }>
-  deleteGroupMutation: Action<{ data: { portalGroupId: string } }>
-  addPortalToGroupMutation: Action<{
-    data: { portalGroupId: string; portalId: string }
-  }>
-  removePortalFromGroupMutation: Action<{
-    data: { portalGroupId: string; portalId: string }
-  }>
+const describe = (count: number, propertyName: string): string | undefined => {
+  if (count === 0) return undefined
+  return `${count === 1 ? '1 portal' : `${count} portals`} at ${propertyName}`
 }
 
 export function PortalListPage({
-  portals,
+  rows,
+  members = [],
   propertyId,
   propertyName,
+  search,
+  onSearchChange,
   archiveMutation,
   restoreMutation,
   portalGroups,
@@ -57,122 +76,78 @@ export function PortalListPage({
   removePortalFromGroupMutation,
 }: PortalListPageProps) {
   const { can } = usePermissions()
-  const [search, setSearch] = useState('')
-  const [page, setPage] = useState(0)
+  const overview = buildPortalOverview(rows, search, members)
+  const update = (patch: Partial<PortalOverviewSearch>) =>
+    onSearchChange(portalOverviewSearchPatch(search, patch))
 
-  const matches = useMemo(() => {
-    const needle = search.trim().toLowerCase()
-    if (!needle) return portals
-    return portals.filter((portal) => portal.name.toLowerCase().includes(needle))
-  }, [portals, search])
-
-  // Clamped rather than reset in an effect: deleting the last row of the last
-  // page must not leave the table blank.
-  const lastPage = Math.max(0, Math.ceil(matches.length / PAGE_SIZE) - 1)
-  const currentPage = Math.min(page, lastPage)
-  const pageStart = currentPage * PAGE_SIZE
-  const visible = matches.slice(pageStart, pageStart + PAGE_SIZE)
-
-  const addPortalButton = can('portal.create') ? (
+  const newPortalButton = can('portal.create') ? (
     <Button asChild className="min-h-11 sm:min-h-9">
       <Link to="/properties/$propertyId/portals/new" params={{ propertyId }}>
         <Plus />
-        Add Portal
+        New portal
       </Link>
     </Button>
   ) : undefined
 
   return (
-    <PageShell>
+    <PageShell tier="dashboard">
       <PageHeader
         title="Portals"
-        description="Manage guest-facing portal pages for this property."
+        description={describe(rows.length, propertyName)}
         breadcrumbs={[
           { label: 'Properties', to: '/properties' },
           { label: propertyName, to: `/properties/${propertyId}` },
           { label: 'Portals' },
         ]}
-        actions={addPortalButton}
+        actions={newPortalButton}
       />
       <FormErrorBanner error={archiveMutation.error ?? restoreMutation.error} />
 
-      {portals.length === 0 ? (
+      {rows.length === 0 ? (
         <EmptyState icon={Globe} title="No portals yet">
           <p className="text-sm text-muted-foreground">
             Create a portal to set up a guest-facing page with links.
           </p>
-          {addPortalButton}
+          {newPortalButton}
         </EmptyState>
       ) : (
-        <div className="space-y-4">
-          <div className="relative max-w-sm">
-            <Search
-              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-              aria-hidden="true"
-            />
-            <Input
-              value={search}
-              onChange={(event) => {
-                setSearch(event.currentTarget.value)
-                setPage(0)
-              }}
-              placeholder="Search portals by name"
-              aria-label="Search portals by name"
-              className="pl-9"
-            />
-          </div>
-
-          {matches.length === 0 ? (
-            <EmptyState icon={Search} title={`No portals match “${search.trim()}”`}>
-              <p className="text-sm text-muted-foreground">
-                Try a shorter search, or clear it to see all {portals.length} portals.
-              </p>
+        <section aria-label="Portal list" className="flex flex-col gap-4">
+          <PortalOverviewToolbar
+            search={search}
+            matched={overview.matched}
+            total={overview.total}
+            onChange={update}
+          />
+          {overview.matched === 0 ? (
+            <EmptyState icon={SearchX} title="No portals match">
+              <Button
+                variant="outline"
+                onClick={() => update({ q: undefined, show: undefined })}
+              >
+                Clear search and filter
+              </Button>
             </EmptyState>
           ) : (
             <>
-              <PortalListTable
-                portals={visible}
+              <PortalOverviewTable
+                sections={overview.sections}
                 propertyId={propertyId}
-                canDelete={can('portal.delete')}
-                canUpdate={can('portal.update')}
+                propertyName={propertyName}
                 archiveMutation={archiveMutation}
                 restoreMutation={restoreMutation}
               />
-              <div className="flex items-center justify-between gap-4">
-                <p aria-live="polite" className="text-sm text-muted-foreground">
-                  Showing {pageStart + 1}–{pageStart + visible.length} of {matches.length}
-                </p>
-                {lastPage > 0 && (
-                  <div className="flex items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={currentPage === 0}
-                      onClick={() => setPage(currentPage - 1)}
-                    >
-                      Previous
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      disabled={currentPage === lastPage}
-                      onClick={() => setPage(currentPage + 1)}
-                    >
-                      Next
-                    </Button>
-                  </div>
-                )}
-              </div>
+              <PortalOverviewPager
+                overview={overview}
+                onPage={(page) => update({ page })}
+              />
             </>
           )}
-        </div>
+        </section>
       )}
       <PortalGroupManagement
         propertyId={propertyId}
         groups={portalGroups}
-        portals={portals.map((portal) => ({ id: portal.id, name: portal.name }))}
+        portals={rows.map((row) => ({ id: row.portalId, name: row.name }))}
         createMutation={createGroupMutation}
         updateMutation={updateGroupMutation}
         deleteMutation={deleteGroupMutation}

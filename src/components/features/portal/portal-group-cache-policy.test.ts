@@ -39,6 +39,7 @@ describe('portalGroupCachePolicy', () => {
         { queryKey: portalKeys.groups(PROPERTY_ID), exact: true },
         { queryKey: portalKeys.goalSubjects(PROPERTY_ID), exact: true },
         { queryKey: portalKeys.goalSubjectNames(PROPERTY_ID), exact: true },
+        { queryKey: portalKeys.overview(PROPERTY_ID), exact: true },
       ])
     },
   )
@@ -49,9 +50,11 @@ describe('portalGroupCachePolicy', () => {
       portalKeys.groups(PROPERTY_ID),
       portalKeys.goalSubjects(PROPERTY_ID),
       portalKeys.goalSubjectNames(PROPERTY_ID),
+      portalKeys.overview(PROPERTY_ID),
     ]
     const unaffected = [
       portalKeys.list(PROPERTY_ID),
+      portalKeys.overview('property-2'),
       portalKeys.groups('property-2'),
       portalKeys.goalSubjects('property-2'),
       portalKeys.goalSubjectNames('property-2'),
@@ -64,9 +67,9 @@ describe('portalGroupCachePolicy', () => {
 
     expect(
       affected.map((queryKey) => queryClient.getQueryState(queryKey)?.isInvalidated),
-    ).toEqual([true, true, true])
+    ).toEqual([true, true, true, true])
     expect(
       unaffected.map((queryKey) => queryClient.getQueryState(queryKey)?.isInvalidated),
-    ).toEqual([false, false, false, false])
+    ).toEqual([false, false, false, false, false])
   })
 })

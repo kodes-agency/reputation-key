@@ -1,21 +1,38 @@
+import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, within } from 'storybook/test'
-import { PortalListPage } from './portal-list-page'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
+import { PortalListPage, type PortalListPageProps } from './portal-list-page'
+import {
+  NO_CODE,
+  overviewGroup,
+  overviewRow,
+} from './portal-overview/portal-overview-fixtures'
+import {
+  MAX_SEARCH_LENGTH,
+  type PortalOverviewSearch,
+} from './portal-overview/portal-overview-search-schema'
 import type { Action } from '#/components/hooks/use-action'
 import {
   AuthedRouterDecorator,
   withRole,
 } from '../../../../.storybook/AuthedRouterDecorator'
 
-const meta: Meta<typeof PortalListPage> = {
+// The page is presentational: the route owns the URL. A story keeps the search
+// in state so the toolbar, the pager and "Clear" behave as they do in the route.
+function ControlledPage(props: Omit<PortalListPageProps, 'search' | 'onSearchChange'>) {
+  const [search, setSearch] = useState<PortalOverviewSearch>({})
+  return <PortalListPage {...props} search={search} onSearchChange={setSearch} />
+}
+
+const meta: Meta<typeof ControlledPage> = {
   title: 'Portal/PortalListPage',
-  component: PortalListPage,
+  component: ControlledPage,
   tags: ['autodocs'],
   parameters: { layout: 'fullscreen' },
   decorators: [AuthedRouterDecorator],
 }
 export default meta
-type Story = StoryObj<typeof PortalListPage>
+type Story = StoryObj<typeof ControlledPage>
 
 const action = <TInput,>(): Action<TInput> =>
   Object.assign(async (_input: TInput) => undefined, {
@@ -25,48 +42,64 @@ const action = <TInput,>(): Action<TInput> =>
     data: null,
   })
 
-const portals = [
-  {
-    id: 'p-1',
-    name: 'Guest Services',
-    slug: 'guest-services',
-    publicationState: 'published' as const,
-    theme: { primaryColor: '#6366f1' },
-  },
-  {
-    id: 'p-2',
-    name: 'Spa & Wellness',
-    slug: 'spa',
-    publicationState: 'draft' as const,
-    theme: { primaryColor: '#10b981' },
-  },
-  {
-    id: 'p-3',
-    name: 'Dining Feedback',
-    slug: 'dining',
-    publicationState: 'disabled' as const,
-    theme: { primaryColor: '#f59e0b' },
-  },
-  {
-    id: 'p-4',
-    name: 'Archived Lobby',
-    slug: 'archived-lobby',
-    publicationState: 'archived' as const,
-    theme: { primaryColor: '#64748b' },
-  },
+const poolSide = overviewGroup('group-pool', 'Pool side')
+const frontOfHouse = overviewGroup('group-front', 'Front of house')
+
+const rows = [
+  overviewRow('p-terrace', {
+    name: 'Pool & Terrace',
+    group: poolSide,
+    additionalGuestLocales: ['bg', 'es', 'de'],
+    pendingChangeCount: 2,
+    responsibleManagerUserIds: ['u-georgi', 'u-elena'],
+  }),
+  overviewRow('p-spa', {
+    name: 'Spa & thermal pools',
+    group: poolSide,
+    additionalGuestLocales: ['bg'],
+    responsibleManagerUserIds: [],
+    token: { ...overviewRow('x').token, qualifiedScanReady: false },
+  }),
+  overviewRow('p-bar', {
+    name: 'Pool bar',
+    group: poolSide,
+    publicationState: 'draft',
+    additionalGuestLocales: ['bg'],
+    token: NO_CODE,
+    responsibleManagerUserIds: ['u-elena'],
+  }),
+  overviewRow('p-reception', {
+    name: 'Reception',
+    group: frontOfHouse,
+    additionalGuestLocales: ['bg'],
+    responsibleManagerUserIds: ['u-georgi', 'u-elena'],
+  }),
+  overviewRow('p-olive', {
+    name: 'Olive Terrace restaurant',
+    additionalGuestLocales: ['bg'],
+    responsibleManagerUserIds: ['u-georgi'],
+  }),
+]
+
+const members = [
+  { userId: 'u-georgi', name: 'Georgi Ivanov' },
+  { userId: 'u-elena', name: 'Elena Petrova' },
 ]
 
 const baseArgs = {
-  portals,
+  rows,
+  members,
   propertyId: 'prop-1',
-  propertyName: 'Acme Hotel',
+  propertyName: 'Avela Resort',
   archiveMutation: action<{
     data: { portalId: string; publicationState: 'archived' }
   }>(),
   restoreMutation: action<{
     data: { portalId: string; publicationState: 'disabled' }
   }>(),
-  portalGroups: [{ id: 'group-1', name: 'Guest experience', portalIds: ['p-1', 'p-2'] }],
+  portalGroups: [
+    { id: 'group-pool', name: 'Pool side', portalIds: ['p-terrace', 'p-spa', 'p-bar'] },
+  ],
   createGroupMutation: action<{
     data: { propertyId: string; name: string; portalIds?: string[] }
   }>(),
@@ -82,20 +115,24 @@ const baseArgs = {
 
 export const Default: Story = { args: baseArgs }
 
-export const AllDisabled: Story = {
-  args: {
-    ...baseArgs,
-    portals: portals.map((portal) => ({
-      ...portal,
-      publicationState: 'disabled' as const,
-    })),
+export const Empty: Story = {
+  args: { ...baseArgs, rows: [], portalGroups: [] },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByText(/no portals yet/i)).toBeInTheDocument()
   },
 }
 
-export const Empty: Story = {
-  args: { ...baseArgs, portals: [], portalGroups: [] },
+export const GroupedWithCounts: Story = {
+  args: baseArgs,
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByText(/no portals yet/i)).toBeInTheDocument()
+    const canvas = within(canvasElement)
+    // The group editor below the table repeats the group names, so look inside the table.
+    const table = within(canvas.getByRole('table', { name: /portals at avela resort/i }))
+    await expect(table.getByText('Pool side')).toBeInTheDocument()
+    await expect(table.getByText(/3 portals/)).toBeInTheDocument()
+    await expect(table.getByText('Front of house')).toBeInTheDocument()
+    await expect(table.getByText('Not in a group')).toBeInTheDocument()
+    await expect(canvas.getByText('5 portals at Avela Resort')).toBeInTheDocument()
   },
 }
 
@@ -103,10 +140,91 @@ export const ShowsPortalNames: Story = {
   args: baseArgs,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('link', { name: 'Guest Services' })).toBeInTheDocument()
-    await expect(canvas.getByRole('link', { name: 'Spa & Wellness' })).toBeInTheDocument()
+    for (const name of rows.map((row) => row.name)) {
+      await expect(canvas.getByRole('link', { name })).toBeInTheDocument()
+    }
+  },
+}
+
+export const ListsTheCodeAndLanguagesNeverAPlace: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getAllByText('QR and NFC').length).toBeGreaterThan(0)
+    await expect(canvas.getByText('No code yet')).toBeInTheDocument()
     await expect(
-      canvas.getByRole('link', { name: 'Dining Feedback' }),
+      canvas.getByText('Languages: English, Bulgarian, Spanish, German'),
+    ).toBeInTheDocument()
+  },
+}
+
+// Status only by exception: the quiet line appears on the portals that need
+// something, and on no others.
+export const StatusOnlyByException: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('2 changes not live')).toBeInTheDocument()
+    await expect(canvas.getByText(/draft · not published/i)).toBeInTheDocument()
+    await expect(canvas.getByRole('button', { name: /1 issue/i })).toBeInTheDocument()
+    await expect(canvas.queryByText(/live ·/i)).toBeNull()
+    await expect(canvas.queryByText('Published')).toBeNull()
+  },
+}
+
+export const IssuesSaySpecifically: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: /1 issue/i }))
+    const dialog = await within(document.body).findByRole('dialog')
+    await expect(within(dialog).getByText('No one is responsible')).toBeInTheDocument()
+    await expect(within(dialog).queryByText(/reprint/i)).toBeNull()
+  },
+}
+
+export const ResponsibleManagers: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      canvas.getAllByText('Responsible: Georgi Ivanov and Elena Petrova'),
+    ).toHaveLength(2)
+    await expect(canvas.getByText('No one')).toBeInTheDocument()
+  },
+}
+
+export const FoldsAGroup: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Portals in Pool side' }))
+    await expect(canvas.queryByRole('link', { name: 'Pool & Terrace' })).toBeNull()
+    await expect(canvas.getByRole('link', { name: 'Reception' })).toBeInTheDocument()
+    await userEvent.click(canvas.getByRole('button', { name: 'Portals in Pool side' }))
+    await expect(canvas.getByRole('link', { name: 'Pool & Terrace' })).toBeInTheDocument()
+  },
+}
+
+export const RowMenuHoldsTheRest: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole('button', {
+        name: 'More actions for Pool & Terrace',
+      }),
+    )
+    const menu = await within(document.body).findByRole('menu')
+    await expect(
+      within(menu).getByRole('menuitem', { name: 'Results' }),
+    ).toBeInTheDocument()
+    await expect(
+      within(menu).getByRole('menuitem', { name: 'History' }),
+    ).toBeInTheDocument()
+    await expect(
+      within(menu).getByRole('menuitem', { name: 'Review & publish' }),
+    ).toBeInTheDocument()
+    await expect(
+      within(menu).getByRole('menuitem', { name: /archive/i }),
     ).toBeInTheDocument()
   },
 }
@@ -114,21 +232,36 @@ export const ShowsPortalNames: Story = {
 export const RecoverableLifecycle: Story = {
   args: baseArgs,
   play: async ({ canvasElement }) => {
-    const archiveButtons = within(canvasElement).getAllByRole('button', {
-      name: /archive/i,
-    })
-    await userEvent.click(archiveButtons[0])
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: 'More actions for Reception' }),
+    )
+    await userEvent.click(
+      await within(document.body).findByRole('menuitem', { name: /archive/i }),
+    )
     await expect(
       await within(document.body).findByRole('alertdialog', {
-        name: /archive guest services/i,
+        name: /archive reception/i,
       }),
     ).toBeInTheDocument()
-
     await userEvent.click(within(document.body).getByRole('button', { name: /cancel/i }))
-    // findBy, not getBy: the dismissed alert dialog leaves the canvas
-    // aria-hidden for a beat, and getByRole would not see the button through it.
+  },
+}
+
+export const ArchivedCanBeRestored: Story = {
+  args: {
+    ...baseArgs,
+    rows: [
+      overviewRow('p-old', { name: 'Archived Lobby', publicationState: 'archived' }),
+    ],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Archived')).toBeInTheDocument()
     await userEvent.click(
-      await within(canvasElement).findByRole('button', { name: /^restore$/i }),
+      canvas.getByRole('button', { name: 'More actions for Archived Lobby' }),
+    )
+    await userEvent.click(
+      await within(document.body).findByRole('menuitem', { name: /restore/i }),
     )
     await expect(
       await within(document.body).findByRole('alertdialog', {
@@ -145,9 +278,12 @@ export const SearchFiltersRows: Story = {
   args: baseArgs,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.type(canvas.getByLabelText(/search portals by name/i), 'spa')
-    await expect(canvas.getByRole('link', { name: 'Spa & Wellness' })).toBeInTheDocument()
-    await expect(canvas.queryByRole('link', { name: 'Guest Services' })).toBeNull()
+    await userEvent.type(canvas.getByLabelText(/search portals/i), 'spa')
+    await expect(
+      canvas.getByRole('link', { name: 'Spa & thermal pools' }),
+    ).toBeInTheDocument()
+    await expect(canvas.queryByRole('link', { name: 'Reception' })).toBeNull()
+    await expect(canvas.getByText(/1 of 3 portals/)).toBeInTheDocument()
   },
 }
 
@@ -155,8 +291,93 @@ export const SearchWithNoMatches: Story = {
   args: baseArgs,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.type(canvas.getByLabelText(/search portals by name/i), 'zzzz')
+    await userEvent.type(canvas.getByLabelText(/search portals/i), 'zzzz')
     await expect(canvas.getByText(/no portals match/i)).toBeInTheDocument()
+    await userEvent.click(
+      canvas.getByRole('button', { name: /clear search and filter/i }),
+    )
+    await expect(canvas.getByRole('link', { name: 'Reception' })).toBeInTheDocument()
+  },
+}
+
+export const NeedsAttentionFilter: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /show: all/i }))
+    await userEvent.click(
+      await within(document.body).findByRole('menuitemradio', {
+        name: 'Needs attention',
+      }),
+    )
+    await waitFor(() =>
+      expect(canvas.queryByRole('link', { name: 'Reception' })).toBeNull(),
+    )
+    await expect(canvas.getByRole('link', { name: 'Pool bar' })).toBeInTheDocument()
+  },
+}
+
+export const FlatList: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /group by: group/i }))
+    await userEvent.click(
+      await within(document.body).findByRole('menuitemradio', { name: 'Nothing' }),
+    )
+    await waitFor(() =>
+      expect(canvas.queryByRole('button', { name: /portals in/i })).toBeNull(),
+    )
+    await expect(canvas.getByRole('link', { name: 'Reception' })).toBeInTheDocument()
+  },
+}
+
+const manyRows = Array.from({ length: 25 }, (_, index) =>
+  overviewRow(`p-${String(index + 1).padStart(2, '0')}`, {
+    name: `Room ${String(index + 1).padStart(2, '0')}`,
+  }),
+)
+
+export const PagesLongLists: Story = {
+  args: { ...baseArgs, rows: manyRows, portalGroups: [] },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Showing 1–20 of 25')).toBeInTheDocument()
+    await expect(canvas.queryByRole('link', { name: 'Room 25' })).toBeNull()
+    await userEvent.click(canvas.getByRole('button', { name: 'Next' }))
+    await expect(canvas.getByText('Showing 21–25 of 25')).toBeInTheDocument()
+    await expect(canvas.getByRole('link', { name: 'Room 25' })).toBeInTheDocument()
+  },
+}
+
+export const Phone: Story = {
+  args: baseArgs,
+  decorators: [
+    (Story) => (
+      <div style={{ width: 390 }}>
+        <Story />
+      </div>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('link', { name: 'Pool & Terrace' })).toBeInTheDocument()
+    await expect(
+      canvas.getByRole('link', { name: 'Edit Pool & Terrace' }),
+    ).toBeInTheDocument()
+    await expect(
+      canvas.getByRole('link', { name: 'Share Pool & Terrace' }),
+    ).toBeInTheDocument()
+  },
+}
+
+export const SearchStopsAtItsLimit: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    const box = within(canvasElement).getByRole('searchbox', { name: 'Search portals' })
+    await userEvent.click(box)
+    await userEvent.paste('a'.repeat(MAX_SEARCH_LENGTH + 20))
+    await expect(box).toHaveValue('a'.repeat(MAX_SEARCH_LENGTH))
   },
 }
 
@@ -165,9 +386,11 @@ export const MemberReadOnly: Story = {
   decorators: [withRole('Member')],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.queryByRole('button', { name: /add portal/i })).toBeNull()
-    await expect(canvas.queryAllByRole('button', { name: /archive/i })).toHaveLength(0)
-    await expect(canvas.queryAllByRole('button', { name: /restore/i })).toHaveLength(0)
+    await expect(canvas.queryByRole('link', { name: /new portal/i })).toBeNull()
+    await expect(canvas.queryByRole('link', { name: /^edit /i })).toBeNull()
+    await expect(
+      canvas.getByRole('link', { name: 'View Pool & Terrace' }),
+    ).toBeInTheDocument()
     await expect(canvas.getByText(/view-only access/i)).toBeInTheDocument()
   },
 }

@@ -123,6 +123,16 @@ describe('goal query keys', () => {
     ])
   })
 
+  it('keeps the portals overview in the property subtree, apart from the plain list', () => {
+    expect(portalKeys.overview('property-1')).toEqual([
+      'portals',
+      'property',
+      'property-1',
+      'overview',
+    ])
+    expect(portalKeys.overview('property-1')).not.toEqual(portalKeys.list('property-1'))
+  })
+
   it('keeps goal subject data in one property-scoped portal subtree', () => {
     expect(portalKeys.goalSubjects('property-1')).toEqual([
       'portals',
