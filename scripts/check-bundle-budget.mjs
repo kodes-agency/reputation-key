@@ -98,6 +98,13 @@
 // in public/fonts/guest, outside .output/public/assets, so they are not part of
 // this closure and stay off every other page. The budget is unchanged.
 //
+// 2026-09-30 (Portal round 4, s27): the Portal detail loader now prefetches the
+// property's portal groups (the editor's Group section reads them), so the
+// route's critical chunk carries one more query and its server-function stub.
+// The shared query lives in -portal-detail-data, already part of this closure,
+// so it adds no chunk. Measured 329,350 B (78 js + 1 css) against 329,105 B;
+// the budget moves to 329,700 B.
+//
 // When this fails: resolve the new static importer and cut that source edge. Do
 // NOT raise the budget without recording a fresh production measurement here.
 // When a cycle fails it: the chunk group that moved a module away from the
@@ -113,7 +120,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 329_105, // 319,519 + 3% (2026-09-08); measured 326,719 on 2026-09-16
+  initialClosureGzip: 329_700, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 

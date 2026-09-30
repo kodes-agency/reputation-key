@@ -3,6 +3,7 @@ import { PortalExperienceActionError } from './portal-experience-action-error'
 import { PortalLocalizedOverrideForm } from './portal-localized-override-form'
 import { PortalPropertyContentForm } from './portal-property-content-form'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
+import { portalPropertyContentDraftKey } from '../portal-editor/portal-draft-keys'
 import {
   PORTAL_GUEST_LOCALE_LABEL,
   type PortalExperienceActions,
@@ -31,13 +32,17 @@ export function PortalLocalizedContentEditor({
   return (
     <div className="space-y-4 rounded-md border p-4">
       <div className="flex items-center justify-between gap-2">
-        <h4 className="font-medium">{PORTAL_GUEST_LOCALE_LABEL[locale]} guest content</h4>
+        <h3 className="font-medium">{PORTAL_GUEST_LOCALE_LABEL[locale]} guest content</h3>
         <Badge variant="secondary">{locale.toUpperCase()}</Badge>
       </div>
       {!experience.canManagePropertyBrand ? (
         <p className="text-sm text-muted-foreground">Managed by an Account Admin</p>
       ) : null}
+      {/* Keyed on the property fallback only: it keeps an explicit Save, so it
+          remounts on the saved values. The override below autosaves as it is
+          typed and must NOT remount when a save lands. */}
       <PortalPropertyContentForm
+        key={portalPropertyContentDraftKey(experience, locale)}
         locale={locale}
         propertyId={propertyId}
         initialTitle={baseline?.title ?? ''}

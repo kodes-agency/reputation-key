@@ -68,15 +68,16 @@ describe('Portal form and command DTO architecture standards', () => {
       'src/components/features/portal/link-tree/category-add-form.tsx',
       'src/components/features/portal/link-tree/category-edit-inline-form.tsx',
       'src/components/features/portal/link-tree/link-inline-form.tsx',
+      'src/components/features/portal/portal-editor/portal-private-note-form.tsx',
+      'src/components/features/portal/portal-editor/portal-welcome-form.tsx',
       'src/components/features/portal/portal-form/create-portal-form.tsx',
-      'src/components/features/portal/portal-form/edit-portal-form.tsx',
       'src/components/features/portal/portal-group-create-form.tsx',
       'src/components/features/portal/portal-group-rename-form.tsx',
       'src/components/features/portal/portal-settings/portal-approved-destination-request-form.tsx',
       'src/components/features/portal/portal-settings/portal-localized-override-form.tsx',
       'src/components/features/portal/portal-settings/portal-property-brand-editor.tsx',
       'src/components/features/portal/portal-settings/portal-property-content-form.tsx',
-      'src/components/features/portal/portal-share/portal-planned-replacement-form.tsx',
+      'src/components/features/portal/portal-share/portal-replace-code-form.tsx',
       'src/components/features/portal/portal-share/portal-revoke-links-form.tsx',
     ])
 

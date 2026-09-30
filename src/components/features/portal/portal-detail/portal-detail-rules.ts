@@ -7,6 +7,10 @@
 
 import type { PortalPublicationHistory } from '#/contexts/portal/application/public-api'
 import type { PortalPublicationState, PortalThemeDraft } from '../shared/types'
+import {
+  isPortalEditorSection,
+  type PortalEditorSection,
+} from '../portal-editor/portal-editor-sections'
 
 export const PORTAL_DETAIL_TABS = ['page', 'share', 'results', 'history'] as const
 export type PortalDetailTab = (typeof PORTAL_DETAIL_TABS)[number]
@@ -14,34 +18,55 @@ export type PortalDetailTab = (typeof PORTAL_DETAIL_TABS)[number]
 /**
  * The tab names the workspace replaced. Bookmarks, notification rows already
  * delivered and the e2e journeys still carry them, so they resolve to the tab
- * that now holds what they used to show: Settings and Links are both sections
- * of the Page tab, and Analytics became Results.
+ * that now holds what they used to show: Settings and Links are both parts of
+ * the Page tab (Links is its Linktree section), and Analytics became Results.
  */
-const LEGACY_TABS: Readonly<Record<string, PortalDetailTab>> = {
-  settings: 'page',
-  links: 'page',
-  analytics: 'results',
+const LEGACY_TABS: Readonly<
+  Record<string, Readonly<{ tab: PortalDetailTab; section?: PortalEditorSection }>>
+> = {
+  settings: { tab: 'page' },
+  links: { tab: 'page', section: 'linktree' },
+  analytics: { tab: 'results' },
 }
 
 const isPortalDetailTab = (value: string): value is PortalDetailTab =>
   (PORTAL_DETAIL_TABS as readonly string[]).includes(value)
 
-/**
- * The workspace's route search: only `tab`, always one of the four current
- * tabs. Anything else — an unknown name, a non-string, a missing key, other
- * keys — resolves to the Page tab rather than an error page, because a stale
- * link should still open the portal.
- */
-export function normalizePortalWorkspaceSearch(search: unknown): {
+/** The workspace's route search after normalization. */
+export type PortalWorkspaceSearch = Readonly<{
   tab: PortalDetailTab
-} {
-  const raw =
-    typeof search === 'object' && search !== null && 'tab' in search
-      ? (search as { tab: unknown }).tab
-      : undefined
+  /** Only ever set on the Page tab, the only tab that has sections. */
+  section?: PortalEditorSection
+}>
+
+const searchValue = (search: unknown, key: string): unknown =>
+  typeof search === 'object' && search !== null && key in search
+    ? (search as Record<string, unknown>)[key]
+    : undefined
+
+/**
+ * The workspace's route search: `tab`, always one of the four current tabs, and
+ * on the Page tab an optional `section`. Anything else — an unknown name, a
+ * non-string, a missing key, other keys — resolves to the Page tab (and its
+ * default section) rather than an error page, because a stale link should still
+ * open the portal.
+ */
+export function normalizePortalWorkspaceSearch(search: unknown): PortalWorkspaceSearch {
+  const rawTab = searchValue(search, 'tab')
+  const rawSection = searchValue(search, 'section')
+  const resolved = resolveTab(rawTab)
+  if (resolved.tab !== 'page') return { tab: resolved.tab }
+  const section = isPortalEditorSection(rawSection) ? rawSection : resolved.section
+  return section === undefined ? { tab: 'page' } : { tab: 'page', section }
+}
+
+function resolveTab(raw: unknown): Readonly<{
+  tab: PortalDetailTab
+  section?: PortalEditorSection
+}> {
   if (typeof raw !== 'string') return { tab: 'page' }
   if (isPortalDetailTab(raw)) return { tab: raw }
-  return { tab: LEGACY_TABS[raw] ?? 'page' }
+  return LEGACY_TABS[raw] ?? { tab: 'page' }
 }
 
 // getPortalAnalyticsFn authorizes on the `dashboard.read` permission, which maps

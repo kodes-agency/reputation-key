@@ -15,7 +15,7 @@
 // into conflict with the others rather than checking one flag at a time.
 
 import { describe, it, expect } from 'vitest'
-import { derivePortalShareView } from './portal-share-state'
+import { derivePortalShareView, directPortalAddress } from './portal-share-state'
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
 
 const NO_TOKEN: PortalTokenStatus = {
@@ -58,8 +58,8 @@ function buildReachableInputs(): readonly ShareViewInput[] {
 }
 
 describe('derivePortalShareView — precedence between the three sources of truth', () => {
-  it('offers rotate/revoke for a token only tokenStatus knows about (post-reload)', () => {
-    // The mitigation path for a leaked link: no URL in memory, but the portal
+  it('offers replace and stop for a code only tokenStatus knows about (post-reload)', () => {
+    // The mitigation path for a leaked code: no address in memory, but the portal
     // demonstrably has a live token, so the actions MUST still be reachable.
     const view = derivePortalShareView({
       canManage: true,
@@ -70,8 +70,9 @@ describe('derivePortalShareView — precedence between the three sources of trut
 
     expect(view.showActions).toBe(true)
     expect(view.showIssueForm).toBe(false)
-    // Nothing to reveal, so the tab says a link exists instead of showing it.
-    expect(view.showActiveLinkNotice).toBe(true)
+    // The code block says a code exists; there is no address to show.
+    expect(view.showCode).toBe(true)
+    expect(view.showAddress).toBe(false)
     expect(view.showRevokedNotice).toBe(false)
   })
 
@@ -85,11 +86,11 @@ describe('derivePortalShareView — precedence between the three sources of trut
 
     expect(view.showActions).toBe(true)
     expect(view.showIssueForm).toBe(false)
-    // The reveal is rendering the URL; the notice would duplicate it.
-    expect(view.showActiveLinkNotice).toBe(false)
+    expect(view.showCode).toBe(true)
+    expect(view.showAddress).toBe(true)
   })
 
-  it('lets an in-session revoke outrank a tokenStatus that still claims a token', () => {
+  it('lets an in-session stop outrank a tokenStatus that still claims a token', () => {
     const view = derivePortalShareView({
       canManage: true,
       revoked: true,
@@ -99,12 +100,12 @@ describe('derivePortalShareView — precedence between the three sources of trut
 
     expect(view.showRevokedNotice).toBe(true)
     expect(view.showActions).toBe(false)
-    expect(view.showActiveLinkNotice).toBe(false)
-    // The only way forward from a revoke is to issue a fresh link.
+    expect(view.showCode).toBe(false)
+    // The only way forward from a stop is to make a fresh code.
     expect(view.showIssueForm).toBe(true)
   })
 
-  it('never claims a revoke that did not happen when there is simply no token', () => {
+  it('never claims a stop that did not happen when there is simply no token', () => {
     const view = derivePortalShareView({
       canManage: true,
       revoked: false,
@@ -115,10 +116,10 @@ describe('derivePortalShareView — precedence between the three sources of trut
     expect(view.showIssueForm).toBe(true)
     expect(view.showRevokedNotice).toBe(false)
     expect(view.showActions).toBe(false)
-    expect(view.showActiveLinkNotice).toBe(false)
+    expect(view.showCode).toBe(false)
   })
 
-  it('tells a viewer a link exists but offers no way to change it', () => {
+  it('shows a viewer the code exists but offers no way to change it', () => {
     const viewer = derivePortalShareView({
       canManage: false,
       revoked: false,
@@ -129,8 +130,8 @@ describe('derivePortalShareView — precedence between the three sources of trut
     expect(viewer.showViewOnlyNotice).toBe(true)
     expect(viewer.showIssueForm).toBe(false)
     expect(viewer.showActions).toBe(false)
-    // Read-only is not blind: the notice is informational, not an affordance.
-    expect(viewer.showActiveLinkNotice).toBe(true)
+    // Read-only is not blind: the code block is informational, not an affordance.
+    expect(viewer.showCode).toBe(true)
 
     const manager = derivePortalShareView({
       canManage: true,
@@ -141,10 +142,10 @@ describe('derivePortalShareView — precedence between the three sources of trut
     expect(manager.showViewOnlyNotice).toBe(false)
   })
 
-  it('keeps issue and manage mutually exclusive, and both behind canManage', () => {
-    // Whatever the three sources say, the tab must never ask the user to issue a
-    // link while also offering to rotate one, and neither may appear without the
-    // capability. Exhaustive over the reachable input space.
+  it('keeps make and manage mutually exclusive, and both behind canManage', () => {
+    // Whatever the three sources say, the tab must never ask the user to make a
+    // code while also offering to replace one, and neither may appear without
+    // the capability. Exhaustive over the reachable input space.
     for (const input of REACHABLE_INPUTS) {
       const view = derivePortalShareView(input)
       const where = JSON.stringify({
@@ -157,48 +158,34 @@ describe('derivePortalShareView — precedence between the three sources of trut
       expect(view.showIssueForm && view.showActions, where).toBe(false)
       if (view.showIssueForm || view.showActions)
         expect(input.canManage, where).toBe(true)
-      // The reveal already shows the URL when there is one.
-      if (view.showActiveLinkNotice) expect(input.publicUrl, where).toBeNull()
+      // An address is shown only for a code that is shown, and only when one is
+      // in memory.
+      if (view.showAddress) {
+        expect(view.showCode, where).toBe(true)
+        expect(input.publicUrl, where).not.toBeNull()
+      }
+      // A code is either on screen or there is a way to make one (for a manager).
+      if (input.canManage) expect(view.showCode || view.showIssueForm, where).toBe(true)
     }
   })
 })
 
-describe('derivePortalShareView — active-link summary', () => {
-  it('reads "version N, issued <date>" when the token carries both', () => {
-    expect(
-      derivePortalShareView({
-        canManage: true,
-        revoked: false,
-        publicUrl: null,
-        tokenStatus: LIVE_TOKEN,
-      }).activeLinkDetail,
-    ).toBe('version 3, issued Jan 4, 2026')
-  })
-
-  it('drops whichever half the token lacks instead of naming a null', () => {
-    const detail = (tokenStatus: PortalTokenStatus) =>
-      derivePortalShareView({
-        canManage: true,
-        revoked: false,
-        publicUrl: null,
-        tokenStatus,
-      }).activeLinkDetail
-
-    expect(detail({ ...LIVE_TOKEN, version: null })).toBe('issued Jan 4, 2026')
-    expect(detail({ ...LIVE_TOKEN, issuedAt: null })).toBe('version 3')
-    expect(detail({ ...LIVE_TOKEN, version: null, issuedAt: null })).toBe('')
-  })
-
-  it('drops an unparseable issue date rather than printing "Invalid Date"', () => {
-    const detail = derivePortalShareView({
+describe('derivePortalShareView — when the code was made', () => {
+  const madeLabel = (tokenStatus: PortalTokenStatus) =>
+    derivePortalShareView({
       canManage: true,
       revoked: false,
       publicUrl: null,
-      tokenStatus: { ...LIVE_TOKEN, issuedAt: 'not-a-timestamp' },
-    }).activeLinkDetail
+      tokenStatus,
+    }).madeLabel
 
-    expect(detail).toBe('version 3')
-    expect(detail).not.toContain('Invalid')
+  it('reads the day the code was made', () => {
+    expect(madeLabel(LIVE_TOKEN)).toBe('4 Jan 2026')
+  })
+
+  it('is empty rather than "Invalid Date" or a null', () => {
+    expect(madeLabel({ ...LIVE_TOKEN, issuedAt: null })).toBeNull()
+    expect(madeLabel({ ...LIVE_TOKEN, issuedAt: 'not-a-timestamp' })).toBeNull()
   })
 
   it('names the UTC calendar day, not the reader time zone (hydration parity)', () => {
@@ -207,21 +194,13 @@ describe('derivePortalShareView — active-link summary', () => {
     // midnight UTC and must resolve to their UTC day in every runner zone.
     const cases = [
       // 01:30 the next day east of UTC.
-      { issuedAt: '2026-01-04T23:30:00Z', detail: 'version 3, issued Jan 4, 2026' },
+      { issuedAt: '2026-01-04T23:30:00Z', label: '4 Jan 2026' },
       // 20:00 the previous day west of UTC.
-      { issuedAt: '2026-01-05T01:00:00Z', detail: 'version 3, issued Jan 5, 2026' },
+      { issuedAt: '2026-01-05T01:00:00Z', label: '5 Jan 2026' },
     ]
 
-    for (const { issuedAt, detail } of cases) {
-      expect(
-        derivePortalShareView({
-          canManage: true,
-          revoked: false,
-          publicUrl: null,
-          tokenStatus: { ...LIVE_TOKEN, issuedAt },
-        }).activeLinkDetail,
-        issuedAt,
-      ).toBe(detail)
+    for (const { issuedAt, label } of cases) {
+      expect(madeLabel({ ...LIVE_TOKEN, issuedAt }), issuedAt).toBe(label)
     }
   })
 
@@ -235,8 +214,54 @@ describe('derivePortalShareView — active-link summary', () => {
       }).graceLabel
 
     expect(graceLabel(null)).toBeNull()
-    expect(graceLabel('2026-02-10T09:00:00Z')).toBe('Feb 10, 2026')
+    expect(graceLabel('2026-02-10T09:00:00Z')).toBe('10 Feb 2026')
     // A malformed timestamp hides the row; it must not render "Invalid Date".
     expect(graceLabel('soon')).toBeNull()
+  })
+})
+
+describe('directPortalAddress — the address for websites, emails and messages', () => {
+  it('drops the access-artifact marker so a click is not counted as a QR scan', () => {
+    // A visit carrying a published access artifact is recorded as a scan from
+    // that artifact's channel; the QR address must never reach the public row.
+    const qr = 'https://portal.example.com/p/9f3c?accessArtifact=art-qr-1'
+    expect(directPortalAddress(qr)).toBe('https://portal.example.com/p/9f3c')
+    expect(directPortalAddress(qr)).not.toContain('accessArtifact')
+  })
+
+  it('keeps the rest of the address untouched', () => {
+    expect(directPortalAddress(PUBLIC_URL)).toBe(PUBLIC_URL)
+    expect(directPortalAddress(`${PUBLIC_URL}?accessArtifact=a&x=1`)).toBe(
+      `${PUBLIC_URL}?x=1`,
+    )
+  })
+
+  it('passes a value that is not a URL through rather than throwing', () => {
+    expect(directPortalAddress('not a url')).toBe('not a url')
+  })
+})
+
+describe('derivePortalShareView — a code made in this session', () => {
+  it('says it was made today, not on the day of the code it replaced', () => {
+    // tokenStatus has not refetched yet: it still describes the old code.
+    const view = derivePortalShareView({
+      canManage: true,
+      revoked: false,
+      publicUrl: PUBLIC_URL,
+      tokenStatus: LIVE_TOKEN,
+      now: new Date('2026-09-30T23:30:00Z'),
+    })
+    expect(view.madeLabel).toBe('30 Sept 2026')
+  })
+
+  it('says it was made today after a first make, when tokenStatus knows no token', () => {
+    const view = derivePortalShareView({
+      canManage: true,
+      revoked: false,
+      publicUrl: PUBLIC_URL,
+      tokenStatus: NO_TOKEN,
+      now: new Date('2026-09-30T08:00:00Z'),
+    })
+    expect(view.madeLabel).toBe('30 Sept 2026')
   })
 })

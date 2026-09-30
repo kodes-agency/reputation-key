@@ -294,6 +294,24 @@
       "policy": "Initialize from schema-validated localStorage and persist changes; this preference is intentionally global across portals."
     },
     {
+      "id": "src/components/features/portal/portal-editor/portal-draft-autosave-context.tsx:useState(autosave)",
+      "classification": "local_runtime",
+      "owner": "Portal draft autosave coordinator",
+      "policy": "One coordinator per mounted workspace, created lazily and never derived from server data; the layout keys its provider by portal id, so a coordinator (and any unsaved edit it holds) can never be reused for another portal."
+    },
+    {
+      "id": "src/components/features/portal/portal-editor/use-portal-form-autosave.ts:useState(tracker)",
+      "classification": "local_runtime",
+      "owner": "Portal form autosave baseline",
+      "policy": "Seeded once from the form's own default values, which are what the server held when the form mounted, and advanced only by a write the server accepted; it is a comparison baseline for skipping no-op writes, not a second copy of the form's state."
+    },
+    {
+      "id": "src/components/features/portal/portal-editor/use-portal-form-autosave.ts:useState(fields)",
+      "classification": "local_runtime",
+      "owner": "Portal blur-committed field values",
+      "policy": "Seeded once from the form's own default values and advanced only when a write carrying the committed value is accepted; it holds what the server was last given for fields that commit on blur, so another write does not persist a half-typed value. It is not a second copy of the form's state."
+    },
+    {
       "id": "src/components/features/portal/portal-form/portal-creation-with-preview.tsx:useState(preview)",
       "classification": "local_runtime",
       "owner": "Portal creation preview",

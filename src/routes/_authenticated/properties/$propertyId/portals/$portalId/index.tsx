@@ -1,6 +1,7 @@
 // The workspace's editor: one tab's content beneath the layout's header and tab
-// strip. The tab comes from the layout route's search (`?tab=`), which also
-// maps the pre-workspace names; the layout owns the once-shown public link.
+// strip. The tab and the Page tab's section come from the layout route's search
+// (`?tab=`, `?section=`), which also maps the pre-workspace names; the layout
+// owns the once-shown public link and the autosave coordinator.
 import { createFileRoute, notFound } from '@tanstack/react-router'
 import { getPortalAnalyticsFn } from '#/contexts/reporting/server/portal-analytics'
 import { PortalDetailPage } from '#/components/features/portal/portal-detail/portal-detail-page'
@@ -15,7 +16,7 @@ export const Route = createFileRoute(
 
 function PortalWorkspaceEditor() {
   const { propertyId, portalId } = Route.useParams()
-  const { tab } = Route.useSearch()
+  const { tab, section } = Route.useSearch()
   const data = usePortalDetailData(propertyId, portalId)
   const { portal, tokenStatus } = data.portalData
   const { categories, links } = data.linksData
@@ -39,7 +40,10 @@ function PortalWorkspaceEditor() {
       categories={categories}
       links={links}
       activeTab={tab}
+      activeSection={section}
       updateMutation={actions.update}
+      autosaveUpdateMutation={actions.autosaveUpdate}
+      portalGroups={data.groupsData.groups}
       organizationName={ctx.activeOrganization?.name ?? 'Your Organization'}
       issueTokenMutation={actions.issueToken}
       rotateTokenMutation={actions.rotateToken}

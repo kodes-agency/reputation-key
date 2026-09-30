@@ -7,6 +7,7 @@ import {
   listPortalApprovedDestinations,
 } from '#/contexts/portal/server/portals'
 import { listPortalLinks } from '#/contexts/portal/server/portal-links'
+import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortalResponsibleManagers } from '#/contexts/portal/server/portal-responsible-managers'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { portalKeys } from '#/shared/queries/query-keys'
@@ -22,6 +23,15 @@ export const portalQuery = (portalId: string) =>
   queryOptions({
     queryKey: portalKeys.detail(portalId),
     queryFn: () => getPortal({ data: { portalId } }),
+    staleTime: 30_000,
+  })
+
+// The property's portal groups, read by the list route and by the portal
+// editor (its Group section). One definition, because both share the cache key.
+export const portalGroupsQuery = (propertyId: string) =>
+  queryOptions({
+    queryKey: portalKeys.groups(propertyId),
+    queryFn: () => listPortalGroups({ data: { propertyId } }),
     staleTime: 30_000,
   })
 
@@ -100,6 +110,7 @@ export const findAuthorizedPortal = async (
 export function usePortalDetailData(propertyId: string, portalId: string) {
   const { data: portalData } = useSuspenseQuery(portalQuery(portalId))
   const { data: linksData } = useSuspenseQuery(portalLinksQuery(portalId))
+  const { data: groupsData } = useSuspenseQuery(portalGroupsQuery(propertyId))
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: responsibleManagers } = useSuspenseQuery(
     responsibleManagersQuery(portalId),
@@ -119,6 +130,7 @@ export function usePortalDetailData(propertyId: string, portalId: string) {
   return {
     portalData,
     linksData,
+    groupsData,
     propData,
     responsibleManagers,
     membersData,

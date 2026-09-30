@@ -5,11 +5,7 @@
 // publishes when it should disable, or an archived portal growing a toggle.
 
 import { describe, expect, it } from 'vitest'
-import {
-  PUBLICATION_DESCRIPTIONS,
-  PUBLICATION_TOGGLES,
-  saveStatusMessage,
-} from './portal-settings-rules'
+import { PUBLICATION_DESCRIPTIONS, PUBLICATION_TOGGLES } from './portal-settings-rules'
 import type { PortalPublicationState } from '../shared/types'
 
 const STATES = Object.keys(PUBLICATION_DESCRIPTIONS) as PortalPublicationState[]
@@ -63,20 +59,5 @@ describe('PUBLICATION_TOGGLES', () => {
     expect(PUBLICATION_TOGGLES.published?.label).toBe('Disable public page')
     expect(PUBLICATION_TOGGLES.draft?.label).toBe('Publish portal')
     expect(PUBLICATION_TOGGLES.disabled?.label).toBe('Publish portal')
-  })
-})
-
-describe('saveStatusMessage', () => {
-  it('prefers the in-flight save over the previous success', () => {
-    expect(saveStatusMessage(true, true)).toBe('Saving portal settings')
-    expect(saveStatusMessage(true, false)).toBe('Saving portal settings')
-  })
-
-  it('announces a settled save', () => {
-    expect(saveStatusMessage(false, true)).toBe('Portal settings saved')
-  })
-
-  it('stays silent until there is something to announce', () => {
-    expect(saveStatusMessage(false, false)).toBe('')
   })
 })
