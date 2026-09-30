@@ -118,11 +118,14 @@
    tagged error's authored message reaches the client, so a message must never
    interpolate user content or secrets; that is a review rule, not a check.
    Better Auth `APIError`s surface the library's own message or a status-keyed
-   fallback. One known pass-through: invited registration
-   (`src/contexts/identity/application/use-cases/register-invited-user.ts`)
-   wraps a failed sign-up, or a failure to reconcile it, in `registration_failed`
-   with the cause's own message, which can put PostgreSQL driver text on that
-   invitation-gated route.
+   fallback. Invited registration returns fixed copy only
+   (`src/contexts/identity/application/use-cases/register-invited-user.ts`);
+   provider and driver text never reaches the client.
+   The invitation preview (`getInvitationPreview`) is an anonymous,
+   rate-limited read keyed by the invitation ID, which is a bearer secret
+   already mailed to the invitee. It returns only what the invitation email
+   states plus whether the address has an account; unknown IDs and ineligible
+   invitations return one identical `unavailable` shape.
 
 ## OWASP ASVS 5.0 mapping
 
