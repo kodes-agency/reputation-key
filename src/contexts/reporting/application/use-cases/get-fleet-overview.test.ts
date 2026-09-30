@@ -9,7 +9,8 @@ import type {
   FleetOverviewProjectionRow,
 } from '../ports/fleet-overview-projection.port'
 import { organizationId, propertyId, userId } from '#/shared/domain/ids'
-import { MIN_RATING_COMPARISON_SAMPLE, RATING_DROP_THRESHOLD } from '../utils'
+import { RATING_DROP_THRESHOLD } from '../utils'
+import { MIN_RATING_COMPARISON_SAMPLE } from '../../domain/portal-results-thresholds'
 
 const NOW = new Date('2025-06-15T12:00:00Z')
 const ORG = organizationId('org-test')

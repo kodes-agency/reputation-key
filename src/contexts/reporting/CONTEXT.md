@@ -25,6 +25,11 @@ metric authority.
 - **Goal monthly result**: evaluation head with append-only revision evidence.
 - **Dashboard read model**: content-minimal presentation assembled from governed sources.
 - **Portal lifetime aggregate**: anonymous all-time values with rebuild and seal evidence.
+- **Portal results measures**: the five figures on a Portal's Results view, each named for
+  what it counts. Qualified scans (not raw page opens; counted from August 2026), private
+  ratings, the average private rating, guests who opened Google (Google review link opens
+  only; a secondary link is not one), and private notes. The reading floors live in
+  `domain/portal-results-thresholds.ts`.
 - **Property setup**: seven per-Property steps derived at read time from current facts
   (Google binding, first sync, reply language, AI decision, responsible manager, reply
   voice, published Portal). It records no milestones, unlike the Organization checklist.
@@ -41,6 +46,14 @@ metric authority.
 3. Goal assignment changes preserve at least one subject and never rewrite history.
 4. Corrections append; they never mutate the original reading or closed Goal result.
 5. Dashboard values preserve unavailable/updating/insufficient states instead of showing zero.
+   A Portal's average private rating is held back below five ratings (with the true n and
+   the reason), and compared with the prior period only at ten ratings in each period. Google
+   opens are `insufficient` (`destination_unattributed`) while any click in the period never
+   recorded which link was opened. A funnel step that out-counts the step before it is shown
+   as counts only, never as a percentage over 100. Qualified scans have no history before
+   their registry `effectiveFrom`, which the read model hands over as `qualifiedScansSince`:
+   a prior window that opens before it has no prior figure (`measure_not_yet_counted`), and a
+   current one that does carries the `measure_started_mid_period` note.
 6. Every tenant read includes organization and property scope or an explicit global authority.
 7. Clocks, identifiers, logging, storage, and upstream reads are injected by composition.
 

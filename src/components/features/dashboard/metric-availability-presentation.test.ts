@@ -94,4 +94,66 @@ describe('Metric availability presentation', () => {
     )
     expect(metricAvailabilityDetail(null)).toBe('—')
   })
+
+  it('words the Portal results measures for what they count', () => {
+    expect(
+      metricEvidenceLine({
+        subject: 'qualified_scans',
+        state: 'insufficient_data',
+        dataThrough: null,
+      }),
+    ).toBe('No qualified scans recorded in this period.')
+    expect(
+      metricEvidenceLine({
+        subject: 'google_opens',
+        state: 'insufficient_data',
+        dataThrough: null,
+      }),
+    ).toBe('No Google opens recorded in this period.')
+  })
+
+  it('lets a specific reason speak instead of a generic empty-window line', () => {
+    // "No Google opens recorded" would be false here: clicks exist, they just
+    // never said which link was opened. The detail carries the explanation.
+    expect(
+      metricEvidenceLine({
+        subject: 'google_opens',
+        state: 'insufficient_data',
+        dataThrough: null,
+        reason: 'destination_unattributed',
+      }),
+    ).toBeNull()
+    expect(
+      metricEvidenceLine({
+        subject: 'ratings',
+        state: 'insufficient_data',
+        dataThrough: null,
+        reason: 'below_minimum_sample',
+      }),
+    ).toBeNull()
+    expect(
+      metricEvidenceLine({
+        basis: 'anonymous_lifetime',
+        subject: 'ratings',
+        state: 'insufficient_data',
+        dataThrough: null,
+        reason: 'below_minimum_sample',
+      }),
+    ).toBeNull()
+  })
+
+  it('explains the two reasons a Portal figure is held back', () => {
+    expect(metricAvailabilityDetail('destination_unattributed')).toBe(
+      'Some clicks did not record which link was opened, so Google opens cannot be counted for this period.',
+    )
+    expect(metricAvailabilityDetail('below_minimum_sample')).toBe(
+      'Too few ratings to show an average yet.',
+    )
+  })
+
+  it('says a period that opens before qualified scans began is only partly covered', () => {
+    expect(metricAvailabilityDetail('measure_started_mid_period')).toBe(
+      'Qualified scans are counted only from the day the measure began, so the start of this period is not included.',
+    )
+  })
 })

@@ -1,6 +1,7 @@
 // Dashboard context — shared utilities for server and repository layers
 import type { TimeRangePreset } from './dto/dashboard.dto'
 import { shiftPropertyLocalDays } from '#/shared/domain/property-calendar'
+import { isComparisonShowable } from '../domain/portal-results-thresholds'
 export const MS_PER_DAY = 86_400_000
 
 /** Convert a time-range preset to concrete start/end dates relative to `now`.
@@ -43,9 +44,6 @@ export function computeTrend(current: number, prior: number): number | null {
   return Number.isFinite(result) ? Math.round(result) : null
 }
 
-/** Ratings each period needs before a comparison is shown. The Fleet summary's
- *  SQL rating-drop count reads the same value, so the two cannot drift. */
-export const MIN_RATING_COMPARISON_SAMPLE = 10
 export const RATING_DROP_THRESHOLD = 0.3
 
 /** Absolute star delta, available only for statistically usable periods. */
@@ -58,8 +56,7 @@ export function ratingComparison(
   if (
     currentAverage === null ||
     priorAverage === null ||
-    currentCount < MIN_RATING_COMPARISON_SAMPLE ||
-    priorCount < MIN_RATING_COMPARISON_SAMPLE
+    !isComparisonShowable(currentCount, priorCount)
   ) {
     return null
   }

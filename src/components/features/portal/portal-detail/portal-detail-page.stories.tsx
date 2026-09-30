@@ -144,6 +144,7 @@ const emptyAnalytics: PortalAnalyticsData = {
     endAt: analyticsComputedAt,
     timezone: 'Europe/Sofia',
   },
+  qualifiedScansSince: new Date('2026-08-01T00:00:00.000Z'),
   lifetimeReconciliation: null,
   kpis: {
     scans: { value: 0, priorValue: null, trend: null, evidence: emptyEvidence },
@@ -156,12 +157,8 @@ const emptyAnalytics: PortalAnalyticsData = {
       evidence: emptyEvidence,
     },
     feedback: { value: 0, priorValue: null, trend: null, evidence: emptyEvidence },
-    reviewLinkClicks: {
-      value: 0,
-      priorValue: null,
-      trend: null,
-      evidence: emptyEvidence,
-    },
+    ratings: { value: 0, priorValue: null, trend: null, evidence: emptyEvidence },
+    googleOpens: { value: 0, priorValue: null, trend: null, evidence: emptyEvidence },
   },
   engagementFunnel: null,
   ratingDistribution: [
