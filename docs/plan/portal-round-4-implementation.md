@@ -656,6 +656,17 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
 
 ---
 
+## Owner decisions (2026-09-30)
+
+The owner answered the §5 questions on 2026-09-30. Where this section differs from the rest of the plan, this section wins.
+
+1. **Linktree from arrival: approved.** Slice 15 amends the `docs/BETA.md` §3 Portal bullet (the rating card stays first and dominant, and the Linktree is visible from arrival) and adds the ADR 0044 note. This no longer blocks slice 19.
+2. **Group totals for Google opens and private notes: widen.** Amend `docs/BETA.md` line 54 and ADR 0041, and widen the metric registry scopes for those two measures. Slices 24, 25b and 38 show all five measures on group rows and the group page.
+3. **AI translation: manual first.** Slice 43 stays deferred, and slice 29 ships without AI controls.
+4. **SAFE-01 prerequisites removed.** The owner is the sole developer and the beta is a closed team, so there is no signed completion record, named signer, independent reviewer or drill. Slice 42 ships uploads switched on: it changes the `portal.upload` fate and amends `docs/BETA.md` §8 and ADR 0032 in the same PR. The technical safeguards stay in the build: re-encoding, metadata stripping, size and type limits, and same-origin serving.
+5. **No native language checks during the closed beta.** BG v2 ships without a check, so slice 19 is not blocked. es, it, fr and de are offered as soon as their packs are drafted (slice 41).
+6. **Print-kit PDF:** decision pending.
+
 ## 5. Owner and ops actions still needed
 
 | #   | Action or decision                                                                                                                                                                                                                          | Who           | What it blocks                                                             |
