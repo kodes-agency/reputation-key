@@ -8,7 +8,7 @@ import { useCallback, useRef, useState } from 'react'
 import { useAction } from '#/components/hooks/use-action'
 import { AcceptedView } from './accepted-view'
 import { ConfirmInvitationView } from './confirm-invitation-view'
-import { InvitationStateCard } from './invitation-state-card'
+import { InvitationLinkStateCard, InvitationStateCard } from './invitation-state-card'
 import { emailsMatch, type InvitationLink } from './invitation-link'
 
 type Props = Readonly<{
@@ -59,19 +59,7 @@ export function InvitationLinkPage({
       />
     )
   }
-  if (link.state === 'unavailable') {
-    return <InvitationStateCard state="unavailable" signedIn />
-  }
-  if (link.state !== 'pending') {
-    return (
-      <InvitationStateCard
-        state={link.state}
-        organizationName={link.organizationName}
-        inviterName={link.inviterName}
-        signedIn
-      />
-    )
-  }
+  if (link.state !== 'pending') return <InvitationLinkStateCard link={link} signedIn />
   if (!emailsMatch(link.invitedEmail, signedInEmail)) {
     return (
       <InvitationStateCard

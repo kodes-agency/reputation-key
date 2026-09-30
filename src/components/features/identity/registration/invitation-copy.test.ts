@@ -71,6 +71,19 @@ describe('invitationStateCopy', () => {
     expect(copy.title).toBe("This invitation link isn't valid")
     expect(copy.description).toContain('Open the link from your invitation email again')
   })
+
+  // The preview answered "too many requests": nothing is wrong with the link,
+  // so the words say to wait rather than to ask for a new one, and do not
+  // offer a retry button (each retry spends more of the same budget).
+  it('asks a rate-limited visitor to wait, and to reopen the same link', () => {
+    const copy = invitationStateCopy({ state: 'rate_limited', signedIn: false })
+
+    expect(copy.title).toBe('Too many attempts')
+    expect(copy.description).toContain('Wait a few minutes')
+    expect(copy.description).toContain('open the link from your invitation email again')
+    expect(copy.description).not.toMatch(/new (invitation|one)/i)
+    expect(copy.action).toEqual({ label: 'Sign in', to: '/login' })
+  })
 })
 
 describe('invitationMismatchCopy', () => {

@@ -11,6 +11,7 @@ import {
   invitationStateCopy,
   type InvitationUnusableState,
 } from './invitation-copy'
+import type { UnusableInvitationLink } from './invitation-link'
 
 type UnusableProps = Readonly<{
   state: InvitationUnusableState
@@ -44,6 +45,27 @@ export function InvitationStateCard(props: Props) {
         </Link>
       </div>
     </AuthCard>
+  )
+}
+
+/**
+ * The card for a link the pages cannot act on. Expired, cancelled and used
+ * links name their Organization and inviter; the others know nothing of the link.
+ */
+export function InvitationLinkStateCard({
+  link,
+  signedIn,
+}: Readonly<{ link: UnusableInvitationLink; signedIn?: boolean }>) {
+  if (link.state === 'unavailable' || link.state === 'rate_limited') {
+    return <InvitationStateCard state={link.state} signedIn={signedIn} />
+  }
+  return (
+    <InvitationStateCard
+      state={link.state}
+      organizationName={link.organizationName}
+      inviterName={link.inviterName}
+      signedIn={signedIn}
+    />
   )
 }
 

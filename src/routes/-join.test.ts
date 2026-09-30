@@ -1,4 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
+import { INVITATION_ID_MAX_LENGTH } from '#/shared/domain/ids'
 
 const { getSession, getInvitationPreview } = vi.hoisted(() => ({
   getSession: vi.fn(),
@@ -8,6 +10,7 @@ const { getSession, getInvitationPreview } = vi.hoisted(() => ({
 vi.mock('#/shared/auth/auth.functions', () => ({ getSession, ensureActiveOrg: vi.fn() }))
 vi.mock('#/contexts/identity/server/organizations', () => ({
   registerMember: vi.fn(),
+  listUserInvitations: vi.fn(),
   getInvitationPreview,
 }))
 
@@ -38,6 +41,20 @@ describe('join search', () => {
 
   it('reads a link without an invitation id as no invitation', () => {
     expect(joinSearch.parse({})).toEqual({})
+  })
+
+  // The preview refuses an id longer than INVITATION_ID_MAX_LENGTH. A link
+  // whose id is longer than any id we issue is not an invitation, so it reads
+  // as none (the Invitation required card) instead of reaching the server to
+  // be refused there.
+  it('keeps an id at the longest length the server accepts', () => {
+    const invitationId = 'a'.repeat(INVITATION_ID_MAX_LENGTH)
+    expect(joinSearch.parse({ invitationId }).invitationId).toBe(invitationId)
+  })
+
+  it('reads an id longer than the server accepts as no invitation', () => {
+    const invitationId = 'a'.repeat(INVITATION_ID_MAX_LENGTH + 1)
+    expect(joinSearch.parse({ invitationId }).invitationId).toBeUndefined()
   })
 })
 
@@ -140,6 +157,32 @@ describe('join route', () => {
     await expect(runBeforeLoad(INVITATION_ID)).resolves.toEqual({
       link: { state: 'unavailable' },
     })
+  })
+
+  // Every open of a link spends some of the anonymous preview's per-IP budget,
+  // so running out is an expected state. It says to wait, instead of the
+  // generic error page (which offers Try again, and each retry spends more of
+  // the same budget).
+  it('says to wait when the preview is rate limited', async () => {
+    getInvitationPreview.mockRejectedValue(
+      new ServerFunctionError(
+        'AuthError',
+        'Too many requests. Try again later.',
+        'rate_limited',
+        429,
+      ),
+    )
+
+    await expect(runBeforeLoad(INVITATION_ID)).resolves.toEqual({
+      link: { state: 'rate_limited' },
+    })
+  })
+
+  it('lets any other preview failure reach the error page', async () => {
+    const failure = new ServerFunctionError('InternalError', 'Failed', 'internal', 500)
+    getInvitationPreview.mockRejectedValue(failure)
+
+    await expect(runBeforeLoad(INVITATION_ID)).rejects.toBe(failure)
   })
 })
 

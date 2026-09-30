@@ -12,10 +12,11 @@ import { useServerFn } from '@tanstack/react-start'
 import { useQueryClient } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import { ensureActiveOrg } from '#/shared/auth/auth.functions'
+import { INVITATION_ID_MAX_LENGTH } from '#/shared/domain/ids'
 import { clearTenantCacheBeforeNavigation } from '#/shared/queries/tenant-cache-transition'
 import { AuthCard, AuthFooterLink } from '#/components/layout/auth-layout'
 import {
-  InvitationStateCard,
+  InvitationLinkStateCard,
   InvitationSummary,
   RegisterForm,
 } from '#/components/features/identity'
@@ -26,12 +27,17 @@ import { enterWorkspace } from './-join-entry'
 
 /**
  * The link names one invitation. Anything the router parsed into something else
- * (a repeated key's array, a number, `true`, an empty value) reads as no
- * invitation: the Invitation required card. Non-empty string, as the server's
- * registerMemberInputSchema takes it.
+ * (a repeated key's array, a number, `true`, an empty value) or longer than an
+ * id the preview accepts reads as no invitation: the Invitation required card.
+ * Non-empty string, as the server's registerMemberInputSchema takes it.
  */
 export const joinSearch = z.object({
-  invitationId: z.string().min(1).optional().catch(undefined),
+  invitationId: z
+    .string()
+    .min(1)
+    .max(INVITATION_ID_MAX_LENGTH)
+    .optional()
+    .catch(undefined),
 })
 
 export const Route = createFileRoute('/join')({
@@ -39,8 +45,8 @@ export const Route = createFileRoute('/join')({
   beforeLoad: async ({ search }) => {
     // Loaded on demand: first-paint bytes are budgeted, and this only runs for
     // a visitor who opened an invitation link.
-    const { resolveJoinLink } = await import('./-invitation-entry')
-    return resolveJoinLink(search.invitationId)
+    const entry = await import('./-invitation-entry')
+    return entry.resolveJoinLink(search.invitationId)
   },
   component: JoinPage,
 })
@@ -87,17 +93,7 @@ function JoinPage() {
     )
   }
 
-  if (link.state !== 'pending') {
-    return link.state === 'unavailable' ? (
-      <InvitationStateCard state="unavailable" />
-    ) : (
-      <InvitationStateCard
-        state={link.state}
-        organizationName={link.organizationName}
-        inviterName={link.inviterName}
-      />
-    )
-  }
+  if (link.state !== 'pending') return <InvitationLinkStateCard link={link} />
 
   if (mutation.isSuccess && mutation.data?.signedIn === true) {
     return (

@@ -19,6 +19,14 @@ export type InvitationLink =
       inviterName: string | null
     }>
   | Readonly<{ state: 'unavailable' }>
+  /**
+   * The preview refused to answer for now (its per-IP limit). Nothing is known
+   * about the link, and nothing is wrong with it.
+   */
+  | Readonly<{ state: 'rate_limited' }>
+
+/** A link the pages cannot act on as it stands. */
+export type UnusableInvitationLink = Exclude<InvitationLink, { state: 'pending' }>
 
 /** Addresses are case-insensitive, and an invitation stores the one typed. */
 export function emailsMatch(a: string, b: string): boolean {

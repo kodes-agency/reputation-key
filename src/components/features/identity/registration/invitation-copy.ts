@@ -5,7 +5,8 @@
 
 import type { InvitationRole } from './shared-types'
 
-export type InvitationUnusableState = 'expired' | 'canceled' | 'accepted' | 'unavailable'
+export type InvitationUnusableState =
+  'expired' | 'canceled' | 'accepted' | 'unavailable' | 'rate_limited'
 
 type StateInput = Readonly<{
   state: InvitationUnusableState
@@ -60,6 +61,13 @@ export function invitationStateCopy(input: StateInput): InvitationStateCopy {
         title: "This invitation link isn't valid",
         description:
           'Open the link from your invitation email again, or ask your Account Admin to send a new one.',
+        action,
+      }
+    case 'rate_limited':
+      return {
+        title: 'Too many attempts',
+        description:
+          'Wait a few minutes, then open the link from your invitation email again.',
         action,
       }
   }
