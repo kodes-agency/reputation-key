@@ -1097,12 +1097,24 @@ export const HonoursPersistedLocale: Story = {
   },
 }
 
-/** A calm request already listed, and an escalation that arrives afterwards. */
+/**
+ * Already listed when the page loads: calm work, and an escalation that is
+ * urgent — so "nothing listed at load toasts" can fail. Then an escalation
+ * arrives.
+ */
 const calmRequest = makeNotification({
   id: '71000000-0000-4000-8000-000000000001',
-  type: 'reply.pending_approval',
+  type: 'inbox.assigned',
+  priority: 'normal',
   payload: { propertyName: 'Harbour View Suites' },
   createdAt: new Date(Date.now() - 10 * MINUTE),
+})
+const listedEscalation = makeNotification({
+  id: '71000000-0000-4000-8000-000000000003',
+  type: 'inbox.escalated',
+  priority: 'urgent',
+  payload: { propertyName: 'Harbour View Suites', platform: 'portal' },
+  createdAt: new Date(Date.now() - 30 * MINUTE),
 })
 const arrivingEscalation = makeNotification({
   id: '71000000-0000-4000-8000-000000000002',
@@ -1116,16 +1128,19 @@ const readArrivingHead = fn(async ({ data }: Readonly<{ data: { filter?: string 
   notificationFeedHeadFixture(
     data.filter === 'needs_you'
       ? escalationArrived
-        ? [arrivingEscalation, calmRequest]
-        : [calmRequest]
+        ? [arrivingEscalation, calmRequest, listedEscalation]
+        : [calmRequest, listedEscalation]
       : [],
   ),
 )
 
+/** Lets sonner render anything it was asked to: it mounts toasts a task later. */
+const toastsSettled = () => new Promise((resolve) => setTimeout(resolve, 50))
+
 /**
  * Something urgent arriving while the bell is closed says so (D9): the badge
  * moving by one was the only sign. What was listed when the page loaded never
- * toasts; the arrival does, and Open opens the bell on it.
+ * toasts, urgent or not; the arrival does, and Open opens the bell on it.
  */
 export const UrgentArrivalShowsAToast: Story = {
   args: {
@@ -1133,17 +1148,21 @@ export const UrgentArrivalShowsAToast: Story = {
       getFeedHead: readArrivingHead as unknown as NotificationServerFns['getFeedHead'],
     }),
   },
-  play: async ({ canvasElement }) => {
+  // Reset before render, so a replay starts from the page-load feed too.
+  beforeEach: () => {
     escalationArrived = false
+  },
+  play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await canvas.findByRole('button', { name: 'Notifications, 1 needs you' })
+    await canvas.findByRole('button', { name: 'Notifications, 2 need you' })
+    await toastsSettled()
     expect(document.querySelector('[data-sonner-toast]')).toBeNull()
 
     escalationArrived = true
     // The tab coming back into view reads the head again, as a poll would.
     focusManager.setFocused(false)
     focusManager.setFocused(true)
-    await canvas.findByRole('button', { name: 'Notifications, 2 need you' })
+    await canvas.findByRole('button', { name: 'Notifications, 3 need you' })
 
     const shown = (
       await expectToast('Something urgent needs you at Riverside Hotel')

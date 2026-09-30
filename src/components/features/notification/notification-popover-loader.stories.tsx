@@ -3,7 +3,9 @@
 import { Suspense } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, within } from 'storybook/test'
+import { Sheet, SheetContent } from '#/components/ui/sheet'
 import { lazyPopoverBody, PopoverBodyUnavailable } from './notification-popover-loader'
+import { NotificationSheetHeader } from './notification-sheet-header'
 
 /** What a tab left open across a deploy gets for the body's old chunk name. */
 const MissingChunk = lazyPopoverBody<object>(() =>
@@ -12,7 +14,15 @@ const MissingChunk = lazyPopoverBody<object>(() =>
   ),
 )
 
+/** The same stale chunk, asked for by the phone sheet, which passes its Close. */
+const MissingSheetChunk = lazyPopoverBody<Readonly<{ onClose: () => void }>>(() =>
+  Promise.reject(
+    new TypeError('Failed to fetch dynamically imported module: /assets/stale.js'),
+  ),
+)
+
 const onReload = fn()
+const onClose = fn()
 
 const meta: Meta<typeof PopoverBodyUnavailable> = {
   title: 'Notification/NotificationPopoverLoader',
@@ -58,5 +68,39 @@ export const ReloadsThePage: Story = {
       within(canvasElement).getByRole('button', { name: 'Reload page' }),
     )
     expect(onReload).toHaveBeenCalledTimes(1)
+  },
+}
+
+/**
+ * On a phone the bell is a full-screen sheet with no outside to tap (D8). A
+ * failed body keeps the sheet's name and its Close, and so does the stand-in
+ * shown while the chunk is still on its way.
+ */
+export const InTheSheetKeepsItsNameAndClose: Story = {
+  render: () => (
+    <Sheet open modal={false}>
+      <SheetContent
+        side="bottom"
+        showCloseButton={false}
+        aria-describedby={undefined}
+        aria-label="Notifications"
+      >
+        <Suspense fallback={<NotificationSheetHeader onClose={onClose} />}>
+          <MissingSheetChunk onClose={onClose} />
+        </Suspense>
+      </SheetContent>
+    </Sheet>
+  ),
+  play: async () => {
+    onClose.mockClear()
+    const dialog = within(
+      await within(document.body).findByRole('dialog', { name: 'Notifications' }),
+    )
+    expect(await dialog.findByRole('alert')).toHaveTextContent(
+      "Couldn't load notifications.",
+    )
+    expect(dialog.getByRole('heading', { name: 'Notifications' })).toBeInTheDocument()
+    await userEvent.click(dialog.getByRole('button', { name: 'Close notifications' }))
+    expect(onClose).toHaveBeenCalledTimes(1)
   },
 }
