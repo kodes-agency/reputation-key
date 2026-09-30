@@ -255,6 +255,61 @@ describe.sequential('Identity Organization Export contributor', () => {
     )
   })
 
+  it('exports an Organization the operator console created: no member, one invitation from a non-member', async () => {
+    // ADR 0063: the operator creates the Organization without joining it and
+    // is the first AccountAdmin invitation's inviter, so the export must cope
+    // with an Organization that has no member and an inviter outside it.
+    const suffix = randomUUID()
+    const organizationId = `identity-export-ownerless-${suffix}`
+    const operatorId = `identity-export-operator-${suffix}`
+    const createdAt = new Date(Date.now() - 60_000)
+    organizations.add(organizationId)
+    users.add(operatorId)
+    await lease.pool.query(
+      `INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+       VALUES ($1, 'Platform Operator', $2, true, $3, $3)`,
+      [operatorId, `${suffix}@operator.example.test`, createdAt],
+    )
+    await lease.pool.query(
+      `INSERT INTO organization (id, name, slug, "createdAt")
+       VALUES ($1, 'Ownerless Fixture', $1, $2)`,
+      [organizationId, createdAt],
+    )
+    await lease.pool.query(
+      `INSERT INTO invitation (
+         id, "organizationId", email, role, status, "expiresAt", "propertyIds",
+         "inviterId", "createdAt"
+       ) VALUES ($1, $2, 'first-admin@example.test', 'owner', 'pending', $3, '[]', $4, $5)`,
+      [
+        `identity-export-ownerless-invitation-${suffix}`,
+        organizationId,
+        new Date(createdAt.getTime() + 24 * 60 * 60 * 1000),
+        operatorId,
+        createdAt,
+      ],
+    )
+
+    const exported = await createIdentityOrganizationExportContributor(db).contribute({
+      organizationId,
+      requestId: randomUUID(),
+      asOf: new Date(Date.now() - 1000),
+    })
+
+    expect(exported).toMatchObject({ context: 'identity', coverage: 'complete' })
+    const json = exported.entries.find(
+      ({ mediaType }) => mediaType === 'application/json',
+    )!
+    const payload = JSON.parse(Buffer.from(json.bytes).toString('utf8')) as Record<
+      string,
+      unknown
+    >
+    expect(payload).toMatchObject({
+      organization: { id: organizationId, name: 'Ownerless Fixture' },
+      members: [],
+      invitations: [{ email: 'first-admin@example.test', status: 'pending' }],
+    })
+  })
+
   it('fails closed when a queued request is outside the bounded snapshot window', async () => {
     const fixture = await seedFixture()
     const contributor = createIdentityOrganizationExportContributor(db)
