@@ -5,7 +5,13 @@ describe('ratingPresentation', () => {
   it('renders no eligible rating as unavailable, never zero stars', () => {
     expect(
       ratingPresentation(
-        { value: null, comparison: null, sampleCount: 0, priorSampleCount: 0 },
+        {
+          value: null,
+          comparison: null,
+          comparisonWithheld: 'sample_too_small',
+          sampleCount: 0,
+          priorSampleCount: 0,
+        },
         '30d',
       ),
     ).toEqual({
@@ -66,11 +72,17 @@ describe('ratingPresentation', () => {
   })
 
   it('decides a missing comparison from the server, not from a client floor', () => {
-    // A comparison of null means the server judged the periods too small. The
-    // client has no number of its own to second-guess that with.
+    // The server says why there is no comparison. The client holds no number of
+    // its own to second-guess that with.
     expect(
       ratingPresentation(
-        { value: 4.2, comparison: null, sampleCount: 40, priorSampleCount: 3 },
+        {
+          value: 4.2,
+          comparison: null,
+          comparisonWithheld: 'sample_too_small',
+          sampleCount: 40,
+          priorSampleCount: 3,
+        },
         '30d',
       ).evidence,
     ).toBe('40 eligible ratings. Not enough ratings in both periods to compare.')
@@ -80,5 +92,31 @@ describe('ratingPresentation', () => {
         '30d',
       ).evidence,
     ).toBe('6 eligible ratings. +0.1 stars vs prior period')
+  })
+
+  it('blames the check, not the sample, when a period is not ready', () => {
+    const { evidence } = ratingPresentation(
+      {
+        value: 4.2,
+        comparison: null,
+        comparisonWithheld: 'evidence_not_ready',
+        sampleCount: 40,
+        priorSampleCount: 40,
+      },
+      '30d',
+    )
+    expect(evidence).toBe(
+      '40 eligible ratings. No comparison while a period is still being checked.',
+    )
+    expect(evidence).not.toContain('Not enough')
+  })
+
+  it('does not invent a reason when the server gave none', () => {
+    expect(
+      ratingPresentation(
+        { value: 4.2, comparison: null, sampleCount: 40, priorSampleCount: 40 },
+        '30d',
+      ).evidence,
+    ).toBe('40 eligible ratings. No comparison available.')
   })
 })

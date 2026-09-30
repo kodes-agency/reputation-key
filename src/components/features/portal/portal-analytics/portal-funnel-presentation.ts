@@ -1,12 +1,13 @@
 // Portal engagement funnel — what to draw, decided as data.
 //
 // Qualified scans -> private ratings -> Google opens. Qualified scans exist
-// only from August 2026 (the day the measure went live), and a guest can rate
-// without a counted scan, so a step can legitimately out-count the one before
-// it. That is real data, not a rendering bug, and a share of "350%" would read
-// as a bug all the same. So the rule is one line: when any step out-counts the
-// step before it, show the counts and say why, with no percentages and no
-// chart whose shape would imply an ordering the data does not have.
+// only from the day the measure went live (the server hands that day over), and
+// a guest can rate without a counted scan, so a step can legitimately out-count
+// the one before it. That is real data, not a rendering bug, and a share of
+// "350%" would read as a bug all the same. So the rule is one line: when any
+// step out-counts the step before it, show the counts and say why, with no
+// percentages and no chart whose shape would imply an ordering the data does
+// not have. The reason differs by step, so the note follows the first one.
 
 import type { PortalEngagementFunnel } from '#/contexts/reporting/application/public-api'
 
@@ -30,10 +31,23 @@ export type FunnelPresentation = Readonly<{
   note: string | null
 }>
 
-/** When qualified scans began counting; the copy names it, the registry owns it. */
-const QUALIFIED_SCANS_SINCE = 'August 2026'
+const COUNTS_ONLY = 'Counts are shown without percentages.'
 
-const INVERSION_NOTE = `Qualified scans are counted from ${QUALIFIED_SCANS_SINCE}, and a guest can rate without a counted scan, so a step here is larger than the one before it. Counts are shown without percentages.`
+/**
+ * The registry's first day is an instant (midnight UTC); it is the calendar day
+ * that matters, and a fixed zone keeps server and browser text identical.
+ */
+function formatSince(since: Date): string {
+  return new Intl.DateTimeFormat('en-US', {
+    dateStyle: 'medium',
+    timeZone: 'UTC',
+  }).format(since)
+}
+
+const scansInversionNote = (since: Date) =>
+  `Qualified scans are counted from ${formatSince(since)}, and a guest can rate without a counted scan, so this period shows more ratings than scans. ${COUNTS_ONLY}`
+
+const OPENS_INVERSION_NOTE = `In this period more guests opened Google than left a private rating, so a share of the step before would read over 100%. ${COUNTS_ONLY}`
 
 const STAGES: readonly Omit<FunnelStage, 'actual' | 'conversion'>[] = [
   {
@@ -71,23 +85,26 @@ function withConversion(
   })
 }
 
-/** A step exceeds the one before it. */
-function hasInversion(counts: readonly number[]): boolean {
-  return counts.some((count, index) => index > 0 && count > (counts[index - 1] ?? 0))
+/** The index of the first step that exceeds the one before it, or -1. */
+function firstInversion(counts: readonly number[]): number {
+  return counts.findIndex((count, index) => index > 0 && count > (counts[index - 1] ?? 0))
 }
 
 export function portalFunnelPresentation(
   funnel: PortalEngagementFunnel,
+  qualifiedScansSince: Date,
 ): FunnelPresentation {
   const counts = [funnel.qualifiedScans, funnel.ratings, funnel.googleOpens]
   if (counts.every((count) => count === 0)) {
     return { stages: withConversion(counts, false), mode: 'empty', note: null }
   }
-  if (hasInversion(counts)) {
+  const inverted = firstInversion(counts)
+  if (inverted !== -1) {
     return {
       stages: withConversion(counts, false),
       mode: 'counts_only',
-      note: INVERSION_NOTE,
+      note:
+        inverted === 1 ? scansInversionNote(qualifiedScansSince) : OPENS_INVERSION_NOTE,
     }
   }
   return { stages: withConversion(counts, true), mode: 'chart', note: null }

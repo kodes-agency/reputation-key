@@ -184,13 +184,24 @@ export type PortalLifetimeReconciliationState = Readonly<{
   lastSealedAt: Date | null
 }>
 
+/** Why a count has no prior figure although the measure has a prior window. */
+export type PortalPriorUnavailableReason = 'measure_not_yet_counted'
+
 export type PortalCountKPIValue = Readonly<{
   /** Null while the governed projection is not safe to serve. */
   value: number | null
   priorValue: number | null
+  /**
+   * Set when the prior window opens before the measure was counted at all
+   * (qualified scans), so a prior figure would be a false zero.
+   */
+  priorUnavailableReason?: PortalPriorUnavailableReason
   trend: number | null
   evidence: PortalMetricEvidence
 }>
+
+/** Why a rating comparison is not shown, so the client never guesses. */
+export type RatingComparisonWithheld = 'sample_too_small' | 'evidence_not_ready'
 
 export type RatingKPIValue = Readonly<{
   /** Eligible rating average. Null means there is no eligible sample. */
@@ -198,6 +209,11 @@ export type RatingKPIValue = Readonly<{
   priorValue: number | null
   /** Absolute star difference; shown only when both bounded periods clear the comparison floor. */
   comparison: number | null
+  /**
+   * Set on Portal period reads when `comparison` is null: the sample floor and
+   * an evidence that is not ready are different situations and read differently.
+   */
+  comparisonWithheld?: RatingComparisonWithheld | null
   sampleCount: number
   priorSampleCount: number
   evidence: PortalMetricEvidence
@@ -212,6 +228,8 @@ export type PortalResponseIntegritySummary = Readonly<{
 
 export type PortalAnalyticsData = Readonly<{
   period: Readonly<{ startAt: Date; endAt: Date; timezone: string }>
+  /** The first day qualified scans were counted, from the metric registry. */
+  qualifiedScansSince: Date
   /** Present only for the anonymous, non-comparative All Time projection. */
   lifetimeReconciliation: PortalLifetimeReconciliationState | null
   kpis: PortalKPIs

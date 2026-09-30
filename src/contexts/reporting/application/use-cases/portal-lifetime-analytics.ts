@@ -65,6 +65,7 @@ export function portalLifetimeAnalyticsData(
   input: GetPortalAnalyticsInput,
   aggregate: PortalLifetimeAggregate | null,
   responseIntegrity: PortalResponseIntegritySummary,
+  qualifiedScansSince: Date,
 ): PortalAnalyticsData {
   if (aggregate === null) {
     const evidence = missingEvidence(input.endDate)
@@ -74,6 +75,7 @@ export function portalLifetimeAnalyticsData(
         endAt: input.endDate,
         timezone: input.propertyTimezone,
       },
+      qualifiedScansSince,
       lifetimeReconciliation: {
         state: 'not_initialized',
         projectionRevision: null,
@@ -150,6 +152,7 @@ export function portalLifetimeAnalyticsData(
       endAt: input.endDate,
       timezone: input.propertyTimezone,
     },
+    qualifiedScansSince,
     lifetimeReconciliation: {
       state:
         aggregate.lastRebuiltAt === null ? 'awaiting_first_reconciliation' : 'reconciled',

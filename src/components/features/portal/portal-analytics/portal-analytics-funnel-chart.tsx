@@ -3,7 +3,7 @@
 // What is drawn, and whether a chart is drawn at all, is decided by
 // portalFunnelPresentation. A chart only appears when the steps really narrow;
 // when one out-counts the step before it (qualified scans exist only from
-// August 2026) the readout shows the counts alone with a note, so the shape is
+// the day the measure began) the readout shows the counts alone with a note, so the shape is
 // never asked to say something the data does not.
 import { Cell, Funnel, FunnelChart } from 'recharts'
 import { ChartContainer, type ChartConfig } from '#/components/ui/chart'
@@ -56,12 +56,14 @@ function FunnelReadout({
 
 export function EngagementFunnelChart({
   funnel,
+  qualifiedScansSince,
   labelledBy,
 }: {
   funnel: PortalEngagementFunnel
+  qualifiedScansSince: Date
   labelledBy: string
 }) {
-  const { stages, mode, note } = portalFunnelPresentation(funnel)
+  const { stages, mode, note } = portalFunnelPresentation(funnel, qualifiedScansSince)
 
   if (mode === 'empty') {
     return (

@@ -8,9 +8,10 @@
 //     `portal.qualified_scan`. Raw scans must be ignored.
 //  2. "Review clicks" summed secondary-link clicks in with Google review
 //     clicks. Only `google_review` destination readings are Google opens.
-//  3. Click readings written before the destination kind was recorded carry no
-//     kind at all. They cannot be counted as Google opens, and the period must
-//     say so instead of quietly under-counting.
+//  3. A click reading with no destination kind cannot be counted as a Google
+//     open, and the period must say so instead of quietly under-counting. New
+//     readings always carry a kind (the consumer records a missing one as
+//     `secondary_link`), so this is a defensive guard for legacy rows only.
 //
 // Retractions are current-correction-tip aware, and another organisation's
 // readings never leak in.
@@ -34,6 +35,8 @@ const OTHER_PROP = propertyId('d1000000-0000-4000-8000-000000000002')
 const PORTAL = portalId('d2000000-0000-4000-8000-000000000001')
 const LEGACY_PORTAL = portalId('d2000000-0000-4000-8000-000000000002')
 const OTHER_PORTAL = portalId('d2000000-0000-4000-8000-000000000003')
+const RETRACTED_LEGACY_PORTAL = portalId('d2000000-0000-4000-8000-000000000004')
+const UPDATING_LEGACY_PORTAL = portalId('d2000000-0000-4000-8000-000000000005')
 
 const WINDOW_START = new Date('2026-09-01T00:00:00.000Z')
 const WINDOW_END = new Date('2026-10-01T00:00:00.000Z')
@@ -121,6 +124,10 @@ const READINGS: readonly Reading[] = [
   // A second portal whose only clicks predate the recorded destination kind.
   click('click-legacy-unattributed', null, LEGACY_PORTAL),
   click('click-legacy-google', 'google_review', LEGACY_PORTAL),
+  // A portal whose only kind-less click was retracted: nothing is unattributed.
+  click('click-legacy-retracted', null, RETRACTED_LEGACY_PORTAL),
+  // A portal with a kind-less click AND a click fact no consumer has applied.
+  click('click-legacy-updating', null, UPDATING_LEGACY_PORTAL),
   // Another organisation on a different portal: never visible to ORG.
   {
     organizationId: OTHER_ORG,
@@ -188,7 +195,12 @@ async function cleanup() {
 beforeAll(async () => {
   pool = new Pool({ connectionString: getEnv().DATABASE_URL, max: 2 })
   await cleanup()
-  await seedTenant(ORG, PROP, [PORTAL, LEGACY_PORTAL], 'results-measures')
+  await seedTenant(
+    ORG,
+    PROP,
+    [PORTAL, LEGACY_PORTAL, RETRACTED_LEGACY_PORTAL, UPDATING_LEGACY_PORTAL],
+    'results-measures',
+  )
   await seedTenant(OTHER_ORG, OTHER_PROP, [OTHER_PORTAL], 'results-measures-other')
 
   for (const reading of READINGS) {
@@ -226,6 +238,32 @@ beforeAll(async () => {
      FROM metric_readings
      WHERE organization_id = $1 AND source_event_id LIKE '%:qualified-scan-retracted'`,
     [ORG],
+  )
+  await pool.query(
+    `INSERT INTO metric_corrections (
+       reading_id, source_event_id, kind, reason, actor_type, actor_id, event_at
+     )
+     SELECT id, 'retract-legacy-click', 'retract', 'guest retraction',
+       'system', 'results-measures-test', '2026-09-11T00:00:00.000Z'
+     FROM metric_readings
+     WHERE organization_id = $1 AND source_event_id LIKE '%:click-legacy-retracted'`,
+    [ORG],
+  )
+  // A click fact that happened in the window but that no consumer has applied.
+  await pool.query(
+    `INSERT INTO outbox_events (
+       id, event_type, event_version, payload, organization_id, property_id,
+       source_context, source_aggregate_id, created_at, published_at
+     ) VALUES (
+       $1, 'guest.review_link.clicked', 1, jsonb_build_object(
+         'organizationId', $2::text,
+         'propertyId', $3::text,
+         'portalId', $4::text,
+         'occurredAt', '2026-09-10T10:00:00.000Z'
+       ), $2, $3, 'guest', $4, '2026-09-10T10:00:00.000Z'::timestamptz,
+       '2026-09-10T10:00:00.000Z'::timestamptz
+     )`,
+    [randomUUID(), ORG, PROP, UPDATING_LEGACY_PORTAL],
   )
 
   db = drizzle(pool, { schema }) as unknown as Database
@@ -288,29 +326,6 @@ describe('Portal results measures (integration)', () => {
     })
   })
 
-  it('flags readings with no recorded destination, and only those', async () => {
-    const analytics = repository()
-
-    await expect(
-      analytics.countUnattributedDestinationClicks(
-        ORG,
-        PROP,
-        LEGACY_PORTAL,
-        WINDOW_START,
-        WINDOW_END,
-      ),
-    ).resolves.toBe(1)
-    await expect(
-      analytics.countUnattributedDestinationClicks(
-        ORG,
-        PROP,
-        PORTAL,
-        WINDOW_START,
-        WINDOW_END,
-      ),
-    ).resolves.toBe(0)
-  })
-
   it('reports Google-opens evidence as insufficient when destinations are unattributed', async () => {
     const analytics = repository()
 
@@ -341,6 +356,47 @@ describe('Portal results measures (integration)', () => {
     })
   })
 
+  it('does not count a retracted kind-less click as unattributed', async () => {
+    const analytics = repository()
+
+    const evidence = await analytics.getPortalMetricEvidence(
+      ORG,
+      PROP,
+      RETRACTED_LEGACY_PORTAL,
+      WINDOW_START,
+      WINDOW_END,
+    )
+    expect(evidence.reviewLinkClicks).toMatchObject({
+      state: 'ready',
+      availabilityReason: null,
+    })
+    const sums = await analytics.getPortalKpiSums(
+      ORG,
+      PROP,
+      RETRACTED_LEGACY_PORTAL,
+      WINDOW_START,
+      WINDOW_END,
+    )
+    expect(
+      sums.find((row) => row.metricKey === 'portal.review_link_click'),
+    ).toBeUndefined()
+  })
+
+  it('reports an unapplied click fact as updating, ahead of the unattributed reason', async () => {
+    const evidence = await repository().getPortalMetricEvidence(
+      ORG,
+      PROP,
+      UPDATING_LEGACY_PORTAL,
+      WINDOW_START,
+      WINDOW_END,
+    )
+
+    expect(evidence.reviewLinkClicks).toMatchObject({
+      state: 'updating',
+      availabilityReason: 'consumer_receipt_pending',
+    })
+  })
+
   it('points the scans evidence at the qualified scan definition', async () => {
     const evidence = await repository().getPortalMetricEvidence(
       ORG,
@@ -364,15 +420,15 @@ describe('Portal results measures (integration)', () => {
       WINDOW_END,
     )
     expect(foreign).toEqual([])
-    await expect(
-      analytics.countUnattributedDestinationClicks(
-        OTHER_ORG,
-        OTHER_PROP,
-        OTHER_PORTAL,
-        WINDOW_START,
-        WINDOW_END,
-      ),
-    ).resolves.toBe(0)
+    // ORG's scope over the other organisation's portal sees no click at all.
+    const foreignEvidence = await analytics.getPortalMetricEvidence(
+      ORG,
+      PROP,
+      OTHER_PORTAL,
+      WINDOW_START,
+      WINDOW_END,
+    )
+    expect(foreignEvidence.reviewLinkClicks.state).toBe('ready')
   })
 
   describe('retraction evidence for qualified scans', () => {

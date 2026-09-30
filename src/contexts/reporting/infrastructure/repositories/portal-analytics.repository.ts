@@ -426,24 +426,6 @@ export const createPortalAnalyticsRepository = (
     })
   },
 
-  async countUnattributedDestinationClicks(
-    organizationId: OrganizationId,
-    propertyId: PropertyId,
-    portalId: PortalId,
-    startDate: Date,
-    endDate: Date,
-  ): Promise<number> {
-    return trace('metric.portalAnalytics.countUnattributedDestinationClicks', () =>
-      withStatementTimeout(db, (tx) =>
-        countUnattributedClicks(
-          db,
-          tx,
-          metricPortalWhere(organizationId, propertyId, portalId, startDate, endDate),
-        ),
-      ),
-    )
-  },
-
   async getPortalMetricEvidence(
     organizationId: OrganizationId,
     propertyId: PropertyId,

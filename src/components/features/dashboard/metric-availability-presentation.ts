@@ -70,6 +70,8 @@ export function metricAvailabilityDetail(reason: string | null): string {
       return 'Some clicks did not record which link was opened, so Google opens cannot be counted for this period.'
     case 'below_minimum_sample':
       return 'Too few ratings to show an average yet.'
+    case 'measure_started_mid_period':
+      return 'Qualified scans are counted only from the day the measure began, so the start of this period is not included.'
     case null:
       return '—'
     default:

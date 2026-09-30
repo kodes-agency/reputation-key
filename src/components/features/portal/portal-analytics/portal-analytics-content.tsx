@@ -91,7 +91,11 @@ export function PortalAnalyticsContent({ data, timeRange, onTimeRangeChange }: P
         {engagementFunnel !== null && (
           <ChartCard title="Engagement Funnel" className="md:col-span-2">
             {(headingId) => (
-              <EngagementFunnelChart funnel={engagementFunnel} labelledBy={headingId} />
+              <EngagementFunnelChart
+                funnel={engagementFunnel}
+                qualifiedScansSince={data.qualifiedScansSince}
+                labelledBy={headingId}
+              />
             )}
           </ChartCard>
         )}

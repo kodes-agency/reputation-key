@@ -14,6 +14,16 @@ describe('countComparisonHint', () => {
     expect(countComparisonHint({ trend: null, priorValue: 0 })).toBe('Prior period: 0')
   })
 
+  it('says the prior window predates a measure that was not yet counted', () => {
+    expect(
+      countComparisonHint({
+        trend: null,
+        priorValue: null,
+        priorUnavailableReason: 'measure_not_yet_counted',
+      }),
+    ).toBe('Prior period predates this measure')
+  })
+
   it('states nothing when there is no prior figure to compare with', () => {
     expect(countComparisonHint({ trend: null, priorValue: null })).toBe('—')
   })

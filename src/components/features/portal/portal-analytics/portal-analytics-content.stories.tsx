@@ -33,6 +33,7 @@ const healthy: PortalAnalyticsData = {
     endAt: COMPUTED_AT,
     timezone: 'Europe/Sofia',
   },
+  qualifiedScansSince: new Date('2026-08-01T00:00:00.000Z'),
   lifetimeReconciliation: null,
   kpis: {
     scans: count(200, 160, 25),
@@ -143,6 +144,33 @@ export const RatingsOutnumberScans: Story = {
     await expect(canvas.getByText('50 private ratings')).toBeVisible()
     await expect(canvas.getByText(/without percentages/)).toBeVisible()
     expect(canvas.queryByText(/% of/)).toBeNull()
+  },
+}
+
+export const WindowOpensBeforeQualifiedScans: Story = {
+  args: {
+    data: {
+      ...healthy,
+      kpis: {
+        ...healthy.kpis,
+        scans: {
+          value: 200,
+          priorValue: null,
+          priorUnavailableReason: 'measure_not_yet_counted',
+          trend: null,
+          evidence: evidence({
+            sampleCount: 200,
+            availabilityReason: 'measure_started_mid_period',
+          }),
+        },
+      },
+    },
+  },
+  play: async ({ canvas }) => {
+    await expect(canvas.getByText('Prior period predates this measure')).toBeVisible()
+    await expect(
+      canvas.getAllByText(/counted only from the day the measure began/)[0],
+    ).toBeVisible()
   },
 }
 

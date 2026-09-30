@@ -67,18 +67,6 @@ export type PortalAnalyticsRepository = Readonly<{
     startDate: Date,
     endDate: Date,
   ): Promise<readonly MetricPortalRatingTrendPoint[]>
-  /**
-   * Currently effective click readings in the period that never recorded a
-   * destination kind. They cannot be told apart as Google opens or secondary
-   * links, so any of them makes the Google-opens figure unanswerable.
-   */
-  countUnattributedDestinationClicks(
-    organizationId: OrganizationId,
-    propertyId: PropertyId,
-    portalId: PortalId,
-    startDate: Date,
-    endDate: Date,
-  ): Promise<number>
   getPortalMetricEvidence(
     organizationId: OrganizationId,
     propertyId: PropertyId,

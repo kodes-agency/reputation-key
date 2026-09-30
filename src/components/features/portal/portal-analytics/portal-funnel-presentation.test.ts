@@ -1,5 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { portalFunnelPresentation } from './portal-funnel-presentation'
+import { portalFunnelPresentation as presentFunnel } from './portal-funnel-presentation'
+import type { PortalEngagementFunnel } from '#/contexts/reporting/application/public-api'
+
+// The registry's first day for qualified scans, as the server hands it over.
+const SINCE = new Date('2026-08-01T00:00:00.000Z')
+const portalFunnelPresentation = (funnel: PortalEngagementFunnel) =>
+  presentFunnel(funnel, SINCE)
 
 describe('portalFunnelPresentation', () => {
   it('draws a chart with each step as a share of the step before it', () => {
@@ -32,8 +38,19 @@ describe('portalFunnelPresentation', () => {
     expect(funnel.mode).toBe('counts_only')
     expect(funnel.stages.map((stage) => stage.actual)).toEqual([3, 7, 5])
     expect(funnel.stages.every((stage) => stage.conversion === null)).toBe(true)
-    expect(funnel.note).toContain('August 2026')
+    // The date is the server's, formatted from the value, not a copy literal.
+    expect(funnel.note).toContain('Aug 1, 2026')
+    expect(funnel.note).toContain('rate without a counted scan')
     expect(funnel.note).toContain('without percentages')
+  })
+
+  it('takes the note date from the value it is given', () => {
+    const funnel = presentFunnel(
+      { qualifiedScans: 3, ratings: 7, googleOpens: 5 },
+      new Date('2027-01-15T00:00:00.000Z'),
+    )
+    expect(funnel.note).toContain('Jan 15, 2027')
+    expect(funnel.note).not.toContain('Aug 1, 2026')
   })
 
   it('counts a later step that out-counts an earlier one as the same condition', () => {
@@ -45,6 +62,28 @@ describe('portalFunnelPresentation', () => {
 
     expect(funnel.mode).toBe('counts_only')
     expect(funnel.stages.every((stage) => stage.conversion === null)).toBe(true)
+  })
+
+  it('explains a Google-opens inversion without blaming qualified scans', () => {
+    const funnel = portalFunnelPresentation({
+      qualifiedScans: 40,
+      ratings: 8,
+      googleOpens: 9,
+    })
+
+    expect(funnel.note).toContain('more guests opened Google than left a private rating')
+    expect(funnel.note).not.toContain('Qualified scans are counted from')
+    expect(funnel.note).not.toContain('Aug 1, 2026')
+    expect(funnel.note).toContain('without percentages')
+  })
+
+  it('names the scans reason first when both steps are inverted', () => {
+    const funnel = portalFunnelPresentation({
+      qualifiedScans: 2,
+      ratings: 8,
+      googleOpens: 9,
+    })
+    expect(funnel.note).toContain('Qualified scans are counted from Aug 1, 2026')
   })
 
   it('treats ratings with no qualified scans at all as counts only, not as empty', () => {

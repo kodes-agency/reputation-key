@@ -50,7 +50,10 @@ metric authority.
    the reason), and compared with the prior period only at ten ratings in each period. Google
    opens are `insufficient` (`destination_unattributed`) while any click in the period never
    recorded which link was opened. A funnel step that out-counts the step before it is shown
-   as counts only, never as a percentage over 100.
+   as counts only, never as a percentage over 100. Qualified scans have no history before
+   their registry `effectiveFrom`, which the read model hands over as `qualifiedScansSince`:
+   a prior window that opens before it has no prior figure (`measure_not_yet_counted`), and a
+   current one that does carries the `measure_started_mid_period` note.
 6. Every tenant read includes organization and property scope or an explicit global authority.
 7. Clocks, identifiers, logging, storage, and upstream reads are injected by composition.
 

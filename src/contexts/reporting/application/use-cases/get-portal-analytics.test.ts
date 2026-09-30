@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { getPortalAnalytics } from './get-portal-analytics'
 import { organizationId, propertyId, portalId } from '#/shared/domain/ids'
 import type { PortalAnalyticsData } from '../../domain/dashboard-types'
+import { METRIC_VERSION_IDS, findMetricVersionById } from '../../domain/metric-registry'
 import type {
   MetricPortalMetricEvidenceSet,
   MetricPortalRatingTrendPoint,
@@ -11,8 +12,10 @@ import type {
   PortalRatingBucket,
 } from '../ports/portal-analytics.repository'
 
-// Fixed time to prevent midnight-boundary flakiness in date range calculations
-beforeEach(() => vi.setSystemTime(new Date('2025-06-15T12:00:00Z')))
+// Fixed time to prevent midnight-boundary flakiness in date range calculations.
+// It sits after the day qualified scans began counting (2026-08-01), so a 30-day
+// window and its prior window are both fully covered by that measure.
+beforeEach(() => vi.setSystemTime(new Date('2026-10-15T12:00:00Z')))
 afterEach(() => vi.useRealTimers())
 
 const ORG = organizationId('org-test')
@@ -56,10 +59,6 @@ function createFakePortalMetrics(overrides?: {
           { date: '2026-05-20', avgRating: 4.5 },
         ]
       )
-    },
-    async countUnattributedDestinationClicks() {
-      calls.push('countUnattributedDestinationClicks')
-      return 0
     },
     async getPortalMetricEvidence() {
       calls.push('getPortalMetricEvidence')
@@ -745,6 +744,193 @@ describe('getPortalAnalytics: Google opens and qualified scans', () => {
     expect(result.kpis.googleOpens.value).toBe(4)
     expect(result.kpis.googleOpens.priorValue).toBeNull()
     expect(result.kpis.googleOpens.trend).toBeNull()
+  })
+})
+
+const QUALIFIED_SCANS_SINCE = (() => {
+  const registered = findMetricVersionById(METRIC_VERSION_IDS.qualifiedScanGoal)
+  if (!registered) throw new Error('qualified scan version is missing')
+  return registered.version.effectiveFrom
+})()
+
+/** Runs one preset over a window of `days` days that opens at `startsAt`. */
+async function runWindowStartingBeforeMeasure(
+  timeRange: '60d' | '90d',
+  days: number,
+  startsAt: Date,
+) {
+  const endDate = new Date(startsAt.getTime() + days * 86_400_000)
+  return getPortalAnalytics({
+    portalMetrics: metricsForWindows(
+      { scans: 40, ratingCount: 6, ratingTotal: 27 },
+      {
+        scans: 0,
+        ratingCount: 6,
+        ratingTotal: 24,
+      },
+    ),
+    portalLifetime: createUnusedPortalLifetime(),
+    responseIntegrity: createFakeResponseIntegrity(),
+  })({
+    organizationId: ORG,
+    propertyId: PROP,
+    portalId: PORT,
+    startDate: startsAt,
+    endDate,
+    timeRange,
+    propertyTimezone: 'UTC',
+  })
+}
+
+describe('getPortalAnalytics: qualified scans have a first day', () => {
+  const day = 86_400_000
+
+  it('exposes the day qualified scans began counting, from the registry', async () => {
+    const result = await run30Days(metricsForWindows({}, {}))
+    expect(result.qualifiedScansSince).toEqual(QUALIFIED_SCANS_SINCE)
+  })
+
+  it('has no prior figure for a prior window that opens before the measure existed', async () => {
+    // Current window starts exactly at the measure's first day, so its prior
+    // window is wholly before it: a zero there would read as a verified zero.
+    const result = await runWindowStartingBeforeMeasure('60d', 60, QUALIFIED_SCANS_SINCE)
+
+    expect(result.kpis.scans).toMatchObject({
+      value: 40,
+      priorValue: null,
+      trend: null,
+      priorUnavailableReason: 'measure_not_yet_counted',
+    })
+    // The other measures existed for the prior window and keep their figure.
+    expect(result.kpis.ratings.priorValue).toBe(6)
+    expect(result.kpis.ratings.priorUnavailableReason ?? null).toBeNull()
+  })
+
+  it('has no prior figure when the prior window only partly follows the measure', async () => {
+    const start = new Date(QUALIFIED_SCANS_SINCE.getTime() + 10 * day)
+    const result = await runWindowStartingBeforeMeasure('60d', 60, start)
+
+    expect(result.kpis.scans.priorValue).toBeNull()
+    expect(result.kpis.scans.priorUnavailableReason).toBe('measure_not_yet_counted')
+  })
+
+  it('says a current window that opens before the measure only covers part of it', async () => {
+    const start = new Date(QUALIFIED_SCANS_SINCE.getTime() - 20 * day)
+    const result = await runWindowStartingBeforeMeasure('90d', 90, start)
+
+    expect(result.kpis.scans.value).toBe(40)
+    expect(result.kpis.scans.evidence).toMatchObject({
+      state: 'ready',
+      availabilityReason: 'measure_started_mid_period',
+    })
+    // No other measure carries the caveat.
+    expect(result.kpis.ratings.evidence.availabilityReason).toBeNull()
+  })
+
+  it('keeps a window that starts on the measure first day complete', async () => {
+    const result = await runWindowStartingBeforeMeasure('60d', 60, QUALIFIED_SCANS_SINCE)
+    expect(result.kpis.scans.evidence.availabilityReason).toBeNull()
+  })
+
+  it('does not overwrite a stronger evidence reason with the mid-period note', async () => {
+    const start = new Date(QUALIFIED_SCANS_SINCE.getTime() - 20 * day)
+    const endDate = new Date(start.getTime() + 90 * day)
+    const result = await getPortalAnalytics({
+      portalMetrics: metricsForWindows(
+        { scans: 40 },
+        {},
+        {
+          current: {
+            ...readyEvidence(),
+            scans: {
+              ...metricEvidence('scan-version'),
+              state: 'updating',
+              verifiedThrough: null,
+              availabilityReason: 'consumer_receipt_pending',
+            },
+          },
+        },
+      ),
+      portalLifetime: createUnusedPortalLifetime(),
+      responseIntegrity: createFakeResponseIntegrity(),
+    })({
+      organizationId: ORG,
+      propertyId: PROP,
+      portalId: PORT,
+      startDate: start,
+      endDate,
+      timeRange: '90d',
+      propertyTimezone: 'UTC',
+    })
+
+    expect(result.kpis.scans.evidence.availabilityReason).toBe('consumer_receipt_pending')
+  })
+})
+
+describe('getPortalAnalytics: a missing comparison says why', () => {
+  it('blames the sample only when both periods are ready and too small', async () => {
+    const small = await run30Days(
+      metricsForWindows(
+        { ratingCount: 9, ratingTotal: 42 },
+        { ratingCount: 12, ratingTotal: 48 },
+      ),
+    )
+    expect(small.kpis.avgRating.comparison).toBeNull()
+    expect(small.kpis.avgRating.comparisonWithheld).toBe('sample_too_small')
+  })
+
+  it('blames the pipeline when the prior window is not ready', async () => {
+    const result = await run30Days(
+      metricsForWindows(
+        { ratingCount: 12, ratingTotal: 54 },
+        { ratingCount: 12, ratingTotal: 48 },
+        {
+          prior: {
+            ...readyEvidence(),
+            privateRatings: {
+              ...metricEvidence('rating-version'),
+              state: 'updating',
+              verifiedThrough: null,
+              availabilityReason: 'consumer_receipt_pending',
+            },
+          },
+        },
+      ),
+    )
+    expect(result.kpis.avgRating.comparison).toBeNull()
+    expect(result.kpis.avgRating.comparisonWithheld).toBe('evidence_not_ready')
+  })
+
+  it('blames the pipeline when the current window is not ready', async () => {
+    const result = await run30Days(
+      metricsForWindows(
+        { ratingCount: 12, ratingTotal: 54 },
+        { ratingCount: 12, ratingTotal: 48 },
+        {
+          current: {
+            ...readyEvidence(),
+            privateRatings: {
+              ...metricEvidence('rating-version'),
+              state: 'unavailable',
+              verifiedThrough: null,
+              availabilityReason: 'projection_missing',
+            },
+          },
+        },
+      ),
+    )
+    expect(result.kpis.avgRating.comparisonWithheld).toBe('evidence_not_ready')
+  })
+
+  it('has nothing to withhold when the comparison is shown', async () => {
+    const result = await run30Days(
+      metricsForWindows(
+        { ratingCount: 10, ratingTotal: 45 },
+        { ratingCount: 10, ratingTotal: 40 },
+      ),
+    )
+    expect(result.kpis.avgRating.comparison).toBe(0.5)
+    expect(result.kpis.avgRating.comparisonWithheld).toBeNull()
   })
 })
 

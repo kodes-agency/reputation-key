@@ -144,6 +144,7 @@ const emptyAnalytics: PortalAnalyticsData = {
     endAt: analyticsComputedAt,
     timezone: 'Europe/Sofia',
   },
+  qualifiedScansSince: new Date('2026-08-01T00:00:00.000Z'),
   lifetimeReconciliation: null,
   kpis: {
     scans: { value: 0, priorValue: null, trend: null, evidence: emptyEvidence },

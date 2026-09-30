@@ -91,6 +91,7 @@ export type {
   DashboardData,
   PortalMetricEvidence,
   RatingKPIValue,
+  RatingComparisonWithheld,
   PortalAnalyticsData,
   PortalEngagementFunnel,
   PortalLifetimeReconciliationState,

@@ -150,4 +150,10 @@ describe('Metric availability presentation', () => {
       'Too few ratings to show an average yet.',
     )
   })
+
+  it('says a period that opens before qualified scans began is only partly covered', () => {
+    expect(metricAvailabilityDetail('measure_started_mid_period')).toBe(
+      'Qualified scans are counted only from the day the measure began, so the start of this period is not included.',
+    )
+  })
 })

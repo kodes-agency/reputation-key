@@ -11,6 +11,7 @@ import type {
 import type { TimeRangePreset } from '../dto/dashboard.dto'
 import { priorPeriodDates } from '../utils'
 import { portalPeriodKpis } from './portal-period-kpis'
+import { qualifiedScansSince } from './qualified-scans-since'
 import type { PortalLifetimeAggregatePort } from '../ports/portal-lifetime-aggregate.port'
 import type { PortalResponseIntegritySummary } from '#/contexts/guest/application/public-api'
 import { portalLifetimeAnalyticsData } from './portal-lifetime-analytics'
@@ -44,10 +45,6 @@ export type GetPortalAnalytics = ReturnType<typeof getPortalAnalytics>
 
 export const getPortalAnalytics =
   (deps: GetPortalAnalyticsDeps) =>
-  // Pre-existing KPI assembly complexity — owner: Dashboard (BQC-5.5); still
-  // matches on unit-size, no expiry while over threshold. BQC-5.5 only shifted
-  // its line (dupe removal), re-registering the finding.
-  // fallow-ignore-next-line complexity
   async (input: GetPortalAnalyticsInput): Promise<PortalAnalyticsData> => {
     const {
       organizationId,
@@ -70,7 +67,12 @@ export const getPortalAnalytics =
           endAt: endDate,
         }),
       ])
-      return portalLifetimeAnalyticsData(input, lifetime, responseIntegrity)
+      return portalLifetimeAnalyticsData(
+        input,
+        lifetime,
+        responseIntegrity,
+        qualifiedScansSince(),
+      )
     }
 
     // The All Time branch above never reaches the period projection. Every
@@ -143,13 +145,22 @@ export const getPortalAnalytics =
         : Promise.resolve(null),
     ])
 
+    const since = qualifiedScansSince()
     const { kpis, engagementFunnel, ratingDetailShowable } = portalPeriodKpis(
-      { sums: currentSums, evidence: currentEvidence },
-      priorPeriod && priorEvidence ? { sums: priorSums, evidence: priorEvidence } : null,
+      { startDate, sums: currentSums, evidence: currentEvidence },
+      priorPeriod && priorEvidence
+        ? {
+            startDate: priorPeriod.priorStartDate,
+            sums: priorSums,
+            evidence: priorEvidence,
+          }
+        : null,
+      since,
     )
 
     return {
       period: { startAt: startDate, endAt: endDate, timezone: propertyTimezone },
+      qualifiedScansSince: since,
       lifetimeReconciliation: null,
       kpis,
       engagementFunnel,
