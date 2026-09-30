@@ -1,0 +1,107 @@
+import { describe, expect, it } from 'vitest'
+import {
+  GUEST_LANGUAGE_PACKS,
+  GUEST_LOCALE_METADATA,
+  GUEST_LOCALES,
+  OFFERED_GUEST_LOCALES,
+  currentGuestLanguagePack,
+  guestLocaleFormatTag,
+  isGuestLocale,
+  isSupportedGuestLanguagePack,
+  matchGuestLocale,
+  parseGuestLocale,
+} from './guest-locale'
+
+describe('guest locale catalogue', () => {
+  it('lists the six locales in their display order', () => {
+    expect(GUEST_LOCALES).toEqual(['en', 'es', 'it', 'fr', 'de', 'bg'])
+  })
+
+  it('has metadata for every locale, with the Cyrillic chip label for Bulgarian', () => {
+    for (const code of GUEST_LOCALES) {
+      const metadata = GUEST_LOCALE_METADATA[code]
+      expect(metadata.code).toBe(code)
+      expect(metadata.nativeName.length).toBeGreaterThan(0)
+      expect(metadata.englishName.length).toBeGreaterThan(0)
+      expect(metadata.intlTag.startsWith(code)).toBe(true)
+    }
+    expect(GUEST_LOCALE_METADATA.bg.chipLabel).toBe('БГ')
+    expect(GUEST_LOCALE_METADATA.bg.script).toBe('Cyrl')
+    expect(GUEST_LOCALE_METADATA.de.chipLabel).toBe('DE')
+    expect(GUEST_LOCALE_METADATA.en.script).toBe('Latn')
+  })
+
+  it('formats dates in the locale-specific tag, keeping today’s bg-BG and en', () => {
+    expect(guestLocaleFormatTag('bg')).toBe('bg-BG')
+    expect(guestLocaleFormatTag('en')).toBe('en')
+    expect(guestLocaleFormatTag('de')).toBe('de')
+  })
+
+  it('names every supported pack after its own locale and version number', () => {
+    for (const locale of GUEST_LOCALES) {
+      for (const pack of GUEST_LANGUAGE_PACKS[locale].supported) {
+        expect(pack.id).toMatch(new RegExp(`^guest-ui-${locale}-v[1-9]\\d*$`))
+      }
+    }
+  })
+
+  it('keeps each current pack inside its own supported list', () => {
+    for (const locale of GUEST_LOCALES) {
+      const { current, supported } = GUEST_LANGUAGE_PACKS[locale]
+      if (current !== null) expect(supported.map((pack) => pack.id)).toContain(current)
+    }
+  })
+
+  it('gives every offered locale a current pack', () => {
+    expect(OFFERED_GUEST_LOCALES).toEqual(['en', 'bg'])
+    for (const locale of OFFERED_GUEST_LOCALES) {
+      expect(currentGuestLanguagePack(locale)).not.toBeNull()
+    }
+    expect(currentGuestLanguagePack('en')).toBe('guest-ui-en-v1')
+    expect(currentGuestLanguagePack('bg')).toBe('guest-ui-bg-v1')
+    expect(currentGuestLanguagePack('de')).toBeNull()
+  })
+})
+
+describe('guest locale parsing', () => {
+  it('accepts the six exact codes only', () => {
+    expect(GUEST_LOCALES.every(isGuestLocale)).toBe(true)
+    for (const value of ['EN', 'pt', 'en-US', '', null, undefined, 3]) {
+      expect(isGuestLocale(value)).toBe(false)
+    }
+  })
+
+  it('returns null instead of coercing an unknown locale to a default', () => {
+    expect(parseGuestLocale('bg')).toBe('bg')
+    expect(parseGuestLocale('de')).toBe('de')
+    expect(parseGuestLocale('pt')).toBeNull()
+    expect(parseGuestLocale(undefined)).toBeNull()
+  })
+
+  it('matches language tags by their primary subtag, ignoring case', () => {
+    expect(matchGuestLocale('es-MX')).toBe('es')
+    expect(matchGuestLocale('DE-at')).toBe('de')
+    expect(matchGuestLocale('bg')).toBe('bg')
+    expect(matchGuestLocale('zh-Hant')).toBeNull()
+    expect(matchGuestLocale('pt')).toBeNull()
+    expect(matchGuestLocale('')).toBeNull()
+    expect(matchGuestLocale('*')).toBeNull()
+  })
+})
+
+describe('guest language pack membership', () => {
+  it('accepts a generation 1 pack only for its own locale', () => {
+    expect(isSupportedGuestLanguagePack('en', 'guest-ui-en-v1', 1)).toBe(true)
+    expect(isSupportedGuestLanguagePack('bg', 'guest-ui-bg-v1', 1)).toBe(true)
+    expect(isSupportedGuestLanguagePack('en', 'guest-ui-bg-v1', 1)).toBe(false)
+    expect(isSupportedGuestLanguagePack('bg', 'guest-ui-en-v1', 1)).toBe(false)
+  })
+
+  it('rejects unknown ids, non-strings, later generations and locales with no pack', () => {
+    expect(isSupportedGuestLanguagePack('en', 'guest-ui-en-v9', 1)).toBe(false)
+    expect(isSupportedGuestLanguagePack('en', undefined, 1)).toBe(false)
+    expect(isSupportedGuestLanguagePack('en', 7, 1)).toBe(false)
+    expect(isSupportedGuestLanguagePack('en', 'guest-ui-en-v1', 2)).toBe(false)
+    expect(isSupportedGuestLanguagePack('de', 'guest-ui-de-v1', 1)).toBe(false)
+  })
+})
