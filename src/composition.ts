@@ -607,12 +607,6 @@ function buildContainer(
       eligibility: {
         listActiveManagers: identity.publicApi.managerFacts.listActiveManagers,
         getAccessiblePropertyIds: identity.publicApi.people.getAccessiblePropertyIds,
-        findActiveParticipation: async (organizationIdValue, pid, managerId) =>
-          identity.publicApi.people.findActiveParticipation?.(
-            organizationIdValue,
-            pid,
-            managerId,
-          ) ?? null,
       },
     }),
   )

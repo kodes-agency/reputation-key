@@ -3,7 +3,7 @@ import { organizationId, propertyId, userId } from '#/shared/domain/ids'
 import { listEligiblePortalManagers } from './portal-manager-eligibility'
 
 describe('Portal Responsible Manager eligibility', () => {
-  it('allows active admins org-wide and requires both grant and participation for managers', async () => {
+  it('allows active admins org-wide and requires a current grant for managers', async () => {
     const eligible = await listEligiblePortalManagers(
       {
         identityPublicApi: {
@@ -34,8 +34,6 @@ describe('Portal Responsible Manager eligibility', () => {
           getAccessiblePropertyIds: async (_org, managerId) =>
             managerId === userId('manager-no-grant') ? [] : [propertyId('property-1')],
           getAssignedPortals: async () => [],
-          findActiveParticipation: async (_org, _property, managerId) =>
-            managerId === userId('manager-no-participation') ? null : ({} as never),
         },
       },
       organizationId('org-1'),
@@ -50,6 +48,11 @@ describe('Portal Responsible Manager eligibility', () => {
       },
       {
         userId: 'manager-eligible',
+        role: 'PropertyManager',
+        propertyAccessScope: 'assigned-properties',
+      },
+      {
+        userId: 'manager-no-participation',
         role: 'PropertyManager',
         propertyAccessScope: 'assigned-properties',
       },
@@ -71,7 +74,6 @@ describe('Portal Responsible Manager eligibility', () => {
         staffPublicApi: {
           getAccessiblePropertyIds: async () => [],
           getAssignedPortals: async () => [],
-          findActiveParticipation: async () => ({}) as never,
         },
       },
       organizationId('org-1'),

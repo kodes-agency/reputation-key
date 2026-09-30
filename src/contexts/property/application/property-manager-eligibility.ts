@@ -4,7 +4,7 @@ import {
   isEligibleResponsibleManager,
   listEligibleResponsibleManagers,
 } from '#/shared/responsible-manager-eligibility'
-import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
+import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 
 export type PropertyManagerEligibilityDeps = Readonly<{
   identityPublicApi: IdentityManagerFactsPublicApi
@@ -14,13 +14,6 @@ export type PropertyManagerEligibilityDeps = Readonly<{
 const policyDeps = (deps: PropertyManagerEligibilityDeps) => ({
   listActiveManagers: deps.identityPublicApi.listActiveManagers,
   getAccessiblePropertyIds: deps.staffPublicApi.getAccessiblePropertyIds,
-  findActiveParticipation: async (
-    organizationId: OrganizationId,
-    propertyId: PropertyId,
-    userId: UserId,
-  ) =>
-    deps.staffPublicApi.findActiveParticipation?.(organizationId, propertyId, userId) ??
-    null,
 })
 
 export const listEligiblePropertyManagers = (
