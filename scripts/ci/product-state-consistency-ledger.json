@@ -332,18 +332,6 @@
       "policy": "The lazy initializer reads guarded localStorage for this portal scope and the setter persists later changes."
     },
     {
-      "id": "src/components/features/portal/portal-settings/portal-locale-configuration.tsx:useState(bulgarianEnabled)",
-      "classification": "server_draft",
-      "owner": "Portal guest-language settings",
-      "policy": "Seed the Bulgarian toggle from persisted Portal settings and keep edits local until Save; PortalExperienceSettingsCard keys the editor by the effective persisted primary and Bulgarian-enabled values, so a changed server configuration remounts the draft."
-    },
-    {
-      "id": "src/components/features/portal/portal-settings/portal-locale-configuration.tsx:useState(primary)",
-      "classification": "server_draft",
-      "owner": "Portal guest-language settings",
-      "policy": "Seed the fallback locale from persisted Portal settings and keep edits local until Save; PortalExperienceSettingsCard keys the editor by the effective persisted primary and Bulgarian-enabled values, so a changed server configuration remounts the draft."
-    },
-    {
       "id": "src/components/features/portal/portal-settings/portal-publication-history-card.tsx:useState(continuation)",
       "classification": "synchronized_prop_copy",
       "owner": "Portal publication-history pagination",

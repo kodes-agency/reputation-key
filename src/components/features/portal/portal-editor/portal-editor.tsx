@@ -59,6 +59,7 @@ export function PortalEditor({
     privateFeedbackThreshold: portal.privateFeedbackThreshold,
     linkCount: links.length,
     languageCount: 1 + (portal.additionalGuestLocales?.length ?? 0),
+    missingTextCount: resources.languageCoverage?.missingTotal,
     groupName: group?.name ?? null,
     responsibleNames: responsibleManagerNames(
       resources.responsibleManagers?.assignments ?? [],

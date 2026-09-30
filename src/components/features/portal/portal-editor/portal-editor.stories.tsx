@@ -225,6 +225,41 @@ export const LinktreeSection: Story = sectionStory('linktree', 'Linktree')
 export const LanguagesSection: Story = sectionStory('languages', 'Languages')
 export const ResponsibleSection: Story = sectionStory('responsible', 'Responsible')
 
+// The section list flags what the coverage read says is missing, beside the count.
+export const LanguagesFlagMissingText: Story = {
+  args: {
+    resources: {
+      ...makeResources(action(async () => undefined)),
+      languageCoverage: {
+        portalId: 'p-1',
+        fallbackLocale: 'en',
+        languages: [
+          { locale: 'en', isFallback: true, total: 3, present: 3, missing: [] },
+          {
+            locale: 'bg',
+            isFallback: false,
+            total: 3,
+            present: 2,
+            missing: [
+              { key: 'link:l-1', kind: 'link_label', linkId: 'l-1', linkLabel: 'Menu' },
+            ],
+          },
+        ],
+        missingTotal: 1,
+      },
+    },
+    requestedSection: 'languages',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const nav = within(canvas.getByRole('navigation', { name: 'Editor sections' }))
+    await expect(nav.getByRole('link', { name: /^Languages/ })).toHaveTextContent(
+      /2 languages.*1 missing/,
+    )
+    await expect(canvas.getByText('2 of 3 · 1 missing')).toBeVisible()
+  },
+}
+
 export const AutosavesTheDescription: Story = {
   args: { resources: makeResources(action(async () => undefined)) },
   play: async ({ canvasElement, args }) => {
