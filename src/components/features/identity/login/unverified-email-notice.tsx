@@ -2,20 +2,27 @@
 // new link, so the notice carries it. The server answers the same whatever
 // happened (it reveals nothing about accounts), so the copy does not promise
 // a message either.
+//
+// The notice owns the state of its resend, and the form gives each sign-in
+// attempt its own notice (by key), so what a resend did (sent, or refused by
+// the rate limit) is never carried over to the next attempt: a new refusal
+// mounts a fresh notice with the button back.
 
 import { MailWarning } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import type { Action } from '#/components/hooks/use-action'
+import { useAction } from '#/components/hooks/use-action'
 
 type Props = Readonly<{
   /** The address that was just tried; empty before anything was submitted. */
   email: string
-  resend: Action<{ data: { email: string } }>
+  /** Mails a fresh verification link to the address. */
+  resendVerification: (input: { data: { email: string } }) => Promise<unknown>
 }>
 
-export function UnverifiedEmailNotice({ email, resend }: Props) {
+export function UnverifiedEmailNotice({ email, resendVerification }: Props) {
+  const resend = useAction(resendVerification)
   const address = email || 'the address you entered'
   return (
     <div className="space-y-3">

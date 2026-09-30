@@ -41,7 +41,7 @@ function LoginPage() {
   const router = useRouter()
   const queryClient = useQueryClient()
   const signIn = useAction(useServerFn(signInUser))
-  const resendVerification = useAction(useServerFn(resendVerificationEmail))
+  const resendVerification = useServerFn(resendVerificationEmail)
 
   const mutation = wrapAction(signIn, async () => {
     await ensureActiveOrg()
