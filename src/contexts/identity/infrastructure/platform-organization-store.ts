@@ -15,7 +15,7 @@
 // It is the durable record of who made the change — log lines, spans and the
 // canceled fact name no one — and it carries ids only, never an address.
 
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, sql } from 'drizzle-orm'
 import type { Database, Tx } from '#/shared/db'
 import { auditLogs } from '#/shared/db/schema/audit'
 import { invitation, member, organization } from '#/shared/db/schema/auth'
@@ -29,7 +29,6 @@ import {
   type UserId,
 } from '#/shared/domain/ids'
 import { identityError } from '../domain/errors'
-import { invitationState } from '../domain/invitation-state'
 import {
   ORGANIZATION_LIFECYCLE_STATES,
   type OrganizationLifecycleState,
@@ -93,20 +92,18 @@ type OrganizationHead = Readonly<{
   state: string
 }>
 
-type OpenInvitation = Readonly<{
+/** An open AccountAdmin invitation of an Organization that has no AccountAdmin. */
+type AdminInvitation = Readonly<{
   id: string
+  organizationId: string
   email: string
-  role: string | null
   status: string
   expiresAt: Date
 }>
 
-type OrganizationFacts = Readonly<{
-  memberCount: number
-  accountAdminCount: number
-  /** Stored 'pending' or 'expired', newest first. */
-  openInvitations: ReadonlyArray<OpenInvitation>
-}>
+type MemberCounts = Readonly<{ memberCount: number; accountAdminCount: number }>
+
+const NO_MEMBERS: MemberCounts = { memberCount: 0, accountAdminCount: 0 }
 
 function lifecycleState(raw: string): OrganizationLifecycleState {
   const state = ORGANIZATION_LIFECYCLE_STATES.find((known) => known === raw)
@@ -132,59 +129,96 @@ const headColumns = {
   state: organizationLifecycleAuthority.state,
 }
 
-/** Member and open-invitation facts per Organization, from two grouped reads. */
-async function readOrganizationFacts(
+/** The SQL twin of isOwnerToken: the comma-separated role names 'owner'. */
+const invitationNamesOwner = sql`'owner' = ANY (
+  SELECT btrim(lower(token)) FROM unnest(string_to_array(${invitation.role}, ',')) AS token
+)`
+
+/** Members and AccountAdmins per Organization, from one grouped read. */
+async function countMembers(
   db: Database,
   organizationIds: ReadonlyArray<string>,
-): Promise<(organizationId: string) => OrganizationFacts> {
-  const ids = [...organizationIds]
-  const memberRoles = await db
+): Promise<ReadonlyMap<string, MemberCounts>> {
+  const rows = await db
     .select({
       organizationId: member.organizationId,
       role: member.role,
       members: sql<number>`count(*)::int`,
     })
     .from(member)
-    .where(inArray(member.organizationId, ids))
+    .where(inArray(member.organizationId, [...organizationIds]))
     .groupBy(member.organizationId, member.role)
-  const openInvitations = await db
+  const counts = new Map<string, MemberCounts>()
+  for (const row of rows) {
+    const current = counts.get(row.organizationId) ?? NO_MEMBERS
+    counts.set(row.organizationId, {
+      memberCount: current.memberCount + row.members,
+      accountAdminCount:
+        current.accountAdminCount + (isOwnerToken(row.role) ? row.members : 0),
+    })
+  }
+  return counts
+}
+
+/** Invitations of any role that still read pending at `now`, counted per Organization. */
+async function countLiveInvitations(
+  db: Database,
+  organizationIds: ReadonlyArray<string>,
+  now: Date,
+): Promise<ReadonlyMap<string, number>> {
+  const rows = await db
+    .select({
+      organizationId: invitation.organizationId,
+      invitations: sql<number>`count(*)::int`,
+    })
+    .from(invitation)
+    .where(
+      and(
+        inArray(invitation.organizationId, [...organizationIds]),
+        eq(invitation.status, 'pending'),
+        gt(invitation.expiresAt, now),
+      ),
+    )
+    .groupBy(invitation.organizationId)
+  return new Map(rows.map((row) => [row.organizationId, row.invitations]))
+}
+
+/**
+ * Open AccountAdmin invitations, newest first, of Organizations the caller
+ * found to have no AccountAdmin. These are the only invitee addresses the
+ * console reads: an administered Organization's invitees stay counts.
+ */
+async function readAdminInvitations(
+  db: Database,
+  ownerlessOrganizationIds: ReadonlyArray<string>,
+): Promise<ReadonlyArray<AdminInvitation>> {
+  if (ownerlessOrganizationIds.length === 0) return []
+  return db
     .select({
       id: invitation.id,
       organizationId: invitation.organizationId,
       email: invitation.email,
-      role: invitation.role,
       status: invitation.status,
       expiresAt: invitation.expiresAt,
     })
     .from(invitation)
     .where(
       and(
-        inArray(invitation.organizationId, ids),
+        inArray(invitation.organizationId, [...ownerlessOrganizationIds]),
         inArray(invitation.status, [...OPEN_INVITATION_STATUSES]),
+        invitationNamesOwner,
       ),
     )
     .orderBy(desc(invitation.createdAt), desc(invitation.id))
-
-  return (organizationId) => {
-    const roles = memberRoles.filter((row) => row.organizationId === organizationId)
-    return {
-      memberCount: roles.reduce((sum, row) => sum + row.members, 0),
-      accountAdminCount: roles
-        .filter((row) => isOwnerToken(row.role))
-        .reduce((sum, row) => sum + row.members, 0),
-      openInvitations: openInvitations.filter(
-        (row) => row.organizationId === organizationId,
-      ),
-    }
-  }
 }
-
-const isAdminInvitation = (row: OpenInvitation): boolean => isOwnerToken(row.role ?? '')
 
 function toRow(
   head: OrganizationHead,
-  facts: OrganizationFacts,
-  now: Date,
+  facts: Readonly<{
+    members: MemberCounts
+    liveInvitations: number
+    adminInvitations: ReadonlyArray<AdminInvitation>
+  }>,
 ): PlatformOrganizationRow {
   return {
     id: toOrganizationId(head.id),
@@ -192,19 +226,15 @@ function toRow(
     slug: head.slug,
     createdAt: head.createdAt,
     lifecycleState: lifecycleState(head.state),
-    memberCount: facts.memberCount,
-    accountAdminCount: facts.accountAdminCount,
-    pendingInvitationCount: facts.openInvitations.filter(
-      (row) => invitationState(row.status, row.expiresAt, now) === 'pending',
-    ).length,
-    adminInvitations: facts.openInvitations
-      .filter(isAdminInvitation)
-      .map((row): PlatformAdminInvitationRow => ({
-        id: toInvitationId(row.id),
-        email: row.email,
-        status: row.status,
-        expiresAt: row.expiresAt,
-      })),
+    memberCount: facts.members.memberCount,
+    accountAdminCount: facts.members.accountAdminCount,
+    pendingInvitationCount: facts.liveInvitations,
+    adminInvitations: facts.adminInvitations.map((row): PlatformAdminInvitationRow => ({
+      id: toInvitationId(row.id),
+      email: row.email,
+      status: row.status,
+      expiresAt: row.expiresAt,
+    })),
   }
 }
 
@@ -257,11 +287,24 @@ export function createPlatformOrganizationStore(
           .orderBy(desc(organization.createdAt), desc(organization.id))
           .limit(limit)
         if (heads.length === 0) return []
-        const factsOf = await readOrganizationFacts(
-          db,
-          heads.map((head) => head.id),
+        const ids = heads.map((head) => head.id)
+        const [members, liveInvitations] = await Promise.all([
+          countMembers(db, ids),
+          countLiveInvitations(db, ids, now),
+        ])
+        const ownerless = ids.filter(
+          (id) => (members.get(id) ?? NO_MEMBERS).accountAdminCount === 0,
         )
-        return heads.map((head) => toRow(head, factsOf(head.id), now))
+        const adminInvitations = await readAdminInvitations(db, ownerless)
+        return heads.map((head) =>
+          toRow(head, {
+            members: members.get(head.id) ?? NO_MEMBERS,
+            liveInvitations: liveInvitations.get(head.id) ?? 0,
+            adminInvitations: adminInvitations.filter(
+              (row) => row.organizationId === head.id,
+            ),
+          }),
+        )
       }),
 
     readAdministration: (organizationId: OrganizationId) =>
@@ -276,15 +319,15 @@ export function createPlatformOrganizationStore(
           .where(eq(organization.id, organizationId as string))
           .limit(1)
         if (!head) return null
-        const facts = (await readOrganizationFacts(db, [head.id]))(head.id)
+        const members = (await countMembers(db, [head.id])).get(head.id) ?? NO_MEMBERS
+        const adminInvitations =
+          members.accountAdminCount === 0 ? await readAdminInvitations(db, [head.id]) : []
         const administration: OrganizationAdministration = {
           organizationId: toOrganizationId(head.id),
           name: head.name,
           lifecycleState: lifecycleState(head.state),
-          accountAdminCount: facts.accountAdminCount,
-          openAdminInvitationIds: facts.openInvitations
-            .filter(isAdminInvitation)
-            .map((row) => toInvitationId(row.id)),
+          accountAdminCount: members.accountAdminCount,
+          openAdminInvitationIds: adminInvitations.map((row) => toInvitationId(row.id)),
         }
         return administration
       }),

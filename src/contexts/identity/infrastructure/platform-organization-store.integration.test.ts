@@ -396,6 +396,27 @@ describe.sequential('listOrganizations and readAdministration', () => {
     expect(await store.readAdministration(organizationId('org-plat-missing'))).toBeNull()
   })
 
+  it('reads no invitee address of an Organization that has an AccountAdmin, only counts', async () => {
+    const live = new Date(NOW.getTime() + WEEK_MS)
+    await pool.query(
+      `INSERT INTO invitation
+         (id, "organizationId", email, role, status, "expiresAt", "inviterId", "createdAt")
+       VALUES ('inv-plat-home-admin', $1, 'plat-home-admin@test.com', 'owner', 'pending', $2, $3, $4),
+              ('inv-plat-home-pm', $1, 'plat-home-pm@test.com', 'admin', 'pending', $2, $3, $4)`,
+      [HOME_ORG, live, OPERATOR.userId, NOW],
+    )
+
+    const rows = await store.listOrganizations({ limit: 200, now: NOW })
+    const home = rows.find((row) => row.id === HOME_ORG)
+
+    expect(home).toMatchObject({ accountAdminCount: 1, pendingInvitationCount: 2 })
+    expect(home?.adminInvitations).toEqual([])
+    expect(await store.readAdministration(HOME_ORG)).toMatchObject({
+      accountAdminCount: 1,
+      openAdminInvitationIds: [],
+    })
+  })
+
   it('lists newest first within the limit', async () => {
     const DAY_MS = 24 * 60 * 60 * 1000
     await store.provisionOrganization(
