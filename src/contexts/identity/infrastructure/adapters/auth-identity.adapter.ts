@@ -102,7 +102,7 @@ type BetterAuthIdentityAdapterDeps = Readonly<{
     organizationId: string
     propertyIds: ReadonlyArray<string>
     inviterId?: string
-  }) => Promise<void>
+  }) => Promise<unknown>
 }>
 
 export const createBetterAuthIdentityAdapter = (

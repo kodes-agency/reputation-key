@@ -7,21 +7,37 @@ import {
   hasActiveGrant,
 } from './repositories/property-access-grant.repository'
 
+/** What one provisioning pass could not grant. */
+export type InvitationPropertyAccessProvisioning = Readonly<{
+  failedPropertyIds: ReadonlyArray<string>
+}>
+
+export type InvitationPropertyAccessProvisioner = (
+  ctx: Parameters<IdentityPort['runOnAcceptInvitation']>[0],
+) => Promise<InvitationPropertyAccessProvisioning>
+
+/** Creator of an invitation grant whose inviter is unknown (older rows). */
+const UNKNOWN_INVITER = 'invitation'
+
 /**
  * Build the container-scoped post-acceptance capability used by the Better
  * Auth Identity adapter. Property selections from the durable invitation are
  * access grants only; Staff participation remains a separate manager command.
- * Each Property is failure-isolated so one stale selection cannot suppress a
- * valid sibling grant, while retry/concurrency converges on the active row.
+ * Each grant records the inviter as its creator (A8). Each Property is
+ * failure-isolated so one stale selection cannot suppress a valid sibling
+ * grant, while retry/concurrency converges on the active row. What could not
+ * be granted is returned and logged once at error level (I3), so a manager
+ * left with fewer Properties than invited is visible.
  */
 export function createInvitationPropertyAccessProvisioner(
   deps: Readonly<{
     db: Database
     clock: Clock
-    logger: Pick<LoggerPort, 'warn'>
+    logger: Pick<LoggerPort, 'warn' | 'error'>
   }>,
-): IdentityPort['runOnAcceptInvitation'] {
-  return async ({ organizationId: orgId, userId, propertyIds }) => {
+): InvitationPropertyAccessProvisioner {
+  return async ({ organizationId: orgId, userId, propertyIds, inviterId }) => {
+    const failedPropertyIds: string[] = []
     for (const propertyId of propertyIds) {
       const input = { organizationId: orgId, propertyId, userId } as const
       try {
@@ -30,7 +46,7 @@ export function createInvitationPropertyAccessProvisioner(
           await grantPropertyAccess(deps.db, {
             ...input,
             source: 'invitation',
-            createdBy: `invitation:${userId}`,
+            createdBy: inviterId ?? UNKNOWN_INVITER,
           })
         } catch (error) {
           // A concurrent/retried acceptance may have won the unique race.
@@ -42,8 +58,19 @@ export function createInvitationPropertyAccessProvisioner(
           if (!active) throw error
         }
       } catch (error) {
-        deps.logger.warn({ err: error }, 'Failed to provision invited property access')
+        failedPropertyIds.push(propertyId)
+        deps.logger.warn(
+          { err: error, organizationId: orgId, propertyId },
+          'Failed to provision invited property access',
+        )
       }
     }
+    if (failedPropertyIds.length > 0) {
+      deps.logger.error(
+        { organizationId: orgId, userId, failedPropertyIds },
+        'Invited property access was only partly provisioned',
+      )
+    }
+    return { failedPropertyIds }
   }
 }
