@@ -2,12 +2,13 @@
 //   - provisioning commits the Organization, its first AccountAdmin
 //     invitation and that invitation's fact in one transaction, without
 //     making the operator a member; a refused invitation creates nothing;
-//   - a slug is taken once, also under concurrency;
+//   - a slug is taken once, also under concurrency, and the refused attempt
+//     leaves nothing behind;
 //   - the list and administration reads count members, AccountAdmins and
 //     open invitations;
 //   - the first-admin round trip ends with exactly one AccountAdmin, after
-//     which the console refuses to act; cancel and resend (of a lapsed row)
-//     stay inside the Organization;
+//     which the console refuses to act; cancel and resend (of a lapsed row or
+//     one marked expired) stay inside the Organization;
 //   - every change commits one audit_logs row naming the Organization, the
 //     operator and the action; a refused change writes none.
 
@@ -270,19 +271,20 @@ describe.sequential('provisionOrganization', () => {
     ).toBe(0)
   })
 
-  it('lets exactly one of two concurrent provisions take a slug', async () => {
-    const results = await Promise.allSettled([
-      store.provisionOrganization(
-        provisionCommand({ slug: 'plat-race', email: 'plat-race-a@test.com' }),
-      ),
-      store.provisionOrganization(
-        provisionCommand({ slug: 'plat-race', email: 'plat-race-b@test.com' }),
-      ),
-    ])
+  it('lets exactly one of two concurrent provisions take a slug; the other writes nothing', async () => {
+    const commands = [
+      provisionCommand({ slug: 'plat-race', email: 'plat-race-a@test.com' }),
+      provisionCommand({ slug: 'plat-race', email: 'plat-race-b@test.com' }),
+    ] as const
+    const results = await Promise.allSettled(
+      commands.map((command) => store.provisionOrganization(command)),
+    )
 
     expect(results.filter((result) => result.status === 'fulfilled')).toHaveLength(1)
-    const refused = results.find((result) => result.status === 'rejected')
+    const refusedAt = results.findIndex((result) => result.status === 'rejected')
+    const refused = results[refusedAt]
     expect(refused?.status === 'rejected' ? refused.reason : null).toMatchObject({
+      _tag: 'IdentityError',
       code: 'already_exists',
     })
     expect(
@@ -291,6 +293,19 @@ describe.sequential('provisionOrganization', () => {
         [],
       ),
     ).toBe(1)
+    // The unique index refuses the loser's insert, and its transaction takes
+    // everything with it: no lifecycle row, invitation, fact or audit row.
+    const loser = commands[refusedAt]
+    if (!loser) throw new Error('One provision must have been refused')
+    expect(
+      await one(
+        `SELECT (SELECT count(*)::int FROM organization_lifecycle_authority WHERE organization_id = $1) AS lifecycle,
+                (SELECT count(*)::int FROM invitation WHERE email = $2) AS invitations,
+                (SELECT count(*)::int FROM outbox_events WHERE organization_id = $1) AS facts,
+                (SELECT count(*)::int FROM audit_logs WHERE organization_id = $1) AS audits`,
+        [loser.organizationId, loser.firstAdmin.email],
+      ),
+    ).toEqual({ lifecycle: 0, invitations: 0, facts: 0, audits: 0 })
   })
 
   it.each([
@@ -564,15 +579,18 @@ describe.sequential('the platform console end to end', () => {
     ).toBe(1)
   })
 
-  it('resends a lapsed admin invitation as the same row with a fresh expiry', async () => {
+  it.each([
+    ['a lapsed row still stored pending', 'pending'],
+    ['a row marked expired', 'expired'],
+  ])('resends %s as the same row with a fresh expiry', async (_label, storedStatus) => {
     const provisioned = await platform.provisionOrganization(
-      { name: 'Platform Resend', adminEmail: 'plat-resend@test.com' },
+      { name: `Platform Resend ${storedStatus}`, adminEmail: 'plat-resend@test.com' },
       OPERATOR,
     )
-    await pool.query(`UPDATE invitation SET "expiresAt" = $2 WHERE id = $1`, [
-      provisioned.invitationId,
-      new Date(NOW.getTime() - 60_000),
-    ])
+    await pool.query(
+      `UPDATE invitation SET status = $2, "expiresAt" = $3 WHERE id = $1`,
+      [provisioned.invitationId, storedStatus, new Date(NOW.getTime() - 60_000)],
+    )
     sent.length = 0
 
     const resent = await platform.resendInvitation(
