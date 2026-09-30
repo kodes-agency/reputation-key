@@ -29,6 +29,19 @@ describe('identity query keys', () => {
   })
 })
 
+describe('member property access query key', () => {
+  it('nests the Property access grants under the member list, so a members invalidation refreshes them', () => {
+    expect(identityKeys.memberPropertyAccess()).toEqual([
+      'identity',
+      'members',
+      'property-access',
+    ])
+    expect(identityKeys.memberPropertyAccess().slice(0, -1)).toEqual(
+      identityKeys.members(),
+    )
+  })
+})
+
 describe('property setup query keys', () => {
   it('nests one Property setup under its detail and the summaries under the list', () => {
     expect(propertyKeys.setup('property-1')).toEqual([

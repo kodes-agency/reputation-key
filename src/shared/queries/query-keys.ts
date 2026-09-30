@@ -126,6 +126,12 @@ export const identityKeys = {
   all: ['identity'] as const,
   activeOrg: () => [...identityKeys.all, 'active-org'] as const,
   members: () => [...identityKeys.all, 'members'] as const,
+  /**
+   * Every member's active Property grants, for the AccountAdmin's access sheet.
+   * Below the member list, so the existing members invalidation after any role,
+   * removal or access change refreshes it too.
+   */
+  memberPropertyAccess: () => [...identityKeys.members(), 'property-access'] as const,
   invitations: () => [...identityKeys.all, 'invitations'] as const,
   userInvitations: () => [...identityKeys.invitations(), 'user'] as const,
   organizationInvitations: () => [...identityKeys.invitations(), 'organization'] as const,
