@@ -4,6 +4,7 @@
 // load. Without an id, the signed-in list of pending invitations stays (the
 // workspace-access screen links to it).
 
+import { useRef } from 'react'
 import { createFileRoute, Link, useNavigate } from '@tanstack/react-router'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
@@ -21,6 +22,7 @@ import {
   type InvitationLink,
 } from '#/components/features/identity'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import { useOnSessionEnd } from '#/components/hooks/use-on-session-end'
 import { pendingInvitationsQuery } from './-pending-invitations-query'
 
 /**
@@ -78,12 +80,24 @@ function InvitationLinkRoute({
 }: Readonly<{ link: InvitationLink; signedInEmail: string }>) {
   const queryClient = useQueryClient()
   const navigate = useNavigate()
+  const { id } = Route.useSearch()
+  const { data: session } = authClient.useSession()
   const acceptInvitationFn = useActionMutation(acceptInvitation, {
     successMessage: 'Invitation accepted',
     onSuccess: () => clearTenantCacheAfterTenantChange(queryClient),
   })
-  // Signing out hands the link back to /join, whose `beforeLoad` now sees a
-  // signed-out visitor and sends them to sign up or sign in.
+  // Once the session is gone the link goes back to /join, whose `beforeLoad`
+  // now sees a signed-out visitor and sends them to sign up or sign in. This
+  // page's Sign out and the header's (which navigates nowhere) both end up
+  // here, and only the first one to arrive navigates: a second load of the
+  // same address would read the preview again, and it is budgeted per IP.
+  const handedBack = useRef(false)
+  const handBack = () => {
+    if (handedBack.current) return
+    handedBack.current = true
+    return navigate({ to: '/join', search: { invitationId: id } })
+  }
+  useOnSessionEnd(session != null, () => void handBack())
   const signOut = () =>
     clearTenantCacheAfterSessionEnd(
       queryClient,
@@ -91,13 +105,7 @@ function InvitationLinkRoute({
         const result = await authClient.signOut()
         if (result.error) throw new Error('Could not sign out. Please try again.')
       },
-      () =>
-        navigate({
-          to: '/join',
-          search: {
-            invitationId: link.state === 'pending' ? link.invitationId : undefined,
-          },
-        }),
+      handBack,
     )
 
   return (
