@@ -66,7 +66,7 @@ export function AssistSectionLabel({
  * because the row carries `aria-current` for assistive tech. Accent ink read
  * straight from the token — a menu row is interactive, so purple is allowed,
  * and `text-primary` diverges from `--accent` in the dark theme
- * (`inbox-owner-control.tsx`, `DISC_TONE`).
+ * (`ui/owner-disc.tsx`, `DISC_TONE`).
  */
 export function SelectedMark({ className = '' }: Readonly<{ className?: string }>) {
   return <Check aria-hidden="true" className={`text-(--accent) ${className}`} />

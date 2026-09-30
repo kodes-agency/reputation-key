@@ -1,5 +1,7 @@
-import { ChevronDown, UserRound, UserRoundCheck } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { Fact } from '#/components/ui/fact'
+import { OwnerDisc } from '#/components/ui/owner-disc'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,7 +20,7 @@ import {
 // The viewer has ONE definition for the whole pane, in the pure selector module
 // every surface above this control already imports from; see its comment.
 import type { InboxCurrentUser } from './inbox-case-toolbar-props'
-import { CASE_SQUARE_CLASS, CaseFact } from './inbox-case-member'
+import { CASE_SQUARE_CLASS } from './inbox-case-member'
 
 /**
  * Mirror of `SOURCE_HANDLE_PERMISSION` in
@@ -136,7 +138,7 @@ function buildChoices(
  * canvas's `[Closed ▾][GI][⚑]` = 180 px at 390), so its label goes `sr-only`
  * and its chevron away, and the disc or glyph alone remains. `sr-only`, not
  * `hidden`: the `aria-label` is the name either way, and the word stays in the
- * DOM. The FACT does not collapse — see `CaseFact` — so its label is never
+ * DOM. The FACT does not collapse — see `Fact` — so its label is never
  * `sr-only`: on a phone `GH Grace Hopper` and `Assigned` are still words.
  *
  * `max-w-40 truncate` caps a long directory name at 160 px so one person
@@ -147,25 +149,17 @@ const NAME_CLASS = 'max-w-40 truncate'
 const TRIGGER_LABEL_CLASS = `${NAME_CLASS} max-md:sr-only`
 
 /**
- * The disc's two tones. Purple is interactive-only (contract, "Colour and
- * token rules"), so only the trigger's disc is accent: `bg-accent` is the
- * accent-MUTED ground — `styles.css` maps `--color-accent` to `--accent-muted`
- * for shadcn's hover surfaces — and the text is the strong `--accent` read
- * straight from the token, because no utility maps it (`text-primary` diverges
- * from `--accent` in the dark theme). That same `hover:bg-accent` is the
- * outline button's hover fill, which would swallow the disc's ground on hover;
- * `group-hover/owner:bg-background` keeps the disc a disc. The group is NAMED
- * because a bare `group-hover` matches ANY hovered `.group` ancestor, so a row
- * or panel above the pane could repaint the disc from a hover nowhere near it.
- *
- * A fact's disc is ink on `--border` (0.9 / 0.28 lightness): `--muted` is
- * 0.96 against a 0.98 background in the light theme, a disc too faint to read
- * as a shape once the fact lost its own box, and a purple disc on a fact would
- * tell a Member that `GH` can be pressed.
+ * The disc's own classes for the trigger (`OwnerDisc`, in `ui/`, owns the tones:
+ * purple is interactive-only, so only the trigger's disc is accent). The
+ * outline button's `hover:bg-accent` is the same fill as the accent disc's
+ * ground, which would swallow the disc on hover; `group-hover/owner:bg-background`
+ * keeps the disc a disc. The group is NAMED because a bare `group-hover` matches
+ * ANY hovered `.group` ancestor, so a row or panel above the pane could repaint
+ * the disc from a hover nowhere near it. Both tones pull 2 px left from `md` up.
  */
-const DISC_TONE = {
-  control: 'bg-accent text-(--accent) group-hover/owner:bg-background',
-  fact: 'bg-border text-foreground',
+const DISC_CLASS = {
+  control: 'md:-ml-0.5 group-hover/owner:bg-background',
+  fact: 'md:-ml-0.5',
 } as const
 
 /**
@@ -176,27 +170,18 @@ const DISC_TONE = {
  * `Assigned`) or a viewer with no session name. Below `md` the trigger shows
  * nothing BUT this mark, so a single shared glyph made an item a colleague
  * holds pixel-identical to one that is free to claim.
- *
- * Initials are a picture of the name and the name is already in the label or
- * the `aria-label`, so the mark is `aria-hidden` either way.
  */
 function OwnerMark({
   owner,
   tone,
-}: Readonly<{ owner: InboxOwnerView; tone: keyof typeof DISC_TONE }>): ReactNode {
-  if (owner.initials === null) {
-    const Glyph = owner.isAssigned ? UserRoundCheck : UserRound
-    return (
-      <Glyph aria-hidden="true" className={tone === 'fact' ? 'size-3.5' : undefined} />
-    )
-  }
+}: Readonly<{ owner: InboxOwnerView; tone: keyof typeof DISC_CLASS }>): ReactNode {
   return (
-    <span
-      aria-hidden="true"
-      className={`flex size-5 shrink-0 items-center justify-center rounded-full text-[10px] leading-none font-semibold md:-ml-0.5 ${DISC_TONE[tone]}`}
-    >
-      {owner.initials}
-    </span>
+    <OwnerDisc
+      initials={owner.initials}
+      isAssigned={owner.isAssigned}
+      tone={tone === 'control' ? 'accent' : 'neutral'}
+      className={DISC_CLASS[tone]}
+    />
   )
 }
 
@@ -221,14 +206,14 @@ export function InboxOwnerControl({
 
   // A caller with no move gets a fact, not an empty menu (contract,
   // "Permission pairs") — and since row 2 a fact is text, not a box: the same
-  // `CaseFact` an open item's status uses. `min-w-0` on the fact and
+  // `Fact` an open item's status uses. `min-w-0` on the fact and
   // `truncate` on the name let a long name be the thing that gives at 320 px.
   if (choices.length === 0) {
     return (
-      <CaseFact>
+      <Fact>
         <OwnerMark owner={owner} tone="fact" />
         <span className={NAME_CLASS}>{owner.label}</span>
-      </CaseFact>
+      </Fact>
     )
   }
 

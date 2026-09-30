@@ -1,9 +1,10 @@
 import { useId } from 'react'
 import { Flag, FlagOff } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { Fact } from '#/components/ui/fact'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type { SourceType } from '#/contexts/inbox/application/public-api'
-import { CASE_SQUARE_CLASS, CaseFact } from './inbox-case-member'
+import { CASE_SQUARE_CLASS } from './inbox-case-member'
 import { INBOX_SOURCE_HANDLE_PERMISSION } from './inbox-owner-control'
 
 type Props = Readonly<{
@@ -35,7 +36,7 @@ type Props = Readonly<{
  * width with no `aria-label` to keep in step with it. Two e2e journeys match
  * those names with `exact: true` (`inbox-triage.spec.ts:194,206,225`,
  * `inbox-handling-cycle.spec.ts:155,166`). Only the CONTROL's word goes: the
- * `Escalated` fact beside it is never `sr-only` (see `CaseFact`).
+ * `Escalated` fact beside it is never `sr-only` (see `Fact`).
  */
 const LABEL_CLASS = 'max-md:sr-only'
 
@@ -107,10 +108,10 @@ export function InboxDetailManagerActions({
   const fact = isEscalationActive ? (
     // `shrink-0`: the one fact whose word must never be ellipsised — at 320 px
     // a long status or name gives first.
-    <CaseFact id={factId} className="shrink-0 text-negative">
+    <Fact id={factId} className="shrink-0 text-negative">
       <Flag className="size-3.5 fill-current" aria-hidden="true" />
       Escalated
-    </CaseFact>
+    </Fact>
   ) : null
 
   if (!canCommand) return fact
