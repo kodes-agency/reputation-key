@@ -12,10 +12,8 @@ import type { PortalRepository } from '../ports/portal.repository'
 import type { PortalExperienceRepository } from '../ports/portal-experience.repository'
 import { assertPropertyAccess } from '../assert-property-access'
 import { loadPortalOrThrow } from '../load-accessible-portal'
-import {
-  contrastRatio,
-  isPublicDisplayNameConfirmed,
-} from '../../domain/portal-experience'
+import { isPublicDisplayNameConfirmed } from '../../domain/portal-experience'
+import { contrastRatio, MIN_TEXT_CONTRAST } from '#/shared/domain/portal-field-colour'
 import { portalError } from '../../domain/errors'
 
 type Deps = Readonly<{
@@ -155,7 +153,7 @@ export const savePropertyPortalBrandProfile =
     if (
       contrastRatio(input.primaryColor, input.backgroundColor) === null ||
       textContrast === null ||
-      textContrast < 4.5
+      textContrast < MIN_TEXT_CONTRAST
     ) {
       throw portalError(
         'invalid_theme',
