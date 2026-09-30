@@ -115,9 +115,10 @@ describe('invitation Property-access provisioning', () => {
       PROPERTY_A,
       PROPERTY_B,
     ])
+    // Counts only: tenant identifiers are never log fields (BQC-7.3).
     expect(logger.error).toHaveBeenCalledOnce()
     expect(logger.error).toHaveBeenCalledWith(
-      { organizationId: ORG, userId: INVITEE, failedPropertyIds: [STALE_PROPERTY] },
+      { failedPropertyCount: 1, requestedPropertyCount: 3 },
       expect.any(String),
     )
   })

@@ -26,8 +26,8 @@ const UNKNOWN_INVITER = 'invitation'
  * Each grant records the inviter as its creator (A8). Each Property is
  * failure-isolated so one stale selection cannot suppress a valid sibling
  * grant, while retry/concurrency converges on the active row. What could not
- * be granted is returned and logged once at error level (I3), so a manager
- * left with fewer Properties than invited is visible.
+ * be granted is returned, and a partial pass is logged once at error level
+ * (I3), so a manager left with fewer Properties than invited is visible.
  */
 export function createInvitationPropertyAccessProvisioner(
   deps: Readonly<{
@@ -59,15 +59,17 @@ export function createInvitationPropertyAccessProvisioner(
         }
       } catch (error) {
         failedPropertyIds.push(propertyId)
-        deps.logger.warn(
-          { err: error, organizationId: orgId, propertyId },
-          'Failed to provision invited property access',
-        )
+        deps.logger.warn({ err: error }, 'Failed to provision invited property access')
       }
     }
     if (failedPropertyIds.length > 0) {
+      // Counts only: tenant identifiers are never log fields (BQC-7.3). The
+      // request's correlation fields tie this line to the acceptance.
       deps.logger.error(
-        { organizationId: orgId, userId, failedPropertyIds },
+        {
+          failedPropertyCount: failedPropertyIds.length,
+          requestedPropertyCount: propertyIds.length,
+        },
         'Invited property access was only partly provisioned',
       )
     }
