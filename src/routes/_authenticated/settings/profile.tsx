@@ -29,7 +29,11 @@ export const Route = createFileRoute('/_authenticated/settings/profile')({
     // mismatch, and React then re-renders the page under the reader's first
     // click. `prefetchQuery` never throws, so a failed read shows in the card,
     // with Try again, and never takes the name and avatar down with it.
-    await context.queryClient.prefetchQuery(notificationUserSettingsQuery(organizationId))
+    // No retry here: a failing read would hold the whole page for it.
+    await context.queryClient.prefetchQuery({
+      ...notificationUserSettingsQuery(organizationId),
+      retry: false,
+    })
   },
   component: ProfileSettings,
 })
@@ -73,7 +77,8 @@ function ProfileSettings() {
         {ctx.activeOrganization && userSettings.data !== null ? (
           <TimezoneAndFormatCard
             settings={userSettings.data}
-            error={userSettings.error}
+            failed={userSettings.errorUpdateCount > 0 && userSettings.data === undefined}
+            retrying={userSettings.isFetching}
             onRetry={() => void userSettings.refetch()}
             organizationName={ctx.activeOrganization.name}
             updateUserSettings={updateUserSettings}

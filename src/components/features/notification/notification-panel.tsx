@@ -19,7 +19,7 @@
 // siblings from screen readers, and the toaster and the live regions are
 // siblings — the Undo a dismissal offers could be neither pressed nor heard.
 
-import { Suspense, useCallback, useState } from 'react'
+import { Suspense, useCallback, useEffect, useState } from 'react'
 import { Bell } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
@@ -30,6 +30,7 @@ import { useNotificationFormat, useNotifications } from './notification-queries'
 import { useNotificationMutations } from './notification-mutations'
 import { NotificationAnnouncer, useNotificationAnnouncer } from './notification-announcer'
 import { lazyPopoverBody } from './notification-popover-loader'
+import { NotificationSheetHeader } from './notification-sheet-header'
 import { useUrgentArrivalToasts } from './notification-urgent-arrivals'
 import type { NotificationServerFns, NotificationRowActions } from './types'
 import type { NotificationView } from '#/contexts/feed/application/public-api'
@@ -49,16 +50,37 @@ const preloadPopoverContent = () => {
   loadPopoverContent().catch(() => undefined)
 }
 
-/** Stands in for the popover body while its chunk arrives. */
-function PopoverContentFallback() {
+/** Stands in for the popover body while its chunk arrives; in the sheet, with its header. */
+function PopoverContentFallback({ onClose }: Readonly<{ onClose?: () => void }>) {
   return (
-    <div role="status" aria-busy="true" className="flex flex-col gap-3 p-4">
-      <span className="sr-only">Loading notifications…</span>
-      <Skeleton className="h-4 w-32" />
-      <Skeleton className="h-16 w-full" />
-      <Skeleton className="h-16 w-full" />
-    </div>
+    <>
+      {onClose && <NotificationSheetHeader onClose={onClose} />}
+      <div role="status" aria-busy="true" className="flex flex-col gap-3 p-4">
+        <span className="sr-only">Loading notifications…</span>
+        <Skeleton className="h-4 w-32" />
+        <Skeleton className="h-16 w-full" />
+        <Skeleton className="h-16 w-full" />
+      </div>
+    </>
   )
+}
+
+/**
+ * The page behind the phone sheet stays put. The sheet is not modal (so the
+ * toasts stay pressable), and a non-modal Radix dialog locks no scroll: a
+ * drag on its header or past the end of its list moved the page, which had
+ * jumped by the time the sheet closed.
+ */
+function useLockPageScroll(locked: boolean) {
+  useEffect(() => {
+    if (!locked) return
+    const root = document.documentElement
+    const previous = root.style.overflow
+    root.style.overflow = 'hidden'
+    return () => {
+      root.style.overflow = previous
+    }
+  }, [locked])
 }
 
 const PAGE_SIZE = 20
@@ -114,6 +136,7 @@ type Props = Readonly<{
 export function NotificationPanel({ notificationFns, organizationId }: Props) {
   const [open, setOpen] = useState(false)
   const isPhone = useIsMobile()
+  useLockPageScroll(isPhone && open)
   const { announcement, announce } = useNotificationAnnouncer()
 
   // The badge and the Needs-you list are one snapshot. Polling the shared head
@@ -177,7 +200,11 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
     </Button>
   )
   const body = (sheet: boolean) => (
-    <Suspense fallback={<PopoverContentFallback />}>
+    <Suspense
+      fallback={
+        <PopoverContentFallback onClose={sheet ? () => setOpen(false) : undefined} />
+      }
+    >
       <NotificationPopoverContent
         needsYou={{
           notifications: needsYou.notifications,
@@ -214,6 +241,9 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
           <SheetContent
             side="bottom"
             showCloseButton={false}
+            // The visible title names it (aria-labelledby wins while it is
+            // mounted); this is the name if neither body nor stand-in has one.
+            aria-label="Notifications"
             aria-describedby={undefined}
             onOpenAutoFocus={focusListOnOpen}
             onInteractOutside={keepOpenForToasts}

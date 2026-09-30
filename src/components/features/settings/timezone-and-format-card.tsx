@@ -30,8 +30,14 @@ type Props = Readonly<{
    * Undefined until the read answers.
    */
   settings: EffectiveNotificationSettings | undefined
-  /** A failed read, shown only while there is nothing to edit. */
-  error: Error | null
+  /** The read has failed and there is nothing to edit yet. */
+  failed: boolean
+  /**
+   * Try again is reading. A retry clears the query's error while it reads, so
+   * the alert stays — its button busy — rather than giving way to the loading
+   * state, which dropped focus onto <body>.
+   */
+  retrying: boolean
   onRetry: () => void
   organizationName: string
   updateUserSettings: Action<NotificationSettingsUpdate, EffectiveNotificationSettings>
@@ -39,7 +45,8 @@ type Props = Readonly<{
 
 export function TimezoneAndFormatCard({
   settings,
-  error,
+  failed,
+  retrying,
   onRetry,
   organizationName,
   updateUserSettings,
@@ -70,15 +77,22 @@ export function TimezoneAndFormatCard({
             settings={settings}
             updateUserSettings={updateUserSettings}
           />
-        ) : error ? (
+        ) : failed ? (
           <div role="alert" className="flex flex-wrap items-center gap-3 text-sm">
             <span>Couldn't load your timezone and date format.</span>
-            <Button variant="outline" size="sm" onClick={onRetry}>
-              Try again
+            <Button
+              variant="outline"
+              size="sm"
+              aria-disabled={retrying}
+              onClick={() => {
+                if (!retrying) onRetry()
+              }}
+            >
+              {retrying ? 'Trying again…' : 'Try again'}
             </Button>
           </div>
         ) : (
-          <div role="status" aria-busy="true" className="grid gap-4 sm:grid-cols-2">
+          <div role="status" className="grid gap-4 sm:grid-cols-2">
             <span className="sr-only">Loading your timezone and date format…</span>
             <Skeleton className="h-11 w-full" />
             <Skeleton className="h-11 w-full" />

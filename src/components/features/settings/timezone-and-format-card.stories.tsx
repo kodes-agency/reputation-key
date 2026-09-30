@@ -1,6 +1,7 @@
 // The Profile card for timezone and date format (D6). These stories moved
 // here from the notification settings page, which no longer holds the fields;
 // what they prove is unchanged, save for the card's own loading and failure.
+import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { toast } from 'sonner'
@@ -68,7 +69,8 @@ const meta = {
   ],
   args: {
     settings: userSettings,
-    error: null,
+    failed: false,
+    retrying: false,
     onRetry,
     organizationName: 'Harbor Hotels',
     updateUserSettings: asAction(updateUserSettingsMock),
@@ -206,7 +208,7 @@ export const IsNamedForWhatItDoes: Story = {
   },
 }
 
-/** Profile does not wait for the read: the card says it is loading. */
+/** While the read is on its way, the card says it is loading. */
 export const Loading: Story = {
   args: { settings: undefined },
   play: async ({ canvasElement }) => {
@@ -220,13 +222,49 @@ export const Loading: Story = {
 
 /** A failed read says so and can be tried again; it never hides the card. */
 export const LoadFailedCanBeRetried: Story = {
-  args: { settings: undefined, error: new Error('network') },
+  args: { settings: undefined, failed: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('alert')).toHaveTextContent(
       "Couldn't load your timezone and date format.",
     )
     await userEvent.click(canvas.getByRole('button', { name: 'Try again' }))
+    expect(onRetry).toHaveBeenCalledOnce()
+  },
+}
+
+/** A read that failed; Try again reads again, as the query does. */
+function RetryingCard() {
+  const [retrying, setRetrying] = useState(false)
+  return (
+    <TimezoneAndFormatCard
+      settings={undefined}
+      failed
+      retrying={retrying}
+      onRetry={() => {
+        onRetry()
+        setRetrying(true)
+      }}
+      organizationName="Harbor Hotels"
+      updateUserSettings={asAction(updateUserSettingsMock)}
+    />
+  )
+}
+
+/**
+ * The retry keeps the alert, its button busy, until the read answers: the
+ * loading state in its place used to drop focus onto <body>.
+ */
+export const RetryKeepsFocusOnTheButton: Story = {
+  render: () => <RetryingCard />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Try again' }))
+
+    const busy = await canvas.findByRole('button', { name: 'Trying again…' })
+    expect(busy).toHaveFocus()
+    expect(busy).toHaveAttribute('aria-disabled', 'true')
+    expect(canvas.getByRole('alert')).toBeInTheDocument()
     expect(onRetry).toHaveBeenCalledOnce()
   },
 }

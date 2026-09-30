@@ -24,9 +24,11 @@ describe('newUrgentArrivals', () => {
       type: 'inbox.response_target_passed',
       createdAt: LATER,
     })
+    // Work, but not on a clock: an assignment at normal priority.
     const calm = makeNotification({
       id: '50000000-0000-4000-8000-000000000004',
-      type: 'reply.pending_approval',
+      type: 'inbox.assigned',
+      priority: 'normal',
       createdAt: LATER,
     })
 
@@ -47,6 +49,21 @@ describe('newUrgentArrivals', () => {
     const first = urgent('50000000-0000-4000-8000-000000000007', EARLIER)
 
     expect(newUrgentArrivals(null, [first]).map((n) => n.id)).toEqual([first.id])
+  })
+
+  it('names whatever the domain stores as urgent, a reply waiting for approval included', () => {
+    // `reply.pending_approval` and `reply.publish_failed` are urgent types
+    // (notification-types.ts), so they toast like an escalation does.
+    const approval = makeNotification({
+      id: '50000000-0000-4000-8000-000000000008',
+      type: 'reply.pending_approval',
+      priority: 'urgent',
+      createdAt: LATER,
+    })
+
+    expect(newUrgentArrivals(SHOWN_AT.getTime(), [approval]).map((n) => n.id)).toEqual([
+      approval.id,
+    ])
   })
 
   it('never names finished work, even when it is urgent and new', () => {

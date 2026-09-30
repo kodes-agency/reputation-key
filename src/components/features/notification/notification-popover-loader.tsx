@@ -12,21 +12,33 @@
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react'
 import { RefreshCw } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { NotificationSheetHeader } from './notification-sheet-header'
 
 const reloadPage = () => window.location.reload()
 
-/** What the popover shows when its body could not be loaded. */
+/**
+ * What the popover shows when its body could not be loaded. On a phone
+ * (`onClose`, the sheet's) it keeps the sheet's title and Close: a
+ * full-screen sheet has no outside to tap.
+ */
 export function PopoverBodyUnavailable({
   onReload = reloadPage,
-}: Readonly<{ onReload?: () => void }>) {
+  onClose,
+}: Readonly<{ onReload?: () => void; onClose?: () => void }>) {
   return (
-    <div role="alert" className="flex flex-col items-center gap-3 px-4 py-6 text-center">
-      <p className="text-sm text-muted-foreground">Couldn&apos;t load notifications.</p>
-      <Button variant="outline" size="sm" onClick={onReload}>
-        <RefreshCw aria-hidden="true" className="size-3" />
-        Reload page
-      </Button>
-    </div>
+    <>
+      {onClose && <NotificationSheetHeader onClose={onClose} />}
+      <div
+        role="alert"
+        className="flex flex-col items-center gap-3 px-4 py-6 text-center"
+      >
+        <p className="text-sm text-muted-foreground">Couldn&apos;t load notifications.</p>
+        <Button variant="outline" size="sm" onClick={onReload}>
+          <RefreshCw aria-hidden="true" className="size-3" />
+          Reload page
+        </Button>
+      </div>
+    </>
   )
 }
 
@@ -34,7 +46,12 @@ export function PopoverBodyUnavailable({
 export function lazyPopoverBody<Props extends object>(
   load: () => Promise<ComponentType<Props>>,
 ): LazyExoticComponent<ComponentType<Props>> {
-  const Unavailable: ComponentType<Props> = () => <PopoverBodyUnavailable />
+  // The body's own props: in the sheet they carry its Close.
+  const Unavailable: ComponentType<Props> = (props) => (
+    <PopoverBodyUnavailable
+      onClose={(props as Readonly<{ onClose?: () => void }>).onClose}
+    />
+  )
   return lazy(() =>
     load().then(
       (Body) => ({ default: Body }),
