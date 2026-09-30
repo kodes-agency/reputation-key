@@ -35,8 +35,8 @@ type InvitationAcceptedPayload = Readonly<{
  * inviter cannot produce one, and treating that as a failure would retry
  * forever. An inviter who is not an AccountAdmin of the Organization when the
  * job is delivered (they left, were demoted, are a platform operator who never
- * was one, or are a PropertyManager, who can invite until PropertyManagers
- * lose invitations) is refused then, by the `account_admin` audience.
+ * was one, or are a PropertyManager who invited before PropertyManagers lost
+ * invitations) is refused then, by the `account_admin` audience.
  */
 export async function handleInvitationAcceptedInviterNotice(
   deps: InvitationAcceptedInviterNoticeDeps,
