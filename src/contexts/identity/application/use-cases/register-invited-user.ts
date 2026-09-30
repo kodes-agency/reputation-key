@@ -1,11 +1,11 @@
 import type { IdentityCommandStore } from '../ports/identity-command-store.port'
 import type { InvitationId, OrganizationId, UserId } from '#/shared/domain/ids'
 import { userId as toUserId } from '#/shared/domain/ids'
+import { identityError, isIdentityError } from '../../domain/errors'
 import {
   ACCOUNT_EXISTS_MESSAGE,
-  identityError,
-  isIdentityError,
-} from '../../domain/errors'
+  REGISTRATION_FAILED_MESSAGE,
+} from '../../domain/invitation-copy'
 import { identityInvitationAccepted } from '../../domain/events'
 import { providerRefusalCode } from '../provider-refusal'
 import type { RegistrationAuthIds } from '#/shared/domain/registration-auth-ids'
@@ -97,14 +97,6 @@ type SignUpRecovery =
       createdUserId: string
     }>
   | Readonly<{ kind: 'accepted'; organizationId: OrganizationId }>
-
-/**
- * What an invitee sees when their account could not be created. They are
- * unauthenticated and this message reaches their browser verbatim, so it is
- * fixed: a driver, query or provider error's own text can name constraints,
- * SQL and bound parameters.
- */
-const REGISTRATION_FAILED_MESSAGE = 'Registration failed. Please try again.'
 
 /**
  * Sign-up refusals the invitee can act on, keyed by the reason code Better Auth

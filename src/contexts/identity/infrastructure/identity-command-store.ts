@@ -31,6 +31,14 @@ import {
 import { decideUserOrganizationMembership } from '#/shared/auth/user-organization-membership'
 import { identityError } from '../domain/errors'
 import { invitationState } from '../domain/invitation-state'
+import {
+  INELIGIBLE_ROLE_MESSAGE,
+  INVITATION_CONSUMED_MESSAGE,
+  INVITATION_EXPIRED_MESSAGE,
+  INVITATION_INACTIVE_MESSAGE,
+  INVITATION_OTHER_ADDRESS_MESSAGE,
+  REGISTRATION_FAILED_MESSAGE,
+} from '../domain/invitation-copy'
 import { revokeAllPropertyAccessForUser } from './repositories/property-access-grant.repository'
 import type {
   AcceptInvitationCommand,
@@ -42,17 +50,6 @@ import type {
   RenewInvitationCommand,
   ValidateInvitationRegistrationCommand,
 } from '../application/ports/identity-command-store.port'
-
-/** Invitee-facing copy: fixed text, never a stored status or provider wording. */
-const INVITATION_INACTIVE_MESSAGE =
-  'This invitation is no longer active. Ask your Account Admin for a new one.'
-const INVITATION_EXPIRED_MESSAGE =
-  'This invitation has expired. Ask your Account Admin to resend it.'
-const INVITATION_OTHER_ADDRESS_MESSAGE =
-  'This invitation was sent to a different email address. Sign out and open the link again.'
-const INVITATION_CONSUMED_MESSAGE = 'This invitation was already accepted or cancelled.'
-const REGISTRATION_FAILED_MESSAGE = 'Registration failed. Please try again.'
-const INELIGIBLE_ROLE_MESSAGE = 'This invitation is not eligible for beta manager access'
 
 /**
  * Invitation insert via raw SQL. The drizzle mirror for the better-auth

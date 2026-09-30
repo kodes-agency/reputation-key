@@ -35,13 +35,6 @@ export const identityError = createErrorFactory<
   IdentityError['code']
 >('IdentityError')
 
-/**
- * What an invitee sees when their address already has an account. They are
- * unauthenticated; the copy is fixed and tells them the path that works.
- */
-export const ACCOUNT_EXISTS_MESSAGE =
-  'An account already exists for this email. Sign in, then open your invitation link again.'
-
 /** Type guard — lets server functions detect IdentityError at catch time. */
 export const isIdentityError = (e: unknown): e is IdentityError =>
   typeof e === 'object' && e !== null && (e as { _tag?: string })._tag === 'IdentityError'

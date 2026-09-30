@@ -297,6 +297,32 @@ describe.sequential('invited registration store (integration)', () => {
     expect(leftovers.rows[0]).toEqual({ verifications: '0', users: '1' })
   })
 
+  it('tells a lapsed invitation from a consumed one, in fixed copy', async () => {
+    const lapsed = await seedInvitation()
+    await lease.pool.query(`UPDATE invitation SET "expiresAt" = $2 WHERE id = $1`, [
+      lapsed.invitationId as string,
+      new Date(NOW.getTime() - 1),
+    ])
+    const consumed = await seedInvitation()
+    await lease.pool.query(`UPDATE invitation SET status = 'canceled' WHERE id = $1`, [
+      consumed.invitationId as string,
+    ])
+
+    await expect(prepare(lapsed)).rejects.toSatisfy(
+      (error: unknown) =>
+        isIdentityError(error) &&
+        error.code === 'invitation_expired' &&
+        error.message ===
+          'This invitation has expired. Ask your Account Admin to resend it.',
+    )
+    await expect(prepare(consumed)).rejects.toSatisfy(
+      (error: unknown) =>
+        isIdentityError(error) &&
+        error.code === 'invitation_not_found' &&
+        !error.message.includes('canceled'),
+    )
+  })
+
   it('lets an interrupted attempt resume over the account it created itself', async () => {
     const fixture = await seedInvitation()
     const prepared = await prepare(fixture, 'verification-own-attempt')

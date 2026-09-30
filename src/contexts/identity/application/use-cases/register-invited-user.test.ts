@@ -3,11 +3,8 @@ import { describe, expect, it, vi } from 'vitest'
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createSequentialIdentityCommandStore } from '#/shared/testing/sequential-identity-command-store'
 import { invitationId } from '#/shared/domain/ids'
-import {
-  ACCOUNT_EXISTS_MESSAGE,
-  identityError,
-  isIdentityError,
-} from '../../domain/errors'
+import { identityError, isIdentityError } from '../../domain/errors'
+import { ACCOUNT_EXISTS_MESSAGE } from '../../domain/invitation-copy'
 import { registerInvitedUser } from './register-invited-user'
 
 const NOW = new Date('2026-08-25T12:00:00.000Z')

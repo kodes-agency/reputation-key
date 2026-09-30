@@ -13,6 +13,7 @@ import { invitationId as toInvitationId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'
 import { identityError } from '../../domain/errors'
 import { betaInvitationRole } from '../../domain/invitation-state'
+import { INELIGIBLE_ROLE_MESSAGE } from '../../domain/invitation-copy'
 import type { AcceptInvitationInput } from '../dto/invitation.dto'
 import { deliverInvitationEmail } from '../invitation-email-delivery'
 
@@ -68,10 +69,7 @@ export const resendInvitation =
     // The store refuses a non-beta role before renewing; this only narrows it.
     const role = betaInvitationRole(renewed.role)
     if (!role) {
-      throw identityError(
-        'forbidden',
-        'This invitation is not eligible for beta manager access',
-      )
+      throw identityError('forbidden', INELIGIBLE_ROLE_MESSAGE)
     }
 
     const emailSent = await deliverInvitationEmail(deps, ctx, {

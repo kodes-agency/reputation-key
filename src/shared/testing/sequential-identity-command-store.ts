@@ -17,6 +17,14 @@ import {
 import { isBetaInteractiveMemberRoleToken } from '#/shared/domain/beta-interactive-role'
 import { identityError } from '#/contexts/identity/domain/errors'
 import { invitationState } from '#/contexts/identity/domain/invitation-state'
+import {
+  INELIGIBLE_ROLE_MESSAGE,
+  INVITATION_CONSUMED_MESSAGE,
+  INVITATION_EXPIRED_MESSAGE,
+  INVITATION_INACTIVE_MESSAGE,
+  INVITATION_OTHER_ADDRESS_MESSAGE,
+  REGISTRATION_FAILED_MESSAGE,
+} from '#/contexts/identity/domain/invitation-copy'
 import type {
   AcceptedInvitation,
   IdentityCommandStore,
@@ -83,15 +91,6 @@ export type SequentialIdentityCommandStore = IdentityCommandStore &
     readonly verifiedUserIds: ReadonlyArray<string>
   }>
 
-const INVITATION_INACTIVE_MESSAGE =
-  'This invitation is no longer active. Ask your Account Admin for a new one.'
-const INVITATION_EXPIRED_MESSAGE =
-  'This invitation has expired. Ask your Account Admin to resend it.'
-const INVITATION_OTHER_ADDRESS_MESSAGE =
-  'This invitation was sent to a different email address. Sign out and open the link again.'
-const INVITATION_CONSUMED_MESSAGE = 'This invitation was already accepted or cancelled.'
-const INELIGIBLE_ROLE_MESSAGE = 'This invitation is not eligible for beta manager access'
-
 function parsePropertyIds(raw: string | null): ReadonlyArray<string> {
   if (!raw) return []
   try {
@@ -150,7 +149,7 @@ export function createSequentialIdentityCommandStore(deps: {
   const markEmailVerified = (userId: string, email: string) => {
     const seeded = users.get(userId)
     if (seeded && seeded.email.toLowerCase() !== email) {
-      throw identityError('registration_failed', 'Registration failed. Please try again.')
+      throw identityError('registration_failed', REGISTRATION_FAILED_MESSAGE)
     }
     if (seeded) users.set(userId, { ...seeded, emailVerified: true })
     verifiedUserIds.push(userId)

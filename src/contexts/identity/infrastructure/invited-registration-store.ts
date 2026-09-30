@@ -11,7 +11,14 @@ import {
 } from '#/shared/db/schema/auth'
 import { isBetaInteractiveMemberRoleToken } from '#/shared/domain/beta-interactive-role'
 import { organizationId as toOrganizationId } from '#/shared/domain/ids'
-import { ACCOUNT_EXISTS_MESSAGE, identityError } from '../domain/errors'
+import { identityError } from '../domain/errors'
+import {
+  ACCOUNT_EXISTS_MESSAGE,
+  INELIGIBLE_ROLE_MESSAGE,
+  INVITATION_EXPIRED_MESSAGE,
+  INVITATION_INACTIVE_MESSAGE,
+} from '../domain/invitation-copy'
+import { invitationState } from '../domain/invitation-state'
 import {
   classifyInvitedRegistrationRecovery,
   type InvitedRegistrationRecoveryDecision,
@@ -275,21 +282,25 @@ export const createInvitedRegistrationStore = (
         .where(eq(invitation.id, command.invitationId as string))
         .for('update')
       const currentInvitation = invitationRows[0]
-      if (
-        !currentInvitation ||
-        currentInvitation.status !== 'pending' ||
-        currentInvitation.expiresAt <= command.now
-      ) {
+      if (!currentInvitation) {
         throw identityError('invitation_not_found', 'Invitation is not available')
+      }
+      const state = invitationState(
+        currentInvitation.status,
+        currentInvitation.expiresAt,
+        command.now,
+      )
+      if (state === 'expired') {
+        throw identityError('invitation_expired', INVITATION_EXPIRED_MESSAGE)
+      }
+      if (state !== 'pending') {
+        throw identityError('invitation_not_found', INVITATION_INACTIVE_MESSAGE)
       }
       if (currentInvitation.email.toLowerCase() !== command.email.toLowerCase()) {
         throw identityError('forbidden', 'Invitation is not addressed to this email')
       }
       if (!isBetaInteractiveMemberRoleToken(currentInvitation.role ?? 'member')) {
-        throw identityError(
-          'forbidden',
-          'This invitation is not eligible for beta manager access',
-        )
+        throw identityError('forbidden', INELIGIBLE_ROLE_MESSAGE)
       }
 
       const identifier = VERIFICATION_IDENTIFIER_PREFIX + (command.invitationId as string)
