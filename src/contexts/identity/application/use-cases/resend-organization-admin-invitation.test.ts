@@ -95,20 +95,17 @@ describe('resendOrganizationAdminInvitation', () => {
     ])
   })
 
-  it('logs the resend by identifiers only', async () => {
+  it('logs the resend content-free: no identifiers, no address', async () => {
     const { resend, logger } = setup()
 
     await resend(INPUT, OPERATOR)
 
     expect(logger.info).toHaveBeenCalledWith(
-      {
-        event: 'platform.admin_invitation_resent',
-        operatorUserId: 'user-operator',
-        organizationId: 'org-new',
-        invitationId: 'inv-lapsed',
-      },
+      { event: 'platform.admin_invitation_resent' },
       expect.any(String),
     )
+    const logged = JSON.stringify(logger.info.mock.calls)
+    expect(logged).not.toMatch(/user-operator|org-new|inv-|@riviera/)
   })
 
   it.each([

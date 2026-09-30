@@ -111,21 +111,17 @@ describe('inviteOrganizationAdmin', () => {
     expect(sent[0]?.invitedByUsername).toBe('The Reputation Key team')
   })
 
-  it('logs the invitation by identifiers only', async () => {
+  it('logs the invitation content-free: no identifiers, no address', async () => {
     const { invite, logger } = setup()
 
     await invite(INPUT, OPERATOR)
 
     expect(logger.info).toHaveBeenCalledWith(
-      {
-        event: 'platform.admin_invited',
-        operatorUserId: 'user-operator',
-        organizationId: ORG,
-        invitationId: 'inv-1',
-      },
+      { event: 'platform.admin_invited' },
       expect.any(String),
     )
-    expect(JSON.stringify(logger.info.mock.calls)).not.toContain('admin@riviera')
+    const logged = JSON.stringify(logger.info.mock.calls)
+    expect(logged).not.toMatch(/user-operator|org-new|inv-|@riviera/)
   })
 
   it('keeps the invitation and reports emailSent false when the email fails', async () => {

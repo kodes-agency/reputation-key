@@ -35,7 +35,8 @@ export type CancelOrganizationAdminInvitation = (
 
 export const cancelOrganizationAdminInvitation =
   (deps: CancelOrganizationAdminInvitationDeps): CancelOrganizationAdminInvitation =>
-  async (input, operator) => {
+  // The canceled fact names no actor, so the operator only gates the call.
+  async (input, _operator) => {
     const organizationId = toOrganizationId(input.organizationId)
     const invitationId = toInvitationId(input.invitationId)
     const administration = await deps.store.readAdministration(organizationId)
@@ -50,13 +51,10 @@ export const cancelOrganizationAdminInvitation =
         occurredAt: deps.clock(),
       }),
     })
+    // Content-free (observability schema): the request's trace correlates
+    // it, and the rows it names already record the operator as inviter.
     deps.logger.info(
-      {
-        event: 'platform.admin_invitation_canceled',
-        operatorUserId: operator.userId,
-        organizationId,
-        invitationId,
-      },
+      { event: 'platform.admin_invitation_canceled' },
       'Platform operator canceled an Account Admin invitation',
     )
   }

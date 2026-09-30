@@ -33,7 +33,7 @@ export type PlatformOperator = Readonly<{
 export type PlatformOperatorCheck = Readonly<{
   mutation: boolean
   now: Date
-  /** Receives one warn line per refusal, naming the user id only. */
+  /** Receives one content-free warn line per refusal. */
   logger: Pick<LoggerPort, 'warn'>
   correlationId?: string
 }>
@@ -45,13 +45,10 @@ export function operatorPrincipalId(
   return user.emailVerified ? user.email.trim().toLowerCase() : null
 }
 
-function refuseOperator(
-  logger: Pick<LoggerPort, 'warn'>,
-  userId: string,
-  reason: string,
-): never {
+function refuseOperator(logger: Pick<LoggerPort, 'warn'>, reason: string): never {
+  // Content-free (observability schema): the request's trace correlates it.
   logger.warn(
-    { event: 'platform.operator_denied', userId, reason },
+    { event: 'platform.operator_denied', reason },
     'Platform console refused a user who is not a registered operator',
   )
   throwContextError(
@@ -77,7 +74,7 @@ export async function requirePlatformOperator(
   const { session, user } = signedIn
   const principal = operatorPrincipalId(user)
   if (principal === null) {
-    refuseOperator(options.logger, user.id, 'operator_not_registered')
+    refuseOperator(options.logger, 'operator_not_registered')
   }
 
   const decision = await getExecutionPolicy().decide({
@@ -87,7 +84,7 @@ export async function requirePlatformOperator(
     now: options.now,
     ...(options.correlationId ? { correlationId: options.correlationId } : {}),
   })
-  if (!decision.allowed) refuseOperator(options.logger, user.id, decision.reason)
+  if (!decision.allowed) refuseOperator(options.logger, decision.reason)
 
   const sessionAgeMs = options.now.getTime() - new Date(session.createdAt).getTime()
   if (options.mutation && sessionAgeMs > OPERATOR_MUTATION_SESSION_MAX_AGE_MS) {

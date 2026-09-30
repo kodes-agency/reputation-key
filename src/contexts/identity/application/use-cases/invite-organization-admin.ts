@@ -56,13 +56,10 @@ export const inviteOrganizationAdmin =
         { now: deps.clock(), invitationExpiresInMs: deps.invitationExpiresInMs },
       ),
     )
+    // Content-free (observability schema): the request's trace correlates
+    // it, and the rows it names already record the operator as inviter.
     deps.logger.info(
-      {
-        event: 'platform.admin_invited',
-        operatorUserId: operator.userId,
-        organizationId,
-        invitationId,
-      },
+      { event: 'platform.admin_invited' },
       'Platform operator invited an Account Admin',
     )
 

@@ -9,7 +9,8 @@
 // 3. Send the email post-commit; a failure reports `emailSent: false`.
 //
 // Provisioning records no fact of its own, as `ops:bootstrap-owner` records
-// none; a structured log line names the operator and the Organization.
+// none. The rows are the record — the operator is the invitation's
+// inviterId — and a content-free log line marks the change in its trace.
 
 import type { Clock } from '#/shared/domain/clock'
 import type { InvitationId, OrganizationId } from '#/shared/domain/ids'
@@ -63,13 +64,10 @@ export const provisionOrganization =
         { now, invitationExpiresInMs: deps.invitationExpiresInMs },
       ),
     })
+    // Content-free (observability schema): the request's trace correlates
+    // it, and the rows it names already record the operator as inviter.
     deps.logger.info(
-      {
-        event: 'platform.organization_provisioned',
-        operatorUserId: operator.userId,
-        organizationId,
-        invitationId,
-      },
+      { event: 'platform.organization_provisioned' },
       'Platform operator created an Organization and invited its first Account Admin',
     )
 
