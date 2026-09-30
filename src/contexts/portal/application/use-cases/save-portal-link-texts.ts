@@ -10,12 +10,11 @@ import type { PortalCommandStore } from '../ports/portal-command-store.port'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import { portalLinkId } from '#/shared/domain/ids'
-import { canForContext } from '#/shared/domain/permissions'
 import { portalError } from '../../domain/errors'
+import { assertRequestedLocalesOffered } from '../../domain/rules'
 import { portalLinkUpdated } from '../../domain/events'
 import { validateLinkTextInput, type ValidLinkText } from '../../domain/portal-linktree'
-import { assertPortalPropertyAccess } from '../assert-property-access'
+import { authorizeLinkCommand } from '../authorize-link-command'
 import { nextPortalCommandAt } from '../portal-command-version'
 
 export type SavePortalLinkTextsInput = Readonly<{
@@ -52,32 +51,14 @@ function validateTexts(input: SavePortalLinkTextsInput): ValidLinkText[] {
 export const savePortalLinkTexts =
   (deps: SavePortalLinkTextsDeps) =>
   async (input: SavePortalLinkTextsInput, ctx: AuthContext): Promise<void> => {
-    if (!canForContext(ctx, 'portal.update')) {
-      throw portalError('forbidden', 'this role cannot update portal links')
-    }
-    const target = await deps.portalLinkRepo.findLinkCommandTarget(
-      ctx.organizationId,
-      portalLinkId(input.linkId),
-    )
-    if (!target) throw portalError('link_not_found', 'link not found')
+    const { target, portal } = await authorizeLinkCommand(deps, ctx, input.linkId)
     const { link } = target
-    const portal = await assertPortalPropertyAccess(
-      deps.portalRepo,
-      deps.staffPublicApi,
-      ctx,
-      'portal.update',
-      link.portalId,
-    )
 
     const texts = validateTexts(input)
-    const offered = [portal.primaryGuestLocale, ...portal.additionalGuestLocales]
-    const requested = texts.map((text) => text.locale)
-    if (
-      new Set(requested).size !== requested.length ||
-      requested.some((locale) => !offered.includes(locale))
-    ) {
-      throw portalError('locale_not_offered', 'This Portal does not offer that language')
-    }
+    assertRequestedLocalesOffered(
+      portal,
+      texts.map((text) => text.locale),
+    )
 
     const expectedPortalUpdatedAt = target.portalUpdatedAt ?? portal.updatedAt
     const occurredAt = deps.clock()

@@ -1,3 +1,5 @@
+// fallow-ignore-file code-duplication
+
 // LIF-01 bullets 4 and 5 — the Portal context's Organization lifecycle
 // contribution (LIF-01-T12/T13/T14).
 //

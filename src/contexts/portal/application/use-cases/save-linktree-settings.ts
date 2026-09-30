@@ -11,6 +11,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { portalId } from '#/shared/domain/ids'
 import { portalError } from '../../domain/errors'
+import { assertRequestedLocalesOffered } from '../../domain/rules'
 import { portalUpdated } from '../../domain/events'
 import { validateLinktreeTitle } from '../../domain/portal-linktree'
 import { loadPortalOrThrow } from '../load-accessible-portal'
@@ -41,14 +42,10 @@ export const saveLinktreeSettings =
     if (input.enabled === undefined && titles.length === 0) {
       throw portalError('invalid_title', 'Give the switch or a title to save')
     }
-    const offered = [portal.primaryGuestLocale, ...portal.additionalGuestLocales]
-    const requested = titles.map((entry) => entry.locale)
-    if (
-      new Set(requested).size !== requested.length ||
-      requested.some((locale) => !offered.includes(locale))
-    ) {
-      throw portalError('locale_not_offered', 'This Portal does not offer that language')
-    }
+    assertRequestedLocalesOffered(
+      portal,
+      titles.map((entry) => entry.locale),
+    )
     const validTitles = titles.map((entry) => {
       const result = validateLinktreeTitle(entry.title)
       if (result.isErr()) throw result.error

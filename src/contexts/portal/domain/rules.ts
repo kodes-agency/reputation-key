@@ -136,6 +136,20 @@ export const validateLinkLabel = (label: string): Result<string, PortalError> =>
  * same set in a CHECK, so a caller that skips the DTO gets a PortalError here
  * rather than a constraint failure from the store.
  */
+/** Languages a request names must be distinct and all offered by the Portal. */
+export const assertRequestedLocalesOffered = (
+  portal: { primaryGuestLocale: string; additionalGuestLocales: readonly string[] },
+  requested: readonly string[],
+): void => {
+  const offered = [portal.primaryGuestLocale, ...portal.additionalGuestLocales]
+  if (
+    new Set(requested).size !== requested.length ||
+    requested.some((locale) => !offered.includes(locale))
+  ) {
+    throw portalError('locale_not_offered', 'This Portal does not offer that language')
+  }
+}
+
 export const validateLinkIconKey = (
   iconKey: string | null | undefined,
 ): Result<PortalLinkIconKey | null, PortalError> => {

@@ -25,6 +25,14 @@ export type PortalLocales = Readonly<{
   offered: readonly GuestLocale[]
 }>
 
+/** Matches exactly one Portal row inside its Organization and Property. */
+export const portalScopeWhere = (scope: Omit<PortalLinkTextScope, 'linkId'>) =>
+  and(
+    eq(portals.organizationId, scope.organizationId),
+    eq(portals.propertyId, scope.propertyId),
+    eq(portals.id, scope.portalId),
+  )
+
 /** What this Portal offers guests today; a corrupt stored locale is an error, never English. */
 export async function readPortalLocales(
   tx: Tx,
@@ -36,13 +44,7 @@ export async function readPortalLocales(
       additional: portals.additionalGuestLocales,
     })
     .from(portals)
-    .where(
-      and(
-        eq(portals.organizationId, scope.organizationId),
-        eq(portals.propertyId, scope.propertyId),
-        eq(portals.id, scope.portalId),
-      ),
-    )
+    .where(portalScopeWhere(scope))
     .limit(1)
   if (!row) throw portalError('revision_conflict', 'Portal changed during command')
   const primary = parseGuestLocale(row.primary)

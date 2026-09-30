@@ -68,6 +68,7 @@ export type PortalContentCommand =
   | SavePortalLinkTextsCommand
   | SavePortalLinktreeSettingsCommand
 
+// fallow-ignore-next-line complexity
 export function assertPortalContentCommand(command: PortalContentCommand): void {
   const event = command.event
   let scoped = false

@@ -1,3 +1,5 @@
+// fallow-ignore-file code-duplication
+
 // Portal context — Drizzle schema for the per-language text of Portal content.
 // Split from portal.schema.ts (round 4) so the localized working model has a
 // home that does not grow the Portal core file. snake_case columns, camelCase

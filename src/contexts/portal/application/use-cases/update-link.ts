@@ -3,13 +3,10 @@
 import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { PortalLink } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { portalError } from '../../domain/errors'
 import { validateLinkIconKey, validateLinkLabel } from '../../domain/rules'
-import { canForContext } from '#/shared/domain/permissions'
-import { portalLinkId } from '#/shared/domain/ids'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { assertPortalPropertyAccess } from '../assert-property-access'
+import { authorizeLinkCommand } from '../authorize-link-command'
 import type { PortalCommandStore } from '../ports/portal-command-store.port'
 import { nextPortalCommandAt } from '../portal-command-version'
 import { portalLinkUpdated } from '../../domain/events'
@@ -38,27 +35,9 @@ export type UpdateLinkDeps = Readonly<{
 export const updateLink =
   (deps: UpdateLinkDeps) =>
   async (input: UpdateLinkInput, ctx: AuthContext): Promise<PortalLink> => {
-    // 1. Authorize
-    if (!canForContext(ctx, 'portal.update')) {
-      throw portalError('forbidden', 'this role cannot update portal links')
-    }
-
-    const target = await deps.portalLinkRepo.findLinkCommandTarget(
-      ctx.organizationId,
-      portalLinkId(input.linkId),
-    )
-    if (!target) {
-      throw portalError('link_not_found', 'link not found')
-    }
+    // 1. Authorize, including property-assignment scoping (D6-001.)
+    const { target, portal } = await authorizeLinkCommand(deps, ctx, input.linkId)
     const existing = target.link
-    // Enforce property-assignment scoping (D6-001.)
-    const portal = await assertPortalPropertyAccess(
-      deps.portalRepo,
-      deps.staffPublicApi,
-      ctx,
-      'portal.update',
-      existing.portalId,
-    )
 
     let validatedLabel: string | undefined
     let needsUpdate = false

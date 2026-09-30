@@ -2,14 +2,13 @@
 // locale-set fact and the re-mirroring of link texts when the primary language
 // changes. Split out of portal-command-store.ts.
 
-import { and, eq } from 'drizzle-orm'
 import { portals } from '#/shared/db/schema'
 import { unbrand } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'
 import type { UpdatePortalCommand } from '../application/ports/portal-command-store.port'
 import { portalError } from '../domain/errors'
 import { sameInstant } from './portal-command-guards'
-import { reconcileLinkTextsToPrimary } from './portal-link-texts-store'
+import { portalScopeWhere, reconcileLinkTextsToPrimary } from './portal-link-texts-store'
 
 /** An emitted locale-set fact must restate exactly the locales this patch writes. */
 export function assertLocaleSetFact(command: UpdatePortalCommand): void {
@@ -49,13 +48,7 @@ export async function watchPrimaryLocaleChange(
   const [before] = await tx
     .select({ primary: portals.primaryGuestLocale })
     .from(portals)
-    .where(
-      and(
-        eq(portals.organizationId, scope.organizationId),
-        eq(portals.propertyId, scope.propertyId),
-        eq(portals.id, scope.portalId),
-      ),
-    )
+    .where(portalScopeWhere(scope))
     .limit(1)
   if (before?.primary === next) return async () => {}
   return () =>
