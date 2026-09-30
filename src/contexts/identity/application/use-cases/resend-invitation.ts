@@ -1,46 +1,51 @@
-// Identity context — resend invitation use case
-// Order: authorize → validate → check invariants → build → persist → return.
-// Use cases throw tagged errors at the application boundary (never return Result).
+// Identity context — resend invitation use case.
+// Resend renews: the same invitation row gets a fresh expiry and reads pending
+// again (the command store re-checks membership and competing invitations),
+// then the email goes out with the renewed lifetime.
 
 import type { IdentityPort } from '../ports/identity.port'
+import type { IdentityCommandStore } from '../ports/identity-command-store.port'
+import type { InvitationEmailSender } from '../ports/invitation-email.port'
+import type { PropertyNameLookup } from '../ports/invitation-read-model.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { LoggerPort } from '#/shared/domain/logger.port'
+import { invitationId as toInvitationId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'
-import { absoluteUrl } from '#/shared/email/urls'
 import { identityError } from '../../domain/errors'
+import { betaInvitationRole } from '../../domain/invitation-state'
 import type { AcceptInvitationInput } from '../dto/invitation.dto'
+import { deliverInvitationEmail } from '../invitation-email-delivery'
+
 export type ResendInvitationInput = AcceptInvitationInput
 
 export type ResendInvitationOutput = Readonly<{
-  success: boolean
+  /** The renewed expiry. */
+  expiresAt: Date
+  emailSent: boolean
 }>
-
-/** Email sender capability — decoupled from infrastructure. */
-type EmailSender = (
-  params: Readonly<{
-    email: string
-    invitedByUsername: string
-    organizationName: string
-    inviteLink: string
-  }>,
-) => Promise<void>
 
 export type ResendInvitationDeps = Readonly<{
   identity: IdentityPort
-  sendEmail: EmailSender
+  commandStore: IdentityCommandStore
+  clock: () => Date
+  /** Invitation lifetime — the renewal grants a full one. */
+  invitationExpiresInMs: number
+  sendEmail: InvitationEmailSender
   getOrganizationName: (ctx: AuthContext) => Promise<string>
+  propertyNames: PropertyNameLookup
   baseUrl: string
+  logger: LoggerPort
 }>
 export type ResendInvitation = ReturnType<typeof resendInvitation>
 
 /**
- * Resend an invitation email.
+ * Renew and resend an invitation.
  *
  * Steps:
- * 1. Authorize — permission check via centralized can()
- * 2. Validate — DTO validation already happened at the server boundary
- * 3. Check business invariants — invitation must exist and belong to the org
- * 4. Send email — re-send the invitation link to the invitee
- * 5. Return success
+ * 1. Authorize — invitation.resend
+ * 2. Renew — the command store: pending or expired rows only, same row, new
+ *    expiry, no fact
+ * 3. Send — post-commit; a failure reports `emailSent: false`
  */
 export const resendInvitation =
   (deps: ResendInvitationDeps) =>
@@ -48,37 +53,32 @@ export const resendInvitation =
     input: ResendInvitationInput,
     ctx: AuthContext,
   ): Promise<ResendInvitationOutput> => {
-    // 1. Authorize — permission check
     if (!canForContext(ctx, 'invitation.resend')) {
       throw identityError('forbidden', 'Insufficient role to resend invitations')
     }
 
-    // 3. Check business invariants — invitation must exist
-    const invitations = await deps.identity.listInvitations(ctx)
-    const invitation = invitations.find((inv) => inv.id === input.invitationId)
-
-    if (!invitation) {
-      throw identityError('invitation_not_found', 'Invitation not found')
+    const invitationId = toInvitationId(input.invitationId)
+    const now = deps.clock()
+    const renewed = await deps.commandStore.renewInvitation({
+      invitationId,
+      organizationId: ctx.organizationId,
+      now,
+      expiresAt: new Date(now.getTime() + deps.invitationExpiresInMs),
+    })
+    // The store refuses a non-beta role before renewing; this only narrows it.
+    const role = betaInvitationRole(renewed.role)
+    if (!role) {
+      throw identityError(
+        'forbidden',
+        'This invitation is not eligible for beta manager access',
+      )
     }
 
-    // 4. Send email — re-send the invitation link
-    const organizationName = await deps.getOrganizationName(ctx)
-    const inviteLink = absoluteUrl(deps.baseUrl, '/accept-invitation', {
-      id: invitation.id,
+    const emailSent = await deliverInvitationEmail(deps, ctx, {
+      invitationId,
+      email: renewed.email,
+      role,
+      propertyIds: renewed.propertyIds,
     })
-
-    // Look up the current user's name from the org member list.
-    // Fallback to a generic label if the member record isn't available.
-    const members = await deps.identity.listMembers(ctx)
-    const currentMember = members.find((m) => m.userId === ctx.userId)
-    const invitedByUsername = currentMember?.name ?? 'Organization Admin'
-
-    await deps.sendEmail({
-      email: invitation.email,
-      invitedByUsername,
-      organizationName,
-      inviteLink,
-    })
-
-    return { success: true }
+    return { expiresAt: renewed.expiresAt, emailSent }
   }

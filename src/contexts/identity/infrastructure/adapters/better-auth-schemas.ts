@@ -74,9 +74,6 @@ export const listMembersResponseSchema = z.object({
   total: z.number().optional(),
 })
 
-/** listInvitations response — array of invitations directly. */
-export const listInvitationsResponseSchema = z.array(betterAuthInvitationSchema)
-
 /** listUserInvitations response — array of invitations (may include org info). */
 export const listUserInvitationsResponseSchema = z.array(betterAuthInvitationSchema)
 

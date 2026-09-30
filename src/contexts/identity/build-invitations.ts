@@ -12,11 +12,9 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { invitationId } from '#/shared/domain/ids'
 import type { IdentityPort } from './application/ports/identity.port'
 import type { IdentityCommandStore } from './application/ports/identity-command-store.port'
+import type { InvitationEmailSender } from './application/ports/invitation-email.port'
 import type { PropertyNameLookup } from './application/ports/invitation-read-model.port'
-import {
-  inviteMember,
-  type InvitationEmailSender,
-} from './application/use-cases/invite-member'
+import { inviteMember } from './application/use-cases/invite-member'
 import { listInvitations } from './application/use-cases/list-invitations'
 import { resendInvitation } from './application/use-cases/resend-invitation'
 import { acceptInvitation } from './application/use-cases/accept-invitation'
@@ -46,29 +44,30 @@ export function buildInvitationUseCases(deps: InvitationUseCaseDeps) {
   const invitations = createInvitationReadModel(deps.db)
   const registrationStore = createInvitedRegistrationStore(deps.db)
   const { commandStore, clock, logger } = deps
+  // What both sends (invite, resend) need to compose and mail the invitation.
+  const emailDelivery = {
+    identity: deps.identityPort,
+    sendEmail: deps.sendEmail,
+    getOrganizationName: deps.resolveOrganizationName,
+    propertyNames: deps.propertyNames,
+    baseUrl: deps.baseUrl,
+    invitationExpiresInMs: deps.invitationExpiresInMs,
+    logger,
+  } as const
 
   return {
     inviteMember: inviteMember({
-      identity: deps.identityPort,
+      ...emailDelivery,
       commandStore,
       clock,
       idGen: () => invitationId(deps.idGen()),
-      invitationExpiresInMs: deps.invitationExpiresInMs,
-      sendEmail: deps.sendEmail,
-      getOrganizationName: deps.resolveOrganizationName,
-      baseUrl: deps.baseUrl,
     }),
     listInvitations: listInvitations({
       invitations,
       propertyNames: deps.propertyNames,
       clock,
     }),
-    resendInvitation: resendInvitation({
-      identity: deps.identityPort,
-      sendEmail: deps.sendEmail,
-      getOrganizationName: deps.resolveOrganizationName,
-      baseUrl: deps.baseUrl,
-    }),
+    resendInvitation: resendInvitation({ ...emailDelivery, commandStore, clock }),
     acceptInvitation: acceptInvitation({
       identity: deps.identityPort,
       commandStore,

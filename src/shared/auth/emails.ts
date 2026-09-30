@@ -105,11 +105,20 @@ export async function sendVerificationEmail(to: string, url: string): Promise<vo
 
 // ─── Organization Invitation Email ────────────────────────────────────
 
+/**
+ * Structurally identical to Identity's InvitationEmail port, so composition
+ * passes sendInvitationEmail as the invitation sender directly.
+ */
 export type InvitationEmailParams = Readonly<{
   email: string
   invitedByUsername: string
   organizationName: string
   inviteLink: string
+  role: 'AccountAdmin' | 'PropertyManager'
+  /** The invited Properties' names; [] for an Account Admin. */
+  propertyNames: ReadonlyArray<string>
+  /** Whole days the invitation stays valid (INVITATION_EXPIRY_SECONDS). */
+  expiresInDays: number
 }>
 
 /** Send organization invitation email */

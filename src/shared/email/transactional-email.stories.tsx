@@ -58,5 +58,19 @@ export const Invitation: Story = {
     invitedByUsername: 'Ada Lovelace',
     organizationName: 'Riverside Hospitality Group',
     inviteLink: 'https://app.reputationkey.app/accept-invitation?id=inv-8c21',
+    role: 'PropertyManager',
+    propertyNames: ['Riverside Hotel', 'Harbour Inn'],
+    expiresInDays: 7,
+  }),
+}
+
+export const AccountAdminInvitation: Story = {
+  args: renderInvitationEmail({
+    invitedByUsername: 'Ada Lovelace',
+    organizationName: 'Riverside Hospitality Group',
+    inviteLink: 'https://app.reputationkey.app/accept-invitation?id=inv-4f07',
+    role: 'AccountAdmin',
+    propertyNames: [],
+    expiresInDays: 7,
   }),
 }

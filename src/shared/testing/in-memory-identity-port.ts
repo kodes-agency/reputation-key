@@ -74,10 +74,6 @@ export function createInMemoryIdentityPort(): InMemoryIdentityPort {
       return rest
     },
 
-    async listInvitations(_ctx: AuthContext): Promise<ReadonlyArray<InvitationRecord>> {
-      return [...invitations.values()]
-    },
-
     async listUserInvitations(
       _headers: Headers,
     ): Promise<ReadonlyArray<InvitationRecord>> {

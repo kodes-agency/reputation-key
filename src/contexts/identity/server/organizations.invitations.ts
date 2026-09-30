@@ -98,7 +98,8 @@ export const resendInvitation = createServerFn({ method: 'POST' })
             organizationId: ctx.organizationId,
             keyHmacSecret: identityRequestSecurity.invitationRateLimitHmacSecret,
           })
-          await identityPublicApi.requests.resendInvitation(data, ctx)
+          // Renews the same invitation, then mails it: { expiresAt, emailSent }.
+          return await identityPublicApi.requests.resendInvitation(data, ctx)
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
           throw catchUntagged(e)
