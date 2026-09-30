@@ -69,7 +69,7 @@ describe('acceptInvitation', () => {
     expect(facts[0].propertyIds).toEqual(['prop-a', 'prop-b'])
     expect(facts[0].occurredAt).toBe(FIXED_TIME)
     // The inviter travels as an id, so Feed can tell them without a lookup.
-    expect(facts[0].inviterId).toBe('user-inviter')
+    expect(facts[0]?.inviterId).toBe('user-inviter')
 
     // Post-commit hook: explicit Property access for the invited properties,
     // recorded as granted by the person who sent the invitation.
