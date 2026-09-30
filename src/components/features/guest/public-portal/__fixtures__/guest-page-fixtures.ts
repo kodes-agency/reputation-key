@@ -5,18 +5,18 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
-import { getGuestPortalCopy } from './guest-language-pack'
-import { GuestPageView, type GuestPageViewProps } from './guest-page-view'
+import { getGuestPortalCopy } from '../guest-language-pack'
+import { GuestPageView, type GuestPageViewProps } from '../guest-page-view'
 import {
   previewFormViewProps,
   type GuestPagePreviewState,
-} from './guest-page-preview-state'
-import type { PortalLocalization } from './portal-localization'
-import { PortalSecondaryLinks } from './portal-secondary-links'
+} from '../guest-page-preview-state'
+import type { PortalLocalization } from '../portal-localization'
+import { PortalSecondaryLinks } from '../portal-secondary-links'
 import {
   PublicPortalContent,
   type PublicPortalContentProps,
-} from './public-portal-content'
+} from '../public-portal-content'
 
 export type Locale = 'en' | 'bg'
 export const RATINGS = [1, 2, 3, 4, 5] as const

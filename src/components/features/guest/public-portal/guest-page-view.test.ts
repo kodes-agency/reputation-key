@@ -25,7 +25,7 @@ import {
   secondaryLinks,
   submitted,
   type Locale,
-} from './guest-page-test-fixtures'
+} from './__fixtures__/guest-page-fixtures'
 
 const TAG = /<(\/?)([a-zA-Z][\w-]*)((?:"[^"]*"|'[^']*'|[^>"'])*)>/g
 const VOID_TAGS = new Set(['img', 'input', 'br', 'hr', 'meta', 'link'])
