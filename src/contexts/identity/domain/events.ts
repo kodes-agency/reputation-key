@@ -156,6 +156,39 @@ export const identityMemberRoleChanged = (
   }
 }
 
+/**
+ * An AccountAdmin changed which Properties a PropertyManager can work.
+ * Identifiers only: the member, the acting AccountAdmin (`userId`), and the
+ * Properties actually granted and revoked — never a no-op.
+ */
+export type IdentityMemberPropertyAccessChanged = Readonly<{
+  _tag: 'identity.member.property_access_changed'
+  eventId: string
+  organizationId: OrganizationId
+  memberUserId: UserId
+  userId: UserId
+  grantedPropertyIds: ReadonlyArray<string>
+  revokedPropertyIds: ReadonlyArray<string>
+  occurredAt: Date
+  correlationId: string | null
+}>
+export const identityMemberPropertyAccessChanged = (
+  args: IdentityEventArgs<IdentityMemberPropertyAccessChanged>,
+): IdentityMemberPropertyAccessChanged => {
+  assert(args.occurredAt instanceof Date, 'occurredAt must be Date')
+  assert(args.memberUserId !== '', 'memberUserId required')
+  assert(
+    args.grantedPropertyIds.length + args.revokedPropertyIds.length > 0,
+    'A property access change must grant or revoke at least one Property',
+  )
+  return {
+    _tag: 'identity.member.property_access_changed',
+    eventId: newEventId(),
+    ...args,
+    correlationId: args.correlationId ?? null,
+  }
+}
+
 export type IdentityMerchantAiChanged = Readonly<{
   _tag: 'identity.merchant_ai.changed'
   eventId: string
@@ -301,6 +334,7 @@ export type IdentityEvent =
   | IdentityInvitationCanceled
   | IdentityMemberRemoved
   | IdentityMemberRoleChanged
+  | IdentityMemberPropertyAccessChanged
   | IdentityMerchantAiChanged
   | IdentityOrganizationLifecycleChanged
   | IdentityBetaFeedbackOutcomeReached
