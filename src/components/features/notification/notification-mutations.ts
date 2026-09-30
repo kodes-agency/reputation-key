@@ -264,7 +264,12 @@ export function useNotificationMutations(
     markAllRead: (filter, propertyId) => {
       void run(
         markAllRead({ data: propertyId ? { filter, propertyId } : { filter } }),
-        () => announce(`${notificationFilterScope(filter)} marked as read.`),
+        () =>
+          announce(
+            propertyId
+              ? `${notificationFilterScope(filter)} at this property marked as read.`
+              : `${notificationFilterScope(filter)} marked as read.`,
+          ),
       )
     },
     dismissAll: (propertyId) => {

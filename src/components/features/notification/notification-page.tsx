@@ -34,7 +34,10 @@ import { useNotificationMutations } from './notification-mutations'
 import { NotificationAnnouncer, useNotificationAnnouncer } from './notification-announcer'
 import { NotificationFilterTabs } from './notification-filter-tabs'
 import { NotificationListBody } from './notification-list-body'
-import { NotificationPropertyFilter } from './notification-property-filter'
+import {
+  NotificationPropertyFilter,
+  offersPropertyFilter,
+} from './notification-property-filter'
 import { byUrgency, groupByDay, type NotificationFilter } from './notification-filters'
 import type { NotificationRowActions, NotificationServerFns } from './types'
 
@@ -67,8 +70,11 @@ export function NotificationPage({
   propertyId,
   onPropertyChange,
 }: Props) {
-  const property = properties.find((candidate) => candidate.id === propertyId) ?? null
-  // A Property the reader no longer has reads the whole feed, not an empty one.
+  // A Property the reader no longer has, or a filter they are not offered,
+  // reads the whole feed, not an empty one.
+  const property = offersPropertyFilter(properties)
+    ? (properties.find((candidate) => candidate.id === propertyId) ?? null)
+    : null
   const scope = property?.id
   const { announcement, announce } = useNotificationAnnouncer()
   const listRef = useRef<HTMLDivElement>(null)

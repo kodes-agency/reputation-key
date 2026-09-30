@@ -4,6 +4,7 @@
 // 320px tall, no filters, no way to look further back than the first page.
 // This route is the real one; the popover links here.
 
+import { useMemo } from 'react'
 import { createFileRoute, getRouteApi } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
@@ -11,6 +12,7 @@ import { NotificationPage } from '#/components/features/notification/notificatio
 import { parseNotificationFilter } from '#/components/features/notification/notification-filters'
 import { notificationFns } from '#/routes/-notification-fns'
 import { propertiesQuery } from '#/routes/-queries/route-queries'
+import { partitionWorkspaceProperties } from '#/components/features/property/property-workspace'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 
 const authRoute = getRouteApi('/_authenticated')
@@ -37,6 +39,12 @@ function NotificationsRoute() {
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
   const { data: properties } = useSuspenseQuery(propertiesQuery)
+  // Removed properties stay out of the choices, as they do in the navigation
+  // and the Inbox.
+  const workspace = useMemo(
+    () => partitionWorkspaceProperties(properties.properties).workspace,
+    [properties],
+  )
 
   return (
     <NotificationPage
@@ -48,7 +56,7 @@ function NotificationsRoute() {
         // a refresh. `replace` keeps the back button meaning "previous page".
         void navigate({ search: (prev) => ({ ...prev, filter }), replace: true })
       }}
-      properties={properties.properties}
+      properties={workspace}
       propertyId={search.property ?? null}
       onPropertyChange={(property) => {
         void navigate({

@@ -574,6 +574,19 @@ export const FiltersToOneProperty: Story = {
     onPropertyChange,
     notificationFns: makeStatefulNotificationFns(twoPropertyFeed),
   },
+  render: function WithTheUrl(args) {
+    const [propertyId, setPropertyId] = useState(args.propertyId)
+    return (
+      <NotificationPage
+        {...args}
+        propertyId={propertyId}
+        onPropertyChange={(next) => {
+          args.onPropertyChange(next)
+          setPropertyId(next)
+        }}
+      />
+    )
+  },
   play: async ({ canvasElement }) => {
     onPropertyChange.mockClear()
     const canvas = within(canvasElement)
@@ -589,13 +602,20 @@ export const FiltersToOneProperty: Story = {
       await within(document.body).findByRole('option', { name: 'All properties' }),
     )
     expect(onPropertyChange).toHaveBeenCalledWith(null)
+    // The whole feed again, the Organization notice included.
+    await waitFor(() => expect(canvas.getAllByRole('listitem')).toHaveLength(3))
   },
 }
 
-/** One Property, or none: the filter is not offered to a reader with one. */
+/**
+ * One Property, or none: the filter is not offered to a reader with one — and
+ * a stale `?property=` from a link does not apply, since nothing on screen
+ * could clear it.
+ */
 export const NoFilterForOneProperty: Story = {
   args: {
     properties: [PROPERTIES[0]!],
+    propertyId: HARBOUR,
     notificationFns: makeStatefulNotificationFns(twoPropertyFeed),
   },
   play: async ({ canvasElement }) => {
@@ -638,5 +658,12 @@ export const BulkActionsStayInTheProperty: Story = {
     ).toBeInTheDocument()
     await userEvent.click(dialog.getByRole('button', { name: 'Dismiss all' }))
     expect(dismissPropertyRows).toHaveBeenCalledWith({ data: { propertyId: HARBOUR } })
+
+    // Riverside's row and the Organization notice are still there, unread.
+    const rest = await twoPropertyServer.getList({ data: { limit: 50, filter: 'all' } })
+    expect(rest.notifications.map((row) => [row.id, row.status])).toEqual([
+      ['68000000-0000-4000-8000-000000000002', 'unread'],
+      ['68000000-0000-4000-8000-000000000003', 'unread'],
+    ])
   },
 }

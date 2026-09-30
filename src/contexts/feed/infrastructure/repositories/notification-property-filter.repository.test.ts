@@ -17,6 +17,9 @@ import { createNotificationRepository } from './notification.repository'
 
 const ORG = 'org-notification-property-filter'
 const USER = 'user-notification-property-filter'
+const OTHER_USER = 'user-notification-property-filter-other'
+const OTHER_ORG = 'org-notification-property-filter-other'
+const FOREIGN = '86600000-0000-4000-8000-000000000004'
 const HARBOUR = '86600000-0000-4000-8000-000000000001'
 const RIVERSIDE = '86600000-0000-4000-8000-000000000002'
 const REVOKED = '86600000-0000-4000-8000-000000000003'
@@ -26,6 +29,8 @@ const HARBOUR_OLDER = '86600000-0000-4000-8000-000000000012'
 const RIVERSIDE_ROW = '86600000-0000-4000-8000-000000000013'
 const REVOKED_ROW = '86600000-0000-4000-8000-000000000014'
 const ACCOUNT_NOTICE = '86600000-0000-4000-8000-000000000015'
+const OTHER_READERS_ROW = '86600000-0000-4000-8000-000000000016'
+const FOREIGN_ROW = '86600000-0000-4000-8000-000000000017'
 
 const AT = new Date('2026-09-30T09:00:00.000Z')
 const SCOPE = {
@@ -42,7 +47,12 @@ const query = (property: string | null) => ({
 
 let pool: Pool
 
-async function insertNotification(id: string, property: string | null, minute: number) {
+async function insertNotification(
+  id: string,
+  property: string | null,
+  minute: number,
+  owner: Readonly<{ user: string; org: string }> = { user: USER, org: ORG },
+) {
   await pool.query(
     `INSERT INTO notifications (
        id, user_id, organization_id, property_id, type, category, priority, status,
@@ -50,8 +60,8 @@ async function insertNotification(id: string, property: string | null, minute: n
      ) VALUES ($1, $2, $3, $4, $5, $6, 'normal', 'unread', $7, $8, $9, 'Test', $10, $10)`,
     [
       id,
-      USER,
-      ORG,
+      owner.user,
+      owner.org,
       property,
       property ? 'inbox_note.added' : 'account.organization_role_changed',
       property ? 'workflow_collaboration' : 'mandatory',
@@ -65,16 +75,18 @@ async function insertNotification(id: string, property: string | null, minute: n
 
 async function statuses(): Promise<Record<string, string>> {
   const result = await pool.query<{ id: string; status: string }>(
-    'SELECT id, status FROM notifications WHERE organization_id = $1',
-    [ORG],
+    'SELECT id, status FROM notifications WHERE organization_id = ANY($1::text[])',
+    [[ORG, OTHER_ORG]],
   )
   return Object.fromEntries(result.rows.map((row) => [row.id, row.status]))
 }
 
 async function cleanUp() {
-  await pool.query('DELETE FROM notifications WHERE organization_id = $1', [ORG])
-  await pool.query('DELETE FROM properties WHERE organization_id = $1', [ORG])
-  await deleteTestOrganizations(pool, [ORG])
+  for (const org of [ORG, OTHER_ORG]) {
+    await pool.query('DELETE FROM notifications WHERE organization_id = $1', [org])
+    await pool.query('DELETE FROM properties WHERE organization_id = $1', [org])
+  }
+  await deleteTestOrganizations(pool, [ORG, OTHER_ORG])
 }
 
 beforeAll(async () => {
@@ -88,10 +100,20 @@ afterAll(async () => {
 
 beforeEach(async () => {
   await cleanUp()
+  for (const [org, slug] of [
+    [ORG, 'notification-property-filter'],
+    [OTHER_ORG, 'notification-property-filter-other'],
+  ]) {
+    await pool.query(
+      `INSERT INTO organization (id, name, slug, "createdAt")
+       VALUES ($1, 'Property filter', $2, NOW())`,
+      [org, slug],
+    )
+  }
   await pool.query(
-    `INSERT INTO organization (id, name, slug, "createdAt")
-     VALUES ($1, 'Property filter', 'notification-property-filter', NOW())`,
-    [ORG],
+    `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
+     VALUES ($1, $2, 'Foreign', 'notification-property-filter-foreign', 'UTC', NOW(), NOW())`,
+    [FOREIGN, OTHER_ORG],
   )
   for (const [id, slug] of [
     [HARBOUR, 'harbour'],
@@ -109,6 +131,10 @@ beforeEach(async () => {
   await insertNotification(RIVERSIDE_ROW, RIVERSIDE, 3)
   await insertNotification(REVOKED_ROW, REVOKED, 2)
   await insertNotification(ACCOUNT_NOTICE, null, 1)
+  // Somebody else's row at the same Property, and this reader's row in
+  // another Organization: the filter narrows, it never reaches either.
+  await insertNotification(OTHER_READERS_ROW, HARBOUR, 6, { user: OTHER_USER, org: ORG })
+  await insertNotification(FOREIGN_ROW, FOREIGN, 7, { user: USER, org: OTHER_ORG })
 })
 
 describe.sequential('the page reads one Property at a time (real PostgreSQL)', () => {
@@ -128,6 +154,16 @@ describe.sequential('the page reads one Property at a time (real PostgreSQL)', (
     ])
     expect(head.unreadCount).toBe(2)
     expect(head.filterUnreadCount).toBe(2)
+  })
+
+  it("reads another Organization's Property as empty, even for an Organization-wide reader", async () => {
+    const head = await createNotificationRepository(getDb()).readFeedHead({
+      ...query(FOREIGN),
+      visiblePropertyIds: null,
+    })
+
+    expect(head.page.notifications).toEqual([])
+    expect(head.unreadCount).toBe(0)
   })
 
   it('reads a Property the reader can no longer access as empty', async () => {
@@ -161,6 +197,8 @@ describe.sequential('the page reads one Property at a time (real PostgreSQL)', (
       [RIVERSIDE_ROW]: 'unread',
       [REVOKED_ROW]: 'unread',
       [ACCOUNT_NOTICE]: 'unread',
+      [OTHER_READERS_ROW]: 'unread',
+      [FOREIGN_ROW]: 'unread',
     })
   })
 
@@ -176,6 +214,8 @@ describe.sequential('the page reads one Property at a time (real PostgreSQL)', (
       [RIVERSIDE_ROW]: 'dismissed',
       [REVOKED_ROW]: 'unread',
       [ACCOUNT_NOTICE]: 'unread',
+      [OTHER_READERS_ROW]: 'unread',
+      [FOREIGN_ROW]: 'unread',
     })
   })
 })

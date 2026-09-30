@@ -273,6 +273,32 @@ describe('notification optimistic cache updates', () => {
       expect([page?.unreadCount, page?.filterUnreadCount]).toEqual([1, 1])
     })
 
+    it('an unscoped tab\'s "Mark all read" moves a filtered head by its own rows, not the tab\'s count', () => {
+      // Harbour also holds an unread note, which Needs you does not.
+      const note = makeNotification({
+        id: '10000000-0000-4000-8000-000000000072',
+        type: 'inbox_note.added',
+        propertyId: HARBOUR,
+      })
+      client.setQueryData(pageHead, {
+        ...notificationFeedHeadFixture([harbour, note], 2, false),
+        filterUnreadCount: 2,
+      })
+
+      // "Mark all read" on the page's Needs you tab, unfiltered: the bell's
+      // head says four rows went, but only one of them was Harbour's.
+      patchNotificationFeedCache(
+        client,
+        'org-1',
+        (row) =>
+          row.type === 'inbox.escalated' && row.status === 'unread' ? readNow(row) : row,
+        { clearsUnreadOf: 'needs_you' },
+      )
+
+      const page = client.getQueryData<NotificationFeedHead>(pageHead)
+      expect([page?.unreadCount, page?.filterUnreadCount]).toEqual([1, 1])
+    })
+
     it('an unscoped tab\'s "Mark all read" takes a filtered head\'s count only when every unread row went', () => {
       patchNotificationFeedCache(
         client,

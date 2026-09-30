@@ -11,6 +11,14 @@ import { PropertyPicker } from '#/components/property/property-picker'
 /** The picker's value for "no filter": never a Property id (those are UUIDs). */
 const ALL_PROPERTIES = 'all-properties'
 
+/**
+ * Whether the page offers — and so honours — a Property filter. A filter the
+ * reader cannot see must not apply: a stale `?property=` for a reader with one
+ * Property would hide their Organization notices with nothing to clear it.
+ */
+export const offersPropertyFilter = (properties: ReadonlyArray<unknown>): boolean =>
+  properties.length > 1
+
 type Props = Readonly<{
   properties: ReadonlyArray<Readonly<{ id: string; name: string }>>
   /** The Property the page is filtered to, or null for all of them. */
@@ -20,7 +28,7 @@ type Props = Readonly<{
 
 export function NotificationPropertyFilter({ properties, propertyId, onChange }: Props) {
   const [open, setOpen] = useState(false)
-  if (properties.length < 2) return null
+  if (!offersPropertyFilter(properties)) return null
   const selected = properties.find((property) => property.id === propertyId)
   const label = selected?.name ?? 'All properties'
   return (
