@@ -133,7 +133,10 @@ describe('onDiscard', () => {
     autosave.discard()
 
     expect(first).toHaveBeenCalledTimes(1)
-    expect([...first.mock.calls[0][0]].sort()).toEqual(['private-note', 'theme'])
+    expect([...(first.mock.calls[0]?.[0] ?? [])].sort()).toEqual([
+      'private-note',
+      'theme',
+    ])
     expect(second).toHaveBeenCalledTimes(1)
   })
 
