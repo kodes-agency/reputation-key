@@ -86,6 +86,7 @@ describe('parseNotificationPayload', () => {
       moderationReason: 'Tone is too defensive.',
       hasModerationReason: true,
       leftOrganization: true,
+      memberRole: 'property_manager',
       lowRating: true,
       publishOutcome: 'refused',
       goalName: 'Lobby QR scans',
@@ -134,6 +135,11 @@ describe('parseNotificationPayload', () => {
       sentimentScore: -0.82,
       mediaUrl: 'https://lh3.googleusercontent.com/x',
       actorName: 'Dave from reception',
+      // ADR 0046 r.8: no account notice names another person.
+      inviterName: 'Dave from reception',
+      inviteeName: 'Maria K.',
+      memberName: 'Maria K.',
+      memberEmail: 'maria@example.com',
     })
 
     expect(parsed).toEqual({ propertyName: 'Riverside Hotel' })
@@ -162,6 +168,22 @@ describe('parseNotificationPayload', () => {
     expect(
       parseNotificationPayload({ publishFailureCause: 'rejected by Google' }),
     ).toEqual({})
+  })
+
+  // The role a member now holds, named in the role-change notice. A closed
+  // enum: a person's name never rides with it.
+  it('keeps a known member role and drops anything else', () => {
+    expect(parseNotificationPayload({ memberRole: 'account_admin' })).toEqual({
+      memberRole: 'account_admin',
+    })
+    expect(parseNotificationPayload({ memberRole: 'property_manager' })).toEqual({
+      memberRole: 'property_manager',
+    })
+    // `staff` is an actor role, not one a member can hold; raw role tokens and
+    // free text are not admitted either.
+    for (const memberRole of ['staff', 'PropertyManager', 'Maria K.', 7, null]) {
+      expect(parseNotificationPayload({ memberRole })).toEqual({})
+    }
   })
 
   it('returns an empty payload for non-object input', () => {

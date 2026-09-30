@@ -15,6 +15,7 @@ import {
   ORGANIZATION_PURGE_PENDING_CONSUMER,
   registerIdentityAccountNotificationConsumers,
 } from './identity-account-outbox-consumers'
+import { INVITATION_ACCEPTED_INVITER_CONSUMER } from './invitation-accepted-inviter-notice'
 import { createNotificationConsumerDeps } from './notification-consumer-test-fixtures'
 
 // ARC-03-T7: a fresh container-scoped registry per test.
@@ -65,7 +66,7 @@ describe('Identity account mandatory notification consumers', () => {
     clearEventSchemas()
   })
 
-  it('registers only the three existing durable affected-account facts', () => {
+  it('registers the durable affected-account facts and the inviter notice, and not an invitation being sent', () => {
     registerIdentityAccountNotificationConsumers(consumerRegistry, makeDeps())
 
     expect(consumerRegistry.list()).toEqual(
@@ -76,9 +77,202 @@ describe('Identity account mandatory notification consumers', () => {
         })),
       ),
     )
+    expect(consumerRegistry.list()).toContainEqual({
+      eventType: 'identity.member.property_access_changed',
+      consumerName: 'notification.on-identity-member-property-access-changed',
+    })
+    expect(consumerRegistry.list()).toContainEqual({
+      eventType: 'identity.invitation.accepted',
+      consumerName: INVITATION_ACCEPTED_INVITER_CONSUMER,
+    })
     expect(consumerRegistry.list()).not.toContainEqual(
       expect.objectContaining({ eventType: 'identity.member.invited' }),
     )
+  })
+
+  it('names the organization in every account notice, and carries nothing when its name is unknown', async () => {
+    const deps = makeDeps()
+    deps.fakes.displayNames.findOrganizationName.mockResolvedValue('Riverside Group')
+    await handleIdentityAccountNotificationEvent(
+      deps,
+      event({
+        eventType: 'identity.invitation.accepted',
+        payload: { organizationId: ORG, userId: 'affected-user', invitationId: 'inv-1' },
+      }),
+    )
+    expect(deps.queue.add).toHaveBeenLastCalledWith(
+      'insert-notification',
+      expect.objectContaining({
+        type: 'account.organization_access_granted',
+        payload: { organizationName: 'Riverside Group' },
+      }),
+      expect.anything(),
+    )
+
+    const unnamed = makeDeps()
+    await handleIdentityAccountNotificationEvent(
+      unnamed,
+      event({
+        eventType: 'identity.invitation.accepted',
+        payload: { organizationId: ORG, userId: 'affected-user', invitationId: 'inv-1' },
+      }),
+    )
+    // A failed or empty name lookup degrades the copy, never the notice.
+    expect(vi.mocked(unnamed.queue.add).mock.calls[0]?.[1]).not.toHaveProperty('payload')
+  })
+
+  it.each([
+    ['PropertyManager', 'property_manager'],
+    ['AccountAdmin', 'account_admin'],
+  ])('tells a member who is now a %s which role that is', async (newRole, memberRole) => {
+    const deps = makeDeps()
+    deps.fakes.displayNames.findOrganizationName.mockResolvedValue('Riverside Group')
+
+    await handleIdentityAccountNotificationEvent(
+      deps,
+      event({
+        payload: {
+          organizationId: ORG,
+          userId: 'admin-actor',
+          memberUserId: 'affected-user',
+          previousRole: 'Member',
+          newRole,
+        },
+      }),
+    )
+
+    expect(deps.queue.add).toHaveBeenCalledWith(
+      'insert-notification',
+      expect.objectContaining({
+        type: 'account.organization_role_changed',
+        payload: { organizationName: 'Riverside Group', memberRole },
+      }),
+      expect.anything(),
+    )
+  })
+
+  it('names no role for one the copy has no phrase for, and never the actor', async () => {
+    const deps = makeDeps()
+
+    await handleIdentityAccountNotificationEvent(
+      deps,
+      event({
+        payload: {
+          organizationId: ORG,
+          userId: 'admin-actor',
+          memberUserId: 'affected-user',
+          previousRole: 'PropertyManager',
+          newRole: 'Member',
+        },
+      }),
+    )
+
+    const job = vi.mocked(deps.queue.add).mock.calls[0]?.[1]
+    expect(job).not.toHaveProperty('payload')
+    expect(JSON.stringify(job)).not.toContain('admin-actor')
+  })
+
+  it('keeps the self-leave flag beside the organization name on an access removal', async () => {
+    const deps = makeDeps()
+    deps.fakes.displayNames.findOrganizationName.mockResolvedValue('Riverside Group')
+
+    await handleIdentityAccountNotificationEvent(
+      deps,
+      event({
+        eventType: 'identity.member.removed',
+        payload: {
+          organizationId: ORG,
+          userId: 'affected-user',
+          removedBy: 'affected-user',
+        },
+      }),
+    )
+
+    expect(deps.queue.add).toHaveBeenCalledWith(
+      'insert-notification',
+      expect.objectContaining({
+        payload: { organizationName: 'Riverside Group', leftOrganization: true },
+      }),
+      expect.anything(),
+    )
+  })
+
+  describe("a PropertyManager's property access changed", () => {
+    const accessEvent = (overrides: Partial<ConsumerEvent> = {}): ConsumerEvent =>
+      event({
+        eventType: 'identity.member.property_access_changed',
+        payload: {
+          organizationId: ORG,
+          userId: 'admin-actor',
+          memberUserId: 'affected-user',
+          grantedPropertyIds: ['4d1f0c1e-2b7a-4c55-9a51-000000000001'],
+          revokedPropertyIds: [],
+        },
+        ...overrides,
+      })
+
+    it('notifies the member, never the AccountAdmin who changed it, at Organization scope', async () => {
+      const deps = makeDeps()
+      deps.fakes.displayNames.findOrganizationName.mockResolvedValue('Riverside Group')
+
+      await expect(
+        handleIdentityAccountNotificationEvent(deps, accessEvent()),
+      ).resolves.toEqual({ status: 'applied' })
+
+      expect(deps.queue.add).toHaveBeenCalledWith(
+        'insert-notification',
+        {
+          userId: 'affected-user',
+          organizationId: ORG,
+          propertyId: null,
+          type: 'account.organization_property_access_changed',
+          resourceType: 'organization',
+          resourceId: ORG,
+          eventId: EVENT_ID,
+          payload: { organizationName: 'Riverside Group' },
+          audience: {
+            kind: 'affected_organization_user',
+            eventId: EVENT_ID,
+            eventType: 'identity.member.property_access_changed',
+          },
+        },
+        { jobId: `${EVENT_ID}-affected-user` },
+      )
+      expect(deps.receipts.insertReceipt).toHaveBeenCalledWith(
+        EVENT_ID,
+        'notification.on-identity-member-property-access-changed',
+        'applied',
+      )
+    })
+
+    it('carries no Property, count or actor into the queued notice', async () => {
+      const deps = makeDeps()
+
+      await handleIdentityAccountNotificationEvent(deps, accessEvent())
+
+      const job = JSON.stringify(vi.mocked(deps.queue.add).mock.calls)
+      expect(job).not.toContain('admin-actor')
+      expect(job).not.toContain('4d1f0c1e-2b7a-4c55-9a51-000000000001')
+    })
+
+    it('fails closed on a fact attributed to a Property or to another Organization', async () => {
+      const deps = makeDeps()
+
+      await expect(
+        handleIdentityAccountNotificationEvent(
+          deps,
+          accessEvent({ propertyId: 'property-1' }),
+        ),
+      ).rejects.toThrow('attribution mismatch')
+      await expect(
+        handleIdentityAccountNotificationEvent(
+          deps,
+          accessEvent({ organizationId: 'another-org' }),
+        ),
+      ).rejects.toThrow('attribution mismatch')
+      expect(deps.queue.add).not.toHaveBeenCalled()
+      expect(deps.receipts.insertReceipt).not.toHaveBeenCalled()
+    })
   })
 
   it('enqueues the role-change notice for the target, never the actor', async () => {
@@ -98,6 +292,8 @@ describe('Identity account mandatory notification consumers', () => {
         resourceType: 'organization',
         resourceId: ORG,
         eventId: EVENT_ID,
+        // The role the member now holds, never the administrator who set it.
+        payload: { memberRole: 'property_manager' },
         audience: {
           kind: 'affected_organization_user',
           eventId: EVENT_ID,

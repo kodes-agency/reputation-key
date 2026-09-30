@@ -43,6 +43,11 @@ export const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       'notification.on-identity-invitation-accepted',
       NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
     ),
+    // The inviter hears it too, in a consumer and a receipt of its own.
+    durable(
+      'notification.on-identity-invitation-accepted-inviter',
+      NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
+    ),
   ]),
   ev('identity.invitation.canceled', [
     durable('activity.recent-activity', ACTIVITY_OUTBOX),
@@ -69,9 +74,14 @@ export const IDENTITY_ROWS: ReadonlyArray<EventFamilyRow> = [
       NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
     ),
   ]),
-  // An AccountAdmin changed a PropertyManager's Properties. Recorded for audit
-  // until Feed registers the member's notice.
-  ev('identity.member.property_access_changed', []),
+  // An AccountAdmin changed a PropertyManager's Properties. The member is told
+  // (mandatory, Organization-scoped); the fact itself stays the audit trail.
+  ev('identity.member.property_access_changed', [
+    durable(
+      'notification.on-identity-member-property-access-changed',
+      NOTIFICATION_IDENTITY_ACCOUNT_OUTBOX,
+    ),
+  ]),
   ev('identity.merchant_ai.changed', [
     durable('ai.enroll-review-analysis', AI_OUTBOX),
     durable('activity.operational-action-history', ACTIVITY_OUTBOX),

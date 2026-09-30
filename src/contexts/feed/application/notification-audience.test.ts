@@ -146,6 +146,29 @@ describe('notification audience authorization', () => {
     })
   })
 
+  it('admits a property-access change as a fact that names its affected member', async () => {
+    const deps = buildDeps()
+    deps.organizationAccountAuthority.isAffectedRecipient.mockResolvedValue(true)
+    const audience = {
+      kind: 'affected_organization_user' as const,
+      eventId: 'identity-event-2',
+      eventType: 'identity.member.property_access_changed' as const,
+    }
+
+    expect(parseNotificationAudience(audience)).toEqual(audience)
+    await expect(
+      createNotificationAudienceAuthorizer(deps)(
+        authorize({ propertyId: null, audience }),
+      ),
+    ).resolves.toBe(true)
+    expect(deps.organizationAccountAuthority.isAffectedRecipient).toHaveBeenCalledWith({
+      eventId: 'identity-event-2',
+      eventType: 'identity.member.property_access_changed',
+      organizationId: ORG,
+      userId: RECIPIENT,
+    })
+  })
+
   it('fails closed when account audience and notification scopes disagree', async () => {
     const deps = buildDeps()
     deps.organizationAccountAuthority.isAffectedRecipient.mockResolvedValue(true)

@@ -1,8 +1,10 @@
+import { UserCog, UserPlus } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_NOTIFICATION_FORMAT,
   formatAbsoluteTime,
   formatCompactTime,
+  getNotificationIcon,
 } from './notification-utils'
 
 const STAMP = new Date('2026-09-21T08:00:00.000Z')
@@ -45,5 +47,14 @@ describe('formatCompactTime', () => {
         at(10 * 24 * 60 * MIN),
       ),
     ).toBe('Sep 22')
+  })
+})
+
+describe('getNotificationIcon', () => {
+  it('gives the property-access notice the permissions icon and the accepted invitation a person', () => {
+    expect(getNotificationIcon('account.organization_property_access_changed')).toBe(
+      UserCog,
+    )
+    expect(getNotificationIcon('account.invitation_accepted')).toBe(UserPlus)
   })
 })
