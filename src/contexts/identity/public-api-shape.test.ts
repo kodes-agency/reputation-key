@@ -31,10 +31,13 @@ const EXPECTED_REQUEST_KEYS = [
   // LIF-01-T21: leaving is its own operation, not a variant of removeMember.
   'leaveOrganization',
   'listInvitations',
+  // AccountAdmins edit a PropertyManager's Properties from Members.
+  'listMemberPropertyAccess',
   'merchantAiAuthorization',
   'registerInvitedUser',
   'removeMember',
   'resendInvitation',
+  'setMemberPropertyAccess',
   'updateCustomRole',
   'updateMemberRole',
   'updateOrganization',
