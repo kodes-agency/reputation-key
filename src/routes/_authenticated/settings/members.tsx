@@ -96,6 +96,8 @@ export const Route = createFileRoute('/_authenticated/settings/members')({
 
 const INVITATION_EMAIL_UNSENT =
   'Invitation created, but the email could not be sent. Use Resend.'
+const RENEWAL_EMAIL_UNSENT =
+  'Invitation renewed, but the email could not be sent. Try Resend again.'
 
 function MembersSettingsRoute() {
   const { allowedRoles, selfServiceLeaveAvailable } = Route.useLoaderData()
@@ -136,7 +138,7 @@ function MembersSettingsRoute() {
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
     onSuccess: async ({ emailSent }) => {
       if (emailSent) toast.success('Invitation resent')
-      else toast.warning(INVITATION_EMAIL_UNSENT)
+      else toast.warning(RENEWAL_EMAIL_UNSENT)
     },
   })
   const cancelMutation = useActionMutation(cancelInvitation, {
