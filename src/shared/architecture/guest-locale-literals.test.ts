@@ -40,6 +40,11 @@ const ALLOWLIST: ReadonlyArray<
     why: 'the frozen jsonb default of language_pack_versions, pinned by migration history',
   },
   {
+    match: (p) =>
+      p === 'src/components/features/portal/property-look/property-look-page-fixtures.ts',
+    why: 'story data that pins a Property to its first two languages, whatever else is offered',
+  },
+  {
     match: (p) => p === 'src/shared/testing/scenarios/executors.ts',
     why: "not a guest locale: 'bg' names the background traffic stream",
   },
