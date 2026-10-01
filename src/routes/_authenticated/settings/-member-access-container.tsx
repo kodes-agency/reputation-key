@@ -1,7 +1,9 @@
 // Loads and saves one manager's access for the Members page's Manage access
 // sheet: which of the member's properties they are a Responsible manager of
-// (one read per granted property, only while the sheet is open), and the save
-// sequence. The sheet itself is presentation.
+// (one read per granted property the checklist lists, only while the sheet is
+// open), and the save sequence. The sheet itself is presentation, and it keeps
+// its own baseline, so these reads moving under an open sheet change nothing
+// the person is editing.
 
 import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
@@ -14,16 +16,20 @@ import {
   type PropertyRef,
   type ResponsibilityState,
   type SaveMemberAccessInput,
+  grantsOnListedProperties,
 } from '#/components/features/identity'
 import {
   listPropertyResponsibleManagers,
   updatePropertyResponsibleManagers,
 } from '#/contexts/property/server/property-responsible-managers'
 import { setMemberPropertyAccess } from '#/contexts/identity/server/organizations'
+import { captureBrowserException } from '#/shared/observability/browser-exception-capture'
+import { isExpectedRefusal } from '#/shared/security/expected-refusal'
 import { responsibleManagersQuery } from '#/routes/_authenticated/properties/$propertyId/-settings-queries'
 import { identityKeys, propertyKeys } from '#/shared/queries/query-keys'
 import {
   createSaveMemberAccess,
+  responsibilityFailureReason,
   type SaveMemberAccessResult,
 } from './-member-access-save'
 
@@ -31,6 +37,11 @@ const saveMemberAccess = createSaveMemberAccess({
   setAccess: setMemberPropertyAccess,
   listResponsible: listPropertyResponsibleManagers,
   updateResponsible: updatePropertyResponsibleManagers,
+  // A refusal (a 4xx) is a product outcome the toast already explains; anything
+  // else, a network failure included, is worth seeing.
+  reportFailure: (error) => {
+    if (!isExpectedRefusal(error)) captureBrowserException(error)
+  },
 })
 
 type Props = Readonly<{
@@ -54,10 +65,16 @@ export function MemberAccessContainer({
   const queryClient = useQueryClient()
   const currentPropertyIds = member ? (propertyIdsByUser.get(member.userId) ?? []) : []
 
-  // Responsibility is read per Property the member already holds; a Property
-  // they are about to be granted cannot have them as a Responsible manager yet.
+  // Responsibility is read per Property the member already holds, and only for
+  // one the checklist lists: that is all the sheet can change, and each read is
+  // a request. A Property they are about to be granted cannot have them as a
+  // Responsible manager yet.
+  const readPropertyIds = grantsOnListedProperties(
+    currentPropertyIds,
+    properties.map((property) => property.id),
+  )
   const responsibleReads = useQueries({
-    queries: currentPropertyIds.map((propertyId) => ({
+    queries: readPropertyIds.map((propertyId) => ({
       ...responsibleManagersQuery(propertyId),
       enabled: member !== null,
     })),
@@ -70,7 +87,7 @@ export function MemberAccessContainer({
       ? { status: 'loading' }
       : {
           status: 'ready',
-          responsibleIds: currentPropertyIds.filter((_, index) =>
+          responsibleIds: readPropertyIds.filter((_, index) =>
             responsibleReads[index]?.data?.assignments.some(
               (assignment) => assignment.userId === member?.userId,
             ),
@@ -99,10 +116,13 @@ export function MemberAccessContainer({
             }),
           ),
         )
-        if (result.responsibilityFailedPropertyIds.length > 0) {
+        if (result.responsibilityFailures.length > 0) {
           toast.warning(
             `Access saved, but responsibility could not be updated for ${joinNames(
-              result.responsibilityFailedPropertyIds.map(nameOf),
+              result.responsibilityFailures.map(
+                ({ propertyId, code }) =>
+                  `${nameOf(propertyId)} (${responsibilityFailureReason(code)})`,
+              ),
             )}. Set it from each property's Responsible managers settings.`,
           )
         } else {

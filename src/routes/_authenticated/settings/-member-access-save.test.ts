@@ -6,7 +6,15 @@
 // thrown over an access change that already committed.
 
 import { describe, expect, it, vi } from 'vitest'
-import { createSaveMemberAccess } from './-member-access-save'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
+import {
+  createSaveMemberAccess,
+  responsibilityFailureReason,
+} from './-member-access-save'
+
+/** What a Property server function throws for a refusal the domain named. */
+const refusal = (code: string, status: number) =>
+  new ServerFunctionError('PropertyError', `refused: ${code}`, code, status)
 
 const INPUT = {
   memberId: 'member-1',
@@ -39,6 +47,7 @@ function deps(overrides: Partial<Parameters<typeof createSaveMemberAccess>[0]> =
       }) => ({}),
     ),
     ...overrides,
+    reportFailure: vi.fn((_error: unknown) => undefined),
   }
 }
 
@@ -59,7 +68,7 @@ describe('saveMemberAccess', () => {
     expect(result).toEqual({
       grantedPropertyIds: ['a'],
       revokedPropertyIds: ['b'],
-      responsibilityFailedPropertyIds: [],
+      responsibilityFailures: [],
     })
     expect(d.listResponsible).not.toHaveBeenCalled()
   })
@@ -141,10 +150,10 @@ describe('saveMemberAccess', () => {
     })
   })
 
-  it('reports the properties whose responsibility could not be saved, and saves the rest', async () => {
+  it('reports the properties whose responsibility could not be saved, with why, and saves the rest', async () => {
     const d = deps({
       updateResponsible: vi.fn(async ({ data }: { data: { propertyId: string } }) => {
-        if (data.propertyId === 'a') throw new Error('revision conflict')
+        if (data.propertyId === 'a') throw refusal('responsible_manager_ineligible', 400)
         return {}
       }),
     })
@@ -156,7 +165,9 @@ describe('saveMemberAccess', () => {
       responsibleOnPropertyIds: ['a', 'b'],
     })
 
-    expect(result.responsibilityFailedPropertyIds).toEqual(['a'])
+    expect(result.responsibilityFailures).toEqual([
+      { propertyId: 'a', code: 'responsible_manager_ineligible' },
+    ])
     expect(result.grantedPropertyIds).toEqual(['a', 'b'])
     expect(d.updateResponsible).toHaveBeenCalledTimes(2)
   })
@@ -164,15 +175,105 @@ describe('saveMemberAccess', () => {
   it('reports a failed read of the current list the same way', async () => {
     const d = deps({
       listResponsible: vi.fn(async () => {
-        throw new Error('not found')
+        throw refusal('property_not_found', 404)
       }),
     })
     const save = createSaveMemberAccess(d)
 
     const result = await save({ ...INPUT, responsibleOffPropertyIds: ['a'] })
 
-    expect(result.responsibilityFailedPropertyIds).toEqual(['a'])
+    expect(result.responsibilityFailures).toEqual([
+      { propertyId: 'a', code: 'property_not_found' },
+    ])
     expect(d.updateResponsible).not.toHaveBeenCalled()
+  })
+
+  it('names an error that carries no code as unknown, so a network failure still says something', async () => {
+    const d = deps({
+      listResponsible: vi.fn(async () => {
+        throw new TypeError('Failed to fetch')
+      }),
+    })
+    const save = createSaveMemberAccess(d)
+
+    const result = await save({ ...INPUT, responsibleOnPropertyIds: ['a'] })
+
+    expect(result.responsibilityFailures).toEqual([{ propertyId: 'a', code: 'unknown' }])
+  })
+
+  it('hands every responsibility failure to monitoring, once, with the error itself', async () => {
+    const conflict = refusal('responsible_manager_ineligible', 400)
+    const network = new TypeError('Failed to fetch')
+    const d = deps({
+      updateResponsible: vi.fn(async ({ data }: { data: { propertyId: string } }) => {
+        if (data.propertyId === 'a') throw conflict
+        throw network
+      }),
+    })
+    const save = createSaveMemberAccess(d)
+
+    await save({ ...INPUT, responsibleOnPropertyIds: ['a', 'b'] })
+
+    expect(d.reportFailure.mock.calls).toEqual([[conflict], [network]])
+  })
+
+  it('reads the list again and retries once when another admin changed it first', async () => {
+    let attempts = 0
+    const d = deps({
+      listResponsible: vi.fn(async () => ({
+        assignments: [{ userId: 'other-manager' }],
+        revision: ++attempts === 1 ? 4 : 5,
+      })),
+      updateResponsible: vi.fn(
+        async ({ data }: { data: { expectedRevision: number } }) => {
+          if (data.expectedRevision === 4) throw refusal('revision_conflict', 409)
+          return {}
+        },
+      ),
+    })
+    const save = createSaveMemberAccess(d)
+
+    const result = await save({ ...INPUT, responsibleOnPropertyIds: ['a'] })
+
+    expect(result.responsibilityFailures).toEqual([])
+    expect(d.listResponsible).toHaveBeenCalledTimes(2)
+    expect(d.updateResponsible).toHaveBeenLastCalledWith({
+      data: {
+        propertyId: 'a',
+        managerUserIds: ['other-manager', 'user-1'],
+        expectedRevision: 5,
+      },
+    })
+    expect(d.reportFailure).not.toHaveBeenCalled()
+  })
+
+  it('gives up after one retry and reports the conflict', async () => {
+    const d = deps({
+      updateResponsible: vi.fn(async () => {
+        throw refusal('revision_conflict', 409)
+      }),
+    })
+    const save = createSaveMemberAccess(d)
+
+    const result = await save({ ...INPUT, responsibleOnPropertyIds: ['a'] })
+
+    expect(result.responsibilityFailures).toEqual([
+      { propertyId: 'a', code: 'revision_conflict' },
+    ])
+    expect(d.updateResponsible).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not retry a refusal that a second attempt cannot change', async () => {
+    const d = deps({
+      updateResponsible: vi.fn(async () => {
+        throw refusal('forbidden', 403)
+      }),
+    })
+    const save = createSaveMemberAccess(d)
+
+    await save({ ...INPUT, responsibleOnPropertyIds: ['a'] })
+
+    expect(d.updateResponsible).toHaveBeenCalledTimes(1)
   })
 
   it('throws when the access command itself is refused, and touches nothing else', async () => {
@@ -188,5 +289,22 @@ describe('saveMemberAccess', () => {
     ).rejects.toThrow('forbidden')
     expect(d.listResponsible).not.toHaveBeenCalled()
     expect(d.updateResponsible).not.toHaveBeenCalled()
+  })
+})
+
+describe('responsibilityFailureReason', () => {
+  it.each([
+    ['revision_conflict', 'its Responsible managers changed while you were saving'],
+    ['forbidden', 'you cannot change its Responsible managers'],
+    ['responsible_manager_ineligible', 'they cannot be its Responsible manager'],
+    ['property_not_found', 'it is no longer available'],
+    ['property_not_active', 'it is no longer available'],
+  ])('says why for %s', (code, reason) => {
+    expect(responsibilityFailureReason(code)).toBe(reason)
+  })
+
+  it('falls back to a plain sentence for a code it does not know, and for no code', () => {
+    expect(responsibilityFailureReason('something_new')).toBe('something went wrong')
+    expect(responsibilityFailureReason('unknown')).toBe('something went wrong')
   })
 })
