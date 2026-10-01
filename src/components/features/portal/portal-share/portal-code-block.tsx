@@ -9,6 +9,7 @@ import { Calendar, Check, Clock, Copy, Info, QrCode } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { PortalCodeActions } from './portal-code-actions'
 import { PortalDownloadMenu } from './portal-download-menu'
+import { describeMadeCode } from './portal-share-state'
 import { QR_INK, QR_PAPER } from './portal-qr'
 import { COPY_FAILED_MESSAGE } from './use-copy-link'
 import { usePortalCodeDownload, type ResolveQrAddress } from './use-portal-code-download'
@@ -59,6 +60,7 @@ export function PortalCodeBlock({
   onLinksRevoked,
 }: Props) {
   const download = usePortalCodeDownload(qrAddress, portalName, resolveQrAddress)
+  const madeText = describeMadeCode(view.madeLabel, view.madeBy)
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
@@ -69,9 +71,7 @@ export function PortalCodeBlock({
           <p className="text-sm text-muted-foreground">Both open {portalName}.</p>
         </div>
         <ul className="flex flex-col gap-1.5 text-sm">
-          {view.madeLabel !== null && (
-            <CodeFact icon={<Calendar />}>Made {view.madeLabel}</CodeFact>
-          )}
+          {madeText !== null && <CodeFact icon={<Calendar />}>{madeText}</CodeFact>}
           <CodeFact icon={<Check className="text-positive" />}>
             Printed codes keep working when you publish changes.
           </CodeFact>

@@ -48,6 +48,11 @@ export type PortalShareView = Readonly<{
   showActions: boolean
   /** `4 Jan 2026`, the day the live code was made; null when unknown. */
   madeLabel: string | null
+  /**
+   * Who made the live code, by display name; null when unknown, and for a code
+   * made in this session (`tokenStatus` still describes the one it replaced).
+   */
+  madeBy: string | null
   graceLabel: string | null
 }>
 
@@ -99,6 +104,7 @@ export function derivePortalShareView(input: ViewInput): PortalShareView {
   // they take precedence.
   const hasActiveToken = !revoked && (publicUrl !== null || tokenStatus.hasActiveToken)
   const canDownloadAgain = canManage && hasActiveToken && addressRecoverable
+  const madeInThisSession = !revoked && publicUrl !== null && !addressRevealed
 
   return {
     showViewOnlyNotice: !canManage,
@@ -112,12 +118,21 @@ export function derivePortalShareView(input: ViewInput): PortalShareView {
     showActions: canManage && hasActiveToken,
     // A code made in this session is newer than whatever tokenStatus last saw;
     // an address fetched again belongs to the code tokenStatus describes.
-    madeLabel:
-      !revoked && publicUrl !== null && !addressRevealed
-        ? formatTimestamp(now.toISOString())
-        : formatTimestamp(tokenStatus.issuedAt),
+    madeLabel: madeInThisSession
+      ? formatTimestamp(now.toISOString())
+      : formatTimestamp(tokenStatus.issuedAt),
+    madeBy: madeInThisSession || revoked ? null : tokenStatus.madeBy,
     graceLabel: formatTimestamp(tokenStatus.graceExpiresAt),
   }
+}
+
+/** "Made 12 Mar 2026 by Georgi Ivanov"; the date alone when nobody can be named. */
+export function describeMadeCode(
+  madeLabel: string | null,
+  madeBy: string | null,
+): string | null {
+  if (madeLabel === null) return null
+  return madeBy === null ? `Made ${madeLabel}` : `Made ${madeLabel} by ${madeBy}`
 }
 
 export type MutationState = Readonly<{

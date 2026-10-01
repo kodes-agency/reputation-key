@@ -53,7 +53,7 @@ const activeToken: PortalTokenStatus = {
   issuedAt: '2026-08-12T09:30:00.000Z',
   graceExpiresAt: null,
   addressRecoverable: false,
-  madeBy: null,
+  madeBy: 'Georgi Ivanov',
 }
 
 const issueAction = (
@@ -204,8 +204,21 @@ export const ViewerSeesTheCode: Story = {
   decorators: [withRole('Member')],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(/made 12 aug 2026/i)).toBeInTheDocument()
+    await expect(
+      canvas.getByText('Made 12 Aug 2026 by Georgi Ivanov'),
+    ).toBeInTheDocument()
     await expect(canvas.queryByRole('button', { name: /more code actions/i })).toBeNull()
+  },
+}
+
+// A code that recorded no maker (or one the directory cannot name) says only
+// when it was made, never a placeholder after "by".
+export const MadeWithoutAKnownMaker: Story = {
+  args: { ...baseArgs, tokenStatus: { ...activeToken, madeBy: null } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText('Made 12 Aug 2026')).toBeInTheDocument()
+    await expect(canvas.queryByText(/ by /)).toBeNull()
   },
 }
 

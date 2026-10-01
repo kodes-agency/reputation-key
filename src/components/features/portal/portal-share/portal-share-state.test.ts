@@ -15,7 +15,11 @@
 // into conflict with the others rather than checking one flag at a time.
 
 import { describe, it, expect } from 'vitest'
-import { derivePortalShareView, directPortalAddress } from './portal-share-state'
+import {
+  derivePortalShareView,
+  describeMadeCode,
+  directPortalAddress,
+} from './portal-share-state'
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
 
 const NO_TOKEN: PortalTokenStatus = {
@@ -267,5 +271,54 @@ describe('derivePortalShareView — a code made in this session', () => {
       now: new Date('2026-09-30T08:00:00Z'),
     })
     expect(view.madeLabel).toBe('30 Sept 2026')
+  })
+})
+
+describe('derivePortalShareView — who made the code', () => {
+  const NAMED: PortalTokenStatus = { ...LIVE_TOKEN, madeBy: 'Georgi Ivanov' }
+  const madeBy = (input: Partial<Parameters<typeof derivePortalShareView>[0]>) =>
+    derivePortalShareView({
+      canManage: true,
+      revoked: false,
+      publicUrl: null,
+      tokenStatus: NAMED,
+      ...input,
+    }).madeBy
+
+  it('names the person who made the live code', () => {
+    expect(madeBy({})).toBe('Georgi Ivanov')
+  })
+
+  it('names nobody when the code recorded no maker', () => {
+    expect(madeBy({ tokenStatus: LIVE_TOKEN })).toBeNull()
+  })
+
+  it('does not credit the stale code maker with a code made in this session', () => {
+    // tokenStatus has not refetched: it still describes the code that was replaced.
+    expect(madeBy({ publicUrl: PUBLIC_URL })).toBeNull()
+  })
+
+  it('keeps the maker for an address fetched again, which belongs to the described code', () => {
+    expect(madeBy({ publicUrl: PUBLIC_URL, addressRevealed: true })).toBe('Georgi Ivanov')
+  })
+
+  it('names nobody once the codes are stopped', () => {
+    expect(madeBy({ revoked: true })).toBeNull()
+  })
+})
+
+describe('describeMadeCode', () => {
+  it('reads "Made 12 Mar 2026 by Georgi Ivanov"', () => {
+    expect(describeMadeCode('12 Mar 2026', 'Georgi Ivanov')).toBe(
+      'Made 12 Mar 2026 by Georgi Ivanov',
+    )
+  })
+
+  it('reads the date alone when nobody can be named', () => {
+    expect(describeMadeCode('12 Mar 2026', null)).toBe('Made 12 Mar 2026')
+  })
+
+  it('says nothing without a date, rather than "by" a name alone', () => {
+    expect(describeMadeCode(null, 'Georgi Ivanov')).toBeNull()
   })
 })
