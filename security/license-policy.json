@@ -49,10 +49,10 @@
     {
       "package": "@img/sharp-libvips-*",
       "license": "LGPL-3.0-or-later",
-      "scope": "dev",
+      "scope": "both",
       "owner": "platform",
-      "reason": "Prebuilt libvips binaries for sharp, a devDependency (test/tooling image processing) — never present in production images: prod node_modules are installed with --prod and the docker prod-deps sentinel gate proves devDeps are absent. Dynamically linked and unmodified; LGPL-3.0 §4 permits unmodified combined use with the source available on npm.",
-      "expiresAt": "2026-10-31"
+      "reason": "Prebuilt libvips binaries for sharp, which decodes and re-encodes every Portal image upload on the web process (ADR 0062), so they ship in the production images. Dynamically linked, unmodified and loaded from node_modules, never bundled or statically linked into application code; LGPL-3.0 §4 permits unmodified combined use with the source available on npm. The images are deployed by the operator, not redistributed.",
+      "expiresAt": "2027-04-30"
     }
   ]
 }
