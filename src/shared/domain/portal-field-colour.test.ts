@@ -1,9 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import {
+  BACKDROP_WASH_ALPHA,
+  IMMERSIVE_TEXT_COLOUR,
+  MIN_FIELD_TEXT_CONTRAST,
   MIN_TEXT_CONTRAST,
   contrastRatio,
+  deriveBackdropTones,
   deriveFieldColour,
   isAccentReadableOnField,
+  isFieldForLightText,
   parseHexColour,
   readableForegroundOn,
   relativeLuminance,
@@ -188,5 +193,165 @@ describe('isAccentReadableOnField', () => {
   it('refuses a colour it cannot read', () => {
     expect(isAccentReadableOnField('gold')).toBe(false)
     expect(isAccentReadableOnField('#EAD6A8', 'dark')).toBe(false)
+  })
+})
+
+describe('deriveBackdropTones', () => {
+  const channelGap = (a: string, b: string) => {
+    const [ar, ag, ab] = parseHexColour(a) as [number, number, number]
+    const [br, bg, bb] = parseHexColour(b) as [number, number, number]
+    return Math.max(Math.abs(ar - br), Math.abs(ag - bg), Math.abs(ab - bb))
+  }
+
+  it('is null for an accent it cannot read', () => {
+    expect(deriveBackdropTones('gold')).toBeNull()
+    expect(deriveBackdropTones('#fff')).toBeNull()
+  })
+
+  it('gives champagne the amber, sage and umber washes of the round-4 no-photo board', () => {
+    const tones = deriveBackdropTones('#EAD6A8')
+    expect(tones).not.toBeNull()
+    // The board paints rgb(206,170,112), rgb(92,116,94) and rgb(128,78,44).
+    expect(channelGap(tones?.warm as string, '#CEAA70')).toBeLessThanOrEqual(12)
+    expect(channelGap(tones?.cool as string, '#5C745E')).toBeLessThanOrEqual(12)
+    expect(channelGap(tones?.deep as string, '#804E2C')).toBeLessThanOrEqual(12)
+  })
+
+  it.each(['#EAD6A8', '#C8A45A', '#1F2A44', '#FF0000', '#00FF00', '#0000FF', '#FFFFFF'])(
+    'gives %s three valid, upper-case tones that tint a dark field without washing it out',
+    (accent) => {
+      const tones = deriveBackdropTones(accent)
+      for (const tone of [tones?.warm, tones?.cool, tones?.deep]) {
+        expect(tone).toMatch(/^#[0-9A-F]{6}$/u)
+        expect(hsl(tone as string).l).toBeLessThan(0.66)
+        expect(hsl(tone as string).s).toBeLessThanOrEqual(0.56)
+      }
+    },
+  )
+
+  it('keeps the warm and deep tones on the accent hue and moves the cool one away', () => {
+    const tones = deriveBackdropTones('#C8A45A')
+    const accentHue = hsl('#C8A45A').h
+    expect(hueDistance(hsl(tones?.warm as string).h, accentHue)).toBeLessThan(12)
+    expect(hueDistance(hsl(tones?.deep as string).h, accentHue)).toBeLessThan(24)
+    expect(hueDistance(hsl(tones?.cool as string).h, accentHue)).toBeGreaterThan(60)
+  })
+
+  it('leaves a greyscale accent neutral tones, with no invented hue', () => {
+    for (const accent of ['#808080', '#FFFFFF', '#000000']) {
+      const tones = deriveBackdropTones(accent)
+      for (const tone of [tones?.warm, tones?.cool, tones?.deep]) {
+        const [r, g, b] = parseHexColour(tone as string) as [number, number, number]
+        expect(r).toBe(g)
+        expect(g).toBe(b)
+      }
+    }
+  })
+
+  it('ignores the letter case of the accent', () => {
+    expect(deriveBackdropTones('#ead6a8')).toEqual(deriveBackdropTones('#EAD6A8'))
+  })
+})
+
+/** `#RRGGBB` for a hue (0-360), saturation and lightness (0-1), computed apart from the module. */
+function hslToHex(h: number, s: number, l: number): string {
+  const chroma = (1 - Math.abs(2 * l - 1)) * s
+  const second = chroma * (1 - Math.abs(((h / 60) % 2) - 1))
+  const offset = l - chroma / 2
+  const sector = Math.floor(h / 60) % 6
+  const [r, g, b] = [
+    [chroma, second, 0],
+    [second, chroma, 0],
+    [0, chroma, second],
+    [0, second, chroma],
+    [second, 0, chroma],
+    [chroma, 0, second],
+  ][sector] as [number, number, number]
+  return `#${[r, g, b]
+    .map((part) =>
+      Math.round((part + offset) * 255)
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')
+    .toUpperCase()}`
+}
+
+/** A wash painted at `alpha` over `field`, as the browser composites it in sRGB. */
+function paintedOver(wash: string, field: string, alpha: number): string {
+  const [wr, wg, wb] = parseHexColour(wash) as [number, number, number]
+  const [fr, fg, fb] = parseHexColour(field) as [number, number, number]
+  const channel = (top: number, base: number) =>
+    Math.round(alpha * top + (1 - alpha) * base)
+      .toString(16)
+      .padStart(2, '0')
+  return `#${channel(wr, fr)}${channel(wg, fg)}${channel(wb, fb)}`
+}
+
+describe('the backdrop washes are bounded by the text they sit under', () => {
+  const hues = Array.from({ length: 24 }, (_, step) => step * 15)
+
+  it.each([1, 0.6, 0.3])(
+    'keeps the page text at AA on every wash at its painted strength (saturation %s)',
+    (saturation) => {
+      for (const hue of hues) {
+        const accent = hslToHex(hue, saturation, 0.55)
+        const field = deriveFieldColour(accent) as string
+        const tones = deriveBackdropTones(accent, field) as NonNullable<
+          ReturnType<typeof deriveBackdropTones>
+        >
+        for (const key of ['warm', 'cool', 'deep'] as const) {
+          const painted = paintedOver(tones[key], field, BACKDROP_WASH_ALPHA[key])
+          expect(
+            contrastRatio(IMMERSIVE_TEXT_COLOUR, painted) ?? 0,
+            `${accent} ${key}`,
+          ).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
+        }
+      }
+    },
+  )
+
+  it('darkens the yellow-green accent whose uncapped warm wash fell to 3.7:1', () => {
+    const field = deriveFieldColour('#CCDD00') as string
+    const tones = deriveBackdropTones('#CCDD00', field) as NonNullable<
+      ReturnType<typeof deriveBackdropTones>
+    >
+    const painted = paintedOver(tones.warm, field, BACKDROP_WASH_ALPHA.warm)
+    expect(contrastRatio(IMMERSIVE_TEXT_COLOUR, painted) ?? 0).toBeGreaterThanOrEqual(
+      MIN_TEXT_CONTRAST,
+    )
+    expect(hsl(tones.warm).l).toBeLessThan(0.6)
+  })
+
+  it('leaves the board champagne washes as measured', () => {
+    const field = deriveFieldColour('#EAD6A8') as string
+    expect(deriveBackdropTones('#EAD6A8', field)).toEqual(deriveBackdropTones('#EAD6A8'))
+  })
+
+  it('bounds the washes against a manual field as well as a derived one', () => {
+    const field = '#2A2A2A'
+    for (const hue of hues) {
+      const accent = hslToHex(hue, 1, 0.55)
+      const tones = deriveBackdropTones(accent, field) as NonNullable<
+        ReturnType<typeof deriveBackdropTones>
+      >
+      for (const key of ['warm', 'cool', 'deep'] as const) {
+        const painted = paintedOver(tones[key], field, BACKDROP_WASH_ALPHA[key])
+        expect(contrastRatio(IMMERSIVE_TEXT_COLOUR, painted) ?? 0).toBeGreaterThanOrEqual(
+          MIN_TEXT_CONTRAST,
+        )
+      }
+    }
+  })
+})
+
+describe('isFieldForLightText', () => {
+  it('accepts a field the page text reads on at the AAA threshold, and refuses the rest', () => {
+    expect(MIN_FIELD_TEXT_CONTRAST).toBe(7)
+    expect(isFieldForLightText('#15110D')).toBe(true)
+    expect(isFieldForLightText('#0A2A1F')).toBe(true)
+    expect(isFieldForLightText('#808080')).toBe(false)
+    expect(isFieldForLightText('#FFFFFF')).toBe(false)
+    expect(isFieldForLightText('not a colour')).toBe(false)
   })
 })
