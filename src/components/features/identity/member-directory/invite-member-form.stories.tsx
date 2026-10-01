@@ -6,30 +6,27 @@
 // (AccountAdmin) per the member-directory convention.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import type { AnyAction } from '#/components/hooks/use-action'
 import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
+import {
+  mockAction,
+  type MockActionState,
+} from '../../../../../.storybook/mocks/mock-action'
 import { InviteMemberForm } from './invite-member-form'
 
 type InviteInput = {
   data: { email: string; role: BetaInteractiveRole; propertyIds: string[] }
 }
 
-function makeAction(
+const makeAction = (
   impl: (input: InviteInput) => Promise<unknown>,
-  overrides: { isPending?: boolean; error?: unknown; isSuccess?: boolean } = {},
-): AnyAction {
-  return Object.assign(impl, {
-    isPending: overrides.isPending ?? false,
-    error: overrides.error ?? null,
-    isSuccess: overrides.isSuccess ?? false,
-    data: null,
-  })
-}
+  state?: MockActionState,
+) => mockAction<InviteInput>(impl, state)
 
+// The safe role first: an invitation starts as a Property Manager.
 const allowedRoles: ReadonlyArray<BetaInteractiveRole> = [
-  'AccountAdmin',
   'PropertyManager',
+  'AccountAdmin',
 ]
 const properties = [
   { id: 'prop-1', name: 'Sunset Apartments' },
@@ -41,7 +38,16 @@ const meta: Meta<typeof InviteMemberForm> = {
   component: InviteMemberForm,
   tags: ['autodocs'],
   parameters: { layout: 'centered' },
-  decorators: [AuthedRouterDecorator],
+  decorators: [
+    AuthedRouterDecorator,
+    // The form fills the invite dialog (max-w-lg); centered layout alone would
+    // shrink it to its content and wrap the role descriptions a word a line.
+    (Story) => (
+      <div className="w-[28rem] max-w-full">
+        <Story />
+      </div>
+    ),
+  ],
 }
 export default meta
 type Story = StoryObj<typeof InviteMemberForm>
@@ -112,15 +118,57 @@ export const Success: Story = {
     await waitFor(() => {
       expect(submitSpy).toHaveBeenCalledTimes(1)
     })
-    // role defaults to the first allowed role; propertyIds defaults to [].
+    // role defaults to Property Manager; propertyIds defaults to [].
     expect(submitSpy).toHaveBeenCalledWith({
       data: {
         email: 'teammate@example.com',
-        role: 'AccountAdmin',
+        role: 'PropertyManager',
         propertyIds: [],
       },
     })
     // No field-level validation alerts render once the form is valid.
     expect(canvas.queryByRole('alert')).not.toBeInTheDocument()
+  },
+}
+
+// The invitation starts as a Property Manager, with the property picker shown
+// and a plain warning while no property is chosen.
+export const DefaultsToPropertyManager: Story = {
+  args: { mutation: resolvingAction, allowedRoles, properties },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByRole('radio', { name: /property manager/i })).toBeChecked()
+    expect(canvas.getByText('Properties they can work')).toBeInTheDocument()
+    expect(canvas.getByText(/sign in to an empty app/i)).toBeInTheDocument()
+  },
+}
+
+// Choosing Account Admin drops the property picker: an Account Admin reaches
+// every property, and no grants are sent with the invitation.
+const adminSubmitSpy = fn()
+export const AccountAdminHidesTheProperties: Story = {
+  args: {
+    mutation: makeAction(async (input) => {
+      adminSubmitSpy(input)
+      return { ok: true }
+    }),
+    allowedRoles,
+    properties,
+  },
+  play: async ({ canvasElement }) => {
+    adminSubmitSpy.mockClear()
+    const canvas = within(canvasElement)
+    await userEvent.type(canvas.getByLabelText(/email address/i), 'lead@example.com')
+    await userEvent.click(canvas.getByRole('radio', { name: /account admin/i }))
+    expect(canvas.queryByText('Properties they can work')).not.toBeInTheDocument()
+    expect(
+      canvas.getByText('Account Admins can access every property.'),
+    ).toBeInTheDocument()
+    await userEvent.click(canvas.getByRole('button', { name: /send invitation/i }))
+    await waitFor(() => {
+      expect(adminSubmitSpy).toHaveBeenCalledWith({
+        data: { email: 'lead@example.com', role: 'AccountAdmin', propertyIds: [] },
+      })
+    })
   },
 }

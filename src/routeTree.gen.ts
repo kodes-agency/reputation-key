@@ -14,6 +14,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as AcceptInvitationRouteImport } from './routes/accept-invitation'
 import { Route as JoinRouteImport } from './routes/join'
 import { Route as LoginRouteImport } from './routes/login'
+import { Route as OperatorRouteImport } from './routes/operator'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as UnavailableRouteImport } from './routes/unavailable'
@@ -97,6 +98,11 @@ const JoinRoute = JoinRouteImport.update({
 const LoginRoute = LoginRouteImport.update({
   id: '/login',
   path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const OperatorRoute = OperatorRouteImport.update({
+  id: '/operator',
+  path: '/operator',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -447,6 +453,7 @@ export interface FileRoutesByFullPath {
   '/accept-invitation': typeof AcceptInvitationRoute
   '/join': typeof JoinRoute
   '/login': typeof LoginRoute
+  '/operator': typeof OperatorRoute
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/unavailable': typeof UnavailableRoute
@@ -513,6 +520,7 @@ export interface FileRoutesByTo {
   '/accept-invitation': typeof AcceptInvitationRoute
   '/join': typeof JoinRoute
   '/login': typeof LoginRoute
+  '/operator': typeof OperatorRoute
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/unavailable': typeof UnavailableRoute
@@ -576,6 +584,7 @@ export interface FileRoutesById {
   '/accept-invitation': typeof AcceptInvitationRoute
   '/join': typeof JoinRoute
   '/login': typeof LoginRoute
+  '/operator': typeof OperatorRoute
   '/privacy': typeof PrivacyRoute
   '/reset-password': typeof ResetPasswordRoute
   '/unavailable': typeof UnavailableRoute
@@ -644,6 +653,7 @@ export interface FileRouteTypes {
     | '/accept-invitation'
     | '/join'
     | '/login'
+    | '/operator'
     | '/privacy'
     | '/reset-password'
     | '/unavailable'
@@ -710,6 +720,7 @@ export interface FileRouteTypes {
     | '/accept-invitation'
     | '/join'
     | '/login'
+    | '/operator'
     | '/privacy'
     | '/reset-password'
     | '/unavailable'
@@ -772,6 +783,7 @@ export interface FileRouteTypes {
     | '/accept-invitation'
     | '/join'
     | '/login'
+    | '/operator'
     | '/privacy'
     | '/reset-password'
     | '/unavailable'
@@ -840,6 +852,7 @@ export interface RootRouteChildren {
   AcceptInvitationRoute: typeof AcceptInvitationRoute
   JoinRoute: typeof JoinRoute
   LoginRoute: typeof LoginRoute
+  OperatorRoute: typeof OperatorRoute
   PrivacyRoute: typeof PrivacyRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   UnavailableRoute: typeof UnavailableRoute
@@ -894,6 +907,13 @@ declare module '@tanstack/react-router' {
       path: '/login'
       fullPath: '/login'
       preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/operator': {
+      id: '/operator'
+      path: '/operator'
+      fullPath: '/operator'
+      preLoaderRoute: typeof OperatorRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -1511,6 +1531,7 @@ const rootRouteChildren: RootRouteChildren = {
   AcceptInvitationRoute: AcceptInvitationRoute,
   JoinRoute: JoinRoute,
   LoginRoute: LoginRoute,
+  OperatorRoute: OperatorRoute,
   PrivacyRoute: PrivacyRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   UnavailableRoute: UnavailableRoute,

@@ -1,121 +1,59 @@
 /**
- * AcceptInvitationPage — extracted from accept-invitation.tsx route.
- * Fixes the side-effect-in-render bug by using useEffect for auto-accept.
+ * AcceptInvitationPage — the signed-in list of pending invitations, for a
+ * visitor who opened /accept-invitation without a link (the workspace-access
+ * screen sends people here). Each row accepts on its own button; nothing
+ * accepts on load.
  */
 
-import { useState, useEffect, useCallback, useRef } from 'react'
+import { useState, useCallback, useRef } from 'react'
 import { useAction } from '#/components/hooks/use-action'
-import { Skeleton } from '#/components/ui/skeleton'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { AuthCard, AuthFooterLink } from '#/components/layout/auth-layout'
-import { Link } from '@tanstack/react-router'
+import { AcceptedView } from './accepted-view'
 import { InvitationListView } from './invitation-list-view'
 import type { PendingInvitation } from './shared-types'
 
-// ── Sub-views ──────────────────────────────────────────────────────────
-
-function SuccessView() {
-  return (
-    <AuthCard
-      title="Welcome to the team!"
-      description="You've successfully joined the organization."
-    >
-      <div className="text-center">
-        <Link
-          to="/dashboard"
-          className="text-sm font-medium text-link underline-offset-4 hover:underline"
-        >
-          Go to dashboard
-        </Link>
-      </div>
-    </AuthCard>
-  )
-}
-
-function AutoAcceptView({
-  error,
-  loading,
-  joiningNotice,
-}: Readonly<{ error: unknown; loading: boolean; joiningNotice: React.ReactNode }>) {
-  return (
-    <AuthCard title="Accepting invitation…" description="">
-      <FormErrorBanner error={error} />
-      {loading && (
-        <div className="flex justify-center py-4">
-          <Skeleton className="h-4 w-48" />
-        </div>
-      )}
-      {joiningNotice}
-    </AuthCard>
-  )
-}
-
-// ── Main page component ────────────────────────────────────────────────
-
 type Props = Readonly<{
-  invitationId?: string
   invitations: ReadonlyArray<PendingInvitation>
   acceptInvitation: (input: { data: { invitationId: string } }) => Promise<void>
   joiningNotice: React.ReactNode
 }>
 
 export function AcceptInvitationPage({
-  invitationId,
   invitations,
   acceptInvitation,
   joiningNotice,
 }: Props) {
   const [accepted, setAccepted] = useState(false)
-  // Dedupes React StrictMode's double-invocation of the auto-accept effect in
-  // dev — without it, acceptInvitation fires twice concurrently and creates a
-  // duplicate membership (and races the active-org activation).
+  // A double click must not send two acceptances: they race the membership
+  // insert (and the active-org activation) and create a duplicate membership.
   const acceptingRef = useRef(false)
 
   const accept = useAction(acceptInvitation)
 
   const handleAccept = useCallback(
-    async (invId: string) => {
+    async (invitationId: string) => {
+      if (acceptingRef.current) return
+      acceptingRef.current = true
       try {
-        await accept({ data: { invitationId: invId } })
+        await accept({ data: { invitationId } })
         setAccepted(true)
       } catch {
         // useAction retains the rejection for the shared error banner. Catching
-        // here prevents click/effect callers from leaking an unhandled promise.
+        // here prevents click callers from leaking an unhandled promise.
+        acceptingRef.current = false
       }
     },
     [accept],
   )
 
-  // Auto-accept when arriving with ?id= query param — useEffect, not render-body.
-  // acceptingRef ensures only the first invocation proceeds (StrictMode-safe).
-  useEffect(() => {
-    if (invitationId && !accepted && !acceptingRef.current) {
-      acceptingRef.current = true
-      void handleAccept(invitationId)
-    }
-  }, [invitationId, accepted, handleAccept])
-
-  if (accepted) return <SuccessView />
-  if (invitationId) {
-    return (
-      <AutoAcceptView
-        error={accept.error}
-        loading={accept.isPending}
-        joiningNotice={joiningNotice}
-      />
-    )
-  }
+  if (accepted) return <AcceptedView />
 
   return (
-    <>
-      <InvitationListView
-        invitations={invitations}
-        error={accept.error}
-        onAccept={handleAccept}
-        accepting={accept.isPending}
-        joiningNotice={joiningNotice}
-      />
-      <AuthFooterLink message="" linkText="Back to dashboard" to="/dashboard" />
-    </>
+    <InvitationListView
+      invitations={invitations}
+      error={accept.error}
+      onAccept={handleAccept}
+      accepting={accept.isPending}
+      joiningNotice={joiningNotice}
+    />
   )
 }

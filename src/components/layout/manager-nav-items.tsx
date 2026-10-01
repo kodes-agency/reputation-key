@@ -76,7 +76,7 @@ const navItems: ReadonlyArray<ManagerNavItem> = [
   },
   {
     key: 'people',
-    label: 'People',
+    label: 'Staff',
     icon: Users,
     to: '/properties/$propertyId/people',
     capability: 'staff.use',

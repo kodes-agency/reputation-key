@@ -732,6 +732,8 @@ const buildNotificationFeed = (input: NotificationBuildInput) => {
   ) => {
     registerIdentityAccountNotificationConsumers(consumerRegistry, {
       queue,
+      displayNames,
+      logger: input.logger,
       receipts: input.outboxRepo,
     })
     // LIF-01 program bullet 5 — the mandatory final notice at Purge Pending.

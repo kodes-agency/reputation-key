@@ -236,6 +236,79 @@ export const GoalResultNamesItsMonth: Story = rowSays({
 })
 
 /**
+ * An Organization notice belongs to no Property: it names the Organization and
+ * the role, and never the person who acted (ADR 0046 r.8). The role is news
+ * the title does not carry, so the row shows it under the title.
+ */
+const ORGANIZATION_ID = '00000000-0000-4000-8000-0000000000a0'
+
+export const RoleChangedNamesTheRole: Story = rowSays({
+  notification: {
+    id: '20000000-0000-4000-8000-000000000035',
+    type: 'account.organization_role_changed',
+    propertyId: null,
+    resourceType: 'organization',
+    resourceId: ORGANIZATION_ID,
+    payload: { organizationName: 'Riverside Group', memberRole: 'property_manager' },
+  },
+  title: 'Your role at Riverside Group changed',
+  facts: [],
+  detail: 'You are now a Property Manager.',
+  name: /^Your role at Riverside Group changed, \d+ minutes? ago, unread$/,
+})
+
+/**
+ * A member whose Properties were changed lands where they can see what they
+ * can work now. The copy names the Organization, never the Account Admin, and
+ * never which Properties: the list it opens is the current answer.
+ */
+export const PropertyAccessChangedOpensProperties: Story = {
+  args: {
+    notification: makeNotification({
+      id: '20000000-0000-4000-8000-000000000036',
+      type: 'account.organization_property_access_changed',
+      propertyId: null,
+      resourceType: 'organization',
+      resourceId: ORGANIZATION_ID,
+      payload: { organizationName: 'Riverside Group' },
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const link = rowLink(canvasElement)
+    expect(within(canvasElement).getByText('Your property access changed')).toBeVisible()
+    expect(link).toHaveAttribute('href', '/properties')
+    expect(link).toHaveAccessibleName(
+      /^Your property access changed, \d+ minutes? ago, unread$/,
+    )
+    expect(canvasElement.textContent).not.toMatch(/Account Admin/i)
+  },
+}
+
+/** An inviter is told someone joined, and is sent to Members, never told who. */
+export const InvitationAcceptedOpensMembers: Story = {
+  args: {
+    notification: makeNotification({
+      id: '20000000-0000-4000-8000-000000000037',
+      type: 'account.invitation_accepted',
+      propertyId: null,
+      resourceType: 'organization',
+      resourceId: ORGANIZATION_ID,
+      payload: { organizationName: 'Riverside Group' },
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const link = rowLink(canvasElement)
+    expect(
+      within(canvasElement).getByText('An invitation you sent was accepted'),
+    ).toBeVisible()
+    expect(link).toHaveAttribute('href', '/settings/members')
+    expect(link).toHaveAccessibleName(
+      /^An invitation you sent was accepted, \d+ minutes? ago, unread$/,
+    )
+  },
+}
+
+/**
  * Urgent + unread: the unread state, the rating in words, the wait, a compact
  * clock, and one link carrying the resource id. There is no Urgent pill any
  * more: an urgent row's icon turns red, which this runner cannot see (it

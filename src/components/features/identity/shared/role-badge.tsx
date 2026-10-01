@@ -1,5 +1,6 @@
 /**
- * Shared RoleBadge component — uses unified roleLabel from role-utils.
+ * Shared RoleBadge component — uses unified roleLabel from role-utils, in the full
+ * wording ('Account Admin', 'Property Manager') the role pickers and dialogs use.
  */
 
 import type { Role } from '#/shared/domain/roles'
@@ -21,5 +22,5 @@ export function RoleBadge({
       : role === 'PropertyManager'
         ? 'secondary'
         : 'outline'
-  return <Badge variant={variant}>{roleLabel(role)}</Badge>
+  return <Badge variant={variant}>{roleLabel(role, 'full')}</Badge>
 }

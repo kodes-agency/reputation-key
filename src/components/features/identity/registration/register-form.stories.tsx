@@ -49,6 +49,26 @@ export const JoinIdle: Story = {
   },
 }
 
+// The invitation decided the address: prefilled, not editable, submitted as is.
+export const JoinLockedEmail: Story = {
+  name: 'Join (locked email)',
+  args: {
+    mode: 'join',
+    mutation: resolvingAction,
+    invitationId: 'inv-story-manager',
+    lockedEmail: 'new.hire@meridian.test',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const email = canvas.getByLabelText(/email/i)
+    await expect(email).toHaveValue('new.hire@meridian.test')
+    await expect(email).toHaveAttribute('readonly')
+    await expect(
+      canvas.getByText('The invitation was sent to this address.'),
+    ).toBeInTheDocument()
+  },
+}
+
 export const Submitting: Story = {
   args: {
     mode: 'register',

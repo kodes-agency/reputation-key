@@ -27,6 +27,10 @@ type Props = Readonly<{
   placeholder?: string
   autoComplete?: string
   disabled?: boolean
+  /** Shown and submitted, never edited (a value the page already decided). */
+  readOnly?: boolean
+  /** One line of help, tied to the input for assistive technology. */
+  description?: string
   maxLength?: number
   className?: string
 }>
@@ -39,10 +43,13 @@ export function FormTextField({
   placeholder,
   autoComplete,
   disabled,
+  readOnly,
+  description,
   maxLength,
   className,
 }: Props) {
   const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
+  const descriptionId = description ? `${id}-description` : undefined
 
   return (
     <Field data-invalid={isInvalid}>
@@ -58,9 +65,16 @@ export function FormTextField({
         placeholder={placeholder}
         autoComplete={autoComplete}
         disabled={disabled}
+        readOnly={readOnly}
+        aria-describedby={descriptionId}
         maxLength={maxLength}
         className={className}
       />
+      {description ? (
+        <p id={descriptionId} className="text-xs text-muted-foreground">
+          {description}
+        </p>
+      ) : null}
       {isInvalid && <FieldError errors={field.state.meta.errors} />}
     </Field>
   )

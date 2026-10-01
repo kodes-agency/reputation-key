@@ -141,11 +141,15 @@ export const AsPropertyManager: Story = {
     // Property switcher shows the active property.
     expect(await canvas.findByText(/acme hotel/i)).toBeInTheDocument()
     // Nav entries render enabled (propertyId is set). Use findBy to tolerate async render.
-    expect(await canvas.findByText(/^dashboard$/i)).toBeInTheDocument()
-    expect(await canvas.findByText(/^reviews$/i)).toBeInTheDocument()
-    expect(await canvas.findByText(/^people$/i)).toBeInTheDocument()
-    expect(await canvas.findByText(/^portals$/i)).toBeInTheDocument()
-    expect(await canvas.findByText(/^goals$/i)).toBeInTheDocument()
+    for (const entry of [
+      /^dashboard$/i,
+      /^reviews$/i,
+      /^staff$/i,
+      /^portals$/i,
+      /^goals$/i,
+    ]) {
+      expect(await canvas.findByText(entry)).toBeInTheDocument()
+    }
     expect(canvas.queryByText(/^leaderboard$/i)).toBeNull()
     // New-count badge resolves from the mock (async) → "5".
     expect(await canvas.findByText(/^5$/)).toBeInTheDocument()
@@ -182,7 +186,7 @@ export const NoPropertySelected: Story = {
     const canvas = await expectNoPropertyChrome(canvasElement)
     const reviews = await canvas.findByRole('link', { name: /^reviews$/i })
     expect(reviews).toHaveAttribute('href', '/inbox')
-    expect(canvas.queryByRole('link', { name: /^people$/i })).toBeNull()
+    expect(canvas.queryByRole('link', { name: /^staff$/i })).toBeNull()
   },
 }
 

@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { initPermissionTable } from '#/shared/auth/permissions'
 import { setPermissionLookup } from '#/shared/domain/permissions'
 import { finalizeOrgLogoUpload } from './finalize-org-logo-upload'
 import { organizationId, userId } from '#/shared/domain/ids'
@@ -10,6 +11,12 @@ const memberCtx: AuthContext = {
   userId: userId('user-1'),
   organizationId: organizationId('org-1'),
   role: 'Member',
+}
+
+const managerCtx: AuthContext = {
+  userId: userId('user-1'),
+  organizationId: organizationId('org-1'),
+  role: 'PropertyManager',
 }
 
 const adminCtx: AuthContext = {
@@ -64,6 +71,31 @@ describe('finalizeOrgLogoUpload', () => {
         message: 'Insufficient permissions to finalize organization logo upload',
       })
     }
+  })
+
+  it('rejects PropertyManager, confirming no upload and persisting no logo', async () => {
+    // The logo is an Organization setting (ADR 0033): run the real role table.
+    initPermissionTable()
+    const confirmUpload = vi.fn(async (key: string) => `https://cdn.example.com/${key}`)
+    const updateOrg = vi.fn().mockResolvedValue(undefined)
+    const useCase = finalizeOrgLogoUpload({
+      storage: { ...mockStorage, confirmUpload },
+      updateOrg,
+    })
+
+    await expect(
+      useCase(
+        { key: `organizations/${managerCtx.organizationId}/logo/test.png` },
+        managerCtx,
+      ),
+    ).rejects.toMatchObject({
+      _tag: 'IdentityError',
+      code: 'forbidden',
+      message: 'Insufficient permissions to finalize organization logo upload',
+    })
+    // The refusal comes before the object is confirmed, so none is orphaned.
+    expect(confirmUpload).not.toHaveBeenCalled()
+    expect(updateOrg).not.toHaveBeenCalled()
   })
 
   it('allows AccountAdmin role past auth guard', async () => {

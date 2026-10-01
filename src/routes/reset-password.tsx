@@ -73,7 +73,7 @@ function CompletePasswordReset({ token }: Readonly<{ token: string }>) {
     return (
       <AuthCard
         title="Password updated"
-        description="Your password has been reset. You can now sign in with your new password."
+        description="Your password has been reset and your email address is verified. You can now sign in with your new password."
       >
         <div className="text-center">
           <Link

@@ -1,10 +1,11 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
+import { unhandledRejectionsDuring } from '../../../../../.storybook/play-helpers'
 import { PeoplePage } from './people-page'
 import { seededArgs } from './people-page-stories-data'
 
 const meta: Meta<typeof PeoplePage> = {
-  title: 'Property/PeoplePage',
+  title: 'Property/StaffPage',
   component: PeoplePage,
   tags: ['autodocs'],
   parameters: { layout: 'fullscreen' },
@@ -13,7 +14,7 @@ export default meta
 type Story = StoryObj<typeof PeoplePage>
 
 export const Populated: Story = {
-  args: { ...seededArgs, tab: 'staff' },
+  args: { ...seededArgs },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Alice Adams')).toBeInTheDocument()
@@ -31,7 +32,6 @@ export const Empty: Story = {
     participations: [],
     responsibilities: [],
     portals: [],
-    tab: 'staff',
   },
 }
 
@@ -43,11 +43,11 @@ export const Error: Story = {
   args: {
     ...seededArgs,
     state: 'error',
-    errorMessage: 'People are temporarily unavailable.',
+    errorMessage: 'Staff is temporarily unavailable.',
   },
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByText('People are temporarily unavailable.'),
+      within(canvasElement).getByText('Staff is temporarily unavailable.'),
     ).toBeInTheDocument()
   },
 }
@@ -56,17 +56,21 @@ export const PermissionDenied: Story = {
   args: { ...seededArgs, state: 'forbidden' },
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByText(/do not have permission to view people/i),
+      within(canvasElement).getByText(/do not have permission to view staff/i),
     ).toBeInTheDocument()
   },
 }
 
-export const Directory: Story = {
-  args: { ...seededArgs, tab: 'directory' },
+/** The page is one list: no Directory of every member, which Settings › Members owns. */
+export const StaffOnly: Story = {
+  args: { ...seededArgs },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Alice Adams')).toBeInTheDocument()
-    await expect(canvas.getByText('bob@acme.com')).toBeInTheDocument()
+    await expect(
+      canvas.getByRole('heading', { name: 'Staff', level: 1 }),
+    ).toBeInTheDocument()
+    await expect(canvas.queryByRole('tab')).not.toBeInTheDocument()
+    await expect(canvas.queryByText('Directory')).not.toBeInTheDocument()
   },
 }
 
@@ -80,7 +84,6 @@ const archiveRefusals: Error[] = []
 export const ArchiveRefused: Story = {
   args: {
     ...seededArgs,
-    tab: 'staff',
     // A plain function, not `fn()`: the spy attaches its own handler to every
     // promise it returns, which would mark the rejection handled.
     archiveParticipationMutation: Object.assign(
@@ -97,13 +100,7 @@ export const ArchiveRefused: Story = {
   },
   play: async ({ canvasElement }) => {
     archiveRefusals.length = 0
-    const unhandled: unknown[] = []
-    const record = (event: PromiseRejectionEvent) => {
-      event.preventDefault()
-      unhandled.push(event.reason)
-    }
-    window.addEventListener('unhandledrejection', record)
-    try {
+    const unhandled = await unhandledRejectionsDuring(async () => {
       await userEvent.click(
         within(canvasElement).getByRole('button', {
           name: 'Archive staff participation for Alice Adams',
@@ -115,19 +112,13 @@ export const ArchiveRefused: Story = {
         }),
       )
       expect(archiveRefusals).toHaveLength(1)
-      // `unhandledrejection` is dispatched from a task queued after the
-      // microtask checkpoint, so wait out two task turns before reading it.
-      await new Promise((resolve) => setTimeout(resolve, 0))
-      await new Promise((resolve) => setTimeout(resolve, 0))
-      expect(unhandled).toEqual([])
-    } finally {
-      window.removeEventListener('unhandledrejection', record)
-    }
+    })
+    expect(unhandled).toEqual([])
   },
 }
 
 export const PortalsDenied: Story = {
-  args: { ...seededArgs, portals: [], portalsDenied: true, tab: 'staff' },
+  args: { ...seededArgs, portals: [], portalsDenied: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Alice Adams')).toBeInTheDocument()

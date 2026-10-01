@@ -73,10 +73,15 @@ export const ac = createAccessControl(statement)
 
 export const owner = ac.newRole({ ...statement })
 
+// PropertyManager administers no people and no Organization settings (ADR 0033,
+// amended 2026-10): only an AccountAdmin invites, cancels or resends
+// invitations, changes roles and Property access, and edits the Organization,
+// logo included (`identity.logo_upload` is owner-only).
+// `member.list` stays: Inbox assignment, Responsible managers and the Members
+// page itself read the member list.
 export const admin = ac.newRole({
-  member: ['create', 'list'],
+  member: ['list'],
   dashboard: ['read', 'fleet_read'],
-  invitation: ['create', 'list', 'cancel', 'resend'],
   property: ['read', 'create', 'update', 'admin', 'read_gbp_performance'],
   staff: ['read', 'manage'],
   portal: ['read', 'create', 'update'],
@@ -85,12 +90,10 @@ export const admin = ac.newRole({
   feedback: ['read', 'handle', 'respond', 'contact_read', 'beta_report'],
   inbox: ['read', 'write', 'manage'],
   notification: ['read', 'update'],
-  organization: ['update'],
   goal: ['read', 'create', 'update', 'cancel'],
   ai: ['reply.generate', 'trends.read', 'manage'],
   identity: [
     'avatar_upload',
-    'logo_upload',
     'leave_org',
     'password.change',
     'profile.update',

@@ -15,10 +15,19 @@ type IdentityAccountPayload = Readonly<{
 }>
 
 /**
+ * The facts an AccountAdmin records about somebody else's access. They carry
+ * both the actor (`userId`) and the target (`memberUserId`).
+ */
+const TARGETED_FACTS: ReadonlySet<OrganizationAccountNotificationEventType> = new Set([
+  'identity.member.role_changed',
+  'identity.member.property_access_changed',
+])
+
+/**
  * Resolve the affected account from a schema-validated Identity fact. Role
- * changes carry both actor (`userId`) and target (`memberUserId`); confusing
- * them would notify the administrator who made the change instead of the
- * member whose access changed.
+ * and property-access changes carry both actor (`userId`) and target
+ * (`memberUserId`); confusing them would notify the administrator who made the
+ * change instead of the member whose access changed.
  */
 export function affectedUserFromIdentityFact(input: {
   eventType: OrganizationAccountNotificationEventType
@@ -34,9 +43,9 @@ export function affectedUserFromIdentityFact(input: {
   if (payload.organizationId !== input.organizationId) {
     throw new Error('Identity account-notification envelope attribution mismatch')
   }
-  if (input.eventType === 'identity.member.role_changed') {
+  if (TARGETED_FACTS.has(input.eventType)) {
     if (!payload.memberUserId) {
-      throw new Error('Identity role-change target is missing')
+      throw new Error('Identity access-change target is missing')
     }
     return userId(payload.memberUserId)
   }

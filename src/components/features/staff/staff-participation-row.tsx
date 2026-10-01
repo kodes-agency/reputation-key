@@ -37,7 +37,7 @@ const participationDateFormat = new Intl.DateTimeFormat('en-US', {
 /**
  * A participation boundary as a calendar date, or nothing when it is not a real
  * instant: `format` throws on an Invalid Date, and one bad row must not take the
- * People page down (the guard `formatReviewedAt` uses for the same reason).
+ * Staff page down (the guard `formatReviewedAt` uses for the same reason).
  */
 function formatParticipationDate(value: string | Date): string | null {
   const date = value instanceof Date ? value : new Date(value)
@@ -116,7 +116,7 @@ export function StaffParticipationRow({
                       void archiveAction({
                         data: {
                           staffParticipationId: participation.id,
-                          reason: 'Archived from property People page',
+                          reason: 'Archived from property Staff page',
                           expectedRevision: participation.revision,
                         },
                       }).catch(() => undefined)

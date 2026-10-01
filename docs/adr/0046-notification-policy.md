@@ -922,6 +922,45 @@ off — to Low ratings at 3★ or lower, so their feedback email continues as it
 was; everyone else gets the 2★ default. In-app needs no carry-over: Action
 needed could not be turned off there, and 3★ or lower is what it covered.
 
+## Amended 2026-10-01 — two account notices, and account notices that name the Organization
+
+Identity's access facts raise two more mandatory notices. They join the other
+account types: Organization-scoped, no Property, pointing at the Organization,
+and they cannot be muted. No migration: `notifications_mandatory_scope_check` already
+admits that shape for every mandatory type.
+
+- **A member's Property access changed.**
+  `account.organization_property_access_changed` comes from
+  `identity.member.property_access_changed` (an AccountAdmin granted or revoked
+  a PropertyManager's Properties). It tells that member, the fact's
+  `memberUserId` and never the AccountAdmin who acted, under the
+  `affected_organization_user` audience, and opens Properties.
+- **An invitation was accepted.** `account.invitation_accepted` is the second
+  durable consumer of `identity.invitation.accepted`, in a receipt of its own.
+  It tells the inviter the fact names (`inviterId`, additive at version 1)
+  under the `account_admin` audience, which is decided by the role alone and so
+  needs no Property, and opens Members. Its job id is
+  `<eventId>-inviter-<inviterId>`. A fact recorded before it named its inviter
+  gets an `obsolete` receipt and notifies nobody. An inviter who is not an
+  AccountAdmin of the Organization at delivery is refused there: a former
+  AccountAdmin, a platform operator who invited through the console, or a
+  PropertyManager who invited before PropertyManagers lost invitations (ADR
+  0033's 2026-10-01 amendment).
+- **No notice names another person (r.8).** The access notice says "Your
+  property access at {organization} changed", the invitation notice "Someone
+  you invited joined {organization}". Neither counts Properties or people:
+  repeats of a type merge into one unread row, which says only that it
+  happened again.
+- **Every account notice names the Organization**, from the payload's
+  `organizationName`, and the role-change notice names the role the member now
+  holds (`memberRole`, a closed enum: `account_admin` or `property_manager`).
+  Rows written before this render their earlier sentences from the payload
+  they have.
+
+Each invitation an AccountAdmin sent therefore sends them a mandatory notice
+when it is accepted, by email too. An in-app-only exception would need a migration and an ADR, as
+ADR 0059 did.
+
 ## Consequences
 
 - Missing preferences cannot silently enable email.

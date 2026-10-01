@@ -31,10 +31,13 @@ const EXPECTED_REQUEST_KEYS = [
   // LIF-01-T21: leaving is its own operation, not a variant of removeMember.
   'leaveOrganization',
   'listInvitations',
+  // AccountAdmins edit a PropertyManager's Properties from Members.
+  'listMemberPropertyAccess',
   'merchantAiAuthorization',
   'registerInvitedUser',
   'removeMember',
   'resendInvitation',
+  'setMemberPropertyAccess',
   'updateCustomRole',
   'updateMemberRole',
   'updateOrganization',
@@ -141,6 +144,23 @@ describe('Identity public API', () => {
     expect(Object.isFrozen(container.identityBetaFeedback)).toBe(true)
     expect(container.identityPublicApi).not.toHaveProperty('betaFeedback')
     expect(container).not.toHaveProperty('betaFeedbackTriageRepo')
+  })
+
+  it('exposes the platform operator console as its own frozen capability, off publicApi', () => {
+    // ADR 0063: only the console's server functions reach it, after
+    // requirePlatformOperator; no other context ever receives it.
+    expect(Object.keys(container.identityPlatform).sort()).toEqual([
+      'cancelInvitation',
+      'inviteAdmin',
+      'listOrganizations',
+      'provisionOrganization',
+      'resendInvitation',
+    ])
+    expect(Object.isFrozen(container.identityPlatform)).toBe(true)
+    expect(container.identityPublicApi).not.toHaveProperty('platform')
+    expect(container.identityPublicApi.requests).not.toHaveProperty(
+      'provisionOrganization',
+    )
   })
 })
 

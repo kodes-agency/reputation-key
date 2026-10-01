@@ -120,6 +120,23 @@
 // chunk together -92 B. `main` had drifted up from the 329,971 B recorded for
 // s34 (+83 B), leaving 246 B of headroom. The budget moves to 331,050 B.
 //
+// 2026-10-01 (Operator console, ADR 0063): the /operator route registers in the
+// route tree, so its config rides first paint: the lazy component's preload
+// list, beforeLoad, the loader that primes the Organization list, and the
+// list's server-function stub. Fresh production builds of the parent
+// (feat/invitation-lifecycle, a7d2358ea) and of the change: 331,161 B -> 331,406
+// B (78 js + 1 css), +245 B: the entry chunk 43,737 B -> 43,946 B (+209 B),
+// query-keys 1,384 B -> 1,406 B (+22 B, platformKeys), the other chunks together
+// +14 B (their import paths carry the new hashes). The first build measured
+// 331,660 B (+499 B); two causes were avoidable and are gone. The route imported
+// all five console server functions from one module, so four mutation stubs the
+// loader never calls rode first paint, each a 64-character id gzip cannot shrink
+// (+223 B in the entry chunk): the read now has its own module and the four
+// changes load with the route chunk. And the page's wrapper and one button used
+// four Tailwind utilities no other source uses, growing the one global
+// stylesheet by 31 B: they now use classes the app already ships. What remains
+// is the route's own registration. The budget moves to 331,700 B.
+//
 // When this fails: resolve the new static importer and cut that source edge. Do
 // NOT raise the budget without recording a fresh production measurement here.
 // When a cycle fails it: the chunk group that moved a module away from the
@@ -135,7 +152,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 331_400, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730; raised to 331,400 on 2026-10-01 for the Linktree editor rebased onto the Languages section, measured 331,093
+  initialClosureGzip: 331_700, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730; raised to 331,400 on 2026-10-01 for the Linktree editor rebased onto the Languages section, measured 331,093; raised to 331,700 on 2026-10-01 for the operator console route, measured 331,406
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 
