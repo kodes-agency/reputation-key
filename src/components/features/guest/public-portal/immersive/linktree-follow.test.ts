@@ -81,6 +81,24 @@ describe('followLinktreeLink', () => {
     expect(navigate).toHaveBeenCalledExactlyOnceWith(HREF)
   })
 
+  it.each([
+    'javascript:alert(1)',
+    'data:text/html,<script>alert(1)</script>',
+    'http://example.com/insecure',
+    '//example.com/protocol-relative',
+    '/relative/path',
+    'not a url',
+    '',
+  ])(
+    'goes to the click route, not to %j, when the action resolves a non-https URL',
+    async (url) => {
+      const navigate = vi.fn()
+      const select = vi.fn().mockResolvedValue({ url })
+      await followLinktreeLink({ linkId: 'link-1', href: HREF, select, navigate })
+      expect(navigate).toHaveBeenCalledExactlyOnceWith(HREF)
+    },
+  )
+
   it('does not navigate twice when the destination is resolved', async () => {
     const navigate = vi.fn()
     await followLinktreeLink({

@@ -1,4 +1,4 @@
-import { createElement, type MouseEvent } from 'react'
+import { createElement, useId, type MouseEvent } from 'react'
 import { LinktreeArrow, linktreeIconFor } from './linktree-icons'
 import {
   followLinktreeLink,
@@ -66,6 +66,7 @@ export function ImmersiveLinktree({
   hrefFor,
   selectLink,
 }: ImmersiveLinktreeProps) {
+  const titleId = useId()
   if (!enabled || links.length === 0) return null
   const hasTitle = title.value.trim().length > 0
   const heading = hasTitle ? title.value : defaultTitle
@@ -75,10 +76,11 @@ export function ImmersiveLinktree({
       <style href={LINKTREE_STYLE_HREF} precedence="default">
         {LINKTREE_CSS}
       </style>
-      <h2 className="ih-display ih-linktree__title" lang={headingLang}>
+      <h2 id={titleId} className="ih-display ih-linktree__title" lang={headingLang}>
         {heading}
       </h2>
-      <nav aria-label={heading}>
+      {/* Named by the heading, not by a copy of its text: the name keeps the heading's `lang`. */}
+      <nav aria-labelledby={titleId}>
         <ul className="ih-linktree__grid">
           {links.map((link) => (
             <li key={link.id} className="ih-linktree__item">

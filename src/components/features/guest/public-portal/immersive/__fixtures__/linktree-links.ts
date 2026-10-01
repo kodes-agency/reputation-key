@@ -40,6 +40,13 @@ export const LINKTREE_LINKS_EN: readonly ImmersiveLinktreeLink[] = [
   },
 ]
 
+/**
+ * Board G09: no photo has been uploaded yet, so every tile is an icon tile
+ * (Discover takes an icon instead of its photo).
+ */
+export const LINKTREE_LINKS_NO_PHOTO: readonly ImmersiveLinktreeLink[] =
+  LINKTREE_LINKS_EN.map((link) => ({ ...link, imageUrl: null }))
+
 /** Board G10: long German words, and one label nobody has translated yet, shown in English. */
 export const LINKTREE_LINKS_DE: readonly ImmersiveLinktreeLink[] = [
   {

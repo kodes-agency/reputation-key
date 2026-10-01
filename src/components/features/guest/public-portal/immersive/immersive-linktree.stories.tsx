@@ -89,18 +89,78 @@ export const BeforeARating: Story = {
 }
 
 const selectLink = fn(async (_linkId: string) => ({ url: '#resolved-destination' }))
+const hashHref = (linkId: string) => `#tile-${linkId}`
 
-/** The same tiles after a rating: a tap records the qualified action, then goes to the destination. */
+/** What the tile's own click handler decided, read after it has run and before the browser acts. */
+type TapObservation = { clickedHref: string | null; takenOver: boolean }
+
+/**
+ * Sends a click to a tile and reports whether the page took it over
+ * (`preventDefault`). The observer then cancels the browser's navigation so the
+ * story stays in place. Before a rating nothing may take a tap over.
+ */
+function tap(tile: HTMLElement, init: MouseEventInit = {}): TapObservation {
+  const seen: TapObservation = { clickedHref: tile.getAttribute('href'), takenOver: true }
+  const observe = (event: Event) => {
+    seen.takenOver = event.defaultPrevented
+    event.preventDefault()
+  }
+  document.addEventListener('click', observe)
+  try {
+    tile.dispatchEvent(
+      new MouseEvent('click', { bubbles: true, cancelable: true, button: 0, ...init }),
+    )
+  } finally {
+    document.removeEventListener('click', observe)
+  }
+  return seen
+}
+
+/**
+ * The core rule of the slice: before a rating a tap is a plain navigation. The
+ * page holds no selector, so nothing can reach the recording action; the tile
+ * leaves the click to the browser, which follows its click route.
+ */
+export const TapBeforeARatingIsPlainNavigation: Story = {
+  play: async ({ canvasElement }) => {
+    const seen = tap(within(canvasElement).getByRole('link', { name: /Spa/u }))
+    expect(seen.takenOver).toBe(false)
+    expect(seen.clickedHref).toBe(trackedLinkHref(TOKEN, 'link-spa'))
+  },
+}
+
+/**
+ * The same tiles after a rating: a tap records the qualified action first. The
+ * destination the action resolves here is not an https URL, so the page falls
+ * back to the click route (the tile's href) instead of going to it.
+ */
 export const AfterARating: Story = {
-  args: { selectLink },
+  args: { selectLink, hrefFor: hashHref },
   beforeEach: () => {
     selectLink.mockClear()
+    window.location.hash = ''
   },
   play: async ({ canvasElement }) => {
     await userEvent.click(within(canvasElement).getByRole('link', { name: /Spa/u }))
     expect(selectLink).toHaveBeenCalledTimes(1)
     expect(selectLink).toHaveBeenCalledWith('link-spa')
-    await waitFor(() => expect(window.location.hash).toBe('#resolved-destination'))
+    await waitFor(() => expect(window.location.hash).toBe('#tile-link-spa'))
+  },
+}
+
+/** A modified click is the browser's own (a new tab): the page must not take it over or record it. */
+export const ModifiedClickLeavesTheTapToTheBrowser: Story = {
+  args: { selectLink },
+  beforeEach: () => {
+    selectLink.mockClear()
+  },
+  play: async ({ canvasElement }) => {
+    const spa = within(canvasElement).getByRole('link', { name: /Spa/u })
+    for (const init of [{ ctrlKey: true }, { metaKey: true }, { shiftKey: true }]) {
+      expect(tap(spa, init).takenOver).toBe(false)
+    }
+    expect(tap(spa, { button: 1 }).takenOver).toBe(false)
+    expect(selectLink).not.toHaveBeenCalled()
   },
 }
 

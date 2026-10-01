@@ -57,19 +57,17 @@ describe('ImmersiveLinktree visibility', () => {
   it('renders nothing when there is no link to show', () => {
     expect(render({ links: [] })).toBe('')
   })
-
-  it('renders from arrival: it asks for no rating, response or session', () => {
-    // No prop of the Linktree says whether the guest has rated; only the click
-    // behaviour does, and that is a separate, optional prop.
-    expect(render()).toContain('Spa &amp; treatments')
-  })
 })
 
 describe('ImmersiveLinktree structure', () => {
   const html = render()
 
-  it('names the navigation landmark with the section title', () => {
-    expect(withoutStyle(html)).toContain('<nav aria-label="Around the resort"')
+  it("names the navigation landmark by the visible title, so it keeps the title's language", () => {
+    const nav = tags(html, 'nav')[0] ?? ''
+    const heading = /<h2\b[^>]*\bid="([^"]+)"/u.exec(withoutStyle(html))?.[1]
+    expect(heading).toBeTruthy()
+    expect(nav).toContain(`aria-labelledby="${heading}"`)
+    expect(nav).not.toContain('aria-label=')
   })
 
   it('shows the section title as a heading', () => {
@@ -117,7 +115,6 @@ describe('ImmersiveLinktree structure', () => {
 describe('ImmersiveLinktree title', () => {
   it('uses the language default when the stored title is blank', () => {
     const html = render({ title: { value: '   ', fallbackFrom: null } })
-    expect(html).toContain('<nav aria-label="Useful links"')
     expect(withoutStyle(html)).toMatch(/<h2\b[^>]*>Useful links<\/h2>/u)
   })
 

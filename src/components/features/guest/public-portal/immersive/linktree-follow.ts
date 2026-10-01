@@ -31,9 +31,20 @@ export function bindLinkSelector(
   return (linkId) => selectSecondaryLink({ data: { token, csrfNonce, linkId } })
 }
 
+function isHttpsUrl(value: string): boolean {
+  try {
+    return new URL(value).protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 /**
  * Records the qualified action, then goes to the destination it resolved. When
- * the action fails the guest still arrives, through the click route.
+ * the action fails the guest still arrives, through the click route. A resolved
+ * destination that is not an https URL is never navigated to (ADR 0044 abuse
+ * rule 4, no arbitrary redirects): the click route, which checks it again, takes
+ * the guest instead.
  */
 export async function followLinktreeLink(
   input: Readonly<{
@@ -46,7 +57,8 @@ export async function followLinktreeLink(
   const { linkId, href, select, navigate } = input
   let url = href
   try {
-    url = (await select(linkId)).url
+    const resolved = (await select(linkId)).url
+    if (isHttpsUrl(resolved)) url = resolved
   } catch {
     // The navigation has been approved already: losing the record must not lose the guest.
   }

@@ -12,7 +12,7 @@ import type { CSSProperties } from 'react'
 import { GlassSurface, glassClassName } from '../glass-surface'
 import { ImmersiveFooterView } from '../immersive-footer'
 import type { ImmersiveFooterCopy } from '../immersive-footer-copy'
-import { ImmersiveLinktree } from '../immersive-linktree'
+import { ImmersiveLinktree, type ImmersiveLinktreeLink } from '../immersive-linktree'
 import { LINKTREE_LINKS_EN } from './linktree-links'
 
 const STARS = [1, 2, 3, 4, 5] as const
@@ -96,13 +96,17 @@ const styles = {
   },
 } satisfies Record<string, CSSProperties>
 
-export type ArrivalStandInProps = Readonly<{
+export function ArrivalStandIn({
+  displayName,
+  footerCopy,
+  links = LINKTREE_LINKS_EN,
+}: Readonly<{
   displayName: string
   /** The footer's texts, built by the story from a real pack (`immersiveFooterCopy`). */
   footerCopy: ImmersiveFooterCopy
-}>
-
-export function ArrivalStandIn({ displayName, footerCopy }: ArrivalStandInProps) {
+  /** The Linktree's tiles; board G09 passes tiles without a photo. */
+  links?: readonly ImmersiveLinktreeLink[]
+}>) {
   return (
     <>
       <header style={styles.header}>
@@ -149,7 +153,7 @@ export function ArrivalStandIn({ displayName, footerCopy }: ArrivalStandInProps)
         enabled
         title={{ value: 'Around the resort', fallbackFrom: null }}
         defaultTitle="Useful links"
-        links={LINKTREE_LINKS_EN}
+        links={links}
         hrefFor={() => '#tile'}
       />
       <ImmersiveFooterView
