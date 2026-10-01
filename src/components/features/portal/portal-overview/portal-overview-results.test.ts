@@ -183,6 +183,33 @@ describe('indexOverviewResults', () => {
     expect(index.strip('prop-1')?.caption).toBe('1–30 Sep, Europe/Sofia time')
   })
 
+  it('builds a group strip from the group row, in the window of the Property it sits in', () => {
+    const strip = index.groupStrip('group-pool')
+
+    expect(strip?.cells.map((cell) => cell.value)).toEqual([
+      '698',
+      '209',
+      '4.5',
+      '116',
+      '13',
+    ])
+    // Shares are of the group's own scans: 209 / 698 and 116 / 698.
+    expect(strip?.cells.find((cell) => cell.key === 'ratings')?.detail).toBe(
+      '30% of scans',
+    )
+    expect(strip?.cells.find((cell) => cell.key === 'googleOpens')?.detail).toBe(
+      '17% of scans',
+    )
+    expect(strip?.caption).toBe('1–30 Sep, Europe/Sofia time')
+    expect(strip?.footer).toBe(
+      'Last 30 days, Europe/Sofia time · an average needs 5 private ratings',
+    )
+  })
+
+  it('has no strip for a group the read did not name', () => {
+    expect(index.groupStrip('group-new')).toBeNull()
+  })
+
   it('has no strip for a Property it did not read', () => {
     expect(index.strip('prop-2')).toBeNull()
   })

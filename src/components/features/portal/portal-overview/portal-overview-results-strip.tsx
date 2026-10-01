@@ -39,13 +39,22 @@ type Props = Readonly<{
   propertyId: string | null
   /** Organization strip: how many Properties the list shows, to say when the total has fewer. */
   propertiesListed?: number
+  /** One group's own figures (a group's page) instead of every Portal of the Property. */
+  groupId?: string
 }>
 
 const COLLAPSE_NOTE = 'collapsed properties stay collapsed for you'
 
-function stripOf(state: PortalOverviewResultsState, propertyId: string | null) {
+function stripOf(
+  state: PortalOverviewResultsState,
+  propertyId: string | null,
+  groupId: string | undefined,
+) {
   if (state.status !== 'ready') return null
-  return propertyId === null ? state.index.total() : state.index.strip(propertyId)
+  if (propertyId === null) return state.index.total()
+  return groupId === undefined
+    ? state.index.strip(propertyId)
+    : state.index.groupStrip(groupId)
 }
 
 /** "1–30 Sep, Europe/Sofia time · all portals", or on the Organization's page "all properties". */
@@ -54,6 +63,7 @@ function scopeLine(
   strip: ReturnType<typeof stripOf>,
   propertyId: string | null,
   propertiesListed: number | undefined,
+  groupId: string | undefined,
 ): string {
   const everything =
     propertyId === null
@@ -61,7 +71,9 @@ function scopeLine(
           state.status === 'ready' ? state.index.propertiesRead : null,
           propertiesListed,
         )
-      : 'all portals'
+      : groupId === undefined
+        ? 'all portals'
+        : 'this group'
   return strip?.caption ? `${strip.caption} · ${everything}` : everything
 }
 
@@ -102,10 +114,11 @@ export function PortalOverviewResultsStrip({
   controls,
   propertyId,
   propertiesListed,
+  groupId,
 }: Props) {
   const { state, timeRange, onTimeRangeChange, onRetry, busy = false } = controls
   if (state.status === 'off') return null
-  const strip = stripOf(state, propertyId)
+  const strip = stripOf(state, propertyId, groupId)
   return (
     <section aria-label="Results" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -130,7 +143,7 @@ export function PortalOverviewResultsStrip({
           </SelectContent>
         </Select>
         <p className="text-sm text-muted-foreground">
-          {scopeLine(state, strip, propertyId, propertiesListed)}
+          {scopeLine(state, strip, propertyId, propertiesListed, groupId)}
         </p>
       </div>
       {state.status === 'loading' ? <LoadingStrip /> : null}
@@ -145,9 +158,9 @@ export function PortalOverviewResultsStrip({
 }
 
 /** The footer line under the table: the window, the zone and the floor for an average. */
-export function PortalOverviewResultsFooter({ controls, propertyId }: Props) {
+export function PortalOverviewResultsFooter({ controls, propertyId, groupId }: Props) {
   const { state, busy = false } = controls
-  const strip = stripOf(state, propertyId)
+  const strip = stripOf(state, propertyId, groupId)
   if (!strip) return null
   return (
     <p

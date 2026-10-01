@@ -51,6 +51,10 @@ export type {
   PortalLanguageCoverageRow,
 } from '../domain/portal-language-coverage'
 export type {
+  PortalGroupHistoryEntry,
+  PortalGroupHistoryKind,
+} from '../domain/portal-group-history'
+export type {
   PortalHistoryCategory,
   PortalHistoryDetail,
   PortalHistoryFilter,

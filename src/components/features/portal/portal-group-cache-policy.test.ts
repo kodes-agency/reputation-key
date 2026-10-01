@@ -45,6 +45,8 @@ describe('portalGroupCachePolicy', () => {
         // Every window of it: the group a Portal is in decides which row it adds to.
         { queryKey: portalKeys.resultsOverviewRoot(PROPERTY_ID), exact: false },
         { queryKey: portalKeys.organizationResultsOverviewRoot(), exact: false },
+        // The page of every group: a rename or a move shows on the group and in its history.
+        { queryKey: portalKeys.groupPagesRoot(PROPERTY_ID), exact: false },
       ])
     },
   )
@@ -60,12 +62,15 @@ describe('portalGroupCachePolicy', () => {
       portalKeys.resultsOverview(PROPERTY_ID, '7d', false),
       portalKeys.organizationOverview(),
       portalKeys.organizationResultsOverview('30d', true),
+      portalKeys.groupPage(PROPERTY_ID, 'group-1'),
+      portalKeys.groupHistory(PROPERTY_ID, 'group-1'),
     ]
     const unaffected = [
       portalKeys.list(PROPERTY_ID),
       portalKeys.overview('property-2'),
       portalKeys.resultsOverview('property-2', '30d', true),
       portalKeys.groups('property-2'),
+      portalKeys.groupPage('property-2', 'group-1'),
       portalKeys.goalSubjects('property-2'),
       portalKeys.goalSubjectNames('property-2'),
     ]
@@ -77,9 +82,9 @@ describe('portalGroupCachePolicy', () => {
 
     expect(
       affected.map((queryKey) => queryClient.getQueryState(queryKey)?.isInvalidated),
-    ).toEqual([true, true, true, true, true, true, true, true])
+    ).toEqual(affected.map(() => true))
     expect(
       unaffected.map((queryKey) => queryClient.getQueryState(queryKey)?.isInvalidated),
-    ).toEqual([false, false, false, false, false, false])
+    ).toEqual(unaffected.map(() => false))
   })
 })

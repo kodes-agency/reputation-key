@@ -43,6 +43,13 @@ renamed with the previous name, archived, Portal added, removed, moved in or out
 each with the actor and the time); names live in that ledger, never on a fact.
 `portal_groups.created_by` records who created a group (null before round 4).
 
+A group has a page in the admin (`portals/groups/$groupId`): its results (the group's
+own row of the Portals results read), its Portals, the live goal card and this ledger,
+read through `listPortalGroupHistory` and named in the browser. The New group dialog,
+Add portals (one `movePortalToGroup` per Portal) and Rename write through the same
+commands; the group's head in the Portals overview links to the page. A group with no
+Portal keeps its head in the overview, so it stays reachable.
+
 The link section of the guest page is the **Linktree**. Its working model is
 `portal_link_texts` (one label and optional line per link and language), a title
 per language in `portal_localized_overrides.linktree_title` (null means the

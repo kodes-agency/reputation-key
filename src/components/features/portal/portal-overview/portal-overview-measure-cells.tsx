@@ -11,6 +11,7 @@ import { Star } from 'lucide-react'
 import { Skeleton } from '#/components/ui/skeleton'
 import { TableCell } from '#/components/ui/table'
 import { cn } from '#/lib/utils'
+import { useOverviewClasses } from './portal-overview-density'
 import type { MeasureFigure, MeasureSlot, RowMeasures } from './portal-overview-results'
 
 /** The columns, in board order; the header row and the cells share this list. */
@@ -23,8 +24,6 @@ export const MEASURE_COLUMNS = [
 ] as const satisfies ReadonlyArray<{ key: keyof RowMeasures; label: string }>
 
 const MEASURE_COLUMN_COUNT = MEASURE_COLUMNS.length
-
-const CELL = 'hidden px-2 py-3 text-right text-sm tabular-nums @4xl:table-cell @4xl:w-24'
 
 const MISSING: MeasureFigure = { text: '—', unit: null, tone: 'missing', reason: null }
 
@@ -69,13 +68,11 @@ type Props = Readonly<{
 }>
 
 export function PortalMeasureCells({ slot, draft = false, strong = false }: Props) {
+  const classes = useOverviewClasses()
   if (slot.kind === 'off') return null
   if (draft) {
     return (
-      <TableCell
-        colSpan={MEASURE_COLUMN_COUNT}
-        className="hidden px-2 py-3 text-sm text-muted-foreground @4xl:table-cell"
-      >
+      <TableCell colSpan={MEASURE_COLUMN_COUNT} className={classes.measureSpan}>
         No results until it’s published
       </TableCell>
     )
@@ -83,7 +80,7 @@ export function PortalMeasureCells({ slot, draft = false, strong = false }: Prop
   return (
     <>
       {MEASURE_COLUMNS.map(({ key }) => (
-        <TableCell key={key} className={cn(CELL, strong && 'font-medium')}>
+        <TableCell key={key} className={cn(classes.measureCell, strong && 'font-medium')}>
           {slot.kind === 'loading' ? (
             <Skeleton aria-hidden="true" className="ml-auto h-4 w-10" />
           ) : (

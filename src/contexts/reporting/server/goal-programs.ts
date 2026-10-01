@@ -11,10 +11,12 @@ import {
   type GoalExecutionPolicy,
   type GoalProgramRequestApi,
 } from '../application/use-cases/goal-programs'
+import type { GoalProgressRequestApi } from '../application/use-cases/goal-progress'
 import {
   changeGoalProgramAssignmentsSchema,
   changeGoalProgramStatusSchema,
   createGoalProgramSchema,
+  getGoalProgressSchema,
   goalProgramIdentitySchema,
   listGoalProgramsSchema,
   reviseGoalProgramSchema,
@@ -22,6 +24,7 @@ import {
 export {
   changeGoalProgramAssignmentsSchema,
   createGoalProgramSchema,
+  getGoalProgressSchema,
 } from '../application/dto/goal-program.dto'
 
 const requestActor = (ctx: Awaited<ReturnType<typeof resolveTenantContext>>): GoalActor =>
@@ -69,7 +72,7 @@ const goalProgramStatus = (error: GoalProgramError): number => {
 
 async function withGoalPrograms<T>(
   run: (
-    programs: GoalProgramRequestApi,
+    programs: GoalProgramRequestApi & GoalProgressRequestApi,
     policy: GoalExecutionPolicy,
     actor: GoalActor,
   ) => Promise<T>,
@@ -160,5 +163,18 @@ export const listGoalPrograms = createServerFn({ method: 'GET' })
         })),
       'GET',
       'goal.listGoalPrograms',
+    ),
+  )
+
+export const getGoalProgress = createServerFn({ method: 'GET' })
+  .validator(getGoalProgressSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) =>
+        withGoalPrograms(async (programs, policy, actor) => ({
+          goals: await programs.progress(policy, data, actor),
+        })),
+      'GET',
+      'goal.getGoalProgress',
     ),
   )
