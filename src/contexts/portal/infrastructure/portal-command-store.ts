@@ -55,21 +55,6 @@ type PortalSetValues = {
   updatedAt?: Date
 }
 
-const PORTAL_WORKING_COPY_FIELDS: ReadonlySet<string> = new Set([
-  'name',
-  'slug',
-  'description',
-  'heroImageUrl',
-  'theme',
-  'privateFeedbackThreshold',
-  'primaryGuestLocale',
-  'additionalGuestLocales',
-])
-
-function hasPortalWorkingCopyPatch(patch: UpdatePortalCommand['patch']): boolean {
-  return Object.keys(patch).some((key) => PORTAL_WORKING_COPY_FIELDS.has(key))
-}
-
 function buildPortalSetClause(patch: Readonly<Partial<Portal>>): PortalSetValues {
   const set: PortalSetValues = {}
   if (patch.name !== undefined) set.name = patch.name

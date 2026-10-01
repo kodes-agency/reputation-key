@@ -501,7 +501,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await store.createPortal({
       organizationId: ORG_A,
       portal,
-      initialResponsibleManagerId: MANAGER,
+      initialResponsibleManagerIds: [MANAGER],
       event: createdFact(portal),
     })
 
@@ -545,7 +545,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await store.createPortal({
       organizationId: ORG_A,
       portal,
-      initialResponsibleManagerId: MANAGER,
+      initialResponsibleManagerIds: [MANAGER],
       event: createdFact(portal),
     })
 
