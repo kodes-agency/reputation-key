@@ -1,7 +1,9 @@
 // The code block of the Share tab: the portal's one code, which is both a QR
-// image and an NFC address. The picture and the downloads need the address,
-// which exists in memory only after a code is made or replaced; after a reload
-// the block still says when the code was made and still offers replace and stop.
+// image and an NFC address. The picture and the downloads need the address. It
+// is in memory after a code is made, replaced or fetched again; after a reload
+// it is fetched again on demand when the code was sealed (ADR 0064), and
+// otherwise gone. The block still says when the code was made and still offers
+// replace and stop.
 
 import { Calendar, Check, Clock, Copy, Info, QrCode } from 'lucide-react'
 import { Button } from '#/components/ui/button'
@@ -9,7 +11,7 @@ import { PortalCodeActions } from './portal-code-actions'
 import { PortalDownloadMenu } from './portal-download-menu'
 import { QR_INK, QR_PAPER } from './portal-qr'
 import { COPY_FAILED_MESSAGE } from './use-copy-link'
-import { usePortalCodeDownload } from './use-portal-code-download'
+import { usePortalCodeDownload, type ResolveQrAddress } from './use-portal-code-download'
 import { usePortalQrPreview } from './use-portal-qr-preview'
 import type { RefObject } from 'react'
 import type { PortalShareView } from './portal-share-state'
@@ -26,6 +28,10 @@ type Props = Readonly<{
   nfcCopied: boolean
   nfcCopyFailed: boolean
   onCopyNfc: () => Promise<void>
+  /** Download again is on: the manager can fetch the address when it is not in memory. */
+  canDownloadAgain: boolean
+  /** Fetches the QR address for a file; null when download again is off. */
+  resolveQrAddress: ResolveQrAddress | null
   isPending: boolean
   rotateMutation: PortalShareMutations['rotateMutation']
   revokeMutation: PortalShareMutations['revokeMutation']
@@ -43,13 +49,15 @@ export function PortalCodeBlock({
   nfcCopied,
   nfcCopyFailed,
   onCopyNfc,
+  canDownloadAgain,
+  resolveQrAddress,
   isPending,
   rotateMutation,
   revokeMutation,
   onLinkIssued,
   onLinksRevoked,
 }: Props) {
-  const download = usePortalCodeDownload(qrAddress, portalName)
+  const download = usePortalCodeDownload(qrAddress, portalName, resolveQrAddress)
 
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-start">
@@ -73,19 +81,21 @@ export function PortalCodeBlock({
           )}
           {qrAddress === null && (
             <CodeFact icon={<Info />}>
-              The QR image and the addresses are shown only when a code is made or
-              replaced.
+              {canDownloadAgain
+                ? 'Download the code again whenever you need it. Each download is recorded in History.'
+                : 'The QR image and the addresses are shown only when a code is made or replaced.'}
             </CodeFact>
           )}
         </ul>
         <div className="flex flex-wrap gap-2">
-          {qrAddress !== null && (
+          {(qrAddress !== null || canDownloadAgain) && (
             <PortalDownloadMenu
-              disabled={download.isWorking}
+              disabled={download.isWorking || isPending}
+              again={qrAddress === null}
               onDownload={(format) => void download.download(format)}
             />
           )}
-          {nfcAddress !== null && (
+          {(nfcAddress !== null || canDownloadAgain) && (
             <Button
               type="button"
               variant="outline"

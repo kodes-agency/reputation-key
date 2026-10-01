@@ -1,13 +1,12 @@
-// Copy state for the one-time opaque portal link, shared by the share tab and
-// the QR modal so both surface the same failure.
+// Copy state for the portal link, shared by the share tab and the QR modal so
+// both surface the same failure.
 //
 // `copyToClipboard` deliberately returns false instead of throwing (see the
 // contract note in src/lib/clipboard.ts) — it fails on insecure origins, in
 // sandboxed iframes, and when clipboard permission is denied. Swallowing that
 // makes the button a silent no-op, and an operator printing a QR batch then
 // pastes whatever was already on the clipboard over a fresh code. On failure we
-// say so and select the rendered link so the user can copy it by hand; the raw
-// URL is shown only once, so there is no second chance to retrieve it.
+// say so and select the rendered link so the user can copy it by hand.
 
 import { useCallback, useRef, useState } from 'react'
 import { copyToClipboard } from '#/lib/clipboard'
@@ -30,7 +29,8 @@ export type CopyLinkState = Readonly<{
   linkRef: RefObject<HTMLElement | null>
   copied: boolean
   copyFailed: boolean
-  copyLink: () => Promise<void>
+  /** Copies the link, or `address` when the caller has just fetched a newer one. */
+  copyLink: (address?: string) => Promise<void>
 }>
 
 export function useCopyLink(publicUrl: string | null): CopyLinkState {
@@ -38,18 +38,22 @@ export function useCopyLink(publicUrl: string | null): CopyLinkState {
   const [copied, setCopied] = useState(false)
   const [copyFailed, setCopyFailed] = useState(false)
 
-  const copyLink = useCallback(async () => {
-    if (!publicUrl) return
-    if (await copyToClipboard(publicUrl)) {
-      setCopyFailed(false)
-      setCopied(true)
-      window.setTimeout(() => setCopied(false), COPIED_RESET_MS)
-      return
-    }
-    setCopied(false)
-    setCopyFailed(true)
-    selectElementText(linkRef.current)
-  }, [publicUrl])
+  const copyLink = useCallback(
+    async (address?: string) => {
+      const target = address ?? publicUrl
+      if (!target) return
+      if (await copyToClipboard(target)) {
+        setCopyFailed(false)
+        setCopied(true)
+        window.setTimeout(() => setCopied(false), COPIED_RESET_MS)
+        return
+      }
+      setCopied(false)
+      setCopyFailed(true)
+      selectElementText(linkRef.current)
+    },
+    [publicUrl],
+  )
 
   return { linkRef, copied, copyFailed, copyLink } as const
 }

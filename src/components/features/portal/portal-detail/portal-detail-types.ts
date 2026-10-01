@@ -26,6 +26,7 @@ import type {
   PortalTokenStatus,
 } from '#/contexts/portal/application/public-api'
 import type { PortalDetailTab } from './portal-detail-rules'
+import type { PortalShareMutations } from '../portal-share/portal-share-types'
 import type { PortalEditorSection } from '../portal-editor/portal-editor-sections'
 import type { PortalGroupView } from '../portal-group-types'
 import type { GoogleReviewDestinationStatus } from '../portal-settings/google-review-destination-status'
@@ -77,6 +78,8 @@ export type PortalDetailResources = Readonly<{
   issueTokenMutation: Action<{ data: { portalId: string } }, IssuedPortalLink>
   rotateTokenMutation: Action<{ data: RotatePortalLinkInput }, IssuedPortalLink>
   revokeTokenMutation: Action<{ data: { portalId: string; reason: string } }, unknown>
+  /** "Download again": the live code's address, from its sealed copy. */
+  revealAddressMutation: PortalShareMutations['revealMutation']
   /** C2: whether a public link is live. The raw URL is never part of this. */
   tokenStatus: PortalTokenStatus
   getPortalAnalytics: typeof getPortalAnalyticsFn

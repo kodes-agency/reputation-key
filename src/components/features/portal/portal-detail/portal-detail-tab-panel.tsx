@@ -33,6 +33,7 @@ type SharePanelProps = Pick<
   | 'issueTokenMutation'
   | 'rotateTokenMutation'
   | 'revokeTokenMutation'
+  | 'revealAddressMutation'
 > &
   PortalLinkIssuance
 
@@ -42,9 +43,11 @@ function SharePanel({
   issueTokenMutation,
   rotateTokenMutation,
   revokeTokenMutation,
+  revealAddressMutation,
   issuedLink,
   linksRevoked,
   onLinkIssued,
+  onAddressRevealed,
   onLinksRevoked,
 }: SharePanelProps) {
   return (
@@ -55,10 +58,12 @@ function SharePanel({
       revoked={linksRevoked}
       tokenStatus={tokenStatus}
       onLinkIssued={onLinkIssued}
+      onAddressRevealed={onAddressRevealed}
       onLinksRevoked={onLinksRevoked}
       issueMutation={issueTokenMutation}
       rotateMutation={rotateTokenMutation}
       revokeMutation={revokeTokenMutation}
+      revealMutation={revealAddressMutation}
     />
   )
 }

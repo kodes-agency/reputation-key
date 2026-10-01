@@ -17,6 +17,7 @@ import {
   liveStatusMessage,
   resolveMutationState,
 } from './portal-share-state'
+import { useAddressReveal } from './use-address-reveal'
 import { useCopyLink } from './use-copy-link'
 import type { PortalShareProps } from './portal-share-types'
 
@@ -42,7 +43,20 @@ export function PortalShare(props: PortalShareProps) {
     revoked: props.revoked,
     publicUrl,
     tokenStatus: props.tokenStatus,
+    addressRevealed: props.issuedLink?.revealed ?? false,
   })
+  // "Download again": each of these fetches the address once, which the server
+  // records, and then works from memory like a made address.
+  const reveal = useAddressReveal(props)
+  const showAddress = async () => {
+    await reveal('copy')
+  }
+  const resolveQrAddress = async () => (await reveal('download'))?.publicUrl ?? null
+  const copyNfcAddress = async () => {
+    if (nfcPublicUrl !== null) return copyNfc()
+    const nfc = (await reveal('copy'))?.publicUrls?.nfc
+    if (nfc !== undefined) await copyNfc(nfc)
+  }
 
   return (
     <section className="flex flex-col gap-8" aria-label="Share">
@@ -52,13 +66,16 @@ export function PortalShare(props: PortalShareProps) {
 
       <PortalRevokedNotice show={view.showRevokedNotice} />
 
-      {view.showAddress && (
+      {view.showAddressRow && (
         <PortalLinkReveal
           publicUrl={directUrl}
           linkRef={linkRef}
           copied={copied}
           copyFailed={copyFailed}
           onCopy={copyLink}
+          showSaveWarning={view.showSaveWarning}
+          onShowAddress={view.canDownloadAgain ? showAddress : null}
+          disabled={isPending}
         />
       )}
 
@@ -86,7 +103,9 @@ export function PortalShare(props: PortalShareProps) {
             nfcLinkRef={nfcLinkRef}
             nfcCopied={nfcCopied}
             nfcCopyFailed={nfcCopyFailed}
-            onCopyNfc={copyNfc}
+            onCopyNfc={copyNfcAddress}
+            canDownloadAgain={view.canDownloadAgain}
+            resolveQrAddress={view.canDownloadAgain ? resolveQrAddress : null}
             isPending={isPending}
             rotateMutation={props.rotateMutation}
             revokeMutation={props.revokeMutation}

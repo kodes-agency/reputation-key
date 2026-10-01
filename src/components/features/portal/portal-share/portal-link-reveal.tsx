@@ -1,11 +1,11 @@
-// The public address, in the one render in which it exists: show it, and let it
-// be copied. Renders nothing once the address is gone (a reload, or a stop) —
-// the code block says what is left then.
-//
-// Stays until the encrypted address lands (slice 33): until then this is the
-// only place a newly made code's address appears, so it must not be removed.
+// The public address. With an address in memory (just made, replaced or fetched
+// again) it is shown and can be copied. When the live code was sealed, the row
+// is there after a reload too, with a button that fetches the address again;
+// otherwise it renders nothing once the address is gone, and the code block says
+// what is left. The "save it now" warning belongs only to an address that
+// cannot be fetched again (ADR 0064).
 
-import { Copy, Link2 } from 'lucide-react'
+import { Copy, Eye, Link2 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { COPY_FAILED_MESSAGE } from './use-copy-link'
@@ -17,6 +17,10 @@ type Props = Readonly<{
   copied: boolean
   copyFailed: boolean
   onCopy: () => Promise<void>
+  showSaveWarning: boolean
+  /** Fetching the address again, when it is not in memory. Null when it cannot be. */
+  onShowAddress: (() => Promise<void>) | null
+  disabled: boolean
 }>
 
 export function PortalLinkReveal({
@@ -25,8 +29,11 @@ export function PortalLinkReveal({
   copied,
   copyFailed,
   onCopy,
+  showSaveWarning,
+  onShowAddress,
+  disabled,
 }: Props) {
-  if (publicUrl === null) return null
+  if (publicUrl === null && onShowAddress === null) return null
   return (
     <section className="flex flex-col gap-3" aria-labelledby="public-address-heading">
       <div className="flex flex-col gap-1">
@@ -37,29 +44,62 @@ export function PortalLinkReveal({
           Opens the portal. Use it on your website, in emails and in booking messages.
         </p>
       </div>
-      <SaveAddressWarning />
-      <div className="flex flex-col gap-2 sm:flex-row">
-        <code
-          ref={linkRef}
-          className="min-w-0 flex-1 break-all rounded-md border bg-muted px-3 py-2 text-sm"
-        >
-          {publicUrl}
-        </code>
+      {showSaveWarning && <SaveAddressWarning />}
+      {publicUrl === null ? (
         <Button
           type="button"
           variant="outline"
-          className="min-h-11 sm:min-h-9"
-          onClick={() => void onCopy()}
+          className="min-h-11 self-start sm:min-h-9"
+          disabled={disabled}
+          onClick={() => void onShowAddress?.()}
         >
-          <Copy data-icon="inline-start" /> {copied ? 'Copied' : 'Copy'}
+          <Eye data-icon="inline-start" /> Show address
         </Button>
-      </div>
+      ) : (
+        <AddressRow
+          publicUrl={publicUrl}
+          linkRef={linkRef}
+          copied={copied}
+          onCopy={onCopy}
+        />
+      )}
       {copyFailed && (
         <p className="text-sm text-destructive" role="alert">
           {COPY_FAILED_MESSAGE}
         </p>
       )}
     </section>
+  )
+}
+
+function AddressRow({
+  publicUrl,
+  linkRef,
+  copied,
+  onCopy,
+}: Readonly<{
+  publicUrl: string
+  linkRef: RefObject<HTMLElement | null>
+  copied: boolean
+  onCopy: () => Promise<void>
+}>) {
+  return (
+    <div className="flex flex-col gap-2 sm:flex-row">
+      <code
+        ref={linkRef}
+        className="min-w-0 flex-1 break-all rounded-md border bg-muted px-3 py-2 text-sm"
+      >
+        {publicUrl}
+      </code>
+      <Button
+        type="button"
+        variant="outline"
+        className="min-h-11 sm:min-h-9"
+        onClick={() => void onCopy()}
+      >
+        <Copy data-icon="inline-start" /> {copied ? 'Copied' : 'Copy'}
+      </Button>
+    </div>
   )
 }
 
