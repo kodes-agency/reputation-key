@@ -13,7 +13,7 @@ import type { StoragePort } from './application/ports/storage.port'
 import { createPortalPrintKit } from './application/use-cases/create-portal-print-kit'
 import { getPortalPrintKit } from './application/use-cases/get-portal-print-kit'
 import type { RevealPortalAddress } from './application/use-cases/reveal-portal-address'
-import { createPdfKitPrintKitRenderer } from './infrastructure/print-kit/pdfkit-print-kit-renderer'
+import type { PortalPrintKitRenderer } from './application/ports/portal-print-kit-renderer.port'
 
 export type PortalPrintKitDeps = Readonly<{
   portalRepo: PortalRepository
@@ -27,6 +27,18 @@ export type PortalPrintKitDeps = Readonly<{
   revealAddress: RevealPortalAddress
   clock: () => Date
 }>
+
+// The PDF renderer carries the font data URIs, which only the bundlers (Vite,
+// tsup) can import; loading it on first use keeps every process that never
+// makes a print kit (the simulation script under tsx among them) from
+// resolving them.
+const lazyRenderer = (now: () => Date): PortalPrintKitRenderer => ({
+  render: async (input) => {
+    const { createPdfKitPrintKitRenderer } =
+      await import('./infrastructure/print-kit/pdfkit-print-kit-renderer')
+    return createPdfKitPrintKitRenderer({ now }).render(input)
+  },
+})
 
 export function buildPortalPrintKit(deps: PortalPrintKitDeps) {
   return {
@@ -43,7 +55,7 @@ export function buildPortalPrintKit(deps: PortalPrintKitDeps) {
       objectStore: deps.objectStore,
       sha256Hex: (bytes) => createHash('sha256').update(bytes).digest('hex'),
       revealAddress: deps.revealAddress,
-      renderer: createPdfKitPrintKitRenderer({ now: deps.clock }),
+      renderer: lazyRenderer(deps.clock),
     }),
   }
 }

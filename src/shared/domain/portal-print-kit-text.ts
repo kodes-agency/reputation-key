@@ -107,3 +107,15 @@ export function fitLines(
     candidate = Math.max(SMALLEST_SIZE, candidate - SHRINK_STEP)
   }
 }
+
+/**
+ * The two lines an address too long for one is broken into: before its last
+ * slash, so they read host/path and then the code. Null when there is no such
+ * break (the address stays on one line).
+ */
+export function breakAddress(address: string): readonly [string, string] | null {
+  const cut = address.lastIndexOf('/') + 1
+  return cut > 0 && cut < address.length
+    ? [address.slice(0, cut), address.slice(cut)]
+    : null
+}

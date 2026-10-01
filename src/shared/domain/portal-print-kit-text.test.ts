@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fitFontSize, fitLines, wrapWords } from './portal-print-kit-text'
+import { breakAddress, fitFontSize, fitLines, wrapWords } from './portal-print-kit-text'
 
 const byLength = (text: string) => text.length
 
@@ -107,5 +107,19 @@ describe('fitLines', () => {
 
   it('has no lines for blank text', () => {
     expect(fitLines({ ...base, text: '  ' }).lines).toEqual([])
+  })
+})
+
+describe('breakAddress', () => {
+  it('breaks before the last slash segment, so the code takes the second line', () => {
+    expect(breakAddress('https://a.example/p/pt_Code')).toEqual([
+      'https://a.example/p/',
+      'pt_Code',
+    ])
+  })
+
+  it('has no break when nothing follows the last slash or there is no slash', () => {
+    expect(breakAddress('https://a.example/p/')).toBeNull()
+    expect(breakAddress('example')).toBeNull()
   })
 })

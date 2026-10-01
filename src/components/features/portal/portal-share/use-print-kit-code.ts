@@ -8,7 +8,7 @@ import { PLATE_INK, PLATE_PAPER } from '#/shared/domain/portal-print-kit-layout'
 import { QR_QUIET_ZONE_MODULES, renderQrSvg } from './portal-qr'
 
 /** Drawn when the live address is not in memory: a code that opens nothing of ours. */
-export const PREVIEW_SAMPLE_ADDRESS = 'https://example.com/p/sample'
+const PREVIEW_SAMPLE_ADDRESS = 'https://example.com/p/sample'
 
 export function usePrintKitCode(address: string | null): string | null {
   const source = address ?? PREVIEW_SAMPLE_ADDRESS

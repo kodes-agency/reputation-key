@@ -31,11 +31,7 @@ const wordmarkStyle = (size: number): PdfTextStyle => ({
 })
 
 /** The wordmark's lines and the size they are set at. */
-export function layoutWordmark(
-  doc: PDFKit.PDFDocument,
-  fonts: PrintKitFonts,
-  wordmark: string,
-) {
+function layoutWordmark(doc: PDFKit.PDFDocument, fonts: PrintKitFonts, wordmark: string) {
   return fitLines({
     text: wordmark.toUpperCase(),
     size: TYPE_PT.wordmark,

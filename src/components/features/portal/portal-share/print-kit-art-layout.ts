@@ -3,7 +3,11 @@
 // preview cannot, so it estimates from the average width of a character, which
 // is close enough to place a plate and a line.
 
-import { fitLines, type FittedLines } from '#/shared/domain/portal-print-kit-text'
+import {
+  breakAddress,
+  fitLines,
+  type FittedLines,
+} from '#/shared/domain/portal-print-kit-text'
 import {
   BOTTOM_MARGIN_MM,
   BRAND_FIT,
@@ -49,10 +53,8 @@ function fitted(lines: readonly string[]): PreviewAddress {
 export function previewAddress(address: string): PreviewAddress {
   const single = fitted([address])
   if (widthMm(address, single.sizePt) <= lineWidthMm) return single
-  const cut = address.lastIndexOf('/') + 1
-  return cut > 0 && cut < address.length
-    ? fitted([address.slice(0, cut), address.slice(cut)])
-    : single
+  const broken = breakAddress(address)
+  return broken ? fitted(broken) : single
 }
 
 /**

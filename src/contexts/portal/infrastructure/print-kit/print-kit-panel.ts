@@ -34,7 +34,7 @@ import type { PrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import { drawCentredLine, measureLine, type PrintKitFonts } from './print-kit-pdf-text'
 import { qrDarkRuns, qrPlateModules, type QrMatrix } from './print-kit-qr'
 import { fitStack, layoutStack, measureWith } from './print-kit-stack'
-import { fitFontSize } from '#/shared/domain/portal-print-kit-text'
+import { breakAddress, fitFontSize } from '#/shared/domain/portal-print-kit-text'
 
 export type PanelBleed = Readonly<{ topMm: number; sideMm: number; bottomMm: number }>
 
@@ -167,11 +167,8 @@ function layoutAddress(
   }
   const single = fitted([address])
   if (widest([address])(single.size) <= TEXT_WIDTH_PT) return single
-  // Break before the token, so the two lines read host/path and then the code.
-  const cut = address.lastIndexOf('/') + 1
-  return cut > 0 && cut < address.length
-    ? fitted([address.slice(0, cut), address.slice(cut)])
-    : single
+  const broken = breakAddress(address)
+  return broken ? fitted(broken) : single
 }
 
 function drawPlate(doc: PDFKit.PDFDocument, art: PanelArt, plateTopMm: number): void {
