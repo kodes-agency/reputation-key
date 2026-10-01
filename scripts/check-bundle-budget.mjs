@@ -166,6 +166,21 @@
 // 26,895 B (+315 B), the entry chunk 43,769 B -> 43,760 B. `main` had 174 B of
 // headroom under its 333,300 B. The budget moves to 333,800 B.
 //
+// 2026-10-01 (Portal round 4, s19, the v3 writer and the guest mount): fresh
+// production builds of main (021f6bcc6) and of this change: 333,126 B -> 333,290
+// B (79 js + 1 css), +164 B, all of it in the entry chunk (43,769 B -> 43,933 B):
+// the guest route's loader now reads the page's copy pack and `servedAt`, and
+// the route's component names the Immersive Hub. Every other chunk, the
+// stylesheet and the chunk count are unchanged. The Immersive Hub page itself is
+// NOT in this closure: its code and its CSS strings (TypeScript strings that
+// ship with the page's JavaScript) sit in the guest route's lazy component
+// chunk, and the copy packs sit behind a dynamic import. The first attempt
+// imported the pack loader from the guest barrel inside the loader, which is in
+// the route's critical chunk: that put the whole guest page into the initial
+// closure (383,029 B, +49,903 B), so the loader imports the loader's own module
+// dynamically and a comment on it says why. The budget moves to 333,700 B, which
+// leaves 410 B for the slices that follow.
+//
 // When this fails: resolve the new static importer and cut that source edge. Do
 // NOT raise the budget without recording a fresh production measurement here.
 // When a cycle fails it: the chunk group that moved a module away from the
@@ -181,7 +196,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 333_800, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730; raised to 331,400 on 2026-10-01 for the Linktree editor rebased onto the Languages section, measured 331,093; raised to 332,000 on 2026-10-01 for the All properties route, measured 331,663 (main 331,230); raised to 333,300 for the group page route, measured 332,881; raised to 333,800 on 2026-10-01 for the inbox phone bars, measured 333,447 (main 333,126)
+  initialClosureGzip: 334_300, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730; raised to 331,400 on 2026-10-01 for the Linktree editor rebased onto the Languages section, measured 331,093; raised to 332,000 on 2026-10-01 for the All properties route, measured 331,663 (main 331,230); raised to 333,300 for the group page route, measured 332,881; raised to 333,800 on 2026-10-01 for the inbox phone bars, measured 333,447 (main 333,126); raised to 334,300 on 2026-10-01 for the v3 writer and the guest mount rebased onto the inbox phone bars, measured TBD
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 
