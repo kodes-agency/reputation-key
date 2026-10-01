@@ -167,23 +167,48 @@ describe('portalMediaAssetRepository (integration)', () => {
     })
 
     it.each([
-      ['an unknown purpose', { purpose: 'banner' }],
-      ['an unknown status', { status: 'deleted' }],
-      ['taken down without a time', { status: 'taken_down' }],
-      ['a time without being taken down', { taken_down_at: new Date() }],
+      ['an unknown purpose', { purpose: 'banner' }, 'portal_media_assets_purpose_valid'],
+      ['an unknown status', { status: 'deleted' }, 'portal_media_assets_status_valid'],
+      [
+        'taken down without a time',
+        { status: 'taken_down' },
+        'portal_media_assets_takedown_consistent',
+      ],
+      [
+        'a time without being taken down',
+        { taken_down_at: new Date() },
+        'portal_media_assets_takedown_consistent',
+      ],
       [
         'a key that is not derived from the id',
         { object_key: 'portal-media/other.webp' },
+        'portal_media_assets_object_key_derived',
       ],
-      ['a stored format other than WebP', { content_type: 'image/png' }],
-      ['a zero width', { width: 0 }],
-      ['a width beyond the snapshot limit', { width: 16_385 }],
-      ['no bytes', { byte_size: 0 }],
-      ['a malformed hash', { content_sha256: 'XYZ' }],
-      ['a source format outside the accepted set', { source_format: 'gif' }],
-      ['a Property of another Organization', { organization_id: ORG_B }],
-    ])('refuses %s', async (_name, overrides) => {
-      await expect(refused(overrides)).rejects.toThrow()
+      [
+        'a stored format other than WebP',
+        { content_type: 'image/png' },
+        'portal_media_assets_content_type_webp',
+      ],
+      ['a zero width', { width: 0 }, 'portal_media_assets_dimensions_valid'],
+      [
+        'a width beyond the snapshot limit',
+        { width: 16_385 },
+        'portal_media_assets_dimensions_valid',
+      ],
+      ['no bytes', { byte_size: 0 }, 'portal_media_assets_byte_size_positive'],
+      ['a malformed hash', { content_sha256: 'XYZ' }, 'portal_media_assets_sha256_valid'],
+      [
+        'a source format outside the accepted set',
+        { source_format: 'gif' },
+        'portal_media_assets_source_format_valid',
+      ],
+      [
+        'a Property of another Organization',
+        { organization_id: ORG_B },
+        'portal_media_assets_property_tenant_fk',
+      ],
+    ])('refuses %s', async (_name, overrides, constraint) => {
+      await expect(refused(overrides)).rejects.toMatchObject({ constraint })
     })
 
     it('refuses two assets claiming one object', async () => {
@@ -191,7 +216,7 @@ describe('portalMediaAssetRepository (integration)', () => {
       await repo().insert(first)
       await expect(
         refused({ id: randomUUID(), object_key: first.objectKey }),
-      ).rejects.toThrow()
+      ).rejects.toMatchObject({ constraint: 'portal_media_assets_object_key_derived' })
     })
   })
 
@@ -238,7 +263,9 @@ describe('portalMediaAssetRepository (integration)', () => {
           hero_focal_x: 0.5,
           hero_focal_y: 0.5,
         }),
-      ).rejects.toThrow()
+      ).rejects.toMatchObject({
+        constraint: 'property_portal_brand_profiles_hero_asset_fk',
+      })
     })
 
     it.each([
