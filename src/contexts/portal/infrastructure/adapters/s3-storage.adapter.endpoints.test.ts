@@ -3,7 +3,7 @@
 // local path-style store. A small in-process S3 stands in for the store so the
 // real SDK signs, sends and reads over HTTP.
 
-import { createServer, type Server } from 'node:http'
+import { createServer, type IncomingHttpHeaders, type Server } from 'node:http'
 import type { AddressInfo } from 'node:net'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { storageConnectSources } from '#/shared/security/security-headers'
@@ -136,7 +136,12 @@ describe('the page may connect to wherever an upload is signed for', () => {
 
 describe('against a local S3-compatible store (path style)', () => {
   const objects = new Map<string, StoredObject>()
-  const requests: Array<{ method: string; path: string; search: URLSearchParams }> = []
+  const requests: Array<{
+    method: string
+    path: string
+    search: URLSearchParams
+    headers: IncomingHttpHeaders
+  }> = []
   let server: Server
   let config: S3StorageConfig
 
@@ -147,6 +152,7 @@ describe('against a local S3-compatible store (path style)', () => {
         method: req.method ?? '',
         path: url.pathname,
         search: url.searchParams,
+        headers: req.headers,
       })
       const chunks: Buffer[] = []
       req.on('data', (chunk: Buffer) => chunks.push(chunk))
@@ -226,10 +232,18 @@ describe('against a local S3-compatible store (path style)', () => {
     ).rejects.toMatchObject({ name: 'NotFound' })
   })
 
-  it('writes and reads server-side without a checksum trailer the store may not parse', async () => {
+  it('writes server-side without the checksum headers the SDK adds by default, which a store may refuse', async () => {
     const adapter = createS3StorageAdapter(config)
+    requests.length = 0
 
     await adapter.putObject('portal-media/a.webp', Buffer.from('webp'), 'image/webp')
+
+    const put = requests.find((request) => request.method === 'PUT')
+    const checksumHeaders = Object.keys(put?.headers ?? {}).filter(
+      (name) =>
+        name.startsWith('x-amz-checksum-') || name === 'x-amz-sdk-checksum-algorithm',
+    )
+    expect(checksumHeaders).toEqual([])
 
     expect(await adapter.getObject('portal-media/a.webp', 100)).toEqual({
       body: new Uint8Array(Buffer.from('webp')),

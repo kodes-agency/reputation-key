@@ -43,8 +43,8 @@ export function buildS3ClientConfigs(config: ConfiguredS3Storage) {
     forcePathStyle: config.forcePathStyle ?? false,
     // Only checksum what the protocol requires. The SDK default also signs the
     // checksum of an EMPTY body into a presigned upload URL, which a store that
-    // checks it then refuses for any real file; and it frames server-side puts
-    // in a checksum trailer that S3-compatible stores do not all parse.
+    // checks it then refuses for any real file; and it adds checksum headers to
+    // every server-side put, which S3-compatible stores do not all accept.
     requestChecksumCalculation: 'WHEN_REQUIRED' as const,
     responseChecksumValidation: 'WHEN_REQUIRED' as const,
   }
