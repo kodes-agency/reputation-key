@@ -116,7 +116,7 @@ export function CreateOrganizationForm({ provision, onAttempt }: Props) {
         </form.Field>
       </FieldGroup>
 
-      <SubmitButton mutation={provision} form={form} className="self-end">
+      <SubmitButton mutation={provision} form={form} className="ml-auto">
         Create and send invitation
       </SubmitButton>
     </form>

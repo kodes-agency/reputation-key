@@ -18,10 +18,10 @@ import {
 import {
   cancelOrganizationAdminInvitationFn,
   inviteOrganizationAdminFn,
-  listPlatformOrganizationsFn,
   provisionOrganizationFn,
   resendOrganizationAdminInvitationFn,
-} from '#/contexts/identity/server/platform-console'
+} from '#/contexts/identity/server/platform-console-changes'
+import { listPlatformOrganizationsFn } from '#/contexts/identity/server/platform-console'
 import { getSession } from '#/shared/auth/auth.functions'
 import { authClient } from '#/shared/auth/auth-client'
 import { platformKeys } from '#/shared/queries/query-keys'

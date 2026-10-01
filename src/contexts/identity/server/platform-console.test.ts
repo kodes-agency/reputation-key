@@ -54,10 +54,10 @@ vi.mock('./platform-console-rate-limit.server', () => ({
 import {
   cancelOrganizationAdminInvitationHandler,
   inviteOrganizationAdminHandler,
-  listPlatformOrganizationsHandler,
   provisionOrganizationHandler,
   resendOrganizationAdminInvitationHandler,
-} from './platform-console'
+} from './platform-console-changes'
+import { listPlatformOrganizationsHandler } from './platform-console'
 
 const OPERATOR = { userId: 'user-operator', email: 'owner@example.com', name: 'Bo' }
 const ACTOR = { userId: 'user-operator', name: 'Bo' }

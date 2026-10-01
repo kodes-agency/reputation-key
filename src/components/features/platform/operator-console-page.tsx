@@ -107,7 +107,7 @@ export function OperatorConsolePage({ organizations, actions, onSignInAgain }: P
   ].some((action) => isReauthRequired(action.error))
 
   return (
-    <div className="page-wrap px-4 pb-10 pt-8 sm:pt-12">
+    <div className="page-wrap px-4 pb-8 pt-14">
       <PageShell>
         <PageHeader
           title="Operator console"
