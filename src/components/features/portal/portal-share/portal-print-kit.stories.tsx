@@ -33,6 +33,7 @@ const liveToken = (addressRecoverable: boolean): PortalTokenStatus => ({
   issuedAt: '2026-03-12T09:30:00.000Z',
   graceExpiresAt: null,
   addressRecoverable,
+  madeBy: null,
 })
 
 /** A photograph's stand-in: a warm sky over a dark terrace, as a picture the browser can load. */

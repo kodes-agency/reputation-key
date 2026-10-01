@@ -83,6 +83,7 @@ const setup = (
         gracePeriodEnds: null,
         hasPublishedAccessArtifact: true,
         addressKeyVersion: null,
+        issuedBy: null,
       }),
     },
     propertyGoogleReviewDestinationApi: {

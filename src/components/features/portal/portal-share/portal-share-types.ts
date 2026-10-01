@@ -12,6 +12,11 @@ export type IssuedPortalLink = Readonly<{
    * ahead of `tokenStatus`, which is stale until the detail refetch lands.
    */
   addressRecoverable?: boolean
+  /**
+   * Set by issue and replace: the version of the code they made. `tokenStatus`
+   * describes that code once its own `version` reaches this one.
+   */
+  version?: number
 }>
 
 /** Why the address is wanted; recorded with the disclosure and nothing else. */

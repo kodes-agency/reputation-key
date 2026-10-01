@@ -311,7 +311,15 @@ records a `portal_address_downloads` row, then decrypts, and its server function
 is a no-store POST behind an actor and Organization rate limit. The token status
 carries `addressRecoverable` so the page offers the download only when the
 keyring still holds the key that sealed the live code. Without a keyring the
-address is shown once, when a code is made, as before.
+address is shown once, when a code is made, as before. The same reveal, for the
+purpose `show`, backs the workspace header's "Open page", which opens the bare
+`/p/<token>` address (no scan marker) in a new tab and is offered only for a live
+portal with a recoverable live code (an address already held in the browser opens
+with no reveal); otherwise it links to Share, and it is absent for a caller
+without `portal.update` and `portal.write`, and on the Share tab itself. The token status
+also carries `madeBy`, the display name of the person `issued_by` recorded for the
+live code (an operator reads as the fixed label; null when unknown), which Share
+words as "Made 12 Mar by …". Only `getPortal` resolves it.
 
 `getPortalPreview` is the read behind the editor's live preview (A8): the guest page of one
 Portal, per language, from the saved working copy (`draft`) or the active verified snapshot

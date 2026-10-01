@@ -149,6 +149,7 @@ function setup(options: Options = {}) {
               gracePeriodEnds: null,
               hasPublishedAccessArtifact: true,
               addressKeyVersion: null,
+              issuedBy: null,
             },
     },
     propertyGoogleReviewDestinationApi: {
@@ -519,6 +520,7 @@ describe('publishPortalsChanges', () => {
                 gracePeriodEnds: null,
                 hasPublishedAccessArtifact: true,
                 addressKeyVersion: null,
+                issuedBy: null,
               }
             : null,
       },

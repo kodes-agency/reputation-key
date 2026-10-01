@@ -15,9 +15,10 @@ import {
   PortalViewOnlyNotice,
 } from './portal-share-notices'
 import {
-  derivePortalShareView,
+  derivePortalShareViewFromProps,
   liveStatusMessage,
   resolveMutationState,
+  showScanGoalReadiness,
 } from './portal-share-state'
 import { usePortalShareAddresses } from './use-portal-share-addresses'
 import { usePortalPrintKit } from './use-portal-print-kit'
@@ -36,14 +37,7 @@ export function PortalShare(props: PortalShareProps) {
     copyFailed: nfcCopyFailed,
   } = addresses.nfc
   const { error, isPending } = resolveMutationState(props)
-  const view = derivePortalShareView({
-    canManage: can('portal.update'),
-    revoked: props.revoked,
-    publicUrl,
-    tokenStatus: props.tokenStatus,
-    addressRevealed: props.issuedLink?.revealed ?? false,
-    addressRecoverable: props.issuedLink?.addressRecoverable,
-  })
+  const view = derivePortalShareViewFromProps(props, can('portal.update'), publicUrl)
   const {
     show: showPrintKit,
     printKit,
@@ -115,14 +109,7 @@ export function PortalShare(props: PortalShareProps) {
           )}
         </section>
 
-        <PortalScanGoalReadinessNotice
-          show={
-            !props.revoked &&
-            publicUrl === null &&
-            props.tokenStatus.hasActiveToken &&
-            !props.tokenStatus.qualifiedScanReady
-          }
-        />
+        <PortalScanGoalReadinessNotice show={showScanGoalReadiness(props, publicUrl)} />
 
         {showPrintKit && (
           <PortalPrintKitSection

@@ -3,7 +3,7 @@
 // about when it was made, and what the screen reader is told.
 
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
-import type { PortalShareMutations } from './portal-share-types'
+import type { PortalShareMutations, PortalShareProps } from './portal-share-types'
 
 // Fixed locale + UTC so the server and client render the same string (same
 // reason as property-dashboard-review-row.tsx): a mismatch hydrates as an error.
@@ -48,6 +48,11 @@ export type PortalShareView = Readonly<{
   showActions: boolean
   /** `4 Jan 2026`, the day the live code was made; null when unknown. */
   madeLabel: string | null
+  /**
+   * Who made the live code, by display name; null when unknown, and for a code
+   * made in this session until `tokenStatus` has caught up with it.
+   */
+  madeBy: string | null
   graceLabel: string | null
 }>
 
@@ -60,6 +65,12 @@ type ViewInput = Readonly<{
   addressRevealed?: boolean
   /** From the issue or replace result; overrides the stale `tokenStatus` value. */
   addressRecoverable?: boolean
+  /**
+   * The version of the code made in this session (from the issue or replace
+   * result). `tokenStatus` describes it once its own version reaches this one;
+   * until then it still describes the code that was replaced.
+   */
+  issuedVersion?: number | null
   /** The clock; injectable so "made today" is testable. */
   now?: Date
 }>
@@ -88,6 +99,7 @@ export function derivePortalShareView(input: ViewInput): PortalShareView {
     tokenStatus,
     addressRevealed = false,
     addressRecoverable = tokenStatus.addressRecoverable,
+    issuedVersion = null,
     now = new Date(),
   } = input
 
@@ -99,6 +111,14 @@ export function derivePortalShareView(input: ViewInput): PortalShareView {
   // they take precedence.
   const hasActiveToken = !revoked && (publicUrl !== null || tokenStatus.hasActiveToken)
   const canDownloadAgain = canManage && hasActiveToken && addressRecoverable
+  // A code made here is newer than what `tokenStatus` last saw, until its
+  // refetch reaches the version that was made.
+  const tokenStatusCaughtUp =
+    issuedVersion !== null &&
+    tokenStatus.version !== null &&
+    tokenStatus.version >= issuedVersion
+  const madeInThisSession =
+    !revoked && publicUrl !== null && !addressRevealed && !tokenStatusCaughtUp
 
   return {
     showViewOnlyNotice: !canManage,
@@ -110,14 +130,24 @@ export function derivePortalShareView(input: ViewInput): PortalShareView {
     canDownloadAgain,
     showSaveWarning: hasActiveToken && publicUrl !== null && !addressRecoverable,
     showActions: canManage && hasActiveToken,
-    // A code made in this session is newer than whatever tokenStatus last saw;
-    // an address fetched again belongs to the code tokenStatus describes.
-    madeLabel:
-      !revoked && publicUrl !== null && !addressRevealed
-        ? formatTimestamp(now.toISOString())
-        : formatTimestamp(tokenStatus.issuedAt),
+    // While tokenStatus still describes the code that was replaced, the day is
+    // today and the maker is not known to it; an address fetched again belongs
+    // to the code tokenStatus describes.
+    madeLabel: madeInThisSession
+      ? formatTimestamp(now.toISOString())
+      : formatTimestamp(tokenStatus.issuedAt),
+    madeBy: madeInThisSession || revoked ? null : tokenStatus.madeBy,
     graceLabel: formatTimestamp(tokenStatus.graceExpiresAt),
   }
+}
+
+/** "Made 12 Mar 2026 by Georgi Ivanov"; the date alone when nobody can be named. */
+export function describeMadeCode(
+  madeLabel: string | null,
+  madeBy: string | null,
+): string | null {
+  if (madeLabel === null) return null
+  return madeBy === null ? `Made ${madeLabel}` : `Made ${madeLabel} by ${madeBy}`
 }
 
 export type MutationState = Readonly<{
@@ -146,4 +176,34 @@ export function resolveMutationState(mutations: PortalShareMutations): MutationS
 export function liveStatusMessage(isPending: boolean, copied: boolean): string {
   if (isPending) return 'Updating the portal code'
   return copied ? 'Address copied' : ''
+}
+
+/** The scan-goal readiness notice shows while a code exists but cannot yet qualify. */
+export function showScanGoalReadiness(
+  props: Pick<PortalShareProps, 'revoked' | 'tokenStatus'>,
+  publicUrl: string | null,
+): boolean {
+  return (
+    !props.revoked &&
+    publicUrl === null &&
+    props.tokenStatus.hasActiveToken &&
+    !props.tokenStatus.qualifiedScanReady
+  )
+}
+
+/** Share view derived straight from the tab's props and the held address. */
+export function derivePortalShareViewFromProps(
+  props: PortalShareProps,
+  canManage: boolean,
+  publicUrl: string | null,
+): PortalShareView {
+  return derivePortalShareView({
+    canManage,
+    revoked: props.revoked,
+    publicUrl,
+    tokenStatus: props.tokenStatus,
+    addressRevealed: props.issuedLink?.revealed ?? false,
+    addressRecoverable: props.issuedLink?.addressRecoverable,
+    issuedVersion: props.issuedLink?.version ?? null,
+  })
 }
