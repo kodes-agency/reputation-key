@@ -158,9 +158,9 @@ export function PortalOverviewResultsStrip({
 }
 
 /** The footer line under the table: the window, the zone and the floor for an average. */
-export function PortalOverviewResultsFooter({ controls, propertyId }: Props) {
+export function PortalOverviewResultsFooter({ controls, propertyId, groupId }: Props) {
   const { state, busy = false } = controls
-  const strip = stripOf(state, propertyId)
+  const strip = stripOf(state, propertyId, groupId)
   if (!strip) return null
   return (
     <p

@@ -131,16 +131,14 @@
 // headroom under its 331,400 B. The budget moves to 332,000 B.
 // 2026-10-01 (Portal round 4, s38): the group page route
 // (portals/groups/$groupId) adds a route configuration and two eager query
-// modules shared with the Portals overview route (-portal-overview-data, 314 B,
-// kept apart from the hook that draws the page so the loader does not pull the
-// page in), the overview's search schema, inlined in the entry chunk while one
-// route config imported it, becomes a shared 479 B chunk (the entry chunk
-// shrinks 81 B), and the server-function stubs of the group reads merge into an
-// existing stub chunk (+189 B). The stylesheet grows 307 B (the group page and
-// the compact table density's classes), three query keys add 39 B and the icon
-// chunks reshuffle (+131 B). Fresh production builds of main (7524e1053) and of
-// the change: 331,093 B (78 js + 1 css) -> 332,424 B (80 js + 1 css), +1,331 B.
-// `main` had 307 B of headroom. The budget moves to 332,800 B.
+// modules shared with the Portals overview route (-portal-overview-data, kept
+// apart from the hook that draws the page so the loader does not pull the page
+// in), the server-function stubs of the group reads merge into existing stub
+// chunks, the stylesheet grows with the group page and the compact table
+// density's classes, three query keys add a few bytes and the icon chunks
+// reshuffle. A fresh production build of this change merged onto main (a840c201c,
+// which s40 recorded at 331,663 B): 332,881 B (80 js + 1 css), +1,218 B. `main`
+// had 337 B of headroom under its 332,000 B. The budget moves to 333,300 B.
 //
 // When this fails: resolve the new static importer and cut that source edge. Do
 // NOT raise the budget without recording a fresh production measurement here.
@@ -157,7 +155,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 332_000, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730; raised to 331,400 on 2026-10-01 for the Linktree editor rebased onto the Languages section, measured 331,093; raised to 332,000 on 2026-10-01 for the All properties route, measured 331,663 (main 331,230)
+  initialClosureGzip: 333_300, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730; raised to 331,400 on 2026-10-01 for the Linktree editor rebased onto the Languages section, measured 331,093; raised to 332,000 on 2026-10-01 for the All properties route, measured 331,663 (main 331,230)
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 
