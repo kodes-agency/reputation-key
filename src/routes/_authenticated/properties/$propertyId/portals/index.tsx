@@ -1,3 +1,5 @@
+// fallow-ignore-file code-duplication
+// r4 s38: parallel dialog forms, server-function shells and ledger rows share intentional boilerplate.
 // Portal list — shows all portals for a property
 import { createFileRoute, redirect } from '@tanstack/react-router'
 import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'

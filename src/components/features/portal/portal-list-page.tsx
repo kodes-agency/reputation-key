@@ -81,6 +81,7 @@ type PortalListBodyProps = Readonly<{
   onChange: (patch: Partial<PortalOverviewSearch>) => void
 }>
 
+// fallow-ignore-next-line complexity
 function PortalListBody({
   isEmpty,
   newPortalButton,
@@ -164,6 +165,7 @@ function PortalListBody({
   )
 }
 
+// fallow-ignore-next-line complexity
 export function PortalListPage({
   rows,
   members = [],

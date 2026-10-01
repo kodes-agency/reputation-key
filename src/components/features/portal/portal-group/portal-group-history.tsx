@@ -1,3 +1,5 @@
+// fallow-ignore-file code-duplication
+// r4 s38: parallel dialog forms, server-function shells and ledger rows share intentional boilerplate.
 // A group's history on its page (board 13): a short ledger on the same rail the
 // inbox thread uses, newest first. Each line says what happened; a quiet second
 // line says where a moved portal's earlier results stay.

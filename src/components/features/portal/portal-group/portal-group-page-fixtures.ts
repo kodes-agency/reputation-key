@@ -9,7 +9,6 @@ import type { HistoryNames } from './portal-group-history-view'
 import type { ReadState } from './portal-group-read-state'
 
 export const POOL_SIDE = { id: 'group-pool', name: 'Pool side' } as const
-export const POOL_SIDE_ROWS = rows
 export const NOW = new Date('2026-09-30T08:00:00.000Z')
 export const ZONE = 'Europe/Sofia'
 

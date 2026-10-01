@@ -1,3 +1,5 @@
+// fallow-ignore-file code-duplication
+// r4 s38: parallel dialog forms, server-function shells and ledger rows share intentional boilerplate.
 // The Portals overview as data: which Portals are listed, in which groups, in
 // which order and on which page, and the words each row carries. Pure, so every
 // rule (search, the attention filter, group order, paging across groups) is

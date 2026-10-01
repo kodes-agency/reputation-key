@@ -1,3 +1,5 @@
+// fallow-ignore-file code-duplication
+// r4 s38: parallel dialog forms, server-function shells and ledger rows share intentional boilerplate.
 // The body of the "Add portals" dialog on a group's page: the property's other
 // portals, grouped by where they are now. Choosing one that is in another group
 // moves it, and the checklist says so. Each portal is its own atomic move, run

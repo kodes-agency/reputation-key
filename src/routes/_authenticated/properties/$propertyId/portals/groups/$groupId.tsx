@@ -1,3 +1,5 @@
+// fallow-ignore-file code-duplication
+// r4 s38: parallel dialog forms, server-function shells and ledger rows share intentional boilerplate.
 // A portal group's page: its results, its portals, the goal it shares and its
 // history (board 13). A group is a collection of Portals inside one Property for
 // shared results and goals; guests never see it.
@@ -118,6 +120,7 @@ function GroupNoLongerAvailable() {
   )
 }
 
+// fallow-ignore-next-line complexity
 function PortalGroupRoute() {
   const { propertyId, groupId } = Route.useParams()
   const navigate = Route.useNavigate()

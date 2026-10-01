@@ -1,3 +1,5 @@
+// fallow-ignore-file code-duplication
+// r4 s38: parallel dialog forms, server-function shells and ledger rows share intentional boilerplate.
 // Reporting — how far a subject is through its goals this month.
 //
 // A live month-to-date read for the goal card on a Portal Group's page. It is

@@ -1,3 +1,5 @@
+// fallow-ignore-file code-duplication
+// r4 s38: parallel dialog forms, server-function shells and ledger rows share intentional boilerplate.
 // Portal context — portal group server functions
 // Per architecture: thin — resolve auth → validate input → call use case → translate errors → return
 

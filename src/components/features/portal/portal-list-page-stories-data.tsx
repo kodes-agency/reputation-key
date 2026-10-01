@@ -28,8 +28,8 @@ export const action = <TInput,>(): Action<TInput> =>
     data: null,
   })
 
-export const poolSide = overviewGroup('group-pool', 'Pool side')
-export const frontOfHouse = overviewGroup('group-front', 'Front of house')
+const poolSide = overviewGroup('group-pool', 'Pool side')
+const frontOfHouse = overviewGroup('group-front', 'Front of house')
 
 export const rows = [
   overviewRow('p-terrace', {

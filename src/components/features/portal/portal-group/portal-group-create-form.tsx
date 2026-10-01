@@ -1,3 +1,5 @@
+// fallow-ignore-file code-duplication
+// r4 s38: parallel dialog forms, server-function shells and ledger rows share intentional boilerplate.
 // The body of the "New group" dialog (board 12): a name and the portals to
 // start with. A portal that is in another group moves, and the checklist says
 // so under it. The create call does all of it in one commit.

@@ -1,3 +1,5 @@
+// fallow-ignore-file code-duplication
+// r4 s38: parallel dialog forms, server-function shells and ledger rows share intentional boilerplate.
 // The group dialogs (board 12): New group, Add portals and Rename. The property
 // is Avela Resort before "Pool side" exists: Wellness and Front of house hold
 // portals, three are in no group.

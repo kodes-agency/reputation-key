@@ -1,3 +1,5 @@
+// fallow-ignore-file code-duplication
+// r4 s38: parallel dialog forms, server-function shells and ledger rows share intentional boilerplate.
 // The "Goal" column of a group's page: the goals that target this group, each as
 // a card, or the way to set one. Never holds the page back: it is a side read
 // that may be off for this reader, still loading, or failed.

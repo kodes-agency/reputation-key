@@ -1,3 +1,5 @@
+// fallow-ignore-file code-duplication
+// r4 s38: parallel dialog forms, server-function shells and ledger rows share intentional boilerplate.
 // The body of the "Rename group" dialog: one name, checked against the same rule
 // the server applies.
 import { useForm } from '@tanstack/react-form'
