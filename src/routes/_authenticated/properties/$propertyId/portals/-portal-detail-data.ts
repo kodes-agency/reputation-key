@@ -7,6 +7,7 @@ import {
   listPortalApprovedDestinations,
 } from '#/contexts/portal/server/portals'
 import { getPortalLinktree, listPortalLinks } from '#/contexts/portal/server/portal-links'
+import { getPortalReview } from '#/contexts/portal/server/portal-review'
 import { getPortalLanguageCoverage } from '#/contexts/portal/server/portal-language-coverage'
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortalResponsibleManagers } from '#/contexts/portal/server/portal-responsible-managers'
@@ -74,6 +75,18 @@ export const portalPublicationHistoryQuery = (portalId: string) =>
   queryOptions({
     queryKey: portalKeys.publicationHistory(portalId),
     queryFn: () => getPortalPublicationHistory({ data: { portalId } }),
+    staleTime: 30_000,
+  })
+
+/**
+ * What Review & publish shows. The route's loader fetches it afresh on every
+ * entry (a review of stale facts is worse than none); the page then reads it
+ * from the cache, and every working-copy write or publication invalidates it.
+ */
+export const portalReviewQuery = (portalId: string) =>
+  queryOptions({
+    queryKey: portalKeys.review(portalId),
+    queryFn: () => getPortalReview({ data: { portalId } }),
     staleTime: 30_000,
   })
 
