@@ -151,6 +151,7 @@ describe('admin role (PropertyManager)', () => {
   const deniedPermissions: Permission[] = [
     'organization.update',
     'organization.delete',
+    'identity.logo_upload',
     'member.create',
     'member.update',
     'member.delete',
@@ -196,8 +197,11 @@ describe('admin role (PropertyManager)', () => {
       expect(can('PropertyManager', 'member.delete')).toBe(false)
     })
 
-    it('cannot edit Organization settings', () => {
+    it('cannot edit Organization settings, logo included', () => {
       expect(can('PropertyManager', 'organization.update')).toBe(false)
+      // The logo is an Organization setting: finalizing it writes through
+      // Better Auth's organization update, which a manager no longer holds.
+      expect(can('PropertyManager', 'identity.logo_upload')).toBe(false)
     })
 
     it('still lists members, which Inbox assignment and Responsible managers read', () => {
@@ -214,6 +218,7 @@ describe('admin role (PropertyManager)', () => {
         'member.update',
         'member.delete',
         'organization.update',
+        'identity.logo_upload',
       ]
       for (const permission of adminOnly) {
         expect(can('AccountAdmin', permission)).toBe(true)

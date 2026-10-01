@@ -75,7 +75,8 @@ export const owner = ac.newRole({ ...statement })
 
 // PropertyManager administers no people and no Organization settings (ADR 0033,
 // amended 2026-10): only an AccountAdmin invites, cancels or resends
-// invitations, changes roles and Property access, and edits the Organization.
+// invitations, changes roles and Property access, and edits the Organization,
+// logo included (`identity.logo_upload` is owner-only).
 // `member.list` stays: Inbox assignment, Responsible managers and the Members
 // page itself read the member list.
 export const admin = ac.newRole({
@@ -93,7 +94,6 @@ export const admin = ac.newRole({
   ai: ['reply.generate', 'trends.read', 'manage'],
   identity: [
     'avatar_upload',
-    'logo_upload',
     'leave_org',
     'password.change',
     'profile.update',
