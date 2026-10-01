@@ -23,7 +23,15 @@ const meta: Meta<typeof ControlledPage> = {
 export default meta
 type Story = StoryObj<typeof ControlledPage>
 
-export const Default: Story = { args: baseArgs }
+export const Default: Story = {
+  args: baseArgs,
+  // The Property look is one click from the list, as board 1 draws it.
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole('link', { name: 'Property look' }),
+    ).toHaveAttribute('href', '/properties/prop-1/portals/look')
+  },
+}
 
 // "New portal" opens the dialog over the list (the page keeps it in the URL);
 // Cancel closes it again.

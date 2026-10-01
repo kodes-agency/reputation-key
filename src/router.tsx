@@ -102,7 +102,11 @@ export function getRouter() {
     },
   })
 
-  const cspNonce = getGlobalStartContext()?.cspNonce
+  // The request context is typed through the router this function returns, so
+  // reading it here is circular: depending on which module the compiler reaches
+  // first it resolves to `never`. Naming the one field read keeps it stable.
+  const cspNonce = (getGlobalStartContext() as { cspNonce?: string } | undefined)
+    ?.cspNonce
 
   const router = createTanStackRouter({
     routeTree,

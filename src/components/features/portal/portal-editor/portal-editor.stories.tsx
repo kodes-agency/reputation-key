@@ -27,12 +27,7 @@ function EditorWithStatus({ resources, requestedSection }: EditorStoryProps) {
       <div className="flex justify-end border-b px-4 py-2" data-testid="save-status">
         <PortalDraftSaveStatus />
       </div>
-      <PortalEditor
-        resources={resources}
-        requestedSection={requestedSection}
-        theme={resources.portal.theme}
-        onThemeChange={() => undefined}
-      />
+      <PortalEditor resources={resources} requestedSection={requestedSection} />
     </div>
   )
 }
@@ -176,7 +171,6 @@ function makeResources(
     },
     approvedDestinations: { destinations: [], canApprove: true },
     portalExperienceActions: {
-      saveProfile: action(async () => undefined),
       saveContent: action(async () => undefined),
       saveOverride: action(async () => undefined),
       requestDestination: action(async () => undefined),
@@ -213,7 +207,7 @@ export const SectionList: Story = {
     const nav = within(canvas.getByRole('navigation', { name: 'Editor sections' }))
     // Guest order first, then what only managers see.
     await expect(nav.getAllByRole('link').map((link) => link.textContent)).toEqual([
-      'LookColours · property-wide',
+      'LookPhoto and colours · property-wide',
       'WelcomePool & Terrace',
       'Rating & GoogleAlways included',
       'Private note3★ or below',
@@ -483,18 +477,24 @@ export const PrivateNoteThreshold: Story = {
   },
 }
 
-export const LookKeepsAnExplicitSave: Story = {
+export const LookOpensThePropertyLook: Story = {
   args: {
     resources: makeResources(action(async () => undefined)),
     requestedSection: 'look',
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    // Property-wide colours are shared with every portal, so they are saved on
-    // purpose, not as a side effect of typing.
+    // The photo and colours are shared with every portal, so they are edited
+    // once, on the Property look page, not in this portal's editor.
+    await expect(canvas.getByText('Avela Resort')).toBeVisible()
     await expect(
-      canvas.getByRole('button', { name: /save brand colours/i }),
+      canvas.getByRole('img', { name: /accent colour #2563EB/i }),
     ).toBeVisible()
+    await expect(
+      canvas.getByRole('link', { name: /edit the property look/i }),
+    ).toHaveAttribute('href', '/properties/prop-1/portals/look')
+    await expect(canvas.queryByRole('button', { name: /save brand colours/i })).toBeNull()
+    await expect(canvas.queryByText(/palette for this portal/i)).toBeNull()
   },
 }
 

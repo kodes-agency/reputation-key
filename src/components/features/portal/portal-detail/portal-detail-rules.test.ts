@@ -11,7 +11,6 @@ import {
   countPendingChanges,
   canReviewAndPublish,
   describePortalStatus,
-  isThemeDraftDirty,
   normalizePortalWorkspaceSearch,
 } from './portal-detail-rules'
 
@@ -245,33 +244,5 @@ describe('countPendingChanges — the draft line of the History rail', () => {
     expect(
       countPendingChanges({ ...base, hasPendingChanges: true, pendingChanges: [] }),
     ).toBe(1)
-  })
-})
-
-describe('isThemeDraftDirty', () => {
-  const saved = {
-    primaryColor: '#112233',
-    backgroundColor: '#ffffff',
-    textColor: '#000000',
-  }
-
-  it('reports a fresh object with equal colours as clean', () => {
-    // The detail query hands back a new theme object on every refetch; an
-    // identity check here fires the unsaved-changes prompt on navigation that
-    // would lose nothing.
-    expect(isThemeDraftDirty({ ...saved }, saved)).toBe(false)
-  })
-
-  it('notices a change in any one of the three colours', () => {
-    expect(isThemeDraftDirty({ ...saved, primaryColor: '#000001' }, saved)).toBe(true)
-    expect(isThemeDraftDirty({ ...saved, backgroundColor: '#000001' }, saved)).toBe(true)
-    expect(isThemeDraftDirty({ ...saved, textColor: '#000001' }, saved)).toBe(true)
-  })
-
-  it('treats an omitted optional colour as different from a set one', () => {
-    // Portals created before theming was exposed store only a primary colour,
-    // so undefined and a value are genuinely different drafts.
-    expect(isThemeDraftDirty({ primaryColor: saved.primaryColor }, saved)).toBe(true)
-    expect(isThemeDraftDirty(saved, { primaryColor: saved.primaryColor })).toBe(true)
   })
 })

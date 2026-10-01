@@ -55,15 +55,6 @@ export type PortalApprovedDestinationList = Readonly<{
 }>
 
 export type PortalExperienceActions = Readonly<{
-  saveProfile: Action<{
-    data: {
-      propertyId: string
-      displayName: string
-      primaryColor: string
-      backgroundColor: string
-      textColor: string
-    }
-  }>
   saveContent: Action<{
     data: {
       propertyId: string

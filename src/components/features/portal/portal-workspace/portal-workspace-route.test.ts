@@ -26,6 +26,9 @@ describe('isWorkspaceRoute', () => {
     `/properties/${PROPERTY}/portals`,
     `/properties/${PROPERTY}/portals/`,
     `/properties/${PROPERTY}/portals/new`,
+    // The Property look is a page of its own, in the padded shell.
+    `/properties/${PROPERTY}/portals/look`,
+    `/properties/${PROPERTY}/portals/look/`,
     `/properties/${PROPERTY}/goals/${PORTAL}`,
     `/properties/${PROPERTY}/reviews`,
     `/properties/${PROPERTY}/portals/${PORTAL}/unknown`,
@@ -62,6 +65,7 @@ describe('isWorkspaceReviewRoute', () => {
       false,
     )
     expect(isWorkspaceReviewRoute(`/properties/${PROPERTY}/portals/new`)).toBe(false)
+    expect(isWorkspaceReviewRoute(`/properties/${PROPERTY}/portals/look`)).toBe(false)
     expect(isWorkspaceReviewRoute(`/properties/${PROPERTY}/portals`)).toBe(false)
     expect(isWorkspaceReviewRoute(`/properties/${PROPERTY}/reviews`)).toBe(false)
     expect(isWorkspaceReviewRoute(undefined)).toBe(false)

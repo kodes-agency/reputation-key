@@ -1,0 +1,164 @@
+// The Property look (docs/design/portal-experience/round-4-admin, board 9): the
+// photo, colours, name and logo, and default languages shared by every portal of
+// a Property, beside a preview of the page with and without a photo.
+//
+// Presentational: the route owns the reads and the two writes. Edits autosave to
+// the draft; guests see the look only when each live portal is published again.
+// The photo and logo controls (slice 42c2) and the batch "Review & publish"
+// (slice 39b) mount in the slots below.
+import { useState, type ReactNode } from 'react'
+import { Link } from '@tanstack/react-router'
+import { PageHeader } from '#/components/layout/page-header'
+import { PageShell } from '#/components/layout/page-shell'
+import { EmptyState } from '#/components/ui/empty-state'
+import { Palette } from 'lucide-react'
+import type { PortalPreviewReader } from '../portal-preview/portal-preview-pane'
+import { PropertyLookColoursSection } from './property-look-colours-section'
+import { PropertyLookIdentitySection } from './property-look-identity-section'
+import { PropertyLookLanguagesSection } from './property-look-languages-section'
+import { PropertyLookPhotoSection } from './property-look-photo-section'
+import { PropertyLookPortals } from './property-look-portals'
+import { PropertyLookPreview } from './property-look-preview'
+import {
+  affectedPortals,
+  describeLookStatus,
+  type AffectedPortalRow,
+} from './property-look-rules'
+import { PropertyLookStatusBar } from './property-look-status-bar'
+import type { PropertyLookProfile } from './property-look-types'
+import { usePropertyLookDraft, type PropertyLookSaves } from './use-property-look-draft'
+
+export type PropertyLookPageProps = PropertyLookSaves &
+  Readonly<{
+    propertyId: string
+    propertyName: string
+    /** Null while the Property has no public display name (nothing to look at yet). */
+    profile: PropertyLookProfile | null
+    /** An Account Admin, with Portals writes switched on. */
+    canEdit: boolean
+    /** Every portal of the Property. */
+    rows: readonly AffectedPortalRow[]
+    getPortalPreview: PortalPreviewReader
+    /** The photo and its upload controls (slice 42c2). */
+    photoSlot?: ReactNode
+    /** The logo and its upload control (slice 42c2). */
+    logoSlot?: ReactNode
+    /** The batch "Review & publish" (slice 39b). */
+    publishSlot?: ReactNode
+  }>
+
+const breadcrumbsOf = (propertyId: string, propertyName: string) => [
+  { label: 'Properties', to: '/properties' },
+  { label: propertyName, to: `/properties/${propertyId}` },
+  { label: 'Portals', to: `/properties/${propertyId}/portals` },
+  { label: 'Property look' },
+]
+
+export function PropertyLookPage(props: PropertyLookPageProps) {
+  const { propertyId, propertyName, profile } = props
+  return (
+    <PageShell tier="dashboard">
+      <PageHeader
+        title="Property look"
+        description={`How every portal at ${propertyName} looks. Portal wording and links stay per portal.`}
+        breadcrumbs={breadcrumbsOf(propertyId, propertyName)}
+      />
+      {profile === null ? (
+        <EmptyState icon={Palette} title="Set the public display name first">
+          <p className="text-sm text-muted-foreground">
+            The look is the Property's public display name dressed in its colours.{' '}
+            <Link
+              to="/properties/$propertyId/settings/profile"
+              params={{ propertyId }}
+              className="font-medium text-link underline-offset-4 hover:underline"
+            >
+              Set it in Property settings
+            </Link>
+          </p>
+        </EmptyState>
+      ) : (
+        <PropertyLookEditor {...props} profile={profile} />
+      )}
+    </PageShell>
+  )
+}
+
+function PropertyLookEditor({
+  propertyId,
+  profile,
+  canEdit,
+  rows,
+  getPortalPreview,
+  saveLook,
+  saveLocales,
+  photoSlot,
+  logoSlot,
+  publishSlot,
+}: PropertyLookPageProps & Readonly<{ profile: PropertyLookProfile }>) {
+  const { draft, setDraft, locales, setLocales, problem, state, retry } =
+    usePropertyLookDraft(propertyId, profile, { saveLook, saveLocales })
+  const affected = affectedPortals(rows)
+  const [chosenId, setChosenId] = useState<string | null>(null)
+  const [showPhoto, setShowPhoto] = useState(true)
+  const selected =
+    affected.listed.find((row) => row.portalId === chosenId) ?? affected.listed[0] ?? null
+  const status = describeLookStatus(
+    { status: state.status, ...(problem === null ? {} : { reason: problem }) },
+    affected,
+  )
+
+  return (
+    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_21rem]">
+      <div className="min-w-0 space-y-4">
+        {canEdit ? null : (
+          <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+            An Account Admin manages the look shared by every portal of this Property.
+          </p>
+        )}
+        <div>
+          <PropertyLookPhotoSection
+            slot={photoSlot}
+            onPreviewWithoutPhoto={() => setShowPhoto(false)}
+          />
+          <PropertyLookColoursSection
+            draft={draft}
+            onChange={setDraft}
+            disabled={!canEdit}
+          />
+          <PropertyLookIdentitySection
+            propertyId={propertyId}
+            displayName={profile.displayName}
+            wordmark={draft.wordmark}
+            onWordmarkChange={(wordmark) => setDraft({ wordmark })}
+            disabled={!canEdit}
+            logoSlot={logoSlot}
+          />
+          <PropertyLookLanguagesSection
+            locales={locales}
+            onChange={setLocales}
+            disabled={!canEdit}
+          />
+        </div>
+        <PropertyLookStatusBar
+          status={status}
+          onRetry={() => void retry()}
+          action={publishSlot}
+        />
+      </div>
+      <aside className="min-w-0 space-y-6 lg:sticky lg:top-6 lg:self-start">
+        <PropertyLookPreview
+          portal={selected ? { id: selected.portalId, name: selected.name } : null}
+          getPortalPreview={getPortalPreview}
+          draft={draft}
+          showPhoto={showPhoto}
+          onShowPhotoChange={setShowPhoto}
+        />
+        <PropertyLookPortals
+          affected={affected}
+          selectedId={selected?.portalId ?? null}
+          onSelect={setChosenId}
+        />
+      </aside>
+    </div>
+  )
+}

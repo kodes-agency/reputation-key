@@ -1,8 +1,7 @@
 // The Page tab: the section list, the active section and the live preview, in
 // three columns (the preview stacks under the section below `xl`). Which
-// section is showing comes from the route's `?section=`; the drafts that must
-// outlive a section switch (the palette) are owned by the page above, and every
-// save goes through the portal's autosave coordinator.
+// section is showing comes from the route's `?section=`, and every save goes
+// through the portal's autosave coordinator.
 
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { PortalPreviewPane } from '../portal-preview/portal-preview-pane'
@@ -18,24 +17,15 @@ import {
   responsibleManagerNames,
   summarizePortalEditorSections,
 } from './portal-editor-summary'
-import type {
-  PortalEditorResources,
-  PortalEditorThemeControls,
-} from './portal-editor-types'
+import type { PortalEditorResources } from './portal-editor-types'
 
-type Props = PortalEditorThemeControls &
-  Readonly<{
-    resources: PortalEditorResources
-    /** The section the URL asks for; the editor falls back when it is not offered. */
-    requestedSection: PortalEditorSection | undefined
-  }>
+type Props = Readonly<{
+  resources: PortalEditorResources
+  /** The section the URL asks for; the editor falls back when it is not offered. */
+  requestedSection: PortalEditorSection | undefined
+}>
 
-export function PortalEditor({
-  resources,
-  requestedSection,
-  theme,
-  onThemeChange,
-}: Props) {
+export function PortalEditor({ resources, requestedSection }: Props) {
   const { can } = usePermissions()
   const { portal, propertyId, portalGroups, links } = resources
   const group = portalGroups ? findPortalGroup(portalGroups, portal.id) : null
@@ -81,8 +71,6 @@ export function PortalEditor({
               group={group}
               resources={resources}
               canEdit={canEdit}
-              theme={theme}
-              onThemeChange={onThemeChange}
             />
           </div>
         </div>
