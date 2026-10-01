@@ -118,7 +118,7 @@ const RENEWAL_EMAIL_UNSENT =
 function MembersSettingsRoute() {
   const { allowedRoles, selfServiceLeaveAvailable } = Route.useLoaderData()
   const { data: memberResult } = useSuspenseQuery(membersQuery)
-  const { user, role } = authRoute.useRouteContext()
+  const { user, role, reportUnexpectedFailure } = authRoute.useRouteContext()
   const { can: canDo } = usePermissions()
   // Invitations and grants are read only by the roles the server answers; the
   // loader primed both caches for an AccountAdmin, so these hit without a fetch.
@@ -259,6 +259,7 @@ function MembersSettingsRoute() {
         propertyIdsByUser={propertyIdsByUser(accessResult?.access)}
         canRemove={canDo('member.delete')}
         removeMemberAction={removeMemberMutation}
+        reportFailure={reportUnexpectedFailure}
       />
     </>
   )
