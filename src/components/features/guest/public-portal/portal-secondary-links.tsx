@@ -1,5 +1,6 @@
 import type { MouseEvent } from 'react'
 import type { GuestResponseAction } from './guest-response-form'
+import { trackedLinkHref } from './portal-link-href'
 import {
   getGuestPortalCopy,
   type GuestPortalLanguagePackVersion,
@@ -51,9 +52,7 @@ export function PortalSecondaryLinks({
   if (links.length === 0) return null
   const copy = getGuestPortalCopy(locale, languagePackVersion)
   const destinationHref = (link: PortalLinkItem) =>
-    token
-      ? `/api/public/p/${encodeURIComponent(token)}/click/${link.id}`
-      : (link.url ?? '#')
+    token ? trackedLinkHref(token, link.id) : (link.url ?? '#')
   const selectDestination = (
     event: MouseEvent<HTMLAnchorElement>,
     link: PortalLinkItem,

@@ -1,27 +1,22 @@
 // Story-only content for the shell: the real header and title block (slice 13)
-// over a stand-in for the rating card and Linktree of boards G01 and G09, so
-// the shell can be judged against the boards before those pieces exist
-// (slices 14 to 16 replace each part). The footer is the real one (slice 17).
-// Uses the shell's glass surfaces and nothing else of the page.
+// over a stand-in for the rating card of boards G01 and G09, so the shell can
+// be judged against the boards before that piece exists (slice 14 replaces
+// it; the Linktree and the footer are the real ones). Uses the shell's glass
+// surfaces and nothing else of the page.
 //
 // Styled inline on purpose: Tailwind scans `src/` for class names, and a
 // stand-in's arbitrary values would be added to the first-paint stylesheet of
 // every page in production.
 
 import type { CSSProperties } from 'react'
-import { GlassSurface, glassClassName } from '../glass-surface'
+import { GlassSurface } from '../glass-surface'
 import { ImmersiveFooterView } from '../immersive-footer'
 import type { ImmersiveFooterCopy } from '../immersive-footer-copy'
 import { AvelaChrome, type AvelaChromeProps } from './avela-chrome'
+import { ImmersiveLinktree, type ImmersiveLinktreeLink } from '../immersive-linktree'
+import { LINKTREE_LINKS_EN } from './linktree-links'
 
 const STARS = [1, 2, 3, 4, 5] as const
-
-const TILES = [
-  { label: 'Discover the resort', line: 'Rooms, pools, the sea' },
-  { label: 'Spa & treatments', line: 'Book a time' },
-  { label: 'Olive Terrace menu', line: 'Lunch and dinner' },
-  { label: 'Getting here', line: 'Directions and parking' },
-] as const
 
 const reset: CSSProperties = { margin: 0 }
 const display: CSSProperties = { ...reset, color: '#fff' }
@@ -55,32 +50,21 @@ const styles = {
     background: 'var(--ih-accent)',
     color: 'var(--ih-on-accent)',
   },
-  heading: {
-    ...display,
-    margin: '20px 0 10px 4px',
-    fontSize: 22,
-    lineHeight: '26px',
-  },
-  tiles: { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 10 },
-  tile: {
-    height: 96,
-    boxSizing: 'border-box',
-    display: 'flex',
-    flexDirection: 'column',
-    justifyContent: 'flex-end',
-    padding: '0 13px 11px',
-  },
-  tileLabel: { fontSize: 14, fontWeight: 600, lineHeight: '18px', color: '#fff' },
-  tileLine: { fontSize: 12, lineHeight: '16px', color: 'rgba(255,255,255,0.8)' },
 } satisfies Record<string, CSSProperties>
 
 export type ArrivalStandInProps = AvelaChromeProps &
   Readonly<{
     /** The footer's texts, built by the story from a real pack (`immersiveFooterCopy`). */
     footerCopy: ImmersiveFooterCopy
+    /** The Linktree's tiles; board G09 passes tiles without a photo. */
+    links?: readonly ImmersiveLinktreeLink[]
   }>
 
-export function ArrivalStandIn({ footerCopy, ...chrome }: ArrivalStandInProps) {
+export function ArrivalStandIn({
+  footerCopy,
+  links = LINKTREE_LINKS_EN,
+  ...chrome
+}: ArrivalStandInProps) {
   return (
     <>
       <AvelaChrome {...chrome} />
@@ -104,22 +88,13 @@ export function ArrivalStandIn({ footerCopy, ...chrome }: ArrivalStandInProps) {
           Send privately
         </button>
       </GlassSurface>
-      <h2 className="ih-display" style={styles.heading}>
-        Around the resort
-      </h2>
-      <nav aria-label="Useful links" style={styles.tiles}>
-        {TILES.map((tile) => (
-          <a
-            key={tile.label}
-            href="#tile"
-            className={glassClassName('tile')}
-            style={styles.tile}
-          >
-            <span style={styles.tileLabel}>{tile.label}</span>
-            <span style={styles.tileLine}>{tile.line}</span>
-          </a>
-        ))}
-      </nav>
+      <ImmersiveLinktree
+        enabled
+        title={{ value: 'Around the resort', fallbackFrom: null }}
+        defaultTitle="Useful links"
+        links={links}
+        hrefFor={() => '#tile'}
+      />
       <ImmersiveFooterView
         copy={footerCopy}
         isNoticeVisible
