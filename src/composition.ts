@@ -716,6 +716,8 @@ function buildContainer(
     /** Shared issued-object capability used by Identity profile assets and
      * Portal media. The name exposes the port's purpose, not its adapter. */
     assetStorage: portal.uploads.storage,
+    /** What still points at an uploaded avatar or logo; the public image route asks it. */
+    identityAssetReferences: identity.assetReferences,
     portalWorkerRuntime: Object.freeze({
       revalidateApprovedDestinations: portal.worker.revalidateApprovedDestinations,
       sweepPortalMedia: portal.worker.sweepPortalMedia,

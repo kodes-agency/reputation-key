@@ -372,6 +372,13 @@
       "when": 1793300000000,
       "tag": "0052_portal_link_label_backfill",
       "breakpoints": true
+    },
+    {
+      "idx": 53,
+      "version": "7",
+      "when": 1793400000000,
+      "tag": "0053_clear_legacy_asset_urls",
+      "breakpoints": true
     }
   ]
 }

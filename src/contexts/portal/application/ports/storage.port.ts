@@ -15,7 +15,12 @@ export type StoragePort = Readonly<{
     contentType: string,
     maxSizeBytes: number,
   ) => Promise<{ uploadUrl: string; key: string }>
-  confirmUpload: (key: string) => Promise<string>
+  /**
+   * Resolve when the object is in the store, reject when it is not. It hands
+   * back no address: the bucket is private, so no provider URL is ever stored
+   * or shown; an image is served through the app (see Identity's asset route).
+   */
+  confirmUpload: (key: string) => Promise<void>
   /** Read server-observed metadata before accepting a guest-owned upload. */
   inspectObject?: (
     key: string,

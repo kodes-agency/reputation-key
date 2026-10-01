@@ -9,6 +9,8 @@ import { resolveTenantContext } from '#/shared/auth/middleware'
 
 import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { handleAuthError } from './auth-settings.helpers'
+import { identityAssetKeyFromPath } from '../application/identity-assets'
+import { retireReplacedIdentityAsset } from '../application/retire-replaced-identity-asset'
 import { changePasswordCommandSchema } from '../application/dto/change-password.dto'
 import {
   updateProfileInputSchema,
@@ -98,6 +100,9 @@ export const updateUserImageFn = createServerFn({ method: 'POST' })
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'identity.avatar.set' })
         const auth = getAuth()
+        const { getContainer } = await import('#/composition')
+        const { assetStorage, identityAssetReferences, logger } = getContainer()
+        const previous = await identityAssetReferences.currentUserImage(ctx.userId)
 
         try {
           await auth.api.updateUser({
@@ -105,14 +110,24 @@ export const updateUserImageFn = createServerFn({ method: 'POST' })
             body: { image: data.imageUrl },
           })
         } catch (e) {
-          const { getContainer } = await import('#/composition')
           handleAuthError(
-            getContainer().logger,
+            logger,
             e,
             'AuthError',
             'avatar_update_failed',
             'Failed to update avatar.',
           )
+        }
+
+        // The picture it replaces is no longer shown anywhere; free its bytes.
+        const nextKey = identityAssetKeyFromPath(data.imageUrl)
+        if (nextKey) {
+          await retireReplacedIdentityAsset({ storage: assetStorage, logger })({
+            previous,
+            nextKey,
+            kind: 'avatar',
+            ownerId: ctx.userId,
+          })
         }
       },
       'POST',
