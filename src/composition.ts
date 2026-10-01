@@ -720,6 +720,8 @@ function buildContainer(
       revalidateApprovedDestinations: portal.worker.revalidateApprovedDestinations,
       sweepPortalMedia: portal.worker.sweepPortalMedia,
     }),
+    /** Operator-only Portal maintenance (the bulk republish to the current design). */
+    portalMaintenanceRuntime: portal.maintenance,
     /** Operator-only Review repair and lifecycle authority. */
     reviewMaintenanceRuntime: review.maintenance,
     ...(options?.exposeSimulationRuntime
