@@ -28,6 +28,29 @@ The commands:
 - `ops:rebuild-projection --org <id> [--property <id>]` — repair the inbox projection (bounded, dry-run report first). §5
 - `ops:rebuild-metric-projection <portalId> --org <id> --property <id>` — inspect or repair one anonymous Portal lifetime projection from its sealed baseline plus retained governed facts. Dry-run is the default; apply requires `--reason`. §7
 - `ops:reconcile-publication <replyId> | --all-ambiguous [--resume <token>]` — reconcile ambiguous Google reply publication (one frozen keyset page; provider re-read, never a send). §6
+- `ops:republish-legacy-portals --org <id> [--property <id>] [--batch-size <n>] [--include-pending-edits]` — republish every live Portal whose active version is a v1 or v2 page as the current design (snapshot v3, the Immersive Hub), so every guest sees it and the legacy renderer can be removed. Each Portal goes through the ordinary publish-while-live use case: the same readiness gates, a new version, the previous activation closed as `replaced`, the same facts; the actor on the snapshot, the activation and the fact is `ops:<operator>` (use a short non-personal handle: it is stored in immutable snapshots). The Operational Action History files it as an `operator` row and managers read it as "Reputation Key" in the version history. Dry-run is the default and reports per Portal what would be republished and which would be skipped, with the reason; `--reason <text> --apply` writes. A Portal whose manager has unpublished edits is skipped as `pending_edits` (the republish would put those drafts live under the operator's name; the manager should publish or discard them); `--include-pending-edits` publishes them anyway and the report says how many went live. Idempotent: a republished Portal is on v3 and is not selected again, and a skipped one reports the same reason until it is fixed. Draft-only, disabled, archived and deleted Portals are never selected. Output is identifiers, versions and reason codes only. Exits 1 only if the run stopped at a fault that is not a Portal refusal; the report shows how far it got (`processed` in the totals), the cause is logged to stderr, and a rerun is safe. To see which organisations still have live v1/v2 Portals (the question slice 44 waits on), run this read-only SQL against the database:
+
+  ```sql
+  -- live-legacy-portals-by-organization
+  SELECT p.organization_id,
+         count(*) AS live_legacy_portals,
+         count(*) FILTER (WHERE s.configuration->>'schemaVersion' = '1') AS v1,
+         count(*) FILTER (WHERE s.configuration->>'schemaVersion' = '2') AS v2
+    FROM portals p
+    JOIN portal_publication_activations a
+      ON a.organization_id = p.organization_id AND a.property_id = p.property_id
+     AND a.portal_id = p.id AND a.deactivated_at IS NULL
+    JOIN portal_publication_snapshots s
+      ON s.organization_id = a.organization_id AND s.property_id = a.property_id
+     AND s.portal_id = a.portal_id AND s.id = a.snapshot_id
+   WHERE p.publication_state = 'published' AND p.deleted_at IS NULL
+     AND s.configuration->>'schemaVersion' IN ('1', '2')
+   GROUP BY p.organization_id
+   ORDER BY p.organization_id;
+  ```
+
+  No rows means no live Portal is left on an old page.
+
 - `ops:reparse-review-translations <report|repair> [--property <id>]` — re-split Google's `(Translated by Google) … (Original)` envelope on Review rows stored before the provider adapter split it at ingestion. A targeted column update: the text, `translated_text`, `content_hash` and AI source provenance are recomputed with the sync path's own functions, and the Review lifecycle, `source_revision` and analysis position are untouched. `report` never writes; `repair` is dry-run by default and `--apply` requires `--reason` and `--ticket`. Idempotent.
 - `ops:triage-beta-feedback --operator <id>` — list the global content-free native-feedback support queue. Applying one exact local-reference transition additionally requires all 14 reviewed positional values, `--ticket`, `--reason`, and `--apply`; it is revision/transition-ID guarded, appends immutable evidence, and never reads report text/downloads attachments or creates an engineering issue. §16
 - `ops:recover-recent-activity --operator <id> [--batch-size 100] [--apply --reason <text>] <observed-at> [<after-occurred-at> <after-replay-key>]` — report Recent Activity projection readiness or restore one bounded, cursor-resumable page from Activity-owned replay facts. Report-only is the default. See `recent-activity-recovery.md`.

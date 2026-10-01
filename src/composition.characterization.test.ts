@@ -95,6 +95,7 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'outboxRepo',
   'policyAdmin',
   'pool',
+  'portalMaintenanceRuntime',
   'portalPublicApi',
   'portalWorkerRuntime',
   'propertyPublicApi',

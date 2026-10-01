@@ -84,6 +84,19 @@ function setup(
 }
 
 describe('getPortalVersion', () => {
+  it('names an operator-run version as Reputation Key, without the operator id', async () => {
+    const v1 = snapshot(1, base, 'ops:denev')
+    const { useCase } = setup([v1])
+
+    const result = await useCase({ portalId: portal.id, version: 1 }, ctx)
+
+    expect(result.publishedBy).toEqual({
+      userId: 'reputation-key',
+      displayName: 'Reputation Key',
+    })
+    expect(JSON.stringify(result)).not.toContain('ops:denev')
+  })
+
   it('says what making an earlier version live would change back for guests', async () => {
     const v1 = snapshot(1, base)
     const v2 = snapshot(2, { ...base, links: [menu, spa, dinner] })
