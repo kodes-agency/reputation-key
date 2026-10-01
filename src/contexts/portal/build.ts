@@ -2,6 +2,7 @@
 // Wires portal repos, storage, and all portal use cases.
 // Per ADR-0001: the composition root calls this and passes publicApis from upstream contexts.
 
+import { createHash } from 'node:crypto'
 import type { ConsumerRegistry } from '#/shared/outbox'
 import type {
   PropertyGoogleReviewDestinationPublicApi,
@@ -20,6 +21,8 @@ import { createPortalLinkRepository } from './infrastructure/repositories/portal
 import { createPortalGroupRepository } from './infrastructure/repositories/portal-group.repository'
 import { createPortalGroupHistoryRepository } from './infrastructure/repositories/portal-group-history.repository'
 import { createS3StorageAdapter } from './infrastructure/adapters/s3-storage.adapter'
+import { createSharpImageProcessor } from './infrastructure/adapters/sharp-image-processor.adapter'
+import { createPortalMediaAssetRepository } from './infrastructure/repositories/portal-media-asset.repository'
 import { createPortalTokenRepository } from './infrastructure/repositories/portal-token.repository'
 import { createPortalPublicationRepository } from './infrastructure/repositories/portal-publication.repository'
 import { createPortalScopeRepository } from './infrastructure/repositories/portal-scope.repository'
@@ -39,6 +42,8 @@ import { createPortalHistoryRepository } from './infrastructure/repositories/por
 import { createPortalActorDirectoryAdapter } from './infrastructure/adapters/portal-actor-directory.adapter'
 import { createPortalAiReplyBrandProfileAuthority } from './infrastructure/ai-reply-brand-profile-authority'
 import type { StoragePort } from './application/ports/storage.port'
+import type { ImageProcessorPort } from './application/ports/image-processor.port'
+import { ingestPortalImage } from './application/use-cases/ingest-portal-image'
 import { createPortalTokenCodec } from './infrastructure/adapters/portal-token-codec'
 import { createPortalAddressCipher } from './infrastructure/adapters/portal-address-cipher'
 import { createPortalAddressRepository } from './infrastructure/repositories/portal-address.repository'
@@ -152,6 +157,8 @@ type PortalContextDeps = Readonly<{
   /** BQC-6.1: optional storage adapter override (simulations/tests inject an
    * in-memory storage; absent = the S3 adapter built from storageConfig). */
   storage?: StoragePort
+  /** Optional image processor override (tests inject a fake decoder); absent = sharp. */
+  imageProcessor?: ImageProcessorPort
 }>
 
 type ResolvePublishedAccessArtifactRequest = Omit<
@@ -216,6 +223,8 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       presignEndpoint: deps.storageConfig.presignEndpoint,
       forcePathStyle: deps.storageConfig.forcePathStyle,
     })
+  const portalMediaAssetRepo = createPortalMediaAssetRepository(deps.db)
+  const imageProcessor = deps.imageProcessor ?? createSharpImageProcessor()
   const portalIdGen = () => portalId(deps.idGen())
   const portalGroupIdGen = () => portalGroupId(deps.idGen())
   const linkIdGen = () => deps.idGen()
@@ -446,6 +455,18 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       staffPublicApi: deps.staffPublicApi,
       commandStore: portalCommandStore,
       clock: deps.clock,
+    }),
+    ingestPortalImage: ingestPortalImage({
+      portalRepo,
+      staffPublicApi: deps.staffPublicApi,
+      propertyApi: deps.propertyApi,
+      mediaRepo: portalMediaAssetRepo,
+      objectStore: storage,
+      imageProcessor,
+      sha256Hex: (bytes) => createHash('sha256').update(bytes).digest('hex'),
+      idGen: deps.idGen,
+      clock: deps.clock,
+      logger: deps.logger,
     }),
     saveLinktreeSettings: saveLinktreeSettings({
       portalRepo,
