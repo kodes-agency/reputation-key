@@ -96,6 +96,7 @@ function source(patch: Partial<PortalCopySource> = {}): PortalCopySource {
     categories: [],
     links: [],
     linkTexts: [],
+    approvedDestinationIds: new Set([DESTINATION]),
     ...patch,
   }
 }
@@ -211,6 +212,43 @@ describe('planPortalContentCopy', () => {
     expect(content.links).toEqual([])
     expect(content.categories).toEqual([])
     expect(content.linkTexts).toEqual([])
+  })
+
+  it('does not copy a link whose destination is no longer approved', () => {
+    const cat = buildTestPortalLinkCategory({ portalId: SOURCE })
+    const retired = portalApprovedDestinationId('de000000-0000-0000-0000-000000000002')
+    const id = '10000000-0000-0000-0000-000000000008'
+    const { content } = plan(
+      source({
+        categories: [cat],
+        links: [linkOf(id, cat.id, 'a0', retired)],
+        linkTexts: [text(id, 'en', 'Disabled link')],
+      }),
+    )
+    expect(content.links).toEqual([])
+    expect(content.categories).toEqual([])
+    expect(content.linkTexts).toEqual([])
+  })
+
+  it('fills the link limit with approved links, not retired ones ahead of them', () => {
+    const cat = buildTestPortalLinkCategory({ portalId: SOURCE })
+    const retired = portalApprovedDestinationId('de000000-0000-0000-0000-000000000002')
+    const ids = [1, 2, 3, 4, 5, 6].map((n) => `10000000-0000-0000-0000-00000000000${n}`)
+    const { content } = plan(
+      source({
+        categories: [cat],
+        links: ids.map((id, index) =>
+          linkOf(id, cat.id, `a${index}`, index < 2 ? retired : DESTINATION),
+        ),
+        linkTexts: ids.map((id) => text(id, 'en', `text-${id.slice(-1)}`)),
+      }),
+    )
+    expect(content.links.map((link) => link.label)).toEqual([
+      'text-3',
+      'text-4',
+      'text-5',
+      'text-6',
+    ])
   })
 
   it('keeps a Portal within the link limit', () => {

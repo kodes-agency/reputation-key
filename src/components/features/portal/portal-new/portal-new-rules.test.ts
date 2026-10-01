@@ -85,10 +85,15 @@ describe('toCreatePortalInput', () => {
 
 describe('language choices', () => {
   it('shows the Property languages and the selection as chips, the rest in the menu', () => {
-    expect(languageChoices(['en'], ['en'])).toEqual({ chips: ['en'], addable: ['bg'] })
+    expect(languageChoices(['en'], ['en'])).toEqual({
+      chips: ['en'],
+      addable: ['bg'],
+      fallback: null,
+    })
     expect(languageChoices(['en'], ['en', 'bg'])).toEqual({
       chips: ['en', 'bg'],
       addable: [],
+      fallback: 'en',
     })
   })
 
@@ -96,7 +101,25 @@ describe('language choices', () => {
     expect(languageChoices(['en', 'bg'], ['bg'])).toEqual({
       chips: ['en', 'bg'],
       addable: [],
+      fallback: null,
     })
+  })
+
+  it('names the fallback when English is switched off and on again, the chips staying in place', () => {
+    const defaults = ['en', 'bg'] as const
+    const off = toggleLocale(['en', 'bg'], 'en')
+    const back = toggleLocale(off, 'en')
+    expect(back).toEqual(['bg', 'en'])
+    const choices = languageChoices(defaults, back)
+    // Bulgarian is now first chosen, so it is the fallback; the chip drawn
+    // first is still English, so the fallback is marked rather than implied.
+    expect(choices.chips).toEqual(['en', 'bg'])
+    expect(choices.fallback).toBe('bg')
+    expect(languageNote(back)).toContain('Bulgarian is the fallback')
+  })
+
+  it('has no fallback to mark when only one language is chosen', () => {
+    expect(languageChoices(['en', 'bg'], ['en']).fallback).toBeNull()
   })
 
   it('toggles a language on and off, in the order chosen', () => {

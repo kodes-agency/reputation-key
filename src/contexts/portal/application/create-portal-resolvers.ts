@@ -12,10 +12,13 @@ import {
   type PropertyId,
   type UserId,
 } from '#/shared/domain/ids'
-import { normalizeSlug } from '#/shared/domain/slug'
 import { portalError } from '../domain/errors'
 import { portalAddedToGroup } from '../domain/events'
-import { MAX_SLUG_SUFFIX_ATTEMPTS, slugWithSuffix } from '../domain/portal-slug'
+import {
+  MAX_SLUG_SUFFIX_ATTEMPTS,
+  portalSlugBase,
+  slugWithSuffix,
+} from '../domain/portal-slug'
 import type { Portal, PortalGroup } from '../domain/types'
 import { loadPortalOrThrow } from './load-accessible-portal'
 import { nextPortalCommandAt } from './portal-command-version'
@@ -26,6 +29,7 @@ import {
 } from './portal-manager-eligibility'
 import type { PortalCopySource } from './portal-content-copy'
 import type { CreatePortalGroupMembership } from './ports/portal-command-store.port'
+import type { PortalApprovedDestinationRepository } from './ports/portal-approved-destination.repository'
 import type { PortalExperienceRepository } from './ports/portal-experience.repository'
 import type { PortalGroupRepository } from './ports/portal-group.repository'
 import type { PortalLinkRepository } from './ports/portal-link.repository'
@@ -36,7 +40,8 @@ type SlugDeps = Readonly<{ portalRepo: Pick<PortalRepository, 'slugExists'> }>
 
 /**
  * The address the new Portal gets. One the manager typed must be free; one
- * derived from the name takes the next free numbered variant instead of failing.
+ * derived from the name takes the next free numbered variant instead of failing;
+ * a name with no Latin letters or digits falls back to a fixed base.
  */
 export async function allocateSlug(
   deps: SlugDeps,
@@ -52,7 +57,7 @@ export async function allocateSlug(
     }
     return input.slug
   }
-  const base = normalizeSlug(input.name)
+  const base = portalSlugBase(input.name)
   for (let attempt = 1; attempt <= MAX_SLUG_SUFFIX_ATTEMPTS; attempt += 1) {
     const candidate = slugWithSuffix(base, attempt)
     if (!(await taken(candidate))) return candidate
@@ -113,9 +118,13 @@ type SourceDeps = Readonly<{
     'listCategories' | 'listAllLinks' | 'listLinkTexts'
   >
   experienceRepo: Pick<PortalExperienceRepository, 'listPortalOverrides'>
+  destinationRepo: Pick<PortalApprovedDestinationRepository, 'list'>
 }>
 
-/** Everything read from the Portal being copied, which must sit in the same Property. */
+/**
+ * Everything read from the Portal being copied, which must sit in the same
+ * Property and must not be archived: a retired portal is not a starting point.
+ */
 export async function loadCopySource(
   deps: SourceDeps,
   ctx: AuthContext,
@@ -129,7 +138,10 @@ export async function loadCopySource(
   if (portal.propertyId !== propertyId) {
     throw portalError('portal_not_found', 'portal not found for this property')
   }
-  const [overrides, categories, links, linkTexts] = await Promise.all([
+  if (portal.publicationState === 'archived') {
+    throw portalError('portal_inactive', 'an archived portal cannot be copied')
+  }
+  const [overrides, categories, links, linkTexts, destinations] = await Promise.all([
     deps.experienceRepo.listPortalOverrides(ctx.organizationId, propertyId, portal.id),
     deps.portalLinkRepo.listCategories(ctx.organizationId, portal.id),
     deps.portalLinkRepo.listAllLinks(ctx.organizationId, portal.id),
@@ -138,8 +150,14 @@ export async function loadCopySource(
       portal.id,
       portal.primaryGuestLocale,
     ),
+    deps.destinationRepo.list(ctx.organizationId, propertyId),
   ])
-  return { portal, overrides, categories, links, linkTexts }
+  const approvedDestinationIds = new Set<string>(
+    destinations
+      .filter((destination) => destination.approvalState === 'approved')
+      .map((destination) => destination.id),
+  )
+  return { portal, overrides, categories, links, linkTexts, approvedDestinationIds }
 }
 
 /**

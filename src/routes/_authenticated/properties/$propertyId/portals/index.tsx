@@ -126,6 +126,9 @@ function PortalListRoute() {
       // resolves the portal against that list, so refetch it first or it would
       // not find the portal that was just created.
       await queryClient.refetchQueries({ queryKey: portalKeys.list(propertyId) })
+      // Close the dialog in place first: the entry left behind is the plain
+      // list, so Back from the new workspace never reopens an empty dialog.
+      await navigate({ search: (prev) => ({ ...prev, new: undefined }), replace: true })
       await navigate({
         to: '/properties/$propertyId/portals/$portalId',
         params: { propertyId, portalId: output.portal.id },

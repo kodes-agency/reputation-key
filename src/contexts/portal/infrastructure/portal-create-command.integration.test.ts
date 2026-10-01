@@ -29,6 +29,7 @@ import { planPortalContentCopy } from '../application/portal-content-copy'
 import type { CreatePortalCommand } from '../application/ports/portal-command-store.port'
 import { createPortalLinkRepository } from './repositories/portal-link.repository'
 import { createPortalRepository } from './repositories/portal.repository'
+import { createPortalApprovedDestinationRepository } from './repositories/portal-approved-destination.repository'
 
 const ORG_A = organizationId('org-portalcreate-0000-0000-000000000001')
 const ORG_B = organizationId('org-portalcreate-0000-0000-000000000002')
@@ -296,7 +297,7 @@ describe.sequential('create Portal command: copied content (real PostgreSQL)', (
          approval_state, validation_version, requested_by, approved_by, approved_at,
          last_validated_at, created_at, updated_at
        ) VALUES ($1, $2, $3, 'https://example.test/menu', 'example.test', 'recognized',
-                 'approved', 'destination-validation-v1', $4, $4, now(), now(), now(), now())`,
+                 'approved', 'portal-destination-https-v1', $4, $4, now(), now(), now(), now())`,
       [DESTINATION, ORG_A, PROPERTY_A, CREATOR],
     )
     const categoryId = randomUUID()
@@ -331,16 +332,18 @@ describe.sequential('create Portal command: copied content (real PostgreSQL)', (
     return { source, linkId }
   }
 
-  async function copyCommand(): Promise<CreatePortalCommand> {
-    const { source } = await seedSource()
+  async function copyCommand(alreadySeeded = false): Promise<CreatePortalCommand> {
+    const seeded = alreadySeeded ? null : await seedSource()
     const db = getDb()
     const portalRepo = createPortalRepository(db)
     const linkRepo = createPortalLinkRepository(db, () => NOW)
-    const loaded = (await portalRepo.findById(ORG_A, SOURCE)) ?? source
-    const [categories, links, linkTexts] = await Promise.all([
+    const loaded = (await portalRepo.findById(ORG_A, SOURCE)) ?? seeded?.source
+    if (!loaded) throw new Error('expected the source Portal')
+    const [categories, links, linkTexts, destinations] = await Promise.all([
       linkRepo.listCategories(ORG_A, SOURCE),
       linkRepo.listAllLinks(ORG_A, SOURCE),
       linkRepo.listLinkTexts(ORG_A, SOURCE, 'en'),
+      createPortalApprovedDestinationRepository(db).list(ORG_A, PROPERTY_A),
     ])
     let n = 0
     const plan = planPortalContentCopy({
@@ -366,6 +369,11 @@ describe.sequential('create Portal command: copied content (real PostgreSQL)', (
         categories,
         links,
         linkTexts,
+        approvedDestinationIds: new Set<string>(
+          destinations
+            .filter((destination) => destination.approvalState === 'approved')
+            .map((destination) => destination.id),
+        ),
       },
       target: { portalId: TARGET, locales: { primary: 'en', additional: ['bg'] } },
       idGen: () => randomUUID().replace(/^.{8}/, String((n += 1)).padStart(8, '0')),
@@ -433,6 +441,71 @@ describe.sequential('create Portal command: copied content (real PostgreSQL)', (
     // The source keeps its own rows.
     expect(await count('portal_links', 'portal_id', SOURCE)).toBe(1)
     expect(links.rows[0]?.id).not.toBe(command.copiedContent?.sourcePortalId)
+  })
+
+  it('copies only links whose destination is approved, whatever other links the source holds', async () => {
+    await seedSource()
+    const q = (text: string, values: unknown[]) => getPool().query(text, values)
+    const category = (
+      await q('SELECT id FROM portal_link_categories WHERE portal_id = $1', [SOURCE])
+    ).rows[0]?.id
+    const states = ['disabled', 'quarantined', 'approved', 'approved', 'approved']
+    for (const [index, state] of states.entries()) {
+      const destination = randomUUID()
+      await q(
+        `INSERT INTO portal_approved_destinations (
+           id, organization_id, property_id, normalized_uri, hostname, source_type,
+           approval_state, validation_version, requested_by, approved_by, approved_at,
+           last_validated_at, created_at, updated_at
+         ) VALUES ($1, $2, $3, $4, 'example.test', 'recognized',
+                   $5, 'portal-destination-https-v1', $6, $6, now(), now(), now(), now())`,
+        [
+          destination,
+          ORG_A,
+          PROPERTY_A,
+          `https://example.test/extra-${index}`,
+          state,
+          CREATOR,
+        ],
+      )
+      const link = randomUUID()
+      await q(
+        `INSERT INTO portal_links (id, category_id, portal_id, organization_id, property_id,
+                                   label, destination_id, legacy_destination_state, icon_key,
+                                   sort_key, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, 'migrated', 'map-pin', $8, $9, $9)`,
+        [
+          link,
+          category,
+          SOURCE,
+          ORG_A,
+          PROPERTY_A,
+          `Extra ${index} ${state}`,
+          destination,
+          `b${index}`,
+          CREATED_AT,
+        ],
+      )
+      await q(
+        `INSERT INTO portal_link_texts (organization_id, property_id, portal_id, link_id, locale,
+                                        label, line, version, updated_by, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, 'en', $5, NULL, 1, $6, $7, $7)`,
+        [ORG_A, PROPERTY_A, SOURCE, link, `Extra ${index} ${state}`, CREATOR, CREATED_AT],
+      )
+    }
+
+    await store().createPortal(await copyCommand(true))
+
+    const copied = await getPool().query(
+      `SELECT label FROM portal_links WHERE portal_id = $1 ORDER BY sort_key`,
+      [TARGET],
+    )
+    expect(copied.rows.map((row) => row.label)).toEqual([
+      'Menu',
+      'Extra 2 approved',
+      'Extra 3 approved',
+      'Extra 4 approved',
+    ])
   })
 
   it('takes nothing from the source beyond its content: no managers, codes or publications', async () => {

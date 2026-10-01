@@ -8,8 +8,9 @@
 // What is never taken over: codes and their artifacts, publication snapshots
 // and activations, responsible managers, health, history. Photos are left too:
 // a Portal's hero image is a server-owned upload derivative, not wording.
-// Links that are not an approved destination (legacy, unclassified URLs) stay
-// behind, because a new Portal must not start with a link nobody approved.
+// Links that are not an approved destination now (legacy, unclassified URLs,
+// disabled or quarantined destinations) stay behind, because a new Portal must
+// not start with a link nobody approved, and they take no slot of the link limit.
 
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import {
@@ -34,6 +35,8 @@ export type PortalCopySource = Readonly<{
   categories: readonly PortalLinkCategory[]
   links: readonly PortalLink[]
   linkTexts: readonly ResolvedPortalLinkText[]
+  /** The Property's destinations that are approved now; a link elsewhere stays behind. */
+  approvedDestinationIds: ReadonlySet<string>
 }>
 
 /** The Portal fields a copy carries into `buildPortal`. */
@@ -82,7 +85,11 @@ function linksToCopy(source: PortalCopySource): readonly PortalLink[] {
       .map((category, index) => [category.id, index] as const),
   )
   return source.links
-    .filter((link) => link.destinationId !== null)
+    .filter(
+      (link) =>
+        link.destinationId !== null &&
+        source.approvedDestinationIds.has(link.destinationId),
+    )
     .sort(
       (a, b) =>
         (categoryRank.get(a.categoryId) ?? 0) - (categoryRank.get(b.categoryId) ?? 0) ||

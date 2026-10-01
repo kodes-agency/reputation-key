@@ -23,11 +23,14 @@ const CHIP_CLASS =
 function LanguageChip({
   locale,
   selected,
+  fallback,
   disabled,
   onToggle,
 }: Readonly<{
   locale: OfferedGuestLocale
   selected: boolean
+  /** The language guests fall back to; marked so it does not depend on chip order (the note below says it in words). */
+  fallback: boolean
   disabled: boolean
   onToggle: () => void
 }>) {
@@ -47,6 +50,11 @@ function LanguageChip({
     >
       <Icon aria-hidden="true" className="size-3.5" />
       {GUEST_LOCALE_METADATA[locale].nativeName}
+      {fallback ? (
+        <span aria-hidden="true" className="text-xs font-normal text-muted-foreground">
+          Fallback
+        </span>
+      ) : null}
     </button>
   )
 }
@@ -65,7 +73,7 @@ export function PortalNewLanguagesField({
   onEdited: () => void
 }>) {
   const selected = field.state.value
-  const { chips, addable } = languageChoices(defaults, selected)
+  const { chips, addable, fallback } = languageChoices(defaults, selected)
   const change = (locale: OfferedGuestLocale) => {
     onEdited()
     field.handleChange(toggleLocale(selected, locale))
@@ -79,6 +87,7 @@ export function PortalNewLanguagesField({
             key={locale}
             locale={locale}
             selected={selected.includes(locale)}
+            fallback={locale === fallback}
             disabled={disabled}
             onToggle={() => change(locale)}
           />

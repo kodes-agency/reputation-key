@@ -14,6 +14,7 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/application/public-api'
 import { assertNewPortalPropertyAccess } from '../load-accessible-portal'
 import type { PortalCommandStore } from '../ports/portal-command-store.port'
+import type { PortalApprovedDestinationRepository } from '../ports/portal-approved-destination.repository'
 import type { PortalExperienceRepository } from '../ports/portal-experience.repository'
 import type { PortalGroupRepository } from '../ports/portal-group.repository'
 import type { PortalLinkRepository } from '../ports/portal-link.repository'
@@ -37,6 +38,7 @@ export type CreatePortalDeps = Readonly<{
     PortalLinkRepository,
     'listCategories' | 'listAllLinks' | 'listLinkTexts'
   >
+  destinationRepo: Pick<PortalApprovedDestinationRepository, 'list'>
   experienceRepo: Pick<
     PortalExperienceRepository,
     'getPropertyExperience' | 'listPortalOverrides'

@@ -64,8 +64,11 @@ const nativeName = (locale: GuestLocale): string =>
   GUEST_LOCALE_METADATA[locale].nativeName
 
 /**
- * The chips to draw and the languages left for the menu. A Property default
- * stays a chip when switched off, so it can be switched on again in place.
+ * The chips to draw, the languages left for the menu and the language guests
+ * fall back to. A Property default stays a chip when switched off, so it can be
+ * switched on again in place; chips keep their place, so the fallback (the first
+ * language chosen) is named rather than implied by position. With one language
+ * chosen there is no fallback to name.
  */
 export function languageChoices(
   defaults: readonly OfferedGuestLocale[],
@@ -73,11 +76,13 @@ export function languageChoices(
 ): Readonly<{
   chips: readonly OfferedGuestLocale[]
   addable: readonly OfferedGuestLocale[]
+  fallback: OfferedGuestLocale | null
 }> {
   const chips = [...new Set([...defaults, ...selected])]
   return {
     chips,
     addable: OFFERED_GUEST_LOCALES.filter((locale) => !chips.includes(locale)),
+    fallback: selected.length > 1 ? (selected[0] ?? null) : null,
   }
 }
 

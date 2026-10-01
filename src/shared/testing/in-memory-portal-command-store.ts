@@ -27,6 +27,8 @@ export function createInMemoryPortalCommandStore(deps: {
     portalId: string,
     overrides: ReadonlyArray<CopiedPortalOverride>,
   ) => void
+  /** Every manager the new Portal starts with; the Portal repository keeps at most one. */
+  onInitialManagers?: (portalId: string, userIds: readonly string[]) => void
 }): PortalCommandStore {
   const outbox = deps.outbox ?? createRecordedOutbox()
   const mutablePortalRepo = deps.portalRepo as InMemoryPortalRepo
@@ -77,29 +79,40 @@ export function createInMemoryPortalCommandStore(deps: {
   }
   return {
     createPortal: async (command) => {
+      // All or nothing, like the Postgres store: a stale group fence refuses the
+      // command before the first write. (The command's own consistency guards
+      // live in infrastructure, which a shared fake may not import; they are
+      // tested against the real store.)
+      const membership = command.groupMembership
+      const groupRepo = deps.portalGroupRepo
+      if (membership) {
+        if (!groupRepo) {
+          throw new Error('in-memory Portal Group repository is not configured')
+        }
+        const group = await groupRepo.findById(
+          command.organizationId,
+          membership.portalGroupId,
+        )
+        if (
+          !group ||
+          group.updatedAt.getTime() !== membership.expectedGroupUpdatedAt.getTime()
+        ) {
+          throw portalError('revision_conflict', 'Portal Group changed during command')
+        }
+      }
       await mutablePortalRepo.insert(
         command.organizationId,
         command.portal,
         command.initialResponsibleManagerIds[0] ?? null,
       )
+      deps.onInitialManagers?.(command.portal.id, command.initialResponsibleManagerIds)
       await outbox.record(command.event)
-      if (command.groupMembership) {
-        const { portalGroupId, expectedGroupUpdatedAt, revision, event } =
-          command.groupMembership
-        if (!deps.portalGroupRepo) {
-          throw new Error('in-memory Portal Group repository is not configured')
-        }
-        const group = await deps.portalGroupRepo.findById(
-          command.organizationId,
-          portalGroupId,
-        )
-        if (!group || group.updatedAt.getTime() !== expectedGroupUpdatedAt.getTime()) {
-          throw portalError('revision_conflict', 'Portal Group changed during command')
-        }
-        await deps.portalGroupRepo.update(command.organizationId, portalGroupId, {
+      if (membership && groupRepo) {
+        const { portalGroupId, revision, event } = membership
+        await groupRepo.update(command.organizationId, portalGroupId, {
           updatedAt: revision,
         })
-        await deps.portalGroupRepo.addPortal(
+        await groupRepo.addPortal(
           command.organizationId,
           portalGroupId,
           command.portal.id,

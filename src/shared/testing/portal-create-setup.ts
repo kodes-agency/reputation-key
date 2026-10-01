@@ -21,6 +21,7 @@ import type { PortalGroup } from '#/contexts/portal/domain/types'
 import type { PortalGroupRepository } from '#/contexts/portal/application/ports/portal-group.repository'
 import type { CopiedPortalOverride } from '#/contexts/portal/application/ports/portal-command-store.port'
 import type { PortalLocalizedOverride } from '#/contexts/portal/application/ports/portal-experience.repository'
+import type { PortalApprovedDestination } from '#/contexts/portal/domain/approved-destination'
 import { createPortal } from '#/contexts/portal/application/use-cases/create-portal'
 
 export const PROPERTY = propertyId('a0000000-0000-0000-0000-000000000001')
@@ -72,6 +73,8 @@ export function setupCreatePortal(options: CreatePortalSetupOptions = {}) {
   const portalGroupRepo = createGroupRepo()
   const outbox = createRecordedOutbox()
   const copiedOverrides = new Map<string, ReadonlyArray<CopiedPortalOverride>>()
+  const destinations = new Map<string, PortalApprovedDestination>()
+  const initialManagers = new Map<string, readonly string[]>()
   const sourceOverrides = new Map<string, readonly PortalLocalizedOverride[]>()
   const commandStore = createInMemoryPortalCommandStore({
     portalRepo,
@@ -79,6 +82,7 @@ export function setupCreatePortal(options: CreatePortalSetupOptions = {}) {
     portalLinkRepo,
     outbox,
     onCopiedOverrides: (id, overrides) => void copiedOverrides.set(id, overrides),
+    onInitialManagers: (id, ids) => void initialManagers.set(id, ids),
   })
   const managers = options.managers ?? [{ userId: CREATOR, role: 'PropertyManager' }]
   const accessible = options.accessible === undefined ? [PROPERTY] : options.accessible
@@ -96,6 +100,12 @@ export function setupCreatePortal(options: CreatePortalSetupOptions = {}) {
     portalRepo,
     portalGroupRepo,
     portalLinkRepo,
+    destinationRepo: {
+      list: async (_org, pid) =>
+        [...destinations.values()].filter(
+          (destination) => destination.propertyId === pid,
+        ),
+    },
     experienceRepo: {
       getPropertyExperience: async () => ({
         profile: options.propertyDefaults
@@ -144,6 +154,10 @@ export function setupCreatePortal(options: CreatePortalSetupOptions = {}) {
     outbox,
     commandStore,
     copiedOverrides,
+    initialManagers,
+    seedDestinations: (rows: readonly PortalApprovedDestination[]) => {
+      for (const row of rows) destinations.set(String(row.id), row)
+    },
     seedSourceOverrides: (id: PortalId, rows: readonly PortalLocalizedOverride[]) =>
       void sourceOverrides.set(String(id), rows),
   }

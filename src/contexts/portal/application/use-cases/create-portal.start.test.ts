@@ -19,6 +19,10 @@ import {
 import { isPortalError, portalError } from '../../domain/errors'
 import type { PortalGroup } from '../../domain/types'
 import {
+  PORTAL_DESTINATION_VALIDATION_VERSION,
+  type PortalApprovedDestination,
+} from '../../domain/approved-destination'
+import {
   CLOCK,
   CREATOR,
   OTHER_PROPERTY,
@@ -41,6 +45,28 @@ const codeOf = async (run: Promise<unknown>): Promise<string | undefined> => {
   return undefined
 }
 
+const destinationOf = (
+  id: typeof DESTINATION,
+  approvalState: PortalApprovedDestination['approvalState'],
+): PortalApprovedDestination => ({
+  id,
+  organizationId: ctx.organizationId,
+  propertyId: PROPERTY,
+  normalizedUri: `https://example.com/${id}`,
+  hostname: 'example.com',
+  sourceType: 'custom',
+  approvalState,
+  validationVersion: PORTAL_DESTINATION_VALIDATION_VERSION,
+  requestedBy: CREATOR as never,
+  approvedBy: null,
+  approvedAt: null,
+  disabledAt: null,
+  disabledReason: null,
+  lastValidatedAt: CLOCK,
+  createdAt: CLOCK,
+  updatedAt: CLOCK,
+})
+
 const groupOf = (patch: Partial<PortalGroup> = {}): PortalGroup => ({
   id: GROUP,
   organizationId: ctx.organizationId,
@@ -62,6 +88,25 @@ describe('createPortal web address', () => {
     ])
     const portal = await useCase({ ...base, name: 'Rooftop pool' }, ctx)
     expect(portal.slug).toBe('rooftop-pool-3')
+  })
+
+  it.each([
+    ['Рецепция', 'portal'],
+    ['Басейн на покрива', 'portal'],
+    ['A', 'portal'],
+    ['☕☕', 'portal'],
+  ])(
+    'creates a portal named %j with an address the manager never sees',
+    async (name, slug) => {
+      const { useCase } = setupCreatePortal()
+      expect((await useCase({ ...base, name }, ctx)).slug).toBe(slug)
+    },
+  )
+
+  it('numbers the fallback address like any other', async () => {
+    const { useCase } = setupCreatePortal()
+    await useCase({ ...base, name: 'Рецепция' }, ctx)
+    expect((await useCase({ ...base, name: 'Басейн' }, ctx)).slug).toBe('portal-2')
   })
 
   it('keeps the plain address when it is free', async () => {
@@ -131,6 +176,25 @@ describe('createPortal group', () => {
     expect(added).toMatchObject({ portalGroupId: GROUP, portalId: portal.id })
     // The group revision moves past the one the command read.
     expect(added?.sourceAggregateVersion).toBe('2026-04-10T12:00:00.000Z')
+  })
+
+  it('leaves nothing behind when the group changed after it was read', async () => {
+    const { useCase, portalGroupRepo, portalRepo, outbox, commandStore } =
+      setupCreatePortal()
+    portalGroupRepo.seed(groupOf())
+    const commit = commandStore.createPortal
+    vi.spyOn(commandStore, 'createPortal').mockImplementation(async (command) => {
+      // Another change to the group lands between the read and the commit.
+      await portalGroupRepo.update(ctx.organizationId, GROUP, {
+        updatedAt: new Date('2026-04-03T00:00:00Z'),
+      })
+      await commit(command)
+    })
+    expect(
+      await codeOf(useCase({ ...base, name: 'Pool', groupId: String(GROUP) }, ctx)),
+    ).toBe('revision_conflict')
+    expect(portalRepo.all()).toHaveLength(0)
+    expect(outbox.facts).toHaveLength(0)
   })
 
   it('leaves the portal out of every group when none is chosen', async () => {
@@ -212,6 +276,15 @@ describe('createPortal responsible managers', () => {
     expect(portal.responsibilityNeededSince).toBeNull()
   })
 
+  it('records every manager named, not only the first', async () => {
+    const { useCase, initialManagers } = setupCreatePortal({ managers })
+    const portal = await useCase(
+      { ...base, name: 'Pool', responsibleManagerUserIds: [CREATOR, OTHER] },
+      ctx,
+    )
+    expect(initialManagers.get(String(portal.id))).toEqual([CREATOR, OTHER])
+  })
+
   it('refuses a manager who is not eligible for the Property', async () => {
     const { useCase, portalRepo } = setupCreatePortal({ managers })
     expect(
@@ -281,6 +354,7 @@ describe('createPortal start from', () => {
       legacyDestinationState: 'migrated',
       label: 'Menu',
     })
+    setup.seedDestinations([destinationOf(DESTINATION, 'approved')])
     setup.portalRepo.seed([source])
     setup.portalLinkRepo.seedCategories([category])
     setup.portalLinkRepo.seedLinks([link])
@@ -404,6 +478,71 @@ describe('createPortal start from', () => {
     )
     expect(spy.mock.calls[0]?.[0].copiedContent).toBeUndefined()
     expect(portal.description).toBeNull()
+  })
+
+  it('copies only links whose destination is approved, so a disabled one does not take a slot', async () => {
+    const setup = setupCreatePortal()
+    const { source } = seedSource(setup)
+    const destinationId = (n: number) =>
+      portalApprovedDestinationId(`de000000-0000-0000-0000-00000000010${n}`)
+    const disabled = destinationId(1)
+    const quarantined = destinationId(2)
+    const pending = destinationId(3)
+    const approved = [4, 5, 6, 7].map((n) =>
+      portalApprovedDestinationId(`de000000-0000-0000-0000-00000000010${n}`),
+    )
+    setup.seedDestinations([
+      destinationOf(disabled, 'disabled'),
+      destinationOf(quarantined, 'quarantined'),
+      destinationOf(pending, 'pending'),
+      ...approved.map((id) => destinationOf(id, 'approved')),
+    ])
+    const category = (
+      await setup.portalLinkRepo.listCategories(ctx.organizationId, source.id)
+    )[0]
+    const extra = [disabled, quarantined, pending, ...approved].map(
+      (destination, index) =>
+        buildTestPortalLink({
+          id: portalLinkId(`10000000-0000-0000-0000-00000000010${index}`),
+          portalId: source.id,
+          categoryId: category?.id,
+          destinationId: destination,
+          legacyDestinationState: 'migrated',
+          label: `Extra ${index}`,
+          // The seeded 'Menu' link sorts first; these follow, retired ones first.
+          sortKey: `b${index}`,
+        }),
+    )
+    setup.portalLinkRepo.seedLinks(extra)
+
+    const portal = await setup.useCase(
+      { ...base, name: 'Copy', startFrom: { kind: 'portal', portalId: String(SOURCE) } },
+      ctx,
+    )
+
+    const links = await setup.portalLinkRepo.listAllLinks(ctx.organizationId, portal.id)
+    expect(links.map((link) => link.destinationId).sort()).toEqual(
+      [DESTINATION, approved[0], approved[1], approved[2]].sort(),
+    )
+  })
+
+  it('refuses an archived portal as a starting point', async () => {
+    const setup = setupCreatePortal()
+    const { source } = seedSource(setup)
+    setup.portalRepo.seed([{ ...source, publicationState: 'archived' }])
+    expect(
+      await codeOf(
+        setup.useCase(
+          {
+            ...base,
+            name: 'Copy',
+            startFrom: { kind: 'portal', portalId: String(SOURCE) },
+          },
+          ctx,
+        ),
+      ),
+    ).toBe('portal_inactive')
+    expect(setup.portalRepo.all()).toHaveLength(1)
   })
 
   it('refuses a portal of another Property', async () => {
