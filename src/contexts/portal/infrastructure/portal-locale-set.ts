@@ -3,6 +3,7 @@
 // changes. Split out of portal-command-store.ts.
 
 import { portals } from '#/shared/db/schema'
+import { parseGuestLocale } from '#/shared/domain/guest-locale'
 import { unbrand } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'
 import type { UpdatePortalCommand } from '../application/ports/portal-command-store.port'
@@ -50,12 +51,16 @@ export async function watchPrimaryLocaleChange(
     .from(portals)
     .where(portalScopeWhere(scope))
     .limit(1)
-  if (before?.primary === next) return async () => {}
+  if (!before) return async () => {}
+  const previous = parseGuestLocale(before.primary)
+  if (!previous) throw new Error('Portal has a guest locale outside the catalogue')
+  if (previous === next) return async () => {}
   return () =>
     reconcileLinkTextsToPrimary(
       tx,
       scope,
       { actorUserId: unbrand(command.actorUserId), at: command.occurredAt },
       next,
+      previous,
     )
 }

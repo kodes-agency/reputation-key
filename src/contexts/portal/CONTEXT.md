@@ -66,7 +66,9 @@ creating or renaming a link and saving the primary text all write both, and
 readers (`listLinkTexts`) fall back to the link's own label for a link with no
 primary-language row. Changing the Portal's primary language re-establishes the
 mirror in the same transaction: a link label takes the new primary's text where
-one exists, and the new primary's text starts from the label where none does.
+one exists, and the new primary's text starts from the label where none does; first the
+old primary keeps a newer label of that window as its own text, so a switch never discards
+the label readers were showing.
 Old code that ran between migration 0044 and the new web rollout could rename a
 link without touching its text; `resolveLinkTexts` reconciles that window for
 every reader (the editor, the preview and the v3 writer): a link renamed after

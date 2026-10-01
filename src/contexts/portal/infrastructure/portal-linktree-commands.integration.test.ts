@@ -786,6 +786,43 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
       ])
     })
 
+    it('keeps a label renamed by old code as the old primary text instead of discarding it', async () => {
+      const id = await createLink('Menu', 'a0')
+      await saveTexts(id, [{ locale: 'bg', label: 'Меню' }])
+      // Old code renamed the link and knew nothing of its text rows; every
+      // reader currently shows the newer label as the primary text.
+      await getPool().query(
+        `UPDATE portal_links SET label = 'Food menu', updated_at = $3
+         WHERE organization_id = $1 AND id = $2`,
+        [ORG_A, id, nextInstant()],
+      )
+
+      await switchPrimary('bg', ['en'])
+
+      expect(await linkLabel(id)).toBe('Меню')
+      expect((await textRows(id)).map((row) => [row.locale, row.label])).toEqual([
+        ['bg', 'Меню'],
+        ['en', 'Food menu'],
+      ])
+    })
+
+    it('keeps the label renamed by old code in both languages when the new primary had no text', async () => {
+      const id = await createLink('Menu', 'a0')
+      await getPool().query(
+        `UPDATE portal_links SET label = 'Food menu', updated_at = $3
+         WHERE organization_id = $1 AND id = $2`,
+        [ORG_A, id, nextInstant()],
+      )
+
+      await switchPrimary('bg', ['en'])
+
+      expect(await linkLabel(id)).toBe('Food menu')
+      expect((await textRows(id)).map((row) => [row.locale, row.label])).toEqual([
+        ['bg', 'Food menu'],
+        ['en', 'Food menu'],
+      ])
+    })
+
     it('leaves texts and labels alone when the primary language is not what changed', async () => {
       const id = await createLink('Menu', 'a0')
       await saveTexts(id, [{ locale: 'bg', label: 'Меню' }])
