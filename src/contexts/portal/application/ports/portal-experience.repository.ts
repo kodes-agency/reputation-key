@@ -90,6 +90,32 @@ export type PortalExperienceRepository = Readonly<{
     }>,
   ) => Promise<PropertyPortalBrandProfile>
   /**
+   * Save the look alone: the accent, the background and the wordmark. It reads
+   * and writes the Brand Profile inside the Property's publication lock, so a
+   * display-name or image write that lands beside it is never reverted, and it
+   * leaves the public display name, the images, the text colour and who last
+   * saved the profile (that decides whether the name counts as confirmed) as
+   * they are. `actorUserId` is recorded in the page-edit ledger only. The
+   * look version, the pending changes and the fact move as for any look edit.
+   * A manual `backgroundColor` is kept when omitted; so is the wordmark. Null
+   * when the Property has no Brand Profile.
+   */
+  savePropertyLook: (
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      look: Readonly<{
+        primaryColor: string
+        backgroundMode: BackgroundMode
+        backgroundColor?: string
+        /** Left as it is when omitted; null clears it. */
+        wordmark?: string | null
+      }>
+      actorUserId: UserId
+      at: Date
+    }>,
+  ) => Promise<PropertyPortalBrandProfile | null>
+  /**
    * Choose the languages a new Portal starts with. They only seed new Portals,
    * so this moves neither version, records no pending change, emits no fact
    * and does not touch who last saved the profile. Null when the Property has

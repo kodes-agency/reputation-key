@@ -1,9 +1,12 @@
 // Portal context — saving the Property look (the page's accent, background and
-// wordmark). What this pins: only an Account Admin may save it, a look the
-// guest page could not read is refused before anything persists, the writer
-// is handed the profile's own name and server-owned images (a look save never
-// clears them), and a Property with no Brand Profile yet is told to set its
-// name first.
+// wordmark). What this pins: only an Account Admin may save it, a colour that
+// is not a colour or a manual background light text cannot be read on is
+// refused before anything persists, an accent that is hard to see on its field
+// is NOT refused (the guest page draws light text in its place, and the default
+// palette every Property starts with is such an accent), the writer is asked
+// for the look facets alone and so never touches the name, the images or who
+// confirmed the name, and a Property with no Brand Profile yet is told to set
+// its name first.
 
 import { describe, expect, it, vi } from 'vitest'
 import { organizationId, propertyId } from '#/shared/domain/ids'
@@ -14,6 +17,7 @@ import type {
   PortalExperienceRepository,
   PropertyPortalBrandProfile,
 } from '../ports/portal-experience.repository'
+import { DEFAULT_PROPERTY_BRAND_PALETTE } from '../../domain/portal-experience'
 import { savePropertyLook } from './save-property-look'
 
 const NOW = new Date('2026-10-01T12:00:00.000Z')
@@ -45,17 +49,21 @@ const CURRENT: PropertyPortalBrandProfile = {
 
 const setup = (profile: PropertyPortalBrandProfile | null = CURRENT) => {
   const experienceRepo = {
-    getPropertyExperience: vi.fn<PortalExperienceRepository['getPropertyExperience']>(
-      async () => ({ profile, content: [] }),
-    ),
-    savePropertyProfile: vi.fn<PortalExperienceRepository['savePropertyProfile']>(
-      async (input) => ({
-        ...CURRENT,
-        ...input.profile,
-        wordmark: input.profile.wordmark ?? CURRENT.wordmark,
-        backgroundMode: input.profile.backgroundMode ?? CURRENT.backgroundMode,
-        lookVersion: CURRENT.lookVersion + 1,
-      }),
+    savePropertyLook: vi.fn<PortalExperienceRepository['savePropertyLook']>(
+      async (input) =>
+        profile === null
+          ? null
+          : {
+              ...profile,
+              primaryColor: input.look.primaryColor,
+              backgroundMode: input.look.backgroundMode,
+              backgroundColor: input.look.backgroundColor ?? profile.backgroundColor,
+              wordmark:
+                input.look.wordmark === undefined
+                  ? profile.wordmark
+                  : input.look.wordmark,
+              lookVersion: profile.lookVersion + 1,
+            },
     ),
   }
   const staffPublicApi: StaffPublicApi = {
@@ -65,16 +73,18 @@ const setup = (profile: PropertyPortalBrandProfile | null = CURRENT) => {
   const save = savePropertyLook({
     experienceRepo,
     staffPublicApi,
-    idGen: () => 'e0000000-0000-4000-8000-000000000009',
     clock: () => NOW,
   })
   return { experienceRepo, save }
 }
 
+const lookOf = (experienceRepo: ReturnType<typeof setup>['experienceRepo'], call = 0) =>
+  experienceRepo.savePropertyLook.mock.calls[call]?.[0]
+
 const admin = () => buildTestAuthContext({ role: 'AccountAdmin' })
 
 describe('savePropertyLook', () => {
-  it('saves the accent in upper case and keeps the name, images and text colour', async () => {
+  it('hands the writer the accent in upper case and the look alone, as the admin', async () => {
     const { experienceRepo, save } = setup()
 
     await save(
@@ -82,19 +92,60 @@ describe('savePropertyLook', () => {
       admin(),
     )
 
-    expect(experienceRepo.savePropertyProfile).toHaveBeenCalledOnce()
-    const [call] = experienceRepo.savePropertyProfile.mock.calls[0] ?? []
-    expect(call?.profile).toMatchObject({
-      displayName: 'Avela Resort',
-      logoUrl: 'https://cdn.example.com/logo.png',
-      defaultHeroImageUrl: 'https://cdn.example.com/hero.png',
-      primaryColor: '#EAD6A8',
-      backgroundColor: '#FFFFFF',
-      textColor: '#111827',
-      backgroundMode: 'auto',
+    expect(experienceRepo.savePropertyLook).toHaveBeenCalledOnce()
+    const call = lookOf(experienceRepo)
+    expect(call).toMatchObject({
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      look: { primaryColor: '#EAD6A8', backgroundMode: 'auto' },
+      actorUserId: admin().userId,
+      at: NOW,
     })
-    expect(call?.updatedBy).toBe(admin().userId)
+    // The name, images, text colour and "who confirmed the name" are not the
+    // look's to write: the writer has no field for them.
+    expect(call).not.toHaveProperty('profile')
+    expect(call).not.toHaveProperty('updatedBy')
+    expect(call?.look).not.toHaveProperty('displayName')
+    expect(call?.look).not.toHaveProperty('logoUrl')
+    expect(call?.look).not.toHaveProperty('textColor')
   })
+
+  it('saves the default palette accent, which is hard to see on its field, when only the wordmark changes', async () => {
+    const { experienceRepo, save } = setup({
+      ...CURRENT,
+      primaryColor: DEFAULT_PROPERTY_BRAND_PALETTE.primaryColor,
+      backgroundColor: DEFAULT_PROPERTY_BRAND_PALETTE.backgroundColor,
+    })
+
+    await save(
+      {
+        propertyId: PROPERTY,
+        accentColour: DEFAULT_PROPERTY_BRAND_PALETTE.primaryColor,
+        backgroundMode: 'auto',
+        wordmark: 'AVELA',
+      },
+      admin(),
+    )
+
+    expect(lookOf(experienceRepo)?.look).toMatchObject({
+      primaryColor: '#2563EB',
+      wordmark: 'AVELA',
+    })
+  })
+
+  it.each(['#DC2626', '#7C3AED', '#0F766E', '#6366F1'])(
+    'does not refuse the accent %s for being hard to see on its field',
+    async (accent) => {
+      const { experienceRepo, save } = setup()
+
+      await save(
+        { propertyId: PROPERTY, accentColour: accent, backgroundMode: 'auto' },
+        admin(),
+      )
+
+      expect(lookOf(experienceRepo)?.look.primaryColor).toBe(accent)
+    },
+  )
 
   it('stores a manual background that light text can be read on', async () => {
     const { experienceRepo, save } = setup()
@@ -109,14 +160,13 @@ describe('savePropertyLook', () => {
       admin(),
     )
 
-    const [call] = experienceRepo.savePropertyProfile.mock.calls[0] ?? []
-    expect(call?.profile).toMatchObject({
+    expect(lookOf(experienceRepo)?.look).toMatchObject({
       backgroundMode: 'manual',
       backgroundColor: '#1B1410',
     })
   })
 
-  it('keeps the stored background colour while the background is automatic', async () => {
+  it('sends no background colour while the background is automatic', async () => {
     const { experienceRepo, save } = setup()
 
     await save(
@@ -129,8 +179,7 @@ describe('savePropertyLook', () => {
       admin(),
     )
 
-    const [call] = experienceRepo.savePropertyProfile.mock.calls[0] ?? []
-    expect(call?.profile.backgroundColor).toBe('#FFFFFF')
+    expect(lookOf(experienceRepo)?.look).not.toHaveProperty('backgroundColor')
   })
 
   it('normalises the wordmark, and clears it when it is only spaces', async () => {
@@ -155,12 +204,8 @@ describe('savePropertyLook', () => {
       admin(),
     )
 
-    expect(experienceRepo.savePropertyProfile.mock.calls[0]?.[0].profile.wordmark).toBe(
-      'AVELA',
-    )
-    expect(
-      experienceRepo.savePropertyProfile.mock.calls[1]?.[0].profile.wordmark,
-    ).toBeNull()
+    expect(lookOf(experienceRepo, 0)?.look.wordmark).toBe('AVELA')
+    expect(lookOf(experienceRepo, 1)?.look.wordmark).toBeNull()
   })
 
   it('leaves the wordmark alone when the caller names none', async () => {
@@ -171,9 +216,7 @@ describe('savePropertyLook', () => {
       admin(),
     )
 
-    expect(
-      experienceRepo.savePropertyProfile.mock.calls[0]?.[0].profile,
-    ).not.toHaveProperty('wordmark')
+    expect(lookOf(experienceRepo)?.look).not.toHaveProperty('wordmark')
   })
 
   it('refuses a wordmark past 24 characters', async () => {
@@ -190,19 +233,7 @@ describe('savePropertyLook', () => {
         admin(),
       ),
     ).rejects.toSatisfy(failsWith('invalid_description'))
-    expect(experienceRepo.savePropertyProfile).not.toHaveBeenCalled()
-  })
-
-  it('refuses an accent that is hard to see on the page background', async () => {
-    const { experienceRepo, save } = setup()
-
-    await expect(
-      save(
-        { propertyId: PROPERTY, accentColour: '#1A1A2E', backgroundMode: 'auto' },
-        admin(),
-      ),
-    ).rejects.toSatisfy(failsWith('invalid_theme'))
-    expect(experienceRepo.savePropertyProfile).not.toHaveBeenCalled()
+    expect(experienceRepo.savePropertyLook).not.toHaveBeenCalled()
   })
 
   it('refuses a manual background that light text cannot be read on', async () => {
@@ -219,7 +250,7 @@ describe('savePropertyLook', () => {
         admin(),
       ),
     ).rejects.toSatisfy(failsWith('invalid_theme'))
-    expect(experienceRepo.savePropertyProfile).not.toHaveBeenCalled()
+    expect(experienceRepo.savePropertyLook).not.toHaveBeenCalled()
   })
 
   it('refuses a manual background that is not given or is not a colour', async () => {
@@ -248,7 +279,7 @@ describe('savePropertyLook', () => {
   })
 
   it('asks the Property to set its public display name first when it has no profile', async () => {
-    const { experienceRepo, save } = setup(null)
+    const { save } = setup(null)
 
     await expect(
       save(
@@ -256,7 +287,6 @@ describe('savePropertyLook', () => {
         admin(),
       ),
     ).rejects.toSatisfy(failsWith('brand_profile_missing'))
-    expect(experienceRepo.savePropertyProfile).not.toHaveBeenCalled()
   })
 
   it('refuses a PropertyManager, who holds portal.update but not portal.admin', async () => {
@@ -268,6 +298,6 @@ describe('savePropertyLook', () => {
         buildTestAuthContext({ role: 'PropertyManager' }),
       ),
     ).rejects.toSatisfy(failsWith('forbidden'))
-    expect(experienceRepo.getPropertyExperience).not.toHaveBeenCalled()
+    expect(experienceRepo.savePropertyLook).not.toHaveBeenCalled()
   })
 })

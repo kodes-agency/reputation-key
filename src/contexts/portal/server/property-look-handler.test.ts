@@ -5,6 +5,7 @@
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { withStartContext } from '#/shared/testing/tanstack-start-als'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { portalError } from '../domain/errors'
 
 const mocks = vi.hoisted(() => ({
@@ -79,7 +80,7 @@ describe('Property look server functions', () => {
 
   it('carries a refused look out as a tagged Portal error', async () => {
     mocks.savePropertyLook.mockRejectedValue(
-      portalError('invalid_theme', 'This accent is hard to see on the page background'),
+      portalError('invalid_theme', 'Page text cannot be read on this background'),
     )
 
     await expect(
@@ -87,8 +88,9 @@ describe('Property look server functions', () => {
         savePropertyLook({
           data: {
             propertyId: 'property-1',
-            accentColour: '#1A1A2E',
-            backgroundMode: 'auto',
+            accentColour: '#EAD6A8',
+            backgroundMode: 'manual',
+            backgroundColour: '#E8E8E8',
           },
         }),
       ),
@@ -111,8 +113,15 @@ describe('Property look server functions', () => {
   })
 
   it('stops before the use case when the Property policy refuses', async () => {
+    // What `requireExecutionAllowed` throws on a denial: a tagged 403 whose code
+    // is the policy's reason, never an untagged 500.
     mocks.requireExecutionAllowed.mockRejectedValue(
-      portalError('forbidden', 'Portals are switched off here'),
+      new ServerFunctionError(
+        'AuthError',
+        'Authorization denied: property_disabled',
+        'property_disabled',
+        403,
+      ),
     )
 
     await expect(
@@ -121,7 +130,11 @@ describe('Property look server functions', () => {
           data: { propertyId: 'property-1', locales: ['en'] },
         }),
       ),
-    ).rejects.toBeDefined()
+    ).rejects.toMatchObject({
+      _tag: 'AuthError',
+      code: 'property_disabled',
+      status: 403,
+    })
     expect(mocks.savePropertyDefaultGuestLocales).not.toHaveBeenCalled()
   })
 })

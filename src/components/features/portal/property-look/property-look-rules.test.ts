@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { readLookContrast } from '#/shared/domain/portal-look-readout'
 import {
   affectedPortals,
   describeLookStatus,
+  customFieldOf,
   languageSetOf,
   lookDraftOf,
   lookInputOf,
@@ -11,6 +13,7 @@ import {
   parseColourInput,
   ratioText,
   readoutRows,
+  refusalOf,
   describeAffected,
   type AffectedPortalRow,
 } from './property-look-rules'
@@ -104,12 +107,54 @@ describe('lookProblemOf', () => {
     expect(lookProblemOf(draft)).toBeNull()
   })
 
-  it('names an accent that is hard to see, a field that light text cannot be read on, and a long wordmark', () => {
-    expect(lookProblemOf({ ...draft, accent: '#1A1A2E' })).toMatch(/hard to see/i)
+  it('names a field that light text cannot be read on, and a long wordmark', () => {
     expect(
       lookProblemOf({ ...draft, backgroundMode: 'manual', field: '#E8E8E8' }),
     ).toMatch(/background/i)
     expect(lookProblemOf({ ...draft, wordmark: 'A'.repeat(25) })).toMatch(/24/)
+  })
+
+  it('does not refuse an accent that is hard to see on its field: the page covers it', () => {
+    // The default palette every Property starts with, and the legacy indigo.
+    expect(lookProblemOf({ ...draft, accent: '#2563EB' })).toBeNull()
+    expect(lookProblemOf({ ...draft, accent: '#6366F1' })).toBeNull()
+    expect(lookProblemOf({ ...draft, accent: '#1A1A2E' })).toBeNull()
+  })
+
+  it('asks for six hex digits when a colour is not complete', () => {
+    expect(lookProblemOf({ ...draft, accent: '#EAD' })).toMatch(/six hex digits/i)
+  })
+})
+
+describe('customFieldOf', () => {
+  const draft = lookDraftOf({ ...PROFILE, backgroundColor: '#FFFFFF' })
+
+  it('seeds the custom background with the field the page paints, when the stored colour is light', () => {
+    const seeded = customFieldOf(draft)
+
+    expect(seeded).not.toBe('#FFFFFF')
+    expect(
+      lookProblemOf({ ...draft, backgroundMode: 'manual', field: seeded }),
+    ).toBeNull()
+  })
+
+  it('keeps a stored colour that light text can be read on', () => {
+    expect(customFieldOf({ ...draft, field: '#1B1410' })).toBe('#1B1410')
+  })
+})
+
+describe('refusalOf', () => {
+  it('is the server sentence for a 4xx refusal, and nothing for a failure that a retry could fix', () => {
+    expect(
+      refusalOf(
+        new ServerFunctionError('PortalError', 'Portals are switched off', 'x', 403),
+      ),
+    ).toBe('Portals are switched off')
+    expect(
+      refusalOf(new ServerFunctionError('InternalError', 'boom', 'internal', 500)),
+    ).toBeNull()
+    expect(refusalOf(new Error('offline'))).toBeNull()
+    expect(refusalOf(null)).toBeNull()
   })
 })
 
@@ -139,17 +184,22 @@ describe('readoutRows and ratioText', () => {
     expect(rows[0]?.ratio).toMatch(/^\d+\.\d:1$/)
   })
 
-  it('says hard to read for a pair below its minimum', () => {
+  it('says hard to read for a pair below its minimum, and for the accent that guests see as light text', () => {
     const readout = readLookContrast({
-      accent: '#1A1A2E',
+      accent: '#2563EB',
       backgroundMode: 'auto',
       backgroundColour: '#FFFFFF',
     })
     if (!readout) throw new Error('expected a readout')
 
-    expect(readoutRows(readout).find((entry) => !entry.isReadable)?.verdict).toBe(
-      'Hard to read',
-    )
+    const hard = readoutRows(readout).find((entry) => !entry.isReadable)
+
+    expect(hard).toMatchObject({
+      label: 'Accent on the colour field',
+      verdict: 'Hard to read',
+      note: 'guests see it as light text',
+    })
+    expect(readoutRows(readout).filter((entry) => entry.note !== null)).toHaveLength(1)
   })
 })
 
@@ -221,6 +271,19 @@ describe('describeLookStatus', () => {
       text: 'Not saved',
       tone: 'warn',
       canRetry: true,
+    })
+  })
+
+  it('shows the server reason for a refused save and offers no retry, which cannot fix it', () => {
+    expect(
+      describeLookStatus(
+        { status: 'error', reason: 'Portals are switched off here' },
+        five,
+      ),
+    ).toMatchObject({
+      text: 'Not saved · Portals are switched off here',
+      tone: 'warn',
+      canRetry: false,
     })
   })
 })

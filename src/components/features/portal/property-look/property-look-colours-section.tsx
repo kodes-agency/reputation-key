@@ -1,11 +1,19 @@
 // Colours (board 09): the accent, the background tint and what a guest will be
 // able to read. The readout is the guest page's own arithmetic, so "Readable"
-// here means readable there; an accent the page could not read is not saved.
+// here means readable there. An accent the page cannot show on its field is
+// flagged, not refused: guests see it as light text, and the default palette
+// every Property starts with is such an accent. Only a background that light
+// text cannot be read on holds the save back.
 import { Check, TriangleAlert } from 'lucide-react'
 import { SegmentedControl } from '#/components/ui/segmented-control'
 import { PropertyLookColourField } from './property-look-colour-field'
 import { PropertyLookSection } from './property-look-section'
-import { readoutOf, readoutRows, type LookDraft } from './property-look-rules'
+import {
+  customFieldOf,
+  readoutOf,
+  readoutRows,
+  type LookDraft,
+} from './property-look-rules'
 
 type Props = Readonly<{
   draft: LookDraft
@@ -33,7 +41,6 @@ export function PropertyLookColoursSection({ draft, onChange, disabled }: Props)
             value={draft.accent}
             onCommit={(accent) => onChange({ accent })}
             disabled={disabled}
-            invalid={readout !== null && !readout.accentOnField.isReadable}
             describedBy={READOUT_ID}
           />
           <p className="text-sm text-muted-foreground">Button, stars and highlights</p>
@@ -46,7 +53,11 @@ export function PropertyLookColoursSection({ draft, onChange, disabled }: Props)
             aria-labelledby="property-look-background-label"
             value={draft.backgroundMode}
             onValueChange={(mode) =>
-              onChange({ backgroundMode: mode === 'manual' ? 'manual' : 'auto' })
+              onChange(
+                mode === 'manual'
+                  ? { backgroundMode: 'manual', field: customFieldOf(draft) }
+                  : { backgroundMode: 'auto' },
+              )
             }
             options={MODE_OPTIONS}
             disabled={disabled}
@@ -72,7 +83,7 @@ export function PropertyLookColoursSection({ draft, onChange, disabled }: Props)
           rows.map((row) => (
             <li
               key={row.label}
-              className={`flex items-center gap-2 ${row.isReadable ? '' : 'text-negative'}`}
+              className={`flex items-center gap-2 ${row.isReadable || row.note !== null ? '' : 'text-negative'}`}
             >
               {row.isReadable ? (
                 <Check className="size-4 shrink-0 text-positive" aria-hidden />
@@ -82,6 +93,7 @@ export function PropertyLookColoursSection({ draft, onChange, disabled }: Props)
               <span>
                 {row.label} <span className="tabular-nums">{row.ratio}</span> ·{' '}
                 {row.verdict}
+                {row.note === null ? '' : ` · ${row.note}`}
               </span>
             </li>
           ))

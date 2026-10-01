@@ -14,6 +14,16 @@ export const AVELA_PROFILE: PropertyLookProfile = {
   defaultGuestLocales: OFFERED_GUEST_LOCALES,
 }
 
+/** What a Property has before anyone picks a colour: the default palette, automatic. */
+export const DEFAULT_PALETTE_PROFILE: PropertyLookProfile = {
+  displayName: 'Avela Resort',
+  primaryColor: '#2563EB',
+  backgroundColor: '#FFFFFF',
+  backgroundMode: 'auto',
+  wordmark: null,
+  defaultGuestLocales: OFFERED_GUEST_LOCALES,
+}
+
 const group = (name: string) => ({ id: `group-${name}`, name })
 
 export const AVELA_PORTALS: readonly AffectedPortalRow[] = [
@@ -65,6 +75,12 @@ export function savingLook(
       ...profile,
       ...(typeof input.data.accentColour === 'string'
         ? { primaryColor: input.data.accentColour }
+        : {}),
+      ...(input.data.backgroundMode === 'manual' || input.data.backgroundMode === 'auto'
+        ? { backgroundMode: input.data.backgroundMode }
+        : {}),
+      ...(typeof input.data.backgroundColour === 'string'
+        ? { backgroundColor: input.data.backgroundColour }
         : {}),
       wordmark:
         input.data.wordmark === undefined

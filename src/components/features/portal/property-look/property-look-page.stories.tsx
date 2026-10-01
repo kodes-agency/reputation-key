@@ -5,6 +5,7 @@
 // and what it does not.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import {
   AuthedRouterDecorator,
   withRole,
@@ -13,6 +14,7 @@ import { previewReader } from '../portal-preview/__fixtures__/portal-preview-fix
 import {
   AVELA_PORTALS,
   AVELA_PROFILE,
+  DEFAULT_PALETTE_PROFILE,
   savingLocales,
   savingLook,
 } from './property-look-page-fixtures'
@@ -104,26 +106,78 @@ export const AccentSavesAsADraft: Story = {
   },
 }
 
-/** An accent the page could not read is flagged and never written. */
-export const UnreadableAccentIsNotSaved: Story = {
+/** An accent the field cannot show is flagged, and still written: guests see it as light text. */
+export const HardToSeeAccentIsFlaggedNotRefused: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     const accent = canvas.getByLabelText('Accent')
     await userEvent.clear(accent)
     await userEvent.type(accent, '#1A1A2E')
     const readout = within(canvas.getByRole('list', { name: 'Readability' }))
-    await expect(readout.getByText(/Hard to read/)).toBeVisible()
-    // Once visible, once for assistive technology.
     await expect(
-      (
-        await canvas.findAllByText(
-          'Not saved · This accent is hard to see on the page background',
-          {},
-          WAIT,
-        )
-      ).length,
-    ).toBe(2)
-    await expect(args.saveLook).not.toHaveBeenCalled()
+      readout.getByText(/Hard to read · guests see it as light text/),
+    ).toBeVisible()
+    await waitFor(
+      () =>
+        expect(args.saveLook).toHaveBeenCalledWith({
+          data: expect.objectContaining({ accentColour: '#1A1A2E' }),
+        }),
+      WAIT,
+    )
+    await expect(canvas.queryByText(/Not saved/)).toBeNull()
+  },
+}
+
+/**
+ * The palette every Property starts with (#2563EB, automatic): its accent is
+ * hard to see on its field, and a wordmark edit must still save.
+ */
+export const DefaultPaletteSavesAWordmark: Story = {
+  args: {
+    profile: DEFAULT_PALETTE_PROFILE,
+    saveLook: savingLook(DEFAULT_PALETTE_PROFILE),
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    const readout = within(canvas.getByRole('list', { name: 'Readability' }))
+    await expect(
+      readout.getByText(/Hard to read · guests see it as light text/),
+    ).toBeVisible()
+    await userEvent.type(canvas.getByLabelText('Wordmark'), 'AVELA')
+    await waitFor(
+      () =>
+        expect(args.saveLook).toHaveBeenCalledWith({
+          data: {
+            propertyId: 'prop-1',
+            accentColour: '#2563EB',
+            backgroundMode: 'auto',
+            wordmark: 'AVELA',
+          },
+        }),
+      WAIT,
+    )
+    await expect(await canvas.findByText(/Saved as a draft/, {}, WAIT)).toBeVisible()
+  },
+}
+
+/** "Custom" starts from the field the page paints, not from the old white. */
+export const CustomStartsFromAReadableField: Story = {
+  args: {
+    profile: DEFAULT_PALETTE_PROFILE,
+    saveLook: savingLook(DEFAULT_PALETTE_PROFILE),
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('radio', { name: 'Custom' }))
+    await expect(canvas.getByLabelText('Background colour')).not.toHaveValue('#FFFFFF')
+    await expect(canvas.queryByText(/cannot be read on this background/)).toBeNull()
+    await waitFor(
+      () =>
+        expect(args.saveLook).toHaveBeenCalledWith({
+          data: expect.objectContaining({ backgroundMode: 'manual' }),
+        }),
+      WAIT,
+    )
   },
 }
 
@@ -300,16 +354,17 @@ export const NoPublicDisplayName: Story = {
   },
 }
 
+const rejectingLook = (error: Error) =>
+  Object.assign(
+    fn(async () => {
+      throw error
+    }),
+    { isPending: false, error: null, isSuccess: false, data: null },
+  ) as never
+
 /** A write that fails says so and offers a retry. */
 export const FailedSaveOffersRetry: Story = {
-  args: {
-    saveLook: Object.assign(
-      fn(async () => {
-        throw new Error('offline')
-      }),
-      { isPending: false, error: null, isSuccess: false, data: null },
-    ) as never,
-  },
+  args: { saveLook: rejectingLook(new Error('offline')) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const accent = canvas.getByLabelText('Accent')
@@ -317,5 +372,67 @@ export const FailedSaveOffersRetry: Story = {
     await userEvent.type(accent, '#C8A45A')
     await expect(await canvas.findByRole('button', { name: 'Retry' }, WAIT)).toBeVisible()
     await expect(canvas.getAllByText('Not saved').length).toBeGreaterThan(0)
+  },
+}
+
+/** A refusal in words says why, and offers no retry: trying again cannot cure it. */
+export const RefusedSaveSaysWhy: Story = {
+  args: {
+    saveLook: rejectingLook(
+      new ServerFunctionError(
+        'PortalError',
+        'Portals are switched off here',
+        'forbidden',
+        403,
+      ),
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const accent = canvas.getByLabelText('Accent')
+    await userEvent.clear(accent)
+    await userEvent.type(accent, '#C8A45A')
+    await expect(
+      (await canvas.findAllByText('Not saved · Portals are switched off here', {}, WAIT))
+        .length,
+    ).toBeGreaterThan(0)
+    await expect(canvas.queryByRole('button', { name: 'Retry' })).toBeNull()
+  },
+}
+
+/** Leaving with a save that failed asks first; keeping on stays, and nothing is lost silently. */
+export const LeavingAfterAFailedSaveAsks: Story = {
+  args: { saveLook: rejectingLook(new Error('offline')) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const body = within(canvasElement.ownerDocument.body)
+    const accent = canvas.getByLabelText('Accent')
+    await userEvent.clear(accent)
+    await userEvent.type(accent, '#C8A45A')
+    await canvas.findByRole('button', { name: 'Retry' }, WAIT)
+    await userEvent.click(canvas.getByRole('link', { name: 'Portals' }))
+    await expect(
+      await body.findByRole('alertdialog', { name: 'Leave without saving?' }),
+    ).toBeVisible()
+    await expect(
+      body.getByText(/Some changes to the look have not been saved/),
+    ).toBeVisible()
+    await userEvent.click(body.getByRole('button', { name: 'Keep editing' }))
+    await waitFor(() => expect(body.queryByRole('alertdialog')).not.toBeInTheDocument())
+    await expect(canvas.getByLabelText('Accent')).toHaveValue('#C8A45A')
+  },
+}
+
+/** An edit still inside its pause is written before the page is left, and leaving is quiet. */
+export const LeavingWritesWhatIsWaiting: Story = {
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    const body = within(canvasElement.ownerDocument.body)
+    const accent = canvas.getByLabelText('Accent')
+    await userEvent.clear(accent)
+    await userEvent.type(accent, '#C8A45A')
+    await userEvent.click(canvas.getByRole('link', { name: 'Portals' }))
+    await waitFor(() => expect(args.saveLook).toHaveBeenCalledTimes(1), WAIT)
+    await expect(body.queryByRole('alertdialog')).not.toBeInTheDocument()
   },
 }

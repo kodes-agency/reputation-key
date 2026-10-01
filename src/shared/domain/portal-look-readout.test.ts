@@ -21,7 +21,7 @@ describe('readLookContrast', () => {
 
     expect(readout).not.toBeNull()
     expect(readout?.field).toBe(deriveFieldColour(CHAMPAGNE))
-    expect(readout?.isAcceptable).toBe(true)
+    expect(readout?.isAllReadable).toBe(true)
     expect(readout?.buttonText.ratio).toBeCloseTo(
       contrastRatio(readableForegroundOn(CHAMPAGNE), CHAMPAGNE) as number,
       5,
@@ -60,7 +60,7 @@ describe('readLookContrast', () => {
     })
 
     expect(readout?.field).toBe('#1B1410')
-    expect(readout?.isAcceptable).toBe(true)
+    expect(readout?.isAllReadable).toBe(true)
   })
 
   it('refuses a manual field that light text cannot be read on', () => {
@@ -71,7 +71,19 @@ describe('readLookContrast', () => {
     })
 
     expect(readout?.smallText.isReadable).toBe(false)
-    expect(readout?.isAcceptable).toBe(false)
+    expect(readout?.isAllReadable).toBe(false)
+  })
+
+  it('reads the default palette accent as hard to see on its field, which the page covers with the text colour', () => {
+    const readout = readLookContrast({
+      accent: '#2563EB',
+      backgroundMode: 'auto',
+      backgroundColour: '#FFFFFF',
+    })
+
+    expect(readout?.accentOnField.isReadable).toBe(false)
+    // The button is drawn in the text colour then, and that is readable.
+    expect(readout?.buttonText.isReadable).toBe(true)
   })
 
   it('flags an accent that is hard to see on the field, and says the page draws the text colour instead', () => {
@@ -83,7 +95,7 @@ describe('readLookContrast', () => {
 
     expect(readout?.accentOnField.isReadable).toBe(false)
     expect(readout?.accentOnField.minimum).toBe(MIN_TEXT_CONTRAST)
-    expect(readout?.isAcceptable).toBe(false)
+    expect(readout?.isAllReadable).toBe(false)
   })
 
   it('always finds button text readable, whatever the accent', () => {

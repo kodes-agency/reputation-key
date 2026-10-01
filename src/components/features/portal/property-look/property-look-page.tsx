@@ -3,7 +3,11 @@
 // a Property, beside a preview of the page with and without a photo.
 //
 // Presentational: the route owns the reads and the two writes. Edits autosave to
-// the draft; guests see the look only when each live portal is published again.
+// the draft through the portal editor's coordinator, with its leave guard
+// mounted here: a reload or a tab close with a write waiting or in flight asks
+// first, and an in-app navigation writes what is waiting, then asks only if a
+// save failed or was refused. Guests see the look only when each live portal
+// is published again.
 // The photo and logo controls (slice 42c2) and the batch "Review & publish"
 // (slice 39b) mount in the slots below.
 import { useState, type ReactNode } from 'react'
@@ -13,6 +17,8 @@ import { PageShell } from '#/components/layout/page-shell'
 import { EmptyState } from '#/components/ui/empty-state'
 import { Palette } from 'lucide-react'
 import type { PortalPreviewReader } from '../portal-preview/portal-preview-pane'
+import { PortalUnsavedChangesPrompt } from '../portal-detail/portal-unsaved-changes-prompt'
+import { PortalDraftAutosaveProvider } from '../portal-editor/portal-draft-autosave-context'
 import { PropertyLookColoursSection } from './property-look-colours-section'
 import { PropertyLookIdentitySection } from './property-look-identity-section'
 import { PropertyLookLanguagesSection } from './property-look-languages-section'
@@ -26,7 +32,11 @@ import {
 } from './property-look-rules'
 import { PropertyLookStatusBar } from './property-look-status-bar'
 import type { PropertyLookProfile } from './property-look-types'
-import { usePropertyLookDraft, type PropertyLookSaves } from './use-property-look-draft'
+import {
+  PROPERTY_LOOK_AUTOSAVE_DELAY_MS,
+  usePropertyLookDraft,
+  type PropertyLookSaves,
+} from './use-property-look-draft'
 
 export type PropertyLookPageProps = PropertyLookSaves &
   Readonly<{
@@ -46,6 +56,11 @@ export type PropertyLookPageProps = PropertyLookSaves &
     /** The batch "Review & publish" (slice 39b). */
     publishSlot?: ReactNode
   }>
+
+const SIDE_COLUMN = 'min-w-0 min-[90rem]:sticky min-[90rem]:top-6 min-[90rem]:self-start'
+
+const LEAVE_COPY =
+  'Some changes to the look have not been saved. If you go on, they are discarded.'
 
 const breadcrumbsOf = (propertyId: string, propertyName: string) => [
   { label: 'Properties', to: '/properties' },
@@ -77,7 +92,9 @@ export function PropertyLookPage(props: PropertyLookPageProps) {
           </p>
         </EmptyState>
       ) : (
-        <PropertyLookEditor {...props} profile={profile} />
+        <PortalDraftAutosaveProvider delayMs={PROPERTY_LOOK_AUTOSAVE_DELAY_MS}>
+          <PropertyLookEditor {...props} profile={profile} />
+        </PortalDraftAutosaveProvider>
       )}
     </PageShell>
   )
@@ -107,58 +124,68 @@ function PropertyLookEditor({
     affected,
   )
 
+  // Board 09's three columns (form, phone, portals) from 90rem, where each of
+  // the two side columns is shorter than the screen and so can stay in view.
+  // Below it the phone and the portal list stack in one column and scroll with
+  // the page: stacked they are taller than a screen, and a sticky box that is
+  // taller than the screen hides its own bottom.
   return (
-    <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_21rem]">
-      <div className="min-w-0 space-y-4">
-        {canEdit ? null : (
-          <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-            An Account Admin manages the look shared by every portal of this Property.
-          </p>
-        )}
-        <div>
-          <PropertyLookPhotoSection
-            slot={photoSlot}
-            onPreviewWithoutPhoto={() => setShowPhoto(false)}
-          />
-          <PropertyLookColoursSection
-            draft={draft}
-            onChange={setDraft}
-            disabled={!canEdit}
-          />
-          <PropertyLookIdentitySection
-            propertyId={propertyId}
-            displayName={profile.displayName}
-            wordmark={draft.wordmark}
-            onWordmarkChange={(wordmark) => setDraft({ wordmark })}
-            disabled={!canEdit}
-            logoSlot={logoSlot}
-          />
-          <PropertyLookLanguagesSection
-            locales={locales}
-            onChange={setLocales}
-            disabled={!canEdit}
+    <>
+      <PortalUnsavedChangesPrompt description={LEAVE_COPY} />
+      <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_21rem] min-[90rem]:grid-cols-[minmax(0,1fr)_21rem_15rem]">
+        <div className="min-w-0 space-y-4 lg:row-span-2 min-[90rem]:row-span-1">
+          {canEdit ? null : (
+            <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+              An Account Admin manages the look shared by every portal of this Property.
+            </p>
+          )}
+          <div>
+            <PropertyLookPhotoSection
+              slot={photoSlot}
+              onPreviewWithoutPhoto={() => setShowPhoto(false)}
+            />
+            <PropertyLookColoursSection
+              draft={draft}
+              onChange={setDraft}
+              disabled={!canEdit}
+            />
+            <PropertyLookIdentitySection
+              propertyId={propertyId}
+              displayName={profile.displayName}
+              wordmark={draft.wordmark}
+              onWordmarkChange={(wordmark) => setDraft({ wordmark })}
+              disabled={!canEdit}
+              logoSlot={logoSlot}
+            />
+            <PropertyLookLanguagesSection
+              locales={locales}
+              onChange={setLocales}
+              disabled={!canEdit}
+            />
+          </div>
+          <PropertyLookStatusBar
+            status={status}
+            onRetry={() => void retry()}
+            action={publishSlot}
           />
         </div>
-        <PropertyLookStatusBar
-          status={status}
-          onRetry={() => void retry()}
-          action={publishSlot}
-        />
+        <aside className={SIDE_COLUMN}>
+          <PropertyLookPreview
+            portal={selected ? { id: selected.portalId, name: selected.name } : null}
+            getPortalPreview={getPortalPreview}
+            draft={draft}
+            showPhoto={showPhoto}
+            onShowPhotoChange={setShowPhoto}
+          />
+        </aside>
+        <aside className={SIDE_COLUMN}>
+          <PropertyLookPortals
+            affected={affected}
+            selectedId={selected?.portalId ?? null}
+            onSelect={setChosenId}
+          />
+        </aside>
       </div>
-      <aside className="min-w-0 space-y-6 lg:sticky lg:top-6 lg:self-start">
-        <PropertyLookPreview
-          portal={selected ? { id: selected.portalId, name: selected.name } : null}
-          getPortalPreview={getPortalPreview}
-          draft={draft}
-          showPhoto={showPhoto}
-          onShowPhotoChange={setShowPhoto}
-        />
-        <PropertyLookPortals
-          affected={affected}
-          selectedId={selected?.portalId ?? null}
-          onSelect={setChosenId}
-        />
-      </aside>
-    </div>
+    </>
   )
 }

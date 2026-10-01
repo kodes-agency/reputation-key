@@ -1,27 +1,29 @@
 // The Property look page's draft: the colours and the wordmark, and the default
-// languages, held as the person edits them and written through one autosave
-// coordinator (the editor's own), so the status line, the retry and the leave
-// guard behave as they do in the portal editor.
+// languages, held as the person edits them and written through the autosave
+// coordinator of the page's provider (the portal editor's own, so the leave
+// guard mounted beside it sees these saves), which drives the status line and
+// the retry.
 //
 // The draft is the page's truth while it is open: the preview and the readout
 // follow it at once, and a save lands the server's answer as the new baseline.
 // The save closures read the current draft when they run, not when they were
 // scheduled, as the coordinator requires.
 
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import type { Action } from '#/components/hooks/use-action'
 import {
   isOfferedGuestLocale,
   type OfferedGuestLocale,
 } from '#/shared/domain/guest-locale'
 import {
-  createPortalDraftAutosave,
-  type PortalDraftAutosaveState,
-} from '../portal-editor/portal-draft-autosave'
+  usePortalDraftAutosave,
+  usePortalDraftAutosaveState,
+} from '../portal-editor/portal-draft-autosave-context'
 import {
   lookDraftOf,
   lookInputOf,
   lookProblemOf,
+  refusalOf,
   type LookDraft,
 } from './property-look-rules'
 import { runLocalesSave, runLookSave } from './property-look-save'
@@ -29,8 +31,8 @@ import type { PropertyLookProfile } from './property-look-types'
 
 const LOOK_KEY = 'look'
 const LOCALES_KEY = 'locales'
-/** Short: a chip or a colour pick is a decision, not typing. */
-const AUTOSAVE_DELAY_MS = 600
+/** Short: a chip or a colour pick is a decision, not typing. The provider is given it. */
+export const PROPERTY_LOOK_AUTOSAVE_DELAY_MS = 600
 
 export type PropertyLookSaves = Readonly<{
   saveLook: Action<{ data: ReturnType<typeof lookInputOf> }, PropertyLookProfile>
@@ -48,15 +50,8 @@ export function usePropertyLookDraft(
   profile: PropertyLookProfile,
   saves: PropertyLookSaves,
 ) {
-  const [autosave] = useState(() =>
-    createPortalDraftAutosave({ delayMs: AUTOSAVE_DELAY_MS }),
-  )
-  useEffect(() => () => autosave.flushOnTeardown(), [autosave])
-  const state: PortalDraftAutosaveState = useSyncExternalStore(
-    autosave.subscribe,
-    autosave.getState,
-    autosave.getState,
-  )
+  const autosave = usePortalDraftAutosave()
+  const state = usePortalDraftAutosaveState()
 
   const [draft, setLookState] = useState<LookDraft>(() => lookDraftOf(profile))
   const [locales, setLocalesState] = useState<readonly OfferedGuestLocale[]>(() =>
@@ -112,8 +107,17 @@ export function usePropertyLookDraft(
     setDraft,
     locales,
     setLocales,
-    /** Why the last pause in editing was not written; null when it was or nothing is wrong. */
-    problem: state.status === 'invalid' ? lookProblemOf(draft) : null,
+    /**
+     * Why the last pause in editing was not written: the page's own rule for a
+     * refused edit, the server's sentence for a refused write. Null when it was
+     * written, or when the failure is one a retry could fix.
+     */
+    problem:
+      state.status === 'invalid'
+        ? lookProblemOf(draft)
+        : state.status === 'error'
+          ? refusalOf(state.error)
+          : null,
     state,
     retry: autosave.retry,
   }

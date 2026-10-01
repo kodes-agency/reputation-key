@@ -3,7 +3,10 @@
 // board prints, which portals the look reaches, and what the status line says.
 // Pure, so the wording and the rules are pinned by tests.
 
+import { isServerFunctionError } from '#/shared/auth/server-function-error'
+import { isFieldForLightText } from '#/shared/domain/portal-field-colour'
 import {
+  lookFieldOf,
   readLookContrast,
   type ContrastReading,
   type LookBackgroundMode,
@@ -80,7 +83,11 @@ export function readoutOf(draft: LookDraft): LookReadout | null {
   })
 }
 
-/** Why the draft cannot be saved, in words for the manager; null when it can. */
+/**
+ * Why the draft cannot be saved, in words for the manager; null when it can.
+ * An accent that is hard to see on its field is not one: the guest page draws
+ * the text colour in its place, so the readout says so and the save goes on.
+ */
 export function lookProblemOf(draft: LookDraft): string | null {
   if (draft.wordmark.trim().length > WORDMARK_MAX) {
     return `The wordmark can be at most ${WORDMARK_MAX} characters`
@@ -90,10 +97,31 @@ export function lookProblemOf(draft: LookDraft): string | null {
   if (!readout.smallText.isReadable) {
     return 'Page text cannot be read on this background'
   }
-  if (!readout.accentOnField.isReadable) {
-    return 'This accent is hard to see on the page background'
-  }
   return null
+}
+
+/**
+ * The colour a custom background starts from: the one stored when light text
+ * can be read on it, else the field the page paints now. The stored colour of
+ * a Property that never chose one is the white of the old three-colour form,
+ * which would be refused the moment "Custom" was picked.
+ */
+export function customFieldOf(draft: LookDraft): string {
+  if (isFieldForLightText(draft.field)) return draft.field
+  return (
+    lookFieldOf({
+      accent: draft.accent,
+      backgroundMode: 'auto',
+      backgroundColour: draft.field,
+    }) ?? draft.field
+  )
+}
+
+/** The server's own sentence for a 4xx refusal; null for a failure a retry could fix. */
+export function refusalOf(error: unknown): string | null {
+  return isServerFunctionError(error) && error.status >= 400 && error.status < 500
+    ? error.message
+    : null
 }
 
 /** A ratio as the board prints it, rounded down so a failing pair never reads as passing. */
@@ -106,20 +134,30 @@ export type ReadoutRow = Readonly<{
   ratio: string
   isReadable: boolean
   verdict: 'Readable' | 'Hard to read'
+  /** What the page does about a pair that is hard to read; null when it needs nothing said. */
+  note: string | null
 }>
 
-const rowOf = (label: string, reading: ContrastReading): ReadoutRow => ({
+const rowOf = (
+  label: string,
+  reading: ContrastReading,
+  coveredBy: string | null = null,
+): ReadoutRow => ({
   label,
   ratio: ratioText(reading.ratio),
   isReadable: reading.isReadable,
   verdict: reading.isReadable ? 'Readable' : 'Hard to read',
+  note: reading.isReadable ? null : coveredBy,
 })
+
+/** An accent the field cannot show is drawn as the page's text colour (the guest resolver). */
+const ACCENT_COVER = 'guests see it as light text'
 
 export function readoutRows(readout: LookReadout): readonly ReadoutRow[] {
   return [
     rowOf('Button text', readout.buttonText),
     rowOf('Small text on the colour field', readout.smallText),
-    rowOf('Accent on the colour field', readout.accentOnField),
+    rowOf('Accent on the colour field', readout.accentOnField, ACCENT_COVER),
   ]
 }
 
@@ -160,6 +198,7 @@ export function describeAffected(affected: AffectedPortals): string {
 
 export type LookSaveState = Readonly<{
   status: 'idle' | 'pending' | 'saving' | 'saved' | 'invalid' | 'error'
+  /** Why a refused edit was not written: the page's own rule, or the server's refusal. */
   reason?: string
 }>
 
@@ -194,7 +233,10 @@ export function describeLookStatus(
         canRetry: false,
       }
     case 'error':
-      return { text: 'Not saved', tone: 'warn', canRetry: true }
+      // A refusal in words (switched off, not allowed) is not cured by trying again.
+      return state.reason === undefined
+        ? { text: 'Not saved', tone: 'warn', canRetry: true }
+        : { text: `Not saved · ${state.reason}`, tone: 'warn', canRetry: false }
     case 'idle':
       return {
         text: users.charAt(0).toUpperCase() + users.slice(1),

@@ -61,15 +61,47 @@ describe('runLookSave', () => {
     const result = await runLookSave({
       propertyId: 'p-1',
       saved: SAVED,
-      draft: { ...SAVED, accent: '#1A1A2E' },
+      draft: { ...SAVED, backgroundMode: 'manual', field: '#E8E8E8' },
       save,
     })
 
     expect(result).toMatchObject({
       outcome: 'invalid',
-      reason: 'This accent is hard to see on the page background',
+      reason: 'Page text cannot be read on this background',
     })
     expect(save).not.toHaveBeenCalled()
+  })
+
+  it('writes a wordmark edit on the default palette accent, which is hard to see on its field', async () => {
+    const defaults = lookDraftOf({
+      primaryColor: '#2563EB',
+      backgroundColor: '#FFFFFF',
+      backgroundMode: 'auto',
+      wordmark: null,
+    })
+    const save = vi.fn(async () => ({
+      primaryColor: '#2563EB',
+      backgroundColor: '#FFFFFF',
+      backgroundMode: 'auto' as const,
+      wordmark: 'AVELA' as string | null,
+    }))
+
+    const result = await runLookSave({
+      propertyId: 'p-1',
+      saved: defaults,
+      draft: { ...defaults, wordmark: 'AVELA' },
+      save,
+    })
+
+    expect(result.outcome).toBe('saved')
+    expect(save).toHaveBeenCalledWith({
+      data: {
+        propertyId: 'p-1',
+        accentColour: '#2563EB',
+        backgroundMode: 'auto',
+        wordmark: 'AVELA',
+      },
+    })
   })
 
   it('lets a failed write reach the caller, which keeps the draft for a retry', async () => {

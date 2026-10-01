@@ -354,12 +354,6 @@
       "policy": "Seeded once from the form's own default values and advanced only when a write carrying the committed value is accepted; it holds what the server was last given for fields that commit on blur, so another write does not persist a half-typed value. It is not a second copy of the form's state."
     },
     {
-      "id": "src/components/features/portal/property-look/use-property-look-draft.ts:useState(autosave)",
-      "classification": "local_runtime",
-      "owner": "Property look autosave coordinator",
-      "policy": "One coordinator per mounted Property look page, created lazily and never derived from server data; it flushes what is still inside its debounce when the page unmounts."
-    },
-    {
       "id": "src/components/features/portal/property-look/use-property-look-draft.ts:useState(draft)",
       "classification": "server_draft",
       "owner": "Property look page",

@@ -33,8 +33,8 @@ export type LookReadout = Readonly<{
   smallText: ContrastReading
   /** The accent itself (stars, highlights) on the field. */
   accentOnField: ContrastReading
-  /** Whether the look may be saved: every pair above is readable. */
-  isAcceptable: boolean
+  /** Every pair above is readable. Advisory: an accent that is not is drawn as the text colour. */
+  isAllReadable: boolean
 }>
 
 type LookColours = Readonly<{
@@ -81,7 +81,7 @@ export function readLookContrast(colours: LookColours): LookReadout | null {
     buttonText,
     smallText,
     accentOnField,
-    isAcceptable:
+    isAllReadable:
       buttonText.isReadable && smallText.isReadable && accentOnField.isReadable,
   }
 }
