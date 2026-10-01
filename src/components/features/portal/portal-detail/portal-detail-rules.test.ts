@@ -8,6 +8,7 @@ import {
   PORTAL_DETAIL_TABS,
   derivePortalDetailView,
   describePendingChanges,
+  countPendingChanges,
   canReviewAndPublish,
   describePortalStatus,
   isThemeDraftDirty,
@@ -212,6 +213,36 @@ describe('describePendingChanges — the "not live" note in the header', () => {
     expect(describePendingChanges({ ...base, hasPendingChanges: true })).toBe(
       'Changes not live',
     )
+  })
+})
+
+describe('countPendingChanges — the draft line of the History rail', () => {
+  const base = { current: null, priorActivations: [], nextCursor: null } as const
+  const changed = (key: string) => ({
+    kind: 'portal_links' as const,
+    key,
+    changedAt: '2026-09-30T10:00:00.000Z',
+  })
+
+  it('is zero when the draft matches what guests see', () => {
+    expect(countPendingChanges({ ...base, hasPendingChanges: false })).toBe(0)
+  })
+
+  it('is the length of the list the read gives', () => {
+    expect(
+      countPendingChanges({
+        ...base,
+        hasPendingChanges: true,
+        pendingChanges: [changed('a'), changed('b')],
+      }),
+    ).toBe(2)
+  })
+
+  it('is at least one for a draft that differs but cannot list how', () => {
+    expect(countPendingChanges({ ...base, hasPendingChanges: true })).toBe(1)
+    expect(
+      countPendingChanges({ ...base, hasPendingChanges: true, pendingChanges: [] }),
+    ).toBe(1)
   })
 })
 

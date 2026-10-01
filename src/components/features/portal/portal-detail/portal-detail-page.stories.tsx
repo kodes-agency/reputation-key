@@ -1,3 +1,4 @@
+// fallow-ignore-file code-duplication
 // Portal detail page — the tab (and, on the Page tab, the editor section) is
 // driven by the owning route's typed search state. Components receive it as
 // props, so stories and SSR use the same deterministic state without reading or
@@ -28,6 +29,17 @@ import type {
   UpdatePortalVariables,
 } from '../shared/types'
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
+import type { getPortalHistory } from '#/contexts/portal/server/portals'
+import type {
+  getPortalVersion,
+  getPortalVersions,
+} from '#/contexts/portal/server/portal-versions'
+import {
+  STORY_TIME_ZONE,
+  STORY_VERSIONS,
+  STORY_VERSION_DETAILS,
+  storyHistoryFor,
+} from '../portal-history/__fixtures__/portal-history-stories-data'
 import { mockServerFn } from '../../../../../.storybook/mocks/mock-action'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
 
@@ -211,8 +223,33 @@ const getPortalAnalytics = mockServerFn(
   async (_input: unknown) => emptyAnalytics,
 ) as unknown as typeof getPortalAnalyticsFn
 
+// The History tab reads on mount, like the Results tab: the reads are handed in
+// as server-fn-typed props and answered here from the board 08 ledger.
+const historyReads = {
+  getHistory: mockServerFn(async (input: { data: { filter?: string } }) => ({
+    entries: storyHistoryFor(input.data.filter ?? 'all'),
+    nextCursor: null,
+  })) as unknown as typeof getPortalHistory,
+  getVersions: mockServerFn(
+    async (_input: unknown) => STORY_VERSIONS,
+  ) as unknown as typeof getPortalVersions,
+  getVersion: mockServerFn(
+    async (input: { data: { version: number } }) =>
+      STORY_VERSION_DETAILS[input.data.version],
+  ) as unknown as typeof getPortalVersion,
+}
+const makeVersionLiveMutation = Object.assign(async (_input: unknown) => ({}), {
+  isPending: false,
+  error: null as unknown,
+  isSuccess: false,
+  data: null,
+}) as Action<{ data: { portalId: string; version: number } }, unknown>
+
 const baseArgs = {
   portal,
+  historyReads,
+  makeVersionLiveMutation,
+  propertyTimeZone: STORY_TIME_ZONE,
   organizationName: 'Acme Hotels',
   propertyId: 'prop-1',
   publicationHistory: {
@@ -423,15 +460,18 @@ export const LinktreeSection: Story = {
   },
 }
 
-// History tab: the publication history that used to sit inside Settings.
+// History tab: the ledger and the Versions rail, read on mount (board 08).
 export const HistoryTab: Story = {
   args: { ...baseArgs, activeTab: 'history' },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
-      canvas.getByRole('heading', { name: 'Publication history' }),
+      await canvas.findByRole('list', { name: /history, newest first/i }),
     ).toBeInTheDocument()
-    await expect(canvas.getByText(/version 1 is live/i)).toBeInTheDocument()
+    await expect(canvas.getByRole('heading', { name: 'Versions' })).toBeInTheDocument()
+    await expect(
+      await canvas.findByRole('button', { name: /^Version 5, live now/ }),
+    ).toBeInTheDocument()
   },
 }
 

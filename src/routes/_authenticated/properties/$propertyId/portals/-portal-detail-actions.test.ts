@@ -41,6 +41,7 @@ vi.mock('#/contexts/portal/server/portals', () => ({
   revokePortalTokens: 'revokePortalTokens',
   revealPortalAddress: 'revealPortalAddress',
   rotatePortalToken: 'rotatePortalToken',
+  rollbackPortalPublication: 'rollbackPortalPublication',
   savePortalLocalizedOverride: 'savePortalLocalizedOverride',
   savePropertyPortalBrandContent: 'savePropertyPortalBrandContent',
   savePropertyPortalBrandProfile: 'savePropertyPortalBrandProfile',
@@ -86,5 +87,27 @@ describe('portal detail actions and the language coverage read', () => {
     expect(
       coverageKey.slice(0, portalKeys.propertyExperience(PROPERTY_ID).length),
     ).toEqual(portalKeys.propertyExperience(PROPERTY_ID))
+  })
+
+  // Making a version live again changes what the header says is live, what the
+  // History tab lists (both read under the detail key), and the overview.
+  it('refreshes the detail, the list and the overview after making a version live again', () => {
+    const keys = captured.get('rollbackPortalPublication')?.invalidateKeys ?? []
+
+    expect(keys).toContainEqual(portalKeys.detail(PORTAL_ID))
+    expect(keys).toContainEqual(portalKeys.list(PROPERTY_ID))
+    expect(keys).toContainEqual(portalKeys.overview(PROPERTY_ID))
+  })
+
+  it('keeps the History reads under the detail key, so one refresh reaches them', () => {
+    const detail = portalKeys.detail(PORTAL_ID)
+
+    expect(portalKeys.historyFor(PORTAL_ID, 'all').slice(0, detail.length)).toEqual(
+      detail,
+    )
+    expect(portalKeys.versions(PORTAL_ID).slice(0, detail.length)).toEqual(detail)
+    expect(
+      portalKeys.version(PORTAL_ID, 4).slice(0, portalKeys.versions(PORTAL_ID).length),
+    ).toEqual(portalKeys.versions(PORTAL_ID))
   })
 })

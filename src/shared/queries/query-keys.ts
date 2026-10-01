@@ -266,6 +266,14 @@ export const portalKeys = {
     [...portalKeys.publicationHistory(portalId), 'preview', source] as const,
   /** The guest copy pack the preview prints in one language; it never changes while the app runs. */
   previewCopy: (locale: string) => [...portalKeys.all, 'preview-copy', locale] as const,
+  /** The History tab's ledger; one entry per filter, each an infinite read. */
+  history: (portalId: string) => [...portalKeys.detail(portalId), 'history'] as const,
+  historyFor: (portalId: string, filter: string) =>
+    [...portalKeys.history(portalId), filter] as const,
+  /** The Versions rail, and under it each version opened for viewing or restoring. */
+  versions: (portalId: string) => [...portalKeys.detail(portalId), 'versions'] as const,
+  version: (portalId: string, version: number) =>
+    [...portalKeys.versions(portalId), 'version', version] as const,
   propertyExperience: (propertyId: string) =>
     [...portalKeys.forProperty(propertyId), 'experience'] as const,
   experience: (propertyId: string, portalId: string) =>

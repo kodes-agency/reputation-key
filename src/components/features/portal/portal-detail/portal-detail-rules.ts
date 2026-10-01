@@ -149,6 +149,16 @@ export function describePendingChanges(history: PortalPublicationHistory): strin
 }
 
 /**
+ * How many changes the draft holds, for the History tab's rail. The read's own
+ * list when it gives one; a draft the flag knows differs but cannot list counts
+ * as one, so the rail never says "no changes" about a draft that has some.
+ */
+export function countPendingChanges(history: PortalPublicationHistory): number {
+  if (!history.hasPendingChanges) return 0
+  return Math.max(1, history.pendingChanges?.length ?? 0)
+}
+
+/**
  * Whether the in-progress theme differs from the saved one. Compared colour by
  * colour rather than by object identity: the detail query hands back a fresh
  * theme object on every refetch, so an identity check reports every draft as

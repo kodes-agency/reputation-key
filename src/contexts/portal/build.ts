@@ -19,6 +19,7 @@ import {
 } from './infrastructure/repositories/portal.repository'
 import { createPortalResponsibilityRuntime } from './application/portal-responsibility-runtime'
 import { createPortalLinkRepository } from './infrastructure/repositories/portal-link.repository'
+import { createPortalGroupPublicApi } from './infrastructure/portal-group-public-api'
 import { createPortalGroupRepository } from './infrastructure/repositories/portal-group.repository'
 import { createPortalGroupHistoryRepository } from './infrastructure/repositories/portal-group-history.repository'
 import { createS3StorageAdapter } from './infrastructure/adapters/s3-storage.adapter'
@@ -59,6 +60,8 @@ import { rollbackPortalPublication } from './application/use-cases/rollback-port
 import { getPortal } from './application/use-cases/get-portal'
 import { getPortalPublicationHistory } from './application/use-cases/get-portal-publication-history'
 import { getPortalHistory } from './application/use-cases/get-portal-history'
+import { getPortalVersions } from './application/use-cases/get-portal-versions'
+import { getPortalVersion } from './application/use-cases/get-portal-version'
 import { listPortals } from './application/use-cases/list-portals'
 import { listPortalOverview } from './application/use-cases/list-portal-overview'
 import { softDeletePortal } from './application/use-cases/soft-delete-portal'
@@ -107,7 +110,6 @@ import {
   portalGroupId,
   portalId,
   type OrganizationId,
-  type PortalGroupId,
   type PortalId,
   type PropertyId,
 } from '#/shared/domain/ids'
@@ -189,6 +191,8 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalLinkRepo = createPortalLinkRepository(deps.db, deps.clock)
   const portalGroupRepo = createPortalGroupRepository(deps.db)
   const portalGroupHistoryRepo = createPortalGroupHistoryRepository(deps.db)
+  const portalHistoryRepo = createPortalHistoryRepository(deps.db, deps.logger)
+  const portalActorDirectory = createPortalActorDirectoryAdapter(deps.db)
   const portalAccessArtifactRepo = createPortalAccessArtifactRepository(
     deps.db,
     portalGroupRepo,
@@ -396,9 +400,22 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     getPortalHistory: getPortalHistory({
       portalRepo,
       staffPublicApi: deps.staffPublicApi,
-      historyRepo: createPortalHistoryRepository(deps.db),
+      historyRepo: portalHistoryRepo,
       healthRepo: portalHealthRepo,
-      actorDirectory: createPortalActorDirectoryAdapter(deps.db),
+      actorDirectory: portalActorDirectory,
+    }),
+    getPortalVersions: getPortalVersions({
+      portalRepo,
+      staffPublicApi: deps.staffPublicApi,
+      historyRepo: portalHistoryRepo,
+      publicationRepo: portalPublicationRepo,
+      actorDirectory: portalActorDirectory,
+    }),
+    getPortalVersion: getPortalVersion({
+      portalRepo,
+      staffPublicApi: deps.staffPublicApi,
+      publicationRepo: portalPublicationRepo,
+      actorDirectory: portalActorDirectory,
     }),
     listPortals: listPortals({ portalRepo, staffPublicApi: deps.staffPublicApi }),
     listPortalOverview: listPortalOverview({
@@ -760,31 +777,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     },
   }
 
-  const portalGroupPublicApi = {
-    findGroupForPortal: async (orgId: OrganizationId, pid: PortalId, asOf?: Date) => {
-      const group = await portalGroupRepo.findGroupForPortal(
-        orgId,
-        pid,
-        asOf ?? deps.clock(),
-      )
-      if (!group) return null
-      return { id: group.id, propertyId: group.propertyId, name: group.name }
-    },
-    getGroupPortalIds: (orgId: OrganizationId, groupId: PortalGroupId) =>
-      portalGroupRepo.getGroupPortalIds(orgId, groupId),
-    findGroupIdsByPortalIds: (
-      orgId: OrganizationId,
-      portalIds: ReadonlyArray<PortalId>,
-    ) => portalGroupRepo.findGroupIdsByPortalIds(orgId, portalIds),
-    portalGroupBelongsToProperty: async (
-      orgId: OrganizationId,
-      pid: PropertyId,
-      groupId: PortalGroupId,
-    ) => {
-      const group = await portalGroupRepo.findById(orgId, groupId)
-      return group?.propertyId === pid
-    },
-  }
+  const portalGroupPublicApi = createPortalGroupPublicApi(portalGroupRepo, deps.clock)
 
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
     registerPortalHealthConsumers(consumerRegistry, portalHealthReconciliationStore)

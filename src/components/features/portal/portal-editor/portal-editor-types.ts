@@ -11,7 +11,9 @@ import type { PortalThemeDraft } from '../shared/types'
 export type PortalEditorResources = Omit<
   PortalDetailResources,
   | 'publicationHistory'
-  | 'loadMorePublicationHistory'
+  | 'historyReads'
+  | 'makeVersionLiveMutation'
+  | 'propertyTimeZone'
   | 'issueTokenMutation'
   | 'rotateTokenMutation'
   | 'revokeTokenMutation'

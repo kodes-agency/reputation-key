@@ -18,6 +18,12 @@ export type RollbackPortalPublicationDeps = Readonly<{
   clock: () => Date
 }>
 
+/**
+ * "Make live again": closes the live activation and appends one to another
+ * immutable version of the same Portal. The version keeps its number and
+ * nothing is deleted or rewritten; the working copy and its pending changes
+ * stay as they are.
+ */
 export const rollbackPortalPublication =
   (deps: RollbackPortalPublicationDeps) =>
   async (
@@ -45,7 +51,7 @@ export const rollbackPortalPublication =
     if (portal.publicationState !== 'published') {
       throw portalError(
         'invalid_publication_transition',
-        'Only a currently published Portal can roll back to an earlier version',
+        'Only a currently published Portal can make another version live again',
       )
     }
 
@@ -54,10 +60,12 @@ export const rollbackPortalPublication =
       deps.publicationRepo.findActiveForPortal(ctx.organizationId, pid),
       deps.publicationRepo.getCursor(ctx.organizationId, pid),
     ])
-    if (!target || !active || target.version >= active.version) {
+    // Any version but the live one: making an earlier version live again must
+    // not strand the later ones, which a manager may want back (slice 36).
+    if (!target || !active || target.version === active.version) {
       throw portalError(
         'publication_snapshot_unavailable',
-        'The requested earlier publication version is unavailable for this Portal',
+        'The requested publication version is unavailable for this Portal',
       )
     }
 
