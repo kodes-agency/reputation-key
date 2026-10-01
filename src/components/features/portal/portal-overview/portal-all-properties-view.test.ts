@@ -8,7 +8,10 @@ import {
   allPropertiesResults,
   allPropertiesRows,
 } from './portal-all-properties-fixtures'
-import { buildAllPropertiesOverview } from './portal-all-properties-view'
+import {
+  buildAllPropertiesOverview,
+  describeAllProperties,
+} from './portal-all-properties-view'
 import { indexOverviewResults } from './portal-overview-results'
 import { overviewGroup, overviewRow } from './portal-overview-fixtures'
 import { propertyId } from '#/shared/domain/ids'
@@ -287,5 +290,40 @@ describe('buildAllPropertiesOverview', () => {
 
     expect(page.properties).toHaveLength(1)
     expect(page.properties[0]?.name).toBe('Another property')
+  })
+})
+
+describe('describeAllProperties', () => {
+  it('says how many Properties and Portals the Organization has, as board 10 does', () => {
+    expect(
+      describeAllProperties(
+        { properties: 3, portals: 11, known: 3 },
+        'Avela Hospitality',
+      ),
+    ).toBe('All 3 properties in Avela Hospitality · 11 portals')
+  })
+
+  it('does not say "all" when the reader sees only some of the Properties', () => {
+    expect(
+      describeAllProperties({ properties: 2, portals: 8, known: 5 }, 'Avela Hospitality'),
+    ).toBe('2 properties in Avela Hospitality · 8 portals')
+  })
+
+  it('says one in the singular', () => {
+    expect(
+      describeAllProperties({ properties: 1, portals: 1, known: 1 }, 'Avela Hospitality'),
+    ).toBe('1 property in Avela Hospitality · 1 portal')
+  })
+
+  it('names no Organization it was not given', () => {
+    expect(
+      describeAllProperties({ properties: 2, portals: 4, known: 2 }, undefined),
+    ).toBe('All 2 properties · 4 portals')
+  })
+
+  it('has nothing to say with no Portals', () => {
+    expect(
+      describeAllProperties({ properties: 0, portals: 0, known: 2 }, 'Avela'),
+    ).toBeUndefined()
   })
 })

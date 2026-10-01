@@ -37,6 +37,19 @@ export const portalOverviewSearchSchema = z.object({
 
 export type PortalOverviewSearch = z.infer<typeof portalOverviewSearchSchema>
 
+/**
+ * The All properties page keeps the search, the order and the page. It has no
+ * filter or grouping control, so a bookmarked `show` or `groupBy` is dropped.
+ */
+export const allPropertiesSearchSchema = portalOverviewSearchSchema.pick({
+  q: true,
+  sort: true,
+  dir: true,
+  page: true,
+})
+
+export type AllPropertiesSearch = z.infer<typeof allPropertiesSearchSchema>
+
 const isBlank = (value: string | undefined): boolean =>
   value === undefined || value.trim() === ''
 

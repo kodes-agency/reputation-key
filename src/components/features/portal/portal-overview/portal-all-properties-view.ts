@@ -15,7 +15,7 @@ import type { OrganizationSortFigures } from './portal-overview-results'
 import {
   DEFAULT_PORTAL_OVERVIEW_SORT,
   defaultSortDirection,
-  type PortalOverviewSearch,
+  type AllPropertiesSearch,
 } from './portal-overview-search-schema'
 import {
   PORTAL_OVERVIEW_PAGE_SIZE,
@@ -24,12 +24,6 @@ import {
   type PortalOverviewItem,
   type PortalOverviewSection,
 } from './portal-overview-view'
-
-/** What the All properties page reads of the URL: the search, the order, the page. */
-export type AllPropertiesSearch = Pick<
-  PortalOverviewSearch,
-  'q' | 'sort' | 'dir' | 'page'
->
 
 export type PortalPropertyInfo = Readonly<{
   id: string
@@ -162,4 +156,23 @@ export function buildAllPropertiesOverview(
     from: onPage.size === 0 ? 0 : start + 1,
     to: start + onPage.size,
   }
+}
+
+const plural = (count: number, one: string, many: string): string =>
+  `${count} ${count === 1 ? one : many}`
+
+/**
+ * The page's one line under its title: "All 3 properties in Avela Hospitality · 11
+ * portals". "All" only where the reader sees every Property there is.
+ */
+export function describeAllProperties(
+  counts: Readonly<{ properties: number; portals: number; known: number }>,
+  organizationName: string | undefined,
+): string | undefined {
+  if (counts.portals === 0) return undefined
+  const properties = plural(counts.properties, 'property', 'properties')
+  const all = counts.properties > 1 && counts.properties === counts.known
+  const scope = all ? `All ${properties}` : properties
+  const where = organizationName ? ` in ${organizationName}` : ''
+  return `${scope}${where} · ${plural(counts.portals, 'portal', 'portals')}`
 }

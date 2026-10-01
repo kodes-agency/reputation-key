@@ -3,19 +3,14 @@
 // is a table (see `portal-overview-table-row.tsx`). Groups fold away; the fold is the
 // reader's own, kept here rather than in the URL.
 import { useState } from 'react'
-import { ArrowDown, ArrowUp } from 'lucide-react'
 import { cn } from '#/lib/utils'
-import { Table, TableBody, TableHead, TableHeader, TableRow } from '#/components/ui/table'
+import { Table, TableBody } from '#/components/ui/table'
 import type { PortalArchiveMutations } from './portal-archive-dialog'
-import { PortalOverviewGroupHead } from './portal-overview-group-head'
-import { MEASURE_COLUMNS } from './portal-overview-measure-cells'
-import {
-  groupSlot,
-  measureSlot,
-  type PortalOverviewResultsState,
-} from './portal-overview-results'
+import type { PortalOverviewResultsState } from './portal-overview-results'
+import { PortalOverviewSectionRows } from './portal-overview-section-rows'
 import type { SortDirection } from './portal-overview-search-schema'
-import { PortalOverviewTableRow } from './portal-overview-table-row'
+import { SECTION_BODY } from './portal-overview-table-styles'
+import { PortalOverviewTableHead } from './portal-overview-table-head'
 import type { PortalOverviewSection } from './portal-overview-view'
 
 type Props = PortalArchiveMutations &
@@ -29,32 +24,6 @@ type Props = PortalArchiveMutations &
     /** Set while the table is ordered by qualified scans, to mark that column. */
     scansOrder?: SortDirection
   }>
-
-const TBODY = 'block space-y-3 pb-3 @4xl:table-row-group @4xl:space-y-0 @4xl:pb-0'
-
-const MEASURE_HEAD =
-  'h-10 px-2 text-right text-xs leading-tight whitespace-normal text-muted-foreground'
-
-function MeasureHeader({
-  label,
-  order,
-}: Readonly<{ label: string; order: SortDirection | undefined }>) {
-  const Arrow = order === 'asc' ? ArrowUp : ArrowDown
-  return (
-    <TableHead
-      scope="col"
-      aria-sort={
-        order === undefined ? undefined : order === 'asc' ? 'ascending' : 'descending'
-      }
-      className={MEASURE_HEAD}
-    >
-      {order === undefined ? null : (
-        <Arrow aria-hidden="true" className="mr-1 inline size-3 align-[-1px]" />
-      )}
-      {label}
-    </TableHead>
-  )
-}
 
 export function PortalOverviewTable({
   sections,
@@ -81,63 +50,20 @@ export function PortalOverviewTable({
       )}
     >
       <Table aria-label={`Portals at ${propertyName}`} className="block @4xl:table">
-        <TableHeader className="hidden @4xl:table-header-group">
-          <TableRow className="hover:bg-transparent">
-            <TableHead scope="col" className="h-10 px-4 text-xs text-muted-foreground">
-              Portal
-            </TableHead>
-            {results.status === 'off'
-              ? null
-              : MEASURE_COLUMNS.map(({ key, label }) => (
-                  <MeasureHeader
-                    key={key}
-                    label={label}
-                    order={key === 'scans' ? scansOrder : undefined}
-                  />
-                ))}
-            <TableHead scope="col" className="h-10 px-4 text-xs text-muted-foreground">
-              Responsible
-            </TableHead>
-            <TableHead scope="col" colSpan={2} className="h-10 px-2">
-              <span className="sr-only">Actions</span>
-            </TableHead>
-          </TableRow>
-        </TableHeader>
-        {sections.map((section) => {
-          const headed = section.kind !== 'flat'
-          const expanded = !headed || !folded.includes(section.key)
-          const head = groupSlot(results, (index) =>
-            section.group ? index.group(section.group.id) : index.ungrouped(propertyId),
-          )
-          return (
-            <TableBody key={section.key} className={TBODY}>
-              {headed ? (
-                <PortalOverviewGroupHead
-                  section={section}
-                  figures={head.slot}
-                  readCount={head.memberCount}
-                  expanded={expanded}
-                  onToggle={() => toggle(section.key)}
-                />
-              ) : null}
-              {expanded
-                ? section.items.map((item) => (
-                    <PortalOverviewTableRow
-                      key={item.row.portalId}
-                      item={item}
-                      figures={measureSlot(results, (index) =>
-                        index.portal(item.row.portalId),
-                      )}
-                      propertyId={propertyId}
-                      showGroup={!headed}
-                      archiveMutation={archiveMutation}
-                      restoreMutation={restoreMutation}
-                    />
-                  ))
-                : null}
-            </TableBody>
-          )
-        })}
+        <PortalOverviewTableHead results={results} scansOrder={scansOrder} />
+        {sections.map((section) => (
+          <TableBody key={section.key} className={SECTION_BODY}>
+            <PortalOverviewSectionRows
+              section={section}
+              propertyId={propertyId}
+              results={results}
+              expanded={section.kind === 'flat' || !folded.includes(section.key)}
+              onToggle={() => toggle(section.key)}
+              archiveMutation={archiveMutation}
+              restoreMutation={restoreMutation}
+            />
+          </TableBody>
+        ))}
       </Table>
     </div>
   )

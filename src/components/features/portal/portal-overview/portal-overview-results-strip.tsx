@@ -1,6 +1,7 @@
 // The Portals overview's results strip (boards 01, 10 and 11): the window the
-// figures cover and its five measures over every Portal of the Property, in the
-// same ruled strip a single Portal's Results tab prints. The range is a viewing
+// figures cover and its five measures over every Portal of the Property (or, on
+// the All properties page, of the whole Organization), in the same ruled strip a
+// single Portal's Results tab prints. The range is a viewing
 // preference that follows the reader from the Results tab (All Time is not
 // offered: a lifetime figure comes from the lifetime aggregate, not from readings).
 import { Button } from '#/components/ui/button'
@@ -33,8 +34,22 @@ export type PortalOverviewResultsControls = Readonly<{
 
 type Props = Readonly<{
   controls: PortalOverviewResultsControls
-  propertyId: string
+  /** The Property the strip is for; null is the whole Organization. */
+  propertyId: string | null
 }>
+
+const COLLAPSE_NOTE = 'collapsed properties stay collapsed for you'
+
+function stripOf(state: PortalOverviewResultsState, propertyId: string | null) {
+  if (state.status !== 'ready') return null
+  return propertyId === null ? state.index.total() : state.index.strip(propertyId)
+}
+
+/** "1–30 Sep, Europe/Sofia time · all portals", or on the Organization's page "all properties". */
+function scopeLine(strip: ReturnType<typeof stripOf>, propertyId: string | null): string {
+  const everything = propertyId === null ? 'all properties' : 'all portals'
+  return strip?.caption ? `${strip.caption} · ${everything}` : everything
+}
 
 function LoadingStrip() {
   return (
@@ -72,7 +87,7 @@ function FailedStrip({ onRetry }: Readonly<{ onRetry: () => void }>) {
 export function PortalOverviewResultsStrip({ controls, propertyId }: Props) {
   const { state, timeRange, onTimeRangeChange, onRetry, busy = false } = controls
   if (state.status === 'off') return null
-  const strip = state.status === 'ready' ? state.index.strip(propertyId) : null
+  const strip = stripOf(state, propertyId)
   return (
     <section aria-label="Results" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -96,9 +111,7 @@ export function PortalOverviewResultsStrip({ controls, propertyId }: Props) {
             </SelectGroup>
           </SelectContent>
         </Select>
-        <p className="text-sm text-muted-foreground">
-          {strip ? `${strip.caption} · all portals` : 'all portals'}
-        </p>
+        <p className="text-sm text-muted-foreground">{scopeLine(strip, propertyId)}</p>
       </div>
       {state.status === 'loading' ? <LoadingStrip /> : null}
       {state.status === 'failed' ? <FailedStrip onRetry={onRetry} /> : null}
@@ -114,8 +127,7 @@ export function PortalOverviewResultsStrip({ controls, propertyId }: Props) {
 /** The footer line under the table: the window, the zone and the floor for an average. */
 export function PortalOverviewResultsFooter({ controls, propertyId }: Props) {
   const { state, busy = false } = controls
-  if (state.status !== 'ready') return null
-  const strip = state.index.strip(propertyId)
+  const strip = stripOf(state, propertyId)
   if (!strip) return null
   return (
     <p
@@ -125,7 +137,7 @@ export function PortalOverviewResultsFooter({ controls, propertyId }: Props) {
         busy && 'opacity-60',
       )}
     >
-      {strip.footer}
+      {propertyId === null ? `${strip.footer} · ${COLLAPSE_NOTE}` : strip.footer}
     </p>
   )
 }

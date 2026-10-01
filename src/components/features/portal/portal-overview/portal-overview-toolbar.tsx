@@ -50,6 +50,12 @@ const CONTROL_HEIGHT = 'h-11 md:h-9'
 const MENU_ITEM = 'min-h-11 md:min-h-8'
 
 type Props = Readonly<{
+  /**
+   * The All properties page lists Portals under their Properties, so a search
+   * also matches a Property's name, and the filter and the grouping (a Property's
+   * own groups show when it has them) are not offered there, as on board 10.
+   */
+  scope?: 'property' | 'organization'
   search: PortalOverviewSearch
   matched: number
   total: number
@@ -63,6 +69,7 @@ const directions = (sort: PortalOverviewSort): readonly SortDirection[] =>
   defaultSortDirection(sort) === 'asc' ? ['asc', 'desc'] : ['desc', 'asc']
 
 export function PortalOverviewToolbar({
+  scope = 'property',
   search,
   matched,
   total,
@@ -76,6 +83,8 @@ export function PortalOverviewToolbar({
     (option) => option !== 'scans' || canSortByScans,
   )
   const narrowed = (search.q ?? '').trim() !== '' || search.show !== undefined
+  const searchLabel =
+    scope === 'organization' ? 'Search portals or properties' : 'Search portals'
 
   return (
     <div className="flex flex-wrap items-center gap-2">
@@ -85,60 +94,68 @@ export function PortalOverviewToolbar({
         </InputGroupAddon>
         <InputGroupInput
           type="search"
-          aria-label="Search portals"
-          placeholder="Search portals"
+          aria-label={searchLabel}
+          placeholder={searchLabel}
           maxLength={MAX_SEARCH_LENGTH}
           value={search.q ?? ''}
           onChange={(event) => onChange({ q: event.target.value })}
         />
       </InputGroup>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className={CONTROL_HEIGHT}>
-            <ListFilter aria-hidden="true" />
-            Show: {search.show === 'attention' ? 'Needs attention' : 'All'}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-52">
-          <DropdownMenuRadioGroup
-            value={search.show ?? 'all'}
-            onValueChange={(value) =>
-              onChange({ show: value === 'attention' ? 'attention' : undefined })
-            }
-          >
-            <DropdownMenuRadioItem value="all" className={MENU_ITEM}>
-              All portals
-            </DropdownMenuRadioItem>
-            <DropdownMenuRadioItem value="attention" className={MENU_ITEM}>
-              Needs attention
-            </DropdownMenuRadioItem>
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {scope === 'property' ? (
+        <>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className={CONTROL_HEIGHT}>
+                <ListFilter aria-hidden="true" />
+                Show: {search.show === 'attention' ? 'Needs attention' : 'All'}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-52">
+              <DropdownMenuRadioGroup
+                value={search.show ?? 'all'}
+                onValueChange={(value) =>
+                  onChange({ show: value === 'attention' ? 'attention' : undefined })
+                }
+              >
+                <DropdownMenuRadioItem value="all" className={MENU_ITEM}>
+                  All portals
+                </DropdownMenuRadioItem>
+                <DropdownMenuRadioItem value="attention" className={MENU_ITEM}>
+                  Needs attention
+                </DropdownMenuRadioItem>
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
 
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className={CONTROL_HEIGHT}>
-            <ListTree aria-hidden="true" />
-            Group by: {GROUP_BY_LABEL[groupBy]}
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="min-w-44">
-          <DropdownMenuRadioGroup
-            value={groupBy}
-            onValueChange={(value) =>
-              onChange({ groupBy: value as PortalOverviewGroupBy })
-            }
-          >
-            {PORTAL_OVERVIEW_GROUP_BYS.map((option) => (
-              <DropdownMenuRadioItem key={option} value={option} className={MENU_ITEM}>
-                {GROUP_BY_LABEL[option]}
-              </DropdownMenuRadioItem>
-            ))}
-          </DropdownMenuRadioGroup>
-        </DropdownMenuContent>
-      </DropdownMenu>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className={CONTROL_HEIGHT}>
+                <ListTree aria-hidden="true" />
+                Group by: {GROUP_BY_LABEL[groupBy]}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" className="min-w-44">
+              <DropdownMenuRadioGroup
+                value={groupBy}
+                onValueChange={(value) =>
+                  onChange({ groupBy: value as PortalOverviewGroupBy })
+                }
+              >
+                {PORTAL_OVERVIEW_GROUP_BYS.map((option) => (
+                  <DropdownMenuRadioItem
+                    key={option}
+                    value={option}
+                    className={MENU_ITEM}
+                  >
+                    {GROUP_BY_LABEL[option]}
+                  </DropdownMenuRadioItem>
+                ))}
+              </DropdownMenuRadioGroup>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </>
+      ) : null}
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>

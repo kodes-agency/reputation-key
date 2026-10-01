@@ -40,10 +40,10 @@ describe('portalGroupCachePolicy', () => {
         { queryKey: portalKeys.goalSubjects(PROPERTY_ID), exact: true },
         { queryKey: portalKeys.goalSubjectNames(PROPERTY_ID), exact: true },
         { queryKey: portalKeys.overview(PROPERTY_ID), exact: true },
-        // Every window of it: the group a Portal is in decides which row it adds to.
-        { queryKey: portalKeys.resultsOverviewRoot(PROPERTY_ID), exact: false },
         // The All properties page lists the same Portals and groups.
         { queryKey: portalKeys.organizationOverview(), exact: true },
+        // Every window of it: the group a Portal is in decides which row it adds to.
+        { queryKey: portalKeys.resultsOverviewRoot(PROPERTY_ID), exact: false },
         { queryKey: portalKeys.organizationResultsOverviewRoot(), exact: false },
       ])
     },
