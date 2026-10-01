@@ -18,7 +18,10 @@ import { createPdfKitPrintKitRenderer } from './infrastructure/print-kit/pdfkit-
 export type PortalPrintKitDeps = Readonly<{
   portalRepo: PortalRepository
   staffPublicApi: StaffPublicApi
-  publicationRepo: Pick<PortalPublicationRepository, 'loadWorkingCopy'>
+  publicationRepo: Pick<
+    PortalPublicationRepository,
+    'loadWorkingCopy' | 'findActiveForPortal'
+  >
   mediaRepo: Pick<PortalMediaAssetRepository, 'findById'>
   objectStore: Pick<StoragePort, 'getObject'>
   revealAddress: RevealPortalAddress

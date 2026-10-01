@@ -5,8 +5,9 @@
 // the Property's look, with the live code on it. It is the only use case that
 // puts the code's address into a file, so the order is the point:
 //
-//   1. authorise, and load the Portal and its working copy;
-//   2. check the languages against the Portal's own, so a refusal costs nothing;
+//   1. authorise, and load the Portal and what is live on it;
+//   2. check the languages against the live version's own, so a refusal costs
+//      nothing and a language added in the editor but not published is refused;
 //   3. read the pictures from Portal media, checked against their stored hash;
 //   4. fetch the address through `revealPortalAddress`, which records the
 //      disclosure (as a download) before it decrypts, and refuses a code that
@@ -30,7 +31,7 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { isServablePortalMediaAsset } from '../../domain/portal-media-asset'
 import { portalError } from '../../domain/errors'
 import { loadPortalOrThrow } from '../load-accessible-portal'
-import { buildPortalPrintKitContext } from '../portal-print-kit-context'
+import { loadPortalPrintKitContext } from '../load-portal-print-kit-context'
 import type { DownloadPortalPrintKitInput } from '../dto/portal-print-kit.dto'
 import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.repository'
 import type { PortalPrintKitRenderer } from '../ports/portal-print-kit-renderer.port'
@@ -42,7 +43,10 @@ import type { RevealPortalAddress } from './reveal-portal-address'
 export type CreatePortalPrintKitDeps = Readonly<{
   portalRepo: PortalRepository
   staffPublicApi: StaffPublicApi
-  publicationRepo: Pick<PortalPublicationRepository, 'loadWorkingCopy'>
+  publicationRepo: Pick<
+    PortalPublicationRepository,
+    'loadWorkingCopy' | 'findActiveForPortal'
+  >
   mediaRepo: Pick<PortalMediaAssetRepository, 'findById'>
   objectStore: Pick<StoragePort, 'getObject'>
   sha256Hex: (bytes: Uint8Array) => string
@@ -119,12 +123,10 @@ export const createPortalPrintKit =
       permission: 'portal.update',
       forbiddenMessage: 'Insufficient permissions to make a print kit',
     })
-    const source = await deps.publicationRepo.loadWorkingCopy(
-      ctx.organizationId,
-      portal.id,
-    )
-    if (!source) throw portalError('portal_not_found', 'portal not found')
-    const context = buildPortalPrintKitContext(source)
+    const context = await loadPortalPrintKitContext(deps, {
+      organizationId: ctx.organizationId,
+      portal,
+    })
     if (!isPrintKitLanguageChoice(context.locales, input.languages)) {
       throw portalError('locale_not_offered', 'Choose languages this portal offers')
     }

@@ -11,11 +11,14 @@ import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixture
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { portalMediaAssetId, propertyId, type PropertyId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import { immersiveConfiguration } from '../../domain/__fixtures__/immersive-configuration'
 import {
   publicationSource,
   SOURCE_HERO_ASSET_ID,
   SOURCE_LOGO_ASSET_ID,
 } from '../../domain/__fixtures__/publication-source'
+import type { PortalPublicationConfiguration } from '../../domain/portal-publication-snapshot'
+import type { PortalPublicationSnapshot } from '../../domain/portal-publication-snapshot'
 import { portalError } from '../../domain/errors'
 import type { PortalPublicationSource } from '../../domain/portal-publication-source'
 import type {
@@ -37,8 +40,16 @@ const staffApi = (accessible: readonly PropertyId[] | null): StaffPublicApi => (
   getAssignedPortals: async () => [],
 })
 
+const liveSnapshot = (
+  configuration: PortalPublicationConfiguration,
+): PortalPublicationSnapshot =>
+  ({ id: 'snapshot-1', version: 1, configuration }) as PortalPublicationSnapshot
+
 type Options = Readonly<{
+  /** The working copy; it only matters for a live version older than the Immersive Hub. */
   source?: PortalPublicationSource
+  /** What is live: the Immersive Hub fixture unless told otherwise; null for nothing live. */
+  live?: PortalPublicationConfiguration | null
   accessible?: readonly PropertyId[] | null
   reveal?: RevealPortalAddress
   heroStatus?: 'active' | 'taken_down'
@@ -91,6 +102,10 @@ async function setup(options: Options = {}) {
     staffPublicApi: staffApi(options.accessible ?? null),
     publicationRepo: {
       loadWorkingCopy: async () => options.source ?? publicationSource(),
+      findActiveForPortal: async () =>
+        options.live === null
+          ? null
+          : liveSnapshot(options.live ?? immersiveConfiguration()),
     },
     mediaRepo,
     objectStore,
@@ -151,10 +166,11 @@ describe('createPortalPrintKit', () => {
   })
 
   it('prints no photo and no logo when the property has none', async () => {
-    const base = publicationSource().look
-    if (base === null) throw new Error('fixture has a look')
+    const base = immersiveConfiguration()
     const { portal, make, rendered } = await setup({
-      source: publicationSource({ look: { ...base, hero: null, logo: null } }),
+      live: immersiveConfiguration({
+        brandProfile: { ...base.brandProfile, hero: null, logo: null },
+      }),
     })
     await make({ portalId: portal.id, ...choice }, buildTestAuthContext())
     expect(rendered[0]?.photo).toBeNull()
@@ -193,6 +209,60 @@ describe('createPortalPrintKit', () => {
     ).rejects.toMatchObject({ code: 'locale_not_offered' })
     expect(reveal).not.toHaveBeenCalled()
     expect(renderer.render).not.toHaveBeenCalled()
+  })
+
+  it('refuses a language added in the editor and not yet published', async () => {
+    const { portal, make, reveal, renderer } = await setup({
+      source: publicationSource({ localeSet: ['en', 'bg', 'es'] }),
+    })
+    await expect(
+      make(
+        { portalId: portal.id, ...choice, languages: ['en', 'es'] },
+        buildTestAuthContext(),
+      ),
+    ).rejects.toMatchObject({ code: 'locale_not_offered' })
+    expect(reveal).not.toHaveBeenCalled()
+    expect(renderer.render).not.toHaveBeenCalled()
+  })
+
+  it('prints the look and the titles the live version published, not the draft', async () => {
+    const draft = publicationSource().look
+    if (draft === null) throw new Error('fixture has a look')
+    const { portal, make, rendered } = await setup({
+      source: publicationSource({
+        look: { ...draft, wordmark: 'DRAFT', accentColour: '#112233', hero: null },
+      }),
+    })
+    await make({ portalId: portal.id, ...choice }, buildTestAuthContext())
+    const [input] = rendered
+    expect(input?.wordmark).toBe('HARBOR')
+    expect(input?.accentColour).toBe('#C8A45A')
+    expect(input?.photo).not.toBeNull()
+  })
+
+  it('refuses to print a Portal with nothing live, before it discloses anything', async () => {
+    const { portal, make, reveal } = await setup({ live: null })
+    await expect(
+      make({ portalId: portal.id, ...choice }, buildTestAuthContext()),
+    ).rejects.toMatchObject({ code: 'publication_snapshot_unavailable' })
+    expect(reveal).not.toHaveBeenCalled()
+  })
+
+  it('offers a live version from before the Immersive Hub only the languages it serves', async () => {
+    const legacy = {
+      schemaVersion: 1,
+      portal: { id: 'p', slug: 'harbor' },
+    } as unknown as PortalPublicationConfiguration
+    const { portal, make, reveal } = await setup({ live: legacy })
+    await expect(
+      make({ portalId: portal.id, ...choice }, buildTestAuthContext()),
+    ).rejects.toMatchObject({ code: 'locale_not_offered' })
+    expect(reveal).not.toHaveBeenCalled()
+    const english = await make(
+      { portalId: portal.id, ...choice, languages: ['en'] },
+      buildTestAuthContext(),
+    )
+    expect(english.contentType).toBe('application/pdf')
   })
 
   it('refuses a caller who may not update the Portal, before it discloses anything', async () => {

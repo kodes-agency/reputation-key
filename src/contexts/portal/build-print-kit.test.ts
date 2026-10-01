@@ -8,12 +8,15 @@ import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo
 import { createInMemoryObjectStore } from '#/shared/testing/in-memory-object-store'
 import { createInMemoryPortalMediaAssetRepo } from '#/shared/testing/in-memory-portal-media-asset-repo'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
-import { publicationSource } from './domain/__fixtures__/publication-source'
+import { immersiveConfiguration } from './domain/__fixtures__/immersive-configuration'
+import type { PortalPublicationSnapshot } from './domain/portal-publication-snapshot'
 import { buildPortalPrintKit } from './build-print-kit'
 import type { RevealPortalAddress } from './application/use-cases/reveal-portal-address'
 
 const ADDRESS =
   'https://app.example.test/p/pt_AAAAAAAAAAAAAAAA_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb?accessArtifact=11111111-1111-4111-8111-111111111111'
+
+const base = immersiveConfiguration()
 
 function wire() {
   const portal = buildTestPortal({ name: 'Harbor lobby' })
@@ -32,8 +35,16 @@ function wire() {
       getAssignedPortals: async () => [],
     } as StaffPublicApi,
     publicationRepo: {
-      // No look, so no picture is read from the store.
-      loadWorkingCopy: async () => publicationSource({ look: null }),
+      loadWorkingCopy: async () => null,
+      // A live look with no photo and no logo, so no picture is read from the store.
+      findActiveForPortal: async () =>
+        ({
+          id: 'snapshot-1',
+          version: 1,
+          configuration: immersiveConfiguration({
+            brandProfile: { ...base.brandProfile, hero: null, logo: null },
+          }),
+        }) as PortalPublicationSnapshot,
     },
     mediaRepo: createInMemoryPortalMediaAssetRepo(),
     objectStore: createInMemoryObjectStore(),

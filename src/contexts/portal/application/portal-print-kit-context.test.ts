@@ -5,8 +5,15 @@ import {
   SOURCE_LOGO_ASSET_ID,
 } from '../domain/__fixtures__/publication-source'
 import {
+  bulgarianPrimaryConfiguration,
+  immersiveConfiguration,
+  IMMERSIVE_HERO_ASSET_ID,
+  IMMERSIVE_LOGO_ASSET_ID,
+} from '../domain/__fixtures__/immersive-configuration'
+import {
   buildPortalPrintKitContext,
   presentPortalPrintKit,
+  printKitContextOfLive,
 } from './portal-print-kit-context'
 
 describe('buildPortalPrintKitContext', () => {
@@ -57,8 +64,10 @@ describe('buildPortalPrintKitContext', () => {
     expect(context.look.hero).toBeNull()
     expect(context.look.logo).toBeNull()
   })
+})
 
-  it('leaves a language without a written title out', () => {
+describe('a title the working copy has not written', () => {
+  it('reads the primary language title, as the guest page does', () => {
     const context = buildPortalPrintKitContext(
       publicationSource({
         wording: {
@@ -71,7 +80,92 @@ describe('buildPortalPrintKitContext', () => {
         },
       }),
     )
+    expect(context.titles).toEqual({
+      en: 'Tell us about your visit',
+      bg: 'Tell us about your visit',
+    })
+  })
+
+  it('leaves every language without one when the primary has none either', () => {
+    const context = buildPortalPrintKitContext(publicationSource({ wording: {} }))
+    expect(context.titles).toEqual({})
+  })
+})
+
+describe('buildPortalPrintKitContext with the languages that are live', () => {
+  it('offers only the languages the live version serves', () => {
+    const context = buildPortalPrintKitContext(publicationSource(), ['en'])
+    expect(context.locales).toEqual(['en'])
     expect(context.titles).toEqual({ en: 'Tell us about your visit' })
+  })
+
+  it('keeps the live order, the primary first', () => {
+    const context = buildPortalPrintKitContext(publicationSource(), ['bg', 'en'])
+    expect(context.locales).toEqual(['bg', 'en'])
+    expect(context.primaryLocale).toBe('bg')
+  })
+})
+
+describe('printKitContextOfLive', () => {
+  it('reads the languages, titles and look of the published version', () => {
+    const context = printKitContextOfLive('Harbor lobby', immersiveConfiguration())
+    expect(context.portalName).toBe('Harbor lobby')
+    expect(context.primaryLocale).toBe('en')
+    expect(context.locales).toEqual(['en', 'bg'])
+    expect(context.titles).toEqual({
+      en: 'Tell us about your visit',
+      bg: 'Разкажете ни за посещението си',
+    })
+    expect(context.look).toEqual({
+      wordmark: 'HARBOR',
+      accentColour: '#C8A45A',
+      fieldColour: '#14110F',
+      hero: { assetId: IMMERSIVE_HERO_ASSET_ID, focalX: 0.4, focalY: 0.6 },
+      logo: { assetId: IMMERSIVE_LOGO_ASSET_ID },
+    })
+  })
+
+  it('takes the primary language of the published version', () => {
+    const context = printKitContextOfLive('Bar', bulgarianPrimaryConfiguration())
+    expect(context.primaryLocale).toBe('bg')
+    expect(context.locales).toEqual(['bg', 'en'])
+  })
+
+  it('carries the title a language copied from the primary', () => {
+    const base = immersiveConfiguration()
+    const bg = base.localizedContent.bg
+    if (!bg) throw new Error('fixture has Bulgarian')
+    const context = printKitContextOfLive(
+      'Bar',
+      immersiveConfiguration({
+        localizedContent: {
+          ...base.localizedContent,
+          bg: { ...bg, title: { value: 'Tell us about your visit', fallbackFrom: 'en' } },
+        },
+      }),
+    )
+    expect(context.titles.bg).toBe('Tell us about your visit')
+  })
+
+  it('sets the display name where the published look has no wordmark', () => {
+    const base = immersiveConfiguration()
+    const context = printKitContextOfLive(
+      'Bar',
+      immersiveConfiguration({ brandProfile: { ...base.brandProfile, wordmark: null } }),
+    )
+    expect(context.look.wordmark).toBe('The Harbor Hotel')
+  })
+
+  it('has no photo and no logo when the published look has none', () => {
+    const base = immersiveConfiguration()
+    const context = printKitContextOfLive(
+      'Bar',
+      immersiveConfiguration({
+        brandProfile: { ...base.brandProfile, hero: null, logo: null },
+      }),
+    )
+    expect(context.look.hero).toBeNull()
+    expect(context.look.logo).toBeNull()
   })
 })
 
