@@ -208,38 +208,21 @@ function contentOf(
   const overrideIn = (code: GuestLocale) => overrides.find((row) => row.locale === code)
   // A language has wording only when the Property wrote some for it; a Portal
   // override then replaces it (the same rule the coverage read applies).
-  const wording =
-    (
-      pick: (row: PreviewContent) => string | null,
-      pickOverride: (row: PreviewOverride) => string | null,
-    ) =>
-    (code: GuestLocale) => {
-      const row = contentIn(code)
-      if (!row) return undefined
-      const override = overrideIn(code)
-      return firstWritten(override && pickOverride(override), pick(row))
-    }
+  const wordingIn = (key: 'title' | 'shortDescription') => (code: GuestLocale) => {
+    const row = contentIn(code)
+    if (!row) return undefined
+    return firstWritten(overrideIn(code)?.[key], row[key])
+  }
   const heroAltIn = (code: GuestLocale) => firstWritten(contentIn(code)?.heroAltText)
   const hasHeroAlt = heroAltIn(primary) !== undefined
   // The Linktree view already carries the titles a manager wrote.
   const customTitle = firstWritten(input.linktree.titles[locale])
   return {
-    title: textIn(
-      locale,
-      primary,
-      wording(
-        (row) => row.title,
-        (row) => row.title,
-      ),
-      portal.name,
-    ),
+    title: textIn(locale, primary, wordingIn('title'), portal.name),
     shortDescription: textIn(
       locale,
       primary,
-      wording(
-        (row) => row.shortDescription,
-        (row) => row.shortDescription,
-      ),
+      wordingIn('shortDescription'),
       portal.description ?? '',
     ),
     // An empty alt text marks the photo decorative; it is never "missing".
@@ -256,9 +239,10 @@ function linksOf(
   return input.linktree.links.map((link): PortalPreviewLink => {
     const textFor = (code: GuestLocale) =>
       link.texts.find((text) => text.locale === code && isWritten(text.label))
-    const own_ = textFor(locale)
-    const copied = own_ === undefined && locale !== primary ? textFor(primary) : undefined
-    const used = own_ ?? copied
+    const written = textFor(locale)
+    const copied =
+      written === undefined && locale !== primary ? textFor(primary) : undefined
+    const used = written ?? copied
     return {
       id: link.id,
       state: link.destination.state === 'approved' ? 'ready' : 'awaiting_approval',
