@@ -5,6 +5,7 @@ import {
   changedDescriptions,
   descriptionFields,
   descriptionProblem,
+  overlongDescriptionLocales,
   focalMoved,
   photoDialogTitle,
   savedDescriptions,
@@ -70,6 +71,19 @@ describe('descriptionProblem', () => {
     expect(descriptionProblem({ en: `${'x'.repeat(PHOTO_DESCRIPTION_MAX)}y` })).toBe(
       'A description can be at most 160 characters',
     )
+  })
+})
+
+describe('overlongDescriptionLocales', () => {
+  it('names only the languages whose description is past the limit', () => {
+    expect(
+      overlongDescriptionLocales({
+        en: 'x'.repeat(PHOTO_DESCRIPTION_MAX),
+        bg: `${'x'.repeat(PHOTO_DESCRIPTION_MAX)}y`,
+        de: 'kurz',
+      }),
+    ).toEqual(['bg'])
+    expect(overlongDescriptionLocales({})).toEqual([])
   })
 })
 

@@ -20,6 +20,7 @@ import {
   canUsePhoto,
   changedDescriptions,
   descriptionProblem,
+  overlongDescriptionLocales,
   focalMoved,
   type PhotoDescriptions,
 } from './property-photo-rules'
@@ -70,6 +71,7 @@ export function usePhotoDialog({
       : null
   const isFileUsable = chosen !== null && allImageChecksPass(picker.checks)
   const problem = descriptionProblem(descriptions)
+  const overlong = overlongDescriptionLocales(descriptions)
   const changes = changedDescriptions(locales, descriptions, saved)
 
   const canSubmit = canUsePhoto({
@@ -142,6 +144,8 @@ export function usePhotoDialog({
     descriptions,
     setDescriptions,
     problem,
+    /** The languages whose description is over the limit. */
+    overlong,
     isConfirmed,
     setIsConfirmed,
     isBusy,

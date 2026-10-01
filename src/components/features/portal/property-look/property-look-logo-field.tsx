@@ -1,7 +1,7 @@
 // The logo's row in "Name and logo" (round-4 admin board 09): the logo on a dark
 // swatch (it is a light logo, made for the dark page), and the buttons to upload,
 // replace or remove it. Without a logo the section says what one is for; with one,
-// guest pages and printed codes show it in place of the wordmark.
+// guest pages show it in place of the wordmark.
 import { useState } from 'react'
 import { ImagePlus } from 'lucide-react'
 import type { PropertyLookLogo } from '#/contexts/portal/application/public-api'
@@ -61,8 +61,8 @@ export function PropertyLookLogoField({
       ) : (
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">
-            A light logo on a transparent background (PNG or WebP). It replaces the
-            wordmark on every page and on printed codes.
+            A light logo, best as a PNG or WebP with a transparent background (a JPEG
+            keeps its own background). It replaces the wordmark on every guest page.
           </p>
           {canEdit ? (
             <Button type="button" variant="outline" onClick={() => setIsOpen(true)}>

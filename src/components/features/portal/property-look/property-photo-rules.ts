@@ -54,12 +54,20 @@ export function descriptionFields(
   }))
 }
 
+/** The languages whose description is over the limit. */
+export function overlongDescriptionLocales(
+  drafts: PhotoDescriptions,
+): OfferedGuestLocale[] {
+  return Object.entries(drafts).flatMap(([locale, text]) =>
+    isOfferedGuestLocale(locale) && text.trim().length > PHOTO_DESCRIPTION_MAX
+      ? [locale]
+      : [],
+  )
+}
+
 /** The description over the limit, if any, as the sentence that says so. */
 export function descriptionProblem(drafts: PhotoDescriptions): string | null {
-  const isTooLong = Object.values(drafts).some(
-    (text) => text.trim().length > PHOTO_DESCRIPTION_MAX,
-  )
-  return isTooLong
+  return overlongDescriptionLocales(drafts).length > 0
     ? `A description can be at most ${PHOTO_DESCRIPTION_MAX} characters`
     : null
 }

@@ -154,37 +154,45 @@ function PhotoDialogBody({ propertyName, renderPhone, ...input }: BodyProps) {
       </div>
       {photo ? (
         <div className="space-y-3">
-          {fields.map((field) => (
-            <div key={field.locale} className="space-y-1.5">
-              <label
-                htmlFor={`photo-description-${field.locale}`}
-                className="text-sm font-medium"
-              >
-                {field.label}
-              </label>
-              <Input
-                id={`photo-description-${field.locale}`}
-                value={field.value}
-                autoComplete="off"
-                disabled={dialog.isBusy}
-                aria-invalid={dialog.problem !== null}
-                aria-describedby="photo-description-hint"
-                onChange={(event) =>
-                  dialog.setDescriptions({
-                    ...dialog.descriptions,
-                    [field.locale]: event.target.value,
-                  })
-                }
-              />
-            </div>
-          ))}
-          <p
-            id="photo-description-hint"
-            className={
-              dialog.problem ? 'text-sm text-negative' : 'text-sm text-muted-foreground'
-            }
-          >
-            {dialog.problem ?? 'Read aloud to guests who use screen readers.'}
+          {fields.map((field) => {
+            const isOver = dialog.overlong.includes(field.locale)
+            const errorId = `photo-description-error-${field.locale}`
+            return (
+              <div key={field.locale} className="space-y-1.5">
+                <label
+                  htmlFor={`photo-description-${field.locale}`}
+                  className="text-sm font-medium"
+                >
+                  {field.label}
+                </label>
+                <Input
+                  id={`photo-description-${field.locale}`}
+                  value={field.value}
+                  autoComplete="off"
+                  disabled={dialog.isBusy}
+                  aria-invalid={isOver}
+                  aria-describedby={
+                    isOver
+                      ? `${errorId} photo-description-hint`
+                      : 'photo-description-hint'
+                  }
+                  onChange={(event) =>
+                    dialog.setDescriptions({
+                      ...dialog.descriptions,
+                      [field.locale]: event.target.value,
+                    })
+                  }
+                />
+                {isOver && dialog.problem ? (
+                  <p id={errorId} className="text-sm text-negative">
+                    {dialog.problem}
+                  </p>
+                ) : null}
+              </div>
+            )
+          })}
+          <p id="photo-description-hint" className="text-sm text-muted-foreground">
+            Read aloud to guests who use screen readers.
           </p>
         </div>
       ) : null}

@@ -1,7 +1,7 @@
 // The logo (round-4 admin board 09, "Name and logo"): choose a light logo on a
 // transparent background, see it on a dark page's colour, confirm it may be used
-// and press "Use logo". It replaces the wordmark on guest pages and printed
-// codes once the look is published.
+// and press "Use logo". It replaces the wordmark on guest pages once the look is
+// published (the printed kit does not draw it yet: slice 45).
 //
 // Controlled, with its body mounted only while open (no file, no half-made
 // choice stays behind), and it cannot be closed while a logo is on its way.
@@ -57,7 +57,7 @@ function LogoDialogBody({
       <DialogHeader>
         <DialogTitle>{hasLogo ? 'Replace logo' : 'Upload logo'}</DialogTitle>
         <DialogDescription>
-          Replaces the wordmark at the top of every page and on printed codes.
+          Replaces the wordmark at the top of every guest page.
         </DialogDescription>
       </DialogHeader>
       <div className="space-y-4">
@@ -86,7 +86,8 @@ function LogoDialogBody({
               </>
             ) : (
               <p className="text-muted-foreground">
-                A light logo on a transparent background, as PNG or WebP. Up to 10 MB.
+                A light logo, best as a PNG or WebP with a transparent background (a JPEG
+                keeps its own background). Up to 10 MB.
               </p>
             )}
           </div>

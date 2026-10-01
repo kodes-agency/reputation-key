@@ -355,6 +355,7 @@ export const DescriptionIsBounded: Story = {
     await expect(
       photo.getByText('A description can be at most 160 characters'),
     ).toBeVisible()
+    await expect(description).toHaveAttribute('aria-invalid', 'true')
     await expect(photo.getByRole('button', { name: 'Save' })).toBeDisabled()
   },
 }
@@ -448,7 +449,9 @@ export const NoLogoYet: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
-      canvas.getByText(/A light logo on a transparent background \(PNG or WebP\)/),
+      canvas.getByText(
+        /A light logo, best as a PNG or WebP with a transparent background/,
+      ),
     ).toBeVisible()
     await expect(canvas.getByRole('button', { name: 'Upload logo' })).toBeVisible()
   },
