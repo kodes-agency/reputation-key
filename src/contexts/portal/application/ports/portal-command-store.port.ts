@@ -157,6 +157,31 @@ export type PortalPublicationMutation =
       at: Date
     }>
 
+/**
+ * Publish the working copy of a Portal that is already live: one new immutable
+ * snapshot and activation replace the live one. The Portal stays Published, so
+ * the command carries no patch, no Health fact and no locale-set fact; those
+ * belong to a state change, and this is not one.
+ */
+export type RepublishPortalCommand = Readonly<{
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  portalId: PortalId
+  /** Authenticated actor; the semantic fact and the snapshot both name them. */
+  actorUserId: UserId
+  /** Optimistic fence captured by the application pre-read. */
+  expectedUpdatedAt: Date
+  /** Monotonic aggregate revision; may be later than business occurrence time. */
+  revision: Date
+  occurredAt: Date
+  snapshot: PortalPublicationSnapshot
+  /** An ordinary publish activation: the one it replaces closes as `replaced`. */
+  activation: PortalPublicationActivation & Readonly<{ kind: 'publish' }>
+  lifecycleEvent: PortalPublicationPublished
+  /** Published to Published, like a rollback's. */
+  event: PortalUpdated
+}>
+
 export type DeletePortalCommand = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
@@ -447,6 +472,7 @@ export type PortalCommandStore = Readonly<{
   createPortal(command: CreatePortalCommand): Promise<void>
   updatePortal(command: UpdatePortalCommand): Promise<void>
   deletePortal(command: DeletePortalCommand): Promise<Readonly<{ revoked: number }>>
+  republishPortal(command: RepublishPortalCommand): Promise<void>
   createPortalGroup(command: CreatePortalGroupCommand): Promise<void>
   updatePortalGroup(command: UpdatePortalGroupCommand): Promise<void>
   addPortalToGroup(command: AddPortalToGroupCommand): Promise<void>

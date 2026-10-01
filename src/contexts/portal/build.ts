@@ -57,6 +57,10 @@ import { createPortal } from './application/use-cases/create-portal'
 import { getPortalCreationOptions } from './application/use-cases/get-portal-creation-options'
 import { updatePortal } from './application/use-cases/update-portal'
 import { rollbackPortalPublication } from './application/use-cases/rollback-portal-publication'
+import {
+  publishPortalChanges,
+  publishPortalsChanges,
+} from './application/use-cases/publish-portal-changes'
 import { getPortal } from './application/use-cases/get-portal'
 import { getPortalPublicationHistory } from './application/use-cases/get-portal-publication-history'
 import { getPortalHistory } from './application/use-cases/get-portal-history'
@@ -240,6 +244,17 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalIdGen = () => portalId(deps.idGen())
   const portalGroupIdGen = () => portalGroupId(deps.idGen())
   const linkIdGen = () => deps.idGen()
+  const publishChangesDeps = {
+    portalRepo,
+    commandStore: portalCommandStore,
+    publicationRepo: portalPublicationRepo,
+    portalTokenRepo,
+    propertyGoogleReviewDestinationApi: deps.propertyApi,
+    propertyLifecycleApi: deps.propertyApi,
+    staffPublicApi: deps.staffPublicApi,
+    idGen: deps.idGen,
+    clock: deps.clock,
+  }
   const useCases = {
     revalidatePortalApprovedDestinations: revalidatePortalApprovedDestinations({
       destinationRepo: portalApprovedDestinationRepo,
@@ -377,6 +392,8 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       idGen: deps.idGen,
       clock: deps.clock,
     }),
+    publishPortalChanges: publishPortalChanges(publishChangesDeps),
+    publishPortalsChanges: publishPortalsChanges(publishChangesDeps),
     rollbackPortalPublication: rollbackPortalPublication({
       portalRepo,
       publicationRepo: portalPublicationRepo,

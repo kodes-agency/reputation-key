@@ -35,8 +35,8 @@ Linktree title falls back to its pack default and is never copied), shared by
 the builder, the publish transaction's comparison and the history read. Version
 1 and 2 snapshots stay servable and verify forever, on the legacy renderer.
 Activations are append-only effective-dated routes from a stable token to one
-snapshot; publish and rollback append activations, while disable/archive close
-one. Groups remain Property-scoped, and one Portal has at most one active group.
+snapshot; publish, republish and rollback append activations, while disable/archive
+close one. Groups remain Property-scoped, and one Portal has at most one active group.
 
 A Portal changes group in one commit: `movePortalToGroup` (and create-with-move,
 where a new group takes Portals that are in another group) ends the old
@@ -361,6 +361,7 @@ for Identity avatar and organization-logo uploads through `container.assetStorag
 2. Private Feedback Threshold is an integer from 1 through 5.
 3. A Portal may have no secondary links. It cannot enter `published` unless its Property has a verified, provider-derived Google review destination.
 4. Publishing atomically creates and activates an immutable snapshot. Working-copy edits are prospective and cannot change the public response until another deliberate publication.
+   A live Portal can be republished (`republishPortal`, "Publish changes"): in one commit the live activation closes with reason `replaced` and a new snapshot and activation open, under the same Property publication fence as a first publication. The Portal stays Published, and it is refused for a Portal that is not (publishing, not republishing, takes it live). It does nothing when nothing is pending, and it asks the same readiness questions as a first publication.
 5. Rollback never rewrites history: it closes the current activation and appends a new activation to another valid snapshot of the same Portal, never the one already live. "Make live again" is that act, and it works in both directions (an earlier version, or a later one after an earlier was restored), so restoring a version never strands the ones after it. It does not touch the working copy or its pending changes.
 6. If that destination later becomes stale, unavailable, or temporarily unreadable, the published private rating/feedback gateway remains available in a degraded state. No stale URI is serialized and Google selection is denied with gentle guest copy.
 7. Public resolution fails closed when that Property destination is `awaiting_refresh` or `unavailable`; a stale URI is never rendered.
