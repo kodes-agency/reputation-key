@@ -193,10 +193,15 @@ orthogonal: the SLA asks operators to drain; the TTL is the last-resort bound.
 ## 3. Object lifecycle (S3-compatible storage)
 
 Identity avatar and organization-logo uploads use the shared arbitrary-key
-storage stack through `container.assetStorage`. Portal has no image-upload
-request, issuance, processing, or cleanup path; `portal.upload` remains
-safety-blocked. The S3-compatible adapter also remains a no-op while its access,
-bucket, region, and endpoint variables are incomplete.
+storage stack through `container.assetStorage`. Portal images enter through one
+server-side ingest (`POST /api/portal-media`, ADR 0063): the bytes are decoded
+and re-encoded to WebP on the web process and stored under `portal-media/<id>.webp`
+with a `portal_media_assets` row; there is no presigned browser upload and no
+issuance table. `portal.upload` remains `safety_blocked` until the slice that
+ships the manager controls changes its fate. Until the media garbage collection
+and purge of the stored objects land (round 4, slice 42b) the capability stays off
+so no object can exist without them. The S3-compatible adapter also remains a
+no-op while its access, bucket, region, and endpoint variables are incomplete.
 
 The target Railway topology binds those variables to one private, cell-local
 `object-store` bucket; the variable names retain their `AWS_S3_*` compatibility

@@ -1,51 +1,44 @@
 // In-memory email sender — tests for recording emails.
 
 import { describe, it, expect } from 'vitest'
+import type { InvitationEmailParams } from '#/shared/auth/emails'
 import { createInMemoryEmailSender } from './in-memory-email-sender'
 
-describe('createInMemoryEmailSender', () => {
-  it('records sent emails', async () => {
-    const send = createInMemoryEmailSender()
-    await send({
-      email: 'guest@example.com',
-      invitedByUsername: 'Alice',
-      organizationName: 'Acme Hotels',
-      inviteLink: 'https://app.example.com/invite/abc',
-    })
+const invitation = (patch: Partial<InvitationEmailParams>): InvitationEmailParams => ({
+  email: 'guest@example.com',
+  invitedByUsername: 'Alice',
+  organizationName: 'Acme Hotels',
+  inviteLink: 'https://app.example.com/accept-invitation?id=abc',
+  role: 'PropertyManager',
+  propertyNames: ['Acme Downtown'],
+  expiresInDays: 7,
+  ...patch,
+})
 
-    expect(send.sentEmails).toHaveLength(1)
-    expect(send.sentEmails[0].email).toBe('guest@example.com')
-    expect(send.sentEmails[0].organizationName).toBe('Acme Hotels')
+describe('createInMemoryEmailSender', () => {
+  it('records the whole invitation email, role and Properties included', async () => {
+    const send = createInMemoryEmailSender()
+    await send(invitation({}))
+
+    expect(send.sentEmails).toEqual([invitation({})])
   })
 
   it('records multiple emails in order', async () => {
     const send = createInMemoryEmailSender()
-    await send({
-      email: 'a@example.com',
-      invitedByUsername: 'Admin',
-      organizationName: 'Org',
-      inviteLink: 'https://app/invite/1',
-    })
-    await send({
-      email: 'b@example.com',
-      invitedByUsername: 'Admin',
-      organizationName: 'Org',
-      inviteLink: 'https://app/invite/2',
-    })
+    await send(invitation({ email: 'a@example.com' }))
+    await send(
+      invitation({ email: 'b@example.com', role: 'AccountAdmin', propertyNames: [] }),
+    )
 
-    expect(send.sentEmails).toHaveLength(2)
-    expect(send.sentEmails[0].email).toBe('a@example.com')
-    expect(send.sentEmails[1].email).toBe('b@example.com')
+    expect(send.sentEmails.map((sent) => [sent.email, sent.role])).toEqual([
+      ['a@example.com', 'PropertyManager'],
+      ['b@example.com', 'AccountAdmin'],
+    ])
   })
 
   it('clear() resets recorded emails', async () => {
     const send = createInMemoryEmailSender()
-    await send({
-      email: 'x@example.com',
-      invitedByUsername: 'Admin',
-      organizationName: 'Org',
-      inviteLink: 'https://app/invite/x',
-    })
+    await send(invitation({ email: 'x@example.com' }))
     expect(send.sentEmails).toHaveLength(1)
 
     send.clear()

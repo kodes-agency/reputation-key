@@ -53,9 +53,6 @@ const auth = betterAuth({
       schema: organizationSchema,
       dynamicAccessControl: { enabled: true },
       invitationExpiresIn: INVITATION_EXPIRY_SECONDS,
-      async sendInvitationEmail() {
-        // Schema-management config doesn't send real emails.
-      },
     }),
   ],
 })

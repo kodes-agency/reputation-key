@@ -95,7 +95,11 @@ export async function signIn(
   await page.waitForLoadState('networkidle')
 }
 
-/** Create a beta manager account from one exact invitation. */
+/**
+ * Create a beta manager account from one exact invitation. Consuming the
+ * invitation verifies the address and signs the member in (ADR 0062), so a
+ * successful registration lands in the app rather than on a "sign in" card.
+ */
 export async function registerInvitedAccount(
   page: Page,
   invitationId: string,
@@ -120,17 +124,32 @@ export async function registerInvitedAccount(
   await page.getByLabel('Confirm password').fill(password)
   await clickWhenReady(page.getByRole('button', { name: /create account/i }))
 
-  // Success renders on /join — no implicit session or Organization switch.
-  const success = page.getByText(/account created/i)
+  // Success signs in and navigates into the app. A refusal renders the form's
+  // alert on /join; a sign-in that failed after the account was created shows
+  // the "sign in to your account" card, which is a failure here.
   const errorBanner = page.locator('[role="alert"]')
-  // .first(): the failure banner's own copy can match /account created/i
-  // ("Account created, but organization setup failed") — without it the .or()
-  // locator resolves to 2 elements and strict mode masks the real error.
-  await expect(success.or(errorBanner).first()).toBeVisible({ timeout: 20_000 })
+  const signInCard = page.getByRole('link', { name: /sign in to your account/i })
+  await expect
+    .poll(
+      async () => {
+        if (!new URL(page.url()).pathname.startsWith('/join')) return 'app'
+        if (await errorBanner.isVisible().catch(() => false)) return 'error'
+        if (await signInCard.isVisible().catch(() => false)) return 'signed-out'
+        return 'pending'
+      },
+      { timeout: 20_000 },
+    )
+    .not.toBe('pending')
   if (await errorBanner.isVisible().catch(() => false)) {
     const msg = (await errorBanner.innerText().catch(() => '')).trim()
     throw new Error(`Registration failed with UI error: ${msg || '(empty alert)'}`)
   }
-  await expect(success).toBeVisible()
+  if (new URL(page.url()).pathname.startsWith('/join')) {
+    throw new Error('Registration created the account but did not sign the member in.')
+  }
+  await page.waitForURL(/\/(dashboard|properties|inbox|settings)/, { timeout: 20_000 })
+  // Route redirects can resolve before their server-function loaders finish;
+  // settle them so the caller's next navigation does not abort a fetch.
+  await page.waitForLoadState('networkidle')
   return email
 }

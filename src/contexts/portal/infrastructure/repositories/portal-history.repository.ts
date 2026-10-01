@@ -4,10 +4,11 @@ import {
   portalPublicationActivations,
   portalPublicationSnapshots,
 } from '#/shared/db/schema/portal-publication.schema'
-import { portalTokens } from '#/shared/db/schema/portal.schema'
+import { portalAddressDownloads, portalTokens } from '#/shared/db/schema/portal.schema'
 import { unbrand } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
 import type {
+  PortalCodeDownloadRow,
   PortalCodeIssuanceRow,
   PortalCodeRevocationRow,
   PortalHistoryPage,
@@ -72,7 +73,12 @@ export const createPortalHistoryRepository = (db: Database): PortalHistoryReposi
       )
       const idText = sql`${t.id}::text`
       const issued = await db
-        .select({ tokenId: t.id, version: t.version, issuedAt: t.issuedAt })
+        .select({
+          tokenId: t.id,
+          version: t.version,
+          issuedAt: t.issuedAt,
+          issuedBy: t.issuedBy,
+        })
         .from(t)
         .where(and(scope, historyBoundCondition(t.issuedAt, idText, page.bound)))
         .orderBy(desc(t.issuedAt), desc(historyIdOrder(idText)))
@@ -101,6 +107,45 @@ export const createPortalHistoryRepository = (db: Database): PortalHistoryReposi
             : null,
         }
       })
+    }),
+
+  listCodeDownloads: (orgId, propertyIdValue, portalIdValue, page) =>
+    trace('portalHistory.listCodeDownloads', async () => {
+      const d = portalAddressDownloads
+      const idText = sql`${d.id}::text`
+      const rows = await db
+        .select({
+          downloadId: d.id,
+          version: portalTokens.version,
+          downloadedBy: d.downloadedBy,
+          purpose: d.purpose,
+          downloadedAt: d.downloadedAt,
+        })
+        .from(d)
+        .innerJoin(
+          portalTokens,
+          and(
+            eq(portalTokens.organizationId, d.organizationId),
+            eq(portalTokens.propertyId, d.propertyId),
+            eq(portalTokens.portalId, d.portalId),
+            eq(portalTokens.id, d.portalTokenId),
+          ),
+        )
+        .where(
+          and(
+            eq(d.organizationId, unbrand(orgId)),
+            eq(d.propertyId, unbrand(propertyIdValue)),
+            eq(d.portalId, unbrand(portalIdValue)),
+            historyBoundCondition(d.downloadedAt, idText, page.bound),
+          ),
+        )
+        .orderBy(desc(d.downloadedAt), desc(historyIdOrder(idText)))
+        .limit(clamp(page))
+      return rows.map((row): PortalCodeDownloadRow => ({
+        ...row,
+        purpose:
+          row.purpose === 'copy' || row.purpose === 'show' ? row.purpose : 'download',
+      }))
     }),
 
   listCodeRevocations: (orgId, propertyIdValue, portalIdValue, page) =>

@@ -264,17 +264,18 @@ that inventory expands elsewhere. Dependabot is the burn-down engine for
 dependency, action, and base-image updates; the gates above are the enforcement
 floor (they do not depend on Dependabot firing).
 
-**Exactly pinned, deliberately:** `better-auth` carries no range (`1.6.23`, not
-`^1.6.23`). `src/routes/api/auth/$.ts` refuses a list of better-auth's OWN
-route paths at the HTTP boundary (raw organization writes + self-service
-`/sign-up/email`); a minor bump that renames a route would silently narrow that
-refusal to nothing, and the colocated test asserts our handler, not the
-upstream route table. The test therefore also pins the version and fails on any
-move: on a Dependabot bump, re-verify the organization plugin route files
-(`crud-access-control.mjs` / `crud-invites.mjs` / `crud-members.mjs`) and
-`/sign-up/email`, then move `VERIFIED_BETTER_AUTH_VERSION`. All 12 paths were
-confirmed present in 1.6.23 (the code comment previously claimed 1.6.12, while
-1.6.23 was installed — the drift this pin closes).
+**Exactly pinned, deliberately:** `better-auth` carries no range (`1.7.5`, not
+`^1.7.5`). `src/routes/api/auth/$.ts` refuses a list of better-auth's OWN
+route paths at the HTTP boundary (raw organization writes, self-service
+`/sign-up/email`, and `/send-verification-email`, whose per-address limit only
+the app-owned `resendVerificationEmail` enforces); a minor bump that renames a
+route would silently narrow that refusal to nothing, and the colocated test
+asserts our handler, not the upstream route table. The test therefore also pins
+the version and fails on any move: on a Dependabot bump, re-verify the
+organization plugin route files (`crud-access-control.mjs` / `crud-invites.mjs`
+/ `crud-members.mjs`), `/sign-up/email` and `/send-verification-email`, then
+move `VERIFIED_BETTER_AUTH_VERSION`. All 13 paths were confirmed present in
+1.7.5.
 
 ### CodeQL / GHAS platform note
 

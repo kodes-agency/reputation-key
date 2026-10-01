@@ -21,6 +21,7 @@ import { Route as AuthenticatedDashboardRouteImport } from './routes/_authentica
 import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
 import { Route as AuthenticatedProgressRouteImport } from './routes/_authenticated/progress'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as ApiPortalMediaRouteImport } from './routes/api/portal-media'
 import { Route as PTokenRouteImport } from './routes/p/$token'
 import { Route as PrivacyBetaAgreementRouteImport } from './routes/privacy_.beta-agreement'
 import { Route as PrivacyGoogleAccessDisclosureRouteImport } from './routes/privacy_.google-access-disclosure'
@@ -135,6 +136,11 @@ const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
   getParentRoute: () => AuthenticatedRoute,
+} as any)
+const ApiPortalMediaRoute = ApiPortalMediaRouteImport.update({
+  id: '/api/portal-media',
+  path: '/api/portal-media',
+  getParentRoute: () => rootRouteImport,
 } as any)
 const PTokenRoute = PTokenRouteImport.update({
   id: '/p/$token',
@@ -461,6 +467,7 @@ export interface FileRoutesByFullPath {
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/progress': typeof AuthenticatedProgressRoute
   '/settings': typeof AuthenticatedSettingsRouteWithChildren
+  '/api/portal-media': typeof ApiPortalMediaRoute
   '/p/$token': typeof PTokenRoute
   '/privacy/beta-agreement': typeof PrivacyBetaAgreementRoute
   '/privacy/google-access-disclosure': typeof PrivacyGoogleAccessDisclosureRoute
@@ -527,6 +534,7 @@ export interface FileRoutesByTo {
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/progress': typeof AuthenticatedProgressRoute
+  '/api/portal-media': typeof ApiPortalMediaRoute
   '/p/$token': typeof PTokenRoute
   '/privacy/beta-agreement': typeof PrivacyBetaAgreementRoute
   '/privacy/google-access-disclosure': typeof PrivacyGoogleAccessDisclosureRoute
@@ -592,6 +600,7 @@ export interface FileRoutesById {
   '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/_authenticated/progress': typeof AuthenticatedProgressRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRouteWithChildren
+  '/api/portal-media': typeof ApiPortalMediaRoute
   '/p/$token': typeof PTokenRoute
   '/privacy_/beta-agreement': typeof PrivacyBetaAgreementRoute
   '/privacy_/google-access-disclosure': typeof PrivacyGoogleAccessDisclosureRoute
@@ -661,6 +670,7 @@ export interface FileRouteTypes {
     | '/notifications'
     | '/progress'
     | '/settings'
+    | '/api/portal-media'
     | '/p/$token'
     | '/privacy/beta-agreement'
     | '/privacy/google-access-disclosure'
@@ -727,6 +737,7 @@ export interface FileRouteTypes {
     | '/dashboard'
     | '/notifications'
     | '/progress'
+    | '/api/portal-media'
     | '/p/$token'
     | '/privacy/beta-agreement'
     | '/privacy/google-access-disclosure'
@@ -791,6 +802,7 @@ export interface FileRouteTypes {
     | '/_authenticated/notifications'
     | '/_authenticated/progress'
     | '/_authenticated/settings'
+    | '/api/portal-media'
     | '/p/$token'
     | '/privacy_/beta-agreement'
     | '/privacy_/google-access-disclosure'
@@ -856,6 +868,7 @@ export interface RootRouteChildren {
   PrivacyRoute: typeof PrivacyRoute
   ResetPasswordRoute: typeof ResetPasswordRoute
   UnavailableRoute: typeof UnavailableRoute
+  ApiPortalMediaRoute: typeof ApiPortalMediaRoute
   PTokenRoute: typeof PTokenRoute
   PrivacyBetaAgreementRoute: typeof PrivacyBetaAgreementRoute
   PrivacyGoogleAccessDisclosureRoute: typeof PrivacyGoogleAccessDisclosureRoute
@@ -957,6 +970,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/settings'
       preLoaderRoute: typeof AuthenticatedSettingsRouteImport
       parentRoute: typeof AuthenticatedRoute
+    }
+    '/api/portal-media': {
+      id: '/api/portal-media'
+      path: '/api/portal-media'
+      fullPath: '/api/portal-media'
+      preLoaderRoute: typeof ApiPortalMediaRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/p/$token': {
       id: '/p/$token'
@@ -1536,6 +1556,7 @@ const rootRouteChildren: RootRouteChildren = {
   PrivacyRoute: PrivacyRoute,
   ResetPasswordRoute: ResetPasswordRoute,
   UnavailableRoute: UnavailableRoute,
+  ApiPortalMediaRoute: ApiPortalMediaRoute,
   PTokenRoute: PTokenRoute,
   PrivacyBetaAgreementRoute: PrivacyBetaAgreementRoute,
   PrivacyGoogleAccessDisclosureRoute: PrivacyGoogleAccessDisclosureRoute,

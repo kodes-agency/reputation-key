@@ -118,6 +118,17 @@ const revokeTokenMutation = Object.assign(
   }),
   { isPending: false, error: null as unknown, isSuccess: false, data: null },
 ) as Action<{ data: { portalId: string; reason: string } }, { revoked: boolean }>
+const revealAddressMutation = Object.assign(
+  async (_input: {
+    data: { portalId: string; purpose: 'download' | 'copy' | 'show' }
+  }) => ({
+    publicUrl,
+  }),
+  { isPending: false, error: null as unknown, isSuccess: false, data: null },
+) as Action<
+  { data: { portalId: string; purpose: 'download' | 'copy' | 'show' } },
+  { publicUrl: string }
+>
 const completeReviewMutation = Object.assign(
   async (_input: CompleteReviewVariables) => ({ status: 'recorded' as const }),
   { isPending: false, error: null as unknown, isSuccess: false, data: null },
@@ -130,6 +141,7 @@ const tokenStatus: PortalTokenStatus = {
   version: null,
   issuedAt: null,
   graceExpiresAt: null,
+  addressRecoverable: false,
 }
 
 // Empty analytics payload — exercises the "no data" rendering path of the
@@ -221,6 +233,27 @@ const baseArgs = {
   },
   categories,
   links,
+  linktree: {
+    portalId: 'p-1',
+    enabled: true,
+    maxLinks: 4,
+    primaryLocale: 'en' as const,
+    locales: ['en' as const],
+    titles: {},
+    links: links.map((link) => ({
+      id: link.id,
+      categoryId: link.categoryId,
+      url: link.url,
+      iconKey: null,
+      sortKey: link.sortKey,
+      texts: [{ locale: 'en' as const, label: link.label, line: null, provenance: null }],
+      destination: {
+        state: 'approved' as const,
+        sourceType: 'recognized' as const,
+        approvedByUserId: null,
+      },
+    })),
+  },
   updateMutation: idleMutation,
   autosaveUpdateMutation: idleMutation,
   completeReviewMutation,
@@ -228,6 +261,7 @@ const baseArgs = {
   issueTokenMutation,
   rotateTokenMutation,
   revokeTokenMutation,
+  revealAddressMutation,
   getPortalAnalytics,
   activeTab: 'page' as const,
 }

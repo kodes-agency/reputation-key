@@ -6,6 +6,14 @@ export const issuePortalTokenInputSchema = z.object({
   portalId: portalTokenPortalIdSchema,
 })
 
+/**
+ * What the address was fetched for: the code as a file, or a copy of an
+ * address. It is recorded with the disclosure and nothing else is read from it.
+ */
+export const revealPortalAddressInputSchema = issuePortalTokenInputSchema.extend({
+  purpose: z.enum(['download', 'copy', 'show']),
+})
+
 const portalTokenGracePeriodDaysSchema = z
   .number()
   .int('Transition period must be a whole number')

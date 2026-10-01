@@ -82,6 +82,9 @@ import { reportAlertToObservability } from './composition/alert-reporter'
 import { composeOrganizationLifecycle } from '#/composition/organization-export-contributors'
 import { buildGoogleProviderAuthority } from './composition/google-provider-authority'
 import { buildIdentityPolicyDeps } from './composition/identity-policy'
+
+const PROPERTY_ID_SHAPE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/iu
 import {
   createDeferredMemberAuthorityLifecycle,
   createMemberAuthorityLifecycle,
@@ -228,6 +231,13 @@ function buildContainer(
     sendEmail: options?.email ?? sendInvitationEmail,
     baseUrl: env.BETTER_AUTH_URL,
     invitationExpiresInMs: INVITATION_EXPIRY_SECONDS * 1000,
+    // Late-bound like the policy check below. Invitations store Property ids
+    // as free text; only a UUID can name a Property row.
+    propertyNames: (orgId, ids) =>
+      property.publicApi.getPropertyNames(
+        organizationId(orgId),
+        ids.filter((id) => PROPERTY_ID_SHAPE.test(id)).map(propertyId),
+      ),
     logger,
     betaFeedbackHmacSecret: env.BETTER_AUTH_SECRET,
     policy: buildIdentityPolicyDeps({
@@ -317,6 +327,7 @@ function buildContainer(
     idGen: () => crypto.randomUUID(),
     secureRandomBytes: randomBytes,
     tokenHashSecret: env.PORTAL_TOKEN_HASH_SECRET,
+    addressEncryptionKeys: env.PORTAL_ADDRESS_ENCRYPTION_KEYS,
     logger,
     storage: options?.providers?.storage,
     storageConfig: {

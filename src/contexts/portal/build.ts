@@ -2,6 +2,7 @@
 // Wires portal repos, storage, and all portal use cases.
 // Per ADR-0001: the composition root calls this and passes publicApis from upstream contexts.
 
+import { createHash } from 'node:crypto'
 import type { ConsumerRegistry } from '#/shared/outbox'
 import type {
   PropertyGoogleReviewDestinationPublicApi,
@@ -18,7 +19,10 @@ import {
 import { createPortalResponsibilityRuntime } from './application/portal-responsibility-runtime'
 import { createPortalLinkRepository } from './infrastructure/repositories/portal-link.repository'
 import { createPortalGroupRepository } from './infrastructure/repositories/portal-group.repository'
+import { createPortalGroupHistoryRepository } from './infrastructure/repositories/portal-group-history.repository'
 import { createS3StorageAdapter } from './infrastructure/adapters/s3-storage.adapter'
+import { createSharpImageProcessor } from './infrastructure/adapters/sharp-image-processor.adapter'
+import { createPortalMediaAssetRepository } from './infrastructure/repositories/portal-media-asset.repository'
 import { createPortalTokenRepository } from './infrastructure/repositories/portal-token.repository'
 import { createPortalPublicationRepository } from './infrastructure/repositories/portal-publication.repository'
 import { createPortalScopeRepository } from './infrastructure/repositories/portal-scope.repository'
@@ -38,7 +42,11 @@ import { createPortalHistoryRepository } from './infrastructure/repositories/por
 import { createPortalActorDirectoryAdapter } from './infrastructure/adapters/portal-actor-directory.adapter'
 import { createPortalAiReplyBrandProfileAuthority } from './infrastructure/ai-reply-brand-profile-authority'
 import type { StoragePort } from './application/ports/storage.port'
+import type { ImageProcessorPort } from './application/ports/image-processor.port'
+import { ingestPortalImage } from './application/use-cases/ingest-portal-image'
 import { createPortalTokenCodec } from './infrastructure/adapters/portal-token-codec'
+import { createPortalAddressCipher } from './infrastructure/adapters/portal-address-cipher'
+import { createPortalAddressRepository } from './infrastructure/repositories/portal-address.repository'
 import { createPortal } from './application/use-cases/create-portal'
 import { updatePortal } from './application/use-cases/update-portal'
 import { rollbackPortalPublication } from './application/use-cases/rollback-portal-publication'
@@ -60,6 +68,7 @@ import { deleteLink } from './application/use-cases/delete-link'
 import { reorderLinks } from './application/use-cases/reorder-links'
 import { listPortalLinks } from './application/use-cases/list-portal-links'
 import { getPortalLanguageCoverage } from './application/use-cases/get-portal-language-coverage'
+import { getPortalLinktree } from './application/use-cases/get-portal-linktree'
 import { createPortalGroup } from './application/use-cases/create-portal-group'
 import { updatePortalGroup } from './application/use-cases/update-portal-group'
 import { listPortalGroups } from './application/use-cases/list-portal-groups'
@@ -67,9 +76,12 @@ import { getPortalGroup } from './application/use-cases/get-portal-group'
 import { softDeletePortalGroup } from './application/use-cases/soft-delete-portal-group'
 import { addPortalToGroup } from './application/use-cases/add-portal-to-group'
 import { removePortalFromGroup } from './application/use-cases/remove-portal-from-group'
+import { movePortalToGroup } from './application/use-cases/move-portal-to-group'
+import { listPortalGroupHistory } from './application/use-cases/list-portal-group-history'
 import { issuePortalToken } from './application/use-cases/issue-portal-token'
 import { rotatePortalToken } from './application/use-cases/rotate-portal-token'
 import { revokePortalTokens } from './application/use-cases/revoke-portal-tokens'
+import { revealPortalAddress } from './application/use-cases/reveal-portal-address'
 import {
   resolvePublicPortalToken,
   type GuestLocalePreference,
@@ -126,6 +138,12 @@ type PortalContextDeps = Readonly<{
   idGen: () => string
   secureRandomBytes: (size: number) => Buffer
   tokenHashSecret: string
+  /**
+   * The versioned keyring that seals each code's address (ADR 0064). Absent,
+   * the address is shown once, when a code is made. A malformed keyring fails
+   * the build, so a boot never runs with a keyring it cannot use.
+   */
+  addressEncryptionKeys?: string
   logger: LoggerPort
   storageConfig: Readonly<{
     accessKey: string
@@ -139,6 +157,8 @@ type PortalContextDeps = Readonly<{
   /** BQC-6.1: optional storage adapter override (simulations/tests inject an
    * in-memory storage; absent = the S3 adapter built from storageConfig). */
   storage?: StoragePort
+  /** Optional image processor override (tests inject a fake decoder); absent = sharp. */
+  imageProcessor?: ImageProcessorPort
 }>
 
 type ResolvePublishedAccessArtifactRequest = Omit<
@@ -160,6 +180,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalCommandStore = createAtomicPortalCommandStore(deps.db)
   const portalLinkRepo = createPortalLinkRepository(deps.db, deps.clock)
   const portalGroupRepo = createPortalGroupRepository(deps.db)
+  const portalGroupHistoryRepo = createPortalGroupHistoryRepository(deps.db)
   const portalAccessArtifactRepo = createPortalAccessArtifactRepository(
     deps.db,
     portalGroupRepo,
@@ -183,6 +204,13 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     secret: deps.tokenHashSecret,
     randomBytes: deps.secureRandomBytes,
   })
+  const portalAddressCipher = deps.addressEncryptionKeys
+    ? createPortalAddressCipher({
+        keyring: deps.addressEncryptionKeys,
+        generateIv: () => deps.secureRandomBytes(12),
+      })
+    : null
+  const portalAddressRepo = createPortalAddressRepository(deps.db)
   const portalWorkflowFactStore = createPortalWorkflowFactStore(deps.db)
   const storage =
     deps.storage ??
@@ -195,6 +223,8 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       presignEndpoint: deps.storageConfig.presignEndpoint,
       forcePathStyle: deps.storageConfig.forcePathStyle,
     })
+  const portalMediaAssetRepo = createPortalMediaAssetRepository(deps.db)
+  const imageProcessor = deps.imageProcessor ?? createSharpImageProcessor()
   const portalIdGen = () => portalId(deps.idGen())
   const portalGroupIdGen = () => portalGroupId(deps.idGen())
   const linkIdGen = () => deps.idGen()
@@ -336,6 +366,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalRepo,
       portalTokenRepo,
       staffPublicApi: deps.staffPublicApi,
+      addressCipher: portalAddressCipher,
       clock: deps.clock,
     }),
     getPortalPublicationHistory: getPortalPublicationHistory({
@@ -359,6 +390,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       managerRepo: portalResponsibleManagerRepo,
       portalTokenRepo,
       staffPublicApi: deps.staffPublicApi,
+      addressCipher: portalAddressCipher,
       clock: deps.clock,
     }),
     softDeletePortal: softDeletePortal({
@@ -400,6 +432,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalRepo,
       portalLinkRepo,
       staffPublicApi: deps.staffPublicApi,
+      experienceRepo: portalExperienceRepo,
       commandStore: portalCommandStore,
       destinationRepo: portalApprovedDestinationRepo,
       destinationNetworkValidator: portalDestinationNetworkValidator,
@@ -423,6 +456,18 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       commandStore: portalCommandStore,
       clock: deps.clock,
     }),
+    ingestPortalImage: ingestPortalImage({
+      portalRepo,
+      staffPublicApi: deps.staffPublicApi,
+      propertyApi: deps.propertyApi,
+      mediaRepo: portalMediaAssetRepo,
+      objectStore: storage,
+      imageProcessor,
+      sha256Hex: (bytes) => createHash('sha256').update(bytes).digest('hex'),
+      idGen: deps.idGen,
+      clock: deps.clock,
+      logger: deps.logger,
+    }),
     saveLinktreeSettings: saveLinktreeSettings({
       portalRepo,
       staffPublicApi: deps.staffPublicApi,
@@ -443,6 +488,13 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       staffPublicApi: deps.staffPublicApi,
       commandStore: portalCommandStore,
       clock: deps.clock,
+    }),
+    getPortalLinktree: getPortalLinktree({
+      portalRepo,
+      portalLinkRepo,
+      experienceRepo: portalExperienceRepo,
+      destinationRepo: portalApprovedDestinationRepo,
+      staffPublicApi: deps.staffPublicApi,
     }),
     listPortalLinks: listPortalLinks({
       portalLinkRepo,
@@ -497,10 +549,23 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       commandStore: portalCommandStore,
       clock: deps.clock,
     }),
+    movePortalToGroup: movePortalToGroup({
+      portalGroupRepo,
+      portalRepo,
+      staffPublicApi: deps.staffPublicApi,
+      commandStore: portalCommandStore,
+      clock: deps.clock,
+    }),
+    listPortalGroupHistory: listPortalGroupHistory({
+      portalGroupRepo,
+      portalGroupHistoryRepo,
+      staffPublicApi: deps.staffPublicApi,
+    }),
     issuePortalToken: issuePortalToken({
       portalRepo,
       portalTokenRepo,
       tokenCodec: portalTokenCodec,
+      addressCipher: portalAddressCipher,
       staffPublicApi: deps.staffPublicApi,
       commandStore: portalCommandStore,
       idGen: deps.idGen,
@@ -511,12 +576,21 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalRepo,
       portalTokenRepo,
       tokenCodec: portalTokenCodec,
+      addressCipher: portalAddressCipher,
       staffPublicApi: deps.staffPublicApi,
       commandStore: portalCommandStore,
       idGen: deps.idGen,
       clock: deps.clock,
       baseUrl: deps.baseUrl,
       defaultGracePeriodSeconds: 30 * 24 * 60 * 60,
+    }),
+    revealPortalAddress: revealPortalAddress({
+      portalRepo,
+      staffPublicApi: deps.staffPublicApi,
+      portalAddressRepo,
+      addressCipher: portalAddressCipher,
+      clock: deps.clock,
+      baseUrl: deps.baseUrl,
     }),
     revokePortalTokens: revokePortalTokens({
       portalRepo,

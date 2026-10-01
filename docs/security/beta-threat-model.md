@@ -104,7 +104,7 @@
 ## Residual risks
 
 1. **Tenant-isolation regression floor** — 84 repository test files carry two-organization fixtures; `src/shared/architecture/tenant-predicate-canary.test.ts` is the mechanical floor.
-2. **Auth endpoint abuse** — the shared Redis limiter guards sign-in, registration, invitation send/resend, guest submissions and the better-auth catch-all, and fails closed in production; Better Auth's native limiter also uses atomic Redis storage across replicas (`docs/operations/runbooks.md` §Security posture). Raw self-service sign-up is refused at the HTTP boundary (invite-only beta). Residual: no proxy-level rate limiting in front of the app.
+2. **Auth endpoint abuse** — the shared Redis limiter guards sign-in, registration, invitation send/resend, guest submissions and the better-auth catch-all, and fails closed in production; Better Auth's native limiter also uses atomic Redis storage across replicas (`docs/operations/runbooks.md` §Security posture). Raw self-service sign-up is refused at the HTTP boundary (invite-only beta), and so is the raw verification-email send: the app-owned `resendVerificationEmail`, limited per IP and per pseudonymised address, is the only way to request a new link (ADR 0062). Residual: no proxy-level rate limiting in front of the app.
 3. **Supply chain** — Dependabot configured but initial advisory scan returned 0 vulnerabilities; continuous monitoring needed.
 4. **Manager-entered feedback content and provider proof** — a manager can
    disregard the notice and type personal/customer content that pattern
@@ -118,11 +118,14 @@
    tagged error's authored message reaches the client, so a message must never
    interpolate user content or secrets; that is a review rule, not a check.
    Better Auth `APIError`s surface the library's own message or a status-keyed
-   fallback. One known pass-through: invited registration
-   (`src/contexts/identity/application/use-cases/register-invited-user.ts`)
-   wraps a failed sign-up, or a failure to reconcile it, in `registration_failed`
-   with the cause's own message, which can put PostgreSQL driver text on that
-   invitation-gated route.
+   fallback. Invited registration returns fixed copy only
+   (`src/contexts/identity/application/use-cases/register-invited-user.ts`);
+   provider and driver text never reaches the client.
+   The invitation preview (`getInvitationPreview`) is an anonymous,
+   rate-limited read keyed by the invitation ID, which is a bearer secret
+   already mailed to the invitee. It returns only what the invitation email
+   states plus whether the address has an account; unknown IDs and ineligible
+   invitations return one identical `unavailable` shape.
 
 ## OWASP ASVS 5.0 mapping
 

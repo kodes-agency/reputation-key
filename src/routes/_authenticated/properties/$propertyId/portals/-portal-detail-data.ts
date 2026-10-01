@@ -6,7 +6,7 @@ import {
   listPortals,
   listPortalApprovedDestinations,
 } from '#/contexts/portal/server/portals'
-import { listPortalLinks } from '#/contexts/portal/server/portal-links'
+import { getPortalLinktree, listPortalLinks } from '#/contexts/portal/server/portal-links'
 import { getPortalLanguageCoverage } from '#/contexts/portal/server/portal-language-coverage'
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortalResponsibleManagers } from '#/contexts/portal/server/portal-responsible-managers'
@@ -54,6 +54,13 @@ export const portalLanguageCoverageQuery = (propertyId: string, portalId: string
   queryOptions({
     queryKey: portalKeys.languageCoverage(propertyId, portalId),
     queryFn: () => getPortalLanguageCoverage({ data: { portalId } }),
+    staleTime: 30_000,
+  })
+
+export const portalLinktreeQuery = (portalId: string) =>
+  queryOptions({
+    queryKey: portalKeys.linktree(portalId),
+    queryFn: () => getPortalLinktree({ data: { portalId } }),
     staleTime: 30_000,
   })
 
@@ -121,6 +128,7 @@ export function usePortalDetailData(propertyId: string, portalId: string) {
   const { data: languageCoverage } = useSuspenseQuery(
     portalLanguageCoverageQuery(propertyId, portalId),
   )
+  const { data: linktree } = useSuspenseQuery(portalLinktreeQuery(portalId))
   const { data: groupsData } = useSuspenseQuery(portalGroupsQuery(propertyId))
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: responsibleManagers } = useSuspenseQuery(
@@ -142,6 +150,7 @@ export function usePortalDetailData(propertyId: string, portalId: string) {
     portalData,
     linksData,
     languageCoverage,
+    linktree,
     groupsData,
     propData,
     responsibleManagers,

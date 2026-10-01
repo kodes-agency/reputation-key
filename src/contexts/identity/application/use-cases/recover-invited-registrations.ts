@@ -93,6 +93,8 @@ export const recoverInvitedRegistrations =
               acceptorEmail: settlement.acceptorEmail,
               acceptorUserId: toUserId(registration.authIds.userId),
               now: acceptanceNow,
+              // The same registration: its acceptance verifies the address.
+              markEmailVerified: true,
               buildEvent: (invitation) =>
                 identityInvitationAccepted({
                   organizationId: invitation.organizationId,

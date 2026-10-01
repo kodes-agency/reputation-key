@@ -19,6 +19,7 @@ function setup(
   const acceptInvitation = vi.fn().mockResolvedValue({
     organizationId: ORGANIZATION_ID,
     propertyIds: ['property-1'],
+    inviterId: null,
   })
   const runOnAccepted = vi.fn().mockResolvedValue(undefined)
   const logger = { error: vi.fn() }
@@ -87,6 +88,8 @@ describe('recoverInvitedRegistrations', () => {
         invitationId: INVITATION_ID,
         acceptorEmail: 'manager@example.com',
         acceptorUserId: 'user-recovery-1',
+        // Recovery finishes the same registration, so it verifies too.
+        markEmailVerified: true,
       }),
     )
     expect(fixture.complete).toHaveBeenCalledWith(VERIFICATION_ID)

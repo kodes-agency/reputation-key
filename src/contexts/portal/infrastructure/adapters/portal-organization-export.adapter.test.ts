@@ -11,8 +11,10 @@ const READ_ORDER = [
   'portals',
   'portalGroups',
   'portalGroupMembers',
+  'portalGroupHistory',
   'linkCategories',
   'links',
+  'linkTexts',
   'approvedDestinations',
   'localizedOverrides',
   'brandProfiles',
@@ -22,6 +24,7 @@ const READ_ORDER = [
   'pendingContentChanges',
   'responsibleManagers',
   'accessArtifacts',
+  'addressDownloads',
   'healthIntervals',
 ] as const
 

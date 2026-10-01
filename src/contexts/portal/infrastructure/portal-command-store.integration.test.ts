@@ -94,6 +94,7 @@ const { getPool } = setupIntegrationDb({
   orgA: ORG_A,
   orgB: ORG_B,
   tables: [
+    'portal_address_downloads',
     'portal_publication_activations',
     'portal_publication_snapshots',
     'portal_links',
@@ -1162,8 +1163,10 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await getPool().query(
       `INSERT INTO portal_tokens
          (id, organization_id, property_id, portal_id, token_identifier,
-          token_hash, token_key_version, version, status, issued_at)
-       VALUES ($1, $2, $3, $4, 'portalcmdtoken02', $5, 1, 1, 'active', $6)`,
+          token_hash, token_key_version, version, status, issued_at,
+          encrypted_raw_token, address_encryption_key_version)
+       VALUES ($1, $2, $3, $4, 'portalcmdtoken02', $5, 1, 1, 'active', $6,
+               'sealed-address', 1)`,
       [
         '6c000000-0000-4000-8000-000000000002',
         ORG_A,
@@ -1208,8 +1211,9 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       [ORG_A, PORTAL_A],
     )
     const token = await getPool().query(
-      `SELECT status, revoked_at, revoked_reason FROM portal_tokens
-       WHERE organization_id = $1 AND portal_id = $2`,
+      `SELECT status, revoked_at, revoked_reason, encrypted_raw_token,
+              address_encryption_key_version
+       FROM portal_tokens WHERE organization_id = $1 AND portal_id = $2`,
       [ORG_A, PORTAL_A],
     )
     const facts = await getPool().query(
@@ -1220,10 +1224,13 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       [ORG_A],
     )
     expect(state.rows[0]).toEqual({ deleted_at: DELETED_AT, updated_at: DELETED_AT })
+    // A deleted Portal keeps no readable address (ADR 0064).
     expect(token.rows[0]).toEqual({
       status: 'revoked',
       revoked_at: DELETED_AT,
       revoked_reason: 'portal archived',
+      encrypted_raw_token: null,
+      address_encryption_key_version: null,
     })
     expect(facts.rows).toEqual([
       { id: deleted.eventId, event_type: 'portal.deleted' },
@@ -1249,6 +1256,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       expectedUpdatedAt: GROUP_UPDATED_AT,
       revision: DELETED_AT,
       occurredAt: DELETED_AT,
+      changedBy: MANAGER,
       event,
     })
 
@@ -1303,6 +1311,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
         expectedUpdatedAt: GROUP_UPDATED_AT,
         revision: DELETED_AT,
         occurredAt: DELETED_AT,
+        changedBy: MANAGER,
         event,
       }),
     ).rejects.toSatisfy((error: unknown) => hasDatabaseErrorCode(error, '23505'))
@@ -1339,6 +1348,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
         expectedUpdatedAt: CREATED_AT,
         revision: DELETED_AT,
         occurredAt: DELETED_AT,
+        changedBy: MANAGER,
         event,
       }),
     ).rejects.toMatchObject({ _tag: 'PortalError', code: 'revision_conflict' })
@@ -1377,6 +1387,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       propertyId: PROPERTY_A,
       name: 'Front Desk',
       sortKey: null,
+      createdBy: MANAGER,
       createdAt: GROUP_UPDATED_AT,
       updatedAt: GROUP_UPDATED_AT,
       deletedAt: null,
@@ -1410,12 +1421,9 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       store.createPortalGroup({
         organizationId: ORG_A,
         group,
-        memberships: [
-          {
-            portalId: PORTAL_A,
-            createdBy: MANAGER,
-          },
-        ],
+        changedBy: MANAGER,
+        memberships: [{ portalId: PORTAL_A, createdBy: MANAGER, movedFrom: null }],
+        sourceGroups: [],
         events: [created, added],
       }),
     ).rejects.toSatisfy((error: unknown) => hasDatabaseErrorCode(error, '23505'))
@@ -1453,6 +1461,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       propertyId: PROPERTY_A,
       name: 'Front Desk',
       sortKey: null,
+      createdBy: MANAGER,
       createdAt: GROUP_UPDATED_AT,
       updatedAt: GROUP_UPDATED_AT,
       deletedAt: null,
@@ -1477,7 +1486,9 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await store.createPortalGroup({
       organizationId: ORG_A,
       group,
-      memberships: [{ portalId: PORTAL_A, createdBy: MANAGER }],
+      changedBy: MANAGER,
+      memberships: [{ portalId: PORTAL_A, createdBy: MANAGER, movedFrom: null }],
+      sourceGroups: [],
       events: [created, added],
     })
 
@@ -1527,6 +1538,8 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
         name: 'Guest Services',
         revision: UPDATED_AT,
         occurredAt: UPDATED_AT,
+        previousName: 'Front Desk',
+        changedBy: MANAGER,
         event,
       }),
     ).rejects.toMatchObject({ _tag: 'PortalError', code: 'revision_conflict' })
@@ -1650,6 +1663,8 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
         portalId: PORTAL_A,
         expectedPortalUpdatedAt: CREATED_AT,
         token,
+        issuedBy: MANAGER,
+        sealedAddress: null,
         ...accessArtifactCommandParts(
           token,
           '7c000000-0000-4000-8000-000000000001',
@@ -1701,6 +1716,8 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
         name: 'Guest Services',
         revision: UPDATED_AT,
         occurredAt: UPDATED_AT,
+        previousName: 'Front Desk',
+        changedBy: MANAGER,
         event: firstEvent,
       }),
       store.updatePortalGroup({
@@ -1711,6 +1728,8 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
         name: 'Reception Team',
         revision: DELETED_AT,
         occurredAt: DELETED_AT,
+        previousName: 'Front Desk',
+        changedBy: MANAGER,
         event: secondEvent,
       }),
     ])
@@ -2460,6 +2479,8 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       portalId: PORTAL_A,
       expectedPortalUpdatedAt: CREATED_AT,
       token: firstToken,
+      issuedBy: MANAGER,
+      sealedAddress: { ciphertext: 'sealed-first', keyVersion: 1 },
       ...accessArtifactCommandParts(
         firstToken,
         '7c000000-0000-4000-8000-000000000002',
@@ -2469,6 +2490,18 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       occurredAt: issueAt,
       event: issued,
     })
+    const afterIssue = await getPool().query(
+      `SELECT issued_by, encrypted_raw_token, address_encryption_key_version
+       FROM portal_tokens WHERE organization_id = $1 AND portal_id = $2`,
+      [ORG_A, PORTAL_A],
+    )
+    expect(afterIssue.rows).toEqual([
+      {
+        issued_by: MANAGER,
+        encrypted_raw_token: 'sealed-first',
+        address_encryption_key_version: 1,
+      },
+    ])
     const rotation = rotateToken(
       firstToken,
       {
@@ -2499,6 +2532,8 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       expectedPortalUpdatedAt: issueAt,
       oldToken: rotation.oldToken,
       newToken: rotation.newToken,
+      issuedBy: MANAGER,
+      sealedAddress: { ciphertext: 'sealed-second', keyVersion: 2 },
       ...accessArtifactCommandParts(
         rotation.newToken,
         '7c000000-0000-4000-8000-000000000003',
@@ -2508,6 +2543,30 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       occurredAt: rotateAt,
       event: rotated,
     })
+    // Replacing seals the new address and clears the outgoing one's.
+    const afterRotate = await getPool().query(
+      `SELECT version, status, issued_by, encrypted_raw_token,
+              address_encryption_key_version
+       FROM portal_tokens WHERE organization_id = $1 AND portal_id = $2
+       ORDER BY version`,
+      [ORG_A, PORTAL_A],
+    )
+    expect(afterRotate.rows).toEqual([
+      {
+        version: 1,
+        status: 'rotating',
+        issued_by: MANAGER,
+        encrypted_raw_token: null,
+        address_encryption_key_version: null,
+      },
+      {
+        version: 2,
+        status: 'active',
+        issued_by: MANAGER,
+        encrypted_raw_token: 'sealed-second',
+        address_encryption_key_version: 2,
+      },
+    ])
     const revoked = portalTokenRevoked({
       portalId: PORTAL_A,
       organizationId: ORG_A,
@@ -2538,6 +2597,14 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
        WHERE organization_id = $1 AND portal_id = $2 ORDER BY version`,
       [ORG_A, PORTAL_A],
     )
+    // Stopping every code clears the last sealed address.
+    const sealedAfterRevoke = await getPool().query(
+      `SELECT count(*)::int AS sealed FROM portal_tokens
+       WHERE organization_id = $1 AND portal_id = $2
+         AND (encrypted_raw_token IS NOT NULL OR address_encryption_key_version IS NOT NULL)`,
+      [ORG_A, PORTAL_A],
+    )
+    expect(sealedAfterRevoke.rows).toEqual([{ sealed: 0 }])
     const facts = await getPool().query(
       `SELECT event_type FROM outbox_events
        WHERE organization_id = $1 AND event_type LIKE 'portal.token.%'

@@ -139,12 +139,6 @@ const config = defineConfig(({ mode }) => {
                     priority: 30,
                     includeDependenciesRecursively: false,
                   },
-                  {
-                    name: 'vendor-dnd',
-                    test: /node_modules[\\/]@dnd-kit/,
-                    priority: 30,
-                    includeDependenciesRecursively: false,
-                  },
                   // Components intentionally use Rolldown's default route-aware
                   // splitting. A broad `/src/components/` group re-joins eager
                   // route-validation leaves with their lazy feature trees.
@@ -192,7 +186,12 @@ const config = defineConfig(({ mode }) => {
                 // The TanStack wrapper itself is build-only and must remain
                 // bundled; externalizing all @sentry packages would ship its
                 // source-map uploader and @sentry/cli in production deps.
-                external: [/^@sentry\/node(?:\/|$)/, /^cld3-asm(\/|$)/],
+                //
+                // `sharp` loads a native libvips binding that lives in an
+                // optional package pnpm links only beside sharp itself, so a
+                // bundled copy cannot find it from `.output`; it must resolve
+                // from the installed `node_modules/sharp`.
+                external: [/^@sentry\/node(?:\/|$)/, /^cld3-asm(\/|$)/, /^sharp(\/|$)/],
               },
               // serverDir scanning stays off (default false under TanStack
               // Start), so this explicit list is the ONLY plugin registration

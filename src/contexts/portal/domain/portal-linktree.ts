@@ -18,6 +18,29 @@ export const MAX_PORTAL_LINKS = 4
 // readers show the guest language pack's `linktreeDefaultTitle` (the v2 packs
 // translate it), so there is one source for the default wording.
 
+/**
+ * The wording a Portal's Linktree title has while a manager has not written one:
+ * the language packs' `linktreeDefaultTitle`, pinned here because the portal
+ * context cannot import the guest components. A language without a reviewed pack
+ * yet reads English, as its guests do.
+ */
+const LINKTREE_DEFAULT_TITLES: Readonly<Partial<Record<GuestLocale, string>>> =
+  Object.freeze({ en: 'Useful links', bg: 'Полезни връзки' })
+
+export const linktreeDefaultTitle = (locale: GuestLocale): string =>
+  LINKTREE_DEFAULT_TITLES[locale] ?? 'Useful links'
+
+/**
+ * The title of the one category a Portal's links sit in once the editor no
+ * longer shows categories. Only the legacy guest page, which still groups links
+ * under their category, prints it, so it reads as that page's Linktree title
+ * would: the manager's own wording for the primary language, else its default.
+ */
+export const startedCategoryTitle = (
+  primaryLocale: GuestLocale,
+  titles: Readonly<Partial<Record<GuestLocale, string>>>,
+): string => titles[primaryLocale] ?? linktreeDefaultTitle(primaryLocale)
+
 /** Equal to the legacy `portal_links.label` column, which the primary text is mirrored into. */
 export const LINK_TEXT_LABEL_MAX_LENGTH = 100
 export const LINK_TEXT_LINE_MAX_LENGTH = 160

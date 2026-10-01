@@ -40,6 +40,46 @@ export const createPortalGroupRepository = (db: Database): PortalGroupRepository
     })
   },
 
+  listPortalGroupsWithPortals: async (orgId, propertyId) => {
+    return trace('portalGroup.listPortalGroupsWithPortals', async () => {
+      const groupRows = await db
+        .select()
+        .from(portalGroups)
+        .where(
+          and(
+            ...baseWhere(portalGroups, orgId),
+            eq(portalGroups.propertyId, unbrand(propertyId)),
+          ),
+        )
+        .orderBy(asc(portalGroups.name), asc(portalGroups.id))
+      if (groupRows.length === 0) return []
+      const memberRows = await db
+        .select({
+          portalGroupId: portalGroupMemberships.portalGroupId,
+          portalId: portalGroupMemberships.portalId,
+        })
+        .from(portalGroupMemberships)
+        .where(
+          and(
+            eq(portalGroupMemberships.organizationId, unbrand(orgId)),
+            eq(portalGroupMemberships.propertyId, unbrand(propertyId)),
+            inArray(
+              portalGroupMemberships.portalGroupId,
+              groupRows.map((row) => row.id),
+            ),
+            isNull(portalGroupMemberships.effectiveTo),
+          ),
+        )
+        .orderBy(asc(portalGroupMemberships.portalId))
+      return groupRows.map((row) => ({
+        ...portalGroupFromRow(row),
+        portalIds: memberRows
+          .filter((member) => member.portalGroupId === row.id)
+          .map((member) => portalId(member.portalId)),
+      }))
+    })
+  },
+
   nameExists: async (orgId, propertyId, name, excludeId) => {
     return trace('portalGroup.nameExists', async () => {
       const conditions = [

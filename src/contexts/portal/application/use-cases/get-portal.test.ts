@@ -3,6 +3,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { getPortal } from './get-portal'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
+import { createInMemoryPortalAddressCipher } from '#/shared/testing/in-memory-portal-address-cipher'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
@@ -23,12 +24,14 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
 const setup = (
   accessible: ReadonlyArray<PropertyId> | null = null,
   token: ResolvablePortalTokenSummary | null = null,
+  addressCipher: ReturnType<typeof createInMemoryPortalAddressCipher> | null = null,
 ) => {
   const portalRepo = createInMemoryPortalRepo()
   const useCase = getPortal({
     portalRepo,
     portalTokenRepo: { findResolvableSummaryForPortal: async () => token },
     staffPublicApi: staffApiMock(accessible),
+    addressCipher,
     clock: () => NOW,
   })
   return { useCase, portalRepo }
@@ -102,6 +105,7 @@ describe('getPortal', () => {
       version: null,
       issuedAt: null,
       graceExpiresAt: null,
+      addressRecoverable: false,
     })
   })
 
@@ -111,6 +115,7 @@ describe('getPortal', () => {
       issuedAt: ISSUED_AT,
       gracePeriodEnds: null,
       hasPublishedAccessArtifact: true,
+      addressKeyVersion: null,
     })
     const ctx = buildTestAuthContext()
     const portal = buildTestPortal({})
@@ -124,8 +129,10 @@ describe('getPortal', () => {
       version: 3,
       issuedAt: ISSUED_AT.toISOString(),
       graceExpiresAt: null,
+      addressRecoverable: false,
     })
     expect(Object.keys(result.tokenStatus).sort()).toEqual([
+      'addressRecoverable',
       'graceExpiresAt',
       'hasActiveToken',
       'issuedAt',
@@ -141,6 +148,7 @@ describe('getPortal', () => {
       issuedAt: ISSUED_AT,
       gracePeriodEnds: graceEnds,
       hasPublishedAccessArtifact: false,
+      addressKeyVersion: null,
     })
     const ctx = buildTestAuthContext()
     const portal = buildTestPortal({})
@@ -154,6 +162,7 @@ describe('getPortal', () => {
       version: 1,
       issuedAt: ISSUED_AT.toISOString(),
       graceExpiresAt: graceEnds.toISOString(),
+      addressRecoverable: false,
     })
   })
 
@@ -166,6 +175,7 @@ describe('getPortal', () => {
       portalRepo,
       portalTokenRepo: { findResolvableSummaryForPortal },
       staffPublicApi: staffApiMock(null),
+      addressCipher: null,
       clock: () => NOW,
     })
     const ctx = buildTestAuthContext()
@@ -179,5 +189,42 @@ describe('getPortal', () => {
       portal.id,
       NOW,
     )
+  })
+
+  it('says the address can be downloaded again only while the keyring holds its key', async () => {
+    const sealed = {
+      version: 1,
+      issuedAt: ISSUED_AT,
+      gracePeriodEnds: null,
+      hasPublishedAccessArtifact: true,
+      addressKeyVersion: 2,
+    }
+    const ctx = buildTestAuthContext()
+    const portal = buildTestPortal({})
+
+    const withKey = setup(
+      null,
+      sealed,
+      createInMemoryPortalAddressCipher({
+        activeKeyVersion: 3,
+        retainedKeyVersions: [2],
+      }),
+    )
+    withKey.portalRepo.seed([portal])
+    const retired = setup(
+      null,
+      sealed,
+      createInMemoryPortalAddressCipher({ activeKeyVersion: 3 }),
+    )
+    retired.portalRepo.seed([portal])
+
+    expect(
+      (await withKey.useCase({ portalId: portal.id }, ctx)).tokenStatus
+        .addressRecoverable,
+    ).toBe(true)
+    expect(
+      (await retired.useCase({ portalId: portal.id }, ctx)).tokenStatus
+        .addressRecoverable,
+    ).toBe(false)
   })
 })

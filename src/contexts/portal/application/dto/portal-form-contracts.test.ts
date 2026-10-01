@@ -10,6 +10,7 @@ import {
 } from './portal-experience.dto'
 import {
   portalCodeReplacementFormSchema,
+  revealPortalAddressInputSchema,
   revokePortalTokensInputSchema,
   rotatePortalTokenInputSchema,
   toRotatePortalTokenInput,
@@ -169,5 +170,23 @@ describe('Portal form DTO contracts', () => {
         gracePeriodDays: Number.NaN,
       }).success,
     ).toBe(true)
+  })
+
+  it('accepts only the three recorded purposes for "Download again"', () => {
+    for (const purpose of ['download', 'copy', 'show']) {
+      expect(
+        revealPortalAddressInputSchema.safeParse({ portalId: 'portal-1', purpose })
+          .success,
+      ).toBe(true)
+    }
+    for (const purpose of ['print', '', undefined]) {
+      expect(
+        revealPortalAddressInputSchema.safeParse({ portalId: 'portal-1', purpose })
+          .success,
+      ).toBe(false)
+    }
+    expect(
+      revealPortalAddressInputSchema.safeParse({ portalId: '', purpose: 'copy' }).success,
+    ).toBe(false)
   })
 })

@@ -32,6 +32,9 @@ export default defineConfig([
       'pino',
       'better-auth',
       'drizzle-orm',
+      // Native (libvips). Loaded lazily by the Portal image processor, and only
+      // on the web side, but the worker bundle reaches it through the container.
+      'sharp',
     ],
     env: {
       NODE_ENV: process.env.NODE_ENV ?? 'production',

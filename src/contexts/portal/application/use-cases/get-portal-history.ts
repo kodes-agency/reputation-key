@@ -2,8 +2,9 @@
 //
 // One newest-first timeline for a Portal: its creation, every publish and
 // restore, every change of health and every public-address event, each with
-// the person who did it when one was recorded. Page edits (who changed the
-// wording or links) arrive with the page-edit ledger in slice 35b.
+// the person who did it when one was recorded, including who made an address
+// and who downloaded it again. Page edits (who changed the wording or links)
+// arrive with the page-edit ledger in slice 35b.
 //
 // Each source is read with its own "strictly before the cursor" bound and
 // limit + 1 rows; the merge keeps the newest `limit`. Authorization is the
@@ -108,7 +109,7 @@ export const getPortalHistory =
       limit: take,
     })
 
-    const [publications, issuances, revocations, health] = await Promise.all([
+    const [publications, issuances, downloads, revocations, health] = await Promise.all([
       categories.has('publishing')
         ? deps.historyRepo.listPublicationEvents(
             organizationId,
@@ -123,6 +124,14 @@ export const getPortalHistory =
             propertyId,
             portal.id,
             page(HISTORY_KEY_PREFIX.codeIssued),
+          )
+        : [],
+      categories.has('codes')
+        ? deps.historyRepo.listCodeDownloads(
+            organizationId,
+            propertyId,
+            portal.id,
+            page(HISTORY_KEY_PREFIX.codeDownloaded),
           )
         : [],
       categories.has('codes')
@@ -160,9 +169,15 @@ export const getPortalHistory =
         key: `${HISTORY_KEY_PREFIX.codeIssued}${row.tokenId}`,
         at: row.issuedAt,
         category: 'codes',
-        // Who issued an address is not recorded yet (slice 33 adds issued_by).
-        actorUserId: null,
+        actorUserId: row.issuedBy,
         detail: classifyCodeIssuance(row, row.predecessor),
+      })),
+      ...downloads.map((row): PortalHistoryRecord => ({
+        key: `${HISTORY_KEY_PREFIX.codeDownloaded}${row.downloadId}`,
+        at: row.downloadedAt,
+        category: 'codes',
+        actorUserId: row.downloadedBy,
+        detail: { kind: 'code_downloaded', version: row.version, purpose: row.purpose },
       })),
       ...revocations.map((row): PortalHistoryRecord => ({
         key: `${HISTORY_KEY_PREFIX.codeRevoked}${row.revokedAt.getTime()}`,

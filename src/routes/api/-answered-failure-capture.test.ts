@@ -1,11 +1,13 @@
 // A route that catches its own failure and answers 500 never throws, so the
-// Nitro error hook and Sentry's request middleware never see it. These two
-// answer a mail provider and a mail client, which retry or give up in silence:
+// Nitro error hook and Sentry's request middleware never see it. Two answer a
+// mail provider and a mail client, which retry or give up in silence; the third
+// is the image upload, where a broken bucket would otherwise be a quiet 500:
 // the capture has to happen where the 500 is chosen.
 
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createOneClickUnsubscribeToken } from '#/contexts/feed/application/one-click-unsubscribe-token'
 import { signSvixPayload } from '#/shared/auth/svix-signature.verifier'
+import { buildTestAuthContext } from '#/shared/testing/fixtures'
 
 const KEYS = `v1:${'11'.repeat(32)}`
 const SECRET = `whsec_${Buffer.from('resend-webhook-signing-key').toString('base64')}`
@@ -14,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   capture: vi.fn(),
   oneClickUnsubscribe: vi.fn(),
   handleResendEvent: vi.fn(),
+  ingestPortalImage: vi.fn(),
+  resolveTenantContext: vi.fn(),
   logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
 }))
 
@@ -30,15 +34,37 @@ vi.mock('#/shared/config/request-runtime-config', () => ({
     resendWebhookSecret: SECRET,
   }),
 }))
+vi.mock('#/shared/config/env', () => ({
+  getEnv: () => ({ BETTER_AUTH_URL: 'https://app.test' }),
+}))
+vi.mock('#/shared/auth/middleware', () => ({
+  resolveTenantContext: mocks.resolveTenantContext,
+}))
+vi.mock('#/shared/auth/execution-policy', () => ({
+  requireExecutionAllowed: vi.fn(async () => {}),
+  getExecutionPolicy: vi.fn(),
+}))
 vi.mock('#/composition', () => ({
   getContainer: () => ({
     handleResendEvent: mocks.handleResendEvent,
     feedPublicApi: { oneClickUnsubscribe: mocks.oneClickUnsubscribe },
+    rateLimiter: {
+      check: async () => ({
+        allowed: true,
+        remaining: 1,
+        resetAt: new Date(),
+        backendStatus: 'available',
+      }),
+    },
+    clock: () => new Date(),
+    logger: mocks.logger,
+    portalPublicApi: { management: { ingestPortalImage: mocks.ingestPortalImage } },
   }),
 }))
 
 const { Route: UnsubscribeRoute } = await import('./notifications/unsubscribe')
 const { handleResendWebhookPost } = await import('./webhooks/resend/events')
+const { Route: PortalMediaRoute } = await import('./portal-media')
 
 type RouteHandler = (context: { request: Request }) => Promise<Response>
 
@@ -48,6 +74,24 @@ const unsubscribePost = (request: Request) =>
       server: { handlers: Record<string, RouteHandler> }
     }
   ).server.handlers.POST!({ request })
+
+const portalMediaPost = (request: Request) =>
+  (
+    PortalMediaRoute.options as unknown as {
+      server: { handlers: Record<string, RouteHandler> }
+    }
+  ).server.handlers.POST!({ request })
+
+function portalMediaRequest(): Request {
+  return new Request(
+    'https://app.test/api/portal-media?propertyId=a0000000-0000-4000-8000-000000000001&purpose=hero&rightsConfirmed=true',
+    {
+      method: 'POST',
+      headers: { 'content-type': 'image/jpeg', 'sec-fetch-site': 'same-origin' },
+      body: Uint8Array.from([0xff, 0xd8, 0xff]),
+    },
+  )
+}
 
 function oneClickRequest(): Request {
   const token = createOneClickUnsubscribeToken(KEYS, {
@@ -103,6 +147,17 @@ describe('a route that answers its own failure with a 500', () => {
     mocks.handleResendEvent.mockRejectedValue(failure)
 
     const response = await handleResendWebhookPost(resendRequest())
+
+    expect(response.status).toBe(500)
+    expect(mocks.capture).toHaveBeenCalledWith(failure, { source: 'nitro' })
+  })
+
+  it('reports a failed portal image upload to the error monitor', async () => {
+    const failure = new Error('connect ECONNREFUSED')
+    mocks.resolveTenantContext.mockResolvedValue(buildTestAuthContext())
+    mocks.ingestPortalImage.mockRejectedValue(failure)
+
+    const response = await portalMediaPost(portalMediaRequest())
 
     expect(response.status).toBe(500)
     expect(mocks.capture).toHaveBeenCalledWith(failure, { source: 'nitro' })

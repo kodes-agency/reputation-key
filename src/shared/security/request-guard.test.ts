@@ -11,6 +11,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
   resolveRequestId,
+  bodyLimitFor,
   bodyLimitRejection,
   createRequestGuardPlugin,
   MAX_INBOUND_REQUEST_ID_LENGTH,
@@ -72,6 +73,36 @@ describe('bodyLimitRejection', () => {
   })
 })
 
+describe('bodyLimitFor', () => {
+  const overrides = [{ path: '/api/portal-media', limitBytes: 5000 }] as const
+
+  it('uses the default for any path without an override', () => {
+    expect(bodyLimitFor('/api/x', 100, overrides)).toBe(100)
+    expect(bodyLimitFor('/', 100)).toBe(100)
+  })
+
+  it('uses the override for exactly its path', () => {
+    expect(bodyLimitFor('/api/portal-media', 100, overrides)).toBe(5000)
+  })
+
+  it('does not widen the limit for a path that merely resembles the override', () => {
+    for (const path of [
+      '/api/portal-media/',
+      '/api/portal-media/other',
+      '/api/portal-media-x',
+      '/api/portal-media/../x',
+      '/API/PORTAL-MEDIA',
+      '/x/api/portal-media',
+    ]) {
+      expect(bodyLimitFor(path, 100, overrides), path).toBe(100)
+    }
+  })
+
+  it('never lets an override lower the limit below the default', () => {
+    expect(bodyLimitFor('/a', 100, [{ path: '/a', limitBytes: 10 }])).toBe(100)
+  })
+})
+
 describe('createRequestGuardPlugin', () => {
   type FakeEvent = { req: Request }
   function fakeNitroApp() {
@@ -106,6 +137,45 @@ describe('createRequestGuardPlugin', () => {
       expect(thrown).toBeInstanceOf(Response)
       expect((thrown as Response).status).toBe(413)
     }
+  })
+
+  describe('a path with its own limit', () => {
+    const guarded = () => {
+      const { app, h3 } = fakeNitroApp()
+      createRequestGuardPlugin({
+        bodyLimitBytes: 100,
+        pathBodyLimits: [{ path: '/api/portal-media', limitBytes: 1000 }],
+        idGen: () => 'gid',
+      })(app as never)
+      return h3.config.onRequest!
+    }
+    const post = (path: string, length: string): FakeEvent => ({
+      req: new Request(`http://localhost${path}?a=1`, {
+        method: 'POST',
+        headers: { 'content-length': length },
+      }),
+    })
+    const status = (run: () => unknown) => {
+      try {
+        run()
+        return 200
+      } catch (thrown) {
+        return (thrown as Response).status
+      }
+    }
+
+    it('accepts a larger body there, and refuses one past the larger limit', () => {
+      const onRequest = guarded()
+      expect(status(() => onRequest(post('/api/portal-media', '1000')))).toBe(200)
+      expect(status(() => onRequest(post('/api/portal-media', '1001')))).toBe(413)
+    })
+
+    it('keeps the default limit everywhere else, including beside that path', () => {
+      const onRequest = guarded()
+      expect(status(() => onRequest(post('/api/other', '101')))).toBe(413)
+      expect(status(() => onRequest(post('/api/portal-media/x', '101')))).toBe(413)
+      expect(status(() => onRequest(post('/api/other', '100')))).toBe(200)
+    })
   })
 
   it('delegates to the previous onRequest for in-limit requests', () => {

@@ -983,3 +983,77 @@ Google's consent screen and returns; a new review gets an analysis.
 **Escalation:** Bozhidar Denev.
 
 ---
+
+## 26. Portal Address Keyring (`PORTAL_ADDRESS_ENCRYPTION_KEYS`)
+
+**What it is.** The optional keyring that seals each Portal code's public address
+so a manager can download the code again (ADR 0064). Without it nothing breaks:
+the address is shown once when a code is made, as before, and "Download again" is
+not offered. Web and worker read the same value, so set it on both.
+
+**Format.** `<version>:<64 lowercase hex>[,<version>:<64 lowercase hex>]`, at most
+four entries, versions 1 to 9999, no repeated version. The first entry seals,
+every entry opens. Generate one entry with `echo "1:$(openssl rand -hex 32)"`.
+A malformed value stops web and worker at boot with the field named and the value
+never printed; production also refuses a placeholder-shaped key (the same guard
+as `ENCRYPTION_KEY`).
+
+**Turning it on.** Set the variable on web and worker, staged with
+`--skip-deploys`, then redeploy both. Codes made before that stay unsealed and
+keep the shown-once behaviour until they are replaced; a new or replaced code is
+sealed. Nothing needs a backfill, and there is no way to seal an existing code
+because the address is not stored anywhere else.
+
+**Rotating the key.** Put the new key first and keep the old one:
+`2:<new>,1:<old>`. New and replaced codes seal with version 2; codes sealed with
+version 1 keep opening. Retire version 1 only when no live code was sealed with it:
+
+```sql
+SELECT address_encryption_key_version AS key_version, count(*)
+FROM portal_tokens
+WHERE encrypted_raw_token IS NOT NULL
+GROUP BY 1 ORDER BY 1;
+```
+
+A live code whose key was retired simply stops offering "Download again" (the
+Share tab reads this from the keyring, so there is no failing button); replacing
+the code makes a fresh sealed copy. A retired key never breaks public
+resolution, which reads the hash only.
+
+**Suspected compromise.** The keyring plus a database read exposes the live
+addresses of every sealed Portal. Replace the codes for security (Share, Replace
+code, at once), which stops the old address and clears its sealed copy in the
+same statement, then rotate the key as above. Printed codes must be reprinted;
+that is the cost of the compromise, not of the rotation.
+
+**Losing the keyring.** Existing sealed codes can no longer be downloaded again,
+and the page stops offering it for them. The codes themselves keep working.
+Replace a code to get a new sealed copy under the current keyring.
+
+**Rolling back below this release.** Do this before deploying any image from
+before the sealed-address release (ADR 0064). Migration 0046 added the CHECK
+`portal_tokens_sealed_address_active_only` and migrations only go forward, so an
+older image that replaces, stops or deletes a sealed code would be refused by the
+database: "Stop all codes" for a leaked code would fail with a 500. Skipping this
+step breaks replace, stop and delete for every sealed code.
+
+1. Unset `PORTAL_ADDRESS_ENCRYPTION_KEYS` on web and worker and redeploy both, so
+   nothing seals a new code while you work.
+2. Clear every sealed copy:
+
+   ```sql
+   UPDATE portal_tokens
+   SET encrypted_raw_token = NULL, address_encryption_key_version = NULL
+   WHERE encrypted_raw_token IS NOT NULL;
+   ```
+
+3. Deploy the older image. Codes keep working; they can no longer be downloaded
+   again, and the address is shown once when a code is made, as before.
+
+**Verification.** Make a code on a test Portal, reload, and confirm "Download
+again" is offered; download it, then read the Portal's History and confirm a
+"downloaded" entry with the person's name. `SELECT count(*) FROM
+portal_address_downloads WHERE organization_id = '<org>'` rises by one per
+download.
+
+**Escalation:** Bozhidar Denev.

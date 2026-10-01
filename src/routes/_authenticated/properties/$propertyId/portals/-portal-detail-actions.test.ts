@@ -39,6 +39,7 @@ vi.mock('#/contexts/portal/server/portals', () => ({
   issuePortalToken: 'issuePortalToken',
   requestPortalApprovedDestination: 'requestPortalApprovedDestination',
   revokePortalTokens: 'revokePortalTokens',
+  revealPortalAddress: 'revealPortalAddress',
   rotatePortalToken: 'rotatePortalToken',
   savePortalLocalizedOverride: 'savePortalLocalizedOverride',
   savePropertyPortalBrandContent: 'savePropertyPortalBrandContent',

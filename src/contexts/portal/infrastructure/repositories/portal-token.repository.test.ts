@@ -239,6 +239,7 @@ describe('portal token repository', () => {
       issuedAt: NOW,
       gracePeriodEnds: null,
       hasPublishedAccessArtifact: false,
+      addressKeyVersion: null,
     })
 
     const rotation = rotateToken(
@@ -297,6 +298,7 @@ describe('portal token repository', () => {
       issuedAt: NOW,
       gracePeriodEnds: rotation.oldToken.gracePeriodEnds,
       hasPublishedAccessArtifact: false,
+      addressKeyVersion: null,
     })
     await expect(
       repo.findResolvableSummaryForPortal(ORG, PORTAL, new Date(NOW.getTime() + 60_001)),

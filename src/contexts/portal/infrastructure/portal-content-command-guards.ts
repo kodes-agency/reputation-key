@@ -68,6 +68,30 @@ export type PortalContentCommand =
   | SavePortalLinkTextsCommand
   | SavePortalLinktreeSettingsCommand
 
+/**
+ * A link that starts its Portal's first category writes that category and its
+ * fact in the same transaction; both must sit in the command's scope and be the
+ * link's own category, or the composite foreign key alone would let a category
+ * (and an outbox fact) of another Portal through.
+ */
+function startedCategoryIsScoped(command: CreatePortalLinkCommand): boolean {
+  const started = command.startCategory
+  if (!started) return true
+  const { category, event } = started
+  return (
+    category.organizationId === command.organizationId &&
+    category.portalId === command.portalId &&
+    category.id === command.link.categoryId &&
+    event._tag === 'portal_link_category.created' &&
+    event.categoryId === category.id &&
+    event.organizationId === command.organizationId &&
+    event.propertyId === command.propertyId &&
+    event.portalId === command.portalId &&
+    event.sourceAggregateVersion === command.revision.toISOString() &&
+    sameInstant(event.occurredAt, command.occurredAt)
+  )
+}
+
 // fallow-ignore-next-line complexity
 export function assertPortalContentCommand(command: PortalContentCommand): void {
   const event = command.event
@@ -98,7 +122,8 @@ export function assertPortalContentCommand(command: PortalContentCommand): void 
         command.link.organizationId === command.organizationId &&
         command.link.portalId === command.portalId &&
         event.linkId === command.link.id &&
-        event.categoryId === command.link.categoryId
+        event.categoryId === command.link.categoryId &&
+        startedCategoryIsScoped(command)
       break
     case 'portal_link.updated':
     case 'portal_link.deleted':

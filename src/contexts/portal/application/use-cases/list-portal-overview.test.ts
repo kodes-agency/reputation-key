@@ -48,6 +48,7 @@ const group = (name = 'Pool side'): PortalGroup => ({
   propertyId: PROPERTY_A,
   name,
   sortKey: null,
+  createdBy: null,
   createdAt: NOW,
   updatedAt: NOW,
   deletedAt: null,
@@ -64,6 +65,7 @@ type Sources = Readonly<{
     issuedAt: Date
     gracePeriodEnds: Date | null
     hasPublishedAccessArtifact: boolean
+    addressKeyVersion: number | null
   }[]
 }>
 
@@ -95,6 +97,7 @@ const setup = (
     managerRepo: { listActiveForPortals },
     portalTokenRepo: { findResolvableSummariesForPortals },
     staffPublicApi: staffApiMock(accessible),
+    addressCipher: null,
     clock: () => NOW,
   })
   return {
@@ -135,6 +138,7 @@ describe('listPortalOverview', () => {
           issuedAt: ISSUED_AT,
           gracePeriodEnds: null,
           hasPublishedAccessArtifact: true,
+          addressKeyVersion: null,
         },
       ],
     })
@@ -161,6 +165,7 @@ describe('listPortalOverview', () => {
           version: 2,
           issuedAt: ISSUED_AT.toISOString(),
           graceExpiresAt: null,
+          addressRecoverable: false,
         },
       },
     ])

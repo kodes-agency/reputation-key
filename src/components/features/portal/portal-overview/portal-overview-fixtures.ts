@@ -10,6 +10,7 @@ const WORKING_CODE: PortalOverviewRow['token'] = {
   version: 1,
   issuedAt: '2026-09-01T09:00:00.000Z',
   graceExpiresAt: null,
+  addressRecoverable: false,
 }
 
 export const NO_CODE: PortalOverviewRow['token'] = {
@@ -18,6 +19,7 @@ export const NO_CODE: PortalOverviewRow['token'] = {
   version: null,
   issuedAt: null,
   graceExpiresAt: null,
+  addressRecoverable: false,
 }
 
 export const overviewGroup = (id: string, name: string) => ({

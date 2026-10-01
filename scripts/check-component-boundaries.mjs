@@ -21,10 +21,11 @@ const componentsDir = join(__dirname, '..', 'src', 'components')
 
 // Files allowed to value-import from contexts/*/server.
 // - inbox/use-reply-actions.ts: 10 server functions (8 reply commands + 2 template reads) (documented under src/components/CONTEXT.md "Server-function boundary").
-// - features/portal/link-tree/**: the link-tree bundle (8 mutations, documented).
+// - features/portal/link-tree/**: the Linktree section's writes (create, update, delete,
+//   re-order, save texts, save settings; documented).
 const ALLOWLIST = new Set([
   'inbox/use-reply-actions.ts',
-  'features/portal/link-tree/use-link-tree-mutations.ts',
+  'features/portal/link-tree/use-linktree-mutations.ts',
 ])
 const ALLOWLIST_PREFIXES = ['features/portal/link-tree/']
 

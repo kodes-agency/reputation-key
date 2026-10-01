@@ -5,7 +5,8 @@
 // review page — and moving between them unmounts the editor, so the state
 // lives in the layout route instead: a manager who issues a link on the Share
 // tab and then opens Review & publish still has it when they come back.
-// Slice 33 (encrypted address, "Download again") retires the reveal-once flow.
+// With a keyring (ADR 0064) the address can also be fetched again, and that
+// copy is held here in the same way.
 
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import type { IssuedPortalLink } from '../portal-share/portal-share-types'
@@ -14,6 +15,8 @@ export type PortalLinkIssuance = Readonly<{
   issuedLink: IssuedPortalLink | null
   linksRevoked: boolean
   onLinkIssued: (link: IssuedPortalLink) => void
+  /** An address fetched again by "Download again": held, but nothing was made or stopped. */
+  onAddressRevealed: (link: IssuedPortalLink) => void
   onLinksRevoked: () => void
 }>
 
@@ -26,6 +29,9 @@ function useLinkIssuanceState(): PortalLinkIssuance {
     onLinkIssued: (link) => {
       setIssuedLink(link)
       setLinksRevoked(false)
+    },
+    onAddressRevealed: (link) => {
+      setIssuedLink({ ...link, revealed: true })
     },
     onLinksRevoked: () => {
       setIssuedLink(null)

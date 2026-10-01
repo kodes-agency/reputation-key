@@ -474,6 +474,14 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     authority: 'POR-01',
   }),
   ...rows({
+    schemaFile: 'portal-group.schema.ts',
+    exportNames: ['portalGroupHistory'],
+    owner: 'portal',
+    disposition: 'recoverable_archive',
+    authority: 'POR-01',
+    exitCriteria: RETAINED_HISTORY,
+  }),
+  ...rows({
     schemaFile: 'portal.schema.ts',
     exportNames: [
       'portalAccessArtifacts',
@@ -490,7 +498,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'portal.schema.ts',
-    exportNames: ['portalHealthIntervals'],
+    exportNames: ['portalAddressDownloads', 'portalHealthIntervals'],
     owner: 'portal',
     disposition: 'recoverable_archive',
     authority: 'POR-01',
@@ -531,6 +539,14 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   ...rows({
     schemaFile: 'portal-localization.schema.ts',
     exportNames: ['portalLinkTexts'],
+    owner: 'portal',
+    disposition: 'erasable_source_content',
+    authority: 'POR-01/LIF-01',
+    exitCriteria: ERASE_WITH_OWNER,
+  }),
+  ...rows({
+    schemaFile: 'portal-assets.schema.ts',
+    exportNames: ['portalMediaAssets'],
     owner: 'portal',
     disposition: 'erasable_source_content',
     authority: 'POR-01/LIF-01',

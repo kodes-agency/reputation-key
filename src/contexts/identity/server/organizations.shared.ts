@@ -27,6 +27,8 @@ export const identityErrorStatus = (code: IdentityErrorCode): number =>
       'already_exists',
       'organization_conflict',
       'last_owner',
+      'invitation_expired',
+      'account_exists',
       () => HTTP_STATUS.CONFLICT,
     )
     .with('member_not_found', 'invitation_not_found', () => HTTP_STATUS.NOT_FOUND)

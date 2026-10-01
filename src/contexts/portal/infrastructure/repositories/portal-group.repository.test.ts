@@ -219,6 +219,7 @@ describe('portal group repository — tenant isolation', () => {
         propertyId: PROPERTY_OTHER,
         name: 'smuggled',
         sortKey: null,
+        createdBy: null,
         createdAt: now,
         updatedAt: now,
         deletedAt: null,
@@ -281,5 +282,68 @@ describe('portal group repository — tenant isolation', () => {
       [[ORG, ORG_OTHER]],
     )
     expect(rows).toEqual([{ organization_id: ORG_OTHER, effective_to: null }])
+  })
+})
+
+describe('portal group repository batched list', () => {
+  const PORTAL_TWO = portalId('dc000000-0000-4000-8000-000000000013')
+
+  async function seedSecondPortal(): Promise<void> {
+    await pool.query(
+      `INSERT INTO portals (id, organization_id, property_id, entity_type, entity_id, name, slug, created_at, updated_at)
+       VALUES ($1, $2, $3::uuid, 'property', $3::text, 'Second Portal', 'second-portal', NOW(), NOW())`,
+      [PORTAL_TWO, ORG, PROPERTY_A],
+    )
+  }
+
+  it('lists the groups of a Property with their current Portals, by name', async () => {
+    const repo = createPortalGroupRepository(getDb())
+    await seedSecondPortal()
+    await repo.addPortal(ORG, GROUP_B, PORTAL_TWO, START, 'owner')
+    await repo.addPortal(ORG, GROUP_B, PORTAL, START, 'owner')
+
+    const groups = await repo.listPortalGroupsWithPortals(ORG, propertyId(PROPERTY_A))
+
+    expect(groups.map((group) => [group.id, group.name])).toEqual([
+      [GROUP_A, 'Group A'],
+      [GROUP_B, 'Group B'],
+    ])
+    expect(groups[0]?.portalIds).toEqual([])
+    expect([...(groups[1]?.portalIds ?? [])].sort()).toEqual([PORTAL, PORTAL_TWO].sort())
+  })
+
+  it('leaves out a Portal whose membership has ended and a group that was archived', async () => {
+    const repo = createPortalGroupRepository(getDb())
+    await repo.addPortal(ORG, GROUP_A, PORTAL, START, 'owner')
+    await repo.removePortal(ORG, GROUP_A, PORTAL, MOVE, 'moved_to_group')
+    await repo.addPortal(ORG, GROUP_B, PORTAL, MOVE, 'owner')
+    await repo.softDelete(ORG, GROUP_A, ARCHIVE)
+
+    const groups = await repo.listPortalGroupsWithPortals(ORG, propertyId(PROPERTY_A))
+
+    expect(groups.map((group) => [group.id, group.portalIds])).toEqual([
+      [GROUP_B, [PORTAL]],
+    ])
+  })
+
+  it('does not list another Property group or another tenant group', async () => {
+    const repo = createPortalGroupRepository(getDb())
+
+    const propertyB = await repo.listPortalGroupsWithPortals(ORG, propertyId(PROPERTY_B))
+    const crossTenant = await repo.listPortalGroupsWithPortals(ORG, PROPERTY_OTHER)
+
+    expect(propertyB.map((group) => group.id)).toEqual([GROUP_OTHER_PROPERTY])
+    expect(crossTenant).toEqual([])
+  })
+
+  it('maps who created a group, and null for a group made before it was recorded', async () => {
+    const repo = createPortalGroupRepository(getDb())
+    await pool.query(`UPDATE portal_groups SET created_by = 'creator-1' WHERE id = $1`, [
+      GROUP_B,
+    ])
+
+    const groups = await repo.listPortalGroupsWithPortals(ORG, propertyId(PROPERTY_A))
+
+    expect(groups.map((group) => group.createdBy)).toEqual([null, 'creator-1'])
   })
 })

@@ -32,8 +32,10 @@ const ROOTS = ['src', 'services', 'scripts', 'e2e'] as const
 
 /**
  * The modules that own a format, each with a distinct plaintext and audience:
- * guest contact details, and Google OAuth tokens. A third entry means either a
- * genuine third format — which needs its own justification here — or a copy.
+ * guest contact details, Google OAuth tokens, and the raw Portal address (ADR
+ * 0064, bound to its token row so a download can be offered again). A fourth
+ * entry means either a genuine fourth format — which needs its own
+ * justification here — or a copy.
  */
 const FORMAT_OWNERS = [
   join(
@@ -51,6 +53,14 @@ const FORMAT_OWNERS = [
     'infrastructure',
     'adapters',
     'token-encryption.adapter.ts',
+  ),
+  join(
+    'src',
+    'contexts',
+    'portal',
+    'infrastructure',
+    'adapters',
+    'portal-address-cipher.ts',
   ),
 ] as const
 

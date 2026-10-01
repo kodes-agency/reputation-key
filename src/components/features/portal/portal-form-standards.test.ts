@@ -65,9 +65,10 @@ describe('Portal form and command DTO architecture standards', () => {
       .sort()
 
     expect(formFiles).toEqual([
-      'src/components/features/portal/link-tree/category-add-form.tsx',
-      'src/components/features/portal/link-tree/category-edit-inline-form.tsx',
-      'src/components/features/portal/link-tree/link-inline-form.tsx',
+      'src/components/features/portal/link-tree/link-add-form.tsx',
+      'src/components/features/portal/link-tree/link-address-form.tsx',
+      'src/components/features/portal/link-tree/link-texts-form.tsx',
+      'src/components/features/portal/link-tree/linktree-title-form.tsx',
       'src/components/features/portal/portal-editor/portal-private-note-form.tsx',
       'src/components/features/portal/portal-editor/portal-welcome-form.tsx',
       'src/components/features/portal/portal-form/create-portal-form.tsx',

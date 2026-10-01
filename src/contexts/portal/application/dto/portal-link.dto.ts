@@ -14,7 +14,9 @@ const portalLinkUrlSchema = z
   .refine(isValidExternalUrl, 'Links must start with https://')
 
 export const createLinkInputSchema = z.object({
-  categoryId: z.string().min(1, 'Category ID is required'),
+  // Left out by the Linktree editor, which does not show categories: the link
+  // then joins the Portal's last category.
+  categoryId: z.string().min(1, 'Category ID is required').optional(),
   portalId: z.string().min(1, 'Portal ID is required'),
   label: portalLinkLabelSchema,
   url: portalLinkUrlSchema,

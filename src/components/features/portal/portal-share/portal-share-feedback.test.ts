@@ -17,6 +17,7 @@ function stubMutations(
   issue: MutationFlags = {},
   rotate: MutationFlags = {},
   revoke: MutationFlags = {},
+  reveal: MutationFlags = {},
 ): PortalShareMutations {
   const stub = (flags: MutationFlags) =>
     Object.assign(
@@ -35,6 +36,7 @@ function stubMutations(
     issueMutation: stub(issue),
     rotateMutation: stub(rotate),
     revokeMutation: stub(revoke),
+    revealMutation: stub(reveal),
   }
 }
 
@@ -61,6 +63,22 @@ describe('resolveMutationState', () => {
     expect(resolveMutationState(stubMutations()).error).toBeNull()
   })
 
+  it('reports a failed "download again" after the other three', () => {
+    const onlyReveal = resolveMutationState(
+      stubMutations({}, {}, {}, { error: new Error('reveal') }),
+    )
+    expect((onlyReveal.error as Error).message).toBe('reveal')
+    const revokeFirst = resolveMutationState(
+      stubMutations(
+        {},
+        {},
+        { error: new Error('revoke') },
+        { error: new Error('reveal') },
+      ),
+    )
+    expect((revokeFirst.error as Error).message).toBe('revoke')
+  })
+
   it('treats any one pending mutation as the whole tab being busy', () => {
     // The pending flag disables every control, so a revoke in flight must lock
     // the issue form too — not only the mutation that owns the button.
@@ -70,6 +88,9 @@ describe('resolveMutationState', () => {
     )
     expect(
       resolveMutationState(stubMutations({}, {}, { isPending: true })).isPending,
+    ).toBe(true)
+    expect(
+      resolveMutationState(stubMutations({}, {}, {}, { isPending: true })).isPending,
     ).toBe(true)
     expect(resolveMutationState(stubMutations()).isPending).toBe(false)
   })

@@ -21,10 +21,12 @@ import type {
 import type { getPortalAnalyticsFn } from '#/contexts/reporting/server/portal-analytics'
 import type {
   PortalLanguageCoverage,
+  PortalLinktreeView,
   PortalPublicationHistory,
   PortalTokenStatus,
 } from '#/contexts/portal/application/public-api'
 import type { PortalDetailTab } from './portal-detail-rules'
+import type { PortalShareMutations } from '../portal-share/portal-share-types'
 import type { PortalEditorSection } from '../portal-editor/portal-editor-sections'
 import type { PortalGroupView } from '../portal-group-types'
 import type { GoogleReviewDestinationStatus } from '../portal-settings/google-review-destination-status'
@@ -63,6 +65,8 @@ export type PortalDetailResources = Readonly<{
   links: readonly LinkTreeLink[]
   /** Which wording each language has. Absent: the Languages section shows no counts. */
   languageCoverage?: PortalLanguageCoverage
+  /** The Linktree section: its switch and titles, and each tile with its texts. */
+  linktree: PortalLinktreeView
   /** Explicit portal writes: the publication toggle and the language Save. Toasts on success. */
   updateMutation: Action<UpdatePortalVariables>
   /**
@@ -74,6 +78,8 @@ export type PortalDetailResources = Readonly<{
   issueTokenMutation: Action<{ data: { portalId: string } }, IssuedPortalLink>
   rotateTokenMutation: Action<{ data: RotatePortalLinkInput }, IssuedPortalLink>
   revokeTokenMutation: Action<{ data: { portalId: string; reason: string } }, unknown>
+  /** "Download again": the live code's address, from its sealed copy. */
+  revealAddressMutation: PortalShareMutations['revealMutation']
   /** C2: whether a public link is live. The raw URL is never part of this. */
   tokenStatus: PortalTokenStatus
   getPortalAnalytics: typeof getPortalAnalyticsFn

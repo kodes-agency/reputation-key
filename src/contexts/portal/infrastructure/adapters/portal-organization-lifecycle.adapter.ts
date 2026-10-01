@@ -21,9 +21,10 @@ import {
   type OrganizationLifecycleContributionRequest,
   type OrganizationLifecyclePhaseOutcome,
 } from '#/shared/db/lifecycle/organization-lifecycle-receipt-store'
-import { portalGroups } from '#/shared/db/schema/portal-group.schema'
+import { portalGroupHistory, portalGroups } from '#/shared/db/schema/portal-group.schema'
 import {
   portalAccessArtifacts,
+  portalAddressDownloads,
   portalApprovedDestinations,
   portalGroupMembers,
   portalHealthIntervals,
@@ -42,6 +43,7 @@ import {
   portalPublicationSnapshots,
 } from '#/shared/db/schema/portal-publication.schema'
 import { portalLinkTexts } from '#/shared/db/schema/portal-localization.schema'
+import { portalMediaAssets } from '#/shared/db/schema/portal-assets.schema'
 import type { Tx } from '#/shared/outbox/commit'
 
 /**
@@ -67,6 +69,7 @@ const CLOSING_DEACTIVATION_REASON = 'disabled'
  * decision, never a lifecycle phase.
  */
 export const PORTAL_PURGE_PLAN = Object.freeze([
+  'portal_address_downloads',
   'portal_access_artifacts',
   'portal_pending_content_changes',
   'portal_publication_activations',
@@ -82,7 +85,9 @@ export const PORTAL_PURGE_PLAN = Object.freeze([
   'portal_localized_overrides',
   'property_portal_brand_contents',
   'property_portal_brand_profiles',
+  'portal_media_assets',
   'portals',
+  'portal_group_history',
   'portal_groups',
 ] as const)
 
@@ -141,8 +146,10 @@ const drizzlePortalLifecycleWorkbench: PortalLifecycleWorkbench = Object.freeze(
   },
 
   countTenantRows: async (tx, organizationId) => {
-    // The four roots of the plan. Every other Portal table is a foreign-key
-    // child of one of them, so a non-zero count here is exactly "this
+    // The five roots of the plan: four tables, and media assets, which hang
+    // off `properties` and need no Portal or Brand Profile (a hero or logo
+    // upload needs only a Property). Every other Portal table is a foreign-key
+    // child of one of the four, so a non-zero count here is exactly "this
     // Organization owns Portal-context rows".
     const result = await tx.execute(sql`
       SELECT
@@ -161,6 +168,10 @@ const drizzlePortalLifecycleWorkbench: PortalLifecycleWorkbench = Object.freeze(
         + (
           SELECT COUNT(*)::int FROM ${portalApprovedDestinations}
           WHERE ${portalApprovedDestinations.organizationId} = ${organizationId}
+        )
+        + (
+          SELECT COUNT(*)::int FROM ${portalMediaAssets}
+          WHERE ${portalMediaAssets.organizationId} = ${organizationId}
         ) AS "rows"
     `)
     return count(result.rows[0], 'rows')
@@ -171,6 +182,9 @@ const drizzlePortalLifecycleWorkbench: PortalLifecycleWorkbench = Object.freeze(
     // snapshots until Guest has purged; that failure is honest — the phase
     // throws, the state stays `purging`, other contexts keep their receipts,
     // and the next pass converges once Guest's own receipt exists.
+    await tx
+      .delete(portalAddressDownloads)
+      .where(eq(portalAddressDownloads.organizationId, organizationId))
     await tx
       .delete(portalAccessArtifacts)
       .where(eq(portalAccessArtifacts.organizationId, organizationId))
@@ -213,7 +227,15 @@ const drizzlePortalLifecycleWorkbench: PortalLifecycleWorkbench = Object.freeze(
     await tx
       .delete(propertyPortalBrandProfiles)
       .where(eq(propertyPortalBrandProfiles.organizationId, organizationId))
+    // After every row that points at an asset (links, Brand Profiles). The stored
+    // objects are removed by the media purge, never left behind by this delete.
+    await tx
+      .delete(portalMediaAssets)
+      .where(eq(portalMediaAssets.organizationId, organizationId))
     await tx.delete(portals).where(eq(portals.organizationId, organizationId))
+    await tx
+      .delete(portalGroupHistory)
+      .where(eq(portalGroupHistory.organizationId, organizationId))
     await tx.delete(portalGroups).where(eq(portalGroups.organizationId, organizationId))
   },
 })

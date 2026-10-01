@@ -108,6 +108,54 @@ describe('invited registration recovery classification', () => {
     ).toEqual({ kind: 'already_accepted' })
   })
 
+  it('settles an accepted attempt although the member already signed in on their own sessions', () => {
+    const input = baseInput()
+    expect(
+      classifyInvitedRegistrationRecovery({
+        ...input,
+        invitation: { ...input.invitation, status: 'accepted' },
+        user: { id: 'user-1', email: 'manager@example.com' },
+        accounts: [
+          {
+            id: 'account-1',
+            userId: 'user-1',
+            providerId: 'credential',
+            accountId: 'user-1',
+          },
+        ],
+        sessions: [
+          { id: 'sign-in-after-registration', userId: 'user-1' },
+          { id: 'second-device', userId: 'user-1' },
+        ],
+        memberships: [{ organizationId: 'org-1' }],
+      }),
+    ).toEqual({ kind: 'already_accepted' })
+  })
+
+  it('still reviews an accepted attempt whose preallocated session belongs to someone else', () => {
+    const input = baseInput()
+    expect(
+      classifyInvitedRegistrationRecovery({
+        ...input,
+        invitation: { ...input.invitation, status: 'accepted' },
+        user: { id: 'user-1', email: 'manager@example.com' },
+        accounts: [
+          {
+            id: 'account-1',
+            userId: 'user-1',
+            providerId: 'credential',
+            accountId: 'user-1',
+          },
+        ],
+        sessions: [
+          { id: 'sign-in-after-registration', userId: 'user-1' },
+          { id: 'session-1', userId: 'user-other' },
+        ],
+        memberships: [{ organizationId: 'org-1' }],
+      }),
+    ).toEqual({ kind: 'manual_review', reason: 'unexpected_authority' })
+  })
+
   it('closes an artifact-free attempt when its invitation is no longer available', () => {
     const input = baseInput()
     expect(
