@@ -123,29 +123,86 @@ export function createInMemoryPortalCommandStore(deps: {
       updatedAt: revision,
     })
   }
+  type CreateCommand = Parameters<PortalCommandStore['createPortal']>[0]
+  const assertGroupFence = async (command: CreateCommand) => {
+    const membership = command.groupMembership
+    if (!membership) return
+    const groupRepo = deps.portalGroupRepo
+    if (!groupRepo) {
+      throw new Error('in-memory Portal Group repository is not configured')
+    }
+    const group = await groupRepo.findById(
+      command.organizationId,
+      membership.portalGroupId,
+    )
+    if (
+      !group ||
+      group.updatedAt.getTime() !== membership.expectedGroupUpdatedAt.getTime()
+    ) {
+      throw portalError('revision_conflict', 'Portal Group changed during command')
+    }
+  }
+  const joinGroup = async (command: CreateCommand) => {
+    const membership = command.groupMembership
+    const groupRepo = deps.portalGroupRepo
+    if (!membership || !groupRepo) return
+    const { portalGroupId, revision, event } = membership
+    await groupRepo.update(command.organizationId, portalGroupId, { updatedAt: revision })
+    await groupRepo.addPortal(
+      command.organizationId,
+      portalGroupId,
+      command.portal.id,
+      command.portal.createdAt,
+      command.portal.createdBy ?? '',
+    )
+    recordGroupHistory([
+      portalGroupHistoryEntry({
+        organizationId: command.organizationId,
+        propertyId: command.portal.propertyId,
+        portalGroupId,
+        kind: 'portal_added',
+        portalId: command.portal.id,
+        actorUserId: command.portal.createdBy ?? '',
+        occurredAt: command.portal.createdAt,
+      }),
+    ])
+    await outbox.record(event)
+  }
+  const copyContent = async (command: CreateCommand) => {
+    if (!command.copiedContent) return
+    const { categories, links, linkTexts, overrides } = command.copiedContent
+    const writer = {
+      actorUserId: command.portal.createdBy ?? '',
+      at: command.portal.createdAt,
+    }
+    for (const category of categories) {
+      await linkRepo().insertCategory(command.organizationId, category)
+    }
+    for (const link of links) await linkRepo().insertLink(command.organizationId, link)
+    for (const link of links) {
+      linkRepo().saveTexts(
+        String(link.id),
+        linkTexts.filter((text) => text.linkId === link.id),
+        writer,
+      )
+    }
+    for (const override of overrides) {
+      if (override.linktreeTitle === null) continue
+      linkRepo().saveLinktreeTitle(
+        String(command.portal.id),
+        override.locale,
+        override.linktreeTitle,
+      )
+    }
+    deps.onCopiedOverrides?.(String(command.portal.id), overrides)
+  }
   return {
     createPortal: async (command) => {
       // All or nothing, like the Postgres store: a stale group fence refuses the
       // command before the first write. (The command's own consistency guards
       // live in infrastructure, which a shared fake may not import; they are
       // tested against the real store.)
-      const membership = command.groupMembership
-      const groupRepo = deps.portalGroupRepo
-      if (membership) {
-        if (!groupRepo) {
-          throw new Error('in-memory Portal Group repository is not configured')
-        }
-        const group = await groupRepo.findById(
-          command.organizationId,
-          membership.portalGroupId,
-        )
-        if (
-          !group ||
-          group.updatedAt.getTime() !== membership.expectedGroupUpdatedAt.getTime()
-        ) {
-          throw portalError('revision_conflict', 'Portal Group changed during command')
-        }
-      }
+      await assertGroupFence(command)
       await mutablePortalRepo.insert(
         command.organizationId,
         command.portal,
@@ -153,60 +210,8 @@ export function createInMemoryPortalCommandStore(deps: {
       )
       deps.onInitialManagers?.(command.portal.id, command.initialResponsibleManagerIds)
       await outbox.record(command.event)
-      if (membership && groupRepo) {
-        const { portalGroupId, revision, event } = membership
-        await groupRepo.update(command.organizationId, portalGroupId, {
-          updatedAt: revision,
-        })
-        await groupRepo.addPortal(
-          command.organizationId,
-          portalGroupId,
-          command.portal.id,
-          command.portal.createdAt,
-          command.portal.createdBy ?? '',
-        )
-        recordGroupHistory([
-          portalGroupHistoryEntry({
-            organizationId: command.organizationId,
-            propertyId: command.portal.propertyId,
-            portalGroupId,
-            kind: 'portal_added',
-            portalId: command.portal.id,
-            actorUserId: command.portal.createdBy ?? '',
-            occurredAt: command.portal.createdAt,
-          }),
-        ])
-        await outbox.record(event)
-      }
-      if (command.copiedContent) {
-        const { categories, links, linkTexts, overrides } = command.copiedContent
-        const writer = {
-          actorUserId: command.portal.createdBy ?? '',
-          at: command.portal.createdAt,
-        }
-        for (const category of categories) {
-          await linkRepo().insertCategory(command.organizationId, category)
-        }
-        for (const link of links)
-          await linkRepo().insertLink(command.organizationId, link)
-        for (const link of links) {
-          linkRepo().saveTexts(
-            String(link.id),
-            linkTexts.filter((text) => text.linkId === link.id),
-            writer,
-          )
-        }
-        for (const override of overrides) {
-          if (override.linktreeTitle !== null) {
-            linkRepo().saveLinktreeTitle(
-              String(command.portal.id),
-              override.locale,
-              override.linktreeTitle,
-            )
-          }
-        }
-        deps.onCopiedOverrides?.(String(command.portal.id), overrides)
-      }
+      await joinGroup(command)
+      await copyContent(command)
       if (command.responsibilityNeededEvent) {
         await outbox.record(command.responsibilityNeededEvent)
       }

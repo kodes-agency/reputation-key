@@ -53,6 +53,19 @@ const data: PortalNewData = {
   mutation: action(),
 }
 
+/** Presses Create draft and returns what the dialog sent. */
+async function submitted(ui: ReturnType<typeof within>) {
+  await userEvent.click(ui.getByRole('button', { name: 'Create draft' }))
+  await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1))
+  return createSpy.mock.calls[0]?.[0].data
+}
+
+/** Names the portal and picks "A copy of another portal" as its start. */
+async function nameAndCopy(ui: ReturnType<typeof within>) {
+  await userEvent.type(ui.getByLabelText('Name'), 'Rooftop pool')
+  await userEvent.click(ui.getByRole('radio', { name: /A copy of another portal/ }))
+}
+
 const meta: Meta<typeof PortalNewDialog> = {
   title: 'Portal/PortalNewDialog',
   component: PortalNewDialog,
@@ -92,10 +105,8 @@ export const CreatesADraft: Story = {
   play: async () => {
     const ui = dialog()
     await userEvent.type(ui.getByLabelText('Name'), 'Rooftop pool')
-    await userEvent.click(ui.getByRole('button', { name: 'Create draft' }))
-    await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1))
     // Choices left at their defaults are not sent: no group, the creator as manager.
-    await expect(createSpy.mock.calls[0]?.[0].data).toEqual({
+    await expect(await submitted(ui)).toEqual({
       propertyId: 'property-1',
       name: 'Rooftop pool',
       guestLocales: ['en'],
@@ -107,8 +118,7 @@ export const CreatesADraft: Story = {
 export const StartsFromACopy: Story = {
   play: async () => {
     const ui = dialog()
-    await userEvent.type(ui.getByLabelText('Name'), 'Rooftop pool')
-    await userEvent.click(ui.getByRole('radio', { name: /A copy of another portal/ }))
+    await nameAndCopy(ui)
     // The copy brings the languages of the portal it copies.
     await userEvent.click(ui.getByRole('combobox', { name: 'Portal to copy' }))
     await userEvent.click(await screen.findByRole('option', { name: 'Pool & Terrace' }))
@@ -118,9 +128,7 @@ export const StartsFromACopy: Story = {
         'true',
       ),
     )
-    await userEvent.click(ui.getByRole('button', { name: 'Create draft' }))
-    await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1))
-    await expect(createSpy.mock.calls[0]?.[0].data).toEqual({
+    await expect(await submitted(ui)).toEqual({
       propertyId: 'property-1',
       name: 'Rooftop pool',
       guestLocales: ['bg', 'en'],
@@ -132,8 +140,7 @@ export const StartsFromACopy: Story = {
 export const NeedsAPortalToCopy: Story = {
   play: async () => {
     const ui = dialog()
-    await userEvent.type(ui.getByLabelText('Name'), 'Rooftop pool')
-    await userEvent.click(ui.getByRole('radio', { name: /A copy of another portal/ }))
+    await nameAndCopy(ui)
     await userEvent.click(ui.getByRole('button', { name: 'Create draft' }))
     await expect(await ui.findByText('Choose the portal to copy')).toBeInTheDocument()
     await expect(createSpy).not.toHaveBeenCalled()
@@ -162,9 +169,7 @@ export const SendsTheChoices: Story = {
     await userEvent.click(await screen.findByRole('checkbox', { name: 'Anna Petrova' }))
     await userEvent.keyboard('{Escape}')
     await userEvent.type(ui.getByLabelText('Name'), '  Rooftop pool ')
-    await userEvent.click(ui.getByRole('button', { name: 'Create draft' }))
-    await waitFor(() => expect(createSpy).toHaveBeenCalledTimes(1))
-    await expect(createSpy.mock.calls[0]?.[0].data).toEqual({
+    await expect(await submitted(ui)).toEqual({
       propertyId: 'property-1',
       name: 'Rooftop pool',
       guestLocales: ['en', 'bg'],

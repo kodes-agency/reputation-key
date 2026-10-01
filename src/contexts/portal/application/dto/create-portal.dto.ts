@@ -6,7 +6,7 @@ import { MAX_ADDITIONAL_GUEST_LOCALES } from '#/shared/domain/guest-locale'
 import { offeredGuestLocaleSchema } from '#/shared/guest-locale-schemas'
 
 /** What a new Portal starts from: the Property's wording, or a copy of another Portal. */
-export const newPortalStartFromSchema = z.discriminatedUnion('kind', [
+const newPortalStartFromSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('property') }).strict(),
   z
     .object({
@@ -17,7 +17,7 @@ export const newPortalStartFromSchema = z.discriminatedUnion('kind', [
 ])
 
 /** At most this many responsible managers can be named when a Portal is created. */
-export const MAX_INITIAL_RESPONSIBLE_MANAGERS = 20
+const MAX_INITIAL_RESPONSIBLE_MANAGERS = 20
 
 const createPortalFieldsSchema = z.object({
   name: z.string().min(1, 'Portal name is required').max(100),
