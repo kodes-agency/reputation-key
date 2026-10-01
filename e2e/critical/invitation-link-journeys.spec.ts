@@ -190,29 +190,35 @@ test.describe('Critical workflow: invitation link pages', () => {
   // Sign-in refuses an unverified address with a 403: that refusal is what
   // this journey is about, so the gate tolerates it here and nowhere else.
   test.describe('unverified sign-in', () => {
+    // A two-entry array whose second element is an object reads to Playwright
+    // as a fixture tuple (value, options), so the list is wrapped in one (scope: 'test' is the
+    // override's own default).
     test.use({
       extraErrorAllowlist: [
-        {
-          id: 'unverified-sign-in-refusal',
-          kind: 'mutation-status',
-          pattern: '/_serverFn/',
-          pagePattern: '/login',
-          status: 403,
-          owner: 'identity',
-          reason:
-            'The journey signs in as a member whose address is deliberately unverified; the 403 email_not_verified is the behaviour under test. One-year horizon because it is permanent, not a known defect.',
-          expires: '2027-09-30',
-        },
-        {
-          id: 'unverified-sign-in-refusal-echo',
-          kind: 'console-error',
-          pattern: /Failed to load resource: the server responded with a status of 403/,
-          pagePattern: '/login',
-          owner: 'identity',
-          reason:
-            "Chromium's network-log line for the 403 above; same scope, same horizon.",
-          expires: '2027-09-30',
-        },
+        [
+          {
+            id: 'unverified-sign-in-refusal',
+            kind: 'mutation-status',
+            pattern: '/_serverFn/',
+            pagePattern: '/login',
+            status: 403,
+            owner: 'identity',
+            reason:
+              'The journey signs in as a member whose address is deliberately unverified; the 403 email_not_verified is the behaviour under test. One-year horizon because it is permanent, not a known defect.',
+            expires: '2027-09-30',
+          },
+          {
+            id: 'unverified-sign-in-refusal-echo',
+            kind: 'console-error',
+            pattern: /Failed to load resource: the server responded with a status of 403/,
+            pagePattern: '/login',
+            owner: 'identity',
+            reason:
+              "Chromium's network-log line for the 403 above; same scope, same horizon.",
+            expires: '2027-09-30',
+          },
+        ],
+        { scope: 'test' },
       ],
     })
 
