@@ -1,4 +1,5 @@
 import { useForm, useStore } from '@tanstack/react-form'
+import { z } from 'zod/v4'
 import { createFileRoute, useNavigate, redirect } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
@@ -22,6 +23,7 @@ import {
   goalSubjectKey,
   goalSubjectsFromKeys,
 } from '#/components/goals/goal-subject-picker'
+import { prefilledGoalSubjects } from './-goal-subject-prefill'
 import {
   createGoalProgramFormSchema,
   type CreateGoalProgramFormInput,
@@ -59,7 +61,13 @@ const METRICS = [
   },
 ] as const
 
+// A group's page links here with the group already chosen (`?subject=portal_group:<id>`).
+const newGoalSearchSchema = z.object({
+  subject: z.string().max(100).optional().catch(undefined),
+})
+
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/goals/new')({
+  validateSearch: newGoalSearchSchema,
   beforeLoad: ({ context }) => {
     if (!can((context as AuthRouteContext).role, 'goal.create')) {
       throw redirect({ to: '/properties' })
@@ -76,6 +84,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/goa
 
 function CreateGoalPage() {
   const { propertyId } = Route.useParams()
+  const { subject: subjectParam } = Route.useSearch()
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: subjects } = useSuspenseQuery(subjectsQuery(propertyId))
   const navigate = useNavigate()
@@ -94,7 +103,13 @@ function CreateGoalPage() {
     description: '',
     metric: 'portal_rating_count',
     targetValue: 0,
-    subjects: [],
+    subjects: [
+      ...prefilledGoalSubjects(subjectParam, {
+        propertyId,
+        groupIds: subjects.groups.map((group) => group.id),
+        portalIds: subjects.portals.map((portal) => portal.id),
+      }),
+    ],
   }
   const form = useForm({
     defaultValues,
