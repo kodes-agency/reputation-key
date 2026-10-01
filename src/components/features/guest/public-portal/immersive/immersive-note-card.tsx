@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { type RefObject, useEffect, useId, useRef, useState } from 'react'
 import { guestCopyText } from '../guest-copy-format'
 import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
 import { CheckIcon, LockIcon, PencilIcon } from './immersive-icons'
@@ -33,7 +33,20 @@ export function ImmersiveNoteCard({
   /** Resolves true when the note was accepted. */
   onSubmit: (value: NoteSubmission) => Promise<boolean>
 }>) {
-  if (sent) return <SentNote pack={pack} displayName={displayName} />
+  const confirmation = useRef<HTMLParagraphElement>(null)
+  const wasSent = useRef(sent)
+
+  // The form the guest was in is gone once the note is accepted, taking focus
+  // with it: the confirmation takes it, and a screen reader reads it out. A page
+  // that loads with the note already sent keeps focus where it is.
+  useEffect(() => {
+    if (sent && !wasSent.current) confirmation.current?.focus()
+    wasSent.current = sent
+  }, [sent])
+
+  if (sent) {
+    return <SentNote pack={pack} displayName={displayName} textRef={confirmation} />
+  }
   return (
     <NoteComposer
       pack={pack}
@@ -49,13 +62,20 @@ export function ImmersiveNoteCard({
 function SentNote({
   pack,
   displayName,
-}: Readonly<{ pack: GuestPortalCopyV2; displayName: string }>) {
+  textRef,
+}: Readonly<{
+  pack: GuestPortalCopyV2
+  displayName: string
+  textRef: RefObject<HTMLParagraphElement | null>
+}>) {
   return (
     <div className="ih-note ih-note--sent" role="status">
       <span className="ih-disc">
         <CheckIcon size={20} />
       </span>
-      <p>{guestCopyText(pack, 'noteSent', { name: displayName })}</p>
+      <p ref={textRef} tabIndex={-1} className="ih-note__confirmation">
+        {guestCopyText(pack, 'noteSent', { name: displayName })}
+      </p>
     </div>
   )
 }

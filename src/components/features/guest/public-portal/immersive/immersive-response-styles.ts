@@ -187,6 +187,9 @@ export const IMMERSIVE_RESPONSE_CSS = `
   color: #fff;
   text-shadow: 0 2px 28px rgba(0, 0, 0, 0.4);
 }
+/* Focus lands here by script after a rating is sent; it is not a control. */
+.ih-receipt__thanks:focus,
+.ih-note__confirmation:focus { outline: none; }
 .ih-receipt__line {
   display: flex;
   flex-wrap: wrap;

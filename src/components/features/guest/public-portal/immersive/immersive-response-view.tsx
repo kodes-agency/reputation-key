@@ -1,3 +1,4 @@
+import { type RefObject, useEffect, useRef } from 'react'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
 import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
 import { GlassSurface } from './glass-surface'
@@ -62,6 +63,19 @@ export function ImmersiveResponseView(props: ImmersiveResponseViewProps) {
 
 function ResponseBody(props: ImmersiveResponseViewProps) {
   const { pack, response, availability = 'available' } = props
+  const receiptHeading = useRef<HTMLHeadingElement>(null)
+  const unrated = response === null
+  const wasUnrated = useRef(unrated)
+
+  // Sending the rating unmounts the card the guest was in, and focus with it.
+  // It goes to the receipt heading, which a screen reader reads out, so the
+  // guest hears that it worked. A page that loads already rated keeps focus
+  // where it is.
+  useEffect(() => {
+    if (!unrated && wasUnrated.current) receiptHeading.current?.focus()
+    wasUnrated.current = unrated
+  }, [unrated])
+
   if (availability === 'loading') {
     return (
       <GlassSurface
@@ -106,7 +120,14 @@ function ResponseBody(props: ImmersiveResponseViewProps) {
       </div>
     )
   }
-  return <AfterRating {...props} response={response} rating={response.rating} />
+  return (
+    <AfterRating
+      {...props}
+      response={response}
+      rating={response.rating}
+      receiptHeading={receiptHeading}
+    />
+  )
 }
 
 function AfterRating({
@@ -121,13 +142,20 @@ function AfterRating({
   onSubmitNote,
   onGoogleReview,
   onChangeRating,
+  receiptHeading,
 }: ImmersiveResponseViewProps & {
   response: GuestResponseView
   rating: number
+  receiptHeading: RefObject<HTMLHeadingElement | null>
 }) {
   return (
     <div className="ih-response" data-ih-response="rated">
-      <ImmersiveReceiptStrip pack={pack} rating={rating} onChange={onChangeRating} />
+      <ImmersiveReceiptStrip
+        pack={pack}
+        rating={rating}
+        onChange={onChangeRating}
+        headingRef={receiptHeading}
+      />
       <ImmersiveGoogleCard
         pack={pack}
         displayName={displayName}

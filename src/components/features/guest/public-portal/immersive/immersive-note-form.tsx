@@ -2,13 +2,12 @@ import { useForm } from '@tanstack/react-form'
 import type { RefObject } from 'react'
 import { submitHandler } from '#/components/forms/form-submit'
 import { guestPrivateFeedbackFormDto } from '#/contexts/guest/application/dto/guest-response-form.dto'
+import { PRIVATE_FEEDBACK_MAX_LENGTH } from '#/contexts/guest/application/dto/private-feedback.dto'
 import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
 import { ImmersiveBanner } from './immersive-banner'
 import { ImmersiveHoneypot } from './immersive-honeypot'
 
 export type NoteSubmission = Readonly<{ text: string; honeypot: string }>
-
-const NOTE_MAX_LENGTH = 2_000
 
 /**
  * The open note: a labelled field, its hint, "Send note privately" and "Not
@@ -63,10 +62,14 @@ export function ImmersiveNoteForm({
               className="ih-note__field"
               name={field.name}
               rows={4}
-              maxLength={NOTE_MAX_LENGTH}
+              maxLength={PRIVATE_FEEDBACK_MAX_LENGTH}
               value={field.state.value}
               disabled={pending}
-              aria-describedby={`${idPrefix}-hint`}
+              aria-describedby={
+                field.state.meta.isValid
+                  ? `${idPrefix}-hint`
+                  : `${idPrefix}-hint ${idPrefix}-error`
+              }
               aria-invalid={!field.state.meta.isValid}
               onBlur={field.handleBlur}
               onChange={(event) => field.handleChange(event.target.value)}
@@ -75,7 +78,10 @@ export function ImmersiveNoteForm({
               {pack.copy.noteHint}
             </p>
             {!field.state.meta.isValid && (
-              <ImmersiveBanner message={pack.copy.noteRequired} />
+              <ImmersiveBanner
+                id={`${idPrefix}-error`}
+                message={pack.copy.noteRequired}
+              />
             )}
           </>
         )}

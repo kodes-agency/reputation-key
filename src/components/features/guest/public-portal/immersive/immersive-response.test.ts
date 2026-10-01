@@ -11,6 +11,7 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
+import { PRIVATE_FEEDBACK_MAX_LENGTH } from '#/contexts/guest/application/dto/private-feedback.dto'
 import { formatGuestPlural, guestCopyText } from '../guest-copy-format'
 import type { GuestPagePreviewState } from '../guest-page-preview-state'
 import { directChildren, text } from '../__fixtures__/markup-walk'
@@ -156,7 +157,7 @@ describe.each(PACKS)('after a rating [$locale]', (pack) => {
     }
   })
 
-  it('offers the note at 3 stars and not at 4 (the threshold boundary)', () => {
+  it('shows the note card at 1 to 3 stars and hides it at 4 and 5 (the preview mapping at the default threshold)', () => {
     const at = (rating: number) =>
       noteIndex(responseChildren(body(renderResponse(pack, { kind: 'rated', rating }))))
     expect(at(1)).toBe(2)
@@ -166,7 +167,7 @@ describe.each(PACKS)('after a rating [$locale]', (pack) => {
     expect(at(5)).toBe(-1)
   })
 
-  it('moves the boundary with the portal threshold', () => {
+  it('moves the preview mapping with the threshold the preview is given', () => {
     const at = (rating: number, threshold: number) =>
       noteIndex(
         responseChildren(
@@ -200,7 +201,9 @@ describe.each(PACKS)('after a rating [$locale]', (pack) => {
       renderResponse(pack, { kind: 'note-writing', rating: 2, draft: 'Towels ran out' }),
     )
     const [, , note] = responseChildren(html)
-    expect(note).toMatch(/<textarea[^>]*maxLength="2000"/u)
+    expect(note).toMatch(
+      new RegExp(`<textarea[^>]*maxLength="${PRIVATE_FEEDBACK_MAX_LENGTH}"`, 'u'),
+    )
     expect(note).toContain('>Towels ran out</textarea>')
     expect(text(note ?? '')).toContain(pack.copy.noteLabel)
     expect(text(note ?? '')).toContain(pack.copy.noteHint)

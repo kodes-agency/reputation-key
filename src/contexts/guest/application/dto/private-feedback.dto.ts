@@ -5,6 +5,9 @@ import {
   normalizePrivateFeedbackText,
 } from '../../domain/private-feedback-text'
 
+/** The longest note, in Unicode code points, for forms that mirror the limit. */
+export const PRIVATE_FEEDBACK_MAX_LENGTH = MAX_PRIVATE_FEEDBACK_LENGTH
+
 /**
  * Application-boundary parser for guest-authored private feedback. Transport
  * handlers consume this DTO rather than reaching into Guest domain modules.

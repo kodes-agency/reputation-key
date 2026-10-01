@@ -5,6 +5,7 @@
 // (`a11y.test = 'error'` in .storybook/preview.tsx). The play functions add what
 // axe cannot see: the keyboard, focus, the 54 px targets and what the cards do.
 import type { Decorator, Meta, StoryObj } from '@storybook/react'
+import { useState } from 'react'
 import { expect, fn, userEvent, within } from 'storybook/test'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import type { GuestPagePreviewState } from '../guest-page-preview-state'
@@ -43,10 +44,48 @@ type StoryArgs = Readonly<{
   state: GuestPagePreviewState
   locale?: 'en' | 'bg'
   overrides?: Partial<ImmersiveResponseViewProps>
+  /**
+   * The page moves on by itself, as the container will make it: an accepted
+   * rating becomes a rated page and an accepted note a sent one. Without it the
+   * page stays in `state`.
+   */
+  live?: boolean
 }>
 
-function ResponsePage({ state, locale = 'en', overrides }: StoryArgs) {
+/** What the container does with an accepted call, for the stories that watch focus. */
+function useLiveHandlers(
+  start: GuestPagePreviewState,
+  live: boolean,
+  overrides: Partial<ImmersiveResponseViewProps> | undefined,
+): readonly [GuestPagePreviewState, Partial<ImmersiveResponseViewProps> | undefined] {
+  const [state, setState] = useState(start)
+  if (!live) return [start, overrides]
+  return [
+    state,
+    {
+      ...overrides,
+      onSubmitRating: async (value) => {
+        await overrides?.onSubmitRating?.(value)
+        setState({ kind: 'rated', rating: value.rating })
+      },
+      onSubmitNote: async (value) => {
+        const accepted = (await overrides?.onSubmitNote?.(value)) ?? true
+        if (accepted)
+          setState({ kind: 'done', rating: state.kind === 'arrival' ? 1 : state.rating })
+        return accepted
+      },
+    },
+  ]
+}
+
+function ResponsePage({
+  state: start,
+  locale = 'en',
+  overrides: given,
+  live = false,
+}: StoryArgs) {
   const pack = locale === 'bg' ? bgV2 : enV2
+  const [state, overrides] = useLiveHandlers(start, live, given)
   return (
     <ImmersiveShell
       brand={{ ...CHAMPAGNE, hero: STORY_HERO_PHOTO }}
@@ -139,6 +178,7 @@ export const AsksForARating: Story = {
 export const SendsTheChosenRating: Story = {
   args: {
     state: { kind: 'arrival' },
+    live: true,
     overrides: { onSubmitRating: fn(async () => undefined) },
   },
   play: async ({ canvasElement, args }) => {
@@ -150,6 +190,9 @@ export const SendsTheChosenRating: Story = {
       rating: 2,
       honeypot: '',
     })
+    // The card the guest pressed Send in is gone; focus goes to the receipt.
+    const thanks = await canvas.findByRole('heading', { name: 'Thank you.' })
+    expect(thanks).toHaveFocus()
   },
 }
 
@@ -172,6 +215,13 @@ export const G04AfterLow: Story = {
     expect(canvas.getByRole('img', { name: '2 stars' })).toBeVisible()
     expect(canvas.getByText('Fair · sent privately')).toBeVisible()
     expect(canvas.getByRole('button', { name: /Continue to Google/ })).toBeEnabled()
+    expect(
+      canvas.getByRole('button', { name: enV2.copy.responseChangeTitle }),
+    ).toBeVisible()
+    // The hint is read with the button.
+    expect(
+      canvas.getByRole('button', { name: /Continue to Google/ }),
+    ).toHaveAccessibleDescription(enV2.copy.googleHint)
     const note = canvas.getByRole('heading', { name: enV2.copy.noteOfferTitle })
     expect(googleCard(canvasElement).compareDocumentPosition(note)).toBe(
       Node.DOCUMENT_POSITION_FOLLOWING,
@@ -213,12 +263,18 @@ export const NoteOpensAndCloses: Story = {
 export const NoteIsSent: Story = {
   args: {
     state: { kind: 'note-writing', rating: 2 },
+    live: true,
     overrides: { onSubmitNote: fn(async () => true) },
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: enV2.copy.noteSend }))
     expect(await canvas.findByRole('alert')).toHaveTextContent(enV2.copy.noteRequired)
+    // The banner is tied to the field, so the field says why it is invalid.
+    const field = canvas.getByRole('textbox', { name: enV2.copy.noteLabel })
+    expect(field).toHaveAccessibleDescription(
+      `${enV2.copy.noteHint} ${enV2.copy.noteRequired}`,
+    )
     expect(args.overrides?.onSubmitNote).not.toHaveBeenCalled()
     await userEvent.type(
       canvas.getByRole('textbox', { name: enV2.copy.noteLabel }),
@@ -230,6 +286,10 @@ export const NoteIsSent: Story = {
       text: 'Worth a look at the afternoon rounds.',
       honeypot: '',
     })
+    // The form is gone; focus goes to the confirmation, which is read out.
+    const sent = await canvas.findByText('Your note was sent privately to Avela Resort.')
+    expect(sent).toHaveFocus()
+    expect(canvas.queryByRole('textbox')).toBeNull()
   },
 }
 

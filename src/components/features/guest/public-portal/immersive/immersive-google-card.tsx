@@ -67,13 +67,16 @@ export function ImmersiveGoogleCard({
         type="button"
         className="ih-button ih-button--primary"
         disabled={pending}
+        aria-describedby={`${id}-hint`}
         onClick={onOpen}
       >
         {pack.copy.googleAction}
         <ArrowUpRightIcon size={20} />
         <span className="ih-sr-only"> {pack.copy.googleOpensLabel}</span>
       </button>
-      <p className="ih-hint">{pack.copy.googleHint}</p>
+      <p id={`${id}-hint`} className="ih-hint">
+        {pack.copy.googleHint}
+      </p>
       {openFailed && <ImmersiveBanner message={pack.copy.googleOpenFailed} />}
     </GlassSurface>
   )

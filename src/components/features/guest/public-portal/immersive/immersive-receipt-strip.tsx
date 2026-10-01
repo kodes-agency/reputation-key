@@ -1,3 +1,4 @@
+import type { RefObject } from 'react'
 import { guestCopyText } from '../guest-copy-format'
 import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
 import { ReceiptStars, ratingWord } from './immersive-stars'
@@ -12,22 +13,32 @@ export function ImmersiveReceiptStrip({
   pack,
   rating,
   onChange,
+  headingRef,
 }: Readonly<{
   pack: GuestPortalCopyV2
   rating: number
   /** Where Change leads. Without a destination the page shows no Change. */
   onChange?: () => void
+  /** The heading, so the view can move focus to it when a rating has just been sent. */
+  headingRef?: RefObject<HTMLHeadingElement | null>
 }>) {
   return (
     <div className="ih-receipt">
-      <h2 className="ih-display ih-receipt__thanks">{pack.copy.ratingThanks}</h2>
+      <h2 ref={headingRef} tabIndex={-1} className="ih-display ih-receipt__thanks">
+        {pack.copy.ratingThanks}
+      </h2>
       <p className="ih-receipt__line">
         <ReceiptStars pack={pack} rating={rating} />
         <span>
           {guestCopyText(pack, 'ratingSentSummary', { word: ratingWord(pack, rating) })}
         </span>
         {onChange && (
-          <button type="button" className="ih-text-button" onClick={onChange}>
+          <button
+            type="button"
+            className="ih-text-button"
+            aria-label={pack.copy.responseChangeTitle}
+            onClick={onChange}
+          >
             {pack.copy.ratingChange}
           </button>
         )}
