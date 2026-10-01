@@ -3,7 +3,8 @@
 // from inflating the metric.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import { GuestAnalyticsNotice, portalVisitStorageKey } from './guest-analytics-notice'
+import { GuestAnalyticsNotice } from './guest-analytics-notice'
+import { portalVisitStorageKey } from './portal-visit-recording'
 
 const ACKNOWLEDGED_KEY = 'guest-analytics-notice-acknowledged'
 const SCOPE_KEY = 'portal-public-token'
