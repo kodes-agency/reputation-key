@@ -516,7 +516,12 @@ describe.sequential('Portal publication repository (real PostgreSQL)', () => {
 
     expect(open).toHaveLength(2)
     // Who made each change comes back with it; a change nobody is recorded for is null.
-    expect(open?.map((row) => [row.kind, row.changedBy])).toEqual([
+    // The read promises no order among changes made at the same instant.
+    expect(
+      open
+        ?.map((row) => [row.kind, row.changedBy])
+        .sort((a, b) => `${a[0]}`.localeCompare(`${b[0]}`)),
+    ).toEqual([
       ['portal_configuration', 'manager-publication-1'],
       ['portal_links', null],
     ])
