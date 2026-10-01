@@ -1,6 +1,14 @@
 // Portal context — arbitrary-key object storage used by live profile assets.
 // Per architecture: ports are TypeScript types defining capability contracts.
 
+/** `getObject` found an object larger than the cap it was given. */
+export class StoredObjectTooLargeError extends Error {
+  constructor() {
+    super('The stored object is larger than allowed')
+    this.name = 'StoredObjectTooLargeError'
+  }
+}
+
 export type StoragePort = Readonly<{
   createPresignedUploadUrl: (
     key: string,
@@ -13,8 +21,16 @@ export type StoragePort = Readonly<{
     key: string,
   ) => Promise<{ contentType: string | null; sizeBytes: number | null }>
   deleteObject: (key: string) => Promise<void>
-  /** Return the public URL for a given key. */
-  getPublicUrl: (key: string) => string
+  /**
+   * Read an object's bytes, or null when there is no such object. An object
+   * larger than `maxBytes` is a `StoredObjectTooLargeError`, never a partial read. Portal media is
+   * read through this and served same-origin: the bucket is private and no
+   * provider URL ever reaches a browser.
+   */
+  getObject: (
+    key: string,
+    maxBytes: number,
+  ) => Promise<{ body: Uint8Array; contentType: string | null } | null>
   /** Upload a buffer directly (server-side, no presigned URL). */
   putObject: (key: string, body: Buffer, contentType: string) => Promise<void>
 }>

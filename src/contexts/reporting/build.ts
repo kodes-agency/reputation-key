@@ -57,6 +57,10 @@ import {
   type GoalProgramRequestApi,
 } from './application/use-cases/goal-programs'
 import { withGoalProgramVisibility } from './application/use-cases/goal-program-visibility'
+import {
+  createGoalProgressReader,
+  type GoalProgressRequestApi,
+} from './application/use-cases/goal-progress'
 import type { GoalProgramRepository } from './application/ports/goal-program.repository'
 import { createMonthlyResultNotificationFactsLookup } from './infrastructure/adapters/monthly-result-notification-facts.lookup'
 import { reconcileMetricCorrection } from './application/use-cases/reconcile-metric-correction'
@@ -296,7 +300,13 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
       }),
     )
   }
-  const programs: GoalProgramRequestApi = Object.freeze({
+  const readGoalProgress = (policy: GoalExecutionPolicy) =>
+    createGoalProgressReader({
+      reads: readGoalPrograms(policy),
+      metrics: metricApi,
+      now: input.clock,
+    })
+  const programs: GoalProgramRequestApi & GoalProgressRequestApi = Object.freeze({
     create: (policy, ...args) => buildGoalPrograms(policy).create(...args),
     revise: (policy, ...args) => buildGoalPrograms(policy).revise(...args),
     changeAssignments: (policy, ...args) =>
@@ -304,6 +314,7 @@ function buildGoalModule(input: ReportingContextBuildInput, metricApi: MetricPub
     changeStatus: (policy, ...args) => buildGoalPrograms(policy).changeStatus(...args),
     get: (policy, ...args) => readGoalPrograms(policy).get(...args),
     list: (policy, ...args) => readGoalPrograms(policy).list(...args),
+    progress: (policy, ...args) => readGoalProgress(policy)(...args),
   })
 
   return {

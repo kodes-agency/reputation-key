@@ -35,6 +35,8 @@ export type PortalMediaAsset = Readonly<{
   createdBy: UserId
   createdAt: Date
   takenDownAt: Date | null
+  /** When the object was removed after a takedown; null while it may still be in the store. */
+  objectDeletedAt: Date | null
 }>
 
 /** A manager may keep at most this many stored images per Property. */

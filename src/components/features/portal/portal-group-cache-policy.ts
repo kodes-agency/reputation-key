@@ -2,11 +2,12 @@ import type { QueryClient, QueryKey } from '@tanstack/react-query'
 import { portalKeys } from '#/shared/queries/query-keys'
 
 /**
- * Portal Group writes affect five independent server projections: the group
+ * Portal Group writes affect six independent server projections: the group
  * list, the two Goal subject reads, the Portals overview (which names each
- * Portal's group) and its results (which add each Portal to its group's row).
- * The All properties page reads the last two for the whole Organization, so they
- * are refreshed too.
+ * Portal's group) and its results (which add each Portal to its group's row),
+ * and every group's own page (the group, and its history). The All properties
+ * page reads the overview and results for the whole Organization, so they are
+ * refreshed too.
  * Keeping the complete property-scoped fan-out here prevents a mutation route
  * from updating the management list while leaving Goal subject labels stale.
  */
@@ -35,6 +36,11 @@ async function invalidateAffectedProjections(
     }),
     queryClient.invalidateQueries({
       queryKey: portalKeys.organizationResultsOverviewRoot(),
+      exact: false,
+    }),
+    // A group's page reads the group and its history under one root per Property.
+    queryClient.invalidateQueries({
+      queryKey: portalKeys.groupPagesRoot(propertyId),
       exact: false,
     }),
   ])

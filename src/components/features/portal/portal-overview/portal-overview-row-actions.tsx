@@ -1,7 +1,7 @@
 // A Portal's actions in the overview: Edit and Share as buttons, and everything
 // else behind "more actions". Share is not offered where there is nothing to
 // share: a draft has no code to give out, and an archived Portal is finished.
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Ellipsis, Pencil, QrCode } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
@@ -14,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
+import { useOverviewClasses } from './portal-overview-density'
 import { PortalArchiveDialog, type PortalArchiveMutations } from './portal-archive-dialog'
 import type { PortalOverviewItem } from './portal-overview-view'
 import { portalRowMenu, type PortalRowMenuItem } from './portal-row-menu'
@@ -25,6 +26,7 @@ const BUTTON = 'min-h-11 md:min-h-8'
 type RowProps = Readonly<{ item: PortalOverviewItem; propertyId: string }>
 
 export function PortalRowButtons({ item, propertyId }: RowProps) {
+  const classes = useOverviewClasses()
   const { can } = usePermissions()
   const { row } = item
   const params = { propertyId, portalId: row.portalId }
@@ -39,7 +41,7 @@ export function PortalRowButtons({ item, propertyId }: RowProps) {
           search={{ tab: 'page' }}
           aria-label={`${verb} ${row.name}`}
         >
-          <Pencil aria-hidden="true" className="@4xl:hidden" />
+          <Pencil aria-hidden="true" className={classes.cardOnly} />
           {verb}
         </Link>
       </Button>
@@ -52,7 +54,7 @@ export function PortalRowButtons({ item, propertyId }: RowProps) {
             aria-label={`Share ${row.name}`}
           >
             <QrCode aria-hidden="true" />
-            Share
+            <span className={classes.shareLabel}>Share</span>
           </Link>
         </Button>
       ) : null}
@@ -92,7 +94,13 @@ export function PortalRowMenu({
   propertyId,
   archiveMutation,
   restoreMutation,
-}: RowProps & PortalArchiveMutations) {
+  extra,
+}: RowProps &
+  PortalArchiveMutations &
+  Readonly<{
+    /** Entries a page adds of its own, between the links and the archive entry. */
+    extra?: ReactNode
+  }>) {
   const { can } = usePermissions()
   const { has } = useCapabilities()
   const [confirming, setConfirming] = useState(false)
@@ -128,7 +136,10 @@ export function PortalRowMenu({
               portalId={row.portalId}
             />
           ))}
-          {links.length > 0 && lifecycle.length > 0 ? <DropdownMenuSeparator /> : null}
+          {extra}
+          {links.length + (extra ? 1 : 0) > 0 && lifecycle.length > 0 ? (
+            <DropdownMenuSeparator />
+          ) : null}
           {lifecycle.map((entry) => (
             <DropdownMenuItem
               key={entry.id}

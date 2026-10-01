@@ -59,7 +59,7 @@ Written commitments to Google (2026-07-14 response) and to users. Not changeable
 ## 4. Capability authority
 
 - `src/shared/governance/capability-fate.ts` is the single table: 35 capabilities, each with a `fate`, an `authority` (why) and an `activation` (what would change it). It closes with `satisfies Readonly<Record<Capability, CapabilityFateRecord>>`, so a new capability cannot compile without an explicit fate.
-- Counts today: `core` 13, `controlled_beta` 12, `beta_disabled` 5, `safety_blocked` 2, `permanently_denied` 3. Blocked at runtime = 10.
+- Counts today: `core` 13, `controlled_beta` 13, `beta_disabled` 5, `safety_blocked` 1, `permanently_denied` 3. Blocked at runtime = 9.
 - The `legacy_blocked` fate is gone with the Team, Badge and Leaderboard capabilities it described; this page previously still counted them, and the code was right.
 - `feedback.beta_report` is `core` so that reporting survives whatever it is reporting. It used to run through `feedback.respond`, which maps to the `controlled_beta` `portal.guest_response`, so an Organization with no Portal policy could not report that, or anything else.
 - The runtime derives `CORE_CAPABILITIES` and `BLOCKED_CAPABILITIES` from the fate table with `listCapabilitiesByFate`; there is no second hand-maintained list. Decision order in `checkScopedCapability`: blocked → kill switch → org suspended → property suspended → globally enabled → org allowlist → property allowlist. `RESTORE_MODE=isolated` denies everything ahead of any store.
@@ -99,14 +99,15 @@ Internal engineering objectives, never a customer SLA. ADR 0038 is accepted, and
 
 ## 8. Deferred capabilities
 
-Verbatim `activation` from `capability-fate.ts`. Blocked count is **10 today**: `team.use`, `badge.use` and `leaderboard.use` have been deleted with their contexts. The 12 `controlled_beta` capabilities — `property.import_gbp_v2`, `property.read_gbp_performance`, `notification.send_email`, `portal.read`, `portal.write`, `portal.public_read`, `portal.guest_response`, `portal.guest_text`, `goal.use`, `ai.analyze`, `ai.generate_reply`, `ai.detect_trends` — each require "persisted Organization and, where applicable, Property policy plus readiness gates".
+Verbatim `activation` from `capability-fate.ts`. Blocked count is **9 today**: `team.use`, `badge.use` and `leaderboard.use` have been deleted with their contexts, and `portal.upload` left the blocked set on 2026-09-30 (below). The 13 `controlled_beta` capabilities — `property.import_gbp_v2`, `property.read_gbp_performance`, `notification.send_email`, `portal.read`, `portal.write`, `portal.upload`, `portal.public_read`, `portal.guest_response`, `portal.guest_text`, `goal.use`, `ai.analyze`, `ai.generate_reply`, `ai.detect_trends` — each require "persisted Organization and, where applicable, Property policy plus readiness gates".
 
 | capability                                                                                                  | fate                 | activation                                                                                                                                                                                        |
 | ----------------------------------------------------------------------------------------------------------- | -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `identity.custom_roles`, `identity.register`, `organization.create`, `property.erase`, `portal.guest_media` | `beta_disabled`      | "Cannot be activated by tenant policy; requires an accepted product decision and code posture change."                                                                                            |
-| `portal.upload`                                                                                             | `safety_blocked`     | "Remove the safety block only after the signed SAFE-01 completion record; tenant policy alone cannot enable it."                                                                                  |
 | `portal.guest_contact`                                                                                      | `safety_blocked`     | "Remove the safety block only after named counsel/product approval and complete guest-notice, manager-handling, retention, and channel-readiness evidence; tenant policy alone cannot enable it." |
 | `gbp.reply.auto_publish`, `gbp.ai.cross_property_summary`, `gbp.review_solicitation_gamification`           | `permanently_denied` | "No activation path exists."                                                                                                                                                                      |
+
+**Portal image upload (`portal.upload`) is no longer deferred.** On 2026-09-30 the owner removed the SAFE-01 completion ceremony: there is no signed completion record, named signer, independent reviewer or drill, because the owner is the sole developer and the beta is a closed team. The capability is `controlled_beta`, so tenant policy and the kill switch still decide who may upload and can stop it. What the ceremony protected against is still true of hostile bytes, so the technical safeguards remain in the build and are the design, not a checklist (ADR 0063): the server decodes and re-encodes every image to WebP and stores only that (EXIF, GPS, colour profiles and trailing data do not survive), JPEG, PNG and WebP only, at most 10 MiB, SVG, GIF, HEIC and animated images refused, an uploader's rights confirmation, a cap on stored images per Property, and same-origin serving from a private bucket with takedown and garbage collection of the stored objects.
 
 ## 9. Precedence
 
@@ -115,6 +116,7 @@ External obligations (§2) → this page → ADRs → `docs/standards.md` → co
 ## 10. Change log
 
 - 2026-09: replaces the 42-package program as authority.
+- **2026-10-01:** `portal.upload` moves from `safety_blocked` to `controlled_beta`; the owner removed the SAFE-01 completion ceremony on 2026-09-30 and the technical safeguards remain (§8, ADR 0032, ADR 0063).
 - **2026-09-30:** Accounts: consuming an invitation verifies the email address and signs the member in; Resend renews an invitation's expiry; a password reset verifies the address (ADR 0062).
 - **2026-09-15:** Merchant AI notice `merchant-ai-notice-2026-09-15.v1`: AI consent is an explicit acknowledgement of the served notice, the password step-up is removed, and one consent ceremony may cover several Properties (§2).
 - **2026-09-08:** Privacy Notice version 2.0, Google Business Profile Access Disclosure version 2.0, and Closed Beta Participation Agreement version 2.0 accepted by accountable owner Bozhidar Denev without external counsel review.

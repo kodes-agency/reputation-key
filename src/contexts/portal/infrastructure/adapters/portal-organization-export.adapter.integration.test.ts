@@ -431,6 +431,8 @@ describe.sequential('Portal Organization Export contributor', () => {
       width: 2400,
       height: 1600,
       source_format: 'jpeg',
+      taken_down_at: null,
+      object_deleted_at: null,
     })
     expect(payload.brandContents?.[0]).toMatchObject({
       locale: 'en',

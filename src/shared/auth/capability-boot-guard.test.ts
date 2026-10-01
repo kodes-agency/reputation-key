@@ -163,9 +163,9 @@ describe('BQC-0.3 capability boot guard (SPEC-P0-03)', () => {
       const manifest = buildCapabilityBootManifest({
         NODE_ENV: 'test',
         BETA_E2E_GLOBAL_CAPABILITIES:
-          'gbp.reply.auto_publish,portal.write,portal.upload,identity.register',
+          'gbp.reply.auto_publish,portal.write,portal.upload,portal.guest_contact,identity.register',
       })
-      expect(manifest.e2eGlobalOverrides).toEqual(['portal.write'])
+      expect(manifest.e2eGlobalOverrides).toEqual(['portal.upload', 'portal.write'])
     })
 
     it('records the Organization allowlist shape, so a dark environment shows at boot', () => {

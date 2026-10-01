@@ -203,6 +203,11 @@ describe('portalMediaAssetRepository (integration)', () => {
         'portal_media_assets_source_format_valid',
       ],
       [
+        'an object removal on an active asset',
+        { object_deleted_at: new Date() },
+        'portal_media_assets_object_deleted_taken_down',
+      ],
+      [
         'a Property of another Organization',
         { organization_id: ORG_B },
         'portal_media_assets_property_tenant_fk',

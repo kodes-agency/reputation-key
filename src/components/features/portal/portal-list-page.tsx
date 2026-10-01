@@ -7,18 +7,23 @@
 // search and reports changes through `onSearchChange`. The results (the strip
 // above the table and the measure columns in it) arrive as a separate read and
 // are optional: a role that may not read results gets the list without them.
-// Portal Group management stays below the table until the group page (slice 38)
-// replaces it.
-import type { ReactNode } from 'react'
-import { Globe, Plus, SearchX } from 'lucide-react'
+// Groups are made in the New group dialog and managed on each group's page; the
+// head of a group in the table links there and carries the group's actions.
+import { useState, type ReactNode } from 'react'
+import { FolderPlus, Globe, Plus, SearchX } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
+import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
-import { PortalGroupManagement, type PortalGroupView } from './portal-group-management'
+import { PortalGroupDialog } from './portal-group/portal-group-dialogs'
+import { PortalNewDialog } from './portal-new/portal-new-dialog'
+import type { PortalNewData } from './portal-new/portal-new-types'
+import { PortalGroupMenu } from './portal-group/portal-group-menu'
+import type { PortalGroupMutations } from './portal-group/portal-group-mutations'
 import type { PortalArchiveMutations } from './portal-overview/portal-archive-dialog'
 import { PortalOverviewPager } from './portal-overview/portal-overview-pager'
 import {
@@ -39,9 +44,6 @@ import {
   buildPortalOverview,
   type PortalManagerName,
 } from './portal-overview/portal-overview-view'
-import type { Action } from '#/components/hooks/use-action'
-import { PortalNewDialog } from './portal-new/portal-new-dialog'
-import type { PortalNewData } from './portal-new/portal-new-types'
 
 export type PortalListPageProps = PortalArchiveMutations &
   Readonly<{
@@ -54,21 +56,12 @@ export type PortalListPageProps = PortalArchiveMutations &
     results?: PortalOverviewResultsControls
     search: PortalOverviewSearch
     onSearchChange: (next: PortalOverviewSearch) => void
+    /** Every group of the Property, so one with no Portal can still be reached. */
+    groups: readonly NonNullable<PortalOverviewRow['group']>[]
     /** What the New portal dialog needs; null until the Property's options have loaded. */
     newPortal: Readonly<{ data: PortalNewData | null; loadError?: unknown }>
-    portalGroups: readonly PortalGroupView[]
-    createGroupMutation: Action<{
-      data: { propertyId: string; name: string; portalIds?: string[] }
-    }>
-    updateGroupMutation: Action<{ data: { portalGroupId: string; name: string } }>
-    deleteGroupMutation: Action<{ data: { portalGroupId: string } }>
-    addPortalToGroupMutation: Action<{
-      data: { portalGroupId: string; portalId: string }
-    }>
-    removePortalFromGroupMutation: Action<{
-      data: { portalGroupId: string; portalId: string }
-    }>
-  }>
+  }> &
+  Pick<PortalGroupMutations, 'createMutation' | 'renameMutation' | 'archiveGroupMutation'>
 
 const describe = (count: number, propertyName: string): string | undefined => {
   if (count === 0) return undefined
@@ -86,9 +79,12 @@ type PortalListBodyProps = Readonly<{
   propertyName: string
   archiveMutation: PortalListPageProps['archiveMutation']
   restoreMutation: PortalListPageProps['restoreMutation']
+  renameMutation: PortalListPageProps['renameMutation']
+  archiveGroupMutation: PortalListPageProps['archiveGroupMutation']
   onChange: (patch: Partial<PortalOverviewSearch>) => void
 }>
 
+// fallow-ignore-next-line complexity
 function PortalListBody({
   isEmpty,
   newPortalButton,
@@ -100,6 +96,8 @@ function PortalListBody({
   propertyName,
   archiveMutation,
   restoreMutation,
+  renameMutation,
+  archiveGroupMutation,
   onChange,
 }: PortalListBodyProps) {
   return isEmpty ? (
@@ -122,7 +120,7 @@ function PortalListBody({
           canSortByScans={resultsState.status !== 'off'}
           onChange={onChange}
         />
-        {overview.matched === 0 ? (
+        {overview.matched === 0 && overview.sections.length === 0 ? (
           <EmptyState icon={SearchX} title="No portals match">
             <Button
               variant="outline"
@@ -141,6 +139,15 @@ function PortalListBody({
               restoreMutation={restoreMutation}
               results={resultsState}
               busy={results?.busy}
+              groupActions={(group) => (
+                <PortalGroupMenu
+                  group={group}
+                  propertyId={propertyId}
+                  where="overview"
+                  renameMutation={renameMutation}
+                  archiveGroupMutation={archiveGroupMutation}
+                />
+              )}
               scansOrder={
                 listSearch.sort === 'scans'
                   ? (listSearch.dir ?? defaultSortDirection('scans'))
@@ -161,6 +168,7 @@ function PortalListBody({
   )
 }
 
+// fallow-ignore-next-line complexity
 export function PortalListPage({
   rows,
   members = [],
@@ -171,15 +179,15 @@ export function PortalListPage({
   onSearchChange,
   archiveMutation,
   restoreMutation,
+  groups,
+  createMutation,
+  renameMutation,
+  archiveGroupMutation,
   newPortal,
-  portalGroups,
-  createGroupMutation,
-  updateGroupMutation,
-  deleteGroupMutation,
-  addPortalToGroupMutation,
-  removePortalFromGroupMutation,
 }: PortalListPageProps) {
   const { can } = usePermissions()
+  const { has } = useCapabilities()
+  const [creatingGroup, setCreatingGroup] = useState(false)
   const resultsState: PortalOverviewResultsState = results?.state ?? { status: 'off' }
   // Without results there is nothing to sort by scans, whatever a bookmark says.
   const listSearch =
@@ -192,9 +200,24 @@ export function PortalListPage({
     members,
     PORTAL_OVERVIEW_PAGE_SIZE,
     resultsState.status === 'ready' ? resultsState.index.sortFigures : undefined,
+    groups,
   )
   const update = (patch: Partial<PortalOverviewSearch>) =>
     onSearchChange(portalOverviewSearchPatch(search, patch))
+
+  // Creating a group is a Portal create, which the server also refuses while the
+  // organisation's `portal.write` capability is off.
+  const newGroupButton =
+    can('portal.create') && has('portal.write') ? (
+      <Button
+        variant="outline"
+        className="min-h-11 sm:min-h-9"
+        onClick={() => setCreatingGroup(true)}
+      >
+        <FolderPlus />
+        New group
+      </Button>
+    ) : undefined
 
   const canCreate = can('portal.create')
   const newPortalButton = canCreate ? (
@@ -214,12 +237,24 @@ export function PortalListPage({
           { label: propertyName, to: `/properties/${propertyId}` },
           { label: 'Portals' },
         ]}
-        actions={newPortalButton}
+        actions={
+          <>
+            {newGroupButton}
+            {newPortalButton}
+          </>
+        }
       />
-      <FormErrorBanner error={archiveMutation.error ?? restoreMutation.error} />
+      <FormErrorBanner
+        error={
+          archiveMutation.error ??
+          restoreMutation.error ??
+          archiveGroupMutation.error ??
+          renameMutation.error
+        }
+      />
 
       <PortalListBody
-        isEmpty={rows.length === 0}
+        isEmpty={rows.length === 0 && groups.length === 0}
         newPortalButton={newPortalButton}
         results={results}
         resultsState={resultsState}
@@ -229,7 +264,16 @@ export function PortalListPage({
         propertyName={propertyName}
         archiveMutation={archiveMutation}
         restoreMutation={restoreMutation}
+        renameMutation={renameMutation}
+        archiveGroupMutation={archiveGroupMutation}
         onChange={update}
+      />
+      <PortalGroupDialog
+        open={creatingGroup}
+        onOpenChange={setCreatingGroup}
+        propertyId={propertyId}
+        rows={rows}
+        createMutation={createMutation}
       />
       {canCreate ? (
         <PortalNewDialog
@@ -239,16 +283,6 @@ export function PortalListPage({
           loadError={newPortal.loadError}
         />
       ) : null}
-      <PortalGroupManagement
-        propertyId={propertyId}
-        groups={portalGroups}
-        portals={rows.map((row) => ({ id: row.portalId, name: row.name }))}
-        createMutation={createGroupMutation}
-        updateMutation={updateGroupMutation}
-        deleteMutation={deleteGroupMutation}
-        addPortalMutation={addPortalToGroupMutation}
-        removePortalMutation={removePortalFromGroupMutation}
-      />
     </PageShell>
   )
 }

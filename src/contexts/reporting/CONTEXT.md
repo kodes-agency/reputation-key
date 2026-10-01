@@ -23,6 +23,12 @@ metric authority.
 - **Metric correction**: append-only retraction, replacement, or adjustment.
 - **Goal Program**: versioned monthly target over an approved metric and subject set.
 - **Goal monthly result**: evaluation head with append-only revision evidence.
+- **Goal progress**: the live month to date of the goals that target one subject (a Portal
+  Group's goal card), read through the Program list's own authorisation and visibility and
+  the same governed metric the monthly result uses, over the whole calendar month in the
+  Program's time zone. It is never a result: it evaluates nothing, is never stored, and an
+  average under the metric's minimum sample or a reading that cannot be trusted is shown as
+  such, never as a zero.
 - **Dashboard read model**: content-minimal presentation assembled from governed sources.
 - **Portal lifetime aggregate**: anonymous all-time values with rebuild and seal evidence.
 - **Portal results measures**: the five figures on a Portal's Results view, each named for

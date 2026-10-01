@@ -44,6 +44,10 @@ import { createPortalAiReplyBrandProfileAuthority } from './infrastructure/ai-re
 import type { StoragePort } from './application/ports/storage.port'
 import type { ImageProcessorPort } from './application/ports/image-processor.port'
 import { ingestPortalImage } from './application/use-cases/ingest-portal-image'
+import { resolvePortalMediaUrls } from './application/use-cases/resolve-portal-media-urls'
+import { servePortalMedia } from './application/use-cases/serve-portal-media'
+import { sweepPortalMedia } from './application/use-cases/sweep-portal-media'
+import { takeDownPortalMedia } from './application/use-cases/take-down-portal-media'
 import { createPortalTokenCodec } from './infrastructure/adapters/portal-token-codec'
 import { createPortalAddressCipher } from './infrastructure/adapters/portal-address-cipher'
 import { createPortalAddressRepository } from './infrastructure/repositories/portal-address.repository'
@@ -480,6 +484,13 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       clock: deps.clock,
       logger: deps.logger,
     }),
+    takeDownPortalMedia: takeDownPortalMedia({
+      mediaRepo: portalMediaAssetRepo,
+      objectStore: storage,
+      staffPublicApi: deps.staffPublicApi,
+      clock: deps.clock,
+      logger: deps.logger,
+    }),
     saveLinktreeSettings: saveLinktreeSettings({
       portalRepo,
       staffPublicApi: deps.staffPublicApi,
@@ -613,6 +624,18 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     }),
   } as const
 
+  // The guest-facing image read. It is not part of `management`: it has no
+  // session, and is served by the public media route only.
+  const serveMedia = servePortalMedia({
+    mediaRepo: portalMediaAssetRepo,
+    objectStore: storage,
+    sha256Hex: (bytes) => createHash('sha256').update(bytes).digest('hex'),
+    logger: deps.logger,
+    decidePublic: decidePublicExecution,
+    clock: deps.clock,
+  })
+  const mediaUrls = resolvePortalMediaUrls({ mediaRepo: portalMediaAssetRepo })
+
   // ── Public API — consumed by guest context and other cross-context callers ──
 
   const contactRequestManagerAuthorityFacts =
@@ -624,6 +647,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     })
 
   const publicApi = {
+    servePortalMedia: serveMedia,
     resolvePortalContext: (portalIdParam: PortalId) =>
       portalRepo.resolvePortalContext(portalIdParam),
     getPortalInfo: (orgId: OrganizationId, pid: PortalId) =>
@@ -668,6 +692,12 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
           deps.logger.warn(
             { errorCode: 'portal_approved_destinations_dropped', ...counts },
             'Portal published destinations are not approved — serving fewer links',
+          ),
+        resolvePortalMediaUrls: mediaUrls,
+        reportPortalMediaFailure: (error) =>
+          deps.logger.warn(
+            { errorCode: 'portal_media_unavailable', err: error },
+            'Portal media lookup failed — serving the page without images',
           ),
         clock: deps.clock,
       })(rawToken, preference)
@@ -759,6 +789,12 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     worker: Object.freeze({
       registerOutboxConsumers,
       revalidateApprovedDestinations: useCases.revalidatePortalApprovedDestinations,
+      sweepPortalMedia: sweepPortalMedia({
+        mediaRepo: portalMediaAssetRepo,
+        objectStore: storage,
+        clock: deps.clock,
+        logger: deps.logger,
+      }),
     }),
     /** ARC-03-T11: the named member-authority capability. Replaces the root's
      * Portal responsible-manager repository reach-through. */

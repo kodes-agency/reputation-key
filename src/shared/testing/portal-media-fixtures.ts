@@ -33,6 +33,7 @@ export function buildTestPortalMediaAsset(
     createdBy: userId('user-00000000-0000-0000-0000-000000000001'),
     createdAt: new Date('2026-10-01T10:00:00Z'),
     takenDownAt: null,
+    objectDeletedAt: null,
     ...overrides,
   }
 }

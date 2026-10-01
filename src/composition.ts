@@ -718,6 +718,7 @@ function buildContainer(
     assetStorage: portal.uploads.storage,
     portalWorkerRuntime: Object.freeze({
       revalidateApprovedDestinations: portal.worker.revalidateApprovedDestinations,
+      sweepPortalMedia: portal.worker.sweepPortalMedia,
     }),
     /** Operator-only Review repair and lifecycle authority. */
     reviewMaintenanceRuntime: review.maintenance,

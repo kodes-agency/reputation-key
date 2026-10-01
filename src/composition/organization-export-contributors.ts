@@ -46,6 +46,7 @@ import { createPropertyOrganizationLifecycleContributor } from '#/contexts/prope
 import { createReviewOrganizationLifecycleContributor } from '#/contexts/review/infrastructure/adapters/review-organization-lifecycle.adapter'
 import { createStaffOrganizationLifecycleContributor } from '#/contexts/identity/infrastructure/adapters/staff-organization-lifecycle.adapter'
 import type { Database } from '#/shared/db'
+import type { StoragePort } from '#/contexts/portal/application/public-api'
 
 /** Identity supplies its own; these are the thirteen it composes with. */
 export const NON_IDENTITY_EXPORT_CONTRIBUTOR_COUNT = 13
@@ -116,13 +117,15 @@ export function composeOrganizationLifecycle(
  * met. A reviewed composition passes the result as
  * `organizationLifecycle.lifecycleContributors`.
  *
- * Integration is the one contributor that is not a pure `(db)`: revoking Google
- * credentials and subscriptions needs the provider port its own build wires, so
- * the caller supplies it from the built Integration context.
+ * Integration and Portal are the two contributors that are not a pure `(db)`:
+ * revoking Google credentials and subscriptions needs the provider port its own
+ * build wires, and purging Portal media must remove the stored images, so the
+ * caller supplies the built Integration contributor and the object store.
  */
 export function buildOrganizationLifecycleContributors(
   db: Database,
   integration: OrganizationLifecycleContributor,
+  portalObjectStore: Pick<StoragePort, 'deleteObject'>,
 ): readonly OrganizationLifecycleContributor[] {
   if (integration.context !== 'integration') {
     throw new Error('Integration lifecycle contributor is misidentified')
@@ -137,7 +140,7 @@ export function buildOrganizationLifecycleContributors(
     integration,
     createMetricOrganizationLifecycleAdapter(db),
     createNotificationOrganizationLifecycleContributor(db),
-    createPortalOrganizationLifecycleContributor(db),
+    createPortalOrganizationLifecycleContributor(db, portalObjectStore),
     createPropertyOrganizationLifecycleContributor(db),
     createReviewOrganizationLifecycleContributor(db),
     createStaffOrganizationLifecycleContributor(db),

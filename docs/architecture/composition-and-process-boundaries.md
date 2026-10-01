@@ -95,7 +95,8 @@ boundary controls that keep these rules enforceable rather than aspirational.
 
 ## 6. Capability posture
 
-Portal upload, Contact Request, Recognition (badge/leaderboard), Team, Bulk
-Close, Member login, Billing and MFA remain **dark**. No composition or
+Contact Request, Recognition (badge/leaderboard), Team, Bulk Close, Member
+login, Billing and MFA remain **dark**. Portal image upload left that set on
+2026-09-30: it is a controlled-beta capability (ADR 0032, ADR 0063). No composition or
 process change may make one reachable; the capability posture lives in
 `src/shared/auth/beta-capabilities.ts` and is deliberately frozen.

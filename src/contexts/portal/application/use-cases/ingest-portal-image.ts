@@ -154,6 +154,7 @@ export const ingestPortalImage =
       createdBy: ctx.userId,
       createdAt: now,
       takenDownAt: null,
+      objectDeletedAt: null,
     }
 
     await storeObject(deps, asset, bytes)

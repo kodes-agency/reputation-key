@@ -143,6 +143,12 @@ export const goalProgramIdentitySchema = z.object({
 
 export const listGoalProgramsSchema = z.object({ propertyId: uuid })
 
+/** The goals that target one subject, read live for the month so far. */
+export const getGoalProgressSchema = z.object({
+  propertyId: uuid,
+  subject: goalProgramSubjectSchema,
+})
+
 export type CreateGoalProgramInput = z.infer<typeof createGoalProgramSchema>
 export type ReviseGoalProgramInput = z.infer<typeof reviseGoalProgramSchema>
 export type CreateGoalProgramFormInput = z.input<typeof createGoalProgramFormSchema>

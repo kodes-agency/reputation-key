@@ -221,6 +221,9 @@ export const goalKeys = {
     [...goalKeys.all, 'list', args] as const,
   detail: (propertyId: string, goalId: string) =>
     [...goalKeys.all, 'detail', propertyId, goalId] as const,
+  /** The live month to date of the goals that target one subject (`portal_group:<id>`). */
+  progress: (propertyId: string, subject: string) =>
+    [...goalKeys.all, 'progress', propertyId, subject] as const,
 }
 
 // ── Staff participation and portal responsibility ────────────────────────
@@ -266,6 +269,14 @@ export const portalKeys = {
   approvedDestinations: (portalId: string) =>
     [...portalKeys.detail(portalId), 'approved-destinations'] as const,
   groups: (propertyId: string) => [...portalKeys.all, 'groups', propertyId] as const,
+  /** Every read a group's own page makes, for every group of a Property. */
+  groupPagesRoot: (propertyId: string) =>
+    [...portalKeys.forProperty(propertyId), 'group'] as const,
+  /** One group's page: the group itself and, under it, its history. */
+  groupPage: (propertyId: string, groupId: string) =>
+    [...portalKeys.groupPagesRoot(propertyId), groupId] as const,
+  groupHistory: (propertyId: string, groupId: string) =>
+    [...portalKeys.groupPage(propertyId, groupId), 'history'] as const,
   goalSubjects: (propertyId: string) =>
     [...portalKeys.all, 'goal-subjects', propertyId] as const,
   goalSubjectNames: (propertyId: string) =>

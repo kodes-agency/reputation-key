@@ -57,6 +57,7 @@ import { Route as AuthenticatedPropertiesPropertyIdSettingsRouteImport } from '.
 import { Route as AuthenticatedPropertiesImportGoogleIndexRouteImport } from './routes/_authenticated/properties/import-google/index'
 import { Route as AuthenticatedPropertiesImportGoogleImportIdRouteImport } from './routes/_authenticated/properties/import-google/$importId'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google/callback'
+import { Route as ApiPublicPortalMediaAssetIdRouteImport } from './routes/api/public/portal-media/$assetId'
 import { Route as ApiWebhooksGbpNotificationsRouteImport } from './routes/api/webhooks/gbp/notifications'
 import { Route as ApiWebhooksResendEventsRouteImport } from './routes/api/webhooks/resend/events'
 import { Route as AuthenticatedPropertiesPropertyIdGoalsIndexRouteImport } from './routes/_authenticated/properties/$propertyId/goals/index'
@@ -75,6 +76,7 @@ import { Route as AuthenticatedPropertiesPropertyIdSettingsRepliesRouteImport } 
 import { Route as AuthenticatedPropertiesPropertyIdSettingsTargetsRouteImport } from './routes/_authenticated/properties/$propertyId/settings/targets'
 import { Route as AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRouteImport } from './routes/_authenticated/properties/$propertyId/portals/$portalId/index'
 import { Route as AuthenticatedPropertiesPropertyIdPortalsPortalIdReviewRouteImport } from './routes/_authenticated/properties/$propertyId/portals/$portalId/review'
+import { Route as AuthenticatedPropertiesPropertyIdPortalsGroupsGroupIdRouteImport } from './routes/_authenticated/properties/$propertyId/portals/groups/$groupId'
 import { Route as ApiPublicPTokenClickLinkIdRouteImport } from './routes/api/public/p/$token/click/$linkId'
 
 const IndexRoute = IndexRouteImport.update({
@@ -341,6 +343,12 @@ const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
   path: '/api/auth/google/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicPortalMediaAssetIdRoute =
+  ApiPublicPortalMediaAssetIdRouteImport.update({
+    id: '/api/public/portal-media/$assetId',
+    path: '/api/public/portal-media/$assetId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiWebhooksGbpNotificationsRoute =
   ApiWebhooksGbpNotificationsRouteImport.update({
     id: '/api/webhooks/gbp/notifications',
@@ -448,6 +456,12 @@ const AuthenticatedPropertiesPropertyIdPortalsPortalIdReviewRoute =
     path: '/review',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute,
   } as any)
+const AuthenticatedPropertiesPropertyIdPortalsGroupsGroupIdRoute =
+  AuthenticatedPropertiesPropertyIdPortalsGroupsGroupIdRouteImport.update({
+    id: '/portals/groups/$groupId',
+    path: '/portals/groups/$groupId',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
+  } as any)
 const ApiPublicPTokenClickLinkIdRoute =
   ApiPublicPTokenClickLinkIdRouteImport.update({
     id: '/api/public/p/$token/click/$linkId',
@@ -501,6 +515,7 @@ export interface FileRoutesByFullPath {
   '/properties/$propertyId/settings': typeof AuthenticatedPropertiesPropertyIdSettingsRouteWithChildren
   '/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/public/portal-media/$assetId': typeof ApiPublicPortalMediaAssetIdRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/api/webhooks/resend/events': typeof ApiWebhooksResendEventsRoute
   '/properties/$propertyId/': typeof AuthenticatedPropertiesPropertyIdIndexRoute
@@ -520,6 +535,7 @@ export interface FileRoutesByFullPath {
   '/properties/$propertyId/portals/': typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
   '/properties/$propertyId/settings/': typeof AuthenticatedPropertiesPropertyIdSettingsIndexRoute
   '/properties/$propertyId/portals/$portalId/review': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdReviewRoute
+  '/properties/$propertyId/portals/groups/$groupId': typeof AuthenticatedPropertiesPropertyIdPortalsGroupsGroupIdRoute
   '/api/public/p/$token/click/$linkId': typeof ApiPublicPTokenClickLinkIdRoute
   '/properties/$propertyId/portals/$portalId/': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRoute
 }
@@ -565,6 +581,7 @@ export interface FileRoutesByTo {
   '/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
   '/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/public/portal-media/$assetId': typeof ApiPublicPortalMediaAssetIdRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/api/webhooks/resend/events': typeof ApiWebhooksResendEventsRoute
   '/properties/$propertyId': typeof AuthenticatedPropertiesPropertyIdIndexRoute
@@ -583,6 +600,7 @@ export interface FileRoutesByTo {
   '/properties/$propertyId/portals': typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
   '/properties/$propertyId/settings': typeof AuthenticatedPropertiesPropertyIdSettingsIndexRoute
   '/properties/$propertyId/portals/$portalId/review': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdReviewRoute
+  '/properties/$propertyId/portals/groups/$groupId': typeof AuthenticatedPropertiesPropertyIdPortalsGroupsGroupIdRoute
   '/api/public/p/$token/click/$linkId': typeof ApiPublicPTokenClickLinkIdRoute
   '/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRoute
 }
@@ -634,6 +652,7 @@ export interface FileRoutesById {
   '/_authenticated/properties/$propertyId/settings': typeof AuthenticatedPropertiesPropertyIdSettingsRouteWithChildren
   '/_authenticated/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/public/portal-media/$assetId': typeof ApiPublicPortalMediaAssetIdRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/api/webhooks/resend/events': typeof ApiWebhooksResendEventsRoute
   '/_authenticated/properties/$propertyId/': typeof AuthenticatedPropertiesPropertyIdIndexRoute
@@ -653,6 +672,7 @@ export interface FileRoutesById {
   '/_authenticated/properties/$propertyId/portals/': typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
   '/_authenticated/properties/$propertyId/settings/': typeof AuthenticatedPropertiesPropertyIdSettingsIndexRoute
   '/_authenticated/properties/$propertyId/portals/$portalId/review': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdReviewRoute
+  '/_authenticated/properties/$propertyId/portals/groups/$groupId': typeof AuthenticatedPropertiesPropertyIdPortalsGroupsGroupIdRoute
   '/api/public/p/$token/click/$linkId': typeof ApiPublicPTokenClickLinkIdRoute
   '/_authenticated/properties/$propertyId/portals/$portalId/': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdIndexRoute
 }
@@ -704,6 +724,7 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/settings'
     | '/properties/import-google/$importId'
     | '/api/auth/google/callback'
+    | '/api/public/portal-media/$assetId'
     | '/api/webhooks/gbp/notifications'
     | '/api/webhooks/resend/events'
     | '/properties/$propertyId/'
@@ -723,6 +744,7 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/portals/'
     | '/properties/$propertyId/settings/'
     | '/properties/$propertyId/portals/$portalId/review'
+    | '/properties/$propertyId/portals/groups/$groupId'
     | '/api/public/p/$token/click/$linkId'
     | '/properties/$propertyId/portals/$portalId/'
   fileRoutesByTo: FileRoutesByTo
@@ -768,6 +790,7 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/reviews'
     | '/properties/import-google/$importId'
     | '/api/auth/google/callback'
+    | '/api/public/portal-media/$assetId'
     | '/api/webhooks/gbp/notifications'
     | '/api/webhooks/resend/events'
     | '/properties/$propertyId'
@@ -786,6 +809,7 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/portals'
     | '/properties/$propertyId/settings'
     | '/properties/$propertyId/portals/$portalId/review'
+    | '/properties/$propertyId/portals/groups/$groupId'
     | '/api/public/p/$token/click/$linkId'
     | '/properties/$propertyId/portals/$portalId'
   id:
@@ -836,6 +860,7 @@ export interface FileRouteTypes {
     | '/_authenticated/properties/$propertyId/settings'
     | '/_authenticated/properties/import-google/$importId'
     | '/api/auth/google/callback'
+    | '/api/public/portal-media/$assetId'
     | '/api/webhooks/gbp/notifications'
     | '/api/webhooks/resend/events'
     | '/_authenticated/properties/$propertyId/'
@@ -855,6 +880,7 @@ export interface FileRouteTypes {
     | '/_authenticated/properties/$propertyId/portals/'
     | '/_authenticated/properties/$propertyId/settings/'
     | '/_authenticated/properties/$propertyId/portals/$portalId/review'
+    | '/_authenticated/properties/$propertyId/portals/groups/$groupId'
     | '/api/public/p/$token/click/$linkId'
     | '/_authenticated/properties/$propertyId/portals/$portalId/'
   fileRoutesById: FileRoutesById
@@ -880,6 +906,7 @@ export interface RootRouteChildren {
   ApiNotificationsUnsubscribeRoute: typeof ApiNotificationsUnsubscribeRoute
   ApiHealthIndexRoute: typeof ApiHealthIndexRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
+  ApiPublicPortalMediaAssetIdRoute: typeof ApiPublicPortalMediaAssetIdRoute
   ApiWebhooksGbpNotificationsRoute: typeof ApiWebhooksGbpNotificationsRoute
   ApiWebhooksResendEventsRoute: typeof ApiWebhooksResendEventsRoute
   ApiPublicPTokenClickLinkIdRoute: typeof ApiPublicPTokenClickLinkIdRoute
@@ -1223,6 +1250,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiAuthGoogleCallbackRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/public/portal-media/$assetId': {
+      id: '/api/public/portal-media/$assetId'
+      path: '/api/public/portal-media/$assetId'
+      fullPath: '/api/public/portal-media/$assetId'
+      preLoaderRoute: typeof ApiPublicPortalMediaAssetIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/webhooks/gbp/notifications': {
       id: '/api/webhooks/gbp/notifications'
       path: '/api/webhooks/gbp/notifications'
@@ -1348,6 +1382,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/properties/$propertyId/portals/$portalId/review'
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdReviewRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute
+    }
+    '/_authenticated/properties/$propertyId/portals/groups/$groupId': {
+      id: '/_authenticated/properties/$propertyId/portals/groups/$groupId'
+      path: '/portals/groups/$groupId'
+      fullPath: '/properties/$propertyId/portals/groups/$groupId'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdPortalsGroupsGroupIdRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
     }
     '/api/public/p/$token/click/$linkId': {
       id: '/api/public/p/$token/click/$linkId'
@@ -1479,6 +1520,7 @@ interface AuthenticatedPropertiesPropertyIdRouteChildren {
   AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteWithChildren
   AuthenticatedPropertiesPropertyIdPortalsNewRoute: typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
   AuthenticatedPropertiesPropertyIdPortalsIndexRoute: typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
+  AuthenticatedPropertiesPropertyIdPortalsGroupsGroupIdRoute: typeof AuthenticatedPropertiesPropertyIdPortalsGroupsGroupIdRoute
 }
 
 const AuthenticatedPropertiesPropertyIdRouteChildren: AuthenticatedPropertiesPropertyIdRouteChildren =
@@ -1507,6 +1549,8 @@ const AuthenticatedPropertiesPropertyIdRouteChildren: AuthenticatedPropertiesPro
       AuthenticatedPropertiesPropertyIdPortalsNewRoute,
     AuthenticatedPropertiesPropertyIdPortalsIndexRoute:
       AuthenticatedPropertiesPropertyIdPortalsIndexRoute,
+    AuthenticatedPropertiesPropertyIdPortalsGroupsGroupIdRoute:
+      AuthenticatedPropertiesPropertyIdPortalsGroupsGroupIdRoute,
   }
 
 const AuthenticatedPropertiesPropertyIdRouteWithChildren =
@@ -1568,6 +1612,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiNotificationsUnsubscribeRoute: ApiNotificationsUnsubscribeRoute,
   ApiHealthIndexRoute: ApiHealthIndexRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
+  ApiPublicPortalMediaAssetIdRoute: ApiPublicPortalMediaAssetIdRoute,
   ApiWebhooksGbpNotificationsRoute: ApiWebhooksGbpNotificationsRoute,
   ApiWebhooksResendEventsRoute: ApiWebhooksResendEventsRoute,
   ApiPublicPTokenClickLinkIdRoute: ApiPublicPTokenClickLinkIdRoute,
