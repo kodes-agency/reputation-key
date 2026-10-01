@@ -732,6 +732,7 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
 - **U5:** garbage collection, takedown, and purge and export deleting the stored objects.
 - **U6:** the board 14 UI (Replace photo dialog, focal-point picker, alt text, rights checkbox, preview), inert while the capability is blocked.
 - Linktree tile photo thumbnails from board 02, which slice 28 leaves as icons.
+  - **42c1, as built.** The Linktree editor's picker is "Icon or photo", with a dashed upload tile that opens a "Photo for this tile" dialog (file, rights checkbox, a refusal shown in place), uploads to `POST /api/portal-media` and then puts the returned asset on the link through `updateLink({ imageAssetId })`. The tile row and the picker show the photo from the media route. Choosing an icon over a photo saves `imageAssetId: null` in the same write. `updateLink` checks the asset (active, `link_image`, the Portal's own Property) and refuses anything else as `media_not_found` before any write. A tile photo reaches guests with the v3 builder (slice 19), which must copy `links[].imageAssetId` from the working copy; the guest tile already renders `imageUrl` (slice 15). No preview of the chosen file in the dialog: the CSP's `img-src` has no `blob:`, and the photo shows on the tile as soon as it is saved.
 - **Owner/ops:** §5.
 
 **43. AI translation capability (AI1–AI4).** Gated on owner decision 3 (§5).

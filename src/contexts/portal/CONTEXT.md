@@ -170,11 +170,21 @@ hidden in a segment do not survive, and the original is never stored.
 - **References**: the Brand Profile's `logo_asset_id`, `hero_asset_id` (with
   `hero_focal_x/y`, present exactly when there is a hero) and a link's
   `image_asset_id` are composite foreign keys to an asset of the same
-  Organization and Property. No command writes them yet; the manager controls
-  (a later slice) will. The database does
+  Organization and Property. Only a link's is written so far: `updateLink` takes
+  an `imageAssetId` (or null) and checks it with
+  `canReferencePortalMediaAsset('link_image', asset)` against the Portal's own
+  Property; the hero and logo controls are a later slice. The database does
   not tie a reference to the asset's **purpose**: whatever writes one of these
   columns must call `canReferencePortalMediaAsset(slot, asset)`, so a link
   picture cannot stand in as the hero and skip the hero's size and byte budget.
+- **A tile's photo** is chosen in the Linktree editor's "Icon or photo" picker: the
+  dashed tile uploads to `POST /api/portal-media` (`purpose=link_image`, with the
+  Portal and the rights confirmation) and then puts the returned asset id on the
+  link with `updateLink`. A tile wears an icon or a photo, never both: choosing an
+  icon saves `imageAssetId: null` in the same write. The editor shows the photo
+  from the same-origin media route. A photo reaches guests only through a v3
+  publication (slice 19 carries `links[].imageAssetId` from the working copy into
+  the snapshot); v1 and v2 snapshots have no tile photos.
 
 `portal.upload` is `controlled_beta`. The owner removed the SAFE-01 completion
 ceremony on 2026-09-30; the technical safeguards above stay in the build (ADR
