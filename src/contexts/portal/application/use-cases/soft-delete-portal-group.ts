@@ -55,6 +55,7 @@ export const softDeletePortalGroup =
       expectedUpdatedAt: existing.updatedAt,
       revision,
       occurredAt,
+      changedBy: ctx.userId,
       event,
     })
   }

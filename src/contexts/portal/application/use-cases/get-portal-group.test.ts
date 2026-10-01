@@ -39,6 +39,7 @@ const groupOwnedBy = (orgId: PortalGroup['organizationId']): PortalGroup => ({
   propertyId: PROPERTY_ID,
   name: 'Terrace',
   sortKey: null,
+  createdBy: null,
   createdAt: FIXED_TIME,
   updatedAt: FIXED_TIME,
   deletedAt: null,
@@ -61,6 +62,7 @@ const setup = (group: PortalGroup, accessible: ReadonlyArray<PropertyId> | null)
     findPortalMembership: async () => null,
     findGroupIdsByPortalIds: async () => [],
     listGroupsForPortals: async () => [],
+    listPortalGroupsWithPortals: async () => [],
     findGroupForPortal: async () => null,
   }
   const useCase = getPortalGroup({

@@ -16,6 +16,17 @@ export type PortalGroupRepository = Readonly<{
     orgId: OrganizationId,
     propertyId: PropertyId,
   ) => Promise<ReadonlyArray<PortalGroup>>
+  /**
+   * `listByProperty` with each group's current Portals, in one read (two
+   * queries, however many groups). Every group of the Property is present, with
+   * an empty list when nobody is in it. Archived groups are not listed.
+   */
+  listPortalGroupsWithPortals: (
+    orgId: OrganizationId,
+    propertyId: PropertyId,
+  ) => Promise<
+    ReadonlyArray<PortalGroup & Readonly<{ portalIds: ReadonlyArray<PortalId> }>>
+  >
   nameExists: (
     orgId: OrganizationId,
     propertyId: PropertyId,

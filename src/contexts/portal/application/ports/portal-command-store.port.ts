@@ -146,18 +146,42 @@ export type DeletePortalGroupCommand = Readonly<{
   expectedUpdatedAt: Date
   revision: Date
   occurredAt: Date
+  /** Who archived the group; recorded in the group's history. */
+  changedBy: UserId
   event: PortalGroupDeleted
+}>
+
+/** The group a Portal leaves in a move, with the fact that says so. */
+export type PortalGroupDeparture = Readonly<{
+  portalGroupId: PortalGroupId
+  event: PortalRemovedFromGroup
+}>
+
+/**
+ * A group that loses Portals in a move. Fenced once, however many Portals leave
+ * it, and fenced in sorted id order with every other group the command touches.
+ */
+export type PortalGroupSourceFence = Readonly<{
+  portalGroupId: PortalGroupId
+  expectedUpdatedAt: Date
+  revision: Date
 }>
 
 export type CreatePortalGroupCommand = Readonly<{
   organizationId: OrganizationId
   group: PortalGroup
+  /** Who created the group; recorded in its history. */
+  changedBy: UserId
   memberships: ReadonlyArray<
     Readonly<{
       portalId: PortalId
       createdBy: UserId
+      /** Set when the Portal is in another group, which it leaves in this commit. */
+      movedFrom: PortalGroupDeparture | null
     }>
   >
+  /** One fence per group that loses a Portal to the new group. */
+  sourceGroups: ReadonlyArray<PortalGroupSourceFence>
   events: readonly [PortalGroupCreated, ...PortalAddedToGroup[]]
 }>
 
@@ -167,6 +191,9 @@ export type UpdatePortalGroupCommand = Readonly<{
   portalGroupId: PortalGroupId
   expectedUpdatedAt: Date
   name: string
+  /** The name before this command, recorded in the group's history. */
+  previousName: string
+  changedBy: UserId
   revision: Date
   occurredAt: Date
   event: PortalGroupUpdated
@@ -188,6 +215,22 @@ export type AddPortalToGroupCommand = ChangePortalGroupMembershipCommand &
 
 export type RemovePortalFromGroupCommand = ChangePortalGroupMembershipCommand &
   Readonly<{ event: PortalRemovedFromGroup }>
+
+/**
+ * Move a Portal to another group in one commit: the membership it held ends
+ * with `moved_to_group` and a new one begins. `from` is null when the Portal had
+ * no group, which makes the command a plain addition. Both groups are fenced,
+ * in sorted id order.
+ */
+export type MovePortalToGroupCommand = Readonly<{
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  portalId: PortalId
+  changedBy: UserId
+  occurredAt: Date
+  to: PortalGroupSourceFence & Readonly<{ event: PortalAddedToGroup }>
+  from: (PortalGroupSourceFence & Readonly<{ event: PortalRemovedFromGroup }>) | null
+}>
 
 type PortalContentCommandBase = Readonly<{
   organizationId: OrganizationId
@@ -340,6 +383,7 @@ export type PortalCommandStore = Readonly<{
   updatePortalGroup(command: UpdatePortalGroupCommand): Promise<void>
   addPortalToGroup(command: AddPortalToGroupCommand): Promise<void>
   removePortalFromGroup(command: RemovePortalFromGroupCommand): Promise<void>
+  movePortalToGroup(command: MovePortalToGroupCommand): Promise<void>
   createPortalLinkCategory(command: CreatePortalLinkCategoryCommand): Promise<void>
   updatePortalLinkCategory(command: UpdatePortalLinkCategoryCommand): Promise<void>
   deletePortalLinkCategory(command: DeletePortalLinkCategoryCommand): Promise<void>

@@ -1249,6 +1249,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       expectedUpdatedAt: GROUP_UPDATED_AT,
       revision: DELETED_AT,
       occurredAt: DELETED_AT,
+      changedBy: MANAGER,
       event,
     })
 
@@ -1303,6 +1304,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
         expectedUpdatedAt: GROUP_UPDATED_AT,
         revision: DELETED_AT,
         occurredAt: DELETED_AT,
+        changedBy: MANAGER,
         event,
       }),
     ).rejects.toSatisfy((error: unknown) => hasDatabaseErrorCode(error, '23505'))
@@ -1339,6 +1341,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
         expectedUpdatedAt: CREATED_AT,
         revision: DELETED_AT,
         occurredAt: DELETED_AT,
+        changedBy: MANAGER,
         event,
       }),
     ).rejects.toMatchObject({ _tag: 'PortalError', code: 'revision_conflict' })
@@ -1377,6 +1380,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       propertyId: PROPERTY_A,
       name: 'Front Desk',
       sortKey: null,
+      createdBy: MANAGER,
       createdAt: GROUP_UPDATED_AT,
       updatedAt: GROUP_UPDATED_AT,
       deletedAt: null,
@@ -1410,12 +1414,9 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       store.createPortalGroup({
         organizationId: ORG_A,
         group,
-        memberships: [
-          {
-            portalId: PORTAL_A,
-            createdBy: MANAGER,
-          },
-        ],
+        changedBy: MANAGER,
+        memberships: [{ portalId: PORTAL_A, createdBy: MANAGER, movedFrom: null }],
+        sourceGroups: [],
         events: [created, added],
       }),
     ).rejects.toSatisfy((error: unknown) => hasDatabaseErrorCode(error, '23505'))
@@ -1453,6 +1454,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       propertyId: PROPERTY_A,
       name: 'Front Desk',
       sortKey: null,
+      createdBy: MANAGER,
       createdAt: GROUP_UPDATED_AT,
       updatedAt: GROUP_UPDATED_AT,
       deletedAt: null,
@@ -1477,7 +1479,9 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await store.createPortalGroup({
       organizationId: ORG_A,
       group,
-      memberships: [{ portalId: PORTAL_A, createdBy: MANAGER }],
+      changedBy: MANAGER,
+      memberships: [{ portalId: PORTAL_A, createdBy: MANAGER, movedFrom: null }],
+      sourceGroups: [],
       events: [created, added],
     })
 
@@ -1527,6 +1531,8 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
         name: 'Guest Services',
         revision: UPDATED_AT,
         occurredAt: UPDATED_AT,
+        previousName: 'Front Desk',
+        changedBy: MANAGER,
         event,
       }),
     ).rejects.toMatchObject({ _tag: 'PortalError', code: 'revision_conflict' })
@@ -1701,6 +1707,8 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
         name: 'Guest Services',
         revision: UPDATED_AT,
         occurredAt: UPDATED_AT,
+        previousName: 'Front Desk',
+        changedBy: MANAGER,
         event: firstEvent,
       }),
       store.updatePortalGroup({
@@ -1711,6 +1719,8 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
         name: 'Reception Team',
         revision: DELETED_AT,
         occurredAt: DELETED_AT,
+        previousName: 'Front Desk',
+        changedBy: MANAGER,
         event: secondEvent,
       }),
     ])

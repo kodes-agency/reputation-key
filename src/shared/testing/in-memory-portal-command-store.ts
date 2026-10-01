@@ -11,6 +11,12 @@ import type { InMemoryPortalLinkRepo } from './in-memory-portal-link-repo'
 import { createRecordedOutbox, type RecordedOutbox } from './recorded-outbox'
 import { portalError } from '#/contexts/portal/domain/errors'
 import { hasRoomForAnotherLink } from '#/contexts/portal/domain/portal-linktree'
+import {
+  groupMovementEntries,
+  portalGroupHistoryEntry,
+  type PortalGroupHistoryDraft,
+} from '#/contexts/portal/domain/portal-group-history'
+import { unbrand } from '#/shared/domain/ids'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 
 export function createInMemoryPortalCommandStore(deps: {
@@ -19,8 +25,19 @@ export function createInMemoryPortalCommandStore(deps: {
   portalTokenRepo?: PortalTokenRepository
   portalGroupRepo?: PortalGroupRepository
   portalLinkRepo?: PortalLinkRepository
+  /** Receives the Portal Group history entries the real store writes in its transactions. */
+  groupHistory?: PortalGroupHistoryDraft[]
 }): PortalCommandStore {
   const outbox = deps.outbox ?? createRecordedOutbox()
+  const recordGroupHistory = (entries: ReadonlyArray<PortalGroupHistoryDraft>) => {
+    deps.groupHistory?.push(...entries)
+  }
+  const groupRepo = () => {
+    if (!deps.portalGroupRepo) {
+      throw new Error('in-memory Portal Group repository is not configured')
+    }
+    return deps.portalGroupRepo
+  }
   const mutablePortalRepo = deps.portalRepo as InMemoryPortalRepo
   const linkRepo = (): InMemoryPortalLinkRepo => {
     if (!deps.portalLinkRepo) {
@@ -120,49 +137,109 @@ export function createInMemoryPortalCommandStore(deps: {
       return { revoked }
     },
     createPortalGroup: async (command) => {
-      if (!deps.portalGroupRepo) {
-        throw new Error('in-memory Portal Group repository is not configured')
+      const repo = groupRepo()
+      const { group } = command
+      for (const fence of command.sourceGroups) {
+        await repo.update(command.organizationId, fence.portalGroupId, {
+          updatedAt: fence.revision,
+        })
       }
-      await deps.portalGroupRepo.insert(command.organizationId, command.group)
+      await repo.insert(command.organizationId, group)
       for (const membership of command.memberships) {
-        await deps.portalGroupRepo.addPortal(
+        if (membership.movedFrom) {
+          const left = await repo.removePortal(
+            command.organizationId,
+            membership.movedFrom.portalGroupId,
+            membership.portalId,
+            group.createdAt,
+            'moved_to_group',
+          )
+          if (!left) {
+            throw portalError(
+              'revision_conflict',
+              'Portal changed groups while the command was being committed',
+            )
+          }
+        }
+        await repo.addPortal(
           command.organizationId,
-          command.group.id,
+          group.id,
           membership.portalId,
-          command.group.createdAt,
+          group.createdAt,
           membership.createdBy,
         )
       }
+      recordGroupHistory([
+        portalGroupHistoryEntry({
+          organizationId: command.organizationId,
+          propertyId: group.propertyId,
+          portalGroupId: group.id,
+          kind: 'created',
+          name: group.name,
+          actorUserId: unbrand(command.changedBy),
+          occurredAt: group.createdAt,
+        }),
+        ...command.memberships.flatMap((membership) =>
+          groupMovementEntries({
+            organizationId: command.organizationId,
+            propertyId: group.propertyId,
+            portalId: membership.portalId,
+            fromGroupId: membership.movedFrom?.portalGroupId ?? null,
+            toGroupId: group.id,
+            actorUserId: unbrand(membership.createdBy),
+            occurredAt: group.createdAt,
+          }),
+        ),
+      ])
       for (const event of command.events) await outbox.record(event)
+      for (const membership of command.memberships) {
+        if (membership.movedFrom) await outbox.record(membership.movedFrom.event)
+      }
     },
     updatePortalGroup: async (command) => {
-      if (!deps.portalGroupRepo) {
-        throw new Error('in-memory Portal Group repository is not configured')
-      }
-      await deps.portalGroupRepo.update(command.organizationId, command.portalGroupId, {
+      await groupRepo().update(command.organizationId, command.portalGroupId, {
         name: command.name,
         updatedAt: command.revision,
       })
+      if (command.name !== command.previousName) {
+        recordGroupHistory([
+          portalGroupHistoryEntry({
+            organizationId: command.organizationId,
+            propertyId: command.propertyId,
+            portalGroupId: command.portalGroupId,
+            kind: 'renamed',
+            name: command.name,
+            previousName: command.previousName,
+            actorUserId: unbrand(command.changedBy),
+            occurredAt: command.occurredAt,
+          }),
+        ])
+      }
       await outbox.record(command.event)
     },
     addPortalToGroup: async (command) => {
-      if (!deps.portalGroupRepo) {
-        throw new Error('in-memory Portal Group repository is not configured')
-      }
-      await deps.portalGroupRepo.addPortal(
+      await groupRepo().addPortal(
         command.organizationId,
         command.portalGroupId,
         command.portalId,
         command.occurredAt,
         command.changedBy,
       )
+      recordGroupHistory([
+        portalGroupHistoryEntry({
+          organizationId: command.organizationId,
+          propertyId: command.propertyId,
+          portalGroupId: command.portalGroupId,
+          kind: 'portal_added',
+          portalId: command.portalId,
+          actorUserId: unbrand(command.changedBy),
+          occurredAt: command.occurredAt,
+        }),
+      ])
       await outbox.record(command.event)
     },
     removePortalFromGroup: async (command) => {
-      if (!deps.portalGroupRepo) {
-        throw new Error('in-memory Portal Group repository is not configured')
-      }
-      const removed = await deps.portalGroupRepo.removePortal(
+      const removed = await groupRepo().removePortal(
         command.organizationId,
         command.portalGroupId,
         command.portalId,
@@ -172,7 +249,68 @@ export function createInMemoryPortalCommandStore(deps: {
       if (!removed) {
         throw portalError('portal_not_in_group', 'portal is not a member of this group')
       }
+      recordGroupHistory([
+        portalGroupHistoryEntry({
+          organizationId: command.organizationId,
+          propertyId: command.propertyId,
+          portalGroupId: command.portalGroupId,
+          kind: 'portal_removed',
+          portalId: command.portalId,
+          actorUserId: unbrand(command.changedBy),
+          occurredAt: command.occurredAt,
+        }),
+      ])
       await outbox.record(command.event)
+    },
+    movePortalToGroup: async (command) => {
+      const repo = groupRepo()
+      const current = await repo.findPortalMembership(
+        command.organizationId,
+        command.portalId,
+      )
+      if (command.from) {
+        if (current !== command.from.portalGroupId) {
+          throw portalError(
+            'revision_conflict',
+            'Portal changed groups while the move was being committed',
+          )
+        }
+        await repo.removePortal(
+          command.organizationId,
+          command.from.portalGroupId,
+          command.portalId,
+          command.occurredAt,
+          'moved_to_group',
+        )
+        await repo.update(command.organizationId, command.from.portalGroupId, {
+          updatedAt: command.from.revision,
+        })
+      } else if (current) {
+        throw portalError('portal_already_grouped', 'portal is already in a group')
+      }
+      await repo.addPortal(
+        command.organizationId,
+        command.to.portalGroupId,
+        command.portalId,
+        command.occurredAt,
+        command.changedBy,
+      )
+      await repo.update(command.organizationId, command.to.portalGroupId, {
+        updatedAt: command.to.revision,
+      })
+      recordGroupHistory(
+        groupMovementEntries({
+          organizationId: command.organizationId,
+          propertyId: command.propertyId,
+          portalId: command.portalId,
+          fromGroupId: command.from?.portalGroupId ?? null,
+          toGroupId: command.to.portalGroupId,
+          actorUserId: unbrand(command.changedBy),
+          occurredAt: command.occurredAt,
+        }),
+      )
+      if (command.from) await outbox.record(command.from.event)
+      await outbox.record(command.to.event)
     },
     createPortalLinkCategory: async (command) => {
       if (!deps.portalLinkRepo) {
@@ -434,17 +572,25 @@ export function createInMemoryPortalCommandStore(deps: {
       return { revoked }
     },
     deletePortalGroup: async (command) => {
-      if (!deps.portalGroupRepo) {
-        throw new Error('in-memory Portal Group repository is not configured')
-      }
-      await deps.portalGroupRepo.softDelete(
+      const repo = groupRepo()
+      await repo.softDelete(
         command.organizationId,
         command.portalGroupId,
         command.occurredAt,
       )
-      await deps.portalGroupRepo.update(command.organizationId, command.portalGroupId, {
+      await repo.update(command.organizationId, command.portalGroupId, {
         updatedAt: command.revision,
       })
+      recordGroupHistory([
+        portalGroupHistoryEntry({
+          organizationId: command.organizationId,
+          propertyId: command.propertyId,
+          portalGroupId: command.portalGroupId,
+          kind: 'archived',
+          actorUserId: unbrand(command.changedBy),
+          occurredAt: command.occurredAt,
+        }),
+      ])
       await outbox.record(command.event)
     },
   }

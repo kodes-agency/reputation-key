@@ -48,6 +48,7 @@ const group = (name = 'Pool side'): PortalGroup => ({
   propertyId: PROPERTY_A,
   name,
   sortKey: null,
+  createdBy: null,
   createdAt: NOW,
   updatedAt: NOW,
   deletedAt: null,

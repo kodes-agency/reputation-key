@@ -36,23 +36,14 @@ export const listPortalGroups =
       ctx,
       'portal.read',
     )
-    const groups = await deps.portalGroupRepo.listByProperty(
+    // One batched read: the groups of the Property with their current Portals.
+    const groups = await deps.portalGroupRepo.listPortalGroupsWithPortals(
       ctx.organizationId,
       propertyId(input.propertyId),
     )
-    const visibleGroups =
-      accessible === null
-        ? groups
-        : groups.filter((group) => accessible.includes(group.propertyId))
-    return Promise.all(
-      visibleGroups.map(async (group) => ({
-        ...group,
-        portalIds: await deps.portalGroupRepo.getGroupPortalIds(
-          ctx.organizationId,
-          group.id,
-        ),
-      })),
-    )
+    return accessible === null
+      ? groups
+      : groups.filter((group) => accessible.includes(group.propertyId))
   }
 
 export type ListPortalGroups = ReturnType<typeof listPortalGroups>

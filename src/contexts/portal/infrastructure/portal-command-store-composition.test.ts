@@ -27,6 +27,7 @@ const GROUP = [
   'updatePortalGroup',
   'addPortalToGroup',
   'removePortalFromGroup',
+  'movePortalToGroup',
   'deletePortalGroup',
 ]
 const TOKEN = ['issuePortalToken', 'rotatePortalToken', 'revokePortalTokens']
