@@ -35,7 +35,7 @@ export const isPropertyWideEditKind = (kind: PortalPageEditKind): boolean =>
   PROPERTY_WIDE_KINDS.includes(kind)
 
 /** The working-copy settings a page-settings edit can name. */
-export const PORTAL_SETTING_FIELDS = [
+const PORTAL_SETTING_FIELDS = [
   'name',
   'slug',
   'description',

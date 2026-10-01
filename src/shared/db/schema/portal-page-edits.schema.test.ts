@@ -6,7 +6,7 @@ import {
 } from '#/contexts/portal/domain/portal-page-edit'
 import {
   PORTAL_PAGE_EDIT_KIND_SQL_LIST,
-  PORTAL_PAGE_EDIT_TEXT_MAX as SCHEMA_TEXT_MAX,
+  PAGE_EDIT_TEXT_COLUMN_MAX as SCHEMA_TEXT_MAX,
   portalPageEdits,
 } from './portal-publication.schema'
 

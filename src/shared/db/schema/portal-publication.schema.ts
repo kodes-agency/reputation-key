@@ -327,7 +327,7 @@ export const portalPendingContentChanges = pgTable(
 // write and the pending-change fence. The key names the part of the page and
 // the verb (identifiers, locales and settings fields only). A change to one
 // piece of wording also keeps that wording before and after, clipped to
-// `PORTAL_PAGE_EDIT_TEXT_MAX`; the CHECK keeps looks, orders and destinations
+// `PAGE_EDIT_TEXT_COLUMN_MAX`; the CHECK keeps looks, orders and destinations
 // text-free. Saves of the same part by the same person with no publication
 // between them fold into one row (`occurred_at` moves, `edit_count` counts),
 // so an autosaving editor does not bury the timeline. `portal_id` is null for
@@ -335,7 +335,7 @@ export const portalPendingContentChanges = pgTable(
 // Property; a second foreign key ties those rows to their Property.
 
 /** The longest wording the ledger keeps; longer text is clipped before it is stored. */
-export const PORTAL_PAGE_EDIT_TEXT_MAX = 200
+export const PAGE_EDIT_TEXT_COLUMN_MAX = 200
 
 export const portalPageEdits = pgTable(
   'portal_page_edits',
@@ -346,8 +346,8 @@ export const portalPageEdits = pgTable(
     portalId: uuid('portal_id'),
     changeKind: varchar('change_kind', { length: 40 }).notNull(),
     changeKey: varchar('change_key', { length: 160 }).notNull().default('all'),
-    previousText: varchar('previous_text', { length: PORTAL_PAGE_EDIT_TEXT_MAX }),
-    newText: varchar('new_text', { length: PORTAL_PAGE_EDIT_TEXT_MAX }),
+    previousText: varchar('previous_text', { length: PAGE_EDIT_TEXT_COLUMN_MAX }),
+    newText: varchar('new_text', { length: PAGE_EDIT_TEXT_COLUMN_MAX }),
     // How many saves this row stands for.
     editCount: integer('edit_count').notNull().default(1),
     // Null when the system made the change (an automatic name, a destination
