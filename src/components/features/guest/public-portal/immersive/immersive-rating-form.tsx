@@ -22,6 +22,8 @@ export function ImmersiveRatingForm({
   idPrefix,
   pending,
   saveFailed,
+  initialRating = 0,
+  submitLabel,
   onSubmit,
 }: Readonly<{
   pack: GuestPortalCopyV2
@@ -29,10 +31,14 @@ export function ImmersiveRatingForm({
   pending: boolean
   /** The last attempt to save did not reach the server. */
   saveFailed: boolean
+  /** The star the form starts on: the guest's current rating when they change it. */
+  initialRating?: number
+  /** The button's words; "Send privately" unless the guest is changing a rating. */
+  submitLabel?: string
   onSubmit: (value: RatingSubmission) => Promise<void>
 }>) {
   const form = useForm({
-    defaultValues: { rating: 0, honeypot: '' },
+    defaultValues: { rating: initialRating, honeypot: '' },
     validators: { onSubmit: guestRatingFormDto },
     onSubmit: async ({ value }) => {
       const parsed = guestRatingFormDto.parse(value)
@@ -86,7 +92,7 @@ export function ImmersiveRatingForm({
         )}
       </form.Field>
       <button type="submit" className="ih-button ih-button--primary" disabled={pending}>
-        {pending ? pack.copy.sending : pack.copy.ratingSend}
+        {pending ? pack.copy.sending : (submitLabel ?? pack.copy.ratingSend)}
       </button>
     </form>
   )
