@@ -252,6 +252,22 @@ type MeasureArgs = Readonly<{
   slack: number
   /** `false` while a probe has a layer open: only the layers are new. */
   includePane: boolean
+  /** See `PaneOptions.hiddenRootBleedIsDecorative`. */
+  hiddenRootBleedIsDecorative: boolean
+}>
+
+export type PaneOptions = Readonly<{
+  /**
+   * A pane whose own `overflow-x` is `hidden` or `clip` cuts what runs past it
+   * rather than scrolling it, so its `scrollWidth` is not a way to put content
+   * out of a finger's reach: probe 3 (`clippedIn`) is, and it already skips
+   * what is `aria-hidden`. With this set, a hidden-overflow pane is judged by
+   * probe 3 alone, which lets a decorative element bleed past the pane's edge
+   * (the guest page's 390 px arch motif, centred on a 320 px phone) while a
+   * real element that does is still flagged. Off by default: the Inbox panes
+   * never relied on it.
+   */
+  hiddenRootBleedIsDecorative?: boolean
 }>
 
 /**
@@ -361,6 +377,20 @@ function measureInPage(args: MeasureArgs): PaneReport {
     (layer) => !layers.some((other) => other !== layer && other.contains(layer)),
   )
 
+  // A native input that is visually hidden (a 1 px box, or under a clip) is
+  // not what a finger presses: the `<label>` around it is, and that is the
+  // box that must be big enough. The guest page's stars are exactly this (a
+  // `.ih-sr-only` radio inside a 54 px `<label>`), so without the substitution
+  // every star would read as a 1x1 target. An input with no shown label keeps
+  // its own box, so a hidden control with nothing to press still fails.
+  const hitAreaOf = (el: Element): Element => {
+    if (!el.matches('input')) return el
+    const r = el.getBoundingClientRect()
+    if (r.width > 1 && r.height > 1 && !isClippedAway(el)) return el
+    const label = el.closest('label')
+    return label !== null && isShown(label) ? label : el
+  }
+
   const targetsIn = (root: Element, kindOf: (el: Element) => TargetKind) =>
     [...root.querySelectorAll(args.interactiveSelector)]
       .filter((el) => isShown(el) && isTarget(el))
@@ -368,7 +398,7 @@ function measureInPage(args: MeasureArgs): PaneReport {
         name: nameOf(el),
         role: roleOf(el),
         kind: kindOf(el),
-        box: boxOf(el),
+        box: boxOf(hitAreaOf(el)),
       }))
 
   const paneKind = (el: Element): TargetKind =>
@@ -383,11 +413,16 @@ function measureInPage(args: MeasureArgs): PaneReport {
   // Probe 1 and 2 of the header: the root itself, whatever its `overflow`,
   // and every horizontal SCROLLER inside it. A `truncate` span is
   // `overflow: hidden`, not a scroller; probe 3 decides about it.
-  const overflowsIn = (root: Element, rootName: string): HorizontalOverflow[] => {
+  const overflowsIn = (
+    root: Element,
+    rootName: string,
+    rootBleedIsDecorative = false,
+  ): HorizontalOverflow[] => {
     const scrollers = [...root.querySelectorAll('*')].filter(
       (el) => isShown(el) && isScrollValue(styleOf(el).overflowX),
     )
-    return [root, ...scrollers]
+    const rootCuts = ['hidden', 'clip'].includes(styleOf(root).overflowX)
+    return (rootBleedIsDecorative && rootCuts ? scrollers : [root, ...scrollers])
       .filter((el) => el.scrollWidth > el.clientWidth)
       .map((el) => ({
         name: el === root ? rootName : isTarget(el) ? nameOf(el) : describe(el),
@@ -583,14 +618,22 @@ function measureInPage(args: MeasureArgs): PaneReport {
     documentScrollWidth: document.documentElement.scrollWidth,
     paneBoxes: panes.map(boxOf),
     targets: include(() => panes.flatMap((pane) => targetsIn(pane, paneKind))),
-    overflows: include(() => panes.flatMap((pane) => overflowsIn(pane, paneName))),
+    overflows: include(() =>
+      panes.flatMap((pane) =>
+        overflowsIn(pane, paneName, args.hiddenRootBleedIsDecorative),
+      ),
+    ),
     clips: include(() => panes.flatMap(clippedIn)),
     primaries: include(() => panes.flatMap(primariesIn)),
     layers: topLayers.map(layerIn),
   }
 }
 
-function measureArgs(paneSelector: string, includePane: boolean): MeasureArgs {
+function measureArgs(
+  paneSelector: string,
+  includePane: boolean,
+  options: PaneOptions = {},
+): MeasureArgs {
   return {
     paneSelector,
     interactiveSelector: INTERACTIVE_SELECTOR,
@@ -601,12 +644,17 @@ function measureArgs(paneSelector: string, includePane: boolean): MeasureArgs {
     primaryNames: COMPOSER_PRIMARY_NAMES,
     slack: POSITION_SLACK_PX,
     includePane,
+    hiddenRootBleedIsDecorative: options.hiddenRootBleedIsDecorative === true,
   }
 }
 
 /** The pane as it is now, and every layer open over it. */
-export function measurePane(page: Page, paneSelector: string): Promise<PaneReport> {
-  return page.evaluate(measureInPage, measureArgs(paneSelector, true))
+export function measurePane(
+  page: Page,
+  paneSelector: string,
+  options: PaneOptions = {},
+): Promise<PaneReport> {
+  return page.evaluate(measureInPage, measureArgs(paneSelector, true, options))
 }
 
 /** Only the open layers — what a probe just opened over an already measured pane. */

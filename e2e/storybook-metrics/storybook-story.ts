@@ -95,7 +95,21 @@ function recordStoryFailures(): void {
   })
 }
 
-export async function openStory(page: Page, storyId: string): Promise<void> {
+export type OpenStoryOptions = Readonly<{
+  /**
+   * Remove Storybook's 1 rem body padding after the play (the default, and what
+   * every geometry harness wants). A caller that measures layout SHIFTS passes
+   * `false`: removing the padding is itself a shift, and it is the harness's.
+   * Fullscreen stories have no such padding to remove.
+   */
+  normalisePadding?: boolean
+}>
+
+export async function openStory(
+  page: Page,
+  storyId: string,
+  options: OpenStoryOptions = {},
+): Promise<void> {
   await page.addInitScript(recordStoryFailures)
   await page.goto(`/iframe.html?id=${encodeURIComponent(storyId)}&viewMode=story`)
   await page.waitForFunction((id) => {
@@ -144,9 +158,11 @@ export async function openStory(page: Page, storyId: string): Promise<void> {
   // `layout: 'fullscreen'`). Zeroing it measures every story the way the pane
   // actually sits in the page — flush — and can only remove Storybook's own
   // 32 px; a component wider than its box still overflows the document.
-  await page.addStyleTag({
-    content: '.sb-show-main.sb-main-padded { padding: 0 !important; }',
-  })
+  if (options.normalisePadding !== false) {
+    await page.addStyleTag({
+      content: '.sb-show-main.sb-main-padded { padding: 0 !important; }',
+    })
+  }
   // Web fonts change text metrics, and a label that wraps once the face loads
   // changes a box. `document.fonts.ready` is the browser's own "done" signal.
   await page.evaluate(() => document.fonts.ready.then(() => undefined))

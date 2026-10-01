@@ -32,9 +32,17 @@ export type Expectations = Readonly<{
    * judged there; overflow, clipping, layers and the primary's position are.
    */
   judgesTargets: boolean
+  /**
+   * One floor for every target at every width, in place of the Inbox's
+   * per-width table. The guest page sets 44: it is a phone page that is only
+   * ever a phone-width column, so the 36 px control floor and the 24 px
+   * desktop floor of the Inbox pane do not describe it.
+   */
+  minimumPx?: number
 }>
 
-function minimumFor(kind: TargetKind, width: number): number {
+function minimumFor(kind: TargetKind, width: number, override?: number): number {
+  if (override !== undefined) return override
   if (width >= PHONE_BELOW_PX) return DESKTOP_TARGET_MIN_PX
   return kind === 'control' ? PHONE_CONTROL_MIN_PX : PHONE_THUMB_MIN_PX
 }
@@ -47,9 +55,10 @@ function targetLines(
   targets: ReadonlyArray<MeasuredTarget>,
   width: number,
   where: string,
+  override?: number,
 ): string[] {
   return targets.flatMap((target) => {
-    const minimum = minimumFor(target.kind, width)
+    const minimum = minimumFor(target.kind, width, override)
     if (Math.min(target.box.width, target.box.height) >= minimum) return []
     return [
       `${where}"${target.name}" (${target.role}, ${target.kind}) measures ` +
@@ -84,7 +93,7 @@ function layerLines(
   const at = `${where}${layer.role} "${layer.name}": `
   return [
     ...(expectations.judgesTargets
-      ? targetLines(layer.targets, expectations.width, at)
+      ? targetLines(layer.targets, expectations.width, at, expectations.minimumPx)
       : []),
     ...geometryLines(layer, at),
     ...layer.outside.map(
@@ -111,7 +120,9 @@ export function paneViolations(
     return [`${at}no visible pane matched ${paneSelector} — nothing was measured`]
   }
   const { viewport } = pane
-  const sizes = judgesTargets ? targetLines(pane.targets, width, at) : []
+  const sizes = judgesTargets
+    ? targetLines(pane.targets, width, at, expectations.minimumPx)
+    : []
   const paneOffScreen = pane.paneBoxes
     .filter((box) => box.x < -0.5 || box.x + box.width > viewport.width + 0.5)
     .map(

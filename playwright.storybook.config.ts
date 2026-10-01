@@ -1,5 +1,9 @@
 import { defineConfig, devices } from '@playwright/test'
-import { STORYBOOK_PORT, STORYBOOK_URL } from './e2e/storybook-metrics/storybook-server'
+import {
+  STORYBOOK_PORT,
+  STORYBOOK_STATIC_DIR,
+  STORYBOOK_URL,
+} from './e2e/storybook-metrics/storybook-server'
 
 // Real-browser geometry against STORYBOOK, not the app. Run it with
 // `pnpm test:storybook:metrics`.
@@ -89,19 +93,32 @@ export default defineConfig({
       use: { ...devices['Desktop Chrome'] },
     },
   ],
-  webServer: {
-    // `--ci` skips Storybook's interactive prompts; `--no-open` keeps it from
-    // opening a browser tab. The port is `STORYBOOK_METRICS_PORT`, 6006 by
-    // default — `pnpm storybook`'s.
-    command: `pnpm exec storybook dev -p ${STORYBOOK_PORT} --ci --no-open`,
-    url: STORYBOOK_URL,
-    // Locally a developer usually has Storybook running already; measure that
-    // one, once `globalSetup` has proved it is this checkout's. In CI never:
-    // the job's server is the only one that can be trusted to be fresh.
-    reuseExistingServer: !process.env.CI,
-    // Storybook's first build of this tree is slow (minutes on a cold cache).
-    timeout: 300_000,
-    stdout: 'ignore',
-    stderr: 'pipe',
-  },
+  webServer:
+    STORYBOOK_STATIC_DIR === null
+      ? {
+          // `--ci` skips Storybook's interactive prompts; `--no-open` keeps it from
+          // opening a browser tab. The port is `STORYBOOK_METRICS_PORT`, 6006 by
+          // default — `pnpm storybook`'s.
+          command: `pnpm exec storybook dev -p ${STORYBOOK_PORT} --ci --no-open`,
+          url: STORYBOOK_URL,
+          // Locally a developer usually has Storybook running already; measure that
+          // one, once `globalSetup` has proved it is this checkout's. In CI never:
+          // the job's server is the only one that can be trusted to be fresh.
+          reuseExistingServer: !process.env.CI,
+          // Storybook's first build of this tree is slow (minutes on a cold cache).
+          timeout: 300_000,
+          stdout: 'ignore',
+          stderr: 'pipe',
+        }
+      : {
+          // A built Storybook (`STORYBOOK_METRICS_STATIC`), served by this run's
+          // own static server: nothing to reuse, nothing to compile, and a
+          // production bundle for the guest page's LCP and CLS.
+          command: `pnpm exec tsx e2e/storybook-metrics/static-server.ts ${STORYBOOK_STATIC_DIR} ${STORYBOOK_PORT}`,
+          url: `${STORYBOOK_URL}/index.json`,
+          reuseExistingServer: false,
+          timeout: 60_000,
+          stdout: 'ignore',
+          stderr: 'pipe',
+        },
 })
