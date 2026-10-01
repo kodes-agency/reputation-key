@@ -13,12 +13,12 @@ export type GuestPagePreviewState =
   /** Rated, with the Google card. The note card follows the threshold unless pinned. */
   | Readonly<{ kind: 'rated'; rating: number; noteEligible?: boolean }>
   /**
-   * A low rating with the private note still to write. The note field is the
-   * form's own state, so this renders the same markup as an eligible `rated`
-   * state: an empty note. A drafted note (board G06) needs an initial-text prop
-   * on the note form and is not reachable from a preview state yet.
+   * A low rating with the private note still to write. The legacy page keeps
+   * the note field as the form's own state, so it renders the same markup as an
+   * eligible `rated` state: an empty note. The Immersive Hub opens the note and
+   * shows `draft` in it (board G06).
    */
-  | Readonly<{ kind: 'note-writing'; rating?: number }>
+  | Readonly<{ kind: 'note-writing'; rating?: number; draft?: string }>
   /** A low rating whose private note has been sent. */
   | Readonly<{ kind: 'done'; rating?: number }>
   /** Rated, but the property has no usable Google review link. */
@@ -72,48 +72,60 @@ export type PreviewFormOptions = Readonly<{
   secondaryLinks?: ReactNode
 }>
 
-type PreviewSnapshot = Readonly<{
+type PreviewResponseState = Readonly<{
   response: GuestResponseView | null
   googleReviewAvailable: boolean
-  message: string
 }>
 
-function previewSnapshot(
+/**
+ * The response a preview state stands for, and whether Google can be offered.
+ * Shared by the legacy form view and the Immersive Hub's response view, so a
+ * state means the same thing on both.
+ */
+export function previewResponseState(
   state: GuestPagePreviewState,
-  copy: GuestPortalCopy,
   threshold: number,
-): PreviewSnapshot {
+): PreviewResponseState {
   const rated = (rating: number, noteEligible: boolean, noteSent = false) =>
     previewResponse({ rating, noteEligible, noteSent })
   switch (state.kind) {
     case 'arrival':
-      return { response: null, googleReviewAvailable: true, message: '' }
+      return { response: null, googleReviewAvailable: true }
     case 'rated':
       return {
         response: rated(state.rating, state.noteEligible ?? state.rating <= threshold),
         googleReviewAvailable: true,
-        message: '',
       }
     case 'note-writing':
       return {
         response: rated(state.rating ?? PREVIEW_LOW_RATING, true),
         googleReviewAvailable: true,
-        message: '',
       }
     case 'done':
       return {
         response: rated(state.rating ?? PREVIEW_LOW_RATING, true, true),
         googleReviewAvailable: true,
-        message: copy.feedbackSent,
       }
     case 'googleUnavailable': {
       const rating = state.rating ?? PREVIEW_HIGH_RATING
       return {
         response: rated(rating, state.noteEligible ?? rating <= threshold),
         googleReviewAvailable: false,
-        message: '',
       }
     }
+  }
+}
+
+type PreviewSnapshot = PreviewResponseState & Readonly<{ message: string }>
+
+function previewSnapshot(
+  state: GuestPagePreviewState,
+  copy: GuestPortalCopy,
+  threshold: number,
+): PreviewSnapshot {
+  return {
+    ...previewResponseState(state, threshold),
+    message: state.kind === 'done' ? copy.feedbackSent : '',
   }
 }
 
