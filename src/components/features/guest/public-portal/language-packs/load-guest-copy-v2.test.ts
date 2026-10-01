@@ -89,7 +89,14 @@ describe('loadGuestPortalCopyV2', () => {
 
   it('is the only place that imports a locale module, and only dynamically, so a request loads one pack', () => {
     const importers = sourceFiles(SRC)
-      .filter((path) => /\.tsx?$/.test(path) && !/\.(?:test|stories)\.tsx?$/.test(path))
+      // Tests, stories and story fixtures are not production code: a story may
+      // import a pack directly to render a real language.
+      .filter(
+        (path) =>
+          /\.tsx?$/.test(path) &&
+          !/\.(?:test|stories)\.tsx?$/.test(path) &&
+          !/[\\/]__fixtures__[\\/]/.test(path),
+      )
       .filter((path) =>
         /from\s+['"][^'"]*\/(?:en|bg)-v2['"]/.test(readFileSync(path, 'utf8')),
       )
