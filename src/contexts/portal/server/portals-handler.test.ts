@@ -147,6 +147,7 @@ describe('listPortals handler (executable)', () => {
         activationSequence: 3,
         version: 1,
         kind: 'rollback',
+        activatedBy: { userId: 'user-1', displayName: 'Georgi Ivanov' },
         activatedAt: '2026-08-26T14:00:00.000Z',
         deactivatedAt: null,
         deactivationReason: null,

@@ -413,6 +413,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalRepo,
       publicationRepo: portalPublicationRepo,
       staffPublicApi: deps.staffPublicApi,
+      actorDirectory: portalActorDirectory,
     }),
     getPortalHistory: getPortalHistory({
       portalRepo,

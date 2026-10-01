@@ -192,6 +192,7 @@ describe('describePendingChanges — the "not live" note in the header', () => {
       kind: 'portal_links' as const,
       key,
       changedAt: '2026-09-30T10:00:00.000Z',
+      changedBy: null,
     })
     expect(
       describePendingChanges({

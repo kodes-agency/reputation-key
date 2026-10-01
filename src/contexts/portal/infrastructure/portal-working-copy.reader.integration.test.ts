@@ -173,6 +173,7 @@ async function historyHasPendingChanges(scenario: WorkingCopyScenario): Promise<
     portalRepo,
     publicationRepo: createPortalPublicationRepository(getDb()),
     staffPublicApi,
+    actorDirectory: { resolveDisplayNames: async () => new Map() },
   })(
     { portalId: scenario.portalId },
     buildTestAuthContext({ organizationId: scenario.organizationId }),
