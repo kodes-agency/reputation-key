@@ -15,6 +15,8 @@ import {
   AVELA_PORTALS,
   AVELA_PROFILE,
   DEFAULT_PALETTE_PROFILE,
+  publishingPortals,
+  reviewingPortals,
   savingLocales,
   savingLook,
 } from './property-look-page-fixtures'
@@ -34,6 +36,9 @@ const meta = {
     canEdit: true,
     rows: AVELA_PORTALS,
     getPortalPreview: previewReader(),
+    getPortalReview: reviewingPortals(),
+    publishPortals: publishingPortals(),
+    canPublish: true,
     saveLook: savingLook(),
     saveLocales: savingLocales(),
   },
@@ -314,20 +319,16 @@ export const ReadOnly: Story = {
   },
 }
 
-/** The photo and logo controls (slice 42c2) and the batch publish (39b) mount in slots. */
+/** The photo and logo controls (slice 42c2) mount in slots. */
 export const SlotsForLaterControls: Story = {
   args: {
     photoSlot: <button type="button">Replace photo</button>,
     logoSlot: <button type="button">Upload logo</button>,
-    publishSlot: <button type="button">Review &amp; publish 5 portals</button>,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('button', { name: 'Replace photo' })).toBeVisible()
     await expect(canvas.getByRole('button', { name: 'Upload logo' })).toBeVisible()
-    await expect(
-      canvas.getByRole('button', { name: 'Review & publish 5 portals' }),
-    ).toBeVisible()
   },
 }
 

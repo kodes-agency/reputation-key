@@ -8,8 +8,9 @@
 // first, and an in-app navigation writes what is waiting, then asks only if a
 // save failed or was refused. Guests see the look only when each live portal
 // is published again.
-// The photo and logo controls (slice 42c2) and the batch "Review & publish"
-// (slice 39b) mount in the slots below.
+// The photo and logo controls (slice 42c2) mount in the slots below. The batch
+// "Review & publish" sits in the status bar: it reads each live portal's review
+// and publishes the ones that are ready, in turn.
 import { useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { PageHeader } from '#/components/layout/page-header'
@@ -19,6 +20,7 @@ import { Palette } from 'lucide-react'
 import type { PortalPreviewReader } from '../portal-preview/portal-preview-pane'
 import { PortalUnsavedChangesPrompt } from '../portal-detail/portal-unsaved-changes-prompt'
 import { PortalDraftAutosaveProvider } from '../portal-editor/portal-draft-autosave-context'
+import { PropertyLookBatchPublish } from './property-look-batch-publish'
 import { PropertyLookColoursSection } from './property-look-colours-section'
 import { PropertyLookIdentitySection } from './property-look-identity-section'
 import { PropertyLookLanguagesSection } from './property-look-languages-section'
@@ -32,6 +34,7 @@ import {
 } from './property-look-rules'
 import { PropertyLookStatusBar } from './property-look-status-bar'
 import type { PropertyLookProfile } from './property-look-types'
+import type { PortalReviewReader, PublishPortalsAction } from './use-property-look-batch'
 import {
   PROPERTY_LOOK_AUTOSAVE_DELAY_MS,
   usePropertyLookDraft,
@@ -49,15 +52,22 @@ export type PropertyLookPageProps = PropertyLookSaves &
     /** Every portal of the Property. */
     rows: readonly AffectedPortalRow[]
     getPortalPreview: PortalPreviewReader
+    /** What publishing would do to one portal, and whether anything stops it. */
+    getPortalReview: PortalReviewReader
+    /** Publishes the named live portals in turn and reports each (`publishPortalsChanges`). */
+    publishPortals: PublishPortalsAction
+    /** The viewer holds `portal.update` and Portals writes are switched on. */
+    canPublish: boolean
     /** The photo and its upload controls (slice 42c2). */
     photoSlot?: ReactNode
     /** The logo and its upload control (slice 42c2). */
     logoSlot?: ReactNode
-    /** The batch "Review & publish" (slice 39b). */
-    publishSlot?: ReactNode
   }>
 
 const SIDE_COLUMN = 'min-w-0 min-[90rem]:sticky min-[90rem]:top-6 min-[90rem]:self-start'
+
+/** While an edit is waiting, being saved or refused, what a review would read is not settled. */
+const SETTLING: ReadonlySet<string> = new Set(['pending', 'saving', 'invalid', 'error'])
 
 const LEAVE_COPY =
   'Some changes to the look have not been saved. If you go on, they are discarded.'
@@ -106,11 +116,13 @@ function PropertyLookEditor({
   canEdit,
   rows,
   getPortalPreview,
+  getPortalReview,
+  publishPortals,
+  canPublish,
   saveLook,
   saveLocales,
   photoSlot,
   logoSlot,
-  publishSlot,
 }: PropertyLookPageProps & Readonly<{ profile: PropertyLookProfile }>) {
   const { draft, setDraft, locales, setLocales, problem, state, retry } =
     usePropertyLookDraft(propertyId, profile, { saveLook, saveLocales })
@@ -166,7 +178,16 @@ function PropertyLookEditor({
           <PropertyLookStatusBar
             status={status}
             onRetry={() => void retry()}
-            action={publishSlot}
+            action={
+              <PropertyLookBatchPublish
+                propertyId={propertyId}
+                live={affected.live}
+                canPublish={canPublish}
+                isSettling={SETTLING.has(state.status)}
+                getPortalReview={getPortalReview}
+                publishPortals={publishPortals}
+              />
+            }
           />
         </div>
         <aside className={SIDE_COLUMN}>
