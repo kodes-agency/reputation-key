@@ -1,9 +1,11 @@
 // Story data for the Property look page: "Avela Resort", as board 9 draws it.
 import { fn } from 'storybook/test'
-import { OFFERED_GUEST_LOCALES } from '#/shared/domain/guest-locale'
 import type { AffectedPortalRow } from './property-look-rules'
 import type { PropertyLookProfile } from './property-look-types'
 import type { PropertyLookSaves } from './use-property-look-draft'
+
+/** The two languages a Property starts with in these stories, whatever else is offered. */
+const STORY_LOCALES = ['en', 'bg'] as const
 
 export const AVELA_PROFILE: PropertyLookProfile = {
   displayName: 'Avela Resort',
@@ -11,7 +13,7 @@ export const AVELA_PROFILE: PropertyLookProfile = {
   backgroundColor: '#14110F',
   backgroundMode: 'auto',
   wordmark: 'AVELA',
-  defaultGuestLocales: OFFERED_GUEST_LOCALES,
+  defaultGuestLocales: STORY_LOCALES,
 }
 
 /** What a Property has before anyone picks a colour: the default palette, automatic. */
@@ -21,7 +23,7 @@ export const DEFAULT_PALETTE_PROFILE: PropertyLookProfile = {
   backgroundColor: '#FFFFFF',
   backgroundMode: 'auto',
   wordmark: null,
-  defaultGuestLocales: OFFERED_GUEST_LOCALES,
+  defaultGuestLocales: STORY_LOCALES,
 }
 
 const group = (name: string) => ({ id: `group-${name}`, name })
