@@ -7,16 +7,12 @@ import { unbrand } from '#/shared/domain/ids'
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 import type { Tx } from '#/shared/outbox/commit'
 import type {
-  CreatePortalLinkCategoryCommand,
   CreatePortalLinkCommand,
-  DeletePortalLinkCategoryCommand,
   DeletePortalLinkCommand,
-  ReorderPortalLinkCategoriesCommand,
   ReorderPortalLinksCommand,
   SavePortalLinkTextsCommand,
   SavePortalLinktreeSettingsCommand,
   UpdatePortalCommand,
-  UpdatePortalLinkCategoryCommand,
   UpdatePortalLinkCommand,
 } from '../application/ports/portal-command-store.port'
 import { portalError } from '../domain/errors'
@@ -37,9 +33,9 @@ export const contentScope = (
 })
 
 /**
- * The fence and the ledger of a generic link or category command. The fence key
- * stays coarse (`portal_links`/`all`); `ledger` names the category or link and
- * what was done to it.
+ * The fence and the ledger of a generic link command. The fence key stays coarse
+ * (`portal_links`/`all`); `ledger` names the link (or the category it started)
+ * and what was done to it.
  */
 export async function recordPortalContentCommandChange(
   tx: Tx,
@@ -66,10 +62,6 @@ export async function recordPortalContentCommandChange(
 }
 
 export type PortalContentCommand =
-  | CreatePortalLinkCategoryCommand
-  | UpdatePortalLinkCategoryCommand
-  | DeletePortalLinkCategoryCommand
-  | ReorderPortalLinkCategoriesCommand
   | CreatePortalLinkCommand
   | UpdatePortalLinkCommand
   | DeletePortalLinkCommand
@@ -106,25 +98,6 @@ export function assertPortalContentCommand(command: PortalContentCommand): void 
   const event = command.event
   let scoped = false
   switch (event._tag) {
-    case 'portal_link_category.created':
-      scoped =
-        'category' in command &&
-        command.category.organizationId === command.organizationId &&
-        command.category.portalId === command.portalId &&
-        event.categoryId === command.category.id
-      break
-    case 'portal_link_category.updated':
-      scoped = 'title' in command && event.categoryId === command.categoryId
-      break
-    case 'portal_link_category.deleted':
-      scoped =
-        'categoryId' in command &&
-        !('linkId' in command) &&
-        event.categoryId === command.categoryId
-      break
-    case 'portal_link_category.reordered':
-      scoped = 'updates' in command && !('categoryId' in command)
-      break
     case 'portal_link.created':
       scoped =
         'link' in command &&
@@ -148,8 +121,8 @@ export function assertPortalContentCommand(command: PortalContentCommand): void 
         event.categoryId === command.categoryId
       break
     case 'portal.updated':
-      // Only the Linktree settings command reports a Portal fact; a link,
-      // category or text command carrying one is a mismatched pair.
+      // Only the Linktree settings command reports a Portal fact; a link or
+      // text command carrying one is a mismatched pair.
       scoped =
         ('titles' in command || 'enabled' in command) &&
         !('linkId' in command) &&

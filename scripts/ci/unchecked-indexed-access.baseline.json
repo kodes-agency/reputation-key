@@ -76,8 +76,6 @@
   "src/contexts/integration/application/oauth-callback-abuse-gate.test.ts": 2,
   "src/contexts/integration/application/use-cases/list-google-connections.test.ts": 1,
   "src/contexts/portal/application/use-cases/add-portal-to-group.test.ts": 2,
-  "src/contexts/portal/application/use-cases/create-link-category.test.ts": 1,
-  "src/contexts/portal/application/use-cases/create-link-category.ts": 1,
   "src/contexts/portal/application/use-cases/create-link.test.ts": 1,
   "src/contexts/portal/application/use-cases/create-link.ts": 1,
   "src/contexts/portal/application/use-cases/create-portal-group.test.ts": 2,

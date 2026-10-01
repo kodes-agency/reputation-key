@@ -9,12 +9,8 @@ import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
-import { portalLinkCategoryId, userId } from '#/shared/domain/ids'
-import {
-  portalLinkCategoryCreated,
-  portalPublicationPublished,
-  portalUpdated,
-} from '../domain/events'
+import { userId } from '#/shared/domain/ids'
+import { portalPublicationPublished, portalUpdated } from '../domain/events'
 import { buildPortalPublicationSnapshot } from '../application/portal-publication-snapshot'
 import type { RepublishPortalCommand } from '../application/ports/portal-command-store.port'
 import { createAtomicPortalCommandStore } from './portal-command-store'
@@ -585,15 +581,6 @@ describe.sequential('republishPortal (real PostgreSQL)', () => {
   })
 
   it('takes the Portal fence like a content edit: the edit that commits first wins', async () => {
-    const category = {
-      id: portalLinkCategoryId('7a000000-0000-4000-8000-000000000001'),
-      portalId: SCENARIO.portalId,
-      organizationId: SCENARIO.organizationId,
-      title: 'Local guides',
-      sortKey: 'a1',
-      createdAt: EDITED_AT,
-      updatedAt: EDITED_AT,
-    }
     const republish = await republishCommand()
     const lockClass = 43_822
     const lockObject = 9
@@ -626,20 +613,21 @@ describe.sequential('republishPortal (real PostgreSQL)', () => {
       gateOpen = true
       await gate.query('SELECT pg_advisory_xact_lock($1, $2)', [lockClass, lockObject])
 
-      const edit = store().createPortalLinkCategory({
+      const edit = store().savePortalLinktreeSettings({
         organizationId: SCENARIO.organizationId,
         actorUserId: MANAGER,
         propertyId: SCENARIO.propertyId,
         portalId: SCENARIO.portalId,
         expectedPortalUpdatedAt: PUBLISHED_AT,
-        category,
+        enabled: false,
         revision: EDITED_AT,
         occurredAt: EDITED_AT,
-        event: portalLinkCategoryCreated({
+        event: portalUpdated({
           portalId: SCENARIO.portalId,
-          categoryId: category.id,
           organizationId: SCENARIO.organizationId,
           propertyId: SCENARIO.propertyId,
+          previousPublicationState: 'published',
+          publicationState: 'published',
           sourceAggregateVersion: EDITED_AT.toISOString(),
           occurredAt: EDITED_AT,
         }),

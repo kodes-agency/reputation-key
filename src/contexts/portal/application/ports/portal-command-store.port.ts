@@ -31,9 +31,6 @@ import type {
   PortalGroupUpdated,
   PortalRemovedFromGroup,
   PortalLinkCategoryCreated,
-  PortalLinkCategoryDeleted,
-  PortalLinkCategoryReordered,
-  PortalLinkCategoryUpdated,
   PortalLinkCreated,
   PortalLinkDeleted,
   PortalLinkReordered,
@@ -307,31 +304,6 @@ type PortalContentCommandBase = Readonly<{
 type PortalPageEditCommandBase = PortalContentCommandBase &
   Readonly<{ actorUserId: UserId }>
 
-export type CreatePortalLinkCategoryCommand = PortalPageEditCommandBase &
-  Readonly<{
-    category: PortalLinkCategory
-    event: PortalLinkCategoryCreated
-  }>
-
-export type ReorderPortalLinkCategoriesCommand = PortalPageEditCommandBase &
-  Readonly<{
-    updates: ReadonlyArray<Readonly<{ id: PortalLinkCategoryId; sortKey: string }>>
-    event: PortalLinkCategoryReordered
-  }>
-
-export type UpdatePortalLinkCategoryCommand = PortalPageEditCommandBase &
-  Readonly<{
-    categoryId: PortalLinkCategoryId
-    title: string
-    event: PortalLinkCategoryUpdated
-  }>
-
-export type DeletePortalLinkCategoryCommand = PortalPageEditCommandBase &
-  Readonly<{
-    categoryId: PortalLinkCategoryId
-    event: PortalLinkCategoryDeleted
-  }>
-
 export type CreatePortalLinkCommand = PortalContentCommandBase &
   Readonly<{
     /** Who wrote the link; recorded on its primary-language text. */
@@ -478,10 +450,6 @@ export type PortalCommandStore = Readonly<{
   addPortalToGroup(command: AddPortalToGroupCommand): Promise<void>
   removePortalFromGroup(command: RemovePortalFromGroupCommand): Promise<void>
   movePortalToGroup(command: MovePortalToGroupCommand): Promise<void>
-  createPortalLinkCategory(command: CreatePortalLinkCategoryCommand): Promise<void>
-  updatePortalLinkCategory(command: UpdatePortalLinkCategoryCommand): Promise<void>
-  deletePortalLinkCategory(command: DeletePortalLinkCategoryCommand): Promise<void>
-  reorderPortalLinkCategories(command: ReorderPortalLinkCategoriesCommand): Promise<void>
   createPortalLink(command: CreatePortalLinkCommand): Promise<void>
   updatePortalLink(command: UpdatePortalLinkCommand): Promise<void>
   deletePortalLink(command: DeletePortalLinkCommand): Promise<void>

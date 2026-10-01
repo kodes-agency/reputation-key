@@ -97,55 +97,6 @@ export const createInMemoryPortalLinkRepo = (): InMemoryPortalLinkRepo => {
       categoryStore.set(String(cat.id), cat)
     },
 
-    updateCategory: async (orgId, portalId, id, patch) => {
-      const key = String(id)
-      const existing = categoryStore.get(key)
-      if (
-        !existing ||
-        existing.organizationId !== orgId ||
-        existing.portalId !== portalId
-      )
-        return
-      categoryStore.set(key, { ...existing, ...patch })
-    },
-
-    deleteCategory: async (orgId, portalId, id) => {
-      const key = String(id)
-      const existing = categoryStore.get(key)
-      if (
-        !existing ||
-        existing.organizationId !== orgId ||
-        existing.portalId !== portalId
-      )
-        return
-      categoryStore.delete(key)
-      for (const [linkId, link] of linkStore) {
-        if (link.categoryId === id && link.portalId === portalId) {
-          linkStore.delete(linkId)
-          dropTextsOf(linkId)
-        }
-      }
-    },
-
-    reorderCategories: async (orgId, portalId, updates) => {
-      const categories = updates.map(({ id }) => categoryStore.get(String(id)))
-      if (
-        categories.some(
-          (category) =>
-            !category ||
-            category.organizationId !== orgId ||
-            category.portalId !== portalId,
-        )
-      ) {
-        throw portalError('forbidden', 'Portal category scope mismatch')
-      }
-      for (const { id, sortKey } of updates) {
-        const key = String(id)
-        const existing = categoryStore.get(key)!
-        categoryStore.set(key, { ...existing, sortKey, updatedAt: new Date() })
-      }
-    },
-
     insertLink: async (_orgId, link) => {
       linkStore.set(String(link.id), link)
     },
@@ -203,13 +154,6 @@ export const createInMemoryPortalLinkRepo = (): InMemoryPortalLinkRepo => {
     findLinkById: async (orgId, id) => {
       const link = linkStore.get(String(id))
       return link && link.organizationId === orgId ? link : null
-    },
-
-    findCategoryCommandTarget: async (orgId, id) => {
-      const category = categoryStore.get(String(id))
-      return category && category.organizationId === orgId
-        ? { category, portalUpdatedAt: null }
-        : null
     },
 
     findLinkCommandTarget: async (orgId, id) => {

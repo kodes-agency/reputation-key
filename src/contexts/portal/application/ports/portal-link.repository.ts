@@ -37,22 +37,6 @@ export type PortalLinkRepository = Readonly<{
     primaryLocale: GuestLocale,
   ) => Promise<ReadonlyArray<ResolvedPortalLinkText>>
   insertCategory: (orgId: OrganizationId, cat: PortalLinkCategory) => Promise<void>
-  updateCategory: (
-    orgId: OrganizationId,
-    portalId: PortalId,
-    id: PortalLinkCategoryId,
-    patch: Readonly<Partial<PortalLinkCategory>>,
-  ) => Promise<void>
-  deleteCategory: (
-    orgId: OrganizationId,
-    portalId: PortalId,
-    id: PortalLinkCategoryId,
-  ) => Promise<void>
-  reorderCategories: (
-    orgId: OrganizationId,
-    portalId: PortalId,
-    updates: ReadonlyArray<{ id: PortalLinkCategoryId; sortKey: string }>,
-  ) => Promise<void>
   insertLink: (orgId: OrganizationId, link: PortalLink) => Promise<void>
   updateLink: (
     orgId: OrganizationId,
@@ -76,14 +60,6 @@ export type PortalLinkRepository = Readonly<{
     id: PortalLinkCategoryId,
   ) => Promise<PortalLinkCategory | null>
   findLinkById: (orgId: OrganizationId, id: PortalLinkId) => Promise<PortalLink | null>
-  /** Child state and its parent revision from one database snapshot. */
-  findCategoryCommandTarget: (
-    orgId: OrganizationId,
-    id: PortalLinkCategoryId,
-  ) => Promise<Readonly<{
-    category: PortalLinkCategory
-    portalUpdatedAt: Date | null
-  }> | null>
   /** Child state and its parent revision from one database snapshot. */
   findLinkCommandTarget: (
     orgId: OrganizationId,

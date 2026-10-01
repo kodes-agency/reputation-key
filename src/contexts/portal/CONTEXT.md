@@ -143,8 +143,10 @@ title, because a category row needs one. The category is built only after the li
 passed and is committed in the link's own transaction (`startCategory` on the
 create command), so a refused link leaves neither it nor its fact behind. Re-ordering still saves one category's order, so the
 editor moves a tile only among those of its own (older) category. The category
-commands stay for the legacy snapshots' sake; the v3 builder flattens categories
-(slice 19) and a later slice retires them.
+management commands (create, rename, delete, reorder) are retired: nothing calls
+them, and a category is only ever the one a first link starts. Categories made
+before round 4 stay in the working copy (the editor moves a tile within its own
+category); the v3 builder flattens them.
 
 The eligible creator is the initial Portal Responsible Manager (by default; the
 dialog may name other eligible managers, or nobody). Multiple eligible

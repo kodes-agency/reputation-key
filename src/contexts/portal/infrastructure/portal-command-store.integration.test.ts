@@ -26,9 +26,6 @@ import {
   portalGroupDeleted,
   portalGroupUpdated,
   portalLinkCategoryCreated,
-  portalLinkCategoryDeleted,
-  portalLinkCategoryReordered,
-  portalLinkCategoryUpdated,
   portalLinkCreated,
   portalLinkDeleted,
   portalLinkReordered,
@@ -1118,20 +1115,12 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
 
     const contentAt = UPDATED_AT
     const publishAt = new Date('2026-08-26T10:06:00.000Z')
-    const category = {
-      id: portalLinkCategoryId('7a000000-0000-4000-8000-000000000001'),
+    const contentEvent = portalUpdated({
       portalId: PORTAL_A,
-      organizationId: ORG_A,
-      title: 'Local guides',
-      sortKey: 'a0',
-      createdAt: contentAt,
-      updatedAt: contentAt,
-    }
-    const contentEvent = portalLinkCategoryCreated({
-      portalId: PORTAL_A,
-      categoryId: category.id,
       organizationId: ORG_A,
       propertyId: PROPERTY_A,
+      previousPublicationState: 'draft',
+      publicationState: 'draft',
       sourceAggregateVersion: contentAt.toISOString(),
       occurredAt: contentAt,
     })
@@ -1181,13 +1170,13 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       gateOpen = true
       await gate.query('SELECT pg_advisory_xact_lock($1, $2)', [lockClass, lockObject])
 
-      const content = store.createPortalLinkCategory({
+      const content = store.savePortalLinktreeSettings({
         organizationId: ORG_A,
         actorUserId: MANAGER,
         propertyId: PROPERTY_A,
         portalId: PORTAL_A,
         expectedPortalUpdatedAt: CREATED_AT,
-        category,
+        enabled: false,
         revision: contentAt,
         occurredAt: contentAt,
         event: contentEvent,
@@ -1248,10 +1237,8 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
         reason: { _tag: 'PortalError', code: 'revision_conflict' },
       })
       const state = await pool.query(
-        `SELECT p.publication_state, p.updated_at, c.id AS category_id
+        `SELECT p.publication_state, p.updated_at, p.linktree_enabled
          FROM portals p
-         JOIN portal_link_categories c
-           ON c.organization_id = p.organization_id AND c.portal_id = p.id
          WHERE p.organization_id = $1 AND p.id = $2`,
         [ORG_A, PORTAL_A],
       )
@@ -1259,7 +1246,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
         {
           publication_state: 'draft',
           updated_at: contentAt,
-          category_id: category.id,
+          linktree_enabled: false,
         },
       ])
     } finally {
@@ -1760,7 +1747,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     expect(fact.rows).toHaveLength(0)
   })
 
-  it('rolls back a new link category and the Portal revision when its fact conflicts', async () => {
+  it('rolls back a Linktree switch and the Portal revision when its fact conflicts', async () => {
     const portal = makePortal()
     const store = createAtomicPortalCommandStore(getDb())
     await store.createPortal({
@@ -1769,20 +1756,12 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       initialResponsibleManagerIds: [MANAGER],
       event: createdFact(portal),
     })
-    const category = {
-      id: portalLinkCategoryId('7a000000-0000-4000-8000-000000000001'),
+    const event = portalUpdated({
       portalId: PORTAL_A,
-      organizationId: ORG_A,
-      title: 'Local guides',
-      sortKey: 'a0',
-      createdAt: UPDATED_AT,
-      updatedAt: UPDATED_AT,
-    }
-    const event = portalLinkCategoryCreated({
-      portalId: PORTAL_A,
-      categoryId: category.id,
       organizationId: ORG_A,
       propertyId: PROPERTY_A,
+      previousPublicationState: portal.publicationState,
+      publicationState: portal.publicationState,
       sourceAggregateVersion: UPDATED_AT.toISOString(),
       occurredAt: UPDATED_AT,
     })
@@ -1790,36 +1769,31 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       `INSERT INTO outbox_events
          (id, event_type, event_version, payload, organization_id, property_id,
           source_context, source_aggregate_id, created_at)
-       VALUES ($1, 'portal_link_category.created', 1, '{}'::jsonb, $2, $3,
-               'portal_link_category', $4, $5)`,
+       VALUES ($1, 'portal.updated', 1, '{}'::jsonb, $2, $3,
+               'portal', $4, $5)`,
       [event.eventId, ORG_A, PROPERTY_A, PORTAL_A, UPDATED_AT],
     )
 
     await expect(
-      store.createPortalLinkCategory({
+      store.savePortalLinktreeSettings({
         organizationId: ORG_A,
         actorUserId: MANAGER,
         propertyId: PROPERTY_A,
         portalId: PORTAL_A,
         expectedPortalUpdatedAt: CREATED_AT,
-        category,
+        enabled: false,
         revision: UPDATED_AT,
         occurredAt: UPDATED_AT,
         event,
       }),
     ).rejects.toSatisfy((error: unknown) => hasDatabaseErrorCode(error, '23505'))
 
-    const categories = await getPool().query(
-      `SELECT id FROM portal_link_categories
-       WHERE organization_id = $1 AND portal_id = $2`,
-      [ORG_A, PORTAL_A],
-    )
     const portalState = await getPool().query(
-      `SELECT updated_at FROM portals WHERE organization_id = $1 AND id = $2`,
+      `SELECT updated_at, linktree_enabled FROM portals
+        WHERE organization_id = $1 AND id = $2`,
       [ORG_A, PORTAL_A],
     )
-    expect(categories.rows).toHaveLength(0)
-    expect(portalState.rows).toEqual([{ updated_at: CREATED_AT }])
+    expect(portalState.rows).toEqual([{ updated_at: CREATED_AT, linktree_enabled: true }])
   })
 
   it('rolls back token issuance and the Portal revision when its fact conflicts', async () => {
@@ -2126,7 +2100,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     expect(facts.rows).toHaveLength(1)
   })
 
-  it('commits category/link creation and reorder facts against one Portal revision chain', async () => {
+  it('commits a link with the category it starts, and a link reorder, against one Portal revision chain', async () => {
     const portal = makePortal()
     const store = createAtomicPortalCommandStore(getDb())
     await store.createPortal({
@@ -2135,9 +2109,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       initialResponsibleManagerIds: [MANAGER],
       event: createdFact(portal),
     })
-    const categoryAt = UPDATED_AT
     const linkAt = new Date('2026-08-26T10:06:00.000Z')
-    const categoryReorderAt = new Date('2026-08-26T10:07:00.000Z')
     const linkReorderAt = new Date('2026-08-26T10:08:00.000Z')
     const category = {
       id: portalLinkCategoryId('7a000000-0000-4000-8000-000000000001'),
@@ -2145,27 +2117,16 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       organizationId: ORG_A,
       title: 'Local guides',
       sortKey: 'a0',
-      createdAt: categoryAt,
-      updatedAt: categoryAt,
+      createdAt: linkAt,
+      updatedAt: linkAt,
     }
     const categoryCreated = portalLinkCategoryCreated({
       portalId: PORTAL_A,
       categoryId: category.id,
       organizationId: ORG_A,
       propertyId: PROPERTY_A,
-      sourceAggregateVersion: categoryAt.toISOString(),
-      occurredAt: categoryAt,
-    })
-    await store.createPortalLinkCategory({
-      organizationId: ORG_A,
-      actorUserId: MANAGER,
-      propertyId: PROPERTY_A,
-      portalId: PORTAL_A,
-      expectedPortalUpdatedAt: CREATED_AT,
-      category,
-      revision: categoryAt,
-      occurredAt: categoryAt,
-      event: categoryCreated,
+      sourceAggregateVersion: linkAt.toISOString(),
+      occurredAt: linkAt,
     })
     const link = {
       id: portalLinkId('7c000000-0000-4000-8000-000000000001'),
@@ -2196,30 +2157,13 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       organizationId: ORG_A,
       propertyId: PROPERTY_A,
       portalId: PORTAL_A,
-      expectedPortalUpdatedAt: categoryAt,
+      expectedPortalUpdatedAt: CREATED_AT,
       actorUserId: MANAGER,
       link,
+      startCategory: { category, event: categoryCreated },
       revision: linkAt,
       occurredAt: linkAt,
       event: linkCreated,
-    })
-    const categoryReordered = portalLinkCategoryReordered({
-      portalId: PORTAL_A,
-      organizationId: ORG_A,
-      propertyId: PROPERTY_A,
-      sourceAggregateVersion: categoryReorderAt.toISOString(),
-      occurredAt: categoryReorderAt,
-    })
-    await store.reorderPortalLinkCategories({
-      organizationId: ORG_A,
-      actorUserId: MANAGER,
-      propertyId: PROPERTY_A,
-      portalId: PORTAL_A,
-      expectedPortalUpdatedAt: linkAt,
-      updates: [{ id: category.id, sortKey: 'b0' }],
-      revision: categoryReorderAt,
-      occurredAt: categoryReorderAt,
-      event: categoryReordered,
     })
     const linkReordered = portalLinkReordered({
       portalId: PORTAL_A,
@@ -2234,7 +2178,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       actorUserId: MANAGER,
       propertyId: PROPERTY_A,
       portalId: PORTAL_A,
-      expectedPortalUpdatedAt: categoryReorderAt,
+      expectedPortalUpdatedAt: linkAt,
       categoryId: category.id,
       updates: [{ id: link.id, sortKey: 'b0' }],
       revision: linkReorderAt,
@@ -2259,11 +2203,11 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     expect(state.rows).toEqual([
       {
         updated_at: linkReorderAt,
-        category_sort_key: 'b0',
+        category_sort_key: 'a0',
         link_sort_key: 'b0',
       },
     ])
-    expect(facts.rows).toHaveLength(4)
+    expect(facts.rows).toHaveLength(3)
     for (const fact of facts.rows) {
       expect(fact.payload).toMatchObject({ propertyId: PROPERTY_A })
       expect(fact.payload).toHaveProperty('sourceAggregateVersion')
@@ -2271,8 +2215,8 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       expect(fact.payload).not.toHaveProperty('label')
       expect(fact.payload).not.toHaveProperty('url')
     }
-    // Each of the four commands names who made it and what it did to which
-    // category or link, in the order they ran; a reorder carries no wording.
+    // Each command names who made it and what it did to which category or
+    // link, in the order they ran; a reorder carries no wording.
     expect(
       (await pageEditRows()).map((row) => [
         row.change_kind,
@@ -2284,12 +2228,11 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     ).toEqual([
       ['portal_links', `category:${category.id}:created`, MANAGER, null, 'Local guides'],
       ['portal_links', `link:${link.id}:created`, MANAGER, null, 'City guide'],
-      ['portal_links', 'categories:reordered', MANAGER, null, null],
       ['portal_links', `links:${category.id}:reordered`, MANAGER, null, null],
     ])
   })
 
-  it('commits link/category update and delete state with identifier-only facts and Portal CAS', async () => {
+  it('commits link update and delete state with identifier-only facts and Portal CAS', async () => {
     const portal = makePortal()
     const store = createAtomicPortalCommandStore(getDb())
     await store.createPortal({
@@ -2298,8 +2241,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       initialResponsibleManagerIds: [MANAGER],
       event: createdFact(portal),
     })
-    const categoryRevision = UPDATED_AT
-    const linkRevision = new Date(UPDATED_AT.getTime() + 1)
+    const linkRevision = UPDATED_AT
     const category = {
       id: portalLinkCategoryId('7a000000-0000-4000-8000-000000000001'),
       portalId: PORTAL_A,
@@ -2309,24 +2251,6 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       createdAt: CREATED_AT,
       updatedAt: CREATED_AT,
     }
-    await store.createPortalLinkCategory({
-      organizationId: ORG_A,
-      actorUserId: MANAGER,
-      propertyId: PROPERTY_A,
-      portalId: PORTAL_A,
-      expectedPortalUpdatedAt: CREATED_AT,
-      category,
-      revision: categoryRevision,
-      occurredAt: CREATED_AT,
-      event: portalLinkCategoryCreated({
-        portalId: PORTAL_A,
-        categoryId: category.id,
-        organizationId: ORG_A,
-        propertyId: PROPERTY_A,
-        sourceAggregateVersion: categoryRevision.toISOString(),
-        occurredAt: CREATED_AT,
-      }),
-    })
     const link = {
       id: portalLinkId('7c000000-0000-4000-8000-000000000001'),
       categoryId: category.id,
@@ -2347,9 +2271,20 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       organizationId: ORG_A,
       propertyId: PROPERTY_A,
       portalId: PORTAL_A,
-      expectedPortalUpdatedAt: categoryRevision,
+      expectedPortalUpdatedAt: CREATED_AT,
       actorUserId: MANAGER,
       link,
+      startCategory: {
+        category,
+        event: portalLinkCategoryCreated({
+          portalId: PORTAL_A,
+          categoryId: category.id,
+          organizationId: ORG_A,
+          propertyId: PROPERTY_A,
+          sourceAggregateVersion: linkRevision.toISOString(),
+          occurredAt: CREATED_AT,
+        }),
+      },
       revision: linkRevision,
       occurredAt: CREATED_AT,
       event: portalLinkCreated({
@@ -2363,35 +2298,13 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       }),
     })
 
-    const categoryUpdateRevision = new Date(linkRevision.getTime() + 1)
-    const categoryOccurredAt = new Date(CREATED_AT.getTime() + 1)
-    await store.updatePortalLinkCategory({
-      organizationId: ORG_A,
-      actorUserId: MANAGER,
-      propertyId: PROPERTY_A,
-      portalId: PORTAL_A,
-      expectedPortalUpdatedAt: linkRevision,
-      revision: categoryUpdateRevision,
-      occurredAt: categoryOccurredAt,
-      categoryId: category.id,
-      title: 'Updated guides',
-      event: portalLinkCategoryUpdated({
-        portalId: PORTAL_A,
-        categoryId: category.id,
-        organizationId: ORG_A,
-        propertyId: PROPERTY_A,
-        sourceAggregateVersion: categoryUpdateRevision.toISOString(),
-        occurredAt: categoryOccurredAt,
-      }),
-    })
-
-    const linkUpdateRevision = new Date(categoryUpdateRevision.getTime() + 1)
+    const linkUpdateRevision = new Date(linkRevision.getTime() + 1)
     const linkOccurredAt = new Date(CREATED_AT.getTime() + 2)
     await store.updatePortalLink({
       organizationId: ORG_A,
       propertyId: PROPERTY_A,
       portalId: PORTAL_A,
-      expectedPortalUpdatedAt: categoryUpdateRevision,
+      expectedPortalUpdatedAt: linkRevision,
       actorUserId: MANAGER,
       revision: linkUpdateRevision,
       occurredAt: linkOccurredAt,
@@ -2464,27 +2377,6 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       event: deletedLink,
     })
 
-    const deleteCategoryRevision = new Date(deleteLinkRevision.getTime() + 1)
-    const deletedCategory = portalLinkCategoryDeleted({
-      portalId: PORTAL_A,
-      categoryId: category.id,
-      organizationId: ORG_A,
-      propertyId: PROPERTY_A,
-      sourceAggregateVersion: deleteCategoryRevision.toISOString(),
-      occurredAt: CREATED_AT,
-    })
-    await store.deletePortalLinkCategory({
-      organizationId: ORG_A,
-      actorUserId: MANAGER,
-      propertyId: PROPERTY_A,
-      portalId: PORTAL_A,
-      expectedPortalUpdatedAt: deleteLinkRevision,
-      revision: deleteCategoryRevision,
-      occurredAt: CREATED_AT,
-      categoryId: category.id,
-      event: deletedCategory,
-    })
-
     const state = await getPool().query(
       `SELECT p.updated_at,
               (SELECT COUNT(*)::int FROM portal_link_categories c WHERE c.portal_id = p.id) AS categories,
@@ -2493,19 +2385,16 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       [ORG_A, PORTAL_A],
     )
     expect(state.rows).toEqual([
-      { updated_at: deleteCategoryRevision, categories: 0, links: 0 },
+      { updated_at: deleteLinkRevision, categories: 1, links: 0 },
     ])
     const facts = await getPool().query(
       `SELECT event_type, payload FROM outbox_events
        WHERE organization_id = $1
-         AND event_type IN (
-           'portal_link_category.updated', 'portal_link.updated',
-           'portal_link.deleted', 'portal_link_category.deleted'
-         )
+         AND event_type IN ('portal_link.updated', 'portal_link.deleted')
        ORDER BY event_type`,
       [ORG_A],
     )
-    expect(facts.rows).toHaveLength(4)
+    expect(facts.rows).toHaveLength(2)
     for (const fact of facts.rows) {
       expect(fact.payload).toMatchObject({
         portalId: PORTAL_A,
@@ -2520,11 +2409,10 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       expect(fact.payload).not.toHaveProperty('content')
     }
     expect(
-      facts.rows.find((fact) => fact.event_type === 'portal_link_category.updated')
-        ?.payload,
+      facts.rows.find((fact) => fact.event_type === 'portal_link.updated')?.payload,
     ).toMatchObject({
-      sourceAggregateVersion: categoryUpdateRevision.toISOString(),
-      occurredAt: categoryOccurredAt.toISOString(),
+      sourceAggregateVersion: linkUpdateRevision.toISOString(),
+      occurredAt: linkOccurredAt.toISOString(),
     })
     const failedFact = await getPool().query(
       'SELECT id FROM outbox_events WHERE id = $1',
@@ -2542,10 +2430,8 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       ]),
     ).toEqual([
       [`category:${category.id}:created`, MANAGER, null, 'Local guides'],
-      [`category:${category.id}:deleted`, MANAGER, 'Updated guides', null],
       [`link:${link.id}:created`, MANAGER, null, 'City guide'],
       [`link:${link.id}:deleted`, MANAGER, 'Updated city guide', null],
-      [`category:${category.id}:renamed`, MANAGER, 'Local guides', 'Updated guides'],
       [`link:${link.id}:updated`, MANAGER, 'City guide', 'Updated city guide'],
     ])
   })
@@ -2563,51 +2449,31 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     const categoryAt = new Date('2026-08-26T10:01:00.000Z')
     const staleAt = new Date('2026-08-26T10:02:00.000Z')
     const newerAt = new Date('2026-08-26T10:03:00.000Z')
-    const category = {
-      id: portalLinkCategoryId('7a000000-0000-4000-8000-000000000001'),
-      portalId: PORTAL_A,
-      organizationId: ORG_A,
-      title: 'Local guides',
-      sortKey: 'a0',
-      createdAt: categoryAt,
-      updatedAt: categoryAt,
-    }
-    await store.createPortalLinkCategory({
+    const settingsChange = (
+      expectedPortalUpdatedAt: Date,
+      at: Date,
+      enabled: boolean,
+    ) => ({
       organizationId: ORG_A,
       actorUserId: MANAGER,
       propertyId: PROPERTY_A,
       portalId: PORTAL_A,
-      expectedPortalUpdatedAt: CREATED_AT,
-      category,
-      revision: categoryAt,
-      occurredAt: categoryAt,
-      event: portalLinkCategoryCreated({
-        portalId: PORTAL_A,
-        categoryId: category.id,
-        organizationId: ORG_A,
-        propertyId: PROPERTY_A,
-        sourceAggregateVersion: categoryAt.toISOString(),
-        occurredAt: categoryAt,
-      }),
-    })
-
-    await store.reorderPortalLinkCategories({
-      organizationId: ORG_A,
-      actorUserId: MANAGER,
-      propertyId: PROPERTY_A,
-      portalId: PORTAL_A,
-      expectedPortalUpdatedAt: categoryAt,
-      updates: [{ id: category.id, sortKey: 'b0' }],
-      revision: newerAt,
-      occurredAt: newerAt,
-      event: portalLinkCategoryReordered({
+      expectedPortalUpdatedAt,
+      enabled,
+      revision: at,
+      occurredAt: at,
+      event: portalUpdated({
         portalId: PORTAL_A,
         organizationId: ORG_A,
         propertyId: PROPERTY_A,
-        sourceAggregateVersion: newerAt.toISOString(),
-        occurredAt: newerAt,
+        previousPublicationState: 'published',
+        publicationState: 'published',
+        sourceAggregateVersion: at.toISOString(),
+        occurredAt: at,
       }),
     })
+    await store.savePortalLinktreeSettings(settingsChange(CREATED_AT, categoryAt, false))
+    await store.savePortalLinktreeSettings(settingsChange(categoryAt, newerAt, true))
 
     const workflowStore = createPortalWorkflowFactStore(getDb())
     const workflowCommand = {
@@ -2636,37 +2502,18 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     ).resolves.toMatchObject({ status: 'duplicate' })
 
     await expect(
-      store.reorderPortalLinkCategories({
-        organizationId: ORG_A,
-        actorUserId: MANAGER,
-        propertyId: PROPERTY_A,
-        portalId: PORTAL_A,
-        expectedPortalUpdatedAt: categoryAt,
-        updates: [{ id: category.id, sortKey: 'c0' }],
-        revision: staleAt,
-        occurredAt: staleAt,
-        event: portalLinkCategoryReordered({
-          portalId: PORTAL_A,
-          organizationId: ORG_A,
-          propertyId: PROPERTY_A,
-          sourceAggregateVersion: staleAt.toISOString(),
-          occurredAt: staleAt,
-        }),
-      }),
+      store.savePortalLinktreeSettings(settingsChange(categoryAt, staleAt, false)),
     ).rejects.toMatchObject({ _tag: 'PortalError', code: 'revision_conflict' })
 
     const state = await getPool().query(
-      `SELECT p.updated_at, c.sort_key
-       FROM portals p
-       JOIN portal_link_categories c
-         ON c.organization_id = p.organization_id AND c.portal_id = p.id
-       WHERE p.organization_id = $1 AND p.id = $2 AND c.id = $3`,
-      [ORG_A, PORTAL_A, category.id],
+      `SELECT updated_at, linktree_enabled FROM portals
+        WHERE organization_id = $1 AND id = $2`,
+      [ORG_A, PORTAL_A],
     )
     expect(state.rows).toEqual([
       {
         updated_at: workflowRevision,
-        sort_key: 'b0',
+        linktree_enabled: true,
       },
     ])
     const workflowFacts = await getPool().query(

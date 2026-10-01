@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import { createPortalGroupInputSchema } from './create-portal-group.dto'
-import { createLinkCategoryInputSchema } from './portal-link-category.dto'
 import { createLinkInputSchema } from './portal-link.dto'
 import {
   portalApprovedDestinationRequestInputSchema,
@@ -17,14 +16,10 @@ import {
 } from './portal-token-lifecycle.dto'
 
 describe('Portal form DTO contracts', () => {
-  it('normalizes names and rejects whitespace-only category data', () => {
+  it('normalizes group names', () => {
     expect(
       createPortalGroupInputSchema.parse({ propertyId: 'property-1', name: '  Lobby  ' }),
     ).toMatchObject({ name: 'Lobby' })
-    expect(
-      createLinkCategoryInputSchema.safeParse({ portalId: 'portal-1', title: '   ' })
-        .success,
-    ).toBe(false)
   })
 
   it('uses the server link contract as the HTTPS-only form authority', () => {

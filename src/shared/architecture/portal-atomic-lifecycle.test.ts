@@ -10,8 +10,6 @@ const CORE_USE_CASES = [
   'src/contexts/portal/application/use-cases/create-portal.ts',
   'src/contexts/portal/application/use-cases/update-portal.ts',
   'src/contexts/portal/application/use-cases/soft-delete-portal.ts',
-  'src/contexts/portal/application/use-cases/update-link-category.ts',
-  'src/contexts/portal/application/use-cases/delete-link-category.ts',
   'src/contexts/portal/application/use-cases/update-link.ts',
   'src/contexts/portal/application/use-cases/delete-link.ts',
 ] as const
@@ -108,12 +106,6 @@ describe('architecture: core Portal lifecycle facts are atomic', () => {
       'src/contexts/portal/application/use-cases/delete-link.ts',
     ]) {
       expect(read(file)).toContain('findLinkCommandTarget')
-    }
-    for (const file of [
-      'src/contexts/portal/application/use-cases/update-link-category.ts',
-      'src/contexts/portal/application/use-cases/delete-link-category.ts',
-    ]) {
-      expect(read(file)).toContain('findCategoryCommandTarget')
     }
     const implementation = read(
       'src/contexts/portal/infrastructure/repositories/portal-link.repository.ts',
