@@ -709,8 +709,11 @@ whether the object was a replaceable derivative or an irreplaceable approved
 source. Check cleanup receipts and lifecycle rules before assuming provider
 loss.
 
-**Containment:** Disable new media issuance/finalization and serve the safe
-presentation fallback. Do not make the bucket public, broaden credentials,
+**Containment:** Stop new uploads with `BETA_CAPABILITIES_OFF=portal.upload`
+(the sweep and takedown keep working; §27) and serve the safe presentation
+fallback. A page whose image cannot be read is served without it, and the
+image route logs `portal_media_object_missing` or `portal_media_object_mismatch`
+with the asset id. Do not make the bucket public, broaden credentials,
 restore an entire database, or read from a bucket in a dormant cell to repair
 one object.
 
@@ -1057,3 +1060,45 @@ portal_address_downloads WHERE organization_id = '<org>'` rises by one per
 download.
 
 **Escalation:** Bozhidar Denev.
+
+---
+
+## 27. Taking Down a Portal Image
+
+**Trigger/Symptoms:** An uploaded Portal image (a Property photograph, a logo or
+a link tile picture) must not be shown: a rights complaint, an upload that should
+never have been public, or content that breaches policy.
+
+**Impact:** Until it is taken down the image is served to every guest of every
+published Portal that names it.
+
+**Prerequisites:** The asset id (a UUID; it is in the image URL
+`/api/public/portal-media/<id>`). Never put the image, a signed URL or a person's
+name in the incident record.
+
+**Containment:** An Account Admin of the Organization takes the image down with the
+`takeDownPortalMedia` server function (gated on `portal.write`, so it works with
+uploads off). There is no button for it yet; when the manager controls ship, they
+call the same function. If no Account Admin session is to hand, the operator path
+is one statement, after which the hourly sweep removes the object:
+
+```sql
+UPDATE portal_media_assets
+SET status = 'taken_down', taken_down_at = now()
+WHERE id = '<asset id>' AND status = 'active';
+```
+
+From that moment the image route answers 404 for it. A browser or shared cache that
+already holds the image keeps it for at most five minutes.
+
+**Recovery:** None by design: the object is removed and the row stays, because
+published snapshots name assets by id and must keep verifying; they show their
+no-photo look. The manager uploads a replacement.
+
+**Verification:** `GET /api/public/portal-media/<id>` returns 404;
+`SELECT object_deleted_at FROM portal_media_assets WHERE id = '<asset id>'` is set
+within the hour (the `portal-media-sweep` job); if it stays empty, read the
+worker log for `portal_media_sweep_object_failed` and fix the bucket access.
+
+**Escalation/Evidence:** Bozhidar Denev. Record the asset id, who took it down and
+when (`taken_down_at`), and the time the object was confirmed removed.

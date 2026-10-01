@@ -87,7 +87,9 @@ describe('getObject', () => {
       ContentLength: 101,
     } as never)
 
-    await expect(store().getObject('portal-media/a.webp', 100)).rejects.toThrow()
+    await expect(store().getObject('portal-media/a.webp', 100)).rejects.toThrow(
+      'larger than allowed',
+    )
     expect(transformToByteArray).not.toHaveBeenCalled()
   })
 
@@ -95,7 +97,9 @@ describe('getObject', () => {
     vi.spyOn(S3Client.prototype, 'send').mockResolvedValue(
       response(new Uint8Array(101), { ContentLength: 5 }) as never,
     )
-    await expect(store().getObject('portal-media/a.webp', 100)).rejects.toThrow()
+    await expect(store().getObject('portal-media/a.webp', 100)).rejects.toThrow(
+      'larger than allowed',
+    )
   })
 
   it('passes a provider failure on instead of reading it as a missing object', async () => {
