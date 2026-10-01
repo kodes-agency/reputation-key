@@ -15,6 +15,8 @@ import { getEnv } from '#/shared/config/env'
 import type { Database } from '#/shared/db'
 import { deleteTestOrganizations } from '#/shared/testing/integration-helpers'
 import { acquireTestLease, type TestLease } from '#/shared/testing/test-environment-lease'
+import { portalMediaObjectKey } from '#/shared/domain/portal-media'
+import { createInMemoryObjectStore } from '#/shared/testing/in-memory-object-store'
 import type { OrganizationLifecycleContributionInput } from '#/contexts/identity/application/ports/organization-lifecycle-contributor.port'
 import {
   PORTAL_PURGE_PLAN,
@@ -25,6 +27,13 @@ import {
 const organizations = new Set<string>()
 let lease: TestLease
 let db: Database
+// The private object store. Every seeded asset has its object here, so a purge
+// that leaves one behind is visible.
+const objectStore = createInMemoryObjectStore()
+
+const storeObject = (assetId: string) =>
+  objectStore.putObject(portalMediaObjectKey(assetId), Buffer.from('image'), 'image/webp')
+const storedKeys = () => [...objectStore.objects().keys()]
 
 const DIGEST = 'a'.repeat(64)
 const OCCURRED_AT = new Date('2027-01-15T00:00:00.000Z')
@@ -117,6 +126,7 @@ async function seedFixture(): Promise<Fixture> {
                2400, 1600, 180000, repeat('a', 64), 'jpeg', 2500000, now(), $4)`,
     [mediaAssetId, organizationId, fixture.propertyId, actor],
   )
+  await storeObject(mediaAssetId)
   await q(
     `INSERT INTO property_portal_brand_profiles (
        id, organization_id, property_id, display_name, primary_color,
@@ -263,6 +273,7 @@ async function seedMediaOnlyFixture(): Promise<Fixture> {
      VALUES ($1, $2, 'Harbour House', 'harbour-house', 'UTC', now(), now())`,
     [propertyId, organizationId],
   )
+  const mediaAssetId = randomUUID()
   await lease.pool.query(
     `INSERT INTO portal_media_assets (
        id, organization_id, property_id, purpose, object_key, content_type, width,
@@ -270,8 +281,9 @@ async function seedMediaOnlyFixture(): Promise<Fixture> {
        rights_confirmed_at, created_by
      ) VALUES ($1::uuid, $2, $3, 'hero', 'portal-media/' || $1::text || '.webp', 'image/webp',
                2400, 1600, 180000, repeat('a', 64), 'jpeg', 2500000, now(), 'media-only-actor')`,
-    [randomUUID(), organizationId, propertyId],
+    [mediaAssetId, organizationId, propertyId],
   )
+  await storeObject(mediaAssetId)
   return {
     organizationId,
     propertyId,
@@ -429,6 +441,7 @@ describe.sequential('Portal Organization lifecycle contributor', () => {
   })
 
   afterEach(async () => {
+    for (const key of storedKeys()) await objectStore.deleteObject(key)
     const ids = [...organizations]
     for (const table of CLEANUP_ORDER) {
       await lease.pool.query(
@@ -448,9 +461,10 @@ describe.sequential('Portal Organization lifecycle contributor', () => {
     const before = await counts(fixture.organizationId)
     expect(await resolvablePortalCount(fixture.organizationId)).toBe(1)
 
-    const result = await createPortalOrganizationLifecycleContributor(db).prepareClosing(
-      input(fixture, lineage, revision),
-    )
+    const result = await createPortalOrganizationLifecycleContributor(
+      db,
+      objectStore,
+    ).prepareClosing(input(fixture, lineage, revision))
 
     expect(result).toEqual({
       outcome: 'complete',
@@ -523,9 +537,10 @@ describe.sequential('Portal Organization lifecycle contributor', () => {
     const lineage = randomUUID()
     const revision = await seedAuthority(fixture, lineage, 'closure_requested')
 
-    const result = await createPortalOrganizationLifecycleContributor(db).prepareClosing(
-      input(fixture, lineage, revision),
-    )
+    const result = await createPortalOrganizationLifecycleContributor(
+      db,
+      objectStore,
+    ).prepareClosing(input(fixture, lineage, revision))
 
     // Affirmative absence, never an omitted contributor.
     expect(result).toEqual({
@@ -546,6 +561,7 @@ describe.sequential('Portal Organization lifecycle contributor', () => {
 
       const result = await createPortalOrganizationLifecycleContributor(
         db,
+        objectStore,
       ).prepareClosing(input(fixture, lineage, revision))
 
       expect(result.outcome).toBe('complete')
@@ -558,6 +574,7 @@ describe.sequential('Portal Organization lifecycle contributor', () => {
 
       const result = await createPortalOrganizationLifecycleContributor(
         db,
+        objectStore,
       ).verifyPurgeReadiness(input(fixture, lineage, revision))
 
       expect(result.outcome).toBe('complete')
@@ -568,9 +585,10 @@ describe.sequential('Portal Organization lifecycle contributor', () => {
       const lineage = randomUUID()
       const revision = await seedAuthority(fixture, lineage, 'purging')
 
-      const purged = await createPortalOrganizationLifecycleContributor(db).purge(
-        input(fixture, lineage, revision),
-      )
+      const purged = await createPortalOrganizationLifecycleContributor(
+        db,
+        objectStore,
+      ).purge(input(fixture, lineage, revision))
 
       expect(purged).toEqual({
         outcome: 'complete',
@@ -593,7 +611,7 @@ describe.sequential('Portal Organization lifecycle contributor', () => {
     const fixture = await seedFixture()
     const lineage = randomUUID()
     const revision = await seedAuthority(fixture, lineage, 'closing')
-    const contributor = createPortalOrganizationLifecycleContributor(db)
+    const contributor = createPortalOrganizationLifecycleContributor(db, objectStore)
     const before = await counts(fixture.organizationId)
 
     await expect(
@@ -637,7 +655,7 @@ describe.sequential('Portal Organization lifecycle contributor', () => {
     const lineage = randomUUID()
     const revision = await seedAuthority(fixture, lineage, 'purging')
     const bystanderBefore = await counts(bystander.organizationId)
-    const contributor = createPortalOrganizationLifecycleContributor(db)
+    const contributor = createPortalOrganizationLifecycleContributor(db, objectStore)
     // Every planned table starts non-empty, so "empty after" proves the delete.
     const seeded = await counts(fixture.organizationId)
     for (const table of PORTAL_PURGE_PLAN) {
@@ -675,12 +693,99 @@ describe.sequential('Portal Organization lifecycle contributor', () => {
     expect(Number(receipts.rows[0]?.count)).toBe(1)
   })
 
+  describe('the stored images', () => {
+    const keysOf = async (organizationId: string) =>
+      (
+        await lease.pool.query(
+          `SELECT object_key FROM portal_media_assets WHERE organization_id = $1`,
+          [organizationId],
+        )
+      ).rows.map((row) => String(row.object_key))
+
+    it('removes this Organization’s objects, and only theirs', async () => {
+      const fixture = await seedFixture()
+      const bystander = await seedFixture()
+      const lineage = randomUUID()
+      const revision = await seedAuthority(fixture, lineage, 'purging')
+      const mine = await keysOf(fixture.organizationId)
+      const theirs = await keysOf(bystander.organizationId)
+      expect(mine).toHaveLength(1)
+      expect(storedKeys().sort()).toEqual([...mine, ...theirs].sort())
+
+      await createPortalOrganizationLifecycleContributor(db, objectStore).purge(
+        input(fixture, lineage, revision),
+      )
+
+      expect(storedKeys()).toEqual(theirs)
+    })
+
+    it('removes the objects of an Organization whose only Portal rows are images', async () => {
+      const fixture = await seedMediaOnlyFixture()
+      const lineage = randomUUID()
+      const revision = await seedAuthority(fixture, lineage, 'purging')
+      expect(storedKeys()).toHaveLength(1)
+
+      await createPortalOrganizationLifecycleContributor(db, objectStore).purge(
+        input(fixture, lineage, revision),
+      )
+
+      expect(storedKeys()).toEqual([])
+    })
+
+    it('keeps the rows when an object cannot be removed, and converges on the next pass', async () => {
+      const fixture = await seedFixture()
+      const lineage = randomUUID()
+      const revision = await seedAuthority(fixture, lineage, 'purging')
+      const contributor = createPortalOrganizationLifecycleContributor(db, objectStore)
+      objectStore.failNextDelete(new Error('store unavailable'))
+
+      await expect(contributor.purge(input(fixture, lineage, revision))).rejects.toThrow(
+        'store unavailable',
+      )
+
+      // Nothing was scrubbed: the rows still name the object, so it can be found again.
+      const after = await counts(fixture.organizationId)
+      expect(after.portal_media_assets).toBe(1)
+      expect(after.portals).toBe(1)
+      expect(storedKeys()).toHaveLength(1)
+
+      const retry = await contributor.purge(input(fixture, lineage, revision))
+      expect(retry.outcome).toBe('complete')
+      expect(storedKeys()).toEqual([])
+      expect((await counts(fixture.organizationId)).portal_media_assets).toBe(0)
+    })
+
+    it('does not ask the store again for an object whose removal was already recorded', async () => {
+      const fixture = await seedFixture()
+      const lineage = randomUUID()
+      const revision = await seedAuthority(fixture, lineage, 'purging')
+      await lease.pool.query(
+        `UPDATE portal_media_assets
+         SET status = 'taken_down', taken_down_at = now(), object_deleted_at = now()
+         WHERE organization_id = $1`,
+        [fixture.organizationId],
+      )
+      // The object is already gone, so the store would refuse a second delete here.
+      for (const key of storedKeys()) await objectStore.deleteObject(key)
+      objectStore.failNextDelete(new Error('must not be asked'))
+
+      const result = await createPortalOrganizationLifecycleContributor(
+        db,
+        objectStore,
+      ).purge(input(fixture, lineage, revision))
+
+      expect(result.outcome).toBe('complete')
+      // The armed failure is still waiting: the purge never asked the store.
+      await expect(objectStore.deleteObject('probe')).rejects.toThrow('must not be asked')
+    })
+  })
+
   it('never drops a table or a compatibility mirror', async () => {
     const fixture = await seedFixture()
     const lineage = randomUUID()
     const revision = await seedAuthority(fixture, lineage, 'purging')
 
-    await createPortalOrganizationLifecycleContributor(db).purge(
+    await createPortalOrganizationLifecycleContributor(db, objectStore).purge(
       input(fixture, lineage, revision),
     )
 

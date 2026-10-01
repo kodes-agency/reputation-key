@@ -58,11 +58,14 @@ describe('organization export contributor set', () => {
 
 describe('organization lifecycle contributor set', () => {
   const integration = { context: 'integration' as const } as never
+  const objectStore = { deleteObject: async () => {} }
 
   it('covers every lifecycle context except identity, exactly once', () => {
-    const contexts = buildOrganizationLifecycleContributors(db, integration).map(
-      (contributor) => contributor.context,
-    )
+    const contexts = buildOrganizationLifecycleContributors(
+      db,
+      integration,
+      objectStore,
+    ).map((contributor) => contributor.context)
     const expected = ORGANIZATION_LIFECYCLE_CONTEXTS.filter(
       (context) => context !== 'identity',
     )
@@ -73,7 +76,11 @@ describe('organization lifecycle contributor set', () => {
 
   it('refuses a misidentified Integration contributor', () => {
     expect(() =>
-      buildOrganizationLifecycleContributors(db, { context: 'portal' } as never),
+      buildOrganizationLifecycleContributors(
+        db,
+        { context: 'portal' } as never,
+        objectStore,
+      ),
     ).toThrow(/misidentified/iu)
   })
 

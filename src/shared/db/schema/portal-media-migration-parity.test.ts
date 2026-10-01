@@ -72,3 +72,26 @@ describe('migration 0048 Portal media assets', () => {
     expect(entry && previous && entry.when > previous.when).toBe(true)
   })
 })
+
+describe('migration 0049 object removal', () => {
+  const MIGRATION_0049 = readFileSync(
+    join(ROOT, 'drizzle', '0049_portal_media_object_deleted.sql'),
+    'utf8',
+  )
+
+  it('adds the column and lets only a taken-down row carry it', () => {
+    expect(MIGRATION_0049).toContain(
+      'ADD COLUMN "object_deleted_at" timestamp with time zone',
+    )
+    expect(MIGRATION_0049).toContain(
+      `CHECK ("portal_media_assets"."object_deleted_at" IS NULL OR "portal_media_assets"."status" = 'taken_down')`,
+    )
+  })
+
+  it('is journalled after 0048', () => {
+    const entry = JOURNAL.entries.find((candidate) => candidate.idx === 49)
+    expect(entry?.tag).toBe('0049_portal_media_object_deleted')
+    const previous = JOURNAL.entries.find((candidate) => candidate.idx === 48)
+    expect(entry && previous && entry.when > previous.when).toBe(true)
+  })
+})

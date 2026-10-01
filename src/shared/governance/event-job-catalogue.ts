@@ -11,6 +11,7 @@
 
 import type { Capability } from '#/shared/auth/beta-capabilities'
 import type { SystemAction } from './entry-point-catalogue'
+import { PORTAL_BACKGROUND_JOB_ROWS } from './portal-job-rows'
 
 // ── Types ───────────────────────────────────────────────────────────
 
@@ -727,18 +728,7 @@ const DEFAULT_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
 ]
 
 const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
-  job(
-    'portal-approved-destination-revalidation',
-    'src/contexts/portal/infrastructure/jobs/revalidate-approved-destinations.job.ts',
-    {
-      queue: 'background',
-      capability: 'portal.write',
-      action: 'system:portal.destination_revalidate',
-      schedule: 'every:900000',
-      registration: 'enabled',
-    },
-    { timeoutMs: 300_000 },
-  ),
+  ...PORTAL_BACKGROUND_JOB_ROWS,
   job(
     'health-check',
     'src/shared/jobs/health-check.job.ts',

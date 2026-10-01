@@ -25,7 +25,7 @@ const mockStorage = {
   }),
   confirmUpload: async (key: string) => `https://cdn.example.com/${key}`,
   deleteObject: async () => {},
-  getPublicUrl: (key: string) => `https://cdn.example.com/${key}`,
+  getObject: async () => null,
   putObject: async () => {},
 }
 

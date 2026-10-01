@@ -52,6 +52,9 @@ export const portalMediaAssets = pgTable(
     createdBy: varchar('created_by', { length: 255 }).notNull(),
     createdAt: createdAtColumn(),
     takenDownAt: timestamp('taken_down_at', { withTimezone: true }),
+    // When the stored object was removed after a takedown. A taken-down row whose
+    // object is still there is swept until this is set (migration 0049).
+    objectDeletedAt: timestamp('object_deleted_at', { withTimezone: true }),
   },
   (t) => [
     // The foreign-key target of every reference to an asset, and the index the
@@ -82,6 +85,10 @@ export const portalMediaAssets = pgTable(
     check(
       'portal_media_assets_object_key_derived',
       sql`${t.objectKey} = 'portal-media/' || ${t.id}::text || '.webp'`,
+    ),
+    check(
+      'portal_media_assets_object_deleted_taken_down',
+      sql`${t.objectDeletedAt} IS NULL OR ${t.status} = 'taken_down'`,
     ),
     check('portal_media_assets_content_type_webp', sql`${t.contentType} = 'image/webp'`),
     check(

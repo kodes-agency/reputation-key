@@ -71,6 +71,7 @@ export type SystemAction =
   | 'system:portal.health_reconcile'
   | 'system:portal.responsibility_reannounce'
   | 'system:portal.destination_revalidate'
+  | 'system:portal.media_sweep'
   | 'system:property.import_v2'
   | 'system:review.sync'
   | 'system:review.refresh_sweep'
@@ -178,6 +179,9 @@ const JOB_ROWS: ReadonlyArray<EntryPointRow> = [
     'tenant_cross',
     true,
   ),
+  // Cleanup of the private object store: it must run whatever the state of the
+  // upload capability, because it is what makes switching uploads off safe.
+  job('portal-media-sweep', 'system:portal.media_sweep', 'none', 'tenant_cross', true),
   job('health-check', 'system:health.check', 'none', 'none'),
   job('published-event-redelivery', 'system:outbox.redeliver', 'none', 'tenant_cross'),
   job(
@@ -587,6 +591,12 @@ const SCHEDULE_ROWS: ReadonlyArray<EntryPointRow> = [
     'portal-approved-destination-revalidation-recurring',
     'system:portal.destination_revalidate',
     'portal.write',
+    'tenant_cross',
+  ),
+  schedule(
+    'portal-media-sweep-recurring',
+    'system:portal.media_sweep',
+    'none',
     'tenant_cross',
   ),
   schedule('health-check-recurring', 'system:health.check', 'none', 'none'),

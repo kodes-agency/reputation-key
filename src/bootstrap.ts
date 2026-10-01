@@ -80,6 +80,10 @@ import {
   JOB_NAME as PORTAL_DESTINATION_REVALIDATION_JOB,
 } from '#/contexts/portal/infrastructure/jobs/revalidate-approved-destinations.job'
 import {
+  createSweepPortalMediaHandler,
+  JOB_NAME as PORTAL_MEDIA_SWEEP_JOB,
+} from '#/contexts/portal/infrastructure/jobs/sweep-portal-media.job'
+import {
   createReleaseResponseTargetRemindersHandler,
   JOB_NAME as RELEASE_RESPONSE_TARGET_REMINDERS_JOB,
 } from '#/contexts/inbox/infrastructure/jobs/release-response-target-reminders.job'
@@ -225,6 +229,21 @@ export async function bootstrap(
   logger.info(
     { job: PORTAL_DESTINATION_REVALIDATION_JOB },
     'registered Portal approved-destination revalidation job handler',
+  )
+
+  // Not capability-gated, on purpose: the sweep removes objects of taken-down
+  // images and collects unreferenced ones, so it keeps running when uploads are
+  // switched off (BETA_CAPABILITIES_OFF) or blocked.
+  container.jobRegistry.register(
+    PORTAL_MEDIA_SWEEP_JOB,
+    createSweepPortalMediaHandler({
+      sweep: container.portalWorkerRuntime.sweepPortalMedia,
+      logger: container.logger,
+    }),
+  )
+  logger.info(
+    { job: PORTAL_MEDIA_SWEEP_JOB },
+    'registered Portal media sweep job handler',
   )
 
   container.jobRegistry.register(
