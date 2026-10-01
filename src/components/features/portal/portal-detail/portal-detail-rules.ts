@@ -5,7 +5,7 @@
 // portal-share-state.ts makes for the Share tab.
 
 import type { PortalPublicationHistory } from '#/contexts/portal/application/public-api'
-import type { PortalPublicationState, PortalThemeDraft } from '../shared/types'
+import type { PortalPublicationState } from '../shared/types'
 import {
   isPortalEditorSection,
   type PortalEditorSection,
@@ -156,21 +156,4 @@ export function describePendingChanges(history: PortalPublicationHistory): strin
 export function countPendingChanges(history: PortalPublicationHistory): number {
   if (!history.hasPendingChanges) return 0
   return Math.max(1, history.pendingChanges?.length ?? 0)
-}
-
-/**
- * Whether the in-progress theme differs from the saved one. Compared colour by
- * colour rather than by object identity: the detail query hands back a fresh
- * theme object on every refetch, so an identity check reports every draft as
- * dirty and the unsaved-changes prompt fires on navigation that lost nothing.
- */
-export function isThemeDraftDirty(
-  draft: PortalThemeDraft,
-  saved: PortalThemeDraft,
-): boolean {
-  return (
-    draft.primaryColor !== saved.primaryColor ||
-    draft.backgroundColor !== saved.backgroundColor ||
-    draft.textColor !== saved.textColor
-  )
 }

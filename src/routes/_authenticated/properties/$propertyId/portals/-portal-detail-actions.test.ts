@@ -44,7 +44,6 @@ vi.mock('#/contexts/portal/server/portals', () => ({
   rollbackPortalPublication: 'rollbackPortalPublication',
   savePortalLocalizedOverride: 'savePortalLocalizedOverride',
   savePropertyPortalBrandContent: 'savePropertyPortalBrandContent',
-  savePropertyPortalBrandProfile: 'savePropertyPortalBrandProfile',
   updatePortal: vi.fn(),
 }))
 vi.mock('#/contexts/portal/server/portal-responsible-managers', () => ({
@@ -66,13 +65,12 @@ describe('portal detail actions and the language coverage read', () => {
     usePortalDetailActions(PROPERTY_ID, PORTAL_ID)
   })
 
-  it.each([
-    'savePortalLocalizedOverride',
-    'savePropertyPortalBrandContent',
-    'savePropertyPortalBrandProfile',
-  ])('refreshes the coverage after %s', (name) => {
-    expect(refreshesCoverage(captured.get(name)?.invalidateKeys ?? [])).toBe(true)
-  })
+  it.each(['savePortalLocalizedOverride', 'savePropertyPortalBrandContent'])(
+    'refreshes the coverage after %s',
+    (name) => {
+      expect(refreshesCoverage(captured.get(name)?.invalidateKeys ?? [])).toBe(true)
+    },
+  )
 
   it('refreshes the coverage after a portal update (a language added or removed)', async () => {
     const onSuccess = mutationOptions[0]?.onSuccess

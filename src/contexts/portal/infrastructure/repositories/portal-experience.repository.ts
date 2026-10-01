@@ -341,6 +341,56 @@ export const createPortalExperienceRepository = (
       return committed
     }),
 
+  savePropertyLook: (input) =>
+    trace('portalExperience.savePropertyLook', () =>
+      db.transaction(async (tx) => {
+        await lockPropertyPublication(tx, input)
+        const scope = propertyProfileScope(input)
+        const [current] = await tx
+          .select()
+          .from(propertyPortalBrandProfiles)
+          .where(scope)
+          .limit(1)
+        if (!current) return null
+        const { look } = input
+        const before = lookOfRow(current)
+        const after: PropertyLook = {
+          ...before,
+          primaryColor: look.primaryColor,
+          backgroundMode: look.backgroundMode,
+          backgroundColor: look.backgroundColor ?? before.backgroundColor,
+          wordmark: look.wordmark === undefined ? before.wordmark : look.wordmark,
+        }
+        const facets = changedLookFacets(before, after)
+        if (facets.length === 0) return profileFromRow(current)
+        // Only the look's own columns: the display name, the images, the text
+        // colour and `updated_by` stay with the writers that own them.
+        const [row] = await tx
+          .update(propertyPortalBrandProfiles)
+          .set({
+            primaryColor: after.primaryColor,
+            backgroundMode: after.backgroundMode,
+            backgroundColor: after.backgroundColor,
+            wordmark: after.wordmark,
+            lookVersion: sql`${propertyPortalBrandProfiles.lookVersion} + 1`,
+            updatedAt: input.at,
+          })
+          .where(scope)
+          .returning()
+        if (!row) throw new Error('Property Brand Profile was not saved')
+        await recordPropertyProfileChange(tx, input, {
+          nameChanged: false,
+          previousName: current.displayName,
+          displayName: row.displayName,
+          facets,
+          version: row.version,
+          lookVersion: row.lookVersion,
+          actorUserId: unbrand(input.actorUserId),
+        })
+        return profileFromRow(row)
+      }),
+    ),
+
   saveDefaultGuestLocales: (input) =>
     trace('portalExperience.saveDefaultGuestLocales', async () => {
       // Only the one column moves: no version, no fence, no fact, and not the

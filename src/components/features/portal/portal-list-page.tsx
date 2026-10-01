@@ -10,7 +10,8 @@
 // Groups are made in the New group dialog and managed on each group's page; the
 // head of a group in the table links there and carries the group's actions.
 import { useState, type ReactNode } from 'react'
-import { FolderPlus, Globe, Plus, SearchX } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { FolderPlus, Globe, Palette, Plus, SearchX } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { Button } from '#/components/ui/button'
@@ -219,6 +220,16 @@ export function PortalListPage({
       </Button>
     ) : undefined
 
+  // The look is read by everyone who may read portals; only an Account Admin edits it.
+  const propertyLookButton = can('portal.read') ? (
+    <Button variant="outline" className="min-h-11 sm:min-h-9" asChild>
+      <Link to="/properties/$propertyId/portals/look" params={{ propertyId }}>
+        <Palette />
+        Property look
+      </Link>
+    </Button>
+  ) : undefined
+
   const canCreate = can('portal.create')
   const newPortalButton = canCreate ? (
     <Button className="min-h-11 sm:min-h-9" onClick={() => update({ new: true })}>
@@ -239,6 +250,7 @@ export function PortalListPage({
         ]}
         actions={
           <>
+            {propertyLookButton}
             {newGroupButton}
             {newPortalButton}
           </>

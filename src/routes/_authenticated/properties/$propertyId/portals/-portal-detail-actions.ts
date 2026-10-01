@@ -12,7 +12,6 @@ import {
   rotatePortalToken,
   savePortalLocalizedOverride,
   savePropertyPortalBrandContent,
-  savePropertyPortalBrandProfile,
   updatePortal,
 } from '#/contexts/portal/server/portals'
 import { updatePortalResponsibleManagers } from '#/contexts/portal/server/portal-responsible-managers'
@@ -89,10 +88,6 @@ function usePortalExperienceActions(propertyId: string, portalId: string) {
     portalKeys.publicationHistory(portalId),
     portalKeys.links(portalId),
   ]
-  const saveProfile = useActionMutation(savePropertyPortalBrandProfile, {
-    successMessage: 'Property brand saved',
-    invalidateKeys: experienceInvalidations,
-  })
   const saveContent = useActionMutation(savePropertyPortalBrandContent, {
     successMessage: 'Guest content saved',
     invalidateKeys: experienceInvalidations,
@@ -114,7 +109,6 @@ function usePortalExperienceActions(propertyId: string, portalId: string) {
     invalidateKeys: destinationInvalidations,
   })
   return {
-    saveProfile,
     saveContent,
     saveOverride,
     requestDestination,

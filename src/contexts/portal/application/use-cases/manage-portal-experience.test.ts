@@ -94,6 +94,9 @@ const createExperienceRepo = () => ({
       updatedAt: input.at,
     }),
   ),
+  savePropertyLook: vi.fn<PortalExperienceRepository['savePropertyLook']>(
+    async () => null,
+  ),
   saveDefaultGuestLocales: vi.fn<PortalExperienceRepository['saveDefaultGuestLocales']>(
     async (input) => ({
       id: GENERATED_ID,

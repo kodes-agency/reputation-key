@@ -5,7 +5,7 @@
 // under their hands when the save lands.
 
 import { describe, expect, it } from 'vitest'
-import { portalBrandDraftKey, portalPropertyContentDraftKey } from './portal-draft-keys'
+import { portalPropertyContentDraftKey } from './portal-draft-keys'
 import type { PortalExperienceSettings } from '../portal-settings/portal-experience-settings-types'
 
 const experience: PortalExperienceSettings = {
@@ -19,30 +19,6 @@ const experience: PortalExperienceSettings = {
   overrides: [{ locale: 'en', title: 'Pool', shortDescription: null, version: 1 }],
   canManagePropertyBrand: true,
 }
-
-describe('portalBrandDraftKey', () => {
-  it('changes when a saved colour or the display name changes', () => {
-    const base = portalBrandDraftKey(experience)
-    expect(
-      portalBrandDraftKey({
-        ...experience,
-        profile: { ...experience.profile!, primaryColor: '#333333' },
-      }),
-    ).not.toBe(base)
-    expect(
-      portalBrandDraftKey({
-        ...experience,
-        profile: { ...experience.profile!, displayName: 'Avela' },
-      }),
-    ).not.toBe(base)
-  })
-
-  it('falls back to the defaults for a property with no brand profile', () => {
-    expect(portalBrandDraftKey({ ...experience, profile: null })).toBe(
-      JSON.stringify(['', '#2563EB', '#FFFFFF', '#111827']),
-    )
-  })
-})
 
 describe('portalPropertyContentDraftKey', () => {
   it('changes when the property fallback wording for that locale changes', () => {

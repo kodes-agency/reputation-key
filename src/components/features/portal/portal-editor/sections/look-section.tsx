@@ -1,51 +1,48 @@
-// Look: the colours guests see. The brand colours belong to the property and are
-// shared by every one of its portals, so they keep an explicit Save; the palette
-// below them is this portal's own and saves as it is chosen. The palette colours
-// only the earlier public page: the new design (and so the live preview) draws the
-// property brand, so the palette says so until the property look page (slice 39)
-// retires it.
-
+// Look: the photo and colours guests see. They belong to the Property and are
+// shared by every one of its portals, so they are edited once, on the Property
+// look page; this section shows what the portal gets from it and opens that page.
+import { Link } from '@tanstack/react-router'
+import { Palette } from 'lucide-react'
+import { Button } from '#/components/ui/button'
 import { PortalEditorSectionFrame } from '../portal-editor-section-frame'
-import { portalBrandDraftKey } from '../portal-draft-keys'
-import { PortalPropertyBrandEditor } from '../../portal-settings/portal-property-brand-editor'
-import { ThemePresetSelector } from '../../portal-settings/theme-preset-selector'
-import type {
-  PortalEditorSectionProps,
-  PortalEditorThemeControls,
-} from '../portal-editor-types'
+import type { PortalEditorSectionProps } from '../portal-editor-types'
 
-export function LookSection({
-  resources,
-  canEdit,
-  theme,
-  onThemeChange,
-}: PortalEditorSectionProps & PortalEditorThemeControls) {
-  const { portalExperience, portalExperienceActions, propertyId } = resources
+export function LookSection({ resources, canEdit }: PortalEditorSectionProps) {
+  const { portalExperience, propertyId } = resources
+  const profile = portalExperience?.profile
+  const canManage = canEdit && portalExperience?.canManagePropertyBrand === true
   return (
     <PortalEditorSectionFrame
       section="look"
-      description="The colours on this portal. The property brand is shared by every portal at this property."
+      description="The photo and colours on this portal. They are shared by every portal at this property."
     >
-      {portalExperience && portalExperienceActions ? (
-        <PortalPropertyBrandEditor
-          key={portalBrandDraftKey(portalExperience)}
-          propertyId={propertyId}
-          experience={portalExperience}
-          action={portalExperienceActions.saveProfile}
-          disabled={!canEdit}
-        />
-      ) : null}
-      <div className="space-y-2">
-        <h3 className="font-semibold">Palette for this portal</h3>
-        <p className="text-sm text-muted-foreground">
-          Used by the earlier public page only. The new design draws the property brand
-          above, which is what the preview shows. It saves as you choose.
-        </p>
-        <ThemePresetSelector
-          theme={theme}
-          onThemeChange={onThemeChange}
-          disabled={!canEdit}
-        />
+      <div className="flex flex-wrap items-center justify-between gap-4 rounded-md border px-4 py-3">
+        {profile ? (
+          <div className="flex items-center gap-3">
+            <span
+              role="img"
+              aria-label={`Accent colour ${profile.primaryColor}`}
+              className="size-8 shrink-0 rounded-md border"
+              style={{ backgroundColor: profile.primaryColor }}
+            />
+            <div className="space-y-0.5 text-sm">
+              <p className="font-medium">{profile.displayName}</p>
+              <p className="text-muted-foreground">
+                Accent {profile.primaryColor.toUpperCase()}
+              </p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            The property has no public display name yet, so there is no look to show.
+          </p>
+        )}
+        <Button variant="outline" className="min-h-11 sm:min-h-9" asChild>
+          <Link to="/properties/$propertyId/portals/look" params={{ propertyId }}>
+            <Palette />
+            {canManage ? 'Edit the property look' : 'See the property look'}
+          </Link>
+        </Button>
       </div>
     </PortalEditorSectionFrame>
   )

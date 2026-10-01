@@ -7,9 +7,9 @@
 // Both layout routes ask this one question so they cannot disagree. The portals
 // list, the New portal form and the group pages stay in the padded page shell.
 
-/** `new` is the static sibling of `$portalId`; the router picks it first. */
+/** `new` and `look` are static siblings of `$portalId`; the router picks them first. */
 const WORKSPACE_PATH =
-  /^\/properties\/[^/]+\/portals\/(?!new(?:\/|$))[^/]+(?:\/review)?\/?$/u
+  /^\/properties\/[^/]+\/portals\/(?!(?:new|look)(?:\/|$))[^/]+(?:\/review)?\/?$/u
 
 export function isWorkspaceRoute(pathname: string | undefined): boolean {
   return pathname !== undefined && WORKSPACE_PATH.test(pathname)

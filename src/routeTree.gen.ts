@@ -65,6 +65,7 @@ import { Route as AuthenticatedPropertiesPropertyIdGoalsGoalIdRouteImport } from
 import { Route as AuthenticatedPropertiesPropertyIdGoalsNewRouteImport } from './routes/_authenticated/properties/$propertyId/goals/new'
 import { Route as AuthenticatedPropertiesPropertyIdPortalsIndexRouteImport } from './routes/_authenticated/properties/$propertyId/portals/index'
 import { Route as AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteImport } from './routes/_authenticated/properties/$propertyId/portals/$portalId'
+import { Route as AuthenticatedPropertiesPropertyIdPortalsLookRouteImport } from './routes/_authenticated/properties/$propertyId/portals/look'
 import { Route as AuthenticatedPropertiesPropertyIdPortalsNewRouteImport } from './routes/_authenticated/properties/$propertyId/portals/new'
 import { Route as AuthenticatedPropertiesPropertyIdSettingsIndexRouteImport } from './routes/_authenticated/properties/$propertyId/settings/index'
 import { Route as AuthenticatedPropertiesPropertyIdSettingsAiRouteImport } from './routes/_authenticated/properties/$propertyId/settings/ai'
@@ -390,6 +391,12 @@ const AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute =
     path: '/portals/$portalId',
     getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
   } as any)
+const AuthenticatedPropertiesPropertyIdPortalsLookRoute =
+  AuthenticatedPropertiesPropertyIdPortalsLookRouteImport.update({
+    id: '/portals/look',
+    path: '/portals/look',
+    getParentRoute: () => AuthenticatedPropertiesPropertyIdRoute,
+  } as any)
 const AuthenticatedPropertiesPropertyIdPortalsNewRoute =
   AuthenticatedPropertiesPropertyIdPortalsNewRouteImport.update({
     id: '/portals/new',
@@ -523,6 +530,7 @@ export interface FileRoutesByFullPath {
   '/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
   '/properties/$propertyId/goals/new': typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
   '/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteWithChildren
+  '/properties/$propertyId/portals/look': typeof AuthenticatedPropertiesPropertyIdPortalsLookRoute
   '/properties/$propertyId/portals/new': typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
   '/properties/$propertyId/settings/ai': typeof AuthenticatedPropertiesPropertyIdSettingsAiRoute
   '/properties/$propertyId/settings/danger': typeof AuthenticatedPropertiesPropertyIdSettingsDangerRoute
@@ -588,6 +596,7 @@ export interface FileRoutesByTo {
   '/properties/import-google': typeof AuthenticatedPropertiesImportGoogleIndexRoute
   '/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
   '/properties/$propertyId/goals/new': typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
+  '/properties/$propertyId/portals/look': typeof AuthenticatedPropertiesPropertyIdPortalsLookRoute
   '/properties/$propertyId/portals/new': typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
   '/properties/$propertyId/settings/ai': typeof AuthenticatedPropertiesPropertyIdSettingsAiRoute
   '/properties/$propertyId/settings/danger': typeof AuthenticatedPropertiesPropertyIdSettingsDangerRoute
@@ -660,6 +669,7 @@ export interface FileRoutesById {
   '/_authenticated/properties/$propertyId/goals/$goalId': typeof AuthenticatedPropertiesPropertyIdGoalsGoalIdRoute
   '/_authenticated/properties/$propertyId/goals/new': typeof AuthenticatedPropertiesPropertyIdGoalsNewRoute
   '/_authenticated/properties/$propertyId/portals/$portalId': typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteWithChildren
+  '/_authenticated/properties/$propertyId/portals/look': typeof AuthenticatedPropertiesPropertyIdPortalsLookRoute
   '/_authenticated/properties/$propertyId/portals/new': typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
   '/_authenticated/properties/$propertyId/settings/ai': typeof AuthenticatedPropertiesPropertyIdSettingsAiRoute
   '/_authenticated/properties/$propertyId/settings/danger': typeof AuthenticatedPropertiesPropertyIdSettingsDangerRoute
@@ -732,6 +742,7 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/goals/$goalId'
     | '/properties/$propertyId/goals/new'
     | '/properties/$propertyId/portals/$portalId'
+    | '/properties/$propertyId/portals/look'
     | '/properties/$propertyId/portals/new'
     | '/properties/$propertyId/settings/ai'
     | '/properties/$propertyId/settings/danger'
@@ -797,6 +808,7 @@ export interface FileRouteTypes {
     | '/properties/import-google'
     | '/properties/$propertyId/goals/$goalId'
     | '/properties/$propertyId/goals/new'
+    | '/properties/$propertyId/portals/look'
     | '/properties/$propertyId/portals/new'
     | '/properties/$propertyId/settings/ai'
     | '/properties/$propertyId/settings/danger'
@@ -868,6 +880,7 @@ export interface FileRouteTypes {
     | '/_authenticated/properties/$propertyId/goals/$goalId'
     | '/_authenticated/properties/$propertyId/goals/new'
     | '/_authenticated/properties/$propertyId/portals/$portalId'
+    | '/_authenticated/properties/$propertyId/portals/look'
     | '/_authenticated/properties/$propertyId/portals/new'
     | '/_authenticated/properties/$propertyId/settings/ai'
     | '/_authenticated/properties/$propertyId/settings/danger'
@@ -1306,6 +1319,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteImport
       parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
     }
+    '/_authenticated/properties/$propertyId/portals/look': {
+      id: '/_authenticated/properties/$propertyId/portals/look'
+      path: '/portals/look'
+      fullPath: '/properties/$propertyId/portals/look'
+      preLoaderRoute: typeof AuthenticatedPropertiesPropertyIdPortalsLookRouteImport
+      parentRoute: typeof AuthenticatedPropertiesPropertyIdRoute
+    }
     '/_authenticated/properties/$propertyId/portals/new': {
       id: '/_authenticated/properties/$propertyId/portals/new'
       path: '/portals/new'
@@ -1518,6 +1538,7 @@ interface AuthenticatedPropertiesPropertyIdRouteChildren {
   AuthenticatedPropertiesPropertyIdSettingsRoute: typeof AuthenticatedPropertiesPropertyIdSettingsRouteWithChildren
   AuthenticatedPropertiesPropertyIdIndexRoute: typeof AuthenticatedPropertiesPropertyIdIndexRoute
   AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute: typeof AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteWithChildren
+  AuthenticatedPropertiesPropertyIdPortalsLookRoute: typeof AuthenticatedPropertiesPropertyIdPortalsLookRoute
   AuthenticatedPropertiesPropertyIdPortalsNewRoute: typeof AuthenticatedPropertiesPropertyIdPortalsNewRoute
   AuthenticatedPropertiesPropertyIdPortalsIndexRoute: typeof AuthenticatedPropertiesPropertyIdPortalsIndexRoute
   AuthenticatedPropertiesPropertyIdPortalsGroupsGroupIdRoute: typeof AuthenticatedPropertiesPropertyIdPortalsGroupsGroupIdRoute
@@ -1545,6 +1566,8 @@ const AuthenticatedPropertiesPropertyIdRouteChildren: AuthenticatedPropertiesPro
       AuthenticatedPropertiesPropertyIdIndexRoute,
     AuthenticatedPropertiesPropertyIdPortalsPortalIdRoute:
       AuthenticatedPropertiesPropertyIdPortalsPortalIdRouteWithChildren,
+    AuthenticatedPropertiesPropertyIdPortalsLookRoute:
+      AuthenticatedPropertiesPropertyIdPortalsLookRoute,
     AuthenticatedPropertiesPropertyIdPortalsNewRoute:
       AuthenticatedPropertiesPropertyIdPortalsNewRoute,
     AuthenticatedPropertiesPropertyIdPortalsIndexRoute:

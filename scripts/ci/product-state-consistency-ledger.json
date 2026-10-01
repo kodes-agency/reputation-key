@@ -354,6 +354,18 @@
       "policy": "Seeded once from the form's own default values and advanced only when a write carrying the committed value is accepted; it holds what the server was last given for fields that commit on blur, so another write does not persist a half-typed value. It is not a second copy of the form's state."
     },
     {
+      "id": "src/components/features/portal/property-look/use-property-look-draft.ts:useState(draft)",
+      "classification": "server_draft",
+      "owner": "Property look page",
+      "policy": "Seeded once from the Brand Profile the page opened with; later refreshes (every save invalidates the experience read) never overwrite what the manager is editing, and a write the server accepted only advances the comparison baseline. Leaving the page is the reset boundary."
+    },
+    {
+      "id": "src/components/features/portal/property-look/use-property-look-draft.ts:useState(locales)",
+      "classification": "server_draft",
+      "owner": "Property look page",
+      "policy": "Seeded once from the Property's default languages the page opened with and advanced only by the manager's own add, remove or make-fallback; a refresh never reorders them under the manager. Leaving the page is the reset boundary."
+    },
+    {
       "id": "src/components/features/property-setup/setup-properties-step.tsx:useState(aiIdempotencyKey)",
       "classification": "local_runtime",
       "owner": "Import wizard consent ceremony",
