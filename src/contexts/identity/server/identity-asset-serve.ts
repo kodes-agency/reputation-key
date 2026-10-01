@@ -3,16 +3,20 @@
 //
 // The bucket is private and its provider is not ours to hand to a browser, so
 // the app reads the object and serves it from its own origin. There is no
-// session here: the key carries a random id, and only the two key shapes the
-// upload use cases issue are readable. Nothing but a raster image type the
-// upload policy allows is ever sent, whatever the object claims to be.
+// session here: the key carries a random id, only the two key shapes the upload
+// use cases issue are readable, and an object is sent only while a user's image
+// or an organization's logo still names it (a replaced picture, an upload that
+// was never saved and a purged organization's logo are 404). Nothing but a
+// raster image type the upload policy allows is ever sent, whatever the object
+// claims to be.
 
 import { getContainer } from '#/composition'
 import { StoredObjectTooLargeError } from '#/contexts/portal/application/public-api'
 import type { StoragePort } from '#/contexts/portal/application/public-api'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { captureObservabilityException } from '#/shared/observability/telemetry'
-import { isIdentityAssetKey } from '../application/identity-assets'
+import { ifNoneMatchMatches, parseIdentityAssetKey } from '../application/identity-assets'
+import type { IdentityAssetReferencesPort } from '../application/ports/identity-asset-references.port'
 import {
   ALLOWED_IMAGE_CONTENT_TYPES,
   MAX_UPLOAD_BYTES,
@@ -30,6 +34,7 @@ const ISOLATION = {
 
 export type IdentityAssetServeDeps = Readonly<{
   storage: Pick<StoragePort, 'getObject'>
+  references: Pick<IdentityAssetReferencesPort, 'isReferenced'>
   logger: Pick<LoggerPort, 'error'>
 }>
 
@@ -41,9 +46,19 @@ const notFound = () =>
 
 export const createIdentityAssetServeHandler =
   (deps: IdentityAssetServeDeps) =>
-  async (key: string): Promise<Response> => {
-    if (!isIdentityAssetKey(key)) return notFound()
+  async (request: Request, key: string): Promise<Response> => {
+    const parsed = parseIdentityAssetKey(key)
+    if (!parsed) return notFound()
     try {
+      if (!(await deps.references.isReferenced(key))) return notFound()
+      // A key never holds different bytes, so its object id is its entity tag.
+      const etag = `"${parsed.objectId}"`
+      if (ifNoneMatchMatches(request.headers.get('if-none-match'), etag)) {
+        return new Response(null, {
+          status: 304,
+          headers: { etag, 'cache-control': CACHEABLE },
+        })
+      }
       const stored = await deps.storage.getObject(key, MAX_UPLOAD_BYTES)
       if (
         !stored?.contentType ||
@@ -57,6 +72,7 @@ export const createIdentityAssetServeHandler =
           'content-type': stored.contentType,
           'content-length': String(stored.body.length),
           'content-disposition': 'inline',
+          etag,
           'cache-control': CACHEABLE,
           ...ISOLATION,
         },
@@ -81,10 +97,14 @@ export const createIdentityAssetServeHandler =
   }
 
 /** The handler wired to the running app. */
-export const handleIdentityAssetServe = (key: string): Promise<Response> => {
+export const handleIdentityAssetServe = (
+  request: Request,
+  key: string,
+): Promise<Response> => {
   const container = getContainer()
   return createIdentityAssetServeHandler({
     storage: container.assetStorage,
+    references: container.identityAssetReferences,
     logger: container.logger,
-  })(key)
+  })(request, key)
 }

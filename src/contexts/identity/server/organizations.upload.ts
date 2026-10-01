@@ -12,7 +12,7 @@ import { getAuth } from '#/shared/auth/auth'
 import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
 import { MAX_UPLOAD_BYTES } from './organizations.shared'
-import { identityAssetUrl } from '../application/identity-assets'
+import { retireReplacedIdentityAsset } from '../application/retire-replaced-identity-asset'
 import { throwIdentityError } from './organizations.errors.server'
 import { requestOrgLogoUpload as requestOrgLogoUploadUseCase } from '../application/use-cases/request-org-logo-upload'
 import { finalizeOrgLogoUpload as finalizeOrgLogoUploadUseCase } from '../application/use-cases/finalize-org-logo-upload'
@@ -63,10 +63,12 @@ export const finalizeOrgLogoUpload = createServerFn({ method: 'POST' })
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'identity.logo_upload' })
-        const { assetStorage: storage, appBaseUrl } = getContainer()
+        const { assetStorage: storage, identityAssetReferences, logger } = getContainer()
         const useCase = finalizeOrgLogoUploadUseCase({
           storage,
-          assetUrl: (key) => identityAssetUrl(appBaseUrl, key),
+          currentLogo: () =>
+            identityAssetReferences.currentOrganizationLogo(ctx.organizationId),
+          retireReplaced: retireReplacedIdentityAsset({ storage, logger }),
           // Persist the logo via the auth provider — injected as a closure so the
           // use case owns the persistence step (mirrors update-organization.ts).
           updateOrg: async (updateData) => {
@@ -132,11 +134,8 @@ export const finalizeAvatarUpload = createServerFn({ method: 'POST' })
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'identity.avatar_upload' })
-        const { assetStorage: storage, appBaseUrl } = getContainer()
-        const useCase = finalizeAvatarUploadUseCase({
-          storage,
-          assetUrl: (key) => identityAssetUrl(appBaseUrl, key),
-        })
+        const { assetStorage: storage } = getContainer()
+        const useCase = finalizeAvatarUploadUseCase({ storage })
         try {
           return await useCase(data, ctx)
         } catch (e) {

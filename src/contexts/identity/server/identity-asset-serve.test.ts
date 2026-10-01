@@ -12,14 +12,25 @@ const BYTES = new Uint8Array([137, 80, 78, 71, 1, 2, 3])
 
 type Stored = { body: Uint8Array; contentType: string | null } | null
 
-const handlerFor = (outcome: Stored | Error) => {
+const request = (ifNoneMatch?: string) =>
+  new Request('https://app.example.test/api/public/identity-assets/x', {
+    headers: ifNoneMatch ? { 'if-none-match': ifNoneMatch } : {},
+  })
+
+const handlerFor = (outcome: Stored | Error, referenced = true) => {
   const getObject = vi.fn(async (_key: string, _maxBytes: number) => {
     if (outcome instanceof Error) throw outcome
     return outcome
   })
+  const isReferenced = vi.fn(async (_key: string) => referenced)
   const logger = { error: vi.fn() }
-  const handle = createIdentityAssetServeHandler({ storage: { getObject }, logger })
-  return { handle, getObject, logger }
+  const serve = createIdentityAssetServeHandler({
+    storage: { getObject },
+    references: { isReferenced },
+    logger,
+  })
+  const handle = (key: string, ifNoneMatch?: string) => serve(request(ifNoneMatch), key)
+  return { handle, getObject, isReferenced, logger }
 }
 
 describe('identity asset route', () => {
@@ -66,6 +77,79 @@ describe('identity asset route', () => {
       expect(getObject).not.toHaveBeenCalled()
     },
   )
+
+  it.each([AVATAR_KEY, LOGO_KEY])(
+    'does not read the store for %s once nothing points at it any more',
+    async (key) => {
+      const { handle, getObject, isReferenced } = handlerFor(
+        { body: BYTES, contentType: 'image/png' },
+        false,
+      )
+
+      const response = await handle(key)
+
+      expect(response.status).toBe(404)
+      expect(response.headers.get('cache-control')).toBe('no-store')
+      expect(isReferenced).toHaveBeenCalledWith(key)
+      expect(getObject).not.toHaveBeenCalled()
+    },
+  )
+
+  it('does not ask who references a key that is not an avatar or logo', async () => {
+    const { handle, isReferenced } = handlerFor({ body: BYTES, contentType: 'image/png' })
+
+    await handle('portal-media/abc.webp')
+
+    expect(isReferenced).not.toHaveBeenCalled()
+  })
+
+  it('answers 503, uncached, when the reference check fails', async () => {
+    const { handle, getObject, isReferenced, logger } = handlerFor({
+      body: BYTES,
+      contentType: 'image/png',
+    })
+    isReferenced.mockRejectedValueOnce(new Error('connection terminated'))
+
+    const response = await handle(AVATAR_KEY)
+
+    expect(response.status).toBe(503)
+    expect(response.headers.get('cache-control')).toBe('no-store')
+    expect(getObject).not.toHaveBeenCalled()
+    expect(logger.error).toHaveBeenCalledOnce()
+  })
+
+  it('tags the image with its own id, which never names different bytes', async () => {
+    const { handle } = handlerFor({ body: BYTES, contentType: 'image/png' })
+
+    expect((await handle(AVATAR_KEY)).headers.get('etag')).toBe(`"${ASSET}"`)
+  })
+
+  it('answers 304 without reading the store when the cache already has the image', async () => {
+    const { handle, getObject, isReferenced } = handlerFor({
+      body: BYTES,
+      contentType: 'image/png',
+    })
+
+    const response = await handle(LOGO_KEY, `"${ASSET}"`)
+
+    expect(response.status).toBe(304)
+    expect(response.headers.get('etag')).toBe(`"${ASSET}"`)
+    expect(response.headers.get('cache-control')).toBe('public, max-age=3600')
+    expect(isReferenced).toHaveBeenCalledWith(LOGO_KEY)
+    expect(getObject).not.toHaveBeenCalled()
+  })
+
+  it('answers 404, not 304, to a cache that holds an image nothing points at any more', async () => {
+    const { handle } = handlerFor({ body: BYTES, contentType: 'image/png' }, false)
+
+    expect((await handle(AVATAR_KEY, `"${ASSET}"`)).status).toBe(404)
+  })
+
+  it('sends the image again when the cache holds another one', async () => {
+    const { handle } = handlerFor({ body: BYTES, contentType: 'image/png' })
+
+    expect((await handle(AVATAR_KEY, '"another"')).status).toBe(200)
+  })
 
   it('answers 404 for an object that is not there', async () => {
     const response = await handlerFor(null).handle(AVATAR_KEY)

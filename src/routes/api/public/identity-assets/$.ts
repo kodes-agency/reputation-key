@@ -7,7 +7,8 @@ import { handleIdentityAssetServe } from '#/contexts/identity/server/identity-as
 export const Route = createFileRoute('/api/public/identity-assets/$')({
   server: {
     handlers: {
-      GET: ({ params }) => handleIdentityAssetServe(params._splat ?? ''),
+      GET: ({ request, params }) =>
+        handleIdentityAssetServe(request, params._splat ?? ''),
     },
   },
 })

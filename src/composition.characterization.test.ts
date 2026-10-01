@@ -40,7 +40,6 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'aiPublicApi',
   'aiWorkerRuntime',
   'alertDispatcher',
-  'appBaseUrl',
   'assetStorage',
   'backgroundQueue',
   'cache',
@@ -62,6 +61,7 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'guestPublicApi',
   'handleResendEvent',
   'idGen',
+  'identityAssetReferences',
   // The reporter's beta-feedback requests; the triage repository itself is
   // never on the container.
   'identityBetaFeedback',

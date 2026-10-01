@@ -21,6 +21,7 @@ Every `ops:*` command runs through the operator-command harness
 The commands:
 
 - `ops:bootstrap-owner <owner email> <owner name> <organization name>` — create the first Organization and its AccountAdmin (role `owner`) on an EMPTY database, initial password on stdin; refuses once any Organization or membership exists, or any user besides the lone owner an interrupted run left behind. Everything after the Better Auth sign-up commits in one transaction, so re-running the same command after a failure resumes that owner (`ownerAccount: reuse` in the dry run) instead of refusing. The one operator-authored account: every other account is invited from the app. Destructive-class confirmation. Both the dry run and the apply report `controlledBetaCapabilities`: a new Organization is dark for every controlled-beta capability unless `BETA_ALLOWLIST_ORGS` is `*` or names its ID, on web AND worker (ADR 0032, 2026-09-27).
+- `ops:storage-cors [--apply]` — check, or with `--apply` set, the object-store bucket's CORS rule that lets the app origin (`BETTER_AUTH_URL`) `PUT` a presigned avatar or logo upload from the browser. Reads the bucket and origin from the web service's Railway variables (no `--operator`; it does not touch the database), uses the pinned S3 SDK, keeps the bucket's existing rules, reads the rule back, and exits 1 unless it is in place. `deploy-ci-images` runs it after every deploy. See `backup-and-lifecycle.md` §3.
 - `ops:queue <status|pause|resume> <queue>` — pause/resume a BullMQ queue (containment; jobs preserved). §3/§7
 - `ops:quarantine <list|redrive <id>|discard <id>>` — inspect failure quarantine, redrive enabled work, or discard blocked/quarantined work without execution. §4/§7
 - `ops:refresh reviews` — enqueue one bounded Review refresh-sweep run. §3/§4
@@ -80,6 +81,18 @@ The commands:
      AND g.portal_group_id = m.portal_group_id
      AND g.portal_id = m.portal_id AND g.effective_to IS NULL
    WHERE g.id IS NULL;
+  ```
+
+- Legacy avatar and logo addresses (round 4, slice 47j) — one read-only SQL query, run against the database of each environment. Migration 0053 clears them at deploy (before new code serves); run it before and after, and expect no rows after. A cleared picture shows the person's initials until they upload again.
+
+  ```sql
+  -- legacy-asset-urls: an avatar or logo stored as an amazonaws.com address,
+  -- which never loaded (the bucket is private and not on AWS).
+  SELECT 'user' AS kind, id FROM "user"
+   WHERE image ~* '^https?://[^/]*\.amazonaws\.com(:[0-9]+)?/'
+  UNION ALL
+  SELECT 'organization', id FROM organization
+   WHERE logo ~* '^https?://[^/]*\.amazonaws\.com(:[0-9]+)?/';
   ```
 
 - `ops:reparse-review-translations <report|repair> [--property <id>]` — re-split Google's `(Translated by Google) … (Original)` envelope on Review rows stored before the provider adapter split it at ingestion. A targeted column update: the text, `translated_text`, `content_hash` and AI source provenance are recomputed with the sync path's own functions, and the Review lifecycle, `source_revision` and analysis position are untouched. `report` never writes; `repair` is dry-run by default and `--apply` requires `--reason` and `--ticket`. Idempotent.

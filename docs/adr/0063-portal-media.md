@@ -133,9 +133,20 @@ design rather than a checklist.
 - **No provider URL is stored (settled after this slice).** `getPublicUrl` is
   gone and `confirmUpload` no longer returns an address at all (it confirms the
   object exists). Identity's avatar and organisation-logo finalize use cases
-  store an address on the app, `/api/public/identity-assets/<key>`, which reads
-  the private object back the way Portal media is served. See
-  `docs/operations/backup-and-lifecycle.md` §3.
+  store a root-relative path on the app, `/api/public/identity-assets/<key>`,
+  which reads the private object back the way Portal media is served; a path
+  carries no host, so it survives a change of domain. The route is public, so it
+  serves an object only while something still points at it: the user whose id is
+  in the key has it as their `image`, or the organisation in the key has it as
+  its `logo` and has not reached `purging` or `closed`. A replaced picture, an
+  upload that was never saved, an erased user's photo and a purged
+  organisation's logo are therefore 404 at once, with no deletion job. Saving a
+  new avatar or logo also deletes the object it replaces. **Known deviation:**
+  the Organization purge and user removal do not delete avatar or logo bytes
+  (no code removes `user` or `organization` rows, and the Identity purge
+  contributor holds no storage). Those objects are unreachable but remain in the
+  bucket, with never-saved uploads, until a bucket lifecycle rule or a later
+  Identity sweep removes them (`docs/operations/backup-and-lifecycle.md` §3).
 - `sharp` is a runtime dependency with a native binding. It is externalized in
   the Nitro build and the worker bundle so it resolves from the installed
   `node_modules`, where pnpm links its platform package beside it.

@@ -205,7 +205,9 @@ callback `${BETTER_AUTH_URL}/api/auth/google/callback` must be an authorised
 redirect URI on the OAuth client, and the client secret must be current. A
 refusal (Google's `Error 400: redirect_uri_mismatch` page, which the app never
 sees) fails the command with the exact URI to register and the console link.
-Run the same check alone with `pnpm ops check-google-oauth`.
+Run the same check alone with `pnpm ops check-google-oauth`. It also makes sure the
+object-store bucket's CORS rule lets the app origin `PUT` (avatar and logo
+uploads); run that alone with `pnpm ops storage-cors [--apply]`.
 
 ### Git hooks
 

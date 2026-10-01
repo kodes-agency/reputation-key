@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setPermissionLookup } from '#/shared/domain/permissions'
 import { finalizeOrgLogoUpload } from './finalize-org-logo-upload'
-import { identityAssetUrl } from '../identity-assets'
+import { identityAssetPath } from '../identity-assets'
 import { organizationId, userId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
@@ -20,7 +20,7 @@ const adminCtx: AuthContext = {
 }
 
 const ASSET = '3f1b2c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
-const assetUrl = (key: string) => identityAssetUrl('https://app.example.com', key)
+const OLD_ASSET = '9a8b7c6d-5e4f-4a3b-8c2d-1e0f9a8b7c6d'
 
 const mockStorage = {
   createPresignedUploadUrl: async () => ({
@@ -34,13 +34,18 @@ const mockStorage = {
 }
 
 const mockUpdateOrg = vi.fn().mockResolvedValue(undefined)
+const mockRetire = vi.fn().mockResolvedValue(undefined)
+
+const deps = (overrides: Partial<Parameters<typeof finalizeOrgLogoUpload>[0]> = {}) => ({
+  storage: mockStorage,
+  currentLogo: async () => null,
+  retireReplaced: mockRetire,
+  updateOrg: mockUpdateOrg,
+  ...overrides,
+})
 
 const setup = () => ({
-  useCase: finalizeOrgLogoUpload({
-    storage: mockStorage,
-    assetUrl,
-    updateOrg: mockUpdateOrg,
-  }),
+  useCase: finalizeOrgLogoUpload(deps()),
   updateOrg: mockUpdateOrg,
 })
 
@@ -54,11 +59,7 @@ describe('finalizeOrgLogoUpload', () => {
   it('rejects Member role with forbidden error', async () => {
     setPermissionLookup(() => false)
 
-    const useCase = finalizeOrgLogoUpload({
-      storage: mockStorage,
-      assetUrl,
-      updateOrg: mockUpdateOrg,
-    })
+    const useCase = finalizeOrgLogoUpload(deps())
 
     try {
       await useCase(
@@ -89,7 +90,7 @@ describe('finalizeOrgLogoUpload', () => {
     expect(updateOrg).toHaveBeenCalledWith({ logo: result.logoUrl })
   })
 
-  it('stores an address on the app, never a provider or AWS URL', async () => {
+  it('stores a path on the app, never a provider or AWS URL or a host', async () => {
     const { useCase, updateOrg } = setup()
     updateOrg.mockClear()
 
@@ -98,7 +99,8 @@ describe('finalizeOrgLogoUpload', () => {
       adminCtx,
     )
 
-    const expected = `https://app.example.com/api/public/identity-assets/organizations/org-1/logo/${ASSET}`
+    const expected = `/api/public/identity-assets/organizations/org-1/logo/${ASSET}`
+    expect(expected).toBe(identityAssetPath(`organizations/org-1/logo/${ASSET}`))
     expect(logoUrl).toBe(expected)
     expect(updateOrg).toHaveBeenCalledWith({ logo: expected })
   })
@@ -125,16 +127,17 @@ describe('finalizeOrgLogoUpload', () => {
 
   it('stores nothing when the upload never arrived', async () => {
     const updateOrg = vi.fn().mockResolvedValue(undefined)
-    const useCase = finalizeOrgLogoUpload({
-      storage: {
-        ...mockStorage,
-        confirmUpload: async () => {
-          throw new Error('NotFound')
+    const useCase = finalizeOrgLogoUpload(
+      deps({
+        storage: {
+          ...mockStorage,
+          confirmUpload: async () => {
+            throw new Error('NotFound')
+          },
         },
-      },
-      assetUrl,
-      updateOrg,
-    })
+        updateOrg,
+      }),
+    )
 
     await expect(
       useCase(
@@ -143,5 +146,50 @@ describe('finalizeOrgLogoUpload', () => {
       ),
     ).rejects.toThrow('NotFound')
     expect(updateOrg).not.toHaveBeenCalled()
+  })
+
+  it('frees the logo it replaces, after the new one is saved', async () => {
+    const order: string[] = []
+    const previous = identityAssetPath(`organizations/org-1/logo/${OLD_ASSET}`)
+    const useCase = finalizeOrgLogoUpload(
+      deps({
+        currentLogo: async () => previous,
+        updateOrg: async () => {
+          order.push('saved')
+        },
+        retireReplaced: async (input) => {
+          order.push('retired')
+          expect(input).toEqual({
+            previous,
+            nextKey: `organizations/org-1/logo/${ASSET}`,
+            kind: 'logo',
+            ownerId: 'org-1',
+          })
+        },
+      }),
+    )
+
+    await useCase({ key: `organizations/org-1/logo/${ASSET}` }, adminCtx)
+
+    expect(order).toEqual(['saved', 'retired'])
+  })
+
+  it('keeps the old logo when saving the new one fails', async () => {
+    const retireReplaced = vi.fn()
+    const useCase = finalizeOrgLogoUpload(
+      deps({
+        currentLogo: async () =>
+          identityAssetPath(`organizations/org-1/logo/${OLD_ASSET}`),
+        updateOrg: async () => {
+          throw new Error('provider down')
+        },
+        retireReplaced,
+      }),
+    )
+
+    await expect(
+      useCase({ key: `organizations/org-1/logo/${ASSET}` }, adminCtx),
+    ).rejects.toThrow('provider down')
+    expect(retireReplaced).not.toHaveBeenCalled()
   })
 })

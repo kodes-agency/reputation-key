@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setPermissionLookup } from '#/shared/domain/permissions'
 import { finalizeAvatarUpload } from './finalize-avatar-upload'
-import { identityAssetUrl } from '../identity-assets'
+import { identityAssetPath } from '../identity-assets'
 import { organizationId, userId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
 
@@ -20,7 +20,6 @@ const adminCtx: AuthContext = {
 }
 
 const ASSET = '3f1b2c4d-5e6f-4a7b-8c9d-0e1f2a3b4c5d'
-const assetUrl = (key: string) => identityAssetUrl('https://app.example.com', key)
 
 const mockStorage = {
   createPresignedUploadUrl: async () => ({
@@ -44,7 +43,7 @@ describe('finalizeAvatarUpload', () => {
   it('rejects Member role with forbidden error', async () => {
     setPermissionLookup(() => false)
 
-    const useCase = finalizeAvatarUpload({ storage: mockStorage, assetUrl })
+    const useCase = finalizeAvatarUpload({ storage: mockStorage })
 
     try {
       await useCase({ key: `avatars/${memberCtx.userId}/${ASSET}` }, memberCtx)
@@ -61,23 +60,22 @@ describe('finalizeAvatarUpload', () => {
   it('allows AccountAdmin role past auth guard', async () => {
     setPermissionLookup(() => true)
 
-    const useCase = finalizeAvatarUpload({ storage: mockStorage, assetUrl })
+    const useCase = finalizeAvatarUpload({ storage: mockStorage })
     const result = await useCase({ key: `avatars/${adminCtx.userId}/${ASSET}` }, adminCtx)
 
     expect(result).toHaveProperty('avatarUrl')
   })
 
-  it('returns an address on the app, never a provider or AWS URL', async () => {
-    const useCase = finalizeAvatarUpload({ storage: mockStorage, assetUrl })
+  it('returns a path on the app, never a provider or AWS URL or a host', async () => {
+    const useCase = finalizeAvatarUpload({ storage: mockStorage })
 
     const { avatarUrl } = await useCase(
       { key: `avatars/${adminCtx.userId}/${ASSET}` },
       adminCtx,
     )
 
-    expect(avatarUrl).toBe(
-      `https://app.example.com/api/public/identity-assets/avatars/user-1/${ASSET}`,
-    )
+    expect(avatarUrl).toBe(`/api/public/identity-assets/avatars/user-1/${ASSET}`)
+    expect(avatarUrl).toBe(identityAssetPath(`avatars/user-1/${ASSET}`))
     expect(avatarUrl).not.toContain('amazonaws')
   })
 
@@ -85,7 +83,6 @@ describe('finalizeAvatarUpload', () => {
     const confirmUpload = vi.fn(async () => {})
     const useCase = finalizeAvatarUpload({
       storage: { ...mockStorage, confirmUpload },
-      assetUrl,
     })
 
     await useCase({ key: `avatars/${adminCtx.userId}/${ASSET}` }, adminCtx)
@@ -94,7 +91,7 @@ describe('finalizeAvatarUpload', () => {
   })
 
   it('refuses a key under another user', async () => {
-    const useCase = finalizeAvatarUpload({ storage: mockStorage, assetUrl })
+    const useCase = finalizeAvatarUpload({ storage: mockStorage })
 
     await expect(
       useCase({ key: `avatars/someone-else/${ASSET}` }, adminCtx),
@@ -102,7 +99,7 @@ describe('finalizeAvatarUpload', () => {
   })
 
   it('refuses a key the image route could not serve, so no dead address is stored', async () => {
-    const useCase = finalizeAvatarUpload({ storage: mockStorage, assetUrl })
+    const useCase = finalizeAvatarUpload({ storage: mockStorage })
 
     await expect(
       useCase({ key: `avatars/${adminCtx.userId}/${ASSET}/extra` }, adminCtx),
@@ -117,7 +114,6 @@ describe('finalizeAvatarUpload', () => {
           throw new Error('NotFound')
         },
       },
-      assetUrl,
     })
 
     await expect(

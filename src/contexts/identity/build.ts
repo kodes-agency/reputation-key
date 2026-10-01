@@ -76,6 +76,7 @@ import {
   type OrganizationReactivationReadinessDeps,
 } from './infrastructure/organization-reactivation-readiness'
 import { createOrganizationLifecycleCommandStore } from './infrastructure/organization-lifecycle-command-store'
+import { createIdentityAssetReferences } from './infrastructure/adapters/identity-asset-references.adapter'
 import {
   createOrganizationLifecycleCoordinator,
   type BeginIrreversibleOrganizationPurgeInput,
@@ -913,5 +914,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     /** Beta-feedback reporting for the signed-in reporter. Request-facing, but
      * kept off `publicApi`, which other contexts receive. */
     betaFeedback: buildBetaFeedbackRequests(deps),
+    /** What still points at an uploaded avatar or logo. Request-facing, so kept off `publicApi`. */
+    assetReferences: createIdentityAssetReferences(deps.db),
   } as const
 }
