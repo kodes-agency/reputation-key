@@ -225,7 +225,7 @@
       "id": "src/components/features/beta-feedback/beta-feedback-dialog-body.tsx:useState(panel)",
       "classification": "synchronized_prop_copy",
       "owner": "Beta feedback reporting",
-      "policy": "Seeded once from initialPanel — 'reports' only when a report-outcome notification opened the dialog — and never synchronized afterwards, so the reporter's own tab choice is not overridden. The dialog body mounts per open, which is the reset boundary."
+      "policy": "Seeded once from initialPanel \u2014 'reports' only when a report-outcome notification opened the dialog \u2014 and never synchronized afterwards, so the reporter's own tab choice is not overridden. The dialog body mounts per open, which is the reset boundary."
     },
     {
       "id": "src/components/features/beta-feedback/beta-feedback-form.tsx:useState(maskedLayout)",
@@ -264,16 +264,22 @@
       "policy": "Seeded once from the member's current role (null when it is not an assignable role) when the dialog body mounts. The body mounts per open and is keyed by member, so a later members refresh never overwrites the choice in progress and the next member starts from their own role; the chosen role reaches the server only through the explicit Change role confirmation."
     },
     {
+      "id": "src/components/features/identity/member-directory/member-access-sheet.tsx:useState(baseline)",
+      "classification": "synchronized_prop_copy",
+      "owner": "Members access",
+      "policy": "A snapshot of the route's reads (the member's grants and the properties they are responsible for), set during render the first time the responsibility read has settled and never advanced afterwards: a pending refetch, a failed one or another admin's grant moves the live reads but not the baseline the draft is measured against. The loading skeleton shows only before it is set. The sheet body is keyed by member and unmounts on close, which is the reset boundary, so the next open takes a fresh snapshot."
+    },
+    {
       "id": "src/components/features/identity/member-directory/member-access-sheet.tsx:useState(selectedIds)",
       "classification": "server_draft",
       "owner": "Members access",
-      "policy": "Seeded once from the member's active grants, limited to the properties the checklist lists, when the sheet body mounts. The body mounts per open, keyed by member, and only after the responsibility read has settled, so a members or access refresh never overwrites a selection in progress; the diff against the seeded grants is what Save sends, and a successful save closes the sheet so the next open reseeds from the refreshed grants."
+      "policy": "Seeded once from the sheet's baseline (the member's active grants, limited to the properties the checklist lists) when the form mounts. The form mounts per open, keyed by member, only once the baseline exists and never unmounts for a later read, so a members or access refresh, a pending or failed refetch or another admin's grant never overwrites a selection in progress; the diff against the baseline is what Save sends, and a successful save closes the sheet so the next open reseeds from the refreshed grants."
     },
     {
       "id": "src/components/features/identity/member-directory/member-access-sheet.tsx:useState(responsibleIds)",
       "classification": "server_draft",
       "owner": "Members access",
-      "policy": "Seeded once from the properties whose Responsible managers already include the member, read per property by the route, when the sheet body mounts. It has the same per-open, per-member mount boundary as the selected properties, and only a change against the seeded set is sent to each property's Responsible managers command."
+      "policy": "Seeded once from the baseline's responsible properties (those whose Responsible managers already include the member, read per property by the route) when the form mounts. It has the same per-open, per-member mount boundary as the selected properties, a failed refetch later never rewrites the baseline it is measured against, and only a change against the baseline is sent to each property's Responsible managers command."
     },
     {
       "id": "src/components/features/identity/profile-settings-form.tsx:useState(avatarUrl)",
@@ -453,7 +459,7 @@
       "id": "src/components/inbox/inbox-case-toolbar.tsx:useState(now)",
       "classification": "local_runtime",
       "owner": "Inbox case toolbar reply-due countdown",
-      "policy": "A minute-granularity wall clock: the lazy initializer reads the mounting instant and a 60 s interval advances it only while the target is active and the caller supplied no clock. It holds no server-owned record — the deadline itself comes from the response-target payload and is only formatted against this value."
+      "policy": "A minute-granularity wall clock: the lazy initializer reads the mounting instant and a 60 s interval advances it only while the target is active and the caller supplied no clock. It holds no server-owned record \u2014 the deadline itself comes from the response-target payload and is only formatted against this value."
     },
     {
       "id": "src/components/inbox/inbox-detail-content.tsx:useState(noteDraft)",
@@ -465,7 +471,7 @@
       "id": "src/components/inbox/inbox-detail-sheet.tsx:useState(lastItem)",
       "classification": "synchronized_prop_copy",
       "owner": "Inbox mobile detail sheet exit animation",
-      "policy": "A one-frame copy of the `item` prop, advanced during render whenever a non-null item differs from the copy, and read only when `item` is null. It is not a server authority and never outlives the prop: dismissal drops `itemId` from the search, so `item` goes null in the same commit `open` goes false, and returning null on `item` alone tore the Radix dialog out of the tree while it was still open — the closing sheet had nothing left to animate. This holds the last item just long enough for the exit, and a reopen overwrites it before anything renders. A ref cannot do the job (`react-hooks/refs` forbids both the write and the read, and the exit frame is a render that has to see the old item); an effect is too late, because the null render has already committed."
+      "policy": "A one-frame copy of the `item` prop, advanced during render whenever a non-null item differs from the copy, and read only when `item` is null. It is not a server authority and never outlives the prop: dismissal drops `itemId` from the search, so `item` goes null in the same commit `open` goes false, and returning null on `item` alone tore the Radix dialog out of the tree while it was still open \u2014 the closing sheet had nothing left to animate. This holds the last item just long enough for the exit, and a reopen overwrites it before anything renders. A ref cannot do the job (`react-hooks/refs` forbids both the write and the read, and the exit frame is a render that has to see the old item); an effect is too late, because the null render has already committed."
     },
     {
       "id": "src/components/inbox/reply-editor-views.tsx:useState(text)",
@@ -483,7 +489,7 @@
       "id": "src/components/inbox/use-inbox-composer-controller.ts:useState(caret)",
       "classification": "local_runtime",
       "owner": "Inbox detail pane composer caret request",
-      "policy": "A request counter — `{ itemId, mode, seq }` — meaning \"put the caret in this composer surface of this item\", raised by the `r` / `n` shortcuts and by the thread's Edit actions. It holds no server-owned record of any kind: `seq` is a monotonic tally of asks, `mode` names a client surface and `itemId` names the selection that asked. A counter rather than a flag because a latched boolean fires its effect only on the rising edge, which would let each shortcut work exactly once per mounted pane; `seq: 0` is the initial \"nobody has asked\". `itemId` is what keeps a change of selection from stealing the caret, and it is load-bearing rather than descriptive: the two consuming effects (`reply-status-view.tsx`, `inbox-notes-thread.tsx`) are keyed by item and fire on MOUNT whenever the counter they are handed is non-zero, so a `seq === 0` early-return alone does not bound them — the pane outlives the selection change, and without the fence one `r` followed by a `j` down the list handed the caret to the next item's reply box and autosaved the following keystrokes onto a review nobody had opened. The reader (`caretFor`) therefore hands a surface `seq` only while `itemId` matches the current item, and `0` otherwise."
+      "policy": "A request counter \u2014 `{ itemId, mode, seq }` \u2014 meaning \"put the caret in this composer surface of this item\", raised by the `r` / `n` shortcuts and by the thread's Edit actions. It holds no server-owned record of any kind: `seq` is a monotonic tally of asks, `mode` names a client surface and `itemId` names the selection that asked. A counter rather than a flag because a latched boolean fires its effect only on the rising edge, which would let each shortcut work exactly once per mounted pane; `seq: 0` is the initial \"nobody has asked\". `itemId` is what keeps a change of selection from stealing the caret, and it is load-bearing rather than descriptive: the two consuming effects (`reply-status-view.tsx`, `inbox-notes-thread.tsx`) are keyed by item and fire on MOUNT whenever the counter they are handed is non-zero, so a `seq === 0` early-return alone does not bound them \u2014 the pane outlives the selection change, and without the fence one `r` followed by a `j` down the list handed the caret to the next item's reply box and autosaved the following keystrokes onto a review nobody had opened. The reader (`caretFor`) therefore hands a surface `seq` only while `itemId` matches the current item, and `0` otherwise."
     },
     {
       "id": "src/components/inbox/use-inbox-composer-controller.ts:useState(replyEdit)",

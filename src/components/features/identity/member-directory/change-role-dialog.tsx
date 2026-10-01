@@ -1,6 +1,8 @@
 // Change role: an explicit, explained confirmation in place of the old inline
 // role dropdown. Controlled by the route so one dialog serves every row; the
 // body mounts per open, which is what resets the chosen role for the next member.
+// The dialog cannot be left while the change is in flight: its success closes
+// the route's one dialog, which by then could be another member's.
 
 import { useState } from 'react'
 import {
@@ -74,7 +76,7 @@ function ChangeRoleBody({
         {change.note}
       </p>
       <AlertDialogFooter>
-        <Button variant="outline" onClick={onClose}>
+        <Button variant="outline" onClick={onClose} disabled={updateRoleAction.isPending}>
           Cancel
         </Button>
         <Button
@@ -99,7 +101,7 @@ export function ChangeRoleDialog(props: Props) {
     <AlertDialog
       open={member !== null}
       onOpenChange={(open) => {
-        if (!open) onClose()
+        if (!open && !props.updateRoleAction.isPending) onClose()
       }}
     >
       <AlertDialogContent>

@@ -110,6 +110,26 @@ export const Changing: Story = {
 }
 
 /**
+ * The route's role change outlives the dialog's body, and its success closes
+ * "the" dialog, which by then could be another member's. So the dialog cannot
+ * be left while the change is in flight, by Cancel or by Escape.
+ */
+export const CannotBeLeftWhileChanging: Story = {
+  args: {
+    member: manager,
+    onClose: fn(),
+    updateRoleAction: action(() => new Promise<unknown>(() => {}), true),
+  },
+  play: async ({ args }) => {
+    const body = within(await dialog())
+    expect(body.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    await userEvent.keyboard('{Escape}')
+    expect(args.onClose).not.toHaveBeenCalled()
+    expect(await dialog()).toBeInTheDocument()
+  },
+}
+
+/**
  * A refused change rejects the route's Action (which toasts it). The dialog
  * settles the promise, so nothing is unhandled, and stays open for a retry.
  */

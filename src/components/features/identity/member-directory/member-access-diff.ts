@@ -26,6 +26,52 @@ export type MemberAccessState = Readonly<{
   responsibleIds: Ids
 }>
 
+/** The Properties the member is a Responsible manager of, as the route read them. */
+export type ResponsibilityState =
+  | Readonly<{ status: 'loading' }>
+  | Readonly<{ status: 'unavailable' }>
+  | Readonly<{ status: 'ready'; responsibleIds: Ids }>
+
+/** What the server held for the member when the sheet first had it all. */
+export type AccessBaseline = MemberAccessState &
+  Readonly<{
+    /** False when the responsibility read failed, so no switch can be drawn. */
+    responsibilityKnown: boolean
+  }>
+
+/**
+ * The member's grants on Properties the checklist lists. Only those can change
+ * in the sheet: a grant on one it does not list (archived) is left exactly as
+ * it is, and nothing about it is read or sent.
+ */
+export function grantsOnListedProperties(
+  grantedPropertyIds: Ids,
+  listedPropertyIds: Ids,
+): string[] {
+  const listed = new Set(listedPropertyIds)
+  return grantedPropertyIds.filter((id) => listed.has(id))
+}
+
+/**
+ * The state a draft is measured against, taken once from the route's reads:
+ * null until the responsibility read has settled. The result is a copy: reads
+ * that move afterwards (a refocus refetch, another admin's grant, a failed
+ * refetch) do not reach it.
+ */
+export function accessBaseline(
+  grantedPropertyIds: Ids,
+  listedPropertyIds: Ids,
+  responsibility: ResponsibilityState,
+): AccessBaseline | null {
+  if (responsibility.status === 'loading') return null
+  return {
+    propertyIds: grantsOnListedProperties(grantedPropertyIds, listedPropertyIds),
+    responsibleIds:
+      responsibility.status === 'ready' ? [...responsibility.responsibleIds] : [],
+    responsibilityKnown: responsibility.status === 'ready',
+  }
+}
+
 export type MemberAccessChange = PropertyAccessDiff &
   Readonly<{
     responsibleOnPropertyIds: Ids
