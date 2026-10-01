@@ -474,6 +474,14 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     authority: 'POR-01',
   }),
   ...rows({
+    schemaFile: 'portal-group.schema.ts',
+    exportNames: ['portalGroupHistory'],
+    owner: 'portal',
+    disposition: 'recoverable_archive',
+    authority: 'POR-01',
+    exitCriteria: RETAINED_HISTORY,
+  }),
+  ...rows({
     schemaFile: 'portal.schema.ts',
     exportNames: [
       'portalAccessArtifacts',

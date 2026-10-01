@@ -37,6 +37,13 @@ describe('Portal Organization lifecycle contributor', () => {
     )
   })
 
+  it('deletes the group history before the groups it hangs from', () => {
+    expect(PORTAL_PURGE_PLAN).toContain('portal_group_history')
+    expect(PORTAL_PURGE_PLAN.indexOf('portal_group_history')).toBeLessThan(
+      PORTAL_PURGE_PLAN.indexOf('portal_groups'),
+    )
+  })
+
   it('keeps the dark Portal upload capability dark', () => {
     // Portal upload has no public issuance surface. A lifecycle contributor
     // must not be the thing that makes a dark capability reachable, so the

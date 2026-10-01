@@ -31,6 +31,18 @@ Activations are append-only effective-dated routes from a stable token to one
 snapshot; publish and rollback append activations, while disable/archive close
 one. Groups remain Property-scoped, and one Portal has at most one active group.
 
+A Portal changes group in one commit: `movePortalToGroup` (and create-with-move,
+where a new group takes Portals that are in another group) ends the old
+`portal_group_memberships` row with `end_reason = 'moved_to_group'` and begins the
+new one, so the results the Portal earned stay with the group it left. It takes the
+fence of every group it touches in sorted id order, then locks the Portal, then
+the membership; it records `portal_group.portal_removed` for the old group and
+`portal_group.portal_added` for the new one, both by identifier. Every group
+command also writes `portal_group_history` in its own transaction (created,
+renamed with the previous name, archived, Portal added, removed, moved in or out,
+each with the actor and the time); names live in that ledger, never on a fact.
+`portal_groups.created_by` records who created a group (null before round 4).
+
 The link section of the guest page is the **Linktree**. Its working model is
 `portal_link_texts` (one label and optional line per link and language), a title
 per language in `portal_localized_overrides.linktree_title` (null means the
@@ -146,6 +158,7 @@ for Identity avatar and organization-logo uploads through `container.assetStorag
 13. Closing is a **stop, not a delete**, and it is reversible: the immutable publication snapshot survives and `portals.publication_state` keeps the tenant's own published/draft intent, so explicit reactivation re-points a new activation at the same snapshot rather than guessing what each Portal used to be. Ordinary closure cancellation does not itself reactivate Portals — see `docs/operations/organization-lifecycle.md`.
 14. `portal_group_members` is purged as a **row delete only**. It is a physical-drop-blocked compatibility mirror: the rows are tenant content and must go, the table must not. No phase issues a DROP or TRUNCATE.
 15. Linktree edits (link texts, the section title, the switch) take the Portal fence like any content command and record `portal_links` pending changes under structured keys: `link:<id>:text:<locale>`, `linktree:title:<locale>` and `linktree:enabled`. Only a value that actually changed records one, and their facts carry identifiers, never the wording.
+16. A group's history starts at the deploy of migration 0046; earlier changes are not reconstructed, because earlier names were never kept. History rows are never updated or deleted while their group exists, and a purge removes them with the group.
 
 ## Verification
 

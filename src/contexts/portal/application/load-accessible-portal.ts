@@ -18,6 +18,7 @@ import type { Permission } from '#/shared/domain/permissions'
 import { canForContext } from '#/shared/domain/permissions'
 import { portalError } from '../domain/errors'
 import { assertPropertyAccess } from './assert-property-access'
+import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
 
 /**
  * Authorize `permission`, load the portal, and assert the caller's
@@ -101,4 +102,70 @@ export async function assertNewPortalPropertyAccess(
   await assertPropertyAccess(deps.staffPublicApi, ctx, 'portal.create', pid)
 
   return pid
+}
+
+/**
+ * Group read prologue: authorize portal.read, load the group, and assert
+ * assignment access to its property (D6-001).
+ */
+export async function loadReadableGroup(
+  deps: Readonly<{
+    portalGroupRepo: PortalGroupRepository
+    staffPublicApi: StaffPublicApi
+  }>,
+  ctx: AuthContext,
+  rawGroupId: string,
+): Promise<PortalGroup> {
+  if (!canForContext(ctx, 'portal.read')) {
+    throw portalError('forbidden', 'No portal read permission')
+  }
+  const group = await deps.portalGroupRepo.findById(
+    ctx.organizationId,
+    portalGroupId(rawGroupId),
+  )
+  if (!group) {
+    throw portalError('group_not_found', 'portal group not found in this organization')
+  }
+  await assertPropertyAccess(deps.staffPublicApi, ctx, 'portal.read', group.propertyId)
+  return group
+}
+
+/**
+ * The Portal a membership change moves into `group`. It must exist and belong
+ * to the group's Property, which keeps a group of one Property from collecting
+ * a Portal of another.
+ */
+export async function loadPortalOfGroupProperty(
+  deps: Readonly<{ portalRepo: PortalRepository }>,
+  ctx: AuthContext,
+  pid: PortalId,
+  group: PortalGroup,
+): Promise<Portal> {
+  const portal = await deps.portalRepo.findById(ctx.organizationId, pid)
+  if (!portal) {
+    throw portalError('portal_not_found', 'portal not found in this organization')
+  }
+  if (String(portal.propertyId) !== String(group.propertyId)) {
+    throw portalError('forbidden', 'portal must belong to the same property as the group')
+  }
+  return portal
+}
+
+/**
+ * Read prologue for lists: authorize portal.read and return the Properties the
+ * caller is assigned to, or null for a role that sees every Property (D6-001).
+ */
+export async function readablePropertyIds(
+  deps: Readonly<{ staffPublicApi: StaffPublicApi }>,
+  ctx: AuthContext,
+): Promise<ReadonlyArray<PropertyId> | null> {
+  if (!canForContext(ctx, 'portal.read')) {
+    throw portalError('forbidden', 'No portal read permission')
+  }
+  return getAccessiblePropertyIdsForPermission(
+    (orgId, userId, orgWide) =>
+      deps.staffPublicApi.getAccessiblePropertyIds(orgId, userId, orgWide),
+    ctx,
+    'portal.read',
+  )
 }

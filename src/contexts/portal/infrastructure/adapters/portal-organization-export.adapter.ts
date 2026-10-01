@@ -24,6 +24,7 @@ type PortalOrganizationExportPayload = Readonly<{
   portals: readonly ExportRecord[]
   portalGroups: readonly ExportRecord[]
   portalGroupMembers: readonly ExportRecord[]
+  portalGroupHistory: readonly ExportRecord[]
   linkCategories: readonly ExportRecord[]
   links: readonly ExportRecord[]
   linkTexts: readonly ExportRecord[]
@@ -155,6 +156,7 @@ function collectionsOf(
     ['portal', payload.portals],
     ['portal_group', payload.portalGroups],
     ['portal_group_member', payload.portalGroupMembers],
+    ['portal_group_history', payload.portalGroupHistory],
     ['portal_link_category', payload.linkCategories],
     ['portal_link', payload.links],
     ['portal_link_text', payload.linkTexts],
@@ -243,6 +245,7 @@ async function readPayload(
       const portalGroups = await readRows(
         snapshot,
         sql`SELECT id::text AS id, property_id::text AS property_id, name, sort_key,
+                   created_by,
                    ${utc('created_at')} AS created_at,
                    ${utc('updated_at')} AS updated_at,
                    ${utc('deleted_at')} AS deleted_at
@@ -254,6 +257,16 @@ async function readPayload(
                    portal_id::text AS portal_id,
                    ${utc('created_at')} AS created_at
             FROM portal_group_members WHERE organization_id = ${organizationId}`,
+      )
+      const portalGroupHistory = await readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id,
+                   portal_group_id::text AS portal_group_id, kind,
+                   portal_id::text AS portal_id,
+                   other_group_id::text AS other_group_id, name, previous_name,
+                   actor_user_id, ${utc('occurred_at')} AS occurred_at,
+                   ${utc('created_at')} AS created_at
+            FROM portal_group_history WHERE organization_id = ${organizationId}`,
       )
       const linkCategories = await readRows(
         snapshot,
@@ -395,6 +408,11 @@ async function readPayload(
         portals: sortRecords(portals, ['id']),
         portalGroups: sortRecords(portalGroups, ['id']),
         portalGroupMembers: sortRecords(portalGroupMembers, ['portal_id', 'id']),
+        portalGroupHistory: sortRecords(portalGroupHistory, [
+          'portal_group_id',
+          'occurred_at',
+          'id',
+        ]),
         linkCategories: sortRecords(linkCategories, ['portal_id', 'sort_key', 'id']),
         links: sortRecords(links, ['portal_id', 'category_id', 'sort_key', 'id']),
         linkTexts: sortRecords(linkTexts, ['portal_id', 'link_id', 'locale', 'id']),

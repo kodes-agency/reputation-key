@@ -29,6 +29,7 @@ const CHILD_TABLES = [
   'portal_links',
   'portal_link_categories',
   'portal_group_members',
+  'portal_group_history',
   'portal_groups',
   'portal_approved_destinations',
   'property_portal_brand_contents',
@@ -108,9 +109,15 @@ async function seedFixture(): Promise<Fixture> {
   )
   await q(
     `INSERT INTO portal_groups (id, organization_id, property_id, name, sort_key,
-                                created_at, updated_at)
-     VALUES ($1, $2, $3, 'Ground Floor', 'a', now(), now())`,
-    [fixture.groupId, organizationId, fixture.propertyId],
+                                created_by, created_at, updated_at)
+     VALUES ($1, $2, $3, 'Ground Floor', 'a', $4, now(), now())`,
+    [fixture.groupId, organizationId, fixture.propertyId, fixture.userId],
+  )
+  await q(
+    `INSERT INTO portal_group_history (id, organization_id, property_id, portal_group_id,
+                                       kind, name, previous_name, actor_user_id, occurred_at)
+     VALUES ($1, $2, $3, $4, 'renamed', 'Ground Floor', 'Lobby Level', $5, now())`,
+    [randomUUID(), organizationId, fixture.propertyId, fixture.groupId, fixture.userId],
   )
   await q(
     `INSERT INTO portal_group_members (id, portal_group_id, portal_id, organization_id,
@@ -329,6 +336,7 @@ describe.sequential('Portal Organization Export contributor', () => {
       'portals',
       'portalGroups',
       'portalGroupMembers',
+      'portalGroupHistory',
       'linkCategories',
       'links',
       'linkTexts',
@@ -351,6 +359,15 @@ describe.sequential('Portal Organization Export contributor', () => {
       slug: 'front-desk',
       publication_state: 'published',
       linktree_enabled: true,
+    })
+    expect(payload.portalGroups?.[0]).toMatchObject({ created_by: fixture.userId })
+    // Names live in the ledger, not on events, so the export carries them.
+    expect(payload.portalGroupHistory?.[0]).toMatchObject({
+      portal_group_id: fixture.groupId,
+      kind: 'renamed',
+      name: 'Ground Floor',
+      previous_name: 'Lobby Level',
+      actor_user_id: fixture.userId,
     })
     expect(payload.linkTexts?.[0]).toMatchObject({
       link_id: fixture.linkId,

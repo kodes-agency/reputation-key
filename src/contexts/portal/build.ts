@@ -18,6 +18,7 @@ import {
 import { createPortalResponsibilityRuntime } from './application/portal-responsibility-runtime'
 import { createPortalLinkRepository } from './infrastructure/repositories/portal-link.repository'
 import { createPortalGroupRepository } from './infrastructure/repositories/portal-group.repository'
+import { createPortalGroupHistoryRepository } from './infrastructure/repositories/portal-group-history.repository'
 import { createS3StorageAdapter } from './infrastructure/adapters/s3-storage.adapter'
 import { createPortalTokenRepository } from './infrastructure/repositories/portal-token.repository'
 import { createPortalPublicationRepository } from './infrastructure/repositories/portal-publication.repository'
@@ -67,6 +68,8 @@ import { getPortalGroup } from './application/use-cases/get-portal-group'
 import { softDeletePortalGroup } from './application/use-cases/soft-delete-portal-group'
 import { addPortalToGroup } from './application/use-cases/add-portal-to-group'
 import { removePortalFromGroup } from './application/use-cases/remove-portal-from-group'
+import { movePortalToGroup } from './application/use-cases/move-portal-to-group'
+import { listPortalGroupHistory } from './application/use-cases/list-portal-group-history'
 import { issuePortalToken } from './application/use-cases/issue-portal-token'
 import { rotatePortalToken } from './application/use-cases/rotate-portal-token'
 import { revokePortalTokens } from './application/use-cases/revoke-portal-tokens'
@@ -160,6 +163,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalCommandStore = createAtomicPortalCommandStore(deps.db)
   const portalLinkRepo = createPortalLinkRepository(deps.db, deps.clock)
   const portalGroupRepo = createPortalGroupRepository(deps.db)
+  const portalGroupHistoryRepo = createPortalGroupHistoryRepository(deps.db)
   const portalAccessArtifactRepo = createPortalAccessArtifactRepository(
     deps.db,
     portalGroupRepo,
@@ -496,6 +500,18 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       staffPublicApi: deps.staffPublicApi,
       commandStore: portalCommandStore,
       clock: deps.clock,
+    }),
+    movePortalToGroup: movePortalToGroup({
+      portalGroupRepo,
+      portalRepo,
+      staffPublicApi: deps.staffPublicApi,
+      commandStore: portalCommandStore,
+      clock: deps.clock,
+    }),
+    listPortalGroupHistory: listPortalGroupHistory({
+      portalGroupRepo,
+      portalGroupHistoryRepo,
+      staffPublicApi: deps.staffPublicApi,
     }),
     issuePortalToken: issuePortalToken({
       portalRepo,

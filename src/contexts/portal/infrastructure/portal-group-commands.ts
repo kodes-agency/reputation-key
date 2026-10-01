@@ -2,9 +2,8 @@
 // Split out of portal-command-store.ts (round 4 F3); composed back behind the
 // same PortalCommandStore port by createAtomicPortalCommandStore.
 
-import { and, eq, gte, isNull, lt, sql } from 'drizzle-orm'
+import { and, eq, gte, isNull, lt } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { portals } from '#/shared/db/schema'
 import { portalGroups } from '#/shared/db/schema/portal-group.schema'
 import { portalGroupMemberships } from '#/shared/db/schema/people-access.schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
@@ -14,13 +13,27 @@ import type {
   AddPortalToGroupCommand,
   CreatePortalGroupCommand,
   DeletePortalGroupCommand,
+  MovePortalToGroupCommand,
   PortalCommandStore,
   RemovePortalFromGroupCommand,
   UpdatePortalGroupCommand,
 } from '../application/ports/portal-command-store.port'
 import { portalError } from '../domain/errors'
+import {
+  groupMovementEntries,
+  portalGroupHistoryEntry,
+} from '../domain/portal-group-history'
 import { portalGroupToRow } from './mappers/portal-group.mapper'
 import { assertCommittedRevision, sameInstant } from './portal-command-guards'
+import {
+  beginMembership,
+  endMembership,
+  fencePortalGroup,
+  fencePortalGroupsInOrder,
+  lockActiveMembership,
+  lockSamePropertyPortal,
+  recordGroupHistory,
+} from './portal-group-writes'
 
 export type PortalGroupCommandStore = Pick<
   PortalCommandStore,
@@ -28,6 +41,7 @@ export type PortalGroupCommandStore = Pick<
   | 'updatePortalGroup'
   | 'addPortalToGroup'
   | 'removePortalFromGroup'
+  | 'movePortalToGroup'
   | 'deletePortalGroup'
 >
 
@@ -49,6 +63,8 @@ function assertDeletePortalGroupCommand(command: DeletePortalGroupCommand): void
     )
   }
 }
+
+const CREATE_MISMATCH = 'Tenant, resource, or fact mismatch on Portal Group creation'
 
 function assertCreatePortalGroupCommand(command: CreatePortalGroupCommand): void {
   const [created, ...membershipEvents] = command.events
@@ -75,10 +91,42 @@ function assertCreatePortalGroupCommand(command: CreatePortalGroupCommand): void
       )
     })
   ) {
-    throw portalError(
-      'forbidden',
-      'Tenant, resource, or fact mismatch on Portal Group creation',
-    )
+    throw portalError('forbidden', CREATE_MISMATCH)
+  }
+  assertDepartures(command)
+}
+
+/** Each departure must match a fenced source group and describe this new group's member. */
+function assertDepartures(command: CreatePortalGroupCommand): void {
+  const fenced = new Map(
+    command.sourceGroups.map((fence) => [String(fence.portalGroupId), fence]),
+  )
+  if (fenced.size !== command.sourceGroups.length) {
+    throw portalError('forbidden', CREATE_MISMATCH)
+  }
+  const used = new Set<string>()
+  for (const membership of command.memberships) {
+    const departure = membership.movedFrom
+    if (!departure) continue
+    const fence = fenced.get(String(departure.portalGroupId))
+    const event = departure.event
+    if (
+      !fence ||
+      departure.portalGroupId === command.group.id ||
+      event._tag !== 'portal_group.portal_removed' ||
+      event.organizationId !== command.organizationId ||
+      event.propertyId !== command.group.propertyId ||
+      event.portalGroupId !== departure.portalGroupId ||
+      event.portalId !== membership.portalId ||
+      event.sourceAggregateVersion !== fence.revision.toISOString() ||
+      !sameInstant(event.occurredAt, command.group.createdAt)
+    ) {
+      throw portalError('forbidden', CREATE_MISMATCH)
+    }
+    used.add(String(departure.portalGroupId))
+  }
+  if (used.size !== fenced.size || command.group.createdBy !== command.changedBy) {
+    throw portalError('forbidden', CREATE_MISMATCH)
   }
 }
 
@@ -115,43 +163,24 @@ function assertMembershipCommand(
   }
 }
 
-async function fencePortalGroup(
-  tx: Parameters<Parameters<Database['transaction']>[0]>[0],
-  command: Readonly<{
-    organizationId: CreatePortalGroupCommand['organizationId']
-    propertyId: CreatePortalGroupCommand['group']['propertyId']
-    portalGroupId: CreatePortalGroupCommand['group']['id']
-    expectedUpdatedAt: Date
-    revision: Date
-    occurredAt: Date
-  }>,
-  patch: Readonly<{ name?: string }> = {},
-): Promise<void> {
-  if (command.revision.getTime() <= command.expectedUpdatedAt.getTime()) {
-    throw portalError(
-      'revision_conflict',
-      'Portal Group command revision must advance monotonically',
-    )
-  }
-  const [updated] = await tx
-    .update(portalGroups)
-    .set({ ...patch, updatedAt: command.revision })
-    .where(
-      and(
-        eq(portalGroups.organizationId, unbrand(command.organizationId)),
-        eq(portalGroups.propertyId, unbrand(command.propertyId)),
-        eq(portalGroups.id, unbrand(command.portalGroupId)),
-        eq(portalGroups.updatedAt, command.expectedUpdatedAt),
-        isNull(portalGroups.deletedAt),
-      ),
-    )
-    .returning({ updatedAt: portalGroups.updatedAt })
-  assertCommittedRevision(
-    updated,
-    command.revision,
-    'Portal Group',
-    'Portal Group changed while the command was being committed',
+function assertMoveCommand(command: MovePortalToGroupCommand): void {
+  const sides = [
+    ['portal_group.portal_added', command.to],
+    ...(command.from ? ([['portal_group.portal_removed', command.from]] as const) : []),
+  ] as const
+  const mismatch = sides.some(
+    ([tag, side]) =>
+      side.event._tag !== tag ||
+      side.event.organizationId !== command.organizationId ||
+      side.event.propertyId !== command.propertyId ||
+      side.event.portalGroupId !== side.portalGroupId ||
+      side.event.portalId !== command.portalId ||
+      side.event.sourceAggregateVersion !== side.revision.toISOString() ||
+      !sameInstant(side.event.occurredAt, command.occurredAt),
   )
+  if (mismatch || command.from?.portalGroupId === command.to.portalGroupId) {
+    throw portalError('forbidden', 'Tenant or resource mismatch on Portal Group move')
+  }
 }
 
 export const createPortalGroupCommands = (db: Database): PortalGroupCommandStore => {
@@ -159,55 +188,92 @@ export const createPortalGroupCommands = (db: Database): PortalGroupCommandStore
     createPortalGroup: async (command) =>
       trace('portal.commandStore.createPortalGroup', async () => {
         assertCreatePortalGroupCommand(command)
+        const { group } = command
         await db.transaction(async (tx) => {
+          await fencePortalGroupsInOrder(
+            tx,
+            command.sourceGroups.map((fence) => ({
+              ...fence,
+              organizationId: command.organizationId,
+              propertyId: group.propertyId,
+            })),
+          )
           const [created] = await tx
             .insert(portalGroups)
-            .values(portalGroupToRow(command.group))
+            .values(portalGroupToRow(group))
             .returning({ updatedAt: portalGroups.updatedAt })
           assertCommittedRevision(
             created,
-            command.group.updatedAt,
+            group.updatedAt,
             'Portal Group',
             'Portal Group creation did not return its command revision',
           )
-          for (const membership of command.memberships) {
-            await tx.execute(sql`
-              SELECT id FROM portals
-              WHERE organization_id = ${unbrand(command.organizationId)}
-                AND property_id = ${unbrand(command.group.propertyId)}
-                AND id = ${unbrand(membership.portalId)}
-                AND deleted_at IS NULL
-              FOR UPDATE
-            `)
-            const [portal] = await tx
-              .select({ id: portals.id })
-              .from(portals)
-              .where(
-                and(
-                  eq(portals.organizationId, unbrand(command.organizationId)),
-                  eq(portals.propertyId, unbrand(command.group.propertyId)),
-                  eq(portals.id, unbrand(membership.portalId)),
-                  isNull(portals.deletedAt),
-                ),
-              )
-              .limit(1)
-            if (!portal) {
-              throw portalError(
-                'forbidden',
-                'Initial Portal Group membership requires an active same-property Portal',
-              )
+          // Portals are locked in id order so two creations over the same Portals
+          // queue instead of deadlocking.
+          const byPortal = [...command.memberships].sort((left, right) =>
+            String(left.portalId).localeCompare(String(right.portalId)),
+          )
+          for (const membership of byPortal) {
+            await lockSamePropertyPortal(
+              tx,
+              {
+                organizationId: command.organizationId,
+                propertyId: group.propertyId,
+                portalId: membership.portalId,
+              },
+              'Initial Portal Group membership requires an active same-property Portal',
+            )
+            const active = await lockActiveMembership(tx, {
+              organizationId: command.organizationId,
+              portalId: membership.portalId,
+            })
+            if (membership.movedFrom) {
+              if (active?.portalGroupId !== String(membership.movedFrom.portalGroupId)) {
+                throw portalError(
+                  'revision_conflict',
+                  'Portal changed groups while the command was being committed',
+                )
+              }
+              await endMembership(tx, active, group.createdAt, 'moved_to_group')
+            } else if (active) {
+              throw portalError('portal_already_grouped', 'portal is already in a group')
             }
-            await tx.insert(portalGroupMemberships).values({
-              organizationId: unbrand(command.organizationId),
-              propertyId: unbrand(command.group.propertyId),
-              portalId: unbrand(membership.portalId),
-              portalGroupId: unbrand(command.group.id),
-              effectiveFrom: command.group.createdAt,
+            await beginMembership(tx, {
+              organizationId: command.organizationId,
+              propertyId: group.propertyId,
+              portalId: membership.portalId,
+              portalGroupId: group.id,
+              at: group.createdAt,
               createdBy: unbrand(membership.createdBy),
             })
           }
-          for (const event of command.events) {
-            await insertOutboxRow(tx, event, { recordedAt: command.group.createdAt })
+          await recordGroupHistory(tx, [
+            portalGroupHistoryEntry({
+              organizationId: command.organizationId,
+              propertyId: group.propertyId,
+              portalGroupId: group.id,
+              kind: 'created',
+              name: group.name,
+              actorUserId: unbrand(command.changedBy),
+              occurredAt: group.createdAt,
+            }),
+            ...command.memberships.flatMap((membership) =>
+              groupMovementEntries({
+                organizationId: command.organizationId,
+                propertyId: group.propertyId,
+                portalId: membership.portalId,
+                fromGroupId: membership.movedFrom?.portalGroupId ?? null,
+                toGroupId: group.id,
+                actorUserId: unbrand(membership.createdBy),
+                occurredAt: group.createdAt,
+              }),
+            ),
+          ])
+          const departures = command.memberships.flatMap((membership) =>
+            membership.movedFrom ? [membership.movedFrom.event] : [],
+          )
+          for (const event of [...command.events, ...departures]) {
+            await insertOutboxRow(tx, event, { recordedAt: group.createdAt })
           }
         })
       }),
@@ -217,6 +283,20 @@ export const createPortalGroupCommands = (db: Database): PortalGroupCommandStore
         assertUpdatePortalGroupCommand(command)
         await db.transaction(async (tx) => {
           await fencePortalGroup(tx, command, { name: command.name })
+          if (command.name !== command.previousName) {
+            await recordGroupHistory(tx, [
+              portalGroupHistoryEntry({
+                organizationId: command.organizationId,
+                propertyId: command.propertyId,
+                portalGroupId: command.portalGroupId,
+                kind: 'renamed',
+                name: command.name,
+                previousName: command.previousName,
+                actorUserId: unbrand(command.changedBy),
+                occurredAt: command.occurredAt,
+              }),
+            ])
+          }
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,
           })
@@ -228,64 +308,31 @@ export const createPortalGroupCommands = (db: Database): PortalGroupCommandStore
         assertMembershipCommand(command, 'portal_group.portal_added')
         await db.transaction(async (tx) => {
           await fencePortalGroup(tx, command)
-          await tx.execute(sql`
-            SELECT id FROM portals
-            WHERE organization_id = ${unbrand(command.organizationId)}
-              AND property_id = ${unbrand(command.propertyId)}
-              AND id = ${unbrand(command.portalId)}
-              AND deleted_at IS NULL
-            FOR UPDATE
-          `)
-          const [portal] = await tx
-            .select({ id: portals.id })
-            .from(portals)
-            .where(
-              and(
-                eq(portals.organizationId, unbrand(command.organizationId)),
-                eq(portals.propertyId, unbrand(command.propertyId)),
-                eq(portals.id, unbrand(command.portalId)),
-                isNull(portals.deletedAt),
-              ),
-            )
-            .limit(1)
-          if (!portal) {
-            throw portalError(
-              'forbidden',
-              'Portal Group membership requires an active same-property Portal',
-            )
-          }
-          await tx.execute(sql`
-            SELECT id FROM portal_group_memberships
-            WHERE organization_id = ${unbrand(command.organizationId)}
-              AND portal_id = ${unbrand(command.portalId)}
-              AND effective_to IS NULL
-            FOR UPDATE
-          `)
-          const [existing] = await tx
-            .select({ id: portalGroupMemberships.id })
-            .from(portalGroupMemberships)
-            .where(
-              and(
-                eq(
-                  portalGroupMemberships.organizationId,
-                  unbrand(command.organizationId),
-                ),
-                eq(portalGroupMemberships.portalId, unbrand(command.portalId)),
-                isNull(portalGroupMemberships.effectiveTo),
-              ),
-            )
-            .limit(1)
+          await lockSamePropertyPortal(
+            tx,
+            command,
+            'Portal Group membership requires an active same-property Portal',
+          )
+          const existing = await lockActiveMembership(tx, command)
           if (existing) {
             throw portalError('portal_already_grouped', 'portal is already in a group')
           }
-          await tx.insert(portalGroupMemberships).values({
-            organizationId: unbrand(command.organizationId),
-            propertyId: unbrand(command.propertyId),
-            portalId: unbrand(command.portalId),
-            portalGroupId: unbrand(command.portalGroupId),
-            effectiveFrom: command.occurredAt,
+          await beginMembership(tx, {
+            ...command,
+            at: command.occurredAt,
             createdBy: unbrand(command.changedBy),
           })
+          await recordGroupHistory(tx, [
+            portalGroupHistoryEntry({
+              organizationId: command.organizationId,
+              propertyId: command.propertyId,
+              portalGroupId: command.portalGroupId,
+              kind: 'portal_added',
+              portalId: command.portalId,
+              actorUserId: unbrand(command.changedBy),
+              occurredAt: command.occurredAt,
+            }),
+          ])
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,
           })
@@ -297,53 +344,82 @@ export const createPortalGroupCommands = (db: Database): PortalGroupCommandStore
         assertMembershipCommand(command, 'portal_group.portal_removed')
         await db.transaction(async (tx) => {
           await fencePortalGroup(tx, command)
-          await tx.execute(sql`
-            SELECT id FROM portal_group_memberships
-            WHERE organization_id = ${unbrand(command.organizationId)}
-              AND property_id = ${unbrand(command.propertyId)}
-              AND portal_group_id = ${unbrand(command.portalGroupId)}
-              AND portal_id = ${unbrand(command.portalId)}
-              AND effective_to IS NULL
-            FOR UPDATE
-          `)
-          const [active] = await tx
-            .select()
-            .from(portalGroupMemberships)
-            .where(
-              and(
-                eq(
-                  portalGroupMemberships.organizationId,
-                  unbrand(command.organizationId),
-                ),
-                eq(portalGroupMemberships.propertyId, unbrand(command.propertyId)),
-                eq(portalGroupMemberships.portalGroupId, unbrand(command.portalGroupId)),
-                eq(portalGroupMemberships.portalId, unbrand(command.portalId)),
-                isNull(portalGroupMemberships.effectiveTo),
-              ),
-            )
-            .limit(1)
-          if (!active) {
+          const active = await lockActiveMembership(tx, command)
+          if (active?.portalGroupId !== String(command.portalGroupId)) {
             throw portalError(
               'portal_not_in_group',
               'portal is not a member of this group',
             )
           }
-          if (active.effectiveFrom >= command.occurredAt) {
-            await tx
-              .delete(portalGroupMemberships)
-              .where(eq(portalGroupMemberships.id, active.id))
-          } else {
-            await tx
-              .update(portalGroupMemberships)
-              .set({
-                effectiveTo: command.occurredAt,
-                endReason: 'removed_from_group',
-              })
-              .where(eq(portalGroupMemberships.id, active.id))
-          }
+          await endMembership(tx, active, command.occurredAt, 'removed_from_group')
+          await recordGroupHistory(tx, [
+            portalGroupHistoryEntry({
+              organizationId: command.organizationId,
+              propertyId: command.propertyId,
+              portalGroupId: command.portalGroupId,
+              kind: 'portal_removed',
+              portalId: command.portalId,
+              actorUserId: unbrand(command.changedBy),
+              occurredAt: command.occurredAt,
+            }),
+          ])
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,
           })
+        })
+      }),
+
+    movePortalToGroup: async (command) =>
+      trace('portal.commandStore.movePortalToGroup', async () => {
+        assertMoveCommand(command)
+        await db.transaction(async (tx) => {
+          await fencePortalGroupsInOrder(
+            tx,
+            [command.to, ...(command.from ? [command.from] : [])].map((fence) => ({
+              ...fence,
+              organizationId: command.organizationId,
+              propertyId: command.propertyId,
+            })),
+          )
+          await lockSamePropertyPortal(
+            tx,
+            command,
+            'Portal Group membership requires an active same-property Portal',
+          )
+          const active = await lockActiveMembership(tx, command)
+          if (command.from) {
+            if (active?.portalGroupId !== String(command.from.portalGroupId)) {
+              throw portalError(
+                'revision_conflict',
+                'Portal changed groups while the move was being committed',
+              )
+            }
+            await endMembership(tx, active, command.occurredAt, 'moved_to_group')
+          } else if (active) {
+            throw portalError('portal_already_grouped', 'portal is already in a group')
+          }
+          await beginMembership(tx, {
+            ...command,
+            portalGroupId: command.to.portalGroupId,
+            at: command.occurredAt,
+            createdBy: unbrand(command.changedBy),
+          })
+          await recordGroupHistory(
+            tx,
+            groupMovementEntries({
+              organizationId: command.organizationId,
+              propertyId: command.propertyId,
+              portalId: command.portalId,
+              fromGroupId: command.from?.portalGroupId ?? null,
+              toGroupId: command.to.portalGroupId,
+              actorUserId: unbrand(command.changedBy),
+              occurredAt: command.occurredAt,
+            }),
+          )
+          for (const event of [command.from?.event, command.to.event]) {
+            if (event)
+              await insertOutboxRow(tx, event, { recordedAt: command.occurredAt })
+          }
         })
       }),
 
@@ -397,6 +473,16 @@ export const createPortalGroupCommands = (db: Database): PortalGroupCommandStore
                 lt(portalGroupMemberships.effectiveFrom, command.occurredAt),
               ),
             )
+          await recordGroupHistory(tx, [
+            portalGroupHistoryEntry({
+              organizationId: command.organizationId,
+              propertyId: command.propertyId,
+              portalGroupId: command.portalGroupId,
+              kind: 'archived',
+              actorUserId: unbrand(command.changedBy),
+              occurredAt: command.occurredAt,
+            }),
+          ])
 
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,

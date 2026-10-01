@@ -21,7 +21,7 @@ import {
   type OrganizationLifecycleContributionRequest,
   type OrganizationLifecyclePhaseOutcome,
 } from '#/shared/db/lifecycle/organization-lifecycle-receipt-store'
-import { portalGroups } from '#/shared/db/schema/portal-group.schema'
+import { portalGroupHistory, portalGroups } from '#/shared/db/schema/portal-group.schema'
 import {
   portalAccessArtifacts,
   portalApprovedDestinations,
@@ -83,6 +83,7 @@ export const PORTAL_PURGE_PLAN = Object.freeze([
   'property_portal_brand_contents',
   'property_portal_brand_profiles',
   'portals',
+  'portal_group_history',
   'portal_groups',
 ] as const)
 
@@ -214,6 +215,9 @@ const drizzlePortalLifecycleWorkbench: PortalLifecycleWorkbench = Object.freeze(
       .delete(propertyPortalBrandProfiles)
       .where(eq(propertyPortalBrandProfiles.organizationId, organizationId))
     await tx.delete(portals).where(eq(portals.organizationId, organizationId))
+    await tx
+      .delete(portalGroupHistory)
+      .where(eq(portalGroupHistory.organizationId, organizationId))
     await tx.delete(portalGroups).where(eq(portalGroups.organizationId, organizationId))
   },
 })

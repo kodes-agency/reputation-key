@@ -91,6 +91,12 @@ async function seedFixture(): Promise<Fixture> {
     [fixture.portalGroupId, organizationId, fixture.propertyId],
   )
   await q(
+    `INSERT INTO portal_group_history (id, organization_id, property_id, portal_group_id,
+                                       kind, name, actor_user_id, occurred_at)
+     VALUES ($1, $2, $3, $4, 'created', 'Ground floor', $5, now())`,
+    [randomUUID(), organizationId, fixture.propertyId, fixture.portalGroupId, actor],
+  )
+  await q(
     `INSERT INTO portals (id, organization_id, property_id, entity_id, name, slug,
                           publication_state, created_at, updated_at)
      VALUES ($1, $2, $3, $4, 'Front Desk', 'front-desk', 'published', now(), now())`,
@@ -350,6 +356,7 @@ const CLEANUP_ORDER = [
   'property_portal_brand_contents',
   'property_portal_brand_profiles',
   'portals',
+  'portal_group_history',
   'portal_groups',
   'properties',
 ] as const

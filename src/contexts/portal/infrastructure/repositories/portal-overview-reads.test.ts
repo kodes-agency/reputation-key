@@ -119,6 +119,7 @@ async function seedGroups() {
     propertyId: property,
     name: `Group ${id.slice(-2)}`,
     sortKey: null,
+    createdBy: null,
     createdAt: START,
     updatedAt: START,
     deletedAt: null,
