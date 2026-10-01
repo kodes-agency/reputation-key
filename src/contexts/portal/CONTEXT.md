@@ -120,19 +120,36 @@ hidden in a segment do not survive, and the original is never stored.
   Property, the rights confirmation, the bytes, and a cap of 200 stored images per
   Property, then decodes and re-encodes, writes the object, then the row. A failed
   row removes the object again. The endpoint is gated on `portal.upload`.
-- **Takedown**: a `taken_down` asset keeps its row, because snapshots name assets
-  by id with no foreign key, and is never served.
+- **Serving**: a guest's browser gets an image from
+  `GET /api/public/portal-media/:assetId` on the app's own origin (`servePortalMedia`).
+  The asset is found by its id alone (the id is the capability), served only while
+  `active`, only while the execution policy allows `portal.public_read` for its
+  Organization and Property (a denial is the same 404), and only if the bytes the store returns match the row's size and hash.
+  A published page's image URLs are made when the page is read
+  (`resolvePortalMediaUrls`), never stored in a snapshot.
+- **Takedown** (`takeDownPortalMedia`, an Account Admin, gated on `portal.write`):
+  the row becomes `taken_down` and is never served; its object is then removed and
+  `object_deleted_at` recorded. The row stays, because snapshots name assets by id
+  with no foreign key. A failed removal is retried by the sweep.
+- **Sweep** (`sweepPortalMedia`, hourly, not capability-gated): finishes takedown
+  removals, and deletes `active` assets older than a day that no Brand Profile,
+  link or publication snapshot refers to (object, then row, in one transaction with
+  the row locked). A snapshot's reference keeps an asset for as long as the
+  snapshot exists.
+- **Purge**: the Organization lifecycle contributor removes the objects of the
+  Organization's assets before it deletes their rows.
 - **References**: the Brand Profile's `logo_asset_id`, `hero_asset_id` (with
   `hero_focal_x/y`, present exactly when there is a hero) and a link's
   `image_asset_id` are composite foreign keys to an asset of the same
-  Organization and Property. Nothing reads or writes them yet. The database does
+  Organization and Property. No command writes them yet; the manager controls
+  (a later slice) will. The database does
   not tie a reference to the asset's **purpose**: whatever writes one of these
   columns must call `canReferencePortalMediaAsset(slot, asset)`, so a link
   picture cannot stand in as the hero and skip the hero's size and byte budget.
 
-`portal.upload` remains safety-blocked in this slice; ADR 0063 records the
-decision to switch it on with the technical safeguards above and without a
-SAFE-01 completion record.
+`portal.upload` is `controlled_beta`. The owner removed the SAFE-01 completion
+ceremony on 2026-09-30; the technical safeguards above stay in the build (ADR
+0063, ADR 0032, `docs/BETA.md` §8).
 
 ## Runtime
 

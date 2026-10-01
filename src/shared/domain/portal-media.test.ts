@@ -4,6 +4,7 @@ import {
   PORTAL_MEDIA_SOURCE_FORMATS,
   PORTAL_MEDIA_STATUSES,
   portalMediaObjectKey,
+  portalMediaPublicPath,
 } from './portal-media'
 
 describe('portal media vocabulary', () => {
@@ -21,5 +22,10 @@ describe('portal media vocabulary', () => {
 
   it('derives an object key from the asset id alone', () => {
     expect(portalMediaObjectKey('abc')).toBe('portal-media/abc.webp')
+  })
+
+  it("serves an asset from the app's own origin, never from the bucket", () => {
+    expect(portalMediaPublicPath('abc')).toBe('/api/public/portal-media/abc')
+    expect(portalMediaPublicPath('abc').startsWith('/')).toBe(true)
   })
 })

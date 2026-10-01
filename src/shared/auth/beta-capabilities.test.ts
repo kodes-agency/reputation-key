@@ -125,6 +125,7 @@ describe('BetaCapabilities', () => {
 
       for (const capability of [
         'portal.write',
+        'portal.upload',
         'portal.public_read',
         'portal.guest_response',
         'portal.guest_text',
@@ -171,13 +172,13 @@ describe('BetaCapabilities', () => {
       })
     })
 
-    it('denies Portal upload even when every scoped policy seam allows it', () => {
+    it('leaves Portal upload to tenant policy: allowed for a listed Organization and Property, denied for the rest', () => {
       const ctx = buildTestAuthContext()
       initCapabilityPolicyStore(
         makeStore({
-          isCapabilityGloballyEnabled: () => true,
-          isOrgAllowlisted: () => true,
-          isPropertyAllowlisted: () => true,
+          isCapabilityGloballyEnabled: () => false,
+          isOrgAllowlisted: (orgId) => orgId === ctx.organizationId,
+          isPropertyAllowlisted: (candidatePropertyId) => candidatePropertyId === 'p1',
         }),
       )
 
@@ -185,12 +186,32 @@ describe('BetaCapabilities', () => {
         checkScopedCapability(
           { organizationId: ctx.organizationId, propertyId: 'p1' },
           'portal.upload',
+        ).allowed,
+      ).toBe(true)
+      expect(
+        checkScopedCapability(
+          { organizationId: 'some-other-org', propertyId: 'p1' },
+          'portal.upload',
         ),
-      ).toEqual({
-        allowed: false,
-        reason: 'capability_blocked',
-        capability: 'portal.upload',
-      })
+      ).toMatchObject({ allowed: false, reason: 'org_not_allowlisted' })
+    })
+
+    it('is stopped by the emergency kill switch like any other controlled capability', () => {
+      const ctx = buildTestAuthContext()
+      initCapabilityPolicyStore(
+        makeStore({
+          isCapabilityGloballyEnabled: () => false,
+          isCapabilityKilled: (cap) => cap === 'portal.upload',
+          isOrgAllowlisted: () => true,
+          isPropertyAllowlisted: () => true,
+        }),
+      )
+      expect(
+        checkScopedCapability(
+          { organizationId: ctx.organizationId, propertyId: 'p1' },
+          'portal.upload',
+        ).allowed,
+      ).toBe(false)
     })
 
     it('denies all capabilities when org is suspended', () => {
@@ -374,12 +395,13 @@ describe('BetaCapabilities', () => {
       expect(isCoreCapability('portal.read')).toBe(false)
     })
 
-    it('identifies permanent prohibitions and the temporary upload containment', () => {
+    it('identifies permanent prohibitions and the remaining temporary containment', () => {
       expect(isBlockedCapability('gbp.reply.auto_publish')).toBe(true)
       expect(isBlockedCapability('gbp.ai.cross_property_summary')).toBe(true)
       expect(isBlockedCapability('gbp.review_solicitation_gamification')).toBe(true)
       expect(isBlockedCapability('portal.write')).toBe(false)
-      expect(isBlockedCapability('portal.upload')).toBe(true)
+      expect(isBlockedCapability('portal.upload')).toBe(false)
+      expect(isBlockedCapability('portal.guest_contact')).toBe(true)
       expect(isBlockedCapability('identity.custom_roles')).toBe(true)
       expect(isBlockedCapability('identity.register')).toBe(true)
       expect(isBlockedCapability('organization.create')).toBe(true)
@@ -405,8 +427,9 @@ describe('BetaCapabilities', () => {
       expect(checkGlobalCapability('notification.send_email').allowed).toBe(false)
     })
 
-    it('does not register the temporarily blocked Portal image job', () => {
-      expect(isCapabilityJobEnabled('portal.upload')).toBe(false)
+    it('registers capability-gated Portal image work now that upload is controlled, and still not Contact Requests', () => {
+      expect(isCapabilityJobEnabled('portal.upload')).toBe(true)
+      expect(isCapabilityJobEnabled('portal.guest_contact')).toBe(false)
     })
   })
 

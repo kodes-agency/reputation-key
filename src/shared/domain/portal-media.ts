@@ -45,3 +45,13 @@ const OBJECT_KEY_PREFIX = 'portal-media/'
  */
 export const portalMediaObjectKey = (assetId: string): string =>
   `${OBJECT_KEY_PREFIX}${assetId}.webp`
+
+/** Where a guest's browser fetches a stored image: same-origin, by the asset's id. */
+export const PORTAL_MEDIA_PUBLIC_PATH = '/api/public/portal-media'
+
+/**
+ * The URL a published page uses for an asset. Made when the page is read, never
+ * stored in a snapshot, so a takedown reaches pages that can never change.
+ */
+export const portalMediaPublicPath = (assetId: string): string =>
+  `${PORTAL_MEDIA_PUBLIC_PATH}/${assetId}`

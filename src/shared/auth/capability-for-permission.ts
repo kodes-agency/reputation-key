@@ -44,10 +44,10 @@ const PERMISSION_CAPABILITY: Readonly<Record<Permission, Capability>> = {
   'invitation.cancel': 'identity.invite',
   'invitation.resend': 'identity.invite',
   // BQC-0.2 / STD-P0-01: mutations and media are independent of portal.read.
-  // portal.write remains promotable. portal.upload is blocked at capability
-  // policy level until the signed SAFE-01 package completion record; the
-  // SEC-01 issuance-bound remediation this comment used to cite is closed and
-  // was never the whole gate (corrected 2026-09-02, issue #406).
+  // portal.write and portal.upload are both promotable (controlled_beta).
+  // portal.upload was safety-blocked until the owner removed the SAFE-01
+  // completion ceremony on 2026-09-30 (ADR 0032, ADR 0063); it is asked for
+  // explicitly by the image upload endpoint, never derived from a permission.
   'portal.create': 'portal.write',
   'portal.admin': 'portal.write',
   'portal.update': 'portal.write',

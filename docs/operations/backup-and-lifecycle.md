@@ -197,11 +197,20 @@ storage stack through `container.assetStorage`. Portal images enter through one
 server-side ingest (`POST /api/portal-media`, ADR 0063): the bytes are decoded
 and re-encoded to WebP on the web process and stored under `portal-media/<id>.webp`
 with a `portal_media_assets` row; there is no presigned browser upload and no
-issuance table. `portal.upload` remains `safety_blocked` until the slice that
-ships the manager controls changes its fate. Until the media garbage collection
-and purge of the stored objects land (round 4, slice 42b) the capability stays off
-so no object can exist without them. The S3-compatible adapter also remains a
-no-op while its access, bucket, region, and endpoint variables are incomplete.
+issuance table. A guest's browser reads an image through the app, from
+`GET /api/public/portal-media/:assetId`; the bucket is never public.
+`portal.upload` is `controlled_beta` (the owner removed the SAFE-01 ceremony on
+2026-09-30; ADR 0032 and 0063).
+
+Portal objects are removed by three paths, none of which depends on the upload
+capability: a takedown (the object goes after the row stops being served, and a
+failure is retried), the hourly `portal-media-sweep` job (finishes takedown
+removals and deletes images nothing refers to, a day after upload), and the
+Organization purge (the Portal contributor deletes the objects before their rows).
+An ingest whose row insert fails and whose cleanup delete also fails leaves one
+orphaned object and logs `portal_media_orphan_object`; remove it by key from the
+bucket. The S3-compatible adapter remains a no-op while its access, bucket,
+region, and endpoint variables are incomplete.
 
 The target Railway topology binds those variables to one private, cell-local
 `object-store` bucket; the variable names retain their `AWS_S3_*` compatibility

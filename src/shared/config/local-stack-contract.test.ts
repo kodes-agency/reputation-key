@@ -35,7 +35,8 @@ describe('local stack contract', () => {
 
     expect(store.isOrgAllowlisted(LOCAL_E2E_ORGANIZATION_ID, 'portal.write')).toBe(true)
     expect(store.isOrgAllowlisted('another-org', 'portal.write')).toBe(false)
-    expect(store.isOrgAllowlisted(LOCAL_E2E_ORGANIZATION_ID, 'portal.upload')).toBe(false)
+    expect(store.isOrgAllowlisted(LOCAL_E2E_ORGANIZATION_ID, 'portal.upload')).toBe(true)
+    expect(store.isOrgAllowlisted('another-org', 'portal.upload')).toBe(false)
   })
 
   it('does not use the process-wide E2E capability override', () => {

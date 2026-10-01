@@ -222,6 +222,27 @@ export const TENANT_PREDICATE_EXEMPTIONS: readonly TenantPredicateExemption[] = 
     category: 'LEGITIMATE-GLOBAL',
   },
   {
+    file: 'src/contexts/portal/infrastructure/repositories/portal-media-asset.repository.ts',
+    symbol: 'findForPublicRead',
+    reason:
+      'A guest has no tenant: the asset id is a random UUID presented as a capability, and the caller serves the row only if it is still active.',
+    category: 'PUBLIC-TOKEN',
+  },
+  {
+    file: 'src/contexts/portal/infrastructure/repositories/portal-media-asset.repository.ts',
+    symbol: 'listTakenDownWithObject',
+    reason:
+      'The bounded media sweep intentionally finishes taken-down object removals across tenants and preserves tenant identity on every row it returns.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
+    file: 'src/contexts/portal/infrastructure/repositories/portal-media-asset.repository.ts',
+    symbol: 'listUnreferencedBefore',
+    reason:
+      'The bounded media sweep intentionally enumerates old unreferenced images across tenants, and each candidate is rechecked by tenant-scoped discardIfUnreferenced before anything is deleted.',
+    category: 'LEGITIMATE-GLOBAL',
+  },
+  {
     file: 'src/contexts/portal/infrastructure/repositories/portal-token.repository.ts',
     symbol: 'findResolvableByDigest',
     reason:

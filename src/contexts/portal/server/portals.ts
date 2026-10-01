@@ -54,6 +54,7 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
       'category_not_found',
       'link_not_found',
       'destination_not_found',
+      'media_not_found',
       () => 404,
     )
     .with(

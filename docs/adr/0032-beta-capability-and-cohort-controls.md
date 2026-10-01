@@ -93,6 +93,32 @@ An unknown capability name fails the deploy before any migration. Every run
 logs one `[declared-posture]` line naming what was lifted and what was left and
 why; nothing is written when nothing needs to change.
 
+## Amendment 2026-09-30 — `portal.upload` leaves the safety block
+
+`portal.upload` was `safety_blocked` on the strength of one condition: a signed
+SAFE-01 completion record (a named signer, an independent reviewer, four
+deployed drills). **The owner removed that ceremony on 2026-09-30.** The owner
+is the sole developer and the beta is a closed team, so there is no one to be
+the independent reviewer and nothing a signature would add.
+
+The capability is now `controlled_beta`, the fate `portal.write` already has:
+the persisted Organization and Property policy decides who may upload, and
+`BETA_CAPABILITIES_OFF` still stops it. It is not `core`, so an Organization
+nobody has admitted cannot upload. The fate table is still the only authority;
+this ADR records why the entry changed (the rule above that an allowlist may
+enable only a `controlled_beta` capability is unchanged).
+
+What the ceremony protected against is still true of hostile bytes, so **the
+technical safeguards remain in the build** and are specified in ADR 0063: the
+server decodes and re-encodes every image and stores only its own WebP (so
+EXIF, GPS, colour profiles and trailing data do not survive), accepts only
+JPEG, PNG and WebP up to 10 MiB, refuses SVG, GIF, HEIC and animated images,
+requires the uploader's rights confirmation, and serves stored images
+same-origin from a private bucket. Takedown, garbage collection of unreferenced
+objects and removal of the stored objects on an Organization purge shipped
+before the switch, because a stored object that nothing can delete is the one
+thing the design must not allow.
+
 ## Consequences
 
 - UI affordances may explain a refusal but cannot bypass it.

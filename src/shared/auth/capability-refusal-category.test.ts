@@ -51,7 +51,7 @@ const DENY_CASES = [
   },
   {
     reason: 'capability_blocked',
-    capability: 'portal.upload',
+    capability: 'portal.guest_contact',
     category: 'temporarily_unavailable',
   },
   {

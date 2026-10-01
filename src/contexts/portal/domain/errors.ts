@@ -38,6 +38,7 @@ export type PortalErrorCode =
   | 'rate_limited'
   | 'upload_failed'
   | 'image_rejected'
+  | 'media_not_found'
   | 'responsible_manager_ineligible'
   | 'revision_conflict'
 

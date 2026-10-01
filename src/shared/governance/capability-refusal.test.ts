@@ -56,7 +56,6 @@ describe('capability refusal explainer', () => {
   // #406: `capability_blocked` collapsed four decisions with four different
   // reactivation rules. The fate and its activation rule are the answer.
   it.each([
-    ['portal.upload', 'safety_blocked', 'SAFE-01'],
     ['portal.guest_contact', 'safety_blocked', 'counsel'],
     ['gbp.reply.auto_publish', 'permanently_denied', 'No activation path'],
     ['identity.register', 'beta_disabled', 'code posture change'],

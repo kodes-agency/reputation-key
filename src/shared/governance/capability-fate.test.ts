@@ -7,11 +7,17 @@ describe('accepted beta capability fate authority', () => {
     expect(Object.keys(CAPABILITY_FATE).sort()).toEqual([...listAllCapabilities()])
   })
 
-  it('names the SAFE-01 package, not the closed SEC-01 finding, as the portal.upload gate', () => {
+  it('opens portal.upload as controlled beta, with the removed SAFE-01 ceremony and the kept safeguards on record', () => {
+    // The owner removed the SAFE-01 completion ceremony on 2026-09-30 (ADR 0063).
+    // The fate is no longer a block, but it is not core either: tenant policy still
+    // decides who may upload, and the record says what stayed in the build.
     expect(CAPABILITY_FATE['portal.upload']).toMatchObject({
-      fate: 'safety_blocked',
-      activation: expect.stringContaining('SAFE-01'),
+      fate: 'controlled_beta',
+      authority: expect.stringMatching(/removed the SAFE-01.*2026-09-30/u),
+      activation: CAPABILITY_FATE['portal.write'].activation,
     })
+    expect(CAPABILITY_FATE['portal.upload'].authority).toContain('re-encoding')
+    expect(CAPABILITY_FATE['portal.upload'].authority).toContain('same-origin')
   })
 
   it('makes the settled high-risk decisions explicit', () => {
@@ -21,7 +27,6 @@ describe('accepted beta capability fate authority', () => {
       'gbp.reply.auto_publish',
       'gbp.review_solicitation_gamification',
     ])
-    expect(CAPABILITY_FATE['portal.upload'].fate).toBe('safety_blocked')
     expect(CAPABILITY_FATE['portal.guest_contact'].fate).toBe('safety_blocked')
     expect(CAPABILITY_FATE['portal.guest_media'].fate).toBe('beta_disabled')
     expect(CAPABILITY_FATE['identity.custom_roles'].fate).toBe('beta_disabled')
