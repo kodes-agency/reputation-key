@@ -61,6 +61,7 @@ export type {
 } from './use-cases/get-portal-version'
 export type { PortalVersionActor } from './portal-version-actors'
 export type { PortalReview, PortalReviewChange } from './use-cases/get-portal-review'
+export type { PublishPortalsChangesResult } from './use-cases/publish-portal-changes'
 export type {
   ReviewCheck,
   ReviewCheckCode,
