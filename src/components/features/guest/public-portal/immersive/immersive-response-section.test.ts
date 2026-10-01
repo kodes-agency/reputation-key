@@ -10,7 +10,12 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { text } from '../__fixtures__/markup-walk'
-import { PACKS, RATINGS, DISPLAY_NAME } from './__fixtures__/immersive-response-fixtures'
+import {
+  DEADLINE_WORDING,
+  DISPLAY_NAME,
+  PACKS,
+  RATINGS,
+} from './__fixtures__/immersive-response-fixtures'
 import {
   accessibleName,
   body,
@@ -21,6 +26,10 @@ import {
 } from './__fixtures__/immersive-response-section-render'
 import { immersiveResponseProps } from './immersive-response-preview'
 import { ImmersiveResponseView } from './immersive-response-view'
+
+// `text` collapses every kind of space, so a pack's no-break space (French
+// puts one before a question mark) is collapsed the same way to be found.
+const collapsed = (value: string) => value.replace(/\s+/gu, ' ')
 
 describe.each(PACKS)('the section, collapsed [$locale] (boards G04, G05)', (pack) => {
   const html = render(pack, { kind: 'rated', rating: 2 })
@@ -118,23 +127,15 @@ describe.each(PACKS)('the section, open [$locale] (board G07)', (pack) => {
       pack.copy.responseRemoveNoteTitle,
       pack.copy.responseRemoveAllTitle,
       pack.copy.sharedDeviceTitle,
-    ].map((title) => t.indexOf(title))
+    ].map((title) => t.indexOf(collapsed(title)))
     expect(order.every((index) => index > -1)).toBe(true)
     expect(order).toEqual([...order].sort((a, b) => a - b))
-    expect(t).toContain(pack.copy.sharedDeviceBody)
+    expect(t).toContain(collapsed(pack.copy.sharedDeviceBody))
   })
 
   it('words the deadlines in the portal zone', () => {
-    expect(text(section)).toContain(
-      pack.locale === 'bg'
-        ? 'До 15:00 днес, местно време в София'
-        : 'Until 15:00 today, Sofia time',
-    )
-    expect(text(section)).toContain(
-      pack.locale === 'bg'
-        ? 'До 14:00 утре, местно време в София'
-        : 'Until 14:00 tomorrow, Sofia time',
-    )
+    expect(text(section)).toContain(DEADLINE_WORDING[pack.locale].today('15:00'))
+    expect(text(section)).toContain(DEADLINE_WORDING[pack.locale].tomorrow('14:00'))
     expect(text(section)).toContain(pack.copy.responseRemoveAllNote)
   })
 

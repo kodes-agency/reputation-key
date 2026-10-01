@@ -10,13 +10,14 @@ import {
 } from './guest-locale-schemas'
 
 describe('guest locale schemas', () => {
-  it('reads every catalogue locale but lets managers offer only reviewed ones', () => {
+  it('reads every catalogue locale, and lets managers offer every one of them', () => {
     for (const locale of GUEST_LOCALES) {
       expect(guestLocaleSchema.safeParse(locale).success).toBe(true)
+      expect(offeredGuestLocaleSchema.safeParse(locale).success).toBe(true)
     }
     expect(guestLocaleSchema.safeParse('pt').success).toBe(false)
-    expect(offeredGuestLocaleSchema.safeParse('de').success).toBe(false)
-    expect(offeredGuestLocaleSchema.safeParse('bg').success).toBe(true)
+    expect(offeredGuestLocaleSchema.safeParse('pt').success).toBe(false)
+    expect(offeredGuestLocaleSchema.safeParse('DE').success).toBe(false)
   })
 
   it('reads at most five additional locales', () => {

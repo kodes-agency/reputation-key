@@ -61,11 +61,19 @@ describe('loadGuestPortalCopyV2', () => {
     )
   })
 
-  it('throws for a locale that has no reviewed v2 pack instead of showing another language', async () => {
-    await expect(loadGuestPortalCopyV2('de')).rejects.toThrow(
-      'No guest language pack exists for locale de',
+  it('loads the es, it, fr and de packs, each at its own pinned version', async () => {
+    for (const locale of ['es', 'it', 'fr', 'de'] as const) {
+      const pack = await loadGuestPortalCopyV2(locale, `guest-ui-${locale}-v2`)
+      expect(pack).toMatchObject({ locale, version: `guest-ui-${locale}-v2` })
+      await expect(loadGuestPortalCopyV2(locale)).resolves.toBe(pack)
+    }
+  })
+
+  it('throws when a pinned pack belongs to another new locale or to generation 1', async () => {
+    await expect(loadGuestPortalCopyV2('de', 'guest-ui-fr-v2')).rejects.toThrow(
+      'Guest locale and immutable language pack do not match',
     )
-    await expect(loadGuestPortalCopyV2('es', 'guest-ui-es-v2')).rejects.toThrow(
+    await expect(loadGuestPortalCopyV2('es', 'guest-ui-es-v1')).rejects.toThrow(
       'Guest locale and immutable language pack do not match',
     )
   })
@@ -98,7 +106,9 @@ describe('loadGuestPortalCopyV2', () => {
           !/[\\/]__fixtures__[\\/]/.test(path),
       )
       .filter((path) =>
-        /from\s+['"][^'"]*\/(?:en|bg)-v2['"]/.test(readFileSync(path, 'utf8')),
+        /from\s+['"][^'"]*\/(?:en|bg|es|it|fr|de)-v2['"]/.test(
+          readFileSync(path, 'utf8'),
+        ),
       )
       .map((path) => relative(SRC, path).split(sep).join('/'))
     expect(importers).toEqual([])
@@ -107,6 +117,8 @@ describe('loadGuestPortalCopyV2', () => {
       'utf8',
     )
     expect(loader).toMatch(/import\('\.\/en-v2'\)/)
-    expect(loader).toMatch(/import\('\.\/bg-v2'\)/)
+    for (const locale of GUEST_LOCALES) {
+      expect(loader).toContain(`import('./${locale}-v2')`)
+    }
   })
 })

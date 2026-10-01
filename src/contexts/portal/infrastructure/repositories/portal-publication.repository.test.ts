@@ -663,8 +663,8 @@ describe.sequential('Snapshot guest locale CHECKs (real PostgreSQL)', () => {
   })
 
   it.each([
-    ['guest-ui-de-v2', 'a pack generation the registry does not have', 3, DE_V2_ID],
-    ['guest-ui-de-v1', 'a locale whose pack is not registered yet', 4, DE_V1_ID],
+    ['guest-ui-de-v2', 'a generation 2 pack in a version 2 snapshot', 3, DE_V2_ID],
+    ['guest-ui-de-v1', 'a generation 1 pack the registry never had', 4, DE_V1_ID],
   ])(
     'accepts %s at the database while the readers refuse %s',
     async (pack, _why, version, id) => {

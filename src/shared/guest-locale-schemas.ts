@@ -17,7 +17,7 @@ export const additionalGuestLocalesSchema = z
   .array(guestLocaleSchema)
   .max(MAX_ADDITIONAL_GUEST_LOCALES)
 
-/** Manager inputs: only locales that have a reviewed language pack today. */
+/** Manager inputs: only locales that have a registered language pack today. */
 export const offeredGuestLocaleSchema = z.enum(OFFERED_GUEST_LOCALES)
 
 // SQL renderings of the catalogue, for the CHECK constraints in the Drizzle

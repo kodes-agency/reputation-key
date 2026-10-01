@@ -2,7 +2,11 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { GUEST_LOCALES, guestLocaleFormatTag } from '#/shared/domain/guest-locale'
 import { describeGuestDeadline, formatGuestDeadline } from './guest-deadline-format'
 import { bgV2 } from './language-packs/bg-v2'
+import { deV2 } from './language-packs/de-v2'
 import { enV2 } from './language-packs/en-v2'
+import { esV2 } from './language-packs/es-v2'
+import { frV2 } from './language-packs/fr-v2'
+import { itV2 } from './language-packs/it-v2'
 
 // 12:32 UTC = 15:32 in Sofia (UTC+3 in summer), 14:32 in Europe/Berlin.
 const NOW = '2026-09-30T09:00:00.000Z'
@@ -103,6 +107,89 @@ describe('formatGuestDeadline', () => {
     )
     expect(at(bgV2, '2026-10-04T09:05:00.000Z', 'Europe/Sofia', 'bg-BG')).toBe(
       'До 4.10.2026 г., 12:05, местно време в София',
+    )
+  })
+
+  // 12:32 UTC is 15:32 in Sofia; the date of a later day comes from the engine
+  // in the pack's own tag, the rest from the pack's templates.
+  it.each([
+    [
+      'es',
+      esV2,
+      [
+        'Hasta hoy a las 15:32, hora de Sofía',
+        'Hasta mañana a las 14:32, hora de Sofía',
+        'Hasta el 4 oct 2026, 12:05, hora de Sofía',
+      ],
+    ],
+    [
+      'it',
+      itV2,
+      [
+        'Fino alle 15:32 di oggi, ora di Sofia',
+        'Fino alle 14:32 di domani, ora di Sofia',
+        'Scadenza: 4 ott 2026, ore 12:05, ora di Sofia',
+      ],
+    ],
+    [
+      'fr',
+      frV2,
+      [
+        'Jusqu’à 15:32 aujourd’hui, heure locale (Sofia)',
+        'Jusqu’à 14:32 demain, heure locale (Sofia)',
+        'Jusqu’au 4 oct. 2026, 12:05, heure locale (Sofia)',
+      ],
+    ],
+    [
+      'de',
+      deV2,
+      [
+        'Bis heute, 15:32 Uhr, Ortszeit Sofia',
+        'Bis morgen, 14:32 Uhr, Ortszeit Sofia',
+        'Bis 04.10.2026, 12:05 Uhr, Ortszeit Sofia',
+      ],
+    ],
+  ] as const)(
+    'fills the templates of the %s pack, zone name and all',
+    (locale, pack, lines) => {
+      const tag = guestLocaleFormatTag(locale)
+      expect([
+        at(pack, '2026-09-30T12:32:00.000Z', 'Europe/Sofia', tag),
+        at(pack, '2026-10-01T11:32:00.000Z', 'Europe/Sofia', tag),
+        at(pack, '2026-10-04T09:05:00.000Z', 'Europe/Sofia', tag),
+      ]).toEqual(lines)
+    },
+  )
+
+  it('names a zone that starts with a vowel in brackets in French, so no elision is needed', () => {
+    expect(at(frV2, '2026-09-30T12:32:00.000Z', 'Europe/Athens', 'fr')).toBe(
+      'Jusqu’à 15:32 aujourd’hui, heure locale (Athènes)',
+    )
+    expect(at(frV2, '2026-09-30T12:32:00.000Z', 'Europe/Istanbul', 'fr')).toBe(
+      'Jusqu’à 15:32 aujourd’hui, heure locale (Istanbul)',
+    )
+  })
+
+  // "Fino al" would need an elided article before 1, 8 and 11 (all'8, all'11),
+  // so the Italian date template puts no article in front of the date.
+  it.each([
+    ['2026-10-01T09:05:00.000Z', 'Scadenza: 1 ott 2026, ore 12:05, ora di Sofia'],
+    ['2026-10-08T09:05:00.000Z', 'Scadenza: 8 ott 2026, ore 12:05, ora di Sofia'],
+    ['2026-10-11T09:05:00.000Z', 'Scadenza: 11 ott 2026, ore 12:05, ora di Sofia'],
+  ])('writes the Italian date of %s without an article before it', (deadline, line) => {
+    const now = '2026-09-28T09:00:00.000Z'
+    expect(formatGuestDeadline(itV2, deadline, now, 'Europe/Sofia', 'it')).toBe(line)
+  })
+
+  // UTC is a zone name, not a place, so the templates print "local time UTC".
+  // That is accepted wording for the rare Portal on UTC or a fixed offset, and
+  // is pinned here so a change to it is a decision.
+  it('prints UTC and fixed offsets through the same template as a place', () => {
+    expect(at(deV2, '2026-09-30T12:32:00.000Z', 'UTC', 'de')).toBe(
+      'Bis heute, 12:32 Uhr, Ortszeit UTC',
+    )
+    expect(at(frV2, '2026-09-30T12:32:00.000Z', 'Etc/GMT-3', 'fr')).toBe(
+      'Jusqu’à 15:32 aujourd’hui, heure locale (UTC+3)',
     )
   })
 

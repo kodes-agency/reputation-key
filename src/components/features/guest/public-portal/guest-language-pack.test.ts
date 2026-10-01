@@ -29,7 +29,7 @@ describe('guest Portal language packs', () => {
     expect(getGuestPortalCopy().locale).toBe('en')
   })
 
-  it('throws for a locale that has no reviewed pack rather than showing another language', () => {
+  it('throws for a locale that has no generation 1 pack rather than showing another language', () => {
     expect(() => getGuestPortalCopy('de')).toThrow('No guest language pack exists')
   })
 })

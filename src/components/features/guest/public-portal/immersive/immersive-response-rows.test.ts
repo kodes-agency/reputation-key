@@ -1,11 +1,11 @@
 // What the "Your response" section offers a guest, and in what words (board
 // G07), before any markup: which rows exist, what each says about its
 // deadline, and when a row has run out of time. Pure, so it is table-driven
-// over both packs.
+// over every pack.
 
 import { describe, expect, it } from 'vitest'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
-import { PACKS } from './__fixtures__/immersive-response-fixtures'
+import { DEADLINE_WORDING, PACKS } from './__fixtures__/immersive-response-fixtures'
 import { responseSectionRows, type ResponseClock } from './immersive-response-rows'
 
 const CLOCK: ResponseClock = { now: '2026-09-30T09:00:00.000Z', timeZone: 'Europe/Sofia' }
@@ -90,16 +90,8 @@ describe.each(PACKS)('the rows of "Your response" [$locale]', (pack) => {
 
   it('words each deadline in the portal zone, with today and tomorrow', () => {
     const [change, note, all] = rowsFor(pack, {})
-    expect(change?.detail).toBe(
-      pack.locale === 'bg'
-        ? 'До 15:32 днес, местно време в София'
-        : 'Until 15:32 today, Sofia time',
-    )
-    expect(note?.detail).toBe(
-      pack.locale === 'bg'
-        ? 'До 14:32 утре, местно време в София'
-        : 'Until 14:32 tomorrow, Sofia time',
-    )
+    expect(change?.detail).toBe(DEADLINE_WORDING[pack.locale].today('15:32'))
+    expect(note?.detail).toBe(DEADLINE_WORDING[pack.locale].tomorrow('14:32'))
     // Removing everything also says what it does not reach, as a sentence of
     // its own: the engine adds no punctuation between the two.
     expect(all?.detail).toBe(note?.detail)
@@ -170,11 +162,7 @@ describe.each(PACKS)('the rows of "Your response" [$locale]', (pack) => {
 
   it('names a later day by its date, joined by the pack and never by the engine', () => {
     const [change] = rowsFor(pack, { correctionDeadline: '2026-10-04T09:05:00.000Z' })
-    expect(change?.detail).toBe(
-      pack.locale === 'bg'
-        ? 'До 4.10.2026 г., 12:05, местно време в София'
-        : 'Until Oct 4, 2026, 12:05, Sofia time',
-    )
+    expect(change?.detail).toBe(DEADLINE_WORDING[pack.locale].laterDay)
   })
 
   it('prints nothing for a deadline the server did not send, rather than a made-up one', () => {

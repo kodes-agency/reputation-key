@@ -33,6 +33,8 @@ export function LinktreeLocaleTabs({
       aria-label={naming['aria-label']}
       value={active}
       disabled={disabled}
+      // Six languages with "missing" on five is wider than a phone: wrap.
+      className="max-w-full flex-wrap"
       onValueChange={(value) => {
         const next = locales.find((locale) => locale === value)
         if (next !== undefined) onChange(next)

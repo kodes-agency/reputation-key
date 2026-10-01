@@ -55,28 +55,41 @@ describe('guest locale catalogue', () => {
     }
   })
 
-  it('gives every offered locale a current pack', () => {
-    expect(OFFERED_GUEST_LOCALES).toEqual(['en', 'bg'])
+  it('offers every catalogue locale, each with the generation 2 pack a publication writes', () => {
+    expect(OFFERED_GUEST_LOCALES).toEqual(GUEST_LOCALES)
     for (const locale of OFFERED_GUEST_LOCALES) {
-      expect(currentGuestLanguagePack(locale)).not.toBeNull()
+      expect(currentGuestLanguagePack(locale, 2)).toBe(`guest-ui-${locale}-v2`)
     }
-    expect(currentGuestLanguagePack('en')).toBe('guest-ui-en-v1')
-    expect(currentGuestLanguagePack('bg')).toBe('guest-ui-bg-v1')
-    expect(currentGuestLanguagePack('de')).toBeNull()
   })
 
-  it('keeps generation 1 as the pack a publication uses today, and names the v2 pack per generation', () => {
+  it('keeps the generation 1 pack to the two locales the legacy page ever served', () => {
+    expect(currentGuestLanguagePack('en')).toBe('guest-ui-en-v1')
+    expect(currentGuestLanguagePack('bg')).toBe('guest-ui-bg-v1')
+    for (const locale of ['es', 'it', 'fr', 'de'] as const) {
+      expect(currentGuestLanguagePack(locale)).toBeNull()
+    }
+  })
+
+  it('names the generation 1 and generation 2 pack of a locale separately', () => {
     expect(currentGuestLanguagePack('en', 1)).toBe('guest-ui-en-v1')
     expect(currentGuestLanguagePack('bg', 1)).toBe('guest-ui-bg-v1')
     expect(currentGuestLanguagePack('en', 2)).toBe('guest-ui-en-v2')
     expect(currentGuestLanguagePack('bg', 2)).toBe('guest-ui-bg-v2')
-    expect(currentGuestLanguagePack('de', 2)).toBeNull()
+    expect(currentGuestLanguagePack('de', 2)).toBe('guest-ui-de-v2')
   })
 
   it('lists the v1 packs before the v2 packs and never renumbers an id', () => {
     for (const locale of ['en', 'bg'] as const) {
       expect(GUEST_LANGUAGE_PACKS[locale].supported).toEqual([
         { id: `guest-ui-${locale}-v1`, generation: 1 },
+        { id: `guest-ui-${locale}-v2`, generation: 2 },
+      ])
+    }
+  })
+
+  it('gives es, it, fr and de a generation 2 pack only: they never had a legacy page', () => {
+    for (const locale of ['es', 'it', 'fr', 'de'] as const) {
+      expect(GUEST_LANGUAGE_PACKS[locale].supported).toEqual([
         { id: `guest-ui-${locale}-v2`, generation: 2 },
       ])
     }
@@ -91,9 +104,9 @@ describe('guest locale parsing', () => {
     }
   })
 
-  it('offers only the locales with a reviewed pack', () => {
+  it('offers only the catalogue locales, by their exact code', () => {
     expect(OFFERED_GUEST_LOCALES.every(isOfferedGuestLocale)).toBe(true)
-    for (const value of ['de', 'es', 'EN', '', null, undefined, 3]) {
+    for (const value of ['pt', 'EN', 'de-AT', '', null, undefined, 3]) {
       expect(isOfferedGuestLocale(value)).toBe(false)
     }
   })
@@ -131,6 +144,7 @@ describe('guest language pack membership', () => {
     expect(isSupportedGuestLanguagePack('en', 'guest-ui-en-v1', 2)).toBe(false)
     expect(isSupportedGuestLanguagePack('en', 'guest-ui-en-v3', 2)).toBe(false)
     expect(isSupportedGuestLanguagePack('de', 'guest-ui-de-v1', 1)).toBe(false)
+    expect(isSupportedGuestLanguagePack('de', 'guest-ui-de-v1', 2)).toBe(false)
   })
 
   it('accepts the v2 packs for generation 2 only, so v1 and v2 snapshots still reject them', () => {
@@ -140,6 +154,14 @@ describe('guest language pack membership', () => {
     expect(isSupportedGuestLanguagePack('bg', 'guest-ui-bg-v2', 1)).toBe(false)
     expect(isSupportedGuestLanguagePack('en', 'guest-ui-bg-v2', 2)).toBe(false)
     expect(isSupportedGuestLanguagePack('bg', 'guest-ui-en-v1', 2)).toBe(false)
+  })
+
+  it('accepts the es, it, fr and de packs for generation 2 only, and only for their own locale', () => {
+    for (const locale of ['es', 'it', 'fr', 'de'] as const) {
+      expect(isSupportedGuestLanguagePack(locale, `guest-ui-${locale}-v2`, 2)).toBe(true)
+      expect(isSupportedGuestLanguagePack(locale, `guest-ui-${locale}-v2`, 1)).toBe(false)
+      expect(isSupportedGuestLanguagePack('en', `guest-ui-${locale}-v2`, 2)).toBe(false)
+    }
   })
 })
 

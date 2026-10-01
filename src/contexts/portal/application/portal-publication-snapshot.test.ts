@@ -165,25 +165,28 @@ describe('the schema version 3 writer', () => {
       expect(
         messageFor({ links: [{ ...base.links[0]!, texts: {} }, ...base.links.slice(1)] }),
       ).toBe('Write the link wording in the primary language (English) before publishing')
-      expect(
-        messageFor({
-          localeSet: ['en', 'de'],
-          wording: { en: base.wording.en! },
-        }),
-      ).toBe(
-        'The guest wording for German isn’t ready yet, so that language can’t be published',
-      )
     })
 
-    it('refuses a language that has no pack', () => {
-      expect(() =>
-        build(
-          publicationSource({
-            localeSet: ['en', 'de'],
-            wording: { en: publicationSource().wording.en! },
-          }),
-        ),
-      ).toThrow(/German/u)
+    it('publishes German beside English, copying the English text where German has none', () => {
+      const snapshot = build(
+        publicationSource({
+          localeSet: ['en', 'de'],
+          wording: { en: publicationSource().wording.en! },
+        }),
+      )
+
+      expect(verifyPortalPublicationSnapshot(snapshot)).toBe(true)
+      expect(snapshot.configuration).toMatchObject({
+        localeSet: ['en', 'de'],
+        languagePackVersions: { en: 'guest-ui-en-v2', de: 'guest-ui-de-v2' },
+        localizedContent: {
+          de: {
+            title: { fallbackFrom: 'en' },
+            // German has its own default Linktree title, not the English one.
+            linktreeTitle: { value: 'Nützliche Links', fallbackFrom: null },
+          },
+        },
+      })
     })
 
     it('refuses a Property with no usable time zone', () => {

@@ -21,14 +21,20 @@ export const MAX_PORTAL_LINKS = 4
 /**
  * The wording a Portal's Linktree title has while a manager has not written one:
  * the language packs' `linktreeDefaultTitle`, pinned here because the portal
- * context cannot import the guest components. A language without a reviewed pack
- * yet reads English, as its guests do.
+ * context cannot import the guest components. A test holds each entry to the
+ * pack's own wording.
  */
-const LINKTREE_DEFAULT_TITLES: Readonly<Partial<Record<GuestLocale, string>>> =
-  Object.freeze({ en: 'Useful links', bg: 'Полезни връзки' })
+const LINKTREE_DEFAULT_TITLES: Readonly<Record<GuestLocale, string>> = Object.freeze({
+  en: 'Useful links',
+  es: 'Enlaces útiles',
+  it: 'Link utili',
+  fr: 'Liens utiles',
+  de: 'Nützliche Links',
+  bg: 'Полезни връзки',
+})
 
 export const linktreeDefaultTitle = (locale: GuestLocale): string =>
-  LINKTREE_DEFAULT_TITLES[locale] ?? 'Useful links'
+  LINKTREE_DEFAULT_TITLES[locale]
 
 /**
  * The title of the one category a Portal's links sit in once the editor no

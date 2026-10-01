@@ -8,7 +8,7 @@ import { loadGuestPortalCopyV2 } from '#/components/features/guest'
 
 /**
  * What the preview prints a language's fixed text in when that language has no
- * reviewed pack yet. A page in such a language cannot be published in the new
+ * registered pack. A page in such a language cannot be published in the new
  * design, so no guest reads this: it only keeps the draft drawable, and the
  * stage says so.
  */

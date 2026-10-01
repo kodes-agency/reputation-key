@@ -5,15 +5,20 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
+import { GUEST_LOCALES } from '#/shared/domain/guest-locale'
 import { bgV2 } from '../language-packs/bg-v2'
 import { enV2 } from '../language-packs/en-v2'
 import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
+import { loadGuestPortalCopyV2 } from '../language-packs/load-guest-copy-v2'
 import { guestCopyText } from '../guest-copy-format'
 import { ImmersiveFooterView, type ImmersiveFooterViewProps } from './immersive-footer'
 import { immersiveFooterCopy } from './immersive-footer-copy'
 import { IMMERSIVE_FOOTER_CSS } from './immersive-footer-styles'
 
-const PACKS: readonly GuestPortalCopyV2[] = [enV2, bgV2]
+// Every language a guest can reach, loaded the way a request loads them.
+const PACKS: readonly GuestPortalCopyV2[] = await Promise.all(
+  GUEST_LOCALES.map((locale) => loadGuestPortalCopyV2(locale)),
+)
 const NAME = 'Avela Resort'
 
 function render(props: Partial<ImmersiveFooterViewProps> = {}, pack = enV2) {

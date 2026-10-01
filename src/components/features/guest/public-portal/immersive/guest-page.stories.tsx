@@ -9,6 +9,7 @@
 import type { Decorator, Meta, StoryObj } from '@storybook/react'
 import { expect, waitFor, within } from 'storybook/test'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
+import { deV2 } from '../language-packs/de-v2'
 import { enV2 } from '../language-packs/en-v2'
 import { GuestPageComposition } from './__fixtures__/guest-page-composition'
 import { LINKTREE_LINKS_DE, LINKTREE_LINKS_NO_PHOTO } from './__fixtures__/linktree-links'
@@ -82,11 +83,13 @@ export const GermanLongWords: Story = {
       displayName: 'Donaudampfschifffahrtsgesellschaft Kapitän',
       title: 'Poolterrassenöffnungszeiten',
     },
+    // The German pack, with its words swapped for the longest compounds a
+    // property could plausibly choose, to prove the layout holds for them.
     pack: {
-      ...enV2,
+      ...deV2,
       copy: {
-        ...enV2.copy,
-        ratingTitle: 'Wie zufrieden waren Sie mit Ihrem Aufenthalt?',
+        ...deV2.copy,
+        ratingTitle: 'Wie zufrieden waren Sie mit Ihrem Erlebnis?',
         ratingWord3: 'Zufriedenstellend',
         ratingWord4: 'Außergewöhnlich',
         ratingWord5: 'Ausgezeichnet',
@@ -98,8 +101,8 @@ export const GermanLongWords: Story = {
     footerStart: 'notice',
     footerCopy: {
       privacyLink: 'Datenschutzerklärung',
-      madeWith: 'Erstellt mit Reputation Key',
-      acknowledge: 'Verstanden',
+      madeWith: deV2.copy.footerMadeWith,
+      acknowledge: deV2.copy.visitNoticeAcknowledge,
     },
     links: LINKTREE_LINKS_DE,
     linktreeTitle: 'Wellnessbereichsöffnungszeiten',
