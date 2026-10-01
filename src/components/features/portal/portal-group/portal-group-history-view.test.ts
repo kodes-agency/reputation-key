@@ -80,7 +80,7 @@ describe('buildPortalGroupHistory', () => {
       ],
       [
         'Elena Petrova created Pools with 3 portals',
-        'Pool & Terrace, Spa & thermal pools and Pool bar',
+        'Pool & Terrace, Pool bar and Spa & thermal pools',
         '12 Aug',
       ],
     ])

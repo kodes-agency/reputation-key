@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, waitFor, within } from 'storybook/test'
-import { overviewRow } from './portal-overview/portal-overview-fixtures'
+import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
+import { overviewGroup, overviewRow } from './portal-overview/portal-overview-fixtures'
 import { MAX_SEARCH_LENGTH } from './portal-overview/portal-overview-search-schema'
 import { ControlledPage, baseArgs, rows } from './portal-list-page-stories-data'
 import {
@@ -24,6 +24,52 @@ export const Empty: Story = {
   args: { ...baseArgs, rows: [], groups: [] },
   play: async ({ canvasElement }) => {
     await expect(within(canvasElement).getByText(/no portals yet/i)).toBeInTheDocument()
+  },
+}
+
+// A group's head links to its page and carries its actions; the ungrouped head
+// is no group, so it has neither.
+export const GroupHeadsLinkToTheirPageAndCarryActions: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('link', { name: 'Pool side' })).toBeInTheDocument()
+    await expect(canvas.getByRole('link', { name: 'Front of house' })).toBeInTheDocument()
+    await expect(
+      canvas.getByRole('button', { name: 'Actions for group Pool side' }),
+    ).toBeInTheDocument()
+    await expect(canvas.queryByRole('link', { name: 'Not in a group' })).toBeNull()
+    await expect(
+      canvas.queryByRole('button', { name: /actions for group not in/i }),
+    ).toBeNull()
+  },
+}
+
+// A group made first, or emptied, has no portal to show it by: its head stays
+// so its page can still be opened.
+export const AGroupWithNoPortalStaysReachable: Story = {
+  args: {
+    ...baseArgs,
+    groups: [...baseArgs.groups, overviewGroup('group-quiet', 'Quiet corner')],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('link', { name: 'Quiet corner' })).toBeInTheDocument()
+    await expect(canvas.getByText(/· 0 portals/)).toBeInTheDocument()
+  },
+}
+
+export const NewGroupOpensTheDialog: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: 'New group' }),
+    )
+    const dialog = within(await screen.findByRole('dialog'))
+    await expect(dialog.getByRole('heading', { name: 'New group' })).toBeInTheDocument()
+    await expect(
+      dialog.getByRole('checkbox', { name: /pool & terrace/i }),
+    ).toBeInTheDocument()
   },
 }
 
@@ -295,6 +341,14 @@ export const MemberReadOnly: Story = {
     await expect(
       canvas.getByRole('link', { name: 'View Pool & Terrace' }),
     ).toBeInTheDocument()
-    await expect(canvas.getByText(/view-only access/i)).toBeInTheDocument()
+    // A member can change no group: no way to make one, and a head's menu only opens it.
+    await expect(canvas.queryByRole('button', { name: /new group/i })).toBeNull()
+    await userEvent.click(
+      canvas.getAllByRole('button', { name: /actions for group pool side/i })[0]!,
+    )
+    const menu = within(await screen.findByRole('menu'))
+    await expect(menu.getByRole('menuitem', { name: 'Open group' })).toBeInTheDocument()
+    await expect(menu.queryByRole('menuitem', { name: /rename/i })).toBeNull()
+    await expect(menu.queryByRole('menuitem', { name: /archive/i })).toBeNull()
   },
 }

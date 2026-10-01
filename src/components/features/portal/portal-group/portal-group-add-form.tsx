@@ -28,8 +28,20 @@ export function PortalGroupAddForm({ groupId, rows, mutation, onDone }: Props) {
     validators: { onSubmit: addPortalsToGroupFormSchema },
     onSubmit: async ({ value }) => {
       const parsed = addPortalsToGroupFormSchema.parse(value)
-      for (const portalId of parsed.portalIds) {
-        await mutation({ data: { portalGroupId: groupId, portalId } })
+      const moved: string[] = []
+      try {
+        for (const portalId of parsed.portalIds) {
+          await mutation({ data: { portalGroupId: groupId, portalId } })
+          moved.push(portalId)
+        }
+      } catch (error) {
+        // The ones that moved are in the group now: leave only the rest ticked,
+        // so trying again does not move a portal that is already here.
+        form.setFieldValue(
+          'portalIds',
+          parsed.portalIds.filter((portalId) => !moved.includes(portalId)),
+        )
+        throw error
       }
       onDone()
     },

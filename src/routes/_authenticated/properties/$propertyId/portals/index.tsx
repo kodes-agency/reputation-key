@@ -24,7 +24,8 @@ import { membersQuery, propertiesQuery } from '#/routes/-queries/route-queries'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { portalGroupsQuery } from './-portal-detail-data'
-import { portalOverviewQuery, usePortalResultsControls } from './-portal-overview-data'
+import { portalOverviewQuery } from './-portal-overview-data'
+import { usePortalResultsControls } from './-portal-results-controls'
 import { portalGroupCachePolicy } from '#/components/features/portal/portal-group-cache-policy'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/portals/')({

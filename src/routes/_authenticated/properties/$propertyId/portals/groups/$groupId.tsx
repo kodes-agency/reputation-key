@@ -42,7 +42,8 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import { portalGroupsQuery } from '../-portal-detail-data'
-import { portalOverviewQuery, usePortalResultsControls } from '../-portal-overview-data'
+import { portalOverviewQuery } from '../-portal-overview-data'
+import { usePortalResultsControls } from '../-portal-results-controls'
 
 const SIDE_READ_STALE_MS = 30_000
 

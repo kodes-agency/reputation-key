@@ -122,7 +122,8 @@ export function buildPortalGroupHistory(
     const base = dated(entry)
     switch (entry.kind) {
       case 'created': {
-        const portals = companions.map(portal)
+        // Entries of one instant have no order of their own: alphabetical is steady.
+        const portals = companions.map(portal).sort((a, b) => a.localeCompare(b, 'en'))
         const count = portals.length
         const tail =
           count === 0 ? '' : ` with ${count} ${count === 1 ? 'portal' : 'portals'}`

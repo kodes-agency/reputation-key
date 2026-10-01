@@ -129,6 +129,18 @@
 // production builds of main (d7cd025e9, after #690) and of this change merged
 // onto it: 331,230 B -> 331,663 B (78 js + 1 css), +433 B. `main` had 170 B of
 // headroom under its 331,400 B. The budget moves to 332,000 B.
+// 2026-10-01 (Portal round 4, s38): the group page route
+// (portals/groups/$groupId) adds a route configuration and two eager query
+// modules shared with the Portals overview route (-portal-overview-data, 314 B,
+// kept apart from the hook that draws the page so the loader does not pull the
+// page in), the overview's search schema, inlined in the entry chunk while one
+// route config imported it, becomes a shared 479 B chunk (the entry chunk
+// shrinks 81 B), and the server-function stubs of the group reads merge into an
+// existing stub chunk (+189 B). The stylesheet grows 307 B (the group page and
+// the compact table density's classes), three query keys add 39 B and the icon
+// chunks reshuffle (+131 B). Fresh production builds of main (7524e1053) and of
+// the change: 331,093 B (78 js + 1 css) -> 332,424 B (80 js + 1 css), +1,331 B.
+// `main` had 307 B of headroom. The budget moves to 332,800 B.
 //
 // When this fails: resolve the new static importer and cut that source edge. Do
 // NOT raise the budget without recording a fresh production measurement here.
