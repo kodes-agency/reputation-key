@@ -691,6 +691,27 @@ export function verifyClosedBetaGoogleOAuth(
   })
 }
 
+/**
+ * The bucket must let the app's origin PUT, or avatar and logo uploads fail in
+ * the browser. A deploy adds the rule when it is missing; a report only says so.
+ * Like the Google check it never blocks the deploy, it fails the command.
+ */
+export async function verifyClosedBetaStorageCors(
+  apply: boolean,
+  out: (line: string) => void = console.log,
+): Promise<boolean> {
+  try {
+    // Loaded here: storage-cors reads this module's service table.
+    const { runStorageCors } = await import('./storage-cors')
+    return await runStorageCors({ apply, out })
+  } catch (error) {
+    out(
+      `Storage CORS: FAIL — could not check the bucket (${error instanceof Error ? error.message : String(error)})`,
+    )
+    return false
+  }
+}
+
 const COMMAND = 'ops:deploy-ci-images'
 const USAGE = 'pnpm ops deploy-ci-images [--sha <source-revision>] [--apply]'
 
@@ -755,6 +776,7 @@ export async function runDeployCiImagesCommand(
   )
   if (!args.apply) {
     await verifyClosedBetaGoogleOAuth(out)
+    await verifyClosedBetaStorageCors(false, out)
     out(`report only — re-run with --sha ${revision} --apply to move three services`)
     return 0
   }
@@ -766,11 +788,17 @@ export async function runDeployCiImagesCommand(
       2,
     ),
   )
-  if (!(await verifyClosedBetaGoogleOAuth(out))) {
+  const googleAccepted = await verifyClosedBetaGoogleOAuth(out)
+  const storageAccepts = await verifyClosedBetaStorageCors(true, out)
+  if (!googleAccepted) {
     out('deployed, but "Connect Google" will fail until the Google OAuth check passes')
-    return 1
   }
-  return 0
+  if (!storageAccepts) {
+    out(
+      'deployed, but avatar and logo uploads will fail until the Storage CORS check passes',
+    )
+  }
+  return googleAccepted && storageAccepts ? 0 : 1
 }
 
 const invokedPath = process.argv[1]

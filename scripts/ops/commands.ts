@@ -36,5 +36,6 @@ export const COMMANDS: Readonly<
   'republish-legacy-portals': ['scripts/ops/republish-legacy-portals.ts'],
   'restore-preflight': ['scripts/ops/restore-preflight.ts'],
   'restore-verify': ['scripts/ops/restore-verify.ts'],
+  'storage-cors': ['scripts/ops/storage-cors.ts'],
   'triage-beta-feedback': ['scripts/ops/triage-beta-feedback.ts'],
 })
