@@ -74,14 +74,15 @@ RUN corepack enable
 # the nine CVEs against the 3.5.6 the image was published with
 # (CVE-2026-63073 / CVE-2026-75803 are Critical) and thirteen more from the
 # 2026-09-29 OpenSSL advisory (CVE-2026-72897 / -84782 / -84784 High), and
-# PCRE2 10.46-1~deb13u2 closes CVE-2026-89161 (High).
+# PCRE2 10.46-1~deb13u3 closes CVE-2026-89161 and CVE-2026-103111 (High; the
+# JIT out-of-bounds write, bumped from ~deb13u2 on 2026-10-01).
 # Exact so the build FAILS if the archive stops carrying either version
 # rather than silently drifting; every other stage derives `FROM base`, so
 # patching here covers all of them. Everything else the scan reports is
 # won't-fix on trixie and named in .grype.yaml.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
-        libpcre2-8-0=10.46-1~deb13u2 \
+        libpcre2-8-0=10.46-1~deb13u3 \
         libssl3t64=3.5.7-1~deb13u3 \
         openssl-provider-legacy=3.5.7-1~deb13u3 \
     && rm -rf /var/lib/apt/lists/*
