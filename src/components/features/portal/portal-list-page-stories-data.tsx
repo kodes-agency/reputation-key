@@ -20,7 +20,7 @@ export function ControlledPage(
   return <PortalListPage {...props} search={search} onSearchChange={setSearch} />
 }
 
-const action = <TInput,>(): Action<TInput> =>
+export const action = <TInput,>(): Action<TInput> =>
   Object.assign(async (_input: TInput) => undefined, {
     isPending: false,
     error: null,
@@ -28,8 +28,8 @@ const action = <TInput,>(): Action<TInput> =>
     data: null,
   })
 
-const poolSide = overviewGroup('group-pool', 'Pool side')
-const frontOfHouse = overviewGroup('group-front', 'Front of house')
+export const poolSide = overviewGroup('group-pool', 'Pool side')
+export const frontOfHouse = overviewGroup('group-front', 'Front of house')
 
 export const rows = [
   overviewRow('p-terrace', {
@@ -88,18 +88,10 @@ export const baseArgs = {
   restoreMutation: action<{
     data: { portalId: string; publicationState: 'disabled' }
   }>(),
-  portalGroups: [
-    { id: 'group-pool', name: 'Pool side', portalIds: ['p-terrace', 'p-spa', 'p-bar'] },
-  ],
-  createGroupMutation: action<{
+  groups: [poolSide, frontOfHouse],
+  createMutation: action<{
     data: { propertyId: string; name: string; portalIds?: string[] }
   }>(),
-  updateGroupMutation: action<{ data: { portalGroupId: string; name: string } }>(),
-  deleteGroupMutation: action<{ data: { portalGroupId: string } }>(),
-  addPortalToGroupMutation: action<{
-    data: { portalGroupId: string; portalId: string }
-  }>(),
-  removePortalFromGroupMutation: action<{
-    data: { portalGroupId: string; portalId: string }
-  }>(),
+  renameMutation: action<{ data: { portalGroupId: string; name: string } }>(),
+  archiveGroupMutation: action<{ data: { portalGroupId: string } }>(),
 }

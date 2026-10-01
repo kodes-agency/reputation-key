@@ -21,7 +21,7 @@ type Story = StoryObj<typeof ControlledPage>
 export const Default: Story = { args: baseArgs }
 
 export const Empty: Story = {
-  args: { ...baseArgs, rows: [], portalGroups: [] },
+  args: { ...baseArgs, rows: [], groups: [] },
   play: async ({ canvasElement }) => {
     await expect(within(canvasElement).getByText(/no portals yet/i)).toBeInTheDocument()
   },
@@ -31,7 +31,6 @@ export const GroupedWithCounts: Story = {
   args: baseArgs,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    // The group editor below the table repeats the group names, so look inside the table.
     const table = within(canvas.getByRole('table', { name: /portals at avela resort/i }))
     await expect(table.getByText('Pool side')).toBeInTheDocument()
     await expect(table.getByText(/3 portals/)).toBeInTheDocument()
@@ -244,7 +243,7 @@ const manyRows = Array.from({ length: 25 }, (_, index) =>
 )
 
 export const PagesLongLists: Story = {
-  args: { ...baseArgs, rows: manyRows, portalGroups: [] },
+  args: { ...baseArgs, rows: manyRows, groups: [] },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Showing 1–20 of 25')).toBeInTheDocument()

@@ -11,7 +11,7 @@ import { RatingSection } from './sections/rating-section'
 import { ResponsibleSection } from './sections/responsible-section'
 import { WelcomeSection } from './sections/welcome-section'
 import type { PortalEditorSection } from './portal-editor-sections'
-import type { PortalGroupView } from '../portal-group-types'
+import type { PortalGroupView } from '../portal-group/portal-group-types'
 import type {
   PortalEditorSectionProps,
   PortalEditorThemeControls,

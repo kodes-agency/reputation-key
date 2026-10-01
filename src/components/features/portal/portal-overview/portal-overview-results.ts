@@ -131,6 +131,8 @@ export type OverviewStrip = Readonly<{
   caption: string | null
   /** "Last 30 days, Europe/Sofia time · an average needs 5 private ratings". */
   footer: string
+  /** The private ratings an average needs before it is shown. */
+  averageMinSample: number
 }>
 
 /** What the sort reads: each row's scans, or nothing where they are not ready. */
@@ -154,27 +156,32 @@ export type OverviewResultsIndex = Readonly<{
   propertiesRead: number
   /** The Organization's total: every Property's reading, added together. */
   total: () => OverviewStrip | null
+  /** The same strip for one group's own figures, in the window of its Property. */
+  groupStrip: (groupId: string) => OverviewStrip | null
   sortFigures: OrganizationSortFigures
 }>
 
+/** The strip of `measures` (a Property's, or one group's) in the window of `property`. */
 function stripOf(
   property: PortalResultsPropertyRow,
+  measures: PortalResultsMeasures,
   thresholds: PortalResultsThresholds,
 ): OverviewStrip {
   const { localDays, timezone } = property
   return {
     cells: measureCells(
       {
-        kpis: property.kpis,
+        kpis: measures.kpis,
         thresholds,
         timezone,
         localDays,
-        funnel: property.engagementFunnel,
+        funnel: measures.engagementFunnel,
       },
       { compare: property.comparePeriod !== null },
     ),
     caption: windowCaption(localDays, timezone),
     footer: `${currentPeriodLabel(localDays)}, ${timezone} time · an average needs ${thresholds.averageMinSample} private ratings`,
+    averageMinSample: thresholds.averageMinSample,
   }
 }
 
@@ -262,7 +269,15 @@ export function indexOverviewResults(
   const strips = keyed(
     overview.properties,
     (row) => row.propertyId,
-    (row) => stripOf(row, thresholds),
+    (row) => stripOf(row, row, thresholds),
+  )
+  const groupStrips = keyed(
+    overview.groups,
+    (row) => row.groupId,
+    (row) => {
+      const property = overview.properties.find((p) => p.propertyId === row.propertyId)
+      return property ? stripOf(property, row, thresholds) : null
+    },
   )
   const subtotals = keyed(
     overview.properties,
@@ -283,6 +298,7 @@ export function indexOverviewResults(
     strip: (propertyId) => strips.get(propertyId) ?? null,
     propertiesRead: overview.properties.length,
     total: () => totalStripOf(overview, thresholds),
+    groupStrip: (groupId) => groupStrips.get(groupId) ?? null,
     sortFigures: {
       portal: (portalId) => portals.get(portalId)?.row.kpis.scans.value ?? null,
       group: (groupId) => groups.get(groupId)?.row.kpis.scans.value ?? null,

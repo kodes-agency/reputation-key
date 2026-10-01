@@ -28,7 +28,7 @@ import type {
 import type { PortalDetailTab } from './portal-detail-rules'
 import type { PortalShareMutations } from '../portal-share/portal-share-types'
 import type { PortalEditorSection } from '../portal-editor/portal-editor-sections'
-import type { PortalGroupView } from '../portal-group-types'
+import type { PortalGroupView } from '../portal-group/portal-group-types'
 import type { GoogleReviewDestinationStatus } from '../portal-settings/google-review-destination-status'
 import type {
   PortalApprovedDestinationList,

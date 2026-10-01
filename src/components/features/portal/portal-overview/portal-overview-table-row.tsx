@@ -3,6 +3,7 @@
 // table row. The same rule as the Properties list, so a Portal's name renders
 // once, which Storybook (no CSS container queries to lean on) and the e2e
 // journeys both rely on.
+import type { ReactNode } from 'react'
 import { TableCell, TableHead, TableRow } from '#/components/ui/table'
 import { cn } from '#/lib/utils'
 import {
@@ -28,6 +29,8 @@ type Props = PortalArchiveMutations &
     propertyId: string
     /** A flat list has no group heads, so the row says which group it is in. */
     showGroup: boolean
+    /** Extra entries in the "more actions" menu. */
+    menuExtra?: ReactNode
   }>
 
 const CARD_ROW =
@@ -39,6 +42,7 @@ export function PortalOverviewTableRow({
   figures,
   propertyId,
   showGroup,
+  menuExtra,
   archiveMutation,
   restoreMutation,
 }: Props) {
@@ -77,6 +81,7 @@ export function PortalOverviewTableRow({
           propertyId={propertyId}
           archiveMutation={archiveMutation}
           restoreMutation={restoreMutation}
+          extra={menuExtra}
         />
       </TableCell>
     </TableRow>

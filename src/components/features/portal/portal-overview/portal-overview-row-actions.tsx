@@ -1,7 +1,7 @@
 // A Portal's actions in the overview: Edit and Share as buttons, and everything
 // else behind "more actions". Share is not offered where there is nothing to
 // share: a draft has no code to give out, and an archived Portal is finished.
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Ellipsis, Pencil, QrCode } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
@@ -92,7 +92,13 @@ export function PortalRowMenu({
   propertyId,
   archiveMutation,
   restoreMutation,
-}: RowProps & PortalArchiveMutations) {
+  extra,
+}: RowProps &
+  PortalArchiveMutations &
+  Readonly<{
+    /** Entries a page adds of its own, between the links and the archive entry. */
+    extra?: ReactNode
+  }>) {
   const { can } = usePermissions()
   const { has } = useCapabilities()
   const [confirming, setConfirming] = useState(false)
@@ -128,7 +134,10 @@ export function PortalRowMenu({
               portalId={row.portalId}
             />
           ))}
-          {links.length > 0 && lifecycle.length > 0 ? <DropdownMenuSeparator /> : null}
+          {extra}
+          {links.length + (extra ? 1 : 0) > 0 && lifecycle.length > 0 ? (
+            <DropdownMenuSeparator />
+          ) : null}
           {lifecycle.map((entry) => (
             <DropdownMenuItem
               key={entry.id}
