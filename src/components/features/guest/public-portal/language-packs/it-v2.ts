@@ -140,7 +140,7 @@ export const itV2 = defineGuestCopyV2({
     'Europe/Bucharest': 'Bucarest',
     'Europe/Belgrade': 'Belgrado',
     'Europe/Istanbul': 'Istanbul',
-    'Europe/Kyiv': 'Kiev',
-    'Europe/Kiev': 'Kiev',
+    'Europe/Kyiv': 'Kyiv',
+    'Europe/Kiev': 'Kyiv',
   },
 })
