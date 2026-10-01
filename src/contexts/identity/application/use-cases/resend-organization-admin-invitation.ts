@@ -11,10 +11,6 @@
 //    `emailSent: false`.
 
 import type { Clock } from '#/shared/domain/clock'
-import {
-  invitationId as toInvitationId,
-  organizationId as toOrganizationId,
-} from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type {
   OrganizationInvitationInput,
@@ -22,7 +18,7 @@ import type {
   ResendOrganizationAdminInvitationResult,
 } from '../dto/platform-console.dto'
 import type { PlatformOrganizationStore } from '../ports/platform-organization-store.port'
-import { assertOperatorMayAdminister } from '../platform-administration'
+import { readPermittedInvitation } from '../platform-administration'
 import {
   sendAdminInvitationEmail,
   type AdminInvitationEmailDeps,
@@ -43,10 +39,8 @@ export type ResendOrganizationAdminInvitation = (
 export const resendOrganizationAdminInvitation =
   (deps: ResendOrganizationAdminInvitationDeps): ResendOrganizationAdminInvitation =>
   async (input, operator) => {
-    const organizationId = toOrganizationId(input.organizationId)
-    const invitationId = toInvitationId(input.invitationId)
-    const administration = await deps.store.readAdministration(organizationId)
-    assertOperatorMayAdminister(administration, { requireActive: true, invitationId })
+    const { organizationId, invitationId, administration } =
+      await readPermittedInvitation(deps.store, input, { requireActive: true })
 
     const now = deps.clock()
     const renewed = await deps.store.renewAdminInvitation(

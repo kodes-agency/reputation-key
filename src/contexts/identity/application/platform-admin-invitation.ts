@@ -19,7 +19,7 @@ import type { InviteMemberCommand } from './ports/identity-command-store.port'
 import type { InvitationEmailSender } from './ports/invitation-email.port'
 
 /** The inviter the email names when the operator's account has no name. */
-export const OPERATOR_INVITER_FALLBACK_NAME = 'The Reputation Key team'
+const OPERATOR_INVITER_FALLBACK_NAME = 'The Reputation Key team'
 
 export type AdminInvitationEmailDeps = Readonly<{
   sendEmail: InvitationEmailSender

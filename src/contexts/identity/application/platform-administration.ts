@@ -6,13 +6,22 @@
 // It touches only open AccountAdmin invitations, and a new invitation needs
 // an active Organization (cancelling one does not).
 
-import type { InvitationId } from '#/shared/domain/ids'
+import {
+  invitationId as toInvitationId,
+  organizationId as toOrganizationId,
+  type InvitationId,
+  type OrganizationId,
+} from '#/shared/domain/ids'
 import { identityError } from '../domain/errors'
 import { invitationState } from '../domain/invitation-state'
-import type { PlatformOrganizationView } from './dto/platform-console.dto'
+import type {
+  OrganizationInvitationInput,
+  PlatformOrganizationView,
+} from './dto/platform-console.dto'
 import type {
   OrganizationAdministration,
   PlatformOrganizationRow,
+  PlatformOrganizationStore,
 } from './ports/platform-organization-store.port'
 
 /** The console lists at most this many Organizations, newest first. */
@@ -47,6 +56,29 @@ export function assertOperatorMayAdminister(
   ) {
     throw identityError('invitation_not_found', 'Invitation not found')
   }
+}
+
+/** The Organization and invitation a console change targets, once permitted. */
+export type PermittedInvitation = Readonly<{
+  organizationId: OrganizationId
+  invitationId: InvitationId
+  administration: OrganizationAdministration
+}>
+
+/**
+ * Reads the Organization an invitation change targets and refuses unless the
+ * console may act on that invitation. Resend and cancel share it.
+ */
+export async function readPermittedInvitation(
+  store: Pick<PlatformOrganizationStore, 'readAdministration'>,
+  input: OrganizationInvitationInput,
+  check: Pick<AdministrationCheck, 'requireActive'>,
+): Promise<PermittedInvitation> {
+  const organizationId = toOrganizationId(input.organizationId)
+  const invitationId = toInvitationId(input.invitationId)
+  const administration = await store.readAdministration(organizationId)
+  assertOperatorMayAdminister(administration, { ...check, invitationId })
+  return { organizationId, invitationId, administration }
 }
 
 export function toPlatformOrganizationView(

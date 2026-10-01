@@ -34,6 +34,17 @@ async function openDialog(canvasElement: HTMLElement) {
   return within(await body().findByRole('dialog'))
 }
 
+type Dialog = ReturnType<typeof within>
+
+const submit = (dialog: Dialog) =>
+  userEvent.click(dialog.getByRole('button', { name: /create and send invitation/i }))
+
+async function fillAndSubmit(dialog: Dialog, adminEmail: string) {
+  await userEvent.type(dialog.getByLabelText('Organization name'), 'Hotel Riviera')
+  await userEvent.type(dialog.getByLabelText("First Account Admin's email"), adminEmail)
+  await submit(dialog)
+}
+
 export const Closed: Story = {}
 
 export const Open: Story = {
@@ -72,9 +83,7 @@ export const ValidationErrors: Story = {
   play: async ({ canvasElement }) => {
     provisionSpy.mockClear()
     const dialog = await openDialog(canvasElement)
-    await userEvent.click(
-      dialog.getByRole('button', { name: /create and send invitation/i }),
-    )
+    await submit(dialog)
     expect(
       await dialog.findByText(/organization name must be at least 2 characters/i),
     ).toBeVisible()
@@ -87,14 +96,7 @@ export const CreatesAndSendsInvitation: Story = {
   play: async ({ canvasElement }) => {
     provisionSpy.mockClear()
     const dialog = await openDialog(canvasElement)
-    await userEvent.type(dialog.getByLabelText('Organization name'), 'Hotel Riviera')
-    await userEvent.type(
-      dialog.getByLabelText("First Account Admin's email"),
-      'Owner@Riviera.Example',
-    )
-    await userEvent.click(
-      dialog.getByRole('button', { name: /create and send invitation/i }),
-    )
+    await fillAndSubmit(dialog, 'Owner@Riviera.Example')
 
     await waitFor(() =>
       expect(provisionSpy).toHaveBeenCalledWith({
@@ -120,14 +122,7 @@ export const EmailCouldNotBeSent: Story = {
   },
   play: async ({ canvasElement }) => {
     const dialog = await openDialog(canvasElement)
-    await userEvent.type(dialog.getByLabelText('Organization name'), 'Hotel Riviera')
-    await userEvent.type(
-      dialog.getByLabelText("First Account Admin's email"),
-      'owner@riviera.example',
-    )
-    await userEvent.click(
-      dialog.getByRole('button', { name: /create and send invitation/i }),
-    )
+    await fillAndSubmit(dialog, 'owner@riviera.example')
 
     expect(await dialog.findByText(/could not be sent/i)).toBeVisible()
     expect(dialog.getByText(/use resend/i)).toBeVisible()
@@ -142,14 +137,7 @@ export const Refused: Story = {
   },
   play: async ({ canvasElement }) => {
     const dialog = await openDialog(canvasElement)
-    await userEvent.type(dialog.getByLabelText('Organization name'), 'Hotel Riviera')
-    await userEvent.type(
-      dialog.getByLabelText("First Account Admin's email"),
-      'taken@example.com',
-    )
-    await userEvent.click(
-      dialog.getByRole('button', { name: /create and send invitation/i }),
-    )
+    await fillAndSubmit(dialog, 'taken@example.com')
 
     expect(
       await dialog.findByText(/already belongs to another organization/i),
