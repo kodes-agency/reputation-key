@@ -345,11 +345,7 @@ function readLinks(
       : []
   })
   const texts = resolveLinkTexts({
-    links: approved.map(({ link }) => ({
-      id: link.id,
-      label: link.label,
-      updatedAt: link.updatedAt,
-    })),
+    links: approved.map(({ link }) => ({ id: link.id, label: link.label })),
     texts: stored,
     primaryLocale: primaryGuestLocale,
   })

@@ -197,6 +197,9 @@ export const createLink =
       expectedPortalUpdatedAt: portal.updatedAt,
       actorUserId: ctx.userId,
       link: result.value,
+      // The label is checked above and trimmed by the constructor; it is written
+      // as the link's primary-language text, never to the legacy column.
+      label: result.value.label,
       revision,
       occurredAt,
       event,

@@ -91,6 +91,17 @@ export const linkToRow = (link: PortalLink): LinkInsertRow => ({
   updatedAt: link.updatedAt,
 })
 
+/**
+ * The row of a link being written today. The legacy `label` column is no longer
+ * written (a link's wording is its `portal_link_texts` rows), so it holds the
+ * empty string the NOT NULL column needs until it is dropped. `linkToRow` stays
+ * the faithful mapping, for fixtures that stand for links older than this.
+ */
+export const newLinkToRow = (link: PortalLink): LinkInsertRow => ({
+  ...linkToRow(link),
+  label: '',
+})
+
 // ── Link text mapper ───────────────────────────────────────────────
 
 type LinkTextRow = typeof portalLinkTexts.$inferSelect

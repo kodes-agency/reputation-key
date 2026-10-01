@@ -25,7 +25,7 @@ export type InMemoryPortalLinkRepo = PortalLinkRepository &
       texts: ReadonlyArray<PortalLinkTextWrite>,
       writer: InMemoryLinkTextWriter,
     ) => ReadonlyArray<GuestLocale>
-    /** Keep the primary-language text in step with a link label written by the legacy path. */
+    /** Write the primary-language text of a link from a label alone (create and rename). */
     syncPrimaryText: (
       linkId: string,
       locale: GuestLocale,
@@ -83,11 +83,7 @@ export const createInMemoryPortalLinkRepo = (): InMemoryPortalLinkRepo => {
             ) || a.sortKey.localeCompare(b.sortKey),
         )
       return resolveLinkTexts({
-        links: links.map((l) => ({
-          id: String(l.id),
-          label: l.label,
-          updatedAt: l.updatedAt,
-        })),
+        links: links.map((l) => ({ id: String(l.id), label: l.label })),
         texts: [...textStore.values()],
         primaryLocale,
       })

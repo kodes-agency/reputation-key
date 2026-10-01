@@ -1,8 +1,8 @@
 // Portal context — save the per-language texts of a link.
 //
 // Manager-written texts only: a label and an optional line per language the
-// Portal offers. The primary-language label is mirrored to the link's own label
-// by the command store, so the legacy guest page keeps reading what it reads.
+// Portal offers. The texts are the only place a link's wording is written; the
+// link's own legacy label column is no longer touched.
 
 import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { PortalRepository } from '../ports/portal.repository'

@@ -249,12 +249,12 @@ describe('portalLinkRepository (integration)', () => {
       })
       await repo.insertLink(ORG_A, link)
       await repo.updateLink(ORG_A, portal.id, link.id, {
-        label: 'New Label',
         url: 'https://new.example.com',
       })
 
       const found = await repo.findLinkById(ORG_A, link.id)
-      expect(found?.label).toBe('New Label')
+      // The legacy label column is never written by an update.
+      expect(found?.label).toBe('Old Label')
       expect(found?.url).toBe('https://new.example.com')
     })
 

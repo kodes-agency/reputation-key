@@ -42,7 +42,8 @@ export type PortalLinkRepository = Readonly<{
     orgId: OrganizationId,
     portalId: PortalId,
     id: PortalLinkId,
-    patch: Readonly<Partial<PortalLink>>,
+    // Never the legacy `label`: a link's wording is its texts.
+    patch: Readonly<Partial<Omit<PortalLink, 'label'>>>,
   ) => Promise<void>
   deleteLink: (
     orgId: OrganizationId,

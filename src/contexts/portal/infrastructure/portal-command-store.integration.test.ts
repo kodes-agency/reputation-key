@@ -2160,6 +2160,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       expectedPortalUpdatedAt: CREATED_AT,
       actorUserId: MANAGER,
       link,
+      label: link.label,
       startCategory: { category, event: categoryCreated },
       revision: linkAt,
       occurredAt: linkAt,
@@ -2274,6 +2275,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       expectedPortalUpdatedAt: CREATED_AT,
       actorUserId: MANAGER,
       link,
+      label: link.label,
       startCategory: {
         category,
         event: portalLinkCategoryCreated({

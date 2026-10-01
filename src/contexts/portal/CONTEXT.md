@@ -60,19 +60,19 @@ Portal keeps its head in the overview, so it stays reachable.
 The link section of the guest page is the **Linktree**. Its working model is
 `portal_link_texts` (one label and optional line per link and language), a title
 per language in `portal_localized_overrides.linktree_title` (null means the
-language pack's default, "Useful links") and `portals.linktree_enabled`. Until the
-legacy column is dropped, `portal_links.label` mirrors the primary-language text:
-creating or renaming a link and saving the primary text all write both, and
-readers (`listLinkTexts`) fall back to the link's own label for a link with no
-primary-language row. Changing the Portal's primary language re-establishes the
-mirror in the same transaction: a link label takes the new primary's text where
-one exists, and the new primary's text starts from the label where none does; first the
-old primary keeps a newer label of that window as its own text, so a switch never discards
-the label readers were showing.
-Old code that ran between migration 0044 and the new web rollout could rename a
-link without touching its text; `resolveLinkTexts` reconciles that window for
-every reader (the editor, the preview and the v3 writer): a link renamed after
-its primary text was written reads its own label there. A Portal carries at most four links, counted under the
+language pack's default, "Useful links") and `portals.linktree_enabled`. The texts are
+the only place a link's wording is written: creating a link writes its
+primary-language text, renaming it (or saving texts) writes the text, and the
+legacy `portal_links.label` column is never written (a new link holds `''` there,
+because the column is NOT NULL until it is dropped). The column is a read-only
+fallback for a link written before the texts existed: `resolveLinkTexts` reads it
+as the primary-language text only when no such text row exists, and a stored text
+always wins over it. Changing the Portal's primary language leaves no link
+unnamed in the new one: the old primary keeps the link's wording (a link with no
+text there starts it from its legacy label, when that is not empty) and the new
+primary's text starts from it where none exists. Rolling back to a release before
+this one is not safe for links edited since: that code treated a link label newer
+than its text as a rename, so it would read the empty column as the wording. A Portal carries at most four links, counted under the
 Portal fence on create; a Portal that already has more keeps them. Icons come
 from a closed catalogue (`src/shared/domain/portal-link-icon.ts`, 27 keys, every
 icon the round-4 editor offers), enforced by a CHECK and refused in the link

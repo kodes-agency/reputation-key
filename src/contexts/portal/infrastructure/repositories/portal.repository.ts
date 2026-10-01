@@ -2,22 +2,15 @@
 // Per architecture: factory function returning Readonly<{ method }>.
 // Every query filters by organization_id AND deleted_at IS NULL via baseWhere().
 
-import { and, asc, eq, ne, not, sql, isNull } from 'drizzle-orm'
+import { and, asc, eq, ne, not, isNull } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { baseWhere } from '#/shared/db/base-where'
-import {
-  portals,
-  portalLinkCategories,
-  portalLinks,
-  portalApprovedDestinations,
-} from '#/shared/db/schema/portal.schema'
+import { portals } from '#/shared/db/schema/portal.schema'
 import type {
   PortalRepository,
-  PublicPortalRepositoryResult,
   ResolvePortalContextResult,
 } from '../../application/ports/portal.repository'
 import { portalFromRow } from '../mappers/portal.mapper'
-import { portalError } from '../../domain/errors'
 import {
   portalId as toPortalId,
   unbrand,
@@ -26,90 +19,6 @@ import {
   type PropertyId,
 } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
-import { isPubliclyAvailable } from '../../domain/portal-publication'
-
-async function loadPublicPortal(
-  db: Database,
-  portalRow: typeof portals.$inferSelect,
-): Promise<PublicPortalRepositoryResult | null> {
-  const portal = portalFromRow(portalRow)
-  if (!isPubliclyAvailable(portal.publicationState)) {
-    throw portalError('portal_inactive', 'Portal is unavailable')
-  }
-  const orgResult = await db.execute(
-    sql`SELECT id, name FROM "organization" WHERE id = ${portalRow.organizationId} LIMIT 1`,
-  )
-  const org = orgResult.rows[0] as { id: string; name: string } | undefined
-  if (!org) return null
-
-  const [categories, links] = await Promise.all([
-    db
-      .select()
-      .from(portalLinkCategories)
-      .where(
-        and(
-          eq(portalLinkCategories.organizationId, portalRow.organizationId),
-          eq(portalLinkCategories.portalId, portalRow.id),
-        ),
-      )
-      .orderBy(portalLinkCategories.sortKey, portalLinkCategories.id),
-    db
-      .select({
-        link: portalLinks,
-        destinationUri: portalApprovedDestinations.normalizedUri,
-        destinationApprovalState: portalApprovedDestinations.approvalState,
-      })
-      .from(portalLinks)
-      .leftJoin(
-        portalApprovedDestinations,
-        and(
-          eq(portalApprovedDestinations.organizationId, portalLinks.organizationId),
-          eq(portalApprovedDestinations.propertyId, portalLinks.propertyId),
-          eq(portalApprovedDestinations.id, portalLinks.destinationId),
-        ),
-      )
-      .where(
-        and(
-          eq(portalLinks.organizationId, portalRow.organizationId),
-          eq(portalLinks.portalId, portalRow.id),
-        ),
-      )
-      .orderBy(portalLinks.sortKey, portalLinks.id),
-  ])
-  return {
-    portal: {
-      id: portalRow.id,
-      name: portalRow.name,
-      slug: portalRow.slug,
-      description: portalRow.description,
-      heroImageUrl: portalRow.heroImageUrl,
-      theme: portalRow.theme as Record<string, string | number | boolean | null> | null,
-      organizationName: org.name,
-    },
-    categories: categories.map((category) => ({
-      id: category.id,
-      title: category.title,
-      sortKey: category.sortKey,
-    })),
-    links: links.flatMap(({ link, destinationUri, destinationApprovalState }) => {
-      const url = destinationApprovalState === 'approved' ? destinationUri : link.url
-      return url
-        ? [
-            {
-              id: link.id,
-              label: link.label,
-              url,
-              categoryId: link.categoryId,
-              sortKey: link.sortKey,
-            },
-          ]
-        : []
-    }),
-    privateFeedbackThreshold: portal.privateFeedbackThreshold,
-    organizationId: org.id,
-    propertyId: portalRow.propertyId,
-  }
-}
 
 export const createPortalRepository = (db: Database): PortalRepository => ({
   findById: async (orgId, id) => {
@@ -190,17 +99,6 @@ export const createPortalRepository = (db: Database): PortalRepository => ({
         organizationId: rows[0].organizationId as OrganizationId,
         propertyId: rows[0].propertyId as PropertyId,
       } satisfies ResolvePortalContextResult
-    })
-  },
-
-  findPublicPortalById: async (orgId, portalIdParam) => {
-    return trace('portal.findPublicPortalById', async () => {
-      const [portal] = await db
-        .select()
-        .from(portals)
-        .where(and(...baseWhere(portals, orgId), eq(portals.id, unbrand(portalIdParam))))
-        .limit(1)
-      return portal ? loadPublicPortal(db, portal) : null
     })
   },
 })

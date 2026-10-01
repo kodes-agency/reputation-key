@@ -152,13 +152,13 @@ function copyLinksAndTexts(
           ]
         : []
     })
-    const primaryText = texts.find((text) => text.locale === target.locales.primary)
     const newLink: PortalLink = {
       ...link,
       id,
       portalId: target.portalId,
       categoryId: newCategoryIds.get(link.categoryId) ?? link.categoryId,
-      label: primaryText?.label ?? sourcePrimaryLabel,
+      // The copy's wording is its texts; the legacy label is not carried over.
+      label: '',
       createdAt: now,
       updatedAt: now,
     }

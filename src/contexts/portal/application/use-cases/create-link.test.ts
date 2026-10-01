@@ -354,7 +354,7 @@ describe('createLink', () => {
       expect(portalLinkRepo.allLinks()).toHaveLength(6)
     })
 
-    it('writes the label as the primary-language text as well', async () => {
+    it('writes the label as the primary-language text and not to the legacy column', async () => {
       const { useCase, portalLinkRepo } = seededPortal(0)
 
       const link = await useCase({ ...input, label: 'City guide' }, ctx())
@@ -364,6 +364,9 @@ describe('createLink', () => {
           .storedTexts()
           .map((text) => [text.linkId, text.locale, text.label, text.line]),
       ).toEqual([[link.id, 'en', 'City guide', null]])
+      expect(
+        (await portalLinkRepo.findLinkById(link.organizationId, link.id))?.label,
+      ).toBe('')
     })
   })
   describe('without a category, as the Linktree editor adds a link', () => {

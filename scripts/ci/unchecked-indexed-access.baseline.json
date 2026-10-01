@@ -87,7 +87,7 @@
   "src/contexts/portal/application/use-cases/soft-delete-portal-group.test.ts": 1,
   "src/contexts/portal/application/use-cases/update-portal.test.ts": 5,
   "src/contexts/portal/infrastructure/adapters/portal-token-codec.ts": 1,
-  "src/contexts/portal/infrastructure/repositories/portal-link.repository.test.ts": 10,
+  "src/contexts/portal/infrastructure/repositories/portal-link.repository.test.ts": 8,
   "src/contexts/portal/infrastructure/repositories/portal-responsible-manager.repository.test.ts": 1,
   "src/contexts/portal/infrastructure/repositories/portal.repository.test.ts": 3,
   "src/contexts/portal/infrastructure/repositories/portal.repository.ts": 2,

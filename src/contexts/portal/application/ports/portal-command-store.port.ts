@@ -309,6 +309,12 @@ export type CreatePortalLinkCommand = PortalContentCommandBase &
     /** Who wrote the link; recorded on its primary-language text. */
     actorUserId: UserId
     link: PortalLink
+    /**
+     * What the link says in the Portal's primary language: its first text and
+     * the only place its name is written. The link row's own legacy `label`
+     * column is never written (it stays empty).
+     */
+    label: string
     event: PortalLinkCreated
     /**
      * The Portal's first category, when the link starts it. Written in the same
@@ -337,13 +343,14 @@ export type UpdatePortalLinkCommand = PortalContentCommandBase &
     patch: Readonly<
       Pick<
         PortalLink,
-        | 'label'
-        | 'url'
-        | 'destinationId'
-        | 'legacyDestinationState'
-        | 'iconKey'
-        | 'imageAssetId'
-      >
+        'url' | 'destinationId' | 'legacyDestinationState' | 'iconKey' | 'imageAssetId'
+      > & {
+        /**
+         * A new primary-language label, written to the link's text and nowhere
+         * else. Left out, the text stays as it is.
+         */
+        label?: string
+      }
     >
     event: PortalLinkUpdated
   }>
@@ -357,8 +364,8 @@ export type PortalLinkTextWrite = Readonly<{
 }>
 
 /**
- * Write the per-language texts of one link. The primary-language label is also
- * written to the link's own `label` (the legacy column) in the same commit.
+ * Write the per-language texts of one link. The texts are the only place its
+ * wording lives: the link's own legacy `label` column is not written.
  */
 export type SavePortalLinkTextsCommand = PortalContentCommandBase &
   Readonly<{

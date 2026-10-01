@@ -114,11 +114,7 @@ export const createPortalLinkRepository = (
   listLinkTexts: async (orgId, portalId, primaryLocale) => {
     return trace('portalLink.listLinkTexts', async () => {
       const links = await db
-        .select({
-          id: portalLinks.id,
-          label: portalLinks.label,
-          updatedAt: portalLinks.updatedAt,
-        })
+        .select({ id: portalLinks.id, label: portalLinks.label })
         .from(portalLinks)
         .innerJoin(
           portalLinkCategories,
@@ -167,7 +163,6 @@ export const createPortalLinkRepository = (
   updateLink: async (orgId, portalId, id, patch) => {
     return trace('portalLink.updateLink', async () => {
       const setValues: Partial<typeof portalLinks.$inferInsert> = {}
-      if (patch.label !== undefined) setValues.label = patch.label
       if (patch.destinationId !== undefined) {
         setValues.destinationId = patch.destinationId
           ? unbrand(patch.destinationId)
