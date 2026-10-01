@@ -184,9 +184,9 @@ describe('InertImmersiveFooterView (the admin preview)', () => {
       }),
     )
 
-  it('draws the full notice, the privacy link and "Got it" as the guest reads them', () => {
+  it('draws the one-line notice, the privacy link and "Got it" as the guest reads them', () => {
     const text = textOf(inert()).join(' ')
-    expect(text).toContain('An essential session cookie protects your response.')
+    expect(text).toContain('counts visits with one essential cookie')
     expect(text).toContain('Privacy notice')
     expect(text).toContain('Got it')
   })
