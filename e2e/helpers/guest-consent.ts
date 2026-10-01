@@ -1,5 +1,13 @@
 // Analytics-notice helper for guest-portal specs.
 //
+// Two surfaces carry the notice. The legacy page (snapshot schema v1/v2) shows
+// a `fixed bottom-0 z-50` bar: a region with a single acknowledge button. The
+// Immersive Hub (schema v3) shows the same disclosure inline in its footer, as
+// a region named "Visit counting" with the same "Got it" button; nothing is
+// fixed and nothing can intercept a click. Pass the surface the portal under
+// test renders. Everything below about the legacy bar holds for both
+// the waiting and the one-call-per-guest rules.
+//
 // The bar is a `fixed bottom-0 z-50` region with a single acknowledge button.
 // It is INFORMATIONAL, not a consent gate: `GuestAnalyticsNotice` records the
 // portal visit from a mount effect regardless of the acknowledgement, and the
@@ -33,8 +41,19 @@ import type { Page } from '@playwright/test'
  * never come. To get an unacknowledged guest again, reset the browser's storage
  * and not only its cookies: the acknowledgement lives in `localStorage`.
  */
-export async function settleGuestConsent(page: Page): Promise<void> {
-  const notice = page.getByRole('region', { name: 'Portal analytics information' })
+export type GuestSurface = 'legacy' | 'immersive'
+
+/** The accessible name of the notice region on each surface (the guest copy packs' labels). */
+const NOTICE_REGION_NAME: Readonly<Record<GuestSurface, string>> = {
+  legacy: 'Portal analytics information',
+  immersive: 'Visit counting',
+}
+
+export async function settleGuestConsent(
+  page: Page,
+  surface: GuestSurface = 'legacy',
+): Promise<void> {
+  const notice = page.getByRole('region', { name: NOTICE_REGION_NAME[surface] })
   await notice.waitFor({ state: 'visible' })
   await notice.getByRole('button', { name: 'Got it' }).click()
   await notice.waitFor({ state: 'detached' })

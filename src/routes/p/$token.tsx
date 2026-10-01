@@ -36,7 +36,7 @@ const portalSearchSchema = z.object({
  * All of them must stay externally indistinguishable to a guest, so they collapse
  * to the same `null`. Every other failure (500 from a DB blip, a network fault) is
  * rethrown: swallowing it cached a successful `null` for the whole 5-minute
- * staleTime, so a sub-second outage pinned "Portal Unavailable" for five minutes.
+ * staleTime, so a sub-second outage pinned the unavailable page for five minutes.
  */
 const unavailablePostureStatus: Readonly<Record<number, true>> = {
   403: true,
