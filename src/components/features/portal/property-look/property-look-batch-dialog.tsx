@@ -39,6 +39,7 @@ type Props = Readonly<{
 
 const portalsOf = (count: number) => (count === 1 ? '1 portal' : `${count} portals`)
 
+// fallow-ignore-next-line complexity
 export function PropertyLookBatchDialog({
   propertyId,
   live,

@@ -54,7 +54,7 @@ export type DoneRun = RunRecord<Outcome> &
     error: unknown
   }>
 
-export type BatchRun =
+export type BatchPhase =
   | Readonly<{ status: 'reviewing' }>
   /**
    * A request is in flight. On a retry `previous` is what the run before it
@@ -98,7 +98,7 @@ export function usePropertyLookBatch({
     gcTime: 0,
   })
   const [leftOut, setLeftOut] = useState<ReadonlySet<string>>(() => new Set())
-  const [run, setRun] = useState<BatchRun>({ status: 'reviewing' })
+  const [run, setRun] = useState<BatchPhase>({ status: 'reviewing' })
   const order = useMemo(() => live.map((row) => row.portalId), [live])
 
   const rows: readonly BatchRow[] | null = useMemo(() => {
