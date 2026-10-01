@@ -25,6 +25,24 @@ describe('describeUnavailable', () => {
   })
 })
 
+describe('describeUnavailable (a version chosen from the History)', () => {
+  it('names the version, not the live page, when it uses the earlier design', () => {
+    const note = describeUnavailable('earlier_design', 'version')
+
+    expect(note.title).toBe('This version uses the earlier design')
+    expect(note.body).toContain('does not draw it')
+    expect(note.body).toContain('What it lists')
+    expect(note.body).not.toContain('live page')
+  })
+
+  it('says the version cannot be drawn when it is missing something the preview needs', () => {
+    const note = describeUnavailable('incomplete', 'version')
+
+    expect(note.title).toBe('This version can’t be drawn here')
+    expect(note.body).not.toContain('draft preview')
+  })
+})
+
 describe('TRY_AS_GUEST_NOTICE', () => {
   it('promises that nothing is written', () => {
     expect(TRY_AS_GUEST_NOTICE).toContain('Nothing is saved or counted')

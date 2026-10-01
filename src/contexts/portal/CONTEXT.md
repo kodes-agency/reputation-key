@@ -368,6 +368,19 @@ changes name the manager's own words (a tile's label, a language) and are a read
 the people who manage the Portal: nothing here is published as a fact. A snapshot that no
 longer verifies is left out of the list, because it could not be served or made live again.
 
+`getPortalVersionPreview` is what the History's "View" draws: the guest page of one published
+version, whichever is live, from that version's verified snapshot. It is the live preview's
+read with the same rules (`readPublishedPreviewInputs`: the guest edge's approval cut-off, none
+when the Linktree is off, images only while servable), so it shows what guests would be served
+if that version were made live now, and a tile whose address has since lapsed is left out. Its
+preview says `source: 'version'` with the version number, so it cannot be mistaken for the live
+page, and it carries no address, as the live one does not. A version from the earlier page
+design is `unavailable` (`earlier_design`) and the History falls back to the words of
+`getPortalVersion`; a version the Portal never had, or that no longer verifies, is refused
+(`publication_snapshot_unavailable`). Gated by `portal.read`; it writes nothing. The
+History's dialog says, under the phone, when the page draws fewer tiles than the version's
+words list (a lapsed address leaves a tile out of the page, not out of the words).
+
 `portal_page_edits` is the page-edit ledger: one row per change that can make a
 Portal's working page differ from what guests see, written in the same
 transaction as the write and its pending-change fence. `recordPortalContentChange`

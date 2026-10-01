@@ -27,8 +27,10 @@ import type { PortalTokenStatus } from '#/contexts/portal/application/public-api
 import type { getPortalHistory } from '#/contexts/portal/server/portals'
 import type {
   getPortalVersion,
+  getPortalVersionPreview,
   getPortalVersions,
 } from '#/contexts/portal/server/portal-versions'
+import { storyVersionPreview } from '../portal-history/__fixtures__/portal-version-preview-stories-data'
 import {
   STORY_TIME_ZONE,
   STORY_VERSIONS,
@@ -229,6 +231,9 @@ const historyReads = {
     async (input: { data: { version: number } }) =>
       STORY_VERSION_DETAILS[input.data.version],
   ) as unknown as typeof getPortalVersion,
+  getVersionPreview: mockServerFn(async (input: { data: { version: number } }) =>
+    storyVersionPreview(input.data.version),
+  ) as unknown as typeof getPortalVersionPreview,
 }
 const makeVersionLiveMutation = Object.assign(async (_input: unknown) => ({}), {
   isPending: false,

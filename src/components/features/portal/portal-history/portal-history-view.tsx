@@ -54,6 +54,8 @@ type Props = Readonly<{
   note?: ReactNode
   selection: HistorySelection | null
   detail: HistoryDetailState
+  /** The selected version's page as guests see it, for the dialog; it reads for itself. */
+  versionPreview?: ReactNode
   submitting: boolean
   restoreError: string | null
   onSelect: (selection: HistorySelection | null) => void
@@ -154,6 +156,7 @@ export function PortalHistoryView(props: Props) {
           now={now}
           timeZone={timeZone}
           canMakeLive={props.canMakeLive}
+          preview={props.versionPreview}
           confirmation={
             selection.mode === 'restore'
               ? confirmation('dialog', selection.version)

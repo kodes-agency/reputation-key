@@ -47,7 +47,7 @@ import { createPortalAiReplyBrandProfileAuthority } from './infrastructure/ai-re
 import type { StoragePort } from './application/ports/storage.port'
 import type { ImageProcessorPort } from './application/ports/image-processor.port'
 import { ingestPortalImage } from './application/use-cases/ingest-portal-image'
-import { resolvePortalMediaUrls } from './application/use-cases/resolve-portal-media-urls'
+import { resolvePortalMediaUrls } from './application/resolve-portal-media-urls'
 import { servePortalMedia } from './application/use-cases/serve-portal-media'
 import { sweepPortalMedia } from './application/use-cases/sweep-portal-media'
 import { takeDownPortalMedia } from './application/use-cases/take-down-portal-media'
@@ -381,6 +381,8 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       healthRepo: portalHealthRepo,
       actorDirectory: portalActorDirectory,
       portalTokenRepo,
+      destinationRepo: portalApprovedDestinationRepo,
+      mediaRepo: portalMediaAssetRepo,
       propertyApi: deps.propertyApi,
       staffPublicApi: deps.staffPublicApi,
       clock: deps.clock,

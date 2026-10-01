@@ -73,9 +73,15 @@ export type PortalPreviewExperience = Readonly<
   Omit<PublicImmersiveExperience, 'links'> & { links: readonly PortalPreviewLink[] }
 >
 
+/**
+ * What a preview was drawn from: the draft, the version guests are served
+ * (`live`), or any published version chosen from the History (`version`).
+ */
+export type PortalPreviewOrigin = PortalPreviewSource | 'version'
+
 export type PortalPreview = Readonly<{
   portalId: string
-  source: PortalPreviewSource
+  source: PortalPreviewOrigin
   /** The published version being shown; null for the draft. */
   version: number | null
   primaryLocale: GuestLocale
@@ -98,7 +104,7 @@ export type PortalPreviewOutcome =
   | Readonly<{ status: 'ready'; preview: PortalPreview }>
   | Readonly<{
       status: 'unavailable'
-      source: PortalPreviewSource
+      source: PortalPreviewOrigin
       reason: PortalPreviewUnavailableReason
     }>
 
@@ -316,14 +322,30 @@ export type LivePortalPreviewInput = Readonly<{
  * public edge serves it: only addresses still approved, none when the Linktree
  * is off, and media only from what may be served.
  */
-export function buildLivePortalPreview({
-  snapshot,
-  approvedUris,
-  mediaUrls = {},
-}: LivePortalPreviewInput): PortalPreviewOutcome {
+export function buildLivePortalPreview(
+  input: LivePortalPreviewInput,
+): PortalPreviewOutcome {
+  return buildPublishedPortalPreview(input, 'live')
+}
+
+/**
+ * Any published version, chosen from the History, drawn by the same rules as
+ * the live one: what guests would be served if that version were live now.
+ * The snapshot has already passed `verifyPortalPublicationSnapshot`.
+ */
+export function buildVersionPortalPreview(
+  input: LivePortalPreviewInput,
+): PortalPreviewOutcome {
+  return buildPublishedPortalPreview(input, 'version')
+}
+
+function buildPublishedPortalPreview(
+  { snapshot, approvedUris, mediaUrls = {} }: LivePortalPreviewInput,
+  source: Exclude<PortalPreviewOrigin, 'draft'>,
+): PortalPreviewOutcome {
   const configuration = snapshot.configuration
   if (configuration.schemaVersion !== IMMERSIVE_HUB_SCHEMA_VERSION) {
-    return { status: 'unavailable', source: 'live', reason: 'earlier_design' }
+    return { status: 'unavailable', source, reason: 'earlier_design' }
   }
   const published = configuration.linktree.enabled
     ? configuration.links.filter((link) => approvedUris.has(link.url))
@@ -335,7 +357,7 @@ export function buildLivePortalPreview({
   const experiences: Partial<Record<GuestLocale, PortalPreviewExperience>> = {}
   for (const [locale, immersive] of entries) {
     if (!immersive) {
-      return { status: 'unavailable', source: 'live', reason: 'incomplete' }
+      return { status: 'unavailable', source, reason: 'incomplete' }
     }
     experiences[locale] = {
       ...immersive,
@@ -346,7 +368,7 @@ export function buildLivePortalPreview({
     status: 'ready',
     preview: {
       portalId: configuration.portal.id,
-      source: 'live',
+      source,
       version: snapshot.version,
       primaryLocale: configuration.guestLocale,
       locales: configuration.localeSet,

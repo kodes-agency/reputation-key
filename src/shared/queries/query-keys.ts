@@ -288,6 +288,9 @@ export const portalKeys = {
   versions: (portalId: string) => [...portalKeys.detail(portalId), 'versions'] as const,
   version: (portalId: string, version: number) =>
     [...portalKeys.versions(portalId), 'version', version] as const,
+  /** The guest page of one published version, drawn for "View"; under the version, so a restore refreshes it with the rest. */
+  versionPreview: (portalId: string, version: number) =>
+    [...portalKeys.version(portalId, version), 'preview'] as const,
   propertyExperience: (propertyId: string) =>
     [...portalKeys.forProperty(propertyId), 'experience'] as const,
   /** The Property look's batch "Review & publish": one review of each live portal, read together. */

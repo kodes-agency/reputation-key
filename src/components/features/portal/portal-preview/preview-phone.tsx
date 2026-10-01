@@ -22,6 +22,19 @@ export function phoneFrameSize(scale: number): { width: number; height: number }
   }
 }
 
+/** Below this the page is not legible, whatever room there is. */
+const MIN_PHONE_SCALE = 0.3
+
+/**
+ * The scale at which the phone's frame, bezel included, fits `available` px of
+ * width: `wanted` where it already fits, smaller (never below a legible scale)
+ * where it does not.
+ */
+export function scaleToFitWidth(available: number, wanted: number): number {
+  const fitting = (available - BEZEL * 2) / PREVIEW_PAGE.width
+  return Math.min(wanted, Math.max(MIN_PHONE_SCALE, fitting))
+}
+
 type ScaledPageProps = Readonly<{
   scale: number
   /**

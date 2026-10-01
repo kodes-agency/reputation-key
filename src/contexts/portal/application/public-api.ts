@@ -51,6 +51,7 @@ export type {
   PortalPreviewExperience,
   PortalPreviewLink,
   PortalPreviewLinkState,
+  PortalPreviewOrigin,
   PortalPreviewOutcome,
   PortalPreviewSource,
   PortalPreviewUnavailableReason,
