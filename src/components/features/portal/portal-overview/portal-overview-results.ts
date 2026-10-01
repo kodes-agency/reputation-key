@@ -121,11 +121,14 @@ export type GroupFigures = Readonly<{
   memberCount: number
 }>
 
-/** The ruled strip above the table, for one Property's Portals. */
+/** The ruled strip above the table, for one Property's Portals or for the Organization's. */
 export type OverviewStrip = Readonly<{
   cells: readonly ResultsCell[]
-  /** The days the figures cover, in the Property's own time zone. */
-  caption: string
+  /**
+   * The days the figures cover, in the Property's own time zone. Null for the
+   * Organization: each Property reads its own days, so there is no one range.
+   */
+  caption: string | null
   /** "Last 30 days, Europe/Sofia time · an average needs 5 private ratings". */
   footer: string
 }>
@@ -136,12 +139,22 @@ export type OverviewSortFigures = Readonly<{
   group: (groupId: string) => number | null
 }>
 
+/** The All properties page also orders the Properties themselves by their scans. */
+export type OrganizationSortFigures = OverviewSortFigures &
+  Readonly<{ property: (propertyId: string) => number | null }>
+
 export type OverviewResultsIndex = Readonly<{
   portal: (portalId: string) => RowMeasures | null
   group: (groupId: string) => GroupFigures | null
   ungrouped: (propertyId: string) => GroupFigures | null
+  /** A Property's own subtotal, in its own window. */
+  property: (propertyId: string) => GroupFigures | null
   strip: (propertyId: string) => OverviewStrip | null
-  sortFigures: OverviewSortFigures
+  /** How many Properties the read names; fewer than the list shows leaves some out of the total. */
+  propertiesRead: number
+  /** The Organization's total: every Property's reading, added together. */
+  total: () => OverviewStrip | null
+  sortFigures: OrganizationSortFigures
 }>
 
 function stripOf(
@@ -162,6 +175,42 @@ function stripOf(
     ),
     caption: windowCaption(localDays, timezone),
     footer: `${currentPeriodLabel(localDays)}, ${timezone} time · an average needs ${thresholds.averageMinSample} private ratings`,
+  }
+}
+
+/**
+ * The total's strip. The total carries no window of its own: each Property is
+ * read through its own days, in its own zone. The days only name the window's
+ * length ("the 30 days before"), which is the same for every Property.
+ */
+function totalStripOf(
+  overview: PortalResultsOverview,
+  thresholds: PortalResultsThresholds,
+): OverviewStrip {
+  const { properties } = overview
+  const days = properties[0]?.localDays ?? null
+  const zones = new Set(properties.map((row) => row.timezone))
+  const [onlyZone] = zones
+  const floor = `an average needs ${thresholds.averageMinSample} private ratings`
+  return {
+    cells: measureCells(
+      {
+        kpis: overview.total.kpis,
+        thresholds,
+        // One shared zone says what its own readings say; mixed zones name none.
+        timezone: zones.size === 1 && onlyZone ? onlyZone : null,
+        localDays: days,
+        funnel: overview.total.engagementFunnel,
+      },
+      {
+        compare:
+          properties.length > 0 && properties.every((row) => row.comparePeriod !== null),
+      },
+    ),
+    caption: null,
+    footer: days
+      ? `${currentPeriodLabel(days)} · each property’s local time · ${floor}`
+      : `Each property’s local time · ${floor}`,
   }
 }
 
@@ -215,14 +264,29 @@ export function indexOverviewResults(
     (row) => row.propertyId,
     (row) => stripOf(row, thresholds),
   )
+  const subtotals = keyed(
+    overview.properties,
+    (row) => row.propertyId,
+    (row) => ({
+      row,
+      figures: {
+        measures: rowMeasures(row, frameFor(row.propertyId), 'short'),
+        memberCount: row.portalIds.length,
+      } satisfies GroupFigures,
+    }),
+  )
   return {
     portal: (portalId) => portals.get(portalId)?.measures ?? null,
     group: (groupId) => groups.get(groupId)?.figures ?? null,
     ungrouped: (propertyId) => ungrouped.get(propertyId) ?? null,
+    property: (propertyId) => subtotals.get(propertyId)?.figures ?? null,
     strip: (propertyId) => strips.get(propertyId) ?? null,
+    propertiesRead: overview.properties.length,
+    total: () => totalStripOf(overview, thresholds),
     sortFigures: {
       portal: (portalId) => portals.get(portalId)?.row.kpis.scans.value ?? null,
       group: (groupId) => groups.get(groupId)?.row.kpis.scans.value ?? null,
+      property: (propertyId) => subtotals.get(propertyId)?.row.kpis.scans.value ?? null,
     },
   }
 }

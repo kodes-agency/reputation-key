@@ -38,6 +38,7 @@ const setup = (
         pid === propertyId('a0000000-0000-0000-0000-000000000001'),
       getPropertyName: async () => null,
       getPropertyNames: async () => [],
+      getPropertyTimezones: async () => [],
       findByGbpLocationId: async () => null,
       findBySlug: async () => null,
       getSourceEpoch: async () => ({ sourceEpoch: 0 }),

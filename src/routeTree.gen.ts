@@ -26,6 +26,7 @@ import { Route as PTokenRouteImport } from './routes/p/$token'
 import { Route as PrivacyBetaAgreementRouteImport } from './routes/privacy_.beta-agreement'
 import { Route as PrivacyGoogleAccessDisclosureRouteImport } from './routes/privacy_.google-access-disclosure'
 import { Route as AuthenticatedInboxIndexRouteImport } from './routes/_authenticated/inbox/index'
+import { Route as AuthenticatedPortalsIndexRouteImport } from './routes/_authenticated/portals/index'
 import { Route as AuthenticatedPropertiesIndexRouteImport } from './routes/_authenticated/properties/index'
 import { Route as AuthenticatedPropertiesPropertyIdRouteImport } from './routes/_authenticated/properties/$propertyId'
 import { Route as AuthenticatedSettingsIndexRouteImport } from './routes/_authenticated/settings/index'
@@ -162,6 +163,12 @@ const AuthenticatedInboxIndexRoute = AuthenticatedInboxIndexRouteImport.update({
   path: '/inbox/',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedPortalsIndexRoute =
+  AuthenticatedPortalsIndexRouteImport.update({
+    id: '/portals/',
+    path: '/portals/',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedPropertiesIndexRoute =
   AuthenticatedPropertiesIndexRouteImport.update({
     id: '/properties/',
@@ -480,6 +487,7 @@ export interface FileRoutesByFullPath {
   '/api/health/started': typeof ApiHealthStartedRoute
   '/api/notifications/unsubscribe': typeof ApiNotificationsUnsubscribeRoute
   '/inbox/': typeof AuthenticatedInboxIndexRoute
+  '/portals/': typeof AuthenticatedPortalsIndexRoute
   '/properties/': typeof AuthenticatedPropertiesIndexRoute
   '/settings/': typeof AuthenticatedSettingsIndexRoute
   '/api/health/': typeof ApiHealthIndexRoute
@@ -545,6 +553,7 @@ export interface FileRoutesByTo {
   '/api/health/started': typeof ApiHealthStartedRoute
   '/api/notifications/unsubscribe': typeof ApiNotificationsUnsubscribeRoute
   '/inbox': typeof AuthenticatedInboxIndexRoute
+  '/portals': typeof AuthenticatedPortalsIndexRoute
   '/properties': typeof AuthenticatedPropertiesIndexRoute
   '/settings': typeof AuthenticatedSettingsIndexRoute
   '/api/health': typeof ApiHealthIndexRoute
@@ -611,6 +620,7 @@ export interface FileRoutesById {
   '/api/health/started': typeof ApiHealthStartedRoute
   '/api/notifications/unsubscribe': typeof ApiNotificationsUnsubscribeRoute
   '/_authenticated/inbox/': typeof AuthenticatedInboxIndexRoute
+  '/_authenticated/portals/': typeof AuthenticatedPortalsIndexRoute
   '/_authenticated/properties/': typeof AuthenticatedPropertiesIndexRoute
   '/_authenticated/settings/': typeof AuthenticatedSettingsIndexRoute
   '/api/health/': typeof ApiHealthIndexRoute
@@ -680,6 +690,7 @@ export interface FileRouteTypes {
     | '/api/health/started'
     | '/api/notifications/unsubscribe'
     | '/inbox/'
+    | '/portals/'
     | '/properties/'
     | '/settings/'
     | '/api/health/'
@@ -745,6 +756,7 @@ export interface FileRouteTypes {
     | '/api/health/started'
     | '/api/notifications/unsubscribe'
     | '/inbox'
+    | '/portals'
     | '/properties'
     | '/settings'
     | '/api/health'
@@ -810,6 +822,7 @@ export interface FileRouteTypes {
     | '/api/health/started'
     | '/api/notifications/unsubscribe'
     | '/_authenticated/inbox/'
+    | '/_authenticated/portals/'
     | '/_authenticated/properties/'
     | '/_authenticated/settings/'
     | '/api/health/'
@@ -991,6 +1004,13 @@ declare module '@tanstack/react-router' {
       path: '/inbox'
       fullPath: '/inbox/'
       preLoaderRoute: typeof AuthenticatedInboxIndexRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/portals/': {
+      id: '/_authenticated/portals/'
+      path: '/portals'
+      fullPath: '/portals/'
+      preLoaderRoute: typeof AuthenticatedPortalsIndexRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/properties/': {
@@ -1501,6 +1521,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRouteWithChildren
   AuthenticatedPropertiesPropertyIdRoute: typeof AuthenticatedPropertiesPropertyIdRouteWithChildren
   AuthenticatedInboxIndexRoute: typeof AuthenticatedInboxIndexRoute
+  AuthenticatedPortalsIndexRoute: typeof AuthenticatedPortalsIndexRoute
   AuthenticatedPropertiesIndexRoute: typeof AuthenticatedPropertiesIndexRoute
   AuthenticatedPropertiesImportGoogleImportIdRoute: typeof AuthenticatedPropertiesImportGoogleImportIdRoute
   AuthenticatedPropertiesImportGoogleIndexRoute: typeof AuthenticatedPropertiesImportGoogleIndexRoute
@@ -1514,6 +1535,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedPropertiesPropertyIdRoute:
     AuthenticatedPropertiesPropertyIdRouteWithChildren,
   AuthenticatedInboxIndexRoute: AuthenticatedInboxIndexRoute,
+  AuthenticatedPortalsIndexRoute: AuthenticatedPortalsIndexRoute,
   AuthenticatedPropertiesIndexRoute: AuthenticatedPropertiesIndexRoute,
   AuthenticatedPropertiesImportGoogleImportIdRoute:
     AuthenticatedPropertiesImportGoogleImportIdRoute,

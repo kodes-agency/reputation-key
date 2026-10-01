@@ -120,7 +120,14 @@ function withRoleAt(role: Role, initialUrl: string) {
         path: '/properties/$propertyId/reviews',
         component: StorySurface,
       })
-      const tree = root.addChildren([authed.addChildren([index, inbox, reviews])])
+      const portals = createRoute({
+        getParentRoute: () => authed,
+        path: '/portals',
+        component: StorySurface,
+      })
+      const tree = root.addChildren([
+        authed.addChildren([index, inbox, reviews, portals]),
+      ])
       return createRouter({
         routeTree: tree,
         history: createMemoryHistory({ initialEntries: [initialUrl] }),
@@ -183,6 +190,30 @@ export const NoPropertySelected: Story = {
     const reviews = await canvas.findByRole('link', { name: /^reviews$/i })
     expect(reviews).toHaveAttribute('href', '/inbox')
     expect(canvas.queryByRole('link', { name: /^people$/i })).toBeNull()
+    // Portals opens All properties, the Organization's Portals grouped by Property.
+    expect(await canvas.findByRole('link', { name: /^portals$/i })).toHaveAttribute(
+      'href',
+      '/portals',
+    )
+  },
+}
+
+// The All properties page has no property id by design. Portals is the active
+// entry and links to itself; the entries that need one stay disabled.
+export const PortalsAllProperties: Story = {
+  args: { properties, getLastVisitCount: lastVisitCountZero },
+  decorators: [withRoleAt('PropertyManager', '/portals')],
+  play: async ({ canvasElement }) => {
+    const canvas = await expectNoPropertyChrome(canvasElement)
+    const portals = await canvas.findByRole('link', { name: /^portals$/i })
+    expect(portals).toHaveAttribute('data-active', 'true')
+    expect(portals).toHaveAttribute('href', '/portals')
+    expect(await canvas.findByRole('link', { name: /^reviews$/i })).not.toHaveAttribute(
+      'data-active',
+      'true',
+    )
+    expect(canvas.queryByRole('link', { name: /^people$/i })).toBeNull()
+    expect(canvas.queryByRole('link', { name: /^goals$/i })).toBeNull()
   },
 }
 

@@ -103,6 +103,22 @@ const navItems: ReadonlyArray<ManagerNavItem> = [
   },
 ]
 
+// Reviews opens the Inbox at the scope you are in: a property's pages open
+// that property; a page without one (the properties list) opens All properties.
+// Portals does the same: a page without a Property opens All properties, the
+// Portals of the whole Organization, grouped by Property.
+function navLinkFor(
+  item: ManagerNavItem,
+  propertyId: string | undefined,
+  activeSection: string,
+): NavLinkTarget | null {
+  if (item.key === 'reviews' && (activeSection === 'inbox' || !propertyId)) {
+    return { to: '/inbox' }
+  }
+  if (item.key === 'portals' && !propertyId) return { to: '/portals' }
+  return propertyId ? { to: item.to, params: { propertyId } } : null
+}
+
 function ManagerNavRow({
   item,
   propertyId,
@@ -121,15 +137,7 @@ function ManagerNavRow({
   const isUnavailable = item.capability !== undefined && !has(item.capability)
   const category = item.capability === undefined ? null : refusal(item.capability)
   const isOrganizationInbox = item.key === 'reviews' && activeSection === 'inbox'
-  // Reviews opens the Inbox at the scope you are in: a property's pages open
-  // that property; a page without one (the properties list) opens All properties.
-  const opensOrganizationInbox =
-    item.key === 'reviews' && (isOrganizationInbox || !propertyId)
-  const link: NavLinkTarget | null = opensOrganizationInbox
-    ? { to: '/inbox' }
-    : propertyId
-      ? { to: item.to, params: { propertyId } }
-      : null
+  const link = navLinkFor(item, propertyId, activeSection)
 
   // Same disabled affordance the no-property case already uses — an
   // eligible-by-role manager sees why the destination is inert instead
