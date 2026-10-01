@@ -559,7 +559,9 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
   - Moving a tile saves one category's order, so a tile moves only among those of its own category; at a boundary between two older categories its move control is disabled. The category server functions, the drag-and-drop code and the `@dnd-kit` dependencies are removed; the category use cases stay until slice 19 flattens categories in the snapshot.
   - Typed text (labels, lines, titles) saves through the portal autosave. Re-ordering, icons, the address, adding, deleting and the switch are their own saves, each after any typed text still waiting. The address is checked on the server, so it saves when the field is left.
   - No photo choice and no "Translate with AI": both wait for uploads and for the AI capability. The approved-destinations card stays under the tiles, because it is where an Account Admin approves a custom address.
-  - The exemption for `link-tree.tsx` in `eslint.config.js` is stale now that the file is 200 lines; removing it is the owner patch (`s28-eslint.patch`).
+  - The exemption for `link-tree.tsx` in `eslint.config.js` is stale now that the file is under the 300-line limit; removing it is the owner patch (`s28-eslint.patch`).
+  - Moves are planned from the order on screen, including moves still being saved, and the section's saves run one after another, so two quick presses move a tile two places.
+  - **Differences from board 02, accepted for now.** The board draws the section title as an inline row above the tiles (built: a "Title on the page" field with language tabs), drag handles beside each tile (built: keyboard move controls only, because drag-and-drop was removed), photo thumbnails on the tiles (built: icons only, uploads are slice 42), and a per-tile missing-language chip at phone width (built: the language list inside the tile). Slice 30 owns the title row, the handles and the phone chip as a design-fidelity pass beside the preview; slice 42 owns the thumbnails.
 
 **29. Languages section and coverage read (A7).**
 
@@ -574,6 +576,7 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
 - **The draft preview never includes destinations that are not approved;** it shows a "waiting for approval" placeholder tile instead. A test covers this.
 - `PortalPreviewPane`: filmstrip, toggles, and "Try as guest", which writes nothing.
 - Retire the preview Sheet and `use-preview-toggle.ts`.
+- Bring the Linktree section to board 02 where slice 28 differs: the inline title row, drag handles (or an agreed keyboard-only substitute), and the missing-language chip on each tile at phone width.
 - Depends on 6, 8, 12. Size L.
 
 **31. Review & publish (A9).**
@@ -670,6 +673,7 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
 - **U4:** a same-origin media route, and removal of the AWS-only `getPublicUrl`.
 - **U5:** garbage collection, takedown, and purge and export deleting the stored objects.
 - **U6:** the board 14 UI (Replace photo dialog, focal-point picker, alt text, rights checkbox, preview), inert while the capability is blocked.
+- Linktree tile photo thumbnails from board 02, which slice 28 leaves as icons.
 - **Owner/ops:** §5.
 
 **43. AI translation capability (AI1–AI4).** Gated on owner decision 3 (§5).

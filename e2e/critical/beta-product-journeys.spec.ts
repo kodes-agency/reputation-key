@@ -278,10 +278,11 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // Links are NOT a publish precondition any more. "feat(portal): make guest
     // gateway rating first" removed portal_has_no_links: once the rating is the
     // point of the gateway, a Portal with no secondary destinations is a
-    // perfectly valid one. The journey still builds a link tree, because the
-    // rotation and guest-facing assertions below need something to lay out.
-    // Categories are gone from the editor (s28), so the step touches the
-    // Linktree itself: its switch.
+    // perfectly valid one. Categories are gone from the editor (s28), and a
+    // fresh Portal already has its Linktree switched on, so this step proves the
+    // Linktree settings function is reachable and authorised for an Account
+    // Admin, and that the switch is idempotent (it is set to the value it
+    // already has).
     const linktree = await callServerFn<{ saved: boolean }>(page, {
       file: 'src/contexts/portal/server/portal-links.ts',
       exportName: 'saveLinktreeSettings',
