@@ -159,20 +159,21 @@ test.describe('Critical: beta-local-1 product journeys', () => {
 
     await page.goto(`/p/${seed.portalToken}`)
     await expect(page.getByRole('heading', { name: 'E2E Guest Portal P1' })).toBeVisible()
-    // The gateway is rating-first, so the secondary destinations follow the
-    // private rating rather than sitting beside it (the legacy v1/v2 renderer;
-    // a v3 portal shows its Linktree from arrival). Acknowledge the analytics
-    // notice too: it is a fixed bottom bar and would otherwise intercept the
-    // submit click.
-    await page
-      .getByRole('region', { name: 'Portal analytics information' })
-      .getByRole('button', { name: 'Got it' })
-      .click()
-    await page.locator('label:has(input[aria-label="5 stars"])').click()
-    await page.getByRole('button', { name: 'Submit private rating' }).click()
+    // The seeded portal is a v3 publication (the Immersive Hub): the rating
+    // card is first and dominant, and the Linktree is visible from arrival, so
+    // the destination is there before the guest rates and after. The visit
+    // notice is inline in the footer, so nothing overlays the submit button.
     const destination = page.getByRole('link', {
       name: 'Visit example review destination',
     })
+    await expect(destination).toBeVisible()
+    await page
+      .getByRole('region', { name: 'Visit counting' })
+      .getByRole('button', { name: 'Got it' })
+      .click()
+    await page.locator('label:has(input[aria-label="5 stars, Excellent"])').click()
+    await page.getByRole('button', { name: 'Send privately' }).click()
+    await expect(page.getByText('Excellent · sent privately')).toBeVisible()
     await expect(destination).toHaveAttribute(
       'href',
       `/api/public/p/${encodeURIComponent(seed.portalToken)}/click/${seed.portalLinkId}`,
@@ -346,7 +347,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await page.reload()
     await expect(page.getByRole('link', { name: portalName, exact: true })).toBeVisible()
 
-    // A schema-v2 publication is only served while Portal Health says so, and
+    // A published Portal is only served while Portal Health says so, and
     // health is projected by a worker AFTER the publish commits. Without this
     // wait the guest request races the projection and the gateway correctly
     // fails closed on a Portal that is about to be healthy.
@@ -363,7 +364,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     )
 
     // The guest heading is the LOCALIZED title, not the Portal's internal name:
-    // a schema-v2 publication renders the Property's guest content for the
+    // a schema-v3 publication renders the Property's guest content for the
     // selected locale. Both the rotated address and the previous one inside its
     // grace period resolve to the same published experience.
     const guestTitle = 'How was your stay?'

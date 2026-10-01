@@ -21,6 +21,12 @@ export type GuestResponseFormAvailability =
 
 export type PublicPortalLoaderState = {
   guestSession: { csrfNonce: string }
+  /**
+   * The instant the server read the page (ISO 8601). The Immersive Hub writes
+   * its deadlines ("Until 15:32 today") against it instead of each side's own
+   * clock, so the server render and the browser print the same text.
+   */
+  servedAt: string
   response: GuestResponseView | null
   responseForm: {
     availability: GuestResponseFormAvailability

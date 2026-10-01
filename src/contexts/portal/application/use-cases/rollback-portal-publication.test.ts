@@ -5,28 +5,19 @@ import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-por
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { buildPortalPublicationSnapshot } from '../portal-publication-snapshot'
+import { publicationSource } from '../../domain/__fixtures__/publication-source'
 import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
 import type { UpdatePortalCommand } from '../ports/portal-command-store.port'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 
 const NOW = new Date('2026-08-26T12:00:00.000Z')
 const portal = buildTestPortal({ publicationState: 'published' })
-const source = {
-  portal: {
-    id: portal.id,
-    name: portal.name,
-    slug: portal.slug,
-    description: portal.description,
-    heroImageUrl: portal.heroImageUrl,
-    theme: portal.theme,
-    organizationName: 'Example Organization',
-  },
-  categories: [],
-  links: [],
-  privateFeedbackThreshold: portal.privateFeedbackThreshold,
+const source = publicationSource({
   organizationId: portal.organizationId,
   propertyId: portal.propertyId,
-} as const
+  portal: { id: portal.id, name: portal.name, slug: portal.slug },
+  privateFeedbackThreshold: portal.privateFeedbackThreshold,
+})
 const destination = {
   state: 'verified',
   uri: 'https://search.google.com/local/writereview?placeid=test',
@@ -53,7 +44,7 @@ const versionTwo = buildPortalPublicationSnapshot({
   version: 2,
   source: {
     ...source,
-    portal: { ...source.portal, name: 'Current published name' },
+    portal: { ...source.portal, slug: 'current-published-address' },
   },
   destination,
   createdBy: 'manager-1',

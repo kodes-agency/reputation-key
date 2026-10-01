@@ -5,6 +5,7 @@ export type {
   PortalLinkItem,
 } from './public-portal/public-portal-content'
 export { PortalUnavailable } from './portal-unavailable'
+export { ImmersivePublicPortal } from './public-portal/immersive/immersive-public-portal'
 export { GuestAnalyticsNotice } from './guest-analytics-notice'
 // What the admin's live preview draws the Immersive Hub from: the page frame
 // and its glass, the response area the guest answers in (the same view, driven

@@ -392,15 +392,11 @@ async function assertSnapshotMatchesCommittedWorkingCopy(
       >
     }>,
 ): Promise<void> {
-  const committed = await readPortalWorkingCopy(
-    tx,
-    {
-      organizationId: unbrand(command.organizationId),
-      propertyId: unbrand(command.propertyId),
-      portalId: unbrand(command.portalId),
-    },
-    { lockOrganization: true },
-  )
+  const committed = await readPortalWorkingCopy(tx, {
+    organizationId: unbrand(command.organizationId),
+    propertyId: unbrand(command.propertyId),
+    portalId: unbrand(command.portalId),
+  })
   if (!committed) {
     throw portalError(
       'publication_snapshot_unavailable',

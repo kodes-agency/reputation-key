@@ -35,6 +35,7 @@ const { getPool } = setupIntegrationDb({
     'property_portal_brand_contents',
     'property_portal_brand_profiles',
     'portal_links',
+    'portal_media_assets',
     'portal_approved_destinations',
     'portal_link_categories',
     'outbox_events',
@@ -101,7 +102,7 @@ describe.sequential('getPortalPreview (real PostgreSQL)', () => {
     expect(preview.experiences.bg?.links.map((link) => [link.label, link.state])).toEqual(
       [
         ['Spa', 'ready'],
-        ['Menu', 'ready'],
+        ['Меню', 'ready'],
         ['Awaiting approval', 'awaiting_approval'],
         ['Raw legacy address', 'not_approved'],
       ],

@@ -14,7 +14,7 @@ import { userId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { getPortalPublicationHistory } from '../application/use-cases/get-portal-publication-history'
 import { buildPortalPublicationSnapshot } from '../application/portal-publication-snapshot'
-import type { PortalPublicationSource } from '../domain/portal-publication-snapshot'
+import type { PortalPublicationSource } from '../domain/portal-publication-source'
 import { portalPublicationPublished, portalUpdated } from '../domain/events'
 import { createAtomicPortalCommandStore } from './portal-command-store'
 import {
@@ -27,6 +27,8 @@ import {
   COMPLETE_SCENARIO,
   INCOMPLETE_SCENARIO,
   NO_BRAND_SCENARIO,
+  SCENARIO_HERO_ASSET,
+  SCENARIO_TILE_ASSET,
   WORKING_COPY_ORG,
   WORKING_COPY_OTHER_ORG,
   type WorkingCopyScenario,
@@ -58,7 +60,9 @@ const { getPool } = setupIntegrationDb({
     'portal_localized_overrides',
     'property_portal_brand_contents',
     'property_portal_brand_profiles',
+    'portal_link_texts',
     'portal_links',
+    'portal_media_assets',
     'portal_approved_destinations',
     'portal_link_categories',
     'outbox_events',
@@ -180,7 +184,7 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
   it.each([
     ['a complete localized experience', COMPLETE_SCENARIO, COMPLETE_GOLDEN],
     ['a Portal with no Brand Profile', NO_BRAND_SCENARIO, NO_BRAND_GOLDEN],
-    ['an experience missing a locale', INCOMPLETE_SCENARIO, INCOMPLETE_GOLDEN],
+    ['a language with no wording', INCOMPLETE_SCENARIO, INCOMPLETE_GOLDEN],
   ])('reads %s exactly as pinned', async (_name, scenario, golden) => {
     await seedPortalWorkingCopy(getPool(), scenario)
 
@@ -197,7 +201,7 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
 
     const inTransaction = await getDb().transaction(async (tx) => {
       await lockPortalWorkingCopyTables(tx)
-      return readPortalWorkingCopy(tx, scope, { lockOrganization: true })
+      return readPortalWorkingCopy(tx, scope)
     })
 
     expect(inTransaction).toEqual(COMPLETE_GOLDEN)
@@ -242,20 +246,144 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
     await expect(historyHasPendingChanges(COMPLETE_SCENARIO)).resolves.toBe(false)
   })
 
-  it('commits a publication of a Portal with no localized experience', async () => {
+  it('reads back, through the repository, exactly the v3 snapshot it committed', async () => {
+    await seedPortalWorkingCopy(getPool(), COMPLETE_SCENARIO)
+    const source = await publishRead(COMPLETE_SCENARIO)
+    await publishFrom(COMPLETE_SCENARIO, source!)
+
+    const active = await createPortalPublicationRepository(getDb()).findActiveForPortal(
+      COMPLETE_SCENARIO.organizationId,
+      COMPLETE_SCENARIO.portalId,
+    )
+
+    // snapshotFromRow parses the stored JSON and verifies it, so a null here is a
+    // v3 shape the reader would refuse: the portal would be unavailable.
+    expect(active?.configuration).toMatchObject({
+      schemaVersion: 3,
+      guestLocale: 'bg',
+      languagePackVersion: 'guest-ui-bg-v2',
+      localeSet: ['bg', 'en'],
+      timeZone: 'Europe/Sofia',
+      brandProfile: { wordmark: 'RILA', lookVersion: 4 },
+      // English had no photo description of its own: copied from Bulgarian, tagged.
+      localizedContent: {
+        en: { heroAlt: { value: 'Фасадата на хотела', fallbackFrom: 'bg' } },
+      },
+      provenance: {
+        aiDraftTextKeys: ['link:c4000000-0000-4000-8000-000000000001:text:en'],
+      },
+    })
+    expect(active?.configuration).toHaveProperty(
+      'links.0.id',
+      'c4000000-0000-4000-8000-000000000002',
+    )
+  })
+
+  it('commits a publication of a Portal whose Property has no Brand Profile', async () => {
     await seedPortalWorkingCopy(getPool(), NO_BRAND_SCENARIO)
     const source = await publishRead(NO_BRAND_SCENARIO)
 
     await publishFrom(NO_BRAND_SCENARIO, source!)
 
     await expect(snapshotCount()).resolves.toBe(1)
+    await expect(historyHasPendingChanges(NO_BRAND_SCENARIO)).resolves.toBe(false)
   })
 
+  it('publishes a language with no wording as copies of the primary language', async () => {
+    await seedPortalWorkingCopy(getPool(), INCOMPLETE_SCENARIO)
+    const source = await publishRead(INCOMPLETE_SCENARIO)
+
+    await publishFrom(INCOMPLETE_SCENARIO, source!)
+
+    const { rows } = await getPool().query(
+      `SELECT configuration->'localizedContent'->'bg'->'title' AS title
+         FROM portal_publication_snapshots WHERE organization_id = $1`,
+      [WORKING_COPY_ORG],
+    )
+    expect(rows[0].title).toEqual({ value: 'Hotel Pirin', fallbackFrom: 'en' })
+  })
+
+  it('leaves out an image that has been taken down', async () => {
+    await seedPortalWorkingCopy(getPool(), COMPLETE_SCENARIO)
+    await getPool().query(
+      `UPDATE portal_media_assets SET status = 'taken_down', taken_down_at = NOW()
+        WHERE id IN ($1, $2)`,
+      [SCENARIO_HERO_ASSET, SCENARIO_TILE_ASSET],
+    )
+
+    const source = await publishRead(COMPLETE_SCENARIO)
+
+    expect(source?.look?.hero).toBeNull()
+    expect(source?.look?.logo).not.toBeNull()
+    expect(source?.links.map((link) => link.imageAssetId)).toEqual([null, null])
+  })
+
+  it('reads the label of a link renamed after its primary text was written', async () => {
+    await seedPortalWorkingCopy(getPool(), COMPLETE_SCENARIO)
+    // Old code renamed the link and knew nothing of the text row.
+    await getPool().query(
+      `UPDATE portal_links SET label = 'Renamed by old code', updated_at = $1
+        WHERE id = 'c4000000-0000-4000-8000-000000000001'`,
+      [EDITED_AT],
+    )
+
+    const source = await publishRead(COMPLETE_SCENARIO)
+
+    const menu = source?.links.find(
+      (link) => link.id === 'c4000000-0000-4000-8000-000000000001',
+    )
+    expect(menu?.texts.bg).toEqual({
+      label: 'Renamed by old code',
+      line: 'Закуска до 11',
+      provenance: null,
+    })
+    // Another language is its own text and is never rewritten from the link.
+    expect(menu?.texts.en?.label).toBe('Menu')
+  })
+
+  it('lists links in the order of their category, then their own', async () => {
+    await seedPortalWorkingCopy(getPool(), COMPLETE_SCENARIO)
+    await getPool().query(
+      `INSERT INTO portal_link_categories
+         (id, portal_id, organization_id, title, sort_key, created_at, updated_at)
+       VALUES ('c3000000-0000-4000-8000-0000000000f1', $1, $2, 'Earlier', 'Z', NOW(), NOW())`,
+      [COMPLETE_SCENARIO.portalId, WORKING_COPY_ORG],
+    )
+    // Moved into a category that sorts before the one it was seeded in.
+    await getPool().query(
+      `UPDATE portal_links SET category_id = 'c3000000-0000-4000-8000-0000000000f1'
+        WHERE id = 'c4000000-0000-4000-8000-000000000001'`,
+    )
+    await getPool().query(
+      `UPDATE portal_link_categories SET sort_key = 'a-' WHERE id = 'c3000000-0000-4000-8000-0000000000f1'`,
+    )
+
+    const source = await publishRead(COMPLETE_SCENARIO)
+
+    expect(source?.links.map((link) => link.id)).toEqual([
+      'c4000000-0000-4000-8000-000000000001',
+      'c4000000-0000-4000-8000-000000000002',
+    ])
+  })
+
+  // One mutation for every v3 field a guest could see: each must stop a
+  // snapshot of the earlier working copy from being committed.
   it.each([
-    ['a link label', `UPDATE portal_links SET label = 'Renamed' WHERE label = 'Menu'`],
     [
-      'a category title',
-      `UPDATE portal_link_categories SET title = 'Renamed' WHERE portal_id = '${COMPLETE_SCENARIO.portalId}'`,
+      'a link text',
+      `UPDATE portal_link_texts SET label = 'Renamed' WHERE label = 'Меню'`,
+    ],
+    [
+      'where a link text came from',
+      `UPDATE portal_link_texts SET provenance = NULL WHERE provenance = 'ai_draft'`,
+    ],
+    [
+      'a link icon',
+      `UPDATE portal_links SET icon_key = 'coffee' WHERE id = 'c4000000-0000-4000-8000-000000000001'`,
+    ],
+    [
+      'a tile picture',
+      `UPDATE portal_links SET image_asset_id = NULL WHERE id = 'c4000000-0000-4000-8000-000000000002'`,
     ],
     [
       'an approved destination',
@@ -264,16 +392,48 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
        WHERE normalized_uri = 'https://example.com/menu'`,
     ],
     [
-      'the Brand Profile',
+      'the Brand Profile name',
       `UPDATE property_portal_brand_profiles SET display_name = 'Renamed' WHERE property_id = '${COMPLETE_SCENARIO.propertyId}'`,
+    ],
+    [
+      'the look version',
+      `UPDATE property_portal_brand_profiles SET look_version = look_version + 1 WHERE property_id = '${COMPLETE_SCENARIO.propertyId}'`,
+    ],
+    [
+      'the wordmark',
+      `UPDATE property_portal_brand_profiles SET wordmark = 'OTHER' WHERE property_id = '${COMPLETE_SCENARIO.propertyId}'`,
+    ],
+    [
+      'the hero focal point',
+      `UPDATE property_portal_brand_profiles SET hero_focal_x = 0.9 WHERE property_id = '${COMPLETE_SCENARIO.propertyId}'`,
+    ],
+    [
+      'the hero photo being taken down',
+      `UPDATE portal_media_assets SET status = 'taken_down', taken_down_at = NOW() WHERE id = '${SCENARIO_HERO_ASSET}'`,
     ],
     [
       'a locale override',
       `UPDATE portal_localized_overrides SET title = 'Renamed' WHERE locale = 'en'`,
     ],
     [
+      'a Linktree title',
+      `UPDATE portal_localized_overrides SET linktree_title = 'Renamed' WHERE locale = 'en'`,
+    ],
+    [
       'a brand content title',
       `UPDATE property_portal_brand_contents SET title = 'Renamed' WHERE locale = 'bg'`,
+    ],
+    [
+      'the photo description',
+      `UPDATE property_portal_brand_contents SET hero_alt_text = 'Renamed' WHERE locale = 'bg'`,
+    ],
+    [
+      'the Linktree switch',
+      `UPDATE portals SET linktree_enabled = false WHERE id = '${COMPLETE_SCENARIO.portalId}'`,
+    ],
+    [
+      'the Property time zone',
+      `UPDATE properties SET timezone = 'Europe/London' WHERE id = '${COMPLETE_SCENARIO.propertyId}'`,
     ],
   ])('refuses to commit a snapshot when %s changes first', async (_name, mutation) => {
     await seedPortalWorkingCopy(getPool(), COMPLETE_SCENARIO)
@@ -293,7 +453,7 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
     await publishFrom(COMPLETE_SCENARIO, source!)
 
     await getPool().query(
-      `UPDATE portal_links SET label = 'Renamed', updated_at = $1 WHERE label = 'Menu'`,
+      `UPDATE portal_link_texts SET label = 'Renamed', updated_at = $1 WHERE label = 'Меню'`,
       [EDITED_AT],
     )
 

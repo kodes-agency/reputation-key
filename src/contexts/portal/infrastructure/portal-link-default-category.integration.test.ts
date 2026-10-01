@@ -18,7 +18,6 @@ import { createAtomicPortalCommandStore } from './portal-command-store'
 import { createPortalApprovedDestinationRepository } from './repositories/portal-approved-destination.repository'
 import { createPortalLinkRepository } from './repositories/portal-link.repository'
 import type { PortalCommandStore } from '../application/ports/portal-command-store.port'
-import { createPortalExperienceRepository } from './repositories/portal-experience.repository'
 import { createPortalRepository } from './repositories/portal.repository'
 
 const ORG_A = organizationId('org-defcat-0000-0000-000000000001')
@@ -58,7 +57,6 @@ function useCase(
 ) {
   const db = getDb()
   return createLink({
-    experienceRepo: createPortalExperienceRepository(db),
     portalRepo: createPortalRepository(db),
     portalLinkRepo: createPortalLinkRepository(db, () => CREATED_AT),
     staffPublicApi: staffApi,
@@ -147,7 +145,7 @@ describe('createLink without a category (real PostgreSQL)', () => {
     )
     expect(rows).toEqual([
       {
-        title: 'Useful links',
+        title: 'Links',
         label: 'Olive Terrace menu',
         locale: 'en',
         text_label: 'Olive Terrace menu',

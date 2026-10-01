@@ -6,7 +6,7 @@ import {
   MAX_PORTAL_LINKS,
   hasRoomForAnotherLink,
   linktreeDefaultTitle,
-  startedCategoryTitle,
+  STARTED_CATEGORY_TITLE,
   resolveLinkTexts,
   validateLinkTextInput,
   validateLinktreeTitle,
@@ -143,6 +143,79 @@ describe('resolveLinkTexts', () => {
     })
   })
 
+  describe('a link renamed after its primary text was written', () => {
+    const LATER = new Date(AT.getTime() + 60_000)
+    const renamed = [{ id: 'link-1', label: 'Renamed by old code', updatedAt: LATER }]
+
+    it('reads the link label, which is the later write, and keeps the line', () => {
+      const rows = [
+        stored('link-1', 'en', 'Menu', { line: 'Until 11', provenance: 'ai_draft' }),
+      ]
+      const [resolved] = resolveLinkTexts({
+        links: renamed,
+        texts: rows,
+        primaryLocale: 'en',
+      })
+
+      expect(resolved).toMatchObject({
+        label: 'Renamed by old code',
+        line: 'Until 11',
+        provenance: null,
+        source: 'legacy_label',
+      })
+    })
+
+    it('leaves a text written after the rename alone', () => {
+      const rows = [
+        stored('link-1', 'en', 'Menu', { updatedAt: new Date(LATER.getTime() + 1) }),
+      ]
+      const [resolved] = resolveLinkTexts({
+        links: renamed,
+        texts: rows,
+        primaryLocale: 'en',
+      })
+
+      expect(resolved).toMatchObject({ label: 'Menu', source: 'text' })
+    })
+
+    it('leaves a link whose label already equals its text alone', () => {
+      const rows = [stored('link-1', 'en', 'Menu')]
+      const same = [{ id: 'link-1', label: 'Menu', updatedAt: LATER }]
+      const [resolved] = resolveLinkTexts({
+        links: same,
+        texts: rows,
+        primaryLocale: 'en',
+      })
+
+      expect(resolved).toMatchObject({ label: 'Menu', source: 'text' })
+    })
+
+    it('never rewrites another language from the link label', () => {
+      const rows = [stored('link-1', 'bg', 'Меню')]
+      const resolved = resolveLinkTexts({
+        links: renamed,
+        texts: rows,
+        primaryLocale: 'en',
+      })
+
+      expect(resolved.find((text) => text.locale === 'bg')).toMatchObject({
+        label: 'Меню',
+        source: 'text',
+      })
+    })
+
+    it('does nothing for a caller that does not know when the link was written', () => {
+      const rows = [stored('link-1', 'en', 'Menu')]
+      const [resolved] = resolveLinkTexts({
+        links: [{ id: 'link-1', label: 'Renamed by old code' }],
+        texts: rows,
+        primaryLocale: 'en',
+      })
+
+      expect(resolved).toMatchObject({ label: 'Menu', source: 'text' })
+    })
+  })
+
   it('never invents a text for a non-primary locale', () => {
     const rows = [stored('link-1', 'bg', 'Меню')]
     const resolved = resolveLinkTexts({ links, texts: rows, primaryLocale: 'en' })
@@ -186,13 +259,8 @@ describe('linktreeDefaultTitle', () => {
   })
 })
 
-describe('startedCategoryTitle', () => {
-  it('uses the title the manager wrote for the primary language', () => {
-    expect(startedCategoryTitle('bg', { bg: 'Още', en: 'More' })).toBe('Още')
-  })
-
-  it('uses the default of the primary language when none is written', () => {
-    expect(startedCategoryTitle('bg', { en: 'More' })).toBe('Полезни връзки')
-    expect(startedCategoryTitle('en', {})).toBe('Useful links')
+describe('STARTED_CATEGORY_TITLE', () => {
+  it('is a fixed neutral name, because no guest reads a category any more', () => {
+    expect(STARTED_CATEGORY_TITLE).toBe('Links')
   })
 })

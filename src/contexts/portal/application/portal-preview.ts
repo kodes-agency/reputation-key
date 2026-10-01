@@ -26,6 +26,10 @@ import {
   type PortalPublicationSnapshot,
 } from '../domain/portal-publication-snapshot'
 import { linktreeDefaultTitle } from '../domain/portal-linktree'
+import {
+  DEFAULT_PORTAL_ACCENT,
+  DEFAULT_PORTAL_FIELD,
+} from '../domain/portal-publication-source'
 import type {
   PortalLinktreeDestinationState,
   PortalLinktreeView,
@@ -96,11 +100,6 @@ export type PortalPreviewOutcome =
     }>
 
 // ── The draft ────────────────────────────────────────────────────────────────
-
-/** The accent of a Property that has no Brand Profile yet: champagne. */
-const DEFAULT_ACCENT = '#EAD6A8'
-/** Used only if the derived field cannot be computed, which a valid accent never causes. */
-const DEFAULT_FIELD = '#15110D'
 
 // A working-copy image is an address, not a stored asset, so its size is not
 // known. The page boxes the photo with CSS, so these only give the aspect.
@@ -191,11 +190,11 @@ function brandOf(
   primary: GuestLocale,
 ): PublicImmersiveExperience['brand'] {
   const { profile, portal, overrides } = input
-  const accentColour = profile?.primaryColor ?? DEFAULT_ACCENT
+  const accentColour = profile?.primaryColor ?? DEFAULT_PORTAL_ACCENT
   const fieldColour =
     profile?.backgroundMode === 'manual'
       ? profile.backgroundColor
-      : (deriveFieldColour(accentColour) ?? DEFAULT_FIELD)
+      : (deriveFieldColour(accentColour) ?? DEFAULT_PORTAL_FIELD)
   const heroUrl = firstWritten(
     overrides.find((override) => override.locale === primary)?.heroImageUrl,
     profile?.defaultHeroImageUrl,

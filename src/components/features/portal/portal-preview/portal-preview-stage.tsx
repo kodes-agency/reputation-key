@@ -22,11 +22,7 @@ import {
   type TryAsGuestAction,
 } from './portal-preview-states'
 import { PortalPreviewFilmstrip } from './portal-preview-filmstrip'
-import {
-  DRAFT_DESIGN_NOTICE,
-  packFallbackNotice,
-  TRY_AS_GUEST_NOTICE,
-} from './portal-preview-rules'
+import { packFallbackNotice, TRY_AS_GUEST_NOTICE } from './portal-preview-rules'
 import { PreviewGuestPage } from './preview-guest-page'
 import { PreviewPhone } from './preview-phone'
 
@@ -85,11 +81,6 @@ export function PortalPreviewStage({
       <p className="text-sm text-muted-foreground" aria-live="polite">
         {caption}
       </p>
-      {preview.source === 'draft' ? (
-        <p className="max-w-sm text-center text-xs text-muted-foreground">
-          {DRAFT_DESIGN_NOTICE}
-        </p>
-      ) : null}
       {copy.locale !== locale ? (
         <p role="note" className="max-w-sm text-center text-xs text-muted-foreground">
           {packFallbackNotice(GUEST_LOCALE_METADATA[locale].englishName)}

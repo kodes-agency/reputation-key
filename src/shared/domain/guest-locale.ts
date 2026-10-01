@@ -76,10 +76,14 @@ export const GUEST_LOCALE_METADATA: Readonly<Record<GuestLocale, GuestLocaleMeta
  * Language packs per locale. `supported` is append-only forever, oldest first:
  * a snapshot pins the pack it was published with and must verify for as long
  * as it exists. `generation` ties a pack to the snapshot schemas that may
- * carry it (1 for schema versions 1 and 2, 2 for version 3). `current` is the
- * generation 1 pack a publication uses today, or null while the locale has no
- * reviewed pack; `currentGuestLanguagePack(locale, 2)` names the generation 2
- * pack, which only version 3 snapshots may carry.
+ * carry it (1 for schema versions 1 and 2, 2 for version 3).
+ *
+ * Publishing writes schema version 3 only (round 4, slice 19), so the pack a
+ * publication uses is `currentGuestLanguagePack(locale, 2)`: the newest
+ * generation 2 pack, or null while the locale has none (it cannot be
+ * published). `current` is the generation 1 pack the legacy guest page falls
+ * back to for a snapshot that names none; it is frozen with the packs it names
+ * and no longer says anything about what a publication uses.
  */
 export const GUEST_LANGUAGE_PACKS = Object.freeze({
   en: {
@@ -187,9 +191,10 @@ export function isSupportedGuestLanguagePack(
 }
 
 /**
- * The pack a new publication uses for `locale`, or null while none is
- * reviewed. Generation 1 (the default) is what every publication writes today;
- * generation 2 is the newest pack a version 3 snapshot may carry.
+ * The newest pack of `locale` in a generation, or null while there is none.
+ * Generation 2 is what a new publication writes (and the newest pack a version
+ * 3 snapshot may carry); generation 1, the default, is the frozen pack the
+ * legacy page falls back to.
  */
 export function currentGuestLanguagePack(
   locale: GuestLocale,

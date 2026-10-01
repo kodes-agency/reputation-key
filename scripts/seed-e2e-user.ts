@@ -34,7 +34,8 @@ import {
 } from '../src/shared/db/schema'
 import { propertyResponsibleManagers } from '../src/shared/db/schema/property.schema'
 import { buildPortalPublicationSnapshot } from '../src/contexts/portal/application/portal-publication-snapshot'
-import { PORTAL_LANGUAGE_PACK_VERSIONS } from '../src/contexts/portal/domain/portal-publication-snapshot'
+import { OFFERED_GUEST_LOCALES } from '../src/shared/domain/guest-locale'
+import { snapshotMirrorColumns } from '../src/contexts/portal/infrastructure/mappers/portal-publication-snapshot.mapper'
 import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../src/contexts/portal/domain/approved-destination'
 import { portalGroups } from '../src/shared/db/schema/portal-group.schema'
 import { reviews } from '../src/shared/db/schema/review.schema'
@@ -436,9 +437,10 @@ async function ensurePortal(
  * failed the five guest-portal e2e journeys.
  *
  * The snapshot is built with `buildPortalPublicationSnapshot`, the same
- * function the portal command store uses, so the configuration digest is
- * computed by the real code rather than restated here — a hand-written digest
- * would satisfy the insert and then fail `verifyPortalPublicationSnapshot`.
+ * function Publish uses (schema version 3, the Immersive Hub), so the
+ * configuration digest is computed by the real code rather than restated here
+ * — a hand-written digest would satisfy the insert and then fail
+ * `verifyPortalPublicationSnapshot`.
  *
  * A snapshot is a POINT-IN-TIME COPY, so this must run after every row it
  * copies exists. The categories and links are read back from the database
@@ -472,11 +474,6 @@ function stableJson(value: unknown): string {
   )
 }
 
-// The seed publishes a schema-v2 snapshot, so its locale set is the pinned v2 one.
-const PORTAL_LOCALE_SET = Object.keys(
-  PORTAL_LANGUAGE_PACK_VERSIONS,
-) as (keyof typeof PORTAL_LANGUAGE_PACK_VERSIONS)[]
-
 /**
  * Whether the stored snapshot already publishes exactly what this seed would.
  *
@@ -499,19 +496,12 @@ function publishesSameConfiguration(
   snapshot: ReturnType<typeof buildPortalPublicationSnapshot>,
 ): boolean {
   if (existing?.configurationDigest !== snapshot.configurationDigest) return false
-  if (
-    stableJson(sortedLocales(existing.localeSet)) !==
-    stableJson(sortedLocales(PORTAL_LOCALE_SET))
-  ) {
-    return false
-  }
-  const configuration = snapshot.configuration
-  // The seed builds v1 and v2 only; a v3 writer arrives with slice 19.
-  if (configuration.schemaVersion !== 2) return true
+  const mirror = snapshotMirrorColumns(snapshot.configuration)
   return (
-    existing.brandProfileVersion === configuration.brandProfile.version &&
-    stableJson(existing.localizedContent ?? {}) ===
-      stableJson(configuration.localizedContent)
+    stableJson(sortedLocales(existing.localeSet)) ===
+      stableJson(sortedLocales(mirror.localeSet)) &&
+    existing.brandProfileVersion === mirror.brandProfileVersion &&
+    stableJson(existing.localizedContent ?? {}) === stableJson(mirror.localizedContent)
   )
 }
 
@@ -530,6 +520,23 @@ async function publishPortalSnapshot(input: {
     .select()
     .from(portalLinks)
     .where(eq(portalLinks.portalId, fixture.id))
+  const categoryRank = new Map(
+    [...categoryRows]
+      .sort((a, b) => a.sortKey.localeCompare(b.sortKey) || a.id.localeCompare(b.id))
+      .map((row, index) => [row.id, index]),
+  )
+  const orderedLinks = [...linkRows].sort(
+    (a, b) =>
+      (categoryRank.get(a.categoryId) ?? 0) - (categoryRank.get(b.categoryId) ?? 0) ||
+      a.sortKey.localeCompare(b.sortKey) ||
+      a.id.localeCompare(b.id),
+  )
+  const wording = (title: string, shortDescription: string) => ({
+    title,
+    shortDescription,
+    heroAlt: null,
+    linktreeTitle: null,
+  })
   const snapshot = buildPortalPublicationSnapshot({
     id: fixture.snapshotId,
     portalId: fixture.id,
@@ -539,21 +546,28 @@ async function publishPortalSnapshot(input: {
     createdBy: 'local-beta-seed',
     createdAt: FIXTURE_AT,
     source: {
-      portal: {
-        id: fixture.id,
-        name: fixture.name,
-        slug: fixture.slug,
-        description: 'Published Portal fixture for local beta acceptance.',
-        heroImageUrl: null,
-        theme: { primaryColor: '#6366F1' },
-        organizationName: organizationName,
+      organizationId,
+      propertyId,
+      portal: { id: fixture.id, name: fixture.name, slug: fixture.slug },
+      privateFeedbackThreshold: 3,
+      // Both guest locales, because the cross-browser gate proves the Bulgarian
+      // contract renders and reflows. A snapshot published with `en` alone makes
+      // `?locale=bg` fall back to English: correct product behaviour, and a
+      // fixture that can never exercise the other locale.
+      primaryGuestLocale: 'en',
+      localeSet: [...OFFERED_GUEST_LOCALES],
+      linktreeEnabled: true,
+      timeZone: 'America/New_York',
+      // No Brand Profile is seeded, so the page wears the default look.
+      look: null,
+      wording: {
+        en: wording(fixture.name, 'Published Portal fixture for local beta acceptance.'),
+        bg: wording(
+          `${fixture.name} (BG)`,
+          'Публикуван портал за локално бета приемане.',
+        ),
       },
-      categories: categoryRows.map((row) => ({
-        id: row.id,
-        title: row.title,
-        sortKey: row.sortKey,
-      })),
-      links: linkRows.map((row) => {
+      links: orderedLinks.map((row) => {
         // portal_links.url is nullable in the schema, but a publication
         // configuration requires an https destination. Refuse rather than drop
         // the link: a silently shorter snapshot is exactly the failure this
@@ -563,45 +577,15 @@ async function publishPortalSnapshot(input: {
         }
         return {
           id: row.id,
-          label: row.label,
           url: row.url,
-          categoryId: row.categoryId,
-          sortKey: row.sortKey,
+          iconKey: row.iconKey,
+          imageAssetId: null,
+          texts: {
+            en: { label: row.label, line: null, provenance: null },
+            bg: { label: `${row.label} (BG)`, line: null, provenance: null },
+          },
         }
       }),
-      privateFeedbackThreshold: 3,
-      organizationId,
-      propertyId,
-      // A MULTILINGUAL publication (schema v2). Without an `experience` the
-      // builder emits the legacy single-locale shape, which pins every guest
-      // to English — so `?locale=bg` fell back silently and the Bulgarian
-      // half of the product had no fixture that could exercise it.
-      experience: {
-        primaryGuestLocale: 'en',
-        localeSet: [...PORTAL_LOCALE_SET],
-        languagePackVersions: PORTAL_LANGUAGE_PACK_VERSIONS,
-        localizedContent: {
-          en: {
-            title: fixture.name,
-            shortDescription: 'Published Portal fixture for local beta acceptance.',
-            heroImageUrl: null,
-          },
-          bg: {
-            title: `${fixture.name} (BG)`,
-            shortDescription: 'Публикуван портал за локално бета приемане.',
-            heroImageUrl: null,
-          },
-        },
-        brandProfile: {
-          displayName: organizationName,
-          version: 1,
-          primaryColor: '#6366F1',
-          backgroundColor: '#FFFFFF',
-          textColor: '#111827',
-          logoUrl: null,
-          defaultHeroImageUrl: null,
-        },
-      },
     },
     destination: {
       state: 'verified',
@@ -611,8 +595,6 @@ async function publishPortalSnapshot(input: {
       profileVersion: GOOGLE_REVIEW_DESTINATION.profileVersion,
     },
   })
-  const localized =
-    snapshot.configuration.schemaVersion === 2 ? snapshot.configuration : null
 
   // The production write surface only inserts publication snapshots; it never
   // rewrites them. Guest responses also hold a foreign key to the snapshot
@@ -661,6 +643,7 @@ async function publishPortalSnapshot(input: {
       organizationId: snapshot.organizationId,
       propertyId: snapshot.propertyId,
       portalId: snapshot.portalId,
+      // fallow-ignore-next-line code-duplication
       version,
       configurationDigest: snapshot.configurationDigest,
       configuration: snapshot.configuration,
@@ -670,10 +653,7 @@ async function publishPortalSnapshot(input: {
       // Leaving them out of step (an empty localizedContent beside a
       // two-locale configuration, a null brand version beside a brand
       // profile) makes the snapshot describe two different portals.
-      localeSet: [...PORTAL_LOCALE_SET],
-      languagePackVersions: PORTAL_LANGUAGE_PACK_VERSIONS,
-      localizedContent: localized?.localizedContent ?? {},
-      brandProfileVersion: localized?.brandProfile.version ?? null,
+      ...snapshotMirrorColumns(snapshot.configuration),
       privateFeedbackThreshold:
         snapshot.configuration.reviewGateway.privateFeedbackThreshold,
       destinationUri: snapshot.destinationUri,

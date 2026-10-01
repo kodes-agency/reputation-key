@@ -100,6 +100,23 @@ immutable evidence:
    guest page. Geographic availability is not localization (BETA.md §3), and
    the operational email stays English.
 
+9. **The writer switched (2026-10-01, slice 19).** Publishing writes schema
+   version 3 and nothing else; the silent fallback to a version 1 snapshot is
+   gone. A publication source is resolved by one pure function, which the
+   builder, the in-transaction comparison and the history read all use, so they
+   cannot disagree about what a publication is: a gap in the primary language
+   blocks publishing, a gap in another language is copied from the primary and
+   tagged `fallbackFrom`, the Linktree title reads its pack default and is never
+   copied, a language with no generation 2 pack cannot be published, a Property
+   with no Brand Profile publishes the default look (champagne on a dark
+   field), and an image that may no longer be served is left out. The pack a
+   publication writes is `currentGuestLanguagePack(locale, 2)`. Links are
+   flattened in category-then-link order, and categories reach no snapshot. A
+   v1 or v2 snapshot never matches a working copy, so a Portal published before
+   the switch reads as having changes to publish until it is published again;
+   until then it keeps the legacy renderer, which the public route still
+   chooses by `schemaVersion`.
+
 ## Consequences
 
 - Offering a language later is a registry entry and a pack, not a migration.

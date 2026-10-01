@@ -11,6 +11,8 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { propertyId, type PropertyId } from '#/shared/domain/ids'
 import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
 import type { UpdatePortalCommand } from '../ports/portal-command-store.port'
+import { publicationSource } from '../../domain/__fixtures__/publication-source'
+import type { PortalPublicationSource } from '../../domain/portal-publication-source'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 const NEXT_TIME = new Date(FIXED_TIME.getTime() + 1)
@@ -23,6 +25,7 @@ const setup = (
   accessible: ReadonlyArray<PropertyId> | null = null,
   destinationState: 'verified' | 'unavailable' = 'verified',
   propertyLifecycle: 'active' | 'inactive' | 'error' = 'active',
+  workingCopy: Partial<PortalPublicationSource> = {},
 ) => {
   const portalRepo = createInMemoryPortalRepo()
   const outbox = createRecordedOutbox()
@@ -37,46 +40,14 @@ const setup = (
     loadWorkingCopy: async (organizationId, portalId) => {
       const portal = await portalRepo.findById(organizationId, portalId)
       return portal
-        ? {
-            portal: {
-              id: portal.id,
-              name: portal.name,
-              slug: portal.slug,
-              description: portal.description,
-              heroImageUrl: portal.heroImageUrl,
-              theme: portal.theme,
-              organizationName: 'Example Organization',
-            },
-            categories: [],
-            links: [],
-            privateFeedbackThreshold: portal.privateFeedbackThreshold,
+        ? publicationSource({
             organizationId: portal.organizationId,
             propertyId: portal.propertyId,
-            experience: {
-              primaryGuestLocale: 'en' as const,
-              localeSet: ['en'] as const,
-              languagePackVersions: {
-                en: 'guest-ui-en-v1',
-                bg: 'guest-ui-bg-v1',
-              } as const,
-              localizedContent: {
-                en: {
-                  title: portal.name,
-                  shortDescription: portal.description ?? 'Tell us about your visit.',
-                  heroImageUrl: portal.heroImageUrl,
-                },
-              },
-              brandProfile: {
-                displayName: 'Example Organization',
-                logoUrl: null,
-                defaultHeroImageUrl: null,
-                primaryColor: '#1D4ED8',
-                backgroundColor: '#FFFFFF',
-                textColor: '#111827',
-                version: 1,
-              },
-            },
-          }
+            portal: { id: portal.id, name: portal.name, slug: portal.slug },
+            privateFeedbackThreshold: portal.privateFeedbackThreshold,
+            links: [],
+            ...workingCopy,
+          })
         : null
     },
     getCursor: async () => ({
@@ -509,6 +480,59 @@ describe('updatePortal', () => {
       sourceAggregateVersion: NEXT_TIME.toISOString(),
       occurredAt: FIXED_TIME,
     })
+  })
+
+  it('publishes the new design: schema version 3, in every language the Portal offers', async () => {
+    const { useCase, portalRepo, lastUpdateCommand } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ publicationState: 'draft' })
+    portalRepo.seed([portal])
+
+    await useCase({ portalId: portal.id, publicationState: 'published' }, ctx)
+
+    expect(lastUpdateCommand()?.publication).toMatchObject({
+      snapshot: {
+        configuration: {
+          schemaVersion: 3,
+          localeSet: ['en', 'bg'],
+          languagePackVersions: { en: 'guest-ui-en-v2', bg: 'guest-ui-bg-v2' },
+        },
+      },
+    })
+  })
+
+  it('publishes a Property that has no brand profile, with the default look', async () => {
+    const { useCase, portalRepo, lastUpdateCommand } = setup(null, 'verified', 'active', {
+      look: null,
+    })
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ publicationState: 'draft' })
+    portalRepo.seed([portal])
+
+    await useCase({ portalId: portal.id, publicationState: 'published' }, ctx)
+
+    expect(lastUpdateCommand()?.publication).toMatchObject({
+      snapshot: { configuration: { schemaVersion: 3, brandProfile: { lookVersion: 1 } } },
+    })
+  })
+
+  it('refuses to publish when the primary language has no wording, and writes nothing', async () => {
+    const { useCase, portalRepo, commandWrites } = setup(null, 'verified', 'active', {
+      wording: {},
+    })
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    const portal = buildTestPortal({ publicationState: 'draft' })
+    portalRepo.seed([portal])
+
+    await expect(
+      useCase({ portalId: portal.id, publicationState: 'published' }, ctx),
+    ).rejects.toMatchObject({
+      code: 'publication_snapshot_unavailable',
+      message: expect.stringContaining('primary language'),
+    })
+
+    expect(commandWrites()).toBe(0)
+    expect(portalRepo.all()[0]?.publicationState).toBe('draft')
   })
 
   it('fails closed before destination lookup or persistence when the Property is inactive', async () => {

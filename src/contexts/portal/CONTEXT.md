@@ -27,6 +27,13 @@ assignment, and governed access artifacts.
 A Portal is Property-owned and may contain ordered secondary-link categories. A
 Portal Publication Snapshot is the immutable, manager-approved rating-first
 experience. Editing the working copy never mutates an active snapshot.
+Publishing writes schema version 3 (the Immersive Hub) only, from a publication
+source that `resolvePortalPublication` turns into the snapshot's content: the
+one function that decides what a gap means (a primary-language gap blocks, any
+other language is copied from the primary and tagged `fallbackFrom`, the
+Linktree title falls back to its pack default and is never copied), shared by
+the builder, the publish transaction's comparison and the history read. Version
+1 and 2 snapshots stay servable and verify forever, on the legacy renderer.
 Activations are append-only effective-dated routes from a stable token to one
 snapshot; publish and rollback append activations, while disable/archive close
 one. Groups remain Property-scoped, and one Portal has at most one active group.
@@ -59,10 +66,13 @@ creating or renaming a link and saving the primary text all write both, and
 readers (`listLinkTexts`) fall back to the link's own label for a link with no
 primary-language row. Changing the Portal's primary language re-establishes the
 mirror in the same transaction: a link label takes the new primary's text where
-one exists, and the new primary's text starts from the label where none does.
-Old code that runs between migration 0044 and the new web rollout can still
-rename a link without touching its text; slice 19 reconciles that window before
-the v3 writer reads texts. A Portal carries at most four links, counted under the
+one exists, and the new primary's text starts from the label where none does; first the
+old primary keeps a newer label of that window as its own text, so a switch never discards
+the label readers were showing.
+Old code that ran between migration 0044 and the new web rollout could rename a
+link without touching its text; `resolveLinkTexts` reconciles that window for
+every reader (the editor, the preview and the v3 writer): a link renamed after
+its primary text was written reads its own label there. A Portal carries at most four links, counted under the
 Portal fence on create; a Portal that already has more keeps them. Icons come
 from a closed catalogue (`src/shared/domain/portal-link-icon.ts`, 27 keys, every
 icon the round-4 editor offers), enforced by a CHECK and refused in the link
@@ -109,14 +119,13 @@ The editor no longer shows categories. `getPortalLinktree` reads the whole
 section (switch, written titles, and each link in guest order with its texts,
 icon and the approval of its destination), and a link is created without a
 category: it joins the Portal's last category, and the first link starts one,
-which only the legacy guest page prints as a heading. It is titled in the
-Portal's primary language (the Linktree title written for that language, else its
-default), so a Bulgarian-primary Portal does not show an English heading. The
-category is built only after the link's label, icon, cap and destination have
+which no guest sees (publishing flattens categories). It has a fixed neutral
+title, because a category row needs one. The category is built only after the link's label, icon, cap and destination have
 passed and is committed in the link's own transaction (`startCategory` on the
 create command), so a refused link leaves neither it nor its fact behind. Re-ordering still saves one category's order, so the
 editor moves a tile only among those of its own (older) category. The category
-commands stay until the snapshot builders flatten categories (slice 19).
+commands stay for the legacy snapshots' sake; the v3 builder flattens categories
+(slice 19) and a later slice retires them.
 
 The eligible creator is the initial Portal Responsible Manager (by default; the
 dialog may name other eligible managers, or nobody). Multiple eligible
@@ -187,10 +196,10 @@ hidden in a segment do not survive, and the original is never stored.
   end of it. The editor shows the photo from the same-origin media route, and
   `getPortalLinktree` hands it only a photo that is still servable: a taken-down
   asset leaves `portal_links.image_asset_id` in place but reads as no photo.
-  A photo reaches guests only through a v3 publication (slice 19 carries
-  `links[].imageAssetId` from the working copy into the snapshot, and must leave
-  out an id that is no longer servable, as the guest page's `mediaUrls` filter
-  does); v1 and v2 snapshots have no tile photos.
+  A photo reaches guests only through a v3 publication (the working-copy reader
+  carries `links[].imageAssetId` into the snapshot and leaves out an id that is
+  no longer servable, as the guest page's `mediaUrls` filter does); v1 and v2
+  snapshots have no tile photos.
 
 `portal.upload` is `controlled_beta`. The owner removed the SAFE-01 completion
 ceremony on 2026-09-30; the technical safeguards above stay in the build (ADR
@@ -217,10 +226,14 @@ including the token's grace end. It is scoped like
 language a Portal offers (the fallback language first) it counts the wording guests read
 that is written and names what is missing: a title and a description and one label per
 link. A title or description counts as written only when the Property has wording (a content
-row) for that language, the Portal's own override then taking the place of it: publishing
-drops a language without Property wording and refuses to publish, so an override alone does
-not count, and such a gap is flagged `blocksPublish` (its wording is written by an account
-admin in the Property Brand Profile; until the builder copies the fallback language into a gap, slice 19, it is a real block). A missing link label does not block publishing. Every
+row) for that language, the Portal's own override then taking the place of it, so an override
+alone does not count (its wording is written by an account admin in the Property Brand
+Profile). What a gap means is decided by publishing (`gapBlocksPublication`, which the
+resolver and this read share): a gap in the primary language, including a primary-language
+link label, is flagged `blocksPublish` and refuses publishing; a gap in any other language
+is a warning, because the builder copies the primary language's text into it and guests
+read that. A link with no primary text still reads its own legacy label, so a missing
+primary link label happens only when the label itself is blank. Every
 link in the tree is counted, approved destination or not, because its label is needed once the
 destination is approved. The Linktree title, a link's line and the hero description are
 optional, so they are never "missing". It carries
@@ -254,8 +267,9 @@ Linktree title, which reads its pack default per language). Live applies the gue
 approval cut-off (`APPROVED_DESTINATION_MAX_VALIDATION_AGE_MS`, shared with token resolution)
 but not its other admission facts (Portal Health, Property status, the public-read decision),
 and a snapshot that fails verification reads as `not_published`. A live version from the earlier
-page design is `unavailable` (`earlier_design`) until slice 19 makes publishing write the new
-one; the other reasons are `not_published` and `incomplete`.
+page design is `unavailable` (`earlier_design`): publishing writes the new one since slice 19,
+but versions published before it stay on the earlier page until they are published again; the
+other reasons are `not_published` and `incomplete`.
 
 `getPortalHistory` is the one merged, read-only timeline for a Portal: its
 creation, each publish and restore, each change of health (from

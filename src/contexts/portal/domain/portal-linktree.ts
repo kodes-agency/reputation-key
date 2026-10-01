@@ -32,14 +32,11 @@ export const linktreeDefaultTitle = (locale: GuestLocale): string =>
 
 /**
  * The title of the one category a Portal's links sit in once the editor no
- * longer shows categories. Only the legacy guest page, which still groups links
- * under their category, prints it, so it reads as that page's Linktree title
- * would: the manager's own wording for the primary language, else its default.
+ * longer shows categories. Publishing flattens categories, so no guest ever
+ * reads it and no language needs its wording; it exists because a category row
+ * must have a title.
  */
-export const startedCategoryTitle = (
-  primaryLocale: GuestLocale,
-  titles: Readonly<Partial<Record<GuestLocale, string>>>,
-): string => titles[primaryLocale] ?? linktreeDefaultTitle(primaryLocale)
+export const STARTED_CATEGORY_TITLE = 'Links'
 
 /** Equal to the legacy `portal_links.label` column, which the primary text is mirrored into. */
 export const LINK_TEXT_LABEL_MAX_LENGTH = 100
@@ -142,10 +139,18 @@ export const validateLinktreeTitle = (
  * Every text of every link, in link order then language order (primary first).
  * A link with no primary-language row gets its legacy label as that row, so
  * nothing that reads texts ever sees a link without a name.
+ *
+ * A link renamed AFTER its primary text was written also reads its own label
+ * there. Current code keeps the two equal, so the only writer that can leave
+ * them apart is the code that ran between migration 0044 and the rollout of the
+ * text-aware editor, which renamed `portal_links.label` and knew nothing of the
+ * text row. Whoever wrote last is right, and a rename by a person is no AI
+ * draft, so the provenance goes. It needs `updatedAt` on the link; a caller that
+ * has none gets the stored rows as they are.
  */
 export function resolveLinkTexts(
   input: Readonly<{
-    links: ReadonlyArray<Readonly<{ id: string; label: string }>>
+    links: ReadonlyArray<Readonly<{ id: string; label: string; updatedAt?: Date }>>
     texts: ReadonlyArray<StoredPortalLinkText>
     primaryLocale: GuestLocale
   }>,
@@ -155,7 +160,16 @@ export function resolveLinkTexts(
   return input.links.flatMap((link) => {
     const own = input.texts
       .filter((text) => text.linkId === link.id)
-      .map((text): ResolvedPortalLinkText => ({ ...text, source: 'text' }))
+      .map((text): ResolvedPortalLinkText => {
+        const renamedLater =
+          text.locale === input.primaryLocale &&
+          link.updatedAt !== undefined &&
+          link.label !== text.label &&
+          link.updatedAt.getTime() > text.updatedAt.getTime()
+        return renamedLater
+          ? { ...text, label: link.label, provenance: null, source: 'legacy_label' }
+          : { ...text, source: 'text' }
+      })
     const hasPrimary = own.some((text) => text.locale === input.primaryLocale)
     const fallback: ReadonlyArray<ResolvedPortalLinkText> = hasPrimary
       ? []

@@ -4,19 +4,18 @@
 //
 // ── What is measured, and why not the route ─────────────────────────────────
 //
-// The plan asks for the seeded v3 portal. There is none yet: the route renders
-// the Immersive Hub only for a v3 snapshot, no writer produces one before
-// slice 19, and slice 19 owns the seed and the route's mount. Until then the
-// only place the real header, rating card, Linktree and footer sit on one page
-// is the `ImmersivePage` stories (`guest-page.stories.tsx`), at page height,
-// the document scrolling as it does on the route. They are measured in a
-// PRODUCTION Storybook build served by `static-server.ts`: a dev server's
-// module transforms would be most of any LCP read from it.
+// This file measures the page's pieces composed in Storybook
+// (`guest-page.stories.tsx`) at page height, the document scrolling as it does
+// on the route, in a PRODUCTION Storybook build served by `static-server.ts`: a
+// dev server's module transforms would be most of any LCP read from it. The
+// route has mounted the same pieces since the v3 writer (slice 19), and
+// `e2e/critical/guest-immersive-quality.spec.ts` repeats the check on the
+// seeded portal, with the served document's head and the font files delayed.
 //
-// What that does not carry: the network. The hero is the stories' SVG photo
-// (`STORY_HERO_PHOTO`, a data URI), so the transfer of a real 150 KB JPEG is not
-// in the number, and no CPU throttling is applied. Slice 19 repeats this check
-// on the seeded portal with a photo uploaded, which is where those costs show.
+// What this file does not carry: the network. The hero is the stories' SVG
+// photo (`STORY_HERO_PHOTO`, a data URI), so the transfer of a real 150 KB JPEG
+// is not in the number, and no CPU throttling is applied. The seeded portal has
+// no photo either; uploads are not seeded yet.
 //
 // ── The footer swap ─────────────────────────────────────────────────────────
 //

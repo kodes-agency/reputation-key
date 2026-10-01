@@ -468,7 +468,6 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalRepo,
       portalLinkRepo,
       staffPublicApi: deps.staffPublicApi,
-      experienceRepo: portalExperienceRepo,
       commandStore: portalCommandStore,
       destinationRepo: portalApprovedDestinationRepo,
       destinationNetworkValidator: portalDestinationNetworkValidator,

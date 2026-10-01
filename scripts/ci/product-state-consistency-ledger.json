@@ -264,6 +264,18 @@
       "policy": "Read once from this browser's seen-outcome map when the reports panel opens, so an outcome keeps its New marker for the whole visit. Per-viewer convenience only: nothing server-side reads it, and losing it can only make a marker reappear, never hide an outcome."
     },
     {
+      "id": "src/components/features/guest/public-portal/immersive/use-immersive-guest-response.ts:useState(csrfNonce)",
+      "classification": "server_snapshot",
+      "owner": "Guest response CSRF lifecycle",
+      "policy": "Seed from the issued nonce and rotate only from confirmed start-over results; route-token remount remains the reset boundary."
+    },
+    {
+      "id": "src/components/features/guest/public-portal/immersive/use-immersive-guest-response.ts:useState(response)",
+      "classification": "server_snapshot",
+      "owner": "Guest response journey",
+      "policy": "Seed from the loader response, then replace only with confirmed response-mutation results; route-token remount remains the reset boundary."
+    },
+    {
       "id": "src/components/features/guest/public-portal/use-guest-response-controller.ts:useState(activeCsrfNonce)",
       "classification": "server_snapshot",
       "owner": "Guest response CSRF lifecycle",
@@ -556,6 +568,12 @@
       "classification": "synchronized_prop_copy",
       "owner": "Guest portal",
       "policy": "Seeded once from the optional `yourResponse.initialOpen`, which only previews and stories pass (a live page starts \"Your response\" closed), and never synchronized afterwards, so the guest's own open and close is not overridden. The after-rating layout mounts once per rated response, which is the reset boundary. Whether the rating form is open under \"Change your rating\" is derived from the response's `correctedAt`, not stored as a copy of it."
+    },
+    {
+      "id": "src/components/features/guest/public-portal/immersive/use-guest-clock.ts:useState(now)",
+      "classification": "local_runtime",
+      "owner": "Guest portal response deadlines",
+      "policy": "The instant the page reads its deadlines against: seeded from the server's `servedAt` so the server render and the first browser render match, then advanced by the time the page has been open and re-read whenever a response arrives, so a deadline that passed while the guest read the page shows as ended. It is not server state and is never written back; unmounting the page is its reset boundary."
     },
     {
       "id": "src/components/features/portal/portal-history/use-now.ts:useState(now)",

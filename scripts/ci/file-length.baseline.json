@@ -1,5 +1,5 @@
 {
-  "scripts/seed-e2e-user.ts": 1398,
+  "scripts/seed-e2e-user.ts": 1374,
   "src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts": 1538,
   "src/contexts/ai/infrastructure/adapters/ai-property-aggregate-store.adapter.ts": 1280,
   "src/contexts/inbox/infrastructure/inbox-command-store.ts": 2778,
