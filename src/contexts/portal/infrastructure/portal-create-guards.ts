@@ -2,7 +2,10 @@
 //
 // The application builds the command; these refuse one whose parts do not
 // describe the same Portal, so a wrong tenant, a foreign fact, a copied row
-// that points at another Portal, or an unapproved link can never be committed.
+// that points at another Portal, or a copied link with no destination can never
+// be committed. Whether a destination is still approved is not decided here: the
+// application checks it when it reads the source Portal, and publishing checks
+// it again.
 
 import { MAX_PORTAL_LINKS } from '../domain/portal-linktree'
 import { portalError } from '../domain/errors'
@@ -112,7 +115,11 @@ function assertGroupMembership(command: CreatePortalCommand): void {
   )
 }
 
-/** Every copied row must belong to the new Portal, in its languages, and be an approved link. */
+/**
+ * Every copied row must belong to the new Portal, in its languages, and every
+ * copied link must name a destination. That the destination is approved is read
+ * and checked by the application, not guarded here.
+ */
 function assertCopiedContent(command: CreatePortalCommand): void {
   const copy = command.copiedContent
   if (!copy) return
