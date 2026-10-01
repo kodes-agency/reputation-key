@@ -216,7 +216,11 @@ function AuthenticatedLayout() {
       {isSettings ? (
         <SettingsSidebar />
       ) : hasRole(ctx.role, 'PropertyManager') ? (
-        <ManagerSidebar properties={properties} getLastVisitCount={getLastVisitCountFn} />
+        <ManagerSidebar
+          properties={properties}
+          organizationName={ctx.activeOrganization?.name}
+          getLastVisitCount={getLastVisitCountFn}
+        />
       ) : null}
       {/*
         BQC-6.8: the layout wrapper is a plain div, NOT SidebarInset — the
