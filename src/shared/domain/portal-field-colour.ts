@@ -151,6 +151,54 @@ export function deriveFieldColour(accent: string): string | null {
   return fromHsl(hue, Math.min(saturation, FIELD_MAX_SATURATION), FIELD_LIGHTNESS)
 }
 
+// The three washes of colour painted over the field when there is no photo
+// (round-4 board G09) and, fainter, over the blurred photo (G01). Measured from
+// the board's champagne accent (hue 42°, saturation .61): amber is the accent
+// 5° toward red, at .8 of its saturation and a mid lightness; sage sits 83°
+// around the wheel and is nearly grey; umber is amber, darker, 18° toward red.
+const WARM_WASH = { hueShift: -4, saturationScale: 0.8, lightness: 0.623 } as const
+const COOL_WASH = { hueShift: 83, saturation: 0.115, lightness: 0.408 } as const
+const DEEP_WASH = { hueShift: -18, saturationScale: 0.8, lightness: 0.337 } as const
+/** Below this an accent is a grey: its washes stay grey rather than invent a hue. */
+const GREYSCALE_SATURATION = 0.05
+const MAX_WASH_SATURATION = 0.55
+
+export type BackdropTones = Readonly<{ warm: string; cool: string; deep: string }>
+
+const wrapHue = (hue: number) => ((hue % 360) + 360) % 360
+
+/**
+ * The warm, cool and deep washes the guest backdrop paints over the field,
+ * derived from the accent. Upper-case `#RRGGBB`, all mid-to-dark so they tint
+ * the field without lifting it toward the text colour. Null when `accent` is
+ * not a `#rrggbb` colour.
+ */
+export function deriveBackdropTones(accent: string): BackdropTones | null {
+  const channels = parseHexColour(accent)
+  if (!channels) return null
+  const { hue, saturation } = toHslParts(channels)
+  const isGrey = saturation < GREYSCALE_SATURATION
+  const scaled = (scale: number) =>
+    isGrey ? 0 : Math.min(saturation * scale, MAX_WASH_SATURATION)
+  return {
+    warm: fromHsl(
+      wrapHue(hue + WARM_WASH.hueShift),
+      scaled(WARM_WASH.saturationScale),
+      WARM_WASH.lightness,
+    ),
+    cool: fromHsl(
+      wrapHue(hue + COOL_WASH.hueShift),
+      isGrey ? 0 : COOL_WASH.saturation,
+      COOL_WASH.lightness,
+    ),
+    deep: fromHsl(
+      wrapHue(hue + DEEP_WASH.hueShift),
+      scaled(DEEP_WASH.saturationScale),
+      DEEP_WASH.lightness,
+    ),
+  }
+}
+
 /**
  * Whether the accent can carry text on the field: the derived field unless an
  * explicit one is given (a manual background). False for anything unreadable.

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   MIN_TEXT_CONTRAST,
   contrastRatio,
+  deriveBackdropTones,
   deriveFieldColour,
   isAccentReadableOnField,
   parseHexColour,
@@ -188,5 +189,62 @@ describe('isAccentReadableOnField', () => {
   it('refuses a colour it cannot read', () => {
     expect(isAccentReadableOnField('gold')).toBe(false)
     expect(isAccentReadableOnField('#EAD6A8', 'dark')).toBe(false)
+  })
+})
+
+describe('deriveBackdropTones', () => {
+  const channelGap = (a: string, b: string) => {
+    const [ar, ag, ab] = parseHexColour(a) as [number, number, number]
+    const [br, bg, bb] = parseHexColour(b) as [number, number, number]
+    return Math.max(Math.abs(ar - br), Math.abs(ag - bg), Math.abs(ab - bb))
+  }
+
+  it('is null for an accent it cannot read', () => {
+    expect(deriveBackdropTones('gold')).toBeNull()
+    expect(deriveBackdropTones('#fff')).toBeNull()
+  })
+
+  it('gives champagne the amber, sage and umber washes of the round-4 no-photo board', () => {
+    const tones = deriveBackdropTones('#EAD6A8')
+    expect(tones).not.toBeNull()
+    // The board paints rgb(206,170,112), rgb(92,116,94) and rgb(128,78,44).
+    expect(channelGap(tones?.warm as string, '#CEAA70')).toBeLessThanOrEqual(12)
+    expect(channelGap(tones?.cool as string, '#5C745E')).toBeLessThanOrEqual(12)
+    expect(channelGap(tones?.deep as string, '#804E2C')).toBeLessThanOrEqual(12)
+  })
+
+  it.each(['#EAD6A8', '#C8A45A', '#1F2A44', '#FF0000', '#00FF00', '#0000FF', '#FFFFFF'])(
+    'gives %s three valid, upper-case tones that tint a dark field without washing it out',
+    (accent) => {
+      const tones = deriveBackdropTones(accent)
+      for (const tone of [tones?.warm, tones?.cool, tones?.deep]) {
+        expect(tone).toMatch(/^#[0-9A-F]{6}$/u)
+        expect(hsl(tone as string).l).toBeLessThan(0.66)
+        expect(hsl(tone as string).s).toBeLessThanOrEqual(0.56)
+      }
+    },
+  )
+
+  it('keeps the warm and deep tones on the accent hue and moves the cool one away', () => {
+    const tones = deriveBackdropTones('#C8A45A')
+    const accentHue = hsl('#C8A45A').h
+    expect(hueDistance(hsl(tones?.warm as string).h, accentHue)).toBeLessThan(12)
+    expect(hueDistance(hsl(tones?.deep as string).h, accentHue)).toBeLessThan(24)
+    expect(hueDistance(hsl(tones?.cool as string).h, accentHue)).toBeGreaterThan(60)
+  })
+
+  it('leaves a greyscale accent neutral tones, with no invented hue', () => {
+    for (const accent of ['#808080', '#FFFFFF', '#000000']) {
+      const tones = deriveBackdropTones(accent)
+      for (const tone of [tones?.warm, tones?.cool, tones?.deep]) {
+        const [r, g, b] = parseHexColour(tone as string) as [number, number, number]
+        expect(r).toBe(g)
+        expect(g).toBe(b)
+      }
+    }
+  })
+
+  it('ignores the letter case of the accent', () => {
+    expect(deriveBackdropTones('#ead6a8')).toEqual(deriveBackdropTones('#EAD6A8'))
   })
 })
