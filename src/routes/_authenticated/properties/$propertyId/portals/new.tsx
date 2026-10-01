@@ -1,88 +1,17 @@
-// Create portal — route defines mutation, renders form component.
-import { createFileRoute, useNavigate, redirect } from '@tanstack/react-router'
-import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
-import { createPortal } from '#/contexts/portal/server/portals'
-import { PortalCreationWithPreview } from '#/components/features/portal'
-import {
-  CreatePortalError,
-  CreatePortalLoading,
-} from '#/components/features/portal/portal-route-fallbacks'
-import type { AuthRouteContext } from '#/routes/_authenticated'
-import { can } from '#/shared/domain/permissions'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import { portalKeys } from '#/shared/queries/query-keys'
-import { propertyQuery } from '#/routes/-queries/route-queries'
-import { PageShell } from '#/components/layout/page-shell'
-import { PageHeader } from '#/components/layout/page-header'
-import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
+// The old New portal page. Creating a portal is a dialog on the Portals page
+// now (docs/design/portal-experience/round-4-admin, board 3); this address stays
+// so bookmarks and links keep working, and lands on the page with the dialog open.
+import { createFileRoute, redirect } from '@tanstack/react-router'
 
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/new',
 )({
-  beforeLoad: async ({ context, params }) => {
-    await gateControlledRoute({
-      data: {
-        capability: 'portal.write',
-        featureLabel: 'Portals',
-        propertyId: params.propertyId,
-      },
+  beforeLoad: ({ params }) => {
+    throw redirect({
+      to: '/properties/$propertyId/portals',
+      params: { propertyId: params.propertyId },
+      search: { new: true },
+      replace: true,
     })
-    const role = (context as AuthRouteContext).role
-    if (!can(role, 'portal.create')) {
-      throw redirect({ to: '/properties' })
-    }
   },
-  loader: async ({ params, context }) => {
-    await context.queryClient.ensureQueryData(propertyQuery(params.propertyId))
-  },
-  pendingComponent: CreatePortalLoading,
-  errorComponent: CreatePortalError,
-  component: CreatePortalPage,
 })
-
-function CreatePortalPage() {
-  const { propertyId } = Route.useParams()
-  const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
-  const { property } = propData
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
-
-  const mutation = useActionMutation(createPortal, {
-    successMessage: 'Portal created',
-    invalidateKeys: [portalKeys.all],
-    onSuccess: async (output) => {
-      // `invalidateKeys` marks the list stale but `invalidateQueries` only
-      // REFETCHES active queries, and the portals list has no observer on this
-      // route. Awaiting it was therefore a no-op: the detail loader resolved the
-      // portal against the list fetched when the property had one portal fewer,
-      // found nothing and redirected to /unavailable — a portal that had in fact
-      // just been created. Refetch it here so the loader sees the new row.
-      await queryClient.refetchQueries({ queryKey: portalKeys.list(propertyId) })
-      await navigate({
-        to: '/properties/$propertyId/portals/$portalId',
-        params: { propertyId, portalId: output.portal.id },
-        search: { tab: 'page' },
-      })
-    },
-  })
-
-  return (
-    <PageShell>
-      <PageHeader
-        title="New Portal"
-        description="Create a guest-facing portal page for this property."
-        breadcrumbs={[
-          { label: 'Properties', to: '/properties' },
-          { label: property.name, to: `/properties/${propertyId}` },
-          { label: 'Portals', to: `/properties/${propertyId}/portals` },
-          { label: 'New Portal' },
-        ]}
-        backTo={{
-          to: `/properties/${propertyId}/portals`,
-          label: 'Back to Portals',
-        }}
-      />
-      <PortalCreationWithPreview propertyId={propertyId} mutation={mutation} />
-    </PageShell>
-  )
-}

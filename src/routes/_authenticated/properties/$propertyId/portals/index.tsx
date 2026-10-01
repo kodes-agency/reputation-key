@@ -12,7 +12,10 @@ import {
   updatePortalGroup,
 } from '#/contexts/portal/server/portal-groups'
 import { PortalListPage } from '#/components/features/portal/portal-list-page'
-import { portalOverviewSearchSchema } from '#/components/features/portal/portal-overview/portal-overview-search-schema'
+import {
+  portalOverviewSearchSchema,
+  type PortalOverviewSearch,
+} from '#/components/features/portal/portal-overview/portal-overview-search-schema'
 import {
   PortalListError,
   PortalListLoading,
@@ -27,6 +30,7 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { portalGroupsQuery } from './-portal-detail-data'
 import { portalOverviewQuery } from './-portal-overview-data'
+import { useNewPortal } from './-use-new-portal'
 import { usePortalResultsControls } from './-portal-results-controls'
 import { portalGroupCachePolicy } from '#/components/features/portal/portal-group-cache-policy'
 
@@ -57,7 +61,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/por
 
 function PortalListRoute() {
   const { propertyId } = Route.useParams()
-  const search = Route.useSearch()
+  const search: PortalOverviewSearch = Route.useSearch()
   const navigate = Route.useNavigate()
   const queryClient = useQueryClient()
   const { can: canDo } = usePermissions()
@@ -77,6 +81,15 @@ function PortalListRoute() {
   const { properties } = propsData
   const property = properties?.find((p) => p.id === propertyId)
   const propertyName = property?.name ?? ''
+
+  const newPortal = useNewPortal({
+    propertyId,
+    propertyName,
+    open: search.new === true && canDo('portal.create'),
+    groups,
+    portals,
+    members: members.data?.members,
+  })
 
   const archiveMutation = useActionMutation(updatePortal, {
     successMessage: 'Portal archived',
@@ -122,6 +135,7 @@ function PortalListRoute() {
       createMutation={createMutation}
       renameMutation={renameMutation}
       archiveGroupMutation={archiveGroupMutation}
+      newPortal={newPortal}
     />
   )
 }

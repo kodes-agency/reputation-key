@@ -288,6 +288,9 @@ export const portalKeys = {
   /** The Portals overview: every Portal of a Property, read in one batch. */
   overview: (propertyId: string) =>
     [...portalKeys.forProperty(propertyId), 'overview'] as const,
+  /** What the New portal dialog reads about a Property: default languages, eligible managers. */
+  creationOptions: (propertyId: string) =>
+    [...portalKeys.forProperty(propertyId), 'creation-options'] as const,
   /** Every window of the overview's results for a Property. */
   resultsOverviewRoot: (propertyId: string) =>
     [...portalKeys.forProperty(propertyId), 'results-overview'] as const,

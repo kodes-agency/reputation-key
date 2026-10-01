@@ -10,6 +10,7 @@ import {
 } from './portal-overview/portal-overview-fixtures'
 import type { PortalOverviewSearch } from './portal-overview/portal-overview-search-schema'
 import type { Action } from '#/components/hooks/use-action'
+import type { CreatePortalInput } from '#/contexts/portal/application/dto/create-portal.dto'
 
 // The page is presentational: the route owns the URL. A story keeps the search
 // in state so the toolbar, the pager and "Clear" behave as they do in the route.
@@ -77,9 +78,25 @@ const members = [
   { userId: 'u-elena', name: 'Elena Petrova' },
 ]
 
+export const newPortalData: NonNullable<PortalListPageProps['newPortal']['data']> = {
+  propertyId: 'prop-1',
+  propertyName: 'Avela Resort',
+  options: {
+    defaultGuestLocales: ['en'],
+    eligibleManagerUserIds: ['u-georgi', 'u-elena'],
+    creatorIsEligible: false,
+  },
+  groups: [{ id: 'group-pool', name: 'Pool side' }],
+  sources: rows,
+  members,
+  creatorId: 'u-admin',
+  mutation: action<{ data: CreatePortalInput }>(),
+}
+
 export const baseArgs = {
   rows,
   members,
+  newPortal: { data: null },
   propertyId: 'prop-1',
   propertyName: 'Avela Resort',
   archiveMutation: action<{

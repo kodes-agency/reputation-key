@@ -10,7 +10,6 @@
 // Groups are made in the New group dialog and managed on each group's page; the
 // head of a group in the table links there and carries the group's actions.
 import { useState, type ReactNode } from 'react'
-import { Link } from '@tanstack/react-router'
 import { FolderPlus, Globe, Plus, SearchX } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
@@ -21,6 +20,8 @@ import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
 import { PortalGroupDialog } from './portal-group/portal-group-dialogs'
+import { PortalNewDialog } from './portal-new/portal-new-dialog'
+import type { PortalNewData } from './portal-new/portal-new-types'
 import { PortalGroupMenu } from './portal-group/portal-group-menu'
 import type { PortalGroupMutations } from './portal-group/portal-group-mutations'
 import type { PortalArchiveMutations } from './portal-overview/portal-archive-dialog'
@@ -57,6 +58,8 @@ export type PortalListPageProps = PortalArchiveMutations &
     onSearchChange: (next: PortalOverviewSearch) => void
     /** Every group of the Property, so one with no Portal can still be reached. */
     groups: readonly NonNullable<PortalOverviewRow['group']>[]
+    /** What the New portal dialog needs; null until the Property's options have loaded. */
+    newPortal: Readonly<{ data: PortalNewData | null; loadError?: unknown }>
   }> &
   Pick<PortalGroupMutations, 'createMutation' | 'renameMutation' | 'archiveGroupMutation'>
 
@@ -180,6 +183,7 @@ export function PortalListPage({
   createMutation,
   renameMutation,
   archiveGroupMutation,
+  newPortal,
 }: PortalListPageProps) {
   const { can } = usePermissions()
   const { has } = useCapabilities()
@@ -215,12 +219,11 @@ export function PortalListPage({
       </Button>
     ) : undefined
 
-  const newPortalButton = can('portal.create') ? (
-    <Button asChild className="min-h-11 sm:min-h-9">
-      <Link to="/properties/$propertyId/portals/new" params={{ propertyId }}>
-        <Plus />
-        New portal
-      </Link>
+  const canCreate = can('portal.create')
+  const newPortalButton = canCreate ? (
+    <Button className="min-h-11 sm:min-h-9" onClick={() => update({ new: true })}>
+      <Plus />
+      New portal
     </Button>
   ) : undefined
 
@@ -272,6 +275,14 @@ export function PortalListPage({
         rows={rows}
         createMutation={createMutation}
       />
+      {canCreate ? (
+        <PortalNewDialog
+          open={search.new === true}
+          onOpenChange={(open) => update({ new: open ? true : undefined })}
+          data={newPortal.data}
+          loadError={newPortal.loadError}
+        />
+      ) : null}
     </PageShell>
   )
 }

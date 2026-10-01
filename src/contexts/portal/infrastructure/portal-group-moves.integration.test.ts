@@ -90,7 +90,7 @@ async function seedPortal(id: PortalId, slug: string): Promise<void> {
   await store().createPortal({
     organizationId: ORG_A,
     portal,
-    initialResponsibleManagerId: MANAGER,
+    initialResponsibleManagerIds: [MANAGER],
     event: portalCreated({
       portalId: portal.id,
       organizationId: ORG_A,

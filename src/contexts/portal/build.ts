@@ -52,6 +52,7 @@ import { createPortalTokenCodec } from './infrastructure/adapters/portal-token-c
 import { createPortalAddressCipher } from './infrastructure/adapters/portal-address-cipher'
 import { createPortalAddressRepository } from './infrastructure/repositories/portal-address.repository'
 import { createPortal } from './application/use-cases/create-portal'
+import { getPortalCreationOptions } from './application/use-cases/get-portal-creation-options'
 import { updatePortal } from './application/use-cases/update-portal'
 import { rollbackPortalPublication } from './application/use-cases/rollback-portal-publication'
 import { getPortal } from './application/use-cases/get-portal'
@@ -340,12 +341,23 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     }),
     createPortal: createPortal({
       portalRepo,
+      portalGroupRepo,
+      portalLinkRepo,
+      destinationRepo: portalApprovedDestinationRepo,
+      experienceRepo: portalExperienceRepo,
       commandStore: portalCommandStore,
       propertyApi: deps.propertyApi,
       staffPublicApi: deps.staffPublicApi,
       identityPublicApi: deps.identityManagerFacts,
       idGen: portalIdGen,
+      entityIdGen: deps.idGen,
       clock: deps.clock,
+    }),
+    getPortalCreationOptions: getPortalCreationOptions({
+      propertyApi: deps.propertyApi,
+      staffPublicApi: deps.staffPublicApi,
+      identityPublicApi: deps.identityManagerFacts,
+      experienceRepo: portalExperienceRepo,
     }),
     updatePortal: updatePortal({
       portalRepo,

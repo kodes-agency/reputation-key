@@ -36,28 +36,6 @@ export function PortalAllPropertiesError({ error }: ErrorComponentProps) {
   )
 }
 
-export function CreatePortalLoading() {
-  return (
-    <PageShell>
-      <LoadingState label="Loading portal editor" />
-    </PageShell>
-  )
-}
-
-export function CreatePortalError({ error }: ErrorComponentProps) {
-  return (
-    <PageShell>
-      <PageHeader
-        title="New Portal"
-        description="Create a public page for this property."
-      />
-      <ErrorState
-        message={errorMessage(error) || 'The portal editor could not be loaded.'}
-      />
-    </PageShell>
-  )
-}
-
 /**
  * The portal workspace is full-bleed (see `isWorkspaceRoute`): the layout above
  * it clips overflow and pads nothing. Its loading, error and not-found states

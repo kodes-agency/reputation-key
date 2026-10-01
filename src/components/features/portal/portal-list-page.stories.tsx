@@ -2,7 +2,12 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
 import { overviewGroup, overviewRow } from './portal-overview/portal-overview-fixtures'
 import { MAX_SEARCH_LENGTH } from './portal-overview/portal-overview-search-schema'
-import { ControlledPage, baseArgs, rows } from './portal-list-page-stories-data'
+import {
+  ControlledPage,
+  baseArgs,
+  newPortalData,
+  rows,
+} from './portal-list-page-stories-data'
 import {
   AuthedRouterDecorator,
   withRole,
@@ -19,6 +24,22 @@ export default meta
 type Story = StoryObj<typeof ControlledPage>
 
 export const Default: Story = { args: baseArgs }
+
+// "New portal" opens the dialog over the list (the page keeps it in the URL);
+// Cancel closes it again.
+export const OpensTheNewPortalDialog: Story = {
+  args: { ...baseArgs, newPortal: { data: newPortalData } },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: 'New portal' }),
+    )
+    const dialog = within(await screen.findByRole('dialog'))
+    await expect(dialog.getByRole('heading', { name: 'New portal' })).toBeInTheDocument()
+    await expect(dialog.getByText('No one will be responsible yet')).toBeInTheDocument()
+    await userEvent.click(dialog.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  },
+}
 
 export const Empty: Story = {
   args: { ...baseArgs, rows: [], groups: [] },
