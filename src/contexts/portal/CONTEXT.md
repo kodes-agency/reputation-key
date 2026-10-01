@@ -77,6 +77,19 @@ first is the primary) only seeds new Portals, so editing it bumps no version,
 records no pending change, emits no fact and leaves `updated_by` alone (that
 column decides whether the public display name counts as confirmed).
 
+The editor no longer shows categories. `getPortalLinktree` reads the whole
+section (switch, written titles, and each link in guest order with its texts,
+icon and the approval of its destination), and a link is created without a
+category: it joins the Portal's last category, and the first link starts one,
+which only the legacy guest page prints as a heading. It is titled in the
+Portal's primary language (the Linktree title written for that language, else its
+default), so a Bulgarian-primary Portal does not show an English heading. The
+category is built only after the link's label, icon, cap and destination have
+passed and is committed in the link's own transaction (`startCategory` on the
+create command), so a refused link leaves neither it nor its fact behind. Re-ordering still saves one category's order, so the
+editor moves a tile only among those of its own (older) category. The category
+commands stay until the snapshot builders flatten categories (slice 19).
+
 The eligible creator is the initial Portal Responsible Manager. Multiple eligible
 managers may be assigned; losing the last sets `responsibilityNeededSince`, and
 nobody is auto-promoted. Only a live Portal of an active Property also raises

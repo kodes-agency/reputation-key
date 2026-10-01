@@ -46,6 +46,7 @@ import {
   portalLanguageCoverageQuery,
   portalExperienceQuery,
   portalLinksQuery,
+  portalLinktreeQuery,
   portalPublicationHistoryQuery,
   portalQuery,
   responsibleManagersQuery,
@@ -97,6 +98,7 @@ export const Route = createFileRoute(
       context.queryClient.ensureQueryData(
         portalLanguageCoverageQuery(params.propertyId, params.portalId),
       ),
+      context.queryClient.ensureQueryData(portalLinktreeQuery(params.portalId)),
       context.queryClient.ensureQueryData(portalGroupsQuery(params.propertyId)),
       context.queryClient.ensureQueryData(responsibleManagersQuery(params.portalId)),
       context.queryClient.ensureQueryData(membersQuery),

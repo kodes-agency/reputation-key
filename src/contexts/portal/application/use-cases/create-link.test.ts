@@ -12,15 +12,19 @@ import {
   buildTestPortalLink,
   buildTestPortalLinkCategory,
 } from '#/shared/testing/fixtures'
-import { isPortalError } from '../../domain/errors'
+import { isPortalError, portalError } from '../../domain/errors'
+import type { CreatePortalLinkCommand } from '../ports/portal-command-store.port'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import {
   portalId,
+  portalLinkCategoryId,
   portalLinkId,
   propertyId,
   type PropertyId,
   userId,
 } from '#/shared/domain/ids'
+import type { GuestLocale } from '#/shared/domain/guest-locale'
+import type { PortalLocalizedOverride } from '../ports/portal-experience.repository'
 import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../../domain/approved-destination'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
@@ -30,20 +34,34 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
   getAssignedPortals: async () => [],
 })
 
-const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
+type TitleOverride = Readonly<{ locale: GuestLocale; linktreeTitle: string | null }>
+
+const setup = (
+  accessible: ReadonlyArray<PropertyId> | null = null,
+  titles: ReadonlyArray<TitleOverride> = [],
+) => {
   const portalRepo = createInMemoryPortalRepo()
   const portalLinkRepo = createInMemoryPortalLinkRepo()
   const outbox = createRecordedOutbox()
+  const store = createInMemoryPortalCommandStore({ portalRepo, portalLinkRepo, outbox })
+  const commandStoreCalls: CreatePortalLinkCommand[] = []
+  let refuseLinkWrite = false
   const destinationRequests: string[] = []
   const deps = {
     portalRepo,
     portalLinkRepo,
     staffPublicApi: staffApiMock(accessible),
-    commandStore: createInMemoryPortalCommandStore({
-      portalRepo,
-      portalLinkRepo,
-      outbox,
-    }),
+    experienceRepo: {
+      listPortalOverrides: async () => titles as readonly PortalLocalizedOverride[],
+    },
+    commandStore: {
+      ...store,
+      createPortalLink: async (command: CreatePortalLinkCommand) => {
+        commandStoreCalls.push(command)
+        if (refuseLinkWrite) throw portalError('revision_conflict', 'Portal changed')
+        return store.createPortalLink(command)
+      },
+    },
     destinationRepo: {
       request: async (
         input: Parameters<
@@ -83,7 +101,17 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
     clock: () => FIXED_TIME,
   }
   const useCase = createLink(deps)
-  return { useCase, portalRepo, portalLinkRepo, outbox, destinationRequests }
+  return {
+    useCase,
+    portalRepo,
+    portalLinkRepo,
+    outbox,
+    destinationRequests,
+    commandStoreCalls,
+    refuseLinkWrites: () => {
+      refuseLinkWrite = true
+    },
+  }
 }
 
 describe('createLink', () => {
@@ -346,6 +374,132 @@ describe('createLink', () => {
           .storedTexts()
           .map((text) => [text.linkId, text.locale, text.label, text.line]),
       ).toEqual([[link.id, 'en', 'City guide', null]])
+    })
+  })
+  describe('without a category, as the Linktree editor adds a link', () => {
+    const base = {
+      portalId: 'd0000000-0000-0000-0000-000000000001',
+      label: 'Olive Terrace menu',
+      url: 'https://avela.bg/olive-terrace/menu',
+    }
+    const ctx = () => buildTestAuthContext({ role: 'PropertyManager' })
+
+    it("starts the Portal's first category when it has none, and puts the link in it", async () => {
+      const { useCase, portalRepo, portalLinkRepo, outbox } = setup()
+      portalRepo.seed([buildTestPortal({})])
+
+      const link = await useCase(base, ctx())
+
+      const categories = portalLinkRepo.allCategories()
+      expect(categories.map((category) => category.title)).toEqual(['Useful links'])
+      expect(link.categoryId).toBe(categories[0]?.id)
+      expect(portalLinkRepo.allLinks()).toHaveLength(1)
+      expect(outbox.byTag('portal_link_category.created')).toHaveLength(1)
+      expect(outbox.byTag('portal_link.created')).toHaveLength(1)
+    })
+
+    it("titles the started category in the Portal's primary language", async () => {
+      const { useCase, portalRepo, portalLinkRepo } = setup()
+      portalRepo.seed([
+        buildTestPortal({ primaryGuestLocale: 'bg', additionalGuestLocales: ['en'] }),
+      ])
+
+      await useCase(base, ctx())
+
+      expect(portalLinkRepo.allCategories().map((category) => category.title)).toEqual([
+        'Полезни връзки',
+      ])
+    })
+
+    it('uses the title the manager wrote for the primary language', async () => {
+      const { useCase, portalRepo, portalLinkRepo } = setup(null, [
+        { locale: 'bg', linktreeTitle: 'Още от нас' },
+        { locale: 'en', linktreeTitle: 'More' },
+      ])
+      portalRepo.seed([
+        buildTestPortal({ primaryGuestLocale: 'bg', additionalGuestLocales: ['en'] }),
+      ])
+
+      await useCase(base, ctx())
+
+      expect(portalLinkRepo.allCategories().map((category) => category.title)).toEqual([
+        'Още от нас',
+      ])
+    })
+
+    it('hands the new category to the link write, so the store can keep them together', async () => {
+      const { useCase, portalRepo, commandStoreCalls } = setup()
+      portalRepo.seed([buildTestPortal({})])
+
+      const link = await useCase(base, ctx())
+
+      const [call] = commandStoreCalls
+      expect(call?.startCategory?.category.id).toBe(link.categoryId)
+      expect(call?.startCategory?.event._tag).toBe('portal_link_category.created')
+      expect(call?.event.categoryId).toBe(link.categoryId)
+    })
+
+    it('puts the link in the last category when the Portal already has some', async () => {
+      const { useCase, portalRepo, portalLinkRepo, commandStoreCalls } = setup()
+      portalRepo.seed([buildTestPortal({})])
+      const first = buildTestPortalLinkCategory({
+        id: portalLinkCategoryId('c0000000-0000-0000-0000-000000000001'),
+        sortKey: 'a0',
+      })
+      const last = buildTestPortalLinkCategory({
+        id: portalLinkCategoryId('c0000000-0000-0000-0000-000000000002'),
+        sortKey: 'a1',
+      })
+      portalLinkRepo.seedCategories([last, first])
+
+      const link = await useCase(base, ctx())
+
+      expect(link.categoryId).toBe(last.id)
+      expect(portalLinkRepo.allCategories()).toHaveLength(2)
+      expect(commandStoreCalls[0]?.startCategory).toBeUndefined()
+    })
+
+    it('leaves no category and no category fact behind when the link write is refused', async () => {
+      const { useCase, portalRepo, portalLinkRepo, outbox, refuseLinkWrites } = setup()
+      portalRepo.seed([buildTestPortal({})])
+      refuseLinkWrites()
+
+      await expect(useCase(base, ctx())).rejects.toSatisfy(
+        (error: unknown) => isPortalError(error) && error.code === 'revision_conflict',
+      )
+
+      expect(portalLinkRepo.allCategories()).toEqual([])
+      expect(outbox.byTag('portal_link_category.created')).toEqual([])
+    })
+
+    it('refuses an empty label without starting a category', async () => {
+      const { useCase, portalRepo, portalLinkRepo } = setup()
+      portalRepo.seed([buildTestPortal({})])
+
+      await expect(useCase({ ...base, label: '  ' }, ctx())).rejects.toSatisfy(
+        (error: unknown) => isPortalError(error) && error.code === 'invalid_label',
+      )
+      expect(portalLinkRepo.allCategories()).toEqual([])
+    })
+
+    it('still refuses a fifth link without leaving a category behind', async () => {
+      const { useCase, portalRepo, portalLinkRepo } = setup()
+      portalRepo.seed([buildTestPortal({})])
+      const category = buildTestPortalLinkCategory({})
+      portalLinkRepo.seedCategories([category])
+      portalLinkRepo.seedLinks(
+        Array.from({ length: 4 }, (_, index) =>
+          buildTestPortalLink({
+            id: portalLinkId(`10000000-0000-0000-0000-00000000020${index}`),
+            sortKey: `a${index}`,
+          }),
+        ),
+      )
+
+      await expect(useCase(base, ctx())).rejects.toSatisfy(
+        (error: unknown) => isPortalError(error) && error.code === 'link_limit_reached',
+      )
+      expect(portalLinkRepo.allCategories()).toHaveLength(1)
     })
   })
 })

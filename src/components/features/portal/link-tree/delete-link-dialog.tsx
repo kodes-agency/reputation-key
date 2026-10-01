@@ -1,5 +1,6 @@
-import { Trash2 } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+// Confirmation before a tile is deleted. Controlled, because it is opened from
+// the tile's menu rather than from a trigger of its own.
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -9,33 +10,24 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
 } from '#/components/ui/alert-dialog'
 
 type Props = Readonly<{
-  categoryTitle: string
-  isDeleting: boolean
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  label: string
   onDelete: () => void
 }>
 
-export function DeleteCategoryDialog({ categoryTitle, isDeleting, onDelete }: Props) {
+export function DeleteLinkDialog({ open, onOpenChange, label, onDelete }: Props) {
   return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button
-          size="sm"
-          variant="ghost"
-          disabled={isDeleting}
-          aria-label={`Delete category ${categoryTitle}`}
-        >
-          <Trash2 className="size-3 text-muted-foreground" />
-        </Button>
-      </AlertDialogTrigger>
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
       <AlertDialogContent>
         <AlertDialogHeader>
-          <AlertDialogTitle>Delete Category</AlertDialogTitle>
+          <AlertDialogTitle>Delete this link?</AlertDialogTitle>
           <AlertDialogDescription>
-            Delete &quot;{categoryTitle}&quot; and all its links? This cannot be undone.
+            “{label}” and its texts in every language are removed from the draft. It stays
+            on the live page until you publish.
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
@@ -44,7 +36,7 @@ export function DeleteCategoryDialog({ categoryTitle, isDeleting, onDelete }: Pr
             className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             onClick={onDelete}
           >
-            Delete
+            Delete link
           </AlertDialogAction>
         </AlertDialogFooter>
       </AlertDialogContent>

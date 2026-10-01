@@ -448,6 +448,7 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
   - a primary locale with missing text is a readiness **blocker**;
   - a non-primary gap is a **warning**, filled from the primary with `fallbackFrom`.
 - Links are flattened in category-then-link order.
+- Drops the started category's title, which the slice 28 editor writes in the Portal's primary language only so that the legacy guest page does not print an English heading to guests of another language (`startedCategoryTitle`, `src/contexts/portal/domain/portal-linktree.ts`).
 - The `current` pack becomes v2 for en and bg.
 - `scripts/seed-e2e-user.ts` moves to v3 with no net growth; helpers are extracted if needed.
 - **Tests:**
@@ -551,6 +552,16 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
 - The category UI is removed.
 - Bringing `link-tree.tsx` under the limit needs an owner patch to `eslint.config.js`.
 - Depends on 10, 27. Size L.
+- **As built.**
+  - `getPortalLinktree` reads the whole section in one call (switch, written titles, each link in guest order with its texts, icon and destination approval); `savePortalLinkTexts` and `saveLinktreeSettings` get server functions. The section's title is "Title on the page" (default "Useful links"), per language, with a "Use default" reset.
+  - `createLink` may leave the category out: the link joins the Portal's last category, and the first link starts one. The category is built only after the label, icon, cap and destination pass, and is handed to the link write (`startCategory`), which commits it, its fact and the link in one transaction under one fence, so a link refused at any point leaves no category behind (a real-PostgreSQL test pins this).
+  - **Guest-visible on merge (principle 3).** Until slice 19 every publication is a v1/v2 snapshot, and the legacy renderer prints a category's title as a heading above the links. The started category is therefore titled in the Portal's primary language: the Linktree title the manager wrote for it, else that language's default ("Useful links", "Полезни връзки"; a small pinned map, tested against the v2 packs). Managers cannot rename it, and a title typed in another language does not reach those pages. Slice 19 drops it when links are flattened.
+  - Moving a tile saves one category's order, so a tile moves only among those of its own category; at a boundary between two older categories its move control is disabled. The category server functions, the drag-and-drop code and the `@dnd-kit` dependencies are removed; the category use cases stay until slice 19 flattens categories in the snapshot.
+  - Typed text (labels, lines, titles) saves through the portal autosave. Re-ordering, icons, the address, adding, deleting and the switch are their own saves, each after any typed text still waiting. The address is checked on the server, so it saves when the field is left.
+  - No photo choice and no "Translate with AI": both wait for uploads and for the AI capability. The approved-destinations card stays under the tiles, because it is where an Account Admin approves a custom address.
+  - The exemption for `link-tree.tsx` in `eslint.config.js` is stale now that the file is under the 300-line limit; removing it is the owner patch (`s28-eslint.patch`).
+  - Moves are planned from the order on screen, including moves still being saved, and the section's saves run one after another, so two quick presses move a tile two places.
+  - **Differences from board 02, accepted for now.** The board draws the section title as an inline row above the tiles (built: a "Title on the page" field with language tabs), drag handles beside each tile (built: keyboard move controls only, because drag-and-drop was removed), photo thumbnails on the tiles (built: icons only, uploads are slice 42), and a per-tile missing-language chip at phone width (built: the language list inside the tile). Slice 30 owns the title row, the handles and the phone chip as a design-fidelity pass beside the preview; slice 42 owns the thumbnails.
 
 **29. Languages section and coverage read (A7).**
 
@@ -565,6 +576,7 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
 - **The draft preview never includes destinations that are not approved;** it shows a "waiting for approval" placeholder tile instead. A test covers this.
 - `PortalPreviewPane`: filmstrip, toggles, and "Try as guest", which writes nothing.
 - Retire the preview Sheet and `use-preview-toggle.ts`.
+- Bring the Linktree section to board 02 where slice 28 differs: the inline title row, drag handles (or an agreed keyboard-only substitute), and the missing-language chip on each tile at phone width.
 - Depends on 6, 8, 12. Size L.
 
 **31. Review & publish (A9).**
@@ -661,6 +673,7 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
 - **U4:** a same-origin media route, and removal of the AWS-only `getPublicUrl`.
 - **U5:** garbage collection, takedown, and purge and export deleting the stored objects.
 - **U6:** the board 14 UI (Replace photo dialog, focal-point picker, alt text, rights checkbox, preview), inert while the capability is blocked.
+- Linktree tile photo thumbnails from board 02, which slice 28 leaves as icons.
 - **Owner/ops:** §5.
 
 **43. AI translation capability (AI1–AI4).** Gated on owner decision 3 (§5).

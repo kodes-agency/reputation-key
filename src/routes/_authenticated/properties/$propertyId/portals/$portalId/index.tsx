@@ -40,6 +40,7 @@ function PortalWorkspaceEditor() {
       categories={categories}
       links={links}
       languageCoverage={data.languageCoverage}
+      linktree={data.linktree}
       activeTab={tab}
       activeSection={section}
       updateMutation={actions.update}

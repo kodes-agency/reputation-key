@@ -278,14 +278,17 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // Links are NOT a publish precondition any more. "feat(portal): make guest
     // gateway rating first" removed portal_has_no_links: once the rating is the
     // point of the gateway, a Portal with no secondary destinations is a
-    // perfectly valid one. The journey still builds a link tree, because the
-    // rotation and guest-facing assertions below need something to lay out.
-    const category = await callServerFn<{ category: { id: string } }>(page, {
-      file: 'src/contexts/portal/server/portal-link-categories.ts',
-      exportName: 'createLinkCategory',
-      data: { portalId: created.portal.id, title: 'E2E Rotating Links' },
+    // perfectly valid one. Categories are gone from the editor (s28), and a
+    // fresh Portal already has its Linktree switched on, so this step proves the
+    // Linktree settings function is reachable and authorised for an Account
+    // Admin, and that the switch is idempotent (it is set to the value it
+    // already has).
+    const linktree = await callServerFn<{ saved: boolean }>(page, {
+      file: 'src/contexts/portal/server/portal-links.ts',
+      exportName: 'saveLinktreeSettings',
+      data: { portalId: created.portal.id, enabled: true },
     })
-    expect(category.category.id).toBeTruthy()
+    expect(linktree.saved).toBe(true)
 
     // No link is created here, and that is an ENVIRONMENT limit rather than a
     // choice. `createLink` resolves the destination through

@@ -61,6 +61,7 @@ import { deleteLink } from './application/use-cases/delete-link'
 import { reorderLinks } from './application/use-cases/reorder-links'
 import { listPortalLinks } from './application/use-cases/list-portal-links'
 import { getPortalLanguageCoverage } from './application/use-cases/get-portal-language-coverage'
+import { getPortalLinktree } from './application/use-cases/get-portal-linktree'
 import { createPortalGroup } from './application/use-cases/create-portal-group'
 import { updatePortalGroup } from './application/use-cases/update-portal-group'
 import { listPortalGroups } from './application/use-cases/list-portal-groups'
@@ -404,6 +405,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalRepo,
       portalLinkRepo,
       staffPublicApi: deps.staffPublicApi,
+      experienceRepo: portalExperienceRepo,
       commandStore: portalCommandStore,
       destinationRepo: portalApprovedDestinationRepo,
       destinationNetworkValidator: portalDestinationNetworkValidator,
@@ -447,6 +449,13 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       staffPublicApi: deps.staffPublicApi,
       commandStore: portalCommandStore,
       clock: deps.clock,
+    }),
+    getPortalLinktree: getPortalLinktree({
+      portalRepo,
+      portalLinkRepo,
+      experienceRepo: portalExperienceRepo,
+      destinationRepo: portalApprovedDestinationRepo,
+      staffPublicApi: deps.staffPublicApi,
     }),
     listPortalLinks: listPortalLinks({
       portalLinkRepo,
