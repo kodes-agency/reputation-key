@@ -35,7 +35,6 @@ const sequentialIds = () => {
 }
 
 const deps = {
-  idGen: () => NEW_ID,
   entityIdGen: sequentialIds(),
   clock: () => NOW,
 }
@@ -53,6 +52,7 @@ const groupOf = (updatedAt: Date): PortalGroup => ({
 })
 
 const planOf = (patch: Partial<NewPortalPlan> = {}): NewPortalPlan => ({
+  portalId: NEW_ID,
   input: { name: 'Pool bar', propertyId: String(PROPERTY) },
   locales: { primary: 'en', additional: ['bg'] },
   managerIds: [MANAGER],

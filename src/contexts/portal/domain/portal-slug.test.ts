@@ -3,6 +3,8 @@ import { SLUG_PATTERN } from '#/shared/domain/slug'
 import {
   FALLBACK_SLUG_BASE,
   MAX_SLUG_SUFFIX_ATTEMPTS,
+  hasUsablePortalAddress,
+  idBasedPortalSlug,
   portalSlugBase,
   slugWithSuffix,
 } from './portal-slug'
@@ -60,5 +62,34 @@ describe('portalSlugBase', () => {
     const name = `${'a'.repeat(63)} bcd`
     const base = portalSlugBase(name)
     expect(SLUG_PATTERN.test(base)).toBe(true)
+  })
+})
+
+describe('hasUsablePortalAddress', () => {
+  it('is true for a name that stands for an address of its own', () => {
+    expect(hasUsablePortalAddress('Rooftop pool')).toBe(true)
+  })
+
+  it.each(['Рецепция', 'A', '☕☕', '   '])('is false for %j', (name) => {
+    expect(hasUsablePortalAddress(name)).toBe(false)
+  })
+})
+
+describe('idBasedPortalSlug', () => {
+  const id = 'd0a1b2c3-0000-4000-8000-000000000001'
+
+  it('builds the address from the start of the Portal id', () => {
+    expect(idBasedPortalSlug(id, 8)).toBe('portal-d0a1b2c3')
+  })
+
+  it('takes a longer slice on a later attempt, up to the whole id', () => {
+    expect(idBasedPortalSlug(id, 12)).toBe('portal-d0a1b2c30000')
+    expect(idBasedPortalSlug(id, 100)).toBe(`portal-${id.replaceAll('-', '')}`)
+  })
+
+  it('only ever yields a valid slug, whatever the id holds', () => {
+    for (const odd of ['p-1', 'ID_WITH_Caps', '---']) {
+      expect(SLUG_PATTERN.test(idBasedPortalSlug(odd, 8))).toBe(true)
+    }
   })
 })

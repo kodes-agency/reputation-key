@@ -91,23 +91,69 @@ describe('createPortal web address', () => {
     expect(portal.slug).toBe('rooftop-pool-3')
   })
 
-  it.each([
-    ['Рецепция', 'portal'],
-    ['Басейн на покрива', 'portal'],
-    ['A', 'portal'],
-    ['☕☕', 'portal'],
-  ])(
-    'creates a portal named %j with an address the manager never sees',
-    async (name, slug) => {
+  it.each(['Рецепция', 'Басейн на покрива', 'A', '☕☕'])(
+    'gives a portal named %j an address from its own id, which the manager never sees',
+    async (name) => {
       const { useCase } = setupCreatePortal()
-      expect((await useCase({ ...base, name }, ctx)).slug).toBe(slug)
+      const portal = await useCase({ ...base, name }, ctx)
+      expect(portal.slug).toBe(
+        `portal-${String(portal.id).replaceAll('-', '').slice(0, 8)}`,
+      )
     },
   )
 
-  it('numbers the fallback address like any other', async () => {
-    const { useCase } = setupCreatePortal()
+  it('creates every Cyrillic portal at once, however many the Property already holds', async () => {
+    const { useCase, portalRepo } = setupCreatePortal()
+    // Fifty-one portals named in Cyrillic: a counter would have run out of addresses.
+    for (let n = 0; n < 51; n += 1) await useCase({ ...base, name: `Басейн ${n}` }, ctx)
+    expect(portalRepo.all()).toHaveLength(51)
+    expect(new Set(portalRepo.all().map((portal) => portal.slug)).size).toBe(51)
+  })
+
+  it('looks the id-based address up once when it is free', async () => {
+    const { useCase, portalRepo } = setupCreatePortal()
+    const slugExists = vi.spyOn(portalRepo, 'slugExists')
     await useCase({ ...base, name: 'Рецепция' }, ctx)
-    expect((await useCase({ ...base, name: 'Басейн' }, ctx)).slug).toBe('portal-2')
+    expect(slugExists).toHaveBeenCalledTimes(1)
+  })
+
+  it('takes a longer slice of the id when the short address is held', async () => {
+    const { useCase, portalRepo } = setupCreatePortal()
+    // The id the next create will get is the first one the setup hands out.
+    portalRepo.seed([
+      buildTestPortal({
+        id: 'p-held',
+        slug: 'portal-d0000000',
+        propertyId: PROPERTY,
+      }),
+    ])
+    const portal = await useCase({ ...base, name: 'Рецепция' }, ctx)
+    expect(portal.slug).toBe('portal-d00000000000')
+  })
+
+  it('does not mistake a Latin portal named Portal for a fallback address', async () => {
+    const { useCase } = setupCreatePortal()
+    const latin = await useCase({ ...base, name: 'Portal' }, ctx)
+    const cyrillic = await useCase({ ...base, name: 'Портал' }, ctx)
+    expect(latin.slug).toBe('portal')
+    expect(cyrillic.slug).not.toBe('portal')
+  })
+
+  it('says the address ran out, not that the name exists, when fifty numbered ones are taken', async () => {
+    const { useCase, portalRepo } = setupCreatePortal()
+    portalRepo.seed(
+      Array.from({ length: 50 }, (_, n) =>
+        buildTestPortal({
+          id: `p-${n}`,
+          slug: n === 0 ? 'pool' : `pool-${n + 1}`,
+          propertyId: PROPERTY,
+        }),
+      ),
+    )
+    const error = await useCase({ ...base, name: 'Pool' }, ctx).catch((e: unknown) => e)
+    expect(isPortalError(error) && error.code).toBe('slug_taken')
+    expect((error as Error).message).toMatch(/address/i)
+    expect((error as Error).message).not.toMatch(/name already exists/i)
   })
 
   it('keeps the plain address when it is free', async () => {

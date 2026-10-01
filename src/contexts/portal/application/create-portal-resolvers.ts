@@ -15,6 +15,9 @@ import {
 import { portalError } from '../domain/errors'
 import { portalAddedToGroup } from '../domain/events'
 import {
+  hasUsablePortalAddress,
+  ID_SLUG_LENGTHS,
+  idBasedPortalSlug,
   MAX_SLUG_SUFFIX_ATTEMPTS,
   portalSlugBase,
   slugWithSuffix,
@@ -41,13 +44,16 @@ type SlugDeps = Readonly<{ portalRepo: Pick<PortalRepository, 'slugExists'> }>
 /**
  * The address the new Portal gets. One the manager typed must be free; one
  * derived from the name takes the next free numbered variant instead of failing;
- * a name with no Latin letters or digits falls back to a fixed base.
+ * a name that gives no address (no Latin letters or digits) takes one from the
+ * Portal's own id, a longer slice of it if a shorter one is held, so it never
+ * walks a counter one lookup at a time.
  */
 export async function allocateSlug(
   deps: SlugDeps,
   ctx: AuthContext,
   propertyId: PropertyId,
   input: Readonly<{ name: string; slug?: string }>,
+  newPortalId: string,
 ): Promise<string> {
   const taken = (slug: string) =>
     deps.portalRepo.slugExists(ctx.organizationId, propertyId, slug)
@@ -57,12 +63,22 @@ export async function allocateSlug(
     }
     return input.slug
   }
-  const base = portalSlugBase(input.name)
-  for (let attempt = 1; attempt <= MAX_SLUG_SUFFIX_ATTEMPTS; attempt += 1) {
-    const candidate = slugWithSuffix(base, attempt)
+  const candidates = hasUsablePortalAddress(input.name)
+    ? Array.from({ length: MAX_SLUG_SUFFIX_ATTEMPTS }, (_, n) =>
+        slugWithSuffix(portalSlugBase(input.name), n + 1),
+      )
+    : [
+        ...new Set(
+          ID_SLUG_LENGTHS.map((length) => idBasedPortalSlug(newPortalId, length)),
+        ),
+      ]
+  for (const candidate of candidates) {
     if (!(await taken(candidate))) return candidate
   }
-  throw portalError('slug_taken', 'a portal with this name already exists')
+  throw portalError(
+    'slug_taken',
+    'no free web address is left for this name; try a different name',
+  )
 }
 
 type GroupDeps = Readonly<{ portalGroupRepo: Pick<PortalGroupRepository, 'findById'> }>

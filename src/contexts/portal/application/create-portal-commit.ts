@@ -16,13 +16,14 @@ import { buildGroupMembership } from './create-portal-resolvers'
 import { planPortalContentCopy, type PortalCopySource } from './portal-content-copy'
 
 export type NewPortalCommandDeps = Readonly<{
-  idGen: () => PortalId
   entityIdGen: () => string
   clock: () => Date
 }>
 
 /** Everything about the new Portal that was decided before the address was. */
 export type NewPortalPlan = Readonly<{
+  /** The new Portal's id, chosen up front: a name with no address of its own is addressed by it. */
+  portalId: PortalId
   input: CreatePortalInput
   locales: NewPortalLocales
   managerIds: readonly UserId[]
@@ -37,9 +38,8 @@ export function buildCreatePortalCommand(
   plan: NewPortalPlan,
   slug: string,
 ): CreatePortalCommand {
-  const { input, locales, managerIds, group, source } = plan
+  const { input, locales, managerIds, group, source, portalId: id } = plan
   const now = deps.clock()
-  const id = deps.idGen()
   const copy = source
     ? planPortalContentCopy({
         source,

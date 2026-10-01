@@ -88,7 +88,8 @@ export const createPortal =
     })
 
     // 4. Build the domain object (a copy's settings first; what was typed wins).
-    const plan: NewPortalPlan = { input, locales, managerIds, group, source }
+    const portalId = deps.idGen()
+    const plan: NewPortalPlan = { portalId, input, locales, managerIds, group, source }
     const commit = async (slug: string): Promise<Portal> => {
       const command = buildCreatePortalCommand(deps, ctx, plan, slug)
       await deps.commandStore.createPortal(command)
@@ -97,12 +98,12 @@ export const createPortal =
 
     // The address is checked now and unique at commit; another create may take
     // it in between. A derived address then moves to the next free one, once.
-    const slug = await allocateSlug(deps, ctx, pid, input)
+    const slug = await allocateSlug(deps, ctx, pid, input, portalId)
     try {
       return await commit(slug)
     } catch (error) {
       if (!isSlugTaken(error) || input.slug !== undefined) throw error
-      return commit(await allocateSlug(deps, ctx, pid, input))
+      return commit(await allocateSlug(deps, ctx, pid, input, portalId))
     }
   }
 
