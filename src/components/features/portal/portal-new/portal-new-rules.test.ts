@@ -87,12 +87,12 @@ describe('language choices', () => {
   it('shows the Property languages and the selection as chips, the rest in the menu', () => {
     expect(languageChoices(['en'], ['en'])).toEqual({
       chips: ['en'],
-      addable: ['bg'],
+      addable: ['es', 'it', 'fr', 'de', 'bg'],
       fallback: null,
     })
     expect(languageChoices(['en'], ['en', 'bg'])).toEqual({
       chips: ['en', 'bg'],
-      addable: [],
+      addable: ['es', 'it', 'fr', 'de'],
       fallback: 'en',
     })
   })
@@ -100,7 +100,7 @@ describe('language choices', () => {
   it('keeps a deselected default as a chip so it can be chosen again', () => {
     expect(languageChoices(['en', 'bg'], ['bg'])).toEqual({
       chips: ['en', 'bg'],
-      addable: [],
+      addable: ['es', 'it', 'fr', 'de'],
       fallback: null,
     })
   })
@@ -142,10 +142,10 @@ describe('language choices', () => {
 })
 
 describe('sourceLocalesOf', () => {
-  it('reads a portal languages, primary first, leaving out any not offered yet', () => {
+  it('reads a portal languages, primary first, including German and the other new ones', () => {
     expect(
       sourceLocalesOf({ primaryGuestLocale: 'bg', additionalGuestLocales: ['en', 'de'] }),
-    ).toEqual(['bg', 'en'])
+    ).toEqual(['bg', 'en', 'de'])
   })
 })
 

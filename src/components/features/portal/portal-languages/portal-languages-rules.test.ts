@@ -92,8 +92,20 @@ describe('addableLanguages', () => {
     ])
   })
 
-  it('reads the live registry when none is given', () => {
-    expect(addableLanguages({ primary: 'en', additional: [] })).toContain('bg')
+  it('reads the live registry when none is given: all six languages, in catalogue order', () => {
+    expect(addableLanguages({ primary: 'en', additional: [] })).toEqual([
+      'es',
+      'it',
+      'fr',
+      'de',
+      'bg',
+    ])
+    expect(addableLanguages({ primary: 'de', additional: ['en'] })).toEqual([
+      'es',
+      'it',
+      'fr',
+      'bg',
+    ])
   })
 })
 
@@ -104,6 +116,10 @@ describe('hasLaterLanguages', () => {
 
   it('is false once every language in the catalogue can be added', () => {
     expect(hasLaterLanguages(everythingShipped)).toBe(false)
+  })
+
+  it('is false on the live registry, which offers every catalogue language with a pack', () => {
+    expect(hasLaterLanguages()).toBe(false)
   })
 
   it('is true for a language that is offered but has no pack yet', () => {

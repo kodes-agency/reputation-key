@@ -11,6 +11,10 @@ export const PORTAL_GUEST_LOCALES: readonly OfferedGuestLocale[] = OFFERED_GUEST
 
 export const PORTAL_GUEST_LOCALE_LABEL: Readonly<Record<OfferedGuestLocale, string>> = {
   en: GUEST_LOCALE_METADATA.en.englishName,
+  es: GUEST_LOCALE_METADATA.es.englishName,
+  it: GUEST_LOCALE_METADATA.it.englishName,
+  fr: GUEST_LOCALE_METADATA.fr.englishName,
+  de: GUEST_LOCALE_METADATA.de.englishName,
   bg: GUEST_LOCALE_METADATA.bg.englishName,
 }
 

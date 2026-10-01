@@ -100,10 +100,13 @@ export const GUEST_LANGUAGE_PACKS = Object.freeze({
       { id: 'guest-ui-bg-v2', generation: 2 },
     ],
   },
-  es: { current: null, supported: [] },
-  it: { current: null, supported: [] },
-  fr: { current: null, supported: [] },
-  de: { current: null, supported: [] },
+  // es, it, fr and de never had a legacy page, so they have a generation 2
+  // pack only: `current`, the generation 1 pack the legacy page falls back to,
+  // stays null for them for good.
+  es: { current: null, supported: [{ id: 'guest-ui-es-v2', generation: 2 }] },
+  it: { current: null, supported: [{ id: 'guest-ui-it-v2', generation: 2 }] },
+  fr: { current: null, supported: [{ id: 'guest-ui-fr-v2', generation: 2 }] },
+  de: { current: null, supported: [{ id: 'guest-ui-de-v2', generation: 2 }] },
 } as const satisfies Record<
   GuestLocale,
   {
@@ -128,14 +131,24 @@ export type GuestLanguagePackV2 = Extract<
   { generation: 2 }
 >['id']
 
-/** The locales a manager may choose today: those with a reviewed current pack. */
+/**
+ * The locales a manager may choose today: every catalogue locale, each with a
+ * generation 2 pack in `GUEST_LANGUAGE_PACKS`. During the closed beta a language
+ * is offered as soon as its pack is drafted, with no native-speaker check
+ * (owner decision 5, 2026-09-30), so a locale joins this list in the change
+ * that registers its pack.
+ */
 export const OFFERED_GUEST_LOCALES = Object.freeze([
   'en',
+  'es',
+  'it',
+  'fr',
+  'de',
   'bg',
 ] as const satisfies readonly GuestLocale[])
 export type OfferedGuestLocale = (typeof OFFERED_GUEST_LOCALES)[number]
 
-/** Whether a manager may choose `value` today: a catalogue locale with a reviewed pack. */
+/** Whether a manager may choose `value` today: a catalogue locale with a pack. */
 export function isOfferedGuestLocale(value: unknown): value is OfferedGuestLocale {
   return (
     typeof value === 'string' &&

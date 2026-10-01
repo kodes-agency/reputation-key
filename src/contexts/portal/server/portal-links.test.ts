@@ -306,11 +306,20 @@ describe('savePortalLinkTexts input validation', () => {
     ).toBe(true)
   })
 
-  it('takes only the languages managers may offer today', () => {
+  it('takes the languages managers may offer today, German included', () => {
     expect(
       savePortalLinkTextsInputSchema.safeParse({
         linkId: 'link-123',
         texts: [{ locale: 'de', label: 'Speisekarte' }],
+      }).success,
+    ).toBe(true)
+  })
+
+  it('refuses a language that is not a guest language', () => {
+    expect(
+      savePortalLinkTextsInputSchema.safeParse({
+        linkId: 'link-123',
+        texts: [{ locale: 'pt', label: 'Cardápio' }],
       }).success,
     ).toBe(false)
   })

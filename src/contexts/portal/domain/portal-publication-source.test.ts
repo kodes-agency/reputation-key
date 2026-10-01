@@ -314,8 +314,8 @@ describe('resolvePortalPublication', () => {
   })
 
   describe('what the property and the languages must provide', () => {
-    it('blocks a language that has no generation 2 pack yet', () => {
-      const { blockers } = resolve({
+    it('does not block a language whose generation 2 pack exists', () => {
+      const { blockers, content } = resolve({
         localeSet: ['en', 'es'],
         wording: {
           en: publicationSource().wording.en!,
@@ -324,7 +324,11 @@ describe('resolvePortalPublication', () => {
         links: [],
       })
 
-      expect(blockers).toContainEqual({ code: 'language_pack_missing', locale: 'es' })
+      expect(blockers).toEqual([])
+      expect(content.languagePackVersions).toEqual({
+        en: 'guest-ui-en-v2',
+        es: 'guest-ui-es-v2',
+      })
     })
 
     it.each([null, 'EST', '+02:00', 'europe/sofia'])(

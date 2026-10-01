@@ -249,13 +249,13 @@ describe('resolveLinkTexts', () => {
 })
 
 describe('linktreeDefaultTitle', () => {
-  it('words the default in the languages that have a reviewed pack', () => {
+  it('words the default in every guest language', () => {
     expect(linktreeDefaultTitle('en')).toBe('Useful links')
     expect(linktreeDefaultTitle('bg')).toBe('Полезни връзки')
-  })
-
-  it('falls back to English for a language with no pack yet', () => {
-    expect(linktreeDefaultTitle('de')).toBe('Useful links')
+    expect(linktreeDefaultTitle('es')).toBe('Enlaces útiles')
+    expect(linktreeDefaultTitle('it')).toBe('Link utili')
+    expect(linktreeDefaultTitle('fr')).toBe('Liens utiles')
+    expect(linktreeDefaultTitle('de')).toBe('Nützliche Links')
   })
 })
 

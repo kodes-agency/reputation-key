@@ -13,6 +13,10 @@ const PACK_MODULES: Readonly<
   Partial<Record<GuestLocale, () => Promise<GuestPortalCopyV2>>>
 > = {
   en: async () => (await import('./en-v2')).enV2,
+  es: async () => (await import('./es-v2')).esV2,
+  it: async () => (await import('./it-v2')).itV2,
+  fr: async () => (await import('./fr-v2')).frV2,
+  de: async () => (await import('./de-v2')).deV2,
   bg: async () => (await import('./bg-v2')).bgV2,
 }
 

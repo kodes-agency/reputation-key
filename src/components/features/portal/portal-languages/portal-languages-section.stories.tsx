@@ -139,11 +139,16 @@ export const AddMenuOffersTheLaunchSet: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Add language' }))
     const menu = within(await within(document.body).findByRole('menu'))
-    // Bulgarian has a v2 pack; the four later languages do not, so they are not offered.
+    // Every launch language has a v2 pack, so all five others are offered and
+    // nothing is left for "More languages later".
     await expect(menu.getAllByRole('menuitem').map((item) => item.textContent)).toEqual([
+      'EspañolSpanish',
+      'ItalianoItalian',
+      'FrançaisFrench',
+      'DeutschGerman',
       'БългарскиBulgarian',
-      'More languages later',
     ])
+    await expect(menu.queryByText('More languages later')).not.toBeInTheDocument()
     await userEvent.click(menu.getByRole('menuitem', { name: /Български/ }))
     await waitFor(() =>
       expect(args.update).toHaveBeenCalledWith({

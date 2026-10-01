@@ -33,11 +33,11 @@ describe('getPortalCreationOptions', () => {
     ).toEqual(['en'])
   })
 
-  it('never offers a language nobody may use yet', async () => {
+  it('offers every Property default that is a guest language, German included', async () => {
     const { run } = optionsFor({ propertyDefaults: ['de', 'bg'] })
     expect(
       (await run({ propertyId: String(PROPERTY) }, ctx)).defaultGuestLocales,
-    ).toEqual(['bg'])
+    ).toEqual(['de', 'bg'])
   })
 
   it('lists the managers eligible for the Property and says whether the caller is one', async () => {

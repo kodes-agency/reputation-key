@@ -30,18 +30,24 @@ describe('resolveNewPortalLocales', () => {
       primary: 'en',
       additional: [],
     })
-    // A default language nobody may offer yet does not leak into a new Portal.
-    expect(resolveNewPortalLocales({ propertyDefaults: ['de', 'fr'] })).toEqual({
+    // A default that is not a guest language at all does not leak into a new Portal.
+    expect(resolveNewPortalLocales({ propertyDefaults: ['pt', 'zh'] as never })).toEqual({
       primary: 'en',
       additional: [],
     })
   })
 
-  it('keeps only the offered Property defaults, in order', () => {
-    expect(resolveNewPortalLocales({ propertyDefaults: ['de', 'bg', 'en'] })).toEqual({
-      primary: 'bg',
-      additional: ['en'],
+  it('starts a new Portal in the Property defaults, German and French included', () => {
+    expect(resolveNewPortalLocales({ propertyDefaults: ['de', 'fr'] })).toEqual({
+      primary: 'de',
+      additional: ['fr'],
     })
+  })
+
+  it('keeps only the offered Property defaults, in order', () => {
+    expect(
+      resolveNewPortalLocales({ propertyDefaults: ['pt', 'bg', 'en'] as never }),
+    ).toEqual({ primary: 'bg', additional: ['en'] })
   })
 
   it('takes the languages of the Portal being copied when none were requested', () => {
@@ -77,11 +83,20 @@ describe('resolveNewPortalLocales', () => {
     ).toBe('locale_not_offered')
   })
 
-  it('rejects a language that is not offered today', () => {
+  it('accepts every guest language a manager may offer today', () => {
+    expect(
+      resolveNewPortalLocales({
+        requested: ['de', 'en', 'es', 'it', 'fr', 'bg'],
+        propertyDefaults: [],
+      }),
+    ).toEqual({ primary: 'de', additional: ['en', 'es', 'it', 'fr', 'bg'] })
+  })
+
+  it('rejects a language that is not a guest language', () => {
     expect(
       codeOf(() =>
         resolveNewPortalLocales({
-          requested: ['en', 'de'] as never,
+          requested: ['en', 'pt'] as never,
           propertyDefaults: [],
         }),
       ),
