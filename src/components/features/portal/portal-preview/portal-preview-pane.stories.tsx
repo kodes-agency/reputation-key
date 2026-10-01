@@ -12,7 +12,7 @@ import {
 } from './__fixtures__/portal-preview-fixtures'
 import { PortalPreviewPane } from './portal-preview-pane'
 
-const COLUMN_WIDTH = 448
+const COLUMN_WIDTH = 480
 
 const meta = {
   title: 'Portal/PortalPreviewPane',
@@ -50,6 +50,8 @@ export const DraftArrival: Story = {
     await expect(page.getByRole('heading', { name: 'Pool & Terrace' })).toBeVisible()
     await expect(page.getByText('Around the resort')).toBeVisible()
     await expect(canvas.getByText('Draft · Arrival · English')).toBeVisible()
+    // The draft is the new design; publishing writes the earlier page until it can.
+    await expect(canvas.getByText(/reaches guests in an upcoming release/)).toBeVisible()
     // The four states of the board sit under the phone.
     for (const name of [
       'Arrival',
@@ -134,6 +136,22 @@ export const NoteSent: Story = {
 
 const asked: PortalPreviewSource[] = []
 
+/** Choosing a state while trying leaves "Try as guest" and shows that state. */
+export const FilmstripLeavesTrying: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await phone(canvas, 'Draft')
+    await userEvent.click(canvas.getByRole('button', { name: 'Try as guest' }))
+    await canvas.findByRole('region', { name: 'Guest page you can try' }, WAIT)
+    await userEvent.click(canvas.getByRole('button', { name: 'After a 5 star rating' }))
+    await phone(canvas, 'Draft · After 5★ · English')
+    await expect(canvas.getByRole('button', { name: 'Try as guest' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
+  },
+}
+
 /** "Try as guest" clicks through the page locally and asks the server for nothing. */
 export const TryAsGuest: Story = {
   args: { getPortalPreview: previewReader({}, asked) },
@@ -148,15 +166,15 @@ export const TryAsGuest: Story = {
     const page = within(
       await canvas.findByRole('region', { name: 'Guest page you can try' }, WAIT),
     )
-    // Nothing is chosen yet: sending is not offered.
-    await expect(page.getByRole('button', { name: 'Send privately' })).toHaveAttribute(
-      'aria-disabled',
-      'true',
-    )
+    // Nothing is chosen yet: sending asks for a star, as the guest page does.
+    await userEvent.click(page.getByRole('button', { name: 'Send privately' }))
+    await expect(page.getByText('Choose a rating from 1 to 5 stars.')).toBeVisible()
     await userEvent.click(page.getByRole('radio', { name: '2 stars, Fair' }))
     await expect(page.getByRole('radio', { name: '2 stars, Fair' })).toBeChecked()
     await userEvent.click(page.getByRole('button', { name: 'Send privately' }))
     await expect(page.getByText('Fair · sent privately')).toBeVisible()
+    // Focus follows the rating into the receipt, as on the guest page.
+    await expect(page.getByRole('heading', { name: 'Thank you.' })).toHaveFocus()
     await userEvent.click(page.getByRole('button', { name: 'Write a private note' }))
     await userEvent.type(page.getByRole('textbox'), 'The terrace was lovely')
     await userEvent.click(page.getByRole('button', { name: 'Send note privately' }))

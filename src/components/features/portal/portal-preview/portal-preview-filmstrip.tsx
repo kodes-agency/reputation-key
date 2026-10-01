@@ -1,4 +1,4 @@
-// The guest states beside the phone: arrival, after a low rating, after a high
+// The guest states beside the phone (under it on a narrow screen): arrival, after a low rating, after a high
 // one, and the note sent. Each thumbnail is the real page at a small scale, in
 // that state; choosing one shows it in the phone. Thumbnails are pictures, so
 // they are inert: only the buttons around them take focus.
@@ -12,7 +12,7 @@ import type {
 } from './portal-preview-states'
 import { ScaledPage } from './preview-phone'
 
-const THUMBNAIL_SCALE = 0.2
+const THUMBNAIL_SCALE = 0.15
 
 type Props = Readonly<{
   options: readonly PreviewStateOption[]
@@ -24,7 +24,10 @@ type Props = Readonly<{
 
 export function PortalPreviewFilmstrip({ options, active, onSelect, renderPage }: Props) {
   return (
-    <ul aria-label="Guest states" className="flex flex-wrap justify-center gap-2">
+    <ul
+      aria-label="Guest states"
+      className="flex flex-wrap justify-center gap-1 sm:flex-col sm:flex-nowrap sm:justify-start"
+    >
       {options.map((option) => {
         const isActive = option.id === active
         return (

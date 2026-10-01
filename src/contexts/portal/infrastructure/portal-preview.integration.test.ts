@@ -101,7 +101,7 @@ describe.sequential('getPortalPreview (real PostgreSQL)', () => {
         ['Spa', 'ready'],
         ['Menu', 'ready'],
         ['Awaiting approval', 'awaiting_approval'],
-        ['Raw legacy address', 'awaiting_approval'],
+        ['Raw legacy address', 'not_approved'],
       ],
     )
   })

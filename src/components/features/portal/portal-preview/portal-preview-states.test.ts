@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   ARRIVAL_STATE,
+  guestPreviewState,
   previewStateOptions,
   ratedState,
   stateCaption,
@@ -78,50 +79,58 @@ describe('tryAsGuestReducer', () => {
       state,
     )
 
-  it('starts at arrival with nothing chosen', () => {
-    expect(ARRIVAL_STATE).toEqual({ phase: 'arrival', selected: null })
+  it('starts at arrival', () => {
+    expect(ARRIVAL_STATE).toEqual({ phase: 'arrival' })
   })
 
-  it('remembers the star a guest chose before they send it', () => {
-    expect(step(ARRIVAL_STATE, { type: 'choose', rating: 4 })).toEqual({
-      phase: 'arrival',
-      selected: 4,
-    })
-  })
-
-  it('moves to the rated page when the rating is sent', () => {
-    expect(step(ARRIVAL_STATE, { type: 'choose', rating: 2 }, { type: 'send' })).toEqual({
+  it('moves to the rated page when the rating form sends a rating', () => {
+    expect(step(ARRIVAL_STATE, { type: 'rate', rating: 2 })).toEqual({
       phase: 'rated',
       rating: 2,
       note: 'offered',
     })
+    expect(step(ARRIVAL_STATE, { type: 'rate', rating: 4 })).toEqual({
+      phase: 'rated',
+      rating: 4,
+      note: 'none',
+    })
   })
 
-  it('does nothing when sent with no star chosen', () => {
-    expect(step(ARRIVAL_STATE, { type: 'send' })).toEqual(ARRIVAL_STATE)
-  })
-
-  it('walks the private note from offered to writing to sent', () => {
-    const rated = ratedState(2, threshold)
-
-    expect(step(rated, { type: 'writeNote' })).toMatchObject({ note: 'writing' })
-    expect(step(rated, { type: 'writeNote' }, { type: 'sendNote' })).toMatchObject({
+  it('sends the private note once it was offered', () => {
+    expect(step(ratedState(2, threshold), { type: 'sendNote' })).toMatchObject({
       note: 'sent',
     })
   })
 
-  it('ignores the note actions when no note is offered', () => {
+  it('ignores the note when none is offered, or before a rating', () => {
     const rated = ratedState(5, threshold)
 
-    expect(step(rated, { type: 'writeNote' })).toEqual(rated)
     expect(step(rated, { type: 'sendNote' })).toEqual(rated)
+    expect(step(ARRIVAL_STATE, { type: 'sendNote' })).toEqual(ARRIVAL_STATE)
   })
 
   it('lets a guest change their rating and start again', () => {
-    expect(step(ratedState(2, threshold), { type: 'change' })).toEqual({
-      phase: 'arrival',
-      selected: 2,
-    })
+    expect(step(ratedState(2, threshold), { type: 'change' })).toEqual(ARRIVAL_STATE)
     expect(step(ratedState(2, threshold), { type: 'restart' })).toEqual(ARRIVAL_STATE)
+  })
+})
+
+describe('guestPreviewState', () => {
+  it('maps the preview states to the states the guest page itself previews', () => {
+    expect(guestPreviewState(ARRIVAL_STATE)).toEqual({ kind: 'arrival' })
+    expect(guestPreviewState(ratedState(2, 3))).toEqual({
+      kind: 'rated',
+      rating: 2,
+      noteEligible: true,
+    })
+    expect(guestPreviewState(ratedState(5, 3))).toEqual({
+      kind: 'rated',
+      rating: 5,
+      noteEligible: false,
+    })
+    expect(guestPreviewState({ phase: 'rated', rating: 2, note: 'sent' })).toEqual({
+      kind: 'done',
+      rating: 2,
+    })
   })
 })

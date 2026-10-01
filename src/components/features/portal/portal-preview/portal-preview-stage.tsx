@@ -22,11 +22,16 @@ import {
   type TryAsGuestAction,
 } from './portal-preview-states'
 import { PortalPreviewFilmstrip } from './portal-preview-filmstrip'
-import { TRY_AS_GUEST_NOTICE } from './portal-preview-rules'
+import {
+  DRAFT_DESIGN_NOTICE,
+  packFallbackNotice,
+  TRY_AS_GUEST_NOTICE,
+} from './portal-preview-rules'
 import { PreviewGuestPage } from './preview-guest-page'
 import { PreviewPhone } from './preview-phone'
 
-export const PHONE_SCALE = 0.78
+// Small enough that the phone and the pane's own controls fit a laptop screen.
+export const PHONE_SCALE = 0.7
 
 /** The page in a state; it answers clicks only when given `onAction`. */
 type RenderPage = (
@@ -42,6 +47,7 @@ type Props = Readonly<{
   stateId: PreviewStateId
   onStateChange: (id: PreviewStateId) => void
   isTrying: boolean
+  onTryChange: (isTrying: boolean) => void
 }>
 
 export function PortalPreviewStage({
@@ -52,6 +58,7 @@ export function PortalPreviewStage({
   stateId,
   onStateChange,
   isTrying,
+  onTryChange,
 }: Props) {
   const options = previewStateOptions(preview.privateFeedbackThreshold)
   // A threshold change can drop the chosen state; fall back to arrival.
@@ -74,28 +81,49 @@ export function PortalPreviewStage({
   )
 
   return (
-    <div className="flex flex-col items-center gap-4">
+    <div className="flex flex-col items-center gap-3">
       <p className="text-sm text-muted-foreground" aria-live="polite">
         {caption}
       </p>
+      {preview.source === 'draft' ? (
+        <p className="max-w-sm text-center text-xs text-muted-foreground">
+          {DRAFT_DESIGN_NOTICE}
+        </p>
+      ) : null}
+      {copy.locale !== locale ? (
+        <p role="note" className="max-w-sm text-center text-xs text-muted-foreground">
+          {packFallbackNotice(GUEST_LOCALE_METADATA[locale].englishName)}
+        </p>
+      ) : null}
       {isTrying ? (
-        <>
-          <p role="status" className="max-w-xs text-center text-xs text-muted-foreground">
-            {TRY_AS_GUEST_NOTICE}
-          </p>
+        <p role="status" className="max-w-xs text-center text-xs text-muted-foreground">
+          {TRY_AS_GUEST_NOTICE}
+        </p>
+      ) : null}
+      {/* Board 02: the guest states stand beside the phone, as a column. They
+          drop under it where there is no room for both. */}
+      <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-start sm:justify-center">
+        {isTrying ? (
           <TryPhone page={page} threshold={preview.privateFeedbackThreshold} />
-        </>
-      ) : (
-        <PreviewPhone scale={PHONE_SCALE} label={`Preview of the guest page: ${caption}`}>
-          <div inert>{page(chosen.state)}</div>
-        </PreviewPhone>
-      )}
-      <PortalPreviewFilmstrip
-        options={options}
-        active={chosen.id}
-        onSelect={onStateChange}
-        renderPage={(state) => page(state)}
-      />
+        ) : (
+          <PreviewPhone
+            scale={PHONE_SCALE}
+            label={`Preview of the guest page: ${caption}`}
+          >
+            <div inert>{page(chosen.state)}</div>
+          </PreviewPhone>
+        )}
+        <PortalPreviewFilmstrip
+          options={options}
+          active={chosen.id}
+          onSelect={(id) => {
+            // Choosing a state is leaving "Try as guest": the phone shows it.
+            onTryChange(false)
+            onStateChange(id)
+          }}
+          renderPage={(state) => page(state)}
+        />
+      </div>
     </div>
   )
 }

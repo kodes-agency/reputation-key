@@ -3,21 +3,29 @@
 //
 // A pure view of its props. It reads no session and calls no server function;
 // with `onAction` (Try as guest) the page answers clicks by moving between the
-// same states locally. The page-level pieces of the real guest page (header,
-// rating card, Linktree, footer) are drawn here from the same shell, glass and
-// copy packs, so the preview and the page share one look.
+// same states locally. The response area is the guest page's own view
+// (`ImmersiveResponseView`), fed a controlled state, so the rating card, the
+// receipt, the Google card and the private note are the ones guests get. The
+// header, the Linktree and the footer are drawn here from the same shell,
+// glass and copy packs until slices 13, 15, 16 and 17 expose theirs.
 
 import { useId } from 'react'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import { ImmersiveShell } from '#/components/features/guest'
+import {
+  ImmersiveResponseView,
+  ImmersiveShell,
+  immersiveResponseProps,
+} from '#/components/features/guest'
 import type { GuestPortalCopyV2 } from '#/components/features/guest'
 import type { PortalPreviewExperience } from '#/contexts/portal/application/public-api'
-import type { PreviewPageState, TryAsGuestAction } from './portal-preview-states'
-import { PreviewAfterRating } from './preview-after-rating'
+import {
+  guestPreviewState,
+  type PreviewPageState,
+  type TryAsGuestAction,
+} from './portal-preview-states'
 import { PreviewFooter } from './preview-footer'
 import { PreviewLinktree } from './preview-linktree'
 import { PreviewPageTop } from './preview-page-top'
-import { PreviewRatingCard } from './preview-rating-card'
 
 export type PreviewGuestPageProps = Readonly<{
   experience: PortalPreviewExperience
@@ -55,27 +63,35 @@ export function PreviewGuestPage({
         locale={locale}
         hasLanguageChip={hasLanguageChip}
       />
-      {state.phase === 'arrival' ? (
-        <PreviewRatingCard
-          copy={copy}
-          locale={locale}
-          displayName={brand.displayName}
-          selected={state.selected}
-          onAction={onAction}
-          idPrefix={idPrefix}
-        />
-      ) : (
-        <PreviewAfterRating
-          copy={copy}
-          displayName={brand.displayName}
-          rating={state.rating}
-          note={state.note}
-          onAction={onAction}
-          idPrefix={idPrefix}
-        />
-      )}
+      <ImmersiveResponseView
+        {...responseProps(state, copy, brand.displayName, onAction)}
+      />
       <PreviewLinktree experience={experience} idPrefix={idPrefix} />
       <PreviewFooter copy={copy} displayName={brand.displayName} />
     </ImmersiveShell>
   )
+}
+
+/**
+ * The response view's props: inert for a picture, and with `onAction` the
+ * answers a guest gives (a rating, a note, Change) move the page locally.
+ */
+function responseProps(
+  state: PreviewPageState,
+  pack: GuestPortalCopyV2,
+  displayName: string,
+  onAction: ((action: TryAsGuestAction) => void) | undefined,
+) {
+  const inert = immersiveResponseProps(guestPreviewState(state), { pack, displayName })
+  if (onAction === undefined) return inert
+  return {
+    ...inert,
+    onSubmitRating: async ({ rating }: { rating: number }) =>
+      onAction({ type: 'rate', rating }),
+    onSubmitNote: async () => {
+      onAction({ type: 'sendNote' })
+      return true
+    },
+    onChangeRating: () => onAction({ type: 'change' }),
+  }
 }

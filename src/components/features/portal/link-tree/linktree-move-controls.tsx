@@ -2,8 +2,10 @@
 // and two buttons that move it one place.
 //
 // Drag and drop is not offered, so the handle is its keyboard stand-in: focus it
-// and press Up or Down, the way a drag handle is driven without a pointer. The
-// buttons do the same for a pointer or a finger. Each control carries
+// and press Up or Down, the way a drag handle is driven without a pointer. It
+// shows no grab cursor, because it cannot be dragged, and it is left out at
+// phone width, where it would only crowd the tile's label: the two buttons do
+// the same for a pointer or a finger and stay. Each control carries
 // `data-link-move`, so the section can put focus back on the control that was
 // used after the list re-orders.
 
@@ -41,7 +43,8 @@ export function LinktreeMoveControls({
         aria-describedby={LINKTREE_MOVE_HINT_ID}
         aria-keyshortcuts="ArrowUp ArrowDown"
         data-link-move={`${linkId}:handle`}
-        className="grid size-7 cursor-grab place-items-center rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        title="Focus, then press Up or Down to move"
+        className="hidden size-7 place-items-center rounded-sm text-muted-foreground outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 sm:grid"
         onKeyDown={(event) => {
           const direction = moveDirectionForKey(event.key)
           if (direction === null) return

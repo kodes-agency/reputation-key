@@ -1,9 +1,16 @@
 // Portal context — read the live preview of a Portal's guest page.
 //
 // Two sources: the draft (what the saved working copy would publish) and live
-// (the verified version guests can open now). Read-only, gated by `portal.read`
-// in the Portal's Property like the other editor reads, and it writes nothing:
-// no session, no rating, no click is recorded for a preview.
+// (the active, verified version). Read-only, gated by `portal.read` in the
+// Portal's Property like the other editor reads, and it writes nothing: no
+// session, no rating, no click is recorded for a preview.
+//
+// Live applies the guest edge's approval cut-off to the addresses, but not its
+// other admission facts (Portal Health, the Property's status, the public-read
+// decision): the page shown is the version guests are served when the Portal
+// is open to them, and says nothing about whether it is open. A snapshot that
+// fails verification when it is read is treated as absent (`not_published`),
+// as the repository returns it.
 
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PropertyFactsPublicApi } from '#/contexts/property/application/public-api'
@@ -11,6 +18,7 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
 import { IMMERSIVE_HUB_SCHEMA_VERSION } from '../../domain/portal-publication-snapshot'
 import { buildPortalLinktreeView } from '../../domain/portal-linktree-view'
+import { APPROVED_DESTINATION_MAX_VALIDATION_AGE_MS } from '../approved-destination-age'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import {
   buildDraftPortalPreview,
@@ -43,11 +51,6 @@ export type GetPortalPreviewDeps = Readonly<{
   clock: () => Date
 }>
 
-// The guest edge stops serving an address whose approval was last validated
-// longer ago than this (two revalidation intervals). The preview applies the
-// same cut-off, so a tile that has lapsed for guests is missing here too.
-const APPROVAL_MAX_VALIDATION_AGE_MS = 30 * 60 * 1_000
-
 export const getPortalPreview =
   (deps: GetPortalPreviewDeps) =>
   async (
@@ -78,7 +81,9 @@ export const getPortalPreview =
               ctx.organizationId,
               portal.propertyId,
               urls,
-              new Date(deps.clock().getTime() - APPROVAL_MAX_VALIDATION_AGE_MS),
+              new Date(
+                deps.clock().getTime() - APPROVED_DESTINATION_MAX_VALIDATION_AGE_MS,
+              ),
             )
       return buildLivePortalPreview({ snapshot, approvedUris: new Set(approved) })
     }

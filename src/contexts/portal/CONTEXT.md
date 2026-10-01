@@ -226,6 +226,21 @@ carries `addressRecoverable` so the page offers the download only when the
 keyring still holds the key that sealed the live code. Without a keyring the
 address is shown once, when a code is made, as before.
 
+`getPortalPreview` is the read behind the editor's live preview (A8): the guest page of one
+Portal, per language, from the saved working copy (`draft`) or the active verified snapshot
+(`live`). It is gated by `portal.read` in the Portal's Property, writes nothing and records
+no session, rating or click. Its DTO carries no destination address at all: a tile whose
+address is not approved is a placeholder (`awaiting_approval` for a pending request,
+`not_approved` for a disabled, quarantined or unreviewed one), and an approved tile is only
+words, an icon and a state. The draft is lenient where publishing is strict: a gap still shows,
+filled the way the builder will fill it (the primary language copied in and tagged, except the
+Linktree title, which reads its pack default per language). Live applies the guest edge's
+approval cut-off (`APPROVED_DESTINATION_MAX_VALIDATION_AGE_MS`, shared with token resolution)
+but not its other admission facts (Portal Health, Property status, the public-read decision),
+and a snapshot that fails verification reads as `not_published`. A live version from the earlier
+page design is `unavailable` (`earlier_design`) until slice 19 makes publishing write the new
+one; the other reasons are `not_published` and `incomplete`.
+
 `getPortalHistory` is the one merged, read-only timeline for a Portal: its
 creation, each publish and restore, each change of health (from
 `portal_health_intervals`), each public-address event and each page edit,

@@ -147,6 +147,40 @@ const experienceOf = (preview: PortalPreview, locale: 'en' | 'bg' | 'de') => {
   return experience
 }
 
+/** `null` is a link with no destination record: one from before approvals existed. */
+function draftWithSpaDestination(
+  approvalState: PortalApprovedDestination['approvalState'] | null,
+): PortalPreview {
+  const portal = buildTestPortal({ name: 'Pool', additionalGuestLocales: [] })
+  const category = buildTestPortalLinkCategory({})
+  const spa = buildTestPortalLink({
+    id: SPA_LINK as never,
+    categoryId: category.id,
+    destinationId: portalApprovedDestinationId(PENDING_ID),
+    url: PENDING_URL,
+    label: 'Spa',
+    sortKey: 'a1',
+  })
+  return buildDraftPortalPreview({
+    portal,
+    linktree: buildPortalLinktreeView({
+      portal,
+      categories: [category],
+      links: [spa],
+      texts: [text(SPA_LINK, 'en', 'Spa & treatments')],
+      titles: [],
+      destinations:
+        approvalState === null
+          ? []
+          : [destination(PENDING_ID, PENDING_URL, approvalState)],
+    }),
+    profile: PROFILE,
+    content: [],
+    overrides: [],
+    timeZone: 'Europe/Sofia',
+  })
+}
+
 describe('buildDraftPortalPreview', () => {
   it('describes the working copy for every language the portal offers', () => {
     const preview = draft()
@@ -277,6 +311,32 @@ describe('buildDraftPortalPreview', () => {
     })
   })
 
+  it('does not copy the primary Linktree title into a language that has none: it reads that language default', () => {
+    const portal = buildTestPortal({
+      name: 'Pool',
+      additionalGuestLocales: ['bg'],
+    })
+    const preview = draft({
+      portal,
+      linktree: buildPortalLinktreeView({
+        portal,
+        categories: [],
+        links: [],
+        texts: [],
+        titles: [{ locale: 'en', linktreeTitle: 'Around the resort' }],
+        destinations: [],
+      }),
+    })
+
+    expect(experienceOf(preview, 'en').content.linktreeTitle.value).toBe(
+      'Around the resort',
+    )
+    expect(experienceOf(preview, 'bg').content.linktreeTitle).toEqual({
+      value: 'Полезни връзки',
+      fallbackFrom: null,
+    })
+  })
+
   it('lists the tiles in guest order with their words in each language', () => {
     const preview = draft()
 
@@ -320,6 +380,20 @@ describe('buildDraftPortalPreview', () => {
 
     expect(waiting?.state).toBe('awaiting_approval')
   })
+
+  it.each([
+    ['pending', 'awaiting_approval'],
+    ['disabled', 'not_approved'],
+    ['quarantined', 'not_approved'],
+    [null, 'not_approved'],
+  ] as const)(
+    'draws an address that is %s as %s: only a pending one is waiting for an approval',
+    (approvalState, expected) => {
+      const preview = draftWithSpaDestination(approvalState)
+
+      expect(experienceOf(preview, 'en').links[0]?.state).toBe(expected)
+    },
+  )
 
   it('never puts an address into the preview, approved or not', () => {
     const json = JSON.stringify(draft())
@@ -434,6 +508,25 @@ describe('buildLivePortalPreview', () => {
     expect(experienceOf(outcome.preview, 'en').brand).toMatchObject({
       hero: null,
       logo: null,
+    })
+  })
+
+  it('says the version is incomplete when an approved tile has no words in a language it offers', () => {
+    const configuration = immersiveConfiguration()
+    const [first, ...rest] = configuration.links
+    if (!first) throw new Error('the fixture has no links')
+    const { bg: _omitted, ...onlyEnglish } = first.texts
+    const broken = immersiveSnapshot({
+      ...configuration,
+      links: [{ ...first, texts: onlyEnglish }, ...rest],
+    })
+
+    expect(
+      buildLivePortalPreview({ snapshot: broken, approvedUris: allApproved }),
+    ).toEqual({
+      status: 'unavailable',
+      source: 'live',
+      reason: 'incomplete',
     })
   })
 

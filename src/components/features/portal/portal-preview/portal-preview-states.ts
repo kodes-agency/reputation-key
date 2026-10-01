@@ -4,20 +4,32 @@
 // manager clicks through the page, and writes nothing anywhere.
 
 import type { PortalPreviewSource } from '#/contexts/portal/application/public-api'
+import type { GuestPagePreviewState } from '#/components/features/guest'
 
-/** Where a guest's private note stands after a rating. */
-export type PreviewNoteState = 'none' | 'offered' | 'writing' | 'sent'
+/**
+ * Where a guest's private note stands after a rating. Opening and writing it
+ * are the note card's own business (the real card is drawn); the preview only
+ * needs to know whether it was offered and whether it was sent.
+ */
+export type PreviewNoteState = 'none' | 'offered' | 'sent'
 
 export type PreviewPageState =
-  /** Before a rating. `selected` is the star chosen but not yet sent. */
-  | Readonly<{ phase: 'arrival'; selected: number | null }>
+  /** Before a rating: the rating card. */
+  | Readonly<{ phase: 'arrival' }>
   /** After a rating was sent: the receipt, the Google card, and maybe the note. */
   | Readonly<{ phase: 'rated'; rating: number; note: PreviewNoteState }>
 
-export const ARRIVAL_STATE: PreviewPageState = Object.freeze({
-  phase: 'arrival',
-  selected: null,
-})
+export const ARRIVAL_STATE: PreviewPageState = Object.freeze({ phase: 'arrival' })
+
+/**
+ * The state the guest page's own preview vocabulary (`previewResponseState`)
+ * draws, so the preview and the page agree on what each state means.
+ */
+export function guestPreviewState(state: PreviewPageState): GuestPagePreviewState {
+  if (state.phase === 'arrival') return { kind: 'arrival' }
+  if (state.note === 'sent') return { kind: 'done', rating: state.rating }
+  return { kind: 'rated', rating: state.rating, noteEligible: state.note === 'offered' }
+}
 
 /** The page after `rating` is sent: the note is offered at or below the threshold. */
 export function ratedState(rating: number, threshold: number): PreviewPageState {
@@ -92,9 +104,8 @@ export function stateCaption(
 }
 
 export type TryAsGuestAction =
-  | Readonly<{ type: 'choose'; rating: number }>
-  | Readonly<{ type: 'send' }>
-  | Readonly<{ type: 'writeNote' }>
+  /** The rating form sent a rating. */
+  | Readonly<{ type: 'rate'; rating: number }>
   | Readonly<{ type: 'sendNote' }>
   | Readonly<{ type: 'change' }>
   | Readonly<{ type: 'restart' }>
@@ -106,24 +117,14 @@ export function tryAsGuestReducer(
   threshold: number,
 ): PreviewPageState {
   switch (action.type) {
-    case 'choose':
-      return { phase: 'arrival', selected: action.rating }
-    case 'send':
-      return state.phase === 'arrival' && state.selected !== null
-        ? ratedState(state.selected, threshold)
-        : state
-    case 'writeNote':
-      return state.phase === 'rated' && state.note === 'offered'
-        ? { ...state, note: 'writing' }
-        : state
+    case 'rate':
+      return ratedState(action.rating, threshold)
     case 'sendNote':
-      return state.phase === 'rated' && state.note === 'writing'
+      return state.phase === 'rated' && state.note === 'offered'
         ? { ...state, note: 'sent' }
         : state
     case 'change':
-      return state.phase === 'rated'
-        ? { phase: 'arrival', selected: state.rating }
-        : state
+      return state.phase === 'rated' ? ARRIVAL_STATE : state
     case 'restart':
       return ARRIVAL_STATE
   }

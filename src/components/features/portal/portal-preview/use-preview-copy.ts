@@ -6,7 +6,12 @@ import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { loadGuestPortalCopyV2 } from '#/components/features/guest'
 
-/** What a language with no reviewed pack yet reads in, as its guests do. */
+/**
+ * What the preview prints a language's fixed text in when that language has no
+ * reviewed pack yet. A page in such a language cannot be published in the new
+ * design, so no guest reads this: it only keeps the draft drawable, and the
+ * stage says so.
+ */
 const FALLBACK_COPY_LOCALE: GuestLocale = 'en'
 
 async function loadCopy(locale: GuestLocale) {
@@ -23,5 +28,6 @@ export function usePreviewCopy(locale: GuestLocale) {
     queryFn: () => loadCopy(locale),
     staleTime: Infinity,
     gcTime: Infinity,
+    retry: 1,
   })
 }

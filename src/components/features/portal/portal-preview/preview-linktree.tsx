@@ -12,6 +12,7 @@ import type {
   PortalPreviewLink,
 } from '#/contexts/portal/application/public-api'
 import { LINK_ICONS, linkIconKeyOrDefault } from '../link-tree/link-icons'
+import { TILE_PLACEHOLDER_NOTE } from './portal-preview-rules'
 import { previewStyles as styles } from './preview-page-styles'
 
 type Props = Readonly<{
@@ -44,7 +45,7 @@ export function PreviewLinktree({ experience, idPrefix }: Props) {
 
 function PreviewTile({ link }: Readonly<{ link: PortalPreviewLink }>) {
   const Icon = LINK_ICONS[linkIconKeyOrDefault(link.iconKey)]
-  const isWaiting = link.state === 'awaiting_approval'
+  const isWaiting = link.state !== 'ready'
   const label = link.label === '' ? 'Untitled link' : link.label
   const fallbackLang = link.fallbackFrom ?? undefined
   return (
@@ -61,7 +62,7 @@ function PreviewTile({ link }: Readonly<{ link: PortalPreviewLink }>) {
         {label}
       </span>
       {isWaiting ? (
-        <span style={styles.tileWaitingNote}>Waiting for approval</span>
+        <span style={styles.tileWaitingNote}>{TILE_PLACEHOLDER_NOTE[link.state]}</span>
       ) : link.line === null ? null : (
         <span style={styles.tileLine} lang={fallbackLang}>
           {link.line}

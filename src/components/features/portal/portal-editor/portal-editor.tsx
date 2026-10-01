@@ -88,7 +88,7 @@ export function PortalEditor({
         </div>
         <aside
           aria-label="Live preview"
-          className="border-t bg-muted/20 px-4 py-5 md:px-8 xl:sticky xl:top-0 xl:w-[28rem] xl:shrink-0 xl:self-start xl:border-t-0 xl:border-l xl:px-6"
+          className="border-t bg-muted/20 px-4 py-5 md:px-8 xl:sticky xl:top-0 xl:max-h-dvh xl:w-[30rem] xl:shrink-0 xl:self-start xl:overflow-y-auto xl:border-t-0 xl:border-l xl:px-6"
         >
           <PortalPreviewPane
             portalId={portal.id}

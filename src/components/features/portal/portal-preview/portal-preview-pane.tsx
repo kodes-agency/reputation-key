@@ -77,8 +77,13 @@ export function PortalPreviewPane({ portalId, getPortalPreview }: Props) {
         onTryChange={setIsTrying}
         canTry={experience !== undefined && copy.data !== undefined}
       />
-      {isError ? (
-        <PreviewFailure onRetry={() => void refetch()} />
+      {isError || copy.isError ? (
+        <PreviewFailure
+          onRetry={() => {
+            if (isError) void refetch()
+            if (copy.isError) void copy.refetch()
+          }}
+        />
       ) : isPending || (preview !== null && copy.data === undefined) ? (
         <PreviewSkeleton />
       ) : data?.status === 'unavailable' ? (
@@ -92,6 +97,7 @@ export function PortalPreviewPane({ portalId, getPortalPreview }: Props) {
           stateId={stateId}
           onStateChange={setStateId}
           isTrying={isTrying}
+          onTryChange={setIsTrying}
         />
       ) : null}
     </section>

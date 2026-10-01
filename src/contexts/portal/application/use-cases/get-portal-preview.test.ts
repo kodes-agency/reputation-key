@@ -20,6 +20,7 @@ import {
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalApprovedDestination } from '../../domain/approved-destination'
 import type { PortalPublicationSnapshot } from '../../domain/portal-publication-snapshot'
+import { APPROVED_DESTINATION_MAX_VALIDATION_AGE_MS } from '../approved-destination-age'
 import type { PortalExperienceRepository } from '../ports/portal-experience.repository'
 import { immersiveSnapshot } from '../__fixtures__/immersive-snapshot'
 
@@ -98,6 +99,7 @@ function setup(options: Options = {}) {
     }),
   ])
   const queried: string[][] = []
+  const validatedAfter: Date[] = []
   const useCase = getPortalPreview({
     portalRepo,
     portalLinkRepo,
@@ -127,8 +129,9 @@ function setup(options: Options = {}) {
         destination(APPROVED_ID, APPROVED_URL, 'approved'),
         destination(PENDING_ID, PENDING_URL, 'pending'),
       ],
-      listApprovedUris: async (_org, _property, uris) => {
+      listApprovedUris: async (_org, _property, uris, after) => {
         queried.push([...uris])
+        validatedAfter.push(after)
         return uris.filter((uri) => (options.approvedUris ?? []).includes(uri))
       },
     },
@@ -140,7 +143,7 @@ function setup(options: Options = {}) {
     staffPublicApi: staffApi(options.accessible ?? null),
     clock: () => AT,
   })
-  return { useCase, queried }
+  return { useCase, queried, validatedAfter }
 }
 
 const manager = () => buildTestAuthContext({ role: 'PropertyManager' })
@@ -221,6 +224,17 @@ describe('getPortalPreview (live)', () => {
     expect(queried).toEqual([published])
     if (outcome.status !== 'ready') throw new Error('expected a preview')
     expect(outcome.preview.experiences.en?.links).toHaveLength(1)
+  })
+
+  it('applies the guest edge approval cut-off to the addresses', async () => {
+    const { useCase, validatedAfter } = setup({ active: live(), approvedUris: published })
+
+    await useCase({ portalId: PORTAL, source: 'live' }, manager())
+
+    expect(validatedAfter).toEqual([
+      new Date(AT.getTime() - APPROVED_DESTINATION_MAX_VALIDATION_AGE_MS),
+    ])
+    expect(APPROVED_DESTINATION_MAX_VALIDATION_AGE_MS).toBe(30 * 60 * 1_000)
   })
 
   it('says so when nothing is published', async () => {

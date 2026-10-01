@@ -7,12 +7,17 @@
 //  - It carries no address. The guest page never sees a destination (a tap goes
 //    through the tracked click endpoint by link id), and a preview that listed
 //    one would leak an address nobody has approved. A tile whose address is not
-//    approved is therefore a placeholder (`awaiting_approval`): it keeps its
-//    words so the manager can tell which tile it is, and nothing else.
+//    approved is therefore a placeholder (`awaiting_approval` or
+//    `not_approved`): it keeps its words so the manager can tell which tile it
+//    is, and nothing else.
 //  - It is lenient where publishing is strict. A draft with a gap still shows,
-//    filled the way publishing will fill it (the primary language copied in,
-//    tagged with `fallbackFrom`), so a manager sees what a guest in that
-//    language would read. Whether the gap blocks publishing is Review's job.
+//    filled the way publishing will fill it, so a manager sees what a guest in
+//    that language would read. Whether the gap blocks publishing is Review's
+//    job. The rule is per field. Wording a Property wrote (title, short
+//    description, photo description) and a tile's words copy the primary
+//    language in, tagged with `fallbackFrom`. The Linktree title does not: it
+//    is one title per language with a "Use default" reset, so a language with
+//    none reads its language pack's default, never another language's title.
 
 import { deriveFieldColour } from '#/shared/domain/portal-field-colour'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
@@ -21,7 +26,10 @@ import {
   type PortalPublicationSnapshot,
 } from '../domain/portal-publication-snapshot'
 import { linktreeDefaultTitle } from '../domain/portal-linktree'
-import type { PortalLinktreeView } from '../domain/portal-linktree-view'
+import type {
+  PortalLinktreeDestinationState,
+  PortalLinktreeView,
+} from '../domain/portal-linktree-view'
 import type { Portal } from '../domain/types'
 import { presentImmersivePortal } from './public-portal-immersive'
 import type { PublicImmersiveExperience, PublicPortalText } from './public-api'
@@ -30,11 +38,18 @@ export const PORTAL_PREVIEW_SOURCES = Object.freeze(['draft', 'live'] as const)
 export type PortalPreviewSource = (typeof PORTAL_PREVIEW_SOURCES)[number]
 
 /**
- * `ready` is a tile guests would open. `awaiting_approval` is a draft tile
- * whose address no account admin has approved: publishing leaves it out, so
- * the preview draws a placeholder.
+ * `ready` is a tile guests would open. The other two are draft tiles whose
+ * address is not approved: publishing leaves them out, so the preview draws a
+ * placeholder. `awaiting_approval` is a request an account admin has yet to
+ * answer; `not_approved` is an address an admin disabled, or a legacy one that
+ * was never reviewed, which is not waiting for anything.
  */
-export type PortalPreviewLinkState = 'ready' | 'awaiting_approval'
+export type PortalPreviewLinkState = 'ready' | 'awaiting_approval' | 'not_approved'
+
+function linkStateOf(approval: PortalLinktreeDestinationState): PortalPreviewLinkState {
+  if (approval === 'approved') return 'ready'
+  return approval === 'pending' ? 'awaiting_approval' : 'not_approved'
+}
 
 export type PortalPreviewLink = Readonly<{
   id: string
@@ -245,7 +260,7 @@ function linksOf(
     const used = written ?? copied
     return {
       id: link.id,
-      state: link.destination.state === 'approved' ? 'ready' : 'awaiting_approval',
+      state: linkStateOf(link.destination.state),
       iconKey: link.iconKey,
       // Tile photos need uploads, which are not live yet.
       imageUrl: null,
