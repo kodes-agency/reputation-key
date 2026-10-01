@@ -288,6 +288,12 @@
       "policy": "Seeded once from the baseline's responsible properties (those whose Responsible managers already include the member, read per property by the route) when the form mounts. It has the same per-open, per-member mount boundary as the selected properties, a failed refetch later never rewrites the baseline it is measured against, and only a change against the baseline is sent to each property's Responsible managers command."
     },
     {
+      "id": "src/components/features/identity/login/login-form.tsx:useState(attempt)",
+      "classification": "local_runtime",
+      "owner": "Login unverified-email notice",
+      "policy": "The sign-in attempt just made (a counter and the address typed), written from the form's own submit handler. Its id keys the unverified-email notice so each attempt starts a fresh one. It is not server state, and nothing copies a server value into it."
+    },
+    {
       "id": "src/components/features/identity/profile-settings-form.tsx:useState(avatarUrl)",
       "classification": "server_snapshot",
       "owner": "Profile avatar editor",
