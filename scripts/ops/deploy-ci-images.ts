@@ -702,6 +702,7 @@ export async function verifyClosedBetaStorageCors(
 ): Promise<boolean> {
   try {
     // Loaded here: storage-cors reads this module's service table.
+    // fallow-ignore-next-line circular-dependency
     const { runStorageCors } = await import('./storage-cors')
     return await runStorageCors({ apply, out })
   } catch (error) {

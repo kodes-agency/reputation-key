@@ -29,6 +29,7 @@ import {
   railwayTargetArgs,
   type CommandRunner,
 } from './deploy-ci-images'
+import { readRailwayVariables } from './railway-variables'
 
 export type CorsRule = Readonly<{
   AllowedOrigins: readonly string[]
@@ -153,24 +154,7 @@ export function readStorageCorsConfig(
   runner: CommandRunner,
   targetArgs: readonly string[],
 ): StorageCorsConfig {
-  const args = ['variable', 'list', ...targetArgs, '--kv']
-  const listed = runner('railway', args)
-  if (listed.status !== 0) {
-    // stderr only: stdout of a variable listing holds secrets.
-    throw new Error(
-      `railway ${args.join(' ')} failed: ${listed.stderr.trim() || 'no diagnostic output'}`,
-    )
-  }
-  const values = new Map<string, string>()
-  for (const line of listed.stdout.split('\n')) {
-    const separator = line.indexOf('=')
-    if (separator > 0)
-      values.set(line.slice(0, separator), line.slice(separator + 1).trim())
-  }
-  const missing = REQUIRED_VARIABLES.filter((name) => !values.get(name))
-  if (missing.length > 0) {
-    throw new Error(`the web service is missing ${missing.join(', ')}`)
-  }
+  const values = readRailwayVariables(runner, targetArgs, REQUIRED_VARIABLES)
   return {
     accessKey: values.get('AWS_S3_ACCESS_KEY')!,
     secretKey: values.get('AWS_S3_SECRET_ACCESS_KEY')!,
