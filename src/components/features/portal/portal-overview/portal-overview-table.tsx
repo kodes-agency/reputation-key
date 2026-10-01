@@ -1,3 +1,5 @@
+// fallow-ignore-file code-duplication
+// r4 s38: the Property table and the All properties table share their container and table shell.
 // The Portals overview as one table with one `<tbody>` per group. Below a 56 rem
 // container each row is a card and the header row is not shown; from 56 rem it
 // is a table (see `portal-overview-table-row.tsx`). Groups fold away; the fold is the
