@@ -11,7 +11,11 @@ import { enV2 } from '../language-packs/en-v2'
 import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
 import { loadGuestPortalCopyV2 } from '../language-packs/load-guest-copy-v2'
 import { guestCopyText } from '../guest-copy-format'
-import { ImmersiveFooterView, type ImmersiveFooterViewProps } from './immersive-footer'
+import {
+  ImmersiveFooterView,
+  InertImmersiveFooterView,
+  type ImmersiveFooterViewProps,
+} from './immersive-footer'
 import { immersiveFooterCopy } from './immersive-footer-copy'
 import { IMMERSIVE_FOOTER_CSS } from './immersive-footer-styles'
 
@@ -31,6 +35,8 @@ function render(props: Partial<ImmersiveFooterViewProps> = {}, pack = enV2) {
     }),
   )
 }
+
+const withoutStyle = (html: string) => html.replace(/<style[\s\S]*?<\/style>/gu, '')
 
 /** Visible text of the markup, tags and the hoisted stylesheet removed. */
 const textOf = (html: string) =>
@@ -163,5 +169,42 @@ describe('the footer stylesheet', () => {
 
   it('answers reduced motion wherever it moves anything', () => {
     expect(IMMERSIVE_FOOTER_CSS).toMatch(/prefers-reduced-motion:\s*reduce/u)
+  })
+})
+
+describe('InertImmersiveFooterView (the admin preview)', () => {
+  const inert = (props: Partial<Omit<ImmersiveFooterViewProps, 'onAcknowledge'>> = {}) =>
+    renderToStaticMarkup(
+      createElement(InertImmersiveFooterView, {
+        copy: immersiveFooterCopy(enV2, NAME),
+        isNoticeVisible: true,
+        ...props,
+      }),
+    )
+
+  it('draws the full notice, the privacy link and "Got it" as the guest reads them', () => {
+    const text = textOf(inert()).join(' ')
+    expect(text).toContain('An essential session cookie protects your response.')
+    expect(text).toContain('Privacy notice')
+    expect(text).toContain('Got it')
+  })
+
+  it('goes nowhere: no address, no button, nothing to acknowledge', () => {
+    const html = withoutStyle(inert())
+    expect(html).not.toContain('href=')
+    expect(html).not.toContain('<button')
+    expect(html).toContain('ih-footer__ack--inert')
+  })
+
+  it('draws the acknowledged row the same way', () => {
+    const html = withoutStyle(inert({ isNoticeVisible: false }))
+    expect(textOf(html)).toEqual(['Privacy notice', 'Made with Reputation Key'])
+    expect(html).not.toContain('href=')
+  })
+
+  it('drops the pointer and the hover of the acknowledge pill', () => {
+    expect(IMMERSIVE_FOOTER_CSS).toMatch(
+      /\.ih-footer__ack--inert\s*\{[^}]*cursor:\s*default/u,
+    )
   })
 })
