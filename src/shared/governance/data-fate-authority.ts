@@ -498,7 +498,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   }),
   ...rows({
     schemaFile: 'portal.schema.ts',
-    exportNames: ['portalHealthIntervals'],
+    exportNames: ['portalAddressDownloads', 'portalHealthIntervals'],
     owner: 'portal',
     disposition: 'recoverable_archive',
     authority: 'POR-01',

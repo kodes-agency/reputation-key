@@ -15,6 +15,7 @@ export type PortalEditorResources = Omit<
   | 'issueTokenMutation'
   | 'rotateTokenMutation'
   | 'revokeTokenMutation'
+  | 'revealAddressMutation'
   | 'tokenStatus'
   | 'getPortalAnalytics'
 >

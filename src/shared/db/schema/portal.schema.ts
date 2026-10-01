@@ -397,6 +397,8 @@ export const portalTokens = pgTable(
     tokenKeyVersion: integer('token_key_version').notNull().default(1),
     encryptedRawToken: text('encrypted_raw_token'),
     addressEncryptionKeyVersion: integer('address_encryption_key_version'),
+    // Who made this code. Null for codes made before slice 33 of round 4.
+    issuedBy: varchar('issued_by', { length: 255 }),
     version: integer('version').notNull(),
     printBatch: varchar('print_batch', { length: 100 }),
     status: varchar('status', { length: 20 }).notNull().default('active'),
@@ -444,6 +446,51 @@ export const portalTokens = pgTable(
     check(
       'portal_tokens_encrypted_address_pair_valid',
       sql`(${t.encryptedRawToken} IS NULL) = (${t.addressEncryptionKeyVersion} IS NULL)`,
+    ),
+    // A replaced or stopped code keeps no readable address (ADR 0064).
+    check(
+      'portal_tokens_sealed_address_active_only',
+      sql`${t.encryptedRawToken} IS NULL OR ${t.status} = 'active'`,
+    ),
+  ],
+)
+
+// One row per time a manager was handed an existing address: the download of
+// the code as a file, or a copy of its address. Written before the address is
+// decrypted, so a disclosure never happens without its row. Identifiers and an
+// enum only; the address itself is never here (ADR 0064).
+export const portalAddressDownloads = pgTable(
+  // fallow-ignore-next-line code-duplication
+  'portal_address_downloads',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    portalId: uuid('portal_id').notNull(),
+    portalTokenId: uuid('portal_token_id').notNull(),
+    downloadedBy: varchar('downloaded_by', { length: 255 }).notNull(),
+    purpose: varchar('purpose', { length: 16 }).notNull(),
+    downloadedAt: timestamp('downloaded_at', { withTimezone: true }).notNull(),
+  },
+  (t) => [
+    index('portal_address_downloads_portal_idx').on(
+      t.organizationId,
+      t.portalId,
+      t.downloadedAt,
+    ),
+    foreignKey({
+      name: 'portal_address_downloads_token_scope_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId, t.portalTokenId],
+      foreignColumns: [
+        portalTokens.organizationId,
+        portalTokens.propertyId,
+        portalTokens.portalId,
+        portalTokens.id,
+      ],
+    }).onDelete('cascade'),
+    check(
+      'portal_address_downloads_purpose_valid',
+      sql`${t.purpose} IN ('download', 'copy', 'show')`,
     ),
   ],
 )

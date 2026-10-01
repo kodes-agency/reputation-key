@@ -5,6 +5,8 @@ import type { PortalCommandStore } from '#/contexts/portal/application/ports/por
 import type { InMemoryPortalRepo } from './in-memory-portal-repo'
 import type { PortalRepository } from '#/contexts/portal/application/ports/portal.repository'
 import type { PortalTokenRepository } from '#/contexts/portal/application/ports/portal-token.repository'
+import type { SealedPortalAddress } from '#/contexts/portal/application/ports/portal-address-cipher.port'
+import type { InMemoryPortalAddressRepo } from './in-memory-portal-address-repo'
 import type { PortalGroupRepository } from '#/contexts/portal/application/ports/portal-group.repository'
 import type { PortalLinkRepository } from '#/contexts/portal/application/ports/portal-link.repository'
 import type { InMemoryPortalLinkRepo } from './in-memory-portal-link-repo'
@@ -23,6 +25,8 @@ export function createInMemoryPortalCommandStore(deps: {
   portalRepo: PortalRepository
   outbox?: RecordedOutbox
   portalTokenRepo?: PortalTokenRepository
+  /** Where sealed addresses live; absent means the store keeps none. */
+  portalAddressRepo?: InMemoryPortalAddressRepo
   portalGroupRepo?: PortalGroupRepository
   portalLinkRepo?: PortalLinkRepository
   /** Receives the Portal Group history entries the real store writes in its transactions. */
@@ -67,6 +71,31 @@ export function createInMemoryPortalCommandStore(deps: {
     if (requested.some((locale) => !offered.includes(locale))) {
       throw portalError('locale_not_offered', 'This Portal does not offer that language')
     }
+  }
+  /** The sealed address of a code just made, in the shape the reveal read returns. */
+  const storeSealedAddress = (
+    command: Readonly<{
+      organizationId: string
+      portalId: string
+      propertyId: string
+      sealedAddress: SealedPortalAddress | null
+      accessArtifacts: readonly [
+        { id: string; channel: string },
+        { id: string; channel: string },
+      ]
+    }>,
+    token: Readonly<{ id: string; version: number; issuedAt: Date }>,
+  ) => {
+    if (!deps.portalAddressRepo || command.sealedAddress === null) return
+    const [qr, nfc] = command.accessArtifacts
+    deps.portalAddressRepo.store(command, {
+      tokenId: token.id,
+      propertyId: command.propertyId,
+      version: token.version,
+      issuedAt: token.issuedAt,
+      sealed: command.sealedAddress,
+      accessArtifactIds: { qr: qr.id, nfc: nfc.id },
+    })
   }
   const fencePortal = async (
     organizationId: Parameters<InMemoryPortalRepo['findById']>[0],
@@ -132,6 +161,7 @@ export function createInMemoryPortalCommandStore(deps: {
           reason: command.reason,
           at: command.occurredAt,
         })) ?? 0
+      deps.portalAddressRepo?.clear(command)
       await outbox.record(command.event)
       if (revoked > 0) await outbox.record(command.tokenRevokedEvent)
       return { revoked }
@@ -539,6 +569,7 @@ export function createInMemoryPortalCommandStore(deps: {
         command.revision,
       )
       await deps.portalTokenRepo.insert(command.token)
+      storeSealedAddress(command, command.token)
       await outbox.record(command.event)
       for (const event of command.accessArtifactEvents) await outbox.record(event)
     },
@@ -556,6 +587,8 @@ export function createInMemoryPortalCommandStore(deps: {
         oldToken: command.oldToken,
         newToken: command.newToken,
       })
+      deps.portalAddressRepo?.clear(command)
+      storeSealedAddress(command, command.newToken)
       await outbox.record(command.event)
       for (const event of command.accessArtifactEvents) await outbox.record(event)
     },
@@ -570,6 +603,7 @@ export function createInMemoryPortalCommandStore(deps: {
         reason: command.reason,
         at: command.occurredAt,
       })
+      deps.portalAddressRepo?.clear(command)
       if (revoked > 0) {
         await mutablePortalRepo.update(command.organizationId, command.portalId, {
           updatedAt: command.revision,

@@ -17,6 +17,7 @@ const DIGEST = 'a'.repeat(64)
 
 // Deleted innermost-first; every Portal foreign key is ON DELETE RESTRICT.
 const CHILD_TABLES = [
+  'portal_address_downloads',
   'portal_access_artifacts',
   'portal_tokens',
   'portal_pending_content_changes',
@@ -275,6 +276,13 @@ async function seedFixture(): Promise<Fixture> {
       fixture.tokenId,
     ],
   )
+  await q(
+    `INSERT INTO portal_address_downloads (
+       id, organization_id, property_id, portal_id, portal_token_id, downloaded_by,
+       purpose, downloaded_at
+     ) VALUES ($1, $2, $3, $4, $5, 'user-exporter', 'download', now())`,
+    [randomUUID(), organizationId, fixture.propertyId, fixture.portalId, fixture.tokenId],
+  )
   return fixture
 }
 
@@ -349,6 +357,7 @@ describe.sequential('Portal Organization Export contributor', () => {
       'pendingContentChanges',
       'responsibleManagers',
       'accessArtifacts',
+      'addressDownloads',
       'healthIntervals',
     ]) {
       expect(payload[collection], collection).toHaveLength(1)
@@ -405,6 +414,12 @@ describe.sequential('Portal Organization Export contributor', () => {
       status: 'published',
     })
     expect(payload.accessArtifacts?.[0]).not.toHaveProperty('portal_token_id')
+    expect(payload.addressDownloads?.[0]).toMatchObject({
+      portal_id: fixture.portalId,
+      downloaded_by: 'user-exporter',
+      purpose: 'download',
+    })
+    expect(payload.addressDownloads?.[0]).not.toHaveProperty('portal_token_id')
 
     const archiveText = first.entries
       .map(({ bytes }) => Buffer.from(bytes).toString('utf8'))

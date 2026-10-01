@@ -50,6 +50,7 @@ function PortalWorkspaceEditor() {
       issueTokenMutation={actions.issueToken}
       rotateTokenMutation={actions.rotateToken}
       revokeTokenMutation={actions.revokeToken}
+      revealAddressMutation={actions.revealAddress}
       getPortalAnalytics={getPortalAnalyticsFn}
       completeReviewMutation={actions.completeReview}
       responsibleManagers={data.responsibleManagers}

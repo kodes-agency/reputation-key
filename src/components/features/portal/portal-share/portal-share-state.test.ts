@@ -24,6 +24,7 @@ const NO_TOKEN: PortalTokenStatus = {
   version: null,
   issuedAt: null,
   graceExpiresAt: null,
+  addressRecoverable: false,
 }
 
 const LIVE_TOKEN: PortalTokenStatus = {
@@ -32,6 +33,7 @@ const LIVE_TOKEN: PortalTokenStatus = {
   version: 3,
   issuedAt: '2026-01-04T12:00:00Z',
   graceExpiresAt: null,
+  addressRecoverable: false,
 }
 
 /** In-session URL: returned by issue/rotate, gone after a reload. */

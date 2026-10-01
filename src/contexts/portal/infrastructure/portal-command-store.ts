@@ -44,6 +44,7 @@ import { createPortalGroupCommands } from './portal-group-commands'
 import { createPortalLinkCommands } from './portal-link-commands'
 import { assertLocaleSetFact, watchPrimaryLocaleChange } from './portal-locale-set'
 import { createPortalTokenCommands } from './portal-token-commands'
+import { NO_SEALED_ADDRESS } from './portal-sealed-address-columns'
 
 type PortalSetValues = {
   name?: string
@@ -848,6 +849,7 @@ export const createAtomicPortalCommandStore = (db: Database): PortalCommandStore
             'Portal changed while the delete was being committed',
           )
 
+          // fallow-ignore-next-line code-duplication
           const revokedRows = await tx
             .update(portalTokens)
             .set({
@@ -857,6 +859,7 @@ export const createAtomicPortalCommandStore = (db: Database): PortalCommandStore
               revokedBy: unbrand(command.revokedBy),
               revokedReason: command.reason.trim(),
               gracePeriodEnds: null,
+              ...NO_SEALED_ADDRESS,
             })
             .where(
               and(

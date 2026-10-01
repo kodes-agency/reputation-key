@@ -14,6 +14,12 @@ export type ResolvablePortalTokenSummary = Readonly<{
   gracePeriodEnds: Date | null
   /** Exact current address has a published QR/NFC marker eligible for scan goals. */
   hasPublishedAccessArtifact: boolean
+  /**
+   * The key version that sealed this code's address, or null when it holds none
+   * (a code made before the keyring, or with no keyring configured). A version
+   * only: the ciphertext never leaves `PortalAddressRepository`.
+   */
+  addressKeyVersion: number | null
 }>
 
 export type PortalAccessArtifactReadinessGap = Readonly<{

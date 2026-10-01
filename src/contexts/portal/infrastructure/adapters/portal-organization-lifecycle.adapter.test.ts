@@ -44,6 +44,13 @@ describe('Portal Organization lifecycle contributor', () => {
     )
   })
 
+  it('deletes address downloads before the tokens they point at', () => {
+    expect(PORTAL_PURGE_PLAN).toContain('portal_address_downloads')
+    expect(PORTAL_PURGE_PLAN.indexOf('portal_address_downloads')).toBeLessThan(
+      PORTAL_PURGE_PLAN.indexOf('portal_tokens'),
+    )
+  })
+
   it('keeps the dark Portal upload capability dark', () => {
     // Portal upload has no public issuance surface. A lifecycle contributor
     // must not be the thing that makes a dark capability reachable, so the

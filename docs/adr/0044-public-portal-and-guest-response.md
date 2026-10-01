@@ -48,3 +48,13 @@ Review destination visibility, ordering, wording, and prominence are **invariant
 
 - **Client-side session** — guest can rotate identity and evade per-session controls; cookie is not trustworthy.
 - **Rating-conditioned review link visibility** — prohibited review gating.
+
+## Amendment 2026-10-01 — sealed address (ADR 0064)
+
+"Token and session" decision 1 ("store a keyed hash, not the raw token") is
+amended by [ADR 0064](0064-sealed-portal-address-and-download-again.md). Public
+resolution still reads only the keyed hash. When a keyring is configured, the
+raw address of an active code is also stored sealed (AES-256-GCM, bound to its
+tenant, Portal, token and version) so a manager can download the code again;
+every disclosure is recorded before it happens, and no other path reads the
+sealed copy. Without a keyring this ADR's behaviour is unchanged.

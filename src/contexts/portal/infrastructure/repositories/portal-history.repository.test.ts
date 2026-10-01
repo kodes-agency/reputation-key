@@ -19,6 +19,7 @@ const { getPool } = setupIntegrationDb({
   orgA: ORG,
   orgB: OTHER_ORG,
   tables: [
+    'portal_address_downloads',
     'portal_health_intervals',
     'portal_publication_activations',
     'portal_publication_snapshots',
@@ -33,6 +34,8 @@ const activationId = (n: number) =>
   `c5c00000-0000-4000-8000-0000000000${String(n).padStart(2, '0')}`
 const tokenId = (n: number) =>
   `c5d00000-0000-4000-8000-0000000000${String(n).padStart(2, '0')}`
+const downloadId = (n: number) =>
+  `c5a10000-0000-4000-8000-0000000000${String(n).padStart(2, '0')}`
 const healthId = (n: number) =>
   `c5e00000-0000-4000-8000-0000000000${String(n).padStart(2, '0')}`
 
@@ -121,6 +124,7 @@ async function seedToken(
     issuedAt: Date
     revokedAt?: Date
     revokedBy?: string
+    issuedBy?: string
     reason?: string
     graceEnds?: Date
   }>,
@@ -129,8 +133,8 @@ async function seedToken(
     `INSERT INTO portal_tokens
        (id, organization_id, property_id, portal_id, token_identifier, token_hash,
         token_key_version, version, status, issued_at, grace_period_ends,
-        revoked_at, revoked_by, revoked_reason, retired_at)
-     VALUES ($1, $2, $3, $4, $5, $6, 1, $7, $8, $9, $10, $11, $12, $13, $11)`,
+        revoked_at, revoked_by, revoked_reason, retired_at, issued_by)
+     VALUES ($1, $2, $3, $4, $5, $6, 1, $7, $8, $9, $10, $11, $12, $13, $11, $14)`,
     [
       tokenId(n),
       input.org,
@@ -145,6 +149,37 @@ async function seedToken(
       input.revokedAt ?? null,
       input.revokedBy ?? null,
       input.reason ?? null,
+      input.issuedBy ?? null,
+    ],
+  )
+}
+
+async function seedDownload(
+  n: number,
+  input: Readonly<{
+    org: string
+    property: string
+    portal: string
+    token: number
+    by: string
+    purpose?: 'download' | 'copy' | 'show'
+    when: Date
+  }>,
+) {
+  await getPool().query(
+    `INSERT INTO portal_address_downloads
+       (id, organization_id, property_id, portal_id, portal_token_id, downloaded_by,
+        purpose, downloaded_at)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+    [
+      downloadId(n),
+      input.org,
+      input.property,
+      input.portal,
+      tokenId(input.token),
+      input.by,
+      input.purpose ?? 'download',
+      input.when,
     ],
   )
 }
@@ -266,6 +301,7 @@ describe.sequential('Portal history repository (real PostgreSQL)', () => {
       version: 1,
       issuedAt: at(5),
       graceEnds: at(9_000),
+      issuedBy: 'elena',
     })
     await seedToken(2, {
       org: ORG,
@@ -293,10 +329,106 @@ describe.sequential('Portal history repository (real PostgreSQL)', () => {
         tokenId: tokenId(2),
         version: 2,
         issuedAt: at(50),
+        issuedBy: null,
         predecessor: { revokedAt: null, gracePeriodEnds: at(9_000) },
       },
-      { tokenId: tokenId(1), version: 1, issuedAt: at(5), predecessor: null },
+      {
+        tokenId: tokenId(1),
+        version: 1,
+        issuedAt: at(5),
+        issuedBy: 'elena',
+        predecessor: null,
+      },
     ])
+  })
+
+  it('lists downloads newest first with the code version, for one portal only, and pages ties', async () => {
+    await seedToken(1, {
+      org: ORG,
+      property: PROPERTY,
+      portal: PORTAL,
+      version: 1,
+      issuedAt: at(5),
+    })
+    await seedToken(2, {
+      org: OTHER_ORG,
+      property: OTHER_PROPERTY,
+      portal: OTHER_PORTAL,
+      version: 1,
+      issuedAt: at(5),
+    })
+    const base = { org: ORG, property: PROPERTY, portal: PORTAL, token: 1 }
+    await seedDownload(1, { ...base, by: 'elena', when: at(10) })
+    await seedDownload(2, { ...base, by: 'georgi', purpose: 'copy', when: at(20) })
+    await seedDownload(3, { ...base, by: 'georgi', when: at(20) })
+    await seedDownload(5, { ...base, by: 'elena', purpose: 'show', when: at(15) })
+    await seedDownload(4, {
+      org: OTHER_ORG,
+      property: OTHER_PROPERTY,
+      portal: OTHER_PORTAL,
+      token: 2,
+      by: 'stranger',
+      when: at(30),
+    })
+    const repo = createPortalHistoryRepository(getDb())
+
+    const all = await repo.listCodeDownloads(ORG, PROPERTY, PORTAL, {
+      bound: null,
+      limit: 10,
+    })
+    expect(all).toEqual([
+      {
+        downloadId: downloadId(3),
+        version: 1,
+        downloadedBy: 'georgi',
+        purpose: 'download',
+        downloadedAt: at(20),
+      },
+      {
+        downloadId: downloadId(2),
+        version: 1,
+        downloadedBy: 'georgi',
+        purpose: 'copy',
+        downloadedAt: at(20),
+      },
+      {
+        downloadId: downloadId(5),
+        version: 1,
+        downloadedBy: 'elena',
+        purpose: 'show',
+        downloadedAt: at(15),
+      },
+      {
+        downloadId: downloadId(1),
+        version: 1,
+        downloadedBy: 'elena',
+        purpose: 'download',
+        downloadedAt: at(10),
+      },
+    ])
+
+    const seen: string[] = []
+    let key: string | null = null
+    for (let guard = 0; guard < 6; guard += 1) {
+      const row: { downloadId: string; downloadedAt: Date } | undefined = (
+        await repo.listCodeDownloads(ORG, PROPERTY, PORTAL, {
+          bound:
+            key === null
+              ? null
+              : historyBoundFor(HISTORY_KEY_PREFIX.codeDownloaded, {
+                  at: all.find(
+                    (r) => `${HISTORY_KEY_PREFIX.codeDownloaded}${r.downloadId}` === key,
+                  )!.downloadedAt,
+                  key,
+                }),
+          limit: 1,
+        })
+      )[0]
+      if (!row) break
+      seen.push(row.downloadId)
+      key = `${HISTORY_KEY_PREFIX.codeDownloaded}${row.downloadId}`
+    }
+    expect(seen).toEqual([3, 2, 5, 1].map(downloadId))
   })
 
   it('folds one "turn off all codes" act into a single revocation', async () => {

@@ -6,6 +6,7 @@ import {
   disablePortalApprovedDestination,
   issuePortalToken,
   requestPortalApprovedDestination,
+  revealPortalAddress,
   revokePortalTokens,
   rotatePortalToken,
   savePortalLocalizedOverride,
@@ -140,6 +141,9 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
     successMessage: 'Code replaced',
     invalidateKeys: tokenInvalidations,
   })
+  // Silent: the address appearing is the acknowledgement. Nothing to refetch,
+  // since a download changes no state the page shows (History reads it itself).
+  const revealAddress = useActionMutation(revealPortalAddress)
   const revokeToken = useActionMutation(revokePortalTokens, {
     successMessage: 'All codes stopped',
     invalidateKeys: tokenInvalidations,
@@ -166,6 +170,7 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
     issueToken,
     rotateToken,
     revokeToken,
+    revealAddress,
     completeReview,
     updateResponsibleManagers,
     experience,

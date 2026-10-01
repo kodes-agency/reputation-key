@@ -19,6 +19,8 @@ export type PortalCodeIssuanceRow = Readonly<{
   tokenId: string
   version: number
   issuedAt: Date
+  /** Who made the code; null for a code made before that was recorded. */
+  issuedBy: string | null
   /** The address one version earlier, if any: the facts that decide replace vs issue. */
   predecessor: Readonly<{
     revokedAt: Date | null
@@ -31,6 +33,16 @@ export type PortalCodeRevocationRow = Readonly<{
   revokedAt: Date
   revokedBy: string | null
   reason: string | null
+}>
+
+/** One time a manager was handed an existing address. */
+export type PortalCodeDownloadRow = Readonly<{
+  downloadId: string
+  /** The version of the code that was handed out. */
+  version: number
+  downloadedBy: string
+  purpose: 'download' | 'copy' | 'show'
+  downloadedAt: Date
 }>
 
 /**
@@ -51,6 +63,12 @@ export type PortalHistoryRepository = Readonly<{
     portalId: PortalId,
     page: PortalHistoryPage,
   ) => Promise<readonly PortalCodeIssuanceRow[]>
+  listCodeDownloads: (
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+    portalId: PortalId,
+    page: PortalHistoryPage,
+  ) => Promise<readonly PortalCodeDownloadRow[]>
   listCodeRevocations: (
     organizationId: OrganizationId,
     propertyId: PropertyId,

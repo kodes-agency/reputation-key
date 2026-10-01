@@ -19,7 +19,7 @@ assignment, and governed access artifacts.
 - `PortalRepository` is a read-only production port. Authoritative mutations are available only through Portal command stores; direct PostgreSQL seeding/mutation lives under explicit test scaffolding and is guarded from production wiring by an architecture test.
 - Lifecycle export and purge contributors stay outside `publicApi`; irreversible
   phases are composed only through the reviewed Identity lifecycle coordinator.
-- Not exported, and not queried: `portal_tokens` (address-token hash and encrypted raw token) and `portal_access_artifacts.portal_token_id`, which is the join key into the token secret.
+- Not exported, and not queried: `portal_tokens` (address-token hash and the sealed raw address) and `portal_access_artifacts.portal_token_id`, which is the join key into the token secret. `portal_address_downloads` is exported without the token id.
 - Not touched by any phase: `portal_metric_lifetime_aggregates` (Metric's anonymous aggregate), `properties`, and the Staff-owned people rows. Each is another owner's receipt.
 
 ## Model
@@ -137,15 +137,29 @@ goes through the ordinary `updatePortal` command. The fallback language is never
 another one has to become the fallback first. There are no AI controls: the wording is
 written by hand in the Welcome and Linktree sections.
 
+"Download again" (ADR 0064) is optional and off until `PORTAL_ADDRESS_ENCRYPTION_KEYS`
+is set. With a keyring, issue and replace seal the raw address
+(`portal-address-cipher.ts`, AES-256-GCM, bound to organisation, property,
+portal, token and version) beside the hash, and replace, stop and delete clear
+it. `revealPortalAddress` is the only reader: it authorises `portal.update`,
+records a `portal_address_downloads` row, then decrypts, and its server function
+is a no-store POST behind an actor and Organization rate limit. The token status
+carries `addressRecoverable` so the page offers the download only when the
+keyring still holds the key that sealed the live code. Without a keyring the
+address is shown once, when a code is made, as before.
+
 `getPortalHistory` is the one merged, read-only timeline for a Portal: its
 creation, each publish and restore, each change of health (from
 `portal_health_intervals`) and each public-address event, newest first, with the
-actor's display name where one was recorded. It merges four independently
+actor's display name where one was recorded. It merges five independently
 ordered sources under one (instant, key) order and one opaque cursor, and it
 resolves names through a bounded, Organization-fenced directory that returns
 only `user.name`. Nothing is stored for it: it derives from the ledgers that
-already exist. Who issued an address is not recorded yet, so that entry has no
-actor; page edits join the timeline with the page-edit ledger.
+already exist. An address entry names who made it when `portal_tokens.issued_by`
+recorded that (null for a code made before round 4), and each time a manager was
+handed an existing address is a `code_downloaded` entry from
+`portal_address_downloads`; page edits join the timeline with the page-edit
+ledger.
 
 The dormant issued-image implementation has been removed. The nullable
 `portals.hero_image_url` column and read path remain so published historical
@@ -164,7 +178,7 @@ for Identity avatar and organization-logo uploads through `container.assetStorag
 7. Public resolution fails closed when that Property destination is `awaiting_refresh` or `unavailable`; a stale URI is never rendered.
 8. Soft-deleting a Portal revokes its live tokens; a deleted Portal never has a live
    token. Token issue, rotation, and revocation share the Portal revision fence.
-9. The raw address is request-local and never enters state, facts, logs, or Metric.
+9. The raw address is request-local and never enters state, facts, logs, exports or Metric, with one exception: the sealed copy of an active code (ADR 0064). Replacing, stopping or deleting clears it in the same statement, and a CHECK refuses a sealed address on any other code.
 10. Portal lifecycle facts never copy Portal name, slug, description, theme, responsible-manager assignments, destination, or link content.
 11. Portal requests never issue image uploads or write `portals.hero_image_url`; a published Portal with a null value remains valid.
 12. The POR-01 report never copies names, localized content, raw URLs, token material, themes, or print-batch values and never infers creator, ownership, translation, brand, or destination provenance. Reported ambiguous Portal rows remain Disabled or Archived; raw secondary links are treated as quarantined and excluded from publication until a separately reviewed command resolves them.

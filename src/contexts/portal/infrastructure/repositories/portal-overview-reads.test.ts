@@ -628,6 +628,7 @@ describe('listPortalOverview over the real repositories', () => {
         getAccessiblePropertyIds: async () => null,
         getAssignedPortals: async () => [],
       },
+      addressCipher: null,
       clock: () => NOW,
     })
 

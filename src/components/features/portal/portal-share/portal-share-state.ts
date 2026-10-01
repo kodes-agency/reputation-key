@@ -27,8 +27,23 @@ export type PortalShareView = Readonly<{
   showIssueForm: boolean
   /** A code exists: the code block is on screen. */
   showCode: boolean
-  /** The address is in memory (only after a code was made or replaced). */
+  /** The address is in memory (after a code was made or replaced, or fetched again). */
   showAddress: boolean
+  /**
+   * The public-address row is on screen: the address is in memory, or the
+   * manager can fetch it. Without a keyring it is absent after a reload.
+   */
+  showAddressRow: boolean
+  /**
+   * The address was sealed when the code was made and the keyring still holds
+   * its key, so a manager can have it again (ADR 0064).
+   */
+  canDownloadAgain: boolean
+  /**
+   * "Save this address now": only for an address that cannot be fetched again.
+   * With a keyring there is nothing to lose by leaving.
+   */
+  showSaveWarning: boolean
   /** Replace and stop. */
   showActions: boolean
   /** `4 Jan 2026`, the day the live code was made; null when unknown. */
@@ -41,6 +56,10 @@ type ViewInput = Readonly<{
   revoked: boolean
   publicUrl: string | null
   tokenStatus: PortalTokenStatus
+  /** The in-memory address was fetched again, not made in this session. */
+  addressRevealed?: boolean
+  /** From the issue or replace result; overrides the stale `tokenStatus` value. */
+  addressRecoverable?: boolean
   /** The clock; injectable so "made today" is testable. */
   now?: Date
 }>
@@ -62,7 +81,15 @@ export function directPortalAddress(address: string): string {
 }
 
 export function derivePortalShareView(input: ViewInput): PortalShareView {
-  const { canManage, revoked, publicUrl, tokenStatus, now = new Date() } = input
+  const {
+    canManage,
+    revoked,
+    publicUrl,
+    tokenStatus,
+    addressRevealed = false,
+    addressRecoverable = tokenStatus.addressRecoverable,
+    now = new Date(),
+  } = input
 
   // The raw URL only exists in memory for the render that issued or rotated it,
   // so `publicUrl` cannot answer "is a code live?" after a reload — deriving the
@@ -71,6 +98,7 @@ export function derivePortalShareView(input: ViewInput): PortalShareView {
   // issue/revoke outcomes run ahead of it until the detail query refetches, so
   // they take precedence.
   const hasActiveToken = !revoked && (publicUrl !== null || tokenStatus.hasActiveToken)
+  const canDownloadAgain = canManage && hasActiveToken && addressRecoverable
 
   return {
     showViewOnlyNotice: !canManage,
@@ -78,10 +106,14 @@ export function derivePortalShareView(input: ViewInput): PortalShareView {
     showIssueForm: canManage && !hasActiveToken,
     showCode: hasActiveToken,
     showAddress: hasActiveToken && publicUrl !== null,
+    showAddressRow: hasActiveToken && (publicUrl !== null || canDownloadAgain),
+    canDownloadAgain,
+    showSaveWarning: hasActiveToken && publicUrl !== null && !addressRecoverable,
     showActions: canManage && hasActiveToken,
-    // A code made in this session is newer than whatever tokenStatus last saw.
+    // A code made in this session is newer than whatever tokenStatus last saw;
+    // an address fetched again belongs to the code tokenStatus describes.
     madeLabel:
-      !revoked && publicUrl !== null
+      !revoked && publicUrl !== null && !addressRevealed
         ? formatTimestamp(now.toISOString())
         : formatTimestamp(tokenStatus.issuedAt),
     graceLabel: formatTimestamp(tokenStatus.graceExpiresAt),
@@ -89,17 +121,24 @@ export function derivePortalShareView(input: ViewInput): PortalShareView {
 }
 
 export type MutationState = Readonly<{
-  /** First error across the three mutations; `Action.error` is `unknown`. */
+  /** First error across the four mutations; `Action.error` is `unknown`. */
   error: unknown
   isPending: boolean
 }>
 
 export function resolveMutationState(mutations: PortalShareMutations): MutationState {
-  const { issueMutation, rotateMutation, revokeMutation } = mutations
+  const { issueMutation, rotateMutation, revokeMutation, revealMutation } = mutations
   return {
-    error: issueMutation.error ?? rotateMutation.error ?? revokeMutation.error,
+    error:
+      issueMutation.error ??
+      rotateMutation.error ??
+      revokeMutation.error ??
+      revealMutation.error,
     isPending:
-      issueMutation.isPending || rotateMutation.isPending || revokeMutation.isPending,
+      issueMutation.isPending ||
+      rotateMutation.isPending ||
+      revokeMutation.isPending ||
+      revealMutation.isPending,
   }
 }
 

@@ -111,6 +111,7 @@ const setup = (
         issuedAt: FIXED_TIME,
         gracePeriodEnds: null,
         hasPublishedAccessArtifact: true,
+        addressKeyVersion: null,
       }),
     },
     propertyGoogleReviewDestinationApi: {
