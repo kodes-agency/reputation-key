@@ -102,6 +102,7 @@ export function PortalVersionPreview({
         stateId={stateId}
         onStateChange={setStateId}
         isTrying={false}
+        selection={undefined}
         onTryChange={never}
         phoneScale={scale}
       />
