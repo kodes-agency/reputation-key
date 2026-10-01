@@ -1,7 +1,7 @@
-// Migration 0046 is hand-written SQL (drizzle/meta stops at 0013), so what it
+// Migration 0048 is hand-written SQL (drizzle/meta stops at 0013), so what it
 // wrote is pinned here as literals and the catalogue renderings are tied to them
 // by tripwires: when a purpose, status or format is added, these fail and ask
-// for a widening migration instead of tempting anyone to edit 0046.
+// for a widening migration instead of tempting anyone to edit 0048.
 // `pnpm check:schema-drift` proves the model matches a migrated database.
 
 import { readFileSync } from 'node:fs'
@@ -15,15 +15,15 @@ import {
 
 const ROOT = join(import.meta.dirname, '..', '..', '..', '..')
 const MIGRATION = readFileSync(
-  join(ROOT, 'drizzle', '0046_portal_media_assets.sql'),
+  join(ROOT, 'drizzle', '0048_portal_media_assets.sql'),
   'utf8',
 )
 const JOURNAL = JSON.parse(
   readFileSync(join(ROOT, 'drizzle', 'meta', '_journal.json'), 'utf8'),
 ) as { entries: ReadonlyArray<{ idx: number; tag: string; when: number }> }
 
-describe('migration 0046 Portal media assets', () => {
-  it('tripwire: the catalogues still render what 0046 wrote', () => {
+describe('migration 0048 Portal media assets', () => {
+  it('tripwire: the catalogues still render what 0048 wrote', () => {
     expect(PORTAL_MEDIA_PURPOSE_SQL_LIST).toBe(`'hero', 'logo', 'link_image'`)
     expect(PORTAL_MEDIA_STATUS_SQL_LIST).toBe(`'active', 'taken_down'`)
     expect(PORTAL_MEDIA_SOURCE_FORMAT_SQL_LIST).toBe(`'jpeg', 'png', 'webp'`)
@@ -65,10 +65,10 @@ describe('migration 0046 Portal media assets', () => {
     expect(MIGRATION).toContain('portal_media_assets_object_key_unique')
   })
 
-  it('is journalled after the Property look model', () => {
-    const entry = JOURNAL.entries.find((candidate) => candidate.idx === 46)
-    expect(entry?.tag).toBe('0046_portal_media_assets')
-    const previous = JOURNAL.entries.find((candidate) => candidate.idx === 45)
+  it('is journalled after the sealed address migration', () => {
+    const entry = JOURNAL.entries.find((candidate) => candidate.idx === 48)
+    expect(entry?.tag).toBe('0048_portal_media_assets')
+    const previous = JOURNAL.entries.find((candidate) => candidate.idx === 47)
     expect(entry && previous && entry.when > previous.when).toBe(true)
   })
 })

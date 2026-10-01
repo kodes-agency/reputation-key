@@ -337,6 +337,13 @@
       "when": 1792800000000,
       "tag": "0047_portal_address_download_again",
       "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1792900000000,
+      "tag": "0048_portal_media_assets",
+      "breakpoints": true
     }
   ]
 }
