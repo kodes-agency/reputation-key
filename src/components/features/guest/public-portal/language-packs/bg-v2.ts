@@ -93,9 +93,15 @@ export const bgV2 = defineGuestCopyV2({
     responseRemoveAllConfirm: 'Премахни и двете',
     responseRemoveAllCancel: 'Запази ги',
     responseRemoveAllDoneTitle: 'Отговорът ви беше премахнат',
-    responseRemoveAllDoneBody: 'Оценката и бележката ви бяха изтрити.',
+    responseRemoveAllDoneBody:
+      'Оценката ви и бележката, ако сте изпратили такава, бяха изтрити.',
     responseRemoveAllFailed:
       'Отговорът ви не можа да бъде премахнат. Моля, опитайте отново.',
+    responseRemoveRatingTitle: 'Премахнете оценката си',
+    responseRemoveRatingConfirmTitle: 'Да се премахне ли оценката?',
+    responseRemoveRatingConfirmBody: 'Тя ще бъде изтрита. Това не може да бъде отменено.',
+    responseRemoveRatingConfirm: 'Премахни я',
+    responseRemoveRatingCancel: 'Запази я',
 
     deadlineToday: 'До {time} днес, местно време в {zone}',
     deadlineTomorrow: 'До {time} утре, местно време в {zone}',

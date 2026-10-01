@@ -22,13 +22,15 @@ describe.each(PACKS)('after a rating, for assistive technology [$locale]', (pack
   const googleIndex = (children: readonly string[]) =>
     children.findIndex((child) => child.includes(pack.copy.googleTitle))
 
-  it('names what Change changes, so it reads on its own in a list of buttons', () => {
+  it('keeps its visible word as the name of Change and describes it with the receipt (WCAG 2.5.3)', () => {
     const [strip] = responseChildren(rendered[0]?.html ?? '')
-    expect(strip).toMatch(
-      new RegExp(
-        `<button[^>]*aria-label="${pack.copy.responseChangeTitle}"[^>]*>${pack.copy.ratingChange}</button>`,
-      ),
-    )
+    expect(/<button[^>]*aria-label=/u.test(strip ?? '')).toBe(false)
+    const describedBy = /<button[^>]*aria-describedby="([^"]+)"[^>]*>/u.exec(
+      strip ?? '',
+    )?.[1]
+    expect(describedBy).toBeTruthy()
+    expect(strip).toContain(`id="${describedBy}"`)
+    expect(strip).toMatch(new RegExp(`<button[^>]*>${pack.copy.ratingChange}</button>`))
   })
 
   it('lets focus land on the receipt heading when a rating has just been sent', () => {

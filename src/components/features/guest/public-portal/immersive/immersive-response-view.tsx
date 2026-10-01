@@ -1,50 +1,28 @@
-import { type RefObject, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
-import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
 import { GlassSurface } from './glass-surface'
-import { ImmersiveGoogleCard } from './immersive-google-card'
-import {
-  ImmersiveNoteCard,
-  type NoteDraft,
-  type NoteSubmission,
-} from './immersive-note-card'
-import { ImmersiveRatingCard, type RatingSubmission } from './immersive-rating-card'
-import { ImmersiveReceiptStrip } from './immersive-receipt-strip'
+import { ImmersiveAfterRating } from './immersive-after-rating'
+import { ImmersiveRatingCard } from './immersive-rating-card'
+import type { ImmersiveResponseViewProps } from './immersive-response-types'
 import {
   IMMERSIVE_RESPONSE_CSS,
   IMMERSIVE_RESPONSE_STYLE_HREF,
 } from './immersive-response-styles'
 
-/** Which call the guest last tried failed. At most one message shows at a time, in its own card. */
-export type ImmersiveResponseFailure = 'rating' | 'google' | 'note'
-
-export type ImmersiveResponseViewProps = Readonly<{
-  /** The one v2 pack of the page's language. */
-  pack: GuestPortalCopyV2
-  /** The property's display name: "Shared privately with Avela Resort." */
-  displayName: string
-  availability?: 'available' | 'loading' | 'unavailable'
-  /** The guest's response, or null before they rate. */
-  response: GuestResponseView | null
-  googleReviewAvailable: boolean
-  /** A call is on its way: the choices wait. */
-  pending?: boolean
-  failure?: ImmersiveResponseFailure | null
-  /** The note's starting state, for previews and stories. */
-  noteDraft?: NoteDraft
-  onSubmitRating: (value: RatingSubmission) => Promise<void>
-  onSubmitNote: (value: NoteSubmission) => Promise<boolean>
-  onGoogleReview: () => void
-  /** Where "Change" in the receipt strip leads. */
-  onChangeRating?: () => void
-}>
+export type {
+  ImmersiveResponseFailure,
+  ImmersiveResponseNotice,
+  ImmersiveResponseViewProps,
+  YourResponseActions,
+} from './immersive-response-types'
 
 /**
  * The response area of the Immersive Hub, a pure view of its props. Before a
  * rating it is the rating card. After one it is, in this order and at every
- * rating: the receipt strip, the Google card, and the private note card when
- * the server says the guest may write one (`privateFeedbackEligible`). The
- * threshold is the server's; the view never compares a rating with anything.
+ * rating: the receipt strip, the Google card, the private note card when the
+ * server says the guest may write one (`privateFeedbackEligible`), and "Your
+ * response". The threshold is the server's; the view never compares a rating
+ * with anything.
  *
  * Like `GuestPageView` it binds no action: the container hands in the finished
  * state, which is what lets a preview, a story and the anti-gating test render
@@ -61,20 +39,48 @@ export function ImmersiveResponseView(props: ImmersiveResponseViewProps) {
   )
 }
 
+/** Where the guest is in the response: the part of the page that is on screen. */
+type Stage = 'arrival' | 'rated' | 'removed'
+
+function stageOf(response: GuestResponseView | null): Stage {
+  if (response === null) return 'arrival'
+  return response.status === 'deleted' || response.rating === null ? 'removed' : 'rated'
+}
+
+/**
+ * An action that replaces the part of the page the guest was in takes their
+ * focus with it, and a live region that arrives already holding its words is
+ * often not read out. So focus follows the guest to what replaced it, and the
+ * screen reader reads it on arrival: a rating sent goes to the receipt heading,
+ * "Start over" to the page's "ready for the next guest" line, and a removed
+ * response to the heading of its notice. A page that loads in any of these
+ * keeps focus where it is.
+ */
+function useFocusOnStageChange(stage: Stage) {
+  const receiptHeading = useRef<HTMLHeadingElement>(null)
+  const startedOver = useRef<HTMLParagraphElement>(null)
+  const removedHeading = useRef<HTMLHeadingElement>(null)
+  const previous = useRef(stage)
+
+  useEffect(() => {
+    if (previous.current !== stage) {
+      const target = {
+        rated: receiptHeading,
+        arrival: startedOver,
+        removed: removedHeading,
+      }[stage]
+      target.current?.focus()
+    }
+    previous.current = stage
+  }, [stage])
+
+  return { receiptHeading, startedOver, removedHeading }
+}
+
 function ResponseBody(props: ImmersiveResponseViewProps) {
   const { pack, response, availability = 'available' } = props
-  const receiptHeading = useRef<HTMLHeadingElement>(null)
-  const unrated = response === null
-  const wasUnrated = useRef(unrated)
-
-  // Sending the rating unmounts the card the guest was in, and focus with it.
-  // It goes to the receipt heading, which a screen reader reads out, so the
-  // guest hears that it worked. A page that loads already rated keeps focus
-  // where it is.
-  useEffect(() => {
-    if (!unrated && wasUnrated.current) receiptHeading.current?.focus()
-    wasUnrated.current = unrated
-  }, [unrated])
+  const stage = stageOf(response)
+  const { receiptHeading, startedOver, removedHeading } = useFocusOnStageChange(stage)
 
   if (availability === 'loading') {
     return (
@@ -100,7 +106,7 @@ function ResponseBody(props: ImmersiveResponseViewProps) {
   if (response?.status === 'deleted' || response?.rating === null) {
     return (
       <GlassSurface variant="card" as="section" role="status" className="ih-notice">
-        <h2 className="ih-display ih-card-title">
+        <h2 ref={removedHeading} tabIndex={-1} className="ih-display ih-card-title">
           {pack.copy.responseRemoveAllDoneTitle}
         </h2>
         <p className="ih-card-body">{pack.copy.responseRemoveAllDoneBody}</p>
@@ -110,6 +116,11 @@ function ResponseBody(props: ImmersiveResponseViewProps) {
   if (response === null) {
     return (
       <div className="ih-response" data-ih-response="arrival">
+        {props.notice === 'started-over' && (
+          <p role="status" tabIndex={-1} ref={startedOver} className="ih-yr__ready">
+            {pack.copy.startOverDone}
+          </p>
+        )}
         <ImmersiveRatingCard
           pack={pack}
           displayName={props.displayName}
@@ -121,60 +132,11 @@ function ResponseBody(props: ImmersiveResponseViewProps) {
     )
   }
   return (
-    <AfterRating
+    <ImmersiveAfterRating
       {...props}
       response={response}
       rating={response.rating}
       receiptHeading={receiptHeading}
     />
-  )
-}
-
-function AfterRating({
-  pack,
-  displayName,
-  response,
-  rating,
-  googleReviewAvailable,
-  pending = false,
-  failure = null,
-  noteDraft,
-  onSubmitNote,
-  onGoogleReview,
-  onChangeRating,
-  receiptHeading,
-}: ImmersiveResponseViewProps & {
-  response: GuestResponseView
-  rating: number
-  receiptHeading: RefObject<HTMLHeadingElement | null>
-}) {
-  return (
-    <div className="ih-response" data-ih-response="rated">
-      <ImmersiveReceiptStrip
-        pack={pack}
-        rating={rating}
-        onChange={onChangeRating}
-        headingRef={receiptHeading}
-      />
-      <ImmersiveGoogleCard
-        pack={pack}
-        displayName={displayName}
-        available={googleReviewAvailable}
-        pending={pending}
-        openFailed={failure === 'google'}
-        onOpen={onGoogleReview}
-      />
-      {(response.privateFeedbackEligible || response.hasPrivateFeedback) && (
-        <ImmersiveNoteCard
-          pack={pack}
-          displayName={displayName}
-          sent={response.hasPrivateFeedback}
-          pending={pending}
-          sendFailed={failure === 'note'}
-          initial={noteDraft}
-          onSubmit={onSubmitNote}
-        />
-      )}
-    </div>
   )
 }
