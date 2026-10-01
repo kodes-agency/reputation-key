@@ -17,6 +17,8 @@ import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalLinkIconKey } from '#/shared/domain/portal-link-icon'
 import { usePortalDraftAutosave } from '../portal-editor/portal-draft-autosave-context'
 import { LinkAddForm } from './link-add-form'
+import { iconChoiceWrite, photoChoiceWrite } from './linktree-photo-rules'
+import type { PortalImageUploader } from '../portal-media/upload-portal-image'
 import { LinktreeLocaleTabs } from './linktree-locale-tabs'
 import { LINKTREE_MOVE_HINT_ID } from './linktree-move-controls'
 import { LinktreeTileEditor } from './linktree-tile-editor'
@@ -35,6 +37,7 @@ import {
 import type { LinktreeMutations } from './use-linktree-mutations'
 
 type Props = Readonly<{
+  propertyId: string
   view: PortalLinktreeView
   mutations: LinktreeMutations
   /** User id to full name, for "Approved · Elena Petrova". */
@@ -42,9 +45,19 @@ type Props = Readonly<{
   canEdit: boolean
   /** Deleting a link is the account admin's alone; a manager who can edit may not. */
   canDelete: boolean
+  /** The photo upload; the real one unless a story hands in a stub. */
+  uploadPhoto?: PortalImageUploader
 }>
 
-export function LinkTree({ view, mutations, memberNames, canEdit, canDelete }: Props) {
+export function LinkTree({
+  propertyId,
+  view,
+  mutations,
+  memberNames,
+  canEdit,
+  canDelete,
+  uploadPhoto,
+}: Props) {
   const autosave = usePortalDraftAutosave()
   const locales = offeredLocales(view.locales)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -129,11 +142,17 @@ export function LinkTree({ view, mutations, memberNames, canEdit, canDelete }: P
     ).catch(() => undefined)
   }
 
-  const changeIcon = (linkId: string, iconKey: PortalLinkIconKey) => {
+  const changeIcon = (link: PortalLinktreeLink, iconKey: PortalLinkIconKey) => {
     void afterPendingText(() =>
-      mutations.updateLink({ data: { linkId, iconKey } }),
+      mutations.updateLink({ data: iconChoiceWrite(link, iconKey) }),
     ).catch(reportFailure)
   }
+
+  // The photo dialog shows a refusal itself, so this one is not reported here.
+  const choosePhoto = (link: PortalLinktreeLink, assetId: string) =>
+    afterPendingText(() =>
+      mutations.updateLink({ data: photoChoiceWrite(link, assetId) }),
+    )
 
   const checkAddress = (linkId: string, url: string) => {
     void afterPendingText(() => mutations.updateLink({ data: { linkId, url } })).catch(
@@ -210,7 +229,10 @@ export function LinkTree({ view, mutations, memberNames, canEdit, canDelete }: P
                     : null
                 }
                 onAddressEdit={mutations.clearUpdateFailure}
-                onIconChange={(key) => changeIcon(link.id, key)}
+                onIconChange={(key) => changeIcon(link, key)}
+                onPhotoChange={(assetId) => choosePhoto(link, assetId)}
+                propertyId={propertyId}
+                uploadPhoto={uploadPhoto}
                 onCheckAddress={() => checkAddress(link.id, link.url)}
                 canEdit={canEdit}
               />

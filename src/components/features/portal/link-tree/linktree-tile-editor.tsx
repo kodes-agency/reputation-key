@@ -9,6 +9,9 @@ import type {
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalLinkIconKey } from '#/shared/domain/portal-link-icon'
 import { LinkAddressForm } from './link-address-form'
+import { linkPhotoUrl } from './linktree-photo-rules'
+import { LinktreePhotoDialog } from './linktree-photo-dialog'
+import type { PortalImageUploader } from '../portal-media/upload-portal-image'
 import { LinkTextsForm } from './link-texts-form'
 import { LinktreeApprovalFact } from './linktree-approval-fact'
 import { LinktreeIconPicker } from './linktree-icon-picker'
@@ -18,7 +21,7 @@ import type { LinktreeMutations } from './use-linktree-mutations'
 
 type Props = Readonly<{
   link: PortalLinktreeLink
-  view: Pick<PortalLinktreeView, 'primaryLocale' | 'locales'>
+  view: Pick<PortalLinktreeView, 'portalId' | 'primaryLocale' | 'locales'>
   /** The Portal's languages a manager can write in, primary first. */
   locales: ReadonlyArray<OfferedGuestLocale>
   mutations: LinktreeMutations
@@ -27,6 +30,11 @@ type Props = Readonly<{
   addressError: unknown
   onAddressEdit: () => void
   onIconChange: (key: PortalLinkIconKey) => void
+  /** Puts an uploaded photo on the tile; a refusal is shown in the photo dialog. */
+  onPhotoChange: (assetId: string) => Promise<unknown>
+  propertyId: string
+  /** The photo upload; the real one unless a story hands in a stub. */
+  uploadPhoto?: PortalImageUploader
   onCheckAddress: () => void
   canEdit: boolean
 }>
@@ -40,11 +48,15 @@ export function LinktreeTileEditor({
   addressError,
   onAddressEdit,
   onIconChange,
+  onPhotoChange,
+  propertyId,
+  uploadPhoto,
   onCheckAddress,
   canEdit,
 }: Props) {
   const primary = locales.find((locale) => locale === view.primaryLocale) ?? locales[0]
   const [chosen, setChosen] = useState<OfferedGuestLocale | null>(null)
+  const [isPickingPhoto, setIsPickingPhoto] = useState(false)
   const locale = chosen ?? primary
   if (locale === undefined) return null
   const chips = linkLocaleChips(link, locales)
@@ -70,12 +82,24 @@ export function LinktreeTileEditor({
         disabled={!canEdit}
       />
       <div className="space-y-2">
-        <p className="text-sm font-medium">Icon</p>
+        <p className="text-sm font-medium">Icon or photo</p>
         <LinktreeIconPicker
           value={link.iconKey}
+          photoUrl={linkPhotoUrl(link)}
           onChange={onIconChange}
+          onUploadPhoto={() => setIsPickingPhoto(true)}
           disabled={!canEdit}
         />
+        {canEdit ? (
+          <LinktreePhotoDialog
+            open={isPickingPhoto}
+            onOpenChange={setIsPickingPhoto}
+            propertyId={propertyId}
+            portalId={view.portalId}
+            onUploaded={onPhotoChange}
+            upload={uploadPhoto}
+          />
+        ) : null}
       </div>
       <div className="space-y-2">
         {/* Keyed on the saved address: once the server's form of it is back, the field shows that. */}

@@ -109,6 +109,7 @@ function Harness({ view: current, mutations, canEdit, canDelete = true }: StoryP
   return (
     <div className="max-w-2xl p-6">
       <LinkTree
+        propertyId="prop-1"
         view={current}
         mutations={mutations}
         memberNames={MEMBER_NAMES}

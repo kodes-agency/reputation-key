@@ -230,7 +230,9 @@ describe('the picture on a link tile', () => {
     const id = await createTile()
     const elsewhere = await insertAsset(PROPERTY_A2)
 
-    await expect(setImage(id, elsewhere.id)).rejects.toThrow()
+    await expect(setImage(id, elsewhere.id)).rejects.toMatchObject({
+      cause: { constraint: 'portal_links_image_asset_fk' },
+    })
 
     expect(await storedImage(id)).toBeNull()
   })
@@ -238,7 +240,9 @@ describe('the picture on a link tile', () => {
   it('cannot name an asset that does not exist', async () => {
     const id = await createTile()
 
-    await expect(setImage(id, randomUUID())).rejects.toThrow()
+    await expect(setImage(id, randomUUID())).rejects.toMatchObject({
+      cause: { constraint: 'portal_links_image_asset_fk' },
+    })
   })
 
   it('keeps the stored image from being deleted while the tile uses it', async () => {
@@ -248,7 +252,7 @@ describe('the picture on a link tile', () => {
 
     await expect(
       getPool().query(`DELETE FROM portal_media_assets WHERE id = $1`, [asset.id]),
-    ).rejects.toThrow()
+    ).rejects.toMatchObject({ constraint: 'portal_links_image_asset_fk' })
   })
 
   it('moves the working copy past what is published, like any other tile edit', async () => {
