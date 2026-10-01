@@ -14,7 +14,7 @@ const IDENTITY_ACCESS_EVENT_VERSION = 1
 /** Mirrors the request bound: one change touches at most 200 Properties. */
 const MAX_CHANGED_PROPERTIES = 200
 
-export const invitationAcceptedSchema = z.object({
+const invitationAcceptedSchema = z.object({
   organizationId: z.string(),
   userId: z.string(),
   invitationId: z.string(),
@@ -23,7 +23,7 @@ export const invitationAcceptedSchema = z.object({
   inviterId: z.string().optional(),
 })
 
-export const memberPropertyAccessChangedSchema = z.object({
+const memberPropertyAccessChangedSchema = z.object({
   organizationId: z.string(),
   memberUserId: z.string(),
   // The AccountAdmin who made the change.

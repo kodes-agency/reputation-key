@@ -169,7 +169,12 @@
     },
     {
       "file": "src/contexts/identity/server/organizations.ts",
-      "exports": ["resendVerificationEmail", "getInvitationPreview"]
+      "exports": [
+        "resendVerificationEmail",
+        "getInvitationPreview",
+        "listMemberPropertyAccess",
+        "setMemberPropertyAccess"
+      ]
     },
     {
       "file": "src/contexts/inbox/domain/handling-history.ts",

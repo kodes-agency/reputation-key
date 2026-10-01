@@ -1,25 +1,16 @@
 // EventJobCatalogue — Identity event families.
 //
 // Split out of ./event-job-catalogue.ts, which spreads these rows into
-// EVENT_FAMILY_ROWS, so that module stays under its file-length ratchet. The
-// row shapes are restated structurally here and the helpers are local: this
-// module must not import the catalogue back.
+// EVENT_FAMILY_ROWS, so that module stays under its file-length ratchet. The row
+// shapes and factories live in ./event-job-catalogue-rows.ts: this module must
+// not import the catalogue back.
 
-type EventConsumerRef = Readonly<{ name: string; module: string }>
-
-type EventFamilyRow = Readonly<{
-  eventType: string
-  consumers: ReadonlyArray<EventConsumerRef>
-}>
-
-/** Durable outbox consumer ('<context>.<handler-name>'). */
-const durable = (name: string, module: string): EventConsumerRef => ({ name, module })
-
-/** Event family row used by readiness and dispatcher routing. */
-const ev = (
-  eventType: string,
-  consumers: ReadonlyArray<EventConsumerRef>,
-): EventFamilyRow => ({ eventType, consumers })
+import {
+  durable,
+  ev,
+  type EventConsumerRef,
+  type EventFamilyRow,
+} from './event-job-catalogue-rows'
 
 const ACTIVITY_OUTBOX = 'src/contexts/feed/infrastructure/activity-outbox-consumers.ts'
 const AI_OUTBOX = 'src/contexts/ai/infrastructure/outbox-consumers.ts'
