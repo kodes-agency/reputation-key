@@ -87,7 +87,10 @@ export type {
   PortalHistoryDetail,
   PortalHistoryFilter,
 } from '../domain/portal-history'
-export type { PortalPageEditSubject } from '../domain/portal-page-edit'
+export type {
+  PortalPageEditKind,
+  PortalPageEditSubject,
+} from '../domain/portal-page-edit'
 
 import type {
   OrganizationId,
