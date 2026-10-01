@@ -41,6 +41,12 @@ export function buildS3ClientConfigs(config: ConfiguredS3Storage) {
       secretAccessKey: config.secretKey,
     },
     forcePathStyle: config.forcePathStyle ?? false,
+    // Only checksum what the protocol requires. The SDK default also signs the
+    // checksum of an EMPTY body into a presigned upload URL, which a store that
+    // checks it then refuses for any real file; and it frames server-side puts
+    // in a checksum trailer that S3-compatible stores do not all parse.
+    requestChecksumCalculation: 'WHEN_REQUIRED' as const,
+    responseChecksumValidation: 'WHEN_REQUIRED' as const,
   }
   return {
     internal: {
@@ -85,7 +91,6 @@ export const createS3StorageAdapter = (config: S3StorageConfig): StoragePort => 
   const internalClient = new S3Client(clients.internal)
   const presignClient = new S3Client(clients.presign)
   const bucketName = config.bucketName
-  const region = config.region
 
   return {
     createPresignedUploadUrl: async (key, contentType, _maxSizeBytes) => {
@@ -108,7 +113,6 @@ export const createS3StorageAdapter = (config: S3StorageConfig): StoragePort => 
       await trace('s3.confirmUpload', () =>
         internalClient.send(new HeadObjectCommand({ Bucket: bucketName, Key: key })),
       )
-      return `https://${bucketName}.s3.${region}.amazonaws.com/${key}`
     },
 
     inspectObject: async (key) => {

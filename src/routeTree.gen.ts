@@ -57,6 +57,7 @@ import { Route as AuthenticatedPropertiesPropertyIdSettingsRouteImport } from '.
 import { Route as AuthenticatedPropertiesImportGoogleIndexRouteImport } from './routes/_authenticated/properties/import-google/index'
 import { Route as AuthenticatedPropertiesImportGoogleImportIdRouteImport } from './routes/_authenticated/properties/import-google/$importId'
 import { Route as ApiAuthGoogleCallbackRouteImport } from './routes/api/auth/google/callback'
+import { Route as ApiPublicIdentityAssetsSplatRouteImport } from './routes/api/public/identity-assets/$'
 import { Route as ApiPublicPortalMediaAssetIdRouteImport } from './routes/api/public/portal-media/$assetId'
 import { Route as ApiWebhooksGbpNotificationsRouteImport } from './routes/api/webhooks/gbp/notifications'
 import { Route as ApiWebhooksResendEventsRouteImport } from './routes/api/webhooks/resend/events'
@@ -344,6 +345,12 @@ const ApiAuthGoogleCallbackRoute = ApiAuthGoogleCallbackRouteImport.update({
   path: '/api/auth/google/callback',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPublicIdentityAssetsSplatRoute =
+  ApiPublicIdentityAssetsSplatRouteImport.update({
+    id: '/api/public/identity-assets/$',
+    path: '/api/public/identity-assets/$',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiPublicPortalMediaAssetIdRoute =
   ApiPublicPortalMediaAssetIdRouteImport.update({
     id: '/api/public/portal-media/$assetId',
@@ -522,6 +529,7 @@ export interface FileRoutesByFullPath {
   '/properties/$propertyId/settings': typeof AuthenticatedPropertiesPropertyIdSettingsRouteWithChildren
   '/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/public/identity-assets/$': typeof ApiPublicIdentityAssetsSplatRoute
   '/api/public/portal-media/$assetId': typeof ApiPublicPortalMediaAssetIdRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/api/webhooks/resend/events': typeof ApiWebhooksResendEventsRoute
@@ -589,6 +597,7 @@ export interface FileRoutesByTo {
   '/properties/$propertyId/reviews': typeof AuthenticatedPropertiesPropertyIdReviewsRoute
   '/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/public/identity-assets/$': typeof ApiPublicIdentityAssetsSplatRoute
   '/api/public/portal-media/$assetId': typeof ApiPublicPortalMediaAssetIdRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/api/webhooks/resend/events': typeof ApiWebhooksResendEventsRoute
@@ -661,6 +670,7 @@ export interface FileRoutesById {
   '/_authenticated/properties/$propertyId/settings': typeof AuthenticatedPropertiesPropertyIdSettingsRouteWithChildren
   '/_authenticated/properties/import-google/$importId': typeof AuthenticatedPropertiesImportGoogleImportIdRoute
   '/api/auth/google/callback': typeof ApiAuthGoogleCallbackRoute
+  '/api/public/identity-assets/$': typeof ApiPublicIdentityAssetsSplatRoute
   '/api/public/portal-media/$assetId': typeof ApiPublicPortalMediaAssetIdRoute
   '/api/webhooks/gbp/notifications': typeof ApiWebhooksGbpNotificationsRoute
   '/api/webhooks/resend/events': typeof ApiWebhooksResendEventsRoute
@@ -734,6 +744,7 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/settings'
     | '/properties/import-google/$importId'
     | '/api/auth/google/callback'
+    | '/api/public/identity-assets/$'
     | '/api/public/portal-media/$assetId'
     | '/api/webhooks/gbp/notifications'
     | '/api/webhooks/resend/events'
@@ -801,6 +812,7 @@ export interface FileRouteTypes {
     | '/properties/$propertyId/reviews'
     | '/properties/import-google/$importId'
     | '/api/auth/google/callback'
+    | '/api/public/identity-assets/$'
     | '/api/public/portal-media/$assetId'
     | '/api/webhooks/gbp/notifications'
     | '/api/webhooks/resend/events'
@@ -872,6 +884,7 @@ export interface FileRouteTypes {
     | '/_authenticated/properties/$propertyId/settings'
     | '/_authenticated/properties/import-google/$importId'
     | '/api/auth/google/callback'
+    | '/api/public/identity-assets/$'
     | '/api/public/portal-media/$assetId'
     | '/api/webhooks/gbp/notifications'
     | '/api/webhooks/resend/events'
@@ -919,6 +932,7 @@ export interface RootRouteChildren {
   ApiNotificationsUnsubscribeRoute: typeof ApiNotificationsUnsubscribeRoute
   ApiHealthIndexRoute: typeof ApiHealthIndexRoute
   ApiAuthGoogleCallbackRoute: typeof ApiAuthGoogleCallbackRoute
+  ApiPublicIdentityAssetsSplatRoute: typeof ApiPublicIdentityAssetsSplatRoute
   ApiPublicPortalMediaAssetIdRoute: typeof ApiPublicPortalMediaAssetIdRoute
   ApiWebhooksGbpNotificationsRoute: typeof ApiWebhooksGbpNotificationsRoute
   ApiWebhooksResendEventsRoute: typeof ApiWebhooksResendEventsRoute
@@ -1261,6 +1275,13 @@ declare module '@tanstack/react-router' {
       path: '/api/auth/google/callback'
       fullPath: '/api/auth/google/callback'
       preLoaderRoute: typeof ApiAuthGoogleCallbackRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/public/identity-assets/$': {
+      id: '/api/public/identity-assets/$'
+      path: '/api/public/identity-assets/$'
+      fullPath: '/api/public/identity-assets/$'
+      preLoaderRoute: typeof ApiPublicIdentityAssetsSplatRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/api/public/portal-media/$assetId': {
@@ -1635,6 +1656,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiNotificationsUnsubscribeRoute: ApiNotificationsUnsubscribeRoute,
   ApiHealthIndexRoute: ApiHealthIndexRoute,
   ApiAuthGoogleCallbackRoute: ApiAuthGoogleCallbackRoute,
+  ApiPublicIdentityAssetsSplatRoute: ApiPublicIdentityAssetsSplatRoute,
   ApiPublicPortalMediaAssetIdRoute: ApiPublicPortalMediaAssetIdRoute,
   ApiWebhooksGbpNotificationsRoute: ApiWebhooksGbpNotificationsRoute,
   ApiWebhooksResendEventsRoute: ApiWebhooksResendEventsRoute,

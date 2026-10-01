@@ -15,6 +15,7 @@ import type { NitroAppPlugin } from 'nitro/types'
 export type SecurityHeadersEnvironment = Readonly<{
   NODE_ENV?: string | undefined
   S3_PRESIGN_ENDPOINT?: string | undefined
+  S3_INTERNAL_ENDPOINT?: string | undefined
   AWS_S3_BUCKET_NAME?: string | undefined
   AWS_S3_REGION?: string | undefined
   S3_FORCE_PATH_STYLE?: string | undefined
@@ -60,6 +61,37 @@ function getScriptSource(cspNonce: string | undefined): string {
   return `'self' 'nonce-${cspNonce}'`
 }
 
+/** A bucket name the SDK may put in a host name: one DNS label, no dots. */
+const DNS_LABEL_BUCKET = /^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/
+
+function isIpHost(hostname: string): boolean {
+  if (hostname.startsWith('[')) return true
+  const parts = hostname.split('.')
+  return parts.length === 4 && parts.every((part) => /^\d{1,3}$/.test(part))
+}
+
+/**
+ * The origin a presigned upload for `bucket` is signed against on a custom
+ * endpoint. It follows the SDK's own addressing: virtual-host style puts the
+ * bucket in front of the endpoint host (Railway's `<bucket>.t3.storageapi.dev`),
+ * and the SDK falls back to path style when the host is an IP address or the
+ * bucket name cannot be a host label. The adapter test signs real URLs and
+ * pins this to the SDK's output.
+ */
+function customEndpointOrigin(
+  endpoint: string,
+  bucket: string | undefined,
+  forcePathStyle: boolean,
+): string {
+  const url = new URL(endpoint)
+  const virtualHost =
+    !forcePathStyle &&
+    bucket !== undefined &&
+    DNS_LABEL_BUCKET.test(bucket) &&
+    !isIpHost(url.hostname)
+  return virtualHost ? `${url.protocol}//${bucket}.${url.host}` : url.origin
+}
+
 /**
  * Browser-reachable object-storage origins permitted by connect-src, derived
  * from explicit configuration. Exported so the derivation is testable without
@@ -68,15 +100,18 @@ function getScriptSource(cspNonce: string | undefined): string {
 export function storageConnectSources(
   env: SecurityHeadersEnvironment,
 ): readonly string[] {
-  if (env.S3_PRESIGN_ENDPOINT) {
-    return [env.S3_PRESIGN_ENDPOINT]
+  const forcePathStyle = env.S3_FORCE_PATH_STYLE?.toLowerCase() === 'true'
+  // The adapter signs with the internal endpoint when no presign one is set.
+  const endpoint = env.S3_PRESIGN_ENDPOINT ?? env.S3_INTERNAL_ENDPOINT
+  if (endpoint) {
+    return [customEndpointOrigin(endpoint, env.AWS_S3_BUCKET_NAME, forcePathStyle)]
   }
 
   const bucket = env.AWS_S3_BUCKET_NAME
   const region = env.AWS_S3_REGION
   if (!bucket || !region) return []
 
-  return env.S3_FORCE_PATH_STYLE?.toLowerCase() === 'true'
+  return forcePathStyle
     ? [`https://s3.${region}.amazonaws.com`]
     : [`https://${bucket}.s3.${region}.amazonaws.com`]
 }

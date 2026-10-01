@@ -445,6 +445,8 @@ table, background job) was removed and is not coming back. The nullable
 `portals.hero_image_url` column and read path remain so published historical
 rows still render, while the shared arbitrary-key storage stack remains live
 for Identity avatar and organization-logo uploads through `container.assetStorage`.
+`confirmUpload` only confirms the object is there; Identity stores its own address
+for the image (`/api/public/identity-assets/<key>`), never a provider URL.
 
 ## Invariants
 

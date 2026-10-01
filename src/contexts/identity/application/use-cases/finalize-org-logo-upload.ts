@@ -4,6 +4,7 @@ import type { StoragePort } from '#/contexts/portal/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { identityError } from '../../domain/errors'
 import { canForContext } from '#/shared/domain/permissions'
+import { isIdentityAssetKey } from '../identity-assets'
 
 export type FinalizeOrgLogoUploadInput = Readonly<{
   key: string
@@ -11,6 +12,8 @@ export type FinalizeOrgLogoUploadInput = Readonly<{
 
 export type FinalizeOrgLogoUploadDeps = Readonly<{
   storage: StoragePort
+  /** The address an uploaded object is shown at: `identityAssetUrl` on the app's base URL. */
+  assetUrl: (key: string) => string
   /** Persist the logo URL on the organization via the auth provider. */
   updateOrg: (data: Record<string, unknown>) => Promise<void>
 }>
@@ -33,7 +36,12 @@ export const finalizeOrgLogoUpload =
       throw identityError('forbidden', 'Upload key is not scoped to this organization')
     }
 
-    const logoUrl = await deps.storage.confirmUpload(input.key)
+    if (!isIdentityAssetKey(input.key)) {
+      throw identityError('validation_error', 'Upload key is not a logo key')
+    }
+
+    await deps.storage.confirmUpload(input.key)
+    const logoUrl = deps.assetUrl(input.key)
 
     // Persist the logo URL on the organization. This is business persistence —
     // it belongs in the use case, not the server fn (see update-organization.ts).

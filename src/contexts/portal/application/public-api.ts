@@ -3,6 +3,7 @@
  * Re-exports ports for cross-context dependency injection.
  */
 export type { StoragePort } from './ports/storage.port'
+export { StoredObjectTooLargeError } from './ports/storage.port'
 import type { GuestLanguagePackVersion, GuestLocale } from '#/shared/domain/guest-locale'
 
 // Event re-exports — cross-context consumers must import events from public-api, not domain/events.

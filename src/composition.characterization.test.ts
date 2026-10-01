@@ -40,6 +40,7 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'aiPublicApi',
   'aiWorkerRuntime',
   'alertDispatcher',
+  'appBaseUrl',
   'assetStorage',
   'backgroundQueue',
   'cache',
@@ -395,7 +396,7 @@ describe('provider DI slots (BQC-6.1)', () => {
 
   const fakeStorage: StoragePort = {
     createPresignedUploadUrl: async (key) => ({ uploadUrl: 'memory://upload', key }),
-    confirmUpload: async (key) => `memory://${key}`,
+    confirmUpload: async () => {},
     deleteObject: async () => {},
     getObject: async () => null,
     putObject: async () => {},
