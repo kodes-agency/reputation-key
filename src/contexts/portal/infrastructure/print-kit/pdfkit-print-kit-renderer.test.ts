@@ -9,8 +9,7 @@ import { qrDarkRuns, qrMatrix } from './print-kit-qr'
 
 const ADDRESS =
   'https://app.reputationkey.app/p/pt_AbCdEfGhIjKlMnOp_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-aBcDe?accessArtifact=0b6d1c1e-52c4-4b34-9d63-6e3b4a1f9a10'
-const SHORT =
-  'app.reputationkey.app/p/pt_AbCdEfGhIjKlMnOp_AbCdEfGhIjKlMnOpQrStUvWxYz0123456789_-aBcDe'
+const SHORT = 'app.reputationkey.app'
 const TITLES = { en: 'Pool & Terrace', bg: 'Басейн и тераса' }
 const MM = 72 / 25.4
 
@@ -90,6 +89,15 @@ async function drawnRuns(input: PrintKitRenderInput): Promise<readonly DrawnRun[
 
 const panelLeft = SIDE_MARGIN_MM * MM
 const panelRight = (PANEL_WIDTH_MM - SIDE_MARGIN_MM) * MM
+
+describe('the address under the code', () => {
+  it('sets the host on one line and never the secret path the code carries', async () => {
+    const runs = await drawnRuns(inputFor(tentEnBg))
+    const texts = runs.map((run) => run.text)
+    expect(texts).toContain('app.reputationkey.app')
+    expect(texts.filter((text) => /pt_|\/p\/|accessArtifact/u.test(text))).toEqual([])
+  })
+})
 
 describe('text longer than any brand or title', () => {
   const longTitle =

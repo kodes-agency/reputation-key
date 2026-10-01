@@ -30,10 +30,9 @@ export const GUEST_COPY_V2_PLACEHOLDERS = {
   privacyNoticeLink: [],
   footerMadeWith: [],
   logoAlt: ['name'],
+  // The footer's one-line notice (ADR 0044): it names the essential cookie and
+  // the privacy-protected marker, and promises no ads or third-party trackers.
   visitNotice: ['name'],
-  // The full disclosure (ADR 0044): the essential session cookie and the
-  // network marker. Slice 17 renders this until the owner approves shorter copy.
-  visitNoticeDetail: ['name'],
   visitNoticeLabel: [],
   visitNoticeAcknowledge: [],
   // The rating card.

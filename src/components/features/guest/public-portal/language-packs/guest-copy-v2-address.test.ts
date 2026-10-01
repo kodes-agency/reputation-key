@@ -89,7 +89,7 @@ describe('the form of address', () => {
       linktreeDefaultTitle: 'Nützliche Links',
     })
     expect(deV2.copy.visitNotice).toBe(
-      'Diese Seite zählt Besuche für {name}. Keine Werbung, keine Tracker von Dritten.',
+      '{name} zählt Besuche mit einem notwendigen Cookie und einem datenschutzfreundlichen Marker. Keine Werbung, keine Tracker von Dritten.',
     )
   })
 })

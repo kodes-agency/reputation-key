@@ -69,7 +69,7 @@ export const WaitingTile: Story = {
   },
 }
 
-/** The footer a first-time guest reads: the full disclosure, the privacy link and "Got it". */
+/** The footer a first-time guest reads: the one-line notice, the privacy link and "Got it". */
 export const WithFooter: Story = {
   play: async ({ canvasElement }) => {
     const footer = within(
@@ -78,7 +78,7 @@ export const WithFooter: Story = {
       }),
     )
     await expect(
-      footer.getByText(/An essential session cookie protects your response/),
+      footer.getByText(/counts visits with one essential cookie/),
     ).toBeVisible()
     await expect(footer.getByText(pack.copy.privacyNoticeLink)).toBeVisible()
     await expect(footer.getByText(pack.copy.visitNoticeAcknowledge)).toBeVisible()

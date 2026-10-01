@@ -21,9 +21,8 @@ export const enV2 = defineGuestCopyV2({
     privacyNoticeLink: 'Privacy notice',
     footerMadeWith: 'Made with Reputation Key',
     logoAlt: '{name} logo',
-    visitNotice: 'This page counts visits for {name}. No ads or third‑party trackers.',
-    visitNoticeDetail:
-      'An essential session cookie protects your response. Separately, we count this visit for {name} with a short-lived, privacy-protected network marker. No ads or third‑party trackers.',
+    visitNotice:
+      '{name} counts visits with one essential cookie and a privacy-protected marker. No ads or third-party trackers.',
     visitNoticeLabel: 'Visit counting',
     visitNoticeAcknowledge: 'Got it',
 

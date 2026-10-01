@@ -26,9 +26,7 @@ export const itV2 = defineGuestCopyV2({
     footerMadeWith: 'Creato con Reputation Key',
     logoAlt: 'Logo di {name}',
     visitNotice:
-      'Questa pagina conta le visite per {name}. Nessuna pubblicità, nessun tracker di terze parti.',
-    visitNoticeDetail:
-      'Un cookie di sessione essenziale protegge la sua risposta. Separatamente, contiamo questa visita per {name} con un marcatore di rete di breve durata, a tutela della sua privacy. Nessuna pubblicità, nessun tracker di terze parti.',
+      '{name} conta le visite con un cookie essenziale e un marcatore che tutela la privacy. Nessuna pubblicità, nessun tracker di terze parti.',
     visitNoticeLabel: 'Conteggio delle visite',
     visitNoticeAcknowledge: 'Ho capito',
 

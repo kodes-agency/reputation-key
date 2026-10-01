@@ -72,8 +72,8 @@ describe('PreviewGuestPage draws the real guest page', () => {
     expect(markup).toContain('class="ih-footer"')
   })
 
-  it('draws the footer with the full disclosure, the one guests read', () => {
-    const detail = guestCopyText(pack, 'visitNoticeDetail', { name: 'Avela Resort' })
+  it('draws the footer with the one-line notice guests read', () => {
+    const detail = guestCopyText(pack, 'visitNotice', { name: 'Avela Resort' })
     expect(markup).toContain(detail.replace(/&/gu, '&amp;'))
     expect(markup).toContain('ih-footer__notice')
     expect(markup).toContain(pack.copy.visitNoticeAcknowledge)
