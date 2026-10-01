@@ -13,10 +13,18 @@ import type { Action } from '#/components/hooks/use-action'
 import { unhandledRejectionsDuring } from '#/shared/testing/unhandled-rejections'
 import { InvitationTable, type InvitationRow } from './invitation-table'
 
-type Recorded = Readonly<{ children?: ReactNode; onClick?: () => unknown }>
+type Recorded = Readonly<{
+  children?: ReactNode
+  onClick?: () => unknown
+  'aria-label'?: string
+}>
 
 const { recorded, permissions } = vi.hoisted(() => ({
-  recorded: [] as Array<{ children?: ReactNode; onClick?: () => unknown }>,
+  recorded: [] as Array<{
+    children?: ReactNode
+    onClick?: () => unknown
+    'aria-label'?: string
+  }>,
   permissions: { granted: new Set<string>() },
 }))
 
@@ -151,6 +159,12 @@ describe('InvitationTable facts', () => {
     expect(html).toContain('27 Sep 2026')
   })
 
+  it('names the properties behind "+N more" in text a screen reader reaches, not only a tooltip', () => {
+    expect(renderTable([PENDING])).toContain(
+      '<span class="sr-only">: Harbour Cafe</span>',
+    )
+  })
+
   it('says All properties for an Account Admin invitation', () => {
     expect(renderTable([ADMIN_INVITE])).toContain('All properties')
   })
@@ -181,6 +195,20 @@ describe('InvitationTable actions', () => {
     expect(labels.filter((label) => label === 'Resend')).toHaveLength(1)
     expect(labels.filter((label) => label === 'New link')).toHaveLength(1)
     expect(labels.filter((label) => label === 'Cancel')).toHaveLength(2)
+  })
+
+  it('names every row action after the invitee, so a list of them is not identical buttons', () => {
+    renderTable([PENDING, EXPIRED])
+
+    const rowActions = recorded.filter((props) =>
+      ['Resend', 'New link', 'Cancel'].includes(String(props.children)),
+    )
+    expect(rowActions.map((props) => props['aria-label'])).toEqual([
+      'Resend invitation to pending@example.com',
+      'Cancel invitation to pending@example.com',
+      'New link for expired@example.com',
+      'Cancel invitation to expired@example.com',
+    ])
   })
 
   it('offers no actions without permission to cancel or resend', () => {

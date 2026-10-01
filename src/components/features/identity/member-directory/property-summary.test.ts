@@ -8,6 +8,7 @@ describe('summarizeProperties', () => {
     expect(summarizeProperties(named('Sofia', 'Varna'))).toEqual({
       shown: ['Sofia', 'Varna'],
       hiddenCount: 0,
+      hiddenNames: [],
       all: 'Sofia, Varna',
     })
   })
@@ -16,11 +17,17 @@ describe('summarizeProperties', () => {
     expect(summarizeProperties(named('Sofia', 'Varna', 'Burgas', 'Plovdiv'))).toEqual({
       shown: ['Sofia', 'Varna'],
       hiddenCount: 2,
+      hiddenNames: ['Burgas', 'Plovdiv'],
       all: 'Sofia, Varna, Burgas, Plovdiv',
     })
   })
 
   it('has nothing to show for no properties', () => {
-    expect(summarizeProperties([])).toEqual({ shown: [], hiddenCount: 0, all: '' })
+    expect(summarizeProperties([])).toEqual({
+      shown: [],
+      hiddenCount: 0,
+      hiddenNames: [],
+      all: '',
+    })
   })
 })

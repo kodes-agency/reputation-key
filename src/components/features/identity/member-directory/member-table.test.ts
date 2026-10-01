@@ -138,6 +138,11 @@ describe('MemberTable properties column', () => {
     expect(html).not.toContain('>Harbour Cafe<')
   })
 
+  it('names the properties behind "+N more" in text a screen reader reaches, not only a tooltip', () => {
+    const html = renderTable({ members: [MANAGER] })
+    expect(html).toContain('<span class="sr-only">: Harbour Cafe</span>')
+  })
+
   it('warns when a manager has no properties', () => {
     const html = renderTable({ members: [STRANDED] })
     expect(html).toContain('No properties')

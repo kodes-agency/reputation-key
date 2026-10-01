@@ -290,8 +290,12 @@ export const RefusedInvitationCommands: Story = {
     const canvas = within(canvasElement)
     const page = within(canvasElement.ownerDocument.body)
     const unhandled = await unhandledRejectionsDuring(async () => {
-      await userEvent.click(canvas.getByRole('button', { name: 'Resend' }))
-      await userEvent.click(canvas.getByRole('button', { name: 'Cancel' }))
+      await userEvent.click(
+        canvas.getByRole('button', { name: /^Resend invitation to / }),
+      )
+      await userEvent.click(
+        canvas.getByRole('button', { name: /^Cancel invitation to / }),
+      )
       await userEvent.click(
         await page.findByRole('button', { name: 'Cancel invitation' }),
       )
