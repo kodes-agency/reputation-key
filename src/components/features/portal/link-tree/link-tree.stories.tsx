@@ -180,6 +180,46 @@ export const MovesATileFromTheKeyboard: Story = {
   },
 }
 
+const slowSave = () => new Promise<undefined>((done) => setTimeout(done, 400))
+
+// A write is still in flight when the manager presses the same arrow twice: each
+// press plans from the order already on screen, so the tile ends two places down
+// and the second order sent is not a copy of the first.
+export const TwoQuickMovesBehindASlowWrite: Story = {
+  args: {
+    mutations: {
+      ...stubMutations(),
+      updateLink: stubAction(slowSave),
+    } as unknown as LinktreeMutations,
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /^Getting here/ }))
+    await userEvent.click(canvas.getByRole('radio', { name: 'Car' }))
+    const down = () =>
+      userEvent.click(
+        canvas.getByRole('button', { name: 'Move Discover the resort down' }),
+      )
+    await down()
+    await expect(canvas.getByRole('status')).toHaveTextContent(
+      'Moved Discover the resort to position 2 of 4',
+    )
+    await down()
+    await expect(canvas.getByRole('status')).toHaveTextContent(
+      'Moved Discover the resort to position 3 of 4',
+    )
+    await waitFor(() => expect(args.mutations.reorderLinks).toHaveBeenCalledTimes(2), {
+      timeout: 3000,
+    })
+    const ids = (call: number) =>
+      mocked(args.mutations.reorderLinks).mock.calls[call]?.[0].data.items.map(
+        (item: { id: string }) => item.id,
+      )
+    await expect(ids(0)).toEqual(['spa', 'discover', 'menu', 'getting-here'])
+    await expect(ids(1)).toEqual(['spa', 'menu', 'discover', 'getting-here'])
+  },
+}
+
 export const OpenTileShowsTheApproval: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)

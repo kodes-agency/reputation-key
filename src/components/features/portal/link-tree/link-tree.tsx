@@ -9,7 +9,10 @@ import { toast } from 'sonner'
 import { Plus } from 'lucide-react'
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
 import { Button } from '#/components/ui/button'
-import type { PortalLinktreeView } from '#/contexts/portal/application/public-api'
+import type {
+  PortalLinktreeLink,
+  PortalLinktreeView,
+} from '#/contexts/portal/application/public-api'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalLinkIconKey } from '#/shared/domain/portal-link-icon'
 import { usePortalDraftAutosave } from '../portal-editor/portal-draft-autosave-context'
@@ -19,11 +22,13 @@ import { LinktreeTileEditor } from './linktree-tile-editor'
 import { LinktreeTile } from './linktree-tile'
 import { LinktreeTitleForm } from './linktree-title-form'
 import {
+  applyLinkOrder,
   describeLinkCap,
   linkLabelFor,
   offeredLocales,
   planLinkMove,
   type LinkMoveDirection,
+  type LinkOrderPlan,
 } from './linktree-rules'
 import type { LinktreeMutations } from './use-linktree-mutations'
 
@@ -44,8 +49,16 @@ export function LinkTree({ view, mutations, memberNames, canEdit, canDelete }: P
   const [isAdding, setIsAdding] = useState(false)
   const [titleChoice, setTitleChoice] = useState<OfferedGuestLocale | null>(null)
   const [announcement, setAnnouncement] = useState('')
+  // Moves asked for that the server has not finished with. Each one is planned
+  // from the order the person saw, which already holds the moves before it, so a
+  // quick second press never plans from a stale list or undoes the first.
+  const [plans, setPlans] = useState<ReadonlyArray<LinkOrderPlan>>([])
+  const links: ReadonlyArray<PortalLinktreeLink> = plans.reduce(
+    applyLinkOrder,
+    view.links,
+  )
   const refocus = useRef<string | null>(null)
-  const order = view.links.map((link) => link.id).join()
+  const order = links.map((link) => link.id).join()
   const cap = describeLinkCap(view.links.length, view.maxLinks)
   const titleLocale = titleChoice ?? locales[0]
 
@@ -69,7 +82,9 @@ export function LinkTree({ view, mutations, memberNames, canEdit, canDelete }: P
   // waiting out its debounce: every write reads the Portal afresh, so two at once
   // (a quick second move, an add beside a title edit) would refuse the second.
   const queue = useRef<Promise<unknown>>(Promise.resolve())
+  const waiting = useRef(0)
   const afterPendingText = <T,>(write: () => Promise<T>): Promise<T> => {
+    waiting.current += 1
     const run = queue.current
       .catch(() => undefined)
       .then(async () => {
@@ -77,16 +92,23 @@ export function LinkTree({ view, mutations, memberNames, canEdit, canDelete }: P
         return write()
       })
     queue.current = run
+    const settle = () => {
+      waiting.current -= 1
+      // Once the queue is empty the cache holds the truth, saved or rolled back.
+      if (waiting.current === 0) setPlans([])
+    }
+    run.then(settle, settle)
     return run
   }
   const reportFailure = (error: unknown) => toast.error(actionErrorMessage(error))
 
   const move = (linkId: string, direction: LinkMoveDirection) => {
-    const plan = planLinkMove(view.links, linkId, direction)
+    const plan = planLinkMove(links, linkId, direction)
     if (plan === null) return
+    setPlans((earlier) => [...earlier, plan])
     refocus.current = `${linkId}:${direction}`
     const position = plan.items.findIndex((item) => item.id === linkId) + 1
-    const link = view.links.find((candidate) => candidate.id === linkId)
+    const link = links.find((candidate) => candidate.id === linkId)
     setAnnouncement(
       `Moved ${link ? linkLabelFor(link, view.primaryLocale).label : 'the link'} to position ${position} of ${plan.items.length}`,
     )
@@ -145,13 +167,13 @@ export function LinkTree({ view, mutations, memberNames, canEdit, canDelete }: P
           The Linktree is hidden from the page. Your links are kept.
         </p>
       )}
-      {view.links.length === 0 ? (
+      {links.length === 0 ? (
         <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
           No links yet. Add up to {view.maxLinks} tiles under the rating card.
         </p>
       ) : (
         <ul className="space-y-2">
-          {view.links.map((link) => (
+          {links.map((link) => (
             <LinktreeTile
               key={link.id}
               link={link}
@@ -165,8 +187,8 @@ export function LinkTree({ view, mutations, memberNames, canEdit, canDelete }: P
               }}
               canEdit={canEdit}
               canDelete={canDelete}
-              canMoveUp={planLinkMove(view.links, link.id, 'up') !== null}
-              canMoveDown={planLinkMove(view.links, link.id, 'down') !== null}
+              canMoveUp={planLinkMove(links, link.id, 'up') !== null}
+              canMoveDown={planLinkMove(links, link.id, 'down') !== null}
               onMove={(direction) => move(link.id, direction)}
               onDelete={() => remove(link.id)}
             >
