@@ -4,6 +4,8 @@
 
 import {
   S3Client,
+  S3ServiceException,
+  GetObjectCommand,
   HeadObjectCommand,
   DeleteObjectCommand,
   PutObjectCommand,
@@ -67,7 +69,9 @@ export const createS3StorageAdapter = (config: S3StorageConfig): StoragePort => 
       deleteObject: async () => {
         throw portalError('upload_failed', 'S3 storage is not configured')
       },
-      getPublicUrl: () => '',
+      getObject: async () => {
+        throw portalError('upload_failed', 'S3 storage is not configured')
+      },
       putObject: async () => {
         throw portalError('upload_failed', 'S3 storage is not configured')
       },
@@ -120,8 +124,24 @@ export const createS3StorageAdapter = (config: S3StorageConfig): StoragePort => 
       )
     },
 
-    getPublicUrl: (key) => {
-      return `https://${bucketName}.s3.${region}.amazonaws.com/${key}`
+    getObject: async (key, maxBytes) => {
+      try {
+        const response = await trace('s3.getObject', () =>
+          internalClient.send(new GetObjectCommand({ Bucket: bucketName, Key: key })),
+        )
+        if (!response.Body) return null
+        if ((response.ContentLength ?? 0) > maxBytes) {
+          throw portalError('upload_failed', 'The stored object is larger than allowed')
+        }
+        const body = await response.Body.transformToByteArray()
+        if (body.length > maxBytes) {
+          throw portalError('upload_failed', 'The stored object is larger than allowed')
+        }
+        return { body, contentType: response.ContentType ?? null }
+      } catch (error) {
+        if (error instanceof S3ServiceException && error.name === 'NoSuchKey') return null
+        throw error
+      }
     },
 
     putObject: async (key, body, contentType) => {

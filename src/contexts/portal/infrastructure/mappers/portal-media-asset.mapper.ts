@@ -35,6 +35,7 @@ export const portalMediaAssetFromRow = (row: Row): PortalMediaAsset => ({
   createdBy: userId(row.createdBy),
   createdAt: row.createdAt,
   takenDownAt: row.takenDownAt,
+  objectDeletedAt: row.objectDeletedAt,
 })
 
 export const portalMediaAssetToRow = (asset: PortalMediaAsset): Row => ({
@@ -55,4 +56,5 @@ export const portalMediaAssetToRow = (asset: PortalMediaAsset): Row => ({
   createdBy: asset.createdBy,
   createdAt: asset.createdAt,
   takenDownAt: asset.takenDownAt,
+  objectDeletedAt: asset.objectDeletedAt,
 })

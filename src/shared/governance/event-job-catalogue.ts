@@ -740,6 +740,18 @@ const BACKGROUND_QUEUE_ROWS: ReadonlyArray<JobFamilyRow> = [
     { timeoutMs: 300_000 },
   ),
   job(
+    'portal-media-sweep',
+    'src/contexts/portal/infrastructure/jobs/sweep-portal-media.job.ts',
+    {
+      queue: 'background',
+      capability: 'none',
+      action: 'system:portal.media_sweep',
+      schedule: 'every:3600000,offset:1800000',
+      registration: 'enabled',
+    },
+    { timeoutMs: 300_000 },
+  ),
+  job(
     'health-check',
     'src/shared/jobs/health-check.job.ts',
     {
