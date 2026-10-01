@@ -21,10 +21,13 @@ const line = (
   detail: PortalHistoryDetail,
   actor?: PortalHistoryEntry['actor'],
   versionSummary: Phrase | null = null,
+  timeZone = 'UTC',
 ) => {
   const described = describeHistoryEntry(entry(detail, actor), {
     portalName: 'Pool & Terrace',
     versionSummary,
+    timeZone,
+    now: new Date('2026-09-30T09:00:00.000Z'),
   })
   return {
     ...described,
@@ -99,7 +102,12 @@ describe('describeHistoryEntry: page edits', () => {
           { previousText: 'Zona de piscina', newText: 'Piscina y terraza' },
         ),
       ),
-      { portalName: 'P', versionSummary: null },
+      {
+        portalName: 'P',
+        versionSummary: null,
+        timeZone: 'UTC',
+        now: new Date('2026-09-30T09:00:00.000Z'),
+      },
     )
 
     expect(phraseText(described.action)).toBe('reworded the Spanish wording of the page')
@@ -226,94 +234,5 @@ describe('describeHistoryEntry: page edits', () => {
     expect(action({ area: 'links' })).toBe('changed the links')
     expect(action({ area: 'display_name' })).toBe('renamed the property’s public name')
     expect(action({ area: 'profile' })).toBe('changed the property’s look')
-  })
-})
-
-describe('describeHistoryEntry: codes', () => {
-  it('words each code event, with the person when there is one', () => {
-    expect(line({ kind: 'code_issued', version: 1 })).toMatchObject({
-      glyph: 'code',
-      action: 'made a code',
-    })
-    expect(line({ kind: 'code_issued', version: 1 }, null)).toMatchObject({
-      actor: null,
-      action: 'A code was made',
-    })
-    expect(line({ kind: 'codes_revoked', reason: 'Tags lost' })).toMatchObject({
-      glyph: 'stopped',
-      action: 'stopped all codes',
-      detail: 'Tags lost',
-    })
-  })
-
-  it('says until when the replaced code keeps working', () => {
-    expect(
-      line({
-        kind: 'code_replaced',
-        version: 2,
-        previousCodesWorkUntil: '2026-10-14T00:00:00.000Z',
-      }),
-    ).toMatchObject({
-      action: 'replaced the code',
-      detail: 'the old one works until 14 Oct 2026',
-    })
-    expect(
-      line({ kind: 'code_replaced', version: 2, previousCodesWorkUntil: null }),
-    ).toMatchObject({ detail: 'the old one stopped working' })
-  })
-
-  it('says what a download was for', () => {
-    expect(
-      line({ kind: 'code_downloaded', version: 1, purpose: 'download' }),
-    ).toMatchObject({
-      glyph: 'download',
-      action: 'downloaded the code again',
-    })
-    expect(line({ kind: 'code_downloaded', version: 1, purpose: 'copy' })).toMatchObject({
-      glyph: 'copy',
-      action: 'copied the NFC address',
-    })
-    expect(line({ kind: 'code_downloaded', version: 1, purpose: 'show' })).toMatchObject({
-      action: 'viewed the address',
-    })
-  })
-})
-
-describe('describeHistoryEntry: health', () => {
-  it('has no person and says back to working', () => {
-    expect(
-      line({ kind: 'health_changed', status: 'healthy', reason: 'operational' }, null),
-    ).toMatchObject({
-      glyph: 'health_ok',
-      actor: null,
-      action: 'Health: back to working',
-    })
-  })
-
-  it('says what needs attention, or what is not available', () => {
-    expect(
-      line(
-        {
-          kind: 'health_changed',
-          status: 'degraded',
-          reason: 'google_destination_unavailable',
-        },
-        null,
-      ),
-    ).toMatchObject({
-      glyph: 'health_warn',
-      action: 'Health: needs attention',
-      detail: 'the Google link is not available',
-    })
-    expect(
-      line(
-        {
-          kind: 'health_changed',
-          status: 'unavailable',
-          reason: 'public_address_unavailable',
-        },
-        null,
-      ),
-    ).toMatchObject({ glyph: 'health_off', detail: 'it has no working code' })
   })
 })

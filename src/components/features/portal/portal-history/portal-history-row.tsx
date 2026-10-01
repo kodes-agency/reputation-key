@@ -57,6 +57,10 @@ type Props = Readonly<{
   canMakeLive: boolean
   /** This line's inline confirmation is open. */
   restoreOpen: boolean
+  /** Move focus to View when the line appears (it was just revealed). */
+  focusView: boolean
+  /** The confirmation just closed because this version was made live. */
+  restored: boolean
   onView: (version: number) => void
   onAskRestore: (version: number) => void
   /** The confirmation, when open on this line. */
@@ -70,6 +74,8 @@ export function PortalHistoryRow({
   timeZone,
   canMakeLive,
   restoreOpen,
+  focusView,
+  restored,
   onView,
   onAskRestore,
   restorePanel,
@@ -81,16 +87,27 @@ export function PortalHistoryRow({
       row.entry.detail.kind === 'version_published' && version !== null
         ? summarizeVersion(version)
         : null,
+    timeZone,
+    now,
   })
   const detail = withPublishedIn(line.detail, row.draft)
   const time = formatHistoryTime(row.entry.occurredAt, now, timeZone)
   const restoreButton = useRef<HTMLButtonElement>(null)
+  const viewButton = useRef<HTMLButtonElement>(null)
   const wasOpen = useRef(false)
-  // Closing the confirmation hands focus back to the button that opened it.
+  // Closing the confirmation hands focus back to the button that opened it. A
+  // version that was just made live has no such button any more (it is live),
+  // so focus goes to the line's View instead of falling to the page.
   useEffect(() => {
-    if (wasOpen.current && !restoreOpen) restoreButton.current?.focus()
+    if (wasOpen.current && !restoreOpen) {
+      ;(restored ? viewButton : restoreButton).current?.focus()
+    }
     wasOpen.current = restoreOpen
-  }, [restoreOpen])
+  }, [restoreOpen, restored])
+  // "Show" replaces its own row, which held focus: the first revealed line takes it.
+  useEffect(() => {
+    if (focusView) viewButton.current?.focus()
+  }, [focusView])
 
   return (
     <TimelineItem role="listitem" className="group/row">
@@ -147,6 +164,7 @@ export function PortalHistoryRow({
               )}
             >
               <Button
+                ref={viewButton}
                 type="button"
                 variant="outline"
                 size="sm"

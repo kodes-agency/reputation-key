@@ -162,7 +162,8 @@ describe('getPortalVersions', () => {
       [2, false],
       [1, true],
     ])
-    expect(result.draft.basedOnVersion).toBe(1)
+    // Making version 1 live never touches the draft, which still holds version 2.
+    expect(result.draft.basedOnVersion).toBe(2)
   })
 
   it('has no live version while the page is off, and the draft is based on the newest', async () => {

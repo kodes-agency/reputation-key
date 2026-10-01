@@ -233,7 +233,7 @@ describe('diffPublicationContent', () => {
     ])
   })
 
-  it('names reworded titles, descriptions, photo descriptions and section titles by language', () => {
+  it('names reworded titles, link preview texts, photo descriptions and section titles by language', () => {
     const en = v3.localizedContent.en!
     const changed = {
       ...v3,
@@ -251,7 +251,7 @@ describe('diffPublicationContent', () => {
     expect(en.title.value).not.toBe(changed.localizedContent.en.title.value)
     expect(diffPublicationContent(v3, changed)).toEqual([
       { kind: 'wording_changed', field: 'title', locale: 'en' },
-      { kind: 'wording_changed', field: 'description', locale: 'en' },
+      { kind: 'wording_changed', field: 'link_preview', locale: 'en' },
       { kind: 'wording_changed', field: 'photo_description', locale: 'en' },
       { kind: 'wording_changed', field: 'linktree_title', locale: 'en' },
     ])
@@ -325,5 +325,134 @@ describe('diffPublicationContent', () => {
 
     expect(forward).toEqual([{ kind: 'link_added', label: 'Dinner', hasPhoto: true }])
     expect(back).toEqual([{ kind: 'link_removed', label: 'Dinner', hasPhoto: true }])
+  })
+})
+
+describe('diffPublicationContent: what guests see of a tile and the hero', () => {
+  const photo = (id: string): ImmersiveLink => ({ ...spa, imageAssetId: id })
+  const otherPhoto = '70000000-0000-4000-8000-0000000000aa'
+
+  it('names a tile whose photo was swapped for another photo', () => {
+    expect(diffPublicationContent(v3, withLinks([menu, photo(otherPhoto)]))).toEqual([
+      { kind: 'link_photo_changed', label: 'Spa', how: 'replaced' },
+    ])
+  })
+
+  it('names a photo added to a tile and a photo taken off one', () => {
+    const withPhoto: ImmersiveLink = { ...menu, imageAssetId: otherPhoto }
+    const withoutPhoto: ImmersiveLink = { ...spa, imageAssetId: null }
+
+    expect(diffPublicationContent(v3, withLinks([withPhoto, spa]))).toEqual([
+      { kind: 'link_photo_changed', label: 'Menu', how: 'added' },
+    ])
+    expect(diffPublicationContent(v3, withLinks([menu, withoutPhoto]))).toEqual([
+      { kind: 'link_photo_changed', label: 'Spa', how: 'removed' },
+    ])
+  })
+
+  it('names a tile whose icon changed', () => {
+    const iconic: ImmersiveLink = { ...menu, iconKey: 'wine' }
+
+    expect(diffPublicationContent(v3, withLinks([iconic, spa]))).toEqual([
+      { kind: 'link_icon_changed', label: 'Menu' },
+    ])
+  })
+
+  it('names a hero photo whose focal point moved', () => {
+    const moved = {
+      ...v3,
+      brandProfile: {
+        ...v3.brandProfile,
+        hero: { ...v3.brandProfile.hero!, focalX: 0.9 },
+      },
+    } satisfies ImmersivePortalPublicationConfiguration
+
+    expect(diffPublicationContent(v3, moved)).toEqual([
+      { kind: 'look_changed', facets: ['photo_focus'] },
+    ])
+  })
+
+  it('names a hero photo that another photo replaced', () => {
+    const swapped = {
+      ...v3,
+      brandProfile: {
+        ...v3.brandProfile,
+        hero: { ...v3.brandProfile.hero!, assetId: otherPhoto },
+      },
+    } satisfies ImmersivePortalPublicationConfiguration
+
+    expect(diffPublicationContent(v3, swapped)).toEqual([
+      { kind: 'look_changed', facets: ['photo'] },
+    ])
+  })
+
+  it('calls a v3 short description link preview text, not wording on the page', () => {
+    const view = publicationContentView(v3)
+
+    expect(view.wording.en?.description).toBeNull()
+    expect(view.previewTexts.en).toBe('Rate your visit to the Harbor Hotel.')
+  })
+})
+
+describe('diffPublicationContent: what a legacy page shows guests', () => {
+  const withHero = (
+    heroes: Partial<Record<'en' | 'bg', string | null>>,
+  ): LocalizedPortalPublicationConfiguration => ({
+    ...v2,
+    localizedContent: Object.fromEntries(
+      Object.entries(v2.localizedContent).map(([locale, content]) => [
+        locale,
+        {
+          ...content,
+          heroImageUrl: heroes[locale as 'en' | 'bg'] ?? content.heroImageUrl,
+        },
+      ]),
+    ),
+  })
+
+  it('names a hero photo changed in one language, as guests read it from that language', () => {
+    expect(
+      diffPublicationContent(v2, withHero({ bg: 'https://cdn.example.com/bg.jpg' })),
+    ).toEqual([{ kind: 'hero_photo_changed', locale: 'bg' }])
+  })
+
+  it('does not report a change to the default hero that no guest is shown', () => {
+    const changed = {
+      ...v2,
+      brandProfile: {
+        ...v2.brandProfile,
+        defaultHeroImageUrl: 'https://cdn.example.com/default.jpg',
+      },
+    } satisfies LocalizedPortalPublicationConfiguration
+
+    expect(diffPublicationContent(v2, changed)).toEqual([])
+  })
+
+  it('names a renamed category heading', () => {
+    const renamed = {
+      ...v2,
+      categories: v2.categories.map((category, index) =>
+        index === 0 ? { ...category, title: 'Tell us more' } : category,
+      ),
+    } satisfies LocalizedPortalPublicationConfiguration
+
+    expect(diffPublicationContent(v2, renamed)).toEqual([
+      { kind: 'heading_renamed', from: 'Share your experience', to: 'Tell us more' },
+    ])
+  })
+
+  it('names a renamed category heading on a v1 page too', () => {
+    const legacy = v1 as Extract<PortalPublicationConfiguration, { schemaVersion: 1 }>
+    const renamed = {
+      ...legacy,
+      categories: legacy.categories.map((category) => ({
+        ...category,
+        title: 'Tell us more',
+      })),
+    } satisfies PortalPublicationConfiguration
+
+    expect(diffPublicationContent(v1, renamed)).toEqual([
+      { kind: 'heading_renamed', from: 'Share your experience', to: 'Tell us more' },
+    ])
   })
 })

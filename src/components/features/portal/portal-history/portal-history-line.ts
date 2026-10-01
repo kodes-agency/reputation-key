@@ -9,22 +9,19 @@ import type {
 import { describePageEditLine } from './portal-history-edit-line'
 import type { HistoryLine } from './portal-history-line-types'
 import { plain, strong, type Phrase } from './portal-history-phrase'
+import { formatHistoryTime } from './portal-history-time'
 
 type LineContext = Readonly<{
   portalName: string
   /** For a publication: what the version added, from the versions read. */
   versionSummary: Phrase | null
+  /** The Property's zone and the current time: a date reads in the zone every other line does. */
+  timeZone: string
+  now: Date
 }>
 
 const personOf = (entry: PortalHistoryEntry): string | null =>
   entry.actor === null ? null : (entry.actor.displayName ?? 'Someone')
-
-const dayFormatter = new Intl.DateTimeFormat('en-GB', {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-  timeZone: 'UTC',
-})
 
 const HEALTH_DETAIL: Readonly<Record<string, string>> = {
   responsibility_needed: 'no one is responsible for it',
@@ -68,6 +65,7 @@ function describeCode(
     PortalHistoryDetail,
     { kind: 'code_issued' | 'code_replaced' | 'codes_revoked' | 'code_downloaded' }
   >,
+  context: LineContext,
 ): HistoryLine {
   const actor = personOf(entry)
   switch (detail.kind) {
@@ -91,7 +89,7 @@ function describeCode(
           plain(
             until === null
               ? 'the old one stopped working'
-              : `the old one works until ${dayFormatter.format(new Date(until))}`,
+              : `the old one works until ${formatHistoryTime(until, context.now, context.timeZone).date}`,
           ),
         ],
       }
@@ -169,6 +167,6 @@ export function describeHistoryEntry(
     case 'code_replaced':
     case 'codes_revoked':
     case 'code_downloaded':
-      return describeCode(entry, detail)
+      return describeCode(entry, detail, context)
   }
 }

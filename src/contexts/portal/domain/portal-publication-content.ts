@@ -27,6 +27,10 @@ export type PublicationLinkView = Readonly<{
   address: string
   /** Whether the tile carries a photo (only the Immersive Hub has them). */
   hasPhoto: boolean
+  /** The photo's asset, so one photo swapped for another is seen. v3 only. */
+  photoId: string | null
+  /** The icon the tile names in the guest page's icon map. v3 only. */
+  iconKey: string | null
   /** Per language: the label and the line under it. Present for v3 only. */
   texts: Readonly<
     Partial<Record<GuestLocale, Readonly<{ label: string; line: string | null }>>>
@@ -42,18 +46,33 @@ export type PublicationContentView = Readonly<{
   links: readonly PublicationLinkView[]
   /** Null where the schema has no switch: the section shows whenever it has links. */
   linktreeEnabled: boolean | null
+  /** The page's title and, on the legacy page, the description under it. */
   wording: Readonly<
-    Partial<Record<GuestLocale, Readonly<{ title: string; description: string }>>>
+    Partial<Record<GuestLocale, Readonly<{ title: string; description: string | null }>>>
   >
-  /** v3 only: the line that describes the hero photo, and the section's title. */
+  /**
+   * v3 only: the line that describes the hero photo, and the section's title.
+   * The short description is not wording on the page: it is the text a shared
+   * link shows (`og:description`), so it lives apart as `previewTexts`.
+   */
   photoDescriptions: Readonly<Partial<Record<GuestLocale, string>>>
   linktreeTitles: Readonly<Partial<Record<GuestLocale, string>>>
+  previewTexts: Readonly<Partial<Record<GuestLocale, string>>>
+  /**
+   * v2 only: the hero photo of each language, which is what a guest reading
+   * that language is shown (the brand's default hero is never read).
+   */
+  heroPhotos: Readonly<Partial<Record<GuestLocale, string | null>>>
+  /** Legacy pages print each category's title as a heading. */
+  headings: ReadonlyArray<Readonly<{ id: string; title: string }>>
   look: Readonly<{
     name: string | null
     colours: string
     wordmark: string | null
     logo: string | null
     photo: string | null
+    /** Where the hero photo is cropped around. v3 only. */
+    photoFocus: string | null
   }>
   feedbackThreshold: number
   reviewAddress: string
@@ -82,6 +101,8 @@ const legacyLinks = (
       label: link.label,
       address: link.url,
       hasPhoto: false,
+      photoId: null,
+      iconKey: null,
       texts: {},
     }))
 }
@@ -103,6 +124,8 @@ function immersiveView(
       label: link.texts[guestLocale]?.label ?? '',
       address: link.url,
       hasPhoto: link.imageAssetId !== null,
+      photoId: link.imageAssetId,
+      iconKey: link.iconKey,
       texts: Object.fromEntries(
         Object.entries(link.texts).flatMap(([locale, text]) =>
           text ? [[locale, { label: text.label, line: text.line }]] : [],
@@ -113,9 +136,14 @@ function immersiveView(
     wording: Object.fromEntries(
       entries.map(([locale, content]) => [
         locale,
-        { title: content.title.value, description: content.shortDescription.value },
+        { title: content.title.value, description: null },
       ]),
     ),
+    previewTexts: Object.fromEntries(
+      entries.map(([locale, content]) => [locale, content.shortDescription.value]),
+    ),
+    heroPhotos: {},
+    headings: [],
     photoDescriptions: Object.fromEntries(
       entries.map(([locale, content]) => [locale, content.heroAlt.value]),
     ),
@@ -128,6 +156,9 @@ function immersiveView(
       wordmark: brandProfile.wordmark,
       logo: brandProfile.logo?.assetId ?? null,
       photo: brandProfile.hero?.assetId ?? null,
+      photoFocus: brandProfile.hero
+        ? `${brandProfile.hero.focalX},${brandProfile.hero.focalY}`
+        : null,
     },
     feedbackThreshold: configuration.reviewGateway.privateFeedbackThreshold,
     reviewAddress: configuration.reviewGateway.googleReview.uri,
@@ -144,6 +175,8 @@ function localizedView(
     linktreeEnabled: null,
     photoDescriptions: {},
     linktreeTitles: {},
+    previewTexts: {},
+    headings: configuration.categories.map(({ id, title }) => ({ id, title })),
     feedbackThreshold: configuration.reviewGateway.privateFeedbackThreshold,
     reviewAddress: configuration.reviewGateway.googleReview.uri,
   } as const
@@ -165,7 +198,9 @@ function localizedView(
         wordmark: null,
         logo: null,
         photo: configuration.portal.heroImageUrl,
+        photoFocus: null,
       },
+      heroPhotos: {},
     }
   }
   const { brandProfile } = configuration
@@ -173,6 +208,11 @@ function localizedView(
     ...base,
     primaryLocale: configuration.guestLocale,
     locales: configuration.localeSet,
+    heroPhotos: Object.fromEntries(
+      Object.entries(configuration.localizedContent).flatMap(([locale, content]) =>
+        content ? [[locale, content.heroImageUrl]] : [],
+      ),
+    ),
     wording: Object.fromEntries(
       Object.entries(configuration.localizedContent).flatMap(([locale, content]) =>
         content
@@ -185,7 +225,8 @@ function localizedView(
       colours: `${brandProfile.primaryColor}/${brandProfile.backgroundColor}/${brandProfile.textColor}`,
       wordmark: null,
       logo: brandProfile.logoUrl,
-      photo: brandProfile.defaultHeroImageUrl,
+      photo: null,
+      photoFocus: null,
     },
   }
 }
@@ -203,9 +244,11 @@ export function publicationContentView(
 
 // ── changes ───────────────────────────────────────────────────────────────
 
-export type PublicationLookFacet = 'colours' | 'name' | 'wordmark' | 'logo' | 'photo'
+export type PublicationLookFacet =
+  'colours' | 'name' | 'wordmark' | 'logo' | 'photo' | 'photo_focus'
 export type PublicationWordingField =
-  'title' | 'description' | 'photo_description' | 'linktree_title'
+  'title' | 'description' | 'link_preview' | 'photo_description' | 'linktree_title'
+export type PublicationTilePhotoChange = 'added' | 'removed' | 'replaced'
 
 /**
  * One difference between two configurations. `added` and `removed` are from
@@ -225,8 +268,16 @@ export type PublicationContentChange =
   | Readonly<{ kind: 'link_removed'; label: string; hasPhoto: boolean }>
   | Readonly<{ kind: 'link_renamed'; from: string; to: string }>
   | Readonly<{ kind: 'link_address_changed'; label: string }>
+  | Readonly<{
+      kind: 'link_photo_changed'
+      label: string
+      how: PublicationTilePhotoChange
+    }>
+  | Readonly<{ kind: 'link_icon_changed'; label: string }>
   | Readonly<{ kind: 'link_reworded'; label: string; locale: GuestLocale }>
   | Readonly<{ kind: 'links_reordered' }>
+  | Readonly<{ kind: 'heading_renamed'; from: string; to: string }>
+  | Readonly<{ kind: 'hero_photo_changed'; locale: GuestLocale }>
   | Readonly<{ kind: 'linktree_switched'; enabled: boolean }>
   | Readonly<{
       kind: 'wording_changed'
@@ -281,6 +332,21 @@ function changedLinks(
     if (earlier.address !== link.address) {
       changes.push({ kind: 'link_address_changed', label: link.label })
     }
+    if (earlier.photoId !== link.photoId) {
+      changes.push({
+        kind: 'link_photo_changed',
+        label: link.label,
+        how:
+          earlier.photoId === null
+            ? 'added'
+            : link.photoId === null
+              ? 'removed'
+              : 'replaced',
+      })
+    }
+    if (earlier.iconKey !== link.iconKey) {
+      changes.push({ kind: 'link_icon_changed', label: link.label })
+    }
     for (const locale of after.locales) {
       const [wasText, nowText] = [earlier.texts[locale], link.texts[locale]]
       if (!wasText || !nowText) continue
@@ -312,9 +378,10 @@ function changedWording(
       ['title', before.wording[locale]?.title, after.wording[locale]?.title],
       [
         'description',
-        before.wording[locale]?.description,
-        after.wording[locale]?.description,
+        before.wording[locale]?.description ?? undefined,
+        after.wording[locale]?.description ?? undefined,
       ],
+      ['link_preview', before.previewTexts[locale], after.previewTexts[locale]],
       [
         'photo_description',
         before.photoDescriptions[locale],
@@ -330,6 +397,40 @@ function changedWording(
   })
 }
 
+function changedHeadings(
+  before: PublicationContentView,
+  after: PublicationContentView,
+): ReadonlyArray<PublicationContentChange> {
+  const was = new Map(before.headings.map((heading) => [heading.id, heading.title]))
+  return after.headings.flatMap((heading): PublicationContentChange[] => {
+    const earlier = was.get(heading.id)
+    return earlier !== undefined && earlier !== heading.title
+      ? [{ kind: 'heading_renamed', from: earlier, to: heading.title }]
+      : []
+  })
+}
+
+function changedHeroPhotos(
+  before: PublicationContentView,
+  after: PublicationContentView,
+): ReadonlyArray<PublicationContentChange> {
+  return after.locales.flatMap((locale): PublicationContentChange[] => {
+    const [was, now] = [before.heroPhotos[locale], after.heroPhotos[locale]]
+    return was !== undefined && now !== undefined && was !== now
+      ? [{ kind: 'hero_photo_changed', locale }]
+      : []
+  })
+}
+
+const LOOK_FACETS = [
+  'colours',
+  'name',
+  'wordmark',
+  'logo',
+  'photo',
+  'photo_focus',
+] as const satisfies readonly PublicationLookFacet[]
+
 function changedLook(
   before: PublicationContentView,
   after: PublicationContentView,
@@ -340,9 +441,16 @@ function changedLook(
   // Each schema keeps its own look facts (a v1 has only a primary colour), so
   // a look is compared only against a look of the same shape.
   if (before.schemaVersion !== after.schemaVersion) return []
-  const facets = (['colours', 'name', 'wordmark', 'logo', 'photo'] as const).filter(
-    (facet) => before.look[facet] !== after.look[facet],
-  )
+  const facets = LOOK_FACETS.filter((facet) => {
+    if (facet === 'photo_focus') {
+      // The crop only matters for the same photo; a new photo is one change.
+      return (
+        before.look.photo === after.look.photo &&
+        before.look.photoFocus !== after.look.photoFocus
+      )
+    }
+    return before.look[facet] !== after.look[facet]
+  })
   return facets.length === 0 ? [] : [{ kind: 'look_changed', facets }]
 }
 
@@ -387,6 +495,8 @@ export function diffPublicationContent(
     ...changedLinks(prior, next),
     ...switched,
     ...changedWording(prior, next),
+    ...changedHeadings(prior, next),
+    ...changedHeroPhotos(prior, next),
     ...changedLook(prior, next),
     ...(prior.feedbackThreshold !== next.feedbackThreshold
       ? [

@@ -7,6 +7,7 @@ import {
 } from '#/shared/db/schema/portal-publication.schema'
 import { portalAddressDownloads, portalTokens } from '#/shared/db/schema/portal.schema'
 import { unbrand } from '#/shared/domain/ids'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
 import type {
   PortalCodeDownloadRow,
@@ -31,7 +32,10 @@ const clamp = (page: PortalHistoryPage): number =>
     ? Math.min(MAX_SOURCE_ROWS, Math.max(1, page.limit))
     : 21
 
-export const createPortalHistoryRepository = (db: Database): PortalHistoryRepository => ({
+export const createPortalHistoryRepository = (
+  db: Database,
+  logger?: LoggerPort,
+): PortalHistoryRepository => ({
   listPublicationEvents: (orgId, propertyIdValue, portalIdValue, page) =>
     trace('portalHistory.listPublicationEvents', async () => {
       const a = portalPublicationActivations
@@ -87,6 +91,18 @@ export const createPortalHistoryRepository = (db: Database): PortalHistoryReposi
         .limit(Math.min(MAX_VERSION_ROWS, Math.max(1, limit)))
       return rows.flatMap((row): PortalPublishedVersionRow[] => {
         const snapshot = snapshotFromRow(row)
+        // An immutable snapshot that stops verifying is an integrity problem,
+        // not a missing row: say so, since the list will simply skip it.
+        if (!snapshot) {
+          logger?.warn(
+            {
+              portalId: row.portalId,
+              snapshotId: row.id,
+              version: row.version,
+            },
+            'Portal publication snapshot no longer verifies and is left out of History',
+          )
+        }
         return snapshot
           ? [
               {

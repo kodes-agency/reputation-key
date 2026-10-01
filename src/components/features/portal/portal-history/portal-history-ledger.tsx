@@ -33,7 +33,11 @@ type Props = Readonly<{
   renderRestore: (version: number) => ReactNode
   onView: (version: number) => void
   onAskRestore: (version: number) => void
-  onShowEarlier: () => void
+  onShowEarlier: (firstVersion: number) => void
+  /** The first version that "Show" revealed: its line takes focus. */
+  revealedVersion: number | null
+  /** The version just made live again from its own line: focus returns to its View. */
+  restoredVersion: number | null
   hasMore: boolean
   loadingMore: boolean
   onLoadMore: () => void
@@ -104,6 +108,12 @@ export function PortalHistoryLedger(props: Props) {
                   canMakeLive={props.canMakeLive}
                   restoreOpen={
                     row.version !== null && row.version.version === props.restoreVersion
+                  }
+                  focusView={
+                    row.version !== null && row.version.version === props.revealedVersion
+                  }
+                  restored={
+                    row.version !== null && row.version.version === props.restoredVersion
                   }
                   onView={props.onView}
                   onAskRestore={props.onAskRestore}

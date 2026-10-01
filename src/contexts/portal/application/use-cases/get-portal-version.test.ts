@@ -96,6 +96,7 @@ describe('getPortalVersion', () => {
       isLive: false,
       liveVersion: 2,
       nextVersion: 3,
+      newestVersion: 2,
       publishedBy: { userId: 'publisher', displayName: 'Elena Petrova' },
       changesFromLive: [{ kind: 'link_removed', label: 'Dinner', hasPhoto: false }],
     })

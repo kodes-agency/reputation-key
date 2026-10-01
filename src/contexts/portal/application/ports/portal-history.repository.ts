@@ -105,11 +105,6 @@ export type PortalHistoryRepository = Readonly<{
     page: PortalHistoryPage,
   ) => Promise<readonly PortalCodeRevocationRow[]>
   /**
-   * Page edits of this Portal plus Property-wide edits made since `since`
-   * (the Portal's creation: a look changed before the page existed is not its
-   * history).
-   */
-  /**
    * The Portal's published versions, newest first: at most `limit` of them. A
    * snapshot that no longer verifies is left out (it could not be served or
    * made live again either), so the numbers may skip.
@@ -120,6 +115,11 @@ export type PortalHistoryRepository = Readonly<{
     portalId: PortalId,
     limit: number,
   ) => Promise<readonly PortalPublishedVersionRow[]>
+  /**
+   * Page edits of this Portal plus Property-wide edits made since `since`
+   * (the Portal's creation: a look changed before the page existed is not its
+   * history).
+   */
   listPageEdits: (
     organizationId: OrganizationId,
     propertyId: PropertyId,

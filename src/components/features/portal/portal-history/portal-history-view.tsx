@@ -40,7 +40,13 @@ type Props = Readonly<{
   loadingMore: boolean
   onLoadMore: () => void
   onRetry: () => void
-  onShowEarlier: () => void
+  onShowEarlier: (firstVersion: number) => void
+  /** The first version that "Show" revealed, whose line takes focus. */
+  revealedVersion: number | null
+  /** The version just made live again, for focus; announced in `announcement`. */
+  restoredVersion: number | null
+  /** Said politely to a screen reader once, e.g. that a version is live again. */
+  announcement: string | null
   versions: PortalVersions | null
   versionsFailed: boolean
   pendingChangeCount: number
@@ -100,6 +106,9 @@ export function PortalHistoryView(props: Props) {
   const dialogOpen = selection !== null && selection.host === 'dialog'
   return (
     <div className="flex min-h-full flex-col lg:flex-row">
+      <p role="status" aria-live="polite" className="sr-only">
+        {props.announcement}
+      </p>
       <PortalHistoryLedger
         rows={props.rows}
         state={props.entriesState}
@@ -120,6 +129,8 @@ export function PortalHistoryView(props: Props) {
           props.onSelect({ version, mode: 'restore', host: 'row' })
         }
         onShowEarlier={props.onShowEarlier}
+        revealedVersion={props.revealedVersion}
+        restoredVersion={props.restoredVersion}
         hasMore={props.hasMore}
         loadingMore={props.loadingMore}
         onLoadMore={props.onLoadMore}

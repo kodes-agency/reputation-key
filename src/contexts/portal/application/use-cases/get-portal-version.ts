@@ -45,6 +45,8 @@ export type PortalVersionDetail = Readonly<{
   liveVersion: number | null
   /** The number publishing the draft would get. */
   nextVersion: number
+  /** The newest published version: what the draft was last in step with. */
+  newestVersion: number
   content: PortalVersionContent
   /** From the live version to this one; empty for the live one, or with none live. */
   changesFromLive: readonly PublicationContentChange[]
@@ -95,6 +97,7 @@ export const getPortalVersion =
       isLive,
       liveVersion: live?.version ?? null,
       nextVersion: cursor.nextSnapshotVersion,
+      newestVersion: cursor.nextSnapshotVersion - 1,
       content: {
         primaryLanguage: view.primaryLocale,
         languages: view.locales,

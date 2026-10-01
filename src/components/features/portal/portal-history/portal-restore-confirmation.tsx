@@ -9,7 +9,8 @@ import type { PortalVersionDetail } from '#/contexts/portal/application/public-a
 import { Button } from '#/components/ui/button'
 import { formatHistoryTime } from './portal-history-time'
 import { PhraseView } from './portal-phrase-view'
-import { describeGuestEffect } from './portal-version-summary'
+import { draftLine, laterLine } from './portal-restore-copy'
+import { describeGuestEffect } from './portal-guest-effect'
 
 type Props = Readonly<{
   detail: PortalVersionDetail
@@ -24,21 +25,6 @@ type Props = Readonly<{
   /** Move focus to the heading when it opens, so a keyboard user lands on it. */
   focusOnOpen?: boolean
 }>
-
-const draftLine = (count: number): string =>
-  count === 0
-    ? 'Your draft stays as it is'
-    : `Your draft keeps its ${count} ${count === 1 ? 'change' : 'changes'}`
-
-/** The sentence about publishing the draft later, which depends on which way the choice goes. */
-function laterLine(detail: PortalVersionDetail): string {
-  const { version, liveVersion, nextVersion } = detail
-  const makes = `Publishing the draft later makes it version ${nextVersion}`
-  if (liveVersion === null || version > liveVersion) return `${makes}.`
-  return liveVersion === version + 1
-    ? `${makes} and brings back what version ${liveVersion} added.`
-    : `${makes} and brings these changes back.`
-}
 
 export function PortalRestoreConfirmation({
   detail,
@@ -57,8 +43,12 @@ export function PortalRestoreConfirmation({
   }, [focusOnOpen])
   const published = formatHistoryTime(detail.publishedAt, now, timeZone)
   const by = detail.publishedBy?.displayName
+  const forwardTo =
+    detail.liveVersion !== null && detail.version > detail.liveVersion
+      ? detail.version
+      : undefined
   const effects = detail.changesFromLive.map((change) =>
-    describeGuestEffect(change, detail.content.primaryLanguage),
+    describeGuestEffect(change, detail.content.primaryLanguage, forwardTo),
   )
   const id = `restore-v${detail.version}`
   return (

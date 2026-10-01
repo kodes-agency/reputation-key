@@ -1,11 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { PublicationContentChange } from '#/contexts/portal/application/public-api'
 import { phraseText } from './portal-history-phrase'
-import {
-  describeGuestEffect,
-  summarizeChanges,
-  summarizeVersion,
-} from './portal-version-summary'
+import { summarizeChanges, summarizeVersion } from './portal-version-summary'
 
 const added = (label: string, hasPhoto = false): PublicationContentChange => ({
   kind: 'link_added',
@@ -100,6 +96,30 @@ describe('summarizeChanges', () => {
     expect(words({ kind: 'review_address_changed' })).toBe(
       'changed the Google review address',
     )
+    expect(words({ kind: 'link_photo_changed', label: 'Spa', how: 'added' })).toBe(
+      'added a photo to ‘Spa’',
+    )
+    expect(words({ kind: 'link_photo_changed', label: 'Spa', how: 'removed' })).toBe(
+      'took the photo off ‘Spa’',
+    )
+    expect(words({ kind: 'link_photo_changed', label: 'Spa', how: 'replaced' })).toBe(
+      'replaced the photo on ‘Spa’',
+    )
+    expect(words({ kind: 'link_icon_changed', label: 'Menu' })).toBe(
+      'changed the icon on ‘Menu’',
+    )
+    expect(words({ kind: 'heading_renamed', from: 'Links', to: 'Around us' })).toBe(
+      'renamed the heading ‘Links’ to ‘Around us’',
+    )
+    expect(words({ kind: 'hero_photo_changed', locale: 'bg' })).toBe(
+      'changed the Bulgarian hero photo',
+    )
+    expect(words({ kind: 'wording_changed', field: 'link_preview', locale: 'en' })).toBe(
+      'reworded the English link preview text',
+    )
+    expect(words({ kind: 'look_changed', facets: ['photo_focus'] })).toBe(
+      'changed the photo position',
+    )
   })
 })
 
@@ -124,63 +144,5 @@ describe('summarizeVersion', () => {
         }),
       ),
     ).toBe('added Español')
-  })
-})
-
-describe('describeGuestEffect', () => {
-  it('says a language goes away and what its guests see instead', () => {
-    const effect = describeGuestEffect({ kind: 'language_removed', locale: 'de' }, 'en')
-
-    expect(effect.topic).toBe('Languages')
-    expect(phraseText(effect.text)).toBe('Deutsch goes away; German guests see English')
-  })
-
-  it('says a tile goes away or comes back', () => {
-    expect(
-      phraseText(
-        describeGuestEffect(
-          { kind: 'link_removed', label: 'Getting here', hasPhoto: false },
-          'en',
-        ).text,
-      ),
-    ).toBe('‘Getting here’ goes away')
-    expect(
-      phraseText(
-        describeGuestEffect({ kind: 'link_added', label: 'Spa', hasPhoto: true }, 'en')
-          .text,
-      ),
-    ).toBe('the ‘Spa’ photo tile comes back')
-  })
-
-  it('files every kind of change under a topic a manager knows', () => {
-    const topics = (
-      [
-        { kind: 'primary_language_changed', from: 'bg', to: 'en' },
-        { kind: 'link_renamed', from: 'A', to: 'B' },
-        { kind: 'link_address_changed', label: 'A' },
-        { kind: 'link_reworded', label: 'A', locale: 'bg' },
-        { kind: 'links_reordered' },
-        { kind: 'linktree_switched', enabled: true },
-        { kind: 'wording_changed', field: 'description', locale: 'en' },
-        { kind: 'look_changed', facets: ['name'] },
-        { kind: 'design_changed', to: 'legacy' },
-        { kind: 'feedback_threshold_changed', from: 4, to: 3 },
-        { kind: 'review_address_changed' },
-      ] satisfies PublicationContentChange[]
-    ).map((change) => describeGuestEffect(change, 'en').topic)
-
-    expect(topics).toEqual([
-      'Languages',
-      'Linktree',
-      'Linktree',
-      'Linktree',
-      'Linktree',
-      'Linktree',
-      'Wording',
-      'Look',
-      'Page design',
-      'Settings',
-      'Settings',
-    ])
   })
 })

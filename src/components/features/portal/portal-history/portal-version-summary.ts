@@ -10,7 +10,7 @@ import type {
   PublicationLookFacet,
   PublicationWordingField,
 } from '#/contexts/portal/application/public-api'
-import { GUEST_LOCALE_METADATA, type GuestLocale } from '#/shared/domain/guest-locale'
+import type { GuestLocale } from '#/shared/domain/guest-locale'
 import {
   englishLanguage,
   joinPhrases,
@@ -21,9 +21,10 @@ import {
   type Phrase,
 } from './portal-history-phrase'
 
-const WORDING_NAME: Readonly<Record<PublicationWordingField, string>> = {
+export const WORDING_NAME: Readonly<Record<PublicationWordingField, string>> = {
   title: 'title',
   description: 'description',
+  link_preview: 'link preview text',
   photo_description: 'photo description',
   linktree_title: 'Linktree title',
 }
@@ -34,14 +35,15 @@ const LOOK_NAME: Readonly<Record<PublicationLookFacet, string>> = {
   wordmark: 'wordmark',
   logo: 'logo',
   photo: 'photo',
+  photo_focus: 'photo position',
 }
 
 const MAX_LISTED_CHANGES = 4
 
-const tile = (label: string, hasPhoto: boolean): Phrase =>
+export const tile = (label: string, hasPhoto: boolean): Phrase =>
   hasPhoto ? [plain('the '), quoted(label), plain(' photo tile')] : [quoted(label)]
 
-const lookNames = (facets: readonly PublicationLookFacet[]): string =>
+export const lookNames = (facets: readonly PublicationLookFacet[]): string =>
   phraseText(joinPhrases(facets.map((facet) => [plain(LOOK_NAME[facet])])))
 
 type Clause = Readonly<{ verb: 'added' | 'removed' | 'changed'; item: Phrase }>
@@ -81,8 +83,37 @@ function clauseOf(change: PublicationContentChange): Clause {
           plain(` in ${englishLanguage(change.locale)}`),
         ],
       }
+    case 'link_photo_changed':
+      return {
+        verb: 'changed',
+        item: {
+          added: [plain('added a photo to '), quoted(change.label)],
+          removed: [plain('took the photo off '), quoted(change.label)],
+          replaced: [plain('replaced the photo on '), quoted(change.label)],
+        }[change.how],
+      }
+    case 'link_icon_changed':
+      return {
+        verb: 'changed',
+        item: [plain('changed the icon on '), quoted(change.label)],
+      }
     case 'links_reordered':
       return { verb: 'changed', item: [plain('reordered the tiles')] }
+    case 'heading_renamed':
+      return {
+        verb: 'changed',
+        item: [
+          plain('renamed the heading '),
+          quoted(change.from),
+          plain(' to '),
+          quoted(change.to),
+        ],
+      }
+    case 'hero_photo_changed':
+      return {
+        verb: 'changed',
+        item: [plain(`changed the ${englishLanguage(change.locale)} hero photo`)],
+      }
     case 'linktree_switched':
       return {
         verb: 'changed',
@@ -175,123 +206,4 @@ export function summarizeVersion(
   if (!version.isFirst) return summarizeChanges(version.changes, options)
   const names = joinPhrases(version.languages.map((locale) => [nativeLanguage(locale)]))
   return [plain(options.capitalised ? 'First version · ' : 'first version · '), ...names]
-}
-
-// ── what making a version live again changes back ─────────────────────────
-
-export type GuestEffect = Readonly<{ topic: string; text: Phrase }>
-
-const bareName = (locale: GuestLocale): string =>
-  GUEST_LOCALE_METADATA[locale].englishName
-
-/**
- * One change from the live version to the chosen one, as it lands for guests.
- * `fallback` is the chosen version's main language: it is what a language that
- * goes away falls back to.
- */
-export function describeGuestEffect(
-  change: PublicationContentChange,
-  fallback: GuestLocale,
-): GuestEffect {
-  switch (change.kind) {
-    case 'language_removed':
-      return {
-        topic: 'Languages',
-        text: [
-          nativeLanguage(change.locale),
-          plain(
-            ` goes away; ${bareName(change.locale)} guests see ${bareName(fallback)}`,
-          ),
-        ],
-      }
-    case 'language_added':
-      return {
-        topic: 'Languages',
-        text: [nativeLanguage(change.locale), plain(' comes back')],
-      }
-    case 'primary_language_changed':
-      return {
-        topic: 'Languages',
-        text: [nativeLanguage(change.to), plain(' is the main language again')],
-      }
-    case 'link_removed':
-      return {
-        topic: 'Linktree',
-        text: [...tile(change.label, change.hasPhoto), plain(' goes away')],
-      }
-    case 'link_added':
-      return {
-        topic: 'Linktree',
-        text: [...tile(change.label, change.hasPhoto), plain(' comes back')],
-      }
-    case 'link_renamed':
-      return {
-        topic: 'Linktree',
-        text: [
-          quoted(change.from),
-          plain(' is called '),
-          quoted(change.to),
-          plain(' again'),
-        ],
-      }
-    case 'link_address_changed':
-      return {
-        topic: 'Linktree',
-        text: [quoted(change.label), plain(' goes to its earlier address')],
-      }
-    case 'link_reworded':
-      return {
-        topic: 'Linktree',
-        text: [
-          quoted(change.label),
-          plain(` reads as it did in ${bareName(change.locale)}`),
-        ],
-      }
-    case 'links_reordered':
-      return { topic: 'Linktree', text: [plain('Tiles return to their earlier order')] }
-    case 'linktree_switched':
-      return {
-        topic: 'Linktree',
-        text: [plain(`The section is turned ${change.enabled ? 'on' : 'off'}`)],
-      }
-    case 'wording_changed':
-      return {
-        topic: 'Wording',
-        text: [
-          plain(
-            `The ${bareName(change.locale)} ${WORDING_NAME[change.field]} reads as it did`,
-          ),
-        ],
-      }
-    case 'look_changed':
-      return {
-        topic: 'Look',
-        text: [plain(`The ${lookNames(change.facets)} change back`)],
-      }
-    case 'design_changed':
-      return {
-        topic: 'Page design',
-        text: [
-          plain(
-            change.to === 'immersive'
-              ? 'Guests see the new design again'
-              : 'Guests see the earlier design',
-          ),
-        ],
-      }
-    case 'feedback_threshold_changed':
-      return {
-        topic: 'Settings',
-        text: [
-          plain(
-            `The private feedback threshold goes from ${change.from} to ${change.to}`,
-          ),
-        ],
-      }
-    case 'review_address_changed':
-      return {
-        topic: 'Settings',
-        text: [plain('The Google review address changes back')],
-      }
-  }
 }

@@ -65,6 +65,8 @@ export function PortalHistoryTab({
   const [showEarlier, setShowEarlier] = useState(false)
   const [selection, setSelection] = useState<HistorySelection | null>(null)
   const [restoreError, setRestoreError] = useState<string | null>(null)
+  const [revealedVersion, setRevealedVersion] = useState<number | null>(null)
+  const [restoredVersion, setRestoredVersion] = useState<number | null>(null)
 
   const history = useInfiniteQuery({
     queryKey: portalKeys.historyFor(portalId, filter),
@@ -112,12 +114,14 @@ export function PortalHistoryTab({
 
   const select = (next: HistorySelection | null) => {
     setRestoreError(null)
+    setRestoredVersion(null)
     setSelection(next)
   }
   const confirmRestore = async (version: number) => {
     setRestoreError(null)
     try {
       await makeLive({ data: { portalId, version } })
+      setRestoredVersion(version)
       setSelection(null)
     } catch (error) {
       setRestoreError(actionErrorMessage(error))
@@ -132,6 +136,7 @@ export function PortalHistoryTab({
       filter={filter}
       onFilterChange={(next) => {
         setFilter(next)
+        setRevealedVersion(null)
         select(null)
       }}
       rows={rows}
@@ -140,7 +145,15 @@ export function PortalHistoryTab({
       loadingMore={history.isFetchingNextPage}
       onLoadMore={() => void history.fetchNextPage()}
       onRetry={() => void history.refetch()}
-      onShowEarlier={() => setShowEarlier(true)}
+      onShowEarlier={(firstVersion) => {
+        setRevealedVersion(firstVersion)
+        setShowEarlier(true)
+      }}
+      revealedVersion={revealedVersion}
+      restoredVersion={restoredVersion}
+      announcement={
+        restoredVersion === null ? null : `Version ${restoredVersion} is live again.`
+      }
       versions={versions.data ?? null}
       versionsFailed={versions.isError}
       pendingChangeCount={pendingChangeCount}

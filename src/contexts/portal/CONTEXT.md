@@ -272,7 +272,8 @@ made before round 4), and each time a manager was handed an existing address is 
 The History tab also reads the Portal's versions. `getPortalVersions` lists every
 published snapshot newest first (at most 200, with the 201st read only as the version the
 oldest is compared with), each with who published it, whether it is the one guests see and
-what it added over the version before it; beside them, what the draft is based on and who
+what it added over the version before it; beside them, what the draft is based on (always
+the newest version: making an earlier one live never touches the working copy) and who
 last edited it (the newest page edit made after the newest version). `getPortalVersion`
 reads one version: what it shows guests in plain words and what making it live would
 change, compared from the live version to that one. Both come from
@@ -280,6 +281,9 @@ change, compared from the live version to that one. Both come from
 v1, v2 and v3 into one neutral view first, so a part a schema cannot tell (a v1 has no
 brand name, a v2 no Linktree switch) is never reported as changed, and a move between the
 legacy page and the Immersive Hub is one `design_changed`, not a list of colours. The
+view carries what the guest renderer reads and nothing it does not: a tile's photo and icon,
+the hero's focal point, a v2 page's hero of each language (never the brand's default hero),
+the legacy category headings, and a v3 short description as link preview text only. The
 changes name the manager's own words (a tile's label, a language) and are a read model for
 the people who manage the Portal: nothing here is published as a fact. A snapshot that no
 longer verifies is left out of the list, because it could not be served or made live again.

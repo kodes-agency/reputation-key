@@ -16,7 +16,8 @@ type Props = Readonly<{
   versions: readonly PortalVersionItem[]
   now: Date
   timeZone: string
-  onShow: () => void
+  /** Shows them, and says which version comes first so focus can follow it. */
+  onShow: (firstVersion: number) => void
 }>
 
 export function PortalHistoryEarlierRow({ versions, now, timeZone, onShow }: Props) {
@@ -43,7 +44,10 @@ export function PortalHistoryEarlierRow({ versions, now, timeZone, onShow }: Pro
             size="xs"
             className="h-auto px-0 py-0 text-sm"
             aria-label={`Show ${versions.length} earlier versions`}
-            onClick={onShow}
+            onClick={() => {
+              const first = versions[0]
+              if (first) onShow(first.version)
+            }}
           >
             Show
           </Button>

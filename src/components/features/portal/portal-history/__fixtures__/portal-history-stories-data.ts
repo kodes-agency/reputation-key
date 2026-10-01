@@ -190,6 +190,7 @@ export const STORY_VERSION_4: PortalVersionDetail = {
   isLive: false,
   liveVersion: 5,
   nextVersion: 6,
+  newestVersion: 5,
   content: {
     primaryLanguage: 'en',
     languages: ['en', 'bg', 'es'],
@@ -226,6 +227,42 @@ export const STORY_VERSION_DETAILS: Readonly<Record<number, PortalVersionDetail>
     publishedAt: '2026-09-22T08:20:00.000Z',
     isLive: true,
     changesFromLive: [],
+  },
+}
+
+/**
+ * Version 4 was made live again after version 5: the draft is still based on
+ * version 5, the newest, though guests see version 4.
+ */
+export const STORY_LIVE_4_VERSIONS: PortalVersions = {
+  ...STORY_VERSIONS,
+  liveVersion: 4,
+  versions: STORY_VERSIONS.versions.map((item) => ({
+    ...item,
+    isLive: item.version === 4,
+  })),
+}
+
+export const STORY_LIVE_4_DETAILS: Readonly<Record<number, PortalVersionDetail>> = {
+  3: {
+    ...STORY_VERSION_4,
+    version: 3,
+    publishedAt: '2026-07-14T07:05:00.000Z',
+    publishedBy: georgi,
+    liveVersion: 4,
+    changesFromLive: [
+      { kind: 'link_removed', label: 'Discover the resort', hasPhoto: true },
+    ],
+  },
+  5: {
+    ...STORY_VERSION_4,
+    version: 5,
+    publishedAt: '2026-09-22T08:20:00.000Z',
+    liveVersion: 4,
+    changesFromLive: [
+      { kind: 'link_added', label: 'Getting here', hasPhoto: false },
+      { kind: 'language_added', locale: 'de' },
+    ],
   },
 }
 

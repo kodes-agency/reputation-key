@@ -9,6 +9,8 @@ import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDec
 import { buildHistoryRows, type HistoryFilterKey } from './portal-history-rows'
 import {
   STORY_ENTRIES,
+  STORY_LIVE_4_DETAILS,
+  STORY_LIVE_4_VERSIONS,
   STORY_NOW,
   STORY_PENDING_CHANGES,
   STORY_PORTAL_NAME,
@@ -31,6 +33,10 @@ type HarnessProps = Readonly<{
   restoreError?: string | null
   entries?: typeof STORY_ENTRIES
   note?: string | null
+  /** Version 4 was made live again after version 5; the draft is still on 5. */
+  afterRestore?: boolean
+  /** Confirming succeeds: the confirmation closes, as the tab does. */
+  confirmSucceeds?: boolean
   onConfirm?: (version: number) => void
 }>
 
@@ -46,12 +52,21 @@ function Harness({
   restoreError = null,
   entries,
   note = null,
+  afterRestore = false,
+  confirmSucceeds = false,
   onConfirm = fn(),
 }: HarnessProps) {
   const [filter, setFilter] = useState<HistoryFilterKey>(initialFilter)
   const [selection, setSelection] = useState<HistorySelection | null>(initialSelection)
   const [showEarlier, setShowEarlier] = useState(false)
-  const versions = versionsLoaded ? STORY_VERSIONS : null
+  const [revealedVersion, setRevealedVersion] = useState<number | null>(null)
+  const [restoredVersion, setRestoredVersion] = useState<number | null>(null)
+  const versions = versionsLoaded
+    ? afterRestore
+      ? STORY_LIVE_4_VERSIONS
+      : STORY_VERSIONS
+    : null
+  const details = afterRestore ? STORY_LIVE_4_DETAILS : STORY_VERSION_DETAILS
   const rows = useMemo(
     () =>
       buildHistoryRows({
@@ -78,7 +93,15 @@ function Harness({
       loadingMore={false}
       onLoadMore={fn()}
       onRetry={fn()}
-      onShowEarlier={() => setShowEarlier(true)}
+      onShowEarlier={(firstVersion) => {
+        setRevealedVersion(firstVersion)
+        setShowEarlier(true)
+      }}
+      revealedVersion={revealedVersion}
+      restoredVersion={restoredVersion}
+      announcement={
+        restoredVersion === null ? null : `Version ${restoredVersion} is live again.`
+      }
       versions={versions}
       versionsFailed={versionsFailed}
       pendingChangeCount={pendingChanges}
@@ -87,13 +110,18 @@ function Harness({
       selection={selection}
       detail={{
         status: detailStatus,
-        detail: selection ? (STORY_VERSION_DETAILS[selection.version] ?? null) : null,
+        detail: selection ? (details[selection.version] ?? null) : null,
         retry: fn(),
       }}
       submitting={false}
       restoreError={restoreError}
       onSelect={setSelection}
-      onConfirmRestore={onConfirm}
+      onConfirmRestore={(version) => {
+        onConfirm(version)
+        if (!confirmSucceeds) return
+        setRestoredVersion(version)
+        setSelection(null)
+      }}
     />
   )
 }
@@ -138,6 +166,8 @@ export const ShowEarlierVersions: Story = {
       canvas.queryByRole('button', { name: /show 3 earlier versions/i }),
     ).toBeNull()
     await expect(canvas.getByText('version 1')).toBeInTheDocument()
+    // The row that held focus is gone: focus moves to the first line it revealed.
+    await expect(canvas.getByRole('button', { name: 'View version 3' })).toHaveFocus()
   },
 }
 
@@ -216,6 +246,72 @@ export const MakeLiveAgainFlow: Story = {
     await expect(
       canvas.queryByRole('region', { name: 'Make version 4 live again?' }),
     ).toBeNull()
+  },
+}
+
+// Making version 4 live again closes the confirmation; focus lands on that
+// line's View (its "Make live again…" is still there only until the refetch),
+// and a polite status says so.
+export const MakeLiveAgainDone: Story = {
+  args: { confirmSucceeds: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(
+      canvas.getByRole('button', { name: /make live again… version 4/i }),
+    )
+    const region = canvas.getByRole('region', { name: 'Make version 4 live again?' })
+    await userEvent.click(
+      within(region).getByRole('button', { name: 'Make version 4 live' }),
+    )
+    await expect(
+      canvas.queryByRole('region', { name: 'Make version 4 live again?' }),
+    ).toBeNull()
+    await expect(canvas.getByRole('button', { name: 'View version 4' })).toHaveFocus()
+    await expect(canvas.getByRole('status')).toHaveTextContent('Version 4 is live again.')
+  },
+}
+
+// Version 4 is live after an earlier restore, and the draft still holds
+// version 5. Going further back, publishing the draft brings version 5 back.
+export const MakeLiveAgainAfterRestore: Story = {
+  args: {
+    afterRestore: true,
+    // Publishing shows every version on its own line; All folds the older ones.
+    initialFilter: 'publishing',
+    initialSelection: { version: 3, mode: 'restore', host: 'row' },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const confirmation = within(
+      canvas.getByRole('region', { name: 'Make version 3 live again?' }),
+    )
+    await expect(
+      confirmation.getByText(
+        /makes it version 6 and brings back version 5 with the draft's changes/,
+      ),
+    ).toBeInTheDocument()
+    await expect(canvas.getByText('Based on version 5')).toBeInTheDocument()
+  },
+}
+
+// A later version made live again reads as what it brings, not what comes back.
+export const MakeLaterVersionLive: Story = {
+  args: {
+    afterRestore: true,
+    initialFilter: 'publishing',
+    initialSelection: { version: 5, mode: 'restore', host: 'row' },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const confirmation = within(
+      canvas.getByRole('region', { name: 'Make version 5 live again?' }),
+    )
+    await expect(confirmation.getByText('Deutsch').closest('li')).toHaveTextContent(
+      'Deutsch is added',
+    )
+    await expect(confirmation.getByText(/‘Getting here’ is added/)).toBeInTheDocument()
+    await expect(confirmation.queryByText(/comes back/)).toBeNull()
+    await expect(confirmation.getByText(/makes it version 6\./)).toBeInTheDocument()
   },
 }
 

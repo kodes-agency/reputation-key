@@ -48,7 +48,11 @@ export type PortalVersions = Readonly<{
   versions: readonly PortalVersionItem[]
   liveVersion: number | null
   draft: Readonly<{
-    /** The live version, else the newest; null before the first publication. */
+    /**
+     * The newest published version; null before the first publication. Making
+     * an earlier version live never touches the draft, so it stays based on
+     * the newest, whichever version guests see.
+     */
     basedOnVersion: number | null
     /** The newest page edit that is in no published version yet. */
     lastEdit: Readonly<{ at: string; actor: PortalVersionActor | null }> | null
@@ -124,7 +128,7 @@ export const getPortalVersions =
       }),
       liveVersion,
       draft: {
-        basedOnVersion: liveVersion ?? newest?.version ?? null,
+        basedOnVersion: newest?.version ?? null,
         lastEdit: draftEdit
           ? {
               at: draftEdit.occurredAt.toISOString(),

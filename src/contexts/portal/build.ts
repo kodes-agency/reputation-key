@@ -191,7 +191,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalLinkRepo = createPortalLinkRepository(deps.db, deps.clock)
   const portalGroupRepo = createPortalGroupRepository(deps.db)
   const portalGroupHistoryRepo = createPortalGroupHistoryRepository(deps.db)
-  const portalHistoryRepo = createPortalHistoryRepository(deps.db)
+  const portalHistoryRepo = createPortalHistoryRepository(deps.db, deps.logger)
   const portalActorDirectory = createPortalActorDirectoryAdapter(deps.db)
   const portalAccessArtifactRepo = createPortalAccessArtifactRepository(
     deps.db,
