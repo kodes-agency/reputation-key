@@ -112,57 +112,57 @@ export const getPortalHistory =
 
     const [publications, issuances, downloads, revocations, health, edits] =
       await Promise.all([
-      categories.has('publishing')
-        ? deps.historyRepo.listPublicationEvents(
-            organizationId,
-            propertyId,
-            portal.id,
-            page(HISTORY_KEY_PREFIX.publication),
-          )
-        : [],
-      categories.has('codes')
-        ? deps.historyRepo.listCodeIssuances(
-            organizationId,
-            propertyId,
-            portal.id,
-            page(HISTORY_KEY_PREFIX.codeIssued),
-          )
-        : [],
-      categories.has('codes')
-        ? deps.historyRepo.listCodeDownloads(
-            organizationId,
-            propertyId,
-            portal.id,
-            page(HISTORY_KEY_PREFIX.codeDownloaded),
-          )
-        : [],
-      categories.has('codes')
-        ? deps.historyRepo.listCodeRevocations(
-            organizationId,
-            propertyId,
-            portal.id,
-            page(HISTORY_KEY_PREFIX.codeRevoked, true),
-          )
-        : [],
-      categories.has('health')
-        ? deps.healthRepo.listHistory(
-            organizationId,
-            propertyId,
-            portal.id,
-            take,
-            historyBoundFor(HISTORY_KEY_PREFIX.health, position),
-          )
-        : [],
-      categories.has('edits')
-        ? deps.historyRepo.listPageEdits(
-            organizationId,
-            propertyId,
-            portal.id,
-            page(HISTORY_KEY_PREFIX.edit),
-            portal.createdAt,
-          )
-        : [],
-    ])
+        categories.has('publishing')
+          ? deps.historyRepo.listPublicationEvents(
+              organizationId,
+              propertyId,
+              portal.id,
+              page(HISTORY_KEY_PREFIX.publication),
+            )
+          : [],
+        categories.has('codes')
+          ? deps.historyRepo.listCodeIssuances(
+              organizationId,
+              propertyId,
+              portal.id,
+              page(HISTORY_KEY_PREFIX.codeIssued),
+            )
+          : [],
+        categories.has('codes')
+          ? deps.historyRepo.listCodeDownloads(
+              organizationId,
+              propertyId,
+              portal.id,
+              page(HISTORY_KEY_PREFIX.codeDownloaded),
+            )
+          : [],
+        categories.has('codes')
+          ? deps.historyRepo.listCodeRevocations(
+              organizationId,
+              propertyId,
+              portal.id,
+              page(HISTORY_KEY_PREFIX.codeRevoked, true),
+            )
+          : [],
+        categories.has('health')
+          ? deps.healthRepo.listHistory(
+              organizationId,
+              propertyId,
+              portal.id,
+              take,
+              historyBoundFor(HISTORY_KEY_PREFIX.health, position),
+            )
+          : [],
+        categories.has('edits')
+          ? deps.historyRepo.listPageEdits(
+              organizationId,
+              propertyId,
+              portal.id,
+              page(HISTORY_KEY_PREFIX.edit),
+              portal.createdAt,
+            )
+          : [],
+      ])
 
     const records: PortalHistoryRecord[] = [
       ...(categories.has('publishing') ? createdRecord(portal, position) : []),
