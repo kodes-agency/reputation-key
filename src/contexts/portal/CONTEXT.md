@@ -224,11 +224,14 @@ including the token's grace end. It is scoped like
 language a Portal offers (the fallback language first) it counts the wording guests read
 that is written and names what is missing: a title and a description and one label per
 link. A title or description counts as written only when the Property has wording (a content
-row) for that language, the Portal's own override then taking the place of it: publishing
-drops a language without Property wording and refuses to publish, so an override alone does
-not count, and such a gap is flagged `blocksPublish` (its wording is written by an account
-admin in the Property Brand Profile; the builder copies the fallback language into a gap, so a
-non-primary gap is a warning, but the primary language's own gap still blocks). A missing link label does not block publishing. Every
+row) for that language, the Portal's own override then taking the place of it, so an override
+alone does not count (its wording is written by an account admin in the Property Brand
+Profile). What a gap means is decided by publishing (`gapBlocksPublication`, which the
+resolver and this read share): a gap in the primary language, including a primary-language
+link label, is flagged `blocksPublish` and refuses publishing; a gap in any other language
+is a warning, because the builder copies the primary language's text into it and guests
+read that. A link with no primary text still reads its own legacy label, so a missing
+primary link label happens only when the label itself is blank. Every
 link in the tree is counted, approved destination or not, because its label is needed once the
 destination is approved. The Linktree title, a link's line and the hero description are
 optional, so they are never "missing". It carries

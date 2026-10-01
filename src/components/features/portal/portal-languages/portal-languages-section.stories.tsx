@@ -60,7 +60,7 @@ const coverage: PortalLanguageCoverage = {
           kind: 'description',
           linkId: null,
           linkLabel: null,
-          blocksPublish: true,
+          blocksPublish: false,
         },
         {
           key: 'link:l-2',
@@ -100,7 +100,7 @@ export const WithGaps: Story = {
     await expect(canvas.getByText('3 of 5 · 2 missing')).toBeVisible()
     await expect(
       canvas.getByText(
-        'Now: Bulgarian is missing 1 text that publishing needs, and its guests see 1 link label in English.',
+        'Now: Bulgarian guests see the description and 1 link label in English.',
       ),
     ).toBeVisible()
     // There is no AI translation control.

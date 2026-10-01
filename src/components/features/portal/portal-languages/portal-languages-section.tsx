@@ -98,14 +98,14 @@ function MissingTextNote({
         When a text is missing
       </h3>
       <p className="text-sm">
-        A language needs its own title and description before the Portal can be published.
-        The title and description come from the Property&rsquo;s wording for that
-        language, which an account admin writes in the Property Brand Profile; you can
-        then change them for this Portal in Welcome.
+        The fallback language needs its own title and description before the Portal can be
+        published. The title and description come from the Property&rsquo;s wording for
+        each language, which an account admin writes in the Property Brand Profile; you
+        can then change them for this Portal in Welcome.
       </p>
       <p className="text-sm">
-        A link with no label in a language shows its label in the fallback language,{' '}
-        {fallback}.
+        A title, description or link label that another language does not have shows its
+        text in the fallback language, {fallback}.
       </p>
       {coverage !== undefined ? (
         <p className="text-sm text-muted-foreground">

@@ -149,6 +149,17 @@ const isWritten = (value: string | null | undefined): value is string =>
 
 const own = (value: string): PortalSnapshotText => ({ value, fallbackFrom: null })
 
+/**
+ * Whether a text missing in `locale` stops a publication. Only the primary
+ * language's own gaps do: in every other language the primary's text is copied
+ * in and tagged, which is a warning. The admin's language coverage reads this
+ * too, so what it tells a manager cannot drift from what publishing does.
+ */
+export const gapBlocksPublication = (
+  locale: GuestLocale,
+  primary: GuestLocale,
+): boolean => locale === primary
+
 type Findings = {
   blockers: PublicationBlocker[]
   warnings: PublicationWarning[]
@@ -186,7 +197,7 @@ function localizedContentOf(
   // "missing". It is also empty when there is no photo to describe.
   const primaryHasAlt = hasHero && isWritten(source.wording[primary]?.heroAlt)
   const heroAlt = primaryHasAlt ? textIn(source, locale, 'heroAlt', findings) : null
-  if (locale === primary) {
+  if (gapBlocksPublication(locale, primary)) {
     if (!title) {
       findings.blockers.push({ code: 'primary_text_missing', locale, key: 'title' })
     }
@@ -229,7 +240,7 @@ function linkTextIn(
     })
     return { label: copied.label, line: copied.line, fallbackFrom: primary }
   }
-  if (locale === primary) {
+  if (gapBlocksPublication(locale, primary)) {
     findings.blockers.push({
       code: 'primary_text_missing',
       locale,
