@@ -5,12 +5,14 @@ import { describe, expect, it } from 'vitest'
 import { buildExperienceUseCases } from './build-experience'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import type { PortalExperienceRepository } from './application/ports/portal-experience.repository'
+import type { PortalMediaAssetRepository } from './application/ports/portal-media-asset.repository'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 
 describe('buildExperienceUseCases', () => {
   it('composes the look save with the other experience use cases', () => {
     const useCases = buildExperienceUseCases({
       experienceRepo: {} as PortalExperienceRepository,
+      mediaRepo: {} as PortalMediaAssetRepository,
       portalRepo: createInMemoryPortalRepo(),
       staffPublicApi: {} as StaffPublicApi,
       idGen: () => 'id',
@@ -22,6 +24,8 @@ describe('buildExperienceUseCases', () => {
         'getPropertyPortalExperience',
         'savePortalLocalizedOverride',
         'savePropertyDefaultGuestLocales',
+        'savePropertyHero',
+        'savePropertyLogo',
         'savePropertyLook',
         'savePropertyPortalBrandContent',
         'savePropertyPortalBrandProfile',

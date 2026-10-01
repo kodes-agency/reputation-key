@@ -55,8 +55,8 @@ export function PortalLocalizedContentEditor({
         portalId={portalId}
         initialTitle={override?.title ?? ''}
         initialDescription={override?.shortDescription ?? ''}
-        titlePlaceholder={baseline?.title ?? 'Uses Property fallback'}
-        descriptionPlaceholder={baseline?.shortDescription ?? 'Uses Property fallback'}
+        titlePlaceholder={baseline?.title || 'Uses Property fallback'}
+        descriptionPlaceholder={baseline?.shortDescription || 'Uses Property fallback'}
         action={actions.saveOverride}
         disabled={disabled}
       />

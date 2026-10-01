@@ -10,6 +10,8 @@ import { portalError } from '../domain/errors'
 
 const mocks = vi.hoisted(() => ({
   savePropertyLook: vi.fn(),
+  savePropertyHero: vi.fn(),
+  savePropertyLogo: vi.fn(),
   savePropertyDefaultGuestLocales: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
@@ -30,6 +32,8 @@ vi.mock('#/composition', () => ({
     portalPublicApi: {
       management: {
         savePropertyLook: mocks.savePropertyLook,
+        savePropertyHero: mocks.savePropertyHero,
+        savePropertyLogo: mocks.savePropertyLogo,
         savePropertyDefaultGuestLocales: mocks.savePropertyDefaultGuestLocales,
       },
     },
@@ -39,7 +43,12 @@ vi.mock('./portals', async (importActual) => ({
   portalErrorStatus: (await importActual<typeof import('./portals')>()).portalErrorStatus,
 }))
 
-import { savePropertyDefaultGuestLocales, savePropertyLook } from './property-look'
+import {
+  savePropertyDefaultGuestLocales,
+  savePropertyHero,
+  savePropertyLogo,
+  savePropertyLook,
+} from './property-look'
 
 const ACTOR = {
   userId: 'admin-1',
@@ -136,5 +145,61 @@ describe('Property look server functions', () => {
       status: 403,
     })
     expect(mocks.savePropertyDefaultGuestLocales).not.toHaveBeenCalled()
+  })
+
+  it('asks the Property policy for portal.write, not portal.upload, before putting a photograph on the look', async () => {
+    mocks.savePropertyHero.mockResolvedValue({ media: { hero: null, logo: null } })
+    const data = {
+      propertyId: 'property-1',
+      assetId: '30000000-0000-4000-8000-000000000001',
+      focalX: 0.5,
+      focalY: 0.42,
+      altTexts: [{ locale: 'en' as const, text: 'Evening on the sea terrace' }],
+    }
+
+    await withStartContext(() => savePropertyHero({ data }))
+
+    expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor: ACTOR,
+        action: 'portal.update',
+        capability: 'portal.write',
+        propertyId: 'property-1',
+      }),
+    )
+    expect(mocks.savePropertyHero).toHaveBeenCalledWith(data, ACTOR)
+    expect(mocks.requireExecutionAllowed.mock.invocationCallOrder[0]).toBeLessThan(
+      mocks.savePropertyHero.mock.invocationCallOrder[0]!,
+    )
+  })
+
+  it('carries an image refusal out as a tagged Portal error', async () => {
+    mocks.savePropertyLogo.mockRejectedValue(
+      portalError('media_not_found', 'image not found for this Property'),
+    )
+
+    await expect(
+      withStartContext(() =>
+        savePropertyLogo({
+          data: {
+            propertyId: 'property-1',
+            assetId: '30000000-0000-4000-8000-000000000002',
+          },
+        }),
+      ),
+    ).rejects.toMatchObject({ _tag: 'PortalError', code: 'media_not_found' })
+  })
+
+  it('takes the logo off with null through the same policy', async () => {
+    mocks.savePropertyLogo.mockResolvedValue({ media: { hero: null, logo: null } })
+
+    await withStartContext(() =>
+      savePropertyLogo({ data: { propertyId: 'property-1', assetId: null } }),
+    )
+
+    expect(mocks.savePropertyLogo).toHaveBeenCalledWith(
+      { propertyId: 'property-1', assetId: null },
+      ACTOR,
+    )
   })
 })

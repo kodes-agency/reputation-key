@@ -26,7 +26,10 @@ import {
   type PortalPreviewOutcome,
   type PortalPreviewSource,
 } from '../portal-preview'
+import { immersiveAssetIds } from '../public-portal-immersive'
+import { resolvePropertyLookMedia } from '../property-look-media'
 import { listServableTileImageIds } from '../servable-tile-images'
+import { resolvePortalMediaUrls } from './resolve-portal-media-urls'
 import type { PortalApprovedDestinationRepository } from '../ports/portal-approved-destination.repository'
 import type { PortalExperienceRepository } from '../ports/portal-experience.repository'
 import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.repository'
@@ -48,8 +51,11 @@ export type GetPortalPreviewDeps = Readonly<{
   >
   destinationRepo: Pick<PortalApprovedDestinationRepository, 'list' | 'listApprovedUris'>
   publicationRepo: Pick<PortalPublicationRepository, 'findActiveForPortal'>
-  /** Which tile pictures may still be served: a taken-down one is not shown as the tile's photo. */
-  mediaRepo: Pick<PortalMediaAssetRepository, 'listServableIds'>
+  /**
+   * Which images may still be served: a taken-down one is not shown, as the
+   * tile's photo, the Property's photograph or its logo.
+   */
+  mediaRepo: Pick<PortalMediaAssetRepository, 'listServableIds' | 'findById'>
   propertyFacts: Pick<PropertyFactsPublicApi, 'getPropertyTimezone'>
   staffPublicApi: StaffPublicApi
   clock: () => Date
@@ -89,7 +95,19 @@ export const getPortalPreview =
                 deps.clock().getTime() - APPROVED_DESTINATION_MAX_VALIDATION_AGE_MS,
               ),
             )
-      return buildLivePortalPreview({ snapshot, approvedUris: new Set(approved) })
+      const mediaUrls =
+        snapshot.configuration.schemaVersion === IMMERSIVE_HUB_SCHEMA_VERSION
+          ? await resolvePortalMediaUrls(deps)(
+              ctx.organizationId,
+              portal.propertyId,
+              immersiveAssetIds(snapshot.configuration),
+            )
+          : {}
+      return buildLivePortalPreview({
+        snapshot,
+        approvedUris: new Set(approved),
+        mediaUrls,
+      })
     }
 
     // fallow-ignore-next-line code-duplication
@@ -111,12 +129,20 @@ export const getPortalPreview =
         deps.destinationRepo.list(ctx.organizationId, portal.propertyId),
         deps.propertyFacts.getPropertyTimezone(ctx.organizationId, portal.propertyId),
       ])
-    const servable = await listServableTileImageIds(
-      deps.mediaRepo,
-      ctx.organizationId,
-      portal.propertyId,
-      links,
-    )
+    const [servable, media] = await Promise.all([
+      listServableTileImageIds(
+        deps.mediaRepo,
+        ctx.organizationId,
+        portal.propertyId,
+        links,
+      ),
+      resolvePropertyLookMedia(
+        deps,
+        ctx.organizationId,
+        portal.propertyId,
+        experience.profile,
+      ),
+    ])
     const linktree = buildPortalLinktreeView({
       portal,
       categories,
@@ -132,6 +158,7 @@ export const getPortalPreview =
         portal,
         linktree,
         profile: experience.profile,
+        media,
         content: experience.content,
         overrides,
         timeZone: timeZone ?? 'UTC',

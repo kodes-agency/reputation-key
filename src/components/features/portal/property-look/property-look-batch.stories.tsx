@@ -10,6 +10,7 @@ import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDec
 import { previewReader } from '../portal-preview/__fixtures__/portal-preview-fixtures'
 import {
   allPublished,
+  AVELA_MEDIA,
   AVELA_PORTALS,
   AVELA_PROFILE,
   blockedReview,
@@ -19,7 +20,9 @@ import {
   publishingPortals,
   readyReview,
   reviewingPortals,
+  savingHero,
   savingLocales,
+  savingLogo,
   savingLook,
 } from './property-look-page-fixtures'
 import { PropertyLookPage } from './property-look-page'
@@ -46,6 +49,10 @@ const meta = {
     publishPortals: publishingPortals(),
     saveLook: savingLook(),
     saveLocales: savingLocales(),
+    saveHero: savingHero(),
+    saveLogo: savingLogo(),
+    media: AVELA_MEDIA,
+    photoDescriptions: {},
   },
 } satisfies Meta<typeof PropertyLookPage>
 

@@ -103,3 +103,61 @@ for (const width of [1440, 1920] as const) {
     expect(after.portalsBox.y, 'the picker scrolled away').toBeGreaterThanOrEqual(0)
   })
 }
+
+// ── The photograph dialog (board 14) ─────────────────────────────────────────
+//
+// The dialog is a box of its own over the page. It must fit the window at every
+// width (scrolling inside itself, never sideways), keep its primary button
+// reachable, and from 768 px draw the phone beside the photograph.
+const PHOTO_STORY = 'portal-propertylook-photo-and-logo--with-a-photo'
+/** Tailwind's `md`, where the dialog's phone appears. */
+const DIALOG_PHONE_FROM = 768
+
+for (const width of WIDTHS) {
+  test(`the photo dialog fits a ${width}px window`, async ({ page }) => {
+    await page.setViewportSize({ width, height: VIEWPORT_HEIGHT })
+    await openStory(page, PHOTO_STORY)
+
+    await page.getByRole('button', { name: 'Replace photo' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Replace photo' })
+    await expect(dialog).toBeVisible()
+    const box = await dialog.boundingBox()
+    if (box === null) throw new Error('the dialog has no box')
+
+    expect(box.x, 'the dialog starts left of the window').toBeGreaterThanOrEqual(-1)
+    expect(box.x + box.width, 'the dialog runs past the window').toBeLessThanOrEqual(
+      width + 1,
+    )
+    expect(box.height, 'the dialog is taller than the window').toBeLessThanOrEqual(
+      VIEWPORT_HEIGHT,
+    )
+    const documentScrolls = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    )
+    expect(documentScrolls, 'the document scrolls sideways').toBe(false)
+    const dialogScrollsSideways = await dialog.evaluate(
+      (element) => element.scrollWidth > element.clientWidth + 1,
+    )
+    expect(dialogScrollsSideways, 'the dialog scrolls sideways').toBe(false)
+
+    const save = dialog.getByRole('button', { name: 'Save' })
+    await save.scrollIntoViewIfNeeded()
+    const saveBox = await save.boundingBox()
+    if (saveBox === null) throw new Error('the primary button has no box')
+    expect(
+      saveBox.x + saveBox.width,
+      'the button runs past the window',
+    ).toBeLessThanOrEqual(width + 1)
+    expect(
+      saveBox.y + saveBox.height,
+      'the button is below the window',
+    ).toBeLessThanOrEqual(VIEWPORT_HEIGHT + 1)
+
+    const phone = dialog.getByRole('region', { name: PHONE.name })
+    if (width >= DIALOG_PHONE_FROM) {
+      await expect(phone).toBeVisible()
+    } else {
+      await expect(phone).toBeHidden()
+    }
+  })
+}

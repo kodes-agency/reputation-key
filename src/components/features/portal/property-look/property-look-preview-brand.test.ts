@@ -50,6 +50,25 @@ describe('previewBrandOf', () => {
     expect(previewBrandOf(BRAND, DRAFT, true).hero).toEqual(BRAND.hero)
   })
 
+  it("draws the person's own photograph and logo in place of what the server last said", () => {
+    const hero = { url: 'new.jpg', width: 2400, height: 1600, focalX: 0.2, focalY: 0.7 }
+    const logo = { url: 'logo.png', width: 480, height: 120 }
+
+    const brand = previewBrandOf(BRAND, DRAFT, true, { hero, logo })
+
+    expect(brand.hero).toEqual(hero)
+    expect(brand.logo).toEqual(logo)
+  })
+
+  it('draws none for a photograph or logo that was taken off, and no photo when asked not to', () => {
+    expect(previewBrandOf(BRAND, DRAFT, true, { hero: null, logo: null })).toMatchObject({
+      hero: null,
+      logo: null,
+    })
+    const hero = { url: 'new.jpg', width: 2400, height: 1600, focalX: 0.2, focalY: 0.7 }
+    expect(previewBrandOf(BRAND, DRAFT, false, { hero, logo: null }).hero).toBeNull()
+  })
+
   it('keeps the colours the page already has while the draft holds no complete colour', () => {
     const brand = previewBrandOf(
       BRAND,

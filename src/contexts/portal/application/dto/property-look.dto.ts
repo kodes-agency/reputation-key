@@ -29,6 +29,37 @@ export const propertyDefaultLocalesInputSchema = z.object({
     .max(MAX_ADDITIONAL_GUEST_LOCALES + 1),
 })
 
+const assetIdSchema = z.uuid('Choose an uploaded image')
+const focalSchema = z.number().min(0).max(1)
+
+/**
+ * Put an uploaded photograph on the look, move where it is anchored, or take it
+ * off (`assetId: null`). A description is kept per language; null clears one. The
+ * use case holds a description to 160 characters, so the bound here only keeps an
+ * absurd body out.
+ */
+export const propertyHeroInputSchema = z.object({
+  propertyId: propertyIdSchema,
+  assetId: assetIdSchema.nullable(),
+  focalX: focalSchema.optional(),
+  focalY: focalSchema.optional(),
+  altTexts: z
+    .array(
+      z.object({
+        locale: offeredGuestLocaleSchema,
+        text: z.string().max(2000).nullable(),
+      }),
+    )
+    .max(MAX_ADDITIONAL_GUEST_LOCALES + 1)
+    .optional(),
+})
+
+/** Put an uploaded logo on the look, or take it off (`assetId: null`). */
+export const propertyLogoInputSchema = z.object({
+  propertyId: propertyIdSchema,
+  assetId: assetIdSchema.nullable(),
+})
+
 export type PropertyLookInput = z.infer<typeof propertyLookInputSchema>
 export type PropertyDefaultLocalesInput = z.infer<
   typeof propertyDefaultLocalesInputSchema

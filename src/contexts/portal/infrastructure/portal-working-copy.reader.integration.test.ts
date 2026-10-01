@@ -304,6 +304,33 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
     expect(rows[0].title).toEqual({ value: 'Hotel Pirin', fallbackFrom: 'en' })
   })
 
+  it('does not count a Portal override on a language whose row holds only a photograph description', async () => {
+    const scenario: WorkingCopyScenario = {
+      ...INCOMPLETE_SCENARIO,
+      contents: [
+        ...INCOMPLETE_SCENARIO.contents,
+        { locale: 'bg', title: '', shortDescription: '', heroAltText: 'Басейн' },
+      ],
+      overrides: [
+        {
+          locale: 'bg',
+          title: 'Хотел Пирин',
+          shortDescription: null,
+          heroImageUrl: null,
+        },
+      ],
+    }
+    await seedPortalWorkingCopy(getPool(), scenario)
+
+    const source = await publishRead(scenario)
+
+    expect(source?.wording.bg).toMatchObject({
+      title: null,
+      shortDescription: null,
+      heroAlt: 'Басейн',
+    })
+  })
+
   it('leaves out an image that has been taken down', async () => {
     await seedPortalWorkingCopy(getPool(), COMPLETE_SCENARIO)
     await getPool().query(
