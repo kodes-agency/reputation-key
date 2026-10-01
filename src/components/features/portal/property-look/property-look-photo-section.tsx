@@ -87,7 +87,7 @@ export function PropertyLookPhotoSection({ photo, onPreviewWithoutPhoto }: Props
             className="shrink-0"
           />
           {canEdit ? (
-            <div className="flex min-w-0 flex-1 flex-col items-start gap-2.5">
+            <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" onClick={() => setIsOpen(true)}>
                   <Upload aria-hidden /> Replace photo
@@ -113,9 +113,11 @@ export function PropertyLookPhotoSection({ photo, onPreviewWithoutPhoto }: Props
           <ImagePlus aria-hidden /> Add a photo
         </Button>
       ) : null}
-      <p role="alert" className="text-sm text-negative empty:hidden">
-        {failure}
-      </p>
+      {failure ? (
+        <p role="alert" className="text-sm text-negative">
+          {failure}
+        </p>
+      ) : null}
       <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-muted-foreground">
         <ImageOff className="size-4 shrink-0" aria-hidden />
         <span>No photo? Pages use the colour field.</span>

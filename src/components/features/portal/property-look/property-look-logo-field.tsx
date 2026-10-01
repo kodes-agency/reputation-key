@@ -53,7 +53,8 @@ export function PropertyLookLogoField({
               alt={`${controls.propertyName} logo`}
               width={logo.width}
               height={logo.height}
-              className="max-h-10 w-auto max-w-40 object-contain"
+              className="w-auto max-w-40 object-contain"
+              style={{ maxHeight: 40 }}
             />
           </div>
           {canEdit ? (
@@ -85,9 +86,11 @@ export function PropertyLookLogoField({
           ) : null}
         </div>
       )}
-      <p role="alert" className="text-sm text-negative empty:hidden">
-        {failure}
-      </p>
+      {failure ? (
+        <p role="alert" className="text-sm text-negative">
+          {failure}
+        </p>
+      ) : null}
       {canEdit ? (
         <PropertyLookLogoDialog
           open={isOpen}

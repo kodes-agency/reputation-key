@@ -87,15 +87,11 @@ export function FocalPointPicker({
         draggable={false}
         className="block size-full select-none object-cover"
       />
-      <span
-        aria-hidden
-        className="pointer-events-none absolute inset-0 rounded-md ring-1 ring-inset ring-foreground/15"
-      />
       {disabled ? null : (
         <button
           type="button"
           aria-label={`Focal point: ${describeFocal(focal)}. Drag, or use the arrow keys, to move it.`}
-          className="absolute grid size-7 -translate-x-1/2 -translate-y-1/2 cursor-grab touch-none place-items-center rounded-full border-2 border-white bg-black/20 shadow-[0_0_0_1px_rgba(16,17,21,0.4),0_2px_8px_rgba(0,0,0,0.35)] outline-none active:cursor-grabbing focus-visible:ring-[3px] focus-visible:ring-ring"
+          className="absolute grid size-7 -translate-x-1/2 -translate-y-1/2 cursor-grab touch-none place-items-center rounded-full border-2 border-white bg-black/20 shadow-md outline-none active:cursor-grabbing focus-visible:ring-[3px] focus-visible:ring-ring"
           style={{ left: `${focal.x * 100}%`, top: `${focal.y * 100}%` }}
           onPointerDown={(event) => {
             isDragging.current = true

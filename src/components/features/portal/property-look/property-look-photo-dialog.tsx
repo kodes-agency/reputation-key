@@ -65,7 +65,7 @@ export function PropertyLookPhotoDialog({
         else if (!isBusy) close()
       }}
     >
-      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-[min(56rem,calc(100%-2rem))]">
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl lg:max-w-4xl">
         <PhotoDialogBody
           {...input}
           propertyName={propertyName}

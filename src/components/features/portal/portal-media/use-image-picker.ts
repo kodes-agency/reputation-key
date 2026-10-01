@@ -34,7 +34,8 @@ export function useImagePicker(purpose: PortalMediaPurpose) {
       }
       setMessage(null)
       setIsReading(true)
-      const read = await readImageFacts(file)
+      // A logo is a light mark on a transparent background; a JPEG copy would turn it black.
+      const read = await readImageFacts(file, { keepTransparency: purpose === 'logo' })
       setIsReading(false)
       if (!read.ok) {
         setMessage(messageFor(purpose, UNREADABLE))

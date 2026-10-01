@@ -12,6 +12,14 @@ export const PREVIEW_MAX_EDGE = 1200
 
 const PREVIEW_QUALITY = 0.85
 
+export type ReadImageOptions = Readonly<{
+  /**
+   * Keep the picture's transparency in the copy (a logo's is the point of it).
+   * A photograph's copy is a JPEG, which is far smaller and has none.
+   */
+  keepTransparency?: boolean
+}>
+
 export type ReadImageResult =
   | Readonly<{ ok: true; width: number; height: number; previewUrl: string }>
   | Readonly<{ ok: false }>
@@ -30,10 +38,15 @@ export function previewSize(
 }
 
 /** Decodes a chosen file. Resolves, never rejects: a file the browser cannot read is `{ ok: false }`. */
-export async function readImageFacts(file: Blob): Promise<ReadImageResult> {
+export async function readImageFacts(
+  file: Blob,
+  { keepTransparency = false }: ReadImageOptions = {},
+): Promise<ReadImageResult> {
   let bitmap: ImageBitmap | null = null
   try {
-    bitmap = await createImageBitmap(file)
+    // The orientation is stated, not left to the browser's default: the size must
+    // be the one the server measures after it applies the same rotation.
+    bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' })
     const { width, height } = bitmap
     if (width < 1 || height < 1) return { ok: false }
     const copy = previewSize(width, height)
@@ -47,7 +60,9 @@ export async function readImageFacts(file: Blob): Promise<ReadImageResult> {
       ok: true,
       width,
       height,
-      previewUrl: canvas.toDataURL('image/jpeg', PREVIEW_QUALITY),
+      previewUrl: keepTransparency
+        ? canvas.toDataURL('image/png')
+        : canvas.toDataURL('image/jpeg', PREVIEW_QUALITY),
     }
   } catch {
     return { ok: false }

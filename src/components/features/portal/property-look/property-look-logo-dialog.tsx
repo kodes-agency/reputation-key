@@ -81,14 +81,15 @@ function LogoDialogBody({
         </DialogDescription>
       </DialogHeader>
       <div className="space-y-4">
-        <div className="grid min-h-24 place-items-center rounded-md bg-neutral-900 p-4">
+        <div className="grid min-h-16 place-items-center rounded-md bg-neutral-900 p-4">
           {picker.chosen ? (
             <img
               src={picker.chosen.previewUrl}
               alt="The chosen logo, on a dark background"
               width={picker.chosen.facts.width}
               height={picker.chosen.facts.height}
-              className="max-h-20 w-auto max-w-full object-contain"
+              className="w-auto max-w-full object-contain"
+              style={{ maxHeight: 80 }}
             />
           ) : (
             <p className="text-sm text-neutral-400">Your logo, on a dark page</p>
