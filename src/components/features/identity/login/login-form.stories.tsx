@@ -114,6 +114,16 @@ export const Success: Story = {
   },
 }
 
+async function trySigningIn(canvas: ReturnType<typeof within>, email: string) {
+  const emailField = canvas.getByLabelText(/email/i)
+  await userEvent.clear(emailField)
+  await userEvent.type(emailField, email)
+  const password = canvas.getByLabelText(/password/i)
+  await userEvent.clear(password)
+  await userEvent.type(password, 'correct-horse-battery')
+  await userEvent.click(canvas.getByRole('button', { name: /^sign in$/i }))
+}
+
 // Sign-in found the address unverified (the refusal only comes after the
 // password checked out): the notice offers a new link instead of a bare error.
 const unverifiedRefusal = new ServerFunctionError(
@@ -135,9 +145,7 @@ export const UnverifiedEmail: Story = {
   play: async ({ canvasElement }) => {
     resendSpy.mockClear()
     const canvas = within(canvasElement)
-    await userEvent.type(canvas.getByLabelText(/email/i), 'user@example.com')
-    await userEvent.type(canvas.getByLabelText(/password/i), 'correct-horse-battery')
-    await userEvent.click(canvas.getByRole('button', { name: /^sign in$/i }))
+    await trySigningIn(canvas, 'user@example.com')
 
     await expect(await canvas.findByText('Verify your email first')).toBeInTheDocument()
     await expect(
@@ -149,16 +157,6 @@ export const UnverifiedEmail: Story = {
       expect(resendSpy).toHaveBeenCalledWith({ data: { email: 'user@example.com' } }),
     )
   },
-}
-
-async function trySigningIn(canvas: ReturnType<typeof within>, email: string) {
-  const emailField = canvas.getByLabelText(/email/i)
-  await userEvent.clear(emailField)
-  await userEvent.type(emailField, email)
-  const password = canvas.getByLabelText(/password/i)
-  await userEvent.clear(password)
-  await userEvent.type(password, 'correct-horse-battery')
-  await userEvent.click(canvas.getByRole('button', { name: /^sign in$/i }))
 }
 
 export const UnverifiedEmailLinkSent: Story = {
