@@ -37,7 +37,8 @@
 // and a 36 px floor there would re-inflate the strip row 20 deflated.
 //
 // Geometry has four ways to put content where a finger cannot reach it, and
-// each needs its own probe, because each hides from the others:
+// each needs its own probe, because each hides from the others (a fifth, for
+// text that runs out of its own box, is opt-in: `PaneOptions.textMustFitItsBox`):
 //
 //   1. the pane scrolls sideways — its own `scrollWidth`;
 //   2. a SCROLLER inside it absorbs the overflow (PR 2's hidden scrollbar), so
@@ -204,6 +205,23 @@ export type ClippedElement = Readonly<{
   clipRight: number
 }>
 
+/**
+ * A run of text whose own line boxes reach past the box that holds it. Found
+ * from the text, not the element: a block element stays its container's width
+ * while a word it cannot break runs out of it, so no element box shows it.
+ */
+export type TextOverflow = Readonly<{
+  /** The first words of the text node. */
+  text: string
+  /** The nearest ancestor that makes a box of its own, described like a clipper. */
+  container: string
+  /** The text's line boxes together, in viewport px. */
+  box: Box
+  /** The container's padding box, left and right edges. */
+  containerLeft: number
+  containerRight: number
+}>
+
 export type MeasuredPrimary = Readonly<{
   name: string
   box: Box
@@ -220,6 +238,7 @@ export type MeasuredLayer = Readonly<{
   targets: ReadonlyArray<MeasuredTarget>
   overflows: ReadonlyArray<HorizontalOverflow>
   clips: ReadonlyArray<ClippedElement>
+  textOverflows: ReadonlyArray<TextOverflow>
   /**
    * The layer itself, or a row in it, past a viewport edge. A row below the
    * bottom edge is not listed when a vertical scroller inside the layer holds
@@ -237,6 +256,7 @@ export type PaneReport = Readonly<{
   targets: ReadonlyArray<MeasuredTarget>
   overflows: ReadonlyArray<HorizontalOverflow>
   clips: ReadonlyArray<ClippedElement>
+  textOverflows: ReadonlyArray<TextOverflow>
   primaries: ReadonlyArray<MeasuredPrimary>
   layers: ReadonlyArray<MeasuredLayer>
 }>
@@ -252,6 +272,43 @@ type MeasureArgs = Readonly<{
   slack: number
   /** `false` while a probe has a layer open: only the layers are new. */
   includePane: boolean
+  /** See `PaneOptions.hiddenRootBleedIsDecorative`. */
+  hiddenRootBleedIsDecorative: boolean
+  /** See `PaneOptions.hiddenInputUsesLabel`. */
+  hiddenInputUsesLabel: boolean
+  /** See `PaneOptions.textMustFitItsBox`. */
+  textMustFitItsBox: boolean
+}>
+
+export type PaneOptions = Readonly<{
+  /**
+   * A pane whose own `overflow-x` is `hidden` or `clip` cuts what runs past it
+   * rather than scrolling it, so its `scrollWidth` is not a way to put content
+   * out of a finger's reach: probe 3 (`clippedIn`) is, and it already skips
+   * what is `aria-hidden`. With this set, a hidden-overflow pane is judged by
+   * probe 3 alone, which lets a decorative element bleed past the pane's edge
+   * (the guest page's 390 px arch motif, centred on a 320 px phone) while a
+   * real element that does is still flagged. Off by default: the Inbox panes
+   * never relied on it.
+   */
+  hiddenRootBleedIsDecorative?: boolean
+  /**
+   * A native input that is visually hidden (a 1 px box, or under a clip) is
+   * judged by the `<label>` around it, because that is what a finger presses.
+   * Off by default: the Inbox pane judges an input by its own box, and a
+   * hidden input in a big label would otherwise pass there.
+   */
+  hiddenInputUsesLabel?: boolean
+  /**
+   * Every run of text must lie inside the padding box of the element that
+   * holds it (unless that element scrolls, or truncates with an ellipsis,
+   * which both say "there is more"). The other probes compare ELEMENT boxes,
+   * and a block element keeps its container's width while a long word runs out
+   * of it — the German compound the guest page exists to survive — so with the
+   * root's `scrollWidth` set aside (`hiddenRootBleedIsDecorative`) nothing
+   * else sees it. Off by default: the Inbox panes were never measured this way.
+   */
+  textMustFitItsBox?: boolean
 }>
 
 /**
@@ -361,6 +418,20 @@ function measureInPage(args: MeasureArgs): PaneReport {
     (layer) => !layers.some((other) => other !== layer && other.contains(layer)),
   )
 
+  // A native input that is visually hidden (a 1 px box, or under a clip) is
+  // not what a finger presses: the `<label>` around it is, and that is the
+  // box that must be big enough. The guest page's stars are exactly this (a
+  // `.ih-sr-only` radio inside a 54 px `<label>`), so without the substitution
+  // every star would read as a 1x1 target. An input with no shown label keeps
+  // its own box, so a hidden control with nothing to press still fails.
+  const hitAreaOf = (el: Element): Element => {
+    if (!args.hiddenInputUsesLabel || !el.matches('input')) return el
+    const r = el.getBoundingClientRect()
+    if (r.width > 1 && r.height > 1 && !isClippedAway(el)) return el
+    const label = el.closest('label')
+    return label !== null && isShown(label) ? label : el
+  }
+
   const targetsIn = (root: Element, kindOf: (el: Element) => TargetKind) =>
     [...root.querySelectorAll(args.interactiveSelector)]
       .filter((el) => isShown(el) && isTarget(el))
@@ -368,7 +439,7 @@ function measureInPage(args: MeasureArgs): PaneReport {
         name: nameOf(el),
         role: roleOf(el),
         kind: kindOf(el),
-        box: boxOf(el),
+        box: boxOf(hitAreaOf(el)),
       }))
 
   const paneKind = (el: Element): TargetKind =>
@@ -383,11 +454,16 @@ function measureInPage(args: MeasureArgs): PaneReport {
   // Probe 1 and 2 of the header: the root itself, whatever its `overflow`,
   // and every horizontal SCROLLER inside it. A `truncate` span is
   // `overflow: hidden`, not a scroller; probe 3 decides about it.
-  const overflowsIn = (root: Element, rootName: string): HorizontalOverflow[] => {
+  const overflowsIn = (
+    root: Element,
+    rootName: string,
+    rootBleedIsDecorative = false,
+  ): HorizontalOverflow[] => {
     const scrollers = [...root.querySelectorAll('*')].filter(
       (el) => isShown(el) && isScrollValue(styleOf(el).overflowX),
     )
-    return [root, ...scrollers]
+    const rootCuts = ['hidden', 'clip'].includes(styleOf(root).overflowX)
+    return (rootBleedIsDecorative && rootCuts ? scrollers : [root, ...scrollers])
       .filter((el) => el.scrollWidth > el.clientWidth)
       .map((el) => ({
         name: el === root ? rootName : isTarget(el) ? nameOf(el) : describe(el),
@@ -476,6 +552,66 @@ function measureInPage(args: MeasureArgs): PaneReport {
     return found
   }
 
+  // Probe 5: the text itself. Each text node's line boxes (a Range, so a word
+  // that overflows its container is measured where it is painted) against the
+  // padding box of its nearest ancestor that makes a box. A scroller is probe
+  // 2's, `text-overflow: ellipsis` is deliberate (probe 3 exempts it the same
+  // way), and text that is visually hidden or an svg's own is not read.
+  const boxOwnerOf = (el: Element): Element => {
+    let owner: Element = el
+    while (
+      ['inline', 'contents'].includes(styleOf(owner).display) &&
+      owner.parentElement !== null
+    ) {
+      owner = owner.parentElement
+    }
+    return owner
+  }
+  const textOverflowsIn = (root: Element): TextOverflow[] => {
+    if (!args.textMustFitItsBox) return []
+    const found: TextOverflow[] = []
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+    const range = document.createRange()
+    for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+      const parent = node.parentElement
+      const text = (node.textContent ?? '').replace(/\s+/g, ' ').trim()
+      if (parent === null || text === '' || parent.closest('svg') !== null) continue
+      // `aria-hidden` says nothing about what is painted: the rating scale's
+      // end words are `aria-hidden` duplicates of the radios' names, and they
+      // are on the screen. Only what is not painted at all is skipped.
+      const painted =
+        parent.getClientRects().length > 0 &&
+        parent.checkVisibility({ visibilityProperty: true, opacityProperty: true }) &&
+        parent.closest('[inert]') === null
+      if (!painted || isClippedAway(parent)) continue
+      const owner = boxOwnerOf(parent)
+      const ownerStyle = styleOf(owner)
+      if (isScrollValue(ownerStyle.overflowX) || ownerStyle.textOverflow === 'ellipsis') {
+        continue
+      }
+      range.selectNodeContents(node)
+      const lines = [...range.getClientRects()].filter((r) => r.width > 0)
+      if (lines.length === 0) continue
+      const left = Math.min(...lines.map((r) => r.left))
+      const right = Math.max(...lines.map((r) => r.right))
+      const o = owner.getBoundingClientRect()
+      if (o.width <= 1) continue
+      const containerLeft = o.left + owner.clientLeft
+      const containerRight = containerLeft + owner.clientWidth
+      if (left >= containerLeft - slack && right <= containerRight + slack) continue
+      const top = Math.min(...lines.map((r) => r.top))
+      const bottom = Math.max(...lines.map((r) => r.bottom))
+      found.push({
+        text: text.length > 40 ? `${text.slice(0, 40)}…` : text,
+        container: describe(owner),
+        box: toBox(new DOMRect(left, top, right - left, bottom - top)),
+        containerLeft: round(containerLeft),
+        containerRight: round(containerRight),
+      })
+    }
+    return found
+  }
+
   const outsideViewport = (r: DOMRect): boolean =>
     r.left < -slack ||
     r.top < -slack ||
@@ -508,6 +644,7 @@ function measureInPage(args: MeasureArgs): PaneReport {
       targets,
       overflows: overflowsIn(layer, `the ${roleOf(layer)} itself`),
       clips: clippedIn(layer),
+      textOverflows: textOverflowsIn(layer),
       outside: [
         ...(outsideViewport(layer.getBoundingClientRect())
           ? [
@@ -583,14 +720,23 @@ function measureInPage(args: MeasureArgs): PaneReport {
     documentScrollWidth: document.documentElement.scrollWidth,
     paneBoxes: panes.map(boxOf),
     targets: include(() => panes.flatMap((pane) => targetsIn(pane, paneKind))),
-    overflows: include(() => panes.flatMap((pane) => overflowsIn(pane, paneName))),
+    overflows: include(() =>
+      panes.flatMap((pane) =>
+        overflowsIn(pane, paneName, args.hiddenRootBleedIsDecorative),
+      ),
+    ),
     clips: include(() => panes.flatMap(clippedIn)),
+    textOverflows: include(() => panes.flatMap(textOverflowsIn)),
     primaries: include(() => panes.flatMap(primariesIn)),
     layers: topLayers.map(layerIn),
   }
 }
 
-function measureArgs(paneSelector: string, includePane: boolean): MeasureArgs {
+function measureArgs(
+  paneSelector: string,
+  includePane: boolean,
+  options: PaneOptions = {},
+): MeasureArgs {
   return {
     paneSelector,
     interactiveSelector: INTERACTIVE_SELECTOR,
@@ -601,12 +747,19 @@ function measureArgs(paneSelector: string, includePane: boolean): MeasureArgs {
     primaryNames: COMPOSER_PRIMARY_NAMES,
     slack: POSITION_SLACK_PX,
     includePane,
+    hiddenRootBleedIsDecorative: options.hiddenRootBleedIsDecorative === true,
+    hiddenInputUsesLabel: options.hiddenInputUsesLabel === true,
+    textMustFitItsBox: options.textMustFitItsBox === true,
   }
 }
 
 /** The pane as it is now, and every layer open over it. */
-export function measurePane(page: Page, paneSelector: string): Promise<PaneReport> {
-  return page.evaluate(measureInPage, measureArgs(paneSelector, true))
+export function measurePane(
+  page: Page,
+  paneSelector: string,
+  options: PaneOptions = {},
+): Promise<PaneReport> {
+  return page.evaluate(measureInPage, measureArgs(paneSelector, true, options))
 }
 
 /** Only the open layers — what a probe just opened over an already measured pane. */

@@ -70,8 +70,16 @@ const styles = {
     marginTop: 'auto',
     padding: '24px 0 10px',
     display: 'flex',
+    alignItems: 'center',
     justifyContent: 'space-between',
     fontSize: 12,
+  },
+  // The real footer's link is a 44 px target (`immersive-footer-styles.ts`).
+  privacy: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    minHeight: 44,
+    paddingInline: 6,
   },
 } satisfies Record<string, CSSProperties>
 
@@ -132,7 +140,7 @@ export function ResponsePageStandIn({
         ))}
       </nav>
       <footer style={styles.footer}>
-        <a href="#privacy" className="ih-link-accent">
+        <a href="#privacy" className="ih-link-accent" style={styles.privacy}>
           {privacy}
         </a>
         <span style={{ color: 'rgba(255,255,255,0.7)' }}>{madeWith}</span>

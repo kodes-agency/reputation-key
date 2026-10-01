@@ -107,6 +107,59 @@ ignore:
   - vulnerability: CVE-2026-5928 # wont-fix
   - vulnerability: CVE-2026-19499 # strfmon overflow, no-dsa minor issue on trixie
 
+  # ── Alpine 3.21 OpenSSL 3.3.7-r1 in the provider Redis (3 CVEs) ────────
+  # owner: platform — reason: grype's database (2026-10-01) lists
+  # CVE-2026-72897 / -84782 / -84784 (High) against `libssl3` / `libcrypto3`
+  # 3.3.7-r1 with 3.3.7-r2 as the fix, but neither the Alpine v3.21 mirror
+  # nor the upstream redis:7.4-alpine rebuild carries r2 yet, so there is
+  # nothing to pin or re-pin. Scoped to that exact version: an image that
+  # picks up r2 no longer matches, one that drifts older still fails. The
+  # three need a TLS server that switches SSL_CTX mid-handshake, DTLS, or
+  # OpenSSL's QUIC stack; Redis serves plain TLS 1.2/1.3 over TCP and uses
+  # none of them, and the instance is private to the stack. Re-pin
+  # Dockerfile.google-provider-redis to the upstream rebuild and delete this
+  # section when it lands. expiresAt: 2026-10-07
+  - vulnerability: CVE-2026-72897
+    package:
+      name: libssl3
+      version: 3.3.7-r1
+      type: apk
+  - vulnerability: CVE-2026-84782
+    package:
+      name: libssl3
+      version: 3.3.7-r1
+      type: apk
+  - vulnerability: CVE-2026-84784
+    package:
+      name: libssl3
+      version: 3.3.7-r1
+      type: apk
+  - vulnerability: CVE-2026-72897
+    package:
+      name: libcrypto3
+      version: 3.3.7-r1
+      type: apk
+  - vulnerability: CVE-2026-84782
+    package:
+      name: libcrypto3
+      version: 3.3.7-r1
+      type: apk
+  - vulnerability: CVE-2026-84784
+    package:
+      name: libcrypto3
+      version: 3.3.7-r1
+      type: apk
+
+  # ── libgcc-s1 / libstdc++6 / gcc-14-base 14.2.0-19: no fix yet (1 CVE) ─
+  # owner: platform — reason: CVE-2026-102010 (High) appeared in grype's
+  # database 2026-10-01 against the gcc-14 runtime libraries with no fixed
+  # version on trixie. Nothing to pin. The images run node, which links
+  # libstdc++/libgcc_s as runtime support only; there is no compiler in the
+  # image and the CVE is matched by package, not by a reachable code path
+  # from the app. Drop this entry at the first trixie gcc-14 update that
+  # fixes it. expiresAt: 2026-10-15
+  - vulnerability: CVE-2026-102010
+
   # ── Debian trixie base packages, misc (7 CVEs) ─────────────────────────
   # owner: platform — reason: won't-fix by Debian triage; the binaries/libs
   # are unused by the app runtime (no gzip/ncurses/libacl/sqlite/pcre2 calls

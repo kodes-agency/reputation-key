@@ -140,6 +140,21 @@
 // which s40 recorded at 331,663 B): 332,881 B (80 js + 1 css), +1,218 B. `main`
 // had 337 B of headroom under its 332,000 B. The budget moves to 333,300 B.
 //
+// 2026-10-01 (Portal round 4, s18, the guest quality gate): measured on a fresh
+// production build of this branch merged (trial merge, aborted) onto origin/main
+// at cfd084377: entry 43,769 B, initial closure 333,126 B (79 js + 1 css), 174 B
+// under the unchanged 333,300 B. The slice adds stories, a story fixture, e2e
+// helpers and a Playwright config, and no module a production build reaches, so
+// the figure is main's own (main has moved since, through s30's live preview and
+// s35b's page-edit ledger, and is the reason it is not the 333,029 B first
+// recorded against 80fa0fad7). The Immersive Hub page is not in this closure at
+// all yet (the route does not mount it before slice 19); its own CSS is
+// TypeScript strings that ship with the page's JavaScript, and the guest font
+// stylesheet and 16 woff2 files sit in public/fonts/guest, outside
+// .output/public/assets. Slice 19, which mounts the page, is the one that moves
+// this figure, and 174 B of headroom is less than it will need: it must
+// re-measure and raise the budget with a fresh figure recorded here.
+//
 // When this fails: resolve the new static importer and cut that source edge. Do
 // NOT raise the budget without recording a fresh production measurement here.
 // When a cycle fails it: the chunk group that moved a module away from the
