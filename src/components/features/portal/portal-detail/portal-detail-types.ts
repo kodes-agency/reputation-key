@@ -32,6 +32,10 @@ import type {
   PortalHistoryReads,
 } from '../portal-history/portal-history-tab'
 import type { PortalShareMutations } from '../portal-share/portal-share-types'
+import type {
+  PortalPrintKitReader,
+  PortalPrintKitResources,
+} from '../portal-share/portal-print-kit-types'
 import type { PortalEditorSection } from '../portal-editor/portal-editor-sections'
 import type { PortalGroupView } from '../portal-group/portal-group-types'
 import type { GoogleReviewDestinationStatus } from '../portal-settings/google-review-destination-status'
@@ -87,6 +91,10 @@ export type PortalDetailResources = Readonly<{
   revokeTokenMutation: Action<{ data: { portalId: string; reason: string } }, unknown>
   /** "Download again": the live code's address, from its sealed copy. */
   revealAddressMutation: PortalShareMutations['revealMutation']
+  /** The Share tab's print kit read. Absent (with its download): the tab offers no print kit. */
+  getPortalPrintKit?: PortalPrintKitReader
+  /** The Share tab's print kit download: makes the PDF on the server. */
+  downloadPrintKitMutation?: PortalPrintKitResources['downloadMutation']
   /** C2: whether a public link is live. The raw URL is never part of this. */
   tokenStatus: PortalTokenStatus
   getPortalAnalytics: typeof getPortalAnalyticsFn

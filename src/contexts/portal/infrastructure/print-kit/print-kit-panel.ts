@@ -28,7 +28,7 @@ import {
   mm,
 } from './print-kit-geometry'
 import { drawImage, type OpenedImage } from './print-kit-pdf-image'
-import type { PrintKitPalette } from './print-kit-palette'
+import type { PrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import { drawCentredLine, measureLine, type PrintKitFonts } from './print-kit-pdf-text'
 import { qrDarkRuns, qrPlateModules, type QrMatrix } from './print-kit-qr'
 import { fitStack, layoutStack, measureWith } from './print-kit-stack'

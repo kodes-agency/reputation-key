@@ -9,6 +9,7 @@
 // bundled copy would not find.
 
 import { PRINT_KIT_BLEED_MM, printKitSheets } from '#/shared/domain/portal-print-kit'
+import { SLUG_MM } from '#/shared/domain/portal-print-kit-layout'
 import type { PrintSheet } from '#/shared/domain/portal-print-kit'
 import type {
   PortalPrintKitRenderer,
@@ -22,11 +23,10 @@ import {
   drawFoldMarks,
   frameOf,
   setPageBoxes,
-  SLUG_MM,
   type SheetFrame,
 } from './print-kit-marks'
 import { drawPanel, photoBox, type PanelArt, type PanelBleed } from './print-kit-panel'
-import { printKitPalette } from './print-kit-palette'
+import { printKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import { PrintKitFonts } from './print-kit-pdf-text'
 import { qrMatrix } from './print-kit-qr'
 

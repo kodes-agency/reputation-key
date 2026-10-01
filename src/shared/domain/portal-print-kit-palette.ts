@@ -1,4 +1,5 @@
-// The colours of one print, from the property's look.
+// The colours of one print, from the property's look. Shared by the PDF and the
+// Share tab's preview, so both paint the same card.
 //
 // The field is the guest page's own dark field, so light text clears AAA on it
 // whatever the accent (portal-field-colour.ts). The accent is used for text only
@@ -9,7 +10,8 @@ import {
   IMMERSIVE_TEXT_COLOUR,
   deriveBackdropTones,
   isAccentReadableOnField,
-} from '#/shared/domain/portal-field-colour'
+} from './portal-field-colour'
+import { PLATE_INK, PLATE_PAPER } from './portal-print-kit-layout'
 
 export type PrintKitPalette = Readonly<{
   field: string
@@ -34,7 +36,7 @@ export function printKitPalette(accent: string, field: string): PrintKitPalette 
     kicker: isAccentReadableOnField(accent, field) ? accent : IMMERSIVE_TEXT_COLOUR,
     warm: tones?.warm ?? field,
     cool: tones?.cool ?? field,
-    plateInk: '#121614',
-    platePaper: '#F6F1E6',
+    plateInk: PLATE_INK,
+    platePaper: PLATE_PAPER,
   }
 }

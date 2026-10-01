@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { IMMERSIVE_TEXT_COLOUR } from '#/shared/domain/portal-field-colour'
-import { printKitPalette } from './print-kit-palette'
+import { IMMERSIVE_TEXT_COLOUR } from './portal-field-colour'
+import { printKitPalette } from './portal-print-kit-palette'
 
 describe('printKitPalette', () => {
   it('sets the kicker in the accent when it reads on the field', () => {

@@ -271,6 +271,13 @@ export const portalKeys = {
    */
   review: (portalId: string) =>
     [...portalKeys.publicationHistory(portalId), 'review'] as const,
+  /**
+   * The Share tab's print kit: the Portal's titles, languages and the Property's
+   * look. Under `publicationHistory` for the same reason as the preview: every
+   * write that changes the working copy already invalidates it.
+   */
+  printKit: (portalId: string) =>
+    [...portalKeys.publicationHistory(portalId), 'print-kit'] as const,
   /** The guest copy pack the preview prints in one language; it never changes while the app runs. */
   previewCopy: (locale: string) => [...portalKeys.all, 'preview-copy', locale] as const,
   /** The History tab's ledger; one entry per filter, each an infinite read. */

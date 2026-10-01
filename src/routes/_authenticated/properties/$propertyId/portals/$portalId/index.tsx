@@ -10,6 +10,7 @@ import {
 } from '#/contexts/portal/server/portal-versions'
 import { getPortalAnalyticsFn } from '#/contexts/reporting/server/portal-analytics'
 import { getPortalPreview } from '#/contexts/portal/server/portal-preview'
+import { getPortalPrintKit } from '#/contexts/portal/server/portal-print-kit'
 import { PortalDetailPage } from '#/components/features/portal/portal-detail/portal-detail-page'
 import { usePortalDetailActions } from '../-portal-detail-actions'
 import { usePortalDetailData } from '../-portal-detail-data'
@@ -66,6 +67,8 @@ function PortalWorkspaceEditor() {
       rotateTokenMutation={actions.rotateToken}
       revokeTokenMutation={actions.revokeToken}
       revealAddressMutation={actions.revealAddress}
+      getPortalPrintKit={getPortalPrintKit}
+      downloadPrintKitMutation={actions.downloadPrintKit}
       getPortalAnalytics={getPortalAnalyticsFn}
       getPortalPreview={getPortalPreview}
       completeReviewMutation={actions.completeReview}

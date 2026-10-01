@@ -8,7 +8,7 @@
 
 import type { PrintTextBlock } from '#/shared/domain/portal-print-kit'
 import { mm, TYPE_PT, TRACKING_EM } from './print-kit-geometry'
-import type { PrintKitPalette } from './print-kit-palette'
+import type { PrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import { measureLine, type PdfTextStyle, type PrintKitFonts } from './print-kit-pdf-text'
 import { wrapWords } from './print-kit-text'
 
