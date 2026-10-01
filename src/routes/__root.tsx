@@ -12,7 +12,7 @@ import { Footer } from '#/components/layout/footer'
 import { Header } from '#/components/layout/header'
 import { initWebVitals } from '#/components/hooks/web-vitals'
 import { authClient } from '#/shared/auth/auth-client'
-import { isGuestLocale } from '#/shared/domain/guest-locale'
+import { documentLanguageOfMatches } from '#/shared/document-language'
 import { FontSetLinks } from '#/components/layout/font-set-links'
 import { fontSetOfMatches } from '#/shared/font-sets'
 import { Toaster } from '#/components/ui/sonner'
@@ -59,20 +59,10 @@ function RootDocument({ children }: { children: React.ReactNode }) {
     },
   })
 
-  // The public guest Portal is rendered ENTIRELY in the guest's locale — it
-  // carries none of the app chrome (see showChrome above), so a document that
-  // keeps claiming English misdescribes every word on it. `lang` is not
-  // decoration: it selects the screen-reader voice, offers the right
-  // translation prompt, and drives hyphenation.
+  // The guest portal is rendered entirely in the guest's locale, any of the
+  // six: see `documentLanguageOfMatches` for why `lang` must follow it.
   const documentLanguage = useRouterState({
-    select: (s) => {
-      const portalMatch = s.matches.find((m) => m.routeId === '/p/$token')
-      const locale = (
-        portalMatch?.loaderData as
-          { localization?: { selectedLocale?: string } } | undefined
-      )?.localization?.selectedLocale
-      return isGuestLocale(locale) ? locale : 'en'
-    },
+    select: (s) => documentLanguageOfMatches(s.matches),
   })
 
   // Which web fonts this page loads. `styles.css` used to @import the app fonts

@@ -1,4 +1,5 @@
 import { GUEST_LOCALE_METADATA } from '#/shared/domain/guest-locale'
+import { guestLocaleHref } from './guest-locale-href'
 import type { PortalLocalization } from './portal-localization'
 
 /** Portal chrome colours, so the switcher never inherits app `--accent`. */
@@ -24,16 +25,12 @@ export function PortalLanguageNav({
 }: Props) {
   if (!token || !localization || localization.availableLocales.length <= 1) return null
 
-  const artifactParam = accessArtifactId
-    ? `&accessArtifact=${encodeURIComponent(accessArtifactId)}`
-    : ''
-
   return (
     <nav aria-label={navigationLabel} className="flex justify-end gap-2 text-sm">
       {localization.availableLocales.map((locale) => (
         <a
           key={locale}
-          href={`/p/${encodeURIComponent(token)}?locale=${locale}${artifactParam}`}
+          href={guestLocaleHref(token, locale, accessArtifactId)}
           hrefLang={locale}
           lang={locale}
           aria-current={locale === localization.selectedLocale ? 'page' : undefined}
