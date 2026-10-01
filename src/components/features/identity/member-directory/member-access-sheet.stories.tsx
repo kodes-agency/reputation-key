@@ -4,8 +4,9 @@
 import { useEffect, useState, type ComponentProps } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import type { Action } from '#/components/hooks/use-action'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
+import { mockAction } from '../../../../../.storybook/mocks/mock-action'
+import { expectHeldOpen } from '../../../../../.storybook/play-helpers'
 import { MemberAccessSheet, type SaveMemberAccessInput } from './member-access-sheet'
 
 const PROPERTIES = [
@@ -24,23 +25,12 @@ const MARIA = {
   role: 'PropertyManager' as const,
 }
 
+type RemoveInput = { data: { memberId: string } }
+
 const saveAction = (
   impl: (input: SaveMemberAccessInput) => Promise<unknown>,
-  overrides: { isPending?: boolean; error?: unknown } = {},
-): Action<SaveMemberAccessInput> =>
-  Object.assign(impl, {
-    isPending: overrides.isPending ?? false,
-    error: overrides.error ?? null,
-    isSuccess: false,
-    data: null,
-  }) as Action<SaveMemberAccessInput>
-
-const removeAction = Object.assign(async () => undefined, {
-  isPending: false,
-  error: null,
-  isSuccess: false,
-  data: null,
-}) as Action<{ data: { memberId: string } }>
+  state: { isPending?: boolean; error?: unknown } = {},
+) => mockAction<SaveMemberAccessInput>(impl, state)
 
 const meta: Meta<typeof MemberAccessSheet> = {
   title: 'Identity/MemberDirectory/MemberAccessSheet',
@@ -55,7 +45,7 @@ const meta: Meta<typeof MemberAccessSheet> = {
     responsibility: { status: 'ready', responsibleIds: ['p1'] },
     canRemove: true,
     saveAction: saveAction(async () => undefined),
-    removeMemberAction: removeAction,
+    removeMemberAction: mockAction<RemoveInput>(),
   },
 }
 export default meta
@@ -276,33 +266,18 @@ export const CannotBeLeftWhileSaving: Story = {
     onClose: fn(),
     saveAction: saveAction(() => new Promise<unknown>(() => {}), { isPending: true }),
   },
-  play: async ({ args }) => {
-    const body = within(await sheet())
-    expect(body.getByRole('button', { name: 'Cancel' })).toBeDisabled()
-    await userEvent.keyboard('{Escape}')
-    expect(args.onClose).not.toHaveBeenCalled()
-    expect(await sheet()).toBeInTheDocument()
-  },
+  play: ({ args }) => expectHeldOpen(sheet, args.onClose),
 }
 
 /** The same holds while the member is being removed from the sheet. */
 export const CannotBeLeftWhileRemoving: Story = {
   args: {
     onClose: fn(),
-    removeMemberAction: Object.assign(() => new Promise<unknown>(() => {}), {
+    removeMemberAction: mockAction<RemoveInput>(() => new Promise<unknown>(() => {}), {
       isPending: true,
-      error: null,
-      isSuccess: false,
-      data: null,
-    }) as Action<{ data: { memberId: string } }>,
+    }),
   },
-  play: async ({ args }) => {
-    const body = within(await sheet())
-    expect(body.getByRole('button', { name: 'Cancel' })).toBeDisabled()
-    await userEvent.keyboard('{Escape}')
-    expect(args.onClose).not.toHaveBeenCalled()
-    expect(await sheet()).toBeInTheDocument()
-  },
+  play: ({ args }) => expectHeldOpen(sheet, args.onClose),
 }
 
 export const SaveRefused: Story = {
@@ -330,12 +305,9 @@ const removeSpy = fn()
 export const RemoveFromTheSheet: Story = {
   args: {
     onClose: fn(),
-    removeMemberAction: Object.assign(
-      async (input: { data: { memberId: string } }) => {
-        removeSpy(input)
-      },
-      { isPending: false, error: null, isSuccess: false, data: null },
-    ) as Action<{ data: { memberId: string } }>,
+    removeMemberAction: mockAction<RemoveInput>(async (input) => {
+      removeSpy(input)
+    }),
   },
   play: async ({ args }) => {
     removeSpy.mockClear()

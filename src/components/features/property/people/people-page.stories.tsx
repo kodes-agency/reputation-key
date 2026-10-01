@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
+import { unhandledRejectionsDuring } from '../../../../../.storybook/play-helpers'
 import { PeoplePage } from './people-page'
 import { seededArgs } from './people-page-stories-data'
 
@@ -99,13 +100,7 @@ export const ArchiveRefused: Story = {
   },
   play: async ({ canvasElement }) => {
     archiveRefusals.length = 0
-    const unhandled: unknown[] = []
-    const record = (event: PromiseRejectionEvent) => {
-      event.preventDefault()
-      unhandled.push(event.reason)
-    }
-    window.addEventListener('unhandledrejection', record)
-    try {
+    const unhandled = await unhandledRejectionsDuring(async () => {
       await userEvent.click(
         within(canvasElement).getByRole('button', {
           name: 'Archive staff participation for Alice Adams',
@@ -117,14 +112,8 @@ export const ArchiveRefused: Story = {
         }),
       )
       expect(archiveRefusals).toHaveLength(1)
-      // `unhandledrejection` is dispatched from a task queued after the
-      // microtask checkpoint, so wait out two task turns before reading it.
-      await new Promise((resolve) => setTimeout(resolve, 0))
-      await new Promise((resolve) => setTimeout(resolve, 0))
-      expect(unhandled).toEqual([])
-    } finally {
-      window.removeEventListener('unhandledrejection', record)
-    }
+    })
+    expect(unhandled).toEqual([])
   },
 }
 
