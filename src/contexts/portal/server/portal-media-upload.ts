@@ -24,6 +24,7 @@ import {
   PORTAL_MEDIA_PURPOSES,
   type PortalMediaPurpose,
 } from '#/shared/domain/portal-media'
+import { captureObservabilityException } from '#/shared/observability/telemetry'
 import type { RateLimiter } from '#/shared/rate-limit/middleware'
 import { readBoundedBody } from '#/shared/security/read-bounded-body'
 import {
@@ -41,10 +42,12 @@ const ORGANIZATION_LIMIT = Object.freeze({
 })
 
 const querySchema = z.object({
-  propertyId: z.string().min(1).max(64),
+  propertyId: z.uuid(),
   purpose: z.enum(PORTAL_MEDIA_PURPOSES),
-  portalId: z.string().min(1).max(64).optional(),
-  rightsConfirmed: z.literal('true').optional(),
+  portalId: z.uuid().optional(),
+  // Anything but a plain true or false is a malformed request; a false (or a
+  // missing flag) is the use case's to refuse with its own reason.
+  rightsConfirmed: z.enum(['true', 'false']).optional(),
 })
 
 export type PortalMediaUploadDeps = Readonly<{
@@ -125,10 +128,13 @@ export const createPortalMediaUploadHandler =
         return respond(error.status, { error: error.code })
       }
       if (isPortalError(error)) return portalErrorResponse(error)
+      // The 500 is answered, not thrown, so nothing upstream would report it.
+      // The error is not tenant content; the image bytes never reach it.
       deps.logger.error(
-        { errorCode: 'portal_media_upload_failed' },
+        { err: error, errorCode: 'portal_media_upload_failed' },
         'Portal media upload failed',
       )
+      captureObservabilityException(error, { source: 'nitro' })
       return respond(500, { error: 'internal_error' })
     }
   }
@@ -155,9 +161,11 @@ async function handle(deps: PortalMediaUploadDeps, request: Request): Promise<Re
   if (Number.isFinite(declaredLength) && declaredLength > PORTAL_MEDIA_MAX_UPLOAD_BYTES) {
     return respond(413, { error: 'image_rejected', reason: 'too_large' })
   }
-  const bytes = await readBoundedBody(request, PORTAL_MEDIA_MAX_UPLOAD_BYTES)
-  if (bytes === null)
+  const body = await readBoundedBody(request, PORTAL_MEDIA_MAX_UPLOAD_BYTES)
+  if (body.kind === 'too_large') {
     return respond(413, { error: 'image_rejected', reason: 'too_large' })
+  }
+  if (body.kind === 'failed') return respond(400, { error: 'body_unreadable' })
 
   const asset = await deps.ingest(
     {
@@ -165,7 +173,7 @@ async function handle(deps: PortalMediaUploadDeps, request: Request): Promise<Re
       ...(query.portalId ? { portalId: query.portalId } : {}),
       purpose: query.purpose,
       declaredContentType: request.headers.get('content-type') ?? '',
-      bytes,
+      bytes: body.bytes,
       rightsConfirmed: query.rightsConfirmed === 'true',
     },
     ctx,

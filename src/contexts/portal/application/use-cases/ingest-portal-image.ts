@@ -185,7 +185,13 @@ async function storeObject(
       Buffer.from(bytes),
       PORTAL_MEDIA_STORED_CONTENT_TYPE,
     )
-  } catch {
+  } catch (error) {
+    // The caller gets a bare refusal; the cause stays here, where a bucket or
+    // credential misconfiguration can be found. The image itself is not logged.
+    deps.logger.error(
+      { err: error, assetId: asset.id, errorCode: 'portal_media_store_failed' },
+      'Portal media object could not be stored',
+    )
     throw portalError('upload_failed', 'The image could not be stored')
   }
 }

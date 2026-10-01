@@ -28,8 +28,11 @@ const OTHER_PROPERTY = propertyId('a0000000-0000-0000-0000-000000000002')
 /** A logger that keeps what it is told, so a test can say what was reported. */
 const recordingLogger = () => {
   const errors: string[] = []
-  const record = (first: unknown, second?: unknown) =>
+  const contexts: unknown[] = []
+  const record = (first: unknown, second?: unknown) => {
     errors.push(typeof first === 'string' ? first : String(second ?? ''))
+    if (typeof first !== 'string') contexts.push(first)
+  }
   const logger: LoggerPort = {
     info: () => {},
     warn: () => {},
@@ -37,7 +40,7 @@ const recordingLogger = () => {
     error: record,
     child: () => logger,
   }
-  return { logger, errors }
+  return { logger, errors, contexts }
 }
 
 const staffApi = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
@@ -62,7 +65,7 @@ const setup = (overrides: Overrides = {}) => {
   const portalRepo = createInMemoryPortalRepo()
   const mediaRepo = createInMemoryPortalMediaAssetRepo()
   const objects = createInMemoryObjectStore()
-  const { logger, errors } = recordingLogger()
+  const { logger, errors, contexts } = recordingLogger()
   let next = 0
   const known = overrides.properties ?? [PROPERTY, OTHER_PROPERTY]
   const realProcessor = createSharpImageProcessor()
@@ -95,7 +98,7 @@ const setup = (overrides: Overrides = {}) => {
   })
   const portal = buildTestPortal()
   portalRepo.seed([portal])
-  return { useCase, portalRepo, mediaRepo, objects, errors, calls, portal }
+  return { useCase, portalRepo, mediaRepo, objects, errors, contexts, calls, portal }
 }
 
 const admin = () => buildTestAuthContext({ role: 'AccountAdmin' })
@@ -387,6 +390,20 @@ describe('ingestPortalImage', () => {
       const error = await failure(useCase(await input(), admin()))
       expect(error.code).toBe('upload_failed')
       expect(mediaRepo.all()).toHaveLength(0)
+    })
+
+    it('logs the cause of a failed object write, so a misconfigured bucket leaves a trace', async () => {
+      const { useCase, objects, contexts } = setup()
+      const cause = new Error('bucket unavailable')
+      objects.failNextPut(cause)
+      await failure(useCase(await input(), admin()))
+      expect(contexts).toEqual([
+        expect.objectContaining({
+          err: cause,
+          errorCode: 'portal_media_store_failed',
+          assetId: expect.any(String),
+        }),
+      ])
     })
 
     it('removes the object when its row cannot be written', async () => {

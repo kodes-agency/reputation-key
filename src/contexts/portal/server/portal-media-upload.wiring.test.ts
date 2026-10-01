@@ -7,7 +7,7 @@ import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 
 const APP = 'https://app.example.test'
-const PROPERTY = 'a0000000-0000-0000-0000-000000000001'
+const PROPERTY = 'a0000000-0000-4000-8000-000000000001'
 
 const mocks = vi.hoisted(() => ({
   requireExecutionAllowed: vi.fn(),

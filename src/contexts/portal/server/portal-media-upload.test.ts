@@ -16,9 +16,14 @@ import { PORTAL_MEDIA_MAX_UPLOAD_BYTES } from '#/shared/domain/portal-media'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { RateLimiter } from '#/shared/rate-limit/middleware'
 
+const telemetry = vi.hoisted(() => ({ capture: vi.fn() }))
+vi.mock('#/shared/observability/telemetry', () => ({
+  captureObservabilityException: telemetry.capture,
+}))
+
 const NOW = new Date('2026-10-01T12:00:00Z')
 const APP = 'https://app.example.test'
-const PROPERTY = 'a0000000-0000-0000-0000-000000000001'
+const PROPERTY = 'a0000000-0000-4000-8000-000000000001'
 const JPEG = Uint8Array.from([0xff, 0xd8, 0xff, 0xe0, 1, 2, 3])
 
 const asset = {
@@ -145,13 +150,13 @@ describe('portal media upload endpoint', () => {
     const { handler, ingest } = setup()
     await handler(
       upload(
-        `propertyId=${PROPERTY}&purpose=link_image&portalId=d0000000-0000-0000-0000-000000000001&rightsConfirmed=true`,
+        `propertyId=${PROPERTY}&purpose=link_image&portalId=d0000000-0000-4000-8000-000000000001&rightsConfirmed=true`,
       ),
     )
     expect(ingest).toHaveBeenCalledWith(
       expect.objectContaining({
         purpose: 'link_image',
-        portalId: 'd0000000-0000-0000-0000-000000000001',
+        portalId: 'd0000000-0000-4000-8000-000000000001',
       }),
       expect.anything(),
     )
@@ -271,8 +276,13 @@ describe('portal media upload endpoint', () => {
         `propertyId=${'x'.repeat(200)}&purpose=hero&rightsConfirmed=true`,
       ],
       [
-        'a rights flag that is not true',
+        'a rights flag that is neither true nor false',
         `propertyId=${PROPERTY}&purpose=hero&rightsConfirmed=maybe`,
+      ],
+      ['a Property id that is not a UUID', 'propertyId=not-a-uuid&purpose=hero'],
+      [
+        'a Portal id that is not a UUID',
+        `propertyId=${PROPERTY}&purpose=link_image&portalId=not-a-uuid`,
       ],
     ])('%s', async (_name, query) => {
       const mocks = setup()
@@ -285,6 +295,17 @@ describe('portal media upload endpoint', () => {
     it('a missing rights flag is passed on as not confirmed, for the use case to refuse', async () => {
       const mocks = setup()
       await mocks.handler(upload(`propertyId=${PROPERTY}&purpose=hero`))
+      expect(mocks.ingest).toHaveBeenCalledWith(
+        expect.objectContaining({ rightsConfirmed: false }),
+        expect.anything(),
+      )
+    })
+
+    it('a rights flag of false reaches the ingest, which gives the specific refusal', async () => {
+      const mocks = setup()
+      await mocks.handler(
+        upload(`propertyId=${PROPERTY}&purpose=hero&rightsConfirmed=false`),
+      )
       expect(mocks.ingest).toHaveBeenCalledWith(
         expect.objectContaining({ rightsConfirmed: false }),
         expect.anything(),
@@ -329,6 +350,29 @@ describe('portal media upload endpoint', () => {
       )
       expect(response.status).toBe(413)
       expect(sent).toBeLessThanOrEqual(PORTAL_MEDIA_MAX_UPLOAD_BYTES + 2 * chunk.length)
+      expect(mocks.ingest).not.toHaveBeenCalled()
+    })
+
+    it('a stream that fails mid-way is an unreadable body, not an oversized one', async () => {
+      const mocks = setup()
+      const stream = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.error(new Error('connection reset'))
+        },
+      })
+      const response = await mocks.handler(
+        new Request(
+          `${APP}/api/portal-media?propertyId=${PROPERTY}&purpose=hero&rightsConfirmed=true`,
+          {
+            method: 'POST',
+            headers: { 'content-type': 'image/jpeg', 'sec-fetch-site': 'same-origin' },
+            body: stream,
+            duplex: 'half',
+          } as RequestInit,
+        ),
+      )
+      expect(response.status).toBe(400)
+      expect(await json(response)).toEqual({ error: 'body_unreadable' })
       expect(mocks.ingest).not.toHaveBeenCalled()
     })
 
@@ -419,6 +463,33 @@ describe('portal media upload endpoint', () => {
     it('anything unexpected is a bare 500 with no detail', async () => {
       const result = await refusedWith(new Error('connect ECONNREFUSED 10.0.0.4:5432'))
       expect(result).toEqual({ status: 500, body: { error: 'internal_error' } })
+    })
+
+    it('reports an unexpected failure to the log and the error monitor, since the 500 is answered, not thrown', async () => {
+      telemetry.capture.mockClear()
+      const failure = new Error('connect ECONNREFUSED 10.0.0.4:5432')
+      const error = vi.fn()
+      const mocks = setup({
+        ingest: async () => {
+          throw failure
+        },
+        logger: { ...logger(), error },
+      })
+      await mocks.handler(upload())
+      expect(error).toHaveBeenCalledWith(
+        expect.objectContaining({
+          err: failure,
+          errorCode: 'portal_media_upload_failed',
+        }),
+        expect.any(String),
+      )
+      expect(telemetry.capture).toHaveBeenCalledWith(failure, { source: 'nitro' })
+    })
+
+    it('leaves a refusal out of the error monitor', async () => {
+      telemetry.capture.mockClear()
+      await refusedWith(portalImageRejection('too_small'))
+      expect(telemetry.capture).not.toHaveBeenCalled()
     })
   })
 })

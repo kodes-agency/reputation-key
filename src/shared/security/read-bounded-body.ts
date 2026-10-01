@@ -2,14 +2,19 @@
 //
 // A client may send chunked data with no content-length, or lie about it, so the
 // bytes are counted as they arrive and the read stops the moment the budget is
-// spent. Returns null when the body is too large or the stream fails; the caller
-// decides what that means (a 413, a refusal).
+// spent. The result says which way it ended: read, over the budget, or a stream
+// that failed (a client that disconnected is not an oversized body).
+
+export type BoundedBody =
+  | Readonly<{ kind: 'ok'; bytes: Uint8Array<ArrayBuffer> }>
+  | Readonly<{ kind: 'too_large' }>
+  | Readonly<{ kind: 'failed' }>
 
 export async function readBoundedBody(
   request: Request,
   maxBytes: number,
-): Promise<Uint8Array<ArrayBuffer> | null> {
-  if (!request.body) return new Uint8Array()
+): Promise<BoundedBody> {
+  if (!request.body) return { kind: 'ok', bytes: new Uint8Array() }
   const reader = request.body.getReader()
   const chunks: Uint8Array[] = []
   let bytes = 0
@@ -20,7 +25,7 @@ export async function readBoundedBody(
       bytes += chunk.value.byteLength
       if (bytes > maxBytes) {
         await reader.cancel()
-        return null
+        return { kind: 'too_large' }
       }
       chunks.push(chunk.value)
     }
@@ -30,9 +35,9 @@ export async function readBoundedBody(
       body.set(chunk, offset)
       offset += chunk.byteLength
     }
-    return body
+    return { kind: 'ok', bytes: body }
   } catch {
-    return null
+    return { kind: 'failed' }
   } finally {
     reader.releaseLock()
   }

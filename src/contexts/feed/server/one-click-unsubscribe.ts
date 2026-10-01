@@ -87,8 +87,9 @@ async function oneClickFormRejection(
   ) {
     return 'unreadable_form'
   }
-  const body = await readBoundedBody(request, MAX_ONE_CLICK_BODY_BYTES)
-  if (body === null) return 'unreadable_form'
+  const read = await readBoundedBody(request, MAX_ONE_CLICK_BODY_BYTES)
+  if (read.kind !== 'ok') return 'unreadable_form'
+  const body = read.bytes
   const fallback =
     mediaType === 'multipart/form-data' ? rfc8058ExampleContentType(contentType) : null
   const form =
