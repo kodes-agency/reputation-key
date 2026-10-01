@@ -58,7 +58,7 @@ The owner approved both on 2026-09-30. The plan was checked against `/Users/bozh
   Languages and manual translation ship first. The AI capability is a separate later release, gated by an owner decision.
 
 - **Deferred, and needing the owner's agreement (listed in §5):**
-  - the print-kit PDF (the Share board shows it);
+  - the print-kit PDF beyond the small version of slice 45 (the Share board also shows an NFC card, a sticker and a poster);
   - counting "Guests by language" from private ratings rather than qualified scans (the board caption says scans).
 - **Deferred by us:**
   - localized `/privacy` legal documents (the link label is localized, the notice stays English);
@@ -830,6 +830,21 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
   - **Fleet view.** The command is per organisation; the read-only SQL in `docs/operations/operator-commands.md` lists the organisations that still have live v1/v2 Portals (slice 44's precondition).
   - **Idempotent:** a republished Portal is on v3 and drops out of the selection; a Portal that is not ready reports the same reason every run.
   - **Tests.** Use case (selection, paging, dry run, apply, not-ready, idempotence, halt, organisation and Property scope), the preview, the action and its rendering, the command table, a real-PostgreSQL suite for the selection, and a real-PostgreSQL end-to-end run (the old activation closes as `replaced`, a verified v3 is served, the operator is on every row and fact, a second run writes nothing, a draft-only Portal and a Portal that is not ready are left as they were).
+
+**45. Print kit, the small version (owner decision 6).** A "Print kit" section on the Share tab, with the print drawn on the right as on board 06.
+
+- A table tent (A6, folded) or a counter card (A6), in one or two of the Portal's languages, with one call to action, and "Download print kit (PDF)".
+- Depends on 19, 31 and 32 (all merged) and on 33 for the address. Size L.
+- **As built.**
+  - **The file.** PDFKit (MIT, 0.20.2) draws it server-side, as vectors: the QR is rectangles with a 4-module quiet zone on a light plate, the type is the guest fonts embedded as subsets (Latin, Latin-ext, Cyrillic, Cyrillic-ext, split per character by the guest stylesheet's `unicode-range`, so a bilingual line works), and only a photo or a logo is raster. A page is the trim plus a 3 mm bleed plus a 10 mm slug with crop marks (registration colour), and declares `TrimBox` and `BleedBox`. A table tent is one flat 105 x 296 mm sheet of two A6 panels with the back upside down and a fold mark, so it folds into a standing tent; a counter card is one A6 page per face (one page when there is one language).
+  - **What it says.** Industry-neutral copy in all six languages (`PRINT_KIT_COPY`; es, it, fr and de are drafted without a native check, as decision 5 allows). Two calls to action: "Rate your visit, private, about 30 seconds" and "How was your visit? Tell us privately". The board's "How was your stay?" is not offered. Two languages: the front leads with the first and the back with the second.
+  - **One source of measures.** `src/shared/domain/portal-print-kit.ts` (vocabulary, copy, faces, sheets, short address), `portal-print-kit-layout.ts` (every millimetre and point) and `portal-print-kit-palette.ts` are read by the PDF and by the preview, so they cannot drift. The look is the Property's working copy through `brandProfileOf` (the field and accent the guest page uses). The preview estimates line breaks and the address size, the PDF measures them; a headline far longer than any pack's can therefore shrink in the PDF and not in the preview.
+  - **The address.** Only `createPortalPrintKit` puts the address in a file. Order: authorise, check the languages against the Portal's, read the pictures, then fetch the address through `revealPortalAddress` with purpose `download` (so the disclosure is recorded before it is decrypted, History shows it as a download, and a code that was not sealed is refused). The download shares the "Download again" rate limit, is a no-store POST, and the preview read carries no address. The button is off, with the reason, for a code that cannot be fetched again; the preview then draws a sample code and says so.
+  - **Pictures.** The photo and logo come from Portal media by asset id (checked against the stored hash and size, converted with sharp), never from a stored URL, so nothing is fetched. They exist only once uploads are on (slice 42); until then the print is the field colour, the wordmark and the washes.
+  - **Fonts.** The guest woff2 files cannot be embedded: fontkit mis-reads their transformed `glyf` table (Ysabeau fails to subset at all, Cormorant draws headlines as blobs). The same subsets ship as TrueType in `infrastructure/print-kit/fonts/` (a lossless `fontTools` conversion, licences beside them), imported with `?inline` so the web bundle and, through a `.ttf` data-URL loader in `tsup.config.ts`, the worker bundle carry them. A test embeds every character of every subset.
+  - **Build.** `pdfkit` is external to the Nitro bundle (`vite.config.ts`) and loaded when a print is made, like `sharp`.
+  - **Checked by decoding.** The PDFs of a tent and a card were rendered with `pdftoppm` and the front and the upside-down back codes both decode to the full address.
+- **Deviations.** The plan did not say which fonts could be embedded or that the address needs a sealed code. A code made without a keyring cannot be printed from Share (Replace the code to get one that can). The Share tab now runs edge to edge and carries its own columns. The History entry is the existing "downloaded the code again": no print-kit line (no purpose column for it, so no migration).
 
 **44. Contract cleanup.**
 
