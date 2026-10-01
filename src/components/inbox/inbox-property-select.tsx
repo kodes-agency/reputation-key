@@ -43,7 +43,7 @@ function Trigger({
     return (
       <button
         type="button"
-        className="flex max-w-full min-w-0 items-center gap-1 rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 max-md:h-9 max-md:rounded-md max-md:px-2 max-md:text-[13px] max-md:font-medium max-md:text-foreground"
+        className="flex max-w-full min-w-0 items-center gap-1 rounded-sm text-xs text-muted-foreground outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 max-md:-ml-2 max-md:h-9 max-md:rounded-md max-md:px-2 max-md:text-[13px] max-md:font-medium max-md:text-foreground"
         {...props}
       >
         <span className="truncate">{scopeLabel}</span>

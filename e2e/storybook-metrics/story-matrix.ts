@@ -58,6 +58,10 @@
 //   story     the story's own root, for stories that render ONLY the component
 //             (the footer alone, the assist group alone, the desktop panel, a
 //             reply node, the reply editor);
+//   root      the story root ITSELF, for a component that returns a fragment:
+//             `InboxDetailContent`'s three regions are direct children of it,
+//             and behind the router decorator there is no wrapper `div` for
+//             `story` to find, so it fails with "no visible pane matched";
 //   form      the same, for a component whose root is a `form` (the note form).
 //
 
@@ -83,6 +87,7 @@ export const PANE = {
   region: '[class*="@container/reply-workspace"]',
   sheet: '[data-slot="sheet-content"]',
   story: '#storybook-root > div',
+  root: '#storybook-root',
   form: '#storybook-root > form',
   detail: 'div:has(> section[aria-label="Case status"])',
 } as const

@@ -93,7 +93,7 @@ const BOTH_MODES: readonly ComposerMode[] = ['reply', 'note']
  * (row 14), and a line about the whole edit belongs over all three.
  */
 const REGION_CLASS =
-  'flex max-h-[60%] min-h-0 shrink-0 flex-col gap-3 overflow-y-auto overscroll-contain border-t px-5 py-4 @container/reply-workspace lg:px-6'
+  'flex max-h-[60%] min-h-0 shrink-0 flex-col gap-3 overflow-y-auto overscroll-contain border-t px-5 py-4 max-md:px-4 @container/reply-workspace lg:px-6'
 
 /**
  * The same region while it is collapsed (row 15) — the bar, and nothing that
@@ -114,7 +114,7 @@ const REGION_CLASS =
  * around it and a row of hidden panels would be a border with nothing in it.
  */
 const COLLAPSED_REGION_CLASS =
-  'flex shrink-0 flex-col border-t px-5 py-3 @container/reply-workspace lg:px-6'
+  'flex shrink-0 flex-col border-t px-5 py-3 max-md:px-4 @container/reply-workspace lg:px-6'
 
 /**
  * The slot: a flex column that is allowed to SHRINK, plus the textarea's cap.
@@ -157,8 +157,8 @@ const SLOT_CLASS =
  * automatic minimum stays content-based and the whole of a deficit lands on the
  * scroller instead. `-mx-1 -mb-1 … px-1 pb-1` is 4 px of room so a focus ring on
  * the note box is not clipped by the scrollport, bled back out so the content
- * still lines up with the dock's edges; it lands inside the region's own 20 px
- * padding and so adds no overflow of its own.
+ * still lines up with the dock's edges; it lands inside the region's own padding
+ * (20 px, 16 on a phone) and so adds no overflow of its own.
  *
  * The TOP bleed (`-my-1 … p-1` before the dock) is gone on purpose. The
  * scroller now sits directly under the dock's head, and a scrollport pulled

@@ -64,10 +64,16 @@ type Props = Readonly<{
  * hands back. `scrollWidth === innerWidth` at both widths, before and after.
  * The committed gate for the rule behind them (every control >= 36 px, no
  * overflow) is `e2e/storybook-metrics/inbox-detail.metrics.ts`.
+ *
+ * Phone grid since then: a 44 px bar with a 16 px gutter (`max-md:h-11
+ * max-md:px-4`), and no `border-l` on the sheet below `sm`. The same sum is
+ * 32 padding and no border, so 280 px at 390 and 210 at 320 (computed, not
+ * re-measured). 44 px is also what the app top bar this sheet covers is on
+ * inbox phones, so the top edge does not jump when a review opens.
  */
 export function InboxDetailHeader({ item, detail, onClose, dismiss = 'close' }: Props) {
   return (
-    <header className="flex h-14 min-w-0 shrink-0 items-center gap-2 border-b px-5 lg:px-6">
+    <header className="flex h-14 min-w-0 shrink-0 items-center gap-2 border-b px-5 max-md:h-11 max-md:px-4 lg:px-6">
       {dismiss === 'back' && (
         <Button
           size="icon-sm"
@@ -76,24 +82,20 @@ export function InboxDetailHeader({ item, detail, onClose, dismiss = 'close' }: 
           // back into the header's own padding so its GLYPH, not its box, sits
           // on the content edge. A ghost button draws no box at rest; the arrow
           // is the only thing on screen, so the arrow is what has to line up.
-          // The rule is half of (button − 16 px glyph): 8 px for a 32 px
-          // button, which is exactly the list header's drawer trigger's `-ml-2`
-          // (`inbox-list-header.tsx:54`), and 10 px for this 36 px one, so
-          // `-ml-2.5`. Keeping `-ml-2` after the resize would have left the
-          // arrow 2 px right of that line; v1's `-ml-2` on a 44 px button left
-          // it 6 px right.
+          // The rule is half of (button − 16 px glyph): 10 px for this 36 px
+          // button, so `-ml-2.5`. Keeping the 32 px button's `-ml-2` after the
+          // resize would have left the arrow 2 px right of the line; v1's `-ml-2`
+          // on a 44 px button left it 6 px right.
           //
-          // Measured in Chromium against Storybook dev at 390 and 320
-          // (`inbox-mobile-390--review-closed`): the arrow's left edge was
-          // x=27 and is now x=21 — the same x as the case toolbar's first
-          // control below it (`px-5` inside the sheet's 1 px `border-l`), and
-          // 1 px (that border) from the list's `Menu` glyph at x=20
-          // (`pages-inbox--mobile-viewport`), so the leading glyph does not jump
-          // when the sheet slides over the list. The list's trigger is still
-          // 32 px with no mobile treatment — above WCAG 2.5.8's 24 px, under
-          // row 20's 36, and outside this pane. The sheet is this variant's
-          // only caller and it renders only below `md`, so neither the size
-          // nor the negative margin needs a breakpoint beyond `max-md:size-9`.
+          // The phone gutter is 16 px (`max-md:px-4`), so the arrow's left edge
+          // is x=16: the same x as the list's glyphs and text and as the case
+          // toolbar's first control below it. The sheet draws no `border-l`
+          // below `sm`, so nothing shifts it when the sheet slides over the
+          // list. The sheet is this variant's only caller, and it is the
+          // compact layout, which renders up to 1077 px, not only on phones:
+          // phones get the 36 px back button and the 16 px gutter, tablets keep
+          // the 32 px button inside the 20 px gutter (`px-5`). `-ml-2.5` is not
+          // gated by a breakpoint, so it applies to both.
           className="-ml-2.5 max-md:size-9"
           aria-label="Back to list"
           onClick={onClose}

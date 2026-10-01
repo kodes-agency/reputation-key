@@ -401,7 +401,8 @@ export function InboxCaseToolbar({
     //   258 px member, the group 330 px of 350, so `Handled on time` sat
     //   entirely past the edge — only its clock glyph showed
     //   (`scrollWidth` 496 / `clientWidth` 390).
-    // - 320 px (280 px inside `px-5`), an ordinary closed review:
+    // - 320 px (280 px inside `px-5`; a phone's `px-4` now leaves 288), an
+    //   ordinary closed review:
     //   `[Closed ▾]` 103 + 36 + 36 = 175, plus `gap-3` and `Replied on time`
     //   109 = 296, so the fact ran 16 px under the right padding (336 / 320).
     //   `Needs attention` 137 + 72 + 12 + `Handle within 6 h` 120 = 341, the
@@ -409,16 +410,18 @@ export function InboxCaseToolbar({
     //
     // So: `flex-wrap`, and the reply-due detail — the only item outside the
     // group — drops to a second line, still on the trailing edge (`ml-auto`
-    // applies per flex line). One line stays exactly 48 px at every width —
+    // applies per flex line). One line stays exactly 48 px from `md` —
     // `min-h-12` is border-box, so it includes `border-b`, and `py-1` + a
     // 36 px member + that 1 px border is 45 px, under it (`py-1.5` measured
-    // 49 px, one over the contract's 48). The rare wrapped row is 85 px:
-    // 4 + 36 + `gap-y-1` + 36 + 4 + 1. The group is capped at the
-    // row's width (`min-w-0 max-w-full`, replacing `shrink-0`) so that even at
-    // 320 px a `Handled · <outcome>` status truncates inside its own member
-    // rather than pushing the group past the edge — the owner and flag are
-    // 36 px squares that never shrink, and the status is the member built to
-    // give (`StatusMember`).
+    // 49 px, one over the contract's 48). Below `md` the bar is 44 px like
+    // the other phone bars: `max-md:min-h-11`, with `max-md:py-0.5`, because
+    // `py-1` would make the same sum 45 (measured), one over. The rare wrapped
+    // row is 85 px from `md` (4 + 36 + `gap-y-1` + 36 + 4 + 1), 81 on a phone.
+    // The group is capped at the row's width (`min-w-0 max-w-full`, replacing
+    // `shrink-0`) so that even at 320 px a `Handled · <outcome>` status
+    // truncates inside its own member rather than pushing the group past the
+    // edge — the owner and flag are 36 px squares that never shrink, and the
+    // status is the member built to give (`StatusMember`).
     //
     // Facts that print their words at every width (row 2, after review) make
     // the wrap commoner on a phone, and that is the trade taken: a second line
@@ -440,7 +443,7 @@ export function InboxCaseToolbar({
     // lets the wrapped row grow.
     <section
       aria-label="Case status"
-      className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b px-5 py-1 lg:px-6"
+      className="flex min-h-12 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b px-5 py-1 max-md:min-h-11 max-md:px-4 max-md:py-0.5 lg:px-6"
     >
       {/* `min-w-0 max-w-full`: the group may be no wider than the row, and a
           flex item's automatic minimum (its min-content width) would

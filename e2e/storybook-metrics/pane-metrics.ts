@@ -506,8 +506,9 @@ function measureInPage(args: MeasureArgs): PaneReport {
   // (Radix's `VisuallyHidden`), or anything under a `clip-path` / `clip`
   // (Tailwind 4's `sr-only` is `clip-path: inset(50%)`, and measured it is not
   // always 1 px: the sheet's `SheetHeader` is `p-4 sr-only`, whose padding
-  // outranks the utility's, so it is a 32x32 box at x=0 inside a sheet whose
-  // border starts its clip at x=1). An `svg`'s children are icon geometry
+  // outranks the utility's, so it is a 32x32 box at x=0, and from `sm` a sheet
+  // whose `border-l` starts its clip at x=1; below `sm` the sheet has no
+  // border and the clip starts at x=0). An `svg`'s children are icon geometry
   // inside a viewBox, not layout, and are skipped.
   const hiddenByClip = new Map<Element, boolean>()
   const isClippedAway = (el: Element): boolean => {
