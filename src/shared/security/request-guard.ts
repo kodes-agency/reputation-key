@@ -4,6 +4,8 @@
 //
 //   1. Body-size limit — requests whose declared content-length exceeds
 //      REQUEST_BODY_LIMIT_BYTES are rejected 413 BEFORE routing or body reads.
+//      A path may carry a larger limit of its own (an image upload), matched on
+//      the exact pathname only, so widening one endpoint never widens another.
 //      Mechanism: the nitro `request` runtime hook CANNOT short-circuit (nitro
 //      routes hook errors into captureError and lets the request through —
 //      verified against nitro's runtime app.mjs), so the guard wraps the h3
@@ -67,9 +69,39 @@ export function bodyLimitRejection(
   })
 }
 
+export type PathBodyLimit = Readonly<{
+  /** The exact pathname the limit applies to: no prefix, no case folding. */
+  path: string
+  limitBytes: number
+}>
+
+/**
+ * The body limit for a pathname: the default, or a path's own larger limit.
+ * An override can only widen — the default is the floor.
+ */
+export function bodyLimitFor(
+  pathname: string,
+  defaultLimitBytes: number,
+  pathLimits: readonly PathBodyLimit[] = [],
+): number {
+  const own = pathLimits.find((candidate) => candidate.path === pathname)
+  return own ? Math.max(own.limitBytes, defaultLimitBytes) : defaultLimitBytes
+}
+
+/** The pathname of a request, or '' when its URL cannot be read. */
+function pathnameOf(request: Request): string {
+  try {
+    return new URL(request.url, 'http://localhost').pathname
+  } catch {
+    return ''
+  }
+}
+
 export type RequestGuardOptions = Readonly<{
   /** Maximum accepted request body size in bytes (declared content-length). */
   bodyLimitBytes: number
+  /** Larger limits for named endpoints; every other path keeps `bodyLimitBytes`. */
+  pathBodyLimits?: readonly PathBodyLimit[]
   /** Id generator for requests without a sane inbound id (tests inject). */
   idGen?: () => string
 }>
@@ -89,15 +121,20 @@ export function createRequestGuardPlugin(opts: RequestGuardOptions): NitroAppPlu
     } else {
       const previous = h3.config.onRequest
       h3.config.onRequest = (event) => {
+        const limitBytes = bodyLimitFor(
+          pathnameOf(event.req),
+          opts.bodyLimitBytes,
+          opts.pathBodyLimits,
+        )
         const rejection = bodyLimitRejection(
           event.req.headers.get('content-length'),
-          opts.bodyLimitBytes,
+          limitBytes,
         )
         if (rejection) {
           getLogger().warn(
             {
               contentLength: event.req.headers.get('content-length'),
-              limitBytes: opts.bodyLimitBytes,
+              limitBytes,
             },
             '[request-guard] body limit exceeded — 413',
           )

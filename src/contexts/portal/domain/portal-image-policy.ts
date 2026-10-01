@@ -14,6 +14,7 @@
 import { err, ok } from '#/shared/domain'
 import type { Result } from '#/shared/domain'
 import {
+  PORTAL_MEDIA_MAX_UPLOAD_BYTES,
   PORTAL_MEDIA_PURPOSES,
   PORTAL_MEDIA_STORED_CONTENT_TYPE,
   type PortalMediaPurpose,
@@ -59,11 +60,8 @@ type PurposeRule = Readonly<{
 const MIB = 1024 * 1024
 
 export const PORTAL_IMAGE_LIMITS = Object.freeze({
-  /**
-   * The largest body accepted. Chosen at 10 MiB: a phone photograph is 2 to 6,
-   * and it is the ceiling the retired hero upload used.
-   */
-  maxUploadBytes: 10 * MIB,
+  /** The largest body accepted; the request guard stops a larger one at the edge. */
+  maxUploadBytes: PORTAL_MEDIA_MAX_UPLOAD_BYTES,
   /**
    * The most pixels the decoder is asked to hold. 40 million decodes to about
    * 160 MB of RGBA, which is the largest allocation an upload can cause.

@@ -10,6 +10,10 @@
 
 import { definePlugin } from 'nitro'
 import { getEnv } from '#/shared/config/env'
+import {
+  PORTAL_MEDIA_MAX_UPLOAD_BYTES,
+  PORTAL_MEDIA_UPLOAD_PATH,
+} from '#/shared/domain/portal-media'
 import { createRequestGuardPlugin } from '#/shared/security/request-guard'
 
 // ARC-03-T14: configuration is read inside the plugin body, not at module load.
@@ -17,7 +21,11 @@ import { createRequestGuardPlugin } from '#/shared/security/request-guard'
 // process fixture could not boot this plugin with a deterministic environment.
 export default definePlugin((nitroApp) => {
   const env = getEnv()
-  return createRequestGuardPlugin({ bodyLimitBytes: env.REQUEST_BODY_LIMIT_BYTES })(
-    nitroApp,
-  )
+  return createRequestGuardPlugin({
+    bodyLimitBytes: env.REQUEST_BODY_LIMIT_BYTES,
+    // The one endpoint that takes a large body: an image upload, scoped to its path.
+    pathBodyLimits: [
+      { path: PORTAL_MEDIA_UPLOAD_PATH, limitBytes: PORTAL_MEDIA_MAX_UPLOAD_BYTES },
+    ],
+  })(nitroApp)
 })

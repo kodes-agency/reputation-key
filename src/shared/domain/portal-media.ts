@@ -26,6 +26,16 @@ export type PortalMediaSourceFormat = (typeof PORTAL_MEDIA_SOURCE_FORMATS)[numbe
 
 export const PORTAL_MEDIA_STORED_CONTENT_TYPE = 'image/webp'
 
+/**
+ * The largest image body accepted, 10 MiB: a phone photograph is 2 to 6, and it
+ * is the ceiling the retired hero upload used. One value for the policy that
+ * refuses a larger body and for the request guard that stops it at the edge.
+ */
+export const PORTAL_MEDIA_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+/** Where the browser sends an image: a POST of the raw bytes, same-origin. */
+export const PORTAL_MEDIA_UPLOAD_PATH = '/api/portal-media'
+
 const OBJECT_KEY_PREFIX = 'portal-media/'
 
 /**
