@@ -292,6 +292,7 @@ async function renameLink(id: string, label: string) {
       destinationId: null,
       legacyDestinationState: 'unclassified',
       iconKey: null,
+      imageAssetId: null,
     },
     event: portalLinkUpdated({
       portalId: PORTAL_A,
@@ -666,6 +667,7 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
           destinationId: null,
           legacyDestinationState: 'unclassified',
           iconKey: 'map-pin',
+          imageAssetId: null,
         },
         event: portalLinkUpdated({
           portalId: PORTAL_A,
@@ -700,6 +702,7 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
           destinationId: null,
           legacyDestinationState: 'unclassified',
           iconKey: null,
+          imageAssetId: null,
         },
         event: portalLinkUpdated({
           portalId: PORTAL_A,

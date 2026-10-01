@@ -264,6 +264,24 @@ describe('updateLink input validation', () => {
     expect(result.success).toBe(false)
   })
 
+  it('accepts the id of an uploaded picture, or null to take it off', () => {
+    const picture = '30000000-0000-4000-8000-000000000001'
+    expect(
+      updateLinkInputSchema.safeParse({ linkId: 'link-123', imageAssetId: picture })
+        .success,
+    ).toBe(true)
+    expect(
+      updateLinkInputSchema.safeParse({ linkId: 'link-123', imageAssetId: null }).success,
+    ).toBe(true)
+  })
+
+  it('rejects a picture id that is not a UUID', () => {
+    expect(
+      updateLinkInputSchema.safeParse({ linkId: 'link-123', imageAssetId: 'abc' })
+        .success,
+    ).toBe(false)
+  })
+
   it('rejects missing linkId', () => {
     const result = updateLinkInputSchema.safeParse({
       label: 'Updated',

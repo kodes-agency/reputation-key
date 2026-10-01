@@ -2,6 +2,16 @@
 
 import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { PortalLink } from '../../domain/types'
+import { z } from 'zod/v4'
+import {
+  portalMediaAssetId,
+  type OrganizationId,
+  type PortalMediaAssetId,
+  type PropertyId,
+} from '#/shared/domain/ids'
+import { portalError } from '../../domain/errors'
+import { canReferencePortalMediaAsset } from '../../domain/portal-media-asset'
+import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { validateLinkIconKey, validateLinkLabel } from '../../domain/rules'
 import type { PortalRepository } from '../ports/portal.repository'
@@ -19,11 +29,14 @@ export type UpdateLinkInput = Readonly<{
   label?: string
   url?: string
   iconKey?: string | null
+  /** An uploaded picture for the tile, or null to take it off; left out, it stays. */
+  imageAssetId?: string | null
 }>
 
 export type UpdateLinkDeps = Readonly<{
   portalRepo: PortalRepository
   portalLinkRepo: PortalLinkRepository
+  mediaRepo: Pick<PortalMediaAssetRepository, 'findById'>
   staffPublicApi: StaffPublicApi
   commandStore: PortalCommandStore
   destinationRepo: Pick<PortalApprovedDestinationRepository, 'request'>
@@ -31,6 +44,34 @@ export type UpdateLinkDeps = Readonly<{
   idGen: () => string
   clock: () => Date
 }>
+
+const uuidSchema = z.uuid()
+
+/**
+ * The asset a link may point at: a picture uploaded for a link tile, of this
+ * Organization and this Property, that may still be served. Anything else is the
+ * same refusal as a missing image, so a probe learns nothing about other tenants.
+ * The database ties a reference to the Organization and Property, not to the
+ * purpose, so the purpose is checked here.
+ */
+async function resolveTileImage(
+  deps: Pick<UpdateLinkDeps, 'mediaRepo'>,
+  organizationId: OrganizationId,
+  propertyId: PropertyId,
+  assetId: string,
+): Promise<PortalMediaAssetId> {
+  const notFound = () => portalError('media_not_found', 'image not found for this link')
+  if (!uuidSchema.safeParse(assetId).success) throw notFound()
+  const asset = await deps.mediaRepo.findById(organizationId, portalMediaAssetId(assetId))
+  if (
+    !asset ||
+    asset.propertyId !== propertyId ||
+    !canReferencePortalMediaAsset('link_image', asset)
+  ) {
+    throw notFound()
+  }
+  return asset.id
+}
 
 export const updateLink =
   (deps: UpdateLinkDeps) =>
@@ -65,6 +106,20 @@ export const updateLink =
       needsUpdate = true
     }
 
+    let imageAssetId = existing.imageAssetId
+    if (input.imageAssetId !== undefined) {
+      imageAssetId =
+        input.imageAssetId === null
+          ? null
+          : await resolveTileImage(
+              deps,
+              ctx.organizationId,
+              portal.propertyId,
+              input.imageAssetId,
+            )
+      needsUpdate = true
+    }
+
     if (!needsUpdate) return existing
 
     const expectedPortalUpdatedAt = target.portalUpdatedAt ?? portal.updatedAt
@@ -93,6 +148,7 @@ export const updateLink =
           ? 'migrated'
           : existing.legacyDestinationState,
         iconKey: newIconKey,
+        imageAssetId,
       },
       event: portalLinkUpdated({
         portalId: existing.portalId,
@@ -112,6 +168,7 @@ export const updateLink =
       destinationId,
       legacyDestinationState: destination ? 'migrated' : existing.legacyDestinationState,
       iconKey: newIconKey,
+      imageAssetId,
       updatedAt: occurredAt,
     }
   }

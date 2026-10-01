@@ -272,6 +272,9 @@ export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore =
               url: command.patch.destinationId ? null : command.patch.url,
               legacyDestinationState: command.patch.legacyDestinationState,
               iconKey: command.patch.iconKey,
+              imageAssetId: command.patch.imageAssetId
+                ? unbrand(command.patch.imageAssetId)
+                : null,
               updatedAt: command.occurredAt,
             })
             .where(

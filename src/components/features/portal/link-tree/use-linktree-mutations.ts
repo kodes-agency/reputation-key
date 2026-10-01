@@ -19,7 +19,7 @@ import {
   updateLink,
 } from '#/contexts/portal/server/portal-links'
 import type { PortalLinktreeView } from '#/contexts/portal/application/public-api'
-import { applyLinkOrder } from './linktree-rules'
+import { applyLinkOrder, isAddressWrite } from './linktree-rules'
 
 /** Which tile's address change was refused, and why: one shared action, many tiles. */
 export type LinkUpdateFailure = Readonly<{ linkId: string; error: unknown }>
@@ -63,7 +63,11 @@ export function useLinktreeMutations(propertyId: string, portalId: string) {
     updateLink: useActionMutation(updateLink, {
       invalidateKeys,
       onSuccess: () => setUpdateFailure(null),
-      onError: (error, { data }) => setUpdateFailure({ linkId: data.linkId, error }),
+      // Only the address field shows this; a refused icon or photo is reported
+      // where it was chosen, not as a fault in the address.
+      onError: (error, { data }) => {
+        if (isAddressWrite(data)) setUpdateFailure({ linkId: data.linkId, error })
+      },
     }),
     /** The refusal of the last link change, to show beside the tile it came from. */
     updateFailure,

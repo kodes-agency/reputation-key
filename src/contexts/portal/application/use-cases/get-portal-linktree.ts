@@ -11,8 +11,10 @@ import {
   buildPortalLinktreeView,
   type PortalLinktreeView,
 } from '../../domain/portal-linktree-view'
+import { listServableTileImageIds } from '../servable-tile-images'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import type { PortalApprovedDestinationRepository } from '../ports/portal-approved-destination.repository'
+import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.repository'
 import type { PortalExperienceRepository } from '../ports/portal-experience.repository'
 import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { PortalRepository } from '../ports/portal.repository'
@@ -24,6 +26,8 @@ export type GetPortalLinktreeDeps = Readonly<{
   portalLinkRepo: PortalLinkRepository
   experienceRepo: Pick<PortalExperienceRepository, 'listPortalOverrides'>
   destinationRepo: Pick<PortalApprovedDestinationRepository, 'list'>
+  /** Which tile pictures may still be served: a taken-down one is not shown as the tile's photo. */
+  mediaRepo: Pick<PortalMediaAssetRepository, 'listServableIds'>
   staffPublicApi: StaffPublicApi
 }>
 
@@ -52,6 +56,12 @@ export const getPortalLinktree =
       ),
       deps.destinationRepo.list(ctx.organizationId, portal.propertyId),
     ])
+    const servable = await listServableTileImageIds(
+      deps.mediaRepo,
+      ctx.organizationId,
+      portal.propertyId,
+      links,
+    )
     return buildPortalLinktreeView({
       portal,
       categories,
@@ -59,6 +69,7 @@ export const getPortalLinktree =
       texts,
       titles: overrides,
       destinations,
+      servableImageIds: servable,
     })
   }
 

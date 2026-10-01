@@ -461,6 +461,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     updateLink: updateLink({
       portalRepo,
       portalLinkRepo,
+      mediaRepo: portalMediaAssetRepo,
       staffPublicApi: deps.staffPublicApi,
       commandStore: portalCommandStore,
       destinationRepo: portalApprovedDestinationRepo,
@@ -520,6 +521,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalLinkRepo,
       experienceRepo: portalExperienceRepo,
       destinationRepo: portalApprovedDestinationRepo,
+      mediaRepo: portalMediaAssetRepo,
       staffPublicApi: deps.staffPublicApi,
     }),
     listPortalLinks: listPortalLinks({
@@ -539,6 +541,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       experienceRepo: portalExperienceRepo,
       destinationRepo: portalApprovedDestinationRepo,
       publicationRepo: portalPublicationRepo,
+      mediaRepo: portalMediaAssetRepo,
       propertyFacts: deps.propertyApi,
       staffPublicApi: deps.staffPublicApi,
       clock: deps.clock,

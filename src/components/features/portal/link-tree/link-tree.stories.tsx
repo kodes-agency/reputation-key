@@ -53,6 +53,7 @@ const tile = (
   categoryId: 'cat-1',
   url: `https://avela.bg/${id}`,
   iconKey: null,
+  imageAssetId: null,
   sortKey,
   texts: [
     { locale: 'en', label, line, provenance: null },
@@ -108,6 +109,7 @@ function Harness({ view: current, mutations, canEdit, canDelete = true }: StoryP
   return (
     <div className="max-w-2xl p-6">
       <LinkTree
+        propertyId="prop-1"
         view={current}
         mutations={mutations}
         memberNames={MEMBER_NAMES}

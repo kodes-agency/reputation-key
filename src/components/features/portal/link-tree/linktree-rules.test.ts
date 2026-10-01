@@ -3,6 +3,7 @@ import {
   applyLinkOrder,
   describeLinkApproval,
   describeLinkCap,
+  isAddressWrite,
   linkLabelFor,
   describeUnsavedLine,
   linkLocaleChips,
@@ -26,6 +27,7 @@ const link = (
   categoryId,
   url: `https://avela.bg/${id}`,
   iconKey: null,
+  imageAssetId: null,
   sortKey,
   texts: [{ locale: 'en', label: id.toUpperCase(), line: null, provenance: null }],
   destination: { state: 'approved', sourceType: 'custom', approvedByUserId: 'admin-1' },
@@ -297,5 +299,17 @@ describe('describeUnsavedLine', () => {
     expect(describeUnsavedLine({ label: 'Menu', line: 'Lunch' })).toBeNull()
     expect(describeUnsavedLine({ label: '', line: '' })).toBeNull()
     expect(describeUnsavedLine({ label: '', line: '   ' })).toBeNull()
+  })
+})
+
+describe('isAddressWrite', () => {
+  it('is true for a write that sends the address', () => {
+    expect(isAddressWrite({ linkId: 'l-1', url: 'https://avela.bg/menu' })).toBe(true)
+  })
+
+  it('is false for an icon or a photo, whose refusal is not about the address', () => {
+    expect(isAddressWrite({ linkId: 'l-1', iconKey: 'wifi' })).toBe(false)
+    expect(isAddressWrite({ linkId: 'l-1', imageAssetId: 'a-1' })).toBe(false)
+    expect(isAddressWrite({ linkId: 'l-1', imageAssetId: null })).toBe(false)
   })
 })

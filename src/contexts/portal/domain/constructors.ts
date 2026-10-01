@@ -18,6 +18,7 @@ import type {
   PortalLinkCategoryId,
   PortalLinkId,
   PortalApprovedDestinationId,
+  PortalMediaAssetId,
 } from '#/shared/domain/ids'
 import type { PortalError } from './errors'
 import type { OrganizationId, PropertyId, UserId } from '#/shared/domain/ids'
@@ -166,6 +167,7 @@ export type BuildLinkInput = Readonly<{
   label: string
   url: string
   iconKey?: string | null
+  imageAssetId?: PortalMediaAssetId | null
   sortKey: string
   now: Date
 }>
@@ -192,6 +194,7 @@ export const buildPortalLink = (
       label: validLabel,
       url: validUrl,
       iconKey: validIcon,
+      imageAssetId: input.imageAssetId ?? null,
       sortKey: input.sortKey,
       createdAt: input.now,
       updatedAt: input.now,

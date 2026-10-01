@@ -228,6 +228,9 @@ export const createPortalLinkRepository = (
         setValues.legacyDestinationState = patch.legacyDestinationState
       }
       if (patch.iconKey !== undefined) setValues.iconKey = patch.iconKey
+      if (patch.imageAssetId !== undefined) {
+        setValues.imageAssetId = patch.imageAssetId ? unbrand(patch.imageAssetId) : null
+      }
       if (patch.sortKey !== undefined) setValues.sortKey = patch.sortKey
       if (patch.updatedAt !== undefined) setValues.updatedAt = patch.updatedAt
 

@@ -15,6 +15,7 @@ import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { DeleteLinkDialog } from './delete-link-dialog'
 import { LINK_ICONS, linkIconKeyOrDefault } from './link-icons'
 import { LinktreeMoveControls } from './linktree-move-controls'
+import { linkPhotoUrl } from './linktree-photo-rules'
 import {
   describeMissingLanguages,
   linkLabelFor,
@@ -60,6 +61,7 @@ export function LinktreeTile({
   const Icon = LINK_ICONS[linkIconKeyOrDefault(link.iconKey)]
   const chips = linkLocaleChips(link, locales)
   const phoneChip = describeMissingLanguages(chips)
+  const photoUrl = linkPhotoUrl(link)
   const panelId = `linktree-tile-${link.id}`
 
   return (
@@ -74,9 +76,19 @@ export function LinktreeTile({
             onMove={onMove}
           />
         ) : null}
-        <span className="grid size-10 shrink-0 place-items-center rounded-md border bg-muted/40 text-muted-foreground">
-          <Icon aria-hidden="true" className="size-5" />
-        </span>
+        {photoUrl === null ? (
+          <span className="grid size-10 shrink-0 place-items-center rounded-md border bg-muted/40 text-muted-foreground">
+            <Icon aria-hidden="true" className="size-5" />
+          </span>
+        ) : (
+          <img
+            src={photoUrl}
+            alt=""
+            width={40}
+            height={40}
+            className="size-10 shrink-0 rounded-md border object-cover"
+          />
+        )}
         <button
           type="button"
           aria-expanded={isOpen}

@@ -26,8 +26,10 @@ import {
   type PortalPreviewOutcome,
   type PortalPreviewSource,
 } from '../portal-preview'
+import { listServableTileImageIds } from '../servable-tile-images'
 import type { PortalApprovedDestinationRepository } from '../ports/portal-approved-destination.repository'
 import type { PortalExperienceRepository } from '../ports/portal-experience.repository'
+import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.repository'
 import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
 import type { PortalRepository } from '../ports/portal.repository'
@@ -46,6 +48,8 @@ export type GetPortalPreviewDeps = Readonly<{
   >
   destinationRepo: Pick<PortalApprovedDestinationRepository, 'list' | 'listApprovedUris'>
   publicationRepo: Pick<PortalPublicationRepository, 'findActiveForPortal'>
+  /** Which tile pictures may still be served: a taken-down one is not shown as the tile's photo. */
+  mediaRepo: Pick<PortalMediaAssetRepository, 'listServableIds'>
   propertyFacts: Pick<PropertyFactsPublicApi, 'getPropertyTimezone'>
   staffPublicApi: StaffPublicApi
   clock: () => Date
@@ -107,6 +111,12 @@ export const getPortalPreview =
         deps.destinationRepo.list(ctx.organizationId, portal.propertyId),
         deps.propertyFacts.getPropertyTimezone(ctx.organizationId, portal.propertyId),
       ])
+    const servable = await listServableTileImageIds(
+      deps.mediaRepo,
+      ctx.organizationId,
+      portal.propertyId,
+      links,
+    )
     const linktree = buildPortalLinktreeView({
       portal,
       categories,
@@ -114,6 +124,7 @@ export const getPortalPreview =
       texts,
       titles: overrides,
       destinations,
+      servableImageIds: servable,
     })
     return {
       status: 'ready',

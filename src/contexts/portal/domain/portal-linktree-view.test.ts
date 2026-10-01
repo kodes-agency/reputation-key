@@ -15,6 +15,7 @@ import {
   portalApprovedDestinationId,
   portalLinkCategoryId,
   portalLinkId,
+  portalMediaAssetId,
   userId,
 } from '#/shared/domain/ids'
 
@@ -195,6 +196,7 @@ describe('buildPortalLinktreeView', () => {
       texts: [],
       titles: [],
       destinations: [],
+      servableImageIds: new Set<string>(),
     })
 
     expect(view).toMatchObject({
@@ -221,6 +223,7 @@ describe('buildPortalLinktreeView', () => {
       ],
       titles: [],
       destinations: [approved],
+      servableImageIds: new Set<string>(),
     })
 
     expect(view.links.map((link) => link.id)).toEqual(['l-a', 'l-b'])
@@ -248,6 +251,7 @@ describe('buildPortalLinktreeView', () => {
         { locale: 'bg', linktreeTitle: null },
       ],
       destinations: [],
+      servableImageIds: new Set<string>(),
     })
 
     expect(view.titles).toEqual({ en: 'Around the resort' })
@@ -261,8 +265,58 @@ describe('buildPortalLinktreeView', () => {
       texts: [text('someone-elses-link', 'en', 'Secret')],
       titles: [],
       destinations: [],
+      servableImageIds: new Set<string>(),
     })
 
     expect(view.links[0]?.texts).toEqual([])
+  })
+})
+
+const PICTURE = '30000000-0000-4000-8000-000000000001'
+
+describe('buildPortalLinktreeView tile pictures', () => {
+  const build = (
+    links: ReturnType<typeof buildTestPortalLink>[],
+    servableImageIds: ReadonlySet<string> = new Set([PICTURE]),
+  ) =>
+    buildPortalLinktreeView({
+      portal: buildTestPortal({}),
+      categories: [buildTestPortalLinkCategory({})],
+      links,
+      texts: [],
+      titles: [],
+      destinations: [],
+      servableImageIds,
+    })
+
+  it('hands the editor the asset id of a tile that has a picture, and null for one that has none', () => {
+    const view = build([
+      buildTestPortalLink({
+        id: portalLinkId('l-1'),
+        sortKey: 'a0',
+        imageAssetId: portalMediaAssetId('30000000-0000-4000-8000-000000000001'),
+      }),
+      buildTestPortalLink({ id: portalLinkId('l-2'), sortKey: 'a1' }),
+    ])
+
+    expect(view.links.map((link) => [link.id, link.imageAssetId])).toEqual([
+      ['l-1', '30000000-0000-4000-8000-000000000001'],
+      ['l-2', null],
+    ])
+  })
+
+  it('leaves out a picture that can no longer be served, such as one that was taken down', () => {
+    const view = build(
+      [
+        buildTestPortalLink({
+          id: portalLinkId('l-1'),
+          sortKey: 'a0',
+          imageAssetId: portalMediaAssetId(PICTURE),
+        }),
+      ],
+      new Set(),
+    )
+
+    expect(view.links[0]?.imageAssetId).toBeNull()
   })
 })

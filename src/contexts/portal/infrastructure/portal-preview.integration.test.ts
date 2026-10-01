@@ -15,6 +15,7 @@ import { createPortalRepository } from './repositories/portal.repository'
 import { createPortalLinkRepository } from './repositories/portal-link.repository'
 import { createPortalExperienceRepository } from './repositories/portal-experience.repository'
 import { createPortalApprovedDestinationRepository } from './repositories/portal-approved-destination.repository'
+import { createPortalMediaAssetRepository } from './repositories/portal-media-asset.repository'
 import { createPortalPublicationRepository } from './repositories/portal-publication.repository'
 import { seedPortalWorkingCopy } from './testing/portal-working-copy-seed'
 import {
@@ -56,6 +57,7 @@ function previewUseCase() {
     experienceRepo: createPortalExperienceRepository(db),
     destinationRepo: createPortalApprovedDestinationRepository(db),
     publicationRepo: createPortalPublicationRepository(db),
+    mediaRepo: createPortalMediaAssetRepository(db),
     propertyFacts: { getPropertyTimezone: async () => 'Europe/Sofia' },
     staffPublicApi,
     clock: () => NOW,

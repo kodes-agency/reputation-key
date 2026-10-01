@@ -17,9 +17,13 @@ import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalLinkIconKey } from '#/shared/domain/portal-link-icon'
 import { usePortalDraftAutosave } from '../portal-editor/portal-draft-autosave-context'
 import { LinkAddForm } from './link-add-form'
+import { iconChoiceWrite, photoChoiceWrite } from './linktree-photo-rules'
+import type { PortalImageUploader } from '../portal-media/upload-portal-image'
 import { LinktreeLocaleTabs } from './linktree-locale-tabs'
 import { LINKTREE_MOVE_HINT_ID } from './linktree-move-controls'
 import { LinktreeTileEditor } from './linktree-tile-editor'
+import { useRememberedPhotos } from './use-remembered-photos'
+import { useSerialWrites } from './use-serial-writes'
 import { LinktreeTile } from './linktree-tile'
 import { LinktreeTitleForm } from './linktree-title-form'
 import {
@@ -35,6 +39,7 @@ import {
 import type { LinktreeMutations } from './use-linktree-mutations'
 
 type Props = Readonly<{
+  propertyId: string
   view: PortalLinktreeView
   mutations: LinktreeMutations
   /** User id to full name, for "Approved · Elena Petrova". */
@@ -42,9 +47,19 @@ type Props = Readonly<{
   canEdit: boolean
   /** Deleting a link is the account admin's alone; a manager who can edit may not. */
   canDelete: boolean
+  /** The photo upload; the real one unless a story hands in a stub. */
+  uploadPhoto?: PortalImageUploader
 }>
 
-export function LinkTree({ view, mutations, memberNames, canEdit, canDelete }: Props) {
+export function LinkTree({
+  propertyId,
+  view,
+  mutations,
+  memberNames,
+  canEdit,
+  canDelete,
+  uploadPhoto,
+}: Props) {
   const autosave = usePortalDraftAutosave()
   const locales = offeredLocales(view.locales)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -59,6 +74,10 @@ export function LinkTree({ view, mutations, memberNames, canEdit, canDelete }: P
     applyLinkOrder,
     view.links,
   )
+  // A photo an icon has replaced stays on offer, so choosing an icon is never
+  // the end of the photo. Noted while rendering (the supported way to derive
+  // state from props), so no frame shows the tile without it.
+  const remembered = useRememberedPhotos(view.links)
   const refocus = useRef<string | null>(null)
   const order = links.map((link) => link.id).join()
   const cap = describeLinkCap(view.links.length, view.maxLinks)
@@ -80,28 +99,8 @@ export function LinkTree({ view, mutations, memberNames, canEdit, canDelete }: P
     }
   }, [order])
 
-  // The section's writes run one after another, each after the typed text still
-  // waiting out its debounce: every write reads the Portal afresh, so two at once
-  // (a quick second move, an add beside a title edit) would refuse the second.
-  const queue = useRef<Promise<unknown>>(Promise.resolve())
-  const waiting = useRef(0)
-  const afterPendingText = <T,>(write: () => Promise<T>): Promise<T> => {
-    waiting.current += 1
-    const run = queue.current
-      .catch(() => undefined)
-      .then(async () => {
-        await autosave.flush()
-        return write()
-      })
-    queue.current = run
-    const settle = () => {
-      waiting.current -= 1
-      // Once the queue is empty the cache holds the truth, saved or rolled back.
-      if (waiting.current === 0) setPlans([])
-    }
-    run.then(settle, settle)
-    return run
-  }
+  // Once the queue is empty the cache holds the truth, saved or rolled back.
+  const afterPendingText = useSerialWrites(autosave.flush, () => setPlans([]))
   const reportFailure = (error: unknown) => toast.error(actionErrorMessage(error))
 
   const move = (
@@ -129,10 +128,21 @@ export function LinkTree({ view, mutations, memberNames, canEdit, canDelete }: P
     ).catch(() => undefined)
   }
 
-  const changeIcon = (linkId: string, iconKey: PortalLinkIconKey) => {
+  const changeIcon = (link: PortalLinktreeLink, iconKey: PortalLinkIconKey) => {
     void afterPendingText(() =>
-      mutations.updateLink({ data: { linkId, iconKey } }),
+      mutations.updateLink({ data: iconChoiceWrite(link, iconKey) }),
     ).catch(reportFailure)
+  }
+
+  // The photo dialog shows a refusal itself, so this one is not reported here.
+  const choosePhoto = (link: PortalLinktreeLink, assetId: string) =>
+    afterPendingText(() =>
+      mutations.updateLink({ data: photoChoiceWrite(link, assetId) }),
+    )
+
+  // Putting back a photo an icon replaced has no dialog to report to.
+  const restorePhoto = (link: PortalLinktreeLink, assetId: string) => {
+    void choosePhoto(link, assetId).catch(reportFailure)
   }
 
   const checkAddress = (linkId: string, url: string) => {
@@ -210,7 +220,12 @@ export function LinkTree({ view, mutations, memberNames, canEdit, canDelete }: P
                     : null
                 }
                 onAddressEdit={mutations.clearUpdateFailure}
-                onIconChange={(key) => changeIcon(link.id, key)}
+                onIconChange={(key) => changeIcon(link, key)}
+                onPhotoChange={(assetId) => choosePhoto(link, assetId)}
+                onPhotoRestore={(assetId) => restorePhoto(link, assetId)}
+                rememberedPhotoId={remembered[link.id] ?? null}
+                propertyId={propertyId}
+                uploadPhoto={uploadPhoto}
                 onCheckAddress={() => checkAddress(link.id, link.url)}
                 canEdit={canEdit}
               />

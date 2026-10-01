@@ -40,6 +40,7 @@ export function LinktreeSection({ resources, canEdit }: PortalEditorSectionProps
       }
     >
       <LinkTree
+        propertyId={propertyId}
         view={linktree}
         mutations={mutations}
         memberNames={memberNames}

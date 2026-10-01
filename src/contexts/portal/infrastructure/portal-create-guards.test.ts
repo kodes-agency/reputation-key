@@ -90,6 +90,7 @@ const link: PortalLink = {
   label: 'Menu',
   url: 'https://example.test/menu',
   iconKey: null,
+  imageAssetId: null,
   sortKey: 'a0',
   createdAt: AT,
   updatedAt: AT,
