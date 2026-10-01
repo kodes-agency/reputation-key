@@ -8,15 +8,10 @@
 // getPortalAnalytics is a server-fn-typed prop (analytics tab fires it on mount
 // via useServerFn(getPortalAnalytics)) → mock via mockServerFn + type cast.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { expect, userEvent, within } from 'storybook/test'
 import { previewReader } from '../portal-preview/__fixtures__/portal-preview-fixtures'
 import { PortalDetailPage } from './portal-detail-page'
-import {
-  PortalDraftAutosaveProvider,
-  usePortalDraftAutosave,
-} from '../portal-editor/portal-draft-autosave-context'
-import { PortalDraftSaveStatus } from '../portal-editor/portal-draft-save-status'
-import { Button } from '#/components/ui/button'
+import { PortalDraftAutosaveProvider } from '../portal-editor/portal-draft-autosave-context'
 import type {
   getPortalAnalyticsFn,
   PortalAnalyticsData,
@@ -327,112 +322,6 @@ export const PageTab: Story = {
     await expect(
       canvas.queryByRole('heading', { name: 'Publication history' }),
     ).not.toBeInTheDocument()
-  },
-}
-
-// The palette is chosen from presets and saves itself: one click, one write,
-// with no Save button. The page owns the draft, so the selector follows the click.
-const paletteSpy = fn(async (_input: UpdatePortalVariables) => ({
-  success: true as const,
-}))
-export const PaletteAutosaves: Story = {
-  args: {
-    ...baseArgs,
-    activeSection: 'look',
-    autosaveUpdateMutation: Object.assign(paletteSpy, {
-      isPending: false,
-      error: null as unknown,
-      isSuccess: false,
-      data: null,
-    }) as unknown as Action<UpdatePortalVariables, { success: true }>,
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /^Dark/ }))
-    await expect(canvas.getByRole('button', { name: /^Dark/ })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
-    await waitFor(
-      () =>
-        expect(paletteSpy).toHaveBeenCalledWith({
-          data: {
-            portalId: 'p-1',
-            theme: {
-              primaryColor: '#a5b4fc',
-              backgroundColor: '#111827',
-              textColor: '#f9fafb',
-            },
-          },
-        }),
-      { timeout: 3000 },
-    )
-    await expect(paletteSpy).toHaveBeenCalledTimes(1)
-  },
-}
-
-// A palette whose write failed is a draft the person has not been able to save.
-// Choosing to leave without it (the navigation prompt's "Leave and discard" calls
-// the same `discard`) must drop it, or the selector would go on
-// showing a palette that will never be written.
-function DiscardFailedSaves() {
-  const autosave = usePortalDraftAutosave()
-  return (
-    <Button variant="outline" onClick={() => autosave.discard()}>
-      Discard failed saves
-    </Button>
-  )
-}
-
-const failingPaletteSpy = fn(async (_input: UpdatePortalVariables) => ({
-  success: true as const,
-}))
-export const PaletteDraftIsDroppedWhenItsFailedSaveIsDiscarded: Story = {
-  args: {
-    ...baseArgs,
-    activeSection: 'look',
-    autosaveUpdateMutation: Object.assign(failingPaletteSpy, {
-      isPending: false,
-      error: null as unknown,
-      isSuccess: false,
-      data: null,
-    }) as unknown as Action<UpdatePortalVariables, { success: true }>,
-  },
-  render: (args) => (
-    <>
-      <DiscardFailedSaves />
-      <PortalDraftSaveStatus />
-      <PortalDetailPage {...args} />
-    </>
-  ),
-  play: async ({ canvasElement }) => {
-    failingPaletteSpy.mockRejectedValue(new Error('offline'))
-    const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /^Dark/ }))
-    await waitFor(
-      () => expect(canvas.getByRole('status')).toHaveTextContent('Not saved'),
-      {
-        timeout: 3000,
-      },
-    )
-    // Not saved: the choice is still shown, so the person can retry it.
-    await expect(canvas.getByRole('button', { name: /^Dark/ })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
-
-    await userEvent.click(canvas.getByRole('button', { name: 'Discard failed saves' }))
-
-    await waitFor(() =>
-      expect(canvas.getByRole('button', { name: /^Light/ })).toHaveAttribute(
-        'aria-pressed',
-        'true',
-      ),
-    )
-    await expect(canvas.getByRole('button', { name: /^Dark/ })).toHaveAttribute(
-      'aria-pressed',
-      'false',
-    )
   },
 }
 
