@@ -361,12 +361,17 @@ asks the questions `publishPortalChanges` asks, in the same words: the Property 
 active, the Google destination is verified, someone is responsible, the address
 works, and the resolver's blockers and warnings (`portal-review-rules.ts` turns them
 into checks; a blocked check is exactly what publishing would refuse, a copied text
-is a warning). The change list is the page-edit ledger since the newest version was
-published, each part folded into one change (first wording to last, put-back wording
-and a tile added then removed are dropped), plus any open fence kind the ledger has
+is a warning). The change list is the page-edit ledger since the live version was
+published (the live one, which "Make live again" can make older than the newest; the
+ledger never spans an activation, so rows after it start from the live wording), each
+part folded into one change (first wording to last, put-back wording, a tile added then
+removed, and edits to a tile that is removed are dropped; an added tile reads its newest
+wording), plus any open fence kind the ledger has
 no row for, a live version of the earlier design, and a Google address the Property
 has since left; "unlisted" stands in when the draft differs and nothing nameable is
-left. `nothingToPublish` is the question the publish use case answers `unchanged` to.
+left, and "no_visible_change" when changes were recorded but the draft says what is live.
+`canPublish` also needs `portal.update` and the `portal.write` capability, so a reader
+(Member) or a dark capability never gets a button the server would refuse. `nothingToPublish` is the question the publish use case answers `unchanged` to.
 A Portal that is not live has no change list: it has no live version to differ from.
 
 The earlier issued-image implementation (presigned browser upload, issuance

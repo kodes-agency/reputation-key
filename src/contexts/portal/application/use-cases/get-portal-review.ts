@@ -10,7 +10,8 @@
 // Property, like the other editor reads; publishing is `publishPortalChanges`.
 //
 // What counts as a change. The page-edit ledger names each part of the page a
-// person changed since the newest version was published, with the wording
+// person changed since the live version was published (the live one, which a
+// restore can make older than the newest), with the wording
 // before and after; the pending-change fence says which published inputs moved.
 // An open fence row with no ledger row of its kind is still listed, with the
 // person it records. A live version of the earlier design, or one pinned to a
@@ -19,6 +20,7 @@
 
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId as toPortalId } from '#/shared/domain/ids'
+import { canForContext } from '#/shared/domain/permissions'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type {
@@ -26,7 +28,10 @@ import type {
   PropertyLifecyclePublicApi,
 } from '#/contexts/property/application/public-api'
 import type { PortalRepository } from '../ports/portal.repository'
-import type { PortalHistoryRepository } from '../ports/portal-history.repository'
+import {
+  MAX_HISTORY_SOURCE_ROWS,
+  type PortalHistoryRepository,
+} from '../ports/portal-history.repository'
 import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { PortalExperienceRepository } from '../ports/portal-experience.repository'
 import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
@@ -43,7 +48,12 @@ import {
   destinationMatchesSnapshot,
   workingCopyMatchesSnapshot,
 } from '../portal-working-copy-match'
-import { resolveVersionActors, type PortalVersionActor } from '../portal-version-actors'
+import {
+  namedVersionActor,
+  resolveVersionActors,
+  versionActor,
+  type PortalVersionActor,
+} from '../portal-version-actors'
 import { readPortalLanguageCoverage } from './get-portal-language-coverage'
 import { portalError } from '../../domain/errors'
 import { IMMERSIVE_HUB_SCHEMA_VERSION } from '../../domain/portal-publication-snapshot'
@@ -63,8 +73,12 @@ import {
 } from '../../domain/portal-review-rules'
 import type { Portal } from '../../domain/types'
 
-/** The ledger is read newest first, this many rows at most. */
-const PAGE_EDIT_READ_LIMIT = 100
+/**
+ * The ledger is read newest first, one repository page at most. Asking for
+ * exactly the repository's cap keeps `changesMayBeIncomplete` honest: a page
+ * that comes back this full may have left older rows behind.
+ */
+const PAGE_EDIT_READ_LIMIT = MAX_HISTORY_SOURCE_ROWS
 
 export type PortalReviewChange =
   | Readonly<{
@@ -89,6 +103,7 @@ export type PortalReviewChange =
   | Readonly<{ type: 'earlier_design' }>
   | Readonly<{ type: 'google_destination_moved' }>
   | Readonly<{ type: 'unlisted' }>
+  | Readonly<{ type: 'no_visible_change' }>
 
 export type PortalReview = Readonly<{
   portalId: string
@@ -109,7 +124,10 @@ export type PortalReview = Readonly<{
   publishesAsVersion: number
   /** The live version already says what the draft says and nothing is open. */
   nothingToPublish: boolean
-  /** No check is blocked, and there is something to publish. */
+  /**
+   * No check is blocked, there is something to publish, and the viewer may
+   * publish it (the button the page shows is one the server will accept).
+   */
   canPublish: boolean
   /** Oldest first; empty for a Portal that is not live. */
   changes: readonly PortalReviewChange[]
@@ -135,7 +153,7 @@ export type GetPortalReviewDeps = Readonly<{
     | 'listActivationHistoryPage'
     | 'listOpenPendingContentChanges'
   >
-  historyRepo: Pick<PortalHistoryRepository, 'listPageEdits' | 'listPublishedVersions'>
+  historyRepo: Pick<PortalHistoryRepository, 'listPageEdits'>
   actorDirectory: PortalActorDirectory
   portalTokenRepo: Pick<PortalTokenRepository, 'findResolvableSummaryForPortal'>
   propertyGoogleReviewDestinationApi: PropertyGoogleReviewDestinationPublicApi
@@ -171,8 +189,7 @@ function viewOf(
   change: ReviewChange,
   names: ReadonlyMap<string, string>,
 ): PortalReviewChange {
-  const actor = (id: string | null): PortalVersionActor | null =>
-    id === null ? null : { userId: id, displayName: names.get(id) ?? null }
+  const actor = (id: string | null) => versionActor(id, names)
   switch (change.type) {
     case 'edit':
       return {
@@ -201,7 +218,15 @@ function viewOf(
 export const getPortalReview =
   (deps: GetPortalReviewDeps) =>
   async (
-    input: Readonly<{ portalId: string }>,
+    input: Readonly<{
+      portalId: string
+      /**
+       * Whether the publish capability is open for this Portal, as the server
+       * function found it; the use case cannot see the capability gate. Defaults
+       * to open: the role's own `portal.update` is always checked here.
+       */
+      mayPublish?: boolean
+    }>,
     ctx: AuthContext,
   ): Promise<PortalReview> => {
     const pid = toPortalId(input.portalId)
@@ -223,7 +248,6 @@ export const getPortalReview =
       propertyActive,
       hasPublicAddress,
       coverage,
-      newestVersion,
       ledger,
     ] = await Promise.all([
       deps.publicationRepo.loadWorkingCopy(organizationId, pid),
@@ -241,9 +265,6 @@ export const getPortalReview =
       propertyAllowsPublication(deps, organizationId, portal),
       portalHasPublicAddress(deps, ctx, portal, at),
       readPortalLanguageCoverage(deps, organizationId, portal),
-      isLive
-        ? deps.historyRepo.listPublishedVersions(organizationId, propertyId, pid, 1)
-        : Promise.resolve([]),
       isLive
         ? deps.historyRepo.listPageEdits(
             organizationId,
@@ -294,9 +315,13 @@ export const getPortalReview =
       !destinationMoved &&
       !workingCopyDiffers
 
-    // Edits the newest version already took are not changes: a publication
-    // takes every edit made up to the instant it is committed.
-    const baseline = newestVersion[0]?.publishedAt ?? liveSnapshot?.createdAt ?? null
+    // Edits the live version already took are not changes: a publication takes
+    // every edit made up to the instant it is committed. The baseline is the
+    // live version's own time, not the newest version's: a restore can put an
+    // older version live, and everything the draft holds since then reaches
+    // guests when it is published. The ledger never spans an activation
+    // (rollbacks included), so rows after this instant start from the live wording.
+    const baseline = liveSnapshot?.createdAt ?? null
     const unpublished =
       baseline === null ? [] : ledger.filter((row) => row.occurredAt > baseline)
     const changes: readonly ReviewChange[] =
@@ -329,14 +354,16 @@ export const getPortalReview =
           : {
               version: liveRecord.snapshot.version,
               activatedAt: liveRecord.activation.activatedAt.toISOString(),
-              activatedBy: {
-                userId: liveRecord.activation.activatedBy,
-                displayName: names.get(liveRecord.activation.activatedBy) ?? null,
-              },
+              activatedBy: namedVersionActor(liveRecord.activation.activatedBy, names),
             },
       publishesAsVersion: cursor.nextSnapshotVersion,
       nothingToPublish,
-      canPublish: checks.canPublish && action !== 'none' && !nothingToPublish,
+      canPublish:
+        checks.canPublish &&
+        action !== 'none' &&
+        !nothingToPublish &&
+        (input.mayPublish ?? true) &&
+        canForContext(ctx, 'portal.update'),
       changes: changes.map((change) => viewOf(change, names)),
       changesMayBeIncomplete,
       checks: checks.checks,

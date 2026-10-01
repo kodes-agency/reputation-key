@@ -9,7 +9,12 @@ import type {
 } from '../ports/portal-publication.repository'
 import { workingCopyMatchesSnapshot } from '../portal-working-copy-match'
 import { loadPortalOrThrow } from '../load-accessible-portal'
-import { resolveVersionActors, type PortalVersionActor } from '../portal-version-actors'
+import {
+  namedVersionActor,
+  resolveVersionActors,
+  versionActor,
+  type PortalVersionActor,
+} from '../portal-version-actors'
 import { portalError } from '../../domain/errors'
 
 export type PortalPublicationHistoryItem = Readonly<{
@@ -49,11 +54,6 @@ type Deps = Readonly<{
   actorDirectory: PortalActorDirectory
 }>
 
-const actorOf = (id: string, names: ReadonlyMap<string, string>): PortalVersionActor => ({
-  userId: id,
-  displayName: names.get(id) ?? null,
-})
-
 function historyItem(
   record: PortalPublicationActivationRecord,
   names: ReadonlyMap<string, string>,
@@ -62,7 +62,7 @@ function historyItem(
     activationSequence: record.activation.activationSequence,
     version: record.snapshot.version,
     kind: record.activation.kind,
-    activatedBy: actorOf(record.activation.activatedBy, names),
+    activatedBy: namedVersionActor(record.activation.activatedBy, names),
     activatedAt: record.activation.activatedAt.toISOString(),
     deactivatedAt: record.activation.deactivatedAt?.toISOString() ?? null,
     deactivationReason: record.activation.deactivationReason,
@@ -132,7 +132,7 @@ export const getPortalPublicationHistory =
         kind: change.kind,
         key: change.key,
         changedAt: change.changedAt.toISOString(),
-        changedBy: change.changedBy === null ? null : actorOf(change.changedBy, names),
+        changedBy: versionActor(change.changedBy, names),
       })),
       nextCursor: page.nextCursor,
     }

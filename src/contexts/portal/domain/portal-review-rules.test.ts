@@ -289,9 +289,72 @@ describe('buildReviewChanges', () => {
       ],
     })
 
-    // The fence is still open, so the page says something was recorded; the
-    // edit itself cancels out and is not listed.
-    expect(changes).toEqual([{ type: 'unlisted' }])
+    // The fence is still open but the draft says what is live: the edit cancels
+    // out, and the page says publishing changes nothing guests see.
+    expect(changes).toEqual([{ type: 'no_visible_change' }])
+  })
+
+  it('drops a text that was added and then cleared again', () => {
+    const changes = buildReviewChanges({
+      ...base,
+      workingCopyDiffers: false,
+      edits: [
+        edit({
+          kind: 'property_brand_content',
+          key: 'es',
+          propertyWide: true,
+          occurredAt: at(30),
+          previousText: null,
+          newText: 'Piscina',
+        }),
+        edit({
+          kind: 'property_brand_content',
+          key: 'es',
+          propertyWide: true,
+          occurredAt: at(5),
+          previousText: 'Piscina',
+          newText: null,
+        }),
+      ],
+    })
+
+    expect(changes).toEqual([])
+  })
+
+  it('keeps a link update that carries no wording, even when folded', () => {
+    const changes = buildReviewChanges({
+      ...base,
+      workingCopyDiffers: true,
+      edits: [edit({ key: `link:${LINK}:updated`, editCount: 2 })],
+    })
+
+    expect(changes).toHaveLength(1)
+  })
+
+  it('lists a pre-existing tile that was edited and then deleted once, as the deletion', () => {
+    const changes = buildReviewChanges({
+      ...base,
+      workingCopyDiffers: true,
+      edits: [
+        edit({
+          key: `link:${LINK}:text:en`,
+          occurredAt: at(50),
+          previousText: 'Spa',
+          newText: 'Spa & treatments',
+        }),
+        edit({ key: `link:${LINK}:updated`, occurredAt: at(45) }),
+        edit({
+          key: `link:${LINK}:deleted`,
+          occurredAt: at(30),
+          previousText: 'Spa & treatments',
+        }),
+      ],
+    })
+
+    expect(changes).toHaveLength(1)
+    expect(changes[0]).toMatchObject({
+      subject: { area: 'link', linkId: LINK, change: 'deleted' },
+    })
   })
 
   it('does not list a tile that was added and removed in the same draft', () => {
@@ -335,6 +398,7 @@ describe('buildReviewChanges', () => {
     expect(changes).toHaveLength(1)
     expect(changes[0]).toMatchObject({
       subject: { area: 'link', linkId: LINK, change: 'created' },
+      newText: 'Spa & treatments',
     })
   })
 

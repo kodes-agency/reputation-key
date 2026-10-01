@@ -35,8 +35,13 @@ export async function resolveVersionActors(
   return new Map(resolved.flatMap((names) => [...names.entries()]))
 }
 
+/** A person who is always there, named when the directory can name them. */
+export const namedVersionActor = (
+  id: string,
+  names: ReadonlyMap<string, string>,
+): PortalVersionActor => ({ userId: id, displayName: names.get(id) ?? null })
+
 export const versionActor = (
   id: string | null,
   names: ReadonlyMap<string, string>,
-): PortalVersionActor | null =>
-  id === null ? null : { userId: id, displayName: names.get(id) ?? null }
+): PortalVersionActor | null => (id === null ? null : namedVersionActor(id, names))

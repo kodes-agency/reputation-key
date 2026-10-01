@@ -262,9 +262,10 @@ describe.sequential('getPortalReview (real PostgreSQL)', () => {
 
     const result = await review()
 
-    // The fence is still open and the ledger kept both saves: they cancel out,
-    // so nothing nameable is left and the page says so rather than "nothing changed".
-    expect(result.changes).toEqual([{ type: 'unlisted' }])
+    // The fence is still open and the ledger kept both saves: they cancel out
+    // and the draft says what is live, so the page says publishing changes
+    // nothing guests see (not that unnamed changes exist).
+    expect(result.changes).toEqual([{ type: 'no_visible_change' }])
     expect(result.nothingToPublish).toBe(false)
   })
 

@@ -7,6 +7,7 @@ import { createServerFn } from '@tanstack/react-start'
 import { z } from 'zod/v4'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
+import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
 import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
@@ -25,7 +26,7 @@ export const getPortalReview = createServerFn({ method: 'GET' })
       async ({ data }) => {
         const ctx = await resolveTenantContext(await headersFromContext())
         try {
-          await requirePortalResourceScope({
+          const scope = await requirePortalResourceScope({
             actor: ctx,
             action: 'portal.read',
             capability: 'portal.read',
@@ -35,8 +36,20 @@ export const getPortalReview = createServerFn({ method: 'GET' })
                 portalId(data.portalId),
               ),
           })
+          // Publishing is gated on `portal.update` and the `portal.write`
+          // capability; reading is not. The read itself checks the role, and
+          // this adds the capability, so the page never offers a closed button.
+          const mayPublish = await requireExecutionAllowed({
+            actor: ctx,
+            action: 'portal.update',
+            capability: 'portal.write',
+            propertyId: scope.propertyId,
+          }).then(
+            () => true,
+            () => false,
+          )
           return await getContainer().portalPublicApi.management.getPortalReview(
-            data,
+            { ...data, mayPublish },
             ctx,
           )
         } catch (error) {

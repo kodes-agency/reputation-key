@@ -81,6 +81,9 @@ type Options = Readonly<{
   additionalLocales?: Portal['additionalGuestLocales']
   accessible?: readonly PropertyId[] | null
   nextVersion?: number
+  /** The live version's number (lower than the newest when an older one was made live again). */
+  liveVersion?: number
+  role?: 'AccountAdmin' | 'PropertyManager' | 'Member'
 }>
 
 function setup(options: Options = {}) {
@@ -107,7 +110,7 @@ function setup(options: Options = {}) {
         portalId: portal.id,
         organizationId: portal.organizationId,
         propertyId: portal.propertyId,
-        version: 4,
+        version: options.liveVersion ?? 4,
         source: {
           portal: {
             id: portal.id,
@@ -133,7 +136,7 @@ function setup(options: Options = {}) {
         portalId: portal.id,
         organizationId: portal.organizationId,
         propertyId: portal.propertyId,
-        version: 4,
+        version: options.liveVersion ?? 4,
         source: source(),
         destination: DESTINATION,
         createdBy: 'georgi',
@@ -171,14 +174,6 @@ function setup(options: Options = {}) {
     listOpenPendingContentChanges: vi.fn(async () => options.pending ?? []),
   } as unknown as PortalPublicationRepository
   const historyRepo = {
-    listPublishedVersions: vi.fn(async () => [
-      {
-        version: 4,
-        publishedAt: LIVE_AT,
-        publishedBy: 'georgi',
-        configuration: liveSnapshot.configuration,
-      },
-    ]),
     listPageEdits: vi.fn(async () => options.edits ?? []),
   } as unknown as PortalHistoryRepository
   const actorDirectory: PortalActorDirectory = {
@@ -261,7 +256,7 @@ function setup(options: Options = {}) {
     historyRepo,
     actorDirectory,
     useCase: getPortalReview(deps),
-    ctx: buildTestAuthContext({ role: 'PropertyManager' }),
+    ctx: buildTestAuthContext({ role: options.role ?? 'PropertyManager' }),
   }
 }
 
@@ -377,7 +372,99 @@ describe('getPortalReview', () => {
     })
   })
 
-  it('reads the ledger from the newest version, bounded, for this Portal', async () => {
+  it('lists every edit made since the live version when an older version was made live again', async () => {
+    // v3 is live again after v5 was published an hour ago: every edit since v3
+    // is still in the draft and publishing puts it in front of guests, the ones
+    // v5 took included. The review measures from v3, not from v5.
+    const harness = setup({
+      liveVersion: 3,
+      workingCopy: { privateFeedbackThreshold: 4 },
+      pending: [
+        {
+          kind: 'portal_links',
+          key: 'all',
+          sourceVersion: 'v1',
+          changedAt: minutesAgo(10),
+          changedBy: 'georgi',
+        },
+      ],
+      edits: [
+        pageEdit({
+          editId: 'after-v5',
+          key: `link:${LINK}:text:en`,
+          occurredAt: minutesAgo(10),
+          previousText: 'Dinner menu',
+          newText: 'Olive Terrace menu',
+        }),
+        pageEdit({
+          editId: 'between',
+          kind: 'property_brand_content',
+          key: 'es',
+          propertyWide: true,
+          actorUserId: 'elena',
+          occurredAt: minutesAgo(120),
+          previousText: 'Zona de piscina',
+          newText: 'Piscina y terraza',
+        }),
+      ],
+    })
+
+    const review = await harness.useCase({ portalId: harness.portal.id }, harness.ctx)
+
+    expect(review.live?.version).toBe(3)
+    expect(review.changes).toMatchObject([
+      { type: 'edit', kind: 'property_brand_content', previousText: 'Zona de piscina' },
+      { type: 'edit', kind: 'portal_links', previousText: 'Dinner menu' },
+    ])
+  })
+
+  it('does not fall back to an unlisted change after an older version was made live again', async () => {
+    const harness = setup({
+      liveVersion: 3,
+      workingCopy: { privateFeedbackThreshold: 4 },
+      edits: [
+        pageEdit({
+          key: 'settings:name',
+          kind: 'portal_configuration',
+          occurredAt: minutesAgo(120),
+          previousText: 'Pool',
+          newText: 'Pool & Terrace',
+        }),
+      ],
+    })
+
+    const review = await harness.useCase({ portalId: harness.portal.id }, harness.ctx)
+
+    expect(review.changes).toMatchObject([{ type: 'edit', kind: 'portal_configuration' }])
+  })
+
+  it('does not offer to publish to someone who may only read the Portal', async () => {
+    const harness = setup({
+      role: 'Member',
+      workingCopy: { privateFeedbackThreshold: 4 },
+    })
+
+    const review = await harness.useCase({ portalId: harness.portal.id }, harness.ctx)
+
+    expect(review.canPublish).toBe(false)
+    expect(review.action).toBe('publish_changes')
+    expect(review.nothingToPublish).toBe(false)
+    expect(review.checkCounts.blocked).toBe(0)
+  })
+
+  it('does not offer to publish when the publish capability is dark for this Portal', async () => {
+    const harness = setup({ workingCopy: { privateFeedbackThreshold: 4 } })
+
+    const review = await harness.useCase(
+      { portalId: harness.portal.id, mayPublish: false },
+      harness.ctx,
+    )
+
+    expect(review.canPublish).toBe(false)
+    expect(review.checkCounts.blocked).toBe(0)
+  })
+
+  it('reads the ledger bounded to the repository page, for this Portal', async () => {
     const harness = setup()
 
     await harness.useCase({ portalId: harness.portal.id }, harness.ctx)

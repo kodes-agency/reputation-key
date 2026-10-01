@@ -3,6 +3,9 @@ import type { HistoryBound } from '../../domain/portal-history'
 import type { PortalPageEditKind } from '../../domain/portal-page-edit'
 import type { PortalPublicationConfiguration } from '../../domain/portal-publication-snapshot'
 
+/** The most rows one read of one source returns, whatever limit it asks for. */
+export const MAX_HISTORY_SOURCE_ROWS = 100
+
 /** One read of one source: rows strictly before `bound`, newest first. */
 export type PortalHistoryPage = Readonly<{
   bound: HistoryBound | null

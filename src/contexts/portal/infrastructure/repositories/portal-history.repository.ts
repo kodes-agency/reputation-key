@@ -9,21 +9,22 @@ import { portalAddressDownloads, portalTokens } from '#/shared/db/schema/portal.
 import { unbrand } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
-import type {
-  PortalCodeDownloadRow,
-  PortalCodeIssuanceRow,
-  PortalCodeRevocationRow,
-  PortalHistoryPage,
-  PortalHistoryRepository,
-  PortalPageEditRow,
-  PortalPublicationEventRow,
-  PortalPublishedVersionRow,
+import {
+  MAX_HISTORY_SOURCE_ROWS,
+  type PortalCodeDownloadRow,
+  type PortalCodeIssuanceRow,
+  type PortalCodeRevocationRow,
+  type PortalHistoryPage,
+  type PortalHistoryRepository,
+  type PortalPageEditRow,
+  type PortalPublicationEventRow,
+  type PortalPublishedVersionRow,
 } from '../../application/ports/portal-history.repository'
 import { PORTAL_PAGE_EDIT_KINDS } from '../../domain/portal-page-edit'
 import { historyBoundCondition, historyIdOrder } from '../portal-history-bound'
 import { snapshotFromRow } from './portal-publication.repository'
 
-const MAX_SOURCE_ROWS = 100
+const MAX_SOURCE_ROWS = MAX_HISTORY_SOURCE_ROWS
 /** Versions one read lists; far more than a Portal is ever published. */
 const MAX_VERSION_ROWS = 201
 

@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   resolvePortalManagementScope: vi.fn(),
   resolveTenantContext: vi.fn(),
   requirePortalResourceScope: vi.fn(),
+  requireExecutionAllowed: vi.fn(),
 }))
 
 vi.mock('#/shared/auth/headers', () => ({
@@ -27,6 +28,9 @@ vi.mock('#/composition', () => ({
 vi.mock('./property-scope', () => ({
   requirePortalResourceScope: mocks.requirePortalResourceScope,
 }))
+vi.mock('#/shared/auth/execution-policy', () => ({
+  requireExecutionAllowed: mocks.requireExecutionAllowed,
+}))
 vi.mock('./portals', () => ({ portalErrorStatus: vi.fn(() => 400) }))
 
 import { getPortalReview } from './portal-review'
@@ -41,7 +45,11 @@ describe('getPortalReview handler', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.resolveTenantContext.mockResolvedValue(ACTOR)
-    mocks.requirePortalResourceScope.mockResolvedValue(undefined)
+    mocks.requirePortalResourceScope.mockResolvedValue({
+      organizationId: 'org-1',
+      propertyId: 'property-1',
+    })
+    mocks.requireExecutionAllowed.mockResolvedValue(undefined)
   })
 
   it('checks the Portal read scope before reading the review', async () => {
@@ -56,7 +64,10 @@ describe('getPortalReview handler', () => {
         capability: 'portal.read',
       }),
     )
-    expect(mocks.getReview).toHaveBeenCalledWith({ portalId: 'portal-1' }, ACTOR)
+    expect(mocks.getReview).toHaveBeenCalledWith(
+      { portalId: 'portal-1', mayPublish: true },
+      ACTOR,
+    )
     expect(mocks.requirePortalResourceScope.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.getReview.mock.invocationCallOrder[0]!,
     )
@@ -69,5 +80,25 @@ describe('getPortalReview handler', () => {
       withStartContext(() => getPortalReview({ data: { portalId: 'portal-1' } })),
     ).rejects.toBeDefined()
     expect(mocks.getReview).not.toHaveBeenCalled()
+  })
+
+  it('tells the read when the publish capability is closed, without refusing the read', async () => {
+    mocks.getReview.mockResolvedValue({ changes: [] })
+    mocks.requireExecutionAllowed.mockRejectedValue(new Error('capability off'))
+
+    await withStartContext(() => getPortalReview({ data: { portalId: 'portal-1' } }))
+
+    expect(mocks.requireExecutionAllowed).toHaveBeenCalledWith(
+      expect.objectContaining({
+        actor: ACTOR,
+        action: 'portal.update',
+        capability: 'portal.write',
+        propertyId: 'property-1',
+      }),
+    )
+    expect(mocks.getReview).toHaveBeenCalledWith(
+      { portalId: 'portal-1', mayPublish: false },
+      ACTOR,
+    )
   })
 })

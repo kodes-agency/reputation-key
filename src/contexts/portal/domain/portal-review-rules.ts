@@ -212,6 +212,8 @@ export type ReviewChange =
   | Readonly<{ type: 'google_destination_moved' }>
   /** The draft is not what is live, but no change that can be named explains it. */
   | Readonly<{ type: 'unlisted' }>
+  /** Changes were recorded but the draft says what is live: publishing changes nothing guests see. */
+  | Readonly<{ type: 'no_visible_change' }>
 
 export type ReviewChangesInput = Readonly<{
   /** Ledger rows made since the newest version was published, in any order. */
@@ -269,20 +271,45 @@ function foldByPart(edits: readonly ReviewEditInput[]): EditGroup[] {
   return [...groups.values()]
 }
 
+/**
+ * Areas where an empty side is a real "no text": a text that did not exist,
+ * was added and was then cleared is put back too. For the others (a tile or
+ * profile update) a ledger row with no wording says nothing about the text.
+ */
+const NULL_MEANS_NO_TEXT: ReadonlySet<PortalPageEditSubject['area']> = new Set([
+  'link_text',
+  'link_section_title',
+  'welcome_text',
+  'portal_text',
+  'page_settings',
+])
+
 /** Wording saved and then put back is no change at all. */
-const isPutBack = (group: EditGroup): boolean =>
-  pageEditCarriesWording(group.last.kind, group.last.key) &&
-  group.first.previousText !== null &&
-  group.last.newText !== null &&
-  group.first.previousText === group.last.newText
+function isPutBack(group: EditGroup): boolean {
+  const { kind, key } = group.last
+  if (!pageEditCarriesWording(kind, key)) return false
+  const { previousText } = group.first
+  const { newText } = group.last
+  if (previousText !== newText) return false
+  if (previousText !== null) return true
+  return NULL_MEANS_NO_TEXT.has(describePageEdit(kind, key).area)
+}
+
+type DraftEntities = Readonly<{
+  /** Added and removed within this draft: guests never saw them. */
+  vanished: ReadonlySet<string>
+  /** Added in this draft and still there. */
+  added: ReadonlySet<string>
+  /** Existed before and are removed in this draft. */
+  removed: ReadonlySet<string>
+}>
 
 /**
- * Entities that exist only in this draft. A tile added and then removed never
- * reached guests; edits to a tile added in this draft are part of its adding.
+ * Tiles and headings added or removed in this draft. A tile added and then
+ * removed never reached guests; edits to a tile added in this draft are part
+ * of its adding; edits to a tile that is removed are part of its removal.
  */
-function draftOnlyEntities(
-  groups: readonly EditGroup[],
-): Readonly<{ vanished: ReadonlySet<string>; added: ReadonlySet<string> }> {
+function draftEntities(groups: readonly EditGroup[]): DraftEntities {
   const created = new Set<string>()
   const deleted = new Set<string>()
   for (const group of groups) {
@@ -293,22 +320,54 @@ function draftOnlyEntities(
     if (change === 'created') created.add(entity)
     if (change === 'deleted') deleted.add(entity)
   }
-  const vanished = new Set([...created].filter((entity) => deleted.has(entity)))
-  const added = new Set([...created].filter((entity) => !deleted.has(entity)))
-  return { vanished, added }
+  return {
+    vanished: new Set([...created].filter((entity) => deleted.has(entity))),
+    added: new Set([...created].filter((entity) => !deleted.has(entity))),
+    removed: new Set([...deleted].filter((entity) => !created.has(entity))),
+  }
+}
+
+/** What a tile added in this draft reads now: its latest wording, else the wording it was added with. */
+function newestWording(
+  groups: readonly EditGroup[],
+  entity: string,
+  added: EditGroup,
+): string | null {
+  const later = groups
+    .filter((group) => {
+      const { kind, key } = group.last
+      return (
+        group !== added &&
+        pageEditCarriesWording(kind, key) &&
+        entityOf(describePageEdit(kind, key)) === entity &&
+        group.last.newText !== null
+      )
+    })
+    .reduce<EditGroup | null>(
+      (latest, group) =>
+        latest === null || group.last.occurredAt >= latest.last.occurredAt
+          ? group
+          : latest,
+      null,
+    )
+  return later?.last.newText ?? added.last.newText
 }
 
 function listedEdits(groups: readonly EditGroup[]): ReviewChange[] {
-  const { vanished, added } = draftOnlyEntities(groups)
+  const { vanished, added, removed } = draftEntities(groups)
   return groups.flatMap((group): ReviewChange[] => {
     const { kind, key } = group.last
     const subject = describePageEdit(kind, key)
     const entity = entityOf(subject)
+    const change = entityChange(subject)
     if (isPutBack(group)) return []
     if (entity !== null && vanished.has(entity)) return []
-    if (entity !== null && added.has(entity) && entityChange(subject) !== 'created') {
-      return []
-    }
+    if (entity !== null && added.has(entity) && change !== 'created') return []
+    if (entity !== null && removed.has(entity) && change !== 'deleted') return []
+    const newText =
+      entity !== null && added.has(entity)
+        ? newestWording(groups, entity, group)
+        : group.last.newText
     return [
       {
         type: 'edit',
@@ -319,7 +378,7 @@ function listedEdits(groups: readonly EditGroup[]): ReviewChange[] {
         actorUserId: group.last.actorUserId,
         occurredAt: group.last.occurredAt,
         previousText: group.first.previousText,
-        newText: group.last.newText,
+        newText,
         editCount: group.editCount,
       },
     ]
@@ -355,7 +414,9 @@ const when = (change: ReviewChange): number =>
  * changed, oldest first, each as one change however often it was saved. A part
  * changed and changed back, and a tile added and removed again, are not
  * listed. When the draft differs but nothing nameable is left, one "unlisted"
- * entry says so instead of showing a review that claims nothing changed.
+ * entry says so instead of showing a review that claims nothing changed; when
+ * changes were recorded but the draft matches what is live, one
+ * "no_visible_change" entry says publishing changes nothing guests see.
  */
 export function buildReviewChanges(input: ReviewChangesInput): readonly ReviewChange[] {
   const leading: ReviewChange[] = [
@@ -370,10 +431,9 @@ export function buildReviewChanges(input: ReviewChangesInput): readonly ReviewCh
     .sort((a, b) => when(a.change) - when(b.change) || a.index - b.index)
     .map(({ change }) => change)
   const changes = [...leading, ...named]
-  if (changes.length === 0 && (input.pending.length > 0 || input.workingCopyDiffers)) {
-    return [{ type: 'unlisted' }]
-  }
-  return changes
+  if (changes.length > 0) return changes
+  if (input.workingCopyDiffers) return [{ type: 'unlisted' }]
+  return input.pending.length > 0 ? [{ type: 'no_visible_change' }] : []
 }
 
 // ── languages ────────────────────────────────────────────────────
