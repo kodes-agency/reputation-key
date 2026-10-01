@@ -8,8 +8,11 @@ import { can } from '#/shared/domain/permissions'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { getPortalPreview } from '#/contexts/portal/server/portal-preview'
+import { getPortalReview } from '#/contexts/portal/server/portal-review'
+import { publishPortalsChanges } from '#/contexts/portal/server/portal-publish-changes'
 import {
   savePropertyDefaultGuestLocales,
   savePropertyLook,
@@ -56,6 +59,7 @@ function PropertyLookRoute() {
   const { propertyId } = Route.useParams()
   const queryClient = useQueryClient()
   const { has } = useCapabilities()
+  const { can: canDo } = usePermissions()
   const { data: overview } = useSuspenseQuery(portalOverviewQuery(propertyId))
   const { data: experience } = useSuspenseQuery(propertyPortalExperienceQuery(propertyId))
   const { data: property } = useSuspenseQuery(propertyQuery(propertyId))
@@ -68,6 +72,7 @@ function PropertyLookRoute() {
         queryKey: portalKeys.propertyExperience(propertyId),
       }),
       queryClient.invalidateQueries({ queryKey: portalKeys.overview(propertyId) }),
+      queryClient.invalidateQueries({ queryKey: portalKeys.lookReview(propertyId) }),
       ...overview.portals.map((row) =>
         queryClient.invalidateQueries({
           queryKey: portalKeys.publicationHistory(row.portalId),
@@ -76,6 +81,11 @@ function PropertyLookRoute() {
     ])
   }
   const saveLook = useActionMutation(savePropertyLook, { onSuccess: refreshPortals })
+  // A publish changes what each live portal says is waiting and what its live
+  // preview draws, the same things a look edit refreshes.
+  const publishPortals = useActionMutation(publishPortalsChanges, {
+    onSuccess: refreshPortals,
+  })
   const saveLocales = useActionMutation(savePropertyDefaultGuestLocales, {
     // New portals read them in the New portal dialog.
     invalidateKeys: [portalKeys.creationOptions(propertyId)],
@@ -89,6 +99,9 @@ function PropertyLookRoute() {
       canEdit={experience.canManagePropertyBrand && has('portal.write')}
       rows={overview.portals}
       getPortalPreview={getPortalPreview}
+      getPortalReview={getPortalReview}
+      publishPortals={publishPortals}
+      canPublish={canDo('portal.update') && has('portal.write')}
       saveLook={saveLook}
       saveLocales={saveLocales}
     />
