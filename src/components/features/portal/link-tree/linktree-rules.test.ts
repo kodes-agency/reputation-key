@@ -4,6 +4,7 @@ import {
   describeLinkApproval,
   describeLinkCap,
   linkLabelFor,
+  describeUnsavedLine,
   linkLocaleChips,
   offeredLocales,
   planLinkMove,
@@ -32,8 +33,9 @@ const link = (
 })
 
 describe('offeredLocales', () => {
-  it('keeps the languages a manager can write in, in catalogue order', () => {
-    expect(offeredLocales(['bg', 'en'])).toEqual(['en', 'bg'])
+  it("keeps the languages a manager can write in, in the Portal's own order", () => {
+    expect(offeredLocales(['bg', 'en'])).toEqual(['bg', 'en'])
+    expect(offeredLocales(['en', 'bg'])).toEqual(['en', 'bg'])
   })
 
   it('drops a language that has no reviewed pack yet', () => {
@@ -280,5 +282,20 @@ describe('the title form', () => {
         { locale: 'bg', title: null },
       ],
     })
+  })
+})
+
+describe('describeUnsavedLine', () => {
+  it('warns when a line is typed for a language that has no label', () => {
+    expect(describeUnsavedLine({ label: '', line: 'Lunch' })).toBe(
+      'Add a label first: a line is only saved together with its label.',
+    )
+    expect(describeUnsavedLine({ label: '  ', line: ' Lunch ' })).not.toBeNull()
+  })
+
+  it('says nothing when the label is there or there is no line', () => {
+    expect(describeUnsavedLine({ label: 'Menu', line: 'Lunch' })).toBeNull()
+    expect(describeUnsavedLine({ label: '', line: '' })).toBeNull()
+    expect(describeUnsavedLine({ label: '', line: '   ' })).toBeNull()
   })
 })

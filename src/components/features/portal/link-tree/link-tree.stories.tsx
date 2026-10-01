@@ -3,7 +3,8 @@
 // fact. The section's writes are stub actions, so each story can assert what a
 // manager's gesture asks the server to save.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { useState } from 'react'
+import { expect, fn, mocked, userEvent, waitFor, within } from 'storybook/test'
 import type {
   PortalLinktreeLink,
   PortalLinktreeView,
@@ -99,9 +100,10 @@ type StoryProps = Readonly<{
   view: PortalLinktreeView
   mutations: LinktreeMutations
   canEdit: boolean
+  canDelete?: boolean
 }>
 
-function Harness({ view: current, mutations, canEdit }: StoryProps) {
+function Harness({ view: current, mutations, canEdit, canDelete = true }: StoryProps) {
   return (
     <div className="max-w-2xl p-6">
       <LinkTree
@@ -109,6 +111,7 @@ function Harness({ view: current, mutations, canEdit }: StoryProps) {
         mutations={mutations}
         memberNames={MEMBER_NAMES}
         canEdit={canEdit}
+        canDelete={canDelete}
       />
     </div>
   )
@@ -303,6 +306,126 @@ export const HiddenFromThePage: Story = {
         'The Linktree is hidden from the page. Your links are kept.',
       ),
     ).toBeVisible()
+  },
+}
+
+export const EditorWithoutDeletePermission: Story = {
+  args: { canEdit: true, canDelete: false },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(
+      canvas.getByRole('button', { name: 'More actions for Spa & treatments' }),
+    )
+    const menu = within(document.body)
+    await expect(menu.getByRole('menuitem', { name: 'Edit' })).toBeVisible()
+    await expect(menu.queryByRole('menuitem', { name: 'Delete link' })).toBeNull()
+  },
+}
+
+export const BulgarianPrimaryPortalListsItsLanguageFirst: Story = {
+  args: {
+    view: view({
+      primaryLocale: 'bg',
+      locales: ['bg', 'en'],
+      titles: {},
+      links: FOUR_LINKS.slice(0, 1),
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // The title opens in the primary language, with that language's default.
+    const tabs = within(canvas.getByRole('radiogroup', { name: 'Title language' }))
+    await expect(tabs.getAllByRole('radio').map((tab) => tab.textContent)).toEqual([
+      expect.stringContaining('БГ'),
+      expect.stringContaining('EN'),
+    ])
+    await expect(canvas.getByLabelText('Title on the page')).toHaveAttribute(
+      'placeholder',
+      'Полезни връзки',
+    )
+    await userEvent.click(tabs.getByRole('radio', { name: /EN/ }))
+    await expect(canvas.getByLabelText('Title on the page')).toHaveAttribute(
+      'placeholder',
+      'Useful links',
+    )
+  },
+}
+
+export const LineWithoutALabelSaysItIsNotSaved: Story = {
+  args: { mutations: stubMutations() },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /^Olive Terrace menu/ }))
+    await userEvent.click(canvas.getByRole('radio', { name: 'БГ missing Bulgarian' }))
+    await userEvent.type(canvas.getByLabelText(/^Line under the label/), 'Обяд')
+    await expect(
+      canvas.getByText(/Add a label first: a line is only saved together/),
+    ).toBeVisible()
+    await expect(args.mutations.saveTexts).not.toHaveBeenCalled()
+  },
+}
+
+export const AddWaitsForTypedTextAndEarlierWrites: Story = {
+  args: {
+    view: view({ links: FOUR_LINKS.slice(0, 2) }),
+    mutations: stubMutations(),
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    // A title edit is still inside its debounce when the add is submitted.
+    const title = canvas.getByLabelText('Title on the page')
+    await userEvent.clear(title)
+    await userEvent.type(title, 'Around the bay')
+    await userEvent.click(canvas.getByRole('button', { name: 'Add link' }))
+    await userEvent.type(canvas.getByLabelText('Label'), 'Kids club')
+    await userEvent.type(canvas.getByLabelText('Opens'), 'https://avela.bg/kids')
+    await userEvent.click(canvas.getByRole('button', { name: 'Add link' }))
+    await waitFor(() => expect(args.mutations.createLink).toHaveBeenCalled())
+    const [titleWrite] = mocked(args.mutations.saveSettings).mock.invocationCallOrder
+    const [createWrite] = mocked(args.mutations.createLink).mock.invocationCallOrder
+    // The title was written before the link was created.
+    await expect(titleWrite).toBeDefined()
+    await expect(titleWrite).toBeLessThan(createWrite ?? 0)
+  },
+}
+
+// The server saves the address in its normalised form (here a trailing slash).
+// The field must then show what was saved, or every later focus-and-leave would
+// look like a change and write the same address again.
+const normalisingUpdate = stubAction()
+
+export const AddressShowsTheSavedFormAndIsNotWrittenTwice: Story = {
+  render: function NormalisingHarness(args) {
+    const [current, setCurrent] = useState(args.view)
+    const [mutations] = useState<LinktreeMutations>(() => {
+      normalisingUpdate.mockImplementation(async (input: unknown) => {
+        const { linkId } = (input as { data: { linkId: string } }).data
+        setCurrent((now) => ({
+          ...now,
+          links: now.links.map((link) =>
+            link.id === linkId ? { ...link, url: 'https://avela.bg/menu/' } : link,
+          ),
+        }))
+      })
+      return { ...args.mutations, updateLink: normalisingUpdate } as LinktreeMutations
+    })
+    return <Harness {...args} view={current} mutations={mutations} />
+  },
+  play: async ({ canvasElement }) => {
+    normalisingUpdate.mockClear()
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /^Olive Terrace menu/ }))
+    const address = canvas.getByLabelText('Opens')
+    await userEvent.clear(address)
+    await userEvent.type(address, 'https://AVELA.bg/menu')
+    await userEvent.tab()
+    await waitFor(() =>
+      expect(canvas.getByLabelText('Opens')).toHaveValue('https://avela.bg/menu/'),
+    )
+    // Leaving the field again without a change writes nothing more.
+    await userEvent.click(canvas.getByLabelText('Opens'))
+    await userEvent.tab()
+    await expect(normalisingUpdate).toHaveBeenCalledTimes(1)
   },
 }
 

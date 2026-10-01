@@ -24,6 +24,8 @@ type Props = Readonly<{
   isOpen: boolean
   onToggle: () => void
   canEdit: boolean
+  /** Deleting needs a permission editing does not (account admins only). */
+  canDelete: boolean
   canMoveUp: boolean
   canMoveDown: boolean
   onMove: (direction: LinkMoveDirection) => void
@@ -39,6 +41,7 @@ export function LinktreeTile({
   isOpen,
   onToggle,
   canEdit,
+  canDelete,
   canMoveUp,
   canMoveDown,
   onMove,
@@ -107,12 +110,14 @@ export function LinktreeTile({
               <DropdownMenuItem onSelect={onToggle}>
                 {isOpen ? 'Close editor' : 'Edit'}
               </DropdownMenuItem>
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onSelect={() => setIsConfirming(true)}
-              >
-                Delete link
-              </DropdownMenuItem>
+              {canDelete ? (
+                <DropdownMenuItem
+                  className="text-destructive focus:text-destructive"
+                  onSelect={() => setIsConfirming(true)}
+                >
+                  Delete link
+                </DropdownMenuItem>
+              ) : null}
             </DropdownMenuContent>
           </DropdownMenu>
         ) : null}
@@ -122,12 +127,14 @@ export function LinktreeTile({
           {children}
         </div>
       ) : null}
-      <DeleteLinkDialog
-        open={isConfirming}
-        onOpenChange={setIsConfirming}
-        label={name}
-        onDelete={onDelete}
-      />
+      {canDelete ? (
+        <DeleteLinkDialog
+          open={isConfirming}
+          onOpenChange={setIsConfirming}
+          label={name}
+          onDelete={onDelete}
+        />
+      ) : null}
     </li>
   )
 }

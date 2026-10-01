@@ -4,7 +4,11 @@
 // (portal-editor/use-portal-form-autosave.ts).
 
 import { useForm } from '@tanstack/react-form'
-import { linkTextsFormSchema } from '#/contexts/portal/application/dto/portal-linktree.dto'
+import {
+  LINK_TEXT_LABEL_MAX_LENGTH,
+  LINK_TEXT_LINE_MAX_LENGTH,
+  linkTextsFormSchema,
+} from '#/contexts/portal/application/dto/portal-linktree.dto'
 import type { PortalLinktreeLink } from '#/contexts/portal/application/public-api'
 import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
 import { FieldGroup } from '#/components/ui/field'
@@ -14,7 +18,12 @@ import {
   type OfferedGuestLocale,
 } from '#/shared/domain/guest-locale'
 import { usePortalFormAutosave } from '../portal-editor/use-portal-form-autosave'
-import { requiredTextLocales, textsFormValues, toLinkTextsInput } from './linktree-rules'
+import {
+  describeUnsavedLine,
+  requiredTextLocales,
+  textsFormValues,
+  toLinkTextsInput,
+} from './linktree-rules'
 import type { LinktreeMutations } from './use-linktree-mutations'
 
 type Props = Readonly<{
@@ -63,30 +72,38 @@ export function LinkTextsForm({
               field={field}
               label="Label"
               id={`${fieldId}-label`}
-              maxLength={100}
+              maxLength={LINK_TEXT_LABEL_MAX_LENGTH}
               disabled={disabled}
             />
           )}
         </form.Field>
-        {isFallback ? (
-          <form.Subscribe selector={(state) => state.values.texts[index]?.label === ''}>
-            {(isEmpty) =>
-              isEmpty ? (
-                <p className="text-sm text-warn" role="status">
-                  {GUEST_LOCALE_METADATA[locale].englishName}-speaking guests see it in{' '}
-                  {GUEST_LOCALE_METADATA[primaryLocale].englishName} until you add it.
-                </p>
-              ) : null
-            }
-          </form.Subscribe>
-        ) : null}
+        <form.Subscribe
+          selector={(state) => ({
+            label: state.values.texts[index]?.label ?? '',
+            line: state.values.texts[index]?.line ?? '',
+          })}
+        >
+          {(text) => {
+            const unsaved = describeUnsavedLine(text)
+            const fallback =
+              isFallback && text.label.trim() === ''
+                ? `${GUEST_LOCALE_METADATA[locale].englishName}-speaking guests see it in ${GUEST_LOCALE_METADATA[primaryLocale].englishName} until you add it.`
+                : null
+            const message = unsaved ?? fallback
+            return message === null ? null : (
+              <p className="text-sm text-warn" role="status">
+                {message}
+              </p>
+            )
+          }}
+        </form.Subscribe>
         <form.Field name={`texts[${index}].line`}>
           {(field: BaseFieldApi) => (
             <FormTextField
               field={field}
               label="Line under the label (optional)"
               id={`${fieldId}-line`}
-              maxLength={160}
+              maxLength={LINK_TEXT_LINE_MAX_LENGTH}
               disabled={disabled}
             />
           )}

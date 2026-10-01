@@ -1,11 +1,15 @@
 // "Title on the page": the words above the tiles, per language. Empty means the
-// default (the language pack's "Useful links"), so the field shows it as its
-// placeholder. Saves as it is typed, through the portal's autosave.
+// default of the language being written (the pack's "Useful links", "Полезни
+// връзки"), so the field shows it as its placeholder. Saves as it is typed, through the portal's autosave.
 
 import { useForm } from '@tanstack/react-form'
 import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
 import { Button } from '#/components/ui/button'
-import { linktreeTitlesFormSchema } from '#/contexts/portal/application/dto/portal-linktree.dto'
+import {
+  LINKTREE_TITLE_MAX_LENGTH,
+  linktreeDefaultTitle,
+  linktreeTitlesFormSchema,
+} from '#/contexts/portal/application/dto/portal-linktree.dto'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import { usePortalFormAutosave } from '../portal-editor/use-portal-form-autosave'
 import {
@@ -14,9 +18,6 @@ import {
   type LinktreeTitlesFormValues,
 } from './linktree-rules'
 import type { LinktreeMutations } from './use-linktree-mutations'
-
-/** The wording a language uses while the title is empty (English; each pack has its own). */
-const DEFAULT_TITLE = 'Useful links'
 
 type Props = Readonly<{
   portalId: string
@@ -47,6 +48,7 @@ export function LinktreeTitleForm({
     },
   })
   const index = Math.max(0, locales.indexOf(locale))
+  const defaultTitle = linktreeDefaultTitle(locale)
 
   return (
     <form onSubmit={(event) => event.preventDefault()} className="space-y-1.5">
@@ -57,12 +59,12 @@ export function LinktreeTitleForm({
               field={field}
               label="Title on the page"
               id="linktree-title"
-              placeholder={DEFAULT_TITLE}
-              maxLength={60}
+              placeholder={defaultTitle}
+              maxLength={LINKTREE_TITLE_MAX_LENGTH}
               disabled={disabled}
             />
             <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
-              Default: “{DEFAULT_TITLE}”, translated for every language.
+              Default: “{defaultTitle}”.
               {field.state.value === '' ? null : (
                 <Button
                   type="button"

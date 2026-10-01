@@ -10,6 +10,7 @@ import { SubmitButton } from '#/components/forms/submit-button'
 import { Button } from '#/components/ui/button'
 import { FieldGroup } from '#/components/ui/field'
 import { createLinkInputSchema } from '#/contexts/portal/application/dto/portal-link.dto'
+import { LINK_TEXT_LABEL_MAX_LENGTH } from '#/contexts/portal/application/dto/portal-linktree.dto'
 import type { LinktreeMutations } from './use-linktree-mutations'
 
 const addLinkFormSchema = createLinkInputSchema
@@ -19,19 +20,24 @@ const addLinkFormSchema = createLinkInputSchema
 type Props = Readonly<{
   portalId: string
   create: LinktreeMutations['createLink']
+  /**
+   * Runs a write after the section's own earlier writes and any typed text still
+   * waiting out its debounce, so the add cannot race either.
+   */
+  enqueue: <T>(write: () => Promise<T>) => Promise<T>
   /** The new tile's id, so the section can open it. */
   onAdded: (linkId: string) => void
   onCancel: () => void
 }>
 
-export function LinkAddForm({ portalId, create, onAdded, onCancel }: Props) {
+export function LinkAddForm({ portalId, create, enqueue, onAdded, onCancel }: Props) {
   const form = useForm({
     defaultValues: { label: '', url: '' },
     validators: { onSubmit: addLinkFormSchema },
     onSubmit: async ({ value }) => {
-      const { link } = await create({
-        data: { portalId, label: value.label, url: value.url },
-      })
+      const { link } = await enqueue(() =>
+        create({ data: { portalId, label: value.label, url: value.url } }),
+      )
       form.reset()
       onAdded(link.id)
     },
@@ -49,7 +55,7 @@ export function LinkAddForm({ portalId, create, onAdded, onCancel }: Props) {
               field={field}
               label="Label"
               id="linktree-add-label"
-              maxLength={100}
+              maxLength={LINK_TEXT_LABEL_MAX_LENGTH}
             />
           )}
         </form.Field>

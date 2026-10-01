@@ -33,9 +33,11 @@ type Props = Readonly<{
   /** User id to full name, for "Approved · Elena Petrova". */
   memberNames: ReadonlyMap<string, string>
   canEdit: boolean
+  /** Deleting a link is the account admin's alone; a manager who can edit may not. */
+  canDelete: boolean
 }>
 
-export function LinkTree({ view, mutations, memberNames, canEdit }: Props) {
+export function LinkTree({ view, mutations, memberNames, canEdit, canDelete }: Props) {
   const autosave = usePortalDraftAutosave()
   const locales = offeredLocales(view.locales)
   const [openId, setOpenId] = useState<string | null>(null)
@@ -63,10 +65,19 @@ export function LinkTree({ view, mutations, memberNames, canEdit }: Props) {
     }
   }, [order])
 
-  // A write must not race the typed text still waiting out its debounce.
-  const afterPendingText = async <T,>(write: () => Promise<T>) => {
-    await autosave.flush()
-    return write()
+  // The section's writes run one after another, each after the typed text still
+  // waiting out its debounce: every write reads the Portal afresh, so two at once
+  // (a quick second move, an add beside a title edit) would refuse the second.
+  const queue = useRef<Promise<unknown>>(Promise.resolve())
+  const afterPendingText = <T,>(write: () => Promise<T>): Promise<T> => {
+    const run = queue.current
+      .catch(() => undefined)
+      .then(async () => {
+        await autosave.flush()
+        return write()
+      })
+    queue.current = run
+    return run
   }
   const reportFailure = (error: unknown) => toast.error(actionErrorMessage(error))
 
@@ -153,6 +164,7 @@ export function LinkTree({ view, mutations, memberNames, canEdit }: Props) {
                 setOpenId(openId === link.id ? null : link.id)
               }}
               canEdit={canEdit}
+              canDelete={canDelete}
               canMoveUp={planLinkMove(view.links, link.id, 'up') !== null}
               canMoveDown={planLinkMove(view.links, link.id, 'down') !== null}
               onMove={(direction) => move(link.id, direction)}
@@ -182,6 +194,7 @@ export function LinkTree({ view, mutations, memberNames, canEdit }: Props) {
         <LinkAddForm
           portalId={view.portalId}
           create={mutations.createLink}
+          enqueue={afterPendingText}
           onAdded={(linkId) => {
             setIsAdding(false)
             setOpenId(linkId)

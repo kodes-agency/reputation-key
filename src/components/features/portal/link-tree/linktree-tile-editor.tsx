@@ -78,7 +78,9 @@ export function LinktreeTileEditor({
         />
       </div>
       <div className="space-y-2">
+        {/* Keyed on the saved address: once the server's form of it is back, the field shows that. */}
         <LinkAddressForm
+          key={link.url}
           link={link}
           update={mutations.updateLink}
           error={addressError}

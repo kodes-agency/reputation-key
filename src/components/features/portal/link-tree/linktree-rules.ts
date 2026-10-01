@@ -19,11 +19,17 @@ import type {
   PortalLinktreeLink,
 } from '#/contexts/portal/application/public-api'
 
-/** The languages a manager can write text in today: those with a reviewed language pack. */
+const isOffered = (locale: GuestLocale): locale is OfferedGuestLocale =>
+  (OFFERED_GUEST_LOCALES as ReadonlyArray<GuestLocale>).includes(locale)
+
+/**
+ * The languages a manager can write text in today (those with a reviewed
+ * language pack), in the order the Portal lists them: the primary one first.
+ */
 export function offeredLocales(
   locales: ReadonlyArray<GuestLocale>,
 ): ReadonlyArray<OfferedGuestLocale> {
-  return OFFERED_GUEST_LOCALES.filter((offered) => locales.includes(offered))
+  return locales.filter(isOffered)
 }
 
 export type LinkCapFact = Readonly<{ text: string; isFull: boolean }>
@@ -204,6 +210,15 @@ export function requiredTextLocales(
   return [primaryLocale, ...saved.map((text) => text.locale)].filter(
     (locale, index, all) => all.indexOf(locale) === index,
   )
+}
+
+/** A line typed where there is no label is never written: say so rather than drop it quietly. */
+export function describeUnsavedLine(
+  text: Readonly<{ label: string; line: string }>,
+): string | null {
+  return text.label.trim() === '' && text.line.trim() !== ''
+    ? 'Add a label first: a line is only saved together with its label.'
+    : null
 }
 
 /** What to save: only languages that have a label, and no line as null. */

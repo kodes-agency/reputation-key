@@ -2,6 +2,7 @@
 // the destinations they are allowed to open. Typed text saves as it is typed;
 // re-ordering, icons, addresses, adding and deleting are each saved when made.
 
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { PortalEditorSectionFrame } from '../portal-editor-section-frame'
 import { LinkTree } from '../../link-tree/link-tree'
 import { LinktreeSwitch } from '../../link-tree/linktree-switch'
@@ -18,6 +19,9 @@ export function LinktreeSection({ resources, canEdit }: PortalEditorSectionProps
     portalExperienceActions,
   } = resources
   const mutations = useLinktreeMutations(portal.id)
+  const { can } = usePermissions()
+  // `deleteLink` asks for `portal.delete`, which a property manager does not hold.
+  const canDelete = canEdit && can('portal.delete')
   const memberNames = new Map(
     (responsibleManagerMembers ?? []).map((member) => [member.userId, member.name]),
   )
@@ -39,6 +43,7 @@ export function LinktreeSection({ resources, canEdit }: PortalEditorSectionProps
         mutations={mutations}
         memberNames={memberNames}
         canEdit={canEdit}
+        canDelete={canDelete}
       />
       {approvedDestinations && portalExperienceActions ? (
         <PortalApprovedDestinationsEditor
