@@ -6,7 +6,7 @@
 import type { CSSProperties, ReactNode } from 'react'
 
 /** The page's own box: a phone, as the guest boards are measured. */
-export const PREVIEW_PAGE = { width: 390, height: 844 } as const
+const PREVIEW_PAGE = { width: 390, height: 844 } as const
 
 const PAGE_RADIUS = 28
 const BEZEL = 8

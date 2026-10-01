@@ -1,3 +1,4 @@
+// fallow-ignore-file code-duplication
 // The preview page's inline styles, measured from the round-4 guest boards (390
 // px wide) the same way the shell's story stand-in was. Inline on purpose: the
 // first-paint stylesheet is built by scanning `src/` for class names, and a

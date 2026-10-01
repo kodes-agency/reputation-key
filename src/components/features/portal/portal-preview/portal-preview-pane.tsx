@@ -13,8 +13,10 @@ import { Button } from '#/components/ui/button'
 import { Skeleton } from '#/components/ui/skeleton'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { portalKeys } from '#/shared/queries/query-keys'
+import type { GuestPortalCopyV2 } from '#/components/features/guest'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import type {
+  PortalPreviewExperience,
   PortalPreviewOutcome,
   PortalPreviewSource,
 } from '#/contexts/portal/application/public-api'
@@ -77,30 +79,63 @@ export function PortalPreviewPane({ portalId, getPortalPreview }: Props) {
         onTryChange={setIsTrying}
         canTry={experience !== undefined && copy.data !== undefined}
       />
-      {isError || copy.isError ? (
-        <PreviewFailure
-          onRetry={() => {
-            if (isError) void refetch()
-            if (copy.isError) void copy.refetch()
-          }}
-        />
-      ) : isPending || (preview !== null && copy.data === undefined) ? (
-        <PreviewSkeleton />
-      ) : data?.status === 'unavailable' ? (
-        <PreviewUnavailable reason={data.reason} />
-      ) : preview && experience && copy.data ? (
-        <PortalPreviewStage
-          preview={preview}
-          experience={experience}
-          copy={copy.data}
-          locale={locale}
-          stateId={stateId}
-          onStateChange={setStateId}
-          isTrying={isTrying}
-          onTryChange={setIsTrying}
-        />
-      ) : null}
+      <PreviewBody
+        hasError={isError || copy.isError}
+        isPending={isPending}
+        data={data}
+        copyData={copy.data}
+        experience={experience}
+        onRetry={() => {
+          if (isError) void refetch()
+          if (copy.isError) void copy.refetch()
+        }}
+        locale={locale}
+        stateId={stateId}
+        onStateChange={setStateId}
+        isTrying={isTrying}
+        onTryChange={setIsTrying}
+      />
     </section>
+  )
+}
+
+type BodyProps = Readonly<{
+  hasError: boolean
+  isPending: boolean
+  data: PortalPreviewOutcome | undefined
+  copyData: GuestPortalCopyV2 | undefined
+  experience: PortalPreviewExperience | undefined
+  onRetry: () => void
+  locale: GuestLocale
+  stateId: PreviewStateId
+  onStateChange: (next: PreviewStateId) => void
+  isTrying: boolean
+  onTryChange: (next: boolean) => void
+}>
+
+/** What the pane shows under the toolbar: failure, loading, a reason, or the stage. */
+function PreviewBody({
+  hasError,
+  isPending,
+  data,
+  copyData,
+  experience,
+  onRetry,
+  ...stage
+}: BodyProps) {
+  if (hasError) return <PreviewFailure onRetry={onRetry} />
+  const preview = data?.status === 'ready' ? data.preview : null
+  if (isPending || (preview !== null && copyData === undefined))
+    return <PreviewSkeleton />
+  if (data?.status === 'unavailable') return <PreviewUnavailable reason={data.reason} />
+  if (!preview || !experience || !copyData) return null
+  return (
+    <PortalPreviewStage
+      preview={preview}
+      experience={experience}
+      copy={copyData}
+      {...stage}
+    />
   )
 }
 

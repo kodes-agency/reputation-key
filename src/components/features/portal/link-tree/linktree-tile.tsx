@@ -98,45 +98,15 @@ export function LinktreeTile({
             {phoneChip}
           </span>
         )}
-        {locales.length > 1 ? (
-          <ul aria-label="Languages" className="hidden shrink-0 gap-1.5 sm:flex">
-            {chips.map((chip) => (
-              <li
-                key={chip.locale}
-                className={`text-xs ${chip.isMissing ? 'font-medium text-warn' : 'text-muted-foreground'}`}
-              >
-                {chip.chip}
-                {chip.isMissing ? <span className="sr-only"> missing</span> : null}
-              </li>
-            ))}
-          </ul>
-        ) : null}
+        {locales.length > 1 ? <LanguageChips chips={chips} /> : null}
         {canEdit ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={`More actions for ${name}`}
-              >
-                <Ellipsis aria-hidden="true" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={onToggle}>
-                {isOpen ? 'Close editor' : 'Edit'}
-              </DropdownMenuItem>
-              {canDelete ? (
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onSelect={() => setIsConfirming(true)}
-                >
-                  Delete link
-                </DropdownMenuItem>
-              ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <LinktreeActionsMenu
+            name={name}
+            isOpen={isOpen}
+            canDelete={canDelete}
+            onToggle={onToggle}
+            onDelete={() => setIsConfirming(true)}
+          />
         ) : null}
       </div>
       {isOpen ? (
@@ -153,5 +123,61 @@ export function LinktreeTile({
         />
       ) : null}
     </li>
+  )
+}
+
+function LanguageChips({
+  chips,
+}: Readonly<{ chips: ReturnType<typeof linkLocaleChips> }>) {
+  return (
+    <ul aria-label="Languages" className="hidden shrink-0 gap-1.5 sm:flex">
+      {chips.map((chip) => (
+        <li
+          key={chip.locale}
+          className={`text-xs ${chip.isMissing ? 'font-medium text-warn' : 'text-muted-foreground'}`}
+        >
+          {chip.chip}
+          {chip.isMissing ? <span className="sr-only"> missing</span> : null}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+type MenuProps = Readonly<{
+  name: string
+  isOpen: boolean
+  canDelete: boolean
+  onToggle: () => void
+  onDelete: () => void
+}>
+
+function LinktreeActionsMenu({ name, isOpen, canDelete, onToggle, onDelete }: MenuProps) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={`More actions for ${name}`}
+        >
+          <Ellipsis aria-hidden="true" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={onToggle}>
+          {isOpen ? 'Close editor' : 'Edit'}
+        </DropdownMenuItem>
+        {canDelete ? (
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onSelect={onDelete}
+          >
+            Delete link
+          </DropdownMenuItem>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

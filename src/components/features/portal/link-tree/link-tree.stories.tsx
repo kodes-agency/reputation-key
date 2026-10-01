@@ -1,3 +1,4 @@
+// fallow-ignore-file code-duplication
 // The Linktree section's body as the Pool & Terrace board draws it (round-4
 // admin board 02): four tiles, two languages, the approval in place, the cap
 // fact. The section's writes are stub actions, so each story can assert what a

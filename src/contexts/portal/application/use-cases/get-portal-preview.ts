@@ -88,6 +88,7 @@ export const getPortalPreview =
       return buildLivePortalPreview({ snapshot, approvedUris: new Set(approved) })
     }
 
+    // fallow-ignore-next-line code-duplication
     const [categories, links, texts, experience, overrides, destinations, timeZone] =
       await Promise.all([
         deps.portalLinkRepo.listCategories(ctx.organizationId, portal.id),

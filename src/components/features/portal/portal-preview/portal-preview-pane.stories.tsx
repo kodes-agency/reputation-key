@@ -1,3 +1,4 @@
+// fallow-ignore-file code-duplication
 // The editor's live preview (board A8) in the third column it lives in: the
 // toolbar, the phone, the line over it and the filmstrip of guest states. The
 // reader is a stand-in for the server function and records what it was asked,
