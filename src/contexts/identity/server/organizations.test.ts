@@ -43,6 +43,14 @@ describe('identityErrorStatus (imported from server module)', () => {
     expect(identityErrorStatus('invitation_not_found')).toBe(404)
   })
 
+  it('maps invitation_expired → 409', () => {
+    expect(identityErrorStatus('invitation_expired')).toBe(409)
+  })
+
+  it('maps account_exists → 409', () => {
+    expect(identityErrorStatus('account_exists')).toBe(409)
+  })
+
   it('all error codes are covered (exhaustive check)', () => {
     const codes: IdentityErrorCode[] = [
       'forbidden',
@@ -50,7 +58,9 @@ describe('identityErrorStatus (imported from server module)', () => {
       'invalid_name',
       'member_not_found',
       'invitation_not_found',
+      'invitation_expired',
       'registration_failed',
+      'account_exists',
       'org_setup_failed',
     ]
     for (const code of codes) {

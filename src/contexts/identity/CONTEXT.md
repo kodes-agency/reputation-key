@@ -31,11 +31,18 @@ adapter; no other context reads its tables directly.
   to exactly one Organization, and the final AccountAdmin cannot leave or be removed.
 - Invitation-bound registration is the only beta account-creation path. Invitation
   acceptance locks and rechecks membership before provisioning selected grants.
+  Consuming the emailed invitation verifies the address: acceptance sets the
+  user's email verified in the same transaction that creates the membership, and
+  the new member is signed in (ADR 0062). An invitation reads as expired once its
+  expiry passes; Resend renews the same invitation for another 7 days, and
+  inviting that address to another Organization marks the stale row expired.
 - Property authorization derives only from current Identity-owned grants. Staff
   Participation, login links, Portal Responsibility, Team history, and responsible
-  manager assignments never grant membership or Property access.
-- Staff Participants may exist without users. Current login links and participation
-  checks are effective-dated, ambiguity-denying, and transactionally locked.
+  manager assignments never grant membership or Property access, and never gate
+  Property work.
+- Staff Participants may exist without users. Login links and participation are
+  effective-dated and ambiguity-denying; they drive attribution only and are never
+  read for command authority or manager eligibility.
 - Participation and responsibility intervals are half-open. Replacing a responsibility
   set preserves unchanged rows and closes removed relationships.
 - At most one active primary Portal attribution exists. Supporting attribution does

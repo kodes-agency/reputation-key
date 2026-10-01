@@ -30,6 +30,7 @@ import {
 const SORT_LABEL: Readonly<Record<PortalOverviewSort, string>> = {
   name: 'Name',
   attention: 'Needs attention',
+  scans: 'Qualified scans',
 }
 
 const DIRECTION_LABEL: Readonly<
@@ -37,6 +38,7 @@ const DIRECTION_LABEL: Readonly<
 > = {
   name: { asc: 'A to Z', desc: 'Z to A' },
   attention: { desc: 'Most first', asc: 'Fewest first' },
+  scans: { desc: 'Most first', asc: 'Fewest first' },
 }
 
 const GROUP_BY_LABEL: Readonly<Record<PortalOverviewGroupBy, string>> = {
@@ -51,6 +53,8 @@ type Props = Readonly<{
   search: PortalOverviewSearch
   matched: number
   total: number
+  /** Offered only where the results are shown to this reader. */
+  canSortByScans: boolean
   onChange: (patch: Partial<PortalOverviewSearch>) => void
 }>
 
@@ -58,10 +62,19 @@ type Props = Readonly<{
 const directions = (sort: PortalOverviewSort): readonly SortDirection[] =>
   defaultSortDirection(sort) === 'asc' ? ['asc', 'desc'] : ['desc', 'asc']
 
-export function PortalOverviewToolbar({ search, matched, total, onChange }: Props) {
+export function PortalOverviewToolbar({
+  search,
+  matched,
+  total,
+  canSortByScans,
+  onChange,
+}: Props) {
   const sort = search.sort ?? DEFAULT_PORTAL_OVERVIEW_SORT
   const dir = search.dir ?? defaultSortDirection(sort)
   const groupBy = search.groupBy ?? DEFAULT_PORTAL_OVERVIEW_GROUP_BY
+  const sortOptions = PORTAL_OVERVIEW_SORTS.filter(
+    (option) => option !== 'scans' || canSortByScans,
+  )
   const narrowed = (search.q ?? '').trim() !== '' || search.show !== undefined
 
   return (
@@ -142,7 +155,7 @@ export function PortalOverviewToolbar({ search, matched, total, onChange }: Prop
               onChange({ sort: value as PortalOverviewSort, dir: undefined })
             }
           >
-            {PORTAL_OVERVIEW_SORTS.map((option) => (
+            {sortOptions.map((option) => (
               <DropdownMenuRadioItem key={option} value={option} className={MENU_ITEM}>
                 {SORT_LABEL[option]}
               </DropdownMenuRadioItem>

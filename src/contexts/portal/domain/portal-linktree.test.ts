@@ -5,6 +5,8 @@ import {
   LINK_TEXT_LINE_MAX_LENGTH,
   MAX_PORTAL_LINKS,
   hasRoomForAnotherLink,
+  linktreeDefaultTitle,
+  startedCategoryTitle,
   resolveLinkTexts,
   validateLinkTextInput,
   validateLinktreeTitle,
@@ -170,5 +172,27 @@ describe('resolveLinkTexts', () => {
       'link-2:bg',
       'link-2:en',
     ])
+  })
+})
+
+describe('linktreeDefaultTitle', () => {
+  it('words the default in the languages that have a reviewed pack', () => {
+    expect(linktreeDefaultTitle('en')).toBe('Useful links')
+    expect(linktreeDefaultTitle('bg')).toBe('Полезни връзки')
+  })
+
+  it('falls back to English for a language with no pack yet', () => {
+    expect(linktreeDefaultTitle('de')).toBe('Useful links')
+  })
+})
+
+describe('startedCategoryTitle', () => {
+  it('uses the title the manager wrote for the primary language', () => {
+    expect(startedCategoryTitle('bg', { bg: 'Още', en: 'More' })).toBe('Още')
+  })
+
+  it('uses the default of the primary language when none is written', () => {
+    expect(startedCategoryTitle('bg', { en: 'More' })).toBe('Полезни връзки')
+    expect(startedCategoryTitle('en', {})).toBe('Useful links')
   })
 })

@@ -10,7 +10,10 @@ import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashb
 import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'
 import { BarChart3 } from 'lucide-react'
 import { PortalAnalyticsContent } from './portal-analytics-content'
-import { storedResultsRange } from './portal-results-window'
+import {
+  PORTAL_RESULTS_RANGE_STORAGE_KEY,
+  storedResultsRange,
+} from './portal-results-window'
 
 type Props = Readonly<{
   portalId: string
@@ -20,7 +23,7 @@ type Props = Readonly<{
 
 // Intentionally global, not per-portal: the selected range is a user-level
 // viewing preference that should follow the reader from portal to portal.
-const TIME_RANGE_KEY = 'portal-analytics-time-range'
+const TIME_RANGE_KEY = PORTAL_RESULTS_RANGE_STORAGE_KEY
 const COMPARE_KEY = 'portal-analytics-compare'
 
 /** Stored preset, validated against the schema the server DTO uses and against

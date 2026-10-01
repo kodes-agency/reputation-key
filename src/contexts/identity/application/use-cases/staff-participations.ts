@@ -21,11 +21,6 @@ export type StaffParticipationDeps = Readonly<{
   ) => Promise<readonly PropertyId[]>
   clock: () => Date
   idGen: () => string
-  reconcileResponsibleManagerEligibility?: (
-    organizationId: string,
-    userId: string,
-    actorId: string,
-  ) => Promise<void>
 }>
 
 async function requirePropertyManage(
@@ -42,6 +37,20 @@ async function requirePropertyManage(
   if (!accessible.includes(property)) {
     throw staffError('forbidden', 'no access to this property')
   }
+}
+
+/** The participation the caller may manage, or the refusal that says why not. */
+async function findManageableParticipation(
+  deps: StaffParticipationDeps,
+  ctx: AuthContext,
+  staffParticipationId: string,
+): Promise<StaffParticipation> {
+  const participation = await deps.repo.findById(ctx.organizationId, staffParticipationId)
+  if (!participation) {
+    throw staffError('participation_not_found', 'staff participation not found')
+  }
+  await requirePropertyManage(deps, ctx, participation.propertyId)
+  return participation
 }
 
 export const createStaffParticipation =
@@ -154,27 +163,12 @@ export const archiveStaffParticipation =
     }>,
     ctx: AuthContext,
   ): Promise<StaffParticipation> => {
-    const participation = await deps.repo.findById(
-      ctx.organizationId,
+    const participation = await findManageableParticipation(
+      deps,
+      ctx,
       input.staffParticipationId,
     )
-    if (!participation) {
-      throw staffError('participation_not_found', 'staff participation not found')
-    }
-    await requirePropertyManage(deps, ctx, participation.propertyId)
-    if (participation.status === 'archived') {
-      // The archive write and cross-context eligibility reconciliation cannot
-      // share one transaction. Re-run the idempotent reconciliation when an
-      // operator retries after a post-commit failure.
-      if (participation.linkedUserId) {
-        await deps.reconcileResponsibleManagerEligibility?.(
-          ctx.organizationId,
-          participation.linkedUserId,
-          ctx.userId,
-        )
-      }
-      return participation
-    }
+    if (participation.status === 'archived') return participation
     const reason = input.reason.trim()
     if (reason.length === 0) {
       throw staffError('invalid_input', 'archive reason is required')
@@ -189,13 +183,9 @@ export const archiveStaffParticipation =
     if (!archived) {
       throw staffError('participation_not_found', 'staff participation not found')
     }
-    if (archived.linkedUserId) {
-      await deps.reconcileResponsibleManagerEligibility?.(
-        ctx.organizationId,
-        archived.linkedUserId,
-        ctx.userId,
-      )
-    }
+    // Participation is attribution only: archiving it ends attribution
+    // relationships but never releases Responsible Manager or Inbox
+    // assignments. Only a grant revoke, a role change or offboarding does.
     return archived
   }
 
@@ -210,14 +200,11 @@ export const updatePortalResponsibilities =
     }>,
     ctx: AuthContext,
   ) => {
-    const participation = await deps.repo.findById(
-      ctx.organizationId,
+    const participation = await findManageableParticipation(
+      deps,
+      ctx,
       input.staffParticipationId,
     )
-    if (!participation) {
-      throw staffError('participation_not_found', 'staff participation not found')
-    }
-    await requirePropertyManage(deps, ctx, participation.propertyId)
     if (participation.status !== 'active') {
       throw staffError(
         'participation_archived',

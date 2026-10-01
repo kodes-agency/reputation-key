@@ -1,6 +1,24 @@
 import { z } from 'zod/v4'
 import { isRailwayPitrDatabaseUrl } from '#/shared/config/restore-mode'
 
+const PORTAL_ADDRESS_KEY_ENTRY = /^([1-9]\d{0,3}):[a-f0-9]{64}$/
+const PORTAL_ADDRESS_MAX_KEYS = 4
+
+/**
+ * The shape of `PORTAL_ADDRESS_ENCRYPTION_KEYS`, checked at boot so a typo fails
+ * there and not on the first code that is made. The adapter parses it again
+ * (portal-address-cipher.ts) and owns what the entries mean.
+ */
+function isPortalAddressKeyring(value: string): boolean {
+  const entries = value.split(',')
+  if (entries.length > PORTAL_ADDRESS_MAX_KEYS) return false
+  const versions = entries.map((entry) => PORTAL_ADDRESS_KEY_ENTRY.exec(entry)?.[1])
+  return (
+    versions.every((version) => version !== undefined) &&
+    new Set(versions).size === versions.length
+  )
+}
+
 const baseEnvSchema = z.object({
   // Server
   NODE_ENV: z.enum(['development', 'production', 'test']).default('development'),
@@ -164,6 +182,20 @@ const baseEnvSchema = z.object({
     process.env.NODE_ENV === 'production'
       ? z.string().min(32)
       : z.string().min(32).default('dev-only-portal-token-secret-32b'),
+  // Sealed copy of each Portal's public address, which lets a manager download
+  // a code again (ADR 0064). Optional: without it the address is shown once,
+  // when a code is made. Versioned keyring, first entry seals and every entry
+  // opens. Format: <version>:<64 lowercase hex>[,<version>:<64 lowercase hex>]
+  // with versions 1-9999, at most four entries. Web and worker read the same
+  // value, and retiring a key that sealed a live code turns that code's
+  // "Download again" off until the code is replaced.
+  PORTAL_ADDRESS_ENCRYPTION_KEYS: z
+    .string()
+    .refine(
+      isPortalAddressKeyring,
+      'Must be <version>:<64 hex>[,...], at most four entries',
+    )
+    .optional(),
   // Google OAuth
   GOOGLE_CLIENT_ID: z.string().min(1),
   GOOGLE_CLIENT_SECRET: z.string().min(1),
@@ -333,8 +365,9 @@ const baseEnvSchema = z.object({
   TRUSTED_PROXY_MAX_HOPS: z.coerce.number().int().min(1).max(32).default(8),
   // BQC-7.6: maximum accepted request body size in bytes (declared
   // content-length), enforced by the request-guard nitro plugin before
-  // routing. Default 1 MiB — the largest legitimate payloads (portal image
-  // uploads go through presigned S3 URLs, not this server).
+  // routing. Default 1 MiB — the largest legitimate payloads. The one larger
+  // body, a portal image upload, has a limit of its own scoped to its path
+  // (request-guard.ts pathBodyLimits).
   REQUEST_BODY_LIMIT_BYTES: z.coerce.number().int().min(1).default(1_048_576),
   // BQC-7.1: worker graceful-shutdown drain budget (ms). BullMQ worker.close()
   // resolves only when in-flight jobs finish — a hung job would otherwise hang

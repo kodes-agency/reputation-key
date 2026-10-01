@@ -20,6 +20,12 @@ export type PortalTokenStatus = Readonly<{
   version: number | null
   issuedAt: string | null
   graceExpiresAt: string | null
+  /**
+   * The live code's address can be downloaded again: it was sealed, and the
+   * keyring still holds the key that sealed it (ADR 0064). While false the
+   * address is shown once, when a code is made or replaced.
+   */
+  addressRecoverable: boolean
 }>
 
 export const NO_ACTIVE_TOKEN: PortalTokenStatus = {
@@ -28,10 +34,15 @@ export const NO_ACTIVE_TOKEN: PortalTokenStatus = {
   version: null,
   issuedAt: null,
   graceExpiresAt: null,
+  addressRecoverable: false,
 }
+
+/** Whether a key version can open a sealed address: the cipher's `canOpen`, or never. */
+export type CanOpenAddressKey = (keyVersion: number) => boolean
 
 export const toPortalTokenStatus = (
   summary: ResolvablePortalTokenSummary | null | undefined,
+  canOpenKey: CanOpenAddressKey = () => false,
 ): PortalTokenStatus =>
   summary
     ? {
@@ -40,5 +51,9 @@ export const toPortalTokenStatus = (
         version: summary.version,
         issuedAt: summary.issuedAt.toISOString(),
         graceExpiresAt: summary.gracePeriodEnds?.toISOString() ?? null,
+        addressRecoverable:
+          summary.addressKeyVersion !== null &&
+          summary.hasPublishedAccessArtifact &&
+          canOpenKey(summary.addressKeyVersion),
       }
     : NO_ACTIVE_TOKEN

@@ -8,10 +8,7 @@ import {
   type PermissionAuthorityContext,
 } from '#/shared/domain/permissions'
 import { toDomainRole } from '#/shared/domain/roles'
-import {
-  isBetaInteractiveRole,
-  requiresStaffParticipation,
-} from '#/shared/domain/beta-interactive-role'
+import { isBetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 
 export type MemberPropertyAuthorityDecision =
   | Readonly<{ allowed: true; scope: 'organization' | 'assigned-properties' }>
@@ -68,7 +65,6 @@ export type CurrentManagerPropertyAuthorityDecision =
       allowed: true
       role: 'AccountAdmin' | 'PropertyManager'
       scope: 'organization' | 'assigned-properties'
-      requiresStaffParticipation: boolean
     }>
   | Readonly<{
       allowed: false
@@ -89,7 +85,6 @@ export type CurrentManagerPropertyAuthorityBatchDecision =
         userId: string
         role: 'AccountAdmin' | 'PropertyManager'
         scope: 'organization' | 'assigned-properties'
-        requiresStaffParticipation: boolean
       }>[]
     }>
   | Readonly<{
@@ -161,7 +156,6 @@ type ResolvedUserAuthority =
       allowed: true
       role: 'AccountAdmin' | 'PropertyManager'
       context: PermissionAuthorityContext
-      requiresStaffParticipation: boolean
     }>
   | Readonly<{
       allowed: false
@@ -171,7 +165,6 @@ type ResolvedUserAuthority =
 type PendingPropertyAuthority = Readonly<{
   requirement: ManagerPropertyAuthorityRequirement
   role: 'AccountAdmin' | 'PropertyManager'
-  requiresStaffParticipation: boolean
   scope: 'organization' | 'assigned-properties'
 }>
 
@@ -232,7 +225,6 @@ async function resolveUserAuthorities(
       allowed: true,
       role,
       context,
-      requiresStaffParticipation: requiresStaffParticipation(role),
     })
   }
   return userAuthorities
@@ -272,7 +264,6 @@ function planRequirementDecisions(
     pending.push({
       requirement,
       role: userAuthority.role,
-      requiresStaffParticipation: userAuthority.requiresStaffParticipation,
       scope:
         authorityRequirement === 'organization' ? 'organization' : 'assigned-properties',
     })
@@ -395,7 +386,6 @@ export async function decideCurrentManagerPropertyAuthorities(
       userId: decision.requirement.userId,
       role: decision.role,
       scope: decision.scope,
-      requiresStaffParticipation: decision.requiresStaffParticipation,
     })),
   }
 }
@@ -429,7 +419,6 @@ export async function decideCurrentManagerPropertyAuthority(
         allowed: true,
         role: decision.role,
         scope: decision.scope,
-        requiresStaffParticipation: decision.requiresStaffParticipation,
       }
     : { allowed: false, reason: 'permission_denied' }
 }

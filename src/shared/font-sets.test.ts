@@ -36,6 +36,24 @@ describe('font set of a route match list', () => {
   })
 })
 
+describe('font set of the guest Portal route', () => {
+  const portal = (loaderData?: unknown) => ({ routeId: '/p/$token', loaderData })
+
+  it('is the guest set when the Portal route has no loader data (the unavailable page)', () => {
+    expect(fontSetOfMatches([{ routeId: '__root__' }, portal(null)])).toBe('guest')
+    expect(fontSetOfMatches([{ routeId: '__root__' }, portal(undefined)])).toBe('guest')
+  })
+
+  it('keeps what a loaded Portal declares, so the legacy page keeps the app fonts', () => {
+    expect(fontSetOfMatches([portal({ fontSet: 'app' })])).toBe('app')
+    expect(fontSetOfMatches([portal({ fontSet: 'guest' })])).toBe('guest')
+  })
+
+  it('does not move another route to the guest set', () => {
+    expect(fontSetOfMatches([{ routeId: '/login', loaderData: null }])).toBe('app')
+  })
+})
+
 describe('font set of a guest surface', () => {
   it('keeps the legacy surface on the app fonts', () => {
     expect(fontSetForGuestSurface('legacy')).toBe('app')

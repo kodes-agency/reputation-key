@@ -62,15 +62,20 @@ test.describe('Critical workflow: inbox triage persists', () => {
     // Assignment target: a manager with a grant to the property (uuid id —
     // assignInboxItemFn validates assignedToUserId as uuid).
     //
-    // role 'owner', not the fixture's default Member: assignment authorizes the
-    // ASSIGNEE as its own principal now, and Member is not a beta-interactive
-    // role, so handing the item to one is refused before any grant is read.
+    // role 'admin': the assignee is a grant-only PropertyManager — a
+    // PropertyAccessGrant and NO Staff Participation or login link. That is what
+    // every real PropertyManager looks like, and it is the D3 regression: the
+    // ASSIGNEE is authorized as its own principal, and this used to be refused
+    // ('owner' was seeded instead) because a PropertyManager also needed a Staff
+    // row nothing in the product creates. A grant alone is enough now (ADR 0052,
+    // amended 2026-09-30). The default Member role would still be refused, since
+    // Member is not a beta-interactive role.
     const assignee = await seedMemberUserWithGrant({
       organizationId: seed.organizationId,
       propertyId: seed.propertyId,
       email: `${PREFIX}assignee-${e2eRunId}@example.com`,
       name: 'E2E Triage Assignee',
-      role: 'owner',
+      role: 'admin',
     })
 
     await signIn(page)

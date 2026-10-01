@@ -85,6 +85,7 @@ const createInMemoryPortalGroupRepo = (): PortalGroupRepository & {
         .map(([pid]) => portalId(pid)),
     findGroupIdsByPortalIds: async () => [],
     listGroupsForPortals: async () => [],
+    listPortalGroupsWithPortals: async () => [],
     findGroupForPortal: async (_orgId, pid) => {
       const gid = memberships.get(String(pid))
       return gid ? (store.get(String(gid)) ?? null) : null
@@ -196,6 +197,7 @@ describe('createPortalGroup', () => {
       propertyId: propertyId('a0000000-0000-0000-0000-000000000001'),
       name: 'My Group',
       sortKey: null,
+      createdBy: null,
       createdAt: FIXED_TIME,
       updatedAt: FIXED_TIME,
       deletedAt: null,

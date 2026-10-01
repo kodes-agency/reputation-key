@@ -22,6 +22,7 @@ export type PortalLinkId = Brand<string, 'PortalLinkId'>
 export type InboxItemId = Brand<string, 'InboxItemId'>
 export type InboxNoteId = Brand<string, 'InboxNoteId'>
 export type PortalGroupId = Brand<string, 'PortalGroupId'>
+export type PortalMediaAssetId = Brand<string, 'PortalMediaAssetId'>
 export type RecentActivityEntryId = Brand<string, 'RecentActivityEntryId'>
 
 // Convenience constructors — each wraps brandId with the correct tag.
@@ -105,6 +106,10 @@ export function metricReadingId(id: string): MetricReadingId {
 
 export function portalGroupId(id: string): PortalGroupId {
   return id as PortalGroupId
+}
+
+export function portalMediaAssetId(id: string): PortalMediaAssetId {
+  return id as PortalMediaAssetId
 }
 
 export function recentActivityEntryId(id: string): RecentActivityEntryId {

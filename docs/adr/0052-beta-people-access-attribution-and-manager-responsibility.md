@@ -30,8 +30,9 @@ Each authority is checked independently; none may be inferred from another.
 
 ### Eligibility and history
 
-- AccountAdmins are Organization-wide eligible. A PropertyManager also needs a
-  current access grant and active Property participation.
+- AccountAdmins are Organization-wide eligible. A PropertyManager is eligible at
+  a Property while their membership and a current PropertyAccessGrant for it are
+  active.
 - The eligible Portal creator is the initial Responsible Manager. Only assigned
   managers receive normal Portal notifications; multiple assignments are valid.
 - When an assignment becomes ineligible, end only its half-open interval and
@@ -77,6 +78,21 @@ of the Property (not deleted, not archived) that still has no manager.
 Returning a Property suspended by Organization closure to `active` has no
 self-service path yet. When one is built, it must re-announce both Property and
 Portal gaps in the same way.
+
+## Amended 2026-09-30 — Property access is enough
+
+A PropertyManager's current PropertyAccessGrant, with active membership and the
+command's permissions, is the whole authority to work that Property: Inbox
+commands (as actor or assignee), Property and Portal Responsible Manager
+eligibility, and notification delivery. Staff Participation and StaffUserLink no
+longer gate any of them; nothing in the beta created a login link, so the former
+requirement refused every PropertyManager.
+
+Participation keeps its attribution meaning only: primary Staff attribution,
+guest-response and scan snapshots, metrics, and Portal Responsibility credit.
+Archiving a participation ends attribution relationships but never releases
+Responsible Manager or Inbox assignments; revoking the grant, a role change, or
+offboarding does. `StaffUserLink` remains optional and deferred.
 
 ## Consequences
 

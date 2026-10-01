@@ -73,6 +73,7 @@ const groupOf = (patch: Partial<PortalGroup> = {}): PortalGroup => ({
   propertyId: PROPERTY,
   name: 'Pool side',
   sortKey: null,
+  createdBy: null,
   createdAt: new Date('2026-04-01T00:00:00Z'),
   updatedAt: new Date('2026-04-02T00:00:00Z'),
   deletedAt: null,
@@ -164,7 +165,7 @@ describe('createPortal web address', () => {
 
 describe('createPortal group', () => {
   it('puts the new portal in the group in the same commit and records the fact', async () => {
-    const { useCase, portalGroupRepo, outbox } = setupCreatePortal()
+    const { useCase, portalGroupRepo, outbox, groupHistory } = setupCreatePortal()
     portalGroupRepo.seed(groupOf())
 
     const portal = await useCase({ ...base, name: 'Pool', groupId: String(GROUP) }, ctx)
@@ -176,10 +177,19 @@ describe('createPortal group', () => {
     expect(added).toMatchObject({ portalGroupId: GROUP, portalId: portal.id })
     // The group revision moves past the one the command read.
     expect(added?.sourceAggregateVersion).toBe('2026-04-10T12:00:00.000Z')
+    // Like every other way into a group, creation leaves an 'added' history entry.
+    expect(groupHistory).toEqual([
+      expect.objectContaining({
+        portalGroupId: GROUP,
+        kind: 'portal_added',
+        portalId: portal.id,
+        actorUserId: ctx.userId,
+      }),
+    ])
   })
 
   it('leaves nothing behind when the group changed after it was read', async () => {
-    const { useCase, portalGroupRepo, portalRepo, outbox, commandStore } =
+    const { useCase, portalGroupRepo, portalRepo, outbox, commandStore, groupHistory } =
       setupCreatePortal()
     portalGroupRepo.seed(groupOf())
     const commit = commandStore.createPortal
@@ -195,6 +205,7 @@ describe('createPortal group', () => {
     ).toBe('revision_conflict')
     expect(portalRepo.all()).toHaveLength(0)
     expect(outbox.facts).toHaveLength(0)
+    expect(groupHistory).toHaveLength(0)
   })
 
   it('leaves the portal out of every group when none is chosen', async () => {

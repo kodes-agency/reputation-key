@@ -39,6 +39,8 @@ function PortalWorkspaceEditor() {
       loadMorePublicationHistory={data.loadMorePublicationHistory}
       categories={categories}
       links={links}
+      languageCoverage={data.languageCoverage}
+      linktree={data.linktree}
       activeTab={tab}
       activeSection={section}
       updateMutation={actions.update}
@@ -48,6 +50,7 @@ function PortalWorkspaceEditor() {
       issueTokenMutation={actions.issueToken}
       rotateTokenMutation={actions.rotateToken}
       revokeTokenMutation={actions.revokeToken}
+      revealAddressMutation={actions.revealAddress}
       getPortalAnalytics={getPortalAnalyticsFn}
       completeReviewMutation={actions.completeReview}
       responsibleManagers={data.responsibleManagers}

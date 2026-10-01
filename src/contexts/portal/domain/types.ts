@@ -65,6 +65,8 @@ export type PortalGroup = Readonly<{
   propertyId: PropertyId
   name: string
   sortKey: string | null
+  /** Who created the group; null for a group made before it was recorded. */
+  createdBy: UserId | null
   createdAt: Date
   updatedAt: Date
   deletedAt: Date | null

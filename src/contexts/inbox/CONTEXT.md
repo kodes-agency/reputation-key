@@ -17,7 +17,7 @@ new-item counts.
 - Review workflow requires `inbox.write ∧ review.read`; feedback handling requires
   `inbox.write ∧ feedback.handle`. Assignment never grants either permission.
 - Review owns exact Google reply truth. Guest owns ratings, feedback text,
-  correction, and withdrawal. Identity/Staff own manager eligibility.
+  correction, and withdrawal. Identity owns manager eligibility (membership, role, PropertyAccessGrant); Staff participation plays no part.
 - Recent Activity is **never** evidence that an Inbox command committed, so history is merged from Inbox's five append-only tables — `inbox_handling_cycles`, `inbox_handling_cycle_transitions`, `inbox_assignment_history`, `inbox_escalation_history` and `inbox_feedback_handling_outcomes` — and never from the activity feed.
 - The organization-export contributor remains outside `publicApi`; no request path
   may call it.

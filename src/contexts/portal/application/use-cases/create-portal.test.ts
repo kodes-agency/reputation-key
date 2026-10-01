@@ -13,12 +13,10 @@ const setup = (
   accessible: ReadonlyArray<PropertyId> | null = [
     propertyId('a0000000-0000-0000-0000-000000000001'),
   ],
-  participates = true,
   managerRole: 'AccountAdmin' | 'PropertyManager' = 'PropertyManager',
 ) =>
   setupCreatePortal({
     accessible,
-    participates,
     managers: [
       { userId: 'user-00000000-0000-0000-0000-000000000001', role: managerRole },
     ],
@@ -46,7 +44,7 @@ describe('createPortal', () => {
   })
 
   it('creates a portal with custom slug and theme', async () => {
-    const { useCase } = setup(null, true, 'AccountAdmin')
+    const { useCase } = setup(null, 'AccountAdmin')
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     const portal = await useCase(
@@ -175,7 +173,7 @@ describe('createPortal', () => {
   })
 
   it('allows PropertyManager assigned to the property', async () => {
-    const { useCase, portalRepo } = setup([
+    const { useCase, portalRepo, outbox } = setup([
       propertyId('a0000000-0000-0000-0000-000000000001'),
     ])
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
@@ -187,14 +185,18 @@ describe('createPortal', () => {
 
     expect(portal.name).toBe('Test')
     expect(portalRepo.all()).toHaveLength(1)
+    // A grant alone (no Staff participation anywhere in these deps) makes the
+    // creator the initial Responsible Manager, so nothing is "needed".
+    expect(portal.responsibilityNeededSince).toBeNull()
+    expect(outbox.byTag('portal.responsibility_became_needed')).toHaveLength(0)
   })
 
-  it('creates a visible responsibility-needed state when the creator is not eligible', async () => {
-    const { useCase, outbox } = setup(
-      [propertyId('a0000000-0000-0000-0000-000000000001')],
-      false,
-    )
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+  it('creates a visible responsibility-needed state when the creator holds no current grant', async () => {
+    // The session is an AccountAdmin (Organization-wide access), but the
+    // creator's current membership is a PropertyManager whose grants do not list
+    // the Property, so they cannot be the initial Responsible Manager.
+    const { useCase, outbox } = setup([], 'PropertyManager')
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
     const portal = await useCase(
       { name: 'Needs owner', propertyId: 'a0000000-0000-0000-0000-000000000001' },

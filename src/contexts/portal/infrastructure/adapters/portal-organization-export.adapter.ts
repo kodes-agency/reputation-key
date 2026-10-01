@@ -24,9 +24,11 @@ type PortalOrganizationExportPayload = Readonly<{
   portals: readonly ExportRecord[]
   portalGroups: readonly ExportRecord[]
   portalGroupMembers: readonly ExportRecord[]
+  portalGroupHistory: readonly ExportRecord[]
   linkCategories: readonly ExportRecord[]
   links: readonly ExportRecord[]
   linkTexts: readonly ExportRecord[]
+  mediaAssets: readonly ExportRecord[]
   approvedDestinations: readonly ExportRecord[]
   localizedOverrides: readonly ExportRecord[]
   brandProfiles: readonly ExportRecord[]
@@ -36,6 +38,7 @@ type PortalOrganizationExportPayload = Readonly<{
   pendingContentChanges: readonly ExportRecord[]
   responsibleManagers: readonly ExportRecord[]
   accessArtifacts: readonly ExportRecord[]
+  addressDownloads: readonly ExportRecord[]
   healthIntervals: readonly ExportRecord[]
   excludedRecordClasses: readonly Readonly<{
     recordClass: string
@@ -52,7 +55,9 @@ const MAX_SNAPSHOT_LAG_MS = 15 * 60 * 1000
  * - `portal_tokens` holds the address token hash and the encrypted raw token.
  *   That is credential material; the tenant-visible fact — that a published QR
  *   or NFC artifact exists — is exported from `portal_access_artifacts`
- *   instead, without the token id that joins back to the secret.
+ *   instead, without the token id that joins back to the secret. The sealed
+ *   copy of the address (slice 33) lives in the same column and is excluded
+ *   with it; only the record of each time it was handed out is exported.
  * - Goals reference Portals but are owned and exported by the Goal
  *   contributor; a second copy would let one archive disagree with itself.
  */
@@ -155,9 +160,11 @@ function collectionsOf(
     ['portal', payload.portals],
     ['portal_group', payload.portalGroups],
     ['portal_group_member', payload.portalGroupMembers],
+    ['portal_group_history', payload.portalGroupHistory],
     ['portal_link_category', payload.linkCategories],
     ['portal_link', payload.links],
     ['portal_link_text', payload.linkTexts],
+    ['portal_media_asset', payload.mediaAssets],
     ['approved_destination', payload.approvedDestinations],
     ['portal_localized_override', payload.localizedOverrides],
     ['property_brand_profile', payload.brandProfiles],
@@ -167,6 +174,7 @@ function collectionsOf(
     ['pending_content_change', payload.pendingContentChanges],
     ['portal_responsible_manager', payload.responsibleManagers],
     ['access_artifact', payload.accessArtifacts],
+    ['address_download', payload.addressDownloads],
     ['health_interval', payload.healthIntervals],
   ]
 }
@@ -243,6 +251,7 @@ async function readPayload(
       const portalGroups = await readRows(
         snapshot,
         sql`SELECT id::text AS id, property_id::text AS property_id, name, sort_key,
+                   created_by,
                    ${utc('created_at')} AS created_at,
                    ${utc('updated_at')} AS updated_at,
                    ${utc('deleted_at')} AS deleted_at
@@ -254,6 +263,16 @@ async function readPayload(
                    portal_id::text AS portal_id,
                    ${utc('created_at')} AS created_at
             FROM portal_group_members WHERE organization_id = ${organizationId}`,
+      )
+      const portalGroupHistory = await readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id,
+                   portal_group_id::text AS portal_group_id, kind,
+                   portal_id::text AS portal_id,
+                   other_group_id::text AS other_group_id, name, previous_name,
+                   actor_user_id, ${utc('occurred_at')} AS occurred_at,
+                   ${utc('created_at')} AS created_at
+            FROM portal_group_history WHERE organization_id = ${organizationId}`,
       )
       const linkCategories = await readRows(
         snapshot,
@@ -267,7 +286,8 @@ async function readPayload(
         sql`SELECT id::text AS id, portal_id::text AS portal_id,
                    property_id::text AS property_id, category_id::text AS category_id,
                    label, destination_id::text AS destination_id, url,
-                   legacy_destination_state, icon_key, sort_key,
+                   legacy_destination_state, icon_key, image_asset_id::text AS image_asset_id,
+                   sort_key,
                    ${utc('created_at')} AS created_at,
                    ${utc('updated_at')} AS updated_at
             FROM portal_links WHERE organization_id = ${organizationId}`,
@@ -280,6 +300,18 @@ async function readPayload(
                    ${utc('created_at')} AS created_at,
                    ${utc('updated_at')} AS updated_at
             FROM portal_link_texts WHERE organization_id = ${organizationId}`,
+      )
+      // Rows only: the stored objects hold the image itself, not tenant
+      // content a data export carries.
+      const mediaAssets = await readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id, purpose, status,
+                   object_key, content_type, width, height, byte_size, content_sha256,
+                   source_format, source_bytes, created_by,
+                   ${utc('rights_confirmed_at')} AS rights_confirmed_at,
+                   ${utc('created_at')} AS created_at,
+                   ${utc('taken_down_at')} AS taken_down_at
+            FROM portal_media_assets WHERE organization_id = ${organizationId}`,
       )
       const approvedDestinations = await readRows(
         snapshot,
@@ -305,8 +337,9 @@ async function readPayload(
       const brandProfiles = await readRows(
         snapshot,
         sql`SELECT id::text AS id, property_id::text AS property_id, display_name,
-                   logo_url, default_hero_image_url, primary_color, background_color,
-                   text_color, wordmark, background_mode,
+                   logo_url, default_hero_image_url, logo_asset_id::text AS logo_asset_id,
+                   hero_asset_id::text AS hero_asset_id, hero_focal_x, hero_focal_y,
+                   primary_color, background_color, text_color, wordmark, background_mode,
                    default_guest_locales::text AS default_guest_locales,
                    look_version, version, updated_by,
                    ${utc('created_at')} AS created_at,
@@ -378,6 +411,15 @@ async function readPayload(
                    ${utc('retired_at')} AS retired_at
             FROM portal_access_artifacts WHERE organization_id = ${organizationId}`,
       )
+      // Who was handed an existing address, and when. `portal_token_id` is left
+      // out for the same reason as above; the sealed address is never selected.
+      const addressDownloads = await readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id,
+                   portal_id::text AS portal_id, downloaded_by, purpose,
+                   ${utc('downloaded_at')} AS downloaded_at
+            FROM portal_address_downloads WHERE organization_id = ${organizationId}`,
+      )
       const healthIntervals = await readRows(
         snapshot,
         sql`SELECT id::text AS id, property_id::text AS property_id,
@@ -395,9 +437,15 @@ async function readPayload(
         portals: sortRecords(portals, ['id']),
         portalGroups: sortRecords(portalGroups, ['id']),
         portalGroupMembers: sortRecords(portalGroupMembers, ['portal_id', 'id']),
+        portalGroupHistory: sortRecords(portalGroupHistory, [
+          'portal_group_id',
+          'occurred_at',
+          'id',
+        ]),
         linkCategories: sortRecords(linkCategories, ['portal_id', 'sort_key', 'id']),
         links: sortRecords(links, ['portal_id', 'category_id', 'sort_key', 'id']),
         linkTexts: sortRecords(linkTexts, ['portal_id', 'link_id', 'locale', 'id']),
+        mediaAssets: sortRecords(mediaAssets, ['property_id', 'created_at', 'id']),
         approvedDestinations: sortRecords(approvedDestinations, ['property_id', 'id']),
         localizedOverrides: sortRecords(localizedOverrides, [
           'portal_id',
@@ -411,6 +459,11 @@ async function readPayload(
         pendingContentChanges: sortRecords(pendingContentChanges, ['portal_id', 'id']),
         responsibleManagers: sortRecords(responsibleManagers, ['portal_id', 'id']),
         accessArtifacts: sortRecords(accessArtifacts, ['portal_id', 'id']),
+        addressDownloads: sortRecords(addressDownloads, [
+          'portal_id',
+          'downloaded_at',
+          'id',
+        ]),
         healthIntervals: sortRecords(healthIntervals, ['portal_id', 'id']),
         excludedRecordClasses: EXCLUDED_RECORD_CLASSES,
       }

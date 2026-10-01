@@ -323,6 +323,27 @@
       "when": 1792600000000,
       "tag": "0045_property_look_model",
       "breakpoints": true
+    },
+    {
+      "idx": 46,
+      "version": "7",
+      "when": 1792700000000,
+      "tag": "0046_portal_group_history",
+      "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1792800000000,
+      "tag": "0047_portal_address_download_again",
+      "breakpoints": true
+    },
+    {
+      "idx": 48,
+      "version": "7",
+      "when": 1792900000000,
+      "tag": "0048_portal_media_assets",
+      "breakpoints": true
     }
   ]
 }

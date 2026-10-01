@@ -110,6 +110,23 @@ describe('parseBetterAuthResponse', () => {
     expect(result.propertyIds).toBe('["prop-1"]')
   })
 
+  it('parses an invitation Identity marked expired', () => {
+    const result = parseBetterAuthResponse(
+      betterAuthInvitationSchema,
+      {
+        id: 'inv-expired',
+        email: 'a@t.com',
+        role: 'admin',
+        status: 'expired',
+        expiresAt: new Date(),
+        createdAt: new Date(),
+      },
+      'org_setup_failed',
+      'bad',
+    )
+    expect(result.status).toBe('expired')
+  })
+
   it('parses the active organization contact surface', () => {
     const result = parseBetterAuthResponse(
       betterAuthOrganizationSchema,

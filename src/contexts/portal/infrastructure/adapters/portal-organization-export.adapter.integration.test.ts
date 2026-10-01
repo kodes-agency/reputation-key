@@ -17,6 +17,7 @@ const DIGEST = 'a'.repeat(64)
 
 // Deleted innermost-first; every Portal foreign key is ON DELETE RESTRICT.
 const CHILD_TABLES = [
+  'portal_address_downloads',
   'portal_access_artifacts',
   'portal_tokens',
   'portal_pending_content_changes',
@@ -29,10 +30,12 @@ const CHILD_TABLES = [
   'portal_links',
   'portal_link_categories',
   'portal_group_members',
+  'portal_group_history',
   'portal_groups',
   'portal_approved_destinations',
   'property_portal_brand_contents',
   'property_portal_brand_profiles',
+  'portal_media_assets',
   'portals',
   'properties',
 ] as const
@@ -44,6 +47,7 @@ type Fixture = Readonly<{
   groupId: string
   categoryId: string
   linkId: string
+  mediaAssetId: string
   destinationId: string
   snapshotId: string
   activationId: string
@@ -75,6 +79,7 @@ async function seedFixture(): Promise<Fixture> {
     groupId: randomUUID(),
     categoryId: randomUUID(),
     linkId: randomUUID(),
+    mediaAssetId: randomUUID(),
     destinationId: randomUUID(),
     snapshotId: randomUUID(),
     activationId: randomUUID(),
@@ -108,9 +113,15 @@ async function seedFixture(): Promise<Fixture> {
   )
   await q(
     `INSERT INTO portal_groups (id, organization_id, property_id, name, sort_key,
-                                created_at, updated_at)
-     VALUES ($1, $2, $3, 'Ground Floor', 'a', now(), now())`,
-    [fixture.groupId, organizationId, fixture.propertyId],
+                                created_by, created_at, updated_at)
+     VALUES ($1, $2, $3, 'Ground Floor', 'a', $4, now(), now())`,
+    [fixture.groupId, organizationId, fixture.propertyId, fixture.userId],
+  )
+  await q(
+    `INSERT INTO portal_group_history (id, organization_id, property_id, portal_group_id,
+                                       kind, name, previous_name, actor_user_id, occurred_at)
+     VALUES ($1, $2, $3, $4, 'renamed', 'Ground Floor', 'Lobby Level', $5, now())`,
+    [randomUUID(), organizationId, fixture.propertyId, fixture.groupId, fixture.userId],
   )
   await q(
     `INSERT INTO portal_group_members (id, portal_group_id, portal_id, organization_id,
@@ -169,13 +180,29 @@ async function seedFixture(): Promise<Fixture> {
     [randomUUID(), organizationId, fixture.propertyId, fixture.portalId, fixture.userId],
   )
   await q(
+    `INSERT INTO portal_media_assets (
+       id, organization_id, property_id, purpose, object_key, content_type, width,
+       height, byte_size, content_sha256, source_format, source_bytes,
+       rights_confirmed_at, created_by
+     ) VALUES ($1::uuid, $2, $3, 'hero', 'portal-media/' || $1::text || '.webp', 'image/webp',
+               2400, 1600, 180000, $5, 'jpeg', 2500000, now(), $4)`,
+    [fixture.mediaAssetId, organizationId, fixture.propertyId, fixture.userId, DIGEST],
+  )
+  await q(
     `INSERT INTO property_portal_brand_profiles (
        id, organization_id, property_id, display_name, primary_color,
        background_color, text_color, wordmark, background_mode, default_guest_locales,
-       look_version, version, updated_by, created_at, updated_at
+       look_version, version, hero_asset_id, hero_focal_x, hero_focal_y, updated_by,
+       created_at, updated_at
      ) VALUES ($1, $2, $3, 'Harbour House', '#101010', '#FFFFFF', '#202020', 'HARBOUR',
-               'manual', '["bg","en"]'::jsonb, 3, 1, $4, now(), now())`,
-    [randomUUID(), organizationId, fixture.propertyId, fixture.userId],
+               'manual', '["bg","en"]'::jsonb, 3, 1, $5, 0.25, 0.75, $4, now(), now())`,
+    [
+      randomUUID(),
+      organizationId,
+      fixture.propertyId,
+      fixture.userId,
+      fixture.mediaAssetId,
+    ],
   )
   await q(
     `INSERT INTO property_portal_brand_contents (
@@ -268,6 +295,13 @@ async function seedFixture(): Promise<Fixture> {
       fixture.tokenId,
     ],
   )
+  await q(
+    `INSERT INTO portal_address_downloads (
+       id, organization_id, property_id, portal_id, portal_token_id, downloaded_by,
+       purpose, downloaded_at
+     ) VALUES ($1, $2, $3, $4, $5, 'user-exporter', 'download', now())`,
+    [randomUUID(), organizationId, fixture.propertyId, fixture.portalId, fixture.tokenId],
+  )
   return fixture
 }
 
@@ -329,9 +363,11 @@ describe.sequential('Portal Organization Export contributor', () => {
       'portals',
       'portalGroups',
       'portalGroupMembers',
+      'portalGroupHistory',
       'linkCategories',
       'links',
       'linkTexts',
+      'mediaAssets',
       'approvedDestinations',
       'localizedOverrides',
       'brandProfiles',
@@ -341,6 +377,7 @@ describe.sequential('Portal Organization Export contributor', () => {
       'pendingContentChanges',
       'responsibleManagers',
       'accessArtifacts',
+      'addressDownloads',
       'healthIntervals',
     ]) {
       expect(payload[collection], collection).toHaveLength(1)
@@ -351,6 +388,15 @@ describe.sequential('Portal Organization Export contributor', () => {
       slug: 'front-desk',
       publication_state: 'published',
       linktree_enabled: true,
+    })
+    expect(payload.portalGroups?.[0]).toMatchObject({ created_by: fixture.userId })
+    // Names live in the ledger, not on events, so the export carries them.
+    expect(payload.portalGroupHistory?.[0]).toMatchObject({
+      portal_group_id: fixture.groupId,
+      kind: 'renamed',
+      name: 'Ground Floor',
+      previous_name: 'Lobby Level',
+      actor_user_id: fixture.userId,
     })
     expect(payload.linkTexts?.[0]).toMatchObject({
       link_id: fixture.linkId,
@@ -371,6 +417,20 @@ describe.sequential('Portal Organization Export contributor', () => {
       background_mode: 'manual',
       default_guest_locales: '["bg", "en"]',
       look_version: 3,
+      hero_asset_id: fixture.mediaAssetId,
+      hero_focal_x: 0.25,
+      hero_focal_y: 0.75,
+      logo_asset_id: null,
+    })
+    // The row, not the image: the stored object is not part of a data export.
+    expect(payload.mediaAssets?.[0]).toMatchObject({
+      id: fixture.mediaAssetId,
+      purpose: 'hero',
+      status: 'active',
+      object_key: `portal-media/${fixture.mediaAssetId}.webp`,
+      width: 2400,
+      height: 1600,
+      source_format: 'jpeg',
     })
     expect(payload.brandContents?.[0]).toMatchObject({
       locale: 'en',
@@ -388,6 +448,12 @@ describe.sequential('Portal Organization Export contributor', () => {
       status: 'published',
     })
     expect(payload.accessArtifacts?.[0]).not.toHaveProperty('portal_token_id')
+    expect(payload.addressDownloads?.[0]).toMatchObject({
+      portal_id: fixture.portalId,
+      downloaded_by: 'user-exporter',
+      purpose: 'download',
+    })
+    expect(payload.addressDownloads?.[0]).not.toHaveProperty('portal_token_id')
 
     const archiveText = first.entries
       .map(({ bytes }) => Buffer.from(bytes).toString('utf8'))

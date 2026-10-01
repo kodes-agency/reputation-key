@@ -34,10 +34,22 @@ export type {
   PortalPublicationHistoryItem,
 } from './use-cases/get-portal-publication-history'
 export type {
+  PortalLinktreeDestination,
+  PortalLinktreeDestinationState,
+  PortalLinktreeLink,
+  PortalLinktreeText,
+  PortalLinktreeView,
+} from '../domain/portal-linktree-view'
+export type {
   PortalHistory,
   PortalHistoryEntry,
   GetPortalHistoryInput,
 } from './use-cases/get-portal-history'
+export type {
+  MissingPortalText,
+  PortalLanguageCoverage,
+  PortalLanguageCoverageRow,
+} from '../domain/portal-language-coverage'
 export type {
   PortalHistoryCategory,
   PortalHistoryDetail,
@@ -315,7 +327,7 @@ export type PortalPublicApi = Readonly<{
       Readonly<{ version: number; kind: 'publish' | 'rollback'; activatedAt: Date }>
     >
   >
-  /** Current assigned managers, revalidated against role/access/participation. */
+  /** Current assigned managers, revalidated against role and current Property access. */
   getResponsibleManagerUserIds: (
     orgId: OrganizationId,
     portalId: PortalId,

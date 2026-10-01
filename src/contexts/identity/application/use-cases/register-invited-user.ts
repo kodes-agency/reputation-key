@@ -2,7 +2,12 @@ import type { IdentityCommandStore } from '../ports/identity-command-store.port'
 import type { InvitationId, OrganizationId, UserId } from '#/shared/domain/ids'
 import { userId as toUserId } from '#/shared/domain/ids'
 import { identityError, isIdentityError } from '../../domain/errors'
+import {
+  ACCOUNT_EXISTS_MESSAGE,
+  REGISTRATION_FAILED_MESSAGE,
+} from '../../domain/invitation-copy'
 import { identityInvitationAccepted } from '../../domain/events'
+import { providerRefusalCode } from '../provider-refusal'
 import type { RegistrationAuthIds } from '#/shared/domain/registration-auth-ids'
 import type {
   InvitedRegistrationStore,
@@ -94,17 +99,6 @@ type SignUpRecovery =
   | Readonly<{ kind: 'accepted'; organizationId: OrganizationId }>
 
 /**
- * What an invitee sees when their account could not be created. They are
- * unauthenticated and this message reaches their browser verbatim, so it is
- * fixed: a driver, query or provider error's own text can name constraints,
- * SQL and bound parameters.
- */
-const REGISTRATION_FAILED_MESSAGE = 'Registration failed. Please try again.'
-
-const ACCOUNT_EXISTS_MESSAGE =
-  'An account already exists for this email. Sign in, then open your invitation link again.'
-
-/**
  * Sign-up refusals the invitee can act on, keyed by the reason code Better Auth
  * puts on its refusal (`APIError.body.code`). Each gets fixed copy of our own:
  * the provider's wording is not ours to show, and its "use another email" is
@@ -136,20 +130,6 @@ type SignUpRecoveryFinding =
       >
     }>
   | Readonly<{ reconciliationError: ErrorIdentity }>
-
-/** The reason code on a Better Auth refusal, read structurally from `unknown`. */
-function providerRefusalCode(error: unknown): string | null {
-  if (!(error instanceof Error) || error.name !== 'APIError' || !('body' in error)) {
-    return null
-  }
-  const body: unknown = error.body
-  return typeof body === 'object' &&
-    body !== null &&
-    'code' in body &&
-    typeof body.code === 'string'
-    ? body.code
-    : null
-}
 
 const ownCode = (value: unknown): unknown =>
   typeof value === 'object' && value !== null && 'code' in value ? value.code : undefined
@@ -351,6 +331,8 @@ export const registerInvitedUser =
         acceptorEmail,
         acceptorUserId: acceptedUserId,
         now: acceptanceNow,
+        // Consuming the emailed link proves the inbox: no second mail.
+        markEmailVerified: true,
         buildEvent: (invitation) =>
           identityInvitationAccepted({
             organizationId: invitation.organizationId,

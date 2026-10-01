@@ -1,3 +1,5 @@
+// fallow-ignore-file code-duplication
+import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { PortalShare } from './portal-share'
@@ -17,6 +19,7 @@ type RotateInput = {
   }
 }
 type RevokeInput = { data: { portalId: string; reason: string } }
+type RevealInput = { data: { portalId: string; purpose: 'download' | 'copy' | 'show' } }
 type LinkResult = {
   publicUrl: string
   publicUrls?: { qr: string; nfc: string }
@@ -38,6 +41,7 @@ const noActiveToken: PortalTokenStatus = {
   version: null,
   issuedAt: null,
   graceExpiresAt: null,
+  addressRecoverable: false,
 }
 
 // What the Share tab sees after a reload: a live token whose URL is gone.
@@ -47,6 +51,7 @@ const activeToken: PortalTokenStatus = {
   version: 3,
   issuedAt: '2026-08-12T09:30:00.000Z',
   graceExpiresAt: null,
+  addressRecoverable: false,
 }
 
 const issueAction = (
@@ -77,6 +82,21 @@ const revokeAction = (): Action<RevokeInput> =>
     data: null,
   })
 
+// What a code sealed with a keyring reports after a reload: its address can be
+// fetched again (ADR 0064).
+const recoverableToken: PortalTokenStatus = { ...activeToken, addressRecoverable: true }
+
+const revealAction = (
+  error: globalThis.Error | null = null,
+): Action<RevealInput, LinkResult> =>
+  Object.assign(
+    fn(async (_input: RevealInput) => {
+      if (error) throw error
+      return issuedLink
+    }),
+    { isPending: false, error, isSuccess: false, data: null },
+  ) as unknown as Action<RevealInput, LinkResult>
+
 const meta: Meta<typeof PortalShare> = {
   title: 'Portal/PortalShare',
   component: PortalShare,
@@ -93,11 +113,13 @@ const baseArgs = {
   revoked: false,
   tokenStatus: noActiveToken,
   onLinkIssued: fn(),
+  onAddressRevealed: fn(),
   onLinksRevoked: fn(),
   portalName: 'Guest services',
   issueMutation: issueAction(),
   rotateMutation: rotateAction(),
   revokeMutation: revokeAction(),
+  revealMutation: revealAction(),
 }
 
 const openMenu = async (canvasElement: HTMLElement) =>
@@ -214,6 +236,161 @@ export const CodeAfterReload: Story = {
     await expect(
       canvas.getByRole('button', { name: /more code actions/i }),
     ).toBeInTheDocument()
+  },
+}
+
+// With a keyring the address is not lost on reload: the code can be downloaded
+// again, so the reveal-once wording and warning are gone.
+export const DownloadAgainAfterReload: Story = {
+  args: { ...baseArgs, tokenStatus: recoverableToken },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('button', { name: /download again/i })).toBeEnabled()
+    await expect(
+      canvas.getByRole('button', { name: /copy nfc address/i }),
+    ).toBeInTheDocument()
+    await expect(canvas.getByRole('button', { name: /show address/i })).toBeEnabled()
+    await expect(
+      canvas.getByText(/download the code again whenever you need it/i),
+    ).toBeInTheDocument()
+    await expect(canvas.queryByText(/shown only when a code is made/i)).toBeNull()
+    await expect(canvas.queryByText(/save this address now/i)).toBeNull()
+    await expect(canvas.queryByText(publicUrl)).toBeNull()
+    await expect(
+      canvas.getByRole('button', { name: /more code actions/i }),
+    ).toBeInTheDocument()
+  },
+}
+
+export const ShowAddressFetchesItOnce: Story = {
+  args: { ...baseArgs, tokenStatus: recoverableToken },
+  play: async ({ canvasElement, args }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: /show address/i }),
+    )
+    await waitFor(() =>
+      expect(args.revealMutation).toHaveBeenCalledWith({
+        data: { portalId: 'portal-1', purpose: 'show' },
+      }),
+    )
+    await waitFor(() => expect(args.onAddressRevealed).toHaveBeenCalledWith(issuedLink))
+  },
+}
+
+export const CopyNfcFetchesItFirst: Story = {
+  args: { ...baseArgs, tokenStatus: recoverableToken },
+  play: async ({ canvasElement, args }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: /copy nfc address/i }),
+    )
+    await waitFor(() =>
+      expect(args.revealMutation).toHaveBeenCalledWith({
+        data: { portalId: 'portal-1', purpose: 'copy' },
+      }),
+    )
+  },
+}
+
+export const DownloadAgainOffersBothFormats: Story = {
+  args: { ...baseArgs, tokenStatus: recoverableToken },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: /download again/i }),
+    )
+    const menu = within(await within(document.body).findByRole('menu'))
+    await expect(menu.getByRole('menuitem', { name: /png image/i })).toBeInTheDocument()
+    await expect(menu.getByRole('menuitem', { name: /svg file/i })).toBeInTheDocument()
+  },
+}
+
+// A code made with a keyring needs no warning: leaving the page loses nothing.
+export const NewlyMadeWithKeyring: Story = {
+  args: { ...baseArgs, issuedLink, tokenStatus: recoverableToken },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText(publicUrl)).toBeInTheDocument()
+    await expect(canvas.queryByText(/save this address now/i)).toBeNull()
+    await expect(canvas.getByRole('button', { name: /^download$/i })).toBeEnabled()
+  },
+}
+
+// The detail has not refetched since the code was made: the result's own answer
+// stands, so a newly made sealed code is not told to "save it now".
+export const NewlyMadeWithKeyringBeforeTheRefetch: Story = {
+  args: {
+    ...baseArgs,
+    issuedLink: { ...issuedLink, addressRecoverable: true },
+    tokenStatus: noActiveToken,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText(publicUrl)).toBeInTheDocument()
+    await expect(canvas.queryByText(/save this address now/i)).toBeNull()
+  },
+}
+
+// The page keeps what a fetch returns, as the workspace does.
+function ShareThatKeepsTheFetchedAddress(args: React.ComponentProps<typeof PortalShare>) {
+  const [link, setLink] = useState<typeof issuedLink | null>(null)
+  return (
+    <PortalShare
+      {...args}
+      issuedLink={link}
+      onAddressRevealed={(revealed) => setLink({ ...issuedLink, ...revealed })}
+    />
+  )
+}
+
+// The button that was pressed is replaced by the address, so focus follows it.
+export const ShowAddressMovesFocusToIt: Story = {
+  args: { ...baseArgs, tokenStatus: recoverableToken },
+  render: (args) => <ShareThatKeepsTheFetchedAddress {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /show address/i }))
+    const address = await canvas.findByText(publicUrl)
+    await waitFor(() => expect(address).toHaveFocus())
+  },
+}
+
+// A fetched address belongs to the code tokenStatus describes, so the date is
+// that code's, not today's.
+export const FetchedAddressKeepsTheMadeDate: Story = {
+  args: {
+    ...baseArgs,
+    issuedLink: { ...issuedLink, revealed: true },
+    tokenStatus: recoverableToken,
+  },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByText(/made 12 aug 2026/i)).toBeInTheDocument()
+  },
+}
+
+export const DownloadAgainRefused: Story = {
+  args: {
+    ...baseArgs,
+    tokenStatus: recoverableToken,
+    revealMutation: revealAction(
+      new globalThis.Error(
+        'This code cannot be downloaded again. Replace the code to get a new set.',
+      ),
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByRole('alert')).toHaveTextContent(
+      /replace the code to get a new set/i,
+    )
+  },
+}
+
+// A viewer cannot fetch the address, whatever the code holds.
+export const ViewerCannotDownloadAgain: Story = {
+  args: { ...baseArgs, tokenStatus: recoverableToken },
+  decorators: [withRole('Member')],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.queryByRole('button', { name: /download again/i })).toBeNull()
+    await expect(canvas.queryByRole('button', { name: /show address/i })).toBeNull()
   },
 }
 

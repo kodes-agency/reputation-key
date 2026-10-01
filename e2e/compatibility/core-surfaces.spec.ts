@@ -6,6 +6,7 @@
 import { expect, test } from '../helpers/error-detection'
 import { assertNoAxeViolations } from '../helpers/a11y'
 import { signIn } from '../helpers/auth'
+import { expectPortalUnavailable } from '../helpers/guest-unavailable'
 import { requireE2eSeedState } from '../helpers/seed-state'
 
 async function expectNoHorizontalOverflow(page: import('@playwright/test').Page) {
@@ -92,7 +93,7 @@ test.describe('Compatibility: core surfaces', () => {
 
     // 403 / 404 / 410 collapse to ONE posture on the public surface so a guest
     // cannot tell a bad token from a withdrawn Portal (see routes/p/$token.tsx).
-    await expect(page.getByRole('heading', { name: 'Portal Unavailable' })).toBeVisible()
+    await expectPortalUnavailable(page)
     await expect(page.getByRole('radio')).toHaveCount(0)
     await expectNoHorizontalOverflow(page)
     await assertNoAxeViolations(page, 'compatibility unavailable public gateway')

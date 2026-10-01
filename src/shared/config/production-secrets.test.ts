@@ -38,6 +38,19 @@ describe('findPlaceholderSecrets (BQC-7.6)', () => {
     expect(findPlaceholderSecrets(REAL)).toEqual([])
   })
 
+  it('accepts a real Portal address keyring and flags a placeholder key behind a real one', () => {
+    const real = `2:${'9f4c2e7a1b8d4e6f0a3c5b7d9e2f4a6c8b1d3e5f7a9c0e2b4d6f8a1c3e5b7d9f'.slice(0, 64)}`
+    expect(
+      findPlaceholderSecrets({ ...REAL, PORTAL_ADDRESS_ENCRYPTION_KEYS: real }),
+    ).toEqual([])
+    expect(
+      findPlaceholderSecrets({
+        ...REAL,
+        PORTAL_ADDRESS_ENCRYPTION_KEYS: `${real},1:${'55'.repeat(32)}`,
+      }),
+    ).toEqual(['PORTAL_ADDRESS_ENCRYPTION_KEYS'])
+  })
+
   it('flags the CI/test placeholder family', () => {
     const cases: ReadonlyArray<readonly [string, string]> = [
       ['BETTER_AUTH_SECRET', 'test-secret-at-least-32-characters-long-for-ci'],
@@ -62,6 +75,7 @@ describe('findPlaceholderSecrets (BQC-7.6)', () => {
       ['REVIEW_PROVIDER_SUBJECT_HMAC_KEYS', `v1:${'11'.repeat(32)}`],
       ['REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS', `initial:${'22'.repeat(32)}`],
       ['NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS', `v1:${'33'.repeat(32)}`],
+      ['PORTAL_ADDRESS_ENCRYPTION_KEYS', `1:${'44'.repeat(32)}`],
       ['OPS_METRICS_TOKEN', 'e2e-ops-metrics-token-0123456789abcdef'],
       ['BETTER_AUTH_SECRET', 'replace-me-with-a-long-random-secret-min-32-chars'],
       // The .env.example Resend key: in production it switched notification

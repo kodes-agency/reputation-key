@@ -15,6 +15,7 @@ import {
   waitFor,
 } from '../helpers/fixtures'
 import { settleGuestConsent } from '../helpers/guest-consent'
+import { expectPortalUnavailable } from '../helpers/guest-unavailable'
 
 const seed = requireE2eSeedState()
 const guestMutationServerFile = 'src/contexts/guest/server/public.ts'
@@ -484,10 +485,7 @@ test.describe('Critical: public Portal basics', () => {
   test('P2 and P3 tokens are externally indistinguishable', async ({ page }) => {
     for (const token of [seed.p2PortalToken, seed.p3PortalToken]) {
       await page.goto(`/p/${token}`)
-      await expect(
-        page.getByRole('heading', { name: 'Portal Unavailable' }),
-      ).toBeVisible()
-      await expect(page.getByText('Please try again later.')).toBeVisible()
+      await expectPortalUnavailable(page)
       await expect(page.getByText(/E2E Guest Portal P[23]/)).toHaveCount(0)
     }
   })

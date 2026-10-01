@@ -15,9 +15,9 @@ Property lookups.
 - Integration changes Google binding state only through
   `PropertyGoogleBindingPublicApi`, which the build returns as its own
   `googleBinding` capability and never on `publicApi`.
-- Identity and Staff supply membership, role, Property access, and linked
-  participation eligibility. Responsible Manager assignment is notification
-  routing, not authorization or participation.
+- Identity supplies membership, role and Property access, which decide
+  Responsible Manager eligibility. Responsible Manager assignment is notification
+  routing, not authorization or attribution.
 - `application/public-api.ts` exposes read, source-epoch, Google-binding,
   destination, and lifecycle facts; repositories and command stores remain
   internal.

@@ -27,9 +27,11 @@
 // evidence is the weakest of the Portals that feed it, and a Portal feeds every
 // group any of its readings in the window sit under.
 
+import { dashboardError } from '../../domain/dashboard-errors'
 import type { PortalGroupId, PortalId, PropertyId } from '#/shared/domain/ids'
 import type {
   PortalResultsGroupRow,
+  PortalResultsLocalDays,
   PortalResultsMeasures,
   PortalResultsOverview,
   PortalResultsPeriod,
@@ -48,6 +50,8 @@ import type {
   PortalResultsReadingGroup,
   PortalResultsWindowReading,
 } from '../ports/portal-results-overview.repository'
+import { PORTAL_RESULTS_THRESHOLDS } from '../../domain/portal-results-thresholds'
+import { localDayRange } from '../../domain/portal-results-series'
 import { localDaysWindow, priorPeriodDates } from '../utils'
 import { combineEvidence, sumCells } from './portal-results-aggregate'
 import {
@@ -98,7 +102,9 @@ function assertValidInput(input: GetPortalResultsOverviewInput): void {
     throw new Error('Portal results need a bounded time range, not All Time')
   }
   if (input.portals.length > PORTAL_RESULTS_PORTAL_LIMIT) {
-    throw new Error(
+    // A tagged error, not a bug: the page tells this from a failure it could retry.
+    throw dashboardError(
+      'too_many_portals',
       `Portal results asked about too many Portals (limit ${PORTAL_RESULTS_PORTAL_LIMIT})`,
     )
   }
@@ -131,6 +137,7 @@ function assertValidInput(input: GetPortalResultsOverviewInput): void {
 /** One Property's Portals and the windows they are read through. */
 type PropertyPlan = Readonly<{
   propertyId: PropertyId
+  timezone: string
   entries: readonly PortalResultsRosterEntry[]
   range: PortalResultsPeriod
   compare: PortalResultsPeriod | null
@@ -150,6 +157,7 @@ function planProperties(input: GetPortalResultsOverviewInput, now: Date): Proper
       : null
     return {
       propertyId,
+      timezone,
       entries,
       range: { startAt: startDate, endAt: endDate },
       compare: prior && { startAt: prior.priorStartDate, endAt: prior.priorEndDate },
@@ -334,6 +342,18 @@ function groupIdsOf(
   return [...ids].sort()
 }
 
+/** The window's Property-local days, for the labels a client must not work out. */
+function localDaysOf(plan: PropertyPlan): PortalResultsLocalDays {
+  const days = localDayRange(plan.range.startAt, plan.range.endAt, plan.timezone)
+  const prior =
+    plan.compare && localDayRange(plan.compare.startAt, plan.compare.endAt, plan.timezone)
+  return {
+    ...days,
+    compareStart: prior ? prior.start : null,
+    compareEnd: prior ? prior.end : null,
+  }
+}
+
 type PropertyRows = Readonly<{
   property: PortalResultsPropertyRow
   portals: PortalResultsPortalRow[]
@@ -353,8 +373,10 @@ function rowsForProperty(
   return {
     property: {
       propertyId,
+      timezone: plan.timezone,
       period: plan.range,
       comparePeriod: plan.compare,
+      localDays: localDaysOf(plan),
       portalIds,
       ...read(own, portalIds),
     },
@@ -439,6 +461,7 @@ export const getPortalResultsOverview =
 
     return {
       qualifiedScansSince: since,
+      thresholds: PORTAL_RESULTS_THRESHOLDS,
       properties: rows.map((row) => row.property),
       portals: input.portals.flatMap((entry) => {
         const row = rowByPortal.get(entry.portalId)

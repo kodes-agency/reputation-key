@@ -19,7 +19,7 @@ assignment, and governed access artifacts.
 - `PortalRepository` is a read-only production port. Authoritative mutations are available only through Portal command stores; direct PostgreSQL seeding/mutation lives under explicit test scaffolding and is guarded from production wiring by an architecture test.
 - Lifecycle export and purge contributors stay outside `publicApi`; irreversible
   phases are composed only through the reviewed Identity lifecycle coordinator.
-- Not exported, and not queried: `portal_tokens` (address-token hash and encrypted raw token) and `portal_access_artifacts.portal_token_id`, which is the join key into the token secret.
+- Not exported, and not queried: `portal_tokens` (address-token hash and the sealed raw address) and `portal_access_artifacts.portal_token_id`, which is the join key into the token secret. `portal_address_downloads` is exported without the token id.
 - Not touched by any phase: `portal_metric_lifetime_aggregates` (Metric's anonymous aggregate), `properties`, and the Staff-owned people rows. Each is another owner's receipt.
 
 ## Model
@@ -30,6 +30,18 @@ experience. Editing the working copy never mutates an active snapshot.
 Activations are append-only effective-dated routes from a stable token to one
 snapshot; publish and rollback append activations, while disable/archive close
 one. Groups remain Property-scoped, and one Portal has at most one active group.
+
+A Portal changes group in one commit: `movePortalToGroup` (and create-with-move,
+where a new group takes Portals that are in another group) ends the old
+`portal_group_memberships` row with `end_reason = 'moved_to_group'` and begins the
+new one, so the results the Portal earned stay with the group it left. It takes the
+fence of every group it touches in sorted id order, then locks the Portal, then
+the membership; it records `portal_group.portal_removed` for the old group and
+`portal_group.portal_added` for the new one, both by identifier. Every group
+command also writes `portal_group_history` in its own transaction (created,
+renamed with the previous name, archived, Portal added, removed, moved in or out,
+each with the actor and the time); names live in that ledger, never on a fact.
+`portal_groups.created_by` records who created a group (null before round 4).
 
 The link section of the guest page is the **Linktree**. Its working model is
 `portal_link_texts` (one label and optional line per link and language), a title
@@ -80,6 +92,19 @@ whose derived address is taken at the Property gets the next free numbered
 address; an address the manager typed must be free. There are no place types: the
 dialog asks for a name, a group, languages and what to start from.
 
+The editor no longer shows categories. `getPortalLinktree` reads the whole
+section (switch, written titles, and each link in guest order with its texts,
+icon and the approval of its destination), and a link is created without a
+category: it joins the Portal's last category, and the first link starts one,
+which only the legacy guest page prints as a heading. It is titled in the
+Portal's primary language (the Linktree title written for that language, else its
+default), so a Bulgarian-primary Portal does not show an English heading. The
+category is built only after the link's label, icon, cap and destination have
+passed and is committed in the link's own transaction (`startCategory` on the
+create command), so a refused link leaves neither it nor its fact behind. Re-ordering still saves one category's order, so the
+editor moves a tile only among those of its own (older) category. The category
+commands stay until the snapshot builders flatten categories (slice 19).
+
 The eligible creator is the initial Portal Responsible Manager (by default; the
 dialog may name other eligible managers, or nobody). Multiple eligible
 managers may be assigned; losing the last sets `responsibilityNeededSince`, and
@@ -90,8 +115,40 @@ the `portal.on-property-restored` worker consumer raises the fact for each of it
 live Portals (not deleted, not archived) that still has no manager, because
 Restore itself checks only the Property's manager (ADR 0052).
 
-The beta has no Portal image-upload UI, server function, application use case,
-issuance model, or image job. `portal.upload` remains safety-blocked.
+## Media
+
+An uploaded image is a `portal_media_assets` row plus one WebP object in the
+private store (`portal-media/<id>.webp`, the key derived from the id, never from
+anything a manager typed). It is the **re-encoded** image: the upload is decoded
+and encoded again, so metadata, colour profiles, trailing bytes and anything
+hidden in a segment do not survive, and the original is never stored.
+
+- **Policy** (`portal-image-policy.ts`, pure): JPEG, PNG and WebP, still, at most
+  10 MiB, at most 40 million pixels, no side over 16,384, with a per-purpose
+  minimum size, aspect limit, output size and output budget. The declared type
+  must agree with the leading bytes. SVG, GIF, HEIC, AVIF and animated PNG or
+  WebP are refused. Every refusal is `image_rejected` carrying one `reason`.
+- **Decoder** (`sharp-image-processor.adapter.ts`): only the JPEG, PNG and WebP
+  loaders are enabled in libvips; the decoder holds at most 40 million pixels
+  and fails on any decode error; at most two decodes run at once.
+- **Ingest** (`ingestPortalImage`): checks who (an Account Admin for a Property's
+  photograph and logo, a Property Manager for a link tile's picture), the
+  Property, the rights confirmation, the bytes, and a cap of 200 stored images per
+  Property, then decodes and re-encodes, writes the object, then the row. A failed
+  row removes the object again. The endpoint is gated on `portal.upload`.
+- **Takedown**: a `taken_down` asset keeps its row, because snapshots name assets
+  by id with no foreign key, and is never served.
+- **References**: the Brand Profile's `logo_asset_id`, `hero_asset_id` (with
+  `hero_focal_x/y`, present exactly when there is a hero) and a link's
+  `image_asset_id` are composite foreign keys to an asset of the same
+  Organization and Property. Nothing reads or writes them yet. The database does
+  not tie a reference to the asset's **purpose**: whatever writes one of these
+  columns must call `canReferencePortalMediaAsset(slot, asset)`, so a link
+  picture cannot stand in as the hero and skip the hero's size and byte budget.
+
+`portal.upload` remains safety-blocked in this slice; ADR 0063 records the
+decision to switch it on with the technical safeguards above and without a
+SAFE-01 completion record.
 
 ## Runtime
 
@@ -110,17 +167,50 @@ compares them), so each batched read returns what its single-Portal read returns
 including the token's grace end. It is scoped like
 `listPortals` (`portal.read`, assigned Properties) and carries no content.
 
+`getPortalLanguageCoverage` is the read behind the editor's Languages section. For each
+language a Portal offers (the fallback language first) it counts the wording guests read
+that is written and names what is missing: a title and a description and one label per
+link. A title or description counts as written only when the Property has wording (a content
+row) for that language, the Portal's own override then taking the place of it: publishing
+drops a language without Property wording and refuses to publish, so an override alone does
+not count, and such a gap is flagged `blocksPublish` (its wording is written by an account
+admin in the Property Brand Profile; until the builder copies the fallback language into a gap, slice 19, it is a real block). A missing link label does not block publishing. Every
+link in the tree is counted, approved destination or not, because its label is needed once the
+destination is approved. The Linktree title, a link's line and the hero description are
+optional, so they are never "missing". It carries
+identifiers and kinds, plus the fallback-language label of a link with a gap so a manager can
+tell which link it is, and nothing else; nothing is stored for it. Managers add only the
+languages that are offered and have a generation 2 guest copy pack, and a language change
+goes through the ordinary `updatePortal` command. The fallback language is never removed;
+another one has to become the fallback first. There are no AI controls: the wording is
+written by hand in the Welcome and Linktree sections.
+
+"Download again" (ADR 0064) is optional and off until `PORTAL_ADDRESS_ENCRYPTION_KEYS`
+is set. With a keyring, issue and replace seal the raw address
+(`portal-address-cipher.ts`, AES-256-GCM, bound to organisation, property,
+portal, token and version) beside the hash, and replace, stop and delete clear
+it. `revealPortalAddress` is the only reader: it authorises `portal.update`,
+records a `portal_address_downloads` row, then decrypts, and its server function
+is a no-store POST behind an actor and Organization rate limit. The token status
+carries `addressRecoverable` so the page offers the download only when the
+keyring still holds the key that sealed the live code. Without a keyring the
+address is shown once, when a code is made, as before.
+
 `getPortalHistory` is the one merged, read-only timeline for a Portal: its
 creation, each publish and restore, each change of health (from
 `portal_health_intervals`) and each public-address event, newest first, with the
-actor's display name where one was recorded. It merges four independently
+actor's display name where one was recorded. It merges five independently
 ordered sources under one (instant, key) order and one opaque cursor, and it
 resolves names through a bounded, Organization-fenced directory that returns
 only `user.name`. Nothing is stored for it: it derives from the ledgers that
-already exist. Who issued an address is not recorded yet, so that entry has no
-actor; page edits join the timeline with the page-edit ledger.
+already exist. An address entry names who made it when `portal_tokens.issued_by`
+recorded that (null for a code made before round 4), and each time a manager was
+handed an existing address is a `code_downloaded` entry from
+`portal_address_downloads`; page edits join the timeline with the page-edit
+ledger.
 
-The dormant issued-image implementation has been removed. The nullable
+The earlier issued-image implementation (presigned browser upload, issuance
+table, background job) was removed and is not coming back. The nullable
 `portals.hero_image_url` column and read path remain so published historical
 rows still render, while the shared arbitrary-key storage stack remains live
 for Identity avatar and organization-logo uploads through `container.assetStorage`.
@@ -137,13 +227,14 @@ for Identity avatar and organization-logo uploads through `container.assetStorag
 7. Public resolution fails closed when that Property destination is `awaiting_refresh` or `unavailable`; a stale URI is never rendered.
 8. Soft-deleting a Portal revokes its live tokens; a deleted Portal never has a live
    token. Token issue, rotation, and revocation share the Portal revision fence.
-9. The raw address is request-local and never enters state, facts, logs, or Metric.
+9. The raw address is request-local and never enters state, facts, logs, exports or Metric, with one exception: the sealed copy of an active code (ADR 0064). Replacing, stopping or deleting clears it in the same statement, and a CHECK refuses a sealed address on any other code.
 10. Portal lifecycle facts never copy Portal name, slug, description, theme, responsible-manager assignments, destination, or link content.
-11. Portal requests never issue image uploads or write `portals.hero_image_url`; a published Portal with a null value remains valid.
+11. An image enters the Portal only through the server-side ingest, which stores a re-encoded WebP and never the upload; no Portal request issues a presigned upload or writes `portals.hero_image_url`, and a published Portal with a null value remains valid.
 12. The POR-01 report never copies names, localized content, raw URLs, token material, themes, or print-batch values and never infers creator, ownership, translation, brand, or destination provenance. Reported ambiguous Portal rows remain Disabled or Archived; raw secondary links are treated as quarantined and excluded from publication until a separately reviewed command resolves them.
 13. Closing is a **stop, not a delete**, and it is reversible: the immutable publication snapshot survives and `portals.publication_state` keeps the tenant's own published/draft intent, so explicit reactivation re-points a new activation at the same snapshot rather than guessing what each Portal used to be. Ordinary closure cancellation does not itself reactivate Portals — see `docs/operations/organization-lifecycle.md`.
 14. `portal_group_members` is purged as a **row delete only**. It is a physical-drop-blocked compatibility mirror: the rows are tenant content and must go, the table must not. No phase issues a DROP or TRUNCATE.
 15. Linktree edits (link texts, the section title, the switch) take the Portal fence like any content command and record `portal_links` pending changes under structured keys: `link:<id>:text:<locale>`, `linktree:title:<locale>` and `linktree:enabled`. Only a value that actually changed records one, and their facts carry identifiers, never the wording.
+16. A group's history starts at the deploy of migration 0046; earlier changes are not reconstructed, because earlier names were never kept. History rows are never updated or deleted while their group exists, and a purge removes them with the group.
 
 ## Verification
 

@@ -246,6 +246,8 @@ export const portalKeys = {
   list: (propertyId: string) => [...portalKeys.all, 'list', propertyId] as const,
   detail: (portalId: string) => [...portalKeys.all, 'detail', portalId] as const,
   links: (portalId: string) => [...portalKeys.detail(portalId), 'links'] as const,
+  /** The editor's Linktree section: switch, titles, and each link with its texts. */
+  linktree: (portalId: string) => [...portalKeys.detail(portalId), 'linktree'] as const,
   responsibleManagers: (portalId: string) =>
     [...portalKeys.detail(portalId), 'responsible-managers'] as const,
   publicationHistory: (portalId: string) =>
@@ -254,6 +256,13 @@ export const portalKeys = {
     [...portalKeys.forProperty(propertyId), 'experience'] as const,
   experience: (propertyId: string, portalId: string) =>
     [...portalKeys.propertyExperience(propertyId), 'portal', portalId] as const,
+  /**
+   * Which of a Portal's wording is written per language. Under the Portal's
+   * `experience`, so a write of its title or description (a Portal override, or
+   * the Property's content or profile) and every Portal update refresh it.
+   */
+  languageCoverage: (propertyId: string, portalId: string) =>
+    [...portalKeys.experience(propertyId, portalId), 'language-coverage'] as const,
   approvedDestinations: (portalId: string) =>
     [...portalKeys.detail(portalId), 'approved-destinations'] as const,
   groups: (propertyId: string) => [...portalKeys.all, 'groups', propertyId] as const,
@@ -271,6 +280,16 @@ export const portalKeys = {
   /** What the New portal dialog reads about a Property: default languages, eligible managers. */
   creationOptions: (propertyId: string) =>
     [...portalKeys.forProperty(propertyId), 'creation-options'] as const,
+  /** Every window of the overview's results for a Property. */
+  resultsOverviewRoot: (propertyId: string) =>
+    [...portalKeys.forProperty(propertyId), 'results-overview'] as const,
+  /** One window, with or without the period before: each is its own read. */
+  resultsOverview: (propertyId: string, timeRange: string, compare: boolean) =>
+    [
+      ...portalKeys.resultsOverviewRoot(propertyId),
+      timeRange,
+      compare ? 'compare' : 'alone',
+    ] as const,
   analyticsRoot: (propertyId: string, portalId: string) =>
     [...portalKeys.forPropertyPortal(propertyId, portalId), 'analytics'] as const,
   /** One window, with or without the period before: each is its own read. */

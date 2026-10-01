@@ -92,7 +92,6 @@ function createFakes(
             ]
           : [],
       getAccessiblePropertyIds: async () => null,
-      findActiveParticipation: async () => null,
     },
   }
   return {
@@ -169,8 +168,8 @@ describe('member authority lifecycle seam', () => {
       ],
       eligibleProperties: ['prop-keep'],
     })
-    // Eligibility is decided by the injected facts: only `prop-keep` resolves
-    // to an active manager membership, so `prop-drop` is the ineligible one.
+    // Eligibility is decided by the injected facts: the manager's grants list
+    // only `prop-keep`, so `prop-drop` is released for lack of a grant.
     const deps: MemberAuthorityLifecycleDeps = {
       ...fakes.deps,
       eligibility: {
@@ -182,8 +181,6 @@ describe('member authority lifecycle seam', () => {
           },
         ],
         getAccessiblePropertyIds: async () => [toPropertyId('prop-keep')],
-        findActiveParticipation: async (_org, propertyId) =>
-          propertyId === 'prop-keep' ? { id: 'participation' } : null,
       },
     }
     const lifecycle = createMemberAuthorityLifecycle(deps)

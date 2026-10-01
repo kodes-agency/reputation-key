@@ -10,6 +10,7 @@
 
 import { Link } from '@tanstack/react-router'
 import {
+  CircleAlert,
   Languages,
   Layers,
   LayoutGrid,
@@ -134,6 +135,13 @@ function SectionLink({
         <span className="hidden items-center gap-1 truncate text-xs font-normal text-muted-foreground lg:flex">
           {summary.locked ? <Lock className="size-3 shrink-0" aria-hidden /> : null}
           <span className="truncate">{summary.text}</span>
+          {summary.attention ? (
+            <span className="flex shrink-0 items-center gap-1 text-foreground">
+              <span aria-hidden>·</span>
+              <CircleAlert className="size-3 text-warn" aria-hidden />
+              {summary.attention}
+            </span>
+          ) : null}
         </span>
       </span>
     </Link>

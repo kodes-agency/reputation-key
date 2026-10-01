@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   isBetaInteractiveMemberRoleToken,
   isBetaInteractiveRole,
-  requiresStaffParticipation,
+  isGrantScopedRole,
 } from './beta-interactive-role'
 
 describe('closed-beta interactive roles', () => {
@@ -17,12 +17,9 @@ describe('closed-beta interactive roles', () => {
   it.each([
     ['AccountAdmin', false],
     ['PropertyManager', true],
-  ] as const)(
-    'reports whether %s needs current Staff participation for Property work',
-    (role, expected) => {
-      expect(requiresStaffParticipation(role)).toBe(expected)
-    },
-  )
+  ] as const)('reports whether %s is limited to granted Properties', (role, expected) => {
+    expect(isGrantScopedRole(role)).toBe(expected)
+  })
 
   it.each(['owner', 'OWNER', ' admin '])('allows Better Auth token %j', (role) => {
     expect(isBetaInteractiveMemberRoleToken(role)).toBe(true)

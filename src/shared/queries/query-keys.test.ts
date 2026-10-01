@@ -142,6 +142,29 @@ describe('goal query keys', () => {
     ])
   })
 
+  it('keeps each window of the overview results in its own read, under the property', () => {
+    expect(portalKeys.resultsOverviewRoot('property-1')).toEqual([
+      'portals',
+      'property',
+      'property-1',
+      'results-overview',
+    ])
+    expect(portalKeys.resultsOverview('property-1', '30d', true)).toEqual([
+      'portals',
+      'property',
+      'property-1',
+      'results-overview',
+      '30d',
+      'compare',
+    ])
+    expect(portalKeys.resultsOverview('property-1', '30d', false)).not.toEqual(
+      portalKeys.resultsOverview('property-1', '30d', true),
+    )
+    expect(portalKeys.resultsOverview('property-1', '7d', true)).not.toEqual(
+      portalKeys.resultsOverview('property-1', '30d', true),
+    )
+  })
+
   it('keeps goal subject data in one property-scoped portal subtree', () => {
     expect(portalKeys.goalSubjects('property-1')).toEqual([
       'portals',
@@ -154,6 +177,22 @@ describe('goal query keys', () => {
       'property-1',
       'names',
     ])
+  })
+})
+
+describe('portal language coverage query key', () => {
+  it('descends from the Portal experience, so a Property-wide or Portal content write refreshes it', () => {
+    const key = portalKeys.languageCoverage('property-1', 'portal-1')
+    expect(key.slice(0, -1)).toEqual(portalKeys.experience('property-1', 'portal-1'))
+    expect(key.slice(0, portalKeys.propertyExperience('property-1').length)).toEqual(
+      portalKeys.propertyExperience('property-1'),
+    )
+  })
+
+  it('is isolated per Portal', () => {
+    expect(portalKeys.languageCoverage('property-1', 'portal-1')).not.toEqual(
+      portalKeys.languageCoverage('property-1', 'portal-2'),
+    )
   })
 })
 

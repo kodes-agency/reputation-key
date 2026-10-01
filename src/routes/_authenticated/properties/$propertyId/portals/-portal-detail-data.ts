@@ -6,7 +6,8 @@ import {
   listPortals,
   listPortalApprovedDestinations,
 } from '#/contexts/portal/server/portals'
-import { listPortalLinks } from '#/contexts/portal/server/portal-links'
+import { getPortalLinktree, listPortalLinks } from '#/contexts/portal/server/portal-links'
+import { getPortalLanguageCoverage } from '#/contexts/portal/server/portal-language-coverage'
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortalResponsibleManagers } from '#/contexts/portal/server/portal-responsible-managers'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
@@ -46,6 +47,20 @@ export const portalLinksQuery = (portalId: string) =>
   queryOptions({
     queryKey: portalKeys.links(portalId),
     queryFn: () => listPortalLinks({ data: { portalId } }),
+    staleTime: 30_000,
+  })
+
+export const portalLanguageCoverageQuery = (propertyId: string, portalId: string) =>
+  queryOptions({
+    queryKey: portalKeys.languageCoverage(propertyId, portalId),
+    queryFn: () => getPortalLanguageCoverage({ data: { portalId } }),
+    staleTime: 30_000,
+  })
+
+export const portalLinktreeQuery = (portalId: string) =>
+  queryOptions({
+    queryKey: portalKeys.linktree(portalId),
+    queryFn: () => getPortalLinktree({ data: { portalId } }),
     staleTime: 30_000,
   })
 
@@ -110,6 +125,10 @@ export const findAuthorizedPortal = async (
 export function usePortalDetailData(propertyId: string, portalId: string) {
   const { data: portalData } = useSuspenseQuery(portalQuery(portalId))
   const { data: linksData } = useSuspenseQuery(portalLinksQuery(portalId))
+  const { data: languageCoverage } = useSuspenseQuery(
+    portalLanguageCoverageQuery(propertyId, portalId),
+  )
+  const { data: linktree } = useSuspenseQuery(portalLinktreeQuery(portalId))
   const { data: groupsData } = useSuspenseQuery(portalGroupsQuery(propertyId))
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: responsibleManagers } = useSuspenseQuery(
@@ -130,6 +149,8 @@ export function usePortalDetailData(propertyId: string, portalId: string) {
   return {
     portalData,
     linksData,
+    languageCoverage,
+    linktree,
     groupsData,
     propData,
     responsibleManagers,

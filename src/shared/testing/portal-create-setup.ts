@@ -22,6 +22,7 @@ import type { PortalGroupRepository } from '#/contexts/portal/application/ports/
 import type { CopiedPortalOverride } from '#/contexts/portal/application/ports/portal-command-store.port'
 import type { PortalLocalizedOverride } from '#/contexts/portal/application/ports/portal-experience.repository'
 import type { PortalApprovedDestination } from '#/contexts/portal/domain/approved-destination'
+import type { PortalGroupHistoryDraft } from '#/contexts/portal/domain/portal-group-history'
 import { createPortal } from '#/contexts/portal/application/use-cases/create-portal'
 
 export const PROPERTY = propertyId('a0000000-0000-0000-0000-000000000001')
@@ -36,7 +37,6 @@ type Manager = Readonly<{
 
 export type CreatePortalSetupOptions = Readonly<{
   accessible?: ReadonlyArray<PropertyId> | null
-  participates?: boolean
   managers?: ReadonlyArray<Manager>
   propertyDefaults?: readonly GuestLocale[]
 }>
@@ -55,6 +55,7 @@ function createGroupRepo() {
     addPortal: async (_org, groupId, pid) => void memberships.set(String(pid), groupId),
     findPortalMembership: async (_org, pid) => memberships.get(String(pid)) ?? null,
     listByProperty: async () => [],
+    listPortalGroupsWithPortals: async () => [],
     nameExists: async () => false,
     insert: async () => {},
     softDelete: async () => {},
@@ -76,7 +77,9 @@ export function setupCreatePortal(options: CreatePortalSetupOptions = {}) {
   const destinations = new Map<string, PortalApprovedDestination>()
   const initialManagers = new Map<string, readonly string[]>()
   const sourceOverrides = new Map<string, readonly PortalLocalizedOverride[]>()
+  const groupHistory: PortalGroupHistoryDraft[] = []
   const commandStore = createInMemoryPortalCommandStore({
+    groupHistory,
     portalRepo,
     portalGroupRepo,
     portalLinkRepo,
@@ -89,8 +92,6 @@ export function setupCreatePortal(options: CreatePortalSetupOptions = {}) {
   const staffPublicApi: StaffPublicApi = {
     getAccessiblePropertyIds: async () => accessible,
     getAssignedPortals: async () => [],
-    findActiveParticipation: async () =>
-      options.participates === false ? null : ({} as never),
   }
   let portalCounter = 0
   let entityCounter = 0
@@ -153,6 +154,7 @@ export function setupCreatePortal(options: CreatePortalSetupOptions = {}) {
     portalGroupRepo,
     outbox,
     commandStore,
+    groupHistory,
     copiedOverrides,
     initialManagers,
     seedDestinations: (rows: readonly PortalApprovedDestination[]) => {

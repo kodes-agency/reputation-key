@@ -426,6 +426,10 @@ Each slice below lists: goal, scope, model changes, tests, gates beyond the stan
 - `e2e/helpers/guest-consent.ts` gains a v3 path.
 - Depends on 12. Size M.
 - **Owner:** the short notice copy must still disclose the session cookie and the network marker (ADR 0044). Until the owner rules, the full disclosure copy is used. The v2 packs carry it as `visitNoticeDetail` (session cookie, network marker, no ads or trackers); slice 17 renders that key, not the shorter `visitNotice`, until the owner approves shorter copy.
+- **Carried forward (from slice 17):**
+  - slice 18: the footer server-renders the acknowledged row (the server cannot read `localStorage`), so an unacknowledged guest sees it swap to the taller notice after hydration. The notice is in flow, so this is a layout shift at the page's end. The CLS observer must measure it on a first visit (no acknowledgement stored), and if it counts, reserve the notice's height until the client snapshot resolves;
+  - the footer's two softer texts are white at 92% and 90%, not the boards' 66% and 56%: the boards' values fail AA on the lightest accepted field and on the peak of a painted wash (`immersive-footer-styles.test.ts`). Ask the designer to redraw G01 and G04 with the contrast-safe values;
+  - slice 30: the unavailable page no longer links a font stylesheet of its own (`fontSetOfMatches` treats a `/p/$token` match with no loader data as the guest set), but the admin live preview still has no such match and links `GUEST_FONT_STYLESHEET` itself.
 
 **18. Guest quality gate (G9), re-scoped.** There is no `toHaveScreenshot` or LCP harness in `e2e/` today. This slice adds:
 
@@ -448,6 +452,7 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
   - a primary locale with missing text is a readiness **blocker**;
   - a non-primary gap is a **warning**, filled from the primary with `fallbackFrom`.
 - Links are flattened in category-then-link order.
+- Drops the started category's title, which the slice 28 editor writes in the Portal's primary language only so that the legacy guest page does not print an English heading to guests of another language (`startedCategoryTitle`, `src/contexts/portal/domain/portal-linktree.ts`).
 - The `current` pack becomes v2 for en and bg.
 - `scripts/seed-e2e-user.ts` moves to v3 with no net growth; helpers are extracted if needed.
 - **Tests:**
@@ -522,6 +527,15 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
   - Phone differs from board 11 in two small ways: "New portal" stays in the page header (no sticky bottom action), and there is no "N portals · By group" summary line.
   - Archive and Restore need the organisation's `portal.write` capability as well as the role, because the server refuses both without it.
 
+- **As built (b).**
+  - The read gained what a label needs: `thresholds`, and each Property row's `timezone` and `localDays`. `getPortalResultsOverviewFn` (Reporting server) takes one Property: the roster and each Portal's group are Portal's `listPortalOverview` (so `portal.read` scoping applies), the window is cut in the Property's zone, and `dashboard.read` is asked for as on the Results tab. The organisation scope is not wired: no route reads it until slice 40, which adds it beside the All properties page.
+  - The page reads results as a separate query, so a slow or refused read never holds the list back. A role without `dashboard.read`, or a beta-dark posture, gets the list without the strip or columns; a real failure says so and offers "Try again".
+  - The strip is the Results tab's own cells (`measureCells`), with "% of scans" read from the row's `engagementFunnel`. The window is a viewing preference shared with the Results tab (All time is not offered and falls back to 30 days).
+  - Measure columns sit between Portal and Responsible. Group heads carry all five measures and a count from `memberPortalIds`; a draft says "No results until it's published". Below 56 rem the same row carries one summary line ("412 qualified scans · 4.4 ★ from 118").
+  - "Sort: Qualified scans" is offered only with results; groups follow their own scans and a row with no figure follows the others. The default sort stays Name, so the list does not reorder when the results arrive.
+  - Not built: "Open results" and "N waiting in Inbox" on the strip (no destination or read exists for them yet).
+  - Review fixes. The overview reads the stored window first on every render, so a range picked on a Results tab is what the overview shows next; a pick storage refused is held for the page only. A Portal's own refusal while listing (`PortalError`) is answered tagged (403, 404), not as an untagged 500. A Property with more than 1000 Portals gets a tagged `too_many_portals` (422), and the page shows its list without results rather than a "Try again" that can never succeed. While a new window loads, the table and footer are dimmed and `aria-busy` like the strip. The measure headers wrap so the table fits from 56 rem up; `e2e/storybook-metrics/portal-overview.metrics.ts` holds that (no sideways scroll from 900 to 1920 px, cards and one summary line below).
+
 **26. New portal: dialog and server side (A4 + F11).**
 
 - `create` gains `groupId?`, `guestLocales?` (default: the property defaults), `startFrom` and `responsibleManagerUserIds?`, all in one transaction. The slug gets an automatic suffix.
@@ -550,6 +564,16 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
 - The category UI is removed.
 - Bringing `link-tree.tsx` under the limit needs an owner patch to `eslint.config.js`.
 - Depends on 10, 27. Size L.
+- **As built.**
+  - `getPortalLinktree` reads the whole section in one call (switch, written titles, each link in guest order with its texts, icon and destination approval); `savePortalLinkTexts` and `saveLinktreeSettings` get server functions. The section's title is "Title on the page" (default "Useful links"), per language, with a "Use default" reset.
+  - `createLink` may leave the category out: the link joins the Portal's last category, and the first link starts one. The category is built only after the label, icon, cap and destination pass, and is handed to the link write (`startCategory`), which commits it, its fact and the link in one transaction under one fence, so a link refused at any point leaves no category behind (a real-PostgreSQL test pins this).
+  - **Guest-visible on merge (principle 3).** Until slice 19 every publication is a v1/v2 snapshot, and the legacy renderer prints a category's title as a heading above the links. The started category is therefore titled in the Portal's primary language: the Linktree title the manager wrote for it, else that language's default ("Useful links", "Полезни връзки"; a small pinned map, tested against the v2 packs). Managers cannot rename it, and a title typed in another language does not reach those pages. Slice 19 drops it when links are flattened.
+  - Moving a tile saves one category's order, so a tile moves only among those of its own category; at a boundary between two older categories its move control is disabled. The category server functions, the drag-and-drop code and the `@dnd-kit` dependencies are removed; the category use cases stay until slice 19 flattens categories in the snapshot.
+  - Typed text (labels, lines, titles) saves through the portal autosave. Re-ordering, icons, the address, adding, deleting and the switch are their own saves, each after any typed text still waiting. The address is checked on the server, so it saves when the field is left.
+  - No photo choice and no "Translate with AI": both wait for uploads and for the AI capability. The approved-destinations card stays under the tiles, because it is where an Account Admin approves a custom address.
+  - The exemption for `link-tree.tsx` in `eslint.config.js` is stale now that the file is under the 300-line limit; removing it is the owner patch (`s28-eslint.patch`).
+  - Moves are planned from the order on screen, including moves still being saved, and the section's saves run one after another, so two quick presses move a tile two places.
+  - **Differences from board 02, accepted for now.** The board draws the section title as an inline row above the tiles (built: a "Title on the page" field with language tabs), drag handles beside each tile (built: keyboard move controls only, because drag-and-drop was removed), photo thumbnails on the tiles (built: icons only, uploads are slice 42), and a per-tile missing-language chip at phone width (built: the language list inside the tile). Slice 30 owns the title row, the handles and the phone chip as a design-fidelity pass beside the preview; slice 42 owns the thumbnails.
 
 **29. Languages section and coverage read (A7).**
 
@@ -564,6 +588,7 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
 - **The draft preview never includes destinations that are not approved;** it shows a "waiting for approval" placeholder tile instead. A test covers this.
 - `PortalPreviewPane`: filmstrip, toggles, and "Try as guest", which writes nothing.
 - Retire the preview Sheet and `use-preview-toggle.ts`.
+- Bring the Linktree section to board 02 where slice 28 differs: the inline title row, drag handles (or an agreed keyboard-only substitute), and the missing-language chip on each tile at phone width.
 - Depends on 6, 8, 12. Size L.
 
 **31. Review & publish (A9).**
@@ -592,6 +617,18 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
 - In-memory store entries.
 - Depends on 4, 32. Size L.
 - **Ops:** the keyring.
+- **As built.**
+  - The ADR is 0064 (`0062` and `0063` are taken on other branches). It amends ADR 0044 decision 1 and invariant 9.
+  - The cipher is `infrastructure/adapters/portal-address-cipher.ts`, behind `PortalAddressCipher` (`seal`, `open`, `canOpen`). The keyring is `<version>:<64 hex>[,...]`, at most four entries, parsed at boot in `env.ts` and again in the adapter; the first entry seals. Production also checks it against the placeholder family.
+  - The `encrypted_raw_token` pair already existed and was never written. Migration 0046 adds `issued_by`, `portal_address_downloads` and a CHECK that only an `active` token holds a sealed address, so every path that leaves `active` (replace, stop, delete) clears both columns in the same statement or the database refuses.
+  - `revealPortalAddress` takes `{ portalId, purpose: 'download' | 'copy' | 'show' }` (saved a file, put an address on the clipboard, or only had it displayed). The order is authorise, find the sealed copy, insert the audit row, decrypt. The insert is one statement that writes nothing for a code that is no longer active and sealed, and a request that cannot disclose writes no row. The server function is a no-store POST with the actor (30 per hour) and Organization (200 per day) limits in `portal-address-rate-limit.server.ts`.
+  - Issue and replace also return `addressRecoverable` (the new address was sealed), which the Share tab trusts over `tokenStatus` until the detail refetch lands, so a newly made sealed code is not told to save the address. "Copy NFC address" starts its clipboard write before the fetch returns (`copyResolvedText`), which Safari needs.
+  - Deferred: board 06-share shows "Made 12 Mar by Georgi Ivanov". `issued_by` is recorded and History names the person, but the Share code block still reads "Made <date>": showing the name there needs the issuer's display name on `tokenStatus` (the summary query, the actor directory in `getPortal` and `listPortalOverview`, and the in-session case where the client does not know the current user's name). Picked up with the History tab in slice 36.
+  - Rolling back below this release needs the sealed copies cleared first (migration 0046's CHECK); runbook §26 "Rolling back below this release" and ADR 0064 consequences say how.
+  - `getPortal` and `listPortalOverview` return `addressRecoverable`: the live code was sealed and the keyring still holds that key. The reveal-once warning and wording go per code when it is true; without a keyring nothing changes. `PortalLinkReveal` stays as the public-address row ("Show address" after a reload).
+  - History gains the issuer's name on address entries and a `code_downloaded` entry per download (the History tab is slice 36). There is no download event: the row is the record.
+  - The new table has its data-fate row, export collection (without the token id) and purge step before `portal_tokens`. `PortalAddressRepository` is the only reader of the ciphertext; the in-memory command store writes and clears a test address repository.
+  - `PORTAL_ADDRESS_ENCRYPTION_KEYS` is documented in `.env.example`, `env.ts` (a runtime environment contract file, so its snapshot is refreshed) and runbook §26.
 
 **34. Results tab (R3 + A11).**
 
@@ -637,6 +674,10 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
 **40. All properties view (A15).**
 
 - `src/routes/_authenticated/portals/index.tsx`, an org-scope branch in `ManagerNavRow`, grouping by property, and organisation totals kept separate from the Google review average.
+- Inherited from 25b (the read already answers an organisation scope; nothing calls it that way yet):
+  - an organisation branch of `getPortalResultsOverviewFn` over the reader's Properties, which needs one roster and one zone per Property (the use case takes `properties[]`);
+  - rendering of the Property subtotal rows, each Property's own window on board 10 (Properties in different time zones read different windows), and the per-Property "not in a group" row;
+  - stories for board 10, and the 1000-Portal roster limit (`too_many_portals`) decided for a whole organisation, which can exceed it where one Property cannot.
 - Depends on 23–25. Size L.
 
 **41. es, it, fr and de packs (L2).**
@@ -656,6 +697,7 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
 - **U4:** a same-origin media route, and removal of the AWS-only `getPublicUrl`.
 - **U5:** garbage collection, takedown, and purge and export deleting the stored objects.
 - **U6:** the board 14 UI (Replace photo dialog, focal-point picker, alt text, rights checkbox, preview), inert while the capability is blocked.
+- Linktree tile photo thumbnails from board 02, which slice 28 leaves as icons.
 - **Owner/ops:** §5.
 
 **43. AI translation capability (AI1–AI4).** Gated on owner decision 3 (§5).

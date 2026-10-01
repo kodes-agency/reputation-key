@@ -3,7 +3,13 @@
 
 import type { portalGroups } from '#/shared/db/schema/portal.schema'
 import type { PortalGroup } from '../../domain/types'
-import { portalGroupId, organizationId, propertyId, unbrand } from '#/shared/domain/ids'
+import {
+  portalGroupId,
+  organizationId,
+  propertyId,
+  unbrand,
+  userId,
+} from '#/shared/domain/ids'
 
 type PortalGroupRow = typeof portalGroups.$inferSelect
 type PortalGroupInsertRow = typeof portalGroups.$inferInsert
@@ -14,6 +20,7 @@ export const portalGroupFromRow = (row: PortalGroupRow): PortalGroup => ({
   propertyId: propertyId(row.propertyId),
   name: row.name,
   sortKey: row.sortKey,
+  createdBy: row.createdBy === null ? null : userId(row.createdBy),
   createdAt: row.createdAt,
   updatedAt: row.updatedAt,
   deletedAt: row.deletedAt,
@@ -25,6 +32,7 @@ export const portalGroupToRow = (group: PortalGroup): PortalGroupInsertRow => ({
   propertyId: unbrand(group.propertyId),
   name: group.name,
   sortKey: group.sortKey,
+  createdBy: group.createdBy === null ? null : unbrand(group.createdBy),
   createdAt: group.createdAt,
   updatedAt: group.updatedAt,
   deletedAt: group.deletedAt,

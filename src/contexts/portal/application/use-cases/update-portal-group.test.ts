@@ -27,6 +27,7 @@ const existing = {
   propertyId: PROP,
   name: 'Old Name',
   sortKey: null,
+  createdBy: null,
   createdAt: new Date('2026-05-01T00:00:00Z'),
   updatedAt: CURRENT_REVISION,
   deletedAt: null,
@@ -52,6 +53,7 @@ function setup(notFound = false, accessible: ReadonlyArray<PropertyId> | null = 
     getGroupPortalIds: async () => [],
     findGroupIdsByPortalIds: async () => [],
     listGroupsForPortals: async () => [],
+    listPortalGroupsWithPortals: async () => [],
     findGroupForPortal: async () => null,
   }
   const useCase = updatePortalGroup({

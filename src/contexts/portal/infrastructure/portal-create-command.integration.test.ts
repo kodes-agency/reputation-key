@@ -54,6 +54,7 @@ const { getPool } = setupIntegrationDb({
     'portal_link_categories',
     'portal_approved_destinations',
     'portal_health_intervals',
+    'portal_group_history',
     'portal_group_memberships',
     'portal_groups',
     'portal_responsible_managers',
@@ -212,6 +213,21 @@ describe.sequential('create Portal command (real PostgreSQL)', () => {
       'portal.created',
       'portal_group.portal_added',
     ])
+    // Every other way into a group leaves an 'added' entry in the group's history; so does this.
+    const history = await getPool().query(
+      `SELECT portal_group_id, kind, portal_id, actor_user_id, occurred_at
+       FROM portal_group_history WHERE organization_id = $1`,
+      [ORG_A],
+    )
+    expect(history.rows).toEqual([
+      {
+        portal_group_id: GROUP,
+        kind: 'portal_added',
+        portal_id: TARGET,
+        actor_user_id: CREATOR,
+        occurred_at: NOW,
+      },
+    ])
   })
 
   it('rolls the Portal back when the group changed since it was read', async () => {
@@ -232,6 +248,7 @@ describe.sequential('create Portal command (real PostgreSQL)', () => {
     expect(await count('portals')).toBe(0)
     expect(await count('portal_responsible_managers')).toBe(0)
     expect(await count('portal_group_memberships')).toBe(0)
+    expect(await count('portal_group_history')).toBe(0)
     expect(await count('outbox_events')).toBe(0)
   })
 

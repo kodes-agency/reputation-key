@@ -16,10 +16,14 @@ import type {
   IdentityMemberRoleChanged,
 } from '../../domain/events'
 
-/** Result of an accepted invitation: the joined org + invited property ids. */
+/**
+ * Result of an accepted invitation: the joined org, the invited property ids,
+ * and who sent it (read under the lock; null only for a row with no inviter).
+ */
 export type AcceptedInvitation = Readonly<{
   organizationId: OrganizationId
   propertyIds: ReadonlyArray<string>
+  inviterId: UserId | null
 }>
 
 /** Read-only invitation preflight before an account is created. */
@@ -31,9 +35,12 @@ export type ValidateInvitationRegistrationCommand = Readonly<{
 
 /**
  * Invite a member: invitation row insert + member.invited fact in one
- * transaction. Guards (matching better-auth's createInvitation semantics):
- * the invitee must not already be a member of the org, and must not have a
- * pending invitation — both throw `already_exists` and record NO fact.
+ * transaction. Guards: the invitee must not already be a member of any
+ * Organization (`already_exists` here, `organization_conflict` elsewhere), and
+ * must not hold a live pending invitation (`already_exists` here, including a
+ * lapsed one — Resend renews it — and `organization_conflict` from another
+ * Organization). Another Organization's lapsed row is marked 'expired' and the
+ * invite proceeds. Refusals record NO fact.
  */
 export type InviteMemberCommand = Readonly<{
   invitationId: InvitationId
@@ -62,12 +69,44 @@ export type AcceptInvitationCommand = Readonly<{
   acceptorUserId: UserId
   now: Date
   buildEvent: (accepted: AcceptedInvitation) => IdentityInvitationAccepted
+  /**
+   * Registration paths only: consuming the emailed link proves the inbox, so
+   * the acceptor's user row is marked email-verified in the same transaction.
+   * A missing or differently addressed user row rolls the acceptance back.
+   * The signed-in accept path never sets it — that user proved nothing about
+   * the address.
+   */
+  markEmailVerified?: boolean
+}>
+
+/**
+ * Renew an invitation (Resend): the same row gets a new expiry and reads
+ * pending again. Accepts a stored 'pending' row (live or lapsed) or an
+ * 'expired' row. Takes the email lock, re-runs the membership guard and the
+ * other-Organization live-invitation guard, and writes no fact. Anything else
+ * → `invitation_not_found`.
+ */
+export type RenewInvitationCommand = Readonly<{
+  invitationId: InvitationId
+  organizationId: OrganizationId
+  now: Date
+  expiresAt: Date
+}>
+
+/** What the renewed row says, for the email that follows. */
+export type RenewedInvitation = Readonly<{
+  email: string
+  /** The raw Better Auth role token ('owner' | 'admin'). */
+  role: string
+  propertyIds: ReadonlyArray<string>
+  expiresAt: Date
 }>
 
 /**
  * Cancel a sent invitation: status update + invitation.canceled fact in one
- * transaction. Throws `invitation_not_found` when no row matches
- * (id + organizationId) — records NO fact.
+ * transaction. Only a pending or expired row can be canceled; throws
+ * `invitation_not_found` when no such row matches (id + organizationId) —
+ * records NO fact.
  */
 export type CancelInvitationCommand = Readonly<{
   invitationId: InvitationId
@@ -107,6 +146,7 @@ export type IdentityCommandStore = Readonly<{
   ): Promise<void>
   inviteMember(command: InviteMemberCommand): Promise<void>
   acceptInvitation(command: AcceptInvitationCommand): Promise<AcceptedInvitation>
+  renewInvitation(command: RenewInvitationCommand): Promise<RenewedInvitation>
   cancelInvitation(command: CancelInvitationCommand): Promise<void>
   removeMember(command: RemoveMemberCommand): Promise<void>
   changeMemberRole(command: ChangeMemberRoleCommand): Promise<void>

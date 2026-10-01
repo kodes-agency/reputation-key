@@ -42,7 +42,6 @@ const setup = (input?: {
   const staffPublicApi = {
     getAccessiblePropertyIds: vi.fn(async () => [PORTAL.propertyId]),
     getAssignedPortals: vi.fn(async () => []),
-    findActiveParticipation: vi.fn(async () => ({}) as never),
   }
   const read = getPortalContactRequestManagerAuthorityFacts({
     portalRepo,

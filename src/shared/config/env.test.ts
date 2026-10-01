@@ -48,6 +48,50 @@ describe('environment parsing', () => {
   })
 })
 
+describe('Portal address keyring', () => {
+  const KEY = (digit: string) => digit.repeat(64)
+
+  it('is optional: boot works without it and the address is shown once', () => {
+    expect(
+      parseEnvironment({ ...testEnvironment({}) }).PORTAL_ADDRESS_ENCRYPTION_KEYS,
+    ).toBe(undefined)
+  })
+
+  it('accepts one entry, or an active key followed by retained ones', () => {
+    for (const keys of [
+      `1:${KEY('a')}`,
+      `3:${KEY('a')},2:${KEY('b')},1:${KEY('c')}`,
+      `9999:${KEY('d')}`,
+    ]) {
+      expect(
+        parseEnvironment({ ...testEnvironment({}), PORTAL_ADDRESS_ENCRYPTION_KEYS: keys })
+          .PORTAL_ADDRESS_ENCRYPTION_KEYS,
+      ).toBe(keys)
+    }
+  })
+
+  it.each([
+    ['an empty value', ''],
+    ['a bare key', KEY('a')],
+    ['a label that is not a number', `v1:${KEY('a')}`],
+    ['version zero', `0:${KEY('a')}`],
+    ['a short key', `1:${'a'.repeat(63)}`],
+    ['upper-case hex', `1:${'A'.repeat(64)}`],
+    ['a repeated version', `1:${KEY('a')},1:${KEY('b')}`],
+    ['five entries', [1, 2, 3, 4, 5].map((n) => `${n}:${KEY('a')}`).join(',')],
+    ['a trailing comma', `1:${KEY('a')},`],
+  ])('refuses %s at boot, naming the field and never the value', (_label, keys) => {
+    let message = ''
+    try {
+      parseEnvironment({ ...testEnvironment({}), PORTAL_ADDRESS_ENCRYPTION_KEYS: keys })
+    } catch (error) {
+      message = String(error)
+    }
+    expect(message).toContain('PORTAL_ADDRESS_ENCRYPTION_KEYS')
+    expect(message).not.toContain(KEY('a'))
+  })
+})
+
 describe('production auth transport policy', () => {
   it('refuses a plaintext auth origin that can be reached over a network', () => {
     // The reason the rule exists: a production auth origin decides

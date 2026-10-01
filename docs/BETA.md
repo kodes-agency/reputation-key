@@ -33,7 +33,7 @@ Written commitments to Google (2026-07-14 response) and to users. Not changeable
 
 ## 3. Product contract
 
-- **Accounts.** An account is created only by consuming a valid email-bound invitation; there is no self-service registration. The one exception is the first AccountAdmin of an empty environment, created by the operator command `ops:bootstrap-owner`, which refuses once any account or Organization exists. Interactive roles are `AccountAdmin` and `PropertyManager`; runtime custom roles are off. A Staff Participant is a manager-maintained profile with no login. No MFA, no step-up, no billing surface.
+- **Accounts.** An account is created only by consuming a valid email-bound invitation; there is no self-service registration. The one exception is the first AccountAdmin of an empty environment, created by the operator command `ops:bootstrap-owner`, which refuses once any account or Organization exists. Interactive roles are `AccountAdmin` and `PropertyManager`; runtime custom roles are off. A Staff Participant is a manager-maintained profile with no login. Consuming the invitation verifies the email address and signs the member in; no separate verification email is sent. Resend renews an invitation's expiry. A password reset also verifies the address. No MFA, no step-up, no billing surface.
 - **Properties.** Beta accepts hotels, resorts, hostels, serviced accommodation, restaurants, cafés, bars and related operator-approved establishments; an unsupported classification is refused. Geographic availability is not localization — the manager app and operational email are English. Editing a Property's country or timezone changes business facts only; it moves no data.
 - **Portal.** A review gateway first, link tree second, with mandatory first-party Portal-scoped analytics that cannot be declined. The visitor gives a private 1–5 rating first; the Google Review Action then stays available to everyone and records only that the visitor selected the verified destination — RepKey cannot observe whether a review was written.
 - At or below the Private Feedback Threshold (inclusive, valid `1..5`, default `3`) the visitor is additionally offered private feedback; `0` and `6` are rejected, so private feedback cannot be disabled and Google is never blocked (`guest-response-lifecycle.test.ts`).
@@ -115,6 +115,7 @@ External obligations (§2) → this page → ADRs → `docs/standards.md` → co
 ## 10. Change log
 
 - 2026-09: replaces the 42-package program as authority.
+- **2026-09-30:** Accounts: consuming an invitation verifies the email address and signs the member in; Resend renews an invitation's expiry; a password reset verifies the address (ADR 0062).
 - **2026-09-15:** Merchant AI notice `merchant-ai-notice-2026-09-15.v1`: AI consent is an explicit acknowledgement of the served notice, the password step-up is removed, and one consent ceremony may cover several Properties (§2).
 - **2026-09-08:** Privacy Notice version 2.0, Google Business Profile Access Disclosure version 2.0, and Closed Beta Participation Agreement version 2.0 accepted by accountable owner Bozhidar Denev without external counsel review.
 - **2026-08-11:** Initial legal registry created from the final EU beta legal copy pack and the consent/privacy engineering specification.

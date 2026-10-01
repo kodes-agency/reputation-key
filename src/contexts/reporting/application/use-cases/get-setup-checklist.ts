@@ -2,7 +2,7 @@ import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import type { Role } from '#/shared/domain/roles'
 import {
   isBetaInteractiveRole,
-  requiresStaffParticipation,
+  isGrantScopedRole,
   type BetaInteractiveRole,
 } from '#/shared/domain/beta-interactive-role'
 import { dashboardError } from '../../domain/dashboard-errors'
@@ -65,7 +65,7 @@ function statusFor(
 ): SetupChecklistStepStatus {
   if (fact.currentlySatisfied) return 'complete'
   if (fact.firstCompletedAt !== null) return 'degraded'
-  if (requiresStaffParticipation(role) && action === null) return 'waiting'
+  if (isGrantScopedRole(role) && action === null) return 'waiting'
   return 'incomplete'
 }
 
@@ -86,7 +86,7 @@ export const getSetupChecklist =
     const role = input.role
 
     if (
-      requiresStaffParticipation(role) &&
+      isGrantScopedRole(role) &&
       input.accessiblePropertyIds !== null &&
       input.accessiblePropertyIds.length === 0
     ) {
@@ -156,7 +156,7 @@ export const getSetupChecklist =
 
     return {
       role,
-      accessState: requiresStaffParticipation(role) ? 'assigned' : 'organization',
+      accessState: isGrantScopedRole(role) ? 'assigned' : 'organization',
       state: overallState(steps),
       steps,
     }

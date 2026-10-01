@@ -6,21 +6,8 @@
 // person types (this portal's own wording override) must stay out, or the field
 // would remount under their hands each time a save landed.
 
-import type { GuestLocale, OfferedGuestLocale } from '#/shared/domain/guest-locale'
-import {
-  isOptionalGuestLocaleEnabled,
-  type PortalExperienceSettings,
-} from '../portal-settings/portal-experience-settings-types'
-
-export function portalLocaleDraftKey(
-  portal: Readonly<{
-    primaryGuestLocale?: GuestLocale
-    additionalGuestLocales?: readonly GuestLocale[]
-  }>,
-): string {
-  const primary = portal.primaryGuestLocale ?? 'en'
-  return JSON.stringify([primary, isOptionalGuestLocaleEnabled(portal)])
-}
+import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
+import type { PortalExperienceSettings } from '../portal-settings/portal-experience-settings-types'
 
 export function portalBrandDraftKey(experience: PortalExperienceSettings): string {
   return JSON.stringify([

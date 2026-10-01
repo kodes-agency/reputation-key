@@ -55,6 +55,89 @@ describe('Auth configuration', () => {
     expect(organizationPlugin?.options?.dynamicAccessControl?.enabled).toBe(false)
   })
 
+  it('leaves sessions and verification of an invited sign-up to the app', async () => {
+    // Invitation-bound registration is the only sign-up caller. Consuming the
+    // invitation verifies the address, and registration then signs in
+    // explicitly — so Better Auth neither mails a second verification link
+    // nor opens a session of its own, in every environment alike.
+    const { resetEnv } = await import('#/shared/config/env')
+    resetEnv()
+
+    const { createAuth } = await import('#/shared/auth/auth')
+    const auth = createAuth()
+
+    expect(auth.options.emailAndPassword?.autoSignIn).toBe(false)
+    expect(auth.options.emailVerification?.sendOnSignUp).toBe(false)
+    // Recovery still needs the sender: the unverified-login "send a new link"
+    // path and Better Auth's own verification routes.
+    expect(auth.options.emailVerification?.sendVerificationEmail).toEqual(
+      expect.any(Function),
+    )
+    expect(auth.options.emailAndPassword?.onPasswordReset).toEqual(expect.any(Function))
+  })
+
+  it('registers no organization-plugin invitation mailer', async () => {
+    // Invitations are app-owned (invite-member / resend-invitation send the
+    // mail); raw invite-member is blocked, so a plugin mailer would be dead
+    // code drifting from the real email contract.
+    const { resetEnv } = await import('#/shared/config/env')
+    resetEnv()
+    const { createAuth } = await import('#/shared/auth/auth')
+    const organizationPlugin = createAuth().options.plugins?.find(
+      (plugin) => plugin.id === 'organization',
+    ) as Readonly<{ options?: Readonly<{ sendInvitationEmail?: unknown }> }> | undefined
+
+    expect(organizationPlugin?.options?.sendInvitationEmail).toBeUndefined()
+  })
+
+  it('a password reset verifies an unverified address, and only that user', async () => {
+    const { markEmailVerifiedOnPasswordReset } = await import('#/shared/auth/auth')
+    const query = vi.fn().mockResolvedValue({ rowCount: 1 })
+    const logger = { error: vi.fn() }
+
+    await markEmailVerifiedOnPasswordReset(
+      { query },
+      logger,
+    )({
+      user: { id: 'user-reset-1' },
+    })
+
+    expect(query).toHaveBeenCalledTimes(1)
+    const [sql, params] = query.mock.calls[0] as [string, unknown[]]
+    expect(sql).toMatch(/UPDATE "user" SET "emailVerified" = true/)
+    expect(sql).toMatch(/WHERE id = \$1 AND "emailVerified" = false/)
+    expect(params).toEqual(['user-reset-1'])
+    expect(logger.error).not.toHaveBeenCalled()
+  })
+
+  it('a failed verification write cannot fail the reset, and is logged without naming the user', async () => {
+    // Better Auth awaits this hook after the password update and BEFORE it
+    // revokes the user's sessions. A throw here would spend the token, change
+    // the password and leave every old session — a stolen one included —
+    // alive. Verification is best-effort; resend-verification still recovers.
+    const { markEmailVerifiedOnPasswordReset } = await import('#/shared/auth/auth')
+    const failure = new Error('canceling statement due to statement timeout')
+    const query = vi.fn().mockRejectedValue(failure)
+    const logger = { error: vi.fn() }
+    // Better Auth hands the hook its whole user row, address included.
+    const user = { id: 'user-reset-2', email: 'reset-2@example.test' }
+
+    await expect(
+      markEmailVerifiedOnPasswordReset({ query }, logger)({ user }),
+    ).resolves.toBeUndefined()
+
+    expect(logger.error).toHaveBeenCalledTimes(1)
+    const [fields, message] = logger.error.mock.calls[0] as [
+      Record<string, unknown>,
+      string,
+    ]
+    // Neither the id nor the address: the line says what failed, not for whom.
+    expect(fields).toEqual({ error: failure })
+    expect(message).toMatch(/auth\.password_reset_verify_failed/)
+    expect(JSON.stringify(fields)).not.toContain('reset-2@example.test')
+    expect(JSON.stringify(fields)).not.toContain('user-reset-2')
+  })
+
   it('keeps verification tokens valid for the 24-hour email promise', async () => {
     const { resetEnv } = await import('#/shared/config/env')
     resetEnv()

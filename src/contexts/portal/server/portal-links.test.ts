@@ -162,8 +162,18 @@ describe('createLink input validation', () => {
     expect(result.success).toBe(false)
   })
 
-  it('rejects missing categoryId', () => {
+  it('accepts a missing categoryId: the link joins the last category', () => {
     const result = createLinkInputSchema.safeParse({
+      portalId: 'portal-123',
+      label: 'Google Review',
+      url: 'https://google.com/review',
+    })
+    expect(result.success).toBe(true)
+  })
+
+  it('rejects an empty categoryId', () => {
+    const result = createLinkInputSchema.safeParse({
+      categoryId: '',
       portalId: 'portal-123',
       label: 'Google Review',
       url: 'https://google.com/review',

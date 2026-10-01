@@ -75,6 +75,8 @@ export const updatePortalGroup =
       portalGroupId: gid,
       expectedUpdatedAt: existing.updatedAt,
       name: newName,
+      previousName: existing.name,
+      changedBy: ctx.userId,
       revision,
       occurredAt,
       event,

@@ -4,7 +4,17 @@ import type { PortalTokenStatus } from '#/contexts/portal/application/public-api
 export type IssuedPortalLink = Readonly<{
   publicUrl: string
   publicUrls?: Readonly<{ qr: string; nfc: string }>
+  /** Set by the page when the address was fetched again rather than made. */
+  revealed?: boolean
+  /**
+   * Set by issue and replace: whether the address they made was sealed. It runs
+   * ahead of `tokenStatus`, which is stale until the detail refetch lands.
+   */
+  addressRecoverable?: boolean
 }>
+
+/** Why the address is wanted; recorded with the disclosure and nothing else. */
+export type RevealPurpose = 'download' | 'copy' | 'show'
 
 export type RotatePortalLinkInput = Readonly<{
   portalId: string
@@ -16,6 +26,11 @@ export type PortalShareMutations = Readonly<{
   issueMutation: Action<{ data: { portalId: string } }, IssuedPortalLink>
   rotateMutation: Action<{ data: RotatePortalLinkInput }, IssuedPortalLink>
   revokeMutation: Action<{ data: { portalId: string; reason: string } }, unknown>
+  /** "Download again": the address of the live code, from its sealed copy. */
+  revealMutation: Action<
+    { data: { portalId: string; purpose: RevealPurpose } },
+    IssuedPortalLink
+  >
 }>
 
 export type PortalShareProps = Readonly<{
@@ -30,6 +45,8 @@ export type PortalShareProps = Readonly<{
    */
   tokenStatus: PortalTokenStatus
   onLinkIssued: (link: IssuedPortalLink) => void
+  /** An address fetched again is held like a made one, until the page is left. */
+  onAddressRevealed: (link: IssuedPortalLink) => void
   onLinksRevoked: () => void
 }> &
   PortalShareMutations

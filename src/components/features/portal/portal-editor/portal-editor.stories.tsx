@@ -100,6 +100,36 @@ function makeResources(
         categoryId: 'cat-1',
       },
     ],
+    linktree: {
+      portalId: 'p-1',
+      enabled: true,
+      maxLinks: 4,
+      primaryLocale: 'en' as const,
+      locales: ['en' as const, 'bg' as const],
+      titles: {},
+      links: [
+        {
+          id: 'l-1',
+          categoryId: 'cat-1',
+          url: 'https://google.com',
+          iconKey: null,
+          sortKey: 'a',
+          texts: [
+            {
+              locale: 'en' as const,
+              label: 'Google Reviews',
+              line: null,
+              provenance: null,
+            },
+          ],
+          destination: {
+            state: 'approved' as const,
+            sourceType: 'recognized' as const,
+            approvedByUserId: 'u-1',
+          },
+        },
+      ],
+    },
     updateMutation: action(async (_input: UpdatePortalVariables) => undefined),
     autosaveUpdateMutation,
     completeReviewMutation: action(async (_input: CompleteReviewVariables) => ({
@@ -222,8 +252,87 @@ function sectionStory(section: PortalEditorSection, heading: string): Story {
 export const LookSection: Story = sectionStory('look', 'Look')
 export const RatingSection: Story = sectionStory('rating', 'Rating & Google')
 export const LinktreeSection: Story = sectionStory('linktree', 'Linktree')
+
+async function openTileMenu(canvasElement: HTMLElement) {
+  await userEvent.click(
+    await within(canvasElement).findByRole('button', {
+      name: 'More actions for Google Reviews',
+    }),
+  )
+}
+
+export const AccountAdminCanDeleteALink: Story = {
+  args: {
+    resources: makeResources(action(async () => undefined)),
+    requestedSection: 'linktree',
+  },
+  play: async ({ canvasElement }) => {
+    await openTileMenu(canvasElement)
+    await expect(
+      within(document.body).getByRole('menuitem', { name: 'Delete link' }),
+    ).toBeVisible()
+  },
+}
+
+// `deleteLink` asks for `portal.delete`, which a property manager does not hold:
+// the tile must not offer what the server would refuse.
+export const PropertyManagerCanEditButNotDeleteALink: Story = {
+  args: {
+    resources: makeResources(action(async () => undefined)),
+    requestedSection: 'linktree',
+  },
+  decorators: [withRole('PropertyManager')],
+  play: async ({ canvasElement }) => {
+    await openTileMenu(canvasElement)
+    const body = within(document.body)
+    await expect(body.getByRole('menuitem', { name: 'Edit' })).toBeVisible()
+    await expect(body.queryByRole('menuitem', { name: 'Delete link' })).toBeNull()
+  },
+}
+
 export const LanguagesSection: Story = sectionStory('languages', 'Languages')
 export const ResponsibleSection: Story = sectionStory('responsible', 'Responsible')
+
+// The section list flags what the coverage read says is missing, beside the count.
+export const LanguagesFlagMissingText: Story = {
+  args: {
+    resources: {
+      ...makeResources(action(async () => undefined)),
+      languageCoverage: {
+        portalId: 'p-1',
+        fallbackLocale: 'en',
+        languages: [
+          { locale: 'en', isFallback: true, total: 3, present: 3, missing: [] },
+          {
+            locale: 'bg',
+            isFallback: false,
+            total: 3,
+            present: 2,
+            missing: [
+              {
+                key: 'link:l-1',
+                kind: 'link_label',
+                linkId: 'l-1',
+                linkLabel: 'Menu',
+                blocksPublish: false,
+              },
+            ],
+          },
+        ],
+        missingTotal: 1,
+      },
+    },
+    requestedSection: 'languages',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const nav = within(canvas.getByRole('navigation', { name: 'Editor sections' }))
+    await expect(nav.getByRole('link', { name: /^Languages/ })).toHaveTextContent(
+      /2 languages.*1 missing/,
+    )
+    await expect(canvas.getByText('2 of 3 · 1 missing')).toBeVisible()
+  },
+}
 
 export const AutosavesTheDescription: Story = {
   args: { resources: makeResources(action(async () => undefined)) },

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import { privateFeedbackTextSchema } from './private-feedback.dto'
+import {
+  PRIVATE_FEEDBACK_MAX_LENGTH,
+  privateFeedbackTextSchema,
+} from './private-feedback.dto'
 
 describe('privateFeedbackTextSchema', () => {
   it('normalizes line endings and preserves paragraphs at the application boundary', () => {
@@ -8,6 +11,12 @@ describe('privateFeedbackTextSchema', () => {
         '  First line\r\nsecond line\r\r\nThird paragraph  ',
       ),
     ).toBe('First line\nsecond line\n\nThird paragraph')
+  })
+
+  it('exposes the maximum the schema enforces, for forms that mirror it', () => {
+    const at = '😀'.repeat(PRIVATE_FEEDBACK_MAX_LENGTH)
+    expect(privateFeedbackTextSchema.safeParse(at).success).toBe(true)
+    expect(privateFeedbackTextSchema.safeParse(`${at}😀`).success).toBe(false)
   })
 
   it('uses Unicode code points for the 2000-character boundary', () => {

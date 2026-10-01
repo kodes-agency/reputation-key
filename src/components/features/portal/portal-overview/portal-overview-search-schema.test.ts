@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  defaultSortDirection,
   portalOverviewSearchPatch,
   portalOverviewSearchSchema,
 } from './portal-overview-search-schema'
@@ -50,6 +51,16 @@ describe('portalOverviewSearchSchema', () => {
     }
     expect(portalOverviewSearchSchema.parse({ new: false })).toEqual({})
     expect(portalOverviewSearchSchema.parse({ new: 'maybe' })).toEqual({})
+  })
+
+  it('reads the sort by qualified scans, most first unless told otherwise', () => {
+    expect(portalOverviewSearchSchema.parse({ sort: 'scans' })).toEqual({ sort: 'scans' })
+    expect(defaultSortDirection('scans')).toBe('desc')
+    expect(portalOverviewSearchPatch({}, { sort: 'scans' })).toEqual({ sort: 'scans' })
+    expect(portalOverviewSearchPatch({ sort: 'scans' }, { dir: 'asc' })).toEqual({
+      sort: 'scans',
+      dir: 'asc',
+    })
   })
 
   it('reads a page number the router left as a string', () => {

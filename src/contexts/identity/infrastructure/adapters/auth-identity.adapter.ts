@@ -33,7 +33,6 @@ import {
   parseBetterAuthResponse,
   signUpResponseSchema,
   listMembersResponseSchema,
-  listInvitationsResponseSchema,
   listUserInvitationsResponseSchema,
   betterAuthOrganizationSchema,
 } from './better-auth-schemas'
@@ -178,28 +177,6 @@ export const createBetterAuthIdentityAdapter = (
     // membership is implicitly verified. No cross-tenant risk in practice.
     async getMember(_ctx: AuthContext, memberId: string): Promise<MemberRecord | null> {
       return getMemberImpl(memberId)
-    },
-
-    async listInvitations(_ctx: AuthContext): Promise<ReadonlyArray<InvitationRecord>> {
-      const headers = await deps.requestContext.currentRequestHeaders()
-      const result = await auth.api.listInvitations({ headers })
-
-      const invitations = parseBetterAuthResponse(
-        listInvitationsResponseSchema,
-        result,
-        'org_setup_failed',
-        'listInvitations response did not match expected schema',
-      )
-      return invitations.map((inv): InvitationRecord => ({
-        id: inv.id,
-        email: inv.email,
-        role: toDomainRole(inv.role),
-        rawRole: inv.role,
-        status: inv.status,
-        expiresAt: inv.expiresAt,
-        createdAt: inv.createdAt,
-        propertyIds: parsePropertyIds(inv.propertyIds),
-      }))
     },
 
     async listUserInvitations(

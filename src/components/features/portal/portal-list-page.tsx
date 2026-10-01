@@ -4,9 +4,12 @@
 // shows only its name, its code and its languages.
 //
 // Presentational: the route owns the reads and the URL; this page receives the
-// search and reports changes through `onSearchChange`. The results strip and the
-// measure columns join in slice 25b. Portal Group management stays below the
-// table until the group page (slice 38) replaces it.
+// search and reports changes through `onSearchChange`. The results (the strip
+// above the table and the measure columns in it) arrive as a separate read and
+// are optional: a role that may not read results gets the list without them.
+// Portal Group management stays below the table until the group page (slice 38)
+// replaces it.
+import type { ReactNode } from 'react'
 import { Globe, Plus, SearchX } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
@@ -19,12 +22,20 @@ import { PortalGroupManagement, type PortalGroupView } from './portal-group-mana
 import type { PortalArchiveMutations } from './portal-overview/portal-archive-dialog'
 import { PortalOverviewPager } from './portal-overview/portal-overview-pager'
 import {
+  PortalOverviewResultsFooter,
+  PortalOverviewResultsStrip,
+  type PortalOverviewResultsControls,
+} from './portal-overview/portal-overview-results-strip'
+import type { PortalOverviewResultsState } from './portal-overview/portal-overview-results'
+import {
+  defaultSortDirection,
   portalOverviewSearchPatch,
   type PortalOverviewSearch,
 } from './portal-overview/portal-overview-search-schema'
 import { PortalOverviewTable } from './portal-overview/portal-overview-table'
 import { PortalOverviewToolbar } from './portal-overview/portal-overview-toolbar'
 import {
+  PORTAL_OVERVIEW_PAGE_SIZE,
   buildPortalOverview,
   type PortalManagerName,
 } from './portal-overview/portal-overview-view'
@@ -39,6 +50,8 @@ export type PortalListPageProps = PortalArchiveMutations &
     members?: readonly PortalManagerName[]
     propertyId: string
     propertyName: string
+    /** The results beside the list; left out, the list is shown without them. */
+    results?: PortalOverviewResultsControls
     search: PortalOverviewSearch
     onSearchChange: (next: PortalOverviewSearch) => void
     /** What the New portal dialog needs; null until the Property's options have loaded. */
@@ -62,11 +75,98 @@ const describe = (count: number, propertyName: string): string | undefined => {
   return `${count === 1 ? '1 portal' : `${count} portals`} at ${propertyName}`
 }
 
+type PortalListBodyProps = Readonly<{
+  isEmpty: boolean
+  newPortalButton: ReactNode
+  results: PortalListPageProps['results']
+  resultsState: PortalOverviewResultsState
+  listSearch: PortalOverviewSearch
+  overview: ReturnType<typeof buildPortalOverview>
+  propertyId: string
+  propertyName: string
+  archiveMutation: PortalListPageProps['archiveMutation']
+  restoreMutation: PortalListPageProps['restoreMutation']
+  onChange: (patch: Partial<PortalOverviewSearch>) => void
+}>
+
+function PortalListBody({
+  isEmpty,
+  newPortalButton,
+  results,
+  resultsState,
+  listSearch,
+  overview,
+  propertyId,
+  propertyName,
+  archiveMutation,
+  restoreMutation,
+  onChange,
+}: PortalListBodyProps) {
+  return isEmpty ? (
+    <EmptyState icon={Globe} title="No portals yet">
+      <p className="text-sm text-muted-foreground">
+        Create a portal to set up a guest-facing page with links.
+      </p>
+      {newPortalButton}
+    </EmptyState>
+  ) : (
+    <>
+      {results ? (
+        <PortalOverviewResultsStrip controls={results} propertyId={propertyId} />
+      ) : null}
+      <section aria-label="Portal list" className="flex flex-col gap-4">
+        <PortalOverviewToolbar
+          search={listSearch}
+          matched={overview.matched}
+          total={overview.total}
+          canSortByScans={resultsState.status !== 'off'}
+          onChange={onChange}
+        />
+        {overview.matched === 0 ? (
+          <EmptyState icon={SearchX} title="No portals match">
+            <Button
+              variant="outline"
+              onClick={() => onChange({ q: undefined, show: undefined })}
+            >
+              Clear search and filter
+            </Button>
+          </EmptyState>
+        ) : (
+          <>
+            <PortalOverviewTable
+              sections={overview.sections}
+              propertyId={propertyId}
+              propertyName={propertyName}
+              archiveMutation={archiveMutation}
+              restoreMutation={restoreMutation}
+              results={resultsState}
+              busy={results?.busy}
+              scansOrder={
+                listSearch.sort === 'scans'
+                  ? (listSearch.dir ?? defaultSortDirection('scans'))
+                  : undefined
+              }
+            />
+            <PortalOverviewPager
+              overview={overview}
+              onPage={(page) => onChange({ page })}
+            />
+            {results ? (
+              <PortalOverviewResultsFooter controls={results} propertyId={propertyId} />
+            ) : null}
+          </>
+        )}
+      </section>
+    </>
+  )
+}
+
 export function PortalListPage({
   rows,
   members = [],
   propertyId,
   propertyName,
+  results,
   search,
   onSearchChange,
   archiveMutation,
@@ -80,7 +180,19 @@ export function PortalListPage({
   removePortalFromGroupMutation,
 }: PortalListPageProps) {
   const { can } = usePermissions()
-  const overview = buildPortalOverview(rows, search, members)
+  const resultsState: PortalOverviewResultsState = results?.state ?? { status: 'off' }
+  // Without results there is nothing to sort by scans, whatever a bookmark says.
+  const listSearch =
+    resultsState.status === 'off' && search.sort === 'scans'
+      ? { ...search, sort: undefined, dir: undefined }
+      : search
+  const overview = buildPortalOverview(
+    rows,
+    listSearch,
+    members,
+    PORTAL_OVERVIEW_PAGE_SIZE,
+    resultsState.status === 'ready' ? resultsState.index.sortFigures : undefined,
+  )
   const update = (patch: Partial<PortalOverviewSearch>) =>
     onSearchChange(portalOverviewSearchPatch(search, patch))
 
@@ -106,47 +218,19 @@ export function PortalListPage({
       />
       <FormErrorBanner error={archiveMutation.error ?? restoreMutation.error} />
 
-      {rows.length === 0 ? (
-        <EmptyState icon={Globe} title="No portals yet">
-          <p className="text-sm text-muted-foreground">
-            Create a portal to set up a guest-facing page with links.
-          </p>
-          {newPortalButton}
-        </EmptyState>
-      ) : (
-        <section aria-label="Portal list" className="flex flex-col gap-4">
-          <PortalOverviewToolbar
-            search={search}
-            matched={overview.matched}
-            total={overview.total}
-            onChange={update}
-          />
-          {overview.matched === 0 ? (
-            <EmptyState icon={SearchX} title="No portals match">
-              <Button
-                variant="outline"
-                onClick={() => update({ q: undefined, show: undefined })}
-              >
-                Clear search and filter
-              </Button>
-            </EmptyState>
-          ) : (
-            <>
-              <PortalOverviewTable
-                sections={overview.sections}
-                propertyId={propertyId}
-                propertyName={propertyName}
-                archiveMutation={archiveMutation}
-                restoreMutation={restoreMutation}
-              />
-              <PortalOverviewPager
-                overview={overview}
-                onPage={(page) => update({ page })}
-              />
-            </>
-          )}
-        </section>
-      )}
+      <PortalListBody
+        isEmpty={rows.length === 0}
+        newPortalButton={newPortalButton}
+        results={results}
+        resultsState={resultsState}
+        listSearch={listSearch}
+        overview={overview}
+        propertyId={propertyId}
+        propertyName={propertyName}
+        archiveMutation={archiveMutation}
+        restoreMutation={restoreMutation}
+        onChange={update}
+      />
       {canCreate ? (
         <PortalNewDialog
           open={search.new === true}

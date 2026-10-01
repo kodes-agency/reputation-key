@@ -106,6 +106,7 @@ export type BuildPortalGroupInput = Readonly<{
   propertyId: PropertyId
   name: string
   sortKey?: string
+  createdBy?: UserId
   now: Date
 }>
 
@@ -119,6 +120,7 @@ export const buildPortalGroup = (
     propertyId: input.propertyId,
     name: validName,
     sortKey: input.sortKey ?? null,
+    createdBy: input.createdBy ?? null,
     createdAt: input.now,
     updatedAt: input.now,
     deletedAt: null,

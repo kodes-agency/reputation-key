@@ -91,6 +91,12 @@ async function seedFixture(): Promise<Fixture> {
     [fixture.portalGroupId, organizationId, fixture.propertyId],
   )
   await q(
+    `INSERT INTO portal_group_history (id, organization_id, property_id, portal_group_id,
+                                       kind, name, actor_user_id, occurred_at)
+     VALUES ($1, $2, $3, $4, 'created', 'Ground floor', $5, now())`,
+    [randomUUID(), organizationId, fixture.propertyId, fixture.portalGroupId, actor],
+  )
+  await q(
     `INSERT INTO portals (id, organization_id, property_id, entity_id, name, slug,
                           publication_state, created_at, updated_at)
      VALUES ($1, $2, $3, $4, 'Front Desk', 'front-desk', 'published', now(), now())`,
@@ -101,12 +107,24 @@ async function seedFixture(): Promise<Fixture> {
      VALUES ($1, $2, $3, $4, now())`,
     [randomUUID(), fixture.portalGroupId, fixture.portalId, organizationId],
   )
+  const mediaAssetId = randomUUID()
+  await q(
+    `INSERT INTO portal_media_assets (
+       id, organization_id, property_id, purpose, object_key, content_type, width,
+       height, byte_size, content_sha256, source_format, source_bytes,
+       rights_confirmed_at, created_by
+     ) VALUES ($1::uuid, $2, $3, 'hero', 'portal-media/' || $1::text || '.webp', 'image/webp',
+               2400, 1600, 180000, repeat('a', 64), 'jpeg', 2500000, now(), $4)`,
+    [mediaAssetId, organizationId, fixture.propertyId, actor],
+  )
   await q(
     `INSERT INTO property_portal_brand_profiles (
        id, organization_id, property_id, display_name, primary_color,
-       background_color, text_color, updated_by, created_at, updated_at
-     ) VALUES ($1, $2, $3, 'Harbour House', '#112233', '#FFFFFF', '#000000', $4, now(), now())`,
-    [randomUUID(), organizationId, fixture.propertyId, actor],
+       background_color, text_color, hero_asset_id, hero_focal_x, hero_focal_y,
+       updated_by, created_at, updated_at
+     ) VALUES ($1, $2, $3, 'Harbour House', '#112233', '#FFFFFF', '#000000', $5, 0.5, 0.5,
+               $4, now(), now())`,
+    [randomUUID(), organizationId, fixture.propertyId, actor, mediaAssetId],
   )
   await q(
     `INSERT INTO property_portal_brand_contents (
@@ -149,8 +167,8 @@ async function seedFixture(): Promise<Fixture> {
   await q(
     `INSERT INTO portal_links (id, category_id, portal_id, organization_id, property_id,
                                label, destination_id, legacy_destination_state, sort_key,
-                               created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, 'Menu', $6, 'migrated', 'a', now(), now())`,
+                               image_asset_id, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, 'Menu', $6, 'migrated', 'a', $7, now(), now())`,
     [
       linkId,
       categoryId,
@@ -158,6 +176,7 @@ async function seedFixture(): Promise<Fixture> {
       organizationId,
       fixture.propertyId,
       fixture.destinationId,
+      mediaAssetId,
     ],
   )
   await q(
@@ -191,6 +210,13 @@ async function seedFixture(): Promise<Fixture> {
     [randomUUID(), ...scope, fixture.tokenId],
   )
   await q(
+    `INSERT INTO portal_address_downloads (id, organization_id, property_id, portal_id,
+                                           portal_token_id, downloaded_by, purpose,
+                                           downloaded_at)
+     VALUES ($1, $2, $3, $4, $5, $6, 'download', now())`,
+    [randomUUID(), ...scope, fixture.tokenId, actor],
+  )
+  await q(
     `INSERT INTO portal_publication_snapshots (
        id, organization_id, property_id, portal_id, version, configuration_digest,
        configuration, guest_locale, language_pack_version, private_feedback_threshold,
@@ -221,6 +247,41 @@ async function seedFixture(): Promise<Fixture> {
     [randomUUID(), ...scope],
   )
   return fixture
+}
+
+async function seedMediaOnlyFixture(): Promise<Fixture> {
+  const organizationId = `portal-lifecycle-org-${randomUUID()}`
+  organizations.add(organizationId)
+  const propertyId = randomUUID()
+  await lease.pool.query(
+    `INSERT INTO organization (id, name, slug, "createdAt")
+     VALUES ($1, 'Media Only Fixture', $1, now())`,
+    [organizationId],
+  )
+  await lease.pool.query(
+    `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
+     VALUES ($1, $2, 'Harbour House', 'harbour-house', 'UTC', now(), now())`,
+    [propertyId, organizationId],
+  )
+  await lease.pool.query(
+    `INSERT INTO portal_media_assets (
+       id, organization_id, property_id, purpose, object_key, content_type, width,
+       height, byte_size, content_sha256, source_format, source_bytes,
+       rights_confirmed_at, created_by
+     ) VALUES ($1::uuid, $2, $3, 'hero', 'portal-media/' || $1::text || '.webp', 'image/webp',
+               2400, 1600, 180000, repeat('a', 64), 'jpeg', 2500000, now(), 'media-only-actor')`,
+    [randomUUID(), organizationId, propertyId],
+  )
+  return {
+    organizationId,
+    propertyId,
+    portalId: '',
+    portalGroupId: '',
+    snapshotId: '',
+    activationId: '',
+    tokenId: '',
+    destinationId: '',
+  }
 }
 
 async function seedAuthority(
@@ -334,6 +395,7 @@ async function deleteReceiptFixtures(organizationIds: readonly string[]): Promis
 }
 
 const CLEANUP_ORDER = [
+  'portal_address_downloads',
   'portal_access_artifacts',
   'portal_pending_content_changes',
   'portal_publication_activations',
@@ -349,7 +411,9 @@ const CLEANUP_ORDER = [
   'portal_approved_destinations',
   'property_portal_brand_contents',
   'property_portal_brand_profiles',
+  'portal_media_assets',
   'portals',
+  'portal_group_history',
   'portal_groups',
   'properties',
 ] as const
@@ -467,6 +531,61 @@ describe.sequential('Portal Organization lifecycle contributor', () => {
     expect(result).toEqual({
       outcome: 'no_data',
       evidenceRef: `portal:closing:no_data:${lineage}:r${revision}`,
+    })
+  })
+
+  // A hero or logo upload needs only a Property: no Portal, no Brand Profile.
+  // Such an Organization still owns Portal-context rows, and the Property
+  // contributor (which runs after this one) cannot delete the Property until
+  // the Portal contributor has removed them.
+  describe('an Organization whose only Portal rows are media assets', () => {
+    it('reports complete, not no_data, on Closing', async () => {
+      const fixture = await seedMediaOnlyFixture()
+      const lineage = randomUUID()
+      const revision = await seedAuthority(fixture, lineage, 'closure_requested')
+
+      const result = await createPortalOrganizationLifecycleContributor(
+        db,
+      ).prepareClosing(input(fixture, lineage, revision))
+
+      expect(result.outcome).toBe('complete')
+    })
+
+    it('reports complete, not no_data, on purge readiness', async () => {
+      const fixture = await seedMediaOnlyFixture()
+      const lineage = randomUUID()
+      const revision = await seedAuthority(fixture, lineage, 'closing')
+
+      const result = await createPortalOrganizationLifecycleContributor(
+        db,
+      ).verifyPurgeReadiness(input(fixture, lineage, revision))
+
+      expect(result.outcome).toBe('complete')
+    })
+
+    it('purges the asset, after which the Property can be deleted', async () => {
+      const fixture = await seedMediaOnlyFixture()
+      const lineage = randomUUID()
+      const revision = await seedAuthority(fixture, lineage, 'purging')
+
+      const purged = await createPortalOrganizationLifecycleContributor(db).purge(
+        input(fixture, lineage, revision),
+      )
+
+      expect(purged).toEqual({
+        outcome: 'complete',
+        evidenceRef: `portal:purge:complete:${lineage}:r${revision}`,
+      })
+      const left = await lease.pool.query(
+        `SELECT COUNT(*)::int AS count FROM portal_media_assets WHERE organization_id = $1`,
+        [fixture.organizationId],
+      )
+      expect(Number(left.rows[0]?.count)).toBe(0)
+      await expect(
+        lease.pool.query(`DELETE FROM properties WHERE organization_id = $1`, [
+          fixture.organizationId,
+        ]),
+      ).resolves.toBeDefined()
     })
   })
 

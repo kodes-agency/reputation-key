@@ -3,6 +3,8 @@ import { portalAccessArtifactId, unbrand, portalId } from '#/shared/domain/ids'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
 import type { PortalTokenCodec } from '../ports/portal-token-codec.port'
+import type { PortalAddressCipher } from '../ports/portal-address-cipher.port'
+import { buildPortalPublicUrls } from '../portal-address-urls'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import { issueToken } from '../../domain/portal-token'
@@ -16,6 +18,8 @@ export type IssuePortalTokenDeps = Readonly<{
   portalRepo: PortalRepository
   portalTokenRepo: PortalTokenRepository
   tokenCodec: PortalTokenCodec
+  /** Null when no keyring is configured: the address is then shown once (ADR 0064). */
+  addressCipher: PortalAddressCipher | null
   staffPublicApi: StaffPublicApi
   commandStore: PortalCommandStore
   idGen: () => string
@@ -30,6 +34,8 @@ export type IssuedPortalTokenResult = Readonly<{
   tokenIdentifier: string
   version: number
   issuedAt: Date
+  /** The address was sealed, so a manager can download it again (ADR 0064). */
+  addressRecoverable: boolean
 }>
 
 export const issuePortalToken =
@@ -64,6 +70,14 @@ export const issuePortalToken =
       version: (latest?.version ?? 0) + 1,
       now: occurredAt,
     })
+    const sealedAddress =
+      deps.addressCipher?.seal(material.rawToken, {
+        organizationId: token.organizationId,
+        propertyId: token.propertyId,
+        portalId: token.portalId,
+        tokenId: token.id,
+        version: token.version,
+      }) ?? null
     const event = portalTokenIssued({
       portalId: portal.id,
       organizationId: portal.organizationId,
@@ -109,21 +123,19 @@ export const issuePortalToken =
       portalId: portal.id,
       expectedPortalUpdatedAt: portal.updatedAt,
       token,
+      // fallow-ignore-next-line code-duplication
+      issuedBy: ctx.userId,
+      sealedAddress,
       accessArtifacts,
       revision,
       occurredAt,
       event,
       accessArtifactEvents,
     })
-    const publicUrlFor = (artifact: (typeof accessArtifacts)[number]) => {
-      const url = new URL(`/p/${material.rawToken}`, deps.baseUrl)
-      url.searchParams.set('accessArtifact', artifact.id)
-      return url.toString()
-    }
-    const publicUrls = {
-      qr: publicUrlFor(qrArtifact),
-      nfc: publicUrlFor(nfcArtifact),
-    }
+    const publicUrls = buildPortalPublicUrls(deps.baseUrl, material.rawToken, {
+      qr: qrArtifact.id,
+      nfc: nfcArtifact.id,
+    })
     return {
       rawToken: material.rawToken,
       publicUrl: publicUrls.qr,
@@ -131,6 +143,7 @@ export const issuePortalToken =
       tokenIdentifier: token.tokenIdentifier,
       version: token.version,
       issuedAt: token.issuedAt,
+      addressRecoverable: sealedAddress !== null,
     }
   }
 

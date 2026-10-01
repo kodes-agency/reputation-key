@@ -16,13 +16,11 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import type { IdentityPort } from './application/ports/identity.port'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import {
-  invitationId,
   portalId,
   type OrganizationId,
   type PropertyId,
   type UserId,
 } from '#/shared/domain/ids'
-import { inviteMember } from './application/use-cases/invite-member'
 import { createCustomRole } from './application/use-cases/create-custom-role'
 import { updateCustomRole } from './application/use-cases/update-custom-role'
 import { deleteCustomRole } from './application/use-cases/delete-custom-role'
@@ -33,16 +31,9 @@ import {
   type MemberOffboarding,
 } from './application/use-cases/leave-organization'
 import { identityError } from './domain/errors'
-import { listInvitations } from './application/use-cases/list-invitations'
-import { resendInvitation } from './application/use-cases/resend-invitation'
-import { acceptInvitation } from './application/use-cases/accept-invitation'
-import { cancelInvitation } from './application/use-cases/cancel-invitation'
-import { registerUser } from './application/use-cases/register-user'
-import { registerInvitedUser } from './application/use-cases/register-invited-user'
-import { recoverInvitedRegistrations } from './application/use-cases/recover-invited-registrations'
 import { updateOrganization } from './application/use-cases/update-organization'
 import { createAtomicIdentityCommandStore } from './infrastructure/identity-command-store'
-import { createInvitedRegistrationStore } from './infrastructure/invited-registration-store'
+import { buildInvitationUseCases, type InvitationUseCaseDeps } from './build-invitations'
 import { buildCapabilityPolicyHandle } from './infrastructure/policy-store-init'
 import { createPolicyAdminOps } from './application/use-cases/policy-admin'
 import { createPolicyDiagnostic } from '#/shared/auth/policy-diagnostic'
@@ -129,10 +120,6 @@ import {
   listStaffParticipations,
   updatePortalResponsibilities,
 } from './application/use-cases/staff-participations'
-import {
-  decideCurrentUserParticipationAuthority,
-  type CurrentUserParticipationAuthorityDatabase,
-} from './infrastructure/repositories/current-user-participation-authority'
 import { createPrimaryStaffAttributionResolver } from './infrastructure/primary-staff-attribution'
 import { submitBetaFeedback } from './application/use-cases/submit-beta-feedback'
 import { listMyBetaFeedback } from './application/use-cases/list-my-beta-feedback'
@@ -203,16 +190,13 @@ type IdentityContextDeps = Readonly<{
    */
   authSession: AuthSession
   /** Send an invitation email. */
-  sendEmail: (params: {
-    email: string
-    invitedByUsername: string
-    organizationName: string
-    inviteLink: string
-  }) => Promise<void>
+  sendEmail: InvitationUseCaseDeps['sendEmail']
   /** Base URL for building invitation links. */
   baseUrl: string
   /** Invitation lifetime in ms (INVITATION_EXPIRY_SECONDS in shared/auth/auth). */
   invitationExpiresInMs: number
+  /** Property display names, from the Property public API (composition). */
+  propertyNames: InvitationUseCaseDeps['propertyNames']
   /** Logger supplied by the process composition boundary. */
   logger: LoggerPort
   /** Keys the content-free beta-feedback telemetry pseudonyms. */
@@ -465,12 +449,7 @@ function buildOrganizationLifecycleComposition(
   return { organizationLifecycle, runtime: organizationLifecycleRuntime }
 }
 
-function buildPeopleSurface(
-  deps: Pick<
-    IdentityContextDeps,
-    'db' | 'clock' | 'idGen' | 'reconcileResponsibleManagerEligibility'
-  >,
-) {
+function buildPeopleSurface(deps: Pick<IdentityContextDeps, 'db' | 'clock' | 'idGen'>) {
   const accessiblePropertyLookup = createGrantAccessLookup(deps.db, deps.clock)
   const participationRepo = createStaffParticipationRepository(deps.db)
   const resolvePrimaryStaffAttribution = createPrimaryStaffAttributionResolver(deps.db)
@@ -518,11 +497,6 @@ function buildPeopleSurface(
     resolvePrimaryStaffAttribution,
     findParticipationById: (organizationId: OrganizationId, participationId: string) =>
       participationRepo.findById(organizationId, participationId),
-    findActiveParticipation: (
-      organizationId: OrganizationId,
-      propertyId: PropertyId,
-      userId: UserId,
-    ) => participationRepo.findActiveByUser(organizationId, propertyId, userId),
     listActiveParticipations: (organizationId: OrganizationId, propertyId: PropertyId) =>
       participationRepo.list(organizationId, { propertyId, activeOnly: true }),
   })
@@ -545,7 +519,6 @@ function buildPeopleSurface(
       accessibleProperties: accessiblePropertyLookup,
       clock: deps.clock,
       idGen: deps.idGen,
-      reconcileResponsibleManagerEligibility: deps.reconcileResponsibleManagerEligibility,
     }),
     updatePortalResponsibilities: updatePortalResponsibilities({
       repo: participationRepo,
@@ -555,19 +528,8 @@ function buildPeopleSurface(
     }),
   })
 
-  const decideUserParticipationAuthority = (
-    tx: CurrentUserParticipationAuthorityDatabase,
-    input: Readonly<{
-      organizationId: string
-      propertyId: string
-      userId: string
-      at: Date
-    }>,
-  ) => decideCurrentUserParticipationAuthority(tx, input)
-
   return {
     publicApi: Object.freeze({ ...facts, management }),
-    decideUserParticipationAuthority,
   } as const
 }
 
@@ -632,7 +594,11 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       )
     },
   }
-  const invitedRegistrationStore = createInvitedRegistrationStore(deps.db)
+  const invitationUseCases = buildInvitationUseCases({
+    ...deps,
+    commandStore,
+    resolveOrganizationName,
+  })
 
   // Capability fate and environment controls are process-static. Tenant
   // grants, consent, and the execution kill switch retain their live reads.
@@ -805,16 +771,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
   ) => decideCurrentManagerPropertyAuthorities(tx, input)
 
   const useCases = {
-    inviteMember: inviteMember({
-      identity: deps.identityPort,
-      commandStore,
-      clock: deps.clock,
-      idGen: () => invitationId(deps.idGen()),
-      invitationExpiresInMs: deps.invitationExpiresInMs,
-      sendEmail: deps.sendEmail,
-      getOrganizationName: resolveOrganizationName,
-      baseUrl: deps.baseUrl,
-    }),
+    ...invitationUseCases,
     updateMemberRole: updateMemberRole({
       identity: deps.identityPort,
       commandStore,
@@ -837,39 +794,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       clock: deps.clock,
       cancelGoogleImportsForUser: deps.cancelGoogleImportsForUser,
       prepareGoogleConnectorDeparture: deps.prepareGoogleConnectorDeparture,
-    }),
-    listInvitations: listInvitations({ identity: deps.identityPort }),
-    resendInvitation: resendInvitation({
-      identity: deps.identityPort,
-      sendEmail: deps.sendEmail,
-      getOrganizationName: resolveOrganizationName,
-      baseUrl: deps.baseUrl,
-    }),
-    acceptInvitation: acceptInvitation({
-      identity: deps.identityPort,
-      commandStore,
-      clock: deps.clock,
-    }),
-    cancelInvitation: cancelInvitation({
-      commandStore,
-      clock: deps.clock,
-    }),
-    registerUser: registerUser({ identity: deps.identityPort }),
-    registerInvitedUser: registerInvitedUser({
-      commandStore,
-      registrationStore: invitedRegistrationStore,
-      signUp: deps.identityPort.signUp,
-      idGen: deps.idGen,
-      runOnAccepted: deps.identityPort.runOnAcceptInvitation,
-      clock: deps.clock,
-      logger: deps.logger,
-    }),
-    recoverInvitedRegistrations: recoverInvitedRegistrations({
-      commandStore,
-      registrationStore: invitedRegistrationStore,
-      runOnAccepted: deps.identityPort.runOnAcceptInvitation,
-      clock: deps.clock,
-      logger: deps.logger,
     }),
     updateOrganization: updateOrganization({
       updateOrg: deps.authSession.updateOrganization,
@@ -901,6 +825,7 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
     resendInvitation: useCases.resendInvitation,
     acceptInvitation: useCases.acceptInvitation,
     cancelInvitation: useCases.cancelInvitation,
+    getInvitationPreview: useCases.getInvitationPreview,
     registerInvitedUser: useCases.registerInvitedUser,
     updateOrganization: useCases.updateOrganization,
     createCustomRole: useCases.createCustomRole,
@@ -970,7 +895,6 @@ export const buildIdentityContext = (deps: IdentityContextDeps) => {
       hasActivePropertyGrant,
       decideManagerPropertyAuthority,
       decideManagerPropertyAuthorities,
-      decideUserParticipationAuthority: people.decideUserParticipationAuthority,
       decidePublicationActorAuthority,
       // Property-scoped recipient resolution for other contexts (notification
       // fan-out). Identity owns the grant table, so the read lives here.
