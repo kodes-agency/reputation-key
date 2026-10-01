@@ -8,8 +8,11 @@ import { can } from '#/shared/domain/permissions'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { getPortalPreview } from '#/contexts/portal/server/portal-preview'
+import { getPortalReview } from '#/contexts/portal/server/portal-review'
+import { publishPortalsChanges } from '#/contexts/portal/server/portal-publish-changes'
 import {
   savePropertyDefaultGuestLocales,
   savePropertyLook,
@@ -56,13 +59,14 @@ function PropertyLookRoute() {
   const { propertyId } = Route.useParams()
   const queryClient = useQueryClient()
   const { has } = useCapabilities()
+  const { can: canDo } = usePermissions()
   const { data: overview } = useSuspenseQuery(portalOverviewQuery(propertyId))
   const { data: experience } = useSuspenseQuery(propertyPortalExperienceQuery(propertyId))
   const { data: property } = useSuspenseQuery(propertyQuery(propertyId))
 
-  // A look edit changes what every portal's draft preview draws and what each
-  // live portal has waiting to publish, so the previews and the overview follow.
-  const refreshPortals = async () => {
+  // What a look edit and a publish both change: what every portal's draft
+  // preview draws and what each live portal has waiting to publish.
+  const refreshPublished = async () => {
     await Promise.all([
       queryClient.invalidateQueries({
         queryKey: portalKeys.propertyExperience(propertyId),
@@ -75,7 +79,22 @@ function PropertyLookRoute() {
       ),
     ])
   }
+  // A look edit also changes what the batch review would say, so it is read again.
+  const refreshPortals = async () => {
+    await Promise.all([
+      refreshPublished(),
+      queryClient.invalidateQueries({ queryKey: portalKeys.lookReview(propertyId) }),
+    ])
+  }
   const saveLook = useActionMutation(savePropertyLook, { onSuccess: refreshPortals })
+  // A publish refreshes the same things, but not the batch review: the dialog
+  // shows what the publish answered, and waiting for every live portal to be
+  // reviewed again would hold the next request back for nothing. A request that
+  // failed may still have published some of its portals, so it refreshes too.
+  const publishPortals = useActionMutation(publishPortalsChanges, {
+    onSuccess: refreshPublished,
+    onError: () => void refreshPublished(),
+  })
   const saveLocales = useActionMutation(savePropertyDefaultGuestLocales, {
     // New portals read them in the New portal dialog.
     invalidateKeys: [portalKeys.creationOptions(propertyId)],
@@ -89,6 +108,9 @@ function PropertyLookRoute() {
       canEdit={experience.canManagePropertyBrand && has('portal.write')}
       rows={overview.portals}
       getPortalPreview={getPortalPreview}
+      getPortalReview={getPortalReview}
+      publishPortals={publishPortals}
+      canPublish={canDo('portal.update') && has('portal.write')}
       saveLook={saveLook}
       saveLocales={saveLocales}
     />

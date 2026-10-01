@@ -8,6 +8,7 @@
 import type {
   MissingPortalText,
   ReviewCheck,
+  ReviewLanguageRow,
 } from '#/contexts/portal/application/public-api'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type {
@@ -66,6 +67,18 @@ export type ReviewCheckContext = Readonly<{
   /** The language that stands in for a missing text. */
   fallbackLocale: GuestLocale
 }>
+
+/** The context a check is worded in: its own language's gaps and the language that stands in. */
+export function reviewCheckContext(
+  languages: readonly ReviewLanguageRow[],
+  locale: GuestLocale | null,
+): ReviewCheckContext {
+  return {
+    missing: languages.find((row) => row.locale === locale)?.missing ?? [],
+    fallbackLocale:
+      languages.find((row) => row.isFallback)?.locale ?? languages[0]?.locale ?? 'en',
+  }
+}
 
 const CAN_PUBLISH_NOTE = 'You can publish without it.'
 

@@ -290,6 +290,11 @@ export const portalKeys = {
     [...portalKeys.versions(portalId), 'version', version] as const,
   propertyExperience: (propertyId: string) =>
     [...portalKeys.forProperty(propertyId), 'experience'] as const,
+  /** The Property look's batch "Review & publish": one review of each live portal, read together. */
+  lookReview: (propertyId: string) =>
+    [...portalKeys.forProperty(propertyId), 'look-review'] as const,
+  lookReviewOf: (propertyId: string, portalIds: string) =>
+    [...portalKeys.lookReview(propertyId), portalIds] as const,
   experience: (propertyId: string, portalId: string) =>
     [...portalKeys.propertyExperience(propertyId), 'portal', portalId] as const,
   /**
