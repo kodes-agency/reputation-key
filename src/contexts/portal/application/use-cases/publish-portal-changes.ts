@@ -21,11 +21,15 @@ import { loadPortalOrThrow } from '../load-accessible-portal'
 import {
   assertPortalHasOwnerAndAddress,
   assertPropertyAllowsPublication,
-  loadVerifiedGoogleReviewDestination,
+  findVerifiedGoogleReviewDestination,
+  requireVerifiedGoogleReviewDestination,
 } from '../portal-publication-readiness'
 import { buildPortalPublicationSnapshot } from '../portal-publication-snapshot'
 import { nextPortalCommandAt } from '../portal-command-version'
-import { workingCopyMatchesSnapshot } from '../portal-working-copy-match'
+import {
+  destinationMatchesSnapshot,
+  workingCopyMatchesSnapshot,
+} from '../portal-working-copy-match'
 import { portalError, isPortalError, type PortalErrorCode } from '../../domain/errors'
 import { portalPublicationPublished, portalUpdated } from '../../domain/events'
 
@@ -100,18 +104,27 @@ export const publishPortalChanges =
         'This Portal has no live version to replace',
       )
     }
-    // The same question the History tab asks: a recorded change, or a draft
-    // that no longer says what the live version says.
-    if (openChanges.length === 0 && workingCopyMatchesSnapshot(workingCopy, live)) {
-      return { outcome: 'unchanged', version: live.version }
-    }
-
-    await assertPropertyAllowsPublication(deps, ctx.organizationId, portal)
-    const destination = await loadVerifiedGoogleReviewDestination(
+    // Pending is a recorded change, a draft that no longer says what the live
+    // version says, or a live version pinned to a Google destination the
+    // Property has since left (a relink), which closes the guest gateway.
+    const verifiedDestination = await findVerifiedGoogleReviewDestination(
       deps,
       ctx.organizationId,
       portal,
     )
+    const destinationMoved =
+      verifiedDestination !== null &&
+      !destinationMatchesSnapshot(verifiedDestination, live)
+    if (
+      openChanges.length === 0 &&
+      !destinationMoved &&
+      workingCopyMatchesSnapshot(workingCopy, live)
+    ) {
+      return { outcome: 'unchanged', version: live.version }
+    }
+
+    await assertPropertyAllowsPublication(deps, ctx.organizationId, portal)
+    const destination = requireVerifiedGoogleReviewDestination(verifiedDestination)
     const occurredAt = deps.clock()
     await assertPortalHasOwnerAndAddress(deps, ctx, portal, occurredAt)
 
@@ -187,7 +200,9 @@ export type PublishPortalChanges = ReturnType<typeof publishPortalChanges>
  * each of them is its own commit: one that cannot be published (its address is
  * gone, a language has no text) is reported and does not hold back the rest.
  * Each Portal is authorized on its own, so a manager sees `forbidden` for a
- * Portal outside their Properties. Running it again is safe: a Portal that
+ * Portal outside their Properties (the server function checks every scope up
+ * front and refuses the whole request for one; it lets a Portal that no longer
+ * exists through, and that Portal reads `portal_not_found` here). Running it again is safe: a Portal that
  * already went live reads as `unchanged`. A fault that is not a Portal error
  * stops the batch and surfaces, because there is no per-Portal answer to give.
  * The size of a batch is bounded where it enters (the DTO), not here.

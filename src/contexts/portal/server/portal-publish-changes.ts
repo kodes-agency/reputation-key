@@ -22,25 +22,34 @@ import { requirePortalResourceScope } from './property-scope'
 /**
  * Every Portal the request names must be one this actor may change, checked
  * before anything is written; then the work itself, with errors translated.
- * One Portal outside the actor's scope refuses the whole request.
+ * One Portal outside the actor's scope (`forbidden`) refuses the whole request.
+ * With `missingIsPerPortal`, a Portal that no longer exists (deleted or
+ * archived since a screen listed it) is not refused here: the use case reports
+ * it as that Portal's own `failed` outcome and publishes the others.
  */
 async function writeWithScope<T>(
   ctx: AuthContext,
   ids: ReadonlyArray<string>,
   write: () => Promise<T>,
+  options: Readonly<{ missingIsPerPortal?: boolean }> = {},
 ): Promise<T> {
   try {
     for (const id of ids) {
-      await requirePortalResourceScope({
-        actor: ctx,
-        action: 'portal.update',
-        capability: 'portal.write',
-        notFound: portalError('portal_not_found', 'portal not found'),
-        lookup: () =>
-          getContainer().portalPublicApi.management.resolvePortalManagementScope(
-            portalId(id),
-          ),
-      })
+      try {
+        await requirePortalResourceScope({
+          actor: ctx,
+          action: 'portal.update',
+          capability: 'portal.write',
+          notFound: portalError('portal_not_found', 'portal not found'),
+          lookup: () =>
+            getContainer().portalPublicApi.management.resolvePortalManagementScope(
+              portalId(id),
+            ),
+        })
+      } catch (error) {
+        const isMissing = isPortalError(error) && error.code === 'portal_not_found'
+        if (!(options.missingIsPerPortal && isMissing)) throw error
+      }
     }
     return await write()
   } catch (error) {
@@ -74,8 +83,12 @@ export const publishPortalsChanges = createServerFn({ method: 'POST' })
     tracedHandler(
       async ({ data }) => {
         const ctx = await resolveTenantContext(await headersFromContext())
-        return writeWithScope(ctx, [...new Set(data.portalIds)], () =>
-          getContainer().portalPublicApi.management.publishPortalsChanges(data, ctx),
+        return writeWithScope(
+          ctx,
+          [...new Set(data.portalIds)],
+          () =>
+            getContainer().portalPublicApi.management.publishPortalsChanges(data, ctx),
+          { missingIsPerPortal: true },
         )
       },
       'POST',

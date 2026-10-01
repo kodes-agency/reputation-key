@@ -13,13 +13,14 @@ import type { VerifiedPublicationDestination } from '../domain/portal-publicatio
 import { portalError } from '../domain/errors'
 import type { PortalTokenRepository } from './ports/portal-token.repository'
 
-export async function loadVerifiedGoogleReviewDestination(
+/** The Property's verified Google review destination, or null when there is none to pin. */
+export async function findVerifiedGoogleReviewDestination(
   deps: Readonly<{
     propertyGoogleReviewDestinationApi: PropertyGoogleReviewDestinationPublicApi
   }>,
   orgId: OrganizationId,
   existing: Portal,
-): Promise<VerifiedPublicationDestination> {
+): Promise<VerifiedPublicationDestination | null> {
   const destination =
     await deps.propertyGoogleReviewDestinationApi.getGoogleReviewDestination(
       orgId,
@@ -32,10 +33,7 @@ export async function loadVerifiedGoogleReviewDestination(
     destination.sourceEpoch === null ||
     destination.profileVersion === null
   ) {
-    throw portalError(
-      'google_review_destination_unavailable',
-      'connect and refresh this property’s Google review destination before publishing',
-    )
+    return null
   }
   return {
     state: 'verified',
@@ -44,6 +42,31 @@ export async function loadVerifiedGoogleReviewDestination(
     sourceEpoch: destination.sourceEpoch,
     profileVersion: destination.profileVersion,
   }
+}
+
+/** The same destination, or a refusal when the Property has none verified. */
+export function requireVerifiedGoogleReviewDestination(
+  destination: VerifiedPublicationDestination | null,
+): VerifiedPublicationDestination {
+  if (destination === null) {
+    throw portalError(
+      'google_review_destination_unavailable',
+      'connect and refresh this property’s Google review destination before publishing',
+    )
+  }
+  return destination
+}
+
+export async function loadVerifiedGoogleReviewDestination(
+  deps: Readonly<{
+    propertyGoogleReviewDestinationApi: PropertyGoogleReviewDestinationPublicApi
+  }>,
+  orgId: OrganizationId,
+  existing: Portal,
+): Promise<VerifiedPublicationDestination> {
+  return requireVerifiedGoogleReviewDestination(
+    await findVerifiedGoogleReviewDestination(deps, orgId, existing),
+  )
 }
 
 export async function assertPropertyAllowsPublication(

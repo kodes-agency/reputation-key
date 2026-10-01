@@ -29,8 +29,11 @@ vi.mock('#/composition', () => ({
 vi.mock('./property-scope', () => ({
   requirePortalResourceScope: mocks.requirePortalResourceScope,
 }))
-vi.mock('./portals', () => ({ portalErrorStatus: vi.fn(() => 400) }))
+vi.mock('./portals', async (importActual) => ({
+  portalErrorStatus: (await importActual<typeof import('./portals')>()).portalErrorStatus,
+}))
 
+import { portalError } from '../domain/errors'
 import { publishPortalChanges, publishPortalsChanges } from './portal-publish-changes'
 
 const ACTOR = {
@@ -65,11 +68,13 @@ describe('publish changes while live (server functions)', () => {
   })
 
   it('publishes nothing when the scope check refuses', async () => {
-    mocks.requirePortalResourceScope.mockRejectedValue(new Error('refused'))
+    mocks.requirePortalResourceScope.mockRejectedValue(
+      portalError('forbidden', 'outside your properties'),
+    )
 
     await expect(
       withStartContext(() => publishPortalChanges({ data: { portalId: 'portal-1' } })),
-    ).rejects.toBeDefined()
+    ).rejects.toMatchObject({ _tag: 'PortalError', code: 'forbidden', status: 403 })
     expect(mocks.publishOne).not.toHaveBeenCalled()
   })
 
@@ -95,13 +100,44 @@ describe('publish changes while live (server functions)', () => {
   it('publishes none of them when one is outside the actor’s scope', async () => {
     mocks.requirePortalResourceScope
       .mockResolvedValueOnce(undefined)
-      .mockRejectedValueOnce(new Error('refused'))
+      .mockRejectedValueOnce(portalError('forbidden', 'outside your properties'))
 
     await expect(
       withStartContext(() =>
         publishPortalsChanges({ data: { portalIds: ['portal-1', 'portal-2'] } }),
       ),
-    ).rejects.toBeDefined()
+    ).rejects.toMatchObject({ _tag: 'PortalError', code: 'forbidden', status: 403 })
     expect(mocks.publishMany).not.toHaveBeenCalled()
+  })
+
+  it('leaves a Portal that no longer exists to the use case, which reports it on its own', async () => {
+    mocks.requirePortalResourceScope
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(portalError('portal_not_found', 'portal not found'))
+    mocks.publishMany.mockResolvedValue([])
+
+    await withStartContext(() =>
+      publishPortalsChanges({ data: { portalIds: ['portal-1', 'gone'] } }),
+    )
+
+    expect(mocks.publishMany).toHaveBeenCalledWith(
+      { portalIds: ['portal-1', 'gone'] },
+      ACTOR,
+    )
+  })
+
+  it('still refuses a single Portal that does not exist', async () => {
+    mocks.requirePortalResourceScope.mockRejectedValue(
+      portalError('portal_not_found', 'portal not found'),
+    )
+
+    await expect(
+      withStartContext(() => publishPortalChanges({ data: { portalId: 'gone' } })),
+    ).rejects.toMatchObject({
+      _tag: 'PortalError',
+      code: 'portal_not_found',
+      status: 404,
+    })
+    expect(mocks.publishOne).not.toHaveBeenCalled()
   })
 })

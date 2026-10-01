@@ -4,7 +4,11 @@ import { publicationSource } from '../domain/__fixtures__/publication-source'
 import { immersiveSnapshot } from './__fixtures__/immersive-snapshot'
 import { buildLegacyPortalPublicationSnapshot } from './__fixtures__/legacy-snapshot-builder'
 import { buildPortalPublicationSnapshot } from './portal-publication-snapshot'
-import { publishedContent, workingCopyMatchesSnapshot } from './portal-working-copy-match'
+import {
+  destinationMatchesSnapshot,
+  publishedContent,
+  workingCopyMatchesSnapshot,
+} from './portal-working-copy-match'
 
 const SOURCE = publicationSource()
 
@@ -219,6 +223,25 @@ describe('workingCopyMatchesSnapshot', () => {
         },
       })
       expect(published?.content.links).toHaveLength(2)
+    })
+  })
+
+  describe('the Google destination a snapshot is pinned to', () => {
+    const snapshot = snapshotOf(SOURCE)
+
+    it('matches while all four pinned facts equal the Property destination', () => {
+      expect(destinationMatchesSnapshot({ ...DESTINATION }, snapshot)).toBe(true)
+    })
+
+    it.each([
+      ['the link', { uri: 'https://search.google.com/local/writereview?placeid=other' }],
+      ['the retrieval time', { retrievedAt: new Date('2026-08-27T10:00:00.000Z') }],
+      ['the source epoch', { sourceEpoch: 2 }],
+      ['the profile version', { profileVersion: 2 }],
+    ])('stops matching when %s moves', (_name, change) => {
+      expect(destinationMatchesSnapshot({ ...DESTINATION, ...change }, snapshot)).toBe(
+        false,
+      )
     })
   })
 })

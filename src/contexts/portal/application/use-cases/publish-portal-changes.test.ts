@@ -6,6 +6,7 @@ import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
+import { portalError } from '../../domain/errors'
 import { buildPortalPublicationSnapshot } from '../portal-publication-snapshot'
 import { publicationSource } from '../../domain/__fixtures__/publication-source'
 import type { PortalPublicationSource } from '../../domain/portal-publication-source'
@@ -24,6 +25,13 @@ const DESTINATION = {
   retrievedAt: NOW,
   sourceEpoch: 1,
   profileVersion: 1,
+} as const
+
+const RELINKED_DESTINATION = {
+  ...DESTINATION,
+  retrievedAt: new Date(NOW.getTime() + 1_000),
+  sourceEpoch: DESTINATION.sourceEpoch + 1,
+  profileVersion: DESTINATION.profileVersion + 1,
 } as const
 
 const staffPublicApi: StaffPublicApi = {
@@ -64,7 +72,8 @@ type Options = Readonly<{
   live?: 'matching' | 'none'
   openChanges?: number
   propertyActive?: boolean
-  destination?: 'verified' | 'unavailable'
+  /** `relinked`: Google was disconnected and linked again, so the Property's destination moved on. */
+  destination?: 'verified' | 'unavailable' | 'relinked'
   hasAddress?: boolean
   responsibilityNeededSince?: Date | null
 }>
@@ -147,7 +156,9 @@ function setup(options: Options = {}) {
               sourceEpoch: null,
               profileVersion: null,
             }
-          : DESTINATION,
+          : options.destination === 'relinked'
+            ? RELINKED_DESTINATION
+            : DESTINATION,
     },
     propertyLifecycleApi: {
       isPropertyActive: async () => options.propertyActive ?? true,
@@ -167,6 +178,8 @@ function setup(options: Options = {}) {
     useCase: publishPortalChanges(deps),
   }
 }
+
+const FIRST_PORTAL_ID = 'd0000000-0000-0000-0000-000000000001'
 
 const manager = () => buildTestAuthContext({ role: 'PropertyManager' })
 
@@ -247,6 +260,39 @@ describe('publishPortalChanges', () => {
     expect(result).toEqual({ outcome: 'unchanged', version: 2 })
     expect(harness.commands).toEqual([])
     expect(harness.outbox.facts).toEqual([])
+  })
+
+  it('republishes a draft that matches the live content when the Property destination was relinked', async () => {
+    const harness = setup({ destination: 'relinked' })
+
+    const result = await harness.useCase({ portalId: harness.portal.id }, manager())
+
+    expect(result).toMatchObject({ outcome: 'published', version: 3 })
+    expect(harness.commands).toHaveLength(1)
+    expect(harness.commands[0]?.snapshot).toMatchObject({
+      destinationUri: RELINKED_DESTINATION.uri,
+      destinationRetrievedAt: RELINKED_DESTINATION.retrievedAt,
+      destinationSourceEpoch: RELINKED_DESTINATION.sourceEpoch,
+      destinationProfileVersion: RELINKED_DESTINATION.profileVersion,
+    })
+  })
+
+  it('does nothing when the content and the pinned destination both still match', async () => {
+    const harness = setup({ destination: 'verified' })
+
+    await expect(
+      harness.useCase({ portalId: harness.portal.id }, manager()),
+    ).resolves.toEqual({ outcome: 'unchanged', version: 2 })
+    expect(harness.commands).toEqual([])
+  })
+
+  it('still runs the readiness gates for a relink-only republish', async () => {
+    const harness = setup({ destination: 'relinked', hasAddress: false })
+
+    await expect(
+      harness.useCase({ portalId: harness.portal.id }, manager()),
+    ).rejects.toMatchObject({ code: 'token_unavailable' })
+    expect(harness.commands).toEqual([])
   })
 
   it('publishes when only a recorded change is pending', async () => {
@@ -428,6 +474,111 @@ describe('publishPortalsChanges', () => {
 
     expect(results.map((result) => result.outcome)).toEqual(['failed', 'published'])
     expect(harness.commands).toHaveLength(1)
+  })
+
+  /** Two live Portals of one Property, each with a recorded change pending. */
+  function twoPortals(
+    overrides: Readonly<{
+      republishFails?: (portalId: string) => boolean
+      hasAddress?: (portalId: string) => boolean
+    }> = {},
+  ) {
+    const harness = setup({ openChanges: 1 })
+    const second = buildTestPortal({
+      id: 'd0000000-0000-0000-0000-000000000002',
+      slug: 'second-portal',
+    })
+    harness.portalRepo.seed([harness.portal, second])
+    const portals = new Map([harness.portal, second].map((p) => [String(p.id), p]))
+    const portalOf = (id: string) => {
+      const found = portals.get(id)
+      if (!found) throw new Error(`unknown portal ${id}`)
+      return found
+    }
+    const baseStore = harness.deps.commandStore
+    const deps = {
+      ...harness.deps,
+      publicationRepo: {
+        ...harness.deps.publicationRepo,
+        loadWorkingCopy: async (_org: unknown, id: unknown) =>
+          workingCopyOf(portalOf(String(id))),
+        findActiveForPortal: async (_org: unknown, id: unknown) =>
+          liveSnapshotOf(portalOf(String(id)), workingCopyOf(portalOf(String(id)))),
+      } as PortalPublicationRepository,
+      portalTokenRepo: {
+        findResolvableSummaryForPortal: async (_org: unknown, id: unknown) =>
+          (overrides.hasAddress?.(String(id)) ?? true)
+            ? {
+                version: 1,
+                issuedAt: NOW,
+                gracePeriodEnds: null,
+                hasPublishedAccessArtifact: true,
+                addressKeyVersion: null,
+              }
+            : null,
+      },
+      commandStore: {
+        ...baseStore,
+        republishPortal: async (command: RepublishPortalCommand) => {
+          if (overrides.republishFails?.(String(command.portalId))) {
+            throw portalError('revision_conflict', 'Portal changed during command')
+          }
+          await baseStore.republishPortal(command)
+        },
+      },
+    }
+    return { first: harness.portal, second, deps, commands: harness.commands }
+  }
+
+  it('publishes two live Portals in the order given', async () => {
+    const { first, second, deps, commands } = twoPortals()
+    const batch = publishPortalsChanges(deps)
+
+    const results = await batch({ portalIds: [second.id, first.id] }, manager())
+
+    expect(results.map((r) => [r.portalId, r.outcome])).toEqual([
+      [second.id, 'published'],
+      [first.id, 'published'],
+    ])
+    expect(commands.map((command) => command.portalId)).toEqual([second.id, first.id])
+  })
+
+  it('goes on to the next Portal after a store conflict on the first', async () => {
+    const { first, second, deps, commands } = twoPortals({
+      republishFails: (id) => id === String(FIRST_PORTAL_ID),
+    })
+    const batch = publishPortalsChanges(deps)
+
+    const results = await batch({ portalIds: [first.id, second.id] }, manager())
+
+    expect(results).toEqual([
+      expect.objectContaining({
+        portalId: first.id,
+        outcome: 'failed',
+        code: 'revision_conflict',
+      }),
+      expect.objectContaining({ portalId: second.id, outcome: 'published' }),
+    ])
+    expect(commands.map((command) => command.portalId)).toEqual([second.id])
+  })
+
+  it('goes on to the next Portal after a readiness gate refuses the first', async () => {
+    const { first, second, deps, commands } = twoPortals({
+      hasAddress: (id) => id !== String(FIRST_PORTAL_ID),
+    })
+    const batch = publishPortalsChanges(deps)
+
+    const results = await batch({ portalIds: [first.id, second.id] }, manager())
+
+    expect(results).toEqual([
+      expect.objectContaining({
+        portalId: first.id,
+        outcome: 'failed',
+        code: 'token_unavailable',
+      }),
+      expect.objectContaining({ portalId: second.id, outcome: 'published' }),
+    ])
+    expect(commands.map((command) => command.portalId)).toEqual([second.id])
   })
 
   it('reports a Portal with nothing pending as unchanged', async () => {
