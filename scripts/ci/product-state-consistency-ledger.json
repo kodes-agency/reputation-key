@@ -543,6 +543,12 @@
       "classification": "synchronized_prop_copy",
       "owner": "Guest portal",
       "policy": "Seeded once from the optional `initial` draft, which only previews and stories pass (a live page starts the note closed), and never synchronized afterwards, so the guest's own open and close is not overridden. The note composer mounts once per response, which is the reset boundary. The note's words are the form's own state (`immersive-note-form.tsx`), not this one."
+    },
+    {
+      "id": "src/components/features/guest/public-portal/immersive/immersive-after-rating.tsx:useState(open)",
+      "classification": "synchronized_prop_copy",
+      "owner": "Guest portal",
+      "policy": "Seeded once from the optional `yourResponse.initialOpen`, which only previews and stories pass (a live page starts \"Your response\" closed), and never synchronized afterwards, so the guest's own open and close is not overridden. The after-rating layout mounts once per rated response, which is the reset boundary. Whether the rating form is open under \"Change your rating\" is derived from the response's `correctedAt`, not stored as a copy of it."
     }
   ],
   "classificationDefinitions": {
