@@ -1,5 +1,6 @@
 // Bounded cross-browser/device release gate. These journeys intentionally make
-// no product-data changes: they prove the public rating gateway and the signed-
+// no product-data changes: they prove the public rating gateway (in English,
+// Bulgarian, German and French) and the signed-
 // in manager shell render, reflow, and pass the same page-level accessibility
 // checks in Firefox, WebKit, Android-sized Chromium, and iPhone-sized WebKit.
 
@@ -85,6 +86,48 @@ test.describe('Compatibility: core surfaces', () => {
     await expectNoHorizontalOverflow(page)
     await assertNoAxeViolations(page, 'compatibility Bulgarian rating gateway')
   })
+
+  // German has the longest words and French the accents and no-break
+  // punctuation, so between them they cover what the other Latin-script packs
+  // (es, it) could break: a word that will not wrap, a glyph a font lacks.
+  for (const guest of [
+    {
+      locale: 'de',
+      chip: /^DE, Sprache/,
+      question: 'Wie hat es Ihnen gefallen?',
+      first: /^1 Stern, Schlecht/,
+      last: /^5 Sterne, Ausgezeichnet/,
+      send: 'Privat senden',
+    },
+    {
+      locale: 'fr',
+      chip: /^FR, Langue/,
+      question: /^Comment s’est passée votre expérience/,
+      first: /^1 étoile, Mauvaise/,
+      last: /^5 étoiles, Excellente/,
+      send: 'Envoyer en privé',
+    },
+  ] as const) {
+    test(`public gateway renders its complete ${guest.locale} language contract at 320 px`, async ({
+      page,
+    }) => {
+      const seed = requireE2eSeedState()
+      await page.setViewportSize({ width: 320, height: 640 })
+      await page.goto(`/p/${seed.portalToken}?locale=${guest.locale}`)
+
+      await expect(page.locator('html')).toHaveAttribute('lang', guest.locale)
+      await expect(page.getByRole('button', { name: guest.chip })).toBeVisible()
+      await expect(page.getByText(guest.question)).toBeVisible()
+      await expect(page.getByRole('radio', { name: guest.first })).toBeVisible()
+      await expect(page.getByRole('radio', { name: guest.last })).toBeVisible()
+      await expect(page.getByRole('button', { name: guest.send })).toBeVisible()
+      await expectNoHorizontalOverflow(page)
+      await assertNoAxeViolations(
+        page,
+        `compatibility ${guest.locale} rating gateway at 320 px`,
+      )
+    })
+  }
 
   test('an unknown public address fails closed with an accessible unavailable state', async ({
     page,
