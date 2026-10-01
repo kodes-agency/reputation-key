@@ -36,7 +36,7 @@ const portalSearchSchema = z.object({
  * All of them must stay externally indistinguishable to a guest, so they collapse
  * to the same `null`. Every other failure (500 from a DB blip, a network fault) is
  * rethrown: swallowing it cached a successful `null` for the whole 5-minute
- * staleTime, so a sub-second outage pinned "Portal Unavailable" for five minutes.
+ * staleTime, so a sub-second outage pinned the unavailable page for five minutes.
  */
 const unavailablePostureStatus: Readonly<Record<number, true>> = {
   403: true,
@@ -102,7 +102,7 @@ export const Route = createFileRoute('/p/$token')({
     // URL anyway). Deliberately no canonical URL: canonicalising a secret-token URL
     // would republish the token to every consumer of the page.
     const robots = { name: 'robots', content: 'noindex, nofollow' }
-    if (!loaderData) return { meta: [{ title: 'Portal unavailable' }, robots] }
+    if (!loaderData) return { meta: [{ title: 'Page unavailable' }, robots] }
     const { portal } = loaderData
     const description = portal.description ?? ''
     return {

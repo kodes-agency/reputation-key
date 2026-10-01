@@ -426,6 +426,10 @@ Each slice below lists: goal, scope, model changes, tests, gates beyond the stan
 - `e2e/helpers/guest-consent.ts` gains a v3 path.
 - Depends on 12. Size M.
 - **Owner:** the short notice copy must still disclose the session cookie and the network marker (ADR 0044). Until the owner rules, the full disclosure copy is used. The v2 packs carry it as `visitNoticeDetail` (session cookie, network marker, no ads or trackers); slice 17 renders that key, not the shorter `visitNotice`, until the owner approves shorter copy.
+- **Carried forward (from slice 17):**
+  - slice 18: the footer server-renders the acknowledged row (the server cannot read `localStorage`), so an unacknowledged guest sees it swap to the taller notice after hydration. The notice is in flow, so this is a layout shift at the page's end. The CLS observer must measure it on a first visit (no acknowledgement stored), and if it counts, reserve the notice's height until the client snapshot resolves;
+  - the footer's two softer texts are white at 92% and 90%, not the boards' 66% and 56%: the boards' values fail AA on the lightest accepted field and on the peak of a painted wash (`immersive-footer-styles.test.ts`). Ask the designer to redraw G01 and G04 with the contrast-safe values;
+  - slice 30: the unavailable page no longer links a font stylesheet of its own (`fontSetOfMatches` treats a `/p/$token` match with no loader data as the guest set), but the admin live preview still has no such match and links `GUEST_FONT_STYLESHEET` itself.
 
 **18. Guest quality gate (G9), re-scoped.** There is no `toHaveScreenshot` or LCP harness in `e2e/` today. This slice adds:
 

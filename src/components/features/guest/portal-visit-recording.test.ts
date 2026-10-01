@@ -4,7 +4,7 @@ import {
   settlePortalVisit,
   settlePortalVisitFromStorage,
   settlePortalVisitOnce,
-} from './guest-analytics-notice'
+} from './portal-visit-recording'
 
 describe('settlePortalVisit', () => {
   it('settles a confirmed visit without waiting', async () => {

@@ -3,6 +3,7 @@ import { test, expect } from '../helpers/error-detection'
 import { signIn } from '../helpers/auth'
 import { waitForHydration, clickWhenReady } from '../helpers/interaction'
 import { requireE2eSeedState } from '../helpers/seed-state'
+import { expectPortalUnavailable } from '../helpers/guest-unavailable'
 import { attachRequestLog } from '../helpers/request-log'
 import {
   dbQuery,
@@ -84,11 +85,6 @@ async function endOpenGoalPrograms(page: Page, propertyId: string) {
       },
     })
   }
-}
-
-async function expectPublicUnavailable(page: Page) {
-  await expect(page.getByRole('heading', { name: 'Portal Unavailable' })).toBeVisible()
-  await expect(page.getByText('Please try again later.')).toBeVisible()
 }
 
 test.describe('Critical: beta-local-1 product journeys', () => {
@@ -389,7 +385,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(page.getByText(/doesn't exist|not found/i).first()).toBeVisible()
     await expect(page.getByText('E2E Guest Portal P3')).toHaveCount(0)
     await page.goto(`/p/${seed.p2PortalToken}`)
-    await expectPublicUnavailable(page)
+    await expectPortalUnavailable(page)
     await expect(page.getByText('E2E Guest Portal P2')).toHaveCount(0)
     const deniedClick = await page.request.get(
       `${BASE_ORIGIN}/api/public/p/${seed.p2PortalToken}/click/${seed.portalLinkId}`,
@@ -398,7 +394,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     expect([404, 410]).toContain(deniedClick.status())
     expect(deniedClick.headers().location).toBeUndefined()
     await page.goto(`/p/${seed.p3PortalToken}`)
-    await expectPublicUnavailable(page)
+    await expectPortalUnavailable(page)
     await expect(page.getByText('E2E Guest Portal P3')).toHaveCount(0)
 
     log.assertNoMutations()
