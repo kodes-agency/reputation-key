@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest'
 import {
+  accessBaseline,
   diffMemberAccess,
   diffPropertyAccess,
+  grantsOnListedProperties,
   joinNames,
   selectAllVisible,
   summarizeAccessChange,
@@ -188,5 +190,60 @@ describe('summarizeAccessChange', () => {
       'Makes Maria responsible for Sofia: Maria gets its review, feedback and health updates.',
       'Maria stops being responsible for Varna.',
     ])
+  })
+})
+
+describe('accessBaseline', () => {
+  const listed = ['a', 'b', 'c']
+
+  it('is not there while the responsibility read is still loading', () => {
+    expect(accessBaseline(['a'], listed, { status: 'loading' })).toBeNull()
+  })
+
+  it('holds the grants and the responsibilities once both have loaded', () => {
+    expect(
+      accessBaseline(['a', 'b'], listed, { status: 'ready', responsibleIds: ['a'] }),
+    ).toEqual({
+      propertyIds: ['a', 'b'],
+      responsibleIds: ['a'],
+      responsibilityKnown: true,
+    })
+  })
+
+  it('leaves out a grant on a property the checklist does not list', () => {
+    expect(
+      accessBaseline(['a', 'archived'], listed, { status: 'ready', responsibleIds: [] }),
+    ).toEqual({ propertyIds: ['a'], responsibleIds: [], responsibilityKnown: true })
+  })
+
+  it('holds no responsibilities, and says it does not know them, when the read failed', () => {
+    expect(accessBaseline(['a'], listed, { status: 'unavailable' })).toEqual({
+      propertyIds: ['a'],
+      responsibleIds: [],
+      responsibilityKnown: false,
+    })
+  })
+
+  it('is a snapshot: later reads do not reach it', () => {
+    const grants = ['a']
+    const baseline = accessBaseline(grants, listed, {
+      status: 'ready',
+      responsibleIds: ['a'],
+    })
+    grants.push('b')
+    expect(baseline?.propertyIds).toEqual(['a'])
+  })
+})
+
+describe('grantsOnListedProperties', () => {
+  it('keeps the grants on properties the checklist lists, in grant order', () => {
+    expect(grantsOnListedProperties(['c', 'a', 'archived'], ['a', 'b', 'c'])).toEqual([
+      'c',
+      'a',
+    ])
+  })
+
+  it('is empty for a manager with no grants', () => {
+    expect(grantsOnListedProperties([], ['a'])).toEqual([])
   })
 })

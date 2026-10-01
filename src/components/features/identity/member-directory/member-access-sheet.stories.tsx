@@ -1,6 +1,7 @@
 // Manage access sheet stories. The sheet is controlled by the Members route and
 // portals to document.body, so assertions query the document. The route owns
 // loading the member's grants and responsibility, so each state is a prop.
+import { useEffect, useState, type ComponentProps } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
@@ -61,6 +62,40 @@ export default meta
 type Story = StoryObj<typeof MemberAccessSheet>
 
 const sheet = () => within(document.body).findByRole('dialog')
+
+type LiveReads = Pick<
+  ComponentProps<typeof MemberAccessSheet>,
+  'currentPropertyIds' | 'responsibility'
+>
+
+/**
+ * The route's reads move under an open sheet (a focus refetch, another admin's
+ * grant, a read that fails). A story reaches in through `liveReads.set`, because
+ * the modal sheet blocks pointer events on anything drawn beside it; the marker
+ * says when the new reads have been committed.
+ */
+const liveReads: { set: (next: LiveReads) => void } = { set: () => undefined }
+
+function RefreshingSheet(props: ComponentProps<typeof MemberAccessSheet>) {
+  const [live, setLive] = useState<LiveReads>({
+    currentPropertyIds: props.currentPropertyIds,
+    responsibility: props.responsibility,
+  })
+  useEffect(() => {
+    liveReads.set = setLive
+    return () => {
+      liveReads.set = () => undefined
+    }
+  }, [])
+  return (
+    <>
+      <output hidden data-testid="live-reads">
+        {live.responsibility.status}:{live.currentPropertyIds.join(',')}
+      </output>
+      <MemberAccessSheet {...props} {...live} />
+    </>
+  )
+}
 
 /** Maria works two of six properties and is responsible for one. */
 export const Default: Story = {
@@ -231,6 +266,45 @@ export const Saving: Story = {
   },
 }
 
+/**
+ * A save outlives the sheet's form, and its success closes "the" sheet, which
+ * by then could be another member's. So the sheet cannot be left mid-save, by
+ * Cancel or by Escape.
+ */
+export const CannotBeLeftWhileSaving: Story = {
+  args: {
+    onClose: fn(),
+    saveAction: saveAction(() => new Promise<unknown>(() => {}), { isPending: true }),
+  },
+  play: async ({ args }) => {
+    const body = within(await sheet())
+    expect(body.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    await userEvent.keyboard('{Escape}')
+    expect(args.onClose).not.toHaveBeenCalled()
+    expect(await sheet()).toBeInTheDocument()
+  },
+}
+
+/** The same holds while the member is being removed from the sheet. */
+export const CannotBeLeftWhileRemoving: Story = {
+  args: {
+    onClose: fn(),
+    removeMemberAction: Object.assign(() => new Promise<unknown>(() => {}), {
+      isPending: true,
+      error: null,
+      isSuccess: false,
+      data: null,
+    }) as Action<{ data: { memberId: string } }>,
+  },
+  play: async ({ args }) => {
+    const body = within(await sheet())
+    expect(body.getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    await userEvent.keyboard('{Escape}')
+    expect(args.onClose).not.toHaveBeenCalled()
+    expect(await sheet()).toBeInTheDocument()
+  },
+}
+
 export const SaveRefused: Story = {
   args: {
     saveAction: saveAction(async () => undefined, {
@@ -275,5 +349,90 @@ export const RemoveFromTheSheet: Story = {
       expect(removeSpy).toHaveBeenCalledWith({ data: { memberId: 'member-2' } }),
     )
     await waitFor(() => expect(args.onClose).toHaveBeenCalled())
+  },
+}
+
+const refreshSpy = fn()
+/**
+ * The draft is measured against what the server held when the sheet opened. A
+ * refetch that goes pending, another admin's grant and a failed read all move
+ * the route's live reads under it: none may discard the draft or change what
+ * Save sends.
+ */
+export const DraftSurvivesRefreshingReads: Story = {
+  args: {
+    saveAction: saveAction(async (input) => {
+      refreshSpy(input)
+    }),
+  },
+  render: (args) => <RefreshingSheet {...args} />,
+  play: async ({ canvasElement }) => {
+    refreshSpy.mockClear()
+    const body = within(await sheet())
+    const marker = within(canvasElement).getByTestId('live-reads')
+    await userEvent.click(body.getByRole('checkbox', { name: 'Harbour Cafe Burgas' }))
+    expect(
+      body.getByText('Gives Maria access to Harbour Cafe Burgas.'),
+    ).toBeInTheDocument()
+
+    // Another admin grants Rila Lodge: the route adds a read for it, still pending.
+    liveReads.set({
+      currentPropertyIds: ['p1', 'p2', 'p5'],
+      responsibility: { status: 'loading' },
+    })
+    await waitFor(() => expect(marker).toHaveTextContent('loading:p1,p2,p5'))
+    expect(body.queryByText('Loading access…')).toBeNull()
+    expect(body.getByRole('checkbox', { name: 'Harbour Cafe Burgas' })).toBeChecked()
+    expect(
+      body.getByText('Gives Maria access to Harbour Cafe Burgas.'),
+    ).toBeInTheDocument()
+
+    liveReads.set({
+      currentPropertyIds: ['p1', 'p2', 'p5'],
+      responsibility: { status: 'ready', responsibleIds: ['p1'] },
+    })
+    await waitFor(() => expect(marker).toHaveTextContent('ready:p1,p2,p5'))
+    expect(body.queryByText(/Rila Lodge\./)).toBeNull()
+    expect(body.getByRole('checkbox', { name: 'Harbour Cafe Burgas' })).toBeChecked()
+
+    // A later refetch of the responsible managers fails.
+    liveReads.set({
+      currentPropertyIds: ['p1', 'p2', 'p5'],
+      responsibility: { status: 'unavailable' },
+    })
+    await waitFor(() => expect(marker).toHaveTextContent('unavailable:p1,p2,p5'))
+    expect(
+      body.getByRole('switch', { name: 'Responsible for Meridian Sofia' }),
+    ).toBeChecked()
+    expect(body.queryByText(/responsible for/i)).toBeNull()
+    expect(body.getByText('Gives Maria access to Harbour Cafe Burgas.')).toBeVisible()
+
+    await userEvent.click(body.getByRole('button', { name: 'Save access' }))
+    await waitFor(() =>
+      expect(refreshSpy).toHaveBeenCalledWith({
+        memberId: 'member-2',
+        userId: 'user-2',
+        grantPropertyIds: ['p3'],
+        revokePropertyIds: [],
+        responsibleOnPropertyIds: [],
+        responsibleOffPropertyIds: [],
+      }),
+    )
+  },
+}
+
+/** A refetch that fails on an untouched sheet does not make Save appear. */
+export const FailedRefetchChangesNothing: Story = {
+  render: (args) => <RefreshingSheet {...args} />,
+  play: async ({ canvasElement }) => {
+    const body = within(await sheet())
+    const marker = within(canvasElement).getByTestId('live-reads')
+    liveReads.set({
+      currentPropertyIds: ['p1', 'p2'],
+      responsibility: { status: 'unavailable' },
+    })
+    await waitFor(() => expect(marker).toHaveTextContent('unavailable:p1,p2'))
+    expect(body.getByText('No changes yet.')).toBeInTheDocument()
+    expect(body.getByRole('button', { name: 'Save access' })).toBeDisabled()
   },
 }
