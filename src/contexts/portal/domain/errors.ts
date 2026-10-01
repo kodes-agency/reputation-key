@@ -37,6 +37,7 @@ export type PortalErrorCode =
   | 'address_unavailable'
   | 'rate_limited'
   | 'upload_failed'
+  | 'image_rejected'
   | 'responsible_manager_ineligible'
   | 'revision_conflict'
 

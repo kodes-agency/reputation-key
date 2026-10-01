@@ -35,6 +35,7 @@ const CHILD_TABLES = [
   'portal_approved_destinations',
   'property_portal_brand_contents',
   'property_portal_brand_profiles',
+  'portal_media_assets',
   'portals',
   'properties',
 ] as const
@@ -46,6 +47,7 @@ type Fixture = Readonly<{
   groupId: string
   categoryId: string
   linkId: string
+  mediaAssetId: string
   destinationId: string
   snapshotId: string
   activationId: string
@@ -77,6 +79,7 @@ async function seedFixture(): Promise<Fixture> {
     groupId: randomUUID(),
     categoryId: randomUUID(),
     linkId: randomUUID(),
+    mediaAssetId: randomUUID(),
     destinationId: randomUUID(),
     snapshotId: randomUUID(),
     activationId: randomUUID(),
@@ -177,13 +180,29 @@ async function seedFixture(): Promise<Fixture> {
     [randomUUID(), organizationId, fixture.propertyId, fixture.portalId, fixture.userId],
   )
   await q(
+    `INSERT INTO portal_media_assets (
+       id, organization_id, property_id, purpose, object_key, content_type, width,
+       height, byte_size, content_sha256, source_format, source_bytes,
+       rights_confirmed_at, created_by
+     ) VALUES ($1::uuid, $2, $3, 'hero', 'portal-media/' || $1::text || '.webp', 'image/webp',
+               2400, 1600, 180000, $5, 'jpeg', 2500000, now(), $4)`,
+    [fixture.mediaAssetId, organizationId, fixture.propertyId, fixture.userId, DIGEST],
+  )
+  await q(
     `INSERT INTO property_portal_brand_profiles (
        id, organization_id, property_id, display_name, primary_color,
        background_color, text_color, wordmark, background_mode, default_guest_locales,
-       look_version, version, updated_by, created_at, updated_at
+       look_version, version, hero_asset_id, hero_focal_x, hero_focal_y, updated_by,
+       created_at, updated_at
      ) VALUES ($1, $2, $3, 'Harbour House', '#101010', '#FFFFFF', '#202020', 'HARBOUR',
-               'manual', '["bg","en"]'::jsonb, 3, 1, $4, now(), now())`,
-    [randomUUID(), organizationId, fixture.propertyId, fixture.userId],
+               'manual', '["bg","en"]'::jsonb, 3, 1, $5, 0.25, 0.75, $4, now(), now())`,
+    [
+      randomUUID(),
+      organizationId,
+      fixture.propertyId,
+      fixture.userId,
+      fixture.mediaAssetId,
+    ],
   )
   await q(
     `INSERT INTO property_portal_brand_contents (
@@ -348,6 +367,7 @@ describe.sequential('Portal Organization Export contributor', () => {
       'linkCategories',
       'links',
       'linkTexts',
+      'mediaAssets',
       'approvedDestinations',
       'localizedOverrides',
       'brandProfiles',
@@ -397,6 +417,20 @@ describe.sequential('Portal Organization Export contributor', () => {
       background_mode: 'manual',
       default_guest_locales: '["bg", "en"]',
       look_version: 3,
+      hero_asset_id: fixture.mediaAssetId,
+      hero_focal_x: 0.25,
+      hero_focal_y: 0.75,
+      logo_asset_id: null,
+    })
+    // The row, not the image: the stored object is not part of a data export.
+    expect(payload.mediaAssets?.[0]).toMatchObject({
+      id: fixture.mediaAssetId,
+      purpose: 'hero',
+      status: 'active',
+      object_key: `portal-media/${fixture.mediaAssetId}.webp`,
+      width: 2400,
+      height: 1600,
+      source_format: 'jpeg',
     })
     expect(payload.brandContents?.[0]).toMatchObject({
       locale: 'en',

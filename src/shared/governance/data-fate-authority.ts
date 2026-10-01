@@ -545,6 +545,14 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
     exitCriteria: ERASE_WITH_OWNER,
   }),
   ...rows({
+    schemaFile: 'portal-assets.schema.ts',
+    exportNames: ['portalMediaAssets'],
+    owner: 'portal',
+    disposition: 'erasable_source_content',
+    authority: 'POR-01/LIF-01',
+    exitCriteria: ERASE_WITH_OWNER,
+  }),
+  ...rows({
     schemaFile: 'property.schema.ts',
     exportNames: ['properties', 'propertyResponsibleManagers'],
     owner: 'property',

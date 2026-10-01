@@ -107,12 +107,24 @@ async function seedFixture(): Promise<Fixture> {
      VALUES ($1, $2, $3, $4, now())`,
     [randomUUID(), fixture.portalGroupId, fixture.portalId, organizationId],
   )
+  const mediaAssetId = randomUUID()
+  await q(
+    `INSERT INTO portal_media_assets (
+       id, organization_id, property_id, purpose, object_key, content_type, width,
+       height, byte_size, content_sha256, source_format, source_bytes,
+       rights_confirmed_at, created_by
+     ) VALUES ($1::uuid, $2, $3, 'hero', 'portal-media/' || $1::text || '.webp', 'image/webp',
+               2400, 1600, 180000, repeat('a', 64), 'jpeg', 2500000, now(), $4)`,
+    [mediaAssetId, organizationId, fixture.propertyId, actor],
+  )
   await q(
     `INSERT INTO property_portal_brand_profiles (
        id, organization_id, property_id, display_name, primary_color,
-       background_color, text_color, updated_by, created_at, updated_at
-     ) VALUES ($1, $2, $3, 'Harbour House', '#112233', '#FFFFFF', '#000000', $4, now(), now())`,
-    [randomUUID(), organizationId, fixture.propertyId, actor],
+       background_color, text_color, hero_asset_id, hero_focal_x, hero_focal_y,
+       updated_by, created_at, updated_at
+     ) VALUES ($1, $2, $3, 'Harbour House', '#112233', '#FFFFFF', '#000000', $5, 0.5, 0.5,
+               $4, now(), now())`,
+    [randomUUID(), organizationId, fixture.propertyId, actor, mediaAssetId],
   )
   await q(
     `INSERT INTO property_portal_brand_contents (
@@ -155,8 +167,8 @@ async function seedFixture(): Promise<Fixture> {
   await q(
     `INSERT INTO portal_links (id, category_id, portal_id, organization_id, property_id,
                                label, destination_id, legacy_destination_state, sort_key,
-                               created_at, updated_at)
-     VALUES ($1, $2, $3, $4, $5, 'Menu', $6, 'migrated', 'a', now(), now())`,
+                               image_asset_id, created_at, updated_at)
+     VALUES ($1, $2, $3, $4, $5, 'Menu', $6, 'migrated', 'a', $7, now(), now())`,
     [
       linkId,
       categoryId,
@@ -164,6 +176,7 @@ async function seedFixture(): Promise<Fixture> {
       organizationId,
       fixture.propertyId,
       fixture.destinationId,
+      mediaAssetId,
     ],
   )
   await q(
@@ -363,6 +376,7 @@ const CLEANUP_ORDER = [
   'portal_approved_destinations',
   'property_portal_brand_contents',
   'property_portal_brand_profiles',
+  'portal_media_assets',
   'portals',
   'portal_group_history',
   'portal_groups',

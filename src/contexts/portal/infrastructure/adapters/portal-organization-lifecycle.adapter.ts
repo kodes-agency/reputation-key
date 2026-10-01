@@ -43,6 +43,7 @@ import {
   portalPublicationSnapshots,
 } from '#/shared/db/schema/portal-publication.schema'
 import { portalLinkTexts } from '#/shared/db/schema/portal-localization.schema'
+import { portalMediaAssets } from '#/shared/db/schema/portal-assets.schema'
 import type { Tx } from '#/shared/outbox/commit'
 
 /**
@@ -84,6 +85,7 @@ export const PORTAL_PURGE_PLAN = Object.freeze([
   'portal_localized_overrides',
   'property_portal_brand_contents',
   'property_portal_brand_profiles',
+  'portal_media_assets',
   'portals',
   'portal_group_history',
   'portal_groups',
@@ -219,6 +221,11 @@ const drizzlePortalLifecycleWorkbench: PortalLifecycleWorkbench = Object.freeze(
     await tx
       .delete(propertyPortalBrandProfiles)
       .where(eq(propertyPortalBrandProfiles.organizationId, organizationId))
+    // After every row that points at an asset (links, Brand Profiles). The stored
+    // objects are removed by the media purge, never left behind by this delete.
+    await tx
+      .delete(portalMediaAssets)
+      .where(eq(portalMediaAssets.organizationId, organizationId))
     await tx.delete(portals).where(eq(portals.organizationId, organizationId))
     await tx
       .delete(portalGroupHistory)

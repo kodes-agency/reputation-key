@@ -28,6 +28,7 @@ type PortalOrganizationExportPayload = Readonly<{
   linkCategories: readonly ExportRecord[]
   links: readonly ExportRecord[]
   linkTexts: readonly ExportRecord[]
+  mediaAssets: readonly ExportRecord[]
   approvedDestinations: readonly ExportRecord[]
   localizedOverrides: readonly ExportRecord[]
   brandProfiles: readonly ExportRecord[]
@@ -163,6 +164,7 @@ function collectionsOf(
     ['portal_link_category', payload.linkCategories],
     ['portal_link', payload.links],
     ['portal_link_text', payload.linkTexts],
+    ['portal_media_asset', payload.mediaAssets],
     ['approved_destination', payload.approvedDestinations],
     ['portal_localized_override', payload.localizedOverrides],
     ['property_brand_profile', payload.brandProfiles],
@@ -284,7 +286,8 @@ async function readPayload(
         sql`SELECT id::text AS id, portal_id::text AS portal_id,
                    property_id::text AS property_id, category_id::text AS category_id,
                    label, destination_id::text AS destination_id, url,
-                   legacy_destination_state, icon_key, sort_key,
+                   legacy_destination_state, icon_key, image_asset_id::text AS image_asset_id,
+                   sort_key,
                    ${utc('created_at')} AS created_at,
                    ${utc('updated_at')} AS updated_at
             FROM portal_links WHERE organization_id = ${organizationId}`,
@@ -297,6 +300,18 @@ async function readPayload(
                    ${utc('created_at')} AS created_at,
                    ${utc('updated_at')} AS updated_at
             FROM portal_link_texts WHERE organization_id = ${organizationId}`,
+      )
+      // Rows only: the stored objects hold the image itself, not tenant
+      // content a data export carries.
+      const mediaAssets = await readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id, purpose, status,
+                   object_key, content_type, width, height, byte_size, content_sha256,
+                   source_format, source_bytes, created_by,
+                   ${utc('rights_confirmed_at')} AS rights_confirmed_at,
+                   ${utc('created_at')} AS created_at,
+                   ${utc('taken_down_at')} AS taken_down_at
+            FROM portal_media_assets WHERE organization_id = ${organizationId}`,
       )
       const approvedDestinations = await readRows(
         snapshot,
@@ -322,8 +337,9 @@ async function readPayload(
       const brandProfiles = await readRows(
         snapshot,
         sql`SELECT id::text AS id, property_id::text AS property_id, display_name,
-                   logo_url, default_hero_image_url, primary_color, background_color,
-                   text_color, wordmark, background_mode,
+                   logo_url, default_hero_image_url, logo_asset_id::text AS logo_asset_id,
+                   hero_asset_id::text AS hero_asset_id, hero_focal_x, hero_focal_y,
+                   primary_color, background_color, text_color, wordmark, background_mode,
                    default_guest_locales::text AS default_guest_locales,
                    look_version, version, updated_by,
                    ${utc('created_at')} AS created_at,
@@ -429,6 +445,7 @@ async function readPayload(
         linkCategories: sortRecords(linkCategories, ['portal_id', 'sort_key', 'id']),
         links: sortRecords(links, ['portal_id', 'category_id', 'sort_key', 'id']),
         linkTexts: sortRecords(linkTexts, ['portal_id', 'link_id', 'locale', 'id']),
+        mediaAssets: sortRecords(mediaAssets, ['property_id', 'created_at', 'id']),
         approvedDestinations: sortRecords(approvedDestinations, ['property_id', 'id']),
         localizedOverrides: sortRecords(localizedOverrides, [
           'portal_id',

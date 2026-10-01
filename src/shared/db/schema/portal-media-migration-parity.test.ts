@@ -1,0 +1,59 @@
+// Migration 0046 is hand-written SQL (drizzle/meta stops at 0013), so what it
+// wrote is pinned here as literals and the catalogue renderings are tied to them
+// by tripwires: when a purpose, status or format is added, these fail and ask
+// for a widening migration instead of tempting anyone to edit 0046.
+// `pnpm check:schema-drift` proves the model matches a migrated database.
+
+import { readFileSync } from 'node:fs'
+import { join } from 'node:path'
+import { describe, expect, it } from 'vitest'
+import {
+  PORTAL_MEDIA_PURPOSE_SQL_LIST,
+  PORTAL_MEDIA_SOURCE_FORMAT_SQL_LIST,
+  PORTAL_MEDIA_STATUS_SQL_LIST,
+} from '#/shared/portal-media-schemas'
+
+const ROOT = join(import.meta.dirname, '..', '..', '..', '..')
+const MIGRATION = readFileSync(
+  join(ROOT, 'drizzle', '0046_portal_media_assets.sql'),
+  'utf8',
+)
+const JOURNAL = JSON.parse(
+  readFileSync(join(ROOT, 'drizzle', 'meta', '_journal.json'), 'utf8'),
+) as { entries: ReadonlyArray<{ idx: number; tag: string; when: number }> }
+
+describe('migration 0046 Portal media assets', () => {
+  it('tripwire: the catalogues still render what 0046 wrote', () => {
+    expect(PORTAL_MEDIA_PURPOSE_SQL_LIST).toBe(`'hero', 'logo', 'link_image'`)
+    expect(PORTAL_MEDIA_STATUS_SQL_LIST).toBe(`'active', 'taken_down'`)
+    expect(PORTAL_MEDIA_SOURCE_FORMAT_SQL_LIST).toBe(`'jpeg', 'png', 'webp'`)
+    expect(MIGRATION).toContain(`"purpose" IN ('hero', 'logo', 'link_image')`)
+    expect(MIGRATION).toContain(`"status" IN ('active', 'taken_down')`)
+    expect(MIGRATION).toContain(`"source_format" IN ('jpeg', 'png', 'webp')`)
+  })
+
+  it('ties every reference to an asset of the same Organization and Property', () => {
+    for (const constraint of [
+      'property_portal_brand_profiles_logo_asset_fk',
+      'property_portal_brand_profiles_hero_asset_fk',
+      'portal_links_image_asset_fk',
+    ]) {
+      const statement = MIGRATION.split('--> statement-breakpoint').find((part) =>
+        part.includes(`ADD CONSTRAINT "${constraint}"`),
+      )
+      expect(statement, constraint).toBeDefined()
+      expect(statement).toContain('("organization_id","property_id",')
+      expect(statement).toContain(
+        '"public"."portal_media_assets"("organization_id","property_id","id")',
+      )
+      expect(statement).toContain('ON DELETE restrict')
+    }
+  })
+
+  it('is journalled after the Property look model', () => {
+    const entry = JOURNAL.entries.find((candidate) => candidate.idx === 46)
+    expect(entry?.tag).toBe('0046_portal_media_assets')
+    const previous = JOURNAL.entries.find((candidate) => candidate.idx === 45)
+    expect(entry && previous && entry.when > previous.when).toBe(true)
+  })
+})
