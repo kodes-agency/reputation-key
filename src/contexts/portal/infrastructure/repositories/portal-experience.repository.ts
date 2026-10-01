@@ -279,6 +279,21 @@ function writeProfileMedia(
   )
 }
 
+const FOCAL_CENTRE = 0.5
+
+/** One axis of the photograph's anchor: as given, else kept for a photograph that stays, else the middle; none without a photograph. */
+function heroFocalAxis(
+  current: ProfileRow,
+  hero: Readonly<{ assetId: string; focalX?: number; focalY?: number }> | null,
+  axis: 'x' | 'y',
+): number | null {
+  if (!hero) return null
+  const given = axis === 'x' ? hero.focalX : hero.focalY
+  if (given !== undefined) return given
+  const stored = axis === 'x' ? current.heroFocalX : current.heroFocalY
+  return hero.assetId === current.heroAssetId ? (stored ?? FOCAL_CENTRE) : FOCAL_CENTRE
+}
+
 /**
  * Keep one language's description of the photograph. A language with wording
  * keeps its title and text; one without gets a row holding the description
@@ -287,8 +302,8 @@ function writeProfileMedia(
  */
 async function saveHeroAltText(
   tx: Tx,
-  input: PropertyScope & Readonly<{ id: string; actorUserId: UserId; at: Date }>,
-  altText: Readonly<{ locale: PortalGuestLocale; text: string | null }>,
+  input: PropertyScope & Readonly<{ actorUserId: UserId; at: Date }>,
+  altText: Readonly<{ id: string; locale: PortalGuestLocale; text: string | null }>,
 ): Promise<void> {
   const [current] = await tx
     .select()
@@ -316,7 +331,7 @@ async function saveHeroAltText(
     : await tx
         .insert(propertyPortalBrandContents)
         .values({
-          id: input.id,
+          id: altText.id,
           organizationId: unbrand(input.organizationId),
           propertyId: unbrand(input.propertyId),
           locale: altText.locale,
@@ -558,8 +573,8 @@ export const createPortalExperienceRepository = (
         const { hero } = input
         const row = await writeProfileMedia(tx, input, current, {
           heroAssetId: hero?.assetId ?? null,
-          heroFocalX: hero?.focalX ?? null,
-          heroFocalY: hero?.focalY ?? null,
+          heroFocalX: heroFocalAxis(current, hero, 'x'),
+          heroFocalY: heroFocalAxis(current, hero, 'y'),
         })
         for (const altText of input.altTexts ?? []) {
           await saveHeroAltText(tx, input, altText)

@@ -101,11 +101,12 @@ const setup = (
     getAccessiblePropertyIds: async () => null,
     getAssignedPortals: async () => [],
   }
+  let issuedIds = 0
   const deps = {
     experienceRepo,
     mediaRepo,
     staffPublicApi,
-    idGen: () => 'new-id',
+    idGen: () => `new-id-${++issuedIds}`,
     clock: () => NOW,
   }
   return {
@@ -142,14 +143,24 @@ describe('savePropertyHero', () => {
     })
   })
 
-  it('centres the photograph when no focal point is given', async () => {
+  it('leaves the focal point to the writer when none is given, so a kept photograph keeps its anchor', async () => {
     const { experienceRepo, hero } = setup()
 
     await hero({ propertyId: PROPERTY, assetId: HERO_ID }, admin())
 
     expect(experienceRepo.savePropertyHero.mock.calls[0]?.[0].hero).toEqual({
       assetId: HERO_ID,
-      focalX: 0.5,
+    })
+  })
+
+  it('centres the missing half of a focal point that is given in part', async () => {
+    const { experienceRepo, hero } = setup()
+
+    await hero({ propertyId: PROPERTY, assetId: HERO_ID, focalX: 0.2 }, admin())
+
+    expect(experienceRepo.savePropertyHero.mock.calls[0]?.[0].hero).toEqual({
+      assetId: HERO_ID,
+      focalX: 0.2,
       focalY: 0.5,
     })
   })
@@ -169,13 +180,10 @@ describe('savePropertyHero', () => {
       admin(),
     )
 
-    expect(experienceRepo.savePropertyHero.mock.calls[0]?.[0]).toMatchObject({
-      id: 'new-id',
-      altTexts: [
-        { locale: 'en', text: 'Evening on the sea terrace' },
-        { locale: 'bg', text: null },
-      ],
-    })
+    expect(experienceRepo.savePropertyHero.mock.calls[0]?.[0].altTexts).toEqual([
+      { id: 'new-id-1', locale: 'en', text: 'Evening on the sea terrace' },
+      { id: 'new-id-2', locale: 'bg', text: null },
+    ])
   })
 
   it('leaves the descriptions out of the write when none are given', async () => {

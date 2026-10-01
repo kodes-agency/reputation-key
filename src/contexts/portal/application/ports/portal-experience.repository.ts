@@ -124,23 +124,24 @@ export type PortalExperienceRepository = Readonly<{
   /**
    * Put the Property's photograph on its look, move where it is anchored, or
    * take it off (`hero: null`, which also clears the focal point). The asset's
-   * purpose and state are the caller's to have checked. `altTexts` sets the
-   * photograph's description per language (null clears one; a language left
-   * out keeps its own). A description is kept in the language's wording row; a
-   * language with none gets one holding the description alone, which is not
-   * wording (its title and description read as unwritten). Like the other look
-   * writers it works inside the Property's publication lock, moves the look
-   * version, fences the live Portals and leaves the display name and who last
-   * saved the profile alone. Null when the Property has no Brand Profile.
+   * purpose and state are the caller's to have checked. A focal point left out
+   * is kept when the photograph is the one already on the look, and is the
+   * middle for a new photograph. `altTexts` sets the photograph's description
+   * per language (null clears one; a language left out keeps its own); each
+   * carries the id a new wording row for its language would take. A description
+   * is kept in the language's wording row; a language with none gets one
+   * holding the description alone. Like the other look writers it works inside
+   * the Property's publication lock, moves the look version, fences the live
+   * Portals and leaves the display name and who last saved the profile alone.
+   * Null when the Property has no Brand Profile.
    */
   savePropertyHero: (
     input: Readonly<{
-      id: string
       organizationId: OrganizationId
       propertyId: PropertyId
-      hero: Readonly<{ assetId: string; focalX: number; focalY: number }> | null
+      hero: Readonly<{ assetId: string; focalX?: number; focalY?: number }> | null
       altTexts?: ReadonlyArray<
-        Readonly<{ locale: PortalGuestLocale; text: string | null }>
+        Readonly<{ id: string; locale: PortalGuestLocale; text: string | null }>
       >
       actorUserId: UserId
       at: Date

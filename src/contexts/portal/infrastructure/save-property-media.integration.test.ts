@@ -208,6 +208,58 @@ describe.sequential('saving the Property look media (real PostgreSQL)', () => {
     await expect(profileRow()).resolves.toMatchObject({ look_version: 5 })
   })
 
+  it('keeps the anchor of a photograph that stays, and centres a new one, when no focal point is given', async () => {
+    const first = await insertAsset('hero')
+    const second = await insertAsset('hero')
+    await setHero({ propertyId: PROPERTY, assetId: first.id, focalX: 0.3, focalY: 0.6 })
+
+    await setHero({
+      propertyId: PROPERTY,
+      assetId: first.id,
+      altTexts: [{ locale: 'en', text: 'Evening on the sea terrace' }],
+    })
+    await expect(profileRow()).resolves.toMatchObject({
+      hero_focal_x: 0.3,
+      hero_focal_y: 0.6,
+      look_version: 4,
+    })
+
+    await setHero({ propertyId: PROPERTY, assetId: second.id })
+    await expect(profileRow()).resolves.toMatchObject({
+      hero_asset_id: second.id,
+      hero_focal_x: 0.5,
+      hero_focal_y: 0.5,
+    })
+  })
+
+  it('writes a description in several languages with no wording at once, one row each, with the photograph', async () => {
+    const asset = await insertAsset('hero')
+
+    await setHero({
+      propertyId: PROPERTY,
+      assetId: asset.id,
+      altTexts: [
+        { locale: 'en', text: 'Evening on the sea terrace' },
+        { locale: 'bg', text: 'Вечер на терасата' },
+        { locale: 'de', text: 'Abend auf der Terrasse' },
+      ],
+    })
+
+    await expect(profileRow()).resolves.toMatchObject({ hero_asset_id: asset.id })
+    const { rows } = await query(
+      `SELECT locale, hero_alt_text, id::text AS id
+       FROM property_portal_brand_contents
+       WHERE organization_id = $1 AND property_id = $2 ORDER BY locale`,
+      [ORG_A, PROPERTY],
+    )
+    expect(rows.map(({ locale, hero_alt_text }) => [locale, hero_alt_text])).toEqual([
+      ['bg', 'Вечер на терасата'],
+      ['de', 'Abend auf der Terrasse'],
+      ['en', 'Evening on the sea terrace'],
+    ])
+    expect(new Set(rows.map(({ id }) => id)).size).toBe(3)
+  })
+
   it('clears the focal point with the photograph, and leaves the descriptions it was given alone', async () => {
     const asset = await insertAsset('hero')
     await setHero({

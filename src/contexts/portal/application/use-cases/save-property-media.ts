@@ -47,7 +47,7 @@ export type SavePropertyHeroInput = Readonly<{
   propertyId: string
   /** An uploaded photograph, or null to take the photograph off. */
   assetId: string | null
-  /** Where pages crop around, 0 to 1; the middle when left out. */
+  /** Where pages crop around, 0 to 1; left out, a photograph already on the look keeps its anchor and a new one is centred. */
   focalX?: number
   focalY?: number
   /** The photograph's description per language; null (or only spaces) clears it, a language left out keeps its own. */
@@ -91,12 +91,20 @@ async function checkedAsset(
 }
 
 /** Each language once (the last word stands), trimmed, bounded, an empty one meaning none. */
-function normalisedAltTexts(input: SavePropertyHeroInput) {
+function normalisedAltTexts(input: SavePropertyHeroInput, idGen: () => string) {
   if (input.altTexts === undefined) return undefined
   const byLocale = new Map(
     input.altTexts.map(({ locale, text }) => [locale, normaliseHeroAltText(text)]),
   )
-  return [...byLocale].map(([locale, text]) => ({ locale, text }))
+  // Each language gets its own row id: they are inserted side by side.
+  return [...byLocale].map(([locale, text]) => ({ id: idGen(), locale, text }))
+}
+
+/** A focal point only when one was given (a missing half is the middle); otherwise the writer decides. */
+function givenFocalPoint(input: SavePropertyHeroInput) {
+  if (input.focalX === undefined && input.focalY === undefined) return {}
+  const { x, y } = normaliseFocalPoint(input.focalX ?? CENTRE, input.focalY ?? CENTRE)
+  return { focalX: x, focalY: y }
 }
 
 /** The writer's answer: the profile and the media a page draws from it. A Property with no profile is asked to set its name first. */
@@ -121,17 +129,16 @@ export const savePropertyHero =
     assertAdmin(ctx)
     const pid = propertyId(input.propertyId)
     await assertPropertyAccess(deps.staffPublicApi, ctx, 'portal.update', pid)
-    const altTexts = normalisedAltTexts(input)
-    const focal = normaliseFocalPoint(input.focalX ?? CENTRE, input.focalY ?? CENTRE)
+    const altTexts = normalisedAltTexts(input, deps.idGen)
+    const focal = givenFocalPoint(input)
     const assetId =
       input.assetId === null
         ? null
         : await checkedAsset(deps, ctx.organizationId, pid, 'brand_hero', input.assetId)
     const profile = await deps.experienceRepo.savePropertyHero({
-      id: deps.idGen(),
       organizationId: ctx.organizationId,
       propertyId: pid,
-      hero: assetId === null ? null : { assetId, focalX: focal.x, focalY: focal.y },
+      hero: assetId === null ? null : { assetId, ...focal },
       ...(altTexts === undefined ? {} : { altTexts }),
       actorUserId: ctx.userId,
       at: deps.clock(),
