@@ -165,9 +165,11 @@ export const SheetKeyboardAndFocus: Story = {
     await userEvent.click(chip)
     await userEvent.click(dialog)
     await waitFor(() => expect(dialog.open).toBe(false))
+    await waitFor(() => expect(chip.getAttribute('aria-expanded')).toBe('false'))
 
     // The row of the language already shown closes the sheet and stays on the page.
     await userEvent.click(chip)
+    await waitFor(() => expect(dialog.open).toBe(true))
     await userEvent.click(within(dialog).getByRole('link', { name: /English/u }))
     await waitFor(() => expect(dialog.open).toBe(false))
     await waitFor(() => expect(document.activeElement).toBe(chip))
