@@ -552,3 +552,47 @@ export const MemberSeesTheFieldsReadOnly: Story = {
     await expect(within(canvasElement).getByLabelText('Name')).toBeDisabled()
   },
 }
+
+// Boards 02 and 04: the preview outlines the part of the page the active
+// section edits (it follows `?section=`), and Languages opens the sheet in it.
+export const PreviewOutlinesTheActiveSection: Story = {
+  args: {
+    resources: makeResources(action(async () => undefined)),
+    requestedSection: 'linktree',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const preview = within(
+      await canvas.findByRole('complementary', { name: 'Live preview' }),
+    )
+    const linktree = await preview.findByRole(
+      'button',
+      { name: 'Edit Linktree' },
+      { timeout: 5000 },
+    )
+    await expect(linktree).toHaveAttribute('aria-current', 'true')
+    await expect(
+      preview.getByRole('button', { name: 'Edit Welcome' }),
+    ).not.toHaveAttribute('aria-current')
+    await expect(preview.getByText('Click any part of the page to edit it')).toBeVisible()
+  },
+}
+
+export const LanguagesOpensTheSheetInThePreview: Story = {
+  args: {
+    resources: makeResources(action(async () => undefined)),
+    requestedSection: 'languages',
+  },
+  play: async ({ canvasElement }) => {
+    const preview = within(
+      await within(canvasElement).findByRole('complementary', { name: 'Live preview' }),
+    )
+    const languages = await preview.findByRole(
+      'button',
+      { name: 'Edit Languages' },
+      { timeout: 5000 },
+    )
+    await expect(languages).toHaveAttribute('aria-current', 'true')
+    await expect(preview.getByText('Language', { selector: 'h2' })).toBeVisible()
+  },
+}

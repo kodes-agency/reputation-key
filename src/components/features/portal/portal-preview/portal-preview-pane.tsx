@@ -21,6 +21,7 @@ import type {
   PortalPreviewSource,
 } from '#/contexts/portal/application/public-api'
 import type { PreviewStateId } from './portal-preview-states'
+import { previewPartOf, stateIdForPart, type PreviewSelection } from './preview-parts'
 import { describeUnavailable } from './portal-preview-rules'
 import { PHONE_SCALE, PortalPreviewStage } from './portal-preview-stage'
 import { phoneFrameSize } from './preview-phone'
@@ -35,12 +36,28 @@ export type PortalPreviewReader = (args: {
 type Props = Readonly<{
   portalId: string
   getPortalPreview: PortalPreviewReader
+  /**
+   * The editor's: with it the parts of the page can be clicked to edit them
+   * (and the part of the active section is outlined). Without it, as on the
+   * Review page, the phone is a picture.
+   */
+  selection?: PreviewSelection
 }>
 
-export function PortalPreviewPane({ portalId, getPortalPreview }: Props) {
+export function PortalPreviewPane({ portalId, getPortalPreview, selection }: Props) {
   const [source, setSource] = useState<PortalPreviewSource>('draft')
   const [chosenLocale, setChosenLocale] = useState<GuestLocale | null>(null)
-  const [stateId, setStateId] = useState<PreviewStateId>('arrival')
+  const [stateId, setStateId] = useState<PreviewStateId>(() =>
+    stateIdForPart(previewPartOf(selection?.active), 'arrival'),
+  )
+  // Moving to another section shows the guest state that draws its part: the
+  // private note is only on the page after a low rating. A state the manager
+  // chose that already draws it is kept.
+  const [shownFor, setShownFor] = useState(selection?.active)
+  if (shownFor !== selection?.active) {
+    setShownFor(selection?.active)
+    setStateId(stateIdForPart(previewPartOf(selection?.active), stateId))
+  }
   const [isTrying, setIsTrying] = useState(false)
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: portalKeys.preview(portalId, source),
@@ -94,6 +111,7 @@ export function PortalPreviewPane({ portalId, getPortalPreview }: Props) {
         onStateChange={setStateId}
         isTrying={isTrying}
         onTryChange={setIsTrying}
+        selection={selection}
       />
     </section>
   )
@@ -111,6 +129,7 @@ type BodyProps = Readonly<{
   onStateChange: (next: PreviewStateId) => void
   isTrying: boolean
   onTryChange: (next: boolean) => void
+  selection: PreviewSelection | undefined
 }>
 
 /** What the pane shows under the toolbar: failure, loading, a reason, or the stage. */
