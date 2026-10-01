@@ -8,7 +8,11 @@ import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { GlassSurface, glassClassName } from './glass-surface'
 import { focalObjectPosition } from './guest-hero'
-import { resolveImmersiveLook } from './immersive-look'
+import {
+  IMMERSIVE_TEXT_COLOUR,
+  PHOTO_BACKDROP,
+  resolveImmersiveLook,
+} from './immersive-look'
 import { ImmersiveShell, type ImmersiveShellProps } from './immersive-shell'
 import { IMMERSIVE_CSS } from './immersive-styles'
 
@@ -27,7 +31,7 @@ function render(props: Partial<ImmersiveShellProps> = {}, content = 'Page conten
       ImmersiveShell,
       {
         brand: { ...BRAND, hero: null },
-        heroAlt: '',
+        heroAlt: { value: '' },
         lang: 'en',
         ...props,
       },
@@ -43,7 +47,7 @@ const withoutStyle = (html: string) => html.replace(/<style[\s\S]*?<\/style>/gu,
 describe('ImmersiveShell with a photo', () => {
   const html = render({
     brand: { ...BRAND, hero: HERO },
-    heroAlt: 'The Harbor Hotel at dusk',
+    heroAlt: { value: 'The Harbor Hotel at dusk' },
   })
 
   it('loads the hero, and only the hero, eagerly at high priority', () => {
@@ -65,13 +69,34 @@ describe('ImmersiveShell with a photo', () => {
   })
 
   it('marks the photo decorative when it has no description', () => {
-    const decorative = render({ brand: { ...BRAND, hero: HERO }, heroAlt: '' })
+    const decorative = render({ brand: { ...BRAND, hero: HERO }, heroAlt: { value: '' } })
     expect(images(decorative).find((tag) => tag.includes('ih-hero__image'))).toContain(
       'alt=""',
     )
   })
 
-  it('hides a blurred copy of the photo from assistive technology and loads it last', () => {
+  it('marks the alt text with its own language when it is a fallback from another one', () => {
+    const fallback = render({
+      brand: { ...BRAND, hero: HERO },
+      lang: 'bg',
+      heroAlt: { value: 'The Harbor Hotel at dusk', lang: 'en' },
+    })
+    const hero = images(fallback).find((tag) => tag.includes('ih-hero__image'))
+    expect(hero).toContain('lang="en"')
+    expect(images(html).find((tag) => tag.includes('ih-hero__image'))).not.toContain(
+      'lang=',
+    )
+  })
+
+  it('meets the hero image first, so the backdrop copy cannot claim its request at low priority', () => {
+    const tags = images(html)
+    const heroAt = tags.findIndex((tag) => tag.includes('ih-hero__image'))
+    const backdropAt = tags.findIndex((tag) => tag.includes('ih-backdrop__photo'))
+    expect(heroAt).toBeGreaterThanOrEqual(0)
+    expect(backdropAt).toBeGreaterThan(heroAt)
+  })
+
+  it('hides a blurred copy of the photo from assistive technology and ranks it low', () => {
     expect(html).toContain('data-ih-backdrop="photo" aria-hidden="true"')
     const copy = images(html).find((tag) => tag.includes('ih-backdrop__photo'))
     expect(copy).toContain('alt=""')
@@ -113,12 +138,12 @@ describe('ImmersiveShell with no photo (board G09)', () => {
         null,
         createElement(
           ImmersiveShell,
-          { brand: { ...BRAND, hero: null }, heroAlt: '', lang: 'en' },
+          { brand: { ...BRAND, hero: null }, heroAlt: { value: '' }, lang: 'en' },
           null,
         ),
         createElement(
           ImmersiveShell,
-          { brand: { ...BRAND, hero: null }, heroAlt: '', lang: 'en' },
+          { brand: { ...BRAND, hero: null }, heroAlt: { value: '' }, lang: 'en' },
           null,
         ),
       ),
@@ -131,11 +156,20 @@ describe('ImmersiveShell with no photo (board G09)', () => {
 })
 
 describe('ImmersiveShell frame', () => {
-  it('is the one main landmark, in the page language, left to right', () => {
-    const html = render({ lang: 'bg' })
+  it('is the one main landmark of the public page, in the page language, left to right', () => {
+    const html = render({ lang: 'bg', height: 'page' })
     expect(html.match(/<main\b/gu)).toHaveLength(1)
     expect(html).toMatch(/<main[^>]*lang="bg"/u)
     expect(html).toMatch(/<main[^>]*dir="ltr"/u)
+  })
+
+  it('is no landmark inside a frame, where the host page owns the main landmark', () => {
+    for (const html of [render({ height: 'container', lang: 'bg' }), render()]) {
+      expect(html).not.toContain('<main')
+      expect(withoutStyle(html)).toMatch(
+        /^<div class="ih-root ih-root--container"[^>]*lang="/u,
+      )
+    }
   })
 
   it('renders its children inside the content column', () => {
@@ -189,11 +223,18 @@ describe('the stylesheet', () => {
     )
   })
 
-  it('pins the dark colour scheme on the document over the theme script', () => {
+  it('pins the dark colour scheme on the document over the theme script, for the page alone', () => {
     expect(IMMERSIVE_CSS).toMatch(
-      /:root:has\(\.ih-root\) \{ color-scheme: dark !important/u,
+      /:root:has\(\.ih-root--page\) \{ color-scheme: dark !important/u,
     )
+    expect(IMMERSIVE_CSS).toMatch(/body:has\(\.ih-root--page\) \{ background-color:/u)
     expect(IMMERSIVE_CSS).toMatch(/\.ih-root \{[^}]*color-scheme: dark/u)
+  })
+
+  it('never reaches the document from a frame: no document rule matches a bare root', () => {
+    for (const rule of IMMERSIVE_CSS.matchAll(/(?:^|\n)((?::root|html|body)[^{]*)\{/gu)) {
+      expect(rule[1]).toContain('.ih-root--page')
+    }
   })
 
   it('answers body { overflow-wrap: anywhere } with break-word and language hyphenation', () => {
@@ -202,10 +243,37 @@ describe('the stylesheet', () => {
     expect(IMMERSIVE_CSS).not.toMatch(/overflow-wrap:\s*anywhere/u)
   })
 
-  it('gives every glass surface an opaque fill where backdrop-filter is missing', () => {
-    expect(IMMERSIVE_CSS).toMatch(
-      /@supports not \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\) \{\s*\.ih-glass \{[^}]*--ih-glass-bg: color-mix\(in srgb, var\(--ih-field\)/u,
+  it('gives every glass surface the resolver literal where backdrop-filter is missing', () => {
+    const fallback =
+      /@supports not \(\(backdrop-filter: blur\(1px\)\) or \(-webkit-backdrop-filter: blur\(1px\)\)\) \{([\s\S]*?)\n\}/u.exec(
+        IMMERSIVE_CSS,
+      )
+    expect(fallback?.[1]).toMatch(
+      /\.ih-glass \{[^}]*--ih-glass-bg: var\(--ih-glass-solid\)/u,
     )
+    // The browsers that need the fallback predate color-mix: it must not rely on it.
+    expect(fallback?.[1]).not.toContain('color-mix')
+  })
+
+  it('takes the page text colour from the resolver, not from a literal of its own', () => {
+    expect(IMMERSIVE_CSS).not.toMatch(/#f6f1e8/iu)
+    expect(IMMERSIVE_CSS).toMatch(/color: var\(--ih-text\)/u)
+    expect(html).toContain(`--ih-text:${IMMERSIVE_TEXT_COLOUR}`)
+  })
+
+  it('stops the tile and chip motion for people who ask for less of it', () => {
+    expect(IMMERSIVE_CSS).toMatch(
+      /@media \(prefers-reduced-motion: reduce\) \{[^@]*\.ih-root \.ih-glass \{ transition: none; \}[^@]*transform: none/u,
+    )
+  })
+
+  it('selects text in the page accent, not the app purple', () => {
+    expect(IMMERSIVE_CSS).toMatch(/\.ih-root ::selection \{[^}]*var\(--ih-accent\)/u)
+  })
+
+  it('draws the photo backdrop from constants the contrast tests pin', () => {
+    expect(IMMERSIVE_CSS).toContain(`brightness(${PHOTO_BACKDROP.brightness})`)
+    expect(IMMERSIVE_CSS).toContain(`${PHOTO_BACKDROP.fieldMix * 100}%, transparent)`)
   })
 
   it('prefixes backdrop-filter for Safari', () => {

@@ -15,6 +15,7 @@ import {
   DEFAULT_IMMERSIVE_ACCENT,
   IMMERSIVE_TEXT_COLOUR,
   MIN_FIELD_TEXT_CONTRAST,
+  PHOTO_BACKDROP,
   resolveImmersiveLook,
 } from './immersive-look'
 
@@ -127,7 +128,9 @@ describe('resolveImmersiveLook', () => {
       expect(Object.keys(style).sort()).toEqual([
         '--ih-accent',
         '--ih-field',
+        '--ih-glass-solid',
         '--ih-on-accent',
+        '--ih-text',
         '--ih-wash-cool',
         '--ih-wash-deep',
         '--ih-wash-warm',
@@ -147,5 +150,123 @@ describe('resolveImmersiveLook', () => {
 
   it('is deterministic and ignores the letter case of its input', () => {
     expect(look('#ead6a8')).toEqual(look('#EAD6A8'))
+  })
+})
+
+describe('the text colour and the opaque glass', () => {
+  it('emits the page text colour from the same constant the arithmetic uses', () => {
+    expect(look('#EAD6A8').style['--ih-text']).toBe(IMMERSIVE_TEXT_COLOUR)
+  })
+
+  it.each(ACCENTS)(
+    'gives the no-backdrop-filter glass fill a literal colour that holds AAA for $name',
+    ({ accent }) => {
+      const { style, field } = look(accent)
+      const solid = style['--ih-glass-solid']
+      expect(solid).toMatch(HEX)
+      expect(solid).not.toBe(field)
+      expect(contrastRatio(IMMERSIVE_TEXT_COLOUR, solid) ?? 0).toBeGreaterThanOrEqual(
+        MIN_FIELD_TEXT_CONTRAST,
+      )
+    },
+  )
+
+  it('keeps the opaque fill readable on the darkest accepted manual field too', () => {
+    // The lightest field the resolver honours is the one nearest the threshold.
+    const lightest = '#4F4F4F'
+    expect(contrastRatio(IMMERSIVE_TEXT_COLOUR, lightest) ?? 0).toBeGreaterThanOrEqual(
+      MIN_FIELD_TEXT_CONTRAST,
+    )
+    const resolved = look('#EAD6A8', lightest)
+    expect(resolved.field).toBe(lightest)
+    expect(
+      contrastRatio(IMMERSIVE_TEXT_COLOUR, resolved.style['--ih-glass-solid']) ?? 0,
+    ).toBeGreaterThanOrEqual(4.5)
+  })
+})
+
+describe('text on the photo look', () => {
+  // The worst photo a manager can upload is white: the blur averages it to the
+  // brightest backdrop there is, whatever its colours (saturation cannot lift a
+  // grey, and clipping only lowers luminance). The backdrop is that photo at a
+  // fixed brightness, a layer of the field over it, and two washes at their
+  // painted strength; glass then adds white on top. All sRGB source-over.
+  type Rgb = readonly [number, number, number]
+  const channels = (hex: string): Rgb => parseHexColour(hex) as Rgb
+  const over = (top: Rgb, alpha: number, base: Rgb): Rgb => [
+    alpha * top[0] + (1 - alpha) * base[0],
+    alpha * top[1] + (1 - alpha) * base[1],
+    alpha * top[2] + (1 - alpha) * base[2],
+  ]
+  const hex = (rgb: Rgb) =>
+    `#${rgb.map((value) => Math.round(value).toString(16).padStart(2, '0')).join('')}`
+  const WHITE: Rgb = [255, 255, 255]
+
+  function whitePhotoBackdrop(field: string): Rgb {
+    const photo = WHITE.map(
+      (value) => value * PHOTO_BACKDROP.brightness,
+    ) as unknown as Rgb
+    return over(channels(field), PHOTO_BACKDROP.fieldMix, photo)
+  }
+
+  const GLASS = { card: 0.1, tile: 0.08 } as const
+
+  it('pins the constants the stylesheet is built from', () => {
+    expect(PHOTO_BACKDROP).toEqual({
+      brightness: 0.35,
+      fieldMix: 0.45,
+      warmWash: 0.2,
+      coolWash: 0.34,
+    })
+  })
+
+  it.each(ACCENTS)(
+    'keeps AA for the page text on the bare backdrop and both glass fills over a white photo ($name)',
+    ({ accent }) => {
+      const { style, field } = look(accent)
+      const base = whitePhotoBackdrop(field)
+      const warm = over(channels(style['--ih-wash-warm']), PHOTO_BACKDROP.warmWash, base)
+      const cool = over(channels(style['--ih-wash-cool']), PHOTO_BACKDROP.coolWash, base)
+      for (const backdrop of [base, warm, cool]) {
+        for (const alpha of [0, GLASS.tile, GLASS.card]) {
+          const surface = over(WHITE, alpha, backdrop)
+          expect(
+            contrastRatio(IMMERSIVE_TEXT_COLOUR, hex(surface)) ?? 0,
+          ).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
+        }
+      }
+    },
+  )
+
+  it('holds for a manual field at the lightest the resolver honours', () => {
+    const { style, field } = look('#FFFFFF', '#4F4F4F')
+    const base = whitePhotoBackdrop(field)
+    const warm = over(channels(style['--ih-wash-warm']), PHOTO_BACKDROP.warmWash, base)
+    expect(
+      contrastRatio(IMMERSIVE_TEXT_COLOUR, hex(over(WHITE, GLASS.card, warm))) ?? 0,
+    ).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
+  })
+})
+
+describe('the washes of the resolved look', () => {
+  it('bounds a yellow-green accent wash by the text it sits under', () => {
+    const { style, field } = look('#CCDD00')
+    const painted = (
+      key: '--ih-wash-warm' | '--ih-wash-cool' | '--ih-wash-deep',
+      a: number,
+    ) => {
+      const wash = parseHexColour(style[key]) as [number, number, number]
+      const base = parseHexColour(field) as [number, number, number]
+      return `#${wash
+        .map((value, index) =>
+          Math.round(a * value + (1 - a) * (base[index] as number))
+            .toString(16)
+            .padStart(2, '0'),
+        )
+        .join('')}`
+    }
+    expect(
+      contrastRatio(IMMERSIVE_TEXT_COLOUR, painted('--ih-wash-warm', 0.55)) ?? 0,
+    ).toBeGreaterThanOrEqual(MIN_TEXT_CONTRAST)
   })
 })

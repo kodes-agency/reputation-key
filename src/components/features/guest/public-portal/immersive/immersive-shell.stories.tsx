@@ -38,7 +38,7 @@ const meta: Meta<typeof ImmersiveShell> = {
   args: {
     lang: 'en',
     height: 'container',
-    heroAlt: 'The colonnade pool at dusk, under an old olive tree',
+    heroAlt: { value: 'The colonnade pool at dusk, under an old olive tree' },
     brand: { ...CHAMPAGNE, hero: STORY_HERO_PHOTO },
     children: <ArrivalStandIn displayName="Avela Resort" />,
   },
@@ -77,7 +77,7 @@ export const G01Arrival: Story = {
 
 /** Board G09. No image at all: the field, its washes, the grain and the arch. */
 export const G09NoPhoto: Story = {
-  args: { brand: { ...CHAMPAGNE, hero: null }, heroAlt: '' },
+  args: { brand: { ...CHAMPAGNE, hero: null }, heroAlt: { value: '' } },
   play: async ({ canvasElement }) => {
     const root = rootOf(canvasElement)
     expect(root.dataset.ihSurface).toBe('field')
@@ -93,9 +93,11 @@ export const G09NoPhoto: Story = {
 /**
  * The global link colour, the theme class and the body's line breaking must not
  * reach the page. Runs in the light theme, where the app's own tokens are the
- * furthest from the page's.
+ * furthest from the page's. Page height: the public route's shell owns the
+ * document's colour scheme.
  */
 export const IgnoresTheAppTheme: Story = {
+  args: { height: 'page' },
   parameters: { theme: 'light' },
   play: async ({ canvasElement }) => {
     const root = rootOf(canvasElement)
@@ -114,6 +116,27 @@ export const IgnoresTheAppTheme: Story = {
     const privacy = within(canvasElement).getByRole('link', { name: 'Privacy notice' })
     expect(getComputedStyle(privacy).textDecorationLine).toBe('underline')
     expect(getComputedStyle(privacy).color).not.toBe(rootStyle.color)
+  },
+}
+
+/**
+ * A shell in a frame (the admin preview) sits inside the app's own document: it
+ * must leave the document's colour scheme and body colour alone, and it is no
+ * second `main` landmark.
+ */
+export const ContainerLeavesTheDocument: Story = {
+  args: { height: 'container' },
+  parameters: { theme: 'light' },
+  play: async ({ canvasElement }) => {
+    const root = rootOf(canvasElement)
+    expect(root.tagName).toBe('DIV')
+    expect(canvasElement.querySelector('main')).toBeNull()
+    // The shell itself is dark ...
+    expect(getComputedStyle(root).colorScheme).toBe('dark')
+    // ... but the document around it keeps the app's light scheme and body.
+    expect(document.documentElement.classList.contains('light')).toBe(true)
+    expect(getComputedStyle(document.documentElement).colorScheme).not.toBe('dark')
+    expect(getComputedStyle(document.body).backgroundColor).not.toBe('rgb(13, 18, 16)')
   },
 }
 

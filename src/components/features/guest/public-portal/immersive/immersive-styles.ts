@@ -1,3 +1,6 @@
+import { BACKDROP_WASH_ALPHA } from '#/shared/domain/portal-field-colour'
+import { PHOTO_BACKDROP } from './immersive-look'
+
 // The Immersive Hub's stylesheet, as one string the shell hoists into the
 // document head (React 19 `<style href precedence>`, which also de-duplicates
 // it when a page holds several shells, as the admin preview list does).
@@ -12,14 +15,18 @@
 // global styles are marked NEUTRALISE, because they exist only because those
 // globals reach a page that must not look like the app:
 //
-//   - `a { color: var(--accent) }` has the specificity of four `:not()`
-//     attribute selectors, which no scoped selector can outrank; `!important`
-//     is the only tool, so it is confined to `color` and `text-decoration`
-//     on anchors inside the root, and a link chooses its own colour through
-//     `--ih-link-*` custom properties rather than by fighting the cascade.
+//   - `a { color: var(--accent) }` is a global rule of specificity (0,4,1). A
+//     scoped selector could outrank it (an ID-weighted one reaches (1,1,1)),
+//     but then every slice would have to repeat that weight to colour a link.
+//     `!important` is the deliberate choice instead, confined to `color` and
+//     `text-decoration` on anchors inside the root: no class can recolour an
+//     anchor by accident, and a link chooses its colour through the
+//     `--ih-link-*` custom properties, never by fighting the cascade.
 //   - `html.dark` / `html.light` (the theme script) set `color-scheme` and the
 //     app's surface tokens. The page is always dark, so the root reads none of
-//     those tokens and pins `color-scheme: dark` on the document.
+//     those tokens, and a PAGE-height shell pins `color-scheme: dark` and the
+//     body colour on the document. A shell in a frame (the admin preview)
+//     must not: the document there belongs to the app.
 //   - `body { overflow-wrap: anywhere }` lets flex items shrink below their
 //     longest word, which broke long German words mid-letter; the root sets
 //     `break-word` (which does not change min-content) and hyphenates by the
@@ -27,11 +34,12 @@
 
 export const IMMERSIVE_STYLE_HREF = 'guest-immersive'
 
+const percent = (share: number) => `${Math.round(share * 100)}%`
+
 // Geometry measured from boards G01 and G09 (390 x 844): the hero is 236 px
 // tall, the glass card radius 28, the tiles 22, the chip a pill.
 export const IMMERSIVE_CSS = `
 .ih-root {
-  --ih-text: #f6f1e8;
   --ih-accent-text: color-mix(in srgb, var(--ih-accent) 88%, #fff);
   --ih-display: var(--font-guest-display, 'Cormorant Garamond', Georgia, 'Times New Roman', serif);
   --ih-body: var(--font-guest-body, 'Ysabeau Office', system-ui, -apple-system, 'Segoe UI', sans-serif);
@@ -54,9 +62,10 @@ export const IMMERSIVE_CSS = `
 }
 .ih-root--container { min-height: 100%; }
 
-/* NEUTRALISE the theme class on html: the page is dark whatever the script chose. */
-:root:has(.ih-root) { color-scheme: dark !important; }
-body:has(.ih-root) { background-color: #0d1210; }
+/* NEUTRALISE the theme class on html: the page is dark whatever the script chose.
+   Page height only: a shell in a frame sits inside the app's own document. */
+:root:has(.ih-root--page) { color-scheme: dark !important; }
+body:has(.ih-root--page) { background-color: #0d1210; }
 
 /* NEUTRALISE the global anchor colour. */
 .ih-root a {
@@ -107,19 +116,20 @@ body:has(.ih-root) { background-color: #0d1210; }
   height: calc(100% + 180px);
   object-fit: cover;
   object-position: var(--ih-focal, 50% 62%);
-  filter: blur(36px) saturate(1.35) brightness(0.5);
+  filter: blur(36px) saturate(1.35) brightness(${PHOTO_BACKDROP.brightness});
 }
 .ih-backdrop__wash { position: absolute; inset: 0; }
 .ih-backdrop__wash--photo {
   background:
-    radial-gradient(circle at 12% 88%, color-mix(in srgb, var(--ih-accent) 20%, transparent) 0%, transparent 46%),
-    radial-gradient(circle at 96% 58%, color-mix(in srgb, var(--ih-wash-cool) 34%, transparent) 0%, transparent 42%);
+    radial-gradient(circle at 12% 88%, color-mix(in srgb, var(--ih-wash-warm) ${percent(PHOTO_BACKDROP.warmWash)}, transparent) 0%, transparent 46%),
+    radial-gradient(circle at 96% 58%, color-mix(in srgb, var(--ih-wash-cool) ${percent(PHOTO_BACKDROP.coolWash)}, transparent) 0%, transparent 42%),
+    color-mix(in srgb, var(--ih-field) ${percent(PHOTO_BACKDROP.fieldMix)}, transparent);
 }
 .ih-backdrop__wash--field {
   background:
-    radial-gradient(120% 55% at 18% 0%, color-mix(in srgb, var(--ih-wash-warm) 55%, transparent) 0%, transparent 62%),
-    radial-gradient(90% 50% at 100% 36%, color-mix(in srgb, var(--ih-wash-cool) 55%, transparent) 0%, transparent 64%),
-    radial-gradient(120% 60% at 30% 100%, color-mix(in srgb, var(--ih-wash-deep) 62%, transparent) 0%, transparent 70%),
+    radial-gradient(120% 55% at 18% 0%, color-mix(in srgb, var(--ih-wash-warm) ${percent(BACKDROP_WASH_ALPHA.warm)}, transparent) 0%, transparent 62%),
+    radial-gradient(90% 50% at 100% 36%, color-mix(in srgb, var(--ih-wash-cool) ${percent(BACKDROP_WASH_ALPHA.cool)}, transparent) 0%, transparent 64%),
+    radial-gradient(120% 60% at 30% 100%, color-mix(in srgb, var(--ih-wash-deep) ${percent(BACKDROP_WASH_ALPHA.deep)}, transparent) 0%, transparent 70%),
     var(--ih-field);
 }
 .ih-backdrop__grain {
@@ -220,11 +230,24 @@ button.ih-glass--chip:hover { --ih-glass-border: rgba(255, 255, 255, 0.4); }
 a.ih-glass--tile:active, button.ih-glass--tile:active, button.ih-glass--chip:active { transform: scale(0.985); }
 
 /* Without backdrop-filter the translucent white would sit straight on the
-   photo. Use a dark, mostly opaque surface so text keeps its contrast. */
+   photo. Use the resolver's opaque, field-derived fill so text keeps its
+   contrast. A literal hex on purpose: the browsers that lack backdrop-filter
+   also lack color-mix, which would leave the glass transparent. */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   .ih-glass {
-    --ih-glass-bg: color-mix(in srgb, var(--ih-field) 84%, #fff 6%);
+    --ih-glass-bg: var(--ih-glass-solid);
     --ih-glass-border: rgba(255, 255, 255, 0.24);
   }
+}
+
+/* The app's body selection colour is purple; the page selects in its accent. */
+.ih-root ::selection {
+  background: color-mix(in srgb, var(--ih-accent) 45%, transparent);
+  color: var(--ih-text);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ih-root .ih-glass { transition: none; }
+  .ih-root a.ih-glass--tile:active, .ih-root button.ih-glass--tile:active, .ih-root button.ih-glass--chip:active { transform: none; }
 }
 `

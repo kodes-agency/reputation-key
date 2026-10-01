@@ -10,6 +10,9 @@ export type ImmersiveHeroMedia = Readonly<{
   focalY: number
 }>
 
+/** The hero's description; `lang` is set when it is a fallback from another language than the page's. */
+export type ImmersiveHeroAlt = Readonly<{ value: string; lang?: string }>
+
 /** `object-position` for a focal point, clamped so a bad value cannot leave the photo. */
 export function focalObjectPosition(focalX: number, focalY: number): string {
   const percent = (value: number) =>
@@ -27,7 +30,7 @@ export function focalObjectPosition(focalX: number, focalY: number): string {
 export function GuestHero({
   hero,
   alt,
-}: Readonly<{ hero: ImmersiveHeroMedia | null; alt: string }>) {
+}: Readonly<{ hero: ImmersiveHeroMedia | null; alt: ImmersiveHeroAlt }>) {
   if (!hero) return <GuestArch />
   const style = {
     '--ih-focal': focalObjectPosition(hero.focalX, hero.focalY),
@@ -37,7 +40,8 @@ export function GuestHero({
       <img
         className="ih-hero__image"
         src={hero.url}
-        alt={alt}
+        alt={alt.value}
+        lang={alt.value && alt.lang ? alt.lang : undefined}
         width={hero.width}
         height={hero.height}
         loading="eager"

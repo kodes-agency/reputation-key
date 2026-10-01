@@ -11,6 +11,15 @@
 /** WCAG 2.x AA for normal-size text. */
 export const MIN_TEXT_CONTRAST = 4.5
 
+/** Body text of the Immersive Hub on its field. Headings are white; this is the warm off-white of the board. */
+export const IMMERSIVE_TEXT_COLOUR = '#F6F1E8'
+/**
+ * Light text must clear this on the field. AAA for normal text, because the
+ * quietest text on the page (the visit notice) is drawn at two-thirds opacity
+ * and still has to reach AA.
+ */
+export const MIN_FIELD_TEXT_CONTRAST = 7
+
 /** The field is always this dark: light text clears AAA on it whatever the accent. */
 const FIELD_LIGHTNESS = 0.07
 /** The accent's hue shows through the field, but only as a tint, never a colour wash. */
@@ -156,6 +165,7 @@ export function deriveFieldColour(accent: string): string | null {
 // the board's champagne accent (hue 42°, saturation .61): amber is the accent
 // 5° toward red, at .8 of its saturation and a mid lightness; sage sits 83°
 // around the wheel and is nearly grey; umber is amber, darker, 18° toward red.
+// (Amber is 4° toward red here: the board's 5° rounds to it.)
 const WARM_WASH = { hueShift: -4, saturationScale: 0.8, lightness: 0.623 } as const
 const COOL_WASH = { hueShift: 83, saturation: 0.115, lightness: 0.408 } as const
 const DEEP_WASH = { hueShift: -18, saturationScale: 0.8, lightness: 0.337 } as const
@@ -163,38 +173,88 @@ const DEEP_WASH = { hueShift: -18, saturationScale: 0.8, lightness: 0.337 } as c
 const GREYSCALE_SATURATION = 0.05
 const MAX_WASH_SATURATION = 0.55
 
+/**
+ * How strongly each wash is painted at its peak over the field (the guest
+ * stylesheet reads these, so the arithmetic below and the page agree).
+ */
+export const BACKDROP_WASH_ALPHA = { warm: 0.55, cool: 0.55, deep: 0.62 } as const
+const WASH_LIGHTNESS_STEP = 0.005
+/** Headroom over AA, so the 8-bit rounding of a painted colour cannot dip below it. */
+const WASH_CONTRAST_HEADROOM = 0.1
+
 export type BackdropTones = Readonly<{ warm: string; cool: string; deep: string }>
 
 const wrapHue = (hue: number) => ((hue % 360) + 360) % 360
 
+/** Whether the page text keeps AA on `wash` painted at `alpha` over `field`. */
+function washKeepsTextReadable(wash: Rgb, field: Rgb, alpha: number): boolean {
+  const painted = wash.map(
+    (channel, index) => alpha * channel + (1 - alpha) * (field[index] as number),
+  ) as unknown as Rgb
+  const text = luminanceOf(parseHexColour(IMMERSIVE_TEXT_COLOUR) as Rgb)
+  const ratio = (text + 0.05) / (luminanceOf(painted) + 0.05)
+  return ratio >= MIN_TEXT_CONTRAST + WASH_CONTRAST_HEADROOM
+}
+
+/**
+ * A wash of this hue and saturation, as light as `lightness` allows while the
+ * page text stays readable on it at its painted strength. A hue that is bright
+ * at mid lightness (yellow-green) is darkened until it is.
+ */
+function boundedWash(
+  hue: number,
+  saturation: number,
+  lightness: number,
+  alpha: number,
+  field: Rgb,
+): string {
+  for (let level = lightness; level > 0; level -= WASH_LIGHTNESS_STEP) {
+    const hex = fromHsl(hue, saturation, level)
+    if (washKeepsTextReadable(parseHexColour(hex) as Rgb, field, alpha)) return hex
+  }
+  return fromHsl(hue, saturation, 0)
+}
+
 /**
  * The warm, cool and deep washes the guest backdrop paints over the field,
  * derived from the accent. Upper-case `#RRGGBB`, all mid-to-dark so they tint
- * the field without lifting it toward the text colour. Null when `accent` is
- * not a `#rrggbb` colour.
+ * the field without lifting it toward the text colour: each is darkened, where
+ * its hue is bright, until the page text keeps AA on it at its painted strength
+ * over `field` (default: the accent's derived field). Null when `accent` or
+ * `field` is not a `#rrggbb` colour.
  */
-export function deriveBackdropTones(accent: string): BackdropTones | null {
+export function deriveBackdropTones(
+  accent: string,
+  field?: string,
+): BackdropTones | null {
   const channels = parseHexColour(accent)
-  if (!channels) return null
+  const fieldChannels = parseHexColour(field ?? deriveFieldColour(accent) ?? '')
+  if (!channels || !fieldChannels) return null
   const { hue, saturation } = toHslParts(channels)
   const isGrey = saturation < GREYSCALE_SATURATION
   const scaled = (scale: number) =>
     isGrey ? 0 : Math.min(saturation * scale, MAX_WASH_SATURATION)
   return {
-    warm: fromHsl(
+    warm: boundedWash(
       wrapHue(hue + WARM_WASH.hueShift),
       scaled(WARM_WASH.saturationScale),
       WARM_WASH.lightness,
+      BACKDROP_WASH_ALPHA.warm,
+      fieldChannels,
     ),
-    cool: fromHsl(
+    cool: boundedWash(
       wrapHue(hue + COOL_WASH.hueShift),
       isGrey ? 0 : COOL_WASH.saturation,
       COOL_WASH.lightness,
+      BACKDROP_WASH_ALPHA.cool,
+      fieldChannels,
     ),
-    deep: fromHsl(
+    deep: boundedWash(
       wrapHue(hue + DEEP_WASH.hueShift),
       scaled(DEEP_WASH.saturationScale),
       DEEP_WASH.lightness,
+      BACKDROP_WASH_ALPHA.deep,
+      fieldChannels,
     ),
   }
 }
@@ -208,4 +268,9 @@ export function isAccentReadableOnField(accent: string, field?: string): boolean
   if (against === null) return false
   const ratio = contrastRatio(accent, against)
   return ratio !== null && ratio >= MIN_TEXT_CONTRAST
+}
+
+/** Whether the page text reads on `field` at the AAA threshold: the test a manual field must pass. */
+export function isFieldForLightText(field: string): boolean {
+  return (contrastRatio(IMMERSIVE_TEXT_COLOUR, field) ?? 0) >= MIN_FIELD_TEXT_CONTRAST
 }

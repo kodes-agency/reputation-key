@@ -7,31 +7,43 @@
 // accent may be darker than the field it sits on. Every colour this returns is
 // therefore checked here with the same arithmetic the Brand Profile writer and
 // the publication builder use (`portal-field-colour`), and a colour that would
-// not be readable is replaced rather than drawn. Legibility is a property of
-// the resolver, not of the data.
+// not be readable is replaced rather than drawn. The washes over the field are
+// darkened where their hue is bright, and the photo backdrop is bounded by the
+// constants below whatever the photo (the worst case, a white one, is pinned in
+// the tests). Legibility is a property of the resolver, not of the data.
 //
 // Pure, and the only place CSS custom-property values are made: each is a
 // validated `#RRGGBB`, so nothing a manager typed can reach a stylesheet.
 
 import {
-  contrastRatio,
+  IMMERSIVE_TEXT_COLOUR,
+  MIN_FIELD_TEXT_CONTRAST,
   deriveBackdropTones,
   deriveFieldColour,
   isAccentReadableOnField,
+  isFieldForLightText,
   parseHexColour,
   readableForegroundOn,
 } from '#/shared/domain/portal-field-colour'
 
+export { IMMERSIVE_TEXT_COLOUR, MIN_FIELD_TEXT_CONTRAST }
+
 /** Champagne: the accent of a property that has no brand colour of its own. */
 export const DEFAULT_IMMERSIVE_ACCENT = '#EAD6A8'
-/** Body text on the field. Headings are white; this is the warm off-white of the board. */
-export const IMMERSIVE_TEXT_COLOUR = '#F6F1E8'
 /**
- * Light text must clear this on the field. AAA for normal text, because the
- * quietest text on the page (the visit notice) is drawn at two-thirds opacity
- * and still has to reach AA.
+ * The photo backdrop, drawn so no photo can make it too bright for the page
+ * text: the photo at `brightness`, a layer of the field over it (`fieldMix`),
+ * and two washes at their painted strength. The stylesheet is built from these.
  */
-export const MIN_FIELD_TEXT_CONTRAST = 7
+export const PHOTO_BACKDROP = {
+  brightness: 0.35,
+  fieldMix: 0.45,
+  warmWash: 0.2,
+  coolWash: 0.34,
+} as const
+
+/** The share of white mixed into the field for glass where `backdrop-filter` is missing. */
+const GLASS_SOLID_WHITE = 0.06
 
 export type ImmersiveBrandColours = Readonly<{
   accentColour: string
@@ -40,6 +52,8 @@ export type ImmersiveBrandColours = Readonly<{
 
 export type ImmersiveLookVariable =
   | '--ih-field'
+  | '--ih-text'
+  | '--ih-glass-solid'
   | '--ih-accent'
   | '--ih-on-accent'
   | '--ih-wash-warm'
@@ -62,8 +76,17 @@ function normalisedHex(value: string): string | null {
   return parseHexColour(value) ? value.toUpperCase() : null
 }
 
-function isFieldForLightText(field: string): boolean {
-  return (contrastRatio(IMMERSIVE_TEXT_COLOUR, field) ?? 0) >= MIN_FIELD_TEXT_CONTRAST
+/** `#RRGGBB` of `base` with `share` of white mixed in; `base` is a validated colour. */
+function liftedFrom(base: string, share: number): string {
+  const channels = parseHexColour(base) as readonly number[]
+  return `#${channels
+    .map((channel) =>
+      Math.round(channel * (1 - share) + 255 * share)
+        .toString(16)
+        .padStart(2, '0'),
+    )
+    .join('')
+    .toUpperCase()}`
 }
 
 /** The stored field when light text can be read on it, else the accent's derived field. */
@@ -83,8 +106,8 @@ export function resolveImmersiveLook(brand: ImmersiveBrandColours): ImmersiveLoo
     ? accent
     : IMMERSIVE_TEXT_COLOUR
   const onAccent = readableForegroundOn(drawnAccent)
-  // The accent is validated above, so its tones exist.
-  const tones = deriveBackdropTones(accent) as NonNullable<
+  // The accent and the field are validated above, so the tones exist.
+  const tones = deriveBackdropTones(accent, field) as NonNullable<
     ReturnType<typeof deriveBackdropTones>
   >
   return {
@@ -93,6 +116,8 @@ export function resolveImmersiveLook(brand: ImmersiveBrandColours): ImmersiveLoo
     onAccent,
     style: {
       '--ih-field': field,
+      '--ih-text': IMMERSIVE_TEXT_COLOUR,
+      '--ih-glass-solid': liftedFrom(field, GLASS_SOLID_WHITE),
       '--ih-accent': drawnAccent,
       '--ih-on-accent': onAccent,
       '--ih-wash-warm': tones.warm,
