@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { PortalAnalyticsData } from '#/contexts/reporting/application/public-api'
-import { resultsCells } from './portal-results-cells'
+import { measureCells, resultsCells } from './portal-results-cells'
 import {
   RESULTS_HEALTHY,
   resultsCount,
@@ -222,5 +222,50 @@ describe('resultsCells: honest about what it cannot say', () => {
 
     expect(cell(all, 'scans')?.detail).toBeNull()
     expect(cell(all, 'notes')?.detail).toBeNull()
+  })
+})
+
+describe('measureCells: the overview strip, which has no single-Portal payload', () => {
+  const input = {
+    kpis: RESULTS_HEALTHY.kpis,
+    thresholds: RESULTS_HEALTHY.thresholds,
+    timezone: 'Europe/Sofia',
+    localDays: RESULTS_HEALTHY.localDays,
+  }
+  const find = (cells: ReturnType<typeof measureCells>, key: string) =>
+    cells.find((candidate) => candidate.key === key)
+
+  it('reads the same as the Results tab when given the same figures', () => {
+    expect(measureCells(input, { compare: true })).toEqual(
+      resultsCells(RESULTS_HEALTHY, { compare: true }),
+    )
+  })
+
+  it('takes the shares of scans from the funnel it is given, not from the counts', () => {
+    const cells = measureCells(
+      { ...input, funnel: { qualifiedScans: 3420, ratings: 951, googleOpens: 498 } },
+      { compare: true },
+    )
+
+    expect(find(cells, 'ratings')?.detail).toBe('28% of scans')
+    expect(find(cells, 'googleOpens')?.detail).toBe('15% of scans')
+  })
+
+  it('gives no share when the funnel is withheld, and says the change instead', () => {
+    const cells = measureCells({ ...input, funnel: null }, { compare: true })
+
+    expect(find(cells, 'ratings')?.detail).toBe('+15 vs the 30 days before')
+    expect(find(cells, 'googleOpens')?.detail).toBe('+4 vs the 30 days before')
+  })
+
+  it('never prints a share over 100% from the funnel either', () => {
+    const cells = measureCells(
+      { ...input, funnel: { qualifiedScans: 100, ratings: 118, googleOpens: 64 } },
+      { compare: true },
+    )
+
+    expect(find(cells, 'ratings')?.detail).toBe('+15 vs the 30 days before')
+    // Each share is held to its own 100%: Google opens still fit within the scans.
+    expect(find(cells, 'googleOpens')?.detail).toBe('64% of scans')
   })
 })

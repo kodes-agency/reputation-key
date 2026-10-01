@@ -133,6 +133,29 @@ describe('goal query keys', () => {
     expect(portalKeys.overview('property-1')).not.toEqual(portalKeys.list('property-1'))
   })
 
+  it('keeps each window of the overview results in its own read, under the property', () => {
+    expect(portalKeys.resultsOverviewRoot('property-1')).toEqual([
+      'portals',
+      'property',
+      'property-1',
+      'results-overview',
+    ])
+    expect(portalKeys.resultsOverview('property-1', '30d', true)).toEqual([
+      'portals',
+      'property',
+      'property-1',
+      'results-overview',
+      '30d',
+      'compare',
+    ])
+    expect(portalKeys.resultsOverview('property-1', '30d', false)).not.toEqual(
+      portalKeys.resultsOverview('property-1', '30d', true),
+    )
+    expect(portalKeys.resultsOverview('property-1', '7d', true)).not.toEqual(
+      portalKeys.resultsOverview('property-1', '30d', true),
+    )
+  })
+
   it('keeps goal subject data in one property-scoped portal subtree', () => {
     expect(portalKeys.goalSubjects('property-1')).toEqual([
       'portals',

@@ -1,11 +1,13 @@
 import { describe, expect, it } from 'vitest'
 import {
+  PORTAL_OVERVIEW_RANGES,
   PORTAL_RESULTS_RANGES,
   compareLabel,
   currentPeriodLabel,
   dayCount,
   formatDayRange,
   priorPeriodLabel,
+  storedOverviewRange,
   storedResultsRange,
   windowCaption,
   windowFooter,
@@ -122,5 +124,29 @@ describe('storedResultsRange', () => {
   it('falls back to 30 days for nothing, or for something stale or hand-edited', () => {
     expect(storedResultsRange(null)).toBe('30d')
     expect(storedResultsRange('yesterday')).toBe('30d')
+  })
+})
+
+describe('the ranges the Portals overview offers', () => {
+  it('are the Results tab ranges without All Time, which is a lifetime figure', () => {
+    expect(PORTAL_OVERVIEW_RANGES.map((range) => range.value)).toEqual([
+      '7d',
+      '30d',
+      '60d',
+      '90d',
+    ])
+    expect(PORTAL_OVERVIEW_RANGES.map((range) => range.label)).toEqual(
+      PORTAL_RESULTS_RANGES.filter((range) => range.value !== 'all').map(
+        (range) => range.label,
+      ),
+    )
+  })
+
+  it('follow the reader from the Results tab, except where All Time was left on', () => {
+    expect(storedOverviewRange('7d')).toBe('7d')
+    expect(storedOverviewRange('90d')).toBe('90d')
+    expect(storedOverviewRange('all')).toBe('30d')
+    expect(storedOverviewRange('180d')).toBe('30d')
+    expect(storedOverviewRange(null)).toBe('30d')
   })
 })

@@ -1,28 +1,12 @@
-import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
-import { PortalListPage, type PortalListPageProps } from './portal-list-page'
-import {
-  NO_CODE,
-  overviewGroup,
-  overviewRow,
-} from './portal-overview/portal-overview-fixtures'
-import {
-  MAX_SEARCH_LENGTH,
-  type PortalOverviewSearch,
-} from './portal-overview/portal-overview-search-schema'
-import type { Action } from '#/components/hooks/use-action'
+import { overviewRow } from './portal-overview/portal-overview-fixtures'
+import { MAX_SEARCH_LENGTH } from './portal-overview/portal-overview-search-schema'
+import { ControlledPage, baseArgs, rows } from './portal-list-page-stories-data'
 import {
   AuthedRouterDecorator,
   withRole,
 } from '../../../../.storybook/AuthedRouterDecorator'
-
-// The page is presentational: the route owns the URL. A story keeps the search
-// in state so the toolbar, the pager and "Clear" behave as they do in the route.
-function ControlledPage(props: Omit<PortalListPageProps, 'search' | 'onSearchChange'>) {
-  const [search, setSearch] = useState<PortalOverviewSearch>({})
-  return <PortalListPage {...props} search={search} onSearchChange={setSearch} />
-}
 
 const meta: Meta<typeof ControlledPage> = {
   title: 'Portal/PortalListPage',
@@ -33,85 +17,6 @@ const meta: Meta<typeof ControlledPage> = {
 }
 export default meta
 type Story = StoryObj<typeof ControlledPage>
-
-const action = <TInput,>(): Action<TInput> =>
-  Object.assign(async (_input: TInput) => undefined, {
-    isPending: false,
-    error: null,
-    isSuccess: false,
-    data: null,
-  })
-
-const poolSide = overviewGroup('group-pool', 'Pool side')
-const frontOfHouse = overviewGroup('group-front', 'Front of house')
-
-const rows = [
-  overviewRow('p-terrace', {
-    name: 'Pool & Terrace',
-    group: poolSide,
-    additionalGuestLocales: ['bg', 'es', 'de'],
-    pendingChangeCount: 2,
-    responsibleManagerUserIds: ['u-georgi', 'u-elena'],
-  }),
-  overviewRow('p-spa', {
-    name: 'Spa & thermal pools',
-    group: poolSide,
-    additionalGuestLocales: ['bg'],
-    responsibleManagerUserIds: [],
-    token: { ...overviewRow('x').token, qualifiedScanReady: false },
-  }),
-  overviewRow('p-bar', {
-    name: 'Pool bar',
-    group: poolSide,
-    publicationState: 'draft',
-    additionalGuestLocales: ['bg'],
-    token: NO_CODE,
-    responsibleManagerUserIds: ['u-elena'],
-  }),
-  overviewRow('p-reception', {
-    name: 'Reception',
-    group: frontOfHouse,
-    additionalGuestLocales: ['bg'],
-    responsibleManagerUserIds: ['u-georgi', 'u-elena'],
-  }),
-  overviewRow('p-olive', {
-    name: 'Olive Terrace restaurant',
-    additionalGuestLocales: ['bg'],
-    responsibleManagerUserIds: ['u-georgi'],
-  }),
-]
-
-const members = [
-  { userId: 'u-georgi', name: 'Georgi Ivanov' },
-  { userId: 'u-elena', name: 'Elena Petrova' },
-]
-
-const baseArgs = {
-  rows,
-  members,
-  propertyId: 'prop-1',
-  propertyName: 'Avela Resort',
-  archiveMutation: action<{
-    data: { portalId: string; publicationState: 'archived' }
-  }>(),
-  restoreMutation: action<{
-    data: { portalId: string; publicationState: 'disabled' }
-  }>(),
-  portalGroups: [
-    { id: 'group-pool', name: 'Pool side', portalIds: ['p-terrace', 'p-spa', 'p-bar'] },
-  ],
-  createGroupMutation: action<{
-    data: { propertyId: string; name: string; portalIds?: string[] }
-  }>(),
-  updateGroupMutation: action<{ data: { portalGroupId: string; name: string } }>(),
-  deleteGroupMutation: action<{ data: { portalGroupId: string } }>(),
-  addPortalToGroupMutation: action<{
-    data: { portalGroupId: string; portalId: string }
-  }>(),
-  removePortalFromGroupMutation: action<{
-    data: { portalGroupId: string; portalId: string }
-  }>(),
-}
 
 export const Default: Story = { args: baseArgs }
 
@@ -132,7 +37,7 @@ export const GroupedWithCounts: Story = {
     await expect(table.getByText(/3 portals/)).toBeInTheDocument()
     await expect(table.getByText('Front of house')).toBeInTheDocument()
     await expect(table.getByText('Not in a group')).toBeInTheDocument()
-    await expect(canvas.getByText('5 portals at Avela Resort')).toBeInTheDocument()
+    await expect(canvas.getByText('6 portals at Avela Resort')).toBeInTheDocument()
   },
 }
 

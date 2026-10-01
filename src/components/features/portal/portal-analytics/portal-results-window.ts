@@ -10,6 +10,7 @@ import {
   timeRangePreset,
   type TimeRangePreset,
 } from '#/contexts/reporting/application/dto/dashboard.dto'
+import type { PortalResultsTimeRange } from '#/contexts/reporting/application/public-api'
 
 type LocalDays = NonNullable<PortalAnalyticsData['localDays']>
 
@@ -24,7 +25,10 @@ export const PORTAL_RESULTS_RANGES: ReadonlyArray<{
   { value: 'all', label: 'All time' },
 ]
 
-const DEFAULT_RANGE: TimeRangePreset = '30d'
+/** Where the range is remembered: one viewing preference for every Results surface. */
+export const PORTAL_RESULTS_RANGE_STORAGE_KEY = 'portal-analytics-time-range'
+
+const DEFAULT_RANGE = '30d' satisfies TimeRangePreset
 
 /** A remembered range, if the picker still offers it: the server accepts more presets than this tab shows. */
 export function storedResultsRange(stored: string | null): TimeRangePreset {
@@ -33,6 +37,20 @@ export function storedResultsRange(stored: string | null): TimeRangePreset {
   return PORTAL_RESULTS_RANGES.some((range) => range.value === parsed.data)
     ? parsed.data
     : DEFAULT_RANGE
+}
+
+/** The Portals overview reads windows of readings only, so it has no All Time. */
+export const PORTAL_OVERVIEW_RANGES: ReadonlyArray<{
+  value: PortalResultsTimeRange
+  label: string
+}> = PORTAL_RESULTS_RANGES.flatMap(({ value, label }) =>
+  value === 'all' ? [] : [{ value, label }],
+)
+
+/** The range the reader last chose on a Results tab, if the overview can read it too. */
+export function storedOverviewRange(stored: string | null): PortalResultsTimeRange {
+  const range = storedResultsRange(stored)
+  return range === 'all' ? DEFAULT_RANGE : range
 }
 
 const MONTHS = [

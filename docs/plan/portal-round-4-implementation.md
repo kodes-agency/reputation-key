@@ -522,6 +522,15 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
   - Phone differs from board 11 in two small ways: "New portal" stays in the page header (no sticky bottom action), and there is no "N portals · By group" summary line.
   - Archive and Restore need the organisation's `portal.write` capability as well as the role, because the server refuses both without it.
 
+- **As built (b).**
+  - The read gained what a label needs: `thresholds`, and each Property row's `timezone` and `localDays`. `getPortalResultsOverviewFn` (Reporting server) takes one Property: the roster and each Portal's group are Portal's `listPortalOverview` (so `portal.read` scoping applies), the window is cut in the Property's zone, and `dashboard.read` is asked for as on the Results tab. The organisation scope is not wired: no route reads it until slice 40, which adds it beside the All properties page.
+  - The page reads results as a separate query, so a slow or refused read never holds the list back. A role without `dashboard.read`, or a beta-dark posture, gets the list without the strip or columns; a real failure says so and offers "Try again".
+  - The strip is the Results tab's own cells (`measureCells`), with "% of scans" read from the row's `engagementFunnel`. The window is a viewing preference shared with the Results tab (All time is not offered and falls back to 30 days).
+  - Measure columns sit between Portal and Responsible. Group heads carry all five measures and a count from `memberPortalIds`; a draft says "No results until it's published". Below 56 rem the same row carries one summary line ("412 qualified scans · 4.4 ★ from 118").
+  - "Sort: Qualified scans" is offered only with results; groups follow their own scans and a row with no figure follows the others. The default sort stays Name, so the list does not reorder when the results arrive.
+  - Not built: "Open results" and "N waiting in Inbox" on the strip (no destination or read exists for them yet).
+  - Review fixes. The overview reads the stored window first on every render, so a range picked on a Results tab is what the overview shows next; a pick storage refused is held for the page only. A Portal's own refusal while listing (`PortalError`) is answered tagged (403, 404), not as an untagged 500. A Property with more than 1000 Portals gets a tagged `too_many_portals` (422), and the page shows its list without results rather than a "Try again" that can never succeed. While a new window loads, the table and footer are dimmed and `aria-busy` like the strip. The measure headers wrap so the table fits from 56 rem up; `e2e/storybook-metrics/portal-overview.metrics.ts` holds that (no sideways scroll from 900 to 1920 px, cards and one summary line below).
+
 **26. New portal: dialog and server side (A4 + F11).**
 
 - `create` gains `groupId?`, `guestLocales?` (default: the property defaults), `startFrom` and `responsibleManagerUserIds?`, all in one transaction. The slug gets an automatic suffix.
@@ -629,6 +638,10 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
 **40. All properties view (A15).**
 
 - `src/routes/_authenticated/portals/index.tsx`, an org-scope branch in `ManagerNavRow`, grouping by property, and organisation totals kept separate from the Google review average.
+- Inherited from 25b (the read already answers an organisation scope; nothing calls it that way yet):
+  - an organisation branch of `getPortalResultsOverviewFn` over the reader's Properties, which needs one roster and one zone per Property (the use case takes `properties[]`);
+  - rendering of the Property subtotal rows, each Property's own window on board 10 (Properties in different time zones read different windows), and the per-Property "not in a group" row;
+  - stories for board 10, and the 1000-Portal roster limit (`too_many_portals`) decided for a whole organisation, which can exceed it where one Property cannot.
 - Depends on 23–25. Size L.
 
 **41. es, it, fr and de packs (L2).**

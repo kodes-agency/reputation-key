@@ -8,7 +8,7 @@ import { catchUntagged, throwContextError } from '#/shared/auth/server-errors'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { propertyId } from '#/shared/domain/ids'
 import { scopeForPermission } from '#/shared/domain/permissions'
-import { standardErrorStatus as dashboardErrorStatus } from '#/shared/http/status'
+import { dashboardErrorStatus } from './dashboard-error-status'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { isDashboardError } from '../domain/dashboard-errors'
 

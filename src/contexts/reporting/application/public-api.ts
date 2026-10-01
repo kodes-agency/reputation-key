@@ -92,7 +92,9 @@ export type {
   RatingKPIValue,
   RatingComparisonWithheld,
   PortalAnalyticsData,
+  PortalCountKPIValue,
   PortalEngagementFunnel,
+  PortalKPIs,
   PortalLifetimeReconciliationState,
   PortalResponseIntegritySummary,
   PortalRatingLanguages,
@@ -112,6 +114,7 @@ export type {
 } from '../domain/portal-results-series'
 export type {
   PortalResultsGroupRow,
+  PortalResultsLocalDays,
   PortalResultsMeasures,
   PortalResultsMembership,
   PortalResultsOverview,

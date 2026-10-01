@@ -16,7 +16,11 @@ import type {
   PortalId,
   PropertyId,
 } from '#/shared/domain/ids'
-import type { PortalEngagementFunnel, PortalKPIs } from './dashboard-types'
+import type {
+  PortalEngagementFunnel,
+  PortalKPIs,
+  PortalResultsThresholds,
+} from './dashboard-types'
 
 export type PortalResultsPeriod = Readonly<{ startAt: Date; endAt: Date }>
 
@@ -60,13 +64,28 @@ export type PortalResultsUngroupedRow = PortalResultsMeasures &
   PortalResultsMembership &
   Readonly<{ propertyId: PropertyId }>
 
+/**
+ * The window as Property-local calendar days (`YYYY-MM-DD`, both ends
+ * inclusive), for labels like "1-30 Sep" that a client must not work out from
+ * instants and a zone. The comparison days are null when none was asked for.
+ */
+export type PortalResultsLocalDays = Readonly<{
+  start: string
+  end: string
+  compareStart: string | null
+  compareEnd: string | null
+}>
+
 /** One Property's subtotal, over the window in that Property's local time. */
 export type PortalResultsPropertyRow = PortalResultsMeasures &
   Readonly<{
     propertyId: PropertyId
+    /** The Property's own IANA time zone, the one its window was cut in. */
+    timezone: string
     period: PortalResultsPeriod
     /** Null when no comparison was asked for. */
     comparePeriod: PortalResultsPeriod | null
+    localDays: PortalResultsLocalDays
     portalIds: readonly PortalId[]
   }>
 
@@ -76,6 +95,8 @@ export type PortalResultsTotalRow = PortalResultsMeasures &
 export type PortalResultsOverview = Readonly<{
   /** The day qualified scans began counting, from the metric registry. */
   qualifiedScansSince: Date
+  /** The sample floors the server applied, so a client never keeps a copy. */
+  thresholds: PortalResultsThresholds
   /** In roster order of first appearance; one per Property that has a Portal. */
   properties: readonly PortalResultsPropertyRow[]
   portals: readonly PortalResultsPortalRow[]

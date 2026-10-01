@@ -13,7 +13,7 @@ import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getDashboardDataDto } from '../application/dto/dashboard.dto'
 import { propertyId, portalId } from '#/shared/domain/ids'
 import { isDashboardError } from '../domain/dashboard-errors'
-import { standardErrorStatus as dashboardErrorStatus } from '#/shared/http/status'
+import { dashboardErrorStatus } from './dashboard-error-status'
 import { assertDashboardPropertyAccessible } from './assert-property-access'
 import { hideReplyWorkflowWithoutAuthority } from './reply-workflow-redaction'
 
