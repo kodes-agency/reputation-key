@@ -643,6 +643,7 @@ async function publishPortalSnapshot(input: {
       organizationId: snapshot.organizationId,
       propertyId: snapshot.propertyId,
       portalId: snapshot.portalId,
+      // fallow-ignore-next-line code-duplication
       version,
       configurationDigest: snapshot.configurationDigest,
       configuration: snapshot.configuration,

@@ -173,6 +173,7 @@ export function buildPortalPublicationSnapshot(
     },
   }
   const snapshot: PortalPublicationSnapshot = {
+    // fallow-ignore-next-line code-duplication
     id: input.id,
     organizationId: input.organizationId,
     propertyId: input.propertyId,

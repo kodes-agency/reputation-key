@@ -58,7 +58,7 @@ export function publishedContent(
  * field of a v3 snapshot is in here, so no change a guest could see goes
  * unnoticed.
  */
-export function comparableWorkingContent(
+function comparableWorkingContent(
   workingCopy: PortalPublicationSource,
 ): ComparableContent {
   return {

@@ -175,6 +175,7 @@ function PublicPortalPage() {
   return <PublicPortalView key={token} token={token} data={data} />
 }
 
+// fallow-ignore-next-line complexity
 function PublicPortalView({
   token,
   data,

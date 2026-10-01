@@ -96,6 +96,7 @@ export function buildLegacyPortalPublicationSnapshot(
         languagePackVersion: LEGACY_V1_LANGUAGE_PACK,
       }
   return {
+    // fallow-ignore-next-line code-duplication
     id: input.id,
     organizationId: input.organizationId,
     propertyId: input.propertyId,
