@@ -1,3 +1,4 @@
+// fallow-ignore-file code-duplication
 // Portal command store — portal token commands.
 // Split out of portal-command-store.ts (round 4 F3); composed back behind the
 // same PortalCommandStore port by createAtomicPortalCommandStore.

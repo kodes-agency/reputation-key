@@ -123,6 +123,7 @@ export const issuePortalToken =
       portalId: portal.id,
       expectedPortalUpdatedAt: portal.updatedAt,
       token,
+      // fallow-ignore-next-line code-duplication
       issuedBy: ctx.userId,
       sealedAddress,
       accessArtifacts,

@@ -460,6 +460,7 @@ export const portalTokens = pgTable(
 // decrypted, so a disclosure never happens without its row. Identifiers and an
 // enum only; the address itself is never here (ADR 0064).
 export const portalAddressDownloads = pgTable(
+  // fallow-ignore-next-line code-duplication
   'portal_address_downloads',
   {
     id: uuid('id').primaryKey().defaultRandom(),

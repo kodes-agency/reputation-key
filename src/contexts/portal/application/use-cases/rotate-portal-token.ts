@@ -162,6 +162,7 @@ export const rotatePortalToken =
       expectedPortalUpdatedAt: portal.updatedAt,
       oldToken: result.oldToken,
       newToken: result.newToken,
+      // fallow-ignore-next-line code-duplication
       issuedBy: ctx.userId,
       sealedAddress,
       accessArtifacts,

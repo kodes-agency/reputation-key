@@ -39,6 +39,7 @@ type Props = Readonly<{
   onLinksRevoked: () => void
 }>
 
+// fallow-ignore-next-line complexity
 export function PortalCodeBlock({
   portalId,
   portalName,

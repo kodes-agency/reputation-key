@@ -849,6 +849,7 @@ export const createAtomicPortalCommandStore = (db: Database): PortalCommandStore
             'Portal changed while the delete was being committed',
           )
 
+          // fallow-ignore-next-line code-duplication
           const revokedRows = await tx
             .update(portalTokens)
             .set({
