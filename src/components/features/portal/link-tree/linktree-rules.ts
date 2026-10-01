@@ -73,6 +73,24 @@ export function linkLocaleChips(
   })
 }
 
+/**
+ * The one chip a tile shows at phone width, where the full list of languages
+ * does not fit: "DE missing", "ES, DE missing", or a count from three up. Null
+ * when nothing is missing, and for a Portal with one language, which has no
+ * list to abbreviate.
+ */
+export function describeMissingLanguages(
+  chips: ReadonlyArray<LinkLocaleChip>,
+): string | null {
+  if (chips.length < 2) return null
+  const missing = chips.filter((chip) => chip.isMissing)
+  if (missing.length === 0) return null
+  if (missing.length > MAX_NAMED_MISSING) return `${missing.length} missing`
+  return `${missing.map((chip) => chip.chip).join(', ')} missing`
+}
+
+const MAX_NAMED_MISSING = 2
+
 export type LinkApprovalFact = Readonly<{ tone: 'ok' | 'warn'; text: string }>
 
 /** The one line under a tile's address: who vouched for it, or why guests cannot see it yet. */
@@ -118,6 +136,20 @@ export function describeLinkApproval(
 }
 
 export type LinkMoveDirection = 'up' | 'down'
+
+/** Which control asked for a move: a chevron button, or the handle's arrow keys. */
+export type LinkMoveControl = LinkMoveDirection | 'handle'
+
+/**
+ * The move an arrow key on a tile's handle asks for. The handle is the
+ * keyboard stand-in for dragging (drag and drop is not offered): Up and Down
+ * move the tile one place, and no other key is taken from the handle.
+ */
+export function moveDirectionForKey(key: string): LinkMoveDirection | null {
+  if (key === 'ArrowUp') return 'up'
+  if (key === 'ArrowDown') return 'down'
+  return null
+}
 
 export type LinkOrderPlan = Readonly<{
   categoryId: string

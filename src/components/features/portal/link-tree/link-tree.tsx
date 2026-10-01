@@ -18,6 +18,7 @@ import type { PortalLinkIconKey } from '#/shared/domain/portal-link-icon'
 import { usePortalDraftAutosave } from '../portal-editor/portal-draft-autosave-context'
 import { LinkAddForm } from './link-add-form'
 import { LinktreeLocaleTabs } from './linktree-locale-tabs'
+import { LINKTREE_MOVE_HINT_ID } from './linktree-move-controls'
 import { LinktreeTileEditor } from './linktree-tile-editor'
 import { LinktreeTile } from './linktree-tile'
 import { LinktreeTitleForm } from './linktree-title-form'
@@ -27,6 +28,7 @@ import {
   linkLabelFor,
   offeredLocales,
   planLinkMove,
+  type LinkMoveControl,
   type LinkMoveDirection,
   type LinkOrderPlan,
 } from './linktree-rules'
@@ -102,11 +104,15 @@ export function LinkTree({ view, mutations, memberNames, canEdit, canDelete }: P
   }
   const reportFailure = (error: unknown) => toast.error(actionErrorMessage(error))
 
-  const move = (linkId: string, direction: LinkMoveDirection) => {
+  const move = (
+    linkId: string,
+    direction: LinkMoveDirection,
+    control: LinkMoveControl,
+  ) => {
     const plan = planLinkMove(links, linkId, direction)
     if (plan === null) return
     setPlans((earlier) => [...earlier, plan])
-    refocus.current = `${linkId}:${direction}`
+    refocus.current = `${linkId}:${control}`
     const position = plan.items.findIndex((item) => item.id === linkId) + 1
     const link = links.find((candidate) => candidate.id === linkId)
     setAnnouncement(
@@ -189,7 +195,7 @@ export function LinkTree({ view, mutations, memberNames, canEdit, canDelete }: P
               canDelete={canDelete}
               canMoveUp={planLinkMove(links, link.id, 'up') !== null}
               canMoveDown={planLinkMove(links, link.id, 'down') !== null}
-              onMove={(direction) => move(link.id, direction)}
+              onMove={(direction, control) => move(link.id, direction, control)}
               onDelete={() => remove(link.id)}
             >
               <LinktreeTileEditor
@@ -238,6 +244,9 @@ export function LinkTree({ view, mutations, memberNames, canEdit, canDelete }: P
         ) : null}
         <p className="text-sm text-muted-foreground">{cap.text}</p>
       </div>
+      <p id={LINKTREE_MOVE_HINT_ID} className="sr-only">
+        Press the up or down arrow key to move this tile.
+      </p>
       <p role="status" aria-live="polite" className="sr-only">
         {announcement}
       </p>

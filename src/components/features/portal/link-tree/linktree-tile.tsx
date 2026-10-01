@@ -2,7 +2,7 @@
 // written in, and a menu. Opening it shows the editor beneath.
 
 import { useState, type ReactNode } from 'react'
-import { Ellipsis } from 'lucide-react'
+import { CircleAlert, Ellipsis } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import {
   DropdownMenu,
@@ -15,7 +15,13 @@ import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { DeleteLinkDialog } from './delete-link-dialog'
 import { LINK_ICONS, linkIconKeyOrDefault } from './link-icons'
 import { LinktreeMoveControls } from './linktree-move-controls'
-import { linkLabelFor, linkLocaleChips, type LinkMoveDirection } from './linktree-rules'
+import {
+  describeMissingLanguages,
+  linkLabelFor,
+  linkLocaleChips,
+  type LinkMoveControl,
+  type LinkMoveDirection,
+} from './linktree-rules'
 
 type Props = Readonly<{
   link: PortalLinktreeLink
@@ -28,7 +34,7 @@ type Props = Readonly<{
   canDelete: boolean
   canMoveUp: boolean
   canMoveDown: boolean
-  onMove: (direction: LinkMoveDirection) => void
+  onMove: (direction: LinkMoveDirection, control: LinkMoveControl) => void
   onDelete: () => void
   /** The open tile's editor. */
   children: ReactNode
@@ -52,6 +58,8 @@ export function LinktreeTile({
   const { label, line } = linkLabelFor(link, primaryLocale)
   const name = label === '' ? 'Untitled link' : label
   const Icon = LINK_ICONS[linkIconKeyOrDefault(link.iconKey)]
+  const chips = linkLocaleChips(link, locales)
+  const phoneChip = describeMissingLanguages(chips)
   const panelId = `linktree-tile-${link.id}`
 
   return (
@@ -81,9 +89,18 @@ export function LinktreeTile({
             <span className="block truncate text-xs text-muted-foreground">{line}</span>
           )}
         </button>
+        {phoneChip === null ? null : (
+          // At phone width the list below does not fit (it is hidden there), so
+          // one chip says which languages are missing; from `sm` up the list
+          // spells every language out and this chip is hidden.
+          <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-warn sm:hidden">
+            <CircleAlert aria-hidden="true" className="size-3.5" />
+            {phoneChip}
+          </span>
+        )}
         {locales.length > 1 ? (
           <ul aria-label="Languages" className="hidden shrink-0 gap-1.5 sm:flex">
-            {linkLocaleChips(link, locales).map((chip) => (
+            {chips.map((chip) => (
               <li
                 key={chip.locale}
                 className={`text-xs ${chip.isMissing ? 'font-medium text-warn' : 'text-muted-foreground'}`}

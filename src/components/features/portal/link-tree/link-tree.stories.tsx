@@ -180,6 +180,51 @@ export const MovesATileFromTheKeyboard: Story = {
   },
 }
 
+// The handle is the keyboard stand-in for dragging: focus it, press an arrow, and
+// the tile moves one place with focus staying on the handle.
+export const MovesATileWithTheHandle: Story = {
+  args: { mutations: stubMutations() },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    const handle = canvas.getByRole('button', { name: 'Reorder Spa & treatments' })
+    handle.focus()
+    await userEvent.keyboard('{ArrowUp}')
+    await waitFor(() =>
+      expect(args.mutations.reorderLinks).toHaveBeenCalledWith({
+        data: {
+          categoryId: 'cat-1',
+          portalId: 'p-1',
+          items: [
+            { id: 'spa', sortKey: expect.any(String) },
+            { id: 'discover', sortKey: expect.any(String) },
+            { id: 'menu', sortKey: expect.any(String) },
+            { id: 'getting-here', sortKey: expect.any(String) },
+          ],
+        },
+      }),
+    )
+    await waitFor(() =>
+      expect(
+        canvas.getByRole('button', { name: 'Reorder Spa & treatments' }),
+      ).toHaveFocus(),
+    )
+    // The first tile has nowhere to go: its handle ignores Up.
+    canvas.getByRole('button', { name: 'Reorder Discover the resort' }).focus()
+    await userEvent.keyboard('{ArrowUp}')
+    await expect(args.mutations.reorderLinks).toHaveBeenCalledTimes(1)
+  },
+}
+
+// At phone width the list of languages is hidden and one chip stands in for it.
+// (Both are in the page; `sm:` decides which one shows.)
+export const PhoneChipNamesTheMissingLanguage: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const chip = canvas.getByText('БГ missing')
+    await expect(chip.className).toContain('sm:hidden')
+  },
+}
+
 const slowSave = () => new Promise<undefined>((done) => setTimeout(done, 400))
 
 // A write is still in flight when the manager presses the same arrow twice: each
@@ -474,7 +519,7 @@ export const ReadOnly: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.queryByRole('button', { name: 'Add link' })).toBeNull()
-    await expect(canvas.queryByRole('button', { name: /^Move / })).toBeNull()
+    await expect(canvas.queryByRole('button', { name: /^(Move|Reorder) / })).toBeNull()
     await expect(canvas.queryByRole('button', { name: /More actions/ })).toBeNull()
     await expect(canvas.getByLabelText('Title on the page')).toBeDisabled()
   },
