@@ -225,6 +225,24 @@ describe('portal language coverage query key', () => {
   })
 })
 
+describe('portal preview query key', () => {
+  it('descends from the publication history, which every working-copy write already refreshes', () => {
+    const key = portalKeys.preview('portal-1', 'draft')
+    expect(key.slice(0, portalKeys.publicationHistory('portal-1').length)).toEqual(
+      portalKeys.publicationHistory('portal-1'),
+    )
+  })
+
+  it('is isolated per Portal and per source', () => {
+    expect(portalKeys.preview('portal-1', 'draft')).not.toEqual(
+      portalKeys.preview('portal-1', 'live'),
+    )
+    expect(portalKeys.preview('portal-1', 'draft')).not.toEqual(
+      portalKeys.preview('portal-2', 'draft'),
+    )
+  })
+})
+
 describe('portal analytics query keys', () => {
   it('isolates each range within a property-scoped portal analytics subtree', () => {
     expect(portalKeys.analytics('property-1', 'portal-1', 'last_30_days', true)).toEqual([

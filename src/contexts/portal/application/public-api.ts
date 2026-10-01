@@ -41,6 +41,15 @@ export type {
   PortalLinktreeView,
 } from '../domain/portal-linktree-view'
 export type {
+  PortalPreview,
+  PortalPreviewExperience,
+  PortalPreviewLink,
+  PortalPreviewLinkState,
+  PortalPreviewOutcome,
+  PortalPreviewSource,
+  PortalPreviewUnavailableReason,
+} from './portal-preview'
+export type {
   PortalHistory,
   PortalHistoryEntry,
   GetPortalHistoryInput,
