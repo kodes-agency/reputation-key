@@ -25,7 +25,6 @@ import {
   portalTokens,
   portalLinkCategories,
   portalLinks,
-  portalGroupMembers,
   portalApprovedDestinations,
   portalHealthIntervals,
   portalResponsibleManagers,
@@ -140,7 +139,6 @@ const IDS = {
   p1Link: '11111111-1111-4111-8111-111111111119',
   p1LinkDestination: '11111111-1111-4111-8111-111111111154',
   p1Group: '11111111-1111-4111-8111-111111111120',
-  p1GroupMember: '11111111-1111-4111-8111-111111111121',
   effectiveGroupMember: '11111111-1111-4111-8111-111111111123',
   managerParticipation: '11111111-1111-4111-8111-111111111112',
   staffParticipation: '11111111-1111-4111-8111-111111111113',
@@ -889,18 +887,6 @@ async function ensurePortalFixtures(
     .onConflictDoUpdate({
       target: portalGroups.id,
       set: { name: 'E2E Guest Services', deletedAt: null },
-    })
-  await db
-    .insert(portalGroupMembers)
-    .values({
-      id: IDS.p1GroupMember,
-      portalGroupId: IDS.p1Group,
-      portalId: IDS.p1Portal,
-      organizationId,
-    })
-    .onConflictDoUpdate({
-      target: portalGroupMembers.id,
-      set: { portalGroupId: IDS.p1Group, portalId: IDS.p1Portal },
     })
   await db
     .insert(portalGroupMemberships)

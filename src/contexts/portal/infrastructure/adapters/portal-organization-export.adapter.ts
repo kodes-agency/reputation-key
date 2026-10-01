@@ -23,7 +23,6 @@ type PortalOrganizationExportPayload = Readonly<{
   snapshotBound: 'repeatable_read_within_15m_of_request'
   portals: readonly ExportRecord[]
   portalGroups: readonly ExportRecord[]
-  portalGroupMembers: readonly ExportRecord[]
   portalGroupHistory: readonly ExportRecord[]
   linkCategories: readonly ExportRecord[]
   links: readonly ExportRecord[]
@@ -162,7 +161,6 @@ function collectionsOf(
   return [
     ['portal', payload.portals],
     ['portal_group', payload.portalGroups],
-    ['portal_group_member', payload.portalGroupMembers],
     ['portal_group_history', payload.portalGroupHistory],
     ['portal_link_category', payload.linkCategories],
     ['portal_link', payload.links],
@@ -260,13 +258,6 @@ async function readPayload(
                    ${utc('updated_at')} AS updated_at,
                    ${utc('deleted_at')} AS deleted_at
             FROM portal_groups WHERE organization_id = ${organizationId}`,
-      )
-      const portalGroupMembers = await readRows(
-        snapshot,
-        sql`SELECT id::text AS id, portal_group_id::text AS portal_group_id,
-                   portal_id::text AS portal_id,
-                   ${utc('created_at')} AS created_at
-            FROM portal_group_members WHERE organization_id = ${organizationId}`,
       )
       const portalGroupHistory = await readRows(
         snapshot,
@@ -451,7 +442,6 @@ async function readPayload(
         snapshotBound: 'repeatable_read_within_15m_of_request' as const,
         portals: sortRecords(portals, ['id']),
         portalGroups: sortRecords(portalGroups, ['id']),
-        portalGroupMembers: sortRecords(portalGroupMembers, ['portal_id', 'id']),
         portalGroupHistory: sortRecords(portalGroupHistory, [
           'portal_group_id',
           'occurred_at',
