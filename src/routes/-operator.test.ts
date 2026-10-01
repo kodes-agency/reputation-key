@@ -13,6 +13,8 @@ vi.mock('#/shared/auth/auth.functions', () => ({ getSession: mocks.getSession })
 vi.mock('#/shared/auth/auth-client', () => ({ authClient: { signOut: vi.fn() } }))
 vi.mock('#/contexts/identity/server/platform-console', () => ({
   listPlatformOrganizationsFn: mocks.listPlatformOrganizationsFn,
+}))
+vi.mock('#/contexts/identity/server/platform-console-changes', () => ({
   provisionOrganizationFn: vi.fn(),
   inviteOrganizationAdminFn: vi.fn(),
   resendOrganizationAdminInvitationFn: vi.fn(),
