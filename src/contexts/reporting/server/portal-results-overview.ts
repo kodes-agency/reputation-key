@@ -126,9 +126,15 @@ async function readOrganization(request: OverviewRequest, ctx: AuthContext) {
     capability: 'portal.read',
   })
   await requireExecutionAllowed({ actor: ctx, action: 'dashboard.read' })
-  const { dashboardPublicApi, portalPublicApi, propertyPublicApi, identityPublicApi } =
-    getContainer()
+  const {
+    clock,
+    dashboardPublicApi,
+    portalPublicApi,
+    propertyPublicApi,
+    identityPublicApi,
+  } = getContainer()
   const organizationId = ctx.organizationId
+  const observedAt = clock()
   const allowed = (action: 'portal.read' | 'dashboard.read') => async (id: string) =>
     (
       await getExecutionPolicy().decide({
@@ -138,7 +144,7 @@ async function readOrganization(request: OverviewRequest, ctx: AuthContext) {
         organizationId,
         propertyId: id,
         executionKind: 'interactive',
-        now: new Date(),
+        now: observedAt,
       })
     ).allowed
   const assigned = async (id: string) => {

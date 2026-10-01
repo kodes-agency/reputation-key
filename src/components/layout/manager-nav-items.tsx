@@ -125,11 +125,16 @@ function ManagerNavRow({
   // that property; a page without one (the properties list) opens All properties.
   const opensOrganizationInbox =
     item.key === 'reviews' && (isOrganizationInbox || !propertyId)
+  // Portals does the same: a page without a Property opens All properties, the
+  // Portals of the whole Organization, grouped by Property.
+  const opensOrganizationPortals = item.key === 'portals' && !propertyId
   const link: NavLinkTarget | null = opensOrganizationInbox
     ? { to: '/inbox' }
-    : propertyId
-      ? { to: item.to, params: { propertyId } }
-      : null
+    : opensOrganizationPortals
+      ? { to: '/portals' }
+      : propertyId
+        ? { to: item.to, params: { propertyId } }
+        : null
 
   // Same disabled affordance the no-property case already uses — an
   // eligible-by-role manager sees why the destination is inert instead
