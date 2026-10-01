@@ -8,10 +8,19 @@
 // every page in production.
 
 import type { CSSProperties } from 'react'
-import { enV2 } from '../../language-packs/en-v2'
 import { GlassSurface, glassClassName } from '../glass-surface'
 import { ImmersiveFooterView } from '../immersive-footer'
-import { immersiveFooterCopy } from '../immersive-footer-copy'
+import type { ImmersiveFooterCopy } from '../immersive-footer-copy'
+
+// Literal on purpose: only the loader may import a locale pack (a request loads
+// one pack; `load-guest-copy-v2.test.ts` holds the rule), and fixtures are no exception.
+const footerCopy = (displayName: string): ImmersiveFooterCopy => ({
+  visitNotice: `An essential session cookie protects your response. Separately, we count this visit for ${displayName} with a short-lived, privacy-protected network marker. No ads or third‑party trackers.`,
+  noticeLabel: 'Visit counting',
+  acknowledge: 'Got it',
+  privacyLink: 'Privacy notice',
+  madeWith: 'Made with Reputation Key',
+})
 
 const STARS = [1, 2, 3, 4, 5] as const
 
@@ -178,7 +187,7 @@ export function ArrivalStandIn({ displayName }: Readonly<{ displayName: string }
         ))}
       </nav>
       <ImmersiveFooterView
-        copy={immersiveFooterCopy(enV2, displayName)}
+        copy={footerCopy(displayName)}
         isNoticeVisible
         onAcknowledge={() => undefined}
       />
