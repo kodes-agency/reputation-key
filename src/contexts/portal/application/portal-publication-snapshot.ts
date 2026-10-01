@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { GUEST_LOCALE_METADATA } from '#/shared/domain/guest-locale'
 import { portalError } from '../domain/errors'
 import {
   IMMERSIVE_HUB_SCHEMA_VERSION,
@@ -17,6 +18,7 @@ import {
   resolvePortalPublication,
   type PortalPublicationSource,
   type PublicationBlocker,
+  type PublicationTextKey,
 } from '../domain/portal-publication-source'
 import { assertCompletePortalPublicationExperience } from '../domain/portal-experience'
 import { isCompleteImmersiveConfiguration } from '../domain/portal-immersive-snapshot'
@@ -119,13 +121,24 @@ export function assertPublicationEnvelope(input: PublicationEnvelope): void {
   }
 }
 
+const TEXT_KEY_WORDING = {
+  title: 'title',
+  shortDescription: 'short description',
+  heroAlt: 'photo description',
+} as const
+
+const wordingNameOf = (key: PublicationTextKey): string =>
+  key.startsWith('link:')
+    ? 'link wording'
+    : TEXT_KEY_WORDING[key as keyof typeof TEXT_KEY_WORDING]
+
 /** What a manager is told about each thing that stops a publication. */
 function describeBlocker(blocker: PublicationBlocker): string {
   switch (blocker.code) {
     case 'primary_text_missing':
-      return `Write the ${blocker.key.startsWith('link:') ? 'link wording' : blocker.key} in the primary language (${blocker.locale}) before publishing`
+      return `Write the ${wordingNameOf(blocker.key)} in the primary language (${GUEST_LOCALE_METADATA[blocker.locale].englishName}) before publishing`
     case 'language_pack_missing':
-      return `The guest wording for ${blocker.locale} isn’t ready yet, so that language can’t be published`
+      return `The guest wording for ${GUEST_LOCALE_METADATA[blocker.locale].englishName} isn’t ready yet, so that language can’t be published`
     case 'time_zone_invalid':
       return 'Set a valid time zone for this Property before publishing'
   }

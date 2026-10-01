@@ -133,7 +133,46 @@ describe('the schema version 3 writer', () => {
             wording: { en: { ...base.wording.en!, title: null }, bg: base.wording.bg! },
           }),
         ),
-      ).toThrow(/title.*primary language \(en\)/u)
+      ).toThrow(/title.*primary language \(English\)/u)
+    })
+
+    it('tells the manager what to fix in plain words, never a key or a locale code', () => {
+      const base = publicationSource()
+      const messageFor = (overrides: Parameters<typeof publicationSource>[0]) => {
+        try {
+          build(publicationSource(overrides))
+        } catch (error) {
+          return (error as Error).message
+        }
+        return null
+      }
+
+      expect(
+        messageFor({
+          wording: { en: { ...base.wording.en!, title: null }, bg: base.wording.bg! },
+        }),
+      ).toBe('Write the title in the primary language (English) before publishing')
+      expect(
+        messageFor({
+          wording: {
+            en: { ...base.wording.en!, shortDescription: null },
+            bg: base.wording.bg!,
+          },
+        }),
+      ).toBe(
+        'Write the short description in the primary language (English) before publishing',
+      )
+      expect(
+        messageFor({ links: [{ ...base.links[0]!, texts: {} }, ...base.links.slice(1)] }),
+      ).toBe('Write the link wording in the primary language (English) before publishing')
+      expect(
+        messageFor({
+          localeSet: ['en', 'de'],
+          wording: { en: base.wording.en! },
+        }),
+      ).toBe(
+        'The guest wording for German isn’t ready yet, so that language can’t be published',
+      )
     })
 
     it('refuses a language that has no pack', () => {
@@ -144,7 +183,7 @@ describe('the schema version 3 writer', () => {
             wording: { en: publicationSource().wording.en! },
           }),
         ),
-      ).toThrow(/de/u)
+      ).toThrow(/German/u)
     })
 
     it('refuses a Property with no usable time zone', () => {
