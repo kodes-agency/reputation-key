@@ -208,6 +208,37 @@ describe('createLink without a category (real PostgreSQL)', () => {
     expect(rows[0].n).toBe(0)
   })
 
+  it('rolls the category and its fact back when the link write fails after them', async () => {
+    // The category is inserted first; a label past its column fails the link
+    // insert behind it, so only a single transaction takes the category back.
+    const tooLong = (store: PortalCommandStore): PortalCommandStore => ({
+      ...store,
+      createPortalLink: async (command) =>
+        store.createPortalLink({
+          ...command,
+          link: { ...command.link, label: 'x'.repeat(101) },
+        }),
+    })
+
+    await expect(
+      useCase(tooLong)(
+        { portalId: PORTAL_A, label: 'Menu', url: 'https://avela.example.com/menu' },
+        admin(),
+      ),
+    ).rejects.toThrow()
+
+    expect(await count('portal_links')).toBe(0)
+    expect(await count('portal_link_categories')).toBe(0)
+    const { rows } = await getPool().query(
+      `SELECT count(*)::int AS n FROM outbox_events
+        WHERE organization_id = $1
+          AND event_type IN ('portal_link_category.created', 'portal_link.created')`,
+      [ORG_A],
+    )
+    expect(rows[0].n).toBe(0)
+    expect(await count('portal_pending_content_changes')).toBe(0)
+  })
+
   it('refuses a fifth link and leaves no extra category behind', async () => {
     for (const [index, label] of ['A', 'B', 'C', 'D'].entries()) {
       await add(label, `p${index}`)
