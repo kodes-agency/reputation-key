@@ -16,11 +16,15 @@ import type {
   PortalHistoryRepository,
   PortalPageEditRow,
   PortalPublicationEventRow,
+  PortalPublishedVersionRow,
 } from '../../application/ports/portal-history.repository'
 import { PORTAL_PAGE_EDIT_KINDS } from '../../domain/portal-page-edit'
 import { historyBoundCondition, historyIdOrder } from '../portal-history-bound'
+import { snapshotFromRow } from './portal-publication.repository'
 
 const MAX_SOURCE_ROWS = 100
+/** Versions one read lists; far more than a Portal is ever published. */
+const MAX_VERSION_ROWS = 201
 
 const clamp = (page: PortalHistoryPage): number =>
   Number.isSafeInteger(page.limit)
@@ -64,6 +68,36 @@ export const createPortalHistoryRepository = (db: Database): PortalHistoryReposi
         ...row,
         kind: row.kind === 'rollback' ? 'rollback' : 'publish',
       }))
+    }),
+
+  listPublishedVersions: (orgId, propertyIdValue, portalIdValue, limit) =>
+    trace('portalHistory.listPublishedVersions', async () => {
+      const s = portalPublicationSnapshots
+      const rows = await db
+        .select()
+        .from(s)
+        .where(
+          and(
+            eq(s.organizationId, unbrand(orgId)),
+            eq(s.propertyId, unbrand(propertyIdValue)),
+            eq(s.portalId, unbrand(portalIdValue)),
+          ),
+        )
+        .orderBy(desc(s.version))
+        .limit(Math.min(MAX_VERSION_ROWS, Math.max(1, limit)))
+      return rows.flatMap((row): PortalPublishedVersionRow[] => {
+        const snapshot = snapshotFromRow(row)
+        return snapshot
+          ? [
+              {
+                version: snapshot.version,
+                publishedAt: snapshot.createdAt,
+                publishedBy: snapshot.createdBy,
+                configuration: snapshot.configuration,
+              },
+            ]
+          : []
+      })
     }),
 
   listCodeIssuances: (orgId, propertyIdValue, portalIdValue, page) =>

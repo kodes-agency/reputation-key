@@ -66,7 +66,12 @@ const staffPublicApi: StaffPublicApi = {
 }
 
 function setup(
-  options: { targetExists?: boolean; state?: 'published' | 'disabled' } = {},
+  options: {
+    targetExists?: boolean
+    state?: 'published' | 'disabled'
+    /** The version live right now; the later one by default. */
+    live?: 1 | 2
+  } = {},
 ) {
   const portalRepo = createInMemoryPortalRepo()
   const seeded = { ...portal, publicationState: options.state ?? 'published' }
@@ -82,8 +87,11 @@ function setup(
       nextActivationSequence: 3,
     }),
     findSnapshotByVersion: async (_organizationId, _portalId, version) =>
-      options.targetExists === false || version !== 1 ? null : versionOne,
-    findActiveForPortal: async () => versionTwo,
+      options.targetExists === false
+        ? null
+        : ([versionOne, versionTwo].find((snapshot) => snapshot.version === version) ??
+          null),
+    findActiveForPortal: async () => (options.live === 1 ? versionOne : versionTwo),
     listActivationHistoryPage: async () => ({
       records: [],
       latest: null,
@@ -155,6 +163,29 @@ describe('rollbackPortalPublication', () => {
       occurredAt: NOW,
     })
     expect(harness.portalRepo.all()[0].publicationState).toBe('published')
+  })
+
+  it('makes a later version live again after an earlier one was restored', async () => {
+    const harness = setup({ live: 1 })
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await expect(
+      harness.useCase({ portalId: portal.id, version: 2 }, ctx),
+    ).resolves.toMatchObject({ snapshotId: 'snapshot-v2', version: 2 })
+    expect(harness.command()?.publication).toMatchObject({
+      kind: 'rollback',
+      snapshotVersion: 2,
+    })
+  })
+
+  it('refuses to make the version that is already live live again', async () => {
+    const harness = setup({ live: 2 })
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await expect(
+      harness.useCase({ portalId: portal.id, version: 2 }, ctx),
+    ).rejects.toMatchObject({ code: 'publication_snapshot_unavailable' })
+    expect(harness.command()).toBeNull()
   })
 
   it('rejects a version outside the current tenant Portal', async () => {

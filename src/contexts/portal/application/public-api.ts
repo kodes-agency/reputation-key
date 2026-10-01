@@ -54,6 +54,17 @@ export type {
   PortalHistoryEntry,
   GetPortalHistoryInput,
 } from './use-cases/get-portal-history'
+export type { PortalVersionItem, PortalVersions } from './use-cases/get-portal-versions'
+export type {
+  PortalVersionContent,
+  PortalVersionDetail,
+} from './use-cases/get-portal-version'
+export type { PortalVersionActor } from './portal-version-actors'
+export type {
+  PublicationContentChange,
+  PublicationLookFacet,
+  PublicationWordingField,
+} from '../domain/portal-publication-content'
 export type {
   MissingPortalText,
   PortalLanguageCoverage,

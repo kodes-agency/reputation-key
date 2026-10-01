@@ -85,6 +85,7 @@ function setup(seed: Seed = {}) {
         (row) => row.revokedAt,
       ).slice(0, page.limit),
     ),
+    listPublishedVersions: vi.fn(async () => []),
     listPageEdits: vi.fn(async (_o, _p, _pt, page, since) =>
       newestFirst(
         (seed.pageEdits ?? []).filter(
