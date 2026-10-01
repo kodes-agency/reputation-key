@@ -99,8 +99,40 @@ the `portal.on-property-restored` worker consumer raises the fact for each of it
 live Portals (not deleted, not archived) that still has no manager, because
 Restore itself checks only the Property's manager (ADR 0052).
 
-The beta has no Portal image-upload UI, server function, application use case,
-issuance model, or image job. `portal.upload` remains safety-blocked.
+## Media
+
+An uploaded image is a `portal_media_assets` row plus one WebP object in the
+private store (`portal-media/<id>.webp`, the key derived from the id, never from
+anything a manager typed). It is the **re-encoded** image: the upload is decoded
+and encoded again, so metadata, colour profiles, trailing bytes and anything
+hidden in a segment do not survive, and the original is never stored.
+
+- **Policy** (`portal-image-policy.ts`, pure): JPEG, PNG and WebP, still, at most
+  10 MiB, at most 40 million pixels, no side over 16,384, with a per-purpose
+  minimum size, aspect limit, output size and output budget. The declared type
+  must agree with the leading bytes. SVG, GIF, HEIC, AVIF and animated PNG or
+  WebP are refused. Every refusal is `image_rejected` carrying one `reason`.
+- **Decoder** (`sharp-image-processor.adapter.ts`): only the JPEG, PNG and WebP
+  loaders are enabled in libvips; the decoder holds at most 40 million pixels
+  and fails on any decode error; at most two decodes run at once.
+- **Ingest** (`ingestPortalImage`): checks who (an Account Admin for a Property's
+  photograph and logo, a Property Manager for a link tile's picture), the
+  Property, the rights confirmation, the bytes, and a cap of 200 stored images per
+  Property, then decodes and re-encodes, writes the object, then the row. A failed
+  row removes the object again. The endpoint is gated on `portal.upload`.
+- **Takedown**: a `taken_down` asset keeps its row, because snapshots name assets
+  by id with no foreign key, and is never served.
+- **References**: the Brand Profile's `logo_asset_id`, `hero_asset_id` (with
+  `hero_focal_x/y`, present exactly when there is a hero) and a link's
+  `image_asset_id` are composite foreign keys to an asset of the same
+  Organization and Property. Nothing reads or writes them yet. The database does
+  not tie a reference to the asset's **purpose**: whatever writes one of these
+  columns must call `canReferencePortalMediaAsset(slot, asset)`, so a link
+  picture cannot stand in as the hero and skip the hero's size and byte budget.
+
+`portal.upload` remains safety-blocked in this slice; ADR 0063 records the
+decision to switch it on with the technical safeguards above and without a
+SAFE-01 completion record.
 
 ## Runtime
 
@@ -161,7 +193,8 @@ handed an existing address is a `code_downloaded` entry from
 `portal_address_downloads`; page edits join the timeline with the page-edit
 ledger.
 
-The dormant issued-image implementation has been removed. The nullable
+The earlier issued-image implementation (presigned browser upload, issuance
+table, background job) was removed and is not coming back. The nullable
 `portals.hero_image_url` column and read path remain so published historical
 rows still render, while the shared arbitrary-key storage stack remains live
 for Identity avatar and organization-logo uploads through `container.assetStorage`.
@@ -180,7 +213,7 @@ for Identity avatar and organization-logo uploads through `container.assetStorag
    token. Token issue, rotation, and revocation share the Portal revision fence.
 9. The raw address is request-local and never enters state, facts, logs, exports or Metric, with one exception: the sealed copy of an active code (ADR 0064). Replacing, stopping or deleting clears it in the same statement, and a CHECK refuses a sealed address on any other code.
 10. Portal lifecycle facts never copy Portal name, slug, description, theme, responsible-manager assignments, destination, or link content.
-11. Portal requests never issue image uploads or write `portals.hero_image_url`; a published Portal with a null value remains valid.
+11. An image enters the Portal only through the server-side ingest, which stores a re-encoded WebP and never the upload; no Portal request issues a presigned upload or writes `portals.hero_image_url`, and a published Portal with a null value remains valid.
 12. The POR-01 report never copies names, localized content, raw URLs, token material, themes, or print-batch values and never infers creator, ownership, translation, brand, or destination provenance. Reported ambiguous Portal rows remain Disabled or Archived; raw secondary links are treated as quarantined and excluded from publication until a separately reviewed command resolves them.
 13. Closing is a **stop, not a delete**, and it is reversible: the immutable publication snapshot survives and `portals.publication_state` keeps the tenant's own published/draft intent, so explicit reactivation re-points a new activation at the same snapshot rather than guessing what each Portal used to be. Ordinary closure cancellation does not itself reactivate Portals — see `docs/operations/organization-lifecycle.md`.
 14. `portal_group_members` is purged as a **row delete only**. It is a physical-drop-blocked compatibility mirror: the rows are tenant content and must go, the table must not. No phase issues a DROP or TRUNCATE.

@@ -43,6 +43,7 @@ import {
   portalPublicationSnapshots,
 } from '#/shared/db/schema/portal-publication.schema'
 import { portalLinkTexts } from '#/shared/db/schema/portal-localization.schema'
+import { portalMediaAssets } from '#/shared/db/schema/portal-assets.schema'
 import type { Tx } from '#/shared/outbox/commit'
 
 /**
@@ -84,6 +85,7 @@ export const PORTAL_PURGE_PLAN = Object.freeze([
   'portal_localized_overrides',
   'property_portal_brand_contents',
   'property_portal_brand_profiles',
+  'portal_media_assets',
   'portals',
   'portal_group_history',
   'portal_groups',
@@ -144,8 +146,10 @@ const drizzlePortalLifecycleWorkbench: PortalLifecycleWorkbench = Object.freeze(
   },
 
   countTenantRows: async (tx, organizationId) => {
-    // The four roots of the plan. Every other Portal table is a foreign-key
-    // child of one of them, so a non-zero count here is exactly "this
+    // The five roots of the plan: four tables, and media assets, which hang
+    // off `properties` and need no Portal or Brand Profile (a hero or logo
+    // upload needs only a Property). Every other Portal table is a foreign-key
+    // child of one of the four, so a non-zero count here is exactly "this
     // Organization owns Portal-context rows".
     const result = await tx.execute(sql`
       SELECT
@@ -164,6 +168,10 @@ const drizzlePortalLifecycleWorkbench: PortalLifecycleWorkbench = Object.freeze(
         + (
           SELECT COUNT(*)::int FROM ${portalApprovedDestinations}
           WHERE ${portalApprovedDestinations.organizationId} = ${organizationId}
+        )
+        + (
+          SELECT COUNT(*)::int FROM ${portalMediaAssets}
+          WHERE ${portalMediaAssets.organizationId} = ${organizationId}
         ) AS "rows"
     `)
     return count(result.rows[0], 'rows')
@@ -219,6 +227,11 @@ const drizzlePortalLifecycleWorkbench: PortalLifecycleWorkbench = Object.freeze(
     await tx
       .delete(propertyPortalBrandProfiles)
       .where(eq(propertyPortalBrandProfiles.organizationId, organizationId))
+    // After every row that points at an asset (links, Brand Profiles). The stored
+    // objects are removed by the media purge, never left behind by this delete.
+    await tx
+      .delete(portalMediaAssets)
+      .where(eq(portalMediaAssets.organizationId, organizationId))
     await tx.delete(portals).where(eq(portals.organizationId, organizationId))
     await tx
       .delete(portalGroupHistory)

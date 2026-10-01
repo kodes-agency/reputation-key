@@ -12,6 +12,7 @@ import { GUEST_LOCALES } from '../../domain/guest-locale'
 import { PORTAL_LINK_ICON_SQL_LIST } from '../../portal-link-icon-schemas'
 import { portalGroups } from './portal-group.schema'
 import { properties } from './property.schema'
+import { portalMediaAssets } from './portal-assets.schema'
 export { portalGroups } from './portal-group.schema'
 import {
   pgTable,
@@ -20,6 +21,7 @@ import {
   jsonb,
   boolean,
   integer,
+  doublePrecision,
   text,
   timestamp,
   index,
@@ -113,6 +115,14 @@ export const propertyPortalBrandProfiles = pgTable(
     displayName: varchar('display_name', { length: 120 }).notNull(),
     logoUrl: varchar('logo_url', { length: 500 }),
     defaultHeroImageUrl: varchar('default_hero_image_url', { length: 500 }),
+    // Uploaded media (portal_media_assets), of this Property. The legacy URL
+    // columns above stay for published rows that still carry one.
+    logoAssetId: uuid('logo_asset_id'),
+    heroAssetId: uuid('hero_asset_id'),
+    // Where the photograph is anchored when the page crops it: 0 to 1 across
+    // and down. Present exactly when there is a hero asset.
+    heroFocalX: doublePrecision('hero_focal_x'),
+    heroFocalY: doublePrecision('hero_focal_y'),
     primaryColor: varchar('primary_color', { length: 7 }).notNull(),
     backgroundColor: varchar('background_color', { length: 7 }).notNull(),
     textColor: varchar('text_color', { length: 7 }).notNull(),
@@ -147,6 +157,28 @@ export const propertyPortalBrandProfiles = pgTable(
       columns: [t.organizationId, t.propertyId],
       foreignColumns: [properties.organizationId, properties.id],
     }).onDelete('restrict'),
+    foreignKey({
+      name: 'property_portal_brand_profiles_logo_asset_fk',
+      columns: [t.organizationId, t.propertyId, t.logoAssetId],
+      foreignColumns: [
+        portalMediaAssets.organizationId,
+        portalMediaAssets.propertyId,
+        portalMediaAssets.id,
+      ],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'property_portal_brand_profiles_hero_asset_fk',
+      columns: [t.organizationId, t.propertyId, t.heroAssetId],
+      foreignColumns: [
+        portalMediaAssets.organizationId,
+        portalMediaAssets.propertyId,
+        portalMediaAssets.id,
+      ],
+    }).onDelete('restrict'),
+    check(
+      'property_portal_brand_profiles_hero_focal_valid',
+      sql`(${t.heroAssetId} IS NULL AND ${t.heroFocalX} IS NULL AND ${t.heroFocalY} IS NULL) OR (${t.heroAssetId} IS NOT NULL AND ${t.heroFocalX} IS NOT NULL AND ${t.heroFocalX} BETWEEN 0 AND 1 AND ${t.heroFocalY} IS NOT NULL AND ${t.heroFocalY} BETWEEN 0 AND 1)`,
+    ),
     check(
       'property_portal_brand_profiles_palette_valid',
       sql`${t.primaryColor} ~ '^#[0-9A-Fa-f]{6}$' AND ${t.backgroundColor} ~ '^#[0-9A-Fa-f]{6}$' AND ${t.textColor} ~ '^#[0-9A-Fa-f]{6}$'`,
@@ -604,6 +636,8 @@ export const portalLinks = pgTable(
       .notNull()
       .default('unclassified'),
     iconKey: varchar('icon_key', { length: 50 }),
+    // The picture on the tile: an uploaded asset of this Property.
+    imageAssetId: uuid('image_asset_id'),
     sortKey: varchar('sort_key', { length: 50 }).notNull(),
     createdAt: createdAtColumn(),
     updatedAt: updatedAtColumn(),
@@ -640,6 +674,15 @@ export const portalLinks = pgTable(
       columns: [t.organizationId, t.propertyId, t.portalId],
       foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
     }).onDelete('cascade'),
+    foreignKey({
+      name: 'portal_links_image_asset_fk',
+      columns: [t.organizationId, t.propertyId, t.imageAssetId],
+      foreignColumns: [
+        portalMediaAssets.organizationId,
+        portalMediaAssets.propertyId,
+        portalMediaAssets.id,
+      ],
+    }).onDelete('restrict'),
     check(
       'portal_links_destination_authority_valid',
       sql`(${t.destinationId} IS NOT NULL AND ${t.url} IS NULL AND ${t.legacyDestinationState} = 'migrated') OR (${t.destinationId} IS NULL AND ${t.url} IS NOT NULL AND ${t.legacyDestinationState} IN ('unclassified', 'quarantined'))`,

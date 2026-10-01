@@ -66,6 +66,7 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
     )
     .with(
       'upload_failed',
+      'image_rejected',
       'token_unavailable',
       'address_unavailable',
       'responsible_manager_ineligible',
