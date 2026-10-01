@@ -28,6 +28,7 @@ export function PreviewLinktree({ experience, idPrefix }: Props) {
     <>
       <h2
         id={headingId}
+        data-preview-part="linktree"
         className="ih-display"
         style={styles.heading}
         lang={content.linktreeTitle.fallbackFrom ?? undefined}

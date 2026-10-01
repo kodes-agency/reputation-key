@@ -30,7 +30,7 @@ import { PreviewPhone } from './preview-phone'
 export const PHONE_SCALE = 0.7
 
 /** The page in a state; it answers clicks only when given `onAction`. */
-type RenderPage = (
+export type RenderPage = (
   state: PreviewPageState,
   onAction?: (action: TryAsGuestAction) => void,
 ) => ReactNode
@@ -119,7 +119,8 @@ export function PortalPreviewStage({
   )
 }
 
-function TryPhone({
+/** The phone "Try as guest" plays in: a page that answers clicks by moving between the guest states locally. */
+export function TryPhone({
   page,
   threshold,
 }: Readonly<{ page: RenderPage; threshold: number }>) {

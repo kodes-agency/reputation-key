@@ -51,7 +51,7 @@ export function PreviewPageTop({ experience, copy, locale, hasLanguageChip }: Pr
           </span>
         ) : null}
       </header>
-      <div style={styles.titleBlock}>
+      <div style={styles.titleBlock} data-preview-part="welcome">
         <h1 style={styles.kicker} lang={content.title.fallbackFrom ?? undefined}>
           {content.title.value}
         </h1>

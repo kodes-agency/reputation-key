@@ -16,17 +16,31 @@ const THUMBNAIL_SCALE = 0.15
 
 type Props = Readonly<{
   options: readonly PreviewStateOption[]
-  active: PreviewStateId
+  /** The state the phone shows; none while something else (the pair) is drawn. */
+  active: PreviewStateId | null
   onSelect: (id: PreviewStateId) => void
   /** Draws the page in a state. */
   renderPage: (state: PreviewPageState) => ReactNode
+  /** Beside the phone the states stand in a column; a row where there is no phone beside them. */
+  layout?: 'beside' | 'row'
 }>
 
-export function PortalPreviewFilmstrip({ options, active, onSelect, renderPage }: Props) {
+export function PortalPreviewFilmstrip({
+  options,
+  active,
+  onSelect,
+  renderPage,
+  layout = 'beside',
+}: Props) {
   return (
     <ul
       aria-label="Guest states"
-      className="flex flex-wrap justify-center gap-1 sm:flex-col sm:flex-nowrap sm:justify-start"
+      className={cn(
+        'flex flex-wrap gap-1',
+        layout === 'beside'
+          ? 'justify-center sm:flex-col sm:flex-nowrap sm:justify-start'
+          : 'justify-start',
+      )}
     >
       {options.map((option) => {
         const isActive = option.id === active
