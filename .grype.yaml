@@ -62,6 +62,27 @@ ignore:
       version: 3.5.7-1~deb13u3
       type: deb
 
+  # ── GCC 14 runtime 14.2.0-19: not fixed in any Debian release (1 CVE) ─
+  # owner: platform — reason: first reported by the grype DB of 2026-10-01:
+  # `gcc-14-base` / `libgcc-s1` / `libstdc++6` 14.2.0-19 deb CVE-2026-102010
+  # High, no fixed version. `erase_if` on libstdc++'s binary-heap priority
+  # queue reallocates without updating its entry pointer (use after free).
+  # The only libstdc++ priority queue with `erase_if` is the policy-based
+  # `__gnu_pbds::priority_queue`, a header-only template compiled into the
+  # program that uses it. node links libstdc++.so.6 and libgcc_s.so.1, but
+  # neither they nor the node binary contain any pb_ds code (checked
+  # 2026-10-01), and the image ships no C++ headers. The Debian tracker
+  # (read 2026-10-01) lists every gcc in
+  # bookworm, trixie and forky/sid as vulnerable, with no fix. Scoped to
+  # 14.2.0-19 so a base bump re-raises it. Matched by source package: a
+  # `name: libstdc++6` rule never matches (the `+` signs). Drop at the first
+  # trixie gcc-14 update that fixes it. expiresAt: 2026-12-07
+  - vulnerability: CVE-2026-102010
+    package:
+      upstream-name: gcc-14
+      version: 14.2.0-19
+      type: deb
+
   # ── Debian trixie base packages, perl-base 5.40.1-6 (13 CVEs) ─────────
   # owner: platform — reason: Debian marks these won't-fix/not-fixed for
   # trixie (tracker read 2026-09-07 from the CI scan of the trixie image);
