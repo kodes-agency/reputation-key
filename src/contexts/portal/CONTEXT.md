@@ -81,8 +81,8 @@ constructor.
 The **Property look** is the part of the Property Brand Profile a guest sees:
 accent colour, background (`background_mode` `auto` derives the dark page field
 from the accent with `src/shared/domain/portal-field-colour.ts`, `manual` uses
-`background_color`), wordmark and, in later releases, logo and photo, plus the
-per-language hero alt text on the brand content. The profile keeps two versions
+`background_color`), wordmark, logo and photo (uploaded assets, see Media), plus
+the per-language hero alt text on the brand content. The profile keeps two versions
 on purpose. `version` moves only with the public display name, because AI reply
 drafts fence on it (`ai-reply-brand-profile-authority.ts`); `look_version` moves
 with the look. A look edit writes one `property_brand_profile` pending change
@@ -198,13 +198,40 @@ hidden in a segment do not survive, and the original is never stored.
 - **References**: the Brand Profile's `logo_asset_id`, `hero_asset_id` (with
   `hero_focal_x/y`, present exactly when there is a hero) and a link's
   `image_asset_id` are composite foreign keys to an asset of the same
-  Organization and Property. Only a link's is written so far: `updateLink` takes
-  an `imageAssetId` (or null) and checks it with
-  `canReferencePortalMediaAsset('link_image', asset)` against the Portal's own
-  Property; the hero and logo controls are a later slice. The database does
+  Organization and Property. `updateLink` takes an `imageAssetId` (or null) and
+  checks it with `canReferencePortalMediaAsset('link_image', asset)` against the
+  Portal's own Property; `savePropertyHero` and `savePropertyLogo` do the same
+  for `brand_hero` and `brand_logo` (an Account Admin, `portal.write`, the
+  Property's own asset; any other id is `media_not_found`). The database does
   not tie a reference to the asset's **purpose**: whatever writes one of these
   columns must call `canReferencePortalMediaAsset(slot, asset)`, so a link
   picture cannot stand in as the hero and skip the hero's size and byte budget.
+- **The look's photograph and logo** (Property look page, boards 9 and 14).
+  `savePropertyHero` puts an uploaded photograph on the Brand Profile, moves its
+  focal point (0 to 1 across and down, the middle when none is given; the
+  browser's circle is dragged or moved with the arrow keys and autosaves) and
+  takes it off with `assetId: null`, which clears the focal point with it.
+  Its descriptions are per language (`property_portal_brand_contents.hero_alt_text`,
+  at most 160 characters, a language left out keeps its own, null clears one). A
+  language with no wording row gets one holding the description alone: its title
+  and description are `''`, which every reader (publication, the preview, the
+  language coverage) treats as unwritten, so the row claims no wording; the row
+  exists only because the description lives in it. A page reads the primary
+  language's description for every language that has none of its own. The write
+  runs inside the Property's publication lock and moves what every look edit
+  moves: `look_version`, a `look:images` pending change for each live Portal
+  and the profile fact (a description is a `property_brand_content` change for
+  its language); the display name and `updated_by` are not touched.
+  `savePropertyLogo` is the same for `logo_asset_id`. Both answer with the media as
+  a page draws it (`resolvePropertyLookMedia`: size, focal point and the media
+  route's address, for an asset of this Property that may still be served; a
+  taken-down image reads as none), which the experience read carries as `media`.
+  The draft preview draws only those assets, so a photograph that is only an
+  address on the profile or in an override (which a v3 publication drops) is not
+  previewed; a tile's uploaded photo and the live version's photograph and logo
+  are drawn too. The browser checks a chosen file against the same size rules as
+  the policy (`PORTAL_MEDIA_SIZE_RULES` in `src/shared/domain/portal-media.ts`)
+  before sending it. Only raster logos are accepted: no SVG.
 - **A tile's photo** is chosen in the Linktree editor's "Icon or photo" picker: the
   dashed tile uploads to `POST /api/portal-media` (`purpose=link_image`, with the
   Portal and the rights confirmation) and then puts the returned asset id on the

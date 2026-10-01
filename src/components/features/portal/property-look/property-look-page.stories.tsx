@@ -12,10 +12,13 @@ import {
 } from '../../../../../.storybook/AuthedRouterDecorator'
 import { previewReader } from '../portal-preview/__fixtures__/portal-preview-fixtures'
 import {
+  AVELA_MEDIA,
   AVELA_PORTALS,
   AVELA_PROFILE,
   DEFAULT_PALETTE_PROFILE,
+  savingHero,
   savingLocales,
+  savingLogo,
   savingLook,
 } from './property-look-page-fixtures'
 import { PropertyLookPage } from './property-look-page'
@@ -36,6 +39,10 @@ const meta = {
     getPortalPreview: previewReader(),
     saveLook: savingLook(),
     saveLocales: savingLocales(),
+    saveHero: savingHero(),
+    saveLogo: savingLogo(),
+    media: AVELA_MEDIA,
+    photoDescriptions: { en: 'The colonnade pool at dusk' },
   },
 } satisfies Meta<typeof PropertyLookPage>
 
@@ -314,17 +321,13 @@ export const ReadOnly: Story = {
   },
 }
 
-/** The photo and logo controls (slice 42c2) and the batch publish (39b) mount in slots. */
-export const SlotsForLaterControls: Story = {
+/** The batch publish (39b) mounts in a slot beside the status line. */
+export const SlotForTheBatchPublish: Story = {
   args: {
-    photoSlot: <button type="button">Replace photo</button>,
-    logoSlot: <button type="button">Upload logo</button>,
     publishSlot: <button type="button">Review &amp; publish 5 portals</button>,
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('button', { name: 'Replace photo' })).toBeVisible()
-    await expect(canvas.getByRole('button', { name: 'Upload logo' })).toBeVisible()
     await expect(
       canvas.getByRole('button', { name: 'Review & publish 5 portals' }),
     ).toBeVisible()

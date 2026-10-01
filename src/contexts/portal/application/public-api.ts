@@ -41,6 +41,11 @@ export type {
   PortalLinktreeView,
 } from '../domain/portal-linktree-view'
 export type {
+  PropertyLookHero,
+  PropertyLookLogo,
+  PropertyLookMedia,
+} from './property-look-media'
+export type {
   PortalPreview,
   PortalPreviewExperience,
   PortalPreviewLink,

@@ -8,23 +8,28 @@
 // first, and an in-app navigation writes what is waiting, then asks only if a
 // save failed or was refused. Guests see the look only when each live portal
 // is published again.
-// The photo and logo controls (slice 42c2) and the batch "Review & publish"
-// (slice 39b) mount in the slots below.
+// The photograph and logo are written when the person puts one on or takes one
+// off (the dialogs), and the photograph's focal point autosaves as it is moved.
+// The batch "Review & publish" (slice 39b) mounts in `publishSlot`.
 import { useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { PageHeader } from '#/components/layout/page-header'
 import { PageShell } from '#/components/layout/page-shell'
 import { EmptyState } from '#/components/ui/empty-state'
 import { Palette } from 'lucide-react'
+import type { PropertyLookMedia } from '#/contexts/portal/application/public-api'
+import type { PortalImageUploader } from '../portal-media/upload-portal-image'
 import type { PortalPreviewReader } from '../portal-preview/portal-preview-pane'
 import { PortalUnsavedChangesPrompt } from '../portal-detail/portal-unsaved-changes-prompt'
 import { PortalDraftAutosaveProvider } from '../portal-editor/portal-draft-autosave-context'
 import { PropertyLookColoursSection } from './property-look-colours-section'
 import { PropertyLookIdentitySection } from './property-look-identity-section'
 import { PropertyLookLanguagesSection } from './property-look-languages-section'
+import { PropertyLookPhone } from './property-look-phone'
 import { PropertyLookPhotoSection } from './property-look-photo-section'
 import { PropertyLookPortals } from './property-look-portals'
 import { PropertyLookPreview } from './property-look-preview'
+import type { PhotoDescriptions } from './property-photo-rules'
 import {
   affectedPortals,
   describeLookStatus,
@@ -37,8 +42,17 @@ import {
   usePropertyLookDraft,
   type PropertyLookSaves,
 } from './use-property-look-draft'
+import {
+  usePropertyLookMedia,
+  type PropertyLookMediaSaves,
+} from './use-property-look-media'
+import { usePropertyLookPreview } from './use-property-look-preview'
+
+/** The scale of the phone beside the photograph dialog's photograph. */
+const DIALOG_PHONE_SCALE = 0.5
 
 export type PropertyLookPageProps = PropertyLookSaves &
+  PropertyLookMediaSaves &
   Readonly<{
     propertyId: string
     propertyName: string
@@ -49,10 +63,12 @@ export type PropertyLookPageProps = PropertyLookSaves &
     /** Every portal of the Property. */
     rows: readonly AffectedPortalRow[]
     getPortalPreview: PortalPreviewReader
-    /** The photo and its upload controls (slice 42c2). */
-    photoSlot?: ReactNode
-    /** The logo and its upload control (slice 42c2). */
-    logoSlot?: ReactNode
+    /** The photograph and logo the Property has, as a page draws them. */
+    media: PropertyLookMedia
+    /** What the Property has written to describe the photograph, by language. */
+    photoDescriptions: PhotoDescriptions
+    /** Sends an image to the media endpoint; the real upload unless a story hands in a stub. */
+    uploadImage?: PortalImageUploader
     /** The batch "Review & publish" (slice 39b). */
     publishSlot?: ReactNode
   }>
@@ -102,23 +118,35 @@ export function PropertyLookPage(props: PropertyLookPageProps) {
 
 function PropertyLookEditor({
   propertyId,
+  propertyName,
   profile,
   canEdit,
   rows,
   getPortalPreview,
   saveLook,
   saveLocales,
-  photoSlot,
-  logoSlot,
+  saveHero,
+  saveLogo,
+  media: savedMedia,
+  photoDescriptions,
+  uploadImage,
   publishSlot,
 }: PropertyLookPageProps & Readonly<{ profile: PropertyLookProfile }>) {
   const { draft, setDraft, locales, setLocales, problem, state, retry } =
     usePropertyLookDraft(propertyId, profile, { saveLook, saveLocales })
+  const {
+    media,
+    moveFocal,
+    saveHero: putHero,
+    saveLogo: putLogo,
+  } = usePropertyLookMedia(propertyId, savedMedia, { saveHero, saveLogo })
   const affected = affectedPortals(rows)
   const [chosenId, setChosenId] = useState<string | null>(null)
   const [showPhoto, setShowPhoto] = useState(true)
   const selected =
     affected.listed.find((row) => row.portalId === chosenId) ?? affected.listed[0] ?? null
+  const previewPortal = selected ? { id: selected.portalId, name: selected.name } : null
+  const previewData = usePropertyLookPreview(previewPortal, getPortalPreview)
   const status = describeLookStatus(
     { status: state.status, ...(problem === null ? {} : { reason: problem }) },
     affected,
@@ -141,8 +169,29 @@ function PropertyLookEditor({
           )}
           <div>
             <PropertyLookPhotoSection
-              slot={photoSlot}
               onPreviewWithoutPhoto={() => setShowPhoto(false)}
+              photo={{
+                propertyId,
+                propertyName,
+                hero: media.hero,
+                locales,
+                descriptions: photoDescriptions,
+                canEdit,
+                onFocalChange: moveFocal,
+                onSave: putHero,
+                onRemove: () => putHero({ assetId: null }),
+                renderPhone: (hero) => (
+                  <PropertyLookPhone
+                    portal={previewPortal}
+                    data={previewData}
+                    draft={draft}
+                    showPhoto
+                    media={{ hero, logo: media.logo }}
+                    scale={DIALOG_PHONE_SCALE}
+                  />
+                ),
+                ...(uploadImage ? { upload: uploadImage } : {}),
+              }}
             />
             <PropertyLookColoursSection
               draft={draft}
@@ -155,7 +204,14 @@ function PropertyLookEditor({
               wordmark={draft.wordmark}
               onWordmarkChange={(wordmark) => setDraft({ wordmark })}
               disabled={!canEdit}
-              logoSlot={logoSlot}
+              logo={{
+                propertyId,
+                propertyName,
+                logo: media.logo,
+                canEdit,
+                onSave: putLogo,
+                ...(uploadImage ? { upload: uploadImage } : {}),
+              }}
             />
             <PropertyLookLanguagesSection
               locales={locales}
@@ -171,9 +227,10 @@ function PropertyLookEditor({
         </div>
         <aside className={SIDE_COLUMN}>
           <PropertyLookPreview
-            portal={selected ? { id: selected.portalId, name: selected.name } : null}
-            getPortalPreview={getPortalPreview}
+            portal={previewPortal}
+            data={previewData}
             draft={draft}
+            media={media}
             showPhoto={showPhoto}
             onShowPhotoChange={setShowPhoto}
           />
