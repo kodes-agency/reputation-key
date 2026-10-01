@@ -1,14 +1,17 @@
 // Story-only content for the shell: a stand-in for the header, title block,
-// rating card, Linktree and footer of boards G01 and G09, so the shell can be
-// judged against the boards before those pieces exist (slices 13 to 17 replace
-// each part). Uses the shell's glass surfaces and nothing else of the page.
+// rating card and Linktree of boards G01 and G09, so the shell can be judged
+// against the boards before those pieces exist (slices 13 to 16 replace each
+// part). The footer is the real one (slice 17). Uses the shell's glass surfaces and nothing else of the page.
 //
 // Styled inline on purpose: Tailwind scans `src/` for class names, and a
 // stand-in's arbitrary values would be added to the first-paint stylesheet of
 // every page in production.
 
 import type { CSSProperties } from 'react'
+import { enV2 } from '../../language-packs/en-v2'
 import { GlassSurface, glassClassName } from '../glass-surface'
+import { ImmersiveFooterView } from '../immersive-footer'
+import { immersiveFooterCopy } from '../immersive-footer-copy'
 
 const STARS = [1, 2, 3, 4, 5] as const
 
@@ -113,29 +116,6 @@ const styles = {
   },
   tileLabel: { fontSize: 14, fontWeight: 600, lineHeight: '18px', color: '#fff' },
   tileLine: { fontSize: 12, lineHeight: '16px', color: 'rgba(255,255,255,0.8)' },
-  footer: {
-    marginTop: 'auto',
-    padding: '10px 0',
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    textAlign: 'center',
-  },
-  notice: {
-    ...reset,
-    maxWidth: 250,
-    fontSize: 12,
-    lineHeight: '17px',
-    color: 'rgba(255,255,255,0.66)',
-  },
-  privacy: {
-    height: 44,
-    display: 'flex',
-    alignItems: 'center',
-    padding: '0 6px',
-    fontSize: 12,
-    fontWeight: 600,
-  },
 } satisfies Record<string, CSSProperties>
 
 export function ArrivalStandIn({ displayName }: Readonly<{ displayName: string }>) {
@@ -197,14 +177,11 @@ export function ArrivalStandIn({ displayName }: Readonly<{ displayName: string }
           </a>
         ))}
       </nav>
-      <footer style={styles.footer}>
-        <p style={styles.notice}>
-          This page counts visits for {displayName}. No ads or third-party trackers.
-        </p>
-        <a href="#privacy" className="ih-link-accent" style={styles.privacy}>
-          Privacy notice
-        </a>
-      </footer>
+      <ImmersiveFooterView
+        copy={immersiveFooterCopy(enV2, displayName)}
+        isNoticeVisible
+        onAcknowledge={() => undefined}
+      />
     </>
   )
 }
