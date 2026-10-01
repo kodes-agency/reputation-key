@@ -10,22 +10,16 @@
 // button would otherwise put the photograph on the look after the person had
 // walked away from it.
 
-import { useState, type ReactNode } from 'react'
-import { EyeOff, ImageIcon } from 'lucide-react'
-import { Button } from '#/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '#/components/ui/dialog'
+import type { ReactNode } from 'react'
+import { ImageIcon } from 'lucide-react'
+import { DialogDescription, DialogHeader, DialogTitle } from '#/components/ui/dialog'
 import { Input } from '#/components/ui/input'
 import { ImageChecksList } from '../portal-media/image-checks-list'
 import { describeImageFacts } from '../portal-media/image-checks'
 import { ImageFileButton } from '../portal-media/image-file-button'
 import { ImageRightsField } from '../portal-media/image-rights-field'
+import { UploadDialogFooter } from '../portal-media/upload-dialog-footer'
+import { UploadDialogShell } from '../portal-media/upload-dialog-shell'
 import { FocalPointPicker } from './focal-point-picker'
 import {
   descriptionFields,
@@ -52,29 +46,21 @@ export function PropertyLookPhotoDialog({
   renderPhone,
   ...input
 }: Props) {
-  const [isBusy, setIsBusy] = useState(false)
-  const close = () => {
-    setIsBusy(false)
-    onOpenChange(false)
-  }
   return (
-    <Dialog
+    <UploadDialogShell
       open={open}
-      onOpenChange={(next) => {
-        if (next) onOpenChange(true)
-        else if (!isBusy) close()
-      }}
+      onOpenChange={onOpenChange}
+      className="sm:max-w-2xl lg:max-w-4xl"
     >
-      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-2xl lg:max-w-4xl">
+      {(guard) => (
         <PhotoDialogBody
           {...input}
+          {...guard}
           propertyName={propertyName}
           renderPhone={renderPhone}
-          onBusyChange={setIsBusy}
-          onClose={close}
         />
-      </DialogContent>
-    </Dialog>
+      )}
+    </UploadDialogShell>
   )
 }
 
@@ -215,29 +201,13 @@ function PhotoDialogBody({ propertyName, renderPhone, ...input }: BodyProps) {
       <p role="alert" className="min-h-5 text-sm text-negative">
         {dialog.message}
       </p>
-      <DialogFooter className="sm:items-center sm:justify-between">
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <EyeOff className="size-4 shrink-0" aria-hidden />
-          Live pages change when you publish the property look.
-        </p>
-        <div className="flex flex-col-reverse gap-2 sm:flex-row">
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={dialog.isBusy}
-            onClick={input.onClose}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            disabled={!dialog.canSubmit}
-            onClick={() => void dialog.submit()}
-          >
-            {photoButtonLabel(picker.chosen !== null, dialog.isBusy)}
-          </Button>
-        </div>
-      </DialogFooter>
+      <UploadDialogFooter
+        primaryLabel={photoButtonLabel(picker.chosen !== null, dialog.isBusy)}
+        canSubmit={dialog.canSubmit}
+        isBusy={dialog.isBusy}
+        onSubmit={() => void dialog.submit()}
+        onCancel={input.onClose}
+      />
     </>
   )
 }

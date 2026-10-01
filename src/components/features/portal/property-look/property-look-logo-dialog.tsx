@@ -6,21 +6,13 @@
 // Controlled, with its body mounted only while open (no file, no half-made
 // choice stays behind), and it cannot be closed while a logo is on its way.
 
-import { useState } from 'react'
-import { EyeOff } from 'lucide-react'
-import { Button } from '#/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '#/components/ui/dialog'
+import { DialogDescription, DialogHeader, DialogTitle } from '#/components/ui/dialog'
 import { describeImageFacts } from '../portal-media/image-checks'
 import { ImageChecksList } from '../portal-media/image-checks-list'
 import { ImageFileButton } from '../portal-media/image-file-button'
 import { ImageRightsField } from '../portal-media/image-rights-field'
+import { UploadDialogFooter } from '../portal-media/upload-dialog-footer'
+import { UploadDialogShell } from '../portal-media/upload-dialog-shell'
 import { useLogoDialog, type LogoDialogInput } from './use-logo-dialog'
 
 type Props = Readonly<
@@ -39,29 +31,17 @@ export function PropertyLookLogoDialog({
   hasLogo,
   ...input
 }: Props) {
-  const [isBusy, setIsBusy] = useState(false)
-  const close = () => {
-    setIsBusy(false)
-    onOpenChange(false)
-  }
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (next) onOpenChange(true)
-        else if (!isBusy) close()
-      }}
-    >
-      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-md">
+    <UploadDialogShell open={open} onOpenChange={onOpenChange} className="sm:max-w-md">
+      {(guard) => (
         <LogoDialogBody
           {...input}
+          {...guard}
           propertyName={propertyName}
           hasLogo={hasLogo}
-          onBusyChange={setIsBusy}
-          onClose={close}
         />
-      </DialogContent>
-    </Dialog>
+      )}
+    </UploadDialogShell>
   )
 }
 
@@ -133,29 +113,13 @@ function LogoDialogBody({
           {dialog.message}
         </p>
       </div>
-      <DialogFooter className="sm:items-center sm:justify-between">
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <EyeOff className="size-4 shrink-0" aria-hidden />
-          Live pages change when you publish the property look.
-        </p>
-        <div className="flex flex-col-reverse gap-2 sm:flex-row">
-          <Button
-            type="button"
-            variant="ghost"
-            disabled={dialog.isBusy}
-            onClick={input.onClose}
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            disabled={!dialog.canSubmit}
-            onClick={() => void dialog.submit()}
-          >
-            {dialog.isBusy ? 'Uploading…' : 'Use logo'}
-          </Button>
-        </div>
-      </DialogFooter>
+      <UploadDialogFooter
+        primaryLabel={dialog.isBusy ? 'Uploading…' : 'Use logo'}
+        canSubmit={dialog.canSubmit}
+        isBusy={dialog.isBusy}
+        onSubmit={() => void dialog.submit()}
+        onCancel={input.onClose}
+      />
     </>
   )
 }

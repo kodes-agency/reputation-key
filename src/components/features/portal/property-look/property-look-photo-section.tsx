@@ -5,7 +5,7 @@
 // the focal point of a new photograph, describes it for screen readers and asks
 // for the permission to use it.
 import { useState, type ReactNode } from 'react'
-import { ImageOff, ImagePlus, Upload } from 'lucide-react'
+import { ImageOff, ImagePlus } from 'lucide-react'
 import type { PropertyLookHero } from '#/contexts/portal/application/public-api'
 import { Button } from '#/components/ui/button'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
@@ -14,10 +14,11 @@ import { FocalPointPicker } from './focal-point-picker'
 import type { FocalPoint } from './focal-point'
 import { PropertyLookPhotoDialog } from './property-look-photo-dialog'
 import type { PreviewMedia } from './property-look-preview-brand'
-import { refusalOf } from './property-look-rules'
+import { PropertyLookMediaActions } from './property-look-media-actions'
 import { PropertyLookSection } from './property-look-section'
 import type { PhotoDescriptions } from './property-photo-rules'
 import type { PhotoDialogInput } from './use-photo-dialog'
+import { useRemoveMedia } from './use-remove-media'
 
 export type PropertyLookPhotoControls = Readonly<{
   propertyId: string
@@ -47,24 +48,11 @@ const REMOVE_FAILED = 'The photo could not be taken off. Try again.'
 
 export function PropertyLookPhotoSection({ photo, onPreviewWithoutPhoto }: Props) {
   const [isOpen, setIsOpen] = useState(false)
-  const [isRemoving, setIsRemoving] = useState(false)
-  const [failure, setFailure] = useState<string | null>(null)
+  const removal = useRemoveMedia(photo.onRemove, REMOVE_FAILED)
   const { hero, canEdit } = photo
   const primaryDescription = photo.locales[0]
     ? photo.descriptions[photo.locales[0]]
     : undefined
-
-  const remove = async () => {
-    setIsRemoving(true)
-    setFailure(null)
-    try {
-      await photo.onRemove()
-    } catch (error) {
-      setFailure(refusalOf(error) ?? REMOVE_FAILED)
-    } finally {
-      setIsRemoving(false)
-    }
-  }
 
   return (
     <PropertyLookSection
@@ -88,19 +76,14 @@ export function PropertyLookPhotoSection({ photo, onPreviewWithoutPhoto }: Props
           />
           {canEdit ? (
             <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
-              <div className="flex flex-wrap gap-2">
-                <Button type="button" variant="outline" onClick={() => setIsOpen(true)}>
-                  <Upload aria-hidden /> Replace photo
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled={isRemoving}
-                  onClick={() => void remove()}
-                >
-                  Remove photo
-                </Button>
-              </div>
+              <PropertyLookMediaActions
+                replaceLabel="Replace photo"
+                removeLabel="Remove photo"
+                isRemoving={removal.isRemoving}
+                failure={removal.failure}
+                onReplace={() => setIsOpen(true)}
+                onRemove={() => void removal.remove()}
+              />
               <p className="text-sm text-muted-foreground">
                 Drag the circle onto what guests should always see. Every page crops
                 around it.
@@ -112,11 +95,6 @@ export function PropertyLookPhotoSection({ photo, onPreviewWithoutPhoto }: Props
         <Button type="button" variant="outline" onClick={() => setIsOpen(true)}>
           <ImagePlus aria-hidden /> Add a photo
         </Button>
-      ) : null}
-      {failure ? (
-        <p role="alert" className="text-sm text-negative">
-          {failure}
-        </p>
       ) : null}
       <p className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-sm text-muted-foreground">
         <ImageOff className="size-4 shrink-0" aria-hidden />

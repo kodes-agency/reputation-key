@@ -64,5 +64,3 @@ export type PropertyLookInput = z.infer<typeof propertyLookInputSchema>
 export type PropertyDefaultLocalesInput = z.infer<
   typeof propertyDefaultLocalesInputSchema
 >
-export type PropertyHeroInput = z.infer<typeof propertyHeroInputSchema>
-export type PropertyLogoInput = z.infer<typeof propertyLogoInputSchema>

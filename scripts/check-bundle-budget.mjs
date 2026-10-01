@@ -184,12 +184,12 @@
 // 2026-10-01 (Portal round 4, s42c2, the Property look's photo and logo
 // controls): the controls and their dialogs are in the look route's lazy
 // component chunk, so the JavaScript closure barely moves (the entry chunk
-// 44,167 B -> 44,198 B). The one global stylesheet grows by ten utilities the
+// 44,167 B -> 44,203 B). The one global stylesheet grows by ten utilities the
 // focal-point circle, the logo swatch and the two-column dialog need (689 B raw,
 // styles.css 27,125 B -> 27,257 B gzip): `cursor-grab`, `touch-none`, `size-1`,
 // `bg-neutral-900` and the like. Arbitrary values, a ring, a rendered-empty
 // alert and three one-off sizes were cut first. Fresh production builds of main
-// (112161e85) and of this change: 334,209 B -> 334,361 B (80 js + 1 css), +152 B.
+// (112161e85) and of this change: 334,209 B -> 334,377 B (80 js + 1 css), +168 B.
 // `main` had 91 B of headroom under its 334,300 B. The budget moves to 334,700 B.
 //
 // When this fails: resolve the new static importer and cut that source edge. Do
@@ -207,7 +207,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 334_700, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730; raised to 331,400 on 2026-10-01 for the Linktree editor rebased onto the Languages section, measured 331,093; raised to 332,000 on 2026-10-01 for the All properties route, measured 331,663 (main 331,230); raised to 333,300 for the group page route, measured 332,881; raised to 333,800 on 2026-10-01 for the inbox phone bars, measured 333,447 (main 333,126); raised to 334,300 on 2026-10-01 for the v3 writer and the guest mount rebased onto the inbox phone bars, measured 334,045 (main 333,447); raised to 334,700 on 2026-10-01 for the Property look photo and logo controls, measured 334,361 (main 334,209)
+  initialClosureGzip: 334_700, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730; raised to 331,400 on 2026-10-01 for the Linktree editor rebased onto the Languages section, measured 331,093; raised to 332,000 on 2026-10-01 for the All properties route, measured 331,663 (main 331,230); raised to 333,300 for the group page route, measured 332,881; raised to 333,800 on 2026-10-01 for the inbox phone bars, measured 333,447 (main 333,126); raised to 334,300 on 2026-10-01 for the v3 writer and the guest mount rebased onto the inbox phone bars, measured 334,045 (main 333,447); raised to 334,700 on 2026-10-01 for the Property look photo and logo controls, measured 334,377 (main 334,209)
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 

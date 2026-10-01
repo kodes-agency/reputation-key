@@ -190,29 +190,55 @@ async function currentProfileRow(tx: Tx, scope: PropertyScope) {
   return current
 }
 
-type MediaColumns = Partial<
-  Pick<ProfileRow, 'logoAssetId' | 'heroAssetId' | 'heroFocalX' | 'heroFocalY'>
+/**
+ * Run a Brand Profile write inside the Property's publication lock, with the
+ * profile as it is under that lock. Null when the Property has no profile.
+ */
+function withLockedProfile<T>(
+  db: Database,
+  scope: PropertyScope,
+  run: (tx: Tx, current: ProfileRow) => Promise<T>,
+): Promise<T | null> {
+  return db.transaction(async (tx) => {
+    await lockPropertyPublication(tx, scope)
+    const current = await currentProfileRow(tx, scope)
+    return current ? run(tx, current) : null
+  })
+}
+
+type LookColumns = Partial<
+  Pick<
+    ProfileRow,
+    | 'primaryColor'
+    | 'backgroundMode'
+    | 'backgroundColor'
+    | 'wordmark'
+    | 'logoAssetId'
+    | 'heroAssetId'
+    | 'heroFocalX'
+    | 'heroFocalY'
+  >
 >
 
 /**
- * Write the image columns of the look and nothing else: the display name,
- * the colours and `updated_by` stay with the writers that own them. A write
- * that moves nothing writes nothing; one that does moves the look version,
- * fences the live Portals under `look:images` and announces the profile.
+ * Write look columns and nothing else: the display name, the text colour and
+ * `updated_by` stay with the writers that own them. The caller has found which
+ * facets of the look the write moves; one that moves none writes nothing, and
+ * one that does moves the look version, fences the live Portals under
+ * `look:<facet>` and announces the profile.
  */
-async function writeProfileMedia(
+async function writeLookColumns(
   tx: Tx,
   input: PropertyScope & Readonly<{ actorUserId: UserId; at: Date }>,
   current: ProfileRow,
-  media: MediaColumns,
+  columns: LookColumns,
+  facets: readonly LookFacet[],
 ): Promise<ProfileRow> {
-  const before = lookOfRow(current)
-  const facets = changedLookFacets(before, { ...before, ...media })
   if (facets.length === 0) return current
   const [row] = await tx
     .update(propertyPortalBrandProfiles)
     .set({
-      ...media,
+      ...columns,
       lookVersion: sql`${propertyPortalBrandProfiles.lookVersion} + 1`,
       updatedAt: input.at,
     })
@@ -229,6 +255,28 @@ async function writeProfileMedia(
     actorUserId: unbrand(input.actorUserId),
   })
   return row
+}
+
+type MediaColumns = Pick<
+  Partial<ProfileRow>,
+  'logoAssetId' | 'heroAssetId' | 'heroFocalX' | 'heroFocalY'
+>
+
+/** The image columns of the look: the facets they move are found by comparing the look before and after. */
+function writeProfileMedia(
+  tx: Tx,
+  input: PropertyScope & Readonly<{ actorUserId: UserId; at: Date }>,
+  current: ProfileRow,
+  media: MediaColumns,
+): Promise<ProfileRow> {
+  const before = lookOfRow(current)
+  return writeLookColumns(
+    tx,
+    input,
+    current,
+    media,
+    changedLookFacets(before, { ...before, ...media }),
+  )
 }
 
 /**
@@ -478,15 +526,7 @@ export const createPortalExperienceRepository = (
 
   savePropertyLook: (input) =>
     trace('portalExperience.savePropertyLook', () =>
-      db.transaction(async (tx) => {
-        await lockPropertyPublication(tx, input)
-        const scope = propertyProfileScope(input)
-        const [current] = await tx
-          .select()
-          .from(propertyPortalBrandProfiles)
-          .where(scope)
-          .limit(1)
-        if (!current) return null
+      withLockedProfile(db, input, async (tx, current) => {
         const { look } = input
         const before = lookOfRow(current)
         const after: PropertyLook = {
@@ -496,42 +536,25 @@ export const createPortalExperienceRepository = (
           backgroundColor: look.backgroundColor ?? before.backgroundColor,
           wordmark: look.wordmark === undefined ? before.wordmark : look.wordmark,
         }
-        const facets = changedLookFacets(before, after)
-        if (facets.length === 0) return profileFromRow(current)
-        // Only the look's own columns: the display name, the images, the text
-        // colour and `updated_by` stay with the writers that own them.
-        const [row] = await tx
-          .update(propertyPortalBrandProfiles)
-          .set({
+        const row = await writeLookColumns(
+          tx,
+          input,
+          current,
+          {
             primaryColor: after.primaryColor,
             backgroundMode: after.backgroundMode,
             backgroundColor: after.backgroundColor,
             wordmark: after.wordmark,
-            lookVersion: sql`${propertyPortalBrandProfiles.lookVersion} + 1`,
-            updatedAt: input.at,
-          })
-          .where(scope)
-          .returning()
-        if (!row) throw new Error('Property Brand Profile was not saved')
-        await recordPropertyProfileChange(tx, input, {
-          nameChanged: false,
-          previousName: current.displayName,
-          displayName: row.displayName,
-          facets,
-          version: row.version,
-          lookVersion: row.lookVersion,
-          actorUserId: unbrand(input.actorUserId),
-        })
+          },
+          changedLookFacets(before, after),
+        )
         return profileFromRow(row)
       }),
     ),
 
   savePropertyHero: (input) =>
     trace('portalExperience.savePropertyHero', () =>
-      db.transaction(async (tx) => {
-        await lockPropertyPublication(tx, input)
-        const current = await currentProfileRow(tx, input)
-        if (!current) return null
+      withLockedProfile(db, input, async (tx, current) => {
         const { hero } = input
         const row = await writeProfileMedia(tx, input, current, {
           heroAssetId: hero?.assetId ?? null,
@@ -547,15 +570,13 @@ export const createPortalExperienceRepository = (
 
   savePropertyLogo: (input) =>
     trace('portalExperience.savePropertyLogo', () =>
-      db.transaction(async (tx) => {
-        await lockPropertyPublication(tx, input)
-        const current = await currentProfileRow(tx, input)
-        if (!current) return null
-        const row = await writeProfileMedia(tx, input, current, {
-          logoAssetId: input.logoAssetId,
-        })
-        return profileFromRow(row)
-      }),
+      withLockedProfile(db, input, async (tx, current) =>
+        profileFromRow(
+          await writeProfileMedia(tx, input, current, {
+            logoAssetId: input.logoAssetId,
+          }),
+        ),
+      ),
     ),
 
   saveDefaultGuestLocales: (input) =>

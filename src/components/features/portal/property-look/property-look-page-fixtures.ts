@@ -126,7 +126,7 @@ export const AVELA_MEDIA: PropertyLookMedia = {
 
 const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="120" viewBox="0 0 480 120"><text x="240" y="82" text-anchor="middle" font-family="Georgia, serif" font-size="64" letter-spacing="14" fill="#EAD6A8">AVELA</text></svg>`
 
-export const AVELA_LOGO = {
+const AVELA_LOGO = {
   assetId: LOGO_ASSET,
   url: `data:image/svg+xml;utf8,${encodeURIComponent(LOGO_SVG)}`,
   width: 480,

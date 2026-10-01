@@ -25,7 +25,6 @@ import { PortalDraftAutosaveProvider } from '../portal-editor/portal-draft-autos
 import { PropertyLookColoursSection } from './property-look-colours-section'
 import { PropertyLookIdentitySection } from './property-look-identity-section'
 import { PropertyLookLanguagesSection } from './property-look-languages-section'
-import { PropertyLookPhone } from './property-look-phone'
 import { PropertyLookPhotoSection } from './property-look-photo-section'
 import { PropertyLookPortals } from './property-look-portals'
 import { PropertyLookPreview } from './property-look-preview'
@@ -42,14 +41,9 @@ import {
   usePropertyLookDraft,
   type PropertyLookSaves,
 } from './use-property-look-draft'
-import {
-  usePropertyLookMedia,
-  type PropertyLookMediaSaves,
-} from './use-property-look-media'
+import { usePropertyLookMediaControls } from './use-property-look-media-controls'
+import type { PropertyLookMediaSaves } from './use-property-look-media'
 import { usePropertyLookPreview } from './use-property-look-preview'
-
-/** The scale of the phone beside the photograph dialog's photograph. */
-const DIALOG_PHONE_SCALE = 0.5
 
 export type PropertyLookPageProps = PropertyLookSaves &
   PropertyLookMediaSaves &
@@ -134,12 +128,6 @@ function PropertyLookEditor({
 }: PropertyLookPageProps & Readonly<{ profile: PropertyLookProfile }>) {
   const { draft, setDraft, locales, setLocales, problem, state, retry } =
     usePropertyLookDraft(propertyId, profile, { saveLook, saveLocales })
-  const {
-    media,
-    moveFocal,
-    saveHero: putHero,
-    saveLogo: putLogo,
-  } = usePropertyLookMedia(propertyId, savedMedia, { saveHero, saveLogo })
   const affected = affectedPortals(rows)
   const [chosenId, setChosenId] = useState<string | null>(null)
   const [showPhoto, setShowPhoto] = useState(true)
@@ -147,6 +135,17 @@ function PropertyLookEditor({
     affected.listed.find((row) => row.portalId === chosenId) ?? affected.listed[0] ?? null
   const previewPortal = selected ? { id: selected.portalId, name: selected.name } : null
   const previewData = usePropertyLookPreview(previewPortal, getPortalPreview)
+  const { media, photo, logo } = usePropertyLookMediaControls({
+    propertyId,
+    propertyName,
+    canEdit,
+    savedMedia,
+    saves: { saveHero, saveLogo },
+    descriptions: photoDescriptions,
+    locales,
+    uploadImage,
+    preview: { portal: previewPortal, data: previewData, draft },
+  })
   const status = describeLookStatus(
     { status: state.status, ...(problem === null ? {} : { reason: problem }) },
     affected,
@@ -170,28 +169,7 @@ function PropertyLookEditor({
           <div>
             <PropertyLookPhotoSection
               onPreviewWithoutPhoto={() => setShowPhoto(false)}
-              photo={{
-                propertyId,
-                propertyName,
-                hero: media.hero,
-                locales,
-                descriptions: photoDescriptions,
-                canEdit,
-                onFocalChange: moveFocal,
-                onSave: putHero,
-                onRemove: () => putHero({ assetId: null }),
-                renderPhone: (hero) => (
-                  <PropertyLookPhone
-                    portal={previewPortal}
-                    data={previewData}
-                    draft={draft}
-                    showPhoto
-                    media={{ hero, logo: media.logo }}
-                    scale={DIALOG_PHONE_SCALE}
-                  />
-                ),
-                ...(uploadImage ? { upload: uploadImage } : {}),
-              }}
+              photo={photo}
             />
             <PropertyLookColoursSection
               draft={draft}
@@ -204,14 +182,7 @@ function PropertyLookEditor({
               wordmark={draft.wordmark}
               onWordmarkChange={(wordmark) => setDraft({ wordmark })}
               disabled={!canEdit}
-              logo={{
-                propertyId,
-                propertyName,
-                logo: media.logo,
-                canEdit,
-                onSave: putLogo,
-                ...(uploadImage ? { upload: uploadImage } : {}),
-              }}
+              logo={logo}
             />
             <PropertyLookLanguagesSection
               locales={locales}

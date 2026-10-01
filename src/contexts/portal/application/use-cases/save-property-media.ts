@@ -15,26 +15,21 @@
 // taking an image off needs no `portal.upload`, so it keeps working if uploads
 // are switched off.
 
-import { z } from 'zod/v4'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
-import {
-  portalMediaAssetId,
-  propertyId,
-  type OrganizationId,
-  type PropertyId,
-} from '#/shared/domain/ids'
+import { propertyId, type OrganizationId, type PropertyId } from '#/shared/domain/ids'
 import { canForContext } from '#/shared/domain/permissions'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { portalError } from '../../domain/errors'
-import {
-  canReferencePortalMediaAsset,
-  type PortalMediaReferenceSlot,
-} from '../../domain/portal-media-asset'
+import type { PortalMediaReferenceSlot } from '../../domain/portal-media-asset'
 import { normaliseFocalPoint, normaliseHeroAltText } from '../../domain/property-look'
 import { assertPropertyAccess } from '../assert-property-access'
+import { findReferencableMediaAsset } from '../referencable-media-asset'
 import { resolvePropertyLookMedia } from '../property-look-media'
-import type { PortalExperienceRepository } from '../ports/portal-experience.repository'
+import type {
+  PortalExperienceRepository,
+  PropertyPortalBrandProfile,
+} from '../ports/portal-experience.repository'
 import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.repository'
 
 type Deps = Readonly<{
@@ -66,7 +61,6 @@ export type SavePropertyLogoInput = Readonly<{
 }>
 
 const CENTRE = 0.5
-const uuidSchema = z.uuid()
 
 function assertAdmin(ctx: AuthContext): void {
   if (!canForContext(ctx, 'portal.admin')) {
@@ -85,13 +79,14 @@ async function checkedAsset(
   slot: PortalMediaReferenceSlot,
   assetId: string,
 ): Promise<string> {
-  const notFound = () =>
-    portalError('media_not_found', 'image not found for this Property')
-  if (!uuidSchema.safeParse(assetId).success) throw notFound()
-  const asset = await deps.mediaRepo.findById(organizationId, portalMediaAssetId(assetId))
-  if (!asset || asset.propertyId !== pid || !canReferencePortalMediaAsset(slot, asset)) {
-    throw notFound()
-  }
+  const asset = await findReferencableMediaAsset(
+    deps.mediaRepo,
+    organizationId,
+    pid,
+    slot,
+    assetId,
+  )
+  if (!asset) throw portalError('media_not_found', 'image not found for this Property')
   return asset.id
 }
 
@@ -104,11 +99,22 @@ function normalisedAltTexts(input: SavePropertyHeroInput) {
   return [...byLocale].map(([locale, text]) => ({ locale, text }))
 }
 
-const missingProfile = () =>
-  portalError(
-    'brand_profile_missing',
-    'Set the public display name before changing the look',
-  )
+/** The writer's answer: the profile and the media a page draws from it. A Property with no profile is asked to set its name first. */
+async function answer(
+  deps: Pick<Deps, 'mediaRepo'>,
+  ctx: AuthContext,
+  pid: PropertyId,
+  profile: PropertyPortalBrandProfile | null,
+) {
+  if (!profile) {
+    throw portalError(
+      'brand_profile_missing',
+      'Set the public display name before changing the look',
+    )
+  }
+  const media = await resolvePropertyLookMedia(deps, ctx.organizationId, pid, profile)
+  return { profile, media }
+}
 
 export const savePropertyHero =
   (deps: Deps) => async (input: SavePropertyHeroInput, ctx: AuthContext) => {
@@ -130,9 +136,7 @@ export const savePropertyHero =
       actorUserId: ctx.userId,
       at: deps.clock(),
     })
-    if (!profile) throw missingProfile()
-    const media = await resolvePropertyLookMedia(deps, ctx.organizationId, pid, profile)
-    return { profile, media }
+    return answer(deps, ctx, pid, profile)
   }
 
 export const savePropertyLogo =
@@ -151,7 +155,5 @@ export const savePropertyLogo =
       actorUserId: ctx.userId,
       at: deps.clock(),
     })
-    if (!profile) throw missingProfile()
-    const media = await resolvePropertyLookMedia(deps, ctx.organizationId, pid, profile)
-    return { profile, media }
+    return answer(deps, ctx, pid, profile)
   }

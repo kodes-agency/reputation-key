@@ -3,12 +3,13 @@
 // replace or remove it. Without a logo the section says what one is for; with one,
 // guest pages and printed codes show it in place of the wordmark.
 import { useState } from 'react'
-import { ImagePlus, Upload } from 'lucide-react'
+import { ImagePlus } from 'lucide-react'
 import type { PropertyLookLogo } from '#/contexts/portal/application/public-api'
 import { Button } from '#/components/ui/button'
 import type { PortalImageUploader } from '../portal-media/upload-portal-image'
 import { PropertyLookLogoDialog } from './property-look-logo-dialog'
-import { refusalOf } from './property-look-rules'
+import { PropertyLookMediaActions } from './property-look-media-actions'
+import { useRemoveMedia } from './use-remove-media'
 
 export type PropertyLookLogoControls = Readonly<{
   propertyId: string
@@ -27,21 +28,8 @@ export function PropertyLookLogoField({
   logo: controls,
 }: Readonly<{ logo: PropertyLookLogoControls }>) {
   const [isOpen, setIsOpen] = useState(false)
-  const [isRemoving, setIsRemoving] = useState(false)
-  const [failure, setFailure] = useState<string | null>(null)
   const { logo, canEdit } = controls
-
-  const remove = async () => {
-    setIsRemoving(true)
-    setFailure(null)
-    try {
-      await controls.onSave(null)
-    } catch (error) {
-      setFailure(refusalOf(error) ?? REMOVE_FAILED)
-    } finally {
-      setIsRemoving(false)
-    }
-  }
+  const removal = useRemoveMedia(() => controls.onSave(null), REMOVE_FAILED)
 
   return (
     <div className="space-y-2">
@@ -58,18 +46,15 @@ export function PropertyLookLogoField({
             />
           </div>
           {canEdit ? (
-            <div className="flex flex-wrap gap-2">
-              <Button type="button" variant="outline" onClick={() => setIsOpen(true)}>
-                <Upload aria-hidden /> Replace logo
-              </Button>
-              <Button
-                type="button"
-                variant="ghost"
-                disabled={isRemoving}
-                onClick={() => void remove()}
-              >
-                Remove logo
-              </Button>
+            <div className="space-y-2">
+              <PropertyLookMediaActions
+                replaceLabel="Replace logo"
+                removeLabel="Remove logo"
+                isRemoving={removal.isRemoving}
+                failure={removal.failure}
+                onReplace={() => setIsOpen(true)}
+                onRemove={() => void removal.remove()}
+              />
             </div>
           ) : null}
         </div>
@@ -86,11 +71,6 @@ export function PropertyLookLogoField({
           ) : null}
         </div>
       )}
-      {failure ? (
-        <p role="alert" className="text-sm text-negative">
-          {failure}
-        </p>
-      ) : null}
       {canEdit ? (
         <PropertyLookLogoDialog
           open={isOpen}
