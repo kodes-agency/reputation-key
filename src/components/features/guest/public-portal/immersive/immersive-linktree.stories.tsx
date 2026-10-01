@@ -37,8 +37,10 @@ const PhoneFrame: Decorator = (Story, { parameters }) => (
 const meta = {
   title: 'Features/Guest/ImmersiveLinktree',
   component: ImmersiveLinktree,
+  // Storybook applies the first decorator innermost, so the shell comes first
+  // and the phone frame wraps it. The other way round put the 390 px frame
+  // inside the shell's padded column, 32 px wider than the column it sat in.
   decorators: [
-    PhoneFrame,
     (Story, { parameters }) => (
       <ImmersiveShell
         brand={{ ...CHAMPAGNE, hero: null }}
@@ -49,6 +51,7 @@ const meta = {
         <Story />
       </ImmersiveShell>
     ),
+    PhoneFrame,
   ],
   parameters: { layout: 'fullscreen' },
   args: {

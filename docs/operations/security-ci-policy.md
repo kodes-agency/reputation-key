@@ -142,10 +142,7 @@ drizzle-kit` — build tooling, reported). Full tree: 11 high, 0 critical —
   `3.5.7-1~deb13u3` in every base stage, not excepted (bumped from
   `~deb13u2` on 2026-09-30 for DSA-6531-1, whose three High CVEs —
   CVE-2026-72897 / -84782 / -84784 — failed every image scan once grype's
-  database listed them). PCRE2 is pinned to `10.46-1~deb13u3` the same way
-  (bumped from `~deb13u2` on 2026-10-01 for CVE-2026-103111, High). gcc-14
-  14.2.0-19 (CVE-2026-102010, High, no trixie fix yet) is the one version-scoped
-  not-fixed entry with a short expiry (2026-10-15). The families Debian
+  database listed them). The families Debian
   marks won't-fix (perl-base, glibc, util-linux, zlib, gzip, ncurses, libacl,
   sqlite, pcre2) are the same on trixie as they were on bookworm; their
   reachable surface stays removed (npm CLI stripped, setuid/setgid bits
