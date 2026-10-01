@@ -6,7 +6,7 @@
 
 import type { Action } from '#/components/hooks/use-action'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import type { LinkTreeCategory, LinkTreeLink } from '../link-tree/link-tree-types'
+import type { LinkTreeLink } from '../link-tree/link-tree-types'
 import type {
   IssuedPortalLink,
   RotatePortalLinkInput,
@@ -72,7 +72,6 @@ export type PortalDetailResources = Readonly<{
   makeVersionLiveMutation: MakeVersionLiveAction
   /** The property's IANA zone, whose days History counts in. */
   propertyTimeZone: string
-  categories: readonly LinkTreeCategory[]
   links: readonly LinkTreeLink[]
   /** Which wording each language has. Absent: the Languages section shows no counts. */
   languageCoverage?: PortalLanguageCoverage

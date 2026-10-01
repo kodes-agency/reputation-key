@@ -22,9 +22,9 @@ import { portalLinks, portals } from './portal.schema'
 
 // ── portal_link_texts ──────────────────────────────────────────────
 // One row per link and language: the label a guest reads on the tile and an
-// optional line under it. The link row keeps its own `label`, which mirrors the
-// primary language until the legacy column is dropped; readers fall back to it
-// when a primary-language row is missing.
+// optional line under it. A link's wording lives here and only here: the link
+// row's legacy `label` is never written, and readers fall back to it only for a
+// link with no primary-language row (one written before this table existed).
 
 export const portalLinkTexts = pgTable(
   'portal_link_texts',

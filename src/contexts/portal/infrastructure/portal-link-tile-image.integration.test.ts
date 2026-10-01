@@ -94,7 +94,6 @@ async function createTile() {
       createdAt: command.occurredAt,
       updatedAt: command.occurredAt,
     }),
-    label: 'Discover the resort',
     event: portalLinkCreated({
       portalId: PORTAL_A,
       linkId: id,

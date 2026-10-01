@@ -179,7 +179,6 @@ async function createLink(label: string, sortKey: string) {
     ...command,
     actorUserId: MANAGER,
     link,
-    label,
     event: portalLinkCreated({
       portalId: PORTAL_A,
       linkId: id,

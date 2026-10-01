@@ -33,7 +33,7 @@ function PortalWorkspaceEditor() {
   const { tab, section } = Route.useSearch()
   const data = usePortalDetailData(propertyId, portalId)
   const { portal, tokenStatus } = data.portalData
-  const { categories, links } = data.linksData
+  const { links } = data.linksData
   const { property } = data.propData
   if (!portal) throw notFound()
   const ctx = Route.useRouteContext()
@@ -53,7 +53,6 @@ function PortalWorkspaceEditor() {
       historyReads={HISTORY_READS}
       makeVersionLiveMutation={actions.makeVersionLive}
       propertyTimeZone={property.timezone}
-      categories={categories}
       links={links}
       languageCoverage={data.languageCoverage}
       linktree={data.linktree}

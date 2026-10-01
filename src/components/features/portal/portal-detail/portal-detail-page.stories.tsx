@@ -17,7 +17,7 @@ import type {
   PortalAnalyticsData,
 } from '#/contexts/reporting/server/portal-analytics'
 import type { Action } from '#/components/hooks/use-action'
-import type { LinkTreeCategory, LinkTreeLink } from '../link-tree/link-tree-types'
+import type { LinkTreeLink } from '../link-tree/link-tree-types'
 import type {
   CompleteReviewResult,
   CompleteReviewVariables,
@@ -68,10 +68,6 @@ const portal = {
   publicationState: 'published' as const,
 }
 
-const categories: readonly LinkTreeCategory[] = [
-  { id: 'cat-1', title: 'Reviews', sortKey: 'a' },
-  { id: 'cat-2', title: 'Feedback', sortKey: 'b' },
-]
 const links: readonly LinkTreeLink[] = [
   {
     id: 'l-1',
@@ -265,7 +261,6 @@ const baseArgs = {
     state: 'verified' as const,
     retrievedAt: new Date('2026-08-20T10:00:00.000Z'),
   },
-  categories,
   links,
   linktree: {
     portalId: 'p-1',

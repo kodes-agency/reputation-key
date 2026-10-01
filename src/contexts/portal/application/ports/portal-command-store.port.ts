@@ -308,13 +308,12 @@ export type CreatePortalLinkCommand = PortalContentCommandBase &
   Readonly<{
     /** Who wrote the link; recorded on its primary-language text. */
     actorUserId: UserId
-    link: PortalLink
     /**
-     * What the link says in the Portal's primary language: its first text and
-     * the only place its name is written. The link row's own legacy `label`
-     * column is never written (it stays empty).
+     * The link, whose `label` is its name once: the store writes it as the
+     * link's primary-language text (its first text, and the only place the name
+     * is written) and writes `''` to the row's legacy `label` column.
      */
-    label: string
+    link: PortalLink
     event: PortalLinkCreated
     /**
      * The Portal's first category, when the link starts it. Written in the same

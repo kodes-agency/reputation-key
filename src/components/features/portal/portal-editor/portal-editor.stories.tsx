@@ -84,7 +84,6 @@ function makeResources(
       state: 'verified' as const,
       retrievedAt: new Date('2026-08-20T10:00:00.000Z'),
     },
-    categories: [{ id: 'cat-1', title: 'Reviews', sortKey: 'a' }],
     links: [
       {
         id: 'l-1',

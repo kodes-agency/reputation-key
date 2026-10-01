@@ -78,7 +78,7 @@ export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore =
             tx,
             { ...scope, linkId: unbrand(command.link.id) },
             { actorUserId: unbrand(command.actorUserId), at: command.occurredAt },
-            { locale: locales.primary, label: command.label },
+            { locale: locales.primary, label: command.link.label },
           )
           await recordPortalContentCommandChange(tx, command, [
             ...(command.startCategory
@@ -93,7 +93,7 @@ export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore =
               : []),
             {
               key: portalPageEditKey.linkCreated(unbrand(command.link.id)),
-              newText: command.label,
+              newText: command.link.label,
             },
           ])
           await insertOutboxRow(tx, command.event, {

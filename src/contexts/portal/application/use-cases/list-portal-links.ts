@@ -1,5 +1,6 @@
 // Portal context — list portal links use case
-// Returns all categories and links for a portal, scoped to the organization.
+// Returns the links of a portal, scoped to the organization. The editor shows
+// no categories, so none are read.
 // Read-only query — gated by can(ctx.role, 'portal.read') permission check.
 
 import type { PortalLinkRepository } from '../ports/portal-link.repository'
@@ -27,7 +28,6 @@ export const listPortalLinks =
     input: ListPortalLinksInput,
     ctx: AuthContext,
   ): Promise<{
-    categories: Awaited<ReturnType<PortalLinkRepository['listCategories']>>
     links: Awaited<ReturnType<PortalLinkRepository['listAllLinks']>>
   }> => {
     if (!canForContext(ctx, 'portal.read')) {
@@ -42,11 +42,8 @@ export const listPortalLinks =
       'portal.read',
       pid,
     )
-    const [categories, links] = await Promise.all([
-      deps.portalLinkRepo.listCategories(ctx.organizationId, pid),
-      deps.portalLinkRepo.listAllLinks(ctx.organizationId, pid),
-    ])
-    return { categories, links }
+    const links = await deps.portalLinkRepo.listAllLinks(ctx.organizationId, pid)
+    return { links }
   }
 
 export type ListPortalLinks = ReturnType<typeof listPortalLinks>

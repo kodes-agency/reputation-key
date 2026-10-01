@@ -55,11 +55,15 @@ const sampleLinks: ReadonlyArray<PortalLink> = [
 ]
 
 function setup(categories = sampleCategories, links = sampleLinks) {
+  let reads = 0
   const portalRepo = createInMemoryPortalRepo()
   portalRepo.seed([buildTestPortal({ id: 'a0000000-0000-4000-8000-000000000001' })])
   const useCase = listPortalLinks({
     portalLinkRepo: {
-      listCategories: async () => categories,
+      listCategories: async () => {
+        reads += 1
+        return categories
+      },
       listAllLinks: async () => links,
       listLinks: async () => [],
       listLinkTexts: async () => [],
@@ -75,12 +79,12 @@ function setup(categories = sampleCategories, links = sampleLinks) {
     portalRepo,
     staffPublicApi: staffApiMock(null),
   })
-  return { useCase }
+  return { useCase, categoryReads: () => reads }
 }
 
 describe('listPortalLinks (use case)', () => {
-  it('returns categories and links for portal with PropertyManager', async () => {
-    const { useCase } = setup()
+  it('returns the links of a portal for a PropertyManager, and reads no categories', async () => {
+    const { useCase, categoryReads } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
     const result = await useCase(
@@ -88,12 +92,11 @@ describe('listPortalLinks (use case)', () => {
       ctx,
     )
 
-    expect(result.categories).toHaveLength(1)
-    expect(result.links).toHaveLength(1)
-    expect(result.categories[0].title).toBe('Social')
+    expect(result).toEqual({ links: sampleLinks })
+    expect(categoryReads()).toBe(0)
   })
 
-  it('returns empty arrays when portal has no links', async () => {
+  it('returns no links when the portal has none', async () => {
     const { useCase } = setup([], [])
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
@@ -102,7 +105,6 @@ describe('listPortalLinks (use case)', () => {
       ctx,
     )
 
-    expect(result.categories).toHaveLength(0)
     expect(result.links).toHaveLength(0)
   })
 })

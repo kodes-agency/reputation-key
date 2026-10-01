@@ -65,6 +65,12 @@ async function resolveTileImage(
   return asset.id
 }
 
+/**
+ * Updates a link. The returned link's `label` is the new name when this call
+ * renamed it; otherwise it is whatever the legacy column holds (`''` for a link
+ * written after round 4's contract), NOT the link's name, which is its
+ * primary-language text. Callers that need the name read the Linktree.
+ */
 export const updateLink =
   (deps: UpdateLinkDeps) =>
   async (input: UpdateLinkInput, ctx: AuthContext): Promise<PortalLink> => {

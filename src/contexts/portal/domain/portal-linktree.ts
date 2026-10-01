@@ -3,8 +3,9 @@
 //
 // Pure: no I/O, no throws. Validation returns Result. The rows live in
 // `portal_link_texts` and `portal_localized_overrides.linktree_title`; the
-// legacy `portal_links.label` is kept in step for the primary language until
-// the v3 writer has been live long enough to drop it.
+// legacy `portal_links.label` is a read-only fallback that nothing writes any
+// more (migration 0052 settled the last stale ones), kept until a migration
+// drops the column.
 
 import { GUEST_LOCALES, type GuestLocale } from '#/shared/domain/guest-locale'
 import { err, ok } from '#/shared/domain'
@@ -44,7 +45,7 @@ export const linktreeDefaultTitle = (locale: GuestLocale): string =>
  */
 export const STARTED_CATEGORY_TITLE = 'Links'
 
-/** Equal to the legacy `portal_links.label` column, which the primary text is mirrored into. */
+/** Equal to the width of the legacy `portal_links.label` column, so a text always fits where a label did. */
 export const LINK_TEXT_LABEL_MAX_LENGTH = 100
 export const LINK_TEXT_LINE_MAX_LENGTH = 160
 export const LINKTREE_TITLE_MAX_LENGTH = 60

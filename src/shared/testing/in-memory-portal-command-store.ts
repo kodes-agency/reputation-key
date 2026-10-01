@@ -482,7 +482,7 @@ export function createInMemoryPortalCommandStore(deps: {
         ...command.link,
         label: '',
       })
-      linkRepo().syncPrimaryText(String(command.link.id), primary, command.label, {
+      linkRepo().syncPrimaryText(String(command.link.id), primary, command.link.label, {
         actorUserId: String(command.actorUserId),
         at: command.occurredAt,
       })

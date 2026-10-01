@@ -70,9 +70,16 @@ as the primary-language text only when no such text row exists, and a stored tex
 always wins over it. Changing the Portal's primary language leaves no link
 unnamed in the new one: the old primary keeps the link's wording (a link with no
 text there starts it from its legacy label, when that is not empty) and the new
-primary's text starts from it where none exists. Rolling back to a release before
-this one is not safe for links edited since: that code treated a link label newer
-than its text as a rename, so it would read the empty column as the wording. A Portal carries at most four links, counted under the
+primary's text starts from it where none exists. Migration 0052 is what lets a
+stored text always win: a link renamed in the window between migration 0044 and
+the text-aware editor could have a label newer than its primary text, which every
+reader then showed, so the migration copies that label into the text (once, with a
+History row and no person) before the reader rule goes. Deploy order: the
+migration runs before this release serves, and the detection query in
+`docs/operations/operator-commands.md` (`link-labels-newer-than-primary-text`)
+returns no rows afterwards. Rolling back to a release before this one is not safe
+for links edited since: that code treated a link label newer than its text as a
+rename, so it would read the empty column as the wording. A Portal carries at most four links, counted under the
 Portal fence on create; a Portal that already has more keeps them. Icons come
 from a closed catalogue (`src/shared/domain/portal-link-icon.ts`, 27 keys, every
 icon the round-4 editor offers), enforced by a CHECK and refused in the link
@@ -450,7 +457,7 @@ for Identity avatar and organization-logo uploads through `container.assetStorag
 11. An image enters the Portal only through the server-side ingest, which stores a re-encoded WebP and never the upload; no Portal request issues a presigned upload or writes `portals.hero_image_url`, and a published Portal with a null value remains valid.
 12. The POR-01 report never copies names, localized content, raw URLs, token material, themes, or print-batch values and never infers creator, ownership, translation, brand, or destination provenance. Reported ambiguous Portal rows remain Disabled or Archived; raw secondary links are treated as quarantined and excluded from publication until a separately reviewed command resolves them.
 13. Closing is a **stop, not a delete**, and it is reversible: the immutable publication snapshot survives and `portals.publication_state` keeps the tenant's own published/draft intent, so explicit reactivation re-points a new activation at the same snapshot rather than guessing what each Portal used to be. Ordinary closure cancellation does not itself reactivate Portals — see `docs/operations/organization-lifecycle.md`.
-14. `portal_group_members` is purged as a **row delete only**. It is a physical-drop-blocked compatibility mirror that nothing reads or writes any more (membership is `portal_group_memberships`, and the Organization Export no longer carries the mirror): the rows are tenant content and must go, the table must not. No phase issues a DROP or TRUNCATE; dropping the table is a separate expand/backfill/contract decision.
+14. `portal_group_members` is purged as a **row delete only**. It is a physical-drop-blocked compatibility mirror that nothing reads or writes any more (membership is `portal_group_memberships`, and the Organization Export no longer carries the mirror): the rows are tenant content and must go, the table must not. No phase issues a DROP or TRUNCATE; dropping the table is a separate expand/backfill/contract decision. The Organization Export dropped the `portalGroupMembers` collection while keeping the format id `portal-organization-export/v1`: nothing parses the id (the export is a file for people), and a mirror row is expected to have its `portal_group_memberships` row (the Staff export carries those). `portal-group-members-without-membership` in `docs/operations/operator-commands.md` is the one query that confirms it; run it in each environment before the deploy.
 15. Linktree edits (link texts, the section title, the switch) take the Portal fence like any content command and record `portal_links` pending changes under structured keys: `link:<id>:text:<locale>`, `linktree:title:<locale>` and `linktree:enabled`. Only a value that actually changed records one, and their facts carry identifiers, never the wording.
 16. A group's history starts at the deploy of migration 0046; earlier changes are not reconstructed, because earlier names were never kept. History rows are never updated or deleted while their group exists, and a purge removes them with the group.
 
