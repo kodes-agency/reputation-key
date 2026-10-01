@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
 import { GlassSurface } from './glass-surface'
 import { ImmersiveAfterRating } from './immersive-after-rating'
 import { ImmersiveRatingCard } from './immersive-rating-card'
@@ -38,20 +39,48 @@ export function ImmersiveResponseView(props: ImmersiveResponseViewProps) {
   )
 }
 
+/** Where the guest is in the response: the part of the page that is on screen. */
+type Stage = 'arrival' | 'rated' | 'removed'
+
+function stageOf(response: GuestResponseView | null): Stage {
+  if (response === null) return 'arrival'
+  return response.status === 'deleted' || response.rating === null ? 'removed' : 'rated'
+}
+
+/**
+ * An action that replaces the part of the page the guest was in takes their
+ * focus with it, and a live region that arrives already holding its words is
+ * often not read out. So focus follows the guest to what replaced it, and the
+ * screen reader reads it on arrival: a rating sent goes to the receipt heading,
+ * "Start over" to the page's "ready for the next guest" line, and a removed
+ * response to the heading of its notice. A page that loads in any of these
+ * keeps focus where it is.
+ */
+function useFocusOnStageChange(stage: Stage) {
+  const receiptHeading = useRef<HTMLHeadingElement>(null)
+  const startedOver = useRef<HTMLParagraphElement>(null)
+  const removedHeading = useRef<HTMLHeadingElement>(null)
+  const previous = useRef(stage)
+
+  useEffect(() => {
+    if (previous.current !== stage) {
+      const target = {
+        rated: receiptHeading,
+        arrival: startedOver,
+        removed: removedHeading,
+      }[stage]
+      target.current?.focus()
+    }
+    previous.current = stage
+  }, [stage])
+
+  return { receiptHeading, startedOver, removedHeading }
+}
+
 function ResponseBody(props: ImmersiveResponseViewProps) {
   const { pack, response, availability = 'available' } = props
-  const receiptHeading = useRef<HTMLHeadingElement>(null)
-  const unrated = response === null
-  const wasUnrated = useRef(unrated)
-
-  // Sending the rating unmounts the card the guest was in, and focus with it.
-  // It goes to the receipt heading, which a screen reader reads out, so the
-  // guest hears that it worked. A page that loads already rated keeps focus
-  // where it is.
-  useEffect(() => {
-    if (!unrated && wasUnrated.current) receiptHeading.current?.focus()
-    wasUnrated.current = unrated
-  }, [unrated])
+  const stage = stageOf(response)
+  const { receiptHeading, startedOver, removedHeading } = useFocusOnStageChange(stage)
 
   if (availability === 'loading') {
     return (
@@ -77,7 +106,7 @@ function ResponseBody(props: ImmersiveResponseViewProps) {
   if (response?.status === 'deleted' || response?.rating === null) {
     return (
       <GlassSurface variant="card" as="section" role="status" className="ih-notice">
-        <h2 className="ih-display ih-card-title">
+        <h2 ref={removedHeading} tabIndex={-1} className="ih-display ih-card-title">
           {pack.copy.responseRemoveAllDoneTitle}
         </h2>
         <p className="ih-card-body">{pack.copy.responseRemoveAllDoneBody}</p>
@@ -88,7 +117,7 @@ function ResponseBody(props: ImmersiveResponseViewProps) {
     return (
       <div className="ih-response" data-ih-response="arrival">
         {props.notice === 'started-over' && (
-          <p role="status" className="ih-yr__ready">
+          <p role="status" tabIndex={-1} ref={startedOver} className="ih-yr__ready">
             {pack.copy.startOverDone}
           </p>
         )}

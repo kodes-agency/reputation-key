@@ -1,4 +1,4 @@
-import type { RefObject } from 'react'
+import { type RefObject, useId } from 'react'
 import { guestCopyText } from '../guest-copy-format'
 import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
 import { ReceiptStars, ratingWord } from './immersive-stars'
@@ -22,6 +22,7 @@ export function ImmersiveReceiptStrip({
   /** The heading, so the view can move focus to it when a rating has just been sent. */
   headingRef?: RefObject<HTMLHeadingElement | null>
 }>) {
+  const summaryId = useId()
   return (
     <div className="ih-receipt">
       <h2 ref={headingRef} tabIndex={-1} className="ih-display ih-receipt__thanks">
@@ -29,14 +30,14 @@ export function ImmersiveReceiptStrip({
       </h2>
       <p className="ih-receipt__line">
         <ReceiptStars pack={pack} rating={rating} />
-        <span>
+        <span id={summaryId}>
           {guestCopyText(pack, 'ratingSentSummary', { word: ratingWord(pack, rating) })}
         </span>
         {onChange && (
           <button
             type="button"
             className="ih-text-button"
-            aria-label={pack.copy.responseChangeTitle}
+            aria-describedby={summaryId}
             onClick={onChange}
           >
             {pack.copy.ratingChange}

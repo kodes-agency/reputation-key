@@ -27,6 +27,13 @@ const PHONE_HEIGHT = 844
 const CHAMPAGNE = { accentColour: '#EAD6A8', fieldColour: '#15110D' } as const
 const DISPLAY_NAME = 'Avela Resort'
 
+// A row's button is named by its own word, then the row's title: it holds the
+// text on it (WCAG 2.5.3) and still says what it changes.
+const CHANGE_BUTTON = `${enV2.copy.ratingChange} ${enV2.copy.responseChangeTitle}`
+const REMOVE_NOTE_BUTTON = `${enV2.copy.responseRemoveNoteAction} ${enV2.copy.responseRemoveNoteTitle}`
+const REMOVE_RATING_BUTTON = `${enV2.copy.responseRemoveAllAction} ${enV2.copy.responseRemoveRatingTitle}`
+const REMOVE_ALL_BUTTON = `${enV2.copy.responseRemoveAllAction} ${enV2.copy.responseRemoveAllTitle}`
+
 const PhoneFrame: Decorator = (Story) => (
   <div
     data-testid="phone-frame"
@@ -82,9 +89,15 @@ function useLiveHandlers(
   ]
 }
 
+/** What an accepted call leaves the page showing, which the container decides in the real page. */
+type LiveOutcome = 'started-over' | 'removed'
+
 /**
- * The page's own response area, as the container will drive it: an accepted new
- * rating is a corrected response, which is what closes the rating form.
+ * The page's own response area, as the container will drive it, with the
+ * answers the server gives. An accepted new rating is a corrected response
+ * (status `corrected`, no second change) with the "rating updated" notice. An
+ * accepted Start over is the arrival page with its notice, and an accepted
+ * removal is the removed response.
  */
 function useSectionProps(
   props: ImmersiveResponseViewProps,
@@ -95,16 +108,39 @@ function useSectionProps(
     rating: number
     at: string
   }> | null>(null)
+  const [outcome, setOutcome] = useState<LiveOutcome | null>(null)
   const base = props.yourResponse
   if (!base) return props
   const handlers = section?.handlers
-  const response =
+  const finish = (next: LiveOutcome) => {
+    if (live) setOutcome(next)
+  }
+  const correctedResponse =
     props.response && corrected
-      ? { ...props.response, rating: corrected.rating, correctedAt: corrected.at }
+      ? ({
+          ...props.response,
+          status: 'corrected',
+          rating: corrected.rating,
+          correctedAt: corrected.at,
+          correctionAvailable: false,
+        } as const)
       : props.response
-  return {
+  const shown = {
     ...props,
-    response,
+    response: correctedResponse,
+    notice: corrected ? ('rating-updated' as const) : props.notice,
+  }
+  const stage: ImmersiveResponseViewProps =
+    outcome === 'started-over'
+      ? { ...shown, response: null, notice: 'started-over' }
+      : outcome === 'removed' && correctedResponse
+        ? {
+            ...shown,
+            response: { ...correctedResponse, status: 'deleted', rating: null },
+          }
+        : shown
+  return {
+    ...stage,
     yourResponse: {
       ...base,
       initialOpen: section?.open,
@@ -112,6 +148,14 @@ function useSectionProps(
       onChangeRating: async (value) => {
         await (handlers?.onChangeRating ?? base.onChangeRating)(value)
         if (live) setCorrected({ rating: value.rating, at: '2026-01-01T12:10:00.000Z' })
+      },
+      onRemoveResponse: () => {
+        ;(handlers?.onRemoveResponse ?? base.onRemoveResponse)()
+        finish('removed')
+      },
+      onStartOver: () => {
+        ;(handlers?.onStartOver ?? base.onStartOver)()
+        finish('started-over')
       },
     },
   }
@@ -260,9 +304,7 @@ export const G04AfterLow: Story = {
     expect(canvas.getByRole('img', { name: '2 stars' })).toBeVisible()
     expect(canvas.getByText('Fair · sent privately')).toBeVisible()
     expect(canvas.getByRole('button', { name: /Continue to Google/ })).toBeEnabled()
-    expect(
-      canvas.getByRole('button', { name: enV2.copy.responseChangeTitle }),
-    ).toBeVisible()
+    expect(canvas.getByRole('button', { name: enV2.copy.ratingChange })).toBeVisible()
     // The hint is read with the button.
     expect(
       canvas.getByRole('button', { name: /Continue to Google/ }),
@@ -440,11 +482,9 @@ export const G07YourResponseOpen: Story = {
     const canvas = within(canvasElement)
     expect(yourResponseToggle(canvas)).toHaveAttribute('aria-expanded', 'true')
     expect(canvas.getByText('Until 15:00 today, Sofia time')).toBeVisible()
-    expect(
-      canvas.getByText(
-        'Until 14:00 tomorrow, Sofia time. Anything you posted on Google isn’t affected.',
-      ),
-    ).toBeVisible()
+    // The note's row and the whole response's row end at the same time.
+    expect(canvas.getAllByText('Until 14:00 tomorrow, Sofia time')).toHaveLength(2)
+    expect(canvas.getByText(enV2.copy.responseRemoveAllNote)).toBeVisible()
     expect(canvas.getByText(enV2.copy.sharedDeviceBody)).toBeVisible()
     // Every control is a 44 px target at least.
     const section = canvasElement.querySelector('.ih-yr')
@@ -473,13 +513,11 @@ export const OpensAndClosesByKeyboard: Story = {
     await userEvent.tab()
     expect(
       sectionOf(canvasElement).getByRole('button', {
-        name: enV2.copy.responseChangeTitle,
+        name: CHANGE_BUTTON,
       }),
     ).toHaveFocus()
     await userEvent.tab()
-    expect(
-      canvas.getByRole('button', { name: enV2.copy.responseRemoveAllTitle }),
-    ).toHaveFocus()
+    expect(canvas.getByRole('button', { name: REMOVE_RATING_BUTTON })).toHaveFocus()
     await userEvent.tab()
     expect(canvas.getByRole('button', { name: enV2.copy.startOverAction })).toHaveFocus()
     toggle.focus()
@@ -497,7 +535,7 @@ export const ReceiptChangeOpensTheForm: Story = {
     await userEvent.click(
       within(
         canvasElement.querySelector<HTMLElement>('.ih-receipt') ?? canvasElement,
-      ).getByRole('button', { name: enV2.copy.responseChangeTitle }),
+      ).getByRole('button', { name: enV2.copy.ratingChange }),
     )
     expect(yourResponseToggle(canvas)).toHaveAttribute('aria-expanded', 'true')
     expect(canvas.getByRole('radio', { name: '2 stars, Fair' })).toBeChecked()
@@ -518,7 +556,7 @@ export const ChangesTheRating: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     const change = sectionOf(canvasElement).getByRole('button', {
-      name: enV2.copy.responseChangeTitle,
+      name: CHANGE_BUTTON,
     })
     await userEvent.click(change)
     expect(canvas.getByRole('radio', { name: '2 stars, Fair' })).toHaveFocus()
@@ -537,11 +575,16 @@ export const ChangesTheRating: Story = {
     expect(
       canvas.queryByRole('button', { name: enV2.copy.responseChangeSave }),
     ).toBeNull()
+    // The server allows one change: the row is gone, and says nothing false
+    // about time. The notice takes the focus the form leaves.
+    const notice = await canvas.findByText(enV2.copy.ratingUpdated)
+    expect(notice).toHaveFocus()
+    expect(canvas.queryByText(enV2.copy.windowEndedChange)).toBeNull()
     expect(
-      sectionOf(canvasElement).getByRole('button', {
-        name: enV2.copy.responseChangeTitle,
-      }),
-    ).toHaveFocus()
+      canvas
+        .queryAllByRole('button')
+        .filter((button) => button.textContent === enV2.copy.ratingChange),
+    ).toHaveLength(0)
   },
 }
 
@@ -552,7 +595,7 @@ export const EscapeClosesTheRatingForm: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(
       sectionOf(canvasElement).getByRole('button', {
-        name: enV2.copy.responseChangeTitle,
+        name: CHANGE_BUTTON,
       }),
     )
     expect(canvas.getByRole('radio', { name: '3 stars, Good' })).toHaveFocus()
@@ -560,7 +603,7 @@ export const EscapeClosesTheRatingForm: Story = {
     expect(canvas.queryByRole('radiogroup')).toBeNull()
     expect(
       sectionOf(canvasElement).getByRole('button', {
-        name: enV2.copy.responseChangeTitle,
+        name: CHANGE_BUTTON,
       }),
     ).toHaveFocus()
   },
@@ -574,9 +617,7 @@ export const RemovesTheNote: Story = {
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(
-      canvas.getByRole('button', { name: enV2.copy.responseRemoveNoteTitle }),
-    )
+    await userEvent.click(canvas.getByRole('button', { name: REMOVE_NOTE_BUTTON }))
     expect(args.section?.handlers?.onRemoveNote).toHaveBeenCalledTimes(1)
     expect(args.section?.handlers?.onRemoveResponse).not.toHaveBeenCalled()
   },
@@ -602,12 +643,12 @@ export const NoteRemovedNotice: Story = {
 export const FullWithdrawalAsksFirst: Story = {
   args: {
     state: { kind: 'done', rating: 2 },
+    live: true,
     section: { open: true, handlers: sectionActions() },
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    const remove = () =>
-      canvas.getByRole('button', { name: enV2.copy.responseRemoveAllTitle })
+    const remove = () => canvas.getByRole('button', { name: REMOVE_ALL_BUTTON })
     const calls = () => args.section?.handlers?.onRemoveResponse
 
     // Pressing Remove… only asks. Nothing is sent, and the question is read first.
@@ -650,19 +691,26 @@ export const FullWithdrawalAsksFirst: Story = {
       canvas.getByRole('button', { name: enV2.copy.responseRemoveAllConfirm }),
     )
     expect(calls()).toHaveBeenCalledTimes(1)
+    // The section is replaced by the notice, and focus goes there, not to <body>.
+    expect(
+      await canvas.findByRole('heading', { name: enV2.copy.responseRemoveAllDoneTitle }),
+    ).toHaveFocus()
   },
 }
 
-/** Start over on a shared device is one press. */
+/** Start over on a shared device is one press; focus follows to the page's ready line. */
 export const StartsOver: Story = {
   args: {
     state: { kind: 'rated', rating: 5 },
+    live: true,
     section: { open: true, handlers: sectionActions() },
   },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: enV2.copy.startOverAction }))
     expect(args.section?.handlers?.onStartOver).toHaveBeenCalledTimes(1)
+    const ready = await canvas.findByText(enV2.copy.startOverDone)
+    expect(ready).toHaveFocus()
   },
 }
 
@@ -693,12 +741,12 @@ export const WindowsEnded: Story = {
         privateFeedbackEligible: false,
         submittedAt: '2026-01-01T12:00:00.000Z',
         correctedAt: null,
-        correctionDeadline: '2026-01-01T13:00:00.000Z',
+        correctionDeadline: '2026-01-01T12:01:00.000Z',
         correctionAvailable: false,
-        responseWithdrawalDeadline: '2026-01-02T12:00:00.000Z',
+        responseWithdrawalDeadline: '2026-01-01T12:01:00.000Z',
         responseWithdrawalAvailable: false,
         feedbackSubmittedAt: '2026-01-01T12:00:00.000Z',
-        feedbackWithdrawalDeadline: '2026-01-02T12:00:00.000Z',
+        feedbackWithdrawalDeadline: '2026-01-01T12:01:00.000Z',
         feedbackWithdrawalAvailable: false,
         feedbackWithdrawnAt: null,
         deletedAt: null,
@@ -710,9 +758,7 @@ export const WindowsEnded: Story = {
     expect(canvas.getByText(enV2.copy.windowEndedChange)).toBeVisible()
     expect(canvas.getByText(enV2.copy.windowEndedNote)).toBeVisible()
     expect(canvas.getByText(enV2.copy.windowEndedAll)).toBeVisible()
-    expect(
-      canvas.queryByRole('button', { name: enV2.copy.responseRemoveAllTitle }),
-    ).toBeNull()
+    expect(canvas.queryByRole('button', { name: REMOVE_ALL_BUTTON })).toBeNull()
     expect(canvas.getByRole('button', { name: enV2.copy.startOverAction })).toBeEnabled()
   },
 }

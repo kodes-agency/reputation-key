@@ -191,7 +191,10 @@ export const IMMERSIVE_RESPONSE_CSS = `
 }
 /* Focus lands here by script after a rating is sent; it is not a control. */
 .ih-receipt__thanks:focus,
-.ih-note__confirmation:focus { outline: none; }
+.ih-note__confirmation:focus,
+.ih-yr__notice:focus,
+.ih-yr__ready:focus,
+.ih-notice .ih-card-title:focus { outline: none; }
 .ih-receipt__line {
   display: flex;
   flex-wrap: wrap;

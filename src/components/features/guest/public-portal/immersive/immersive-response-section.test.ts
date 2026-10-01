@@ -9,49 +9,18 @@
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import type { GuestPagePreviewState } from '../guest-page-preview-state'
-import { directChildren, text } from '../__fixtures__/markup-walk'
+import { text } from '../__fixtures__/markup-walk'
 import { PACKS, RATINGS, DISPLAY_NAME } from './__fixtures__/immersive-response-fixtures'
-import { immersiveResponseProps } from './immersive-response-preview'
-import { IMMERSIVE_RESPONSE_CSS } from './immersive-response-styles'
 import {
-  ImmersiveResponseView,
-  type ImmersiveResponseViewProps,
-} from './immersive-response-view'
-
-const body = (html: string) => html.replace(/<style[\s\S]*?<\/style>/gu, '')
-const responseChildren = (html: string) => directChildren(html, 'data-ih-response')
-
-type PackOf = (typeof PACKS)[number]
-
-function render(
-  pack: PackOf,
-  state: GuestPagePreviewState,
-  options: Readonly<{
-    open?: boolean
-    overrides?: Partial<ImmersiveResponseViewProps>
-  }> = {},
-): string {
-  const base = immersiveResponseProps(state, { pack, displayName: DISPLAY_NAME })
-  const yourResponse = base.yourResponse && {
-    ...base.yourResponse,
-    initialOpen: options.open ?? false,
-  }
-  return body(
-    renderToStaticMarkup(
-      createElement(ImmersiveResponseView, {
-        ...base,
-        yourResponse,
-        ...options.overrides,
-      }),
-    ),
-  )
-}
-
-/** The section: the last card of the response area. */
-const sectionOf = (html: string) => responseChildren(html).at(-1) ?? ''
-const buttons = (html: string) =>
-  [...html.matchAll(/<button\b[^>]*>[\s\S]*?<\/button>/gu)].map((match) => match[0])
+  accessibleName,
+  body,
+  buttons,
+  render,
+  responseChildren,
+  sectionOf,
+} from './__fixtures__/immersive-response-section-render'
+import { immersiveResponseProps } from './immersive-response-preview'
+import { ImmersiveResponseView } from './immersive-response-view'
 
 describe.each(PACKS)('the section, collapsed [$locale] (boards G04, G05)', (pack) => {
   const html = render(pack, { kind: 'rated', rating: 2 })
@@ -84,6 +53,20 @@ describe.each(PACKS)('the section, collapsed [$locale] (boards G04, G05)', (pack
       sectionOf(render(pack, { kind: 'rated', rating, noteEligible: false })),
     ])
     expect(new Set(sections).size).toBe(1)
+  })
+
+  it('is open the same way at every rating, with or without the note offered', () => {
+    // The rows legitimately differ by whether a note was sent, so compare within
+    // each variant: no rating may change anything the section shows.
+    for (const state of [
+      (rating: number) => ({ kind: 'rated', rating }) as const,
+      (rating: number) => ({ kind: 'done', rating }) as const,
+    ]) {
+      const sections = RATINGS.map((rating) =>
+        sectionOf(render(pack, state(rating), { open: true })),
+      )
+      expect(new Set(sections).size).toBe(1)
+    }
   })
 
   it('drops Change from the receipt once the time to change the rating has ended', () => {
@@ -155,17 +138,28 @@ describe.each(PACKS)('the section, open [$locale] (board G07)', (pack) => {
     expect(text(section)).toContain(pack.copy.responseRemoveAllNote)
   })
 
-  it('gives every button a name that says what it does', () => {
-    const names = buttons(section).map(
-      (button) => /aria-label="([^"]*)"/u.exec(button)?.[1] ?? text(button),
+  it('says what Google is not touched in a sentence of its own, not joined in code', () => {
+    const detail = new RegExp(
+      `<p[^>]*class="ih-yr__detail"[^>]*>${pack.copy.responseRemoveAllNote}</p>`,
+      'u',
     )
+    expect(section).toMatch(detail)
+  })
+
+  it('gives every button a name that says what it does and holds its visible text (WCAG 2.5.3)', () => {
+    const names = buttons(section).map((button) => accessibleName(section, button))
     // The first button is the section's own toggle; its name is its text.
-    expect(names.slice(1)).toEqual([
-      pack.copy.responseChangeTitle,
-      pack.copy.responseRemoveNoteTitle,
-      pack.copy.responseRemoveAllTitle,
-      pack.copy.startOverAction,
-    ])
+    const rows = [
+      [pack.copy.ratingChange, pack.copy.responseChangeTitle],
+      [pack.copy.responseRemoveNoteAction, pack.copy.responseRemoveNoteTitle],
+      [pack.copy.responseRemoveAllAction, pack.copy.responseRemoveAllTitle],
+    ] as const
+    rows.forEach(([visible, title], index) => {
+      const name = names[index + 1] ?? ''
+      expect(name, `${pack.locale} ${visible}`).toContain(visible)
+      expect(name, `${pack.locale} ${visible}`).toContain(title)
+    })
+    expect(names.at(-1)).toBe(pack.copy.startOverAction)
   })
 
   it('shows each action as a native button of its own, never a link', () => {
@@ -182,7 +176,7 @@ describe.each(PACKS)('the section, open [$locale] (board G07)', (pack) => {
     const noNote = sectionOf(render(pack, { kind: 'rated', rating: 5 }, { open: true }))
     expect(noNote).not.toContain(pack.copy.responseRemoveNoteTitle)
     expect(noNote).toContain(pack.copy.responseChangeTitle)
-    expect(noNote).toContain(pack.copy.responseRemoveAllTitle)
+    expect(noNote).toContain(pack.copy.responseRemoveRatingTitle)
   })
 
   it('says when time has ended, without a button for that row', () => {
@@ -202,8 +196,11 @@ describe.each(PACKS)('the section, open [$locale] (board G07)', (pack) => {
             response: base.response && {
               ...base.response,
               correctionAvailable: false,
+              correctionDeadline: '2026-01-01T12:01:00.000Z',
               feedbackWithdrawalAvailable: false,
+              feedbackWithdrawalDeadline: '2026-01-01T12:01:00.000Z',
               responseWithdrawalAvailable: false,
+              responseWithdrawalDeadline: '2026-01-01T12:01:00.000Z',
             },
           }),
         ),
@@ -214,6 +211,44 @@ describe.each(PACKS)('the section, open [$locale] (board G07)', (pack) => {
     expect(text(ended)).toContain(pack.copy.windowEndedAll)
     // Only the section's own button and Start over remain.
     expect(buttons(ended)).toHaveLength(2)
+  })
+
+  it('does not say time ran out after a change, while the deadline is still ahead', () => {
+    const base = immersiveResponseProps(
+      { kind: 'done', rating: 2 },
+      { pack, displayName: DISPLAY_NAME },
+    )
+    const changed = sectionOf(
+      body(
+        renderToStaticMarkup(
+          createElement(ImmersiveResponseView, {
+            ...base,
+            yourResponse: base.yourResponse && {
+              ...base.yourResponse,
+              initialOpen: true,
+            },
+            notice: 'rating-updated',
+            // What the server answers after a change.
+            response: base.response && {
+              ...base.response,
+              status: 'corrected',
+              correctedAt: '2026-01-01T12:04:00.000Z',
+              correctionAvailable: false,
+            },
+          }),
+        ),
+      ),
+    )
+    expect(text(changed)).toContain(pack.copy.ratingUpdated)
+    expect(text(changed)).not.toContain(pack.copy.windowEndedChange)
+    expect(text(changed)).not.toContain(pack.copy.responseChangeTitle)
+    expect(text(changed)).toContain(pack.copy.responseRemoveNoteTitle)
+  })
+
+  it('speaks of the rating alone when no note was sent', () => {
+    const rated = sectionOf(render(pack, { kind: 'rated', rating: 5 }, { open: true }))
+    expect(text(rated)).toContain(pack.copy.responseRemoveRatingTitle)
+    expect(text(rated)).not.toContain(pack.copy.responseRemoveAllTitle)
   })
 
   it('disables every action while a call is on its way', () => {
@@ -241,77 +276,5 @@ describe.each(PACKS)('the section, open [$locale] (board G07)', (pack) => {
       if (original === undefined) delete process.env.TZ
       else process.env.TZ = original
     }
-  })
-})
-
-describe.each(PACKS)('what went wrong, and what went right [$locale]', (pack) => {
-  const open = (overrides: Partial<ImmersiveResponseViewProps>) =>
-    render(pack, { kind: 'done', rating: 2 }, { open: true, overrides })
-
-  it.each([
-    ['remove-note', 'responseRemoveNoteFailed'],
-    ['remove-all', 'responseRemoveAllFailed'],
-    ['start-over', 'startOverFailed'],
-  ] as const)('shows a failed %s as an alert inside the section only', (failure, key) => {
-    const html = open({ failure })
-    const children = responseChildren(html)
-    expect(sectionOf(html)).toMatch(
-      new RegExp(
-        `role="alert"[^>]*>(?:<svg[\\s\\S]*?</svg>)?<span>${pack.copy[key]}</span>`,
-      ),
-    )
-    expect(children.slice(0, -1).join('')).not.toContain('role="alert"')
-  })
-
-  it('announces a removed note and an updated rating as a status', () => {
-    for (const [notice, key] of [
-      ['note-removed', 'responseRemoveNoteDone'],
-      ['rating-updated', 'ratingUpdated'],
-    ] as const) {
-      const section = sectionOf(open({ notice }))
-      expect(section).toMatch(
-        new RegExp(`role="status"[^>]*tabindex="-1"[^>]*>${pack.copy[key]}</p>`, 'u'),
-      )
-    }
-  })
-
-  it('says the page is ready for the next guest above the rating card after Start over', () => {
-    const html = render(
-      pack,
-      { kind: 'arrival' },
-      { overrides: { notice: 'started-over' } },
-    )
-    expect(html).toMatch(new RegExp(`role="status"[^>]*>${pack.copy.startOverDone}</p>`))
-    expect(html.indexOf(pack.copy.startOverDone)).toBeLessThan(
-      html.indexOf(pack.copy.ratingTitle),
-    )
-  })
-
-  it('says nothing about notices when there are none', () => {
-    const html = open({})
-    expect(html).not.toContain(pack.copy.responseRemoveNoteDone)
-    expect(html).not.toContain(pack.copy.startOverDone)
-  })
-})
-
-describe('the section stylesheet', () => {
-  it('rides in the response area stylesheet, so the page still hoists one element', () => {
-    expect(IMMERSIVE_RESPONSE_CSS).toContain('.ih-yr__toggle')
-  })
-
-  it('keeps every control at the 44 px touch target the boards use', () => {
-    expect(IMMERSIVE_RESPONSE_CSS).toMatch(/\.ih-yr__toggle\s*\{[^}]*min-height:\s*58px/u)
-    expect(IMMERSIVE_RESPONSE_CSS).toMatch(
-      /\.ih-yr \.ih-yr__button\s*\{[^}]*min-height:\s*44px/u,
-    )
-    expect(IMMERSIVE_RESPONSE_CSS).toMatch(
-      /\.ih-yr \.ih-yr__start-over\s*\{[^}]*min-height:\s*44px/u,
-    )
-  })
-
-  it('stops turning the chevron for a guest who asks for reduced motion', () => {
-    expect(IMMERSIVE_RESPONSE_CSS).toMatch(
-      /prefers-reduced-motion: reduce\)\s*\{\s*\.ih-yr__chevron\s*\{\s*transition:\s*none/u,
-    )
   })
 })

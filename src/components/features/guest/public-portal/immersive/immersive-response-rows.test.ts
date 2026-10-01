@@ -28,6 +28,8 @@ const RESPONSE: GuestResponseView = {
   deletedAt: null,
 }
 
+const PAST = '2026-09-30T08:00:00.000Z'
+
 const rowsFor = (pack: (typeof PACKS)[number], response: Partial<GuestResponseView>) =>
   responseSectionRows(pack, { ...RESPONSE, ...response }, CLOCK)
 const ids = (rows: ReturnType<typeof rowsFor>) => rows.map((row) => row.id)
@@ -44,23 +46,46 @@ describe.each(PACKS)('the rows of "Your response" [$locale]', (pack) => {
     ])
   })
 
-  it('titles each row and names its button from the pack', () => {
+  it('titles each row and labels its button from the pack', () => {
     const [change, note, all] = rowsFor(pack, {})
     expect(change).toMatchObject({
       title: pack.copy.responseChangeTitle,
       actionLabel: pack.copy.ratingChange,
-      actionName: pack.copy.responseChangeTitle,
     })
     expect(note).toMatchObject({
       title: pack.copy.responseRemoveNoteTitle,
       actionLabel: pack.copy.responseRemoveNoteAction,
-      actionName: pack.copy.responseRemoveNoteTitle,
     })
     expect(all).toMatchObject({
       title: pack.copy.responseRemoveAllTitle,
       actionLabel: pack.copy.responseRemoveAllAction,
-      actionName: pack.copy.responseRemoveAllTitle,
     })
+  })
+
+  it('asks about removing both with the words for both', () => {
+    const [, , all] = rowsFor(pack, {})
+    expect(all?.confirmation).toEqual({
+      title: pack.copy.responseRemoveAllConfirmTitle,
+      body: pack.copy.responseRemoveAllConfirmBody,
+      confirm: pack.copy.responseRemoveAllConfirm,
+      cancel: pack.copy.responseRemoveAllCancel,
+    })
+  })
+
+  it('speaks of the rating alone when there is no note to remove', () => {
+    const [, all] = rowsFor(pack, { hasPrivateFeedback: false })
+    expect(all).toMatchObject({
+      title: pack.copy.responseRemoveRatingTitle,
+      confirmation: {
+        title: pack.copy.responseRemoveRatingConfirmTitle,
+        body: pack.copy.responseRemoveRatingConfirmBody,
+        confirm: pack.copy.responseRemoveRatingConfirm,
+        cancel: pack.copy.responseRemoveRatingCancel,
+      },
+    })
+    const wording = JSON.stringify(all)
+    expect(wording).not.toContain(pack.copy.responseRemoveAllTitle)
+    expect(wording).not.toContain(pack.copy.responseRemoveAllConfirm)
   })
 
   it('words each deadline in the portal zone, with today and tomorrow', () => {
@@ -75,15 +100,21 @@ describe.each(PACKS)('the rows of "Your response" [$locale]', (pack) => {
         ? 'До 14:32 утре, местно време в София'
         : 'Until 14:32 tomorrow, Sofia time',
     )
-    // Removing everything also says what it does not reach.
-    expect(all?.detail).toBe(`${note?.detail}. ${pack.copy.responseRemoveAllNote}`)
+    // Removing everything also says what it does not reach, as a sentence of
+    // its own: the engine adds no punctuation between the two.
+    expect(all?.detail).toBe(note?.detail)
+    expect(all?.note).toBe(pack.copy.responseRemoveAllNote)
+    expect(change?.note).toBe('')
   })
 
   it('says the time has ended, and offers no button, once a window has closed', () => {
     const [change, note, all] = rowsFor(pack, {
       correctionAvailable: false,
+      correctionDeadline: PAST,
       feedbackWithdrawalAvailable: false,
+      feedbackWithdrawalDeadline: PAST,
       responseWithdrawalAvailable: false,
+      responseWithdrawalDeadline: PAST,
     })
     expect([change?.actionable, note?.actionable, all?.actionable]).toEqual([
       false,
@@ -93,10 +124,43 @@ describe.each(PACKS)('the rows of "Your response" [$locale]', (pack) => {
     expect(change?.detail).toBe(pack.copy.windowEndedChange)
     expect(note?.detail).toBe(pack.copy.windowEndedNote)
     expect(all?.detail).toBe(pack.copy.windowEndedAll)
+    expect(all?.note).toBe('')
+  })
+
+  it('also says the time has ended when the server sent no deadline at all', () => {
+    const [change] = rowsFor(pack, {
+      correctionAvailable: false,
+      correctionDeadline: null,
+    })
+    expect(change?.detail).toBe(pack.copy.windowEndedChange)
+  })
+
+  it('does not say the time has ended for a window that closed early', () => {
+    // After a change the server answers status corrected, a correction count
+    // of one and `correctionAvailable: false`, with the deadline still ahead.
+    const rows = rowsFor(pack, {
+      status: 'corrected',
+      correctedAt: '2026-09-30T09:00:00.000Z',
+      correctionAvailable: false,
+    })
+    expect(ids(rows)).toEqual(['remove-note', 'remove-all'])
+    expect(JSON.stringify(rows)).not.toContain(pack.copy.windowEndedChange)
+  })
+
+  it('leaves out any row whose window closed with time still on the clock', () => {
+    const rows = rowsFor(pack, {
+      correctionAvailable: false,
+      feedbackWithdrawalAvailable: false,
+      responseWithdrawalAvailable: false,
+    })
+    expect(rows).toEqual([])
   })
 
   it('closes each window on its own: a closed change window leaves removal open', () => {
-    const [change, note, all] = rowsFor(pack, { correctionAvailable: false })
+    const [change, note, all] = rowsFor(pack, {
+      correctionAvailable: false,
+      correctionDeadline: PAST,
+    })
     expect([change?.actionable, note?.actionable, all?.actionable]).toEqual([
       false,
       true,

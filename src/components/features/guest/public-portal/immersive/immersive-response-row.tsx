@@ -1,8 +1,20 @@
-import { type ReactNode, type RefObject, useEffect, useId, useRef, useState } from 'react'
+import {
+  createContext,
+  type ReactNode,
+  type RefObject,
+  useContext,
+  useEffect,
+  useId,
+  useRef,
+  useState,
+} from 'react'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
 import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
 import { ImmersiveRatingForm, type RatingSubmission } from './immersive-rating-form'
 import type { ResponseRow } from './immersive-response-rows'
+
+/** The id of the row's title, which its button reads as part of its name. */
+const RowTitleId = createContext<string | undefined>(undefined)
 
 /**
  * One row of "Your response": what it does, until when, and its button. A row
@@ -14,21 +26,32 @@ function RowShell({
   button,
   below,
 }: Readonly<{ row: ResponseRow; button: ReactNode; below?: ReactNode }>) {
+  const titleId = useId()
   return (
     <li className="ih-yr__row">
       <div className="ih-yr__row-main">
         <div className="ih-yr__row-text">
-          <p className="ih-yr__row-title">{row.title}</p>
+          <p id={titleId} className="ih-yr__row-title">
+            {row.title}
+          </p>
           {row.detail !== '' && <p className="ih-yr__detail">{row.detail}</p>}
+          {row.note !== '' && <p className="ih-yr__detail">{row.note}</p>}
         </div>
-        {row.actionable && button}
+        <RowTitleId.Provider value={titleId}>
+          {row.actionable && button}
+        </RowTitleId.Provider>
       </div>
       {below}
     </li>
   )
 }
 
-/** The button of a row. A native button, so Enter and Space work as they do everywhere. */
+/**
+ * The button of a row. A native button, so Enter and Space work as they do
+ * everywhere. Its name is its own word followed by the row's title ("Remove,
+ * Remove your note"): it says what it changes, and it holds the text that is
+ * on it, which a guest using voice control says (WCAG 2.5.3).
+ */
 function RowButton({
   row,
   pending,
@@ -44,12 +67,15 @@ function RowButton({
   expanded?: boolean
   controls?: string
 }>) {
+  const buttonId = useId()
+  const titleId = useContext(RowTitleId)
   return (
     <button
       ref={buttonRef}
+      id={buttonId}
       type="button"
       className="ih-button ih-button--outline ih-yr__button"
-      aria-label={row.actionName}
+      aria-labelledby={titleId === undefined ? undefined : `${buttonId} ${titleId}`}
       aria-expanded={expanded}
       aria-controls={controls}
       disabled={pending}
@@ -161,20 +187,26 @@ export function RemoveNoteRow({
   )
 }
 
+/** What became of a confirmed removal, for the focus it leaves behind. */
+type Sent = 'none' | 'sent' | 'waiting'
+
 /**
  * "Remove your rating and note". This one cannot be undone, so the button asks
  * first: the question replaces the button, the safe answer ("Keep them") is the
  * filled one, and Escape means no. Focus goes to the question when it opens and
  * back to the button when it is put away, and a keyboard guest reaches the
- * answers by Tab. Nothing is sent until "Remove both".
+ * answers by Tab. Nothing is sent until the confirming button.
+ *
+ * Confirming does not send focus back to the button: it is disabled while the
+ * call is on its way, and a disabled button cannot hold focus. A removal that
+ * goes through replaces the section (the page moves focus there); one that
+ * fails gives focus back to the button once the call has ended.
  */
 export function RemoveAllRow({
-  pack,
   row,
   pending,
   onRemove,
 }: Readonly<{
-  pack: GuestPortalCopyV2
   row: ResponseRow
   pending: boolean
   onRemove: () => void
@@ -184,6 +216,7 @@ export function RemoveAllRow({
   const question = useRef<HTMLParagraphElement>(null)
   const button = useRef<HTMLButtonElement>(null)
   const moveFocus = useRef(false)
+  const sent = useRef<Sent>('none')
 
   useEffect(() => {
     if (!moveFocus.current) return
@@ -191,17 +224,25 @@ export function RemoveAllRow({
     ;(confirming ? question.current : button.current)?.focus()
   }, [confirming])
 
+  useEffect(() => {
+    if (sent.current === 'sent' && pending) sent.current = 'waiting'
+    else if (sent.current === 'waiting' && !pending) {
+      sent.current = 'none'
+      button.current?.focus()
+    }
+  }, [pending])
+
   const setConfirmation = (next: boolean) => {
     moveFocus.current = true
     setConfirming(next)
   }
-  const asking = confirming && row.actionable
+  const confirmation = confirming && row.actionable ? row.confirmation : null
 
   return (
     <RowShell
       row={row}
       button={
-        asking ? null : (
+        confirmation ? null : (
           <RowButton
             row={row}
             pending={pending}
@@ -211,7 +252,7 @@ export function RemoveAllRow({
         )
       }
       below={
-        asking && (
+        confirmation && (
           <div
             role="group"
             aria-labelledby={`${id}-question`}
@@ -226,9 +267,9 @@ export function RemoveAllRow({
               tabIndex={-1}
               className="ih-yr__confirm-title"
             >
-              {pack.copy.responseRemoveAllConfirmTitle}
+              {confirmation.title}
             </p>
-            <p className="ih-yr__detail">{pack.copy.responseRemoveAllConfirmBody}</p>
+            <p className="ih-yr__detail">{confirmation.body}</p>
             <div className="ih-yr__confirm-actions">
               <button
                 type="button"
@@ -236,18 +277,19 @@ export function RemoveAllRow({
                 disabled={pending}
                 onClick={() => setConfirmation(false)}
               >
-                {pack.copy.responseRemoveAllCancel}
+                {confirmation.cancel}
               </button>
               <button
                 type="button"
                 className="ih-button ih-button--outline ih-yr__button"
                 disabled={pending}
                 onClick={() => {
-                  setConfirmation(false)
+                  sent.current = 'sent'
+                  setConfirming(false)
                   onRemove()
                 }}
               >
-                {pack.copy.responseRemoveAllConfirm}
+                {confirmation.confirm}
               </button>
             </div>
           </div>

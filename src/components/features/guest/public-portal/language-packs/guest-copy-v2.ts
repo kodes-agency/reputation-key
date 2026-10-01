@@ -99,6 +99,12 @@ export const GUEST_COPY_V2_PLACEHOLDERS = {
   responseRemoveAllDoneTitle: [],
   responseRemoveAllDoneBody: [],
   responseRemoveAllFailed: [],
+  // The same, for a response that has no note: only a rating to remove.
+  responseRemoveRatingTitle: [],
+  responseRemoveRatingConfirmTitle: [],
+  responseRemoveRatingConfirmBody: [],
+  responseRemoveRatingConfirm: [],
+  responseRemoveRatingCancel: [],
   // Deadlines: today, tomorrow, or a named day, always in the portal's zone.
   deadlineToday: ['time', 'zone'],
   deadlineTomorrow: ['time', 'zone'],

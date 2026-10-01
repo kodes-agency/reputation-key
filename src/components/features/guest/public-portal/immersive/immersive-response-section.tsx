@@ -113,6 +113,8 @@ function SectionBody({
     hadNotice.current = notice !== null
   }, [notice])
 
+  const rows = responseSectionRows(pack, response, clock)
+
   return (
     <div id={id} className="ih-yr__body">
       {notice && (
@@ -121,46 +123,47 @@ function SectionBody({
         </p>
       )}
       {failure && <ImmersiveBanner message={pack.copy[FAILURE_KEY[failure]]} />}
-      <ul className="ih-yr__rows">
-        {responseSectionRows(pack, response, clock).map((row) => {
-          switch (row.id) {
-            case 'change':
-              return (
-                <ChangeRatingRow
-                  key={row.id}
-                  pack={pack}
-                  row={row}
-                  response={response}
-                  pending={pending}
-                  ratingFailed={ratingFailed}
-                  changing={changing}
-                  announced={notice !== null}
-                  onChangingChange={onChangingChange}
-                  onChangeRating={onChangeRating}
-                />
-              )
-            case 'remove-note':
-              return (
-                <RemoveNoteRow
-                  key={row.id}
-                  row={row}
-                  pending={pending}
-                  onRemove={onRemoveNote}
-                />
-              )
-            case 'remove-all':
-              return (
-                <RemoveAllRow
-                  key={row.id}
-                  pack={pack}
-                  row={row}
-                  pending={pending}
-                  onRemove={onRemoveResponse}
-                />
-              )
-          }
-        })}
-      </ul>
+      {rows.length > 0 && (
+        <ul className="ih-yr__rows">
+          {rows.map((row) => {
+            switch (row.id) {
+              case 'change':
+                return (
+                  <ChangeRatingRow
+                    key={row.id}
+                    pack={pack}
+                    row={row}
+                    response={response}
+                    pending={pending}
+                    ratingFailed={ratingFailed}
+                    changing={changing}
+                    announced={notice !== null}
+                    onChangingChange={onChangingChange}
+                    onChangeRating={onChangeRating}
+                  />
+                )
+              case 'remove-note':
+                return (
+                  <RemoveNoteRow
+                    key={row.id}
+                    row={row}
+                    pending={pending}
+                    onRemove={onRemoveNote}
+                  />
+                )
+              case 'remove-all':
+                return (
+                  <RemoveAllRow
+                    key={row.id}
+                    row={row}
+                    pending={pending}
+                    onRemove={onRemoveResponse}
+                  />
+                )
+            }
+          })}
+        </ul>
+      )}
       <div className="ih-yr__device">
         <p className="ih-yr__row-title">{pack.copy.sharedDeviceTitle}</p>
         <p className="ih-yr__detail">{pack.copy.sharedDeviceBody}</p>
