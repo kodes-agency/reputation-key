@@ -31,6 +31,8 @@ function wire() {
     healthRepo: untouchable('healthRepo'),
     actorDirectory: untouchable('actorDirectory'),
     portalTokenRepo: untouchable('portalTokenRepo'),
+    destinationRepo: untouchable('destinationRepo'),
+    mediaRepo: untouchable('mediaRepo'),
     propertyApi: untouchable('propertyApi'),
     // A manager with no Property access at all.
     staffPublicApi: {
@@ -43,12 +45,13 @@ function wire() {
 }
 
 describe('buildPortalHistoryReads', () => {
-  it('offers the five reads', () => {
+  it('offers the six reads', () => {
     expect(Object.keys(wire().reads).sort()).toEqual([
       'getPortalHistory',
       'getPortalPublicationHistory',
       'getPortalReview',
       'getPortalVersion',
+      'getPortalVersionPreview',
       'getPortalVersions',
     ])
   })
@@ -71,6 +74,11 @@ describe('buildPortalHistoryReads', () => {
     })
     await expect(
       reads.getPortalVersion({ ...input, version: 1 }, manager),
+    ).rejects.toMatchObject({
+      code: 'forbidden',
+    })
+    await expect(
+      reads.getPortalVersionPreview({ ...input, version: 1 }, manager),
     ).rejects.toMatchObject({
       code: 'forbidden',
     })

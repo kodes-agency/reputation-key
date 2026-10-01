@@ -381,6 +381,8 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       healthRepo: portalHealthRepo,
       actorDirectory: portalActorDirectory,
       portalTokenRepo,
+      destinationRepo: portalApprovedDestinationRepo,
+      mediaRepo: portalMediaAssetRepo,
       propertyApi: deps.propertyApi,
       staffPublicApi: deps.staffPublicApi,
       clock: deps.clock,
