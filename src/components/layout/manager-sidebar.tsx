@@ -30,6 +30,12 @@ function useActiveSection(): string {
       if (s.location.pathname.startsWith('/settings')) return 'settings'
       if (s.location.pathname === '/inbox' || s.location.pathname.startsWith('/inbox'))
         return 'inbox'
+      // The All properties page: Portals across the Organization, no Property in scope.
+      if (
+        s.location.pathname === '/portals' ||
+        s.location.pathname.startsWith('/portals/')
+      )
+        return 'portals'
       if (
         s.location.pathname === '/properties' ||
         s.location.pathname.startsWith('/properties/import-google')

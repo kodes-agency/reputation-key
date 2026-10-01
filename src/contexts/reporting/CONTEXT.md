@@ -55,6 +55,12 @@ metric authority.
   Portals with readings under it, whether they are in the group today (`memberPortalIds`) or only
   contributed (`contributingPortalIds`). The caller supplies the roster (Portal owns the list and
   each Portal's current group) and each Property's time zone; Reporting supplies the numbers.
+  The server function reads one Property, or, with none named, the whole Organization (the All
+  properties page): then the roster is every Portal of every Property the caller may read for both
+  `portal.read` and `dashboard.read` and is assigned to (each asked per Property before anything is
+  read), a Property with no time zone on record is left out of the results rather than read in a
+  guessed zone, and the one-read limit of 1000 Portals applies to the whole Organization (past it
+  the page shows its list without results; each Property's own page still reads its own).
 - **Property setup**: seven per-Property steps derived at read time from current facts
   (Google binding, first sync, reply language, AI decision, responsible manager, reply
   voice, published Portal). It records no milestones, unlike the Organization checklist.

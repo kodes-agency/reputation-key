@@ -23,6 +23,19 @@ export function PortalListError({ error }: ErrorComponentProps) {
   )
 }
 
+/** The All properties page's own: its Portals are the Organization's, not one Property's. */
+export function PortalAllPropertiesError({ error }: ErrorComponentProps) {
+  return (
+    <PageShell>
+      <PageHeader
+        title="Portals"
+        description="Public pages across all of your properties."
+      />
+      <ErrorState message={errorMessage(error) || 'Portals could not be loaded.'} />
+    </PageShell>
+  )
+}
+
 /**
  * The portal workspace is full-bleed (see `isWorkspaceRoute`): the layout above
  * it clips overflow and pads nothing. Its loading, error and not-found states

@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  allPropertiesSearchSchema,
   defaultSortDirection,
   portalOverviewSearchPatch,
   portalOverviewSearchSchema,
@@ -128,5 +129,29 @@ describe('portalOverviewSearchPatch', () => {
     const current = Object.freeze({ q: 'spa' })
     expect(portalOverviewSearchPatch(current, { q: undefined })).toEqual({})
     expect(current).toEqual({ q: 'spa' })
+  })
+})
+
+describe('allPropertiesSearchSchema', () => {
+  it('keeps a bare URL bare', () => {
+    expect(allPropertiesSearchSchema.parse({})).toEqual({})
+  })
+
+  it('reads the search, the order and the page', () => {
+    expect(
+      allPropertiesSearchSchema.parse({ q: 'bar', sort: 'scans', dir: 'asc', page: 2 }),
+    ).toEqual({ q: 'bar', sort: 'scans', dir: 'asc', page: 2 })
+  })
+
+  it('drops the filter and the grouping, which the page has no control for', () => {
+    expect(
+      allPropertiesSearchSchema.parse({ show: 'attention', groupBy: 'none', q: 'bar' }),
+    ).toEqual({ q: 'bar' })
+  })
+
+  it('drops values a hand-edited URL cannot mean instead of refusing the page', () => {
+    expect(
+      allPropertiesSearchSchema.parse({ sort: 'price', dir: 'sideways', page: 0 }),
+    ).toEqual({})
   })
 })

@@ -31,7 +31,8 @@ test.describe('Compatibility: core surfaces', () => {
     await expect(page.getByRole('heading', { name: 'E2E Guest Portal P1' })).toBeVisible()
     await expect(page.getByRole('radio', { name: '1 star' })).toBeVisible()
     await expect(page.getByRole('radio', { name: '5 stars' })).toBeVisible()
-    // The destination link appears only AFTER a rating is submitted, and this
+    // The destination link appears only AFTER a rating is submitted (the legacy
+    // v1/v2 renderer; a v3 portal shows its Linktree from arrival), and this
     // gate is deliberately read-only — so the assertion is that the gateway
     // withholds it, which is the same flow contract guest-portal.spec.ts
     // proves from the other side.

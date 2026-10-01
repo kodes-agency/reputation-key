@@ -165,6 +165,35 @@ describe('goal query keys', () => {
     )
   })
 
+  it('keeps the Organization-wide overview and its results in their own subtree, apart from every Property', () => {
+    expect(portalKeys.organizationOverview()).toEqual([
+      'portals',
+      'organization',
+      'overview',
+    ])
+    expect(portalKeys.organizationResultsOverviewRoot()).toEqual([
+      'portals',
+      'organization',
+      'results-overview',
+    ])
+    expect(portalKeys.organizationResultsOverview('30d', true)).toEqual([
+      'portals',
+      'organization',
+      'results-overview',
+      '30d',
+      'compare',
+    ])
+    expect(portalKeys.organizationResultsOverview('30d', false)).not.toEqual(
+      portalKeys.organizationResultsOverview('30d', true),
+    )
+    expect(portalKeys.organizationResultsOverview('7d', true)).not.toEqual(
+      portalKeys.organizationResultsOverview('30d', true),
+    )
+    expect(portalKeys.organizationOverview().slice(0, 2)).not.toEqual(
+      portalKeys.overview('property-1').slice(0, 2),
+    )
+  })
+
   it('keeps goal subject data in one property-scoped portal subtree', () => {
     expect(portalKeys.goalSubjects('property-1')).toEqual([
       'portals',

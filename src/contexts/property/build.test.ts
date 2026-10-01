@@ -226,6 +226,40 @@ describe('PropertyPublicApi', () => {
     expect(exists).toBe(false)
   })
 
+  it('getPropertyTimezones answers each Property’s zone in one read and leaves out an unknown one', async () => {
+    const repo = createInMemoryPropertyRepo()
+    const sofia = buildTestProperty({
+      id: '81000000-0000-4000-8000-000000000040',
+      slug: 'zone-sofia',
+      timezone: 'Europe/Sofia',
+    })
+    const newYork = buildTestProperty({
+      id: '81000000-0000-4000-8000-000000000041',
+      slug: 'zone-new-york',
+      timezone: 'America/New_York',
+    })
+    repo.seed([sofia, newYork])
+    const { publicApi } = buildPropertyContext({
+      db: {} as never,
+      repo,
+      clock: () => new Date('2026-08-28T00:00:00.000Z'),
+      ...runtimeDeps,
+      staffPublicApi: createStubStaffApi(),
+      identityManagerFacts,
+    })
+
+    const zones = await publicApi.getPropertyTimezones(sofia.organizationId, [
+      sofia.id,
+      newYork.id,
+      propertyId('81000000-0000-4000-8000-000000000099'),
+    ])
+
+    expect(zones).toEqual([
+      { id: sofia.id, timezone: 'Europe/Sofia' },
+      { id: newYork.id, timezone: 'America/New_York' },
+    ])
+  })
+
   it('exposes current lifecycle authority without treating archived or missing Properties as active', async () => {
     const repo = createInMemoryPropertyRepo()
     const active = buildTestProperty({

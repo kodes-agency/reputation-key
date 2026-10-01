@@ -31,6 +31,8 @@ Review destination visibility, ordering, wording, and prominence are **invariant
 
 The Immersive Hub (snapshot schema version 3) has its own response view, and `src/components/features/guest/public-portal/immersive/immersive-response.test.ts` holds it to the same rule on its own markup. It renders the receipt strip, the Google card and the note card for ratings 1–5 in English and Bulgarian, and requires the Google card to be identical and second at every rating, whether or not the note is offered, and the Google-unavailable card to take the same place. The view takes no rating comparison: the note appears only when the server sets `privateFeedbackEligible`, and the test pins that the view follows that flag (it shows the note card when the flag is set and hides it when it is not). The inclusive threshold boundary itself belongs to the server rule and is held by `src/contexts/guest/application/use-cases/guest-response-lifecycle.test.ts`.
 
+The Immersive Hub's "Your response" section (change the rating, remove the note, remove the rating and note, start over on a shared device) is the last card of that page and carries the same rule: `src/components/features/guest/public-portal/immersive/immersive-response-section.test.ts` requires its markup to be identical at ratings 1–5, with and without the note offered. It lists the guest's own controls and their server-set deadlines, written in the portal's time zone with a `now` that travels with the page data, and it never compares the rating with anything (the rating form only starts on the guest's current star). Removing the rating and the note is the one action that cannot be undone, so its button asks first ("Remove both" or "Keep them") and sends nothing until the guest confirms.
+
 ### Abuse and privacy
 
 1. Layered limits by portal, session, network signal, organization, and operation.
@@ -60,3 +62,24 @@ raw address of an active code is also stored sealed (AES-256-GCM, bound to its
 tenant, Portal, token and version) so a manager can download the code again;
 every disclosure is recorded before it happens, and no other path reads the
 sealed copy. Without a keyring this ADR's behaviour is unchanged.
+
+## Amendment 2026-10-01 — the Linktree is visible from arrival
+
+Owner decision 2026-09-30: on the Immersive Hub guest page (snapshot schema version 3) the
+Linktree is visible from arrival and in every state after it, not only after the guest has rated.
+
+The rating card stays first and dominant: it comes before the Linktree in the page, it is the
+larger and more prominent surface, and the Linktree never competes with it. This changes
+when the secondary links appear, and nothing else in this record:
+
+- The anti-gating rule above is untouched. The Google Review Action is still shown only after a
+  rating, identical for ratings 1–5, and nothing in the Linktree can steer, hide or reorder it.
+- A tap on a link before any rating is navigation only. The tile is a plain link to the
+  navigation-only click route, which resolves the destination and redirects without recording
+  anything, so it is not a Qualified Link Action and never reaches product analytics. The
+  origin-, CSRF- and session-bound mutation that records one still requires a rated session
+  and is not called before a rating.
+- Snapshots of schema versions 1 and 2 keep the legacy renderer, where the destinations still
+  appear after the rating. The rule is pinned for them until they are republished.
+- The amendment is guest-visible on a portal only when a version 3 snapshot is published for it
+  (slice 19 of the round-4 plan).

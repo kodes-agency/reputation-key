@@ -157,6 +157,13 @@ export const buildPropertyContext = (deps: PropertyContextDeps) => {
       const properties = await deps.repo.findByIds(orgId, propertyIds)
       return properties.map((p) => ({ id: p.id as string, name: p.name }))
     },
+    getPropertyTimezones: async (
+      orgId: OrganizationId,
+      propertyIds: ReadonlyArray<PropertyId>,
+    ) => {
+      const properties = await deps.repo.findByIds(orgId, propertyIds)
+      return properties.map((p) => ({ id: p.id as string, timezone: p.timezone }))
+    },
     findByGbpLocationId: async (gbpLocationId: string) => {
       const p = await deps.repo.findByGbpLocationId(gbpLocationId)
       if (!p) return null
