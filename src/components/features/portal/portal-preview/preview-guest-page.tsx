@@ -17,9 +17,11 @@ import {
   InertImmersiveFooterView,
   InertImmersiveLinktree,
   InertLanguageChip,
+  InertLanguageSheet,
   guestCopyText,
   immersiveFooterCopy,
   immersiveResponseProps,
+  previewLanguageOptions,
 } from '#/components/features/guest'
 import type { GuestPortalCopyV2 } from '#/components/features/guest'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
@@ -30,6 +32,7 @@ import {
   type TryAsGuestAction,
 } from './portal-preview-states'
 import { previewLinktreeLink } from './preview-linktree-links'
+import { PREVIEW_PAGE_HEIGHT } from './preview-phone'
 
 export type PreviewGuestPageProps = Readonly<{
   experience: PortalPreviewExperience
@@ -39,6 +42,11 @@ export type PreviewGuestPageProps = Readonly<{
   hasLanguageChip: boolean
   state: PreviewPageState
   onAction?: (action: TryAsGuestAction) => void
+  /**
+   * The languages to list when the language sheet is drawn open over the page
+   * (board 04, while a manager edits Languages); absent, the sheet is closed.
+   */
+  languageSheet?: ReadonlyArray<GuestLocale>
 }>
 
 export function PreviewGuestPage({
@@ -48,6 +56,7 @@ export function PreviewGuestPage({
   hasLanguageChip,
   state,
   onAction,
+  languageSheet,
 }: PreviewGuestPageProps) {
   const { brand, content, linktree, links } = experience
   const hasLinktree = linktree.enabled && links.length > 0
@@ -97,6 +106,17 @@ export function PreviewGuestPage({
         copy={immersiveFooterCopy(copy, brand.displayName)}
         isNoticeVisible
       />
+      {languageSheet !== undefined && hasLanguageChip ? (
+        <InertLanguageSheet
+          options={previewLanguageOptions({
+            locales: languageSheet,
+            selectedLocale: locale,
+            copy: copy.copy,
+          })}
+          copy={copy.copy}
+          height={PREVIEW_PAGE_HEIGHT}
+        />
+      ) : null}
     </ImmersiveShell>
   )
 }

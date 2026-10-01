@@ -31,7 +31,8 @@ export type LanguageOption = Readonly<{
   nativeName: string
   /** The language named in the page's language, or null when it reads the same. */
   secondaryName: string | null
-  href: string
+  /** Where the row goes; none in the admin's preview, which has no token to build one from. */
+  href: string | null
   isCurrent: boolean
 }>
 
@@ -66,6 +67,30 @@ export function buildLanguageOptions(
     copy: LanguageSwitcherCopy
   }>,
 ): readonly LanguageOption[] {
+  return languageRows(input, (locale) =>
+    guestLocaleHref(input.token, locale, input.accessArtifactId),
+  )
+}
+
+/** The same rows for the admin's preview of the sheet: they name a language and go nowhere. */
+export function previewLanguageOptions(
+  input: Readonly<{
+    locales: readonly GuestLocale[]
+    selectedLocale: GuestLocale
+    copy: LanguageSwitcherCopy
+  }>,
+): readonly LanguageOption[] {
+  return languageRows(input, () => null)
+}
+
+function languageRows(
+  input: Readonly<{
+    locales: readonly GuestLocale[]
+    selectedLocale: GuestLocale
+    copy: LanguageSwitcherCopy
+  }>,
+  hrefFor: (locale: GuestLocale) => string | null,
+): readonly LanguageOption[] {
   return input.locales.map((locale) => {
     const { nativeName } = GUEST_LOCALE_METADATA[locale]
     const inPageLanguage = input.copy[LANGUAGE_NAME_KEYS[locale]]
@@ -76,7 +101,7 @@ export function buildLanguageOptions(
         inPageLanguage.toLocaleLowerCase() === nativeName.toLocaleLowerCase()
           ? null
           : inPageLanguage,
-      href: guestLocaleHref(input.token, locale, input.accessArtifactId),
+      href: hrefFor(locale),
       isCurrent: locale === input.selectedLocale,
     }
   })

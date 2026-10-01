@@ -9,6 +9,8 @@ import {
   InertLanguageChip,
   type GuestLanguageSwitcherProps,
 } from './guest-language-switcher'
+import { previewLanguageOptions } from './language-options'
+import { InertLanguageSheet } from './language-sheet'
 
 function render(props: Partial<GuestLanguageSwitcherProps> = {}) {
   return renderToStaticMarkup(
@@ -154,5 +156,52 @@ describe('InertLanguageChip (the admin preview)', () => {
     expect(html).not.toContain('<button')
     expect(html).not.toContain('<dialog')
     expect(html).not.toContain('aria-haspopup')
+  })
+})
+
+describe('InertLanguageSheet (the admin preview)', () => {
+  const sheet = (locale: GuestLocale = 'en') =>
+    renderToStaticMarkup(
+      createElement(InertLanguageSheet, {
+        options: previewLanguageOptions({
+          locales: ['en', 'bg', 'de'],
+          selectedLocale: locale,
+          copy: enV2.copy,
+        }),
+        copy: enV2.copy,
+        height: 844,
+      }),
+    )
+
+  it('draws the sheet a guest opens, with a row for each language and the current one marked', () => {
+    const html = sheet()
+    expect(html).toContain('ih-sheet__panel')
+    expect(html).toContain(enV2.copy.languageSheetTitle)
+    expect(html).toContain(enV2.copy.languageSheetHint)
+    expect(rows(html)).toHaveLength(3)
+    expect(html.match(/aria-current="page"/gu)).toHaveLength(1)
+    expect(html).toContain('>Deutsch<')
+  })
+
+  it('is open on the first screen of the phone, over a dimmed page', () => {
+    const html = sheet()
+    expect(html).toContain('ih-sheet-scene')
+    expect(html).toContain('ih-sheet-scene__scrim')
+    expect(html).toContain('height:844px')
+  })
+
+  it('is a picture: no dialog and no address to follow, and the part marker for the preview', () => {
+    const html = sheet()
+    expect(html).not.toContain('<dialog')
+    expect(html).not.toContain('href=')
+    expect(html).toContain('data-preview-part="language-sheet"')
+  })
+
+  it('keeps the dialog’s own markup for its panel', () => {
+    const dialog = render({ locales: ['en', 'bg', 'de'] })
+    for (const marker of ['ih-sheet__grab', 'ih-sheet__head', 'ih-sheet__list']) {
+      expect(dialog).toContain(marker)
+      expect(sheet()).toContain(marker)
+    }
   })
 })

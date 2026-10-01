@@ -3,10 +3,13 @@
 // is then scaled down with a transform: that keeps its geometry exact and
 // costs the compositor, not layout.
 
-import type { CSSProperties, ReactNode } from 'react'
+import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react'
 
 /** The page's own box: a phone, as the guest boards are measured. */
 const PREVIEW_PAGE = { width: 390, height: 844 } as const
+
+/** The page's height in the phone: what a guest sees without scrolling. */
+export const PREVIEW_PAGE_HEIGHT = PREVIEW_PAGE.height
 
 const PAGE_RADIUS = 28
 const BEZEL = 8
@@ -28,6 +31,11 @@ type ScaledPageProps = Readonly<{
    */
   scrollable?: boolean
   label?: string
+  /**
+   * The page is held at its top and does not scroll: what is drawn over its
+   * first screen (the open language sheet) is anchored there.
+   */
+  isScrollLocked?: boolean
   children: ReactNode
 }>
 
@@ -35,8 +43,13 @@ export function ScaledPage({
   scale,
   scrollable = false,
   label,
+  isScrollLocked = false,
   children,
 }: ScaledPageProps) {
+  const frame = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (isScrollLocked) frame.current?.scrollTo({ top: 0 })
+  }, [isScrollLocked])
   const outer: CSSProperties = {
     width: PREVIEW_PAGE.width * scale,
     height: PREVIEW_PAGE.height * scale,
@@ -51,13 +64,13 @@ export function ScaledPage({
     transform: `scale(${scale})`,
     transformOrigin: 'top left',
     overflowX: 'hidden',
-    overflowY: scrollable ? 'auto' : 'hidden',
+    overflowY: scrollable && !isScrollLocked ? 'auto' : 'hidden',
     scrollbarWidth: 'none',
   }
   return (
     <div style={outer}>
       {scrollable ? (
-        <div style={inner} role="region" aria-label={label} tabIndex={0}>
+        <div ref={frame} style={inner} role="region" aria-label={label} tabIndex={0}>
           {children}
         </div>
       ) : (
@@ -71,8 +84,14 @@ export function ScaledPage({
 export function PreviewPhone({
   scale,
   label,
+  isScrollLocked = false,
   children,
-}: Readonly<{ scale: number; label: string; children: ReactNode }>) {
+}: Readonly<{
+  scale: number
+  label: string
+  isScrollLocked?: boolean
+  children: ReactNode
+}>) {
   const bezel: CSSProperties = {
     padding: BEZEL,
     borderRadius: PAGE_RADIUS * scale + BEZEL,
@@ -82,7 +101,7 @@ export function PreviewPhone({
   }
   return (
     <div style={bezel}>
-      <ScaledPage scale={scale} scrollable label={label}>
+      <ScaledPage scale={scale} scrollable label={label} isScrollLocked={isScrollLocked}>
         {children}
       </ScaledPage>
     </div>
