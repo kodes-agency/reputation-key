@@ -246,6 +246,39 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
     await expect(historyHasPendingChanges(COMPLETE_SCENARIO)).resolves.toBe(false)
   })
 
+  it('reads back, through the repository, exactly the v3 snapshot it committed', async () => {
+    await seedPortalWorkingCopy(getPool(), COMPLETE_SCENARIO)
+    const source = await publishRead(COMPLETE_SCENARIO)
+    await publishFrom(COMPLETE_SCENARIO, source!)
+
+    const active = await createPortalPublicationRepository(getDb()).findActiveForPortal(
+      COMPLETE_SCENARIO.organizationId,
+      COMPLETE_SCENARIO.portalId,
+    )
+
+    // snapshotFromRow parses the stored JSON and verifies it, so a null here is a
+    // v3 shape the reader would refuse: the portal would be unavailable.
+    expect(active?.configuration).toMatchObject({
+      schemaVersion: 3,
+      guestLocale: 'bg',
+      languagePackVersion: 'guest-ui-bg-v2',
+      localeSet: ['bg', 'en'],
+      timeZone: 'Europe/Sofia',
+      brandProfile: { wordmark: 'RILA', lookVersion: 4 },
+      // English had no photo description of its own: copied from Bulgarian, tagged.
+      localizedContent: {
+        en: { heroAlt: { value: 'Фасадата на хотела', fallbackFrom: 'bg' } },
+      },
+      provenance: {
+        aiDraftTextKeys: ['link:c4000000-0000-4000-8000-000000000001:text:en'],
+      },
+    })
+    expect(active?.configuration).toHaveProperty(
+      'links.0.id',
+      'c4000000-0000-4000-8000-000000000002',
+    )
+  })
+
   it('commits a publication of a Portal whose Property has no Brand Profile', async () => {
     await seedPortalWorkingCopy(getPool(), NO_BRAND_SCENARIO)
     const source = await publishRead(NO_BRAND_SCENARIO)

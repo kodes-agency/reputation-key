@@ -151,6 +151,16 @@ describe('the schema version 3 writer', () => {
       expect(() => build(publicationSource({ timeZone: null }))).toThrow(/time zone/u)
     })
 
+    it('refuses content the reader would refuse, which no blocker names', () => {
+      expect(() =>
+        build(
+          publicationSource({
+            look: { ...publicationSource().look!, displayName: '  ' },
+          }),
+        ),
+      ).toThrow(/incomplete or out of range/u)
+    })
+
     it('refuses an input whose scope disagrees with its source', () => {
       expect(() => build(publicationSource(), { portalId: 'another-portal' })).toThrow(
         /scope/u,

@@ -159,7 +159,7 @@ export function buildPortalPublicationSnapshot(
       profileVersion: input.destination.profileVersion,
     },
   }
-  return {
+  const snapshot: PortalPublicationSnapshot = {
     id: input.id,
     organizationId: input.organizationId,
     propertyId: input.propertyId,
@@ -174,6 +174,16 @@ export function buildPortalPublicationSnapshot(
     createdBy: input.createdBy,
     createdAt: input.createdAt,
   }
+  // A backstop for what no blocker names (a blank display name, a text past the
+  // reader's limit): a snapshot the reader would refuse is never written, and
+  // the manager hears it from here rather than from the commit's own guard.
+  if (!verifyPortalPublicationSnapshot(snapshot)) {
+    throw portalError(
+      'publication_snapshot_unavailable',
+      'The Portal’s content is incomplete or out of range, so it cannot be published',
+    )
+  }
+  return snapshot
 }
 
 /** Scope, review-gateway range and destination binding all agree with the snapshot row. */

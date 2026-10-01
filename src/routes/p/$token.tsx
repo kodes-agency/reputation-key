@@ -18,7 +18,6 @@ import { getPublicPortal, recordScanFn } from '#/contexts/guest/server/guest-sca
 import {
   GuestAnalyticsNotice,
   ImmersivePublicPortal,
-  loadGuestPortalCopyV2,
   PublicPortalContent,
   type GuestPortalCopyV2,
 } from '#/components/features/guest'
@@ -77,8 +76,13 @@ const publicPortalQuery = (token: string, locale?: GuestLocale) =>
     queryFn: async (): Promise<GuestPageData | null> => {
       try {
         const data = await getPublicPortal({ data: { token, locale } })
+        // A dynamic import of the loader's own module, not the guest barrel: the
+        // loader belongs to the route's critical chunk, and a static edge to the
+        // barrel would put the whole guest page in every page's first paint.
         const pack = data.immersive
-          ? await loadGuestPortalCopyV2(
+          ? await (
+              await import('#/components/features/guest/public-portal/language-packs/load-guest-copy-v2')
+            ).loadGuestPortalCopyV2(
               data.localization.selectedLocale,
               data.localization.languagePackVersion,
             )
