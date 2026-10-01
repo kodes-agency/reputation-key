@@ -498,8 +498,6 @@ function buildContainer(
     authorizeCommand: createInboxCommandAuthority({
       decideManagerPropertyAuthorities:
         identity.authority.decideManagerPropertyAuthorities,
-      decideUserParticipationAuthority:
-        identity.authority.decideUserParticipationAuthority,
     }),
     // BQC-1.4: review.publicApi IS the governed read interface — it satisfies
     // the inbox ReviewLookupPort and metric ReviewRatingLookupPort directly.
@@ -607,12 +605,6 @@ function buildContainer(
       eligibility: {
         listActiveManagers: identity.publicApi.managerFacts.listActiveManagers,
         getAccessiblePropertyIds: identity.publicApi.people.getAccessiblePropertyIds,
-        findActiveParticipation: async (organizationIdValue, pid, managerId) =>
-          identity.publicApi.people.findActiveParticipation?.(
-            organizationIdValue,
-            pid,
-            managerId,
-          ) ?? null,
       },
     }),
   )

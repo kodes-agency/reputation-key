@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { buildTestAuthContext } from '#/shared/testing/fixtures'
 import type { StaffParticipationRepository } from '../ports/staff-participation.repository'
 import type { StaffParticipation } from '../../domain/staff-participation'
@@ -164,7 +164,7 @@ describe('StaffParticipation lifecycle', () => {
     ).resolves.toMatchObject({ propertyId: PROPERTY_ID })
   })
 
-  it('reconciles manager responsibility when a linked participation is archived', async () => {
+  it('archiving a linked participation leaves manager responsibility untouched', async () => {
     const repo = fakeRepository()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
     repo.participations.push({
@@ -182,60 +182,25 @@ describe('StaffParticipation lifecycle', () => {
       createdBy: ctx.userId,
       updatedAt: NOW,
     })
-    const calls: string[][] = []
-
-    await archiveStaffParticipation({
-      ...deps(repo),
-      reconcileResponsibleManagerEligibility: async (...input) => {
-        calls.push(input)
-      },
-    })(
-      {
-        staffParticipationId: PARTICIPATION_ID,
-        reason: 'left property',
-        expectedRevision: 1,
-      },
-      ctx,
-    )
-
-    expect(calls).toEqual([[ctx.organizationId, 'linked-manager', ctx.userId]])
-  })
-
-  it('retries eligibility reconciliation after the archive already committed', async () => {
-    const repo = fakeRepository()
-    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
-    repo.participations.push({
-      id: PARTICIPATION_ID,
-      organizationId: ctx.organizationId,
-      propertyId: PROPERTY_ID,
-      staffParticipantId: 'b0000000-0000-4000-8000-000000000002',
-      linkedUserId: 'linked-manager',
-      displayName: 'Linked manager',
-      status: 'active',
-      startedAt: NOW,
-      endedAt: null,
-      archiveReason: null,
-      revision: 1,
-      createdBy: ctx.userId,
-      updatedAt: NOW,
-    })
-    let attempts = 0
+    // Participation is attribution only (ADR 0052, amended 2026-09-30): the
+    // use case must not reach for the Responsible Manager reconcile even when
+    // one is wired in. Only a grant revoke, a role change or offboarding does.
+    const reconcile = vi.fn(async () => undefined)
     const archive = archiveStaffParticipation({
       ...deps(repo),
-      reconcileResponsibleManagerEligibility: async () => {
-        attempts += 1
-        if (attempts === 1) throw new Error('temporary reconciliation failure')
-      },
-    })
+      reconcileResponsibleManagerEligibility: reconcile,
+    } as Parameters<typeof archiveStaffParticipation>[0])
     const input = {
       staffParticipationId: PARTICIPATION_ID,
       reason: 'left property',
       expectedRevision: 1,
     }
 
-    await expect(archive(input, ctx)).rejects.toThrow('temporary reconciliation failure')
     await expect(archive(input, ctx)).resolves.toMatchObject({ status: 'archived' })
-    expect(attempts).toBe(2)
+    // A retry of the already-archived row is a plain idempotent read.
+    await expect(archive(input, ctx)).resolves.toMatchObject({ status: 'archived' })
+
+    expect(reconcile).not.toHaveBeenCalled()
   })
 
   it('creates a participant without requiring a login identity', async () => {

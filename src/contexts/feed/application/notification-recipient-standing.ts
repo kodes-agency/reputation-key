@@ -121,7 +121,7 @@ async function holdsAudience(
 export const createNotificationRecipientStanding =
   (deps: NotificationRecipientStandingDeps): NotificationRecipientStanding =>
   async ({ organizationId, propertyId, userId, audience: stored }, memo) => {
-    // Active manager membership, current Property access and participation.
+    // Active manager membership and current Property access.
     // Every Property-scoped audience admits only eligible managers.
     const eligible = await remembered(
       memo?.propertyEligibility,

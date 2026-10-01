@@ -63,7 +63,7 @@ const setup = () => {
           propertyAccessScope: 'assigned-properties' as const,
         },
         {
-          userId: 'manager-ineligible',
+          userId: 'manager-no-grant',
           role: 'PropertyManager' as const,
           propertyAccessScope: 'assigned-properties' as const,
         },
@@ -71,10 +71,8 @@ const setup = () => {
     },
     staffPublicApi: {
       getAccessiblePropertyIds: async (_org: string, userId: string) =>
-        userId === 'manager-ineligible' ? [] : [PROPERTY.id],
+        userId === 'manager-no-grant' ? [] : [PROPERTY.id],
       getAssignedPortals: async () => [],
-      findActiveParticipation: async (_org: string, _property: string, userId: string) =>
-        userId === 'manager-ineligible' ? null : ({} as never),
     },
     clock: () => NOW,
   }
@@ -109,7 +107,7 @@ describe('Property Responsible Managers', () => {
     })
   })
 
-  it('supports multiple managers and rejects role-specific ineligibility', async () => {
+  it('supports multiple managers and rejects a manager without a current grant', async () => {
     const { deps } = setup()
     const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
 
@@ -127,7 +125,7 @@ describe('Property Responsible Managers', () => {
       updatePropertyResponsibleManagers(deps)(
         {
           propertyId: PROPERTY.id,
-          managerUserIds: ['manager-ineligible'],
+          managerUserIds: ['manager-no-grant'],
           expectedRevision: 2,
         },
         ctx,

@@ -300,6 +300,51 @@ describe('PropertyPublicApi', () => {
     ).resolves.toBe(false)
   })
 
+  it('treats a grant-only PropertyManager as an eligible direct recipient and fails closed without the grant', async () => {
+    const repo = createInMemoryPropertyRepo()
+    const prop = buildTestProperty({ id: 'prop-1' })
+    const otherProp = buildTestProperty({ id: 'prop-2', slug: 'other-property' })
+    repo.seed([prop, otherProp])
+    const manager = userId('manager-1')
+    const grantedPropertyIds = { current: [prop.id] as ReadonlyArray<typeof prop.id> }
+    const { publicApi } = buildPropertyContext({
+      db: {} as never,
+      repo,
+      clock: () => new Date('2025-01-01'),
+      ...runtimeDeps,
+      // No Staff participation exists anywhere in these deps: the grant alone decides.
+      staffPublicApi: {
+        ...createStubStaffApi(),
+        getAccessiblePropertyIds: async () => grantedPropertyIds.current,
+      },
+      identityManagerFacts: {
+        listActiveManagers: async () => [
+          {
+            userId: manager,
+            role: 'PropertyManager' as const,
+            propertyAccessScope: 'assigned-properties' as const,
+          },
+        ],
+      },
+    })
+
+    await expect(
+      publicApi.isEligibleResponsibleManagerUserId(prop.organizationId, prop.id, manager),
+    ).resolves.toBe(true)
+    await expect(
+      publicApi.isEligibleResponsibleManagerUserId(
+        otherProp.organizationId,
+        otherProp.id,
+        manager,
+      ),
+    ).resolves.toBe(false)
+
+    grantedPropertyIds.current = []
+    await expect(
+      publicApi.isEligibleResponsibleManagerUserId(prop.organizationId, prop.id, manager),
+    ).resolves.toBe(false)
+  })
+
   // Reply publication refuses in words that match the Property's state, and
   // compares the epoch read from the same snapshot.
   it('reads a Property lifecycle and source epoch together for reply publication', async () => {

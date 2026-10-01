@@ -24,7 +24,7 @@ export type ResponsibleManagerLookupPort = Readonly<{
     organizationId: OrganizationId,
     portalGroupId: PortalGroupId,
   ): Promise<readonly UserId[]>
-  /** Current role/access/participation eligibility for a direct work recipient. */
+  /** Current role/access eligibility for a direct work recipient. */
   isEligibleForProperty(
     organizationId: OrganizationId,
     propertyId: PropertyId,

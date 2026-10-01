@@ -11,42 +11,28 @@ type ManagerRequirement = Parameters<
   InboxCommandAuthorityAdapterDeps['decideManagerPropertyAuthorities']
 >[1]['requirements'][number]
 
+const allowEvery = (
+  role: (userId: string) => 'AccountAdmin' | 'PropertyManager' = () => 'PropertyManager',
+): InboxCommandAuthorityAdapterDeps['decideManagerPropertyAuthorities'] =>
+  vi.fn(async (_tx, input) => ({
+    allowed: true as const,
+    decisions: input.requirements.map((requirement: ManagerRequirement) => ({
+      userId: requirement.userId,
+      propertyId: requirement.propertyId,
+      role: role(requirement.userId),
+      scope:
+        role(requirement.userId) === 'AccountAdmin'
+          ? ('organization' as const)
+          : ('assigned-properties' as const),
+    })),
+  }))
+
 describe('createInboxCommandAuthority', () => {
   it('authorizes the complete unique principal and Property set through one Identity batch', async () => {
-    const order: string[] = []
-    const decideManagerPropertyAuthorities: InboxCommandAuthorityAdapterDeps['decideManagerPropertyAuthorities'] =
-      vi.fn(async (_tx, input) => {
-        order.push('identity-batch')
-        return {
-          allowed: true as const,
-          decisions: input.requirements.map((requirement: ManagerRequirement) => ({
-            userId: requirement.userId,
-            propertyId: requirement.propertyId,
-            role:
-              requirement.userId === 'admin-z'
-                ? ('AccountAdmin' as const)
-                : ('PropertyManager' as const),
-            scope:
-              requirement.userId === 'admin-z'
-                ? ('organization' as const)
-                : ('assigned-properties' as const),
-            requiresStaffParticipation: requirement.userId !== 'admin-z',
-          })),
-        }
-      })
-    const decideUserParticipationAuthority: InboxCommandAuthorityAdapterDeps['decideUserParticipationAuthority'] =
-      vi.fn(async (_tx, input) => {
-        order.push(`staff:${input.userId}:${input.propertyId}`)
-        return {
-          allowed: true,
-          staffParticipantId: 'participant-1',
-          staffParticipationId: 'participation-1',
-        } as const
-      })
-    const authorize = createInboxCommandAuthority({
-      decideManagerPropertyAuthorities,
-      decideUserParticipationAuthority,
-    })
+    const decideManagerPropertyAuthorities = allowEvery((userId) =>
+      userId === 'admin-z' ? 'AccountAdmin' : 'PropertyManager',
+    )
+    const authorize = createInboxCommandAuthority({ decideManagerPropertyAuthorities })
 
     await expect(
       authorize(tx, {
@@ -103,15 +89,9 @@ describe('createInboxCommandAuthority', () => {
         },
       ],
     })
-    expect(order).toEqual([
-      'identity-batch',
-      'staff:manager-a:property-a',
-      'staff:manager-a:property-b',
-    ])
   })
 
   it('maps a batch denial to the purposes for the exact principal and Property', async () => {
-    const decideUserParticipationAuthority = vi.fn()
     const authorize = createInboxCommandAuthority({
       decideManagerPropertyAuthorities: vi.fn(async () => ({
         allowed: false as const,
@@ -119,7 +99,6 @@ describe('createInboxCommandAuthority', () => {
         propertyId: 'property-a',
         reason: 'assignment_denied',
       })),
-      decideUserParticipationAuthority,
     })
 
     await expect(
@@ -145,30 +124,13 @@ describe('createInboxCommandAuthority', () => {
       allowed: false,
       reason: 'actor_assignee_assignment_denied',
     })
-    expect(decideUserParticipationAuthority).not.toHaveBeenCalled()
   })
 
-  it('fails closed when an otherwise eligible PropertyManager lacks participation at one Property', async () => {
-    const authorize = createInboxCommandAuthority({
-      decideManagerPropertyAuthorities: vi.fn(async (_tx, input) => ({
-        allowed: true as const,
-        decisions: input.requirements.map((requirement: ManagerRequirement) => ({
-          ...requirement,
-          role: 'PropertyManager' as const,
-          scope: 'assigned-properties' as const,
-          requiresStaffParticipation: true,
-        })),
-      })),
-      decideUserParticipationAuthority: vi.fn(async (_tx, input) =>
-        input.propertyId === 'property-b'
-          ? ({ allowed: false as const, reason: 'participation_denied' } as const)
-          : ({
-              allowed: true as const,
-              staffParticipantId: 'participant-1',
-              staffParticipationId: 'participation-1',
-            } as const),
-      ),
-    })
+  it('allows a grant-scoped PropertyManager at every Property from the Identity decision alone', async () => {
+    // The adapter has no Staff dependency at all: Identity's decision (active
+    // membership, permission, current PropertyAccessGrant) is the whole answer.
+    const decideManagerPropertyAuthorities = allowEvery()
+    const authorize = createInboxCommandAuthority({ decideManagerPropertyAuthorities })
 
     await expect(
       authorize(tx, {
@@ -187,11 +149,119 @@ describe('createInboxCommandAuthority', () => {
             permissions: ['inbox.write', 'review.read'],
             purpose: 'actor',
           },
+          {
+            propertyId: 'property-a',
+            userId: 'manager-b',
+            permissions: ['inbox.write', 'review.read'],
+            purpose: 'assignee',
+          },
         ],
       }),
-    ).resolves.toEqual({
-      allowed: false,
-      reason: 'actor_participation_denied',
+    ).resolves.toEqual({ allowed: true })
+    expect(decideManagerPropertyAuthorities).toHaveBeenCalledOnce()
+  })
+
+  it('allows an empty requirement set without asking Identity', async () => {
+    const decideManagerPropertyAuthorities = vi.fn()
+    const authorize = createInboxCommandAuthority({ decideManagerPropertyAuthorities })
+
+    await expect(
+      authorize(tx, { organizationId: 'org-1', at, requirements: [] }),
+    ).resolves.toEqual({ allowed: true })
+    expect(decideManagerPropertyAuthorities).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when Identity decides fewer requirements than were asked', async () => {
+    const authorize = createInboxCommandAuthority({
+      decideManagerPropertyAuthorities: vi.fn(async () => ({
+        allowed: true as const,
+        decisions: [
+          {
+            userId: 'manager-a',
+            propertyId: 'property-a',
+            role: 'PropertyManager' as const,
+            scope: 'assigned-properties' as const,
+          },
+        ],
+      })),
     })
+
+    await expect(
+      authorize(tx, {
+        organizationId: 'org-1',
+        at,
+        requirements: [
+          {
+            propertyId: 'property-a',
+            userId: 'manager-a',
+            permissions: ['inbox.write'],
+            purpose: 'actor',
+          },
+          {
+            propertyId: 'property-b',
+            userId: 'manager-a',
+            permissions: ['inbox.write'],
+            purpose: 'actor',
+          },
+        ],
+      }),
+    ).resolves.toEqual({ allowed: false, reason: 'authority_contract_mismatch' })
+  })
+
+  it('fails closed when Identity answers for a different principal than was asked', async () => {
+    const authorize = createInboxCommandAuthority({
+      decideManagerPropertyAuthorities: vi.fn(async () => ({
+        allowed: true as const,
+        decisions: [
+          {
+            userId: 'someone-else',
+            propertyId: 'property-a',
+            role: 'PropertyManager' as const,
+            scope: 'assigned-properties' as const,
+          },
+        ],
+      })),
+    })
+
+    await expect(
+      authorize(tx, {
+        organizationId: 'org-1',
+        at,
+        requirements: [
+          {
+            propertyId: 'property-a',
+            userId: 'manager-a',
+            permissions: ['inbox.write'],
+            purpose: 'actor',
+          },
+        ],
+      }),
+    ).resolves.toEqual({ allowed: false, reason: 'authority_contract_mismatch' })
+  })
+
+  it('fails closed when a denial names a principal that was never asked about', async () => {
+    const authorize = createInboxCommandAuthority({
+      decideManagerPropertyAuthorities: vi.fn(async () => ({
+        allowed: false as const,
+        userId: 'stranger',
+        propertyId: 'property-a',
+        reason: 'membership_denied',
+      })),
+    })
+
+    await expect(
+      authorize(tx, {
+        organizationId: 'org-1',
+        at,
+        requirements: [
+          {
+            propertyId: 'property-a',
+            userId: 'manager-a',
+            permissions: ['inbox.write'],
+            purpose: 'actor',
+          },
+        ],
+      }),
+    ).resolves.toEqual({ allowed: false, reason: 'authority_contract_mismatch' })
   })
 })

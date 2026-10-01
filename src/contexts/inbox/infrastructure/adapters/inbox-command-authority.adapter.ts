@@ -11,7 +11,6 @@ type ManagerDecision = Readonly<{
   userId: string
   role: 'AccountAdmin' | 'PropertyManager'
   scope: 'organization' | 'assigned-properties'
-  requiresStaffParticipation: boolean
 }>
 
 type ManagerBatchDecision =
@@ -22,14 +21,6 @@ type ManagerBatchDecision =
       userId: string
       reason: string
     }>
-
-type ParticipationDecision =
-  | Readonly<{
-      allowed: true
-      staffParticipantId: string
-      staffParticipationId: string
-    }>
-  | Readonly<{ allowed: false; reason: string }>
 
 export type InboxCommandAuthorityAdapterDeps = Readonly<{
   decideManagerPropertyAuthorities: (
@@ -44,15 +35,6 @@ export type InboxCommandAuthorityAdapterDeps = Readonly<{
       at: Date
     }>,
   ) => Promise<ManagerBatchDecision>
-  decideUserParticipationAuthority: (
-    tx: AuthorityTransaction,
-    input: Readonly<{
-      organizationId: string
-      propertyId: string
-      userId: string
-      at: Date
-    }>,
-  ) => Promise<ParticipationDecision>
 }>
 
 type MergedRequirement = Readonly<{
@@ -114,11 +96,11 @@ const purposeFor = (requirement: MergedRequirement): string =>
   requirement.purposes.join('_')
 
 /**
- * Compose Identity's command-wide manager/grant proof with Staff's exact
- * participation proof. Identity receives every unique principal/Property
- * requirement in one call, so permission_version is never locked between two
- * concrete authority rows. Staff proofs then run in the same stable tuple
- * order. AccountAdmins intentionally do not require a Staff row.
+ * Identity receives every unique principal/Property requirement in one call,
+ * so permission_version is never locked between two concrete authority rows.
+ * Current membership, permission and PropertyAccessGrant are the whole Inbox
+ * command authority; Staff participation is attribution only (ADR 0052,
+ * amended 2026-09-30).
  */
 export const createInboxCommandAuthority =
   (deps: InboxCommandAuthorityAdapterDeps): InboxCommandAuthority =>
@@ -149,35 +131,19 @@ export const createInboxCommandAuthority =
       }
     }
 
-    const decisions = new Map(
-      identityDecision.decisions.map((decision) => [
+    // Every requirement must come back decided exactly once; a short or
+    // duplicated batch is a contract violation, never an implicit allow.
+    const decided = new Set(
+      identityDecision.decisions.map((decision) =>
         requirementKey(decision.userId, decision.propertyId),
-        decision,
-      ]),
+      ),
     )
-    if (decisions.size !== requirements.length) {
-      return { allowed: false, reason: 'authority_contract_mismatch' }
-    }
-
-    for (const requirement of requirements) {
-      const identity = decisions.get(
-        requirementKey(requirement.userId, requirement.propertyId),
+    const allDecided =
+      decided.size === requirements.length &&
+      requirements.every((requirement) =>
+        decided.has(requirementKey(requirement.userId, requirement.propertyId)),
       )
-      if (!identity) return { allowed: false, reason: 'authority_contract_mismatch' }
-      if (!identity.requiresStaffParticipation) continue
-
-      const staffDecision = await deps.decideUserParticipationAuthority(tx, {
-        organizationId: input.organizationId,
-        propertyId: requirement.propertyId,
-        userId: requirement.userId,
-        at: input.at,
-      })
-      if (!staffDecision.allowed) {
-        return {
-          allowed: false,
-          reason: `${purposeFor(requirement)}_${staffDecision.reason}`,
-        }
-      }
-    }
-    return { allowed: true }
+    return allDecided
+      ? { allowed: true }
+      : { allowed: false, reason: 'authority_contract_mismatch' }
   }

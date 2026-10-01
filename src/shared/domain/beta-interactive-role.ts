@@ -7,8 +7,8 @@ export function isBetaInteractiveRole(role: Role): role is BetaInteractiveRole {
   return role === 'AccountAdmin' || role === 'PropertyManager'
 }
 
-/** PropertyManagers require an active Staff participation for Property work. */
-export function requiresStaffParticipation(
+/** PropertyManagers work only the Properties their current PropertyAccessGrants list. */
+export function isGrantScopedRole(
   role: BetaInteractiveRole,
 ): role is Extract<BetaInteractiveRole, 'PropertyManager'> {
   return role === 'PropertyManager'

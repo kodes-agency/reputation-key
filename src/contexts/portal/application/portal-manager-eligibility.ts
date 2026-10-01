@@ -14,21 +14,17 @@ export type PortalManagerEligibilityDeps = Readonly<{
   staffPublicApi: StaffPublicApi
 }>
 
+const policyDeps = (deps: PortalManagerEligibilityDeps) => ({
+  listActiveManagers: deps.identityPublicApi.listActiveManagers,
+  getAccessiblePropertyIds: deps.staffPublicApi.getAccessiblePropertyIds,
+})
+
 export async function listEligiblePortalManagers(
   deps: PortalManagerEligibilityDeps,
   organizationId: OrganizationId,
   propertyId: PropertyId,
 ): Promise<readonly ManagerMembership[]> {
-  return listEligibleResponsibleManagers(
-    {
-      listActiveManagers: deps.identityPublicApi.listActiveManagers,
-      getAccessiblePropertyIds: deps.staffPublicApi.getAccessiblePropertyIds,
-      findActiveParticipation: async (orgId, pid, managerId) =>
-        deps.staffPublicApi.findActiveParticipation?.(orgId, pid, managerId) ?? null,
-    },
-    organizationId,
-    propertyId,
-  )
+  return listEligibleResponsibleManagers(policyDeps(deps), organizationId, propertyId)
 }
 
 export async function isEligiblePortalManager(
@@ -38,12 +34,7 @@ export async function isEligiblePortalManager(
   userId: string,
 ): Promise<boolean> {
   return isEligibleResponsibleManager(
-    {
-      listActiveManagers: deps.identityPublicApi.listActiveManagers,
-      getAccessiblePropertyIds: deps.staffPublicApi.getAccessiblePropertyIds,
-      findActiveParticipation: async (orgId, pid, managerId) =>
-        deps.staffPublicApi.findActiveParticipation?.(orgId, pid, managerId) ?? null,
-    },
+    policyDeps(deps),
     organizationId,
     propertyId,
     userId,

@@ -4,9 +4,11 @@ import { userId as toUserId } from '#/shared/domain/ids'
 /**
  * Shared selection policy for workflow-notification responsibility.
  *
- * Access, participation, and responsibility remain independent authorities:
- * this policy decides only who may be explicitly selected. It never grants
- * access or creates an assignment.
+ * Access and responsibility remain independent authorities: this policy
+ * decides only who may be explicitly selected. An AccountAdmin is eligible
+ * Organization-wide; a PropertyManager is eligible only at a Property their
+ * current PropertyAccessGrants list. Staff participation plays no part. It
+ * never grants access or creates an assignment.
  */
 export type ResponsibleManagerMembership = Readonly<{
   userId: string
@@ -23,11 +25,6 @@ export type ResponsibleManagerEligibilityDeps = Readonly<{
     userId: UserId,
     organizationWide: boolean,
   ) => Promise<readonly PropertyId[] | null>
-  findActiveParticipation: (
-    organizationId: OrganizationId,
-    propertyId: PropertyId,
-    userId: UserId,
-  ) => Promise<unknown | null>
 }>
 
 export async function listEligibleResponsibleManagers(
@@ -45,13 +42,7 @@ export async function listEligibleResponsibleManagers(
         managerId,
         false,
       )
-      if (!accessible?.includes(propertyId)) return null
-      const participation = await deps.findActiveParticipation(
-        organizationId,
-        propertyId,
-        managerId,
-      )
-      return participation ? membership : null
+      return accessible?.includes(propertyId) ? membership : null
     }),
   )
   return eligible.filter(

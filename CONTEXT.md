@@ -82,7 +82,7 @@ the presence of a route, table, or retained legacy module.
 | Term                             | Definition                                                                                                                          |
 | -------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | **Staff Participant**            | Manager-maintained person/business profile; the canonical model does not require a login.                                           |
-| **Staff Participation**          | Effective-dated relationship between a Staff Participant and a Property. It does not grant access.                                  |
+| **Staff Participation**          | Effective-dated relationship between a Staff Participant and a Property. It does not grant access or gate Property work.            |
 | **Portal Responsibility**        | Effective-dated Staff performance attribution to a Portal. Primary and supporting attribution never choose notification recipients. |
 | **Portal Responsible Manager**   | One of multiple eligible managers explicitly assigned to Portal workflow/notifications; the eligible creator is the default.        |
 | **Property Responsible Manager** | Explicit manager responsibility for Property-wide Google/import/sync/health workflow.                                               |

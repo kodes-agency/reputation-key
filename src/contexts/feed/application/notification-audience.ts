@@ -917,8 +917,8 @@ const resolvePropertyScopedAudience = (
 
 /**
  * Re-check delivery authority at worker execution time. A queued recipient is
- * a candidate, never a durable permission: responsibility, membership, access,
- * or participation may have changed since the originating event was handled.
+ * a candidate, never a durable permission: responsibility, membership, or
+ * access may have changed since the originating event was handled.
  */
 export const createNotificationAudienceAuthorizer =
   (deps: Deps): NotificationAudienceAuthorizer =>
