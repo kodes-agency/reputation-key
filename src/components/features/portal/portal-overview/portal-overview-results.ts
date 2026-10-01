@@ -150,6 +150,8 @@ export type OverviewResultsIndex = Readonly<{
   /** A Property's own subtotal, in its own window. */
   property: (propertyId: string) => GroupFigures | null
   strip: (propertyId: string) => OverviewStrip | null
+  /** How many Properties the read names; fewer than the list shows leaves some out of the total. */
+  propertiesRead: number
   /** The Organization's total: every Property's reading, added together. */
   total: () => OverviewStrip | null
   sortFigures: OrganizationSortFigures
@@ -195,8 +197,8 @@ function totalStripOf(
       {
         kpis: overview.total.kpis,
         thresholds,
-        // One shared zone says what its own readings say; mixed zones read as UTC.
-        timezone: zones.size === 1 && onlyZone ? onlyZone : 'UTC',
+        // One shared zone says what its own readings say; mixed zones name none.
+        timezone: zones.size === 1 && onlyZone ? onlyZone : null,
         localDays: days,
         funnel: overview.total.engagementFunnel,
       },
@@ -279,6 +281,7 @@ export function indexOverviewResults(
     ungrouped: (propertyId) => ungrouped.get(propertyId) ?? null,
     property: (propertyId) => subtotals.get(propertyId)?.figures ?? null,
     strip: (propertyId) => strips.get(propertyId) ?? null,
+    propertiesRead: overview.properties.length,
     total: () => totalStripOf(overview, thresholds),
     sortFigures: {
       portal: (portalId) => portals.get(portalId)?.row.kpis.scans.value ?? null,

@@ -33,6 +33,7 @@ import type {
 } from '../application/public-api'
 import { isDashboardError } from '../domain/dashboard-errors'
 import { assertDashboardPropertyAccessible } from './assert-property-access'
+import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-access'
 import { organizationRoster, readablePropertyIds } from './portal-results-roster'
 import { dashboardErrorStatus } from './dashboard-error-status'
 
@@ -107,16 +108,6 @@ async function readProperty(
   })
 }
 
-/** A refusal shaped like the D6-001 guard's: "not yours", as opposed to a failure. */
-function isForbidden(e: unknown): boolean {
-  return (
-    typeof e === 'object' &&
-    e !== null &&
-    (e as { _tag?: unknown })._tag === 'DashboardError' &&
-    (e as { code?: unknown }).code === 'forbidden'
-  )
-}
-
 async function readOrganization(request: OverviewRequest, ctx: AuthContext) {
   // The Organization-level answer first: a role or posture that cannot read
   // either surface at all is refused as one, before any Property is looked at.
@@ -147,34 +138,33 @@ async function readOrganization(request: OverviewRequest, ctx: AuthContext) {
         now: observedAt,
       })
     ).allowed
-  const assigned = async (id: string) => {
-    try {
-      await assertDashboardPropertyAccessible(identityPublicApi.people, ctx, id)
-      return true
-    } catch (e) {
-      if (isForbidden(e)) return false
-      throw e
-    }
-  }
-  const propertyIds = await readablePropertyIds(
-    await portalPublicApi.management.listPortalManagementPropertyIds(organizationId),
-    [allowed('portal.read'), allowed('dashboard.read'), assigned],
+  // D6-001: non-admin callers may only read their assigned Properties. Asked once
+  // for the whole Organization (null: an Organization-wide caller), then applied
+  // by membership, so no Property costs a lookup of its own.
+  const assignedIds = await getAccessiblePropertyIdsForPermission(
+    (orgId, userId, orgWide) =>
+      identityPublicApi.people.getAccessiblePropertyIds(orgId, userId, orgWide),
+    ctx,
+    'dashboard.read',
   )
+  const assigned = new Set<string>(assignedIds ?? [])
+  const inScope = (id: string): boolean => assignedIds === null || assigned.has(id)
+  const candidateIds = (
+    await portalPublicApi.management.listPortalManagementPropertyIds(organizationId)
+  ).filter(inScope)
+  const propertyIds = await readablePropertyIds(candidateIds, [
+    allowed('portal.read'),
+    allowed('dashboard.read'),
+  ])
   const rows = await portalPublicApi.management.listPortalOverview(
     { scope: 'organization', propertyIds },
     ctx,
   )
   const listed = [...new Set(rows.map((row) => row.propertyId as string))]
-  const zones = new Map(
-    await Promise.all(
-      listed.map(
-        async (id) =>
-          [
-            id,
-            await propertyPublicApi.getPropertyTimezone(organizationId, propertyId(id)),
-          ] as const,
-      ),
-    ),
+  const zones = new Map<string, string | null>(
+    (
+      await propertyPublicApi.getPropertyTimezones(organizationId, listed.map(propertyId))
+    ).map(({ id, timezone }) => [id, timezone]),
   )
   const { portals, properties } = organizationRoster(rows, zones)
   return await dashboardPublicApi.getPortalResultsOverview({

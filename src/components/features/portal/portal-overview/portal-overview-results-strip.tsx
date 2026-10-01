@@ -21,6 +21,7 @@ import { RESULTS_LABELS } from '../portal-analytics/portal-results-cells'
 import { PortalResultsStrip } from '../portal-analytics/portal-results-strip'
 import { PORTAL_OVERVIEW_RANGES } from '../portal-analytics/portal-results-window'
 import type { PortalOverviewResultsState } from './portal-overview-results'
+import { organizationScopeLine } from './portal-overview-strip-scope'
 
 /** What the route tells the page about the results: where they are, and the window. */
 export type PortalOverviewResultsControls = Readonly<{
@@ -36,6 +37,8 @@ type Props = Readonly<{
   controls: PortalOverviewResultsControls
   /** The Property the strip is for; null is the whole Organization. */
   propertyId: string | null
+  /** Organization strip: how many Properties the list shows, to say when the total has fewer. */
+  propertiesListed?: number
 }>
 
 const COLLAPSE_NOTE = 'collapsed properties stay collapsed for you'
@@ -46,8 +49,19 @@ function stripOf(state: PortalOverviewResultsState, propertyId: string | null) {
 }
 
 /** "1–30 Sep, Europe/Sofia time · all portals", or on the Organization's page "all properties". */
-function scopeLine(strip: ReturnType<typeof stripOf>, propertyId: string | null): string {
-  const everything = propertyId === null ? 'all properties' : 'all portals'
+function scopeLine(
+  state: PortalOverviewResultsState,
+  strip: ReturnType<typeof stripOf>,
+  propertyId: string | null,
+  propertiesListed: number | undefined,
+): string {
+  const everything =
+    propertyId === null
+      ? organizationScopeLine(
+          state.status === 'ready' ? state.index.propertiesRead : null,
+          propertiesListed,
+        )
+      : 'all portals'
   return strip?.caption ? `${strip.caption} · ${everything}` : everything
 }
 
@@ -84,7 +98,11 @@ function FailedStrip({ onRetry }: Readonly<{ onRetry: () => void }>) {
   )
 }
 
-export function PortalOverviewResultsStrip({ controls, propertyId }: Props) {
+export function PortalOverviewResultsStrip({
+  controls,
+  propertyId,
+  propertiesListed,
+}: Props) {
   const { state, timeRange, onTimeRangeChange, onRetry, busy = false } = controls
   if (state.status === 'off') return null
   const strip = stripOf(state, propertyId)
@@ -111,7 +129,9 @@ export function PortalOverviewResultsStrip({ controls, propertyId }: Props) {
             </SelectGroup>
           </SelectContent>
         </Select>
-        <p className="text-sm text-muted-foreground">{scopeLine(strip, propertyId)}</p>
+        <p className="text-sm text-muted-foreground">
+          {scopeLine(state, strip, propertyId, propertiesListed)}
+        </p>
       </div>
       {state.status === 'loading' ? <LoadingStrip /> : null}
       {state.status === 'failed' ? <FailedStrip onRetry={onRetry} /> : null}

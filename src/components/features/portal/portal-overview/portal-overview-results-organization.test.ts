@@ -5,7 +5,9 @@ import {
   HARBOR,
   allPropertiesResults,
 } from './portal-all-properties-fixtures'
+import { resultsEvidence } from '../portal-analytics/portal-results-stories-data'
 import { indexOverviewResults } from './portal-overview-results'
+import { organizationScopeLine } from './portal-overview-strip-scope'
 
 describe('indexOverviewResults over the whole Organization', () => {
   const index = indexOverviewResults(allPropertiesResults())
@@ -95,5 +97,75 @@ describe('indexOverviewResults over the whole Organization', () => {
     expect(empty.total()?.footer).toBe(
       'Each property’s local time · an average needs 5 private ratings',
     )
+  })
+
+  it('counts the Properties the read names, so the page can say when it is fewer than it lists', () => {
+    expect(index.propertiesRead).toBe(3)
+    expect(
+      indexOverviewResults({
+        ...allPropertiesResults(),
+        properties: allPropertiesResults().properties.slice(0, 2),
+      }).propertiesRead,
+    ).toBe(2)
+  })
+
+  describe('a not-ready line that names a time', () => {
+    // An average that cannot be shown although the readings are ready: its line
+    // would say "Data through <time> <zone>".
+    const withAverageNotShown = (sharedZone: boolean) => {
+      const base = allPropertiesResults()
+      return indexOverviewResults({
+        ...base,
+        properties: sharedZone
+          ? base.properties
+          : base.properties.map((row, index) =>
+              index === 1 ? { ...row, timezone: 'America/New_York' } : row,
+            ),
+        total: {
+          ...base.total,
+          kpis: {
+            ...base.total.kpis,
+            avgRating: {
+              value: null,
+              priorValue: null,
+              comparison: null,
+              sampleCount: 3,
+              priorSampleCount: 0,
+              evidence: resultsEvidence({ state: 'ready', sampleCount: 3 }),
+            },
+          },
+        },
+      })
+    }
+    const averageDetail = (index: ReturnType<typeof indexOverviewResults>) =>
+      index.total()?.cells.find((cell) => cell.key === 'average')?.detail
+
+    it('names the Property’s zone when every Property reads in it', () => {
+      expect(averageDetail(withAverageNotShown(true))).toMatch(/^Data through .+ GMT\+3$/)
+    })
+
+    it('names no zone when the Properties read in different ones, rather than UTC', () => {
+      const detail = averageDetail(withAverageNotShown(false))
+
+      expect(detail).toBeNull()
+    })
+  })
+
+  describe('organizationScopeLine', () => {
+    it('says "all properties" when the read names every Property the list shows', () => {
+      expect(organizationScopeLine(3, 3)).toBe('all properties')
+    })
+
+    it('says how many are in the total when the read leaves some out', () => {
+      expect(organizationScopeLine(2, 3)).toBe('2 of 3 properties')
+    })
+
+    it('says "all properties" until the results are here to count', () => {
+      expect(organizationScopeLine(null, 3)).toBe('all properties')
+    })
+
+    it('says "all properties" when it is not told how many the list shows', () => {
+      expect(organizationScopeLine(2, undefined)).toBe('all properties')
+    })
   })
 })

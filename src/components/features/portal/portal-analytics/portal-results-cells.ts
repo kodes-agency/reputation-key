@@ -51,7 +51,12 @@ type LocalDays = NonNullable<PortalAnalyticsData['localDays']>
 export type ResultsMeasuresInput = Readonly<{
   kpis: PortalKPIs
   thresholds: PortalResultsThresholds
-  timezone: string
+  /**
+   * The zone times are written in. Null where the readings are in several zones
+   * (the Organization's total): a time is then left unsaid, not given in a zone
+   * none of the Properties uses.
+   */
+  timezone: string | null
   /** The window and its comparison in local days; null for All Time. */
   localDays: LocalDays | null
   /**
@@ -101,11 +106,13 @@ function changeLine(kpi: Count, data: ResultsMeasuresInput, options: Options) {
 function notReadyLine(
   subject: MetricEvidenceSubject,
   evidence: PortalMetricEvidence,
-  timeZone: string,
+  timeZone: string | null,
 ): string | null {
   if (evidence.availabilityReason !== null) {
     return metricAvailabilityDetail(evidence.availabilityReason)
   }
+  // A ready reading's only line is the time it is current to.
+  if (timeZone === null && evidence.state === 'ready') return null
   return metricEvidenceLine(
     {
       subject,
@@ -114,7 +121,7 @@ function notReadyLine(
       reason: evidence.availabilityReason,
     },
     'en-US',
-    timeZone,
+    timeZone ?? undefined,
   )
 }
 
@@ -143,7 +150,7 @@ function countCell(
   subject: MetricEvidenceSubject,
   kpi: Count,
   detail: string | null,
-  timeZone: string,
+  timeZone: string | null,
 ): ResultsCell {
   if (kpi.value === null) {
     return {

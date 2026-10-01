@@ -67,6 +67,7 @@ const baseArgs = {
   newPortalProperties: allPropertiesProperties.map(({ id, name }) => ({ id, name })),
   members: allPropertiesMembers,
   organizationName: 'Avela Hospitality',
+  organizationWide: true,
   archiveMutation: action<{ data: { portalId: string; publicationState: 'archived' } }>(),
   restoreMutation: action<{ data: { portalId: string; publicationState: 'disabled' } }>(),
 }
@@ -178,6 +179,20 @@ export const PortalRowsKeepTheirOwnLinks: Story = {
       expect.stringMatching(/\/properties\/prop-harbor\/portals\/h-rooms/),
     )
     await expect(within(row).getByText('4.5')).toBeInTheDocument()
+  },
+}
+
+export const OnlyAPropertyHeadsItsWholeBody: Story = {
+  args: withResults,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    // A rowgroup header covers the whole `<tbody>`: the Property's head is one;
+    // its groups' heads (Harbor's "Front of house") head only their own row, so a
+    // cell is not also described by the name of another group in the Property.
+    const headerOf = (name: string) =>
+      canvas.getByRole('button', { name: `Portals in ${name}` }).closest('th')
+    await expect(headerOf('The Harbor Hotel')).toHaveAttribute('scope', 'rowgroup')
+    await expect(headerOf('Front of house')).toHaveAttribute('scope', 'row')
   },
 }
 

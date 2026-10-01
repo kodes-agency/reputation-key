@@ -8,10 +8,7 @@ import {
   allPropertiesResults,
   allPropertiesRows,
 } from './portal-all-properties-fixtures'
-import {
-  buildAllPropertiesOverview,
-  describeAllProperties,
-} from './portal-all-properties-view'
+import { buildAllPropertiesOverview } from './portal-all-properties-view'
 import { indexOverviewResults } from './portal-overview-results'
 import { overviewGroup, overviewRow } from './portal-overview-fixtures'
 import { propertyId } from '#/shared/domain/ids'
@@ -24,6 +21,7 @@ const build = (
     rows?: Parameters<typeof buildAllPropertiesOverview>[0]
     pageSize?: number
     withFigures?: boolean
+    folded?: readonly string[]
   } = {},
 ) =>
   buildAllPropertiesOverview(
@@ -33,6 +31,7 @@ const build = (
     allPropertiesMembers,
     options.pageSize ?? 20,
     options.withFigures === false ? undefined : figures,
+    options.folded,
   )
 
 const propertyNames = (page: ReturnType<typeof build>) =>
@@ -275,6 +274,60 @@ describe('buildAllPropertiesOverview', () => {
     it('clamps a page past the end to the last', () => {
       expect(build({ page: 99 }, { pageSize: 8 }).page).toBe(2)
     })
+
+    describe('with folded Properties', () => {
+      it('does not count a folded Property’s Portals toward a page, but keeps its head', () => {
+        const first = build({}, { pageSize: 8, folded: [FORMA] })
+        const second = build({ page: 2 }, { pageSize: 8, folded: [FORMA] })
+
+        // 6 Avela + 3 Harbor are listed; Forma's 2 are not, but its head still falls
+        // between them in the order.
+        expect(first.listed).toBe(9)
+        expect(first.matched).toBe(11)
+        expect(first.lastPage).toBe(2)
+        expect(propertyNames(first)).toEqual([
+          'Avela Resort',
+          'Forma Kitchen',
+          'The Harbor Hotel',
+        ])
+        expect(portalNames(first)[1]).toEqual([])
+        expect(portalNames(first)[2]).toHaveLength(2)
+        expect(propertyNames(second)).toEqual(['The Harbor Hotel'])
+        expect([first.from, first.to]).toEqual([1, 8])
+        expect([second.from, second.to]).toEqual([9, 9])
+      })
+
+      it('puts a folded Property’s head on the page where its Portals would have started', () => {
+        const first = build({}, { pageSize: 4, folded: [AVELA] })
+        const second = build({ page: 2 }, { pageSize: 4, folded: [AVELA] })
+
+        expect(first.listed).toBe(5)
+        expect(propertyNames(first)).toEqual([
+          'Avela Resort',
+          'Forma Kitchen',
+          'The Harbor Hotel',
+        ])
+        expect(portalNames(first).flat()).toHaveLength(4)
+        expect(propertyNames(second)).toEqual(['The Harbor Hotel'])
+      })
+
+      it('shows every head on one page when every Property is folded', () => {
+        const page = build({}, { pageSize: 4, folded: [AVELA, FORMA, HARBOR] })
+
+        expect(propertyNames(page)).toHaveLength(3)
+        expect(portalNames(page).flat()).toEqual([])
+        expect([page.listed, page.lastPage, page.from, page.to]).toEqual([0, 1, 0, 0])
+        expect(page.matched).toBe(11)
+      })
+
+      it('counts only the listed Portals of the search’s matches', () => {
+        const page = build({ q: 'bar' }, { folded: [AVELA] })
+
+        expect(propertyNames(page)).toEqual(['Avela Resort', 'The Harbor Hotel'])
+        expect(page.listed).toBe(1)
+        expect(page.matched).toBe(2)
+      })
+    })
   })
 
   it('answers an Organization with no Portals', () => {
@@ -290,40 +343,5 @@ describe('buildAllPropertiesOverview', () => {
 
     expect(page.properties).toHaveLength(1)
     expect(page.properties[0]?.name).toBe('Another property')
-  })
-})
-
-describe('describeAllProperties', () => {
-  it('says how many Properties and Portals the Organization has, as board 10 does', () => {
-    expect(
-      describeAllProperties(
-        { properties: 3, portals: 11, known: 3 },
-        'Avela Hospitality',
-      ),
-    ).toBe('All 3 properties in Avela Hospitality · 11 portals')
-  })
-
-  it('does not say "all" when the reader sees only some of the Properties', () => {
-    expect(
-      describeAllProperties({ properties: 2, portals: 8, known: 5 }, 'Avela Hospitality'),
-    ).toBe('2 properties in Avela Hospitality · 8 portals')
-  })
-
-  it('says one in the singular', () => {
-    expect(
-      describeAllProperties({ properties: 1, portals: 1, known: 1 }, 'Avela Hospitality'),
-    ).toBe('1 property in Avela Hospitality · 1 portal')
-  })
-
-  it('names no Organization it was not given', () => {
-    expect(
-      describeAllProperties({ properties: 2, portals: 4, known: 2 }, undefined),
-    ).toBe('All 2 properties · 4 portals')
-  })
-
-  it('has nothing to say with no Portals', () => {
-    expect(
-      describeAllProperties({ properties: 0, portals: 0, known: 2 }, 'Avela'),
-    ).toBeUndefined()
   })
 })

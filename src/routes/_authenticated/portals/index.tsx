@@ -23,7 +23,7 @@ import {
 } from '#/components/features/portal/portal-overview/portal-overview-results'
 import { useOverviewRange } from '#/components/features/portal/portal-overview/use-overview-range'
 import {
-  PortalListError,
+  PortalAllPropertiesError,
   PortalListLoading,
 } from '#/components/features/portal/portal-route-fallbacks'
 import { partitionWorkspaceProperties } from '#/components/features/property/property-workspace'
@@ -73,7 +73,7 @@ export const Route = createFileRoute('/_authenticated/portals/')({
     await context.queryClient.ensureQueryData(organizationOverviewQuery)
   },
   pendingComponent: PortalListLoading,
-  errorComponent: PortalListError,
+  errorComponent: PortalAllPropertiesError,
   component: AllPropertiesRoute,
 })
 
@@ -81,7 +81,7 @@ function AllPropertiesRoute() {
   const search = Route.useSearch()
   const navigate = Route.useNavigate()
   const ctx = authRoute.useRouteContext() as AuthRouteContext
-  const { can: canDo } = usePermissions()
+  const { can: canDo, scopeForPermission } = usePermissions()
   const { data: overviewData } = useSuspenseQuery(organizationOverviewQuery)
   const { data: propsData } = useSuspenseQuery(propertiesQuery)
   // Names for the responsible managers' discs. An enrichment, not the page: a
@@ -134,6 +134,7 @@ function AllPropertiesRoute() {
         name: member.name,
       }))}
       organizationName={ctx.activeOrganization?.name}
+      organizationWide={scopeForPermission('property.read') === 'organization'}
       results={
         resultsState.status === 'off'
           ? undefined

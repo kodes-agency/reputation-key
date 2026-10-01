@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   listPortalOverview: vi.fn(),
   listPortalManagementPropertyIds: vi.fn(),
   getPropertyTimezone: vi.fn(),
+  getPropertyTimezones: vi.fn(),
+  getAccessiblePropertyIds: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
   decide: vi.fn(),
@@ -34,8 +36,13 @@ vi.mock('#/composition', () => ({
         listPortalManagementPropertyIds: mocks.listPortalManagementPropertyIds,
       },
     },
-    propertyPublicApi: { getPropertyTimezone: mocks.getPropertyTimezone },
-    identityPublicApi: { people: {} },
+    propertyPublicApi: {
+      getPropertyTimezone: mocks.getPropertyTimezone,
+      getPropertyTimezones: mocks.getPropertyTimezones,
+    },
+    identityPublicApi: {
+      people: { getAccessiblePropertyIds: mocks.getAccessiblePropertyIds },
+    },
     clock: () => NOW,
   }),
 }))
@@ -134,7 +141,7 @@ describe('getPortalResultsOverviewFn', () => {
       propertyId: PROPERTY_ID,
     })
     expect(mocks.assertDashboardPropertyAccessible).toHaveBeenCalledWith(
-      {},
+      expect.anything(),
       ctx,
       PROPERTY_ID,
     )
@@ -262,12 +269,17 @@ describe('getPortalResultsOverviewFn', () => {
       propertyId,
     })
 
+    const zonesOf =
+      (zoneOf: (propertyId: string) => string | null) =>
+      async (_org: string, ids: readonly string[]) =>
+        ids.map((id) => ({ id, timezone: zoneOf(id) }))
+
     beforeEach(() => {
       mocks.listPortalManagementPropertyIds.mockResolvedValue([PROPERTY_ID, PROPERTY_B])
       mocks.decide.mockResolvedValue({ allowed: true })
-      mocks.getPropertyTimezone.mockImplementation(
-        async (_org: string, propertyId: string) =>
-          propertyId === PROPERTY_ID ? 'Europe/Sofia' : 'America/New_York',
+      mocks.getAccessiblePropertyIds.mockResolvedValue([PROPERTY_ID, PROPERTY_B])
+      mocks.getPropertyTimezones.mockImplementation(
+        zonesOf((id) => (id === PROPERTY_ID ? 'Europe/Sofia' : 'America/New_York')),
       )
       mocks.listPortalOverview.mockResolvedValue([
         rowAt(PORTAL_A, PROPERTY_ID, GROUP_ID),
@@ -337,7 +349,7 @@ describe('getPortalResultsOverviewFn', () => {
       expect(mocks.getPortalResultsOverview).not.toHaveBeenCalled()
     })
 
-    it('leaves out a Property either Portal or dashboard policy refuses', async () => {
+    it('leaves out a Property dashboard policy refuses', async () => {
       mocks.decide.mockImplementation(
         async (request: { action: string; propertyId: string }) => ({
           allowed: !(
@@ -356,19 +368,19 @@ describe('getPortalResultsOverviewFn', () => {
         expect.objectContaining({
           action: 'portal.read',
           capability: 'portal.read',
-          propertyId: PROPERTY_B,
+          propertyId: PROPERTY_ID,
           organizationId: ORG_ID,
         }),
       )
     })
 
-    it('leaves out a Property the caller is not assigned to (D6-001)', async () => {
-      mocks.assertDashboardPropertyAccessible.mockImplementation(
-        async (_people: unknown, _ctx: unknown, propertyId: string) => {
-          if (propertyId === PROPERTY_B) {
-            throw { _tag: 'DashboardError', code: 'forbidden', message: 'Not assigned' }
-          }
-        },
+    it('leaves out a Property Portal policy refuses, although dashboard policy allows it', async () => {
+      mocks.decide.mockImplementation(
+        async (request: { action: string; propertyId: string }) => ({
+          allowed: !(
+            request.action === 'portal.read' && request.propertyId === PROPERTY_B
+          ),
+        }),
       )
 
       await readOrganization()
@@ -377,19 +389,71 @@ describe('getPortalResultsOverviewFn', () => {
         { scope: 'organization', propertyIds: [PROPERTY_ID] },
         ctx,
       )
+      expect(mocks.decide).toHaveBeenCalledWith(
+        expect.objectContaining({ action: 'dashboard.read', propertyId: PROPERTY_B }),
+      )
+    })
+
+    it('leaves out a Property the caller is not assigned to (D6-001), without asking policy about it', async () => {
+      mocks.getAccessiblePropertyIds.mockResolvedValue([PROPERTY_ID])
+
+      await readOrganization()
+
+      expect(mocks.listPortalOverview).toHaveBeenCalledWith(
+        { scope: 'organization', propertyIds: [PROPERTY_ID] },
+        ctx,
+      )
+      const asked = (mocks.decide.mock.calls as Array<[{ propertyId: string }]>).map(
+        ([request]) => request.propertyId,
+      )
+      expect(asked).not.toContain(PROPERTY_B)
+    })
+
+    it('looks up the caller’s assigned Properties once, not once per Property', async () => {
+      await readOrganization()
+
+      expect(mocks.getAccessiblePropertyIds).toHaveBeenCalledTimes(1)
+      expect(mocks.getAccessiblePropertyIds).toHaveBeenCalledWith(
+        ORG_ID,
+        'manager-1',
+        false,
+      )
+      expect(mocks.assertDashboardPropertyAccessible).not.toHaveBeenCalled()
+    })
+
+    it('does not look anyone’s assignments up for an Organization-wide role', async () => {
+      mocks.resolveTenantContext.mockResolvedValue({ ...ctx, role: 'AccountAdmin' })
+
+      await readOrganization()
+
+      expect(mocks.getAccessiblePropertyIds).not.toHaveBeenCalled()
+      expect(mocks.listPortalOverview).toHaveBeenCalledWith(
+        { scope: 'organization', propertyIds: [PROPERTY_ID, PROPERTY_B] },
+        expect.anything(),
+      )
     })
 
     it('does not hide a real failure behind a missing Property', async () => {
-      mocks.assertDashboardPropertyAccessible.mockRejectedValue(new Error('db down'))
+      mocks.getAccessiblePropertyIds.mockRejectedValue(new Error('db down'))
 
       await expect(readOrganization()).rejects.toBeDefined()
       expect(mocks.getPortalResultsOverview).not.toHaveBeenCalled()
     })
 
+    it('reads the time zones of the listed Properties in one lookup', async () => {
+      await readOrganization()
+
+      expect(mocks.getPropertyTimezones).toHaveBeenCalledTimes(1)
+      expect(mocks.getPropertyTimezones).toHaveBeenCalledWith(ORG_ID, [
+        PROPERTY_ID,
+        PROPERTY_B,
+      ])
+      expect(mocks.getPropertyTimezone).not.toHaveBeenCalled()
+    })
+
     it('leaves out the Portals of a Property with no time zone', async () => {
-      mocks.getPropertyTimezone.mockImplementation(
-        async (_org: string, propertyId: string) =>
-          propertyId === PROPERTY_ID ? 'Europe/Sofia' : null,
+      mocks.getPropertyTimezones.mockImplementation(
+        zonesOf((id) => (id === PROPERTY_ID ? 'Europe/Sofia' : null)),
       )
 
       await readOrganization()

@@ -103,6 +103,16 @@ export type PropertyPublicApi = Readonly<{
   ) => Promise<ReadonlyArray<{ id: string; name: string | null }>>
 
   /**
+   * The IANA time zone of each of several properties, in one read. A property that
+   * does not exist (or is deleted) is absent from the answer. Used by the
+   * Organization-wide Portals results, which read each Property in its own days.
+   */
+  getPropertyTimezones: (
+    orgId: OrganizationId,
+    propertyIds: ReadonlyArray<PropertyId>,
+  ) => Promise<ReadonlyArray<{ id: string; timezone: string }>>
+
+  /**
    * Find a non-deleted property by its Google Business Profile location ID.
    * Used by the integration context for GBP webhook handling (push-based,
    * no organizationId available at call time).

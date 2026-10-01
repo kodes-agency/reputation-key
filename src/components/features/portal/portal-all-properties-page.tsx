@@ -54,6 +54,8 @@ export type PortalAllPropertiesPageProps = PortalArchiveMutations &
     /** Names for the responsible managers; without them a disc has no initials. */
     members?: readonly PortalManagerName[]
     organizationName?: string
+    /** The reader's Property access is the whole Organization, not an assignment. */
+    organizationWide: boolean
     /** The results beside the list; left out, the list is shown without them. */
     results?: PortalOverviewResultsControls
     search: AllPropertiesSearch
@@ -66,6 +68,7 @@ export function PortalAllPropertiesPage({
   newPortalProperties,
   members = [],
   organizationName,
+  organizationWide,
   results,
   search,
   onSearchChange,
@@ -86,6 +89,7 @@ export function PortalAllPropertiesPage({
     members,
     PORTAL_OVERVIEW_PAGE_SIZE,
     resultsState.status === 'ready' ? resultsState.index.sortFigures : undefined,
+    collapsed,
   )
   const update = (patch: Partial<AllPropertiesSearch>) =>
     onSearchChange(portalOverviewSearchPatch(search, patch))
@@ -100,6 +104,7 @@ export function PortalAllPropertiesPage({
             properties: overview.propertyCount,
             portals: overview.total,
             known: properties.length,
+            organizationWide,
           },
           organizationName,
         )}
@@ -117,7 +122,11 @@ export function PortalAllPropertiesPage({
       ) : (
         <>
           {results ? (
-            <PortalOverviewResultsStrip controls={results} propertyId={null} />
+            <PortalOverviewResultsStrip
+              controls={results}
+              propertyId={null}
+              propertiesListed={overview.propertyCount}
+            />
           ) : null}
           <section aria-label="All portals, by property" className="flex flex-col gap-4">
             <PortalOverviewToolbar
@@ -150,8 +159,9 @@ export function PortalAllPropertiesPage({
                   archiveMutation={archiveMutation}
                   restoreMutation={restoreMutation}
                 />
+                {/* A folded Property's Portals are not on any page: count what is. */}
                 <PortalOverviewPager
-                  overview={overview}
+                  overview={{ ...overview, matched: overview.listed }}
                   onPage={(page) => update({ page })}
                 />
                 {results ? (

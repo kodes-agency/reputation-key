@@ -46,7 +46,9 @@ export function PortalOverviewGroupHead({
       )}
     >
       <TableHead
-        scope="rowgroup"
+        // Under a Property's head the Property is the rowgroup header; a group's own
+        // head covers only its row, not the Portals of the groups beside it.
+        scope={nested ? 'row' : 'rowgroup'}
         colSpan={figures.kind === 'off' ? PORTAL_OVERVIEW_COLUMNS : 1}
         className={cn(
           'block h-auto p-0 text-left font-normal @4xl:table-cell @4xl:px-2 @4xl:py-2',

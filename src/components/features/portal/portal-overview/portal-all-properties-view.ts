@@ -51,11 +51,17 @@ export type AllPropertiesPage = Readonly<{
   propertyCount: number
   /** Every Portal, before the search. */
   total: number
-  /** The Portals the search keeps, on every page. */
+  /** The Portals the search keeps, on every page, folded Properties included. */
   matched: number
+  /**
+   * The Portals the pages are cut from: `matched`, less those of folded
+   * Properties. A folded Property keeps its head but adds nothing to a page, so
+   * folding never leaves a page of heads with no row under them.
+   */
+  listed: number
   page: number
   lastPage: number
-  /** 1-based position of the first and last Portal on this page; 0 when none. */
+  /** 1-based position of the first and last listed Portal on this page; 0 when none. */
   from: number
   to: number
 }>
@@ -91,6 +97,8 @@ export function buildAllPropertiesOverview(
   pageSize: number = PORTAL_OVERVIEW_PAGE_SIZE,
   /** What the results say each row counted, for the scans sort; none until they arrive. */
   figures?: OrganizationSortFigures,
+  /** The Properties the reader folded: their heads page with the rest, their Portals do not. */
+  folded: readonly string[] = [],
 ): AllPropertiesPage {
   const sort = search.sort ?? DEFAULT_PORTAL_OVERVIEW_SORT
   const dir = search.dir ?? defaultSortDirection(sort)
@@ -132,13 +140,35 @@ export function buildAllPropertiesOverview(
   })
 
   const ordered = [...built].sort(compareProperties(sort, dir, figures))
-  const everyItem = ordered.flatMap((property) => itemsOf(property.sections))
+  const isFolded = (propertyId: string): boolean => folded.includes(propertyId)
+  const everyItem = ordered.flatMap((property) =>
+    isFolded(property.propertyId) ? [] : itemsOf(property.sections),
+  )
   const lastPage = Math.max(1, Math.ceil(everyItem.length / pageSize))
   const page = clamp(search.page ?? 1, 1, lastPage)
   const start = (page - 1) * pageSize
   const onPage = new Set(everyItem.slice(start, start + pageSize))
 
-  const shown = ordered.flatMap(({ pressing: _pressing, ...property }) => {
+  // A folded Property sits where its Portals would have started: on the page of
+  // the next listed Portal, or the last page when none follows.
+  const listedBefore = ordered.map((_, index) =>
+    ordered
+      .slice(0, index)
+      .reduce(
+        (sum, property) =>
+          sum + (isFolded(property.propertyId) ? 0 : itemsOf(property.sections).length),
+        0,
+      ),
+  )
+  const shown = ordered.flatMap(({ pressing: _pressing, ...property }, index) => {
+    if (isFolded(property.propertyId)) {
+      const headPage = clamp(
+        Math.floor((listedBefore[index] ?? 0) / pageSize) + 1,
+        1,
+        lastPage,
+      )
+      return headPage === page ? [{ ...property, sections: [] }] : []
+    }
     const sections = property.sections.flatMap((section): PortalOverviewSection[] => {
       const items = section.items.filter((item) => onPage.has(item))
       return items.length === 0 ? [] : [{ ...section, items }]
@@ -150,7 +180,8 @@ export function buildAllPropertiesOverview(
     properties: shown,
     propertyCount: byProperty.size,
     total: rows.length,
-    matched: everyItem.length,
+    matched: built.reduce((sum, property) => sum + property.matchedCount, 0),
+    listed: everyItem.length,
     page,
     lastPage,
     from: onPage.size === 0 ? 0 : start + 1,
@@ -163,15 +194,25 @@ const plural = (count: number, one: string, many: string): string =>
 
 /**
  * The page's one line under its title: "All 3 properties in Avela Hospitality · 11
- * portals". "All" only where the reader sees every Property there is.
+ * portals". "All" only where the reader's property access is Organization-wide
+ * and every Property has Portals: a Property Manager assigned some Properties
+ * lists only those, so for them "all" would be about an Organization they do
+ * not see whole.
  */
 export function describeAllProperties(
-  counts: Readonly<{ properties: number; portals: number; known: number }>,
+  counts: Readonly<{
+    properties: number
+    portals: number
+    known: number
+    /** The reader's `property.read` scope is the whole Organization. */
+    organizationWide: boolean
+  }>,
   organizationName: string | undefined,
 ): string | undefined {
   if (counts.portals === 0) return undefined
   const properties = plural(counts.properties, 'property', 'properties')
-  const all = counts.properties > 1 && counts.properties === counts.known
+  const all =
+    counts.organizationWide && counts.properties > 1 && counts.properties === counts.known
   const scope = all ? `All ${properties}` : properties
   const where = organizationName ? ` in ${organizationName}` : ''
   return `${scope}${where} · ${plural(counts.portals, 'portal', 'portals')}`
