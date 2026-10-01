@@ -15,7 +15,7 @@ import {
   type PreviewStateId,
 } from '../portal-preview/portal-preview-states'
 import { PreviewGuestPage } from '../portal-preview/preview-guest-page'
-import { describeStatesSummary } from './portal-review-languages'
+import { describeStatesSummary } from './portal-review-states'
 import type { ReviewPreviewView } from './review-preview'
 import type { ReviewPreviewData } from './use-review-preview'
 

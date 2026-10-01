@@ -31,6 +31,23 @@ import {
 export type ReviewFixTarget =
   Readonly<{ tab: 'page'; section: PortalEditorSection }> | Readonly<{ tab: 'share' }>
 
+/**
+ * Who can put a check right. A Portal's own checks are the responsible
+ * managers' to fix; the Property-level gates (its Google link, its availability,
+ * its time zone) need the Property's settings, which a manager of one Portal may
+ * not be allowed to change, so they are left to an account admin.
+ */
+export type ReviewFixer = 'portal_managers' | 'account_admin'
+
+const PROPERTY_LEVEL_CODES: ReadonlySet<ReviewCheck['code']> = new Set([
+  'property_available',
+  'google_destination',
+  'time_zone',
+])
+
+const fixerOf = (code: ReviewCheck['code']): ReviewFixer =>
+  PROPERTY_LEVEL_CODES.has(code) ? 'account_admin' : 'portal_managers'
+
 export type ReviewCheckLine = Readonly<{
   id: string
   status: ReviewCheck['status']
@@ -39,6 +56,8 @@ export type ReviewCheckLine = Readonly<{
   /** Said after a warning: it does not stop the publication. */
   note: string | null
   fix: ReviewFixTarget | null
+  /** Who can put it right; null for a check that passed. */
+  fixer: ReviewFixer | null
 }>
 
 export type ReviewCheckContext = Readonly<{
@@ -215,6 +234,7 @@ export function describeReviewCheck(
       detail: null,
       note: null,
       fix: null,
+      fixer: null,
     }
   }
   const found =
@@ -225,6 +245,7 @@ export function describeReviewCheck(
     id,
     status: check.status,
     ...found,
+    fixer: fixerOf(check.code),
     note: check.status === 'warning' ? CAN_PUBLISH_NOTE : null,
   }
 }
@@ -272,6 +293,21 @@ export function describeWhoCanFix(
       : `${names.slice(0, -1).join(', ')} or ${last}`
   }
   return `${names.slice(0, NAMED_PEOPLE).join(', ')} or ${names.length - NAMED_PEOPLE} more`
+}
+
+/**
+ * The line under a finding about who can fix it: the responsible managers for a
+ * Portal's own checks (nothing when none is known), an account admin for a
+ * Property-level gate, and nothing for a check that passed.
+ */
+export function describeFixerLine(
+  fixer: ReviewFixer | null,
+  whoCanFix: string | null,
+): string | null {
+  if (fixer === 'account_admin') return 'An account admin can fix this'
+  if (fixer === 'portal_managers' && whoCanFix !== null)
+    return `Who can fix: ${whoCanFix}`
+  return null
 }
 
 /** The link that opens a fix: its words, and the route search that gets there. */

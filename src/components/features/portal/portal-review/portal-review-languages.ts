@@ -37,7 +37,3 @@ export function describeReviewLanguage(row: ReviewLanguageRow): ReviewLanguageLi
         : `${row.aiDraftCount} AI ${row.aiDraftCount === 1 ? 'draft' : 'drafts'} not checked`,
   }
 }
-
-/** The line beside "See every guest state". */
-export const describeStatesSummary = (languageCount: number): string =>
-  `Arrival, after each rating and done · in ${languageCount} ${languageCount === 1 ? 'language' : 'languages'}`

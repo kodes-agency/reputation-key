@@ -92,6 +92,9 @@ export const LiveWithChanges: Story = {
     await expect(canvas.getByText(/^German guests see /)).toBeVisible()
     await expect(canvas.getByText('You can publish without it.')).toBeVisible()
     await expect(canvas.getByText('Who can fix: you or Georgi Ivanov')).toBeVisible()
+    // No AI translate control on the warning (owner decision 3).
+    await expect(canvas.queryByRole('button', { name: /translate|\bAI\b/i })).toBeNull()
+    await expect(canvas.queryByRole('link', { name: /translate|\bAI\b/i })).toBeNull()
     await expect(canvas.getByText(/7 checks passed/)).toBeVisible()
     // Every language, with its own coverage.
     await expect(canvas.getByText('13 of 14 · 1 missing')).toBeVisible()
@@ -218,7 +221,7 @@ export const PassedChecksOpen: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.queryByText('The address works')).toBeNull()
-    const toggle = canvas.getByRole('button', { name: 'Show' })
+    const toggle = canvas.getByRole('button', { name: 'Show passed checks' })
     await userEvent.click(toggle)
     await expect(toggle).toHaveAttribute('aria-expanded', 'true')
     await expect(canvas.getByText('The address works')).toBeVisible()

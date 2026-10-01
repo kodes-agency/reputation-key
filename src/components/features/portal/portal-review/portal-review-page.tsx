@@ -129,7 +129,7 @@ export function PortalReviewPage({
           onPublish={onPublish}
         />
       </div>
-      <aside className="min-w-0 flex-1 border-t bg-muted/20 px-4 py-5 md:px-8 lg:sticky lg:top-0 lg:max-h-dvh lg:self-start lg:overflow-y-auto lg:border-t-0">
+      <aside className="min-w-0 flex-1 border-t bg-muted/20 px-4 py-5 md:px-8 lg:sticky lg:top-0 lg:max-h-full lg:self-start lg:overflow-y-auto lg:border-t-0">
         <ReviewPreview
           data={preview}
           view={view}

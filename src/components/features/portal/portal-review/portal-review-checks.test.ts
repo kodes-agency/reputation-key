@@ -4,7 +4,11 @@ import type {
   ReviewCheck,
 } from '#/contexts/portal/application/public-api'
 import { phraseText } from '../portal-history/portal-history-phrase'
-import { describeReviewCheck, summarizePassedChecks } from './portal-review-checks'
+import {
+  describeFixerLine,
+  describeReviewCheck,
+  summarizePassedChecks,
+} from './portal-review-checks'
 
 const check = (over: Partial<ReviewCheck> & Pick<ReviewCheck, 'code' | 'status'>) =>
   ({ locale: null, keys: [], ...over }) satisfies ReviewCheck
@@ -234,5 +238,62 @@ describe('warnings point at the Languages section, where the gaps are listed', (
         check({ code: 'copied_text', status: 'warning', locale: 'de', keys: ['title'] }),
       ).fix,
     ).toEqual({ tab: 'page', section: 'languages' })
+  })
+})
+
+describe('who fixes a check', () => {
+  const fixerOf = (
+    code: ReviewCheck['code'],
+    status: ReviewCheck['status'] = 'blocked',
+  ) =>
+    describeReviewCheck(check({ code, status, locale: 'de', keys: ['title'] }), {
+      missing: [],
+      fallbackLocale: 'en',
+    }).fixer
+
+  it('leaves the portal-level checks to the portal’s managers', () => {
+    for (const code of [
+      'responsible_manager',
+      'public_address',
+      'primary_text',
+      'language_packs',
+    ] as const) {
+      expect(fixerOf(code)).toBe('portal_managers')
+    }
+    expect(fixerOf('copied_text', 'warning')).toBe('portal_managers')
+  })
+
+  it('leaves the property-level gates to an account admin, whoever manages the portal', () => {
+    for (const code of [
+      'google_destination',
+      'property_available',
+      'time_zone',
+    ] as const) {
+      expect(fixerOf(code)).toBe('account_admin')
+    }
+  })
+
+  it('has no fixer for a check that passed', () => {
+    expect(fixerOf('google_destination', 'passed')).toBeNull()
+  })
+})
+
+describe('describeFixerLine', () => {
+  it('names the responsible managers for a portal-level check', () => {
+    expect(describeFixerLine('portal_managers', 'you or Georgi Ivanov')).toBe(
+      'Who can fix: you or Georgi Ivanov',
+    )
+    expect(describeFixerLine('portal_managers', null)).toBeNull()
+  })
+
+  it('never names the portal’s managers for a property-level gate', () => {
+    expect(describeFixerLine('account_admin', 'you or Georgi Ivanov')).toBe(
+      'An account admin can fix this',
+    )
+    expect(describeFixerLine('account_admin', null)).toBe('An account admin can fix this')
+  })
+
+  it('says nothing for a check that passed', () => {
+    expect(describeFixerLine(null, 'you')).toBeNull()
   })
 })

@@ -16,6 +16,7 @@ import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { PhraseView } from '../portal-history/portal-phrase-view'
 import {
   describeFixLink,
+  describeFixerLine,
   describeReviewCheck,
   summarizePassedChecks,
   type ReviewCheckLine,
@@ -84,6 +85,7 @@ function Finding({
   const isBlocked = line.status === 'blocked'
   const Icon = isBlocked ? OctagonAlert : CircleAlert
   const fix = line.fix === null ? null : describeFixLink(line.fix)
+  const fixerLine = describeFixerLine(line.fixer, whoCanFix)
   return (
     <li
       className={cn(
@@ -113,8 +115,8 @@ function Finding({
           </p>
         )}
         {line.note === null ? null : <p className="font-medium">{line.note}</p>}
-        {whoCanFix === null ? null : (
-          <p className="text-xs text-muted-foreground">Who can fix: {whoCanFix}</p>
+        {fixerLine === null ? null : (
+          <p className="text-xs text-muted-foreground">{fixerLine}</p>
         )}
       </div>
       {fix === null ? null : (
@@ -148,6 +150,7 @@ function PassedChecks({ passed }: Readonly<{ passed: readonly ReviewCheckLine[] 
           type="button"
           variant="link"
           size="sm"
+          aria-label={isOpen ? 'Hide passed checks' : 'Show passed checks'}
           aria-expanded={isOpen}
           aria-controls="review-passed-checks"
           onClick={() => setIsOpen((open) => !open)}

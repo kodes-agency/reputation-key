@@ -3,16 +3,17 @@
 // who cannot update the portal is sent back to the editor rather than shown a
 // page whose only action the server would refuse.
 import { createFileRoute, notFound, redirect, useNavigate } from '@tanstack/react-router'
-import { useSuspenseQuery } from '@tanstack/react-query'
+import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
+import { portalKeys } from '#/shared/queries/query-keys'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
 import { getPortalPreview } from '#/contexts/portal/server/portal-preview'
 import { PortalReviewPage } from '#/components/features/portal/portal-review/portal-review-page'
-import { describePublishOutcome } from '#/components/features/portal/portal-review/portal-review-footer'
+import { publishReview } from '#/components/features/portal/portal-review/portal-review-publish'
 import { resolveFixPeople } from '#/components/features/portal/portal-review/portal-review-checks'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import {
@@ -43,6 +44,9 @@ export const Route = createFileRoute(
     }
   },
   // Fetched afresh on every entry: a review of stale facts is worse than none.
+  // A link preloaded on hover is not reused (`preloadStaleTime: 0`), or a click
+  // within the router's 30 s preload window would skip this loader.
+  preloadStaleTime: 0,
   loader: async ({ params, context }) => {
     await context.queryClient.fetchQuery({
       ...portalReviewQuery(params.portalId),
@@ -57,6 +61,7 @@ function PortalWorkspaceReview() {
   const { tab, section } = Route.useSearch()
   const { user } = Route.useRouteContext()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const { data: portalData } = useSuspenseQuery(portalQuery(portalId))
   const { data: review } = useSuspenseQuery(portalReviewQuery(portalId))
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
@@ -71,26 +76,24 @@ function PortalWorkspaceReview() {
   const goLive = actions.autosaveUpdate
   const isPublishing = actions.publishChanges.isPending || goLive.isPending
 
-  // A portal that is live replaces its live version; one that is not goes live.
-  // Either way the answer is reported here, and the manager returns to editing.
-  const publish = async () => {
-    try {
-      if (review.action === 'publish_changes') {
-        const result = await actions.publishChanges({ data: { portalId } })
-        toast.success(describePublishOutcome(result))
-      } else {
-        await goLive({ data: { portalId, publicationState: 'published' } })
-        toast.success(describePublishOutcome(null))
-      }
-      await navigate({
-        to: '/properties/$propertyId/portals/$portalId',
-        params: { propertyId, portalId },
-        search: { tab, section },
-      })
-    } catch (error) {
-      toast.error(actionErrorMessage(error))
-    }
-  }
+  // The write and what it says live in publishReview; this only wires it up.
+  const publish = () =>
+    publishReview({
+      review,
+      portalId,
+      publishChanges: actions.publishChanges,
+      goLive,
+      notify: toast,
+      leave: () =>
+        navigate({
+          to: '/properties/$propertyId/portals/$portalId',
+          params: { propertyId, portalId },
+          search: { tab, section },
+        }),
+      refreshReview: () =>
+        queryClient.invalidateQueries({ queryKey: portalKeys.review(portalId) }),
+      errorMessage: actionErrorMessage,
+    })
 
   return (
     <PortalReviewPage

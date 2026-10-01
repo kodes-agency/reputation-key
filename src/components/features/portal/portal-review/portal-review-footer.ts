@@ -64,11 +64,10 @@ export function describeReviewFooter(facts: ReviewFooterFacts): ReviewFooterView
   return { ...shared, primary: null, hint: 'You can’t publish this portal.' }
 }
 
-/** The toast after a publication; null is a portal's first one, which has no version in its answer. */
+/** The toast after a publication: which version is live, or that nothing changed. */
 export function describePublishOutcome(
-  result: Readonly<{ outcome: 'published' | 'unchanged'; version: number }> | null,
+  result: Readonly<{ outcome: 'published' | 'unchanged'; version: number }>,
 ): string {
-  if (result === null) return 'The portal is published'
   return result.outcome === 'published'
     ? `Version ${result.version} is live`
     : `Nothing to publish. Version ${result.version} is already live.`

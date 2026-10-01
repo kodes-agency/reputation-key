@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { ReviewLanguageRow } from '#/contexts/portal/application/public-api'
-import { describeReviewLanguage, describeStatesSummary } from './portal-review-languages'
+import { describeReviewLanguage } from './portal-review-languages'
 
 const row = (over: Partial<ReviewLanguageRow> = {}): ReviewLanguageRow => ({
   locale: 'es',
@@ -61,17 +61,6 @@ describe('describeReviewLanguage', () => {
     )
     expect(describeReviewLanguage(row({ aiDraftCount: 2 })).aiDrafts).toBe(
       '2 AI drafts not checked',
-    )
-  })
-})
-
-describe('describeStatesSummary', () => {
-  it('says how many languages the states are drawn in', () => {
-    expect(describeStatesSummary(4)).toBe(
-      'Arrival, after each rating and done · in 4 languages',
-    )
-    expect(describeStatesSummary(1)).toBe(
-      'Arrival, after each rating and done · in 1 language',
     )
   })
 })

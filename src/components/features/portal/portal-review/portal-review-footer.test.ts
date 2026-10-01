@@ -104,7 +104,9 @@ describe('describePublishOutcome', () => {
     )
   })
 
-  it('says the portal is live after its first publication', () => {
-    expect(describePublishOutcome(null)).toBe('The portal is published')
+  it('names the version a first publication makes live', () => {
+    expect(describePublishOutcome({ outcome: 'published', version: 1 })).toBe(
+      'Version 1 is live',
+    )
   })
 })
