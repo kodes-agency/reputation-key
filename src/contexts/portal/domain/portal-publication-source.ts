@@ -268,7 +268,13 @@ function linksOf(
   }))
 }
 
-function brandProfileOf(source: PortalPublicationSource): ImmersiveBrandProfile {
+/**
+ * The look a page is drawn in, from the working copy: the Property's colours
+ * (or the default look when it has none yet), its name and its images. Publish
+ * reads it, and so does the print kit, which is why it is exported: a printed
+ * card and the page it opens must agree on the field and the accent.
+ */
+export function brandProfileOf(source: PortalPublicationSource): ImmersiveBrandProfile {
   const { look } = source
   if (!look) {
     return {
