@@ -45,9 +45,10 @@ at Organization scope).
 
 The PropertyManager permission table matches. Only an AccountAdmin invites,
 cancels or resends invitations, creates members, and edits Organization
-settings, response targets included, which the server already required; a
-PropertyManager holds `member.list` and nothing else about members,
-invitations or the Organization, and keeps it because Inbox assignment and
-Responsible managers read the member list. The Members page reads only what the
+settings, response targets and the logo included (`identity.logo_upload` is
+the AccountAdmin's alone, since finalizing a logo writes through the same
+Organization update); a PropertyManager holds `member.list` and nothing else
+about members, invitations or the Organization, and keeps it because Inbox
+assignment and Responsible managers read the member list. The Members page reads only what the
 viewer's role may read, so a PropertyManager's page issues no invitation or
 grant read.
