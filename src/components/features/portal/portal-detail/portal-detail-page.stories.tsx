@@ -146,6 +146,7 @@ const tokenStatus: PortalTokenStatus = {
   issuedAt: null,
   graceExpiresAt: null,
   addressRecoverable: false,
+  madeBy: null,
 }
 
 // Empty analytics payload — exercises the "no data" rendering path of the

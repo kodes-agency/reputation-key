@@ -66,6 +66,7 @@ type Sources = Readonly<{
     gracePeriodEnds: Date | null
     hasPublishedAccessArtifact: boolean
     addressKeyVersion: number | null
+    issuedBy: string | null
   }[]
 }>
 
@@ -139,6 +140,7 @@ describe('listPortalOverview', () => {
           gracePeriodEnds: null,
           hasPublishedAccessArtifact: true,
           addressKeyVersion: null,
+          issuedBy: null,
         },
       ],
     })
@@ -166,6 +168,7 @@ describe('listPortalOverview', () => {
           issuedAt: ISSUED_AT.toISOString(),
           graceExpiresAt: null,
           addressRecoverable: false,
+          madeBy: null,
         },
       },
     ])

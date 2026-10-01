@@ -42,6 +42,7 @@ const noActiveToken: PortalTokenStatus = {
   issuedAt: null,
   graceExpiresAt: null,
   addressRecoverable: false,
+  madeBy: null,
 }
 
 // What the Share tab sees after a reload: a live token whose URL is gone.
@@ -52,6 +53,7 @@ const activeToken: PortalTokenStatus = {
   issuedAt: '2026-08-12T09:30:00.000Z',
   graceExpiresAt: null,
   addressRecoverable: false,
+  madeBy: null,
 }
 
 const issueAction = (

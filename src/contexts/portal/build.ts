@@ -368,6 +368,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalRepo,
       portalTokenRepo,
       staffPublicApi: deps.staffPublicApi,
+      actorDirectory: portalActorDirectory,
       addressCipher: portalAddressCipher,
       clock: deps.clock,
     }),

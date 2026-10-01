@@ -222,6 +222,26 @@ describe('portal token repository', () => {
     ).toBe('portal_tokens_portal_tenant_fk')
   })
 
+  it('reports who made the live code, and nobody for a code that recorded no maker', async () => {
+    const repo = createPortalTokenRepository(getDb())
+    await repo.insert(makeToken())
+    await expect(
+      repo.findResolvableSummaryForPortal(ORG, PORTAL, NOW),
+    ).resolves.toMatchObject({ issuedBy: null })
+
+    await pool.query('UPDATE portal_tokens SET issued_by = $1 WHERE portal_id = $2', [
+      'user-georgi',
+      PORTAL,
+    ])
+
+    await expect(
+      repo.findResolvableSummaryForPortal(ORG, PORTAL, NOW),
+    ).resolves.toMatchObject({ issuedBy: 'user-georgi' })
+    await expect(
+      repo.findResolvableSummariesForPortals(ORG, [PORTAL], NOW),
+    ).resolves.toMatchObject([{ portalId: PORTAL, issuedBy: 'user-georgi' }])
+  })
+
   // C2: the management token-status projection must agree with public token
   // resolution about what "live" means, state for state.
   it('summarises the portal token across its lifecycle', async () => {
@@ -240,6 +260,7 @@ describe('portal token repository', () => {
       gracePeriodEnds: null,
       hasPublishedAccessArtifact: false,
       addressKeyVersion: null,
+      issuedBy: null,
     })
 
     const rotation = rotateToken(
@@ -299,6 +320,7 @@ describe('portal token repository', () => {
       gracePeriodEnds: rotation.oldToken.gracePeriodEnds,
       hasPublishedAccessArtifact: false,
       addressKeyVersion: null,
+      issuedBy: null,
     })
     await expect(
       repo.findResolvableSummaryForPortal(ORG, PORTAL, new Date(NOW.getTime() + 60_001)),

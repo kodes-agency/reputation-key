@@ -11,6 +11,7 @@ const WORKING_CODE: PortalOverviewRow['token'] = {
   issuedAt: '2026-09-01T09:00:00.000Z',
   graceExpiresAt: null,
   addressRecoverable: false,
+  madeBy: null,
 }
 
 export const NO_CODE: PortalOverviewRow['token'] = {
@@ -20,6 +21,7 @@ export const NO_CODE: PortalOverviewRow['token'] = {
   issuedAt: null,
   graceExpiresAt: null,
   addressRecoverable: false,
+  madeBy: null,
 }
 
 export const overviewGroup = (id: string, name: string) => ({
