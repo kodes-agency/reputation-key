@@ -1,5 +1,6 @@
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 import type { HistoryBound } from '../../domain/portal-history'
+import type { PortalPageEditKind } from '../../domain/portal-page-edit'
 
 /** One read of one source: rows strictly before `bound`, newest first. */
 export type PortalHistoryPage = Readonly<{
@@ -45,6 +46,25 @@ export type PortalCodeDownloadRow = Readonly<{
   downloadedAt: Date
 }>
 
+/** One row of the page-edit ledger: who changed which part of the page, what it said, and when. */
+export type PortalPageEditRow = Readonly<{
+  editId: string
+  kind: PortalPageEditKind
+  /** The part of the page and what was done to it; `describePageEdit` reads it. */
+  key: string
+  /** Null for the system (an automatic name, a failed destination check). */
+  actorUserId: string | null
+  occurredAt: Date
+  /** The row belongs to the whole Property, not to this Portal alone. */
+  propertyWide: boolean
+  /** Wording before the change; only for a change of wording, and the first save's when several folded. */
+  previousText: string | null
+  /** Wording after the change; the latest save's when several folded. */
+  newText: string | null
+  /** How many saves this row stands for (saves of one part by one person fold together). */
+  editCount: number
+}>
+
 /**
  * The Portal's own History sources. Health history comes from
  * `PortalHealthRepository.listHistory`; every read is scoped to one
@@ -75,4 +95,16 @@ export type PortalHistoryRepository = Readonly<{
     portalId: PortalId,
     page: PortalHistoryPage,
   ) => Promise<readonly PortalCodeRevocationRow[]>
+  /**
+   * Page edits of this Portal plus Property-wide edits made since `since`
+   * (the Portal's creation: a look changed before the page existed is not its
+   * history).
+   */
+  listPageEdits: (
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+    portalId: PortalId,
+    page: PortalHistoryPage,
+    since: Date,
+  ) => Promise<readonly PortalPageEditRow[]>
 }>

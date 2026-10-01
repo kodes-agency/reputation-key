@@ -5,10 +5,17 @@
 // change per thing that actually changed, under a structured key a change list
 // can read back: `link:<id>:text:<locale>`, `linktree:title:<locale>` and
 // `linktree:enabled`. The kind is `portal_links`, so no CHECK had to change.
+// The same key names the page-edit ledger row; a text or a title that changed
+// also keeps its wording before and after there.
 
 import { and, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
-import { portalLinks, portalLocalizedOverrides, portals } from '#/shared/db/schema'
+import {
+  portalLinks,
+  portalLinkTexts,
+  portalLocalizedOverrides,
+  portals,
+} from '#/shared/db/schema'
 import { unbrand } from '#/shared/domain/ids'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
@@ -18,6 +25,7 @@ import type {
   SavePortalLinktreeSettingsCommand,
 } from '../application/ports/portal-command-store.port'
 import { portalError } from '../domain/errors'
+import { portalPageEditKey } from '../domain/portal-page-edit'
 import { fencePortalContent } from './portal-aggregate-fence'
 import { assertPortalContentCommand, contentScope } from './portal-content-command-guards'
 import {
@@ -25,7 +33,7 @@ import {
   readPortalLocales,
   upsertLinkTexts,
 } from './portal-link-texts-store'
-import { recordPortalPendingContentChange } from './portal-pending-content-changes'
+import { recordPortalContentChange } from './portal-page-edits'
 
 export type PortalLinktreeCommandStore = Pick<
   PortalCommandStore,
@@ -37,18 +45,24 @@ type Changes = Readonly<{
   command: SavePortalLinktreeSettingsCommand
 }>
 
+/** The wording of one text before and after; null when the save changed none. */
+type Wording = Readonly<{ previousText: string | null; newText: string | null }>
+
 function recordPending(
   tx: Tx,
   command: SavePortalLinkTextsCommand | SavePortalLinktreeSettingsCommand,
   key: string,
   sourceVersion: string,
+  wording: Wording | null = null,
 ): Promise<number> {
-  return recordPortalPendingContentChange(tx, {
+  return recordPortalContentChange(tx, {
     ...contentScope(command),
     kind: 'portal_links',
     key,
+    ledger: [{ key, ...wording }],
     sourceVersion,
     changedAt: command.occurredAt,
+    actorUserId: unbrand(command.actorUserId),
   })
 }
 
@@ -68,6 +82,27 @@ async function saveEnabled({ tx, command }: Changes, enabled: boolean): Promise<
     )
     .returning({ id: portals.id })
   return changed.length > 0
+}
+
+/** The stored title of one language, before it is written; null when it has none. */
+async function readTitle(
+  { tx, command }: Changes,
+  locale: string,
+): Promise<string | null> {
+  const scope = contentScope(command)
+  const [row] = await tx
+    .select({ title: portalLocalizedOverrides.linktreeTitle })
+    .from(portalLocalizedOverrides)
+    .where(
+      and(
+        eq(portalLocalizedOverrides.organizationId, scope.organizationId),
+        eq(portalLocalizedOverrides.propertyId, scope.propertyId),
+        eq(portalLocalizedOverrides.portalId, scope.portalId),
+        eq(portalLocalizedOverrides.locale, locale),
+      ),
+    )
+    .limit(1)
+  return row?.title ?? null
 }
 
 /** Set or reset one language's title; true when the stored title actually changed. */
@@ -151,6 +186,25 @@ async function saveTitle(
   return removed.length > 0
 }
 
+/** The label of each language a link has a text in, before a save. */
+async function readLabels(
+  tx: Tx,
+  scope: ReturnType<typeof contentScope>,
+  linkId: string,
+): Promise<ReadonlyMap<string, string>> {
+  const rows = await tx
+    .select({ locale: portalLinkTexts.locale, label: portalLinkTexts.label })
+    .from(portalLinkTexts)
+    .where(
+      and(
+        eq(portalLinkTexts.organizationId, scope.organizationId),
+        eq(portalLinkTexts.portalId, scope.portalId),
+        eq(portalLinkTexts.linkId, linkId),
+      ),
+    )
+  return new Map(rows.map((row) => [row.locale, row.label]))
+}
+
 export const createPortalLinktreeCommands = (
   db: Database,
 ): PortalLinktreeCommandStore => ({
@@ -185,6 +239,7 @@ export const createPortalLinktreeCommands = (
           actorUserId: unbrand(command.actorUserId),
           at: command.occurredAt,
         }
+        const labelsBefore = await readLabels(tx, scope, linkId)
         const changed = await upsertLinkTexts(
           tx,
           { ...scope, linkId },
@@ -206,7 +261,16 @@ export const createPortalLinktreeCommands = (
             )
         }
         for (const { locale, version } of changed) {
-          await recordPending(tx, command, `link:${linkId}:text:${locale}`, `v${version}`)
+          const previousText = labelsBefore.get(locale) ?? null
+          const newText =
+            command.texts.find((text) => text.locale === locale)?.label ?? null
+          await recordPending(
+            tx,
+            command,
+            portalPageEditKey.linkText(linkId, locale),
+            `v${version}`,
+            previousText === newText ? null : { previousText, newText },
+          )
         }
         await insertOutboxRow(tx, command.event, { recordedAt: command.occurredAt })
       })
@@ -229,11 +293,18 @@ export const createPortalLinktreeCommands = (
           command.enabled !== undefined &&
           (await saveEnabled(changes, command.enabled))
         ) {
-          await recordPending(tx, command, 'linktree:enabled', revision)
+          await recordPending(tx, command, portalPageEditKey.linktreeEnabled(), revision)
         }
         for (const title of titles) {
+          const previousText = await readTitle(changes, title.locale)
           if (await saveTitle(changes, title)) {
-            await recordPending(tx, command, `linktree:title:${title.locale}`, revision)
+            await recordPending(
+              tx,
+              command,
+              portalPageEditKey.linktreeTitle(title.locale),
+              revision,
+              { previousText, newText: title.title },
+            )
           }
         }
         await insertOutboxRow(tx, command.event, { recordedAt: command.occurredAt })

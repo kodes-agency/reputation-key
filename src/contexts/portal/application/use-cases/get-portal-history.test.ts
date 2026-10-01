@@ -12,6 +12,7 @@ import type {
   PortalCodeIssuanceRow,
   PortalCodeRevocationRow,
   PortalHistoryRepository,
+  PortalPageEditRow,
   PortalPublicationEventRow,
 } from '../ports/portal-history.repository'
 import type { PortalHealthRepository } from '../ports/portal-health.repository'
@@ -42,6 +43,7 @@ type Seed = Readonly<{
   issuances?: readonly PortalCodeIssuanceRow[]
   downloads?: readonly PortalCodeDownloadRow[]
   revocations?: readonly PortalCodeRevocationRow[]
+  pageEdits?: readonly PortalPageEditRow[]
   health?: readonly Pick<
     PortalHealthInterval,
     'id' | 'status' | 'reason' | 'effectiveFrom'
@@ -81,6 +83,15 @@ function setup(seed: Seed = {}) {
       newestFirst(
         (seed.revocations ?? []).filter((row) => passes(page.bound, row.revokedAt, null)),
         (row) => row.revokedAt,
+      ).slice(0, page.limit),
+    ),
+    listPageEdits: vi.fn(async (_o, _p, _pt, page, since) =>
+      newestFirst(
+        (seed.pageEdits ?? []).filter(
+          (row) =>
+            row.occurredAt >= since && passes(page.bound, row.occurredAt, row.editId),
+        ),
+        (row) => row.occurredAt,
       ).slice(0, page.limit),
     ),
   } satisfies PortalHistoryRepository
@@ -155,6 +166,23 @@ const download = (
   downloadedBy: 'publisher',
   purpose,
   downloadedAt,
+})
+
+const pageEdit = (
+  n: number,
+  minutes: number,
+  over: Partial<PortalPageEditRow> = {},
+): PortalPageEditRow => ({
+  editId: `00000000-0000-4000-8000-00000000010${n}`,
+  kind: 'portal_links',
+  key: 'all',
+  actorUserId: 'editor',
+  occurredAt: at(minutes),
+  propertyWide: false,
+  previousText: null,
+  newText: null,
+  editCount: 1,
+  ...over,
 })
 
 describe('getPortalHistory', () => {
@@ -397,6 +425,7 @@ describe('getPortalHistory', () => {
         { revokedAt: tie, revokedBy: 'publisher', reason: 'a' },
         { revokedAt: at(4), revokedBy: 'publisher', reason: 'b' },
       ],
+      pageEdits: [pageEdit(1, 30), pageEdit(2, 30), pageEdit(3, 7)],
     }
     const { useCase } = setup(seed)
     const everything = await useCase({ portalId: portal.id, limit: 50 }, ctx)
@@ -437,7 +466,88 @@ describe('getPortalHistory', () => {
     expect(historyRepo.listCodeIssuances).not.toHaveBeenCalled()
     expect(historyRepo.listCodeRevocations).not.toHaveBeenCalled()
     expect(historyRepo.listCodeDownloads).not.toHaveBeenCalled()
+    expect(historyRepo.listPageEdits).not.toHaveBeenCalled()
     expect(healthRepo.listHistory).toHaveBeenCalledTimes(1)
+  })
+
+  it('names what each page edit touched and who did it', async () => {
+    const { useCase } = setup({
+      pageEdits: [
+        pageEdit(1, 20, {
+          kind: 'portal_links',
+          key: 'link:3f0c2a0e-1111-4222-8333-444455556666:updated',
+          previousText: 'Dinner menu',
+          newText: 'Olive Terrace menu',
+          editCount: 3,
+        }),
+        pageEdit(2, 10, {
+          kind: 'property_brand_profile',
+          key: 'look:accent',
+          propertyWide: true,
+          actorUserId: null,
+        }),
+      ],
+      names: { editor: 'Elena Petrova' },
+    })
+
+    const result = await useCase({ portalId: portal.id, filter: 'edits' }, ctx)
+
+    expect(
+      result.entries.map((entry) => [entry.key, entry.category, entry.detail]),
+    ).toEqual([
+      [
+        'edit:00000000-0000-4000-8000-000000000101',
+        'edits',
+        {
+          kind: 'page_edited',
+          subject: {
+            area: 'link',
+            linkId: '3f0c2a0e-1111-4222-8333-444455556666',
+            change: 'updated',
+          },
+          propertyWide: false,
+          previousText: 'Dinner menu',
+          newText: 'Olive Terrace menu',
+          editCount: 3,
+        },
+      ],
+      [
+        'edit:00000000-0000-4000-8000-000000000102',
+        'edits',
+        {
+          kind: 'page_edited',
+          subject: { area: 'look', facet: 'accent' },
+          propertyWide: true,
+          previousText: null,
+          newText: null,
+          editCount: 1,
+        },
+      ],
+    ])
+    expect(result.entries[0]?.actor).toEqual({
+      userId: 'editor',
+      displayName: 'Elena Petrova',
+    })
+    expect(result.entries[1]?.actor).toBeNull()
+  })
+
+  it('reads the ledger only on the All and Page edits tabs, and never before the page existed', async () => {
+    const { useCase, historyRepo } = setup({ pageEdits: [pageEdit(1, 5)] })
+
+    const all = await useCase({ portalId: portal.id }, ctx)
+    expect(all.entries.map((entry) => entry.category)).toContain('edits')
+    expect(historyRepo.listPageEdits).toHaveBeenCalledWith(
+      ctx.organizationId,
+      propertyId(portal.propertyId),
+      portalId(portal.id),
+      { bound: null, limit: 21 },
+      portal.createdAt,
+    )
+
+    historyRepo.listPageEdits.mockClear()
+    await useCase({ portalId: portal.id, filter: 'codes' }, ctx)
+    await useCase({ portalId: portal.id, filter: 'publishing' }, ctx)
+    expect(historyRepo.listPageEdits).not.toHaveBeenCalled()
   })
 
   it('shows creation on the publishing tab and not on the codes tab', async () => {

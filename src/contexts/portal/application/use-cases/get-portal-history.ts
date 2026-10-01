@@ -3,8 +3,8 @@
 // One newest-first timeline for a Portal: its creation, every publish and
 // restore, every change of health and every public-address event, each with
 // the person who did it when one was recorded, including who made an address
-// and who downloaded it again. Page edits (who changed the wording or links)
-// arrive with the page-edit ledger in slice 35b.
+// and who downloaded it again, and every page edit (which part of the page
+// changed and who changed it) from the page-edit ledger.
 //
 // Each source is read with its own "strictly before the cursor" bound and
 // limit + 1 rows; the merge keeps the newest `limit`. Authorization is the
@@ -32,6 +32,7 @@ import {
   type PortalHistoryFilter,
   type PortalHistoryRecord,
 } from '../../domain/portal-history'
+import { describePageEdit } from '../../domain/portal-page-edit'
 import type { Portal } from '../../domain/types'
 
 const DEFAULT_HISTORY_PAGE_SIZE = 20
@@ -109,7 +110,8 @@ export const getPortalHistory =
       limit: take,
     })
 
-    const [publications, issuances, downloads, revocations, health] = await Promise.all([
+    const [publications, issuances, downloads, revocations, health, edits] =
+      await Promise.all([
       categories.has('publishing')
         ? deps.historyRepo.listPublicationEvents(
             organizationId,
@@ -149,6 +151,15 @@ export const getPortalHistory =
             portal.id,
             take,
             historyBoundFor(HISTORY_KEY_PREFIX.health, position),
+          )
+        : [],
+      categories.has('edits')
+        ? deps.historyRepo.listPageEdits(
+            organizationId,
+            propertyId,
+            portal.id,
+            page(HISTORY_KEY_PREFIX.edit),
+            portal.createdAt,
           )
         : [],
     ])
@@ -192,6 +203,20 @@ export const getPortalHistory =
         category: 'health',
         actorUserId: null,
         detail: { kind: 'health_changed', status: row.status, reason: row.reason },
+      })),
+      ...edits.map((row): PortalHistoryRecord => ({
+        key: `${HISTORY_KEY_PREFIX.edit}${row.editId}`,
+        at: row.occurredAt,
+        category: 'edits',
+        actorUserId: row.actorUserId,
+        detail: {
+          kind: 'page_edited',
+          subject: describePageEdit(row.kind, row.key),
+          propertyWide: row.propertyWide,
+          previousText: row.previousText,
+          newText: row.newText,
+          editCount: row.editCount,
+        },
       })),
     ]
 

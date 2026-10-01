@@ -105,6 +105,7 @@ const { getPool } = setupIntegrationDb({
     'portal_tokens',
     'portal_responsible_managers',
     'outbox_events',
+    'portal_page_edits',
     'portals',
     'properties',
   ],
@@ -292,6 +293,17 @@ beforeEach(async () => {
   )
 })
 
+const pageEditRows = async () =>
+  (
+    await getPool().query(
+      `SELECT portal_id::text AS portal_id, change_kind, change_key, actor_user_id, occurred_at,
+              previous_text, new_text, edit_count
+         FROM portal_page_edits WHERE organization_id = $1
+        ORDER BY occurred_at, change_kind, change_key`,
+      [ORG_A],
+    )
+  ).rows
+
 describe.sequential('Portal command store (real PostgreSQL)', () => {
   it('creates Portal state, initial responsibility, and both lifecycle facts atomically', async () => {
     const portal = makePortal({ responsibilityNeededSince: CREATED_AT })
@@ -466,6 +478,113 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
         activation_sequence: 1,
         deactivated_at: null,
       },
+    ])
+    // A name changed in the same command that publishes it is still an edit of
+    // the page, made by that person; publishing itself adds no entry.
+    expect(await pageEditRows()).toEqual([
+      {
+        portal_id: PORTAL_A,
+        change_kind: 'portal_configuration',
+        change_key: 'settings:name',
+        actor_user_id: MANAGER,
+        occurred_at: UPDATED_AT,
+        previous_text: 'Reception',
+        new_text: 'Reception Gateway',
+        edit_count: 1,
+      },
+    ])
+  })
+
+  it('records who edited the working copy in the page-edit ledger, draft or published', async () => {
+    const portal = makePortal({ publicationState: 'draft' })
+    const store = createAtomicPortalCommandStore(getDb())
+    await store.createPortal({
+      organizationId: ORG_A,
+      portal,
+      initialResponsibleManagerId: MANAGER,
+      event: createdFact(portal),
+    })
+
+    await store.updatePortal({
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      portalId: portal.id,
+      actorUserId: MANAGER,
+      expectedUpdatedAt: CREATED_AT,
+      revision: UPDATED_AT,
+      occurredAt: UPDATED_AT,
+      patch: { name: 'Reception Gateway' },
+      event: portalUpdated({
+        portalId: portal.id,
+        organizationId: portal.organizationId,
+        propertyId: portal.propertyId,
+        previousPublicationState: 'draft',
+        publicationState: 'draft',
+        sourceAggregateVersion: UPDATED_AT.toISOString(),
+        occurredAt: UPDATED_AT,
+      }),
+    })
+
+    expect(await pageEditRows()).toEqual([
+      {
+        portal_id: PORTAL_A,
+        change_kind: 'portal_configuration',
+        change_key: 'settings:name',
+        actor_user_id: MANAGER,
+        occurred_at: UPDATED_AT,
+        previous_text: 'Reception',
+        new_text: 'Reception Gateway',
+        edit_count: 1,
+      },
+    ])
+  })
+
+  it('names each setting that changed, keeps wording only for the name and description, and skips what stayed', async () => {
+    const portal = makePortal({ publicationState: 'draft' })
+    const store = createAtomicPortalCommandStore(getDb())
+    await store.createPortal({
+      organizationId: ORG_A,
+      portal,
+      initialResponsibleManagerId: MANAGER,
+      event: createdFact(portal),
+    })
+
+    await store.updatePortal({
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      portalId: portal.id,
+      actorUserId: MANAGER,
+      expectedUpdatedAt: CREATED_AT,
+      revision: UPDATED_AT,
+      occurredAt: UPDATED_AT,
+      // The name is sent again unchanged, as an autosave of the whole form does.
+      patch: {
+        name: portal.name,
+        description: 'Scan to tell us how your stay was',
+        slug: 'reception-desk',
+        privateFeedbackThreshold: 2,
+      },
+      event: portalUpdated({
+        portalId: portal.id,
+        organizationId: portal.organizationId,
+        propertyId: portal.propertyId,
+        previousPublicationState: 'draft',
+        publicationState: 'draft',
+        sourceAggregateVersion: UPDATED_AT.toISOString(),
+        occurredAt: UPDATED_AT,
+      }),
+    })
+
+    expect(
+      (await pageEditRows()).map((row) => [
+        row.change_key,
+        row.previous_text,
+        row.new_text,
+      ]),
+    ).toEqual([
+      ['settings:description', null, 'Scan to tell us how your stay was'],
+      ['settings:feedback_threshold', null, null],
+      ['settings:slug', null, null],
     ])
   })
 
@@ -981,6 +1100,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
 
       const content = store.createPortalLinkCategory({
         organizationId: ORG_A,
+        actorUserId: MANAGER,
         propertyId: PROPERTY_A,
         portalId: PORTAL_A,
         expectedPortalUpdatedAt: CREATED_AT,
@@ -1595,6 +1715,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await expect(
       store.createPortalLinkCategory({
         organizationId: ORG_A,
+        actorUserId: MANAGER,
         propertyId: PROPERTY_A,
         portalId: PORTAL_A,
         expectedPortalUpdatedAt: CREATED_AT,
@@ -1954,6 +2075,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     })
     await store.createPortalLinkCategory({
       organizationId: ORG_A,
+      actorUserId: MANAGER,
       propertyId: PROPERTY_A,
       portalId: PORTAL_A,
       expectedPortalUpdatedAt: CREATED_AT,
@@ -2006,6 +2128,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     })
     await store.reorderPortalLinkCategories({
       organizationId: ORG_A,
+      actorUserId: MANAGER,
       propertyId: PROPERTY_A,
       portalId: PORTAL_A,
       expectedPortalUpdatedAt: linkAt,
@@ -2024,6 +2147,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     })
     await store.reorderPortalLinks({
       organizationId: ORG_A,
+      actorUserId: MANAGER,
       propertyId: PROPERTY_A,
       portalId: PORTAL_A,
       expectedPortalUpdatedAt: categoryReorderAt,
@@ -2063,6 +2187,22 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       expect(fact.payload).not.toHaveProperty('label')
       expect(fact.payload).not.toHaveProperty('url')
     }
+    // Each of the four commands names who made it and what it did to which
+    // category or link, in the order they ran; a reorder carries no wording.
+    expect(
+      (await pageEditRows()).map((row) => [
+        row.change_kind,
+        row.change_key,
+        row.actor_user_id,
+        row.previous_text,
+        row.new_text,
+      ]),
+    ).toEqual([
+      ['portal_links', `category:${category.id}:created`, MANAGER, null, 'Local guides'],
+      ['portal_links', `link:${link.id}:created`, MANAGER, null, 'City guide'],
+      ['portal_links', 'categories:reordered', MANAGER, null, null],
+      ['portal_links', `links:${category.id}:reordered`, MANAGER, null, null],
+    ])
   })
 
   it('commits link/category update and delete state with identifier-only facts and Portal CAS', async () => {
@@ -2087,6 +2227,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     }
     await store.createPortalLinkCategory({
       organizationId: ORG_A,
+      actorUserId: MANAGER,
       propertyId: PROPERTY_A,
       portalId: PORTAL_A,
       expectedPortalUpdatedAt: CREATED_AT,
@@ -2141,6 +2282,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     const categoryOccurredAt = new Date(CREATED_AT.getTime() + 1)
     await store.updatePortalLinkCategory({
       organizationId: ORG_A,
+      actorUserId: MANAGER,
       propertyId: PROPERTY_A,
       portalId: PORTAL_A,
       expectedPortalUpdatedAt: linkRevision,
@@ -2202,6 +2344,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await expect(
       store.deletePortalLink({
         organizationId: ORG_A,
+        actorUserId: MANAGER,
         propertyId: PROPERTY_A,
         portalId: PORTAL_A,
         expectedPortalUpdatedAt: linkUpdateRevision,
@@ -2224,6 +2367,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     })
     await store.deletePortalLink({
       organizationId: ORG_A,
+      actorUserId: MANAGER,
       propertyId: PROPERTY_A,
       portalId: PORTAL_A,
       expectedPortalUpdatedAt: linkUpdateRevision,
@@ -2245,6 +2389,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     })
     await store.deletePortalLinkCategory({
       organizationId: ORG_A,
+      actorUserId: MANAGER,
       propertyId: PROPERTY_A,
       portalId: PORTAL_A,
       expectedPortalUpdatedAt: deleteLinkRevision,
@@ -2300,6 +2445,23 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       [failedDelete.eventId],
     )
     expect(failedFact.rows).toHaveLength(0)
+    // The refused delete left no ledger row; every command that landed names
+    // its category or link and the verb, with the wording that went away or came in.
+    expect(
+      (await pageEditRows()).map((row) => [
+        row.change_key,
+        row.actor_user_id,
+        row.previous_text,
+        row.new_text,
+      ]),
+    ).toEqual([
+      [`category:${category.id}:created`, MANAGER, null, 'Local guides'],
+      [`category:${category.id}:deleted`, MANAGER, 'Updated guides', null],
+      [`link:${link.id}:created`, MANAGER, null, 'City guide'],
+      [`link:${link.id}:deleted`, MANAGER, 'Updated city guide', null],
+      [`category:${category.id}:renamed`, MANAGER, 'Local guides', 'Updated guides'],
+      [`link:${link.id}:updated`, MANAGER, 'City guide', 'Updated city guide'],
+    ])
   })
 
   it('does not let delayed workflow facts restore a stale Portal command revision', async () => {
@@ -2326,6 +2488,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     }
     await store.createPortalLinkCategory({
       organizationId: ORG_A,
+      actorUserId: MANAGER,
       propertyId: PROPERTY_A,
       portalId: PORTAL_A,
       expectedPortalUpdatedAt: CREATED_AT,
@@ -2344,6 +2507,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
 
     await store.reorderPortalLinkCategories({
       organizationId: ORG_A,
+      actorUserId: MANAGER,
       propertyId: PROPERTY_A,
       portalId: PORTAL_A,
       expectedPortalUpdatedAt: categoryAt,
@@ -2388,6 +2552,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await expect(
       store.reorderPortalLinkCategories({
         organizationId: ORG_A,
+        actorUserId: MANAGER,
         propertyId: PROPERTY_A,
         portalId: PORTAL_A,
         expectedPortalUpdatedAt: categoryAt,

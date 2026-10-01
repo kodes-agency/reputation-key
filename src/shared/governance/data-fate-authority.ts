@@ -507,6 +507,7 @@ export const DATA_FATE_AUTHORITY = Object.freeze([
   ...rows({
     schemaFile: 'portal-publication.schema.ts',
     exportNames: [
+      'portalPageEdits',
       'portalPendingContentChanges',
       'portalPublicationActivations',
       'portalPublicationSnapshots',

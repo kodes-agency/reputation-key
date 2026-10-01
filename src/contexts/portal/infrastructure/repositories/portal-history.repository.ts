@@ -1,6 +1,7 @@
-import { and, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
+  portalPageEdits,
   portalPublicationActivations,
   portalPublicationSnapshots,
 } from '#/shared/db/schema/portal-publication.schema'
@@ -13,8 +14,10 @@ import type {
   PortalCodeRevocationRow,
   PortalHistoryPage,
   PortalHistoryRepository,
+  PortalPageEditRow,
   PortalPublicationEventRow,
 } from '../../application/ports/portal-history.repository'
+import { PORTAL_PAGE_EDIT_KINDS } from '../../domain/portal-page-edit'
 import { historyBoundCondition, historyIdOrder } from '../portal-history-bound'
 
 const MAX_SOURCE_ROWS = 100
@@ -173,5 +176,58 @@ export const createPortalHistoryRepository = (db: Database): PortalHistoryReposi
       return rows.flatMap((row): PortalCodeRevocationRow[] =>
         row.revokedAt === null ? [] : [{ ...row, revokedAt: row.revokedAt }],
       )
+    }),
+
+  listPageEdits: (orgId, propertyIdValue, portalIdValue, page, since) =>
+    trace('portalHistory.listPageEdits', async () => {
+      const e = portalPageEdits
+      const idText = sql`${e.id}::text`
+      const rows = await db
+        .select({
+          editId: e.id,
+          kind: e.changeKind,
+          key: e.changeKey,
+          actorUserId: e.actorUserId,
+          occurredAt: e.occurredAt,
+          portalId: e.portalId,
+          previousText: e.previousText,
+          newText: e.newText,
+          editCount: e.editCount,
+        })
+        .from(e)
+        .where(
+          and(
+            eq(e.organizationId, unbrand(orgId)),
+            eq(e.propertyId, unbrand(propertyIdValue)),
+            // Filtered here, not after the limit: a row this reader cannot read
+            // must not use up a place and make a page look like the last one.
+            inArray(e.changeKind, [...PORTAL_PAGE_EDIT_KINDS]),
+            or(
+              eq(e.portalId, unbrand(portalIdValue)),
+              and(isNull(e.portalId), gte(e.occurredAt, since)),
+            ),
+            historyBoundCondition(e.occurredAt, idText, page.bound),
+          ),
+        )
+        .orderBy(desc(e.occurredAt), desc(historyIdOrder(idText)))
+        .limit(clamp(page))
+      return rows.flatMap((row): PortalPageEditRow[] => {
+        // The WHERE clause already holds the kinds to the list; this narrows the type.
+        const kind = PORTAL_PAGE_EDIT_KINDS.find((candidate) => candidate === row.kind)
+        if (kind === undefined) return []
+        return [
+          {
+            editId: row.editId,
+            kind,
+            key: row.key,
+            actorUserId: row.actorUserId,
+            occurredAt: row.occurredAt,
+            propertyWide: row.portalId === null,
+            previousText: row.previousText,
+            newText: row.newText,
+            editCount: row.editCount,
+          },
+        ]
+      })
     }),
 })

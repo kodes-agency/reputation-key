@@ -21,7 +21,7 @@ import type {
 } from '../application/ports/portal-command-store.port'
 import { portalError } from '../domain/errors'
 import { sameInstant } from './portal-command-guards'
-import { recordPortalPendingContentChange } from './portal-pending-content-changes'
+import { recordPortalContentChange, type PortalPageEditEntry } from './portal-page-edits'
 
 /** The tenant scope of a Portal content command, as plain strings for queries. */
 export const contentScope = (
@@ -36,23 +36,32 @@ export const contentScope = (
   portalId: unbrand(command.portalId),
 })
 
-export async function recordPortalContentCommandPending(
+/**
+ * The fence and the ledger of a generic link or category command. The fence key
+ * stays coarse (`portal_links`/`all`); `ledger` names the category or link and
+ * what was done to it.
+ */
+export async function recordPortalContentCommandChange(
   tx: Tx,
   command: Readonly<{
     organizationId: UpdatePortalCommand['organizationId']
     propertyId: UpdatePortalCommand['propertyId']
     portalId: UpdatePortalCommand['portalId']
+    actorUserId: UpdatePortalCommand['actorUserId']
     revision: Date
     occurredAt: Date
   }>,
+  ledger: readonly PortalPageEditEntry[],
 ): Promise<void> {
-  await recordPortalPendingContentChange(tx, {
+  await recordPortalContentChange(tx, {
     organizationId: unbrand(command.organizationId),
     propertyId: unbrand(command.propertyId),
     portalId: unbrand(command.portalId),
     kind: 'portal_links',
+    ledger,
     sourceVersion: command.revision.toISOString(),
     changedAt: command.occurredAt,
+    actorUserId: unbrand(command.actorUserId),
   })
 }
 

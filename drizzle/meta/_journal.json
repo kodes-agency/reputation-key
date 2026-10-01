@@ -351,6 +351,13 @@
       "when": 1793000000000,
       "tag": "0049_portal_media_object_deleted",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1793100000000,
+      "tag": "0050_portal_page_edits",
+      "breakpoints": true
     }
   ]
 }

@@ -33,6 +33,7 @@ const { getPool } = setupIntegrationDb({
   orgB: ORG_B,
   tables: [
     'portal_pending_content_changes',
+    'portal_page_edits',
     'portal_publication_snapshots',
     'property_portal_brand_contents',
     'property_portal_brand_profiles',
@@ -141,6 +142,22 @@ async function pendingRows() {
   }>
 }
 
+/** The page-edit ledger of the organisation: Property-wide rows have no Portal. */
+async function pageEditRows() {
+  const { rows } = await query(
+    `SELECT portal_id::text AS portal_id, change_kind, change_key, actor_user_id
+     FROM portal_page_edits WHERE organization_id = $1
+     ORDER BY occurred_at, change_kind, change_key`,
+    [ORG_A],
+  )
+  return rows as ReadonlyArray<{
+    portal_id: string | null
+    change_kind: string
+    change_key: string
+    actor_user_id: string | null
+  }>
+}
+
 async function brandEventCount(): Promise<number> {
   const { rows } = await query(
     `SELECT count(*)::int AS count FROM outbox_events
@@ -234,6 +251,73 @@ describe.sequential('Property look writes (real PostgreSQL)', () => {
     ])
     expect(rows.some((row) => row.portal_id === DRAFT_PORTAL)).toBe(false)
     expect(rows.some((row) => row.change_key === 'all')).toBe(false)
+  })
+
+  it('writes one Property-wide ledger row per facet changed, naming who and never a Portal', async () => {
+    await saveProfile({ primaryColor: '#C8A45A', wordmark: 'HARBOUR' }, SECOND_ADMIN)
+
+    expect(await pageEditRows()).toEqual([
+      {
+        portal_id: null,
+        change_kind: 'property_brand_profile',
+        change_key: 'look:accent',
+        actor_user_id: SECOND_ADMIN,
+      },
+      {
+        portal_id: null,
+        change_kind: 'property_brand_profile',
+        change_key: 'look:wordmark',
+        actor_user_id: SECOND_ADMIN,
+      },
+    ])
+  })
+
+  it('writes the name edit as the general profile row, and nothing for a save that changes nothing', async () => {
+    await saveProfile({}, SECOND_ADMIN)
+    expect(await pageEditRows()).toEqual([])
+
+    await saveProfile({ displayName: 'Harbour House Hotel' })
+    expect(await pageEditRows()).toEqual([
+      {
+        portal_id: null,
+        change_kind: 'property_brand_profile',
+        change_key: 'all',
+        actor_user_id: ADMIN,
+      },
+    ])
+  })
+
+  it('attributes a name saved on its own to the person, and an automatic first name to the system', async () => {
+    await repository().savePropertyDisplayName({
+      id: randomUUID(),
+      organizationId: ORG_A,
+      propertyId: PROPERTY,
+      displayName: 'Harbour Hotel',
+      updatedBy: SECOND_ADMIN,
+      at: LATER,
+    })
+    await repository().ensurePropertyDisplayName({
+      id: randomUUID(),
+      organizationId: ORG_A,
+      propertyId: OTHER_PROPERTY,
+      displayName: 'Quay House',
+      at: LATEST,
+    })
+
+    expect(await pageEditRows()).toEqual([
+      {
+        portal_id: null,
+        change_kind: 'property_brand_profile',
+        change_key: 'all',
+        actor_user_id: SECOND_ADMIN,
+      },
+      {
+        portal_id: null,
+        change_kind: 'property_brand_profile',
+        change_key: 'all',
+        actor_user_id: null,
+      },
+    ])
   })
 
   it('names the field facet for a background mode or colour change', async () => {
@@ -431,6 +515,21 @@ describe.sequential('Property hero alt text (real PostgreSQL)', () => {
       ['property_brand_content', 'en', 'v2'],
       ['property_brand_content', 'en', 'v1'],
       ['property_brand_content', 'en', 'v2'],
+    ])
+    // One ledger row per save for the whole Property, not one per Portal.
+    expect(await pageEditRows()).toEqual([
+      {
+        portal_id: null,
+        change_kind: 'property_brand_content',
+        change_key: 'en',
+        actor_user_id: ADMIN,
+      },
+      {
+        portal_id: null,
+        change_kind: 'property_brand_content',
+        change_key: 'en',
+        actor_user_id: ADMIN,
+      },
     ])
   })
 

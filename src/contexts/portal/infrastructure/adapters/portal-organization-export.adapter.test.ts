@@ -22,6 +22,7 @@ const READ_ORDER = [
   'publicationSnapshots',
   'publicationActivations',
   'pendingContentChanges',
+  'pageEdits',
   'responsibleManagers',
   'accessArtifacts',
   'addressDownloads',

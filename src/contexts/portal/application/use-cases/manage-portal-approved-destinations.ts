@@ -164,6 +164,7 @@ export const disablePortalApprovedDestination =
       propertyId: portal.propertyId,
       id: portalApprovedDestinationId(input.destinationId),
       reason,
+      disabledBy: ctx.userId,
       at: deps.clock(),
     })
     if (!destination) {

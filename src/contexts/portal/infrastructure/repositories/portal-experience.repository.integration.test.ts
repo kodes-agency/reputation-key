@@ -17,7 +17,12 @@ const LATER = new Date('2026-09-15T11:00:00.000Z')
 const { getPool } = setupIntegrationDb({
   orgA: ORGANIZATION_ID,
   orgB: OTHER_ORGANIZATION_ID,
-  tables: ['property_portal_brand_profiles', 'outbox_events', 'properties'],
+  tables: [
+    'portal_page_edits',
+    'property_portal_brand_profiles',
+    'outbox_events',
+    'properties',
+  ],
 })
 
 beforeEach(async () => {

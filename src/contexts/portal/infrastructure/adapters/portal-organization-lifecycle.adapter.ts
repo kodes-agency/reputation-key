@@ -38,6 +38,7 @@ import {
   propertyPortalBrandProfiles,
 } from '#/shared/db/schema/portal.schema'
 import {
+  portalPageEdits,
   portalPendingContentChanges,
   portalPublicationActivations,
   portalPublicationSnapshots,
@@ -73,6 +74,7 @@ export const PORTAL_PURGE_PLAN = Object.freeze([
   'portal_address_downloads',
   'portal_access_artifacts',
   'portal_pending_content_changes',
+  'portal_page_edits',
   'portal_publication_activations',
   'portal_publication_snapshots',
   'portal_health_intervals',
@@ -211,6 +213,9 @@ const drizzlePortalLifecycleWorkbench: PortalLifecycleWorkbench = Object.freeze(
     await tx
       .delete(portalPendingContentChanges)
       .where(eq(portalPendingContentChanges.organizationId, organizationId))
+    await tx
+      .delete(portalPageEdits)
+      .where(eq(portalPageEdits.organizationId, organizationId))
     await tx
       .delete(portalPublicationActivations)
       .where(eq(portalPublicationActivations.organizationId, organizationId))

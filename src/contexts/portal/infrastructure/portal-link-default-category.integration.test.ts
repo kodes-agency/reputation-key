@@ -39,6 +39,7 @@ const { getPool } = setupIntegrationDb({
     'portal_approved_destinations',
     'portal_responsible_managers',
     'outbox_events',
+    'portal_page_edits',
     'portals',
     'properties',
   ],

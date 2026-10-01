@@ -11,12 +11,13 @@ import { unbrand } from '#/shared/domain/ids'
 import type { PortalCommandStore } from '../application/ports/portal-command-store.port'
 import { portalError } from '../domain/errors'
 import { hasRoomForAnotherLink } from '../domain/portal-linktree'
+import { portalPageEditKey } from '../domain/portal-page-edit'
 import { categoryToRow, linkToRow } from './mappers/portal-link.mapper'
 import { fencePortalContent } from './portal-aggregate-fence'
 import {
   assertPortalContentCommand,
   contentScope,
-  recordPortalContentCommandPending,
+  recordPortalContentCommandChange,
 } from './portal-content-command-guards'
 import { createPortalLinktreeCommands } from './portal-linktree-commands'
 import { readPortalLocales, syncPrimaryLinkText } from './portal-link-texts-store'
@@ -46,7 +47,12 @@ export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore =
         await db.transaction(async (tx) => {
           await fencePortalContent(tx, command)
           await tx.insert(portalLinkCategories).values(categoryToRow(command.category))
-          await recordPortalContentCommandPending(tx, command)
+          await recordPortalContentCommandChange(tx, command, [
+            {
+              key: portalPageEditKey.categoryCreated(unbrand(command.category.id)),
+              newText: command.category.title,
+            },
+          ])
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,
           })
@@ -58,6 +64,17 @@ export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore =
         assertPortalContentCommand(command)
         await db.transaction(async (tx) => {
           await fencePortalContent(tx, command)
+          const [before] = await tx
+            .select({ title: portalLinkCategories.title })
+            .from(portalLinkCategories)
+            .where(
+              and(
+                eq(portalLinkCategories.organizationId, unbrand(command.organizationId)),
+                eq(portalLinkCategories.portalId, unbrand(command.portalId)),
+                eq(portalLinkCategories.id, unbrand(command.categoryId)),
+              ),
+            )
+            .limit(1)
           const [updated] = await tx
             .update(portalLinkCategories)
             .set({ title: command.title, updatedAt: command.occurredAt })
@@ -75,7 +92,13 @@ export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore =
               'Portal category changed during update',
             )
           }
-          await recordPortalContentCommandPending(tx, command)
+          await recordPortalContentCommandChange(tx, command, [
+            {
+              key: portalPageEditKey.categoryRenamed(unbrand(command.categoryId)),
+              previousText: before?.title,
+              newText: command.title,
+            },
+          ])
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,
           })
@@ -96,14 +119,19 @@ export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore =
                 eq(portalLinkCategories.id, unbrand(command.categoryId)),
               ),
             )
-            .returning({ id: portalLinkCategories.id })
+            .returning({ id: portalLinkCategories.id, title: portalLinkCategories.title })
           if (!deleted) {
             throw portalError(
               'revision_conflict',
               'Portal category changed during delete',
             )
           }
-          await recordPortalContentCommandPending(tx, command)
+          await recordPortalContentCommandChange(tx, command, [
+            {
+              key: portalPageEditKey.categoryDeleted(unbrand(command.categoryId)),
+              previousText: deleted.title,
+            },
+          ])
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,
           })
@@ -149,7 +177,9 @@ export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore =
                 ),
               )
           }
-          await recordPortalContentCommandPending(tx, command)
+          await recordPortalContentCommandChange(tx, command, [
+            { key: portalPageEditKey.categoriesReordered() },
+          ])
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,
           })
@@ -194,7 +224,22 @@ export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore =
             { actorUserId: unbrand(command.actorUserId), at: command.occurredAt },
             { locale: locales.primary, label: command.link.label },
           )
-          await recordPortalContentCommandPending(tx, command)
+          await recordPortalContentCommandChange(tx, command, [
+            ...(command.startCategory
+              ? [
+                  {
+                    key: portalPageEditKey.categoryCreated(
+                      unbrand(command.startCategory.category.id),
+                    ),
+                    newText: command.startCategory.category.title,
+                  },
+                ]
+              : []),
+            {
+              key: portalPageEditKey.linkCreated(unbrand(command.link.id)),
+              newText: command.link.label,
+            },
+          ])
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,
           })
@@ -206,6 +251,17 @@ export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore =
         assertPortalContentCommand(command)
         await db.transaction(async (tx) => {
           await fencePortalContent(tx, command)
+          const [before] = await tx
+            .select({ label: portalLinks.label })
+            .from(portalLinks)
+            .where(
+              and(
+                eq(portalLinks.organizationId, unbrand(command.organizationId)),
+                eq(portalLinks.portalId, unbrand(command.portalId)),
+                eq(portalLinks.id, unbrand(command.linkId)),
+              ),
+            )
+            .limit(1)
           const [updated] = await tx
             .update(portalLinks)
             .set({
@@ -238,7 +294,15 @@ export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore =
             { actorUserId: unbrand(command.actorUserId), at: command.occurredAt },
             { locale: locales.primary, label: command.patch.label },
           )
-          await recordPortalContentCommandPending(tx, command)
+          const renamed = before !== undefined && before.label !== command.patch.label
+          await recordPortalContentCommandChange(tx, command, [
+            {
+              key: portalPageEditKey.linkUpdated(unbrand(command.linkId)),
+              ...(renamed
+                ? { previousText: before.label, newText: command.patch.label }
+                : {}),
+            },
+          ])
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,
           })
@@ -260,11 +324,16 @@ export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore =
                 eq(portalLinks.id, unbrand(command.linkId)),
               ),
             )
-            .returning({ id: portalLinks.id })
+            .returning({ id: portalLinks.id, label: portalLinks.label })
           if (!deleted) {
             throw portalError('revision_conflict', 'Portal link changed during delete')
           }
-          await recordPortalContentCommandPending(tx, command)
+          await recordPortalContentCommandChange(tx, command, [
+            {
+              key: portalPageEditKey.linkDeleted(unbrand(command.linkId)),
+              previousText: deleted.label,
+            },
+          ])
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,
           })
@@ -306,7 +375,9 @@ export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore =
                 ),
               )
           }
-          await recordPortalContentCommandPending(tx, command)
+          await recordPortalContentCommandChange(tx, command, [
+            { key: portalPageEditKey.linksReordered(unbrand(command.categoryId)) },
+          ])
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.occurredAt,
           })

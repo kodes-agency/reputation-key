@@ -2,15 +2,21 @@
 //
 // One timeline per Portal, merged from five independently ordered sources:
 // the page's creation, its publication activations, its health intervals, its
-// public-address (code) tokens and the times a manager downloaded a code again. Each source is read newest first with its
-// own limit and this module merges them, so the merge must be exact: a total
-// order (time, then key) and a cursor that every source can turn into its own
-// "strictly before" condition. Everything here is pure; the SQL lives in
+// public-address (code) tokens, the times a manager downloaded a code again, and its page-edit ledger (slice 35b). Each
+// source is read newest first with its own limit and this module merges them,
+// so the merge must be exact: a total order (time, then key) and a cursor that
+// every source can turn into its own "strictly before" condition. Everything here is pure; the SQL lives in
 // infrastructure and only consumes the bound computed below.
 
 import type { PortalHealthReason, PortalHealthStatus } from './portal-health'
+import type { PortalPageEditSubject } from './portal-page-edit'
 
-export const PORTAL_HISTORY_CATEGORIES = ['publishing', 'codes', 'health'] as const
+export const PORTAL_HISTORY_CATEGORIES = [
+  'publishing',
+  'codes',
+  'health',
+  'edits',
+] as const
 export type PortalHistoryCategory = (typeof PORTAL_HISTORY_CATEGORIES)[number]
 export type PortalHistoryFilter = 'all' | PortalHistoryCategory
 
@@ -29,6 +35,7 @@ export const HISTORY_KEY_PREFIX = {
   codeIssued: 'code-issued:',
   codeRevoked: 'code-revoked:',
   created: 'created:',
+  edit: 'edit:',
   health: 'health:',
   publication: 'publication:',
 } as const
@@ -56,6 +63,17 @@ export type PortalHistoryDetail =
       version: number
       /** The code as a file, or a copy of one of its addresses. */
       purpose: 'download' | 'copy' | 'show'
+    }>
+  | Readonly<{
+      kind: 'page_edited'
+      subject: PortalPageEditSubject
+      /** The Property's look or welcome text changed, so every Portal in it changed. */
+      propertyWide: boolean
+      /** The wording before and after, for a change of wording; null otherwise. */
+      previousText: string | null
+      newText: string | null
+      /** How many saves the entry stands for. */
+      editCount: number
     }>
 
 export type PortalHistoryRecord = Readonly<{

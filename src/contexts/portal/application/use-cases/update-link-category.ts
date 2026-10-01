@@ -63,6 +63,7 @@ export const updateLinkCategory =
       const revision = nextPortalCommandAt(occurredAt, expectedPortalUpdatedAt)
       await deps.commandStore.updatePortalLinkCategory({
         organizationId: ctx.organizationId,
+        actorUserId: ctx.userId,
         propertyId: portal.propertyId,
         portalId: existing.portalId,
         expectedPortalUpdatedAt,

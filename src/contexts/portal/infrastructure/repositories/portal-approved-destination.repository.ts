@@ -15,13 +15,18 @@ import {
 } from '../../domain/approved-destination'
 import { trace } from '#/shared/observability/trace'
 import { lockPortalPublicationProperty } from '../portal-publication-serialization'
-import { recordPortalPendingContentChange } from '../portal-pending-content-changes'
+import { recordPortalContentChange } from '../portal-page-edits'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { portalApprovedDestinationUpdated } from '../../domain/events'
 
 type DestinationRow = typeof portalApprovedDestinations.$inferSelect
 
-async function recordDestinationPending(tx: Tx, row: DestinationRow): Promise<void> {
+/** Who changed a destination; null when the system did (a failed network check). */
+async function recordDestinationChange(
+  tx: Tx,
+  row: DestinationRow,
+  actorUserId: string | null,
+): Promise<void> {
   const linked = await tx
     .select({ portalId: portalLinks.portalId })
     .from(portalLinks)
@@ -32,14 +37,16 @@ async function recordDestinationPending(tx: Tx, row: DestinationRow): Promise<vo
         eq(portalLinks.destinationId, row.id),
       ),
     )
-  await recordPortalPendingContentChange(tx, {
+  await recordPortalContentChange(tx, {
     organizationId: row.organizationId,
     propertyId: row.propertyId,
     portalIds: [...new Set(linked.map((link) => link.portalId))],
     kind: 'approved_destination',
     key: row.id,
+    ledger: [{ key: row.id }],
     sourceVersion: `${row.approvalState}:${row.updatedAt.toISOString()}`,
     changedAt: row.updatedAt,
+    actorUserId,
   })
 }
 
@@ -159,7 +166,7 @@ export const createPortalApprovedDestinationRepository = (
           .limit(1)
         if (!row) throw new Error('Approved destination disappeared after request')
         if (!changed) return fromRow(row)
-        await recordDestinationPending(tx, row)
+        await recordDestinationChange(tx, row, unbrand(input.requestedBy))
         const event = portalApprovedDestinationUpdated({
           approvedDestinationId: portalApprovedDestinationId(row.id),
           organizationId: organizationId(row.organizationId),
@@ -291,7 +298,7 @@ export const createPortalApprovedDestinationRepository = (
         if (!row || safe) {
           return row ? fromRow(row) : null
         }
-        await recordDestinationPending(tx, row)
+        await recordDestinationChange(tx, row, null)
         const event = portalApprovedDestinationUpdated({
           approvedDestinationId: portalApprovedDestinationId(row.id),
           organizationId: organizationId(row.organizationId),
@@ -339,7 +346,7 @@ export const createPortalApprovedDestinationRepository = (
           )
           .returning()
         if (!row) return null
-        await recordDestinationPending(tx, row)
+        await recordDestinationChange(tx, row, unbrand(input.approvedBy))
         const event = portalApprovedDestinationUpdated({
           approvedDestinationId: portalApprovedDestinationId(row.id),
           organizationId: organizationId(row.organizationId),
@@ -385,7 +392,7 @@ export const createPortalApprovedDestinationRepository = (
           )
           .returning()
         if (!row) return null
-        await recordDestinationPending(tx, row)
+        await recordDestinationChange(tx, row, unbrand(input.disabledBy))
         const event = portalApprovedDestinationUpdated({
           approvedDestinationId: portalApprovedDestinationId(row.id),
           organizationId: organizationId(row.organizationId),
