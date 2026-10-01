@@ -11,12 +11,15 @@
 //   1. every interactive element is >= 44 px on its smaller side (a hidden
 //      radio is judged by the label a finger presses, `pane-metrics.ts`);
 //   2. neither the page nor any scroller inside it overflows sideways, no shown
-//      element reaches past the box that clips it, and the document does not
-//      scroll sideways — which is what a word that cannot break (German
-//      compounds, a long property name) does to a narrow phone;
+//      element reaches past the box that clips it, no run of text reaches past
+//      the box that holds it, and the document does not scroll sideways —
+//      which is what a word that cannot break (German compounds, a long
+//      property name) does to a narrow phone;
 //   3. under `prefers-reduced-motion: reduce` nothing on the page transitions or
 //      animates (computed style of every element and pseudo-element, and the
-//      browser's own list of running animations).
+//      browser's own list of running animations). The app's global floor in
+//      `src/styles.css` makes this pass whatever the guest stylesheets do, so
+//      their own answer is a unit test, `immersive/guest-reduced-motion.test.ts`.
 //
 // ── How a story is put at a width ───────────────────────────────────────────
 //
@@ -45,7 +48,7 @@ import {
   GUEST_WIDTHS,
   MEASURED_GUEST_STORIES,
 } from './guest-stories'
-import { measurePane } from './pane-metrics'
+import { measurePane, type PaneOptions } from './pane-metrics'
 import { openStory } from './storybook-story'
 import { paneViolations } from './verdicts'
 
@@ -119,34 +122,94 @@ test.describe('declared stories', () => {
   })
 })
 
+/**
+ * What the guest page is judged by that the Inbox pane is not (`PaneOptions`
+ * says why each is off by default): its decorative arch may bleed past a
+ * hidden-overflow root, a visually hidden star radio is pressed through its
+ * label, and a word that runs past its own box is a defect even when the box
+ * grew or clipped to hide it.
+ */
+const GUEST_PANE_OPTIONS: PaneOptions = {
+  hiddenRootBleedIsDecorative: true,
+  hiddenInputUsesLabel: true,
+  textMustFitItsBox: true,
+}
+
+async function geometryLinesFor(
+  page: Page,
+  storyId: string,
+  width: number,
+  attach?: (report: unknown) => Promise<void>,
+): Promise<ReadonlyArray<string>> {
+  const report = await measurePane(page, GUEST_PANE_SELECTOR, GUEST_PANE_OPTIONS)
+  await attach?.(report)
+  return paneViolations(
+    {
+      storyId,
+      width,
+      paneSelector: GUEST_PANE_SELECTOR,
+      requiresPrimary: false,
+      judgesTargets: true,
+      minimumPx: GUEST_TARGET_MIN_PX,
+    },
+    report,
+  )
+}
+
 for (const width of GUEST_WIDTHS) {
   test.describe(`geometry at ${width} px`, () => {
     for (const storyId of MEASURED_GUEST_STORIES) {
       test(storyId, async ({ page }, testInfo) => {
         await showAtWidth(page, storyId, width)
-        const report = await measurePane(page, GUEST_PANE_SELECTOR, {
-          hiddenRootBleedIsDecorative: true,
-        })
-        const lines = paneViolations(
-          {
-            storyId,
-            width,
-            paneSelector: GUEST_PANE_SELECTOR,
-            requiresPrimary: false,
-            judgesTargets: true,
-            minimumPx: GUEST_TARGET_MIN_PX,
-          },
-          report,
+        const lines = await geometryLinesFor(page, storyId, width, (report) =>
+          testInfo.attach('pane-metrics.json', {
+            body: JSON.stringify(report, null, 2),
+            contentType: 'application/json',
+          }),
         )
-        await testInfo.attach('pane-metrics.json', {
-          body: JSON.stringify(report, null, 2),
-          contentType: 'application/json',
-        })
         expect(lines, lines.join('\n')).toEqual([])
       })
     }
   })
 }
+
+/**
+ * Switches off everything that lets a long word wrap or hyphenate, which is
+ * what the page's own `overflow-wrap: break-word` and `hyphens: auto` (and the
+ * response section's `hyphens: manual`) do for a German compound.
+ */
+const WORDS_CANNOT_BREAK =
+  '.ih-root * { overflow-wrap: normal !important; hyphens: manual !important; }'
+
+// The gate's own proof. A block element's box stays its container's width
+// while its text runs past it, so neither the page's `scrollWidth` (the arch
+// bleeds, `hiddenRootBleedIsDecorative`) nor a comparison of element boxes sees
+// it; only the text itself does. A tile label and a rating word are the two
+// places the page puts a word in a box that does not grow to fit it.
+test.describe('a word that overflows its own element', () => {
+  const CASES = [
+    {
+      storyId: 'features-guest-immersivelinktree--long-words-at-three-twenty',
+      width: 320,
+      culprit: 'ih-tile__label',
+    },
+    {
+      storyId: 'features-guest-immersivepage--german-long-words',
+      width: 320,
+      culprit: 'Verbesserungsbedürftig',
+    },
+  ] as const
+  for (const { storyId, width, culprit } of CASES) {
+    test(`is reported: ${storyId} @ ${width} px`, async ({ page }) => {
+      await showAtWidth(page, storyId, width)
+      expect(await geometryLinesFor(page, storyId, width)).toEqual([])
+      await page.addStyleTag({ content: WORDS_CANNOT_BREAK })
+      const lines = await geometryLinesFor(page, storyId, width)
+      const reported = lines.filter((line) => line.includes(culprit))
+      expect(reported, lines.join('\n')).not.toEqual([])
+    })
+  }
+})
 
 type MotionFinding = Readonly<{ element: string; what: string }>
 

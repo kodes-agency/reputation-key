@@ -68,7 +68,7 @@ function targetLines(
 }
 
 function geometryLines(
-  report: Pick<PaneReport, 'overflows' | 'clips'>,
+  report: Pick<PaneReport, 'overflows' | 'clips' | 'textOverflows'>,
   where: string,
 ): string[] {
   return [
@@ -80,6 +80,11 @@ function geometryLines(
       (c) =>
         `${where}"${c.name}" (${c.role}) at ${describeBox(c.box)} is clipped by ${c.clipper}, ` +
         `whose box runs ${px(c.clipLeft)}..${px(c.clipRight)}`,
+    ),
+    ...report.textOverflows.map(
+      (t) =>
+        `${where}the text "${t.text}" at ${describeBox(t.box)} runs past ${t.container}, ` +
+        `whose box runs ${px(t.containerLeft)}..${px(t.containerRight)}`,
     ),
   ]
 }
