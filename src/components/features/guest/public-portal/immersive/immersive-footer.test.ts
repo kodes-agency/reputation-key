@@ -142,9 +142,18 @@ describe('ImmersiveFooterView in Bulgarian', () => {
 })
 
 describe('the footer stylesheet', () => {
-  it('is hoisted once and scoped to the Immersive Hub root', () => {
+  it('is hoisted into the markup', () => {
     expect(render()).toContain('<style')
-    expect(IMMERSIVE_FOOTER_CSS).toMatch(/\.ih-footer\b/u)
+  })
+
+  it('scopes every rule under the Immersive Hub root, so nothing reaches the app', () => {
+    const selectors = IMMERSIVE_FOOTER_CSS.split('{')
+      .slice(0, -1)
+      .map((chunk) => chunk.split('}').pop()?.trim() ?? '')
+      .filter((selector) => selector && !selector.startsWith('@'))
+      .flatMap((selector) => selector.split(',').map((part) => part.trim()))
+    expect(selectors.length).toBeGreaterThan(5)
+    expect(selectors.filter((selector) => !selector.startsWith('.ih-root '))).toEqual([])
   })
 
   it('answers reduced motion wherever it moves anything', () => {

@@ -9,10 +9,11 @@
 // into `<link>` tags. Both sets used to be `@import`ed by `styles.css`, which
 // made every page pay for the fonts of every other.
 //
-// A page with no guest loader data (the unavailable page, an admin live preview
-// of the guest look) does not go through this choice: it links
-// `GUEST_FONT_STYLESHEET` itself, as the Storybook story does. The choice below
-// is one set per document because `/p/$token` is the only route that makes it.
+// The unavailable page is a `/p/$token` match with no loader data, and gets the
+// guest set from the choice below. An admin live preview of the guest look is
+// not that route: it links `GUEST_FONT_STYLESHEET` itself, as the Storybook
+// stories do. The choice is one set per document because `/p/$token` is the only
+// route that makes it.
 //
 // Pure on purpose: no I/O, no framework import, so it is testable in node.
 
@@ -63,14 +64,26 @@ function declaredFontSet(loaderData: unknown): FontSet | null {
   return isFontSet(declared) ? declared : null
 }
 
+/** The guest Portal route. Its matches choose the font set even without loader data. */
+const GUEST_PORTAL_ROUTE_ID = '/p/$token'
+
 /**
  * The set a page asked for: the guest set when any match's loader declares it,
- * otherwise the app set. Only `/p/$token` declares one today.
+ * otherwise the app set. Only `/p/$token` declares one today. A `/p/$token`
+ * match with no loader data at all is the unavailable page (bad token,
+ * unpublished or suspended Portal, an error): it is set in the guest face, so
+ * it takes the guest set rather than the app fonts of a third-party CDN.
  */
 export function fontSetOfMatches(
-  matches: readonly Readonly<{ loaderData?: unknown }>[],
+  matches: readonly Readonly<{ routeId?: string; loaderData?: unknown }>[],
 ): FontSet {
-  return matches.some((match) => declaredFontSet(match.loaderData) === 'guest')
+  return matches.some((match) => {
+    const declared = declaredFontSet(match.loaderData)
+    return (
+      (match.routeId === GUEST_PORTAL_ROUTE_ID ? (declared ?? 'guest') : declared) ===
+      'guest'
+    )
+  })
     ? 'guest'
     : 'app'
 }

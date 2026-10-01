@@ -5,12 +5,13 @@
 // Immersive Hub (schema v3) shows the same disclosure inline in its footer, as
 // a region named "Visit counting" with the same "Got it" button; nothing is
 // fixed and nothing can intercept a click. Pass the surface the portal under
-// test renders. Everything below about the legacy bar holds for both
-// the waiting and the one-call-per-guest rules.
+// test renders. The waiting rule and the one-call-per-guest rule below hold
+// for both surfaces; the pointer-interception reason applies only to the
+// legacy bar.
 //
-// The bar is a `fixed bottom-0 z-50` region with a single acknowledge button.
-// It is INFORMATIONAL, not a consent gate: `GuestAnalyticsNotice` records the
-// portal visit from a mount effect regardless of the acknowledgement, and the
+// The legacy bar is INFORMATIONAL, not a consent gate: `GuestAnalyticsNotice`
+// records the portal visit from a mount effect regardless of the
+// acknowledgement, and the
 // dedupe that keeps one session counting once is storage-backed. The earlier
 // `CookieConsentBanner` did offer Accept/Reject and did gate the scan; it was
 // replaced in "fix(guest): harden public portal observations", which is why
@@ -22,6 +23,14 @@
 // events").
 
 import type { Page } from '@playwright/test'
+
+export type GuestSurface = 'legacy' | 'immersive'
+
+/** The accessible name of the notice region on each surface (the guest copy packs' labels). */
+const NOTICE_REGION_NAME: Readonly<Record<GuestSurface, string>> = {
+  legacy: 'Portal analytics information',
+  immersive: 'Visit counting',
+}
 
 /**
  * Acknowledge the analytics notice. Resolves once the bar is gone.
@@ -41,14 +50,6 @@ import type { Page } from '@playwright/test'
  * never come. To get an unacknowledged guest again, reset the browser's storage
  * and not only its cookies: the acknowledgement lives in `localStorage`.
  */
-export type GuestSurface = 'legacy' | 'immersive'
-
-/** The accessible name of the notice region on each surface (the guest copy packs' labels). */
-const NOTICE_REGION_NAME: Readonly<Record<GuestSurface, string>> = {
-  legacy: 'Portal analytics information',
-  immersive: 'Visit counting',
-}
-
 export async function settleGuestConsent(
   page: Page,
   surface: GuestSurface = 'legacy',

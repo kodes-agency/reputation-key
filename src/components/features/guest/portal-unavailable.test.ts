@@ -57,9 +57,9 @@ describe('PortalUnavailable', () => {
     )
   })
 
-  it('loads the self-hosted guest fonts itself, from our own origin', () => {
-    expect(html).toContain(`href="${GUEST_FONT_STYLESHEET}"`)
-    expect(html).not.toMatch(/googleapis|gstatic|fontshare/u)
+  it('links no font stylesheet: the root chooses the guest set for this route', () => {
+    expect(html).not.toContain(GUEST_FONT_STYLESHEET)
+    expect(html).not.toMatch(/<link\b|googleapis|gstatic|fontshare/u)
   })
 
   it('is a function of nothing: two renders are identical', () => {

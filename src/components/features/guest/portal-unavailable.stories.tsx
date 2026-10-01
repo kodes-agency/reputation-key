@@ -1,12 +1,22 @@
 // Board G12: the page every denied portal address shows. Axe runs on it
 // (`a11y.test = 'error'`). It has no props, so one story is the whole page.
-import type { Meta, StoryObj } from '@storybook/react'
+import type { Decorator, Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
+import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import { PortalUnavailable } from './portal-unavailable'
+
+/** In the app the root links the guest fonts for this route; a story has no root. */
+const GuestFonts: Decorator = (Story) => (
+  <>
+    <link rel="stylesheet" href={GUEST_FONT_STYLESHEET} />
+    <Story />
+  </>
+)
 
 const meta: Meta<typeof PortalUnavailable> = {
   title: 'Features/Guest/PortalUnavailable',
   component: PortalUnavailable,
+  decorators: [GuestFonts],
   parameters: { layout: 'fullscreen' },
 }
 export default meta

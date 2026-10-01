@@ -1,4 +1,3 @@
-import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import {
   PORTAL_UNAVAILABLE_CSS,
   PORTAL_UNAVAILABLE_STYLE_HREF,
@@ -25,8 +24,9 @@ export const PORTAL_UNAVAILABLE_BG = {
  * request can reach what it says.
  *
  * It has no snapshot to take brand or language from, so it is the neutral page
- * of board G12, in the guest fonts: the self-hosted Ysabeau Office, loaded
- * here because the route's loader data (which picks the font set) is null.
+ * of board G12, in the guest fonts: the self-hosted Ysabeau Office. It links
+ * no stylesheet itself: the root chooses the guest set for a `/p/$token` match
+ * with no loader data (`fontSetOfMatches`).
  *
  * `main` is load-bearing, not decoration: without a landmark every word on
  * this page sits outside one, which is exactly what a screen-reader user
@@ -35,7 +35,6 @@ export const PORTAL_UNAVAILABLE_BG = {
 export function PortalUnavailable() {
   return (
     <main className="portal-unavailable">
-      <link rel="stylesheet" href={GUEST_FONT_STYLESHEET} precedence="default" />
       <style href={PORTAL_UNAVAILABLE_STYLE_HREF} precedence="default">
         {PORTAL_UNAVAILABLE_CSS}
       </style>

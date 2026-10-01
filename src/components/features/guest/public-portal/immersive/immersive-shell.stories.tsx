@@ -6,8 +6,10 @@
 import type { Decorator, Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
+import { enV2 } from '../language-packs/en-v2'
 import { ArrivalStandIn } from './__fixtures__/arrival-stand-in'
 import { STORY_HERO_PHOTO } from './__fixtures__/story-hero-photo'
+import { immersiveFooterCopy } from './immersive-footer-copy'
 import { ImmersiveShell } from './immersive-shell'
 
 const PHONE_WIDTH = 390
@@ -40,7 +42,12 @@ const meta: Meta<typeof ImmersiveShell> = {
     height: 'container',
     heroAlt: { value: 'The colonnade pool at dusk, under an old olive tree' },
     brand: { ...CHAMPAGNE, hero: STORY_HERO_PHOTO },
-    children: <ArrivalStandIn displayName="Avela Resort" />,
+    children: (
+      <ArrivalStandIn
+        displayName="Avela Resort"
+        footerCopy={immersiveFooterCopy(enV2, 'Avela Resort')}
+      />
+    ),
   },
 }
 export default meta

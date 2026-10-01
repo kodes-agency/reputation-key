@@ -72,6 +72,13 @@ export type ImmersiveFooterProps = Readonly<{
  * acknowledgement and to visit recording. Recording does not depend on the
  * notice: the visit is counted on mount, whether the guest acknowledges the
  * notice, has already done so, or never sees it (ADR 0044).
+ *
+ * Known trade-off: the server cannot read the acknowledgement, so it renders
+ * the one-row acknowledged footer and an unacknowledged guest sees it swap to
+ * the taller notice after hydration. The footer is in flow at the end of the
+ * page, so that is a layout shift below everything the guest is reading.
+ * Slice 18's CLS observer measures it on a first visit
+ * (docs/plan/portal-round-4-implementation.md, slice 17 carried forward).
  */
 export function ImmersiveFooter({
   copy,

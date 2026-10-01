@@ -102,7 +102,7 @@ export const Route = createFileRoute('/p/$token')({
     // URL anyway). Deliberately no canonical URL: canonicalising a secret-token URL
     // would republish the token to every consumer of the page.
     const robots = { name: 'robots', content: 'noindex, nofollow' }
-    if (!loaderData) return { meta: [{ title: 'Portal unavailable' }, robots] }
+    if (!loaderData) return { meta: [{ title: 'Page unavailable' }, robots] }
     const { portal } = loaderData
     const description = portal.description ?? ''
     return {

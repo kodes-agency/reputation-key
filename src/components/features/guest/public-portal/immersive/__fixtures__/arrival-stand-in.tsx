@@ -12,16 +12,6 @@ import { GlassSurface, glassClassName } from '../glass-surface'
 import { ImmersiveFooterView } from '../immersive-footer'
 import type { ImmersiveFooterCopy } from '../immersive-footer-copy'
 
-// Literal on purpose: only the loader may import a locale pack (a request loads
-// one pack; `load-guest-copy-v2.test.ts` holds the rule), and fixtures are no exception.
-const footerCopy = (displayName: string): ImmersiveFooterCopy => ({
-  visitNotice: `An essential session cookie protects your response. Separately, we count this visit for ${displayName} with a short-lived, privacy-protected network marker. No ads or third‑party trackers.`,
-  noticeLabel: 'Visit counting',
-  acknowledge: 'Got it',
-  privacyLink: 'Privacy notice',
-  madeWith: 'Made with Reputation Key',
-})
-
 const STARS = [1, 2, 3, 4, 5] as const
 
 const TILES = [
@@ -127,7 +117,13 @@ const styles = {
   tileLine: { fontSize: 12, lineHeight: '16px', color: 'rgba(255,255,255,0.8)' },
 } satisfies Record<string, CSSProperties>
 
-export function ArrivalStandIn({ displayName }: Readonly<{ displayName: string }>) {
+export type ArrivalStandInProps = Readonly<{
+  displayName: string
+  /** The footer's texts, built by the story from a real pack (`immersiveFooterCopy`). */
+  footerCopy: ImmersiveFooterCopy
+}>
+
+export function ArrivalStandIn({ displayName, footerCopy }: ArrivalStandInProps) {
   return (
     <>
       <header style={styles.header}>
@@ -187,7 +183,7 @@ export function ArrivalStandIn({ displayName }: Readonly<{ displayName: string }
         ))}
       </nav>
       <ImmersiveFooterView
-        copy={footerCopy(displayName)}
+        copy={footerCopy}
         isNoticeVisible
         onAcknowledge={() => undefined}
       />
