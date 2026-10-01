@@ -799,6 +799,16 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
 
 **43. AI translation capability (AI1–AI4).** Gated on owner decision 3 (§5).
 
+**46. Republish live v1/v2 Portals as v3 (ops command).** Prepares slice 44: the legacy renderer can only go once no live Portal is on a v1 or v2 snapshot, and slice 20 makes a manager's republish one click but does not move Portals nobody opens.
+
+- `pnpm ops republish-legacy-portals --operator <id> --org <id> [--property <id>] [--batch-size <n>] [--reason <text> --apply]`. Dry run is the default.
+- **As built.**
+  - **Selection** (`PortalLegacyPublicationReader`, `infrastructure/repositories/portal-legacy-publication.reader.ts`): a Portal that is `published`, not deleted, whose OPEN activation's snapshot stores `schemaVersion` 1 or 2, ordered by Portal id with a keyset cursor. It reads the live version, never history, so a draft-only, disabled, archived or deleted Portal (whatever its last snapshot) is never selected.
+  - **The publication is the ordinary one.** `publishPortalChanges` was split into a plan (authorise, pending check, readiness gates, build the snapshot and command) and the write; `previewPortalChanges` is the plan with no write, so a dry run reports exactly the refusals the apply would meet. `republishLegacyPortals` runs one or the other per selected Portal and reports `republished`, `would_republish`, `skipped` (a Portal error: its code and message, which are the gate's), `unchanged` or `failed`. A fault that is not a Portal error stops the run with the partial report (and exit 1); a rerun is safe.
+  - **Actor.** `ops:<operator>` on the snapshot's `createdBy`, the activation's `activatedBy` and the `portal.publication.published` fact, under an organisation-wide `AccountAdmin` context built in `portal-ops-actor.ts` and reachable only through `container.portalMaintenanceRuntime` (operator container). It is never a user identifier; the history draws its neutral placeholder for it.
+  - **Idempotent:** a republished Portal is on v3 and drops out of the selection; a Portal that is not ready reports the same reason every run.
+  - **Tests.** Use case (selection, paging, dry run, apply, not-ready, idempotence, halt, organisation and Property scope), the preview, the action and its rendering, the command table, a real-PostgreSQL suite for the selection, and a real-PostgreSQL end-to-end run (the old activation closes as `replaced`, a verified v3 is served, the operator is on every row and fact, a second run writes nothing, a draft-only Portal and a Portal that is not ready are left as they were).
+
 **44. Contract cleanup.**
 
 - Remove the legacy renderer and v1 UI once no active v1/v2 snapshots remain.
