@@ -63,40 +63,64 @@ function invalid(message: string): never {
   throw portalError('forbidden', `Portal Group history: ${message}`)
 }
 
-function requireName(value: string | undefined, what: string): string {
-  if (value === undefined) invalid(`${what} is required`)
-  const valid = validateGroupName(value)
-  if (valid.isErr()) throw valid.error
-  return valid.value
+/** Which fields each kind of entry carries; every other field must be empty. */
+type Shape = Readonly<{
+  portal: boolean
+  otherGroup: boolean
+  name: boolean
+  previousName: boolean
+}>
+
+const NONE: Shape = { portal: false, otherGroup: false, name: false, previousName: false }
+const SHAPES: Readonly<Record<PortalGroupHistoryKind, Shape>> = {
+  created: { ...NONE, name: true },
+  renamed: { ...NONE, name: true, previousName: true },
+  archived: NONE,
+  portal_added: { ...NONE, portal: true },
+  portal_removed: { ...NONE, portal: true },
+  portal_moved_in: { ...NONE, portal: true, otherGroup: true },
+  portal_moved_out: { ...NONE, portal: true, otherGroup: true },
+}
+
+function assertFieldPresence(
+  kind: PortalGroupHistoryKind,
+  fields: Readonly<Record<keyof Shape, unknown>>,
+): void {
+  const shape = SHAPES[kind]
+  for (const field of Object.keys(shape) as Array<keyof Shape>) {
+    const present = fields[field] !== undefined
+    if (present !== shape[field]) {
+      invalid(`${kind} ${shape[field] ? 'needs' : 'must not carry'} ${field}`)
+    }
+  }
 }
 
 export const portalGroupHistoryEntry = (input: EntryInput): PortalGroupHistoryDraft => {
-  const { kind } = input
-  const named = kind === 'created' || kind === 'renamed'
-  const moved = kind === 'portal_moved_in' || kind === 'portal_moved_out'
-  const membership = moved || kind === 'portal_added' || kind === 'portal_removed'
-  if (membership && !input.portalId) invalid(`${kind} must name the Portal`)
-  if (!membership && input.portalId) invalid(`${kind} must not name a Portal`)
-  if (moved && !input.otherGroupId) invalid(`${kind} must name the other group`)
-  if (!moved && input.otherGroupId) invalid(`${kind} must not name another group`)
-  if (kind === 'renamed' && !input.previousName) {
-    invalid('a rename must record the previous name')
-  }
-  if (!named && (input.name !== undefined || input.previousName !== undefined)) {
-    invalid(`${kind} must not carry a name`)
-  }
+  assertFieldPresence(input.kind, {
+    portal: input.portalId,
+    otherGroup: input.otherGroupId,
+    name: input.name,
+    previousName: input.previousName,
+  })
+  const named = SHAPES[input.kind].name
   return {
     organizationId: input.organizationId,
     propertyId: input.propertyId,
     portalGroupId: input.portalGroupId,
-    kind,
+    kind: input.kind,
     portalId: input.portalId ?? null,
     otherGroupId: input.otherGroupId ?? null,
-    name: named ? requireName(input.name, 'the name') : null,
-    previousName: kind === 'renamed' ? (input.previousName ?? null) : null,
+    name: named ? validName(input.name) : null,
+    previousName: input.previousName ?? null,
     actorUserId: input.actorUserId,
     occurredAt: input.occurredAt,
   }
+}
+
+function validName(value: string | undefined): string {
+  const valid = validateGroupName(value ?? '')
+  if (valid.isErr()) throw valid.error
+  return valid.value
 }
 
 /**

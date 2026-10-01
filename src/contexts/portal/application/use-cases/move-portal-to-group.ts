@@ -11,7 +11,10 @@ import type { PortalRepository } from '../ports/portal.repository'
 import { portalError } from '../../domain/errors'
 import { portalAddedToGroup, portalRemovedFromGroup } from '../../domain/events'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { loadGroupAndPortalForMembership } from '../load-accessible-portal'
+import {
+  loadGroupAndPortalForMembership,
+  loadPortalOfGroupProperty,
+} from '../load-accessible-portal'
 import type { PortalCommandStore } from '../ports/portal-command-store.port'
 import { nextPortalCommandAt } from '../portal-command-version'
 
@@ -31,16 +34,7 @@ export const movePortalToGroup =
   ): Promise<void> => {
     const { gid, pid, group } = await loadGroupAndPortalForMembership(deps, ctx, input)
 
-    const portal = await deps.portalRepo.findById(ctx.organizationId, pid)
-    if (!portal) {
-      throw portalError('portal_not_found', 'portal not found in this organization')
-    }
-    if (String(portal.propertyId) !== String(group.propertyId)) {
-      throw portalError(
-        'forbidden',
-        'portal must belong to the same property as the group',
-      )
-    }
+    await loadPortalOfGroupProperty(deps, ctx, pid, group)
 
     const currentGroupId = await deps.portalGroupRepo.findPortalMembership(
       ctx.organizationId,
