@@ -1,9 +1,10 @@
 // The History tab's "View" (round 4, slice 47i) against real PostgreSQL: a
-// published version that is not the live one is read back through the
-// repository's verification and drawn with the live rules, so a tile whose
-// address is not approved is left out, an earlier-design version says so, a
-// version that was never published is refused, no address reaches the browser,
-// and another organisation reads nothing.
+// published version, the live one or one a later version replaced, is read back
+// through the repository's verification and drawn with the live rules, so a tile
+// whose address is not approved is left out. An earlier-design version says so,
+// a version that was never published or whose stored snapshot no longer
+// verifies is refused, no address reaches the browser, and another
+// organisation reads nothing.
 
 import { describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
@@ -67,6 +68,8 @@ function versionPreview() {
 
 const LIVE_VERSION = 1
 const EARLIER_DESIGN_VERSION = 2
+/** A version of the new design that a later one replaced: not the live one. */
+const REPLACED_VERSION = 3
 
 /** Version 1 is live (the new design); version 2 is an earlier-design version that was replaced. */
 async function seedVersions(): Promise<void> {
@@ -92,6 +95,19 @@ async function seedVersions(): Promise<void> {
         { ...spa, url: 'https://elsewhere.example.net/spa' },
       ],
     }),
+  })
+  // Replaced by version 1 (the history is not in version order): lists the approved tile only.
+  await seedLiveImmersiveSnapshot({
+    organizationId: COMPLETE_SCENARIO.organizationId,
+    propertyId: COMPLETE_SCENARIO.propertyId,
+    portalId: COMPLETE_SCENARIO.portalId,
+    configuration: bulgarianPrimaryConfiguration({
+      portal: { id: COMPLETE_SCENARIO.portalId, slug: COMPLETE_SCENARIO.slug },
+      links: [{ ...menu, url: 'https://example.com/menu' }],
+    }),
+    version: REPLACED_VERSION,
+    activation: 'replaced',
+    at: new Date('2026-09-25T09:00:00.000Z'),
   })
   await seedLegacySnapshot({
     organizationId: COMPLETE_SCENARIO.organizationId,
@@ -127,6 +143,40 @@ describe.sequential('getPortalVersionPreview (real PostgreSQL)', () => {
     expect(outcome.preview.experiences.bg?.links.map((link) => link.label)).toEqual([
       'Меню',
     ])
+  })
+
+  it('draws a version that is not the live one, from its own stored snapshot', async () => {
+    await seedVersions()
+
+    const outcome = await versionPreview()(
+      { portalId: COMPLETE_SCENARIO.portalId, version: REPLACED_VERSION },
+      asManager(),
+    )
+
+    if (outcome.status !== 'ready') throw new Error('expected a preview')
+    expect(outcome.preview).toMatchObject({
+      source: 'version',
+      version: REPLACED_VERSION,
+    })
+    expect(outcome.preview.experiences.bg?.links.map((link) => link.label)).toEqual([
+      'Меню',
+    ])
+  })
+
+  it('refuses a stored snapshot whose digest no longer matches its content', async () => {
+    await seedVersions()
+    await getPool().query(
+      `UPDATE portal_publication_snapshots SET configuration_digest = repeat('0', 64)
+         WHERE portal_id = $1 AND version = $2`,
+      [COMPLETE_SCENARIO.portalId, REPLACED_VERSION],
+    )
+
+    await expect(
+      versionPreview()(
+        { portalId: COMPLETE_SCENARIO.portalId, version: REPLACED_VERSION },
+        asManager(),
+      ),
+    ).rejects.toMatchObject({ code: 'publication_snapshot_unavailable' })
   })
 
   it('says an earlier-design version cannot be drawn', async () => {

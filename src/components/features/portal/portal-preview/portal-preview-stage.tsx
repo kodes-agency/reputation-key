@@ -56,6 +56,8 @@ type Props = Readonly<{
   onTryChange: (isTrying: boolean) => void
   /** Present in the editor: the phone's parts open the editor's sections. */
   selection?: PreviewSelection
+  /** The phone's scale; smaller where the room is (the History's dialog on a phone). */
+  phoneScale?: number
 }>
 
 export function PortalPreviewStage({
@@ -68,6 +70,7 @@ export function PortalPreviewStage({
   isTrying,
   onTryChange,
   selection,
+  phoneScale = PHONE_SCALE,
 }: Props) {
   const options = previewStateOptions(preview.privateFeedbackThreshold)
   // A threshold change can drop the chosen state; fall back to arrival.
@@ -131,13 +134,13 @@ export function PortalPreviewStage({
         ) : (
           <div className="flex flex-col items-center gap-3">
             <PreviewPhone
-              scale={PHONE_SCALE}
+              scale={phoneScale}
               label={`Preview of the guest page: ${caption}`}
               isScrollLocked={isSheetOpen}
             >
               {selection ? (
                 <PreviewPartFrame
-                  scale={PHONE_SCALE}
+                  scale={phoneScale}
                   selection={selection}
                   isSheetOpen={isSheetOpen}
                 >

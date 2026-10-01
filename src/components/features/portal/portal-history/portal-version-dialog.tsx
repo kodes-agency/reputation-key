@@ -99,7 +99,9 @@ export function PortalVersionDialog({
     <Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
       <DialogContent
         // The phone is taller than a laptop screen leaves room for: the dialog scrolls.
-        className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-3xl"
+        // Narrow windows give the page the room the padding would take; the
+        // dialog keeps its 1rem margin from the window at every width.
+        className="max-h-[calc(100dvh-2rem)] overflow-y-auto p-4 sm:max-w-[min(48rem,calc(100%-2rem))] sm:p-6"
         // The confirmation has no description to point at; saying so keeps the
         // dialog from naming an element that is not there.
         {...(confirmation === null ? {} : { 'aria-describedby': undefined })}
@@ -123,7 +125,7 @@ export function PortalVersionDialog({
               className={
                 preview === null
                   ? undefined
-                  : 'grid gap-6 md:grid-cols-[auto_minmax(0,1fr)] md:items-start'
+                  : 'grid gap-6 md:grid-cols-[auto_minmax(16rem,1fr)] md:items-start'
               }
             >
               {preview}

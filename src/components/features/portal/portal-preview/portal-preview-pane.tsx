@@ -145,6 +145,7 @@ export type PortalPreviewBodyProps = Readonly<{
   isTrying: boolean
   onTryChange: (next: boolean) => void
   selection: PreviewSelection | undefined
+  phoneScale?: number
 }>
 
 /**
@@ -163,7 +164,7 @@ export function PortalPreviewBody({
   if (hasError) return <PreviewFailure onRetry={onRetry} />
   const preview = data?.status === 'ready' ? data.preview : null
   if (isPending || (preview !== null && copyData === undefined))
-    return <PreviewSkeleton />
+    return <PreviewSkeleton scale={stage.phoneScale} />
   if (data?.status === 'unavailable') {
     return (
       <PreviewUnavailable
@@ -183,11 +184,11 @@ export function PortalPreviewBody({
   )
 }
 
-function PreviewSkeleton() {
+function PreviewSkeleton({ scale = PHONE_SCALE }: Readonly<{ scale?: number }>) {
   return (
     <div className="flex flex-col items-center gap-4" aria-busy="true">
       <Skeleton className="h-4 w-40" />
-      <Skeleton className="rounded-[2.2rem]" style={phoneFrameSize(PHONE_SCALE)} />
+      <Skeleton className="rounded-[2.2rem]" style={phoneFrameSize(scale)} />
       <span className="sr-only">Loading preview…</span>
     </div>
   )

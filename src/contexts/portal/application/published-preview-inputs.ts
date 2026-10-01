@@ -10,7 +10,7 @@ import {
 } from '../domain/portal-publication-snapshot'
 import { APPROVED_DESTINATION_MAX_VALIDATION_AGE_MS } from './approved-destination-age'
 import { immersiveAssetIds, type ServableMediaUrls } from './public-portal-immersive'
-import { resolvePortalMediaUrls } from './use-cases/resolve-portal-media-urls'
+import { resolvePortalMediaUrls } from './resolve-portal-media-urls'
 import type { PortalApprovedDestinationRepository } from './ports/portal-approved-destination.repository'
 import type { PortalMediaAssetRepository } from './ports/portal-media-asset.repository'
 

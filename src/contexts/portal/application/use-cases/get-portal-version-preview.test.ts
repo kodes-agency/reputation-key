@@ -157,7 +157,7 @@ describe('getPortalVersionPreview', () => {
     )
   })
 
-  it('refuses a version the Portal never had, or one that no longer verifies', async () => {
+  it('refuses a version the Portal never had', async () => {
     const { useCase } = setup()
 
     await expect(

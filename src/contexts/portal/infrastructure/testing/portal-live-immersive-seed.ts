@@ -1,6 +1,7 @@
-// Test seed — a Portal's live Immersive Hub version (schema 3) written as a
-// snapshot row and its open activation, so a suite can prove what reads the live
-// version without running a publication. Not imported by production code.
+// Test seed — a Portal's Immersive Hub version (schema 3) written as a snapshot
+// row and its activation (open: the live version; replaced: an earlier one), so
+// a suite can prove what reads a version without running a publication. Not
+// imported by production code.
 
 import { getDb } from '#/shared/db'
 import {
@@ -17,34 +18,40 @@ export type LiveImmersiveSeed = Readonly<{
   portalId: string
   configuration: ImmersivePortalPublicationConfiguration
   at?: Date
+  /** The version number; 1 unless a suite seeds several. It also makes the row ids unique. */
+  version?: number
+  /** `open` (the default) is the live version; `replaced` one a later version replaced. */
+  activation?: 'open' | 'replaced'
 }>
 
-const SNAPSHOT_ID = 'f4000000-0000-4000-8000-000000000001'
-const ACTIVATION_ID = 'f5000000-0000-4000-8000-000000000001'
+const idOf = (kind: string, version: number) =>
+  `${kind}000000-0000-4000-8000-${String(version).padStart(12, '0')}`
 
 export async function seedLiveImmersiveSnapshot(seed: LiveImmersiveSeed): Promise<void> {
   const at = seed.at ?? new Date('2026-09-30T09:00:00.000Z')
+  const version = seed.version ?? 1
   const snapshot = immersiveSnapshot(seed.configuration, {
-    id: SNAPSHOT_ID,
+    id: idOf('f4', version),
     organizationId: seed.organizationId,
     propertyId: seed.propertyId,
     portalId: seed.portalId,
-    version: 1,
+    version,
     createdAt: at,
   })
+  const open = (seed.activation ?? 'open') === 'open'
   const db = getDb()
   await db.insert(portalPublicationSnapshots).values(snapshotToRow(snapshot))
   await db.insert(portalPublicationActivations).values({
-    id: ACTIVATION_ID,
+    id: idOf('f5', version),
     organizationId: seed.organizationId,
     propertyId: seed.propertyId,
     portalId: seed.portalId,
     snapshotId: snapshot.id,
-    activationSequence: 1,
+    activationSequence: version,
     kind: 'publish',
     activatedBy: 'manager-live-seed',
     activatedAt: at,
-    deactivatedAt: null,
-    deactivationReason: null,
+    deactivatedAt: open ? null : new Date(at.getTime() + 1),
+    deactivationReason: open ? null : 'replaced',
   })
 }

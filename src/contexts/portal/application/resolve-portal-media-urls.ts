@@ -9,8 +9,8 @@ import { z } from 'zod/v4'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 import { portalMediaAssetId } from '#/shared/domain/ids'
 import { portalMediaPublicPath } from '#/shared/domain/portal-media'
-import type { ServableMediaUrls } from '../public-portal-immersive'
-import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.repository'
+import type { ServableMediaUrls } from './public-portal-immersive'
+import type { PortalMediaAssetRepository } from './ports/portal-media-asset.repository'
 
 const uuidSchema = z.uuid()
 

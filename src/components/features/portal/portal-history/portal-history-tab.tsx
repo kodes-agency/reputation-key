@@ -20,6 +20,7 @@ import type {
 import { buildHistoryRows, type HistoryFilterKey } from './portal-history-rows'
 import { PortalHistoryView, type HistorySelection } from './portal-history-view'
 import { PortalVersionPreview } from './portal-version-preview'
+import { listedTileCount } from './portal-version-page-note'
 import { useNow } from './use-now'
 
 /** The reads, handed in by the route (components never import server modules). */
@@ -177,6 +178,7 @@ export function PortalHistoryTab({
             portalId={portalId}
             version={selection.version}
             getVersionPreview={reads.getVersionPreview}
+            listedTileCount={listedTileCount(detail.data ?? null)}
           />
         )
       }

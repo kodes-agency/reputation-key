@@ -377,7 +377,9 @@ preview says `source: 'version'` with the version number, so it cannot be mistak
 page, and it carries no address, as the live one does not. A version from the earlier page
 design is `unavailable` (`earlier_design`) and the History falls back to the words of
 `getPortalVersion`; a version the Portal never had, or that no longer verifies, is refused
-(`publication_snapshot_unavailable`). Gated by `portal.read`; it writes nothing.
+(`publication_snapshot_unavailable`). Gated by `portal.read`; it writes nothing. The
+History's dialog says, under the phone, when the page draws fewer tiles than the version's
+words list (a lapsed address leaves a tile out of the page, not out of the words).
 
 `portal_page_edits` is the page-edit ledger: one row per change that can make a
 Portal's working page differ from what guests see, written in the same

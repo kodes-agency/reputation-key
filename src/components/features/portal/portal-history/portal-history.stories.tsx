@@ -21,6 +21,7 @@ import {
   storyHistoryFor,
 } from './__fixtures__/portal-history-stories-data'
 import { PortalHistoryView, type HistorySelection } from './portal-history-view'
+import { listedTileCount } from './portal-version-page-note'
 import { PortalVersionPreview } from './portal-version-preview'
 import { storyVersionPreview } from './__fixtures__/portal-version-preview-stories-data'
 
@@ -122,6 +123,7 @@ function Harness({
             portalId="portal-1"
             version={selection.version}
             getVersionPreview={async ({ data }) => storyVersionPreview(data.version)}
+            listedTileCount={listedTileCount(details[selection.version] ?? null)}
           />
         ) : null
       }

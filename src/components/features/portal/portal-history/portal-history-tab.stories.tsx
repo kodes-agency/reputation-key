@@ -205,6 +205,11 @@ export const ViewShowsThePageOfTheVersion: Story = {
     })
     // What the version lists stays beside the page: the addresses are not on it.
     await expect(dialog.getByRole('heading', { name: 'What it lists' })).toBeVisible()
+    // Version 4 lists a tile whose address has lapsed: the page leaves it out, and says so.
+    await expect(dialog.getByText('Dinner menu')).toBeVisible()
+    await expect(
+      dialog.getByText(/Tiles whose address is no longer approved/),
+    ).toBeVisible()
     // The page is a picture: nothing on it can be tapped from here.
     await expect(phone.querySelector('[inert]')).not.toBeNull()
   },
