@@ -10,20 +10,8 @@ import type { Database } from '#/shared/db'
 import { invitation, organization, user as userTable } from '#/shared/db/schema/auth'
 import { organizationId as toOrganizationId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
+import { parsePropertyIds } from '../domain/invitation-store-rules'
 import type { InvitationReadModel } from '../application/ports/invitation-read-model.port'
-
-/** Parse the JSON-encoded propertyIds string from an invitation row. */
-function parsePropertyIds(raw: string | null): ReadonlyArray<string> {
-  if (!raw) return []
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    return Array.isArray(parsed)
-      ? parsed.filter((p): p is string => typeof p === 'string')
-      : []
-  } catch {
-    return []
-  }
-}
 
 const inviter = alias(userTable, 'inviter')
 

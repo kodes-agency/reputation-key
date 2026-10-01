@@ -24,23 +24,29 @@ import { invitation, member, session, user as userTable } from '#/shared/db/sche
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { isOwnerToken } from '#/shared/domain/roles'
-import {
-  organizationId as toOrganizationId,
-  userId as toUserId,
-} from '#/shared/domain/ids'
 import { decideUserOrganizationMembership } from '#/shared/auth/user-organization-membership'
 import { identityError } from '../domain/errors'
-import { invitationState } from '../domain/invitation-state'
 import {
   INELIGIBLE_ROLE_MESSAGE,
-  INVITATION_CONSUMED_MESSAGE,
-  INVITATION_EXPIRED_MESSAGE,
-  INVITATION_INACTIVE_MESSAGE,
-  INVITATION_OTHER_ADDRESS_MESSAGE,
   REGISTRATION_FAILED_MESSAGE,
 } from '../domain/invitation-copy'
+import {
+  assertAddressHasNoMembership,
+  assertInvitationAcceptable,
+  assertInvitationOpenForRegistration,
+  assertRenewalHasNoCompetitor,
+  consumedInvitation,
+  encodePropertyIds,
+  grantedRoleToken,
+  lapsedCompetitorIds,
+  parsePropertyIds,
+  renewableInvitation,
+  toOpenInvitations,
+  type OpenInvitation,
+} from '../domain/invitation-store-rules'
 import { revokeAllPropertyAccessForUser } from './repositories/property-access-grant.repository'
 import type {
+  AcceptedInvitation,
   AcceptInvitationCommand,
   CancelInvitationCommand,
   ChangeMemberRoleCommand,
@@ -121,6 +127,10 @@ async function checkSingleOrganizationMembership(
   )
 }
 
+/** One member of one Organization: the scope every member read and write shares. */
+const memberOfOrganization = (memberId: string, orgId: string) =>
+  and(eq(member.id, memberId), eq(member.organizationId, orgId))
+
 /** Count owner-token members of the org. Caller holds the advisory lock. */
 async function countOwners(tx: Tx, orgId: string): Promise<number> {
   const rows = await tx
@@ -146,7 +156,7 @@ async function lockMemberForRoleChange(
   const rows = await tx
     .select()
     .from(member)
-    .where(and(eq(member.id, memberId), eq(member.organizationId, orgId)))
+    .where(memberOfOrganization(memberId, orgId))
     .for('update')
   const target = rows[0]
   if (!target) {
@@ -167,19 +177,6 @@ async function lockMemberForRoleChange(
   return target
 }
 
-/** Parse the JSON-encoded propertyIds string from an invitation row. */
-function parsePropertyIds(raw: string | null): ReadonlyArray<string> {
-  if (!raw) return []
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    return Array.isArray(parsed)
-      ? parsed.filter((p): p is string => typeof p === 'string')
-      : []
-  } catch {
-    return []
-  }
-}
-
 /** Serialize every invitation write for one address, across Organizations. */
 async function lockInvitationEmail(tx: Tx, email: string): Promise<void> {
   await tx.execute(
@@ -187,11 +184,8 @@ async function lockInvitationEmail(tx: Tx, email: string): Promise<void> {
   )
 }
 
-/**
- * Guard 1 — an existing membership must either be the current org (duplicate)
- * or another org (closed-beta Organization conflict).
- */
-async function assertAddressHasNoMembership(
+/** Guard 1 — the address's memberships, judged by the shared rule. */
+async function checkAddressHasNoMembership(
   tx: Tx,
   email: string,
   organizationId: string,
@@ -201,30 +195,18 @@ async function assertAddressHasNoMembership(
     .from(member)
     .innerJoin(userTable, eq(member.userId, userTable.id))
     .where(sql`LOWER(${userTable.email}) = ${email}`)
-  if (memberRows.some((row) => row.organizationId === organizationId)) {
-    throw identityError('already_exists', 'User is already a member of this organization')
-  }
-  if (memberRows.length > 0) {
-    throw identityError(
-      'organization_conflict',
-      'This account already belongs to another Organization',
-    )
-  }
+  assertAddressHasNoMembership(
+    memberRows.map((row) => row.organizationId),
+    organizationId,
+  )
 }
-
-type OpenInvitationRow = Readonly<{
-  id: string
-  organizationId: string
-  state: 'pending' | 'expired'
-  storedStatus: string
-}>
 
 /** The address's open (stored pending or expired) invitations, read as their state. */
 async function openInvitationsForAddress(
   tx: Tx,
   email: string,
   now: Date,
-): Promise<ReadonlyArray<OpenInvitationRow>> {
+): Promise<ReadonlyArray<OpenInvitation>> {
   const rows = await tx
     .select({
       id: invitation.id,
@@ -239,53 +221,20 @@ async function openInvitationsForAddress(
         inArray(invitation.status, ['pending', 'expired']),
       ),
     )
-  return rows.flatMap((row) => {
-    const state = invitationState(row.status, row.expiresAt, now)
-    return state === 'pending' || state === 'expired'
-      ? [
-          {
-            id: row.id,
-            organizationId: row.organizationId,
-            state,
-            storedStatus: row.status,
-          },
-        ]
-      : []
-  })
+  return rows.flatMap((row) => toOpenInvitations(row, now))
 }
 
 /**
- * Guard 2 — only one Organization may hold a live beta manager invitation for
- * an address. A lapsed row of this Organization is renewed with Resend rather
- * than duplicated; another Organization's lapsed row is marked 'expired' (no
- * fact — the precedent is the 'rejected' write in acceptInvitation) so it
- * stops blocking the address.
+ * Guard 2 (the shared rule), then the write it asks for: another
+ * Organization's lapsed row is marked 'expired' (no fact — the precedent is
+ * the 'rejected' write in acceptInvitation) so it stops blocking the address.
  */
-async function assertNoCompetingInvitation(
+async function checkNoCompetingInvitation(
   tx: Tx,
   input: Readonly<{ email: string; organizationId: string; now: Date }>,
 ): Promise<void> {
   const open = await openInvitationsForAddress(tx, input.email, input.now)
-  const mine = open.filter((row) => row.organizationId === input.organizationId)
-  const theirs = open.filter((row) => row.organizationId !== input.organizationId)
-  if (mine.some((row) => row.state === 'pending')) {
-    throw identityError('already_exists', 'User is already invited to this organization')
-  }
-  if (mine.length > 0) {
-    throw identityError(
-      'already_exists',
-      'This email has an expired invitation. Use Resend to renew it.',
-    )
-  }
-  if (theirs.some((row) => row.state === 'pending')) {
-    throw identityError(
-      'organization_conflict',
-      'This email already has a pending invitation from another Organization',
-    )
-  }
-  const lapsedIds = theirs
-    .filter((row) => row.storedStatus === 'pending')
-    .map((row) => row.id)
+  const lapsedIds = lapsedCompetitorIds(open, input.organizationId)
   if (lapsedIds.length > 0) {
     await tx
       .update(invitation)
@@ -294,25 +243,13 @@ async function assertNoCompetingInvitation(
   }
 }
 
-/**
- * The renewed row must not compete with a live invitation elsewhere: another
- * Organization may have invited the address while this one lapsed.
- */
-async function assertRenewalHasNoCompetitor(
+/** The renewed row must not compete with a live invitation elsewhere (shared rule). */
+async function checkRenewalHasNoCompetitor(
   tx: Tx,
   input: Readonly<{ id: string; email: string; organizationId: string; now: Date }>,
 ): Promise<void> {
   const open = await openInvitationsForAddress(tx, input.email, input.now)
-  const live = open.filter((row) => row.id !== input.id && row.state === 'pending')
-  if (live.some((row) => row.organizationId === input.organizationId)) {
-    throw identityError('already_exists', 'User is already invited to this organization')
-  }
-  if (live.length > 0) {
-    throw identityError(
-      'organization_conflict',
-      'This email already has a pending invitation from another Organization',
-    )
-  }
+  assertRenewalHasNoCompetitor(open, input)
 }
 
 /**
@@ -358,16 +295,7 @@ export const createAtomicIdentityCommandStore = (
         .from(invitation)
         .where(eq(invitation.id, command.invitationId as string))
         .limit(1)
-      const inv = rows[0]
-      if (!inv || inv.status !== 'pending' || inv.expiresAt <= command.now) {
-        throw identityError('invitation_not_found', 'Invitation is not available')
-      }
-      if (inv.email.toLowerCase() !== command.email.toLowerCase()) {
-        throw identityError('forbidden', 'Invitation is not addressed to this email')
-      }
-      if (!isBetaInteractiveMemberRoleToken(inv.role ?? 'member')) {
-        throw identityError('forbidden', INELIGIBLE_ROLE_MESSAGE)
-      }
+      assertInvitationOpenForRegistration(rows[0], command)
     },
 
     inviteMember: async (command: InviteMemberCommand) => {
@@ -383,8 +311,8 @@ export const createAtomicIdentityCommandStore = (
           // Serialize all invitations for an address, including the
           // absent-row race across two Organizations.
           await lockInvitationEmail(tx, email)
-          await assertAddressHasNoMembership(tx, email, command.organizationId as string)
-          await assertNoCompetingInvitation(tx, {
+          await checkAddressHasNoMembership(tx, email, command.organizationId as string)
+          await checkNoCompetingInvitation(tx, {
             email,
             organizationId: command.organizationId as string,
             now: command.now,
@@ -396,8 +324,7 @@ export const createAtomicIdentityCommandStore = (
             email,
             role: command.role,
             expiresAt: command.expiresAt,
-            propertyIds:
-              command.propertyIds.length > 0 ? JSON.stringify(command.propertyIds) : null,
+            propertyIds: encodePropertyIds(command.propertyIds),
             inviterId: command.inviterId as string,
             createdAt: command.now,
           })
@@ -431,22 +358,13 @@ export const createAtomicIdentityCommandStore = (
           if (!inv) {
             throw identityError('invitation_not_found', 'Invitation not found')
           }
-          // 2. Email-match invariant — only the invitee may accept.
-          if (inv.email.toLowerCase() !== acceptorEmail) {
-            throw identityError('forbidden', INVITATION_OTHER_ADDRESS_MESSAGE)
-          }
-          // 3. Lifecycle gate. The copy is fixed: it reaches the invitee.
-          const state = invitationState(inv.status, inv.expiresAt, command.now)
-          if (state === 'expired') {
-            throw identityError('invitation_expired', INVITATION_EXPIRED_MESSAGE)
-          }
-          if (state !== 'pending') {
-            throw identityError('invitation_not_found', INVITATION_INACTIVE_MESSAGE)
-          }
+          // 2-3. Email-match invariant and lifecycle gate: only the invitee
+          //      may accept, and only a pending invitation.
+          assertInvitationAcceptable(inv, acceptorEmail, command.now)
           // 4. Re-validate the role at acceptance. Member users and custom
           //    roles are retained as data but cannot become beta logins.
-          const role = (inv.role ?? 'member').trim().toLowerCase()
-          if (!isBetaInteractiveMemberRoleToken(role)) {
+          const role = grantedRoleToken(inv.role)
+          if (role === null) {
             await tx
               .update(invitation)
               .set({ status: 'rejected' })
@@ -492,11 +410,7 @@ export const createAtomicIdentityCommandStore = (
             .set({ status: 'accepted' })
             .where(eq(invitation.id, inv.id))
           // 8. The fact carries invitation-row data read under the lock.
-          const accepted = {
-            organizationId: toOrganizationId(inv.organizationId),
-            propertyIds: parsePropertyIds(inv.propertyIds),
-            inviterId: inv.inviterId ? toUserId(inv.inviterId) : null,
-          }
+          const accepted: AcceptedInvitation = consumedInvitation(inv)
           const fact = command.buildEvent(accepted)
           await insertOutboxRow(tx, fact)
           return { kind: 'accepted' as const, result: accepted }
@@ -537,16 +451,9 @@ export const createAtomicIdentityCommandStore = (
             .from(invitation)
             .where(scope)
             .for('update')
-          const inv = rows[0]
-          if (!inv || (inv.status !== 'pending' && inv.status !== 'expired')) {
-            throw identityError('invitation_not_found', INVITATION_CONSUMED_MESSAGE)
-          }
-          const role = (inv.role ?? 'member').trim().toLowerCase()
-          if (!isBetaInteractiveMemberRoleToken(role)) {
-            throw identityError('forbidden', INELIGIBLE_ROLE_MESSAGE)
-          }
-          await assertAddressHasNoMembership(tx, email, command.organizationId as string)
-          await assertRenewalHasNoCompetitor(tx, {
+          const { inv, role } = renewableInvitation(rows[0])
+          await checkAddressHasNoMembership(tx, email, command.organizationId as string)
+          await checkRenewalHasNoCompetitor(tx, {
             id: inv.id,
             email,
             organizationId: command.organizationId as string,
@@ -621,10 +528,7 @@ export const createAtomicIdentityCommandStore = (
           await tx
             .delete(member)
             .where(
-              and(
-                eq(member.id, command.memberId),
-                eq(member.organizationId, command.organizationId as string),
-              ),
+              memberOfOrganization(command.memberId, command.organizationId as string),
             )
           await insertOutboxRow(tx, command.event)
         })
@@ -652,10 +556,7 @@ export const createAtomicIdentityCommandStore = (
             .update(member)
             .set({ role: command.newRole })
             .where(
-              and(
-                eq(member.id, command.memberId),
-                eq(member.organizationId, command.organizationId as string),
-              ),
+              memberOfOrganization(command.memberId, command.organizationId as string),
             )
           await insertOutboxRow(tx, command.event)
         })

@@ -10,21 +10,25 @@
 
 import { createRecordedOutbox, type RecordedOutbox } from './recorded-outbox'
 import { isOwnerToken } from '#/shared/domain/roles'
-import {
-  organizationId as toOrganizationId,
-  userId as toUserId,
-} from '#/shared/domain/ids'
 import { isBetaInteractiveMemberRoleToken } from '#/shared/domain/beta-interactive-role'
 import { identityError } from '#/contexts/identity/domain/errors'
-import { invitationState } from '#/contexts/identity/domain/invitation-state'
 import {
   INELIGIBLE_ROLE_MESSAGE,
-  INVITATION_CONSUMED_MESSAGE,
-  INVITATION_EXPIRED_MESSAGE,
-  INVITATION_INACTIVE_MESSAGE,
-  INVITATION_OTHER_ADDRESS_MESSAGE,
   REGISTRATION_FAILED_MESSAGE,
 } from '#/contexts/identity/domain/invitation-copy'
+import {
+  assertAddressHasNoMembership,
+  assertInvitationAcceptable,
+  assertInvitationOpenForRegistration,
+  assertRenewalHasNoCompetitor,
+  consumedInvitation,
+  encodePropertyIds,
+  grantedRoleToken,
+  lapsedCompetitorIds,
+  parsePropertyIds,
+  renewableInvitation,
+  toOpenInvitations,
+} from '#/contexts/identity/domain/invitation-store-rules'
 import type {
   AcceptedInvitation,
   IdentityCommandStore,
@@ -91,18 +95,6 @@ export type SequentialIdentityCommandStore = IdentityCommandStore &
     readonly verifiedUserIds: ReadonlyArray<string>
   }>
 
-function parsePropertyIds(raw: string | null): ReadonlyArray<string> {
-  if (!raw) return []
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    return Array.isArray(parsed)
-      ? parsed.filter((p): p is string => typeof p === 'string')
-      : []
-  } catch {
-    return []
-  }
-}
-
 export function createSequentialIdentityCommandStore(deps: {
   outbox?: RecordedOutbox
 }): SequentialIdentityCommandStore {
@@ -121,30 +113,18 @@ export function createSequentialIdentityCommandStore(deps: {
       (m) => m.organizationId === organizationId && isOwnerToken(m.role),
     ).length
 
-  const assertAddressHasNoMembership = (email: string, organizationId: string) => {
-    const memberships = [...members.values()].filter(
-      (m) => m.email.toLowerCase() === email,
+  const checkAddressHasNoMembership = (email: string, organizationId: string) =>
+    assertAddressHasNoMembership(
+      [...members.values()]
+        .filter((m) => m.email.toLowerCase() === email)
+        .map((m) => m.organizationId),
+      organizationId,
     )
-    if (memberships.some((m) => m.organizationId === organizationId)) {
-      throw identityError(
-        'already_exists',
-        'User is already a member of this organization',
-      )
-    }
-    if (memberships.length > 0) {
-      throw identityError(
-        'organization_conflict',
-        'This account already belongs to another Organization',
-      )
-    }
-  }
 
   const openInvitationsFor = (email: string, now: Date) =>
-    [...invitations.values()].flatMap((i) => {
-      if (i.email.toLowerCase() !== email) return []
-      const state = invitationState(i.status, i.expiresAt, now)
-      return state === 'pending' || state === 'expired' ? [{ ...i, state }] : []
-    })
+    [...invitations.values()]
+      .filter((i) => i.email.toLowerCase() === email)
+      .flatMap((i) => toOpenInvitations(i, now))
 
   const markEmailVerified = (userId: string, email: string) => {
     const seeded = users.get(userId)
@@ -157,19 +137,10 @@ export function createSequentialIdentityCommandStore(deps: {
 
   return {
     validateInvitationRegistration: async (command) => {
-      const inv = invitations.get(command.invitationId as string)
-      if (!inv || inv.status !== 'pending' || inv.expiresAt <= command.now) {
-        throw identityError('invitation_not_found', 'Invitation is not available')
-      }
-      if (inv.email.toLowerCase() !== command.email.toLowerCase()) {
-        throw identityError('forbidden', 'Invitation is not addressed to this email')
-      }
-      if (!isBetaInteractiveMemberRoleToken(inv.role ?? 'member')) {
-        throw identityError(
-          'forbidden',
-          'This invitation is not eligible for beta manager access',
-        )
-      }
+      assertInvitationOpenForRegistration(
+        invitations.get(command.invitationId as string),
+        command,
+      )
     },
 
     inviteMember: async (command) => {
@@ -181,33 +152,14 @@ export function createSequentialIdentityCommandStore(deps: {
       }
       const email = command.email.toLowerCase()
       const organizationId = command.organizationId as string
-      assertAddressHasNoMembership(email, organizationId)
-      const open = openInvitationsFor(email, command.now)
-      const mine = open.filter((i) => i.organizationId === organizationId)
-      const theirs = open.filter((i) => i.organizationId !== organizationId)
-      if (mine.some((i) => i.state === 'pending')) {
-        throw identityError(
-          'already_exists',
-          'User is already invited to this organization',
-        )
-      }
-      if (mine.length > 0) {
-        throw identityError(
-          'already_exists',
-          'This email has an expired invitation. Use Resend to renew it.',
-        )
-      }
-      if (theirs.some((i) => i.state === 'pending')) {
-        throw identityError(
-          'organization_conflict',
-          'This email already has a pending invitation from another Organization',
-        )
-      }
-      for (const lapsed of theirs) {
-        if (lapsed.status === 'pending') {
-          const { state: _state, ...row } = lapsed
-          invitations.set(row.id, { ...row, status: 'expired' })
-        }
+      checkAddressHasNoMembership(email, organizationId)
+      const lapsedIds = lapsedCompetitorIds(
+        openInvitationsFor(email, command.now),
+        organizationId,
+      )
+      for (const id of lapsedIds) {
+        const lapsed = invitations.get(id)
+        if (lapsed) invitations.set(id, { ...lapsed, status: 'expired' })
       }
       invitations.set(command.invitationId as string, {
         id: command.invitationId as string,
@@ -216,8 +168,7 @@ export function createSequentialIdentityCommandStore(deps: {
         role: command.role,
         status: 'pending',
         expiresAt: command.expiresAt,
-        propertyIds:
-          command.propertyIds.length > 0 ? JSON.stringify(command.propertyIds) : null,
+        propertyIds: encodePropertyIds(command.propertyIds),
         inviterId: command.inviterId as string,
         createdAt: command.now,
       })
@@ -230,18 +181,9 @@ export function createSequentialIdentityCommandStore(deps: {
         throw identityError('invitation_not_found', 'Invitation not found')
       }
       const acceptorEmail = command.acceptorEmail.toLowerCase()
-      if (inv.email.toLowerCase() !== acceptorEmail) {
-        throw identityError('forbidden', INVITATION_OTHER_ADDRESS_MESSAGE)
-      }
-      const state = invitationState(inv.status, inv.expiresAt, command.now)
-      if (state === 'expired') {
-        throw identityError('invitation_expired', INVITATION_EXPIRED_MESSAGE)
-      }
-      if (state !== 'pending') {
-        throw identityError('invitation_not_found', INVITATION_INACTIVE_MESSAGE)
-      }
-      const role = (inv.role ?? 'member').trim().toLowerCase()
-      if (!isBetaInteractiveMemberRoleToken(role)) {
+      assertInvitationAcceptable(inv, acceptorEmail, command.now)
+      const role = grantedRoleToken(inv.role)
+      if (role === null) {
         invitations.set(inv.id, { ...inv, status: 'rejected' })
         throw identityError('forbidden', INELIGIBLE_ROLE_MESSAGE)
       }
@@ -276,11 +218,7 @@ export function createSequentialIdentityCommandStore(deps: {
         createdAt: command.now,
       })
       invitations.set(inv.id, { ...inv, status: 'accepted' })
-      const accepted: AcceptedInvitation = {
-        organizationId: toOrganizationId(inv.organizationId),
-        propertyIds: parsePropertyIds(inv.propertyIds),
-        inviterId: inv.inviterId ? toUserId(inv.inviterId) : null,
-      }
+      const accepted: AcceptedInvitation = consumedInvitation(inv)
       const fact = command.buildEvent(accepted)
       await recordAndEmit(fact)
       return accepted
@@ -291,30 +229,10 @@ export function createSequentialIdentityCommandStore(deps: {
       if (!inv || inv.organizationId !== (command.organizationId as string)) {
         throw identityError('invitation_not_found', 'Invitation not found')
       }
-      if (inv.status !== 'pending' && inv.status !== 'expired') {
-        throw identityError('invitation_not_found', INVITATION_CONSUMED_MESSAGE)
-      }
-      const role = (inv.role ?? 'member').trim().toLowerCase()
-      if (!isBetaInteractiveMemberRoleToken(role)) {
-        throw identityError('forbidden', INELIGIBLE_ROLE_MESSAGE)
-      }
+      const { role } = renewableInvitation(inv)
       const email = inv.email.toLowerCase()
-      assertAddressHasNoMembership(email, inv.organizationId)
-      const live = openInvitationsFor(email, command.now).filter(
-        (i) => i.id !== inv.id && i.state === 'pending',
-      )
-      if (live.some((i) => i.organizationId === inv.organizationId)) {
-        throw identityError(
-          'already_exists',
-          'User is already invited to this organization',
-        )
-      }
-      if (live.length > 0) {
-        throw identityError(
-          'organization_conflict',
-          'This email already has a pending invitation from another Organization',
-        )
-      }
+      checkAddressHasNoMembership(email, inv.organizationId)
+      assertRenewalHasNoCompetitor(openInvitationsFor(email, command.now), inv)
       invitations.set(inv.id, {
         ...inv,
         status: 'pending',
