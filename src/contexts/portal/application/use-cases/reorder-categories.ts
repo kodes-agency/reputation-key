@@ -45,6 +45,7 @@ export const reorderCategories =
     })
     await deps.commandStore.reorderPortalLinkCategories({
       organizationId: ctx.organizationId,
+      actorUserId: ctx.userId,
       propertyId: portal.propertyId,
       portalId: portal.id,
       expectedPortalUpdatedAt: portal.updatedAt,

@@ -26,6 +26,7 @@ import {
   GUEST_LOCALE_SQL_LIST,
 } from '../../guest-locale-schemas'
 import { portals } from './portal.schema'
+import { properties } from './property.schema'
 
 // ── immutable Portal publication snapshots ───────────────────────
 
@@ -253,6 +254,14 @@ export const portalPublicationActivations = pgTable(
 // ── durable unpublished working-copy changes ─────────────────────
 
 /**
+ * The six kinds of change that can make a Portal's working page differ from what
+ * is live, mirrored from `PORTAL_PAGE_EDIT_KINDS`; the schema test pins them.
+ * The pending-change fence and the page-edit ledger both check against it.
+ */
+export const PORTAL_PAGE_EDIT_KIND_SQL_LIST =
+  "'portal_configuration', 'portal_links', 'property_brand_profile', 'property_brand_content', 'portal_localized_override', 'approved_destination'"
+
+/**
  * An append-only record that a resolved publication input changed after at
  * least one snapshot existed. Successful publication resolves every open row
  * to the exact immutable snapshot; rollback never claims unpublished work.
@@ -299,7 +308,7 @@ export const portalPendingContentChanges = pgTable(
     }).onDelete('restrict'),
     check(
       'portal_pending_content_changes_kind_valid',
-      sql`${t.changeKind} IN ('portal_configuration', 'portal_links', 'property_brand_profile', 'property_brand_content', 'portal_localized_override', 'approved_destination')`,
+      sql`${t.changeKind} IN (${sql.raw(PORTAL_PAGE_EDIT_KIND_SQL_LIST)})`,
     ),
     check(
       'portal_pending_content_changes_resolution_pair',
@@ -308,6 +317,77 @@ export const portalPendingContentChanges = pgTable(
     check(
       'portal_pending_content_changes_resolution_time',
       sql`${t.resolvedAt} IS NULL OR ${t.resolvedAt} >= ${t.changedAt}`,
+    ),
+  ],
+)
+
+// ── page-edit ledger ─────────────────────────────────────────────
+// Who changed which part of a Portal's page, and when (round 4, slice 35b).
+// One row per change, written in the same transaction as the working-copy
+// write and the pending-change fence. The key names the part of the page and
+// the verb (identifiers, locales and settings fields only). A change to one
+// piece of wording also keeps that wording before and after, clipped to
+// `PAGE_EDIT_TEXT_COLUMN_MAX`; the CHECK keeps looks, orders and destinations
+// text-free. Saves of the same part by the same person with no publication
+// between them fold into one row (`occurred_at` moves, `edit_count` counts),
+// so an autosaving editor does not bury the timeline. `portal_id` is null for
+// the Property's look and welcome text, which belong to every Portal in the
+// Property; a second foreign key ties those rows to their Property.
+
+/** The longest wording the ledger keeps; longer text is clipped before it is stored. */
+export const PAGE_EDIT_TEXT_COLUMN_MAX = 200
+
+export const portalPageEdits = pgTable(
+  'portal_page_edits',
+  {
+    id: uuid('id').primaryKey().defaultRandom(),
+    organizationId: varchar('organization_id', { length: 255 }).notNull(),
+    propertyId: uuid('property_id').notNull(),
+    portalId: uuid('portal_id'),
+    changeKind: varchar('change_kind', { length: 40 }).notNull(),
+    changeKey: varchar('change_key', { length: 160 }).notNull().default('all'),
+    previousText: varchar('previous_text', { length: PAGE_EDIT_TEXT_COLUMN_MAX }),
+    newText: varchar('new_text', { length: PAGE_EDIT_TEXT_COLUMN_MAX }),
+    // How many saves this row stands for.
+    editCount: integer('edit_count').notNull().default(1),
+    // Null when the system made the change (an automatic name, a destination
+    // that failed its network check).
+    actorUserId: varchar('actor_user_id', { length: 255 }),
+    // The latest save this row stands for.
+    occurredAt: timestamp('occurred_at', { withTimezone: true }).notNull(),
+    createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index('portal_page_edits_property_portal_idx').on(
+      t.organizationId,
+      t.propertyId,
+      t.portalId,
+      t.occurredAt,
+    ),
+    foreignKey({
+      name: 'portal_page_edits_property_tenant_fk',
+      columns: [t.organizationId, t.propertyId],
+      foreignColumns: [properties.organizationId, properties.id],
+    }).onDelete('restrict'),
+    foreignKey({
+      name: 'portal_page_edits_portal_tenant_fk',
+      columns: [t.organizationId, t.propertyId, t.portalId],
+      foreignColumns: [portals.organizationId, portals.propertyId, portals.id],
+    }).onDelete('restrict'),
+    check(
+      'portal_page_edits_kind_valid',
+      sql`${t.changeKind} IN (${sql.raw(PORTAL_PAGE_EDIT_KIND_SQL_LIST)})`,
+    ),
+    check(
+      'portal_page_edits_scope',
+      sql`(${t.changeKind} IN ('property_brand_profile', 'property_brand_content')) = (${t.portalId} IS NULL)`,
+    ),
+    check('portal_page_edits_count_positive', sql`${t.editCount} >= 1`),
+    // `!~~` is NOT LIKE as the catalog prints it, so the model and the migrated
+    // database compare equal. Mirrors `pageEditCarriesWording` in the domain.
+    check(
+      'portal_page_edits_text_scope',
+      sql`(${t.previousText} IS NULL AND ${t.newText} IS NULL) OR ${t.changeKind} IN ('property_brand_content', 'portal_localized_override') OR (${t.changeKind} = 'property_brand_profile' AND ${t.changeKey} = 'all') OR (${t.changeKind} = 'portal_links' AND ${t.changeKey} !~~ '%reordered' AND ${t.changeKey} <> 'linktree:enabled') OR (${t.changeKind} = 'portal_configuration' AND ${t.changeKey} IN ('settings:name', 'settings:description'))`,
     ),
   ],
 )

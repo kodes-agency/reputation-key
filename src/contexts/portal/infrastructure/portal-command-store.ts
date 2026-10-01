@@ -14,10 +14,8 @@ import {
 } from '#/shared/db/schema'
 import { insertOutboxRow } from '#/shared/outbox/commit'
 import { lockPortalPublicationProperty } from './portal-publication-serialization'
-import {
-  recordPortalPendingContentChange,
-  resolvePortalPendingContentChanges,
-} from './portal-pending-content-changes'
+import { resolvePortalPendingContentChanges } from './portal-pending-content-changes'
+import { readPortalSettings, recordPortalSettingsChange } from './portal-settings-edits'
 import { trace } from '#/shared/observability/trace'
 import { unbrand } from '#/shared/domain/ids'
 import type {
@@ -55,21 +53,6 @@ type PortalSetValues = {
   primaryGuestLocale?: Portal['primaryGuestLocale']
   additionalGuestLocales?: Portal['additionalGuestLocales']
   updatedAt?: Date
-}
-
-const PORTAL_WORKING_COPY_FIELDS: ReadonlySet<string> = new Set([
-  'name',
-  'slug',
-  'description',
-  'heroImageUrl',
-  'theme',
-  'privateFeedbackThreshold',
-  'primaryGuestLocale',
-  'additionalGuestLocales',
-])
-
-function hasPortalWorkingCopyPatch(patch: UpdatePortalCommand['patch']): boolean {
-  return Object.keys(patch).some((key) => PORTAL_WORKING_COPY_FIELDS.has(key))
 }
 
 function buildPortalSetClause(patch: Readonly<Partial<Portal>>): PortalSetValues {
@@ -547,6 +530,7 @@ export const createAtomicPortalCommandStore = (db: Database): PortalCommandStore
               unbrand(command.propertyId),
             )
           }
+          const settingsBefore = await readPortalSettings(tx, command)
           const reconcileLinkTexts = await watchPrimaryLocaleChange(tx, command)
           const [updated] = await tx
             .update(portals)
@@ -666,19 +650,7 @@ export const createAtomicPortalCommandStore = (db: Database): PortalCommandStore
               },
             )
           }
-          if (
-            command.publication?.kind !== 'publish' &&
-            hasPortalWorkingCopyPatch(command.patch)
-          ) {
-            await recordPortalPendingContentChange(tx, {
-              organizationId: unbrand(command.organizationId),
-              propertyId: unbrand(command.propertyId),
-              portalId: unbrand(command.portalId),
-              kind: 'portal_configuration',
-              sourceVersion: command.revision.toISOString(),
-              changedAt: command.occurredAt,
-            })
-          }
+          await recordPortalSettingsChange(tx, command, settingsBefore)
           await insertOutboxRow(tx, command.event, {
             recordedAt: command.event.occurredAt,
           })

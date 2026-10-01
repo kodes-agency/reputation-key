@@ -48,6 +48,7 @@ const { getPool } = setupIntegrationDb({
     'portal_link_categories',
     'portal_responsible_managers',
     'outbox_events',
+    'portal_page_edits',
     'portals',
     'properties',
   ],
@@ -331,6 +332,31 @@ const pendingKeys = async () =>
     )
   ).rows.map((row) => `${row.change_kind}|${row.change_key}`)
 
+/** The page-edit ledger of the Portal, oldest first: kind, key and actor. */
+const pageEdits = async () =>
+  (
+    await getPool().query(
+      `SELECT change_kind, change_key, actor_user_id FROM portal_page_edits
+       WHERE organization_id = $1 AND portal_id = $2 ORDER BY occurred_at, change_key`,
+      [ORG_A, PORTAL_A],
+    )
+  ).rows.map((row) => `${row.change_kind}|${row.change_key}|${row.actor_user_id}`)
+
+/** The wording a ledger row kept, by key: [before, after, saves folded]. */
+const pageEditWording = async () =>
+  new Map(
+    (
+      await getPool().query(
+        `SELECT change_key, previous_text, new_text, edit_count FROM portal_page_edits
+         WHERE organization_id = $1 AND portal_id = $2`,
+        [ORG_A, PORTAL_A],
+      )
+    ).rows.map((row) => [
+      row.change_key as string,
+      [row.previous_text, row.new_text, row.edit_count] as const,
+    ]),
+  )
+
 const linkCount = async () =>
   Number(
     (
@@ -502,15 +528,42 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
       expect(keys).toContain(`portal_links|link:${id}:text:bg`)
     })
 
+    it('names who changed each text in the page-edit ledger, before any publication too', async () => {
+      const id = await createLink('City guide', 'a0')
+      await saveTexts(id, [
+        { locale: 'en', label: 'Explore the city' },
+        { locale: 'bg', label: 'Разгледайте града' },
+      ])
+
+      expect(await pendingKeys()).toEqual([])
+      const edits = await pageEdits()
+      expect(edits).toContain(`portal_links|link:${id}:text:en|${MANAGER}`)
+      expect(edits).toContain(`portal_links|link:${id}:text:bg|${MANAGER}`)
+    })
+
+    it('keeps the label before and after, folding saves of one language into one entry', async () => {
+      const id = await createLink('City guide', 'a0')
+      await saveTexts(id, [{ locale: 'bg', label: 'Градски справочник' }])
+      await saveTexts(id, [{ locale: 'bg', label: 'Градски гид' }])
+      await saveTexts(id, [{ locale: 'bg', label: 'Градски гид', line: 'Две минути' }])
+
+      const wording = await pageEditWording()
+      // The first save of a language that had no text says there was none before;
+      // the next two are the same sitting, so they fold: first before, latest after.
+      expect(wording.get(`link:${id}:text:bg`)).toEqual([null, 'Градски гид', 3])
+    })
+
     it('records nothing for a text that did not change', async () => {
       await seedPublishedSnapshot()
       const id = await createLink('City guide', 'a0')
       await saveTexts(id, [{ locale: 'bg', label: 'Градски справочник' }])
       const before = await pendingKeys()
 
+      const editsBefore = await pageEdits()
       await saveTexts(id, [{ locale: 'bg', label: 'Градски справочник' }])
 
       expect(await pendingKeys()).toEqual(before)
+      expect(await pageEdits()).toEqual(editsBefore)
       expect((await textRows(id)).find((row) => row.locale === 'bg')?.version).toBe(1)
     })
 
@@ -671,6 +724,7 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
 
       await store().deletePortalLink({
         ...command,
+        actorUserId: MANAGER,
         linkId: portalLinkId(id),
         categoryId: CATEGORY_A,
         event: portalLinkDeleted({
@@ -769,6 +823,7 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
 
       expect(await settings()).toBe(false)
       expect(await pendingKeys()).toEqual(['portal_links|linktree:enabled'])
+      expect(await pageEdits()).toEqual([`portal_links|linktree:enabled|${MANAGER}`])
     })
 
     it('records nothing when the switch already has that value', async () => {
@@ -777,6 +832,7 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
       await saveSettings({ enabled: true })
 
       expect(await pendingKeys()).toEqual([])
+      expect(await pageEdits()).toEqual([])
     })
 
     it('saves a title per language and records each as pending', async () => {
@@ -796,6 +852,28 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
       expect(await pendingKeys()).toEqual([
         'portal_links|linktree:title:bg',
         'portal_links|linktree:title:en',
+      ])
+      expect(await pageEdits()).toEqual([
+        `portal_links|linktree:title:bg|${MANAGER}`,
+        `portal_links|linktree:title:en|${MANAGER}`,
+      ])
+      const wording = await pageEditWording()
+      expect(wording.get('linktree:title:en')).toEqual([null, 'Around town', 1])
+      expect(wording.get('linktree:title:bg')).toEqual([null, 'Из града', 1])
+    })
+
+    it('keeps the title that was reset as the text before, with none after', async () => {
+      await saveSettings({ titles: [{ locale: 'en', title: 'Around town' }] })
+      // The first save is history by now: nothing folds into it.
+      await getPool().query('DELETE FROM portal_page_edits WHERE organization_id = $1', [
+        ORG_A,
+      ])
+      await saveSettings({ titles: [{ locale: 'en', title: null }] })
+
+      expect((await pageEditWording()).get('linktree:title:en')).toEqual([
+        'Around town',
+        null,
+        1,
       ])
     })
 

@@ -36,6 +36,7 @@ type PortalOrganizationExportPayload = Readonly<{
   publicationSnapshots: readonly ExportRecord[]
   publicationActivations: readonly ExportRecord[]
   pendingContentChanges: readonly ExportRecord[]
+  pageEdits: readonly ExportRecord[]
   responsibleManagers: readonly ExportRecord[]
   accessArtifacts: readonly ExportRecord[]
   addressDownloads: readonly ExportRecord[]
@@ -132,7 +133,9 @@ function csvSummary(type: string, record: ExportRecord): readonly ExportScalar[]
     type,
     record.id ?? '',
     record.property_id ?? '',
-    record.portal_id ?? record.id ?? '',
+    // A record that carries a portal_id column but has none (a Property-wide
+    // page edit) has no Portal: showing its own id there would mislead.
+    'portal_id' in record ? (record.portal_id ?? '') : (record.id ?? ''),
     record.name ?? record.title ?? record.label ?? record.display_name ?? '',
     record.publication_state ?? record.status ?? record.approval_state ?? 'recorded',
     record.created_at ?? record.effective_from ?? record.activated_at ?? '',
@@ -172,6 +175,7 @@ function collectionsOf(
     ['publication_snapshot', payload.publicationSnapshots],
     ['publication_activation', payload.publicationActivations],
     ['pending_content_change', payload.pendingContentChanges],
+    ['page_edit', payload.pageEdits],
     ['portal_responsible_manager', payload.responsibleManagers],
     ['access_artifact', payload.accessArtifacts],
     ['address_download', payload.addressDownloads],
@@ -394,6 +398,16 @@ async function readPayload(
             FROM portal_pending_content_changes
             WHERE organization_id = ${organizationId}`,
       )
+      const pageEdits = await readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id,
+                   portal_id::text AS portal_id, change_kind, change_key,
+                   previous_text, new_text, edit_count, actor_user_id,
+                   ${utc('occurred_at')} AS occurred_at,
+                   ${utc('created_at')} AS created_at
+            FROM portal_page_edits
+            WHERE organization_id = ${organizationId}`,
+      )
       const responsibleManagers = await readRows(
         snapshot,
         sql`SELECT id::text AS id, property_id::text AS property_id,
@@ -458,6 +472,7 @@ async function readPayload(
         publicationSnapshots: sortRecords(publicationSnapshots, ['portal_id', 'id']),
         publicationActivations: sortRecords(publicationActivations, ['portal_id', 'id']),
         pendingContentChanges: sortRecords(pendingContentChanges, ['portal_id', 'id']),
+        pageEdits: sortRecords(pageEdits, ['portal_id', 'occurred_at', 'id']),
         responsibleManagers: sortRecords(responsibleManagers, ['portal_id', 'id']),
         accessArtifacts: sortRecords(accessArtifacts, ['portal_id', 'id']),
         addressDownloads: sortRecords(addressDownloads, [

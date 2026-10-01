@@ -68,6 +68,7 @@ export const createLinkCategory =
     })
     await deps.commandStore.createPortalLinkCategory({
       organizationId: ctx.organizationId,
+      actorUserId: ctx.userId,
       propertyId: portal.propertyId,
       portalId: portal.id,
       expectedPortalUpdatedAt: portal.updatedAt,

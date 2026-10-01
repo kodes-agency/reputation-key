@@ -79,6 +79,8 @@ export type PortalApprovedDestinationRepository = Readonly<{
       propertyId: PropertyId
       id: PortalApprovedDestinationId
       reason: string
+      /** Who disabled it; recorded in the page-edit ledger. */
+      disabledBy: UserId
       at: Date
     }>,
   ) => Promise<PortalApprovedDestination | null>

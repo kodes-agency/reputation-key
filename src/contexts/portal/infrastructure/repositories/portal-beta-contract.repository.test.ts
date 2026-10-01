@@ -34,7 +34,10 @@ const { getPool } = setupIntegrationDb({
     'portal_localized_overrides',
     'property_portal_brand_contents',
     'property_portal_brand_profiles',
+    'portal_links',
+    'portal_link_categories',
     'portal_approved_destinations',
+    'portal_page_edits',
     'portals',
     'properties',
   ],
@@ -129,6 +132,7 @@ describe.sequential('Portal beta contract repositories (real PostgreSQL)', () =>
       propertyId: PROPERTY_A,
       id: customId,
       reason: 'No longer offered',
+      disabledBy: ADMIN,
       at: new Date(NOW.getTime() + 3_000),
     })
     expect(disabled?.approvalState).toBe('disabled')
@@ -143,6 +147,87 @@ describe.sequential('Portal beta contract repositories (real PostgreSQL)', () =>
     })
     expect(notResurrected.approvalState).toBe('disabled')
     await expect(repo.findById(ORG_B, PROPERTY_B, customId)).resolves.toBeNull()
+  })
+
+  it('writes a page-edit row for each Portal that links a destination, naming who changed it', async () => {
+    const repo = createPortalApprovedDestinationRepository(getDb())
+    const destination = validatePortalDestinationUri(
+      'https://reviews.example-hotel.test/guest',
+    )
+    const id = portalApprovedDestinationId('fa300000-0000-4000-8000-000000000009')
+    await repo.request({
+      id,
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      destination,
+      requestedBy: MANAGER,
+      approveCustom: false,
+      at: NOW,
+    })
+    // A Portal that links the destination, and one in the same Property that does not.
+    const categoryId = 'fa400000-0000-4000-8000-000000000001'
+    await getPool().query(
+      `INSERT INTO portal_link_categories
+         (id, portal_id, organization_id, title, sort_key, created_at, updated_at)
+       VALUES ($1, $2, $3, 'Links', 'a0', $4, $4)`,
+      [categoryId, PORTAL_A, ORG_A, NOW],
+    )
+    await getPool().query(
+      `INSERT INTO portal_links
+         (id, category_id, portal_id, organization_id, property_id, label, url,
+          destination_id, legacy_destination_state, sort_key, created_at, updated_at)
+       VALUES ($1, $2, $3, $4, $5, 'Reviews', NULL, $6, 'migrated', 'a0', $7, $7)`,
+      [
+        'fa400000-0000-4000-8000-000000000002',
+        categoryId,
+        PORTAL_A,
+        ORG_A,
+        PROPERTY_A,
+        id,
+        NOW,
+      ],
+    )
+
+    await repo.approve({
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      id,
+      approvedBy: ADMIN,
+      at: new Date(NOW.getTime() + 1_000),
+    })
+    await repo.recordNetworkValidation({
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      id,
+      expectedLastValidatedAt: new Date(NOW.getTime() + 1_000),
+      result: {
+        outcome: 'unsafe',
+        reason: 'dns_non_public',
+        observedAt: new Date(NOW.getTime() + 2_000),
+      },
+    })
+    await repo.disable({
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      id,
+      reason: 'No longer offered',
+      disabledBy: MANAGER,
+      at: new Date(NOW.getTime() + 3_000),
+    })
+
+    const { rows } = await getPool().query(
+      `SELECT portal_id::text AS portal_id, change_kind, change_key, actor_user_id
+         FROM portal_page_edits WHERE organization_id = $1 ORDER BY occurred_at`,
+      [ORG_A],
+    )
+    const edit = (actor: string | null) => ({
+      portal_id: PORTAL_A,
+      change_kind: 'approved_destination',
+      change_key: id,
+      actor_user_id: actor,
+    })
+    // The request itself reached no Portal (none linked it yet): nothing to record.
+    expect(rows).toEqual([edit(ADMIN), edit(null), edit(MANAGER)])
   })
 
   it('admits public redirects only for scoped, recently validated approvals and removes quarantine immediately', async () => {
@@ -300,6 +385,39 @@ describe.sequential('Portal beta contract repositories (real PostgreSQL)', () =>
     await expect(repo.listPortalOverrides(ORG_A, PROPERTY_A, PORTAL_A)).resolves.toEqual(
       [],
     )
+    // Writing the override and clearing it, a second apart by the same person
+    // with no publication between, are one sitting: one entry for two saves.
+    // The title was none before and none after, so no wording is kept.
+    const { rows: ledger } = await getPool().query(
+      `SELECT portal_id::text AS portal_id, change_key, actor_user_id, edit_count,
+              previous_text, new_text
+         FROM portal_page_edits
+        WHERE organization_id = $1 AND change_kind = 'portal_localized_override'
+        ORDER BY occurred_at`,
+      [ORG_A],
+    )
+    expect(ledger).toEqual([
+      {
+        portal_id: PORTAL_A,
+        change_key: 'bg',
+        actor_user_id: MANAGER,
+        edit_count: 2,
+        previous_text: null,
+        new_text: null,
+      },
+    ])
+    // The Property's welcome text keeps what it said and what it says now.
+    const { rows: welcome } = await getPool().query(
+      `SELECT change_key, previous_text, new_text
+         FROM portal_page_edits
+        WHERE organization_id = $1 AND change_kind = 'property_brand_content'
+        ORDER BY change_key`,
+      [ORG_A],
+    )
+    expect(welcome).toEqual([
+      { change_key: 'bg', previous_text: null, new_text: 'Разкажете ни' },
+      { change_key: 'en', previous_text: null, new_text: 'Tell us about your stay' },
+    ])
   })
 
   it('keeps a Portal-local override that still carries a Linktree title when its other fields are cleared', async () => {

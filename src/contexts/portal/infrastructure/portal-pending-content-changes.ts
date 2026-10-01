@@ -4,14 +4,10 @@ import {
   portalPublicationSnapshots,
 } from '#/shared/db/schema/portal-publication.schema'
 import type { Tx } from '#/shared/outbox/commit'
+import type { PortalPageEditKind } from '../domain/portal-page-edit'
 
-export type PortalPendingContentChangeKind =
-  | 'portal_configuration'
-  | 'portal_links'
-  | 'property_brand_profile'
-  | 'property_brand_content'
-  | 'portal_localized_override'
-  | 'approved_destination'
+/** The fence and the page-edit ledger name the same six kinds; the domain owns the list. */
+export type PortalPendingContentChangeKind = PortalPageEditKind
 
 export async function recordPortalPendingContentChange(
   tx: Tx,

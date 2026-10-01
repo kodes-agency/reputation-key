@@ -275,26 +275,33 @@ type PortalContentCommandBase = Readonly<{
   occurredAt: Date
 }>
 
-export type CreatePortalLinkCategoryCommand = PortalContentCommandBase &
+/**
+ * A change to what a Portal's page shows: it opens a pending-change fence and
+ * writes the page-edit ledger row, so it names who made it.
+ */
+type PortalPageEditCommandBase = PortalContentCommandBase &
+  Readonly<{ actorUserId: UserId }>
+
+export type CreatePortalLinkCategoryCommand = PortalPageEditCommandBase &
   Readonly<{
     category: PortalLinkCategory
     event: PortalLinkCategoryCreated
   }>
 
-export type ReorderPortalLinkCategoriesCommand = PortalContentCommandBase &
+export type ReorderPortalLinkCategoriesCommand = PortalPageEditCommandBase &
   Readonly<{
     updates: ReadonlyArray<Readonly<{ id: PortalLinkCategoryId; sortKey: string }>>
     event: PortalLinkCategoryReordered
   }>
 
-export type UpdatePortalLinkCategoryCommand = PortalContentCommandBase &
+export type UpdatePortalLinkCategoryCommand = PortalPageEditCommandBase &
   Readonly<{
     categoryId: PortalLinkCategoryId
     title: string
     event: PortalLinkCategoryUpdated
   }>
 
-export type DeletePortalLinkCategoryCommand = PortalContentCommandBase &
+export type DeletePortalLinkCategoryCommand = PortalPageEditCommandBase &
   Readonly<{
     categoryId: PortalLinkCategoryId
     event: PortalLinkCategoryDeleted
@@ -317,7 +324,7 @@ export type CreatePortalLinkCommand = PortalContentCommandBase &
     }>
   }>
 
-export type ReorderPortalLinksCommand = PortalContentCommandBase &
+export type ReorderPortalLinksCommand = PortalPageEditCommandBase &
   Readonly<{
     categoryId: PortalLinkCategoryId
     updates: ReadonlyArray<Readonly<{ id: PortalLinkId; sortKey: string }>>
@@ -379,7 +386,7 @@ export type SavePortalLinktreeSettingsCommand = PortalContentCommandBase &
     event: PortalUpdated
   }>
 
-export type DeletePortalLinkCommand = PortalContentCommandBase &
+export type DeletePortalLinkCommand = PortalPageEditCommandBase &
   Readonly<{
     linkId: PortalLinkId
     categoryId: PortalLinkCategoryId

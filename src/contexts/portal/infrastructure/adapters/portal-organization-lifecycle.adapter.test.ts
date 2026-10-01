@@ -50,6 +50,13 @@ describe('Portal Organization lifecycle contributor', () => {
     )
   })
 
+  it('deletes the page-edit ledger before the Portals it hangs from', () => {
+    expect(PORTAL_PURGE_PLAN).toContain('portal_page_edits')
+    expect(PORTAL_PURGE_PLAN.indexOf('portal_page_edits')).toBeLessThan(
+      PORTAL_PURGE_PLAN.indexOf('portals'),
+    )
+  })
+
   it('changes no capability fate: a lifecycle contributor is not what opens a capability', () => {
     // The fate of portal.upload is the owner's decision (ADR 0063), recorded in
     // capability-fate.ts and pinned there. This contributor neither reads nor

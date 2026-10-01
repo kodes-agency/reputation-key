@@ -228,16 +228,61 @@ address is shown once, when a code is made, as before.
 
 `getPortalHistory` is the one merged, read-only timeline for a Portal: its
 creation, each publish and restore, each change of health (from
-`portal_health_intervals`) and each public-address event, newest first, with the
-actor's display name where one was recorded. It merges five independently
-ordered sources under one (instant, key) order and one opaque cursor, and it
-resolves names through a bounded, Organization-fenced directory that returns
-only `user.name`. Nothing is stored for it: it derives from the ledgers that
-already exist. An address entry names who made it when `portal_tokens.issued_by`
-recorded that (null for a code made before round 4), and each time a manager was
-handed an existing address is a `code_downloaded` entry from
-`portal_address_downloads`; page edits join the timeline with the page-edit
-ledger.
+`portal_health_intervals`), each public-address event and each page edit,
+newest first, with the actor's display name where one was recorded. It merges
+five independently ordered sources under one (instant, key) order and one
+opaque cursor, and it resolves names through a bounded, Organization-fenced
+directory that returns only `user.name`. Only the page edits are stored for it
+(`portal_page_edits`, below); the rest derives from ledgers that already exist.
+An address entry names who made it when `portal_tokens.issued_by` recorded that (null for a code
+made before round 4), and each time a manager was handed an existing address is a
+`code_downloaded` entry from `portal_address_downloads`.
+
+`portal_page_edits` is the page-edit ledger: one row per change that can make a
+Portal's working page differ from what guests see, written in the same
+transaction as the write and its pending-change fence. `recordPortalContentChange`
+is the only caller of the fence, so a change cannot open one without a ledger row
+(an architecture test pins it). A row has the same six kinds as the fence
+(`portal_configuration`, `portal_links`, `property_brand_profile`,
+`property_brand_content`, `portal_localized_override`, `approved_destination`),
+the actor (null for the system: an automatic display name, a destination that
+failed its network check) and the instant. The fence key stays coarse (it only
+says which input moved: every generic link or category command is
+`portal_links`/`all`); the ledger key is its own and says which part changed and
+what was done to it, so the History can read "renamed the Dinner menu":
+`category:<id>:created|renamed|deleted`, `categories:reordered`,
+`link:<id>:created|updated|deleted`, `links:<categoryId>:reordered`,
+`link:<id>:text:<locale>`, `linktree:title:<locale>`, `linktree:enabled`,
+`settings:<field>` (one row per page setting that actually changed), `look:<facet>`,
+`all` for the display name, a locale for welcome text and a Portal's own text, and
+a destination id. `portalPageEditKey` writes these keys and `describePageEdit`
+reads them back, falling back to the kind's general area for a key it does not
+know and never to a wrong claim. A change of wording also keeps the text before and
+after in `previous_text` and `new_text` (clipped to 200 characters; the category
+title, link label, link text per language, Linktree title, Portal name and
+description, display name, welcome title and a Portal's own title). Only those keys
+may carry wording: a CHECK (`portal_page_edits_text_scope`, mirrored by
+`pageEditCarriesWording`) keeps looks, orders, switches and destinations text-free,
+and the Organization export carries the columns. Events still carry identifiers
+only (ADR 0030); the wording lives in this Portal-owned ledger, like
+`portal_group_history`.
+
+Saves of the same part by the same person fold into one row while they stay within
+ten minutes of each other and no publication of that Portal (for a Property-wide
+row, of any Portal in the Property) has happened since the row's last save. The
+row keeps the wording it started from and the latest wording, moves `occurred_at`
+to the latest save and counts them in `edit_count`, so an autosaving editor leaves
+one entry per sitting and cannot push publishes off the first History page; an
+edit made after a publish always starts a new row. A command that changes a
+Portal's settings and publishes in the same transaction writes its ledger rows
+(who made the change) but no fence. Unlike the fence the ledger is written for a
+Portal that was never published, and the Property's look and welcome text get one
+Property-wide row (`portal_id` null, tied to its Property by its own tenant foreign
+key) that the History shows on every Portal of the Property made since that Portal
+existed. A destination change writes one row per Portal that links it. History
+starts at the deploy of migration 0050; earlier edits were never attributed and are
+not reconstructed. Rows are updated only by the fold above and never deleted while
+their Portal exists; a purge removes them first.
 
 The earlier issued-image implementation (presigned browser upload, issuance
 table, background job) was removed and is not coming back. The nullable

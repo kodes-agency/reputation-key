@@ -21,6 +21,7 @@ const CHILD_TABLES = [
   'portal_access_artifacts',
   'portal_tokens',
   'portal_pending_content_changes',
+  'portal_page_edits',
   'portal_publication_activations',
   'portal_publication_snapshots',
   'portal_health_intervals',
@@ -251,6 +252,22 @@ async function seedFixture(): Promise<Fixture> {
     [randomUUID(), organizationId, fixture.propertyId, fixture.portalId],
   )
   await q(
+    `INSERT INTO portal_page_edits (
+       id, organization_id, property_id, portal_id, change_kind, change_key,
+       actor_user_id, occurred_at, previous_text, new_text, edit_count
+     ) VALUES ($1, $2, $3, $4, 'portal_links', 'link:7b0c0000-0000-4000-8000-000000000001:updated', $5, now(),
+               'Dinner menu', 'Olive Terrace menu', 3),
+              ($6, $2, $3, NULL, 'property_brand_profile', 'look:accent', $5, now(), NULL, NULL, 1)`,
+    [
+      randomUUID(),
+      organizationId,
+      fixture.propertyId,
+      fixture.portalId,
+      fixture.userId,
+      randomUUID(),
+    ],
+  )
+  await q(
     `INSERT INTO portal_responsible_managers (
        id, organization_id, property_id, portal_id, user_id, effective_from, created_by
      ) VALUES ($1, $2, $3, $4, $5, now(), $5)`,
@@ -382,6 +399,33 @@ describe.sequential('Portal Organization Export contributor', () => {
     ]) {
       expect(payload[collection], collection).toHaveLength(1)
     }
+    // The ledger names who changed what and keeps the wording of a change of
+    // wording; a Property-wide row has no Portal.
+    expect(payload.pageEdits).toHaveLength(2)
+    expect(payload.pageEdits?.[0]).toMatchObject({
+      portal_id: null,
+      change_kind: 'property_brand_profile',
+      change_key: 'look:accent',
+      actor_user_id: fixture.userId,
+      previous_text: null,
+      new_text: null,
+      edit_count: 1,
+    })
+    expect(payload.pageEdits?.[1]).toMatchObject({
+      portal_id: fixture.portalId,
+      change_kind: 'portal_links',
+      change_key: 'link:7b0c0000-0000-4000-8000-000000000001:updated',
+      previous_text: 'Dinner menu',
+      new_text: 'Olive Terrace menu',
+      edit_count: 3,
+    })
+    // In the CSV summary a Property-wide edit has an empty portal_id column,
+    // not its own edit id.
+    const csv = Buffer.from(first.entries[0]!.bytes).toString('utf8')
+    const wideRow = csv
+      .split('\n')
+      .find((line) => line.startsWith('page_edit,') && line.includes('look:accent'))
+    expect(wideRow?.split(',')[3]).toBe('')
     expect(payload.portals?.[0]).toMatchObject({
       id: fixture.portalId,
       name: 'Front Desk',

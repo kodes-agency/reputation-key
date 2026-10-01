@@ -256,6 +256,13 @@ async function seedFixture(): Promise<Fixture> {
      ) VALUES ($1, $2, $3, $4, 'portal_links', 'all', 'v2', now())`,
     [randomUUID(), ...scope],
   )
+  await q(
+    `INSERT INTO portal_page_edits (
+       id, organization_id, property_id, portal_id, change_kind, change_key,
+       actor_user_id, occurred_at
+     ) VALUES ($1, $2, $3, $4, 'portal_links', 'all', $5, now())`,
+    [randomUUID(), ...scope, actor],
+  )
   return fixture
 }
 
@@ -410,6 +417,7 @@ const CLEANUP_ORDER = [
   'portal_address_downloads',
   'portal_access_artifacts',
   'portal_pending_content_changes',
+  'portal_page_edits',
   'portal_publication_activations',
   'portal_publication_snapshots',
   'portal_health_intervals',

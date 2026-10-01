@@ -10,6 +10,7 @@ import {
   type OrganizationId,
   type PortalId,
   type PropertyId,
+  type UserId,
 } from '#/shared/domain/ids'
 import type { PortalExperienceRepository } from '../../application/ports/portal-experience.repository'
 import type {
@@ -27,7 +28,7 @@ import {
   lockPortalPublicationProperty,
   lockPortalPublicationWorkingCopy,
 } from '../portal-publication-serialization'
-import { recordPortalPendingContentChange } from '../portal-pending-content-changes'
+import { recordPortalContentChange } from '../portal-page-edits'
 import {
   portalLocalizedOverrideUpdated,
   portalPropertyBrandContentUpdated,
@@ -103,10 +104,15 @@ function displayNameOnlyProfile(displayName: string): BrandProfileFields {
 type ProfileChange = Readonly<{
   /** The public display name changed, or the profile was just created. */
   nameChanged: boolean
+  /** The display name before and after, kept in the page-edit ledger when it changed. */
+  previousName: string | null
+  displayName: string
   /** The facets of the look that changed. */
   facets: readonly LookFacet[]
   version: number
   lookVersion: number
+  /** Who made the change; null when the system did (the automatic name). */
+  actorUserId: string | null
 }>
 
 /**
@@ -125,17 +131,22 @@ async function recordPropertyProfileChange(
     propertyId: unbrand(input.propertyId),
     kind: 'property_brand_profile' as const,
     changedAt: input.at,
+    actorUserId: change.actorUserId,
   }
   if (change.nameChanged) {
-    await recordPortalPendingContentChange(tx, {
+    await recordPortalContentChange(tx, {
       ...fence,
+      ledger: [
+        { key: 'all', previousText: change.previousName, newText: change.displayName },
+      ],
       sourceVersion: `v${change.version}`,
     })
   }
   for (const facet of change.facets) {
-    await recordPortalPendingContentChange(tx, {
+    await recordPortalContentChange(tx, {
       ...fence,
       key: lookPendingKey(facet),
+      ledger: [{ key: lookPendingKey(facet) }],
       sourceVersion: `v${change.lookVersion}`,
     })
   }
@@ -169,23 +180,37 @@ type OverrideChange = Readonly<{
   propertyId: PropertyId
   portalId: PortalId
   locale: PortalGuestLocale
+  updatedBy: UserId
   at: Date
 }>
+
+/** The override title before and after a write; the ledger keeps them when they differ. */
+type OverrideTitles = Readonly<{ previousTitle: string | null; newTitle: string | null }>
 
 /** Every override write fences Portal publication and announces the version (null: cleared). */
 async function recordOverrideChange(
   tx: Tx,
   input: OverrideChange,
   version: number | null,
+  { previousTitle, newTitle }: OverrideTitles,
 ): Promise<void> {
-  await recordPortalPendingContentChange(tx, {
+  await recordPortalContentChange(tx, {
     organizationId: unbrand(input.organizationId),
     propertyId: unbrand(input.propertyId),
     portalId: unbrand(input.portalId),
     kind: 'portal_localized_override',
     key: input.locale,
+    ledger: [
+      {
+        key: input.locale,
+        ...(previousTitle === newTitle
+          ? {}
+          : { previousText: previousTitle, newText: newTitle }),
+      },
+    ],
     sourceVersion: version === null ? `cleared:${input.at.toISOString()}` : `v${version}`,
     changedAt: input.at,
+    actorUserId: unbrand(input.updatedBy),
   })
   const event = portalLocalizedOverrideUpdated({
     organizationId: input.organizationId,
@@ -266,9 +291,12 @@ export const createPortalExperienceRepository = (
           if (!created) throw new Error('Property Brand Profile was not saved')
           await recordPropertyProfileChange(tx, input, {
             nameChanged: true,
+            previousName: null,
+            displayName: created.displayName,
             facets: [],
             version: created.version,
             lookVersion: created.lookVersion,
+            actorUserId: unbrand(input.updatedBy),
           })
           return profileFromRow(created)
         }
@@ -300,9 +328,12 @@ export const createPortalExperienceRepository = (
         if (!row) throw new Error('Property Brand Profile was not saved')
         await recordPropertyProfileChange(tx, input, {
           nameChanged,
+          previousName: current.displayName,
+          displayName: row.displayName,
           facets,
           version: row.version,
           lookVersion: row.lookVersion,
+          actorUserId: unbrand(input.updatedBy),
         })
         return profileFromRow(row)
       })
@@ -346,9 +377,12 @@ export const createPortalExperienceRepository = (
         if (!row) return false
         await recordPropertyProfileChange(tx, input, {
           nameChanged: true,
+          previousName: null,
+          displayName: row.displayName,
           facets: [],
           version: row.version,
           lookVersion: row.lookVersion,
+          actorUserId: null,
         })
         return true
       }),
@@ -402,9 +436,12 @@ export const createPortalExperienceRepository = (
         if (!row) throw new Error('Property Brand Profile was not saved')
         await recordPropertyProfileChange(tx, input, {
           nameChanged: true,
+          previousName: current?.displayName ?? null,
+          displayName: row.displayName,
           facets: [],
           version: row.version,
           lookVersion: row.lookVersion,
+          actorUserId: unbrand(input.updatedBy),
         })
         return profileFromRow(row)
       }),
@@ -414,6 +451,20 @@ export const createPortalExperienceRepository = (
     trace('portalExperience.savePropertyContent', async () => {
       const committed = await db.transaction(async (tx) => {
         await lockPropertyPublication(tx, input)
+        const [current] = await tx
+          .select({ title: propertyPortalBrandContents.title })
+          .from(propertyPortalBrandContents)
+          .where(
+            and(
+              eq(
+                propertyPortalBrandContents.organizationId,
+                unbrand(input.organizationId),
+              ),
+              eq(propertyPortalBrandContents.propertyId, unbrand(input.propertyId)),
+              eq(propertyPortalBrandContents.locale, input.locale),
+            ),
+          )
+          .limit(1)
         const [row] = await tx
           .insert(propertyPortalBrandContents)
           .values({
@@ -444,13 +495,22 @@ export const createPortalExperienceRepository = (
           })
           .returning()
         if (!row) throw new Error('Property guest content was not saved')
-        await recordPortalPendingContentChange(tx, {
+        await recordPortalContentChange(tx, {
           organizationId: unbrand(input.organizationId),
           propertyId: unbrand(input.propertyId),
           kind: 'property_brand_content',
           key: input.locale,
+          ledger: [
+            {
+              key: input.locale,
+              ...(current?.title === row.title
+                ? {}
+                : { previousText: current?.title ?? null, newText: row.title }),
+            },
+          ],
           sourceVersion: `v${row.version}`,
           changedAt: input.at,
+          actorUserId: unbrand(input.updatedBy),
         })
         const event = portalPropertyBrandContentUpdated({
           organizationId: input.organizationId,
@@ -477,6 +537,19 @@ export const createPortalExperienceRepository = (
           unbrand(input.portalId),
         )
         if (!exists) throw new Error('Portal localized override scope is unavailable')
+        const [current] = await tx
+          .select({ title: portalLocalizedOverrides.title })
+          .from(portalLocalizedOverrides)
+          .where(
+            and(
+              eq(portalLocalizedOverrides.organizationId, unbrand(input.organizationId)),
+              eq(portalLocalizedOverrides.propertyId, unbrand(input.propertyId)),
+              eq(portalLocalizedOverrides.portalId, unbrand(input.portalId)),
+              eq(portalLocalizedOverrides.locale, input.locale),
+            ),
+          )
+          .limit(1)
+        const previousTitle = current?.title ?? null
         const hasValue = Object.values(input.override).some((value) => value !== null)
         if (!hasValue) {
           const scope = and(
@@ -500,14 +573,19 @@ export const createPortalExperienceRepository = (
             .where(and(scope, isNotNull(portalLocalizedOverrides.linktreeTitle)))
             .returning()
           if (kept) {
-            await recordOverrideChange(tx, input, kept.version)
+            await recordOverrideChange(tx, input, kept.version, {
+              previousTitle,
+              newTitle: null,
+            })
             return overrideFromRow(kept)
           }
           const deleted = await tx
             .delete(portalLocalizedOverrides)
             .where(scope)
             .returning({ id: portalLocalizedOverrides.id })
-          if (deleted.length > 0) await recordOverrideChange(tx, input, null)
+          if (deleted.length > 0) {
+            await recordOverrideChange(tx, input, null, { previousTitle, newTitle: null })
+          }
           return null
         }
         const [row] = await tx
@@ -539,7 +617,10 @@ export const createPortalExperienceRepository = (
           })
           .returning()
         if (!row) throw new Error('Portal localized override was not saved')
-        await recordOverrideChange(tx, input, row.version)
+        await recordOverrideChange(tx, input, row.version, {
+          previousTitle,
+          newTitle: row.title,
+        })
         return overrideFromRow(row)
       })
 

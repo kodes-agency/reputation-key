@@ -26,8 +26,14 @@ function record(key: string, offsetMs: number): PortalHistoryRecord {
 
 describe('historyCategoriesFor', () => {
   it('expands "all" to every category and keeps a single tab as itself', () => {
-    expect(historyCategoriesFor('all')).toEqual(['publishing', 'codes', 'health'])
+    expect(historyCategoriesFor('all')).toEqual([
+      'publishing',
+      'codes',
+      'health',
+      'edits',
+    ])
     expect(historyCategoriesFor('codes')).toEqual(['codes'])
+    expect(historyCategoriesFor('edits')).toEqual(['edits'])
   })
 })
 

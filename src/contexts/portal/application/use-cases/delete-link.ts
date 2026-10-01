@@ -54,6 +54,7 @@ export const deleteLink =
     const revision = nextPortalCommandAt(occurredAt, expectedPortalUpdatedAt)
     await deps.commandStore.deletePortalLink({
       organizationId: ctx.organizationId,
+      actorUserId: ctx.userId,
       propertyId: portal.propertyId,
       portalId: existing.portalId,
       expectedPortalUpdatedAt,
