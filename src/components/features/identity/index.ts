@@ -14,7 +14,10 @@ export type {
   ResponsibilityState,
   SaveMemberAccessInput,
 } from './member-directory/member-access-sheet'
-export { joinNames } from './member-directory/member-access-diff'
+export {
+  grantsOnListedProperties,
+  joinNames,
+} from './member-directory/member-access-diff'
 export {
   memberRowsWithProperties,
   propertyIdsByUser,
