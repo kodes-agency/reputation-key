@@ -9,7 +9,7 @@ import type {
   PortalResultsPropertyRow,
   PortalResultsUngroupedRow,
 } from '#/contexts/reporting/application/public-api'
-import { portalGroupId, portalId, propertyId } from '#/shared/domain/ids'
+import { portalGroupId, portalId, propertyId, type PropertyId } from '#/shared/domain/ids'
 import {
   resultsCount,
   resultsEvidence,
@@ -97,13 +97,14 @@ export function updatingMeasures(): PortalResultsMeasures {
   }
 }
 
-const portalResultsRow = (
+export const portalResultsRow = (
   id: string,
   group: string | null,
   measures: PortalResultsMeasures,
+  property: PropertyId = PROPERTY,
 ): PortalResultsPortalRow => ({
   portalId: portalId(id),
-  propertyId: PROPERTY,
+  propertyId: property,
   groupId: group === null ? null : portalGroupId(group),
   ...measures,
 })
@@ -113,19 +114,21 @@ export const groupResultsRow = (
   members: readonly string[],
   measures: PortalResultsMeasures,
   contributing: readonly string[] = members,
+  property: PropertyId = PROPERTY,
 ): PortalResultsGroupRow => ({
-  propertyId: PROPERTY,
+  propertyId: property,
   groupId: portalGroupId(group),
   memberPortalIds: members.map(portalId),
   contributingPortalIds: contributing.map(portalId),
   ...measures,
 })
 
-const ungroupedResultsRow = (
+export const ungroupedResultsRow = (
   members: readonly string[],
   measures: PortalResultsMeasures,
+  property: PropertyId = PROPERTY,
 ): PortalResultsUngroupedRow => ({
-  propertyId: PROPERTY,
+  propertyId: property,
   memberPortalIds: members.map(portalId),
   contributingPortalIds: members.map(portalId),
   ...measures,
@@ -143,10 +146,14 @@ const PRIOR_WINDOW = {
 export const propertyResultsRow = (
   portals: readonly string[],
   measures: PortalResultsMeasures,
-  options: Readonly<{ compare?: boolean }> = {},
+  options: Readonly<{
+    compare?: boolean
+    propertyId?: PropertyId
+    timezone?: string
+  }> = {},
 ): PortalResultsPropertyRow => ({
-  propertyId: PROPERTY,
-  timezone: 'Europe/Sofia',
+  propertyId: options.propertyId ?? PROPERTY,
+  timezone: options.timezone ?? 'Europe/Sofia',
   period: WINDOW,
   comparePeriod: options.compare === false ? null : PRIOR_WINDOW,
   localDays: {

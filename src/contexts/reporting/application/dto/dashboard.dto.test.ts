@@ -99,4 +99,11 @@ describe('getPortalResultsOverviewDto', () => {
       ZodError,
     )
   })
+
+  it('reads the whole Organization when no Property is named', () => {
+    expect(getPortalResultsOverviewDto.parse({})).toEqual({
+      timeRange: '30d',
+      compare: true,
+    })
+  })
 })

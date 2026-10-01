@@ -1,4 +1,5 @@
-// Reporting — the Portals overview's results, for one Property's Portals.
+// Reporting — the Portals overview's results, for one Property's Portals or, with
+// no Property named, for every Portal of the Organization the caller may read.
 // Per architecture: "Server functions are the HTTP entry points into a context."
 //
 // The roster is Portal's: it is the list the caller may see (`portal.read`,
@@ -6,20 +7,33 @@
 // numbers are Reporting's, read through the Property's own time zone exactly as
 // a Portal's own Results view reads them. Nothing about which Portals exist, or
 // where they sit, is taken from the browser.
+//
+// The Organization read is the All properties page. A Property counts only if the
+// caller may read both its Portals and its results, so each is asked per Property
+// before anything is read; the rest of the Organization is answered as if the
+// refused Property did not exist.
 
 import { createServerFn } from '@tanstack/react-start'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
 import { headersFromContext } from '#/shared/auth/headers'
 import { resolveTenantContext } from '#/shared/auth/middleware'
-import { requireExecutionAllowed } from '#/shared/auth/execution-policy'
+import type { AuthContext } from '#/shared/domain/auth-context'
+import {
+  getExecutionPolicy,
+  requireExecutionAllowed,
+} from '#/shared/auth/execution-policy'
 import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { HTTP_STATUS } from '#/shared/http/status'
 import { portalGroupId, portalId, propertyId } from '#/shared/domain/ids'
 import { getPortalResultsOverviewDto } from '../application/dto/dashboard.dto'
-import type { PortalResultsRosterEntry } from '../application/public-api'
+import type {
+  PortalResultsRosterEntry,
+  PortalResultsTimeRange,
+} from '../application/public-api'
 import { isDashboardError } from '../domain/dashboard-errors'
 import { assertDashboardPropertyAccessible } from './assert-property-access'
+import { organizationRoster, readablePropertyIds } from './portal-results-roster'
 import { dashboardErrorStatus } from './dashboard-error-status'
 
 /** A refusal Portal tagged while listing its own Portals. Reporting does not import Portal's
@@ -37,6 +51,135 @@ function portalListErrorStatus(code: string): number {
   return code.endsWith('_not_found') ? HTTP_STATUS.NOT_FOUND : HTTP_STATUS.SERVER_ERROR
 }
 
+type OverviewRequest = Readonly<{
+  timeRange: PortalResultsTimeRange
+  compare: boolean
+}>
+
+async function readProperty(
+  rawPropertyId: string,
+  request: OverviewRequest,
+  ctx: AuthContext,
+) {
+  await requireExecutionAllowed({
+    actor: ctx,
+    action: 'portal.read',
+    capability: 'portal.read',
+    propertyId: rawPropertyId,
+  })
+  await requireExecutionAllowed({
+    actor: ctx,
+    action: 'dashboard.read',
+    propertyId: rawPropertyId,
+  })
+  const { dashboardPublicApi, portalPublicApi, propertyPublicApi, identityPublicApi } =
+    getContainer()
+  // D6-001: non-admin callers may only read their assigned properties.
+  await assertDashboardPropertyAccessible(identityPublicApi.people, ctx, rawPropertyId)
+  const pid = propertyId(rawPropertyId)
+  const [rows, timezone] = await Promise.all([
+    portalPublicApi.management.listPortalOverview(
+      { scope: 'property', propertyId: rawPropertyId },
+      ctx,
+    ),
+    propertyPublicApi.getPropertyTimezone(ctx.organizationId, pid),
+  ])
+  if (!timezone) {
+    // Server helpers construct the public error shape without importing a
+    // domain error constructor across the server/domain boundary.
+    throw {
+      _tag: 'DashboardError' as const,
+      code: 'not_found' as const,
+      message: 'Property timezone unavailable',
+    }
+  }
+  const portals: PortalResultsRosterEntry[] = rows.map((row) => ({
+    portalId: portalId(row.portalId),
+    propertyId: pid,
+    groupId: row.group ? portalGroupId(row.group.id) : null,
+  }))
+  return await dashboardPublicApi.getPortalResultsOverview({
+    scope: { organizationId: ctx.organizationId, propertyId: pid },
+    portals,
+    properties: [{ propertyId: pid, timezone }],
+    timeRange: request.timeRange,
+    compare: request.compare,
+  })
+}
+
+/** A refusal shaped like the D6-001 guard's: "not yours", as opposed to a failure. */
+function isForbidden(e: unknown): boolean {
+  return (
+    typeof e === 'object' &&
+    e !== null &&
+    (e as { _tag?: unknown })._tag === 'DashboardError' &&
+    (e as { code?: unknown }).code === 'forbidden'
+  )
+}
+
+async function readOrganization(request: OverviewRequest, ctx: AuthContext) {
+  // The Organization-level answer first: a role or posture that cannot read
+  // either surface at all is refused as one, before any Property is looked at.
+  await requireExecutionAllowed({
+    actor: ctx,
+    action: 'portal.read',
+    capability: 'portal.read',
+  })
+  await requireExecutionAllowed({ actor: ctx, action: 'dashboard.read' })
+  const { dashboardPublicApi, portalPublicApi, propertyPublicApi, identityPublicApi } =
+    getContainer()
+  const organizationId = ctx.organizationId
+  const allowed = (action: 'portal.read' | 'dashboard.read') => async (id: string) =>
+    (
+      await getExecutionPolicy().decide({
+        principal: { kind: 'user', ctx },
+        action,
+        capability: action === 'portal.read' ? 'portal.read' : undefined,
+        organizationId,
+        propertyId: id,
+        executionKind: 'interactive',
+        now: new Date(),
+      })
+    ).allowed
+  const assigned = async (id: string) => {
+    try {
+      await assertDashboardPropertyAccessible(identityPublicApi.people, ctx, id)
+      return true
+    } catch (e) {
+      if (isForbidden(e)) return false
+      throw e
+    }
+  }
+  const propertyIds = await readablePropertyIds(
+    await portalPublicApi.management.listPortalManagementPropertyIds(organizationId),
+    [allowed('portal.read'), allowed('dashboard.read'), assigned],
+  )
+  const rows = await portalPublicApi.management.listPortalOverview(
+    { scope: 'organization', propertyIds },
+    ctx,
+  )
+  const listed = [...new Set(rows.map((row) => row.propertyId as string))]
+  const zones = new Map(
+    await Promise.all(
+      listed.map(
+        async (id) =>
+          [
+            id,
+            await propertyPublicApi.getPropertyTimezone(organizationId, propertyId(id)),
+          ] as const,
+      ),
+    ),
+  )
+  const { portals, properties } = organizationRoster(rows, zones)
+  return await dashboardPublicApi.getPortalResultsOverview({
+    scope: { organizationId, propertyId: null },
+    portals,
+    properties,
+    timeRange: request.timeRange,
+    compare: request.compare,
+  })
+}
+
 export const getPortalResultsOverviewFn = createServerFn({ method: 'GET' })
   .validator(getPortalResultsOverviewDto)
   .handler(
@@ -44,58 +187,9 @@ export const getPortalResultsOverviewFn = createServerFn({ method: 'GET' })
       async ({ data }) => {
         try {
           const ctx = await resolveTenantContext(await headersFromContext())
-          await requireExecutionAllowed({
-            actor: ctx,
-            action: 'portal.read',
-            capability: 'portal.read',
-            propertyId: data.propertyId,
-          })
-          await requireExecutionAllowed({
-            actor: ctx,
-            action: 'dashboard.read',
-            propertyId: data.propertyId,
-          })
-          const {
-            dashboardPublicApi,
-            portalPublicApi,
-            propertyPublicApi,
-            identityPublicApi,
-          } = getContainer()
-          // D6-001: non-admin callers may only read their assigned properties.
-          await assertDashboardPropertyAccessible(
-            identityPublicApi.people,
-            ctx,
-            data.propertyId,
-          )
-          const pid = propertyId(data.propertyId)
-          const [rows, timezone] = await Promise.all([
-            portalPublicApi.management.listPortalOverview(
-              { scope: 'property', propertyId: data.propertyId },
-              ctx,
-            ),
-            propertyPublicApi.getPropertyTimezone(ctx.organizationId, pid),
-          ])
-          if (!timezone) {
-            // Server helpers construct the public error shape without importing a
-            // domain error constructor across the server/domain boundary.
-            throw {
-              _tag: 'DashboardError' as const,
-              code: 'not_found' as const,
-              message: 'Property timezone unavailable',
-            }
-          }
-          const portals: PortalResultsRosterEntry[] = rows.map((row) => ({
-            portalId: portalId(row.portalId),
-            propertyId: pid,
-            groupId: row.group ? portalGroupId(row.group.id) : null,
-          }))
-          return await dashboardPublicApi.getPortalResultsOverview({
-            scope: { organizationId: ctx.organizationId, propertyId: pid },
-            portals,
-            properties: [{ propertyId: pid, timezone }],
-            timeRange: data.timeRange,
-            compare: data.compare,
-          })
+          return data.propertyId
+            ? await readProperty(data.propertyId, data, ctx)
+            : await readOrganization(data, ctx)
         } catch (e) {
           if (isDashboardError(e))
             throwContextError('DashboardError', e, dashboardErrorStatus(e.code))

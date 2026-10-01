@@ -7,7 +7,10 @@
 // with one: there is nothing to say it belongs at either end.
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
 import { attentionRank, type PortalAttention } from './portal-attention'
-import type { OverviewSortFigures } from './portal-overview-results'
+import type {
+  OrganizationSortFigures,
+  OverviewSortFigures,
+} from './portal-overview-results'
 import type { PortalOverviewSort, SortDirection } from './portal-overview-search-schema'
 
 export type Orderable = Readonly<{
@@ -86,4 +89,33 @@ export function orderGroups<T extends Orderable, B extends OrderableBucket<T>>(
       return applyDirection(pressing(a) - pressing(b), dir) || byName
     })
   return [...groups, ...buckets.filter((bucket) => bucket.kind === 'ungrouped')]
+}
+
+export type OrderableProperty = Readonly<{
+  propertyId: string
+  name: string
+  /** The most pressing attention among the Portals the search keeps. */
+  pressing: number
+}>
+
+/** Properties follow the sort too: by name, by their own scans, or by what presses most. */
+export function compareProperties(
+  sort: PortalOverviewSort,
+  dir: SortDirection,
+  figures: OrganizationSortFigures | undefined,
+): (a: OrderableProperty, b: OrderableProperty) => number {
+  return (a, b) => {
+    const byName = compareText(a.name, b.name)
+    if (sort === 'name')
+      return applyDirection(byName, dir) || a.propertyId.localeCompare(b.propertyId)
+    if (sort === 'scans') {
+      const byScans = compareFigures(
+        figures?.property(a.propertyId) ?? null,
+        figures?.property(b.propertyId) ?? null,
+        dir,
+      )
+      return byScans || byName
+    }
+    return applyDirection(a.pressing - b.pressing, dir) || byName
+  }
 }
