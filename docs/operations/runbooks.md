@@ -1030,6 +1030,26 @@ that is the cost of the compromise, not of the rotation.
 and the page stops offering it for them. The codes themselves keep working.
 Replace a code to get a new sealed copy under the current keyring.
 
+**Rolling back below this release.** Do this before deploying any image from
+before the sealed-address release (ADR 0064). Migration 0046 added the CHECK
+`portal_tokens_sealed_address_active_only` and migrations only go forward, so an
+older image that replaces, stops or deletes a sealed code would be refused by the
+database: "Stop all codes" for a leaked code would fail with a 500. Skipping this
+step breaks replace, stop and delete for every sealed code.
+
+1. Unset `PORTAL_ADDRESS_ENCRYPTION_KEYS` on web and worker and redeploy both, so
+   nothing seals a new code while you work.
+2. Clear every sealed copy:
+
+   ```sql
+   UPDATE portal_tokens
+   SET encrypted_raw_token = NULL, address_encryption_key_version = NULL
+   WHERE encrypted_raw_token IS NOT NULL;
+   ```
+
+3. Deploy the older image. Codes keep working; they can no longer be downloaded
+   again, and the address is shown once when a code is made, as before.
+
 **Verification.** Make a code on a test Portal, reload, and confirm "Download
 again" is offered; download it, then read the Portal's History and confirm a
 "downloaded" entry with the person's name. `SELECT count(*) FROM

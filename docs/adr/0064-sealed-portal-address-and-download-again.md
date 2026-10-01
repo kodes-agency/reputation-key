@@ -53,8 +53,10 @@ token version]`. A ciphertext copied to another tenant, Portal, token or
    writes nothing unless the code is still active and still sealed, so a row
    never describes a stopped code. A request that cannot disclose writes no row.
    A row means an authorised request to disclose, not that the browser used the
-   result. The row holds identifiers, an enum (`download` or `copy`) and a time,
-   never the address.
+   result. The row holds identifiers, an enum and a time, never the address. The
+   enum says what the manager did with what they were handed: `download` (saved
+   a code file), `copy` (put an address on the clipboard) or `show` (only had
+   it displayed).
 5. **The surface is narrow.** The server function is a POST, so the address never
    travels in a URL, and it sets `Cache-Control: private, no-store` before
    anything else can fail. It spends an actor budget (30 per hour) and an
@@ -87,6 +89,16 @@ token version]`. A ciphertext copied to another tenant, Portal, token or
 - Rotating a key means adding the new key first and keeping the old one until
   every live code was replaced (or accepting that those codes cannot be
   downloaded again).
+- **A release below this one is not a safe rollback once codes are sealed.**
+  Migration 0046 adds the CHECK of decision 3, and migrations only go forward.
+  An image from before this release replaces, stops and deletes codes without
+  clearing the sealed copy, so the database refuses those statements for every
+  sealed code and "Stop all codes" fails. A forward deploy is safe because
+  nothing is sealed until ops set the keyring; a rollback has no such guard. The
+  runbook's "Rolling back below this release" step is therefore mandatory:
+  unset the keyring on web and worker, redeploy both, clear every sealed copy,
+  and only then deploy the older image. The cost is that those codes can no
+  longer be downloaded again; the codes themselves keep working.
 - The ratcheted `portal-command-store.ts` is untouched apart from clearing the
   two columns on delete.
 
