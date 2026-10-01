@@ -78,10 +78,21 @@ test.describe('Critical: Immersive Hub quality on the seeded portal', () => {
       await route.continue()
     })
     await installWebVitals(page)
+    const fontArrived = page.waitForResponse(/\/fonts\/guest\/.+\.woff2$/u)
 
     await page.goto(`/p/${seed.portalToken}`)
     await expect(page.getByRole('heading', { name: 'E2E Guest Portal P1' })).toBeVisible()
-    await page.waitForTimeout(FONT_DELAY_MS + 500)
+    // Wait for the swap itself, not for a guess at how long it takes: a delayed
+    // file has arrived, every font the page asked for is loaded, and two frames
+    // have painted with them before the shifts are read.
+    await fontArrived
+    await page.evaluate(() => document.fonts.ready)
+    await page.evaluate(
+      () =>
+        new Promise<void>((resolve) =>
+          requestAnimationFrame(() => requestAnimationFrame(() => resolve())),
+        ),
+    )
 
     const vitals = await readWebVitals(page)
     expect(

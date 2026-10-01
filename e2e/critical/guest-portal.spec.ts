@@ -76,8 +76,11 @@ test.describe('Critical: public Portal basics', () => {
     await expect(page.getByRole('radio', { name: ratingName(5) })).toBeVisible()
     await expect(seededTile(page)).toBeVisible()
     // The seeded portal is a v3 publication, so it wears the self-hosted guest
-    // fonts and contacts no font CDN at all (the legacy page asserts the
-    // opposite: see the schema v2 spec below).
+    // fonts and contacts no font CDN at all. The seed no longer publishes an
+    // earlier design, so the legacy guest surface has no browser spec: its fonts
+    // are pinned in public-portal.dto.test.ts ('declares the app fonts for a
+    // portal on the legacy guest surface') and its layout by the resolver's
+    // legacy tests.
     log.assertNoFontCdnRequests()
     expect(log.requests.some((request) => request.url.includes('/fonts/guest/'))).toBe(
       true,
