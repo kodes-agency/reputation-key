@@ -51,8 +51,8 @@ export const DraftArrival: Story = {
     await expect(page.getByRole('heading', { name: 'Pool & Terrace' })).toBeVisible()
     await expect(page.getByText('Around the resort')).toBeVisible()
     await expect(canvas.getByText('Draft · Arrival · English')).toBeVisible()
-    // The draft is the new design; publishing writes the earlier page until it can.
-    await expect(canvas.getByText(/reaches guests in an upcoming release/)).toBeVisible()
+    // The draft is the design Publish writes, so it carries no caveat about a release.
+    await expect(canvas.queryByText(/upcoming release/)).toBeNull()
     // The four states of the board sit under the phone.
     for (const name of [
       'Arrival',

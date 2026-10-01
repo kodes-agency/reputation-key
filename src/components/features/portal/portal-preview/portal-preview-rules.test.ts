@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
   describeUnavailable,
-  DRAFT_DESIGN_NOTICE,
   packFallbackNotice,
   TILE_PLACEHOLDER_NOTE,
   TRY_AS_GUEST_NOTICE,
@@ -12,13 +11,13 @@ describe('describeUnavailable', () => {
     expect(describeUnavailable('not_published').title).toBe('Nothing is live yet')
   })
 
-  it('explains that an earlier-design version has no matching preview, and promises nothing publishing cannot yet do', () => {
+  it('explains that an earlier-design version has no matching preview, and that publishing now writes the new design', () => {
     const note = describeUnavailable('earlier_design')
 
     expect(note.title).toContain('earlier design')
+    expect(note.body).toContain('before the new design')
     expect(note.body).toContain('does not draw it')
-    // Publishing still writes the earlier design until the new one is publishable.
-    expect(note.body).not.toMatch(/publish/i)
+    expect(note.body).toContain('publishing writes now')
   })
 
   it('points back to the draft when the live version cannot be drawn', () => {
@@ -29,13 +28,6 @@ describe('describeUnavailable', () => {
 describe('TRY_AS_GUEST_NOTICE', () => {
   it('promises that nothing is written', () => {
     expect(TRY_AS_GUEST_NOTICE).toContain('Nothing is saved or counted')
-  })
-})
-
-describe('DRAFT_DESIGN_NOTICE', () => {
-  it('says the draft is the new design that guests get in a later release, not what Publish writes today', () => {
-    expect(DRAFT_DESIGN_NOTICE).toContain('new design')
-    expect(DRAFT_DESIGN_NOTICE).toContain('upcoming release')
   })
 })
 

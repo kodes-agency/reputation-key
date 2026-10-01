@@ -26,18 +26,42 @@ const scenarioIds = (n: number) => ({
   categoryId: `c3000000-0000-4000-8000-00000000000${n}`,
 })
 
-/** Complete localized experience: bg primary with en additional, overrides, mixed links. */
+export const SCENARIO_HERO_ASSET = 'c5000000-0000-4000-8000-000000000001'
+export const SCENARIO_LOGO_ASSET = 'c5000000-0000-4000-8000-000000000002'
+export const SCENARIO_TILE_ASSET = 'c5000000-0000-4000-8000-000000000003'
+
+/**
+ * Complete localized experience: bg primary with en additional, a look with a
+ * hero, a logo and a tile picture, a language that wrote only some of its
+ * texts, and links of every kind.
+ */
 export const COMPLETE_SCENARIO: WorkingCopyScenario = {
   ...scenarioIds(1),
   slug: 'lobby-complete',
   primaryGuestLocale: 'bg',
   additionalGuestLocales: ['en'],
+  timeZone: 'Europe/Sofia',
   brand: {
     displayName: 'Hotel Rila',
     defaultHeroImageUrl: 'https://cdn.example/hero-default.jpg',
+    wordmark: 'RILA',
+    backgroundMode: 'manual',
+    lookVersion: 4,
+    heroAsset: { id: SCENARIO_HERO_ASSET, focalX: 0.3, focalY: 0.7 },
+    logoAssetId: SCENARIO_LOGO_ASSET,
   },
+  mediaAssets: [
+    { id: SCENARIO_HERO_ASSET, purpose: 'hero', width: 1600, height: 1000 },
+    { id: SCENARIO_LOGO_ASSET, purpose: 'logo', width: 480, height: 120 },
+    { id: SCENARIO_TILE_ASSET, purpose: 'link_image', width: 800, height: 800 },
+  ],
   contents: [
-    { locale: 'bg', title: 'Хотел Рила', shortDescription: 'Добре дошли' },
+    {
+      locale: 'bg',
+      title: 'Хотел Рила',
+      shortDescription: 'Добре дошли',
+      heroAltText: 'Фасадата на хотела',
+    },
     { locale: 'en', title: 'Hotel Rila', shortDescription: 'Welcome' },
     // Not enabled on the Portal: it must never reach the working copy.
     { locale: 'fr', title: 'Hôtel Rila', shortDescription: 'Bienvenue' },
@@ -48,8 +72,10 @@ export const COMPLETE_SCENARIO: WorkingCopyScenario = {
       title: 'Hotel Rila Lobby',
       shortDescription: null,
       heroImageUrl: null,
+      linktreeTitle: 'Around Rila',
     },
     {
+      // A photo address is the earlier design's way of naming a picture: ignored.
       locale: 'bg',
       title: null,
       shortDescription: null,
@@ -61,12 +87,24 @@ export const COMPLETE_SCENARIO: WorkingCopyScenario = {
       id: 'c4000000-0000-4000-8000-000000000001',
       label: 'Menu',
       sortKey: 'a1',
+      iconKey: 'utensils',
+      texts: [
+        { locale: 'bg', label: 'Меню', line: 'Закуска до 11' },
+        {
+          locale: 'en',
+          label: 'Menu',
+          line: 'Breakfast until 11',
+          provenance: 'ai_draft',
+        },
+      ],
       destination: { state: 'approved', uri: 'https://example.com/menu' },
     },
     {
+      // No text rows at all: it reads its own label, in the primary language only.
       id: 'c4000000-0000-4000-8000-000000000002',
       label: 'Spa',
       sortKey: 'a0',
+      imageAssetId: SCENARIO_TILE_ASSET,
       destination: { state: 'approved', uri: 'https://example.com/spa' },
     },
     {
@@ -84,14 +122,16 @@ export const COMPLETE_SCENARIO: WorkingCopyScenario = {
   ],
 }
 
-/** No Brand Profile at all: the public name falls back to the organisation. */
+/** No Brand Profile at all: the resolver gives the page the default look. */
 export const NO_BRAND_SCENARIO: WorkingCopyScenario = {
   ...scenarioIds(2),
   slug: 'lobby-no-brand',
   primaryGuestLocale: 'en',
   additionalGuestLocales: [],
+  linktreeEnabled: false,
   brand: null,
-  contents: [],
+  // The Property has wording but has never picked a look.
+  contents: [{ locale: 'en', title: 'Lobby', shortDescription: 'Scan for the lobby' }],
   overrides: [],
   links: [
     {
@@ -103,7 +143,7 @@ export const NO_BRAND_SCENARIO: WorkingCopyScenario = {
   ],
 }
 
-/** A Brand Profile but no content for one enabled locale: no experience yet. */
+/** A Brand Profile but no wording for one enabled locale: the source says so, the resolver copies. */
 export const INCOMPLETE_SCENARIO: WorkingCopyScenario = {
   ...scenarioIds(3),
   slug: 'lobby-incomplete',

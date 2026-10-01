@@ -4,92 +4,68 @@
 // pending change?) and the publish transaction (did the content move while the
 // snapshot was being committed?). The working copy itself is read once, by
 // infrastructure/portal-working-copy.reader.ts.
+//
+// Only a schema version 3 snapshot can match: it is the only shape publishing
+// writes. A version 1 or 2 snapshot is the earlier design, so the working copy
+// (which would publish version 3) has by definition moved past it.
 
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import {
   IMMERSIVE_HUB_SCHEMA_VERSION,
-  isLocalizedConfiguration,
   type PortalPublicationSnapshot,
-  type PortalPublicationSource,
 } from '../domain/portal-publication-snapshot'
+import {
+  resolvePortalPublication,
+  type ImmersivePublicationContent,
+  type PortalPublicationSource,
+} from '../domain/portal-publication-source'
 
-/** What a snapshot published, in the shape of a working copy. */
-export function publishedContent(snapshot: PortalPublicationSnapshot) {
+type ComparableContent = Readonly<{
+  organizationId: string
+  propertyId: string
+  privateFeedbackThreshold: number
+  content: ImmersivePublicationContent
+}>
+
+/** What a v3 snapshot published, in the shape of a working copy's resolved content. */
+export function publishedContent(
+  snapshot: PortalPublicationSnapshot,
+): ComparableContent | null {
   const configuration = snapshot.configuration
-  if (configuration.schemaVersion === IMMERSIVE_HUB_SCHEMA_VERSION) {
-    // No v3 working copy exists until the v3 writer (slice 19), so nothing can
-    // equal this yet: a v3 snapshot reads as changed against any v2 working
-    // copy. The writer slice makes `comparableWorkingContent` produce this shape.
-    return {
-      schemaVersion: configuration.schemaVersion,
-      portal: configuration.portal,
-      links: configuration.links,
-      linktree: configuration.linktree,
-      privateFeedbackThreshold: configuration.reviewGateway.privateFeedbackThreshold,
-      organizationId: snapshot.organizationId,
-      propertyId: snapshot.propertyId,
-      experience: {
-        primaryGuestLocale: configuration.guestLocale,
-        localeSet: configuration.localeSet,
-        languagePackVersions: configuration.languagePackVersions,
-        localizedContent: configuration.localizedContent,
-        brandProfile: configuration.brandProfile,
-        timeZone: configuration.timeZone,
-      },
-    }
-  }
+  if (configuration.schemaVersion !== IMMERSIVE_HUB_SCHEMA_VERSION) return null
   return {
-    portal: configuration.portal,
-    categories: configuration.categories,
-    links: configuration.links,
-    privateFeedbackThreshold: configuration.reviewGateway.privateFeedbackThreshold,
     organizationId: snapshot.organizationId,
     propertyId: snapshot.propertyId,
-    ...(isLocalizedConfiguration(configuration)
-      ? {
-          experience: {
-            primaryGuestLocale: configuration.guestLocale,
-            localeSet: configuration.localeSet,
-            languagePackVersions: configuration.languagePackVersions,
-            localizedContent: configuration.localizedContent,
-            brandProfile: configuration.brandProfile,
-          },
-        }
-      : {}),
+    privateFeedbackThreshold: configuration.reviewGateway.privateFeedbackThreshold,
+    content: {
+      portal: configuration.portal,
+      guestLocale: configuration.guestLocale,
+      languagePackVersion: configuration.languagePackVersion,
+      localeSet: configuration.localeSet,
+      languagePackVersions: configuration.languagePackVersions,
+      localizedContent: configuration.localizedContent,
+      linktree: configuration.linktree,
+      links: configuration.links,
+      brandProfile: configuration.brandProfile,
+      timeZone: configuration.timeZone,
+      ...(configuration.provenance ? { provenance: configuration.provenance } : {}),
+    },
   }
 }
 
-/** The working copy, narrowed to exactly what a snapshot of it would publish. */
-export function comparableWorkingContent(workingCopy: PortalPublicationSource) {
-  const experience = workingCopy.experience
+/**
+ * The working copy, resolved exactly as publishing would resolve it. Every
+ * field of a v3 snapshot is in here, so no change a guest could see goes
+ * unnoticed.
+ */
+export function comparableWorkingContent(
+  workingCopy: PortalPublicationSource,
+): ComparableContent {
   return {
-    portal: workingCopy.portal,
-    categories: workingCopy.categories,
-    links: workingCopy.links,
-    privateFeedbackThreshold: workingCopy.privateFeedbackThreshold,
     organizationId: workingCopy.organizationId,
     propertyId: workingCopy.propertyId,
-    ...(experience
-      ? {
-          experience: {
-            primaryGuestLocale: experience.primaryGuestLocale,
-            localeSet: experience.localeSet,
-            languagePackVersions: Object.fromEntries(
-              experience.localeSet.map((locale) => [
-                locale,
-                experience.languagePackVersions[locale],
-              ]),
-            ),
-            localizedContent: Object.fromEntries(
-              experience.localeSet.map((locale) => [
-                locale,
-                experience.localizedContent[locale],
-              ]),
-            ),
-            brandProfile: experience.brandProfile,
-          },
-        }
-      : {}),
+    privateFeedbackThreshold: workingCopy.privateFeedbackThreshold,
+    content: resolvePortalPublication(workingCopy).content,
   }
 }
 
@@ -97,8 +73,10 @@ export function workingCopyMatchesSnapshot(
   workingCopy: PortalPublicationSource,
   snapshot: PortalPublicationSnapshot,
 ): boolean {
+  const published = publishedContent(snapshot)
   return (
+    published !== null &&
     canonicalizeRfc8785(comparableWorkingContent(workingCopy)) ===
-    canonicalizeRfc8785(publishedContent(snapshot))
+      canonicalizeRfc8785(published)
   )
 }

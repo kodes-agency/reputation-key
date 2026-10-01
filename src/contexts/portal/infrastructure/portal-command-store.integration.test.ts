@@ -50,6 +50,7 @@ import { portalAccessArtifactId } from '#/shared/domain/ids'
 import { createAtomicPortalCommandStore } from './portal-command-store'
 import { createPortalWorkflowFactStore } from './portal-workflow-fact-store'
 import { buildPortalPublicationSnapshot } from '../application/portal-publication-snapshot'
+import { publicationSource } from '../domain/__fixtures__/publication-source'
 import { issueToken, rotateToken } from '../domain/portal-token'
 
 const ORG_A = organizationId('org-portalcmd-0000-0000-000000000001')
@@ -106,6 +107,7 @@ const { getPool } = setupIntegrationDb({
     'portal_responsible_managers',
     'outbox_events',
     'portal_page_edits',
+    'property_portal_brand_contents',
     'portals',
     'properties',
   ],
@@ -199,7 +201,8 @@ async function seedPortalGroupMembership(): Promise<void> {
   )
 }
 
-const ORG_NAME = `Test Org t-${String(ORG_A).replace(/-/gu, '')}`
+const PROPERTY_TITLE = 'Tell us about your visit'
+const PROPERTY_DESCRIPTION = 'Rate your visit to the reception.'
 
 function publicationMutation(
   portal: ReturnType<typeof makePortal>,
@@ -219,22 +222,28 @@ function publicationMutation(
     organizationId: portal.organizationId,
     propertyId: portal.propertyId,
     version: input.version ?? 1,
-    source: {
-      portal: {
-        id: portal.id,
-        name: input.name,
-        slug: portal.slug,
-        description: portal.description,
-        heroImageUrl: portal.heroImageUrl,
-        theme: portal.theme,
-        organizationName: ORG_NAME,
-      },
-      categories: [],
-      links: [],
-      privateFeedbackThreshold: portal.privateFeedbackThreshold,
+    // Publishing writes what the working copy says, so this is the Property's
+    // wording seeded in beforeEach, in the Portal's own language.
+    source: publicationSource({
       organizationId: portal.organizationId,
       propertyId: portal.propertyId,
-    },
+      portal: { id: portal.id, name: input.name, slug: portal.slug },
+      privateFeedbackThreshold: portal.privateFeedbackThreshold,
+      primaryGuestLocale: portal.primaryGuestLocale,
+      localeSet: [portal.primaryGuestLocale],
+      linktreeEnabled: portal.linktreeEnabled,
+      timeZone: 'UTC',
+      look: null,
+      wording: {
+        [portal.primaryGuestLocale]: {
+          title: PROPERTY_TITLE,
+          shortDescription: PROPERTY_DESCRIPTION,
+          heroAlt: null,
+          linktreeTitle: null,
+        },
+      },
+      links: [],
+    }),
     destination: {
       state: 'verified',
       uri: 'https://search.google.com/local/writereview?placeid=portal-command',
@@ -290,6 +299,13 @@ beforeEach(async () => {
        (id, organization_id, name, slug, timezone, created_at, updated_at)
      VALUES ($1, $2, 'Portal Command Property', 'portal-command-property', 'UTC', $3, $3)`,
     [PROPERTY_A, ORG_A, CREATED_AT],
+  )
+  await getPool().query(
+    `INSERT INTO property_portal_brand_contents
+       (id, organization_id, property_id, locale, title, short_description,
+        version, updated_by, created_at, updated_at)
+     VALUES (gen_random_uuid(), $1, $2, 'en', $3, $4, 1, 'seed-manager', $5, $5)`,
+    [ORG_A, PROPERTY_A, PROPERTY_TITLE, PROPERTY_DESCRIPTION, CREATED_AT],
   )
 })
 

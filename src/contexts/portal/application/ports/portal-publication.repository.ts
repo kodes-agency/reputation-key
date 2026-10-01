@@ -1,8 +1,8 @@
 import type {
   PortalPublicationActivation,
   PortalPublicationSnapshot,
-  PortalPublicationSource,
 } from '../../domain/portal-publication-snapshot'
+import type { PortalPublicationSource } from '../../domain/portal-publication-source'
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 
 export type PortalPublicationCursor = Readonly<{

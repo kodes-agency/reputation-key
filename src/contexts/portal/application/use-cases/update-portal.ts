@@ -34,10 +34,8 @@ import type {
 import type { PortalCommandStore } from '../ports/portal-command-store.port'
 import type { PortalPublicationMutation } from '../ports/portal-command-store.port'
 import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
-import type {
-  PortalPublicationSource,
-  VerifiedPublicationDestination,
-} from '../../domain/portal-publication-snapshot'
+import type { VerifiedPublicationDestination } from '../../domain/portal-publication-snapshot'
+import type { PortalPublicationSource } from '../../domain/portal-publication-source'
 import { buildPortalPublicationSnapshot } from '../portal-publication-snapshot'
 import { nextPortalCommandAt } from '../portal-command-version'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
@@ -266,14 +264,7 @@ function applyPatchToPublicationSource(
 ): PortalPublicationSource {
   return {
     ...source,
-    portal: {
-      ...source.portal,
-      name: patch.name,
-      slug: patch.slug,
-      description: patch.description,
-      heroImageUrl: patch.heroImageUrl,
-      theme: patch.theme,
-    },
+    portal: { ...source.portal, name: patch.name, slug: patch.slug },
     privateFeedbackThreshold: patch.privateFeedbackThreshold,
   }
 }
@@ -321,12 +312,6 @@ async function buildPublicationMutation(
       throw portalError(
         'publication_snapshot_unavailable',
         'Portal publication content is unavailable',
-      )
-    }
-    if (!workingCopy.experience) {
-      throw portalError(
-        'publication_snapshot_unavailable',
-        'Complete the Property Brand Profile and every enabled guest locale before publishing',
       )
     }
     const snapshot = buildPortalPublicationSnapshot({

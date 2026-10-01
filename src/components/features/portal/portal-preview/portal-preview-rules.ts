@@ -20,7 +20,7 @@ export function describeUnavailable(
     case 'earlier_design':
       return {
         title: 'The live page uses the earlier design',
-        body: 'This preview does not draw it. The draft preview shows the new design.',
+        body: 'It was published before the new design, and this preview does not draw it. The draft preview shows the new design, which is what publishing writes now.',
       }
     case 'incomplete':
       return {
@@ -33,15 +33,6 @@ export function describeUnavailable(
 /** The line shown while "Try as guest" is on. */
 export const TRY_AS_GUEST_NOTICE =
   'Trying as a guest. Nothing is saved or counted, and links don’t open.'
-
-/**
- * The line under the Draft page. Until publishing writes the new design
- * (slice 19 of the round-4 plan), the draft is the page guests get in an
- * upcoming release, not the one Publish makes live today. Slice 19 replaces
- * this line, and the `earlier_design` body above, with the published wording.
- */
-export const DRAFT_DESIGN_NOTICE =
-  'This is the new design, which reaches guests in an upcoming release. Until then, Publish keeps the earlier page.'
 
 /** What a tile with no approved address says in place of its line. */
 export const TILE_PLACEHOLDER_NOTE: Readonly<

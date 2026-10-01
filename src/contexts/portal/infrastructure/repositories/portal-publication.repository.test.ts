@@ -13,7 +13,7 @@ import {
   guestResponseExperienceSnapshots,
   guestResponses,
 } from '#/shared/db/schema/guest.schema'
-import { buildPortalPublicationSnapshot } from '../../application/portal-publication-snapshot'
+import { buildLegacyPortalPublicationSnapshot as buildPortalPublicationSnapshot } from '../../application/__fixtures__/legacy-snapshot-builder'
 import { verifyPortalPublicationSnapshot } from '../../application/portal-publication-snapshot'
 import {
   createPortalPublicationRepository,
