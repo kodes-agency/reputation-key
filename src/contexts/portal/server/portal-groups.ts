@@ -11,6 +11,7 @@ import { throwContextError, catchUntagged } from '#/shared/auth/server-errors'
 import { getContainer } from '#/composition'
 import { createPortalGroupInputSchema } from '../application/dto/create-portal-group.dto'
 import { updatePortalGroupInputSchema } from '../application/dto/update-portal-group.dto'
+import { portalGroupMemberSchema } from '../application/dto/portal-group-membership.dto'
 import { isPortalError, portalError } from '../domain/errors'
 import { portalErrorStatus } from './portals'
 import type { AuthContext } from '#/shared/domain/auth-context'
@@ -224,11 +225,6 @@ export const softDeletePortalGroup = createServerFn({ method: 'POST' })
 
 // ── addPortalToGroup ──────────────────────────────────────────────
 
-const portalGroupMemberSchema = z.object({
-  portalGroupId: z.string().min(1),
-  portalId: z.string().min(1),
-})
-
 export const addPortalToGroup = createServerFn({ method: 'POST' })
   .validator(portalGroupMemberSchema)
   .handler(
@@ -276,5 +272,60 @@ export const removePortalFromGroup = createServerFn({ method: 'POST' })
       },
       'POST',
       'portal-group.removePortalFromGroup',
+    ),
+  )
+
+// ── movePortalToGroup ─────────────────────────────────────────────
+
+// A Portal in another group leaves it in the same commit, so it is never in two
+// groups; the results it earned stay with the group it left. A Portal in no
+// group simply joins.
+export const movePortalToGroup = createServerFn({ method: 'POST' })
+  .validator(portalGroupMemberSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        await authorizePortalGroupMembership(ctx, data)
+
+        try {
+          const { management: useCases } = getContainer().portalPublicApi
+          await useCases.movePortalToGroup(data, ctx)
+          return { moved: true }
+        } catch (e) {
+          if (isPortalError(e))
+            throwContextError('PortalError', e, portalErrorStatus(e.code))
+          throw catchUntagged(e)
+        }
+      },
+      'POST',
+      'portal-group.movePortalToGroup',
+    ),
+  )
+
+// ── listPortalGroupHistory ────────────────────────────────────────
+
+export const listPortalGroupHistory = createServerFn({ method: 'GET' })
+  .validator(portalGroupIdSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        await authorizePortalGroupResource(ctx, data.portalGroupId, 'portal.read')
+
+        try {
+          const { management: useCases } = getContainer().portalPublicApi
+          const entries = await useCases.listPortalGroupHistory(data, ctx)
+          return { entries }
+        } catch (e) {
+          if (isPortalError(e))
+            throwContextError('PortalError', e, portalErrorStatus(e.code))
+          throw catchUntagged(e)
+        }
+      },
+      'GET',
+      'portal-group.listPortalGroupHistory',
     ),
   )
