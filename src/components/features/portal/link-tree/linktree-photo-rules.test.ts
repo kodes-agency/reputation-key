@@ -4,6 +4,8 @@ import {
   iconChoiceWrite,
   linkPhotoUrl,
   photoChoiceWrite,
+  photoOnOffer,
+  rememberPhotos,
   uploadTileLabel,
 } from './linktree-photo-rules'
 
@@ -60,5 +62,53 @@ describe('uploadTileLabel', () => {
   it('invites a photo when there is none, and a replacement when there is', () => {
     expect(uploadTileLabel(false)).toBe('Upload a photo instead of an icon')
     expect(uploadTileLabel(true)).toBe('Replace photo')
+  })
+})
+
+describe('rememberPhotos', () => {
+  const OTHER = '30000000-0000-4000-8000-000000000002'
+
+  it('notes the photo of every tile that has one', () => {
+    const links = [
+      link({ id: 'l-1', imageAssetId: ASSET }),
+      link({ id: 'l-2' }),
+      link({ id: 'l-3', imageAssetId: OTHER }),
+    ]
+
+    expect(rememberPhotos({}, links)).toEqual({ 'l-1': ASSET, 'l-3': OTHER })
+  })
+
+  it('keeps a photo after the tile has been given an icon, so the photo can be chosen again', () => {
+    const remembered = rememberPhotos({}, [link({ imageAssetId: ASSET })])
+
+    expect(rememberPhotos(remembered, [link({ imageAssetId: null })])).toBe(remembered)
+  })
+
+  it('follows a tile to a newer photo', () => {
+    const remembered = rememberPhotos({}, [link({ imageAssetId: ASSET })])
+
+    expect(rememberPhotos(remembered, [link({ imageAssetId: OTHER })])).toEqual({
+      'l-1': OTHER,
+    })
+  })
+
+  it('hands back the same memory when nothing is new, so a render does not set state', () => {
+    const remembered = { 'l-1': ASSET }
+
+    expect(rememberPhotos(remembered, [link({ imageAssetId: ASSET })])).toBe(remembered)
+  })
+})
+
+describe('photoOnOffer', () => {
+  it('is the tile photo while it has one', () => {
+    expect(photoOnOffer(link({ imageAssetId: ASSET }), 'other')).toBe(ASSET)
+  })
+
+  it('is the photo the tile last had once an icon replaced it', () => {
+    expect(photoOnOffer(link(), ASSET)).toBe(ASSET)
+  })
+
+  it('is nothing for a tile that never had a photo', () => {
+    expect(photoOnOffer(link(), null)).toBeNull()
   })
 })

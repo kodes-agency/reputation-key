@@ -119,6 +119,12 @@ export type BuildPortalLinktreeViewInput = Readonly<{
   texts: ReadonlyArray<ResolvedPortalLinkText>
   titles: ReadonlyArray<Readonly<{ locale: GuestLocale; linktreeTitle: string | null }>>
   destinations: ReadonlyArray<PortalApprovedDestination>
+  /**
+   * The ids of the tile pictures that may be served right now. A picture
+   * outside this set (taken down, or no longer there) is not handed to the
+   * editor, so a tile never points at an address that answers 404.
+   */
+  servableImageIds: ReadonlySet<string>
 }>
 
 export function buildPortalLinktreeView(
@@ -143,7 +149,10 @@ export function buildPortalLinktreeView(
       categoryId: String(link.categoryId),
       url: link.url,
       iconKey: link.iconKey,
-      imageAssetId: link.imageAssetId ? String(link.imageAssetId) : null,
+      imageAssetId:
+        link.imageAssetId && input.servableImageIds.has(String(link.imageAssetId))
+          ? String(link.imageAssetId)
+          : null,
       sortKey: link.sortKey,
       texts: input.texts
         .filter((text) => text.linkId === String(link.id))

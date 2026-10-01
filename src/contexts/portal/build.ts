@@ -521,6 +521,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalLinkRepo,
       experienceRepo: portalExperienceRepo,
       destinationRepo: portalApprovedDestinationRepo,
+      mediaRepo: portalMediaAssetRepo,
       staffPublicApi: deps.staffPublicApi,
     }),
     listPortalLinks: listPortalLinks({

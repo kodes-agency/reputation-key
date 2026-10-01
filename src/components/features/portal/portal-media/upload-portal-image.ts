@@ -17,7 +17,8 @@ import {
 export const PORTAL_IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp'
 
 const ACCEPTED_TYPES: ReadonlySet<string> = new Set(PORTAL_IMAGE_ACCEPT.split(','))
-const MAX_MB = PORTAL_MEDIA_MAX_UPLOAD_BYTES / (1024 * 1024)
+const BYTES_PER_MB = 1024 * 1024
+const MAX_MB = PORTAL_MEDIA_MAX_UPLOAD_BYTES / BYTES_PER_MB
 
 export type PortalImageUploadInput = Readonly<{
   propertyId: string
@@ -81,11 +82,18 @@ export function validatePortalImageFile(file: File): string | null {
 /** "terrace.jpg · 3.4 MB" for the line under the chosen file. */
 export function describePortalImageFile(file: File): string {
   const size =
-    file.size >= 1_000_000
-      ? `${Math.round(file.size / 100_000) / 10} MB`
+    file.size >= BYTES_PER_MB
+      ? `${Math.round((file.size / BYTES_PER_MB) * 10) / 10} MB`
       : `${Math.max(1, Math.round(file.size / 1024))} KB`
   return `${file.name} · ${size}`
 }
+
+/** The refusals that say this person may not add photos here, as against the feature being off. */
+const PERMISSION_CODES: ReadonlySet<string> = new Set([
+  'forbidden',
+  'missing_scope',
+  'not_a_member',
+])
 
 function messageForRefusal(status: number, body: unknown): string {
   const error = typeof body === 'object' && body !== null ? body : {}
@@ -95,7 +103,7 @@ function messageForRefusal(status: number, body: unknown): string {
     return (typeof reason === 'string' && REFUSAL_MESSAGES[reason]) || MESSAGES.unusable
   }
   if (code === 'upload_failed') return MESSAGES.failed
-  if (code === 'forbidden') return MESSAGES.permission
+  if (typeof code === 'string' && PERMISSION_CODES.has(code)) return MESSAGES.permission
   if (status === 401) return MESSAGES.signIn
   if (status === 403) return MESSAGES.unavailable
   if (status === 404) return MESSAGES.gone

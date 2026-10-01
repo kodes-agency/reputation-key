@@ -9,7 +9,7 @@ import type {
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalLinkIconKey } from '#/shared/domain/portal-link-icon'
 import { LinkAddressForm } from './link-address-form'
-import { linkPhotoUrl } from './linktree-photo-rules'
+import { linkPhotoUrl, photoOnOffer } from './linktree-photo-rules'
 import { LinktreePhotoDialog } from './linktree-photo-dialog'
 import type { PortalImageUploader } from '../portal-media/upload-portal-image'
 import { LinkTextsForm } from './link-texts-form'
@@ -32,6 +32,10 @@ type Props = Readonly<{
   onIconChange: (key: PortalLinkIconKey) => void
   /** Puts an uploaded photo on the tile; a refusal is shown in the photo dialog. */
   onPhotoChange: (assetId: string) => Promise<unknown>
+  /** Puts back the photo an icon replaced; a refusal is reported by the caller. */
+  onPhotoRestore: (assetId: string) => void
+  /** The photo this tile had earlier in the session, if an icon has since replaced it. */
+  rememberedPhotoId: string | null
   propertyId: string
   /** The photo upload; the real one unless a story hands in a stub. */
   uploadPhoto?: PortalImageUploader
@@ -49,6 +53,8 @@ export function LinktreeTileEditor({
   onAddressEdit,
   onIconChange,
   onPhotoChange,
+  onPhotoRestore,
+  rememberedPhotoId,
   propertyId,
   uploadPhoto,
   onCheckAddress,
@@ -59,6 +65,7 @@ export function LinktreeTileEditor({
   const [isPickingPhoto, setIsPickingPhoto] = useState(false)
   const locale = chosen ?? primary
   if (locale === undefined) return null
+  const offeredPhotoId = photoOnOffer(link, rememberedPhotoId)
   const chips = linkLocaleChips(link, locales)
   const missing = locales.filter(
     (offered) => chips.find((chip) => chip.locale === offered)?.isMissing,
@@ -85,8 +92,12 @@ export function LinktreeTileEditor({
         <p className="text-sm font-medium">Icon or photo</p>
         <LinktreeIconPicker
           value={link.iconKey}
-          photoUrl={linkPhotoUrl(link)}
+          photoUrl={linkPhotoUrl({ imageAssetId: offeredPhotoId })}
+          isPhotoChosen={link.imageAssetId !== null}
           onChange={onIconChange}
+          onChoosePhoto={() => {
+            if (offeredPhotoId !== null) onPhotoRestore(offeredPhotoId)
+          }}
           onUploadPhoto={() => setIsPickingPhoto(true)}
           disabled={!canEdit}
         />

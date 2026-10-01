@@ -15,6 +15,35 @@ export function linkPhotoUrl(
   return link.imageAssetId === null ? null : portalMediaPublicPath(link.imageAssetId)
 }
 
+/** The photo each tile last had in this session, by link id. */
+export type PhotoMemory = Readonly<Record<string, string>>
+
+/**
+ * `memory` with the photo of every tile that has one noted. A tile that has been
+ * given an icon keeps its entry, so its photo can be chosen again without being
+ * uploaded again. Returns `memory` itself when nothing is new.
+ */
+export function rememberPhotos(
+  memory: PhotoMemory,
+  links: ReadonlyArray<Pick<PortalLinktreeLink, 'id' | 'imageAssetId'>>,
+): PhotoMemory {
+  const fresh = links.flatMap(({ id, imageAssetId }) =>
+    imageAssetId !== null && memory[id] !== imageAssetId
+      ? [[id, imageAssetId] as const]
+      : [],
+  )
+  if (fresh.length === 0) return memory
+  return { ...memory, ...Object.fromEntries(fresh) }
+}
+
+/** The photo the picker offers: the tile's own, or else the one an icon replaced. */
+export function photoOnOffer(
+  link: Pick<PortalLinktreeLink, 'imageAssetId'>,
+  remembered: string | null,
+): string | null {
+  return link.imageAssetId ?? remembered
+}
+
 /** The `updateLink` input for choosing an icon. */
 export function iconChoiceWrite(link: LinkWithPhoto, iconKey: PortalLinkIconKey) {
   return {
@@ -24,7 +53,7 @@ export function iconChoiceWrite(link: LinkWithPhoto, iconKey: PortalLinkIconKey)
   }
 }
 
-/** The `updateLink` input for a freshly uploaded photo. The icon stays, for when the photo goes. */
+/** The `updateLink` input for putting a photo on the tile: one just uploaded, or one chosen again. The icon stays, for when the photo goes. */
 export function photoChoiceWrite(
   link: Pick<PortalLinktreeLink, 'id'>,
   imageAssetId: string,

@@ -13,6 +13,8 @@ const render = (props: Partial<Parameters<typeof LinktreeIconPicker>[0]> = {}) =
     createElement(LinktreeIconPicker, {
       value: 'utensils',
       photoUrl: null,
+      isPhotoChosen: false,
+      onChoosePhoto: () => undefined,
       onChange: () => undefined,
       onUploadPhoto: () => undefined,
       ...props,
@@ -49,7 +51,7 @@ describe('LinktreeIconPicker', () => {
   })
 
   it('shows the photo as the checked choice, and no icon, when the tile has one', () => {
-    const html = render({ value: 'utensils', photoUrl: PHOTO })
+    const html = render({ value: 'utensils', photoUrl: PHOTO, isPhotoChosen: true })
 
     const photo = tagNamed(html, 'Your photo')
     expect(photo).toContain('role="radio"')
@@ -71,14 +73,23 @@ describe('LinktreeIconPicker', () => {
   })
 
   it('offers a replacement rather than a first photo once there is one', () => {
-    const html = render({ photoUrl: PHOTO })
+    const html = render({ photoUrl: PHOTO, isPhotoChosen: true })
 
     expect(html).toContain('aria-label="Replace photo"')
     expect(html).not.toContain('aria-label="Upload a photo instead of an icon"')
   })
 
+  it('keeps the photo on offer, unchecked, while an icon is chosen over it', () => {
+    const html = render({ value: 'wifi', photoUrl: PHOTO, isPhotoChosen: false })
+
+    expect(tagNamed(html, 'Your photo')).toContain('aria-checked="false"')
+    expect(tagNamed(html, 'Wifi')).toContain('aria-checked="true"')
+    // Nothing is on the tile to replace, so the dashed tile still invites a first photo.
+    expect(html).toContain('aria-label="Upload a photo instead of an icon"')
+  })
+
   it('disables every choice and the upload for someone who may not edit', () => {
-    const html = render({ disabled: true, photoUrl: PHOTO })
+    const html = render({ disabled: true, photoUrl: PHOTO, isPhotoChosen: true })
 
     expect(tagNamed(html, 'Replace photo')).toContain('disabled=""')
     expect(tagNamed(html, 'Your photo')).toContain('disabled=""')

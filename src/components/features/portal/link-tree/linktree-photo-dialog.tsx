@@ -3,6 +3,9 @@
 // it (ADR 0063), so what comes back is an asset id, which the section puts on the
 // tile. Controlled, because the picker's button opens it; its body is mounted
 // only while it is open, so a closed dialog holds no file and no half-typed state.
+// It cannot be closed while a photo is on its way: Escape, the overlay and the
+// close button would otherwise put the photo on the tile after the manager had
+// walked away from it.
 
 import { useRef, useState, type ChangeEvent } from 'react'
 import { Button } from '#/components/ui/button'
@@ -46,14 +49,26 @@ export function LinktreePhotoDialog({
   onUploaded,
   upload,
 }: Props) {
+  const [isBusy, setIsBusy] = useState(false)
+  const close = () => {
+    setIsBusy(false)
+    onOpenChange(false)
+  }
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog
+      open={open}
+      onOpenChange={(next) => {
+        if (next) onOpenChange(true)
+        else if (!isBusy) close()
+      }}
+    >
       <DialogContent className="sm:max-w-md">
         <PhotoDialogBody
           propertyId={propertyId}
           portalId={portalId}
           onUploaded={onUploaded}
-          onClose={() => onOpenChange(false)}
+          onBusyChange={setIsBusy}
+          onClose={close}
           upload={upload}
         />
       </DialogContent>
@@ -65,6 +80,8 @@ type BodyProps = Readonly<{
   propertyId: string
   portalId: string
   onUploaded: (assetId: string) => Promise<unknown>
+  /** Tells the dialog whether a photo is on its way, so it stays open meanwhile. */
+  onBusyChange: (isBusy: boolean) => void
   onClose: () => void
   upload: PortalImageUploader | undefined
 }>
@@ -73,6 +90,7 @@ function PhotoDialogBody({
   propertyId,
   portalId,
   onUploaded,
+  onBusyChange,
   onClose,
   upload = (input, file) => uploadPortalImage(input, file),
 }: BodyProps) {
@@ -95,6 +113,7 @@ function PhotoDialogBody({
   const submit = async () => {
     if (!file || !confirmed || isUploading) return
     setIsUploading(true)
+    onBusyChange(true)
     setMessage(null)
     const result = await upload(
       { propertyId, portalId, purpose: 'link_image', rightsConfirmed: confirmed },
@@ -103,6 +122,7 @@ function PhotoDialogBody({
     if (!result.ok) {
       setMessage(result.message)
       setIsUploading(false)
+      onBusyChange(false)
       return
     }
     try {
@@ -111,6 +131,7 @@ function PhotoDialogBody({
     } catch {
       setMessage(SAVE_FAILED)
       setIsUploading(false)
+      onBusyChange(false)
     }
   }
 
@@ -119,8 +140,8 @@ function PhotoDialogBody({
       <DialogHeader>
         <DialogTitle>Photo for this tile</DialogTitle>
         <DialogDescription>
-          Guests see it on the tile instead of the icon. It is re-saved on upload, and any
-          location data in it is removed.
+          Shown on this tile instead of its icon once you publish. It is re-saved on
+          upload, and any location data in it is removed.
         </DialogDescription>
       </DialogHeader>
       <div className="space-y-4">
@@ -154,13 +175,14 @@ function PhotoDialogBody({
             onCheckedChange={(next) => setConfirmed(next === true)}
           />
           <FieldLabel htmlFor="linktree-photo-rights" className="font-normal">
-            I own this photo or have permission to use it.
+            This property owns this photo or has permission to use it.
           </FieldLabel>
         </Field>
         <p role="alert" className="min-h-5 text-sm text-destructive">
           {message}
         </p>
       </div>
+      <p className="text-sm text-muted-foreground">Live pages change when you publish.</p>
       <DialogFooter>
         <Button type="button" variant="ghost" disabled={isUploading} onClick={onClose}>
           Cancel

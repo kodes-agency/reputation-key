@@ -17,7 +17,12 @@ import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalLinkIconKey } from '#/shared/domain/portal-link-icon'
 import { usePortalDraftAutosave } from '../portal-editor/portal-draft-autosave-context'
 import { LinkAddForm } from './link-add-form'
-import { iconChoiceWrite, photoChoiceWrite } from './linktree-photo-rules'
+import {
+  iconChoiceWrite,
+  photoChoiceWrite,
+  rememberPhotos,
+  type PhotoMemory,
+} from './linktree-photo-rules'
 import type { PortalImageUploader } from '../portal-media/upload-portal-image'
 import { LinktreeLocaleTabs } from './linktree-locale-tabs'
 import { LINKTREE_MOVE_HINT_ID } from './linktree-move-controls'
@@ -72,6 +77,12 @@ export function LinkTree({
     applyLinkOrder,
     view.links,
   )
+  // A photo an icon has replaced stays on offer, so choosing an icon is never
+  // the end of the photo. Noted while rendering (the supported way to derive
+  // state from props), so no frame shows the tile without it.
+  const [photos, setPhotos] = useState<PhotoMemory>({})
+  const remembered = rememberPhotos(photos, view.links)
+  if (remembered !== photos) setPhotos(remembered)
   const refocus = useRef<string | null>(null)
   const order = links.map((link) => link.id).join()
   const cap = describeLinkCap(view.links.length, view.maxLinks)
@@ -154,6 +165,11 @@ export function LinkTree({
       mutations.updateLink({ data: photoChoiceWrite(link, assetId) }),
     )
 
+  // Putting back a photo an icon replaced has no dialog to report to.
+  const restorePhoto = (link: PortalLinktreeLink, assetId: string) => {
+    void choosePhoto(link, assetId).catch(reportFailure)
+  }
+
   const checkAddress = (linkId: string, url: string) => {
     void afterPendingText(() => mutations.updateLink({ data: { linkId, url } })).catch(
       () => undefined,
@@ -231,6 +247,8 @@ export function LinkTree({
                 onAddressEdit={mutations.clearUpdateFailure}
                 onIconChange={(key) => changeIcon(link, key)}
                 onPhotoChange={(assetId) => choosePhoto(link, assetId)}
+                onPhotoRestore={(assetId) => restorePhoto(link, assetId)}
+                rememberedPhotoId={remembered[link.id] ?? null}
                 propertyId={propertyId}
                 uploadPhoto={uploadPhoto}
                 onCheckAddress={() => checkAddress(link.id, link.url)}

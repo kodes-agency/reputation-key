@@ -4,6 +4,8 @@ import { describe, expect, it } from 'vitest'
 import { getPortalLinktree } from './get-portal-linktree'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createInMemoryPortalLinkRepo } from '#/shared/testing/in-memory-portal-link-repo'
+import { createInMemoryPortalMediaAssetRepo } from '#/shared/testing/in-memory-portal-media-asset-repo'
+import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixtures'
 import {
   buildTestAuthContext,
   buildTestPortal,
@@ -70,10 +72,12 @@ const approvedDestination = (): PortalApprovedDestination => ({
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalRepo = createInMemoryPortalRepo()
   const portalLinkRepo = createInMemoryPortalLinkRepo()
+  const mediaRepo = createInMemoryPortalMediaAssetRepo()
   const destination = approvedDestination()
   const useCase = getPortalLinktree({
     portalRepo,
     portalLinkRepo,
+    mediaRepo,
     staffPublicApi: staffApiMock(accessible),
     experienceRepo: {
       listPortalOverrides: async () => [
@@ -97,7 +101,7 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
     iconKey: 'utensils',
   })
   portalLinkRepo.seedLinks([link])
-  return { useCase, portal, portalLinkRepo, link }
+  return { useCase, portal, portalLinkRepo, mediaRepo, category, destination, link }
 }
 
 describe('getPortalLinktree', () => {
@@ -153,6 +157,54 @@ describe('getPortalLinktree', () => {
       ['en', 'Olive Terrace menu', 'Lunch and dinner'],
       ['bg', 'Меню', null],
     ])
+  })
+
+  describe('a tile picture', () => {
+    const seedPhoto = (
+      ctx: ReturnType<typeof setup>,
+      status: 'active' | 'taken_down',
+    ) => {
+      const asset = buildTestPortalMediaAsset({
+        organizationId: ctx.portal.organizationId,
+        propertyId: ctx.portal.propertyId,
+        purpose: 'link_image',
+        status,
+      })
+      ctx.mediaRepo.seed([asset])
+      ctx.portalLinkRepo.seedLinks([
+        buildTestPortalLink({
+          categoryId: ctx.category.id,
+          destinationId: ctx.destination.id,
+          label: 'Menu',
+          iconKey: 'utensils',
+          imageAssetId: asset.id,
+        }),
+      ])
+      return asset
+    }
+    const read = (ctx: ReturnType<typeof setup>) =>
+      ctx.useCase(
+        { portalId: ctx.portal.id },
+        buildTestAuthContext({ role: 'PropertyManager' }),
+      )
+
+    it('hands the editor the picture of a tile while it can be served', async () => {
+      const ctx = setup()
+      const asset = seedPhoto(ctx, 'active')
+
+      const view = await read(ctx)
+
+      expect(view.links.find((l) => l.imageAssetId !== null)?.imageAssetId).toBe(asset.id)
+    })
+
+    it('shows a tile as having no picture once its picture is taken down, so the editor offers the icon', async () => {
+      const ctx = setup()
+      seedPhoto(ctx, 'taken_down')
+
+      const view = await read(ctx)
+
+      expect(view.links.every((l) => l.imageAssetId === null)).toBe(true)
+    })
   })
 
   it('refuses a role that cannot read Portals', async () => {

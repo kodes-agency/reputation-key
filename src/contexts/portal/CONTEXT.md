@@ -181,10 +181,16 @@ hidden in a segment do not survive, and the original is never stored.
   dashed tile uploads to `POST /api/portal-media` (`purpose=link_image`, with the
   Portal and the rights confirmation) and then puts the returned asset id on the
   link with `updateLink`. A tile wears an icon or a photo, never both: choosing an
-  icon saves `imageAssetId: null` in the same write. The editor shows the photo
-  from the same-origin media route. A photo reaches guests only through a v3
-  publication (slice 19 carries `links[].imageAssetId` from the working copy into
-  the snapshot); v1 and v2 snapshots have no tile photos.
+  icon saves `imageAssetId: null` in the same write, and the picker keeps the
+  replaced photo on offer for the session (`updateLink` re-checks the asset, which
+  stays active through the 24-hour GC grace), so a slip of an arrow key is not the
+  end of it. The editor shows the photo from the same-origin media route, and
+  `getPortalLinktree` hands it only a photo that is still servable: a taken-down
+  asset leaves `portal_links.image_asset_id` in place but reads as no photo.
+  A photo reaches guests only through a v3 publication (slice 19 carries
+  `links[].imageAssetId` from the working copy into the snapshot, and must leave
+  out an id that is no longer servable, as the guest page's `mediaUrls` filter
+  does); v1 and v2 snapshots have no tile photos.
 
 `portal.upload` is `controlled_beta`. The owner removed the SAFE-01 completion
 ceremony on 2026-09-30; the technical safeguards above stay in the build (ADR

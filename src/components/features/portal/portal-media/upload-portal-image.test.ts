@@ -49,11 +49,22 @@ describe('validatePortalImageFile', () => {
 
 describe('describePortalImageFile', () => {
   it('shows the name and a size a person can read', () => {
-    expect(describePortalImageFile(file('image/jpeg', 3_400_000, 'terrace.jpg'))).toBe(
-      'terrace.jpg · 3.4 MB',
-    )
+    expect(
+      describePortalImageFile(file('image/jpeg', 3.4 * 1024 * 1024, 'terrace.jpg')),
+    ).toBe('terrace.jpg · 3.4 MB')
     expect(describePortalImageFile(file('image/jpeg', 2048, 'a.png'))).toBe(
       'a.png · 2 KB',
+    )
+  })
+})
+
+describe('describePortalImageFile against the limit', () => {
+  it('counts megabytes the way the limit does, so a file under 10 MB never reads as 10.4 MB', () => {
+    expect(describePortalImageFile(file('image/jpeg', 10_400_000))).toBe(
+      'terrace.jpg · 9.9 MB',
+    )
+    expect(describePortalImageFile(file('image/jpeg', 10 * 1024 * 1024))).toBe(
+      'terrace.jpg · 10 MB',
     )
   })
 })
@@ -149,6 +160,10 @@ describe('uploadPortalImage', () => {
     [404, 'property_not_found', /no longer exists/i],
     [404, 'portal_not_found', /no longer exists/i],
     [403, 'forbidden', /permission/i],
+    [403, 'missing_scope', /permission/i],
+    [403, 'not_a_member', /permission/i],
+    [403, 'capability_disabled', /not available/],
+    [403, 'capability_blocked', /not available/],
     [422, 'upload_failed', /try again/i],
   ])('explains a refusal at the edge (%s %s)', async (status, error, message) => {
     const send = async () => respond(status, { error })

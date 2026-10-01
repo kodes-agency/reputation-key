@@ -293,3 +293,18 @@ export function toLinktreeTitlesInput(
     })),
   }
 }
+
+/**
+ * Whether a link write sent the address. Only such a write's refusal belongs
+ * under the address field; an icon's or a photo's is shown where it was made.
+ */
+export function isAddressWrite(
+  data: Readonly<{
+    linkId: string
+    url?: string
+    iconKey?: string | null
+    imageAssetId?: string | null
+  }>,
+): boolean {
+  return data.url !== undefined
+}

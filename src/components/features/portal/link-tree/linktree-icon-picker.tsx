@@ -2,6 +2,8 @@
 // uploaded for it. A radio group, so the arrow keys move between the choices and
 // Tab enters and leaves it once. The dashed tile at the end is not a choice but
 // the way to upload one: it opens the photo dialog (linktree-photo-dialog.tsx).
+// A photo stays on offer after an icon replaces it, so a slip of the arrow keys
+// is never the end of it.
 
 import { ImagePlus } from 'lucide-react'
 import { RadioGroup as RadioGroupPrimitive } from 'radix-ui'
@@ -13,11 +15,15 @@ import {
 } from '#/shared/domain/portal-link-icon'
 
 type Props = Readonly<{
-  /** The tile's icon key; ignored while the tile has a photo. */
+  /** The tile's icon key; ignored while the tile wears its photo. */
   value: string | null
-  /** The address of the tile's photo, if it has one. */
+  /** The address of the photo on offer: the tile's own, or the one an icon replaced. */
   photoUrl: string | null
+  /** Whether the tile wears that photo now (as against an icon). */
+  isPhotoChosen: boolean
   onChange: (key: PortalLinkIconKey) => void
+  /** Puts the photo on offer back on the tile. */
+  onChoosePhoto: () => void
   /** Opens the dialog that uploads a photo for this tile. */
   onUploadPhoto: () => void
   disabled?: boolean
@@ -34,16 +40,26 @@ const UPLOAD_CLASS = `${BOX_CLASS} border-dashed border-muted-foreground/60 text
 export function LinktreeIconPicker({
   value,
   photoUrl,
+  isPhotoChosen,
   onChange,
+  onChoosePhoto,
   onUploadPhoto,
   disabled,
 }: Props) {
   return (
     <RadioGroupPrimitive.Root
       aria-label="Icon or photo"
-      value={photoUrl === null ? (parsePortalLinkIconKey(value) ?? '') : PHOTO_VALUE}
+      value={
+        photoUrl !== null && isPhotoChosen
+          ? PHOTO_VALUE
+          : (parsePortalLinkIconKey(value) ?? '')
+      }
       disabled={disabled}
       onValueChange={(key) => {
+        if (key === PHOTO_VALUE) {
+          onChoosePhoto()
+          return
+        }
         const chosen = parsePortalLinkIconKey(key)
         if (chosen !== null) onChange(chosen)
       }}
@@ -79,8 +95,8 @@ export function LinktreeIconPicker({
       })}
       <button
         type="button"
-        aria-label={uploadTileLabel(photoUrl !== null)}
-        title={uploadTileLabel(photoUrl !== null)}
+        aria-label={uploadTileLabel(isPhotoChosen)}
+        title={uploadTileLabel(isPhotoChosen)}
         disabled={disabled}
         onClick={onUploadPhoto}
         className={UPLOAD_CLASS}

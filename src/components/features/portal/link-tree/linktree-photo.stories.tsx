@@ -3,6 +3,7 @@
 // section's writes are stubs, so each story can assert what a manager's gesture
 // asks for. The photo's address is the app's own media route, which Storybook
 // does not serve, so a photo shows as an empty frame here.
+import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, mocked, userEvent, waitFor, within } from 'storybook/test'
 import type {
@@ -77,6 +78,43 @@ function Harness({ view: current, mutations, uploadPhoto, canEdit }: StoryProps)
         uploadPhoto={uploadPhoto}
       />
     </div>
+  )
+}
+
+type LinkWrite = Readonly<{
+  linkId: string
+  iconKey?: string
+  imageAssetId?: string | null
+}>
+
+/** A Linktree whose saves land in its own view, as the server's would. */
+function SavingHarness({ view: first, mutations, uploadPhoto, canEdit }: StoryProps) {
+  const [current, setCurrent] = useState(first)
+  const updateLink = async (input: { data: LinkWrite }) => {
+    const { data } = input
+    await mutations.updateLink(input as never)
+    setCurrent((before) => ({
+      ...before,
+      links: before.links.map((link) =>
+        link.id === data.linkId
+          ? {
+              ...link,
+              ...(data.iconKey === undefined ? {} : { iconKey: data.iconKey }),
+              ...(data.imageAssetId === undefined
+                ? {}
+                : { imageAssetId: data.imageAssetId }),
+            }
+          : link,
+      ),
+    }))
+  }
+  return (
+    <Harness
+      view={current}
+      mutations={{ ...mutations, updateLink } as unknown as LinktreeMutations}
+      uploadPhoto={uploadPhoto}
+      canEdit={canEdit}
+    />
   )
 }
 
@@ -248,7 +286,7 @@ export const ChoosingAnIconTakesThePhotoOff: Story = {
   },
 }
 
-export const ReadOnlyHasNoUpload: Story = {
+export const ReadOnlyCannotUpload: Story = {
   args: { canEdit: false },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
@@ -256,5 +294,92 @@ export const ReadOnlyHasNoUpload: Story = {
     await expect(
       canvas.getByRole('button', { name: 'Upload a photo instead of an icon' }),
     ).toBeDisabled()
+  },
+}
+
+export const AKeySlipDoesNotLoseThePhoto: Story = {
+  render: (args) => <SavingHarness {...args} />,
+  args: { view: view(tile({ imageAssetId: ASSET })) },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /^Discover the resort/ }))
+    const photo = canvas.getByRole('radio', { name: 'Your photo' })
+    await expect(photo).toBeChecked()
+
+    // Tab lands on the checked choice; one arrow key moves to the next, which a
+    // radio group checks at once.
+    photo.focus()
+    await expect(photo).toHaveFocus()
+    // The group moves focus a moment after the key goes down, and checks the new
+    // choice only if the key is still down then; a person's key press lasts that
+    // long, user-event's instant one does not.
+    await userEvent.keyboard('{ArrowRight>}')
+    await waitFor(() => expect(photo).not.toHaveFocus())
+    await userEvent.keyboard('{/ArrowRight}')
+    await waitFor(() =>
+      expect(mocked(args.mutations.updateLink)).toHaveBeenCalledWith({
+        data: {
+          linkId: 'discover',
+          iconKey: expect.any(String),
+          imageAssetId: null,
+        },
+      }),
+    )
+
+    // The photo is still on offer, and choosing it puts it back as it was.
+    const again = await canvas.findByRole('radio', { name: 'Your photo' })
+    await expect(again).not.toBeChecked()
+    await userEvent.click(again)
+    await waitFor(() =>
+      expect(mocked(args.mutations.updateLink)).toHaveBeenLastCalledWith({
+        data: { linkId: 'discover', imageAssetId: ASSET },
+      }),
+    )
+    await waitFor(() =>
+      expect(canvas.getByRole('radio', { name: 'Your photo' })).toBeChecked(),
+    )
+  },
+}
+
+export const ChoosingThePhotoAgainSavesItsAssetNotAnUpload: Story = {
+  render: (args) => <SavingHarness {...args} />,
+  args: { view: view(tile({ imageAssetId: ASSET })), uploadPhoto: uploadOk() },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /^Discover the resort/ }))
+    await userEvent.click(canvas.getByRole('radio', { name: 'Car' }))
+    await userEvent.click(await canvas.findByRole('radio', { name: 'Your photo' }))
+
+    await waitFor(() =>
+      expect(canvas.getByRole('radio', { name: 'Your photo' })).toBeChecked(),
+    )
+    await expect(mocked(args.mutations.updateLink)).toHaveBeenLastCalledWith({
+      data: { linkId: 'discover', imageAssetId: ASSET },
+    })
+    await expect(args.uploadPhoto).not.toHaveBeenCalled()
+  },
+}
+
+export const StaysOpenWhileThePhotoIsOnItsWay: Story = {
+  args: {
+    uploadPhoto: fn(
+      () =>
+        new Promise<never>(() => {
+          // Never answers: the upload is still in flight for the whole story.
+        }),
+    ),
+  },
+  play: async ({ canvasElement, args }) => {
+    const photo = await openPhotoDialog(canvasElement)
+    await userEvent.upload(photo.getByLabelText('Photo file'), JPEG())
+    await userEvent.click(photo.getByRole('checkbox'))
+    await userEvent.click(photo.getByRole('button', { name: 'Use photo' }))
+    await waitFor(() => expect(args.uploadPhoto).toHaveBeenCalled())
+
+    await userEvent.keyboard('{Escape}')
+
+    await expect(dialog()).toBeVisible()
+    await expect(photo.getByRole('button', { name: 'Uploading…' })).toBeDisabled()
+    await expect(args.mutations.updateLink).not.toHaveBeenCalled()
   },
 }
