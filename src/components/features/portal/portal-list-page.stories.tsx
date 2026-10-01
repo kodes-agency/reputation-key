@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
-import { overviewGroup, overviewRow } from './portal-overview/portal-overview-fixtures'
+import {
+  OLDER_CODE,
+  overviewGroup,
+  overviewRow,
+} from './portal-overview/portal-overview-fixtures'
 import { MAX_SEARCH_LENGTH } from './portal-overview/portal-overview-search-schema'
 import {
   ControlledPage,
@@ -148,6 +152,24 @@ export const StatusOnlyByException: Story = {
     await expect(canvas.getByRole('button', { name: /1 issue/i })).toBeInTheDocument()
     await expect(canvas.queryByText(/live ·/i)).toBeNull()
     await expect(canvas.queryByText('Published')).toBeNull()
+  },
+}
+
+// A code issued before access artifacts works, but its scans are not counted: one
+// line, which leads to Share where the code is replaced. Not an "issue".
+export const OlderCodeLinksToShare: Story = {
+  args: {
+    ...baseArgs,
+    rows: [...rows, overviewRow('p-gym', { name: 'Gym', token: OLDER_CODE })],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const line = canvas.getByRole('link', { name: /older code · scans not counted/i })
+    const href = new URL(line.getAttribute('href') ?? '', 'http://localhost')
+    await expect(href.pathname).toBe('/properties/prop-1/portals/p-gym')
+    await expect(href.searchParams.get('tab')).toBe('share')
+    // Gym's own row carries it; no other Portal does.
+    await expect(canvas.getAllByText(/older code/i)).toHaveLength(1)
   },
 }
 

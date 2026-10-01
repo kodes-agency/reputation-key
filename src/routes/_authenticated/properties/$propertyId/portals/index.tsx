@@ -32,6 +32,7 @@ import { portalGroupsQuery } from './-portal-detail-data'
 import { portalOverviewQuery } from './-portal-overview-data'
 import { useNewPortal } from './-use-new-portal'
 import { usePortalResultsControls } from './-portal-results-controls'
+import { usePortalInboxWaiting } from './-portal-inbox-waiting'
 import { portalGroupCachePolicy } from '#/components/features/portal/portal-group-cache-policy'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/portals/')({
@@ -76,6 +77,7 @@ function PortalListRoute() {
     retry: false,
   })
   const results = usePortalResultsControls(propertyId)
+  const inboxWaiting = usePortalInboxWaiting(propertyId)
   const { portals } = overviewData
   const { groups } = portalGroupsData
   const { properties } = propsData
@@ -127,6 +129,7 @@ function PortalListRoute() {
       propertyId={propertyId}
       propertyName={propertyName}
       results={results}
+      inboxWaiting={inboxWaiting}
       search={search}
       onSearchChange={(next) => void navigate({ search: next, replace: true })}
       archiveMutation={archiveMutation}

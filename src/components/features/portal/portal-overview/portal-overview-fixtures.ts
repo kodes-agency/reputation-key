@@ -24,6 +24,12 @@ export const NO_CODE: PortalOverviewRow['token'] = {
   madeBy: null,
 }
 
+/** A live code issued before access artifacts: it works, but its scans are not counted. */
+export const OLDER_CODE: PortalOverviewRow['token'] = {
+  ...WORKING_CODE,
+  qualifiedScanReady: false,
+}
+
 export const overviewGroup = (id: string, name: string) => ({
   id: portalGroupId(id),
   name,

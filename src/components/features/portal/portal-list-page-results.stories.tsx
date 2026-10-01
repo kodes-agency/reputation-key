@@ -172,6 +172,39 @@ export const NamesTheWindowAndTheFloor: Story = {
   },
 }
 
+/** The Private notes cell's follow-up: the notes still waiting in the Inbox, filtered by the Property. */
+export const InboxWaitingLinksToTheInbox: Story = {
+  args: { ...withResults, inboxWaiting: 5 },
+  play: async ({ canvasElement }) => {
+    const strip = within(within(canvasElement).getByRole('region', { name: 'Results' }))
+    const link = strip.getByRole('link', { name: '5 waiting in Inbox' })
+    // It is the Private notes cell's own line, not a header control.
+    const notes = strip.getByText('Private notes').closest('div')
+    await expect(notes).not.toBeNull()
+    await expect(notes?.contains(link)).toBe(true)
+    const href = new URL(link.getAttribute('href') ?? '', 'http://localhost')
+    await expect(href.pathname).toBe('/inbox')
+    await expect(href.searchParams.get('propertyId')).toBe('prop-1')
+    await expect(href.searchParams.get('queue')).toBe('feedback')
+    // There is no "Open results": the strip is already the results.
+    await expect(strip.queryByRole('link', { name: /open results/i })).toBeNull()
+  },
+}
+
+export const NothingWaitingSaysNothing: Story = {
+  args: { ...withResults, inboxWaiting: 0 },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).queryByText(/waiting in Inbox/)).toBeNull()
+  },
+}
+
+export const InboxCountNotReadSaysNothing: Story = {
+  args: withResults,
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).queryByText(/waiting in Inbox/)).toBeNull()
+  },
+}
+
 export const Loading: Story = {
   args: { ...baseArgs, results: controls({ status: 'loading' }) },
   play: async ({ canvasElement }) => {
