@@ -249,6 +249,41 @@ async function seedFixture(): Promise<Fixture> {
   return fixture
 }
 
+async function seedMediaOnlyFixture(): Promise<Fixture> {
+  const organizationId = `portal-lifecycle-org-${randomUUID()}`
+  organizations.add(organizationId)
+  const propertyId = randomUUID()
+  await lease.pool.query(
+    `INSERT INTO organization (id, name, slug, "createdAt")
+     VALUES ($1, 'Media Only Fixture', $1, now())`,
+    [organizationId],
+  )
+  await lease.pool.query(
+    `INSERT INTO properties (id, organization_id, name, slug, timezone, created_at, updated_at)
+     VALUES ($1, $2, 'Harbour House', 'harbour-house', 'UTC', now(), now())`,
+    [propertyId, organizationId],
+  )
+  await lease.pool.query(
+    `INSERT INTO portal_media_assets (
+       id, organization_id, property_id, purpose, object_key, content_type, width,
+       height, byte_size, content_sha256, source_format, source_bytes,
+       rights_confirmed_at, created_by
+     ) VALUES ($1::uuid, $2, $3, 'hero', 'portal-media/' || $1::text || '.webp', 'image/webp',
+               2400, 1600, 180000, repeat('a', 64), 'jpeg', 2500000, now(), 'media-only-actor')`,
+    [randomUUID(), organizationId, propertyId],
+  )
+  return {
+    organizationId,
+    propertyId,
+    portalId: '',
+    portalGroupId: '',
+    snapshotId: '',
+    activationId: '',
+    tokenId: '',
+    destinationId: '',
+  }
+}
+
 async function seedAuthority(
   fixture: Fixture,
   lineage: string,
@@ -496,6 +531,61 @@ describe.sequential('Portal Organization lifecycle contributor', () => {
     expect(result).toEqual({
       outcome: 'no_data',
       evidenceRef: `portal:closing:no_data:${lineage}:r${revision}`,
+    })
+  })
+
+  // A hero or logo upload needs only a Property: no Portal, no Brand Profile.
+  // Such an Organization still owns Portal-context rows, and the Property
+  // contributor (which runs after this one) cannot delete the Property until
+  // the Portal contributor has removed them.
+  describe('an Organization whose only Portal rows are media assets', () => {
+    it('reports complete, not no_data, on Closing', async () => {
+      const fixture = await seedMediaOnlyFixture()
+      const lineage = randomUUID()
+      const revision = await seedAuthority(fixture, lineage, 'closure_requested')
+
+      const result = await createPortalOrganizationLifecycleContributor(
+        db,
+      ).prepareClosing(input(fixture, lineage, revision))
+
+      expect(result.outcome).toBe('complete')
+    })
+
+    it('reports complete, not no_data, on purge readiness', async () => {
+      const fixture = await seedMediaOnlyFixture()
+      const lineage = randomUUID()
+      const revision = await seedAuthority(fixture, lineage, 'closing')
+
+      const result = await createPortalOrganizationLifecycleContributor(
+        db,
+      ).verifyPurgeReadiness(input(fixture, lineage, revision))
+
+      expect(result.outcome).toBe('complete')
+    })
+
+    it('purges the asset, after which the Property can be deleted', async () => {
+      const fixture = await seedMediaOnlyFixture()
+      const lineage = randomUUID()
+      const revision = await seedAuthority(fixture, lineage, 'purging')
+
+      const purged = await createPortalOrganizationLifecycleContributor(db).purge(
+        input(fixture, lineage, revision),
+      )
+
+      expect(purged).toEqual({
+        outcome: 'complete',
+        evidenceRef: `portal:purge:complete:${lineage}:r${revision}`,
+      })
+      const left = await lease.pool.query(
+        `SELECT COUNT(*)::int AS count FROM portal_media_assets WHERE organization_id = $1`,
+        [fixture.organizationId],
+      )
+      expect(Number(left.rows[0]?.count)).toBe(0)
+      await expect(
+        lease.pool.query(`DELETE FROM properties WHERE organization_id = $1`, [
+          fixture.organizationId,
+        ]),
+      ).resolves.toBeDefined()
     })
   })
 
