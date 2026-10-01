@@ -25,6 +25,8 @@ const THEME_INIT_SCRIPT = `(function(){try{var stored=window.localStorage.getIte
 
 export const Route = createRootRouteWithContext<{
   queryClient: QueryClient
+  /** Reports an unexpected failure to monitoring; an expected refusal is not one. */
+  reportUnexpectedFailure: (error: unknown) => void
 }>()({
   loader: () => getBrowserObservabilityConfigFn(),
   head: ({ loaderData }) => ({

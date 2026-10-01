@@ -5,6 +5,7 @@
 // its own baseline, so these reads moving under an open sheet change nothing
 // the person is editing.
 
+import { useMemo } from 'react'
 import { useQueries, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { Action } from '#/components/hooks/use-action'
@@ -23,8 +24,6 @@ import {
   updatePropertyResponsibleManagers,
 } from '#/contexts/property/server/property-responsible-managers'
 import { setMemberPropertyAccess } from '#/contexts/identity/server/organizations'
-import { captureBrowserException } from '#/shared/observability/browser-exception-capture'
-import { isExpectedRefusal } from '#/shared/security/expected-refusal'
 import { responsibleManagersQuery } from '#/routes/_authenticated/properties/$propertyId/-settings-queries'
 import { identityKeys, propertyKeys } from '#/shared/queries/query-keys'
 import {
@@ -32,17 +31,6 @@ import {
   responsibilityFailureReason,
   type SaveMemberAccessResult,
 } from './-member-access-save'
-
-const saveMemberAccess = createSaveMemberAccess({
-  setAccess: setMemberPropertyAccess,
-  listResponsible: listPropertyResponsibleManagers,
-  updateResponsible: updatePropertyResponsibleManagers,
-  // A refusal (a 4xx) is a product outcome the toast already explains; anything
-  // else, a network failure included, is worth seeing.
-  reportFailure: (error) => {
-    if (!isExpectedRefusal(error)) captureBrowserException(error)
-  },
-})
 
 type Props = Readonly<{
   member: MemberAccessTarget | null
@@ -52,6 +40,13 @@ type Props = Readonly<{
   propertyIdsByUser: ReadonlyMap<string, ReadonlyArray<string>>
   canRemove: boolean
   removeMemberAction: Action<{ data: { memberId: string } }>
+  /**
+   * Hands a responsibility failure to monitoring. A refusal (a 4xx) is a
+   * product outcome the toast already explains, so the router's reporter drops
+   * it; anything else, a network failure included, is worth seeing. Injected
+   * rather than imported: see `reportUnexpectedFailure` in router.tsx.
+   */
+  reportFailure: (error: unknown) => void
 }>
 
 export function MemberAccessContainer({
@@ -61,8 +56,19 @@ export function MemberAccessContainer({
   propertyIdsByUser,
   canRemove,
   removeMemberAction,
+  reportFailure,
 }: Props) {
   const queryClient = useQueryClient()
+  const saveMemberAccess = useMemo(
+    () =>
+      createSaveMemberAccess({
+        setAccess: setMemberPropertyAccess,
+        listResponsible: listPropertyResponsibleManagers,
+        updateResponsible: updatePropertyResponsibleManagers,
+        reportFailure,
+      }),
+    [reportFailure],
+  )
   const currentPropertyIds = member ? (propertyIdsByUser.get(member.userId) ?? []) : []
 
   // Responsibility is read per Property the member already holds, and only for
