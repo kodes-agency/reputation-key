@@ -89,7 +89,11 @@ export const G09NoPhoto: Story = {
     brand: { ...CHAMPAGNE, hero: null },
     heroAlt: { value: '' },
     children: (
-      <ArrivalStandIn displayName="Avela Resort" links={LINKTREE_LINKS_NO_PHOTO} />
+      <ArrivalStandIn
+        displayName="Avela Resort"
+        footerCopy={immersiveFooterCopy(enV2, 'Avela Resort')}
+        links={LINKTREE_LINKS_NO_PHOTO}
+      />
     ),
   },
   play: async ({ canvasElement }) => {
