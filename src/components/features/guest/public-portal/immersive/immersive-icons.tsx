@@ -71,3 +71,16 @@ export const CheckIcon = (props: IconProps) => (
     <path d="m5 12.5 4.5 4.5L19 7.5" />
   </Outline>
 )
+
+export const ChevronDownIcon = (props: IconProps) => (
+  <Outline {...props}>
+    <path d="m6 9 6 6 6-6" />
+  </Outline>
+)
+
+export const RestartIcon = (props: IconProps) => (
+  <Outline {...props}>
+    <path d="M4 12a8 8 0 1 0 2.3-5.6" />
+    <path d="M4 4v4h4" />
+  </Outline>
+)

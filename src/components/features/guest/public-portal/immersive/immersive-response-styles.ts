@@ -1,5 +1,5 @@
 // The stylesheet of the Immersive Hub's response area: the rating card, the
-// receipt strip, the Google card and the note card. It is a second hoisted
+// receipt strip, the Google card, the note card and "Your response". It is a second hoisted
 // stylesheet beside the shell's (`immersive-styles.ts`), for the same reasons:
 // the guest page alone needs it, and it is drawn from the shell's custom
 // properties (`--ih-accent`, `--ih-on-accent`, `--ih-text`), so every colour it
@@ -10,6 +10,8 @@
 // the pill of the page. A line that is only there to stay readable on the photo
 // uses white at 0.7 or more over the field, which `immersive-look.test.ts`
 // holds to the contrast floor for any field the resolver returns.
+
+import { IMMERSIVE_SECTION_CSS } from './immersive-section-styles'
 
 export const IMMERSIVE_RESPONSE_STYLE_HREF = 'guest-immersive-response'
 
@@ -278,6 +280,7 @@ export const IMMERSIVE_RESPONSE_CSS = `
 .ih-note__actions { display: flex; align-items: center; gap: 10px; margin-top: 6px; }
 .ih-note__actions .ih-button { flex: 1 1 auto; width: auto; }
 
+${IMMERSIVE_SECTION_CSS}
 @media (prefers-reduced-motion: reduce) {
   .ih-star, .ih-button { transition: none; }
   .ih-star:active, .ih-button:active { transform: none; }

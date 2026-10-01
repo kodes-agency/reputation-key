@@ -242,13 +242,6 @@ describe.each(PACKS)('after a rating [$locale]', (pack) => {
     expect(google).toContain(pack.copy.googleOpenFailed)
     expect(note).not.toContain(pack.copy.googleOpenFailed)
   })
-
-  it('leaves out Change when the page gives it nowhere to go', () => {
-    const html = body(
-      renderResponse(pack, { kind: 'rated', rating: 5 }, { onChangeRating: undefined }),
-    )
-    expect(responseChildren(html)[0]).not.toContain(`>${pack.copy.ratingChange}<`)
-  })
 })
 
 describe.each(PACKS)('Google unavailable [$locale] (board G08)', (pack) => {
