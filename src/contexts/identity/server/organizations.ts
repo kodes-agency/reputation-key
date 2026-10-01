@@ -18,7 +18,6 @@ export {
   registerMember,
   signInUser,
   resendVerificationEmail,
-  setActiveOrganization,
   listUserInvitations,
 } from './organizations.registration'
 
