@@ -3,8 +3,10 @@
 // section is showing comes from the route's `?section=`, and every save goes
 // through the portal's autosave coordinator.
 
+import { useNavigate } from '@tanstack/react-router'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { PortalPreviewPane } from '../portal-preview/portal-preview-pane'
+import type { PreviewPartSection } from '../portal-preview/preview-parts'
 import { PortalEditorNav } from './portal-editor-nav'
 import { PortalEditorSectionPanel } from './portal-editor-section-panel'
 import {
@@ -27,6 +29,7 @@ type Props = Readonly<{
 
 export function PortalEditor({ resources, requestedSection }: Props) {
   const { can } = usePermissions()
+  const navigate = useNavigate()
   const { portal, propertyId, portalGroups, links } = resources
   const group = portalGroups ? findPortalGroup(portalGroups, portal.id) : null
   const hasResponsible =
@@ -53,6 +56,13 @@ export function PortalEditor({ resources, requestedSection }: Props) {
   // An archived portal is read-only even for a `portal.update` holder: its
   // configuration and history are retained exactly as they were.
   const canEdit = can('portal.update') && portal.publicationState !== 'archived'
+  // A click on a part of the preview opens its section, as its link in the list does.
+  const openSection = (next: PreviewPartSection) =>
+    void navigate({
+      to: '/properties/$propertyId/portals/$portalId',
+      params: { propertyId, portalId: portal.id },
+      search: { tab: 'page', section: next },
+    })
 
   return (
     <div className="flex min-h-full flex-col lg:flex-row">
@@ -81,6 +91,7 @@ export function PortalEditor({ resources, requestedSection }: Props) {
           <PortalPreviewPane
             portalId={portal.id}
             getPortalPreview={resources.getPortalPreview}
+            selection={{ active: section, onSelect: openSection, canEdit }}
           />
         </aside>
       </div>

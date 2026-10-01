@@ -15,7 +15,10 @@ function englishExperience() {
 
 const withoutStyle = (html: string) => html.replace(/<style[\s\S]*?<\/style>/gu, '')
 
-function render(state: Parameters<typeof PreviewGuestPage>[0]['state']): string {
+function render(
+  state: Parameters<typeof PreviewGuestPage>[0]['state'],
+  extra: Partial<Parameters<typeof PreviewGuestPage>[0]> = {},
+): string {
   return renderToStaticMarkup(
     createElement(PreviewGuestPage, {
       experience: englishExperience(),
@@ -23,6 +26,7 @@ function render(state: Parameters<typeof PreviewGuestPage>[0]['state']): string 
       locale: 'en',
       hasLanguageChip: true,
       state,
+      ...extra,
     }),
   )
 }
@@ -134,5 +138,50 @@ describe('PreviewGuestPage draws the real guest page', () => {
     )
     expect(withoutStyle(off)).not.toContain('data-preview-part="linktree"')
     expect(withoutStyle(off)).not.toContain('ih-linktree')
+  })
+})
+
+describe('PreviewGuestPage language sheet', () => {
+  it('is closed unless asked for: the page draws no sheet', () => {
+    const markup = withoutStyle(render(ARRIVAL_STATE))
+    expect(markup).not.toContain('ih-sheet')
+    expect(markup).not.toContain('language-sheet')
+  })
+
+  it('draws the sheet over the page, listing the languages it was given, when asked for', () => {
+    const markup = withoutStyle(
+      render(ARRIVAL_STATE, { languageSheet: ['en', 'bg', 'de'] }),
+    )
+    expect(markup).toContain('data-preview-part="language-sheet"')
+    expect(markup).toContain(pack.copy.languageSheetTitle)
+    expect(markup).toContain('>Български<')
+    expect(markup).toContain('>Deutsch<')
+    // The page behind it is still there, and the sheet is still no dialog or link.
+    expect(markup).toContain('ih-rating-card')
+    expect(markup).not.toContain('<dialog')
+    expect(markup).not.toContain('href=')
+  })
+})
+
+describe('PreviewGuestPage parts a manager can select', () => {
+  const markup = (state: Parameters<typeof render>[0]) => withoutStyle(render(state))
+
+  // The parts are found by these markers (`PREVIEW_PART_SELECTORS`); a page that
+  // stopped carrying one would leave its section without a button.
+  it.each([
+    ['welcome', 'class="ih-title"', ARRIVAL_STATE],
+    ['rating (the card)', 'ih-rating-card', ARRIVAL_STATE],
+    ['rating (the receipt)', 'ih-receipt', ratedState(5, 3)],
+    ['rating (the Google card)', 'ih-google-card', ratedState(5, 3)],
+    ['private note', 'ih-note', ratedState(2, 3)],
+    ['linktree', 'data-preview-part="linktree"', ARRIVAL_STATE],
+    ['footer', 'class="ih-footer"', ARRIVAL_STATE],
+    ['languages (the chip)', 'ih-chip', ARRIVAL_STATE],
+  ] as const)('carries the marker for %s', (_name, marker, state) => {
+    expect(markup(state)).toContain(marker)
+  })
+
+  it('draws no private note after a high rating, so that part is not there to select', () => {
+    expect(markup(ratedState(5, 3))).not.toContain('ih-note')
   })
 })

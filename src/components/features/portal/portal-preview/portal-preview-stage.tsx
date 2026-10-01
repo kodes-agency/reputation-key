@@ -1,11 +1,17 @@
 // The drawn part of the preview: the phone, the line over it and the filmstrip
 // of guest states. Mounted only when there is a page to draw.
 //
+// With a `selection` (the editor's) the parts of the phone's page can be clicked
+// to edit them, and the hint under the phone says so; while the editor is on
+// Languages the phone shows the language sheet open. "Try as guest" and the
+// states in the filmstrip are never selectable.
+//
 // "Try as guest" swaps the phone for an interactive copy that owns a small state
 // machine and starts over each time it is switched on. It calls no server
 // function, so a rating, a note or a tap here is not stored, sent or counted.
 
 import { useReducer, type ReactNode } from 'react'
+import { Sparkles } from 'lucide-react'
 import { GUEST_LOCALE_METADATA, type GuestLocale } from '#/shared/domain/guest-locale'
 import type {
   PortalPreview,
@@ -24,7 +30,11 @@ import {
 import { PortalPreviewFilmstrip } from './portal-preview-filmstrip'
 import { packFallbackNotice, TRY_AS_GUEST_NOTICE } from './portal-preview-rules'
 import { PreviewGuestPage } from './preview-guest-page'
+import { PreviewPartFrame } from './preview-part-frame'
+import { previewPartOf, selectionHint, type PreviewSelection } from './preview-parts'
 import { PreviewPhone } from './preview-phone'
+
+type PreviewLanguages = ReadonlyArray<GuestLocale>
 
 // Small enough that the phone and the pane's own controls fit a laptop screen.
 export const PHONE_SCALE = 0.7
@@ -44,6 +54,8 @@ type Props = Readonly<{
   onStateChange: (id: PreviewStateId) => void
   isTrying: boolean
   onTryChange: (isTrying: boolean) => void
+  /** Present in the editor: the phone's parts open the editor's sections. */
+  selection?: PreviewSelection
 }>
 
 export function PortalPreviewStage({
@@ -55,20 +67,39 @@ export function PortalPreviewStage({
   onStateChange,
   isTrying,
   onTryChange,
+  selection,
 }: Props) {
   const options = previewStateOptions(preview.privateFeedbackThreshold)
   // A threshold change can drop the chosen state; fall back to arrival.
   const chosen = options.find((option) => option.id === stateId) ?? options[0]
   if (chosen === undefined) return null
-  const page: RenderPage = (state, onAction) => (
+  const hasLanguageChip = preview.locales.length > 1
+  // Editing Languages shows the sheet open in the phone (board 04); a portal
+  // with one language has no chip and so no sheet to show.
+  const isSheetOpen =
+    selection !== undefined &&
+    previewPartOf(selection.active) === 'languages' &&
+    hasLanguageChip
+  const drawPage = (
+    state: PreviewPageState,
+    onAction?: (action: TryAsGuestAction) => void,
+    languageSheet?: PreviewLanguages,
+  ) => (
     <PreviewGuestPage
       experience={experience}
       copy={copy}
       locale={locale}
-      hasLanguageChip={preview.locales.length > 1}
+      hasLanguageChip={hasLanguageChip}
       state={state}
       onAction={onAction}
+      languageSheet={languageSheet}
     />
+  )
+  const page: RenderPage = (state, onAction) => drawPage(state, onAction)
+  const phonePage = drawPage(
+    chosen.state,
+    undefined,
+    isSheetOpen ? preview.locales : undefined,
   )
   const caption = stateCaption(
     preview.source,
@@ -97,12 +128,26 @@ export function PortalPreviewStage({
         {isTrying ? (
           <TryPhone page={page} threshold={preview.privateFeedbackThreshold} />
         ) : (
-          <PreviewPhone
-            scale={PHONE_SCALE}
-            label={`Preview of the guest page: ${caption}`}
-          >
-            <div inert>{page(chosen.state)}</div>
-          </PreviewPhone>
+          <div className="flex flex-col items-center gap-3">
+            <PreviewPhone
+              scale={PHONE_SCALE}
+              label={`Preview of the guest page: ${caption}`}
+              isScrollLocked={isSheetOpen}
+            >
+              {selection ? (
+                <PreviewPartFrame
+                  scale={PHONE_SCALE}
+                  selection={selection}
+                  isSheetOpen={isSheetOpen}
+                >
+                  {phonePage}
+                </PreviewPartFrame>
+              ) : (
+                <div inert>{phonePage}</div>
+              )}
+            </PreviewPhone>
+            {selection ? <SelectionHint canEdit={selection.canEdit} /> : null}
+          </div>
         )}
         <PortalPreviewFilmstrip
           options={options}
@@ -116,6 +161,16 @@ export function PortalPreviewStage({
         />
       </div>
     </div>
+  )
+}
+
+/** Board 02's line under the phone. */
+function SelectionHint({ canEdit }: Readonly<{ canEdit: boolean }>) {
+  return (
+    <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
+      <Sparkles className="size-3.5" aria-hidden="true" />
+      {selectionHint(canEdit)}
+    </p>
   )
 }
 

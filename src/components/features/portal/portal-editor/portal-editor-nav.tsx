@@ -9,39 +9,15 @@
 // summary lines belong to the wider layout.
 
 import { Link } from '@tanstack/react-router'
-import {
-  CircleAlert,
-  Languages,
-  Layers,
-  LayoutGrid,
-  Lock,
-  MessageSquareText,
-  Palette,
-  PanelBottom,
-  Star,
-  Type,
-  UserRound,
-  type LucideIcon,
-} from 'lucide-react'
+import { CircleAlert, Lock } from 'lucide-react'
 import { cn } from '#/lib/utils'
+import { PORTAL_EDITOR_SECTION_ICONS } from './portal-editor-section-icons'
 import {
   PORTAL_EDITOR_SECTION_GROUPS,
   PORTAL_EDITOR_SECTION_LABELS,
   type PortalEditorSection,
 } from './portal-editor-sections'
 import type { PortalEditorSectionSummary } from './portal-editor-summary'
-
-const SECTION_ICONS: Readonly<Record<PortalEditorSection, LucideIcon>> = {
-  look: Palette,
-  welcome: Type,
-  rating: Star,
-  'private-note': MessageSquareText,
-  linktree: LayoutGrid,
-  footer: PanelBottom,
-  languages: Languages,
-  group: Layers,
-  responsible: UserRound,
-}
 
 type Props = Readonly<{
   propertyId: string
@@ -114,7 +90,7 @@ function SectionLink({
   isActive: boolean
   summary: PortalEditorSectionSummary
 }>) {
-  const Icon = SECTION_ICONS[section]
+  const Icon = PORTAL_EDITOR_SECTION_ICONS[section]
   return (
     <Link
       to="/properties/$propertyId/portals/$portalId"

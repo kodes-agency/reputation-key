@@ -7,6 +7,7 @@ import {
   chipAccessibleName,
   chipCode,
   offersLanguageChoice,
+  previewLanguageOptions,
 } from './language-options'
 
 const TOKEN = 'tok_abc'
@@ -106,5 +107,26 @@ describe('the chip', () => {
   it('is named by its visible code, the word for language and the language', () => {
     expect(chipAccessibleName('en', enV2.copy)).toBe('EN, Language: English')
     expect(chipAccessibleName('bg', bgV2.copy)).toBe('БГ, Език: Български')
+  })
+})
+
+describe('previewLanguageOptions (the admin preview’s sheet)', () => {
+  const preview = (locales: readonly GuestLocale[], selected: GuestLocale = 'en') =>
+    previewLanguageOptions({ locales, selectedLocale: selected, copy: enV2.copy })
+
+  it('lists the same rows as the page does, in the same order', () => {
+    const locales: readonly GuestLocale[] = ['bg', 'en', 'de']
+    const names = (options: ReturnType<typeof preview>) =>
+      options.map(({ locale, nativeName, secondaryName, isCurrent }) => ({
+        locale,
+        nativeName,
+        secondaryName,
+        isCurrent,
+      }))
+    expect(names(preview(locales, 'bg'))).toEqual(names(optionsOf(locales, 'bg')))
+  })
+
+  it('gives a row no address: a preview has no token and goes nowhere', () => {
+    for (const option of preview(['en', 'bg'])) expect(option).not.toHaveProperty('href')
   })
 })

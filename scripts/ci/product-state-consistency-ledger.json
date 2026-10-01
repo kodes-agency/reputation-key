@@ -632,6 +632,18 @@
       "classification": "local_runtime",
       "owner": "Portal History relative times",
       "policy": "The current instant, read once on mount and refreshed on a one-minute interval so \"2 h ago\" does not go stale on a tab left open. It is not server state and is never written back; unmounting the tab is its reset boundary."
+    },
+    {
+      "id": "src/components/features/portal/portal-preview/portal-preview-pane.tsx:useState(stateId)",
+      "classification": "synchronized_prop_copy",
+      "owner": "Portal editor preview",
+      "policy": "Seeded once from the editor's active section (the private note is only drawn after a low rating) and again, during render, when the active section changes to one the chosen guest state does not draw; otherwise it is the manager's own choice in the filmstrip. It is not server state and is never written back; a remount of the pane is its reset boundary."
+    },
+    {
+      "id": "src/components/features/portal/portal-preview/portal-preview-pane.tsx:useState(shownFor)",
+      "classification": "synchronized_prop_copy",
+      "owner": "Portal editor preview",
+      "policy": "The editor section the guest state was last aligned to, held so the alignment happens once per section change (the documented adjust-state-during-render pattern). It is never written back, and a remount of the pane is its reset boundary."
     }
   ],
   "classificationDefinitions": {
