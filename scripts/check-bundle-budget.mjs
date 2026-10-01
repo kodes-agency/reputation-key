@@ -120,6 +120,15 @@
 // chunk together -92 B. `main` had drifted up from the 329,971 B recorded for
 // s34 (+83 B), leaving 246 B of headroom. The budget moves to 331,050 B.
 //
+// 2026-10-01 (Portal round 4, s40): the All properties route (/portals) imports
+// the Portals overview's search schema, so that module, once inlined in the entry
+// chunk for the Property page's route alone, is shared by two route configs and
+// becomes its own 505 B chunk (the entry chunk shrinks 188 B). The new route's
+// server-function stubs merge two existing stub chunks (+57 B), three query keys
+// add 35 B and the table's utilities 58 B to the stylesheet. Fresh production
+// builds of main (9b045bd27) and of the change: 331,032 B -> 331,437 B (78 js +
+// 1 css), +405 B. `main` had 18 B of headroom. The budget moves to 331,800 B.
+//
 // When this fails: resolve the new static importer and cut that source edge. Do
 // NOT raise the budget without recording a fresh production measurement here.
 // When a cycle fails it: the chunk group that moved a module away from the
@@ -135,7 +144,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 331_050, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730
+  initialClosureGzip: 331_800, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730; raised to 331,800 on 2026-10-01 for the All properties route, measured 331,437
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 
