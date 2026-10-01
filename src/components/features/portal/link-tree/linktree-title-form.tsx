@@ -3,8 +3,10 @@
 // връзки"), so the field shows it as its placeholder. Saves as it is typed, through the portal's autosave.
 
 import { useForm } from '@tanstack/react-form'
-import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
+import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import { Button } from '#/components/ui/button'
+import { Field, FieldError, FieldLabel } from '#/components/ui/field'
+import { Input } from '#/components/ui/input'
 import {
   LINKTREE_TITLE_MAX_LENGTH,
   linktreeDefaultTitle,
@@ -51,35 +53,54 @@ export function LinktreeTitleForm({
   const defaultTitle = linktreeDefaultTitle(locale)
 
   return (
-    <form onSubmit={(event) => event.preventDefault()} className="space-y-1.5">
+    <form onSubmit={(event) => event.preventDefault()}>
       <form.Field name={`titles[${index}].title`}>
-        {(field: BaseFieldApi) => (
-          <>
-            <FormTextField
-              field={field}
-              label="Title on the page"
-              id="linktree-title"
-              placeholder={defaultTitle}
-              maxLength={LINKTREE_TITLE_MAX_LENGTH}
-              disabled={disabled}
-            />
-            <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground">
-              Default: “{defaultTitle}”.
-              {field.state.value === '' ? null : (
-                <Button
-                  type="button"
-                  variant="link"
-                  size="sm"
-                  className="h-auto p-0"
-                  disabled={disabled}
-                  onClick={() => field.handleChange('')}
-                >
-                  Use default
-                </Button>
-              )}
-            </p>
-          </>
-        )}
+        {(field: BaseFieldApi) => {
+          const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
+          return (
+            // The board's row: the label beside the field from `sm` up, and the
+            // default with its reset on the line beneath, under the field.
+            <Field
+              data-invalid={isInvalid}
+              className="gap-1.5 sm:grid sm:grid-cols-[auto_minmax(0,1fr)] sm:items-center sm:gap-x-3"
+            >
+              <FieldLabel htmlFor="linktree-title" className="sm:whitespace-nowrap">
+                Title on the page
+              </FieldLabel>
+              <Input
+                id="linktree-title"
+                name={field.name}
+                value={field.state.value}
+                onBlur={field.handleBlur}
+                onChange={(event) => field.handleChange(event.target.value)}
+                aria-invalid={isInvalid}
+                placeholder={defaultTitle}
+                maxLength={LINKTREE_TITLE_MAX_LENGTH}
+                disabled={disabled}
+              />
+              {isInvalid ? (
+                <div className="sm:col-start-2">
+                  <FieldError errors={field.state.meta.errors} />
+                </div>
+              ) : null}
+              <p className="flex flex-wrap items-center gap-x-2 text-sm text-muted-foreground sm:col-start-2">
+                Default: “{defaultTitle}”, translated for every language.
+                {field.state.value === '' ? null : (
+                  <Button
+                    type="button"
+                    variant="link"
+                    size="sm"
+                    className="h-auto p-0"
+                    disabled={disabled}
+                    onClick={() => field.handleChange('')}
+                  >
+                    Use default
+                  </Button>
+                )}
+              </p>
+            </Field>
+          )
+        }}
       </form.Field>
     </form>
   )

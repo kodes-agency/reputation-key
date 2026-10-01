@@ -29,6 +29,7 @@ import type {
   PortalPublicationRepository,
   ResolvedPortalPublication,
 } from '../ports/portal-publication.repository'
+import { APPROVED_DESTINATION_MAX_VALIDATION_AGE_MS } from '../approved-destination-age'
 import type { PortalHealthRepository } from '../ports/portal-health.repository'
 import {
   guestSurfaceOfConfiguration,
@@ -58,10 +59,6 @@ type PublicPortalDecisionRequest = Readonly<{
 }>
 
 type PublicPortalExecutionDecision = Readonly<{ allowed: boolean }>
-
-// Revalidation is scheduled every 15 minutes. Two intervals allow one delayed
-// run without keeping an indefinitely stale approval live at the public edge.
-const SECONDARY_DESTINATION_MAX_VALIDATION_AGE_MS = 30 * 60 * 1_000
 
 export type ResolvePublicPortalTokenDeps = Readonly<{
   tokenCodec: Pick<PortalTokenCodec, 'digest'>
@@ -221,7 +218,7 @@ async function resolveApprovedLinks<L extends Readonly<{ url: string }>>(
         organizationId(token.organizationId),
         propertyId(token.propertyId),
         links.map((link) => link.url),
-        new Date(now.getTime() - SECONDARY_DESTINATION_MAX_VALIDATION_AGE_MS),
+        new Date(now.getTime() - APPROVED_DESTINATION_MAX_VALIDATION_AGE_MS),
       ),
     )
     const approved = links.filter((link) => approvedUris.has(link.url))

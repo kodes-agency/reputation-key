@@ -2,7 +2,7 @@
 // written in, and a menu. Opening it shows the editor beneath.
 
 import { useState, type ReactNode } from 'react'
-import { Ellipsis } from 'lucide-react'
+import { CircleAlert, Ellipsis } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import {
   DropdownMenu,
@@ -15,7 +15,13 @@ import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { DeleteLinkDialog } from './delete-link-dialog'
 import { LINK_ICONS, linkIconKeyOrDefault } from './link-icons'
 import { LinktreeMoveControls } from './linktree-move-controls'
-import { linkLabelFor, linkLocaleChips, type LinkMoveDirection } from './linktree-rules'
+import {
+  describeMissingLanguages,
+  linkLabelFor,
+  linkLocaleChips,
+  type LinkMoveControl,
+  type LinkMoveDirection,
+} from './linktree-rules'
 
 type Props = Readonly<{
   link: PortalLinktreeLink
@@ -28,7 +34,7 @@ type Props = Readonly<{
   canDelete: boolean
   canMoveUp: boolean
   canMoveDown: boolean
-  onMove: (direction: LinkMoveDirection) => void
+  onMove: (direction: LinkMoveDirection, control: LinkMoveControl) => void
   onDelete: () => void
   /** The open tile's editor. */
   children: ReactNode
@@ -52,6 +58,8 @@ export function LinktreeTile({
   const { label, line } = linkLabelFor(link, primaryLocale)
   const name = label === '' ? 'Untitled link' : label
   const Icon = LINK_ICONS[linkIconKeyOrDefault(link.iconKey)]
+  const chips = linkLocaleChips(link, locales)
+  const phoneChip = describeMissingLanguages(chips)
   const panelId = `linktree-tile-${link.id}`
 
   return (
@@ -81,45 +89,24 @@ export function LinktreeTile({
             <span className="block truncate text-xs text-muted-foreground">{line}</span>
           )}
         </button>
-        {locales.length > 1 ? (
-          <ul aria-label="Languages" className="hidden shrink-0 gap-1.5 sm:flex">
-            {linkLocaleChips(link, locales).map((chip) => (
-              <li
-                key={chip.locale}
-                className={`text-xs ${chip.isMissing ? 'font-medium text-warn' : 'text-muted-foreground'}`}
-              >
-                {chip.chip}
-                {chip.isMissing ? <span className="sr-only"> missing</span> : null}
-              </li>
-            ))}
-          </ul>
-        ) : null}
+        {phoneChip === null ? null : (
+          // At phone width the list below does not fit (it is hidden there), so
+          // one chip says which languages are missing; from `sm` up the list
+          // spells every language out and this chip is hidden.
+          <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-warn sm:hidden">
+            <CircleAlert aria-hidden="true" className="size-3.5" />
+            {phoneChip}
+          </span>
+        )}
+        {locales.length > 1 ? <LanguageChips chips={chips} /> : null}
         {canEdit ? (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button
-                type="button"
-                variant="ghost"
-                size="icon"
-                aria-label={`More actions for ${name}`}
-              >
-                <Ellipsis aria-hidden="true" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={onToggle}>
-                {isOpen ? 'Close editor' : 'Edit'}
-              </DropdownMenuItem>
-              {canDelete ? (
-                <DropdownMenuItem
-                  className="text-destructive focus:text-destructive"
-                  onSelect={() => setIsConfirming(true)}
-                >
-                  Delete link
-                </DropdownMenuItem>
-              ) : null}
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <LinktreeActionsMenu
+            name={name}
+            isOpen={isOpen}
+            canDelete={canDelete}
+            onToggle={onToggle}
+            onDelete={() => setIsConfirming(true)}
+          />
         ) : null}
       </div>
       {isOpen ? (
@@ -136,5 +123,61 @@ export function LinktreeTile({
         />
       ) : null}
     </li>
+  )
+}
+
+function LanguageChips({
+  chips,
+}: Readonly<{ chips: ReturnType<typeof linkLocaleChips> }>) {
+  return (
+    <ul aria-label="Languages" className="hidden shrink-0 gap-1.5 sm:flex">
+      {chips.map((chip) => (
+        <li
+          key={chip.locale}
+          className={`text-xs ${chip.isMissing ? 'font-medium text-warn' : 'text-muted-foreground'}`}
+        >
+          {chip.chip}
+          {chip.isMissing ? <span className="sr-only"> missing</span> : null}
+        </li>
+      ))}
+    </ul>
+  )
+}
+
+type MenuProps = Readonly<{
+  name: string
+  isOpen: boolean
+  canDelete: boolean
+  onToggle: () => void
+  onDelete: () => void
+}>
+
+function LinktreeActionsMenu({ name, isOpen, canDelete, onToggle, onDelete }: MenuProps) {
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon"
+          aria-label={`More actions for ${name}`}
+        >
+          <Ellipsis aria-hidden="true" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onSelect={onToggle}>
+          {isOpen ? 'Close editor' : 'Edit'}
+        </DropdownMenuItem>
+        {canDelete ? (
+          <DropdownMenuItem
+            className="text-destructive focus:text-destructive"
+            onSelect={onDelete}
+          >
+            Delete link
+          </DropdownMenuItem>
+        ) : null}
+      </DropdownMenuContent>
+    </DropdownMenu>
   )
 }

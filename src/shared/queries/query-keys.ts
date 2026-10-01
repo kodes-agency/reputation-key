@@ -255,6 +255,17 @@ export const portalKeys = {
     [...portalKeys.detail(portalId), 'responsible-managers'] as const,
   publicationHistory: (portalId: string) =>
     [...portalKeys.detail(portalId), 'publication-history'] as const,
+  /**
+   * The editor's live preview of the draft or the live version. It sits under
+   * `publicationHistory` on purpose: every write that changes the working copy
+   * already invalidates that key (it is what the header's "N changes not live"
+   * note reads), so the preview refreshes with it instead of each writer
+   * having to remember a second key.
+   */
+  preview: (portalId: string, source: 'draft' | 'live') =>
+    [...portalKeys.publicationHistory(portalId), 'preview', source] as const,
+  /** The guest copy pack the preview prints in one language; it never changes while the app runs. */
+  previewCopy: (locale: string) => [...portalKeys.all, 'preview-copy', locale] as const,
   propertyExperience: (propertyId: string) =>
     [...portalKeys.forProperty(propertyId), 'experience'] as const,
   experience: (propertyId: string, portalId: string) =>

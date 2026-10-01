@@ -1,13 +1,13 @@
 // The portal's palette as an autosaved draft.
 //
 // The palette is chosen from presets, so there is no form: a click is the edit.
-// The chosen palette is held as a draft (so the preview and the selector follow
+// The chosen palette is held as a draft (so the selector follows
 // the click at once) and written through the coordinator after the same short
 // quiet as a keystroke. The draft is dropped only when the write landed and the
 // person has not chosen again meanwhile, so a second click during a save is
 // never overwritten by the first save's refetch. A write that failed keeps the
 // draft (the header offers Retry); choosing to leave without it drops the draft
-// too, or the selector and the preview would go on showing a palette that will
+// too, or the selector would go on showing a palette that will
 // never be written.
 
 import { useCallback, useEffect, useRef, useState } from 'react'

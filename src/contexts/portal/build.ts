@@ -5,6 +5,7 @@
 import { createHash } from 'node:crypto'
 import type { ConsumerRegistry } from '#/shared/outbox'
 import type {
+  PropertyFactsPublicApi,
   PropertyGoogleReviewDestinationPublicApi,
   PropertyLifecyclePublicApi,
   PropertyPublicApi,
@@ -74,6 +75,7 @@ import { reorderLinks } from './application/use-cases/reorder-links'
 import { listPortalLinks } from './application/use-cases/list-portal-links'
 import { getPortalLanguageCoverage } from './application/use-cases/get-portal-language-coverage'
 import { getPortalLinktree } from './application/use-cases/get-portal-linktree'
+import { getPortalPreview } from './application/use-cases/get-portal-preview'
 import { createPortalGroup } from './application/use-cases/create-portal-group'
 import { updatePortalGroup } from './application/use-cases/update-portal-group'
 import { listPortalGroups } from './application/use-cases/list-portal-groups'
@@ -136,7 +138,8 @@ type PortalContextDeps = Readonly<{
   clock: () => Date
   propertyApi: PropertyPublicApi &
     PropertyGoogleReviewDestinationPublicApi &
-    PropertyLifecyclePublicApi
+    PropertyLifecyclePublicApi &
+    Pick<PropertyFactsPublicApi, 'getPropertyTimezone'>
   staffPublicApi: StaffPublicApi
   identityManagerFacts: IdentityManagerFactsPublicApi
   baseUrl: string
@@ -529,6 +532,16 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalLinkRepo,
       experienceRepo: portalExperienceRepo,
       staffPublicApi: deps.staffPublicApi,
+    }),
+    getPortalPreview: getPortalPreview({
+      portalRepo,
+      portalLinkRepo,
+      experienceRepo: portalExperienceRepo,
+      destinationRepo: portalApprovedDestinationRepo,
+      publicationRepo: portalPublicationRepo,
+      propertyFacts: deps.propertyApi,
+      staffPublicApi: deps.staffPublicApi,
+      clock: deps.clock,
     }),
     createPortalGroup: createPortalGroup({
       portalGroupRepo,

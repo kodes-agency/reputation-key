@@ -8,6 +8,7 @@
 // via useServerFn(getPortalAnalytics)) → mock via mockServerFn + type cast.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { previewReader } from '../portal-preview/__fixtures__/portal-preview-fixtures'
 import { PortalDetailPage } from './portal-detail-page'
 import {
   PortalDraftAutosaveProvider,
@@ -263,6 +264,7 @@ const baseArgs = {
   revokeTokenMutation,
   revealAddressMutation,
   getPortalAnalytics,
+  getPortalPreview: previewReader(),
   activeTab: 'page' as const,
 }
 
@@ -290,7 +292,7 @@ export const PageTab: Story = {
 }
 
 // The palette is chosen from presets and saves itself: one click, one write,
-// with no Save button. The page owns the draft, so the preview follows the click.
+// with no Save button. The page owns the draft, so the selector follows the click.
 const paletteSpy = fn(async (_input: UpdatePortalVariables) => ({
   success: true as const,
 }))
@@ -332,7 +334,7 @@ export const PaletteAutosaves: Story = {
 
 // A palette whose write failed is a draft the person has not been able to save.
 // Choosing to leave without it (the navigation prompt's "Leave and discard" calls
-// the same `discard`) must drop it, or the selector and the preview would go on
+// the same `discard`) must drop it, or the selector would go on
 // showing a palette that will never be written.
 function DiscardFailedSaves() {
   const autosave = usePortalDraftAutosave()

@@ -1,6 +1,9 @@
 // Look: the colours guests see. The brand colours belong to the property and are
 // shared by every one of its portals, so they keep an explicit Save; the palette
-// below them is this portal's own and saves as it is chosen.
+// below them is this portal's own and saves as it is chosen. The palette colours
+// only the earlier public page: the new design (and so the live preview) draws the
+// property brand, so the palette says so until the property look page (slice 39)
+// retires it.
 
 import { PortalEditorSectionFrame } from '../portal-editor-section-frame'
 import { portalBrandDraftKey } from '../portal-draft-keys'
@@ -35,7 +38,8 @@ export function LookSection({
       <div className="space-y-2">
         <h3 className="font-semibold">Palette for this portal</h3>
         <p className="text-sm text-muted-foreground">
-          Choose the palette used on the public page. It saves as you choose.
+          Used by the earlier public page only. The new design draws the property brand
+          above, which is what the preview shows. It saves as you choose.
         </p>
         <ThemePresetSelector
           theme={theme}
