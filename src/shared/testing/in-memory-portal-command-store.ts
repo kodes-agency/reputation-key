@@ -452,71 +452,6 @@ export function createInMemoryPortalCommandStore(deps: {
       if (command.from) await outbox.record(command.from.event)
       await outbox.record(command.to.event)
     },
-    createPortalLinkCategory: async (command) => {
-      if (!deps.portalLinkRepo) {
-        throw new Error('in-memory Portal Link repository is not configured')
-      }
-      await fencePortal(
-        command.organizationId,
-        command.portalId,
-        command.expectedPortalUpdatedAt,
-        command.revision,
-      )
-      await deps.portalLinkRepo.insertCategory(command.organizationId, command.category)
-      await outbox.record(command.event)
-    },
-    updatePortalLinkCategory: async (command) => {
-      if (!deps.portalLinkRepo) {
-        throw new Error('in-memory Portal Link repository is not configured')
-      }
-      await fencePortal(
-        command.organizationId,
-        command.portalId,
-        command.expectedPortalUpdatedAt,
-        command.revision,
-      )
-      await deps.portalLinkRepo.updateCategory(
-        command.organizationId,
-        command.portalId,
-        command.categoryId,
-        { title: command.title, updatedAt: command.occurredAt },
-      )
-      await outbox.record(command.event)
-    },
-    deletePortalLinkCategory: async (command) => {
-      if (!deps.portalLinkRepo) {
-        throw new Error('in-memory Portal Link repository is not configured')
-      }
-      await fencePortal(
-        command.organizationId,
-        command.portalId,
-        command.expectedPortalUpdatedAt,
-        command.revision,
-      )
-      await deps.portalLinkRepo.deleteCategory(
-        command.organizationId,
-        command.portalId,
-        command.categoryId,
-      )
-      await outbox.record(command.event)
-    },
-    reorderPortalLinkCategories: async (command) => {
-      if (!deps.portalLinkRepo) {
-        throw new Error('in-memory Portal Link repository is not configured')
-      }
-      await fencePortal(
-        command.organizationId,
-        command.portalId,
-        command.expectedPortalUpdatedAt,
-        command.revision,
-      )
-      await deps.portalLinkRepo.reorderCategories(
-        command.organizationId,
-        command.portalId,
-        command.updates,
-      )
-      await outbox.record(command.event)
-    },
     createPortalLink: async (command) => {
       if (!deps.portalLinkRepo) {
         throw new Error('in-memory Portal Link repository is not configured')
@@ -542,7 +477,11 @@ export function createInMemoryPortalCommandStore(deps: {
         )
         await outbox.record(command.startCategory.event)
       }
-      await deps.portalLinkRepo.insertLink(command.organizationId, command.link)
+      // Like the database command: the legacy label column is not written.
+      await deps.portalLinkRepo.insertLink(command.organizationId, {
+        ...command.link,
+        label: '',
+      })
       linkRepo().syncPrimaryText(String(command.link.id), primary, command.link.label, {
         actorUserId: String(command.actorUserId),
         at: command.occurredAt,
@@ -559,17 +498,20 @@ export function createInMemoryPortalCommandStore(deps: {
         command.expectedPortalUpdatedAt,
         command.revision,
       )
+      const { label, ...linkPatch } = command.patch
       await deps.portalLinkRepo.updateLink(
         command.organizationId,
         command.portalId,
         command.linkId,
-        { ...command.patch, updatedAt: command.occurredAt },
+        { ...linkPatch, updatedAt: command.occurredAt },
       )
-      const { primary } = await localesOf(command.organizationId, command.portalId)
-      linkRepo().syncPrimaryText(String(command.linkId), primary, command.patch.label, {
-        actorUserId: String(command.actorUserId),
-        at: command.occurredAt,
-      })
+      if (label !== undefined) {
+        const { primary } = await localesOf(command.organizationId, command.portalId)
+        linkRepo().syncPrimaryText(String(command.linkId), primary, label, {
+          actorUserId: String(command.actorUserId),
+          at: command.occurredAt,
+        })
+      }
       await outbox.record(command.event)
     },
     savePortalLinkTexts: async (command) => {
@@ -596,18 +538,6 @@ export function createInMemoryPortalCommandStore(deps: {
         actorUserId: String(command.actorUserId),
         at: command.occurredAt,
       })
-      const primary = command.texts.find((text) => text.locale === locales.primary)
-      if (primary) {
-        await linkRepo().updateLink(
-          command.organizationId,
-          command.portalId,
-          command.linkId,
-          {
-            label: primary.label,
-            updatedAt: command.occurredAt,
-          },
-        )
-      }
       await outbox.record(command.event)
     },
     savePortalLinktreeSettings: async (command) => {

@@ -109,6 +109,10 @@ async function lastOrStartedCategory(
   return { category: built.value, started: { category: built.value, event } }
 }
 
+/**
+ * Creates a link. The returned link's `label` is the name that was written (as
+ * the primary-language text); the stored `portal_links.label` column holds `''`.
+ */
 export const createLink =
   (deps: CreateLinkDeps) =>
   async (input: CreateLinkInput, ctx: AuthContext): Promise<PortalLink> => {
@@ -196,6 +200,8 @@ export const createLink =
       portalId: portal.id,
       expectedPortalUpdatedAt: portal.updatedAt,
       actorUserId: ctx.userId,
+      // The label is checked above and trimmed by the constructor; the store
+      // writes it as the link's primary-language text, never to the legacy column.
       link: result.value,
       revision,
       occurredAt,

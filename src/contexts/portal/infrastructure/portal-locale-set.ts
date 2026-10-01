@@ -1,5 +1,5 @@
 // Portal command store — the guest language set of a Portal: the guard on the
-// locale-set fact and the re-mirroring of link texts when the primary language
+// locale-set fact and keeping every link named when the primary language
 // changes. Split out of portal-command-store.ts.
 
 import { portals } from '#/shared/db/schema'
@@ -32,8 +32,8 @@ export function assertLocaleSetFact(command: UpdatePortalCommand): void {
 /**
  * Call inside the update transaction, before the Portal row is written (the old
  * primary is only visible then). The returned function, called after the write,
- * re-mirrors each link's label and primary-language text when the primary
- * language actually changed, and does nothing otherwise.
+ * keeps each link named in the old and the new primary language when the
+ * primary language actually changed, and does nothing otherwise.
  */
 export async function watchPrimaryLocaleChange(
   tx: Tx,

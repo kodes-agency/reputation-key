@@ -246,20 +246,6 @@ export const createPortalLinktreeCommands = (
           writer,
           command.texts,
         )
-        // The legacy label mirrors the primary language until the column is dropped.
-        const primary = command.texts.find((text) => text.locale === locales.primary)
-        if (primary) {
-          await tx
-            .update(portalLinks)
-            .set({ label: primary.label, updatedAt: command.occurredAt })
-            .where(
-              and(
-                eq(portalLinks.organizationId, scope.organizationId),
-                eq(portalLinks.portalId, scope.portalId),
-                eq(portalLinks.id, linkId),
-              ),
-            )
-        }
         for (const { locale, version } of changed) {
           const previousText = labelsBefore.get(locale) ?? null
           const newText =

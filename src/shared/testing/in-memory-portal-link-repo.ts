@@ -25,7 +25,7 @@ export type InMemoryPortalLinkRepo = PortalLinkRepository &
       texts: ReadonlyArray<PortalLinkTextWrite>,
       writer: InMemoryLinkTextWriter,
     ) => ReadonlyArray<GuestLocale>
-    /** Keep the primary-language text in step with a link label written by the legacy path. */
+    /** Write the primary-language text of a link from a label alone (create and rename). */
     syncPrimaryText: (
       linkId: string,
       locale: GuestLocale,
@@ -83,11 +83,7 @@ export const createInMemoryPortalLinkRepo = (): InMemoryPortalLinkRepo => {
             ) || a.sortKey.localeCompare(b.sortKey),
         )
       return resolveLinkTexts({
-        links: links.map((l) => ({
-          id: String(l.id),
-          label: l.label,
-          updatedAt: l.updatedAt,
-        })),
+        links: links.map((l) => ({ id: String(l.id), label: l.label })),
         texts: [...textStore.values()],
         primaryLocale,
       })
@@ -95,55 +91,6 @@ export const createInMemoryPortalLinkRepo = (): InMemoryPortalLinkRepo => {
 
     insertCategory: async (_orgId, cat) => {
       categoryStore.set(String(cat.id), cat)
-    },
-
-    updateCategory: async (orgId, portalId, id, patch) => {
-      const key = String(id)
-      const existing = categoryStore.get(key)
-      if (
-        !existing ||
-        existing.organizationId !== orgId ||
-        existing.portalId !== portalId
-      )
-        return
-      categoryStore.set(key, { ...existing, ...patch })
-    },
-
-    deleteCategory: async (orgId, portalId, id) => {
-      const key = String(id)
-      const existing = categoryStore.get(key)
-      if (
-        !existing ||
-        existing.organizationId !== orgId ||
-        existing.portalId !== portalId
-      )
-        return
-      categoryStore.delete(key)
-      for (const [linkId, link] of linkStore) {
-        if (link.categoryId === id && link.portalId === portalId) {
-          linkStore.delete(linkId)
-          dropTextsOf(linkId)
-        }
-      }
-    },
-
-    reorderCategories: async (orgId, portalId, updates) => {
-      const categories = updates.map(({ id }) => categoryStore.get(String(id)))
-      if (
-        categories.some(
-          (category) =>
-            !category ||
-            category.organizationId !== orgId ||
-            category.portalId !== portalId,
-        )
-      ) {
-        throw portalError('forbidden', 'Portal category scope mismatch')
-      }
-      for (const { id, sortKey } of updates) {
-        const key = String(id)
-        const existing = categoryStore.get(key)!
-        categoryStore.set(key, { ...existing, sortKey, updatedAt: new Date() })
-      }
     },
 
     insertLink: async (_orgId, link) => {
@@ -203,13 +150,6 @@ export const createInMemoryPortalLinkRepo = (): InMemoryPortalLinkRepo => {
     findLinkById: async (orgId, id) => {
       const link = linkStore.get(String(id))
       return link && link.organizationId === orgId ? link : null
-    },
-
-    findCategoryCommandTarget: async (orgId, id) => {
-      const category = categoryStore.get(String(id))
-      return category && category.organizationId === orgId
-        ? { category, portalUpdatedAt: null }
-        : null
     },
 
     findLinkCommandTarget: async (orgId, id) => {

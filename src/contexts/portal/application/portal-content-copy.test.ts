@@ -188,7 +188,11 @@ describe('planPortalContentCopy', () => {
       title: 'Food',
     })
     expect(category?.id).not.toBe(cat.id)
-    expect(content.links.map((l) => l.label)).toEqual(['Menu', 'Spa'])
+    // A link is named by its texts; the legacy label column is not carried over.
+    expect(content.links.every((l) => l.label === '')).toBe(true)
+    expect(
+      content.linkTexts.filter((t) => t.locale === 'en').map((t) => t.label),
+    ).toEqual(['Menu', 'Spa'])
     expect(content.links.every((l) => l.portalId === TARGET)).toBe(true)
     expect(content.links.every((l) => l.categoryId === category?.id)).toBe(true)
     expect(content.links.every((l) => l.destinationId === DESTINATION)).toBe(true)
@@ -243,7 +247,7 @@ describe('planPortalContentCopy', () => {
         linkTexts: ids.map((id) => text(id, 'en', `text-${id.slice(-1)}`)),
       }),
     )
-    expect(content.links.map((link) => link.label)).toEqual([
+    expect(content.linkTexts.map((t) => t.label)).toEqual([
       'text-3',
       'text-4',
       'text-5',
@@ -292,9 +296,7 @@ describe('planPortalContentCopy', () => {
       }),
       { primary: 'bg', additional: ['en'] },
     )
-    const [link] = content.links
-    // No Bulgarian text exists, so the English label stands in: no link is unnamed.
-    expect(link?.label).toBe('Menu')
+    // No Bulgarian text exists, so the English text stands in: no link is unnamed.
     expect(content.linkTexts.map((t) => [t.locale, t.label])).toEqual([
       ['bg', 'Menu'],
       ['en', 'Menu'],
@@ -307,7 +309,6 @@ describe('planPortalContentCopy', () => {
     const { content } = plan(
       source({ categories: [cat], links: [linkOf(id, cat.id, 'a0')], linkTexts: [] }),
     )
-    expect(content.links.map((l) => l.label)).toEqual([`label-${id}`])
     expect(content.linkTexts).toEqual([
       expect.objectContaining({ locale: 'en', label: `label-${id}` }),
     ])

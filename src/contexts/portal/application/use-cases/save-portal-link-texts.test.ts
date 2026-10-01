@@ -50,7 +50,7 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
 const manager = () => buildTestAuthContext({ role: 'PropertyManager' })
 
 describe('savePortalLinkTexts', () => {
-  it('saves a text per offered language and mirrors the primary one to the link label', async () => {
+  it('saves a text per offered language and leaves the legacy link label alone', async () => {
     const { useCase, portalLinkRepo, link } = setup()
 
     await useCase(
@@ -72,19 +72,6 @@ describe('savePortalLinkTexts', () => {
       ['en', 'Explore', 'Maps and tips', null],
       ['bg', 'Разгледайте', null, null],
     ])
-    expect((await portalLinkRepo.findLinkById(link.organizationId, link.id))?.label).toBe(
-      'Explore',
-    )
-  })
-
-  it('leaves the link label alone when only another language is saved', async () => {
-    const { useCase, portalLinkRepo, link } = setup()
-
-    await useCase(
-      { linkId: link.id, texts: [{ locale: 'bg', label: 'Разгледайте' }] },
-      manager(),
-    )
-
     expect((await portalLinkRepo.findLinkById(link.organizationId, link.id))?.label).toBe(
       'Legacy label',
     )

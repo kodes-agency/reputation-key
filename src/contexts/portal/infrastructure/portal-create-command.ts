@@ -25,7 +25,7 @@ import type {
   PortalCommandStore,
 } from '../application/ports/portal-command-store.port'
 import { portalError } from '../domain/errors'
-import { categoryToRow, linkToRow } from './mappers/portal-link.mapper'
+import { categoryToRow, newLinkToRow } from './mappers/portal-link.mapper'
 import { portalToRow } from './mappers/portal.mapper'
 import { assertCommittedRevision } from './portal-command-guards'
 import { assertCreateCommand } from './portal-create-guards'
@@ -96,7 +96,7 @@ async function insertCopiedContent(
     await tx.insert(portalLinkCategories).values(copy.categories.map(categoryToRow))
   }
   if (copy.links.length === 0) return
-  await tx.insert(portalLinks).values(copy.links.map(linkToRow))
+  await tx.insert(portalLinks).values(copy.links.map(newLinkToRow))
   for (const link of copy.links) {
     await upsertLinkTexts(
       tx,

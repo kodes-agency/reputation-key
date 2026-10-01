@@ -346,11 +346,12 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
     expect(source?.links.map((link) => link.imageAssetId)).toEqual([null, null])
   })
 
-  it('reads the label of a link renamed after its primary text was written', async () => {
+  it('reads the stored text, never the link label, when the two differ', async () => {
     await seedPortalWorkingCopy(getPool(), COMPLETE_SCENARIO)
-    // Old code renamed the link and knew nothing of the text row.
+    // Nothing writes the legacy label any more: when it differs from the text
+    // the text, which every editor writes, is the wording.
     await getPool().query(
-      `UPDATE portal_links SET label = 'Renamed by old code', updated_at = $1
+      `UPDATE portal_links SET label = 'An older label', updated_at = $1
         WHERE id = 'c4000000-0000-4000-8000-000000000001'`,
       [EDITED_AT],
     )
@@ -361,11 +362,10 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
       (link) => link.id === 'c4000000-0000-4000-8000-000000000001',
     )
     expect(menu?.texts.bg).toEqual({
-      label: 'Renamed by old code',
+      label: 'Меню',
       line: 'Закуска до 11',
       provenance: null,
     })
-    // Another language is its own text and is never rewritten from the link.
     expect(menu?.texts.en?.label).toBe('Menu')
   })
 

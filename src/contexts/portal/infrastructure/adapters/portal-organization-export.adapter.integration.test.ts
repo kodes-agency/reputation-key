@@ -379,7 +379,6 @@ describe.sequential('Portal Organization Export contributor', () => {
     for (const collection of [
       'portals',
       'portalGroups',
-      'portalGroupMembers',
       'portalGroupHistory',
       'linkCategories',
       'links',
@@ -399,6 +398,12 @@ describe.sequential('Portal Organization Export contributor', () => {
     ]) {
       expect(payload[collection], collection).toHaveLength(1)
     }
+    // The compatibility mirror (a row is seeded above) has no reader left: the
+    // canonical group membership is exported with the Staff records.
+    expect(payload).not.toHaveProperty('portalGroupMembers')
+    expect(Buffer.from(first.entries[0]!.bytes).toString('utf8')).not.toContain(
+      'portal_group_member',
+    )
     // A pending change names who opened it.
     expect(payload.pendingContentChanges?.[0]).toMatchObject({
       change_kind: 'portal_links',

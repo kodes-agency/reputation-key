@@ -51,6 +51,37 @@ The commands:
 
   No rows means no live Portal is left on an old page.
 
+- Contract cleanup checks (round 4, slice 44) — two read-only SQL queries, run against the database of each environment. Migration 0052 settles the first one at deploy (before new code serves); run it before and after, and expect no rows after.
+
+  ```sql
+  -- link-labels-newer-than-primary-text: a link whose legacy label was renamed
+  -- after its primary-language text (the window between migration 0044 and the
+  -- text-aware editor). Readers stop letting the label win in slice 44.
+  SELECT l.organization_id, l.portal_id, l.id AS link_id
+    FROM portal_links l
+    JOIN portals p ON p.organization_id = l.organization_id AND p.id = l.portal_id
+    JOIN portal_link_texts t
+      ON t.organization_id = l.organization_id AND t.link_id = l.id
+     AND t.locale = p.primary_guest_locale
+   WHERE length(btrim(l.label)) > 0 AND btrim(l.label) <> t.label
+     AND l.updated_at > t.updated_at;
+  ```
+
+  ```sql
+  -- portal-group-members-without-membership: a row of the legacy
+  -- portal_group_members mirror with no matching active
+  -- portal_group_memberships row. The Organization Export no longer carries the
+  -- mirror, so each row must be represented in the membership table (which the
+  -- Staff export carries); no rows means nothing is dropped.
+  SELECT m.organization_id, m.portal_group_id, m.portal_id
+    FROM portal_group_members m
+    LEFT JOIN portal_group_memberships g
+      ON g.organization_id = m.organization_id
+     AND g.portal_group_id = m.portal_group_id
+     AND g.portal_id = m.portal_id AND g.effective_to IS NULL
+   WHERE g.id IS NULL;
+  ```
+
 - `ops:reparse-review-translations <report|repair> [--property <id>]` — re-split Google's `(Translated by Google) … (Original)` envelope on Review rows stored before the provider adapter split it at ingestion. A targeted column update: the text, `translated_text`, `content_hash` and AI source provenance are recomputed with the sync path's own functions, and the Review lifecycle, `source_revision` and analysis position are untouched. `report` never writes; `repair` is dry-run by default and `--apply` requires `--reason` and `--ticket`. Idempotent.
 - `ops:triage-beta-feedback --operator <id>` — list the global content-free native-feedback support queue. Applying one exact local-reference transition additionally requires all 14 reviewed positional values, `--ticket`, `--reason`, and `--apply`; it is revision/transition-ID guarded, appends immutable evidence, and never reads report text/downloads attachments or creates an engineering issue. §16
 - `ops:recover-recent-activity --operator <id> [--batch-size 100] [--apply --reason <text>] <observed-at> [<after-occurred-at> <after-replay-key>]` — report Recent Activity projection readiness or restore one bounded, cursor-resumable page from Activity-owned replay facts. Report-only is the default. See `recent-activity-recovery.md`.

@@ -1,4 +1,5 @@
-// Portal command store — link and link-category commands.
+// Portal command store — link commands (a link that starts its Portal's first
+// category writes the category with it).
 // Split out of portal-command-store.ts (round 4 F3); composed back behind the
 // same PortalCommandStore port by createAtomicPortalCommandStore.
 
@@ -12,7 +13,7 @@ import type { PortalCommandStore } from '../application/ports/portal-command-sto
 import { portalError } from '../domain/errors'
 import { hasRoomForAnotherLink } from '../domain/portal-linktree'
 import { portalPageEditKey } from '../domain/portal-page-edit'
-import { categoryToRow, linkToRow } from './mappers/portal-link.mapper'
+import { categoryToRow, newLinkToRow } from './mappers/portal-link.mapper'
 import { fencePortalContent } from './portal-aggregate-fence'
 import {
   assertPortalContentCommand,
@@ -20,14 +21,14 @@ import {
   recordPortalContentCommandChange,
 } from './portal-content-command-guards'
 import { createPortalLinktreeCommands } from './portal-linktree-commands'
-import { readPortalLocales, syncPrimaryLinkText } from './portal-link-texts-store'
+import {
+  readPortalLocales,
+  readPrimaryLinkLabel,
+  syncPrimaryLinkText,
+} from './portal-link-texts-store'
 
 export type PortalLinkCommandStore = Pick<
   PortalCommandStore,
-  | 'createPortalLinkCategory'
-  | 'updatePortalLinkCategory'
-  | 'deletePortalLinkCategory'
-  | 'reorderPortalLinkCategories'
   | 'createPortalLink'
   | 'updatePortalLink'
   | 'deletePortalLink'
@@ -41,151 +42,6 @@ export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore =
     // The Linktree working model is part of the link family; its own module
     // keeps the texts, title and switch commands out of this file.
     ...createPortalLinktreeCommands(db),
-    createPortalLinkCategory: async (command) =>
-      trace('portal.commandStore.createPortalLinkCategory', async () => {
-        assertPortalContentCommand(command)
-        await db.transaction(async (tx) => {
-          await fencePortalContent(tx, command)
-          await tx.insert(portalLinkCategories).values(categoryToRow(command.category))
-          await recordPortalContentCommandChange(tx, command, [
-            {
-              key: portalPageEditKey.categoryCreated(unbrand(command.category.id)),
-              newText: command.category.title,
-            },
-          ])
-          await insertOutboxRow(tx, command.event, {
-            recordedAt: command.occurredAt,
-          })
-        })
-      }),
-
-    updatePortalLinkCategory: async (command) =>
-      trace('portal.commandStore.updatePortalLinkCategory', async () => {
-        assertPortalContentCommand(command)
-        await db.transaction(async (tx) => {
-          await fencePortalContent(tx, command)
-          const [before] = await tx
-            .select({ title: portalLinkCategories.title })
-            .from(portalLinkCategories)
-            .where(
-              and(
-                eq(portalLinkCategories.organizationId, unbrand(command.organizationId)),
-                eq(portalLinkCategories.portalId, unbrand(command.portalId)),
-                eq(portalLinkCategories.id, unbrand(command.categoryId)),
-              ),
-            )
-            .limit(1)
-          const [updated] = await tx
-            .update(portalLinkCategories)
-            .set({ title: command.title, updatedAt: command.occurredAt })
-            .where(
-              and(
-                eq(portalLinkCategories.organizationId, unbrand(command.organizationId)),
-                eq(portalLinkCategories.portalId, unbrand(command.portalId)),
-                eq(portalLinkCategories.id, unbrand(command.categoryId)),
-              ),
-            )
-            .returning({ id: portalLinkCategories.id })
-          if (!updated) {
-            throw portalError(
-              'revision_conflict',
-              'Portal category changed during update',
-            )
-          }
-          await recordPortalContentCommandChange(tx, command, [
-            {
-              key: portalPageEditKey.categoryRenamed(unbrand(command.categoryId)),
-              previousText: before?.title,
-              newText: command.title,
-            },
-          ])
-          await insertOutboxRow(tx, command.event, {
-            recordedAt: command.occurredAt,
-          })
-        })
-      }),
-
-    deletePortalLinkCategory: async (command) =>
-      trace('portal.commandStore.deletePortalLinkCategory', async () => {
-        assertPortalContentCommand(command)
-        await db.transaction(async (tx) => {
-          await fencePortalContent(tx, command)
-          const [deleted] = await tx
-            .delete(portalLinkCategories)
-            .where(
-              and(
-                eq(portalLinkCategories.organizationId, unbrand(command.organizationId)),
-                eq(portalLinkCategories.portalId, unbrand(command.portalId)),
-                eq(portalLinkCategories.id, unbrand(command.categoryId)),
-              ),
-            )
-            .returning({ id: portalLinkCategories.id, title: portalLinkCategories.title })
-          if (!deleted) {
-            throw portalError(
-              'revision_conflict',
-              'Portal category changed during delete',
-            )
-          }
-          await recordPortalContentCommandChange(tx, command, [
-            {
-              key: portalPageEditKey.categoryDeleted(unbrand(command.categoryId)),
-              previousText: deleted.title,
-            },
-          ])
-          await insertOutboxRow(tx, command.event, {
-            recordedAt: command.occurredAt,
-          })
-        })
-      }),
-
-    reorderPortalLinkCategories: async (command) =>
-      trace('portal.commandStore.reorderPortalLinkCategories', async () => {
-        assertPortalContentCommand(command)
-        await db.transaction(async (tx) => {
-          await fencePortalContent(tx, command)
-          const ids = command.updates.map(({ id }) => unbrand(id))
-          if (ids.length > 0) {
-            const scoped = await tx
-              .select({ id: portalLinkCategories.id })
-              .from(portalLinkCategories)
-              .where(
-                and(
-                  eq(
-                    portalLinkCategories.organizationId,
-                    unbrand(command.organizationId),
-                  ),
-                  eq(portalLinkCategories.portalId, unbrand(command.portalId)),
-                  inArray(portalLinkCategories.id, ids),
-                ),
-              )
-            if (scoped.length !== ids.length) {
-              throw portalError('forbidden', 'Portal category scope mismatch')
-            }
-          }
-          for (const update of command.updates) {
-            await tx
-              .update(portalLinkCategories)
-              .set({ sortKey: update.sortKey, updatedAt: command.occurredAt })
-              .where(
-                and(
-                  eq(
-                    portalLinkCategories.organizationId,
-                    unbrand(command.organizationId),
-                  ),
-                  eq(portalLinkCategories.portalId, unbrand(command.portalId)),
-                  eq(portalLinkCategories.id, unbrand(update.id)),
-                ),
-              )
-          }
-          await recordPortalContentCommandChange(tx, command, [
-            { key: portalPageEditKey.categoriesReordered() },
-          ])
-          await insertOutboxRow(tx, command.event, {
-            recordedAt: command.occurredAt,
-          })
-        })
-      }),
-
     createPortalLink: async (command) =>
       trace('portal.commandStore.createPortalLink', async () => {
         assertPortalContentCommand(command)
@@ -217,7 +73,7 @@ export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore =
               recordedAt: command.occurredAt,
             })
           }
-          await tx.insert(portalLinks).values(linkToRow(command.link))
+          await tx.insert(portalLinks).values(newLinkToRow(command.link))
           await syncPrimaryLinkText(
             tx,
             { ...scope, linkId: unbrand(command.link.id) },
@@ -251,21 +107,17 @@ export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore =
         assertPortalContentCommand(command)
         await db.transaction(async (tx) => {
           await fencePortalContent(tx, command)
-          const [before] = await tx
-            .select({ label: portalLinks.label })
-            .from(portalLinks)
-            .where(
-              and(
-                eq(portalLinks.organizationId, unbrand(command.organizationId)),
-                eq(portalLinks.portalId, unbrand(command.portalId)),
-                eq(portalLinks.id, unbrand(command.linkId)),
-              ),
-            )
-            .limit(1)
+          const scope = contentScope(command)
+          const linkScope = { ...scope, linkId: unbrand(command.linkId) }
+          const locales = await readPortalLocales(tx, scope)
+          // The wording a rename replaces, read before it is written.
+          const before =
+            command.patch.label === undefined
+              ? null
+              : await readPrimaryLinkLabel(tx, linkScope, locales.primary)
           const [updated] = await tx
             .update(portalLinks)
             .set({
-              label: command.patch.label,
               destinationId: command.patch.destinationId
                 ? unbrand(command.patch.destinationId)
                 : null,
@@ -289,21 +141,20 @@ export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore =
           if (!updated) {
             throw portalError('revision_conflict', 'Portal link changed during update')
           }
-          const scope = contentScope(command)
-          const locales = await readPortalLocales(tx, scope)
-          await syncPrimaryLinkText(
-            tx,
-            { ...scope, linkId: unbrand(command.linkId) },
-            { actorUserId: unbrand(command.actorUserId), at: command.occurredAt },
-            { locale: locales.primary, label: command.patch.label },
-          )
-          const renamed = before !== undefined && before.label !== command.patch.label
+          const label = command.patch.label
+          if (label !== undefined) {
+            await syncPrimaryLinkText(
+              tx,
+              linkScope,
+              { actorUserId: unbrand(command.actorUserId), at: command.occurredAt },
+              { locale: locales.primary, label },
+            )
+          }
+          const renamed = label !== undefined && before !== null && before !== label
           await recordPortalContentCommandChange(tx, command, [
             {
               key: portalPageEditKey.linkUpdated(unbrand(command.linkId)),
-              ...(renamed
-                ? { previousText: before.label, newText: command.patch.label }
-                : {}),
+              ...(renamed ? { previousText: before, newText: label } : {}),
             },
           ])
           await insertOutboxRow(tx, command.event, {
@@ -317,6 +168,14 @@ export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore =
         assertPortalContentCommand(command)
         await db.transaction(async (tx) => {
           await fencePortalContent(tx, command)
+          const scope = contentScope(command)
+          const locales = await readPortalLocales(tx, scope)
+          // Read before the link and its texts go.
+          const previousText = await readPrimaryLinkLabel(
+            tx,
+            { ...scope, linkId: unbrand(command.linkId) },
+            locales.primary,
+          )
           const [deleted] = await tx
             .delete(portalLinks)
             .where(
@@ -327,14 +186,14 @@ export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore =
                 eq(portalLinks.id, unbrand(command.linkId)),
               ),
             )
-            .returning({ id: portalLinks.id, label: portalLinks.label })
+            .returning({ id: portalLinks.id })
           if (!deleted) {
             throw portalError('revision_conflict', 'Portal link changed during delete')
           }
           await recordPortalContentCommandChange(tx, command, [
             {
               key: portalPageEditKey.linkDeleted(unbrand(command.linkId)),
-              previousText: deleted.label,
+              ...(previousText === null ? {} : { previousText }),
             },
           ])
           await insertOutboxRow(tx, command.event, {

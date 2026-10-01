@@ -68,10 +68,6 @@ import { buildPortalHistoryReads } from './build-history-reads'
 import { listPortals } from './application/use-cases/list-portals'
 import { listPortalOverview } from './application/use-cases/list-portal-overview'
 import { softDeletePortal } from './application/use-cases/soft-delete-portal'
-import { createLinkCategory } from './application/use-cases/create-link-category'
-import { updateLinkCategory } from './application/use-cases/update-link-category'
-import { deleteLinkCategory } from './application/use-cases/delete-link-category'
-import { reorderCategories } from './application/use-cases/reorder-categories'
 import { createLink } from './application/use-cases/create-link'
 import { updateLink } from './application/use-cases/update-link'
 import { savePortalLinkTexts } from './application/use-cases/save-portal-link-texts'
@@ -404,35 +400,6 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalRepo,
       commandStore: portalCommandStore,
       staffPublicApi: deps.staffPublicApi,
-      clock: deps.clock,
-    }),
-    createLinkCategory: createLinkCategory({
-      portalRepo,
-      portalLinkRepo,
-      staffPublicApi: deps.staffPublicApi,
-      commandStore: portalCommandStore,
-      idGen: linkIdGen,
-      clock: deps.clock,
-    }),
-    updateLinkCategory: updateLinkCategory({
-      portalRepo,
-      portalLinkRepo,
-      staffPublicApi: deps.staffPublicApi,
-      commandStore: portalCommandStore,
-      clock: deps.clock,
-    }),
-    deleteLinkCategory: deleteLinkCategory({
-      portalRepo,
-      portalLinkRepo,
-      staffPublicApi: deps.staffPublicApi,
-      commandStore: portalCommandStore,
-      clock: deps.clock,
-    }),
-    reorderCategories: reorderCategories({
-      portalRepo,
-      portalLinkRepo,
-      staffPublicApi: deps.staffPublicApi,
-      commandStore: portalCommandStore,
       clock: deps.clock,
     }),
     createLink: createLink({

@@ -65,6 +65,12 @@ async function resolveTileImage(
   return asset.id
 }
 
+/**
+ * Updates a link. The returned link's `label` is the new name when this call
+ * renamed it; otherwise it is whatever the legacy column holds (`''` for a link
+ * written after round 4's contract), NOT the link's name, which is its
+ * primary-language text. Callers that need the name read the Linktree.
+ */
 export const updateLink =
   (deps: UpdateLinkDeps) =>
   async (input: UpdateLinkInput, ctx: AuthContext): Promise<PortalLink> => {
@@ -115,7 +121,6 @@ export const updateLink =
     if (!needsUpdate) return existing
 
     const expectedPortalUpdatedAt = target.portalUpdatedAt ?? portal.updatedAt
-    const newLabel = validatedLabel ?? existing.label
     const newUrl = destination?.normalizedUri ?? existing.url
     const destinationId = destination?.id ?? existing.destinationId
     const newIconKey = input.iconKey !== undefined ? input.iconKey : existing.iconKey
@@ -133,7 +138,9 @@ export const updateLink =
       linkId: existing.id,
       categoryId: existing.categoryId,
       patch: {
-        label: newLabel,
+        // Only a rename carries a label: the primary-language text is the link's
+        // name, and the stored legacy label is no longer the source of it.
+        ...(validatedLabel === undefined ? {} : { label: validatedLabel }),
         url: newUrl,
         destinationId,
         legacyDestinationState: destination
@@ -155,7 +162,7 @@ export const updateLink =
 
     return {
       ...existing,
-      label: newLabel,
+      ...(validatedLabel === undefined ? {} : { label: validatedLabel }),
       url: newUrl,
       destinationId,
       legacyDestinationState: destination ? 'migrated' : existing.legacyDestinationState,

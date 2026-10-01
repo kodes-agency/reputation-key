@@ -31,9 +31,6 @@ import type {
   PortalGroupUpdated,
   PortalRemovedFromGroup,
   PortalLinkCategoryCreated,
-  PortalLinkCategoryDeleted,
-  PortalLinkCategoryReordered,
-  PortalLinkCategoryUpdated,
   PortalLinkCreated,
   PortalLinkDeleted,
   PortalLinkReordered,
@@ -307,35 +304,15 @@ type PortalContentCommandBase = Readonly<{
 type PortalPageEditCommandBase = PortalContentCommandBase &
   Readonly<{ actorUserId: UserId }>
 
-export type CreatePortalLinkCategoryCommand = PortalPageEditCommandBase &
-  Readonly<{
-    category: PortalLinkCategory
-    event: PortalLinkCategoryCreated
-  }>
-
-export type ReorderPortalLinkCategoriesCommand = PortalPageEditCommandBase &
-  Readonly<{
-    updates: ReadonlyArray<Readonly<{ id: PortalLinkCategoryId; sortKey: string }>>
-    event: PortalLinkCategoryReordered
-  }>
-
-export type UpdatePortalLinkCategoryCommand = PortalPageEditCommandBase &
-  Readonly<{
-    categoryId: PortalLinkCategoryId
-    title: string
-    event: PortalLinkCategoryUpdated
-  }>
-
-export type DeletePortalLinkCategoryCommand = PortalPageEditCommandBase &
-  Readonly<{
-    categoryId: PortalLinkCategoryId
-    event: PortalLinkCategoryDeleted
-  }>
-
 export type CreatePortalLinkCommand = PortalContentCommandBase &
   Readonly<{
     /** Who wrote the link; recorded on its primary-language text. */
     actorUserId: UserId
+    /**
+     * The link, whose `label` is its name once: the store writes it as the
+     * link's primary-language text (its first text, and the only place the name
+     * is written) and writes `''` to the row's legacy `label` column.
+     */
     link: PortalLink
     event: PortalLinkCreated
     /**
@@ -365,13 +342,14 @@ export type UpdatePortalLinkCommand = PortalContentCommandBase &
     patch: Readonly<
       Pick<
         PortalLink,
-        | 'label'
-        | 'url'
-        | 'destinationId'
-        | 'legacyDestinationState'
-        | 'iconKey'
-        | 'imageAssetId'
-      >
+        'url' | 'destinationId' | 'legacyDestinationState' | 'iconKey' | 'imageAssetId'
+      > & {
+        /**
+         * A new primary-language label, written to the link's text and nowhere
+         * else. Left out, the text stays as it is.
+         */
+        label?: string
+      }
     >
     event: PortalLinkUpdated
   }>
@@ -385,8 +363,8 @@ export type PortalLinkTextWrite = Readonly<{
 }>
 
 /**
- * Write the per-language texts of one link. The primary-language label is also
- * written to the link's own `label` (the legacy column) in the same commit.
+ * Write the per-language texts of one link. The texts are the only place its
+ * wording lives: the link's own legacy `label` column is not written.
  */
 export type SavePortalLinkTextsCommand = PortalContentCommandBase &
   Readonly<{
@@ -478,10 +456,6 @@ export type PortalCommandStore = Readonly<{
   addPortalToGroup(command: AddPortalToGroupCommand): Promise<void>
   removePortalFromGroup(command: RemovePortalFromGroupCommand): Promise<void>
   movePortalToGroup(command: MovePortalToGroupCommand): Promise<void>
-  createPortalLinkCategory(command: CreatePortalLinkCategoryCommand): Promise<void>
-  updatePortalLinkCategory(command: UpdatePortalLinkCategoryCommand): Promise<void>
-  deletePortalLinkCategory(command: DeletePortalLinkCategoryCommand): Promise<void>
-  reorderPortalLinkCategories(command: ReorderPortalLinkCategoriesCommand): Promise<void>
   createPortalLink(command: CreatePortalLinkCommand): Promise<void>
   updatePortalLink(command: UpdatePortalLinkCommand): Promise<void>
   deletePortalLink(command: DeletePortalLinkCommand): Promise<void>

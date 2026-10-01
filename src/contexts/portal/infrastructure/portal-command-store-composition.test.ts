@@ -13,10 +13,6 @@ import { createPortalTokenCommands } from './portal-token-commands'
 const db = {} as Database
 
 const LINK = [
-  'createPortalLinkCategory',
-  'updatePortalLinkCategory',
-  'deletePortalLinkCategory',
-  'reorderPortalLinkCategories',
   'createPortalLink',
   'updatePortalLink',
   'deletePortalLink',

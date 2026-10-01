@@ -3,8 +3,9 @@
 //
 // Pure: no I/O, no throws. Validation returns Result. The rows live in
 // `portal_link_texts` and `portal_localized_overrides.linktree_title`; the
-// legacy `portal_links.label` is kept in step for the primary language until
-// the v3 writer has been live long enough to drop it.
+// legacy `portal_links.label` is a read-only fallback that nothing writes any
+// more (migration 0052 settled the last stale ones), kept until a migration
+// drops the column.
 
 import { GUEST_LOCALES, type GuestLocale } from '#/shared/domain/guest-locale'
 import { err, ok } from '#/shared/domain'
@@ -44,7 +45,7 @@ export const linktreeDefaultTitle = (locale: GuestLocale): string =>
  */
 export const STARTED_CATEGORY_TITLE = 'Links'
 
-/** Equal to the legacy `portal_links.label` column, which the primary text is mirrored into. */
+/** Equal to the width of the legacy `portal_links.label` column, so a text always fits where a label did. */
 export const LINK_TEXT_LABEL_MAX_LENGTH = 100
 export const LINK_TEXT_LINE_MAX_LENGTH = 160
 export const LINKTREE_TITLE_MAX_LENGTH = 60
@@ -81,7 +82,7 @@ export type StoredPortalLinkText = Readonly<{
 /**
  * A text after the legacy fallback: `text` rows come from `portal_link_texts`,
  * `legacy_label` rows are the link's own label standing in for a primary-locale
- * row that does not exist yet (a link created by code that predates the table).
+ * row that does not exist (a link written before the table existed).
  */
 export type ResolvedPortalLinkText = Omit<StoredPortalLinkText, 'updatedBy'> &
   Readonly<{
@@ -144,19 +145,13 @@ export const validateLinktreeTitle = (
 /**
  * Every text of every link, in link order then language order (primary first).
  * A link with no primary-language row gets its legacy label as that row, so
- * nothing that reads texts ever sees a link without a name.
- *
- * A link renamed AFTER its primary text was written also reads its own label
- * there. Current code keeps the two equal, so the only writer that can leave
- * them apart is the code that ran between migration 0044 and the rollout of the
- * text-aware editor, which renamed `portal_links.label` and knew nothing of the
- * text row. Whoever wrote last is right, and a rename by a person is no AI
- * draft, so the provenance goes. It needs `updatedAt` on the link; a caller that
- * has none gets the stored rows as they are.
+ * nothing that reads texts ever sees a link without a name. The label is only a
+ * fallback for a link written before the texts existed: nothing writes it any
+ * more, so a stored text always wins over it.
  */
 export function resolveLinkTexts(
   input: Readonly<{
-    links: ReadonlyArray<Readonly<{ id: string; label: string; updatedAt?: Date }>>
+    links: ReadonlyArray<Readonly<{ id: string; label: string }>>
     texts: ReadonlyArray<StoredPortalLinkText>
     primaryLocale: GuestLocale
   }>,
@@ -166,16 +161,7 @@ export function resolveLinkTexts(
   return input.links.flatMap((link) => {
     const own = input.texts
       .filter((text) => text.linkId === link.id)
-      .map((text): ResolvedPortalLinkText => {
-        const renamedLater =
-          text.locale === input.primaryLocale &&
-          link.updatedAt !== undefined &&
-          link.label !== text.label &&
-          link.updatedAt.getTime() > text.updatedAt.getTime()
-        return renamedLater
-          ? { ...text, label: link.label, provenance: null, source: 'legacy_label' }
-          : { ...text, source: 'text' }
-      })
+      .map((text): ResolvedPortalLinkText => ({ ...text, source: 'text' }))
     const hasPrimary = own.some((text) => text.locale === input.primaryLocale)
     const fallback: ReadonlyArray<ResolvedPortalLinkText> = hasPrimary
       ? []
