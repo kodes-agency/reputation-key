@@ -121,6 +121,7 @@ export function setupCreatePortal(options: CreatePortalSetupOptions = {}) {
       propertyExists: async (_org: OrganizationId, pid: PropertyId) =>
         pid === PROPERTY || pid === OTHER_PROPERTY,
       getPropertyName: async () => null,
+      getPropertyTimezones: async () => [],
       getPropertyNames: async () => [],
       findByGbpLocationId: async () => null,
       getSourceEpoch: async () => ({ sourceEpoch: 0 }),
