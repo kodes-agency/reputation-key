@@ -7,6 +7,8 @@ import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { issueToken } from '../../domain/portal-token'
+import { createInMemoryPortalAddressRepo } from '#/shared/testing/in-memory-portal-address-repo'
+import { createInMemoryPortalAddressCipher } from '#/shared/testing/in-memory-portal-address-cipher'
 import { rotatePortalToken } from './rotate-portal-token'
 
 const NOW = new Date('2026-08-16T12:00:00.000Z')
@@ -51,6 +53,7 @@ describe('rotatePortalToken', () => {
       portalRepo,
       portalTokenRepo,
       tokenCodec: { issue: vi.fn(() => material) } as unknown as PortalTokenCodec,
+      addressCipher: null,
       staffPublicApi,
       commandStore: createInMemoryPortalCommandStore({
         portalRepo,
@@ -120,6 +123,7 @@ describe('rotatePortalToken', () => {
         portalRepo,
         portalTokenRepo,
         tokenCodec: { issue: vi.fn() } as unknown as PortalTokenCodec,
+        addressCipher: null,
         staffPublicApi,
         commandStore: createInMemoryPortalCommandStore({
           portalRepo,
@@ -171,6 +175,7 @@ describe('rotatePortalToken', () => {
       portalRepo,
       portalTokenRepo,
       tokenCodec: { issue: vi.fn(() => material) } as unknown as PortalTokenCodec,
+      addressCipher: null,
       staffPublicApi,
       commandStore: createInMemoryPortalCommandStore({
         portalRepo,
@@ -203,6 +208,7 @@ describe('rotatePortalToken', () => {
       portalRepo,
       portalTokenRepo,
       tokenCodec: { issue: vi.fn() } as unknown as PortalTokenCodec,
+      addressCipher: null,
       staffPublicApi,
       commandStore: createInMemoryPortalCommandStore({
         portalRepo,
@@ -218,5 +224,72 @@ describe('rotatePortalToken', () => {
     await expect(
       useCase({ portalId: portal.id }, buildTestAuthContext()),
     ).rejects.toMatchObject({ code: 'token_unavailable' })
+  })
+
+  it('replaces the sealed address: the new code is sealed and the outgoing one is cleared', async () => {
+    const portalRepo = createInMemoryPortalRepo()
+    const portal = buildTestPortal()
+    portalRepo.seed([portal])
+    const current = issueToken({
+      id: 'portal-token-1',
+      organizationId: portal.organizationId,
+      propertyId: portal.propertyId,
+      portalId: portal.id,
+      tokenIdentifier: 'old-token-id',
+      tokenHash: 'old-token-hash',
+      tokenKeyVersion: 1,
+      version: 4,
+      now: new Date('2026-08-01T12:00:00.000Z'),
+    })
+    const portalTokenRepo = {
+      findLatestForPortal: vi.fn(async () => current),
+      saveRotation: vi.fn(async () => undefined),
+    } as unknown as PortalTokenRepository
+    const portalAddressRepo = createInMemoryPortalAddressRepo()
+    const ctx = buildTestAuthContext()
+    // The outgoing code had a sealed copy; rotation must not leave it behind.
+    portalAddressRepo.store(
+      { organizationId: ctx.organizationId, portalId: portal.id },
+      {
+        tokenId: current.id,
+        propertyId: portal.propertyId,
+        version: current.version,
+        issuedAt: current.issuedAt,
+        sealed: { ciphertext: 'old', keyVersion: 1 },
+        accessArtifactIds: { qr: 'q', nfc: 'n' },
+      },
+    )
+    const ids = [
+      '6a200000-0000-4000-8000-000000000001',
+      '6a200000-0000-4000-8000-000000000002',
+      '6a200000-0000-4000-8000-000000000003',
+    ]
+    const useCase = rotatePortalToken({
+      portalRepo,
+      portalTokenRepo,
+      tokenCodec: { issue: vi.fn(() => material) } as unknown as PortalTokenCodec,
+      addressCipher: createInMemoryPortalAddressCipher({ activeKeyVersion: 2 }),
+      staffPublicApi,
+      commandStore: createInMemoryPortalCommandStore({
+        portalRepo,
+        portalTokenRepo,
+        portalAddressRepo,
+        outbox: createRecordedOutbox(),
+      }),
+      idGen: () => ids.shift()!,
+      clock: () => NOW,
+      baseUrl: 'https://example.test',
+      defaultGracePeriodSeconds: 30 * 24 * 60 * 60,
+    })
+
+    await useCase({ portalId: portal.id }, ctx)
+
+    const live = await portalAddressRepo.findRevealable(ctx.organizationId, portal.id)
+    expect(live).toMatchObject({
+      tokenId: '6a200000-0000-4000-8000-000000000001',
+      version: 5,
+      sealed: { keyVersion: 2 },
+    })
+    expect(portalAddressRepo.sealedCount()).toBe(1)
   })
 })

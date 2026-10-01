@@ -53,6 +53,7 @@ import type {
 } from '../../domain/events'
 import type { PortalLinkTextProvenance } from '../../domain/portal-linktree'
 import type { PortalToken } from '../../domain/portal-token'
+import type { SealedPortalAddress } from './portal-address-cipher.port'
 import type { PortalAccessArtifact } from '../../domain/portal-access-artifact'
 import type { PortalHealth } from '../../domain/portal-health'
 
@@ -354,7 +355,18 @@ export type DeletePortalLinkCommand = PortalContentCommandBase &
 
 type PortalTokenCommandBase = PortalContentCommandBase
 
+/**
+ * What a command that makes a code also carries (ADR 0062): who made it, and
+ * the sealed copy of its address when a keyring is configured. The store writes
+ * both with the token row, so a code never exists without its owner's record.
+ */
+type PortalCodeProvenance = Readonly<{
+  issuedBy: UserId
+  sealedAddress: SealedPortalAddress | null
+}>
+
 export type IssuePortalTokenCommand = PortalTokenCommandBase &
+  PortalCodeProvenance &
   Readonly<{
     token: PortalToken
     accessArtifacts: readonly [PortalAccessArtifact, PortalAccessArtifact]
@@ -365,7 +377,9 @@ export type IssuePortalTokenCommand = PortalTokenCommandBase &
     ]
   }>
 
+/** Rotation clears the outgoing code's sealed address and seals the new one. */
 export type RotatePortalTokenCommand = PortalTokenCommandBase &
+  PortalCodeProvenance &
   Readonly<{
     oldToken: PortalToken
     newToken: PortalToken

@@ -327,6 +327,7 @@ function buildContainer(
     idGen: () => crypto.randomUUID(),
     secureRandomBytes: randomBytes,
     tokenHashSecret: env.PORTAL_TOKEN_HASH_SECRET,
+    addressEncryptionKeys: env.PORTAL_ADDRESS_ENCRYPTION_KEYS,
     logger,
     storage: options?.providers?.storage,
     storageConfig: {

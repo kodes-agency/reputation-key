@@ -34,6 +34,8 @@ export type PortalErrorCode =
   | 'publication_snapshot_unavailable'
   | 'google_review_destination_unavailable'
   | 'token_unavailable'
+  | 'address_unavailable'
+  | 'rate_limited'
   | 'upload_failed'
   | 'responsible_manager_ineligible'
   | 'revision_conflict'

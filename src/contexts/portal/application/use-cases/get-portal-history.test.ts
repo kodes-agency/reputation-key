@@ -8,6 +8,7 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { HistoryBound } from '../../domain/portal-history'
 import type { PortalHealthInterval } from '../../domain/portal-health'
 import type {
+  PortalCodeDownloadRow,
   PortalCodeIssuanceRow,
   PortalCodeRevocationRow,
   PortalHistoryRepository,
@@ -39,6 +40,7 @@ function newestFirst<T>(rows: readonly T[], atOf: (row: T) => Date): readonly T[
 type Seed = Readonly<{
   publications?: readonly PortalPublicationEventRow[]
   issuances?: readonly PortalCodeIssuanceRow[]
+  downloads?: readonly PortalCodeDownloadRow[]
   revocations?: readonly PortalCodeRevocationRow[]
   health?: readonly Pick<
     PortalHealthInterval,
@@ -65,6 +67,14 @@ function setup(seed: Seed = {}) {
           passes(page.bound, row.issuedAt, row.tokenId),
         ),
         (row) => row.issuedAt,
+      ).slice(0, page.limit),
+    ),
+    listCodeDownloads: vi.fn(async (_o, _p, _pt, page) =>
+      newestFirst(
+        (seed.downloads ?? []).filter((row) =>
+          passes(page.bound, row.downloadedAt, row.downloadId),
+        ),
+        (row) => row.downloadedAt,
       ).slice(0, page.limit),
     ),
     listCodeRevocations: vi.fn(async (_o, _p, _pt, page) =>
@@ -134,6 +144,19 @@ const publication = (
   activatedAt: at(minutes),
 })
 
+const download = (
+  n: string,
+  version: number,
+  downloadedAt: Date,
+  purpose: 'download' | 'copy' = 'download',
+): PortalCodeDownloadRow => ({
+  downloadId: `00000000-0000-4000-8000-0000000000${n.padStart(2, 'c')}`,
+  version,
+  downloadedBy: 'publisher',
+  purpose,
+  downloadedAt,
+})
+
 describe('getPortalHistory', () => {
   it('merges creation, publications, health and addresses newest first with actors named', async () => {
     const { useCase } = setup({
@@ -151,6 +174,7 @@ describe('getPortalHistory', () => {
           tokenId: '00000000-0000-4000-8000-0000000000b1',
           version: 1,
           issuedAt: at(5),
+          issuedBy: null,
           predecessor: null,
         },
       ],
@@ -200,6 +224,7 @@ describe('getPortalHistory', () => {
           tokenId: '00000000-0000-4000-8000-0000000000b1',
           version: 1,
           issuedAt: at(5),
+          issuedBy: null,
           predecessor: null,
         },
       ],
@@ -211,6 +236,58 @@ describe('getPortalHistory', () => {
       result.entries.find((entry) => entry.detail.kind === kind)
     expect(byKind('health_changed')?.actor).toBeNull()
     expect(byKind('code_issued')?.actor).toBeNull()
+  })
+
+  it('names who made an address when it was recorded', async () => {
+    const { useCase } = setup({
+      issuances: [
+        {
+          tokenId: '00000000-0000-4000-8000-0000000000b1',
+          version: 1,
+          issuedAt: at(5),
+          issuedBy: 'publisher',
+          predecessor: null,
+        },
+      ],
+      names: { publisher: 'Elena Petrova' },
+    })
+
+    const result = await useCase({ portalId: portal.id, filter: 'codes' }, ctx)
+
+    expect(result.entries[0]).toMatchObject({
+      detail: { kind: 'code_issued', version: 1 },
+      actor: { userId: 'publisher', displayName: 'Elena Petrova' },
+    })
+  })
+
+  it('lists each time a code was downloaded again, with who and what for', async () => {
+    const { useCase } = setup({
+      downloads: [
+        download('1', 2, at(30)),
+        { ...download('2', 2, at(40), 'copy'), downloadedBy: 'creator' },
+      ],
+      names: { publisher: 'Elena Petrova', creator: 'Georgi Ivanov' },
+    })
+
+    const result = await useCase({ portalId: portal.id, filter: 'codes' }, ctx)
+
+    expect(
+      result.entries.map((entry) => [entry.category, entry.detail, entry.actor]),
+    ).toEqual([
+      [
+        'codes',
+        { kind: 'code_downloaded', version: 2, purpose: 'copy' },
+        { userId: 'creator', displayName: 'Georgi Ivanov' },
+      ],
+      [
+        'codes',
+        { kind: 'code_downloaded', version: 2, purpose: 'download' },
+        { userId: 'publisher', displayName: 'Elena Petrova' },
+      ],
+    ])
+    expect(
+      result.entries.every((entry) => entry.key.startsWith('code-downloaded:')),
+    ).toBe(true)
   })
 
   it('keeps an actor without a resolvable name, with no name', async () => {
@@ -258,6 +335,7 @@ describe('getPortalHistory', () => {
           tokenId: '00000000-0000-4000-8000-0000000000b2',
           version: 2,
           issuedAt: at(50),
+          issuedBy: null,
           predecessor: { revokedAt: null, gracePeriodEnds: at(80) },
         },
       ],
@@ -299,14 +377,21 @@ describe('getPortalHistory', () => {
           tokenId: '00000000-0000-4000-8000-0000000000b1',
           version: 1,
           issuedAt: tie,
+          issuedBy: null,
           predecessor: null,
         },
         {
           tokenId: '00000000-0000-4000-8000-0000000000b2',
           version: 2,
           issuedAt: at(5),
+          issuedBy: null,
           predecessor: { revokedAt: at(4), gracePeriodEnds: null },
         },
+      ],
+      downloads: [
+        download('d1', 1, tie),
+        download('d2', 2, tie),
+        download('d3', 2, at(45)),
       ],
       revocations: [
         { revokedAt: tie, revokedBy: 'publisher', reason: 'a' },
@@ -315,7 +400,7 @@ describe('getPortalHistory', () => {
     }
     const { useCase } = setup(seed)
     const everything = await useCase({ portalId: portal.id, limit: 50 }, ctx)
-    expect(everything.entries).toHaveLength(10)
+    expect(everything.entries).toHaveLength(13)
 
     for (const limit of [1, 2, 3, 4, 7]) {
       const seen: PortalHistoryEntry[] = []
@@ -351,6 +436,7 @@ describe('getPortalHistory', () => {
     expect(historyRepo.listPublicationEvents).not.toHaveBeenCalled()
     expect(historyRepo.listCodeIssuances).not.toHaveBeenCalled()
     expect(historyRepo.listCodeRevocations).not.toHaveBeenCalled()
+    expect(historyRepo.listCodeDownloads).not.toHaveBeenCalled()
     expect(healthRepo.listHistory).toHaveBeenCalledTimes(1)
   })
 

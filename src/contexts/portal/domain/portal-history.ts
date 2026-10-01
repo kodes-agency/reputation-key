@@ -1,8 +1,8 @@
 // Portal context — the merged History read model (round 4, slice 35a).
 //
-// One timeline per Portal, merged from four independently ordered sources:
-// the page's creation, its publication activations, its health intervals and
-// its public-address (code) tokens. Each source is read newest first with its
+// One timeline per Portal, merged from five independently ordered sources:
+// the page's creation, its publication activations, its health intervals, its
+// public-address (code) tokens and the times a manager downloaded a code again. Each source is read newest first with its
 // own limit and this module merges them, so the merge must be exact: a total
 // order (time, then key) and a cursor that every source can turn into its own
 // "strictly before" condition. Everything here is pure; the SQL lives in
@@ -25,6 +25,7 @@ export const historyCategoriesFor = (
  * every same-instant tie without looking at ids.
  */
 export const HISTORY_KEY_PREFIX = {
+  codeDownloaded: 'code-downloaded:',
   codeIssued: 'code-issued:',
   codeRevoked: 'code-revoked:',
   created: 'created:',
@@ -49,6 +50,13 @@ export type PortalHistoryDetail =
       previousCodesWorkUntil: string | null
     }>
   | Readonly<{ kind: 'codes_revoked'; reason: string | null }>
+  | Readonly<{
+      kind: 'code_downloaded'
+      /** The code that was handed out, by its version. */
+      version: number
+      /** The code as a file, or a copy of one of its addresses. */
+      purpose: 'download' | 'copy'
+    }>
 
 export type PortalHistoryRecord = Readonly<{
   key: string

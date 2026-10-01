@@ -40,6 +40,8 @@ import { createPortalActorDirectoryAdapter } from './infrastructure/adapters/por
 import { createPortalAiReplyBrandProfileAuthority } from './infrastructure/ai-reply-brand-profile-authority'
 import type { StoragePort } from './application/ports/storage.port'
 import { createPortalTokenCodec } from './infrastructure/adapters/portal-token-codec'
+import { createPortalAddressCipher } from './infrastructure/adapters/portal-address-cipher'
+import { createPortalAddressRepository } from './infrastructure/repositories/portal-address.repository'
 import { createPortal } from './application/use-cases/create-portal'
 import { updatePortal } from './application/use-cases/update-portal'
 import { rollbackPortalPublication } from './application/use-cases/rollback-portal-publication'
@@ -74,6 +76,7 @@ import { listPortalGroupHistory } from './application/use-cases/list-portal-grou
 import { issuePortalToken } from './application/use-cases/issue-portal-token'
 import { rotatePortalToken } from './application/use-cases/rotate-portal-token'
 import { revokePortalTokens } from './application/use-cases/revoke-portal-tokens'
+import { revealPortalAddress } from './application/use-cases/reveal-portal-address'
 import {
   resolvePublicPortalToken,
   type GuestLocalePreference,
@@ -130,6 +133,12 @@ type PortalContextDeps = Readonly<{
   idGen: () => string
   secureRandomBytes: (size: number) => Buffer
   tokenHashSecret: string
+  /**
+   * The versioned keyring that seals each code's address (ADR 0062). Absent,
+   * the address is shown once, when a code is made. A malformed keyring fails
+   * the build, so a boot never runs with a keyring it cannot use.
+   */
+  addressEncryptionKeys?: string
   logger: LoggerPort
   storageConfig: Readonly<{
     accessKey: string
@@ -188,6 +197,13 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     secret: deps.tokenHashSecret,
     randomBytes: deps.secureRandomBytes,
   })
+  const portalAddressCipher = deps.addressEncryptionKeys
+    ? createPortalAddressCipher({
+        keyring: deps.addressEncryptionKeys,
+        generateIv: () => deps.secureRandomBytes(12),
+      })
+    : null
+  const portalAddressRepo = createPortalAddressRepository(deps.db)
   const portalWorkflowFactStore = createPortalWorkflowFactStore(deps.db)
   const storage =
     deps.storage ??
@@ -341,6 +357,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalRepo,
       portalTokenRepo,
       staffPublicApi: deps.staffPublicApi,
+      addressCipher: portalAddressCipher,
       clock: deps.clock,
     }),
     getPortalPublicationHistory: getPortalPublicationHistory({
@@ -364,6 +381,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       managerRepo: portalResponsibleManagerRepo,
       portalTokenRepo,
       staffPublicApi: deps.staffPublicApi,
+      addressCipher: portalAddressCipher,
       clock: deps.clock,
     }),
     softDeletePortal: softDeletePortal({
@@ -526,6 +544,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalRepo,
       portalTokenRepo,
       tokenCodec: portalTokenCodec,
+      addressCipher: portalAddressCipher,
       staffPublicApi: deps.staffPublicApi,
       commandStore: portalCommandStore,
       idGen: deps.idGen,
@@ -536,12 +555,21 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalRepo,
       portalTokenRepo,
       tokenCodec: portalTokenCodec,
+      addressCipher: portalAddressCipher,
       staffPublicApi: deps.staffPublicApi,
       commandStore: portalCommandStore,
       idGen: deps.idGen,
       clock: deps.clock,
       baseUrl: deps.baseUrl,
       defaultGracePeriodSeconds: 30 * 24 * 60 * 60,
+    }),
+    revealPortalAddress: revealPortalAddress({
+      portalRepo,
+      staffPublicApi: deps.staffPublicApi,
+      portalAddressRepo,
+      addressCipher: portalAddressCipher,
+      clock: deps.clock,
+      baseUrl: deps.baseUrl,
     }),
     revokePortalTokens: revokePortalTokens({
       portalRepo,

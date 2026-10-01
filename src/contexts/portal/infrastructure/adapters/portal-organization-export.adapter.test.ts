@@ -24,6 +24,7 @@ const READ_ORDER = [
   'pendingContentChanges',
   'responsibleManagers',
   'accessArtifacts',
+  'addressDownloads',
   'healthIntervals',
 ] as const
 

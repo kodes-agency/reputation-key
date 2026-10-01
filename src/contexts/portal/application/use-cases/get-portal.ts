@@ -10,6 +10,7 @@ import { canForContext } from '#/shared/domain/permissions'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
 import { toPortalTokenStatus, type PortalTokenStatus } from '../portal-token-status'
+import type { PortalAddressCipher } from '../ports/portal-address-cipher.port'
 
 export type GetPortalInput = Readonly<{
   portalId: string
@@ -24,6 +25,8 @@ export type GetPortalDeps = Readonly<{
   portalRepo: PortalRepository
   portalTokenRepo: Pick<PortalTokenRepository, 'findResolvableSummaryForPortal'>
   staffPublicApi: StaffPublicApi
+  /** Says whether the live code can be downloaded again; null when no keyring is configured. */
+  addressCipher: Pick<PortalAddressCipher, 'canOpen'> | null
   clock: () => Date
 }>
 
@@ -48,7 +51,10 @@ export const getPortal =
     )
     return {
       portal,
-      tokenStatus: toPortalTokenStatus(token),
+      tokenStatus: toPortalTokenStatus(
+        token,
+        (version) => deps.addressCipher?.canOpen(version) ?? false,
+      ),
     }
   }
 

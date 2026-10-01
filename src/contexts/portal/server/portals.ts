@@ -2,6 +2,7 @@
 // Per architecture: thin — resolve auth → validate input → call use case → translate errors → return
 
 import { createServerFn } from '@tanstack/react-start'
+import { setResponseHeader } from '@tanstack/react-start/server'
 import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { match } from 'ts-pattern'
 import {
@@ -28,6 +29,7 @@ import {
 } from '../application/dto/portal-experience.dto'
 import {
   issuePortalTokenInputSchema,
+  revealPortalAddressInputSchema,
   revokePortalTokensInputSchema,
   rotatePortalTokenInputSchema,
 } from '../application/dto/portal-token-lifecycle.dto'
@@ -39,6 +41,7 @@ import type { Capability } from '#/shared/auth/beta-capabilities'
 import type { Permission } from '#/shared/domain/permissions'
 import { portalId as toPortalId } from '#/shared/domain/ids'
 import { requirePortalResourceScope } from './property-scope'
+import { checkPortalAddressRateLimit } from './portal-address-rate-limit.server'
 
 // ── Error → HTTP status mapping ───────────────────────────────────
 
@@ -64,12 +67,14 @@ export const portalErrorStatus = (code: PortalErrorCode): number =>
     .with(
       'upload_failed',
       'token_unavailable',
+      'address_unavailable',
       'responsible_manager_ineligible',
       () => 422,
     )
     .with('group_not_found', 'portal_not_in_group', () => 404)
     .with('group_name_taken', 'portal_already_grouped', () => 409)
     .with('portal_inactive', () => 410)
+    .with('rate_limited', () => 429)
     .with(
       'invalid_publication_transition',
       'publication_snapshot_unavailable',
@@ -709,6 +714,46 @@ export const rotatePortalToken = createServerFn({ method: 'POST' })
       },
       'POST',
       'portal.rotatePortalToken',
+    ),
+  )
+
+/** The address is a secret: nothing in the path may keep a copy of this response. */
+function disableAddressCaching(): void {
+  setResponseHeader('Cache-Control', 'private, no-store, max-age=0')
+  setResponseHeader('Pragma', 'no-cache')
+  setResponseHeader('Expires', '0')
+}
+
+// "Download again" (ADR 0062). A POST, so the address never travels in a URL,
+// with no-store set before anything else can fail: an error response must not
+// be cached either. Order inside: authorise, rate limit, then the use case,
+// which records the disclosure before it decrypts.
+export const revealPortalAddress = createServerFn({ method: 'POST' })
+  .validator(revealPortalAddressInputSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        disableAddressCaching()
+        const ctx = await resolveTenantContext(await headersFromContext())
+        await authorizePortalResource(ctx, data.portalId, 'portal.update', 'portal.write')
+        try {
+          const container = getContainer()
+          const limited = await checkPortalAddressRateLimit({
+            rateLimiter: container.rateLimiter,
+            actorId: ctx.userId,
+            organizationId: ctx.organizationId,
+          })
+          if (limited) throw limited
+          return await container.portalPublicApi.management.revealPortalAddress(data, ctx)
+        } catch (error) {
+          if (isPortalError(error)) {
+            throwContextError('PortalError', error, portalErrorStatus(error.code))
+          }
+          throw catchUntagged(error)
+        }
+      },
+      'POST',
+      'portal.revealPortalAddress',
     ),
   )
 

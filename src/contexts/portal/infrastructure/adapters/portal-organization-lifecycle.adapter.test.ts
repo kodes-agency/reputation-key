@@ -37,10 +37,17 @@ describe('Portal Organization lifecycle contributor', () => {
     )
   })
 
+<<<<<<< HEAD
   it('deletes the group history before the groups it hangs from', () => {
     expect(PORTAL_PURGE_PLAN).toContain('portal_group_history')
     expect(PORTAL_PURGE_PLAN.indexOf('portal_group_history')).toBeLessThan(
       PORTAL_PURGE_PLAN.indexOf('portal_groups'),
+=======
+  it('deletes address downloads before the tokens they point at', () => {
+    expect(PORTAL_PURGE_PLAN).toContain('portal_address_downloads')
+    expect(PORTAL_PURGE_PLAN.indexOf('portal_address_downloads')).toBeLessThan(
+      PORTAL_PURGE_PLAN.indexOf('portal_tokens'),
+>>>>>>> 75be3d60e (feat(portal): seal each code's address and hand it back to a manager (r4 s33))
     )
   })
 

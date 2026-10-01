@@ -24,6 +24,7 @@ import {
 import { portalGroupHistory, portalGroups } from '#/shared/db/schema/portal-group.schema'
 import {
   portalAccessArtifacts,
+  portalAddressDownloads,
   portalApprovedDestinations,
   portalGroupMembers,
   portalHealthIntervals,
@@ -67,6 +68,7 @@ const CLOSING_DEACTIVATION_REASON = 'disabled'
  * decision, never a lifecycle phase.
  */
 export const PORTAL_PURGE_PLAN = Object.freeze([
+  'portal_address_downloads',
   'portal_access_artifacts',
   'portal_pending_content_changes',
   'portal_publication_activations',
@@ -172,6 +174,9 @@ const drizzlePortalLifecycleWorkbench: PortalLifecycleWorkbench = Object.freeze(
     // snapshots until Guest has purged; that failure is honest — the phase
     // throws, the state stays `purging`, other contexts keep their receipts,
     // and the next pass converges once Guest's own receipt exists.
+    await tx
+      .delete(portalAddressDownloads)
+      .where(eq(portalAddressDownloads.organizationId, organizationId))
     await tx
       .delete(portalAccessArtifacts)
       .where(eq(portalAccessArtifacts.organizationId, organizationId))

@@ -30,6 +30,7 @@ import { getAccessiblePropertyIdsForPermission } from '#/shared/domain/property-
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { portalError } from '../../domain/errors'
 import { toPortalTokenStatus, type PortalTokenStatus } from '../portal-token-status'
+import type { PortalAddressCipher } from '../ports/portal-address-cipher.port'
 
 export type ListPortalOverviewInput = Readonly<
   | { scope: 'property'; propertyId: string }
@@ -52,6 +53,8 @@ export type ListPortalOverviewDeps = Readonly<{
   managerRepo: Pick<PortalResponsibleManagerRepository, 'listActiveForPortals'>
   portalTokenRepo: Pick<PortalTokenRepository, 'findResolvableSummariesForPortals'>
   staffPublicApi: StaffPublicApi
+  /** Says whether a code can be downloaded again; null when no keyring is configured. */
+  addressCipher: Pick<PortalAddressCipher, 'canOpen'> | null
   clock: () => Date
 }>
 
@@ -161,7 +164,10 @@ export const listPortalOverview =
         responsibleManagerUserIds: (managersByPortal.get(portal.id) ?? [])
           .map((manager) => manager.userId)
           .sort(),
-        token: toPortalTokenStatus(tokenByPortal.get(portal.id)),
+        token: toPortalTokenStatus(
+          tokenByPortal.get(portal.id),
+          (version) => deps.addressCipher?.canOpen(version) ?? false,
+        ),
       }
     })
   }

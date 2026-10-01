@@ -7,6 +7,7 @@ import { portalError } from '../../domain/errors'
 import { portalId as toPortalId, unbrand } from '#/shared/domain/ids'
 import type { OrganizationId, PortalId } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
+import { NO_SEALED_ADDRESS } from '../portal-sealed-address-columns'
 
 const VALID_TOKEN_STATES: ReadonlySet<string> = new Set(['active', 'rotating', 'revoked'])
 
@@ -157,6 +158,7 @@ export const createPortalTokenRepository = (db: Database): PortalTokenRepository
           version: portalTokens.version,
           issuedAt: portalTokens.issuedAt,
           gracePeriodEnds: portalTokens.gracePeriodEnds,
+          addressKeyVersion: portalTokens.addressEncryptionKeyVersion,
           accessArtifactId: portalAccessArtifacts.id,
         })
         .from(portalTokens)
@@ -188,6 +190,7 @@ export const createPortalTokenRepository = (db: Database): PortalTokenRepository
           row.gracePeriodEnds ??
           (await outgoingGraceEnd(db, organizationId, portalId, row.version, asOf)),
         hasPublishedAccessArtifact: row.accessArtifactId !== null,
+        addressKeyVersion: row.addressKeyVersion,
       }
     }),
 
@@ -202,6 +205,7 @@ export const createPortalTokenRepository = (db: Database): PortalTokenRepository
           version: portalTokens.version,
           issuedAt: portalTokens.issuedAt,
           gracePeriodEnds: portalTokens.gracePeriodEnds,
+          addressKeyVersion: portalTokens.addressEncryptionKeyVersion,
           accessArtifactId: portalAccessArtifacts.id,
         })
         .from(portalTokens)
@@ -241,6 +245,7 @@ export const createPortalTokenRepository = (db: Database): PortalTokenRepository
         issuedAt: row.issuedAt,
         gracePeriodEnds: row.gracePeriodEnds ?? outgoing.get(row.portalId) ?? null,
         hasPublishedAccessArtifact: row.accessArtifactId !== null,
+        addressKeyVersion: row.addressKeyVersion,
       }))
     }),
 
@@ -326,6 +331,7 @@ export const createPortalTokenRepository = (db: Database): PortalTokenRepository
             status: oldToken.status,
             gracePeriodEnds: oldToken.gracePeriodEnds,
             retiredAt: oldToken.retiredAt,
+            ...NO_SEALED_ADDRESS,
           })
           .where(
             and(
@@ -354,6 +360,7 @@ export const createPortalTokenRepository = (db: Database): PortalTokenRepository
           revokedBy: input.revokedBy,
           revokedReason: input.reason,
           gracePeriodEnds: null,
+          ...NO_SEALED_ADDRESS,
         })
         .where(
           and(

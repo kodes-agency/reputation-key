@@ -197,6 +197,13 @@ async function seedFixture(): Promise<Fixture> {
     [randomUUID(), ...scope, fixture.tokenId],
   )
   await q(
+    `INSERT INTO portal_address_downloads (id, organization_id, property_id, portal_id,
+                                           portal_token_id, downloaded_by, purpose,
+                                           downloaded_at)
+     VALUES ($1, $2, $3, $4, $5, $6, 'download', now())`,
+    [randomUUID(), ...scope, fixture.tokenId, actor],
+  )
+  await q(
     `INSERT INTO portal_publication_snapshots (
        id, organization_id, property_id, portal_id, version, configuration_digest,
        configuration, guest_locale, language_pack_version, private_feedback_threshold,
@@ -340,6 +347,7 @@ async function deleteReceiptFixtures(organizationIds: readonly string[]): Promis
 }
 
 const CLEANUP_ORDER = [
+  'portal_address_downloads',
   'portal_access_artifacts',
   'portal_pending_content_changes',
   'portal_publication_activations',

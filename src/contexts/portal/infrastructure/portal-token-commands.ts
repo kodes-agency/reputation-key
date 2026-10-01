@@ -17,16 +17,45 @@ import type {
 import { portalError } from '../domain/errors'
 import { fencePortalContent } from './portal-aggregate-fence'
 import { sameInstant } from './portal-command-guards'
+import { NO_SEALED_ADDRESS } from './portal-sealed-address-columns'
 
 export type PortalTokenCommandStore = Pick<
   PortalCommandStore,
   'issuePortalToken' | 'rotatePortalToken' | 'revokePortalTokens'
 >
 
+function sealedAddressColumns(
+  sealed: IssuePortalTokenCommand['sealedAddress'],
+): Pick<
+  typeof portalTokens.$inferInsert,
+  'encryptedRawToken' | 'addressEncryptionKeyVersion'
+> {
+  return sealed === null
+    ? NO_SEALED_ADDRESS
+    : {
+        encryptedRawToken: sealed.ciphertext,
+        addressEncryptionKeyVersion: sealed.keyVersion,
+      }
+}
+
+function isWellFormedSealedAddress(
+  sealed: IssuePortalTokenCommand['sealedAddress'],
+): boolean {
+  return (
+    sealed === null ||
+    (Number.isInteger(sealed.keyVersion) &&
+      sealed.keyVersion >= 1 &&
+      sealed.ciphertext.length > 0)
+  )
+}
+
 function portalTokenToRow(
   token: import('../domain/portal-token').PortalToken,
+  provenance: Pick<IssuePortalTokenCommand, 'issuedBy' | 'sealedAddress'>,
 ): typeof portalTokens.$inferInsert {
   return {
+    ...sealedAddressColumns(provenance.sealedAddress),
+    issuedBy: unbrand(provenance.issuedBy),
     id: token.id,
     organizationId: token.organizationId,
     propertyId: token.propertyId,
@@ -116,7 +145,8 @@ function assertIssueTokenCommand(command: IssuePortalTokenCommand): void {
     command.event.version !== command.token.version ||
     command.event.sourceAggregateVersion !== command.revision.toISOString() ||
     !sameInstant(command.event.occurredAt, command.occurredAt) ||
-    !sameInstant(command.token.issuedAt, command.occurredAt)
+    !sameInstant(command.token.issuedAt, command.occurredAt) ||
+    !isWellFormedSealedAddress(command.sealedAddress)
   ) {
     throw portalError('forbidden', 'Tenant or resource mismatch on Portal token issue')
   }
@@ -145,7 +175,8 @@ function assertRotateTokenCommand(command: RotatePortalTokenCommand): void {
     command.event.sourceAggregateVersion !== command.revision.toISOString() ||
     !sameInstant(command.event.gracePeriodEnds, oldToken.gracePeriodEnds) ||
     !sameInstant(command.event.occurredAt, command.occurredAt) ||
-    !sameInstant(newToken.issuedAt, command.occurredAt)
+    !sameInstant(newToken.issuedAt, command.occurredAt) ||
+    !isWellFormedSealedAddress(command.sealedAddress)
   ) {
     throw portalError('forbidden', 'Tenant or resource mismatch on Portal token rotate')
   }
@@ -201,7 +232,7 @@ export const createPortalTokenCommands = (db: Database): PortalTokenCommandStore
               'Portal token version changed during issue',
             )
           }
-          await tx.insert(portalTokens).values(portalTokenToRow(command.token))
+          await tx.insert(portalTokens).values(portalTokenToRow(command.token, command))
           await tx
             .insert(portalAccessArtifacts)
             .values(command.accessArtifacts.map(accessArtifactToRow))
@@ -225,6 +256,9 @@ export const createPortalTokenCommands = (db: Database): PortalTokenCommandStore
               status: command.oldToken.status,
               gracePeriodEnds: command.oldToken.gracePeriodEnds,
               retiredAt: command.oldToken.retiredAt,
+              // The outgoing code keeps working for its window, but nobody can
+              // download it again (ADR 0062).
+              ...NO_SEALED_ADDRESS,
             })
             .where(
               and(
@@ -240,7 +274,9 @@ export const createPortalTokenCommands = (db: Database): PortalTokenCommandStore
           if (!rotated) {
             throw portalError('revision_conflict', 'Portal token changed during rotation')
           }
-          await tx.insert(portalTokens).values(portalTokenToRow(command.newToken))
+          await tx
+            .insert(portalTokens)
+            .values(portalTokenToRow(command.newToken, command))
           await tx
             .insert(portalAccessArtifacts)
             .values(command.accessArtifacts.map(accessArtifactToRow))
@@ -285,6 +321,7 @@ export const createPortalTokenCommands = (db: Database): PortalTokenCommandStore
               revokedBy: unbrand(command.revokedBy),
               revokedReason: command.reason.trim(),
               gracePeriodEnds: null,
+              ...NO_SEALED_ADDRESS,
             })
             .where(
               and(

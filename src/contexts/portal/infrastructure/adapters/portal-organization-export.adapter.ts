@@ -37,6 +37,7 @@ type PortalOrganizationExportPayload = Readonly<{
   pendingContentChanges: readonly ExportRecord[]
   responsibleManagers: readonly ExportRecord[]
   accessArtifacts: readonly ExportRecord[]
+  addressDownloads: readonly ExportRecord[]
   healthIntervals: readonly ExportRecord[]
   excludedRecordClasses: readonly Readonly<{
     recordClass: string
@@ -53,7 +54,9 @@ const MAX_SNAPSHOT_LAG_MS = 15 * 60 * 1000
  * - `portal_tokens` holds the address token hash and the encrypted raw token.
  *   That is credential material; the tenant-visible fact — that a published QR
  *   or NFC artifact exists — is exported from `portal_access_artifacts`
- *   instead, without the token id that joins back to the secret.
+ *   instead, without the token id that joins back to the secret. The sealed
+ *   copy of the address (slice 33) lives in the same column and is excluded
+ *   with it; only the record of each time it was handed out is exported.
  * - Goals reference Portals but are owned and exported by the Goal
  *   contributor; a second copy would let one archive disagree with itself.
  */
@@ -169,6 +172,7 @@ function collectionsOf(
     ['pending_content_change', payload.pendingContentChanges],
     ['portal_responsible_manager', payload.responsibleManagers],
     ['access_artifact', payload.accessArtifacts],
+    ['address_download', payload.addressDownloads],
     ['health_interval', payload.healthIntervals],
   ]
 }
@@ -391,6 +395,15 @@ async function readPayload(
                    ${utc('retired_at')} AS retired_at
             FROM portal_access_artifacts WHERE organization_id = ${organizationId}`,
       )
+      // Who was handed an existing address, and when. `portal_token_id` is left
+      // out for the same reason as above; the sealed address is never selected.
+      const addressDownloads = await readRows(
+        snapshot,
+        sql`SELECT id::text AS id, property_id::text AS property_id,
+                   portal_id::text AS portal_id, downloaded_by, purpose,
+                   ${utc('downloaded_at')} AS downloaded_at
+            FROM portal_address_downloads WHERE organization_id = ${organizationId}`,
+      )
       const healthIntervals = await readRows(
         snapshot,
         sql`SELECT id::text AS id, property_id::text AS property_id,
@@ -429,6 +442,11 @@ async function readPayload(
         pendingContentChanges: sortRecords(pendingContentChanges, ['portal_id', 'id']),
         responsibleManagers: sortRecords(responsibleManagers, ['portal_id', 'id']),
         accessArtifacts: sortRecords(accessArtifacts, ['portal_id', 'id']),
+        addressDownloads: sortRecords(addressDownloads, [
+          'portal_id',
+          'downloaded_at',
+          'id',
+        ]),
         healthIntervals: sortRecords(healthIntervals, ['portal_id', 'id']),
         excludedRecordClasses: EXCLUDED_RECORD_CLASSES,
       }

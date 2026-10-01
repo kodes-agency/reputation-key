@@ -65,6 +65,7 @@ const SECRET_FIELDS = [
   'OAUTH_STATE_SECRET',
   'GUEST_SESSION_SALT',
   'PORTAL_TOKEN_HASH_SECRET',
+  'PORTAL_ADDRESS_ENCRYPTION_KEYS',
   'REVIEW_PROVIDER_SUBJECT_HMAC_KEYS',
   'REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS',
   'NOTIFICATION_UNSUBSCRIBE_HMAC_KEYS',
@@ -98,11 +99,10 @@ export function findPlaceholderSecrets(env: ProductionSecretsEnv): string[] {
   for (const field of SECRET_FIELDS) {
     const value = env[field]
     if (value === undefined) continue
-    const candidates =
-      field.endsWith('_HMAC_KEYS') ||
-      field === 'REVIEW_PROVIDER_SUBJECT_HMAC_MIGRATOR_KEYS'
-        ? value.split(',').map((entry) => entry.slice(entry.indexOf(':') + 1))
-        : [value]
+    // A keyring is `<id>:<key>[,...]`: inspect each key, never its label.
+    const candidates = field.endsWith('_KEYS')
+      ? value.split(',').map((entry) => entry.slice(entry.indexOf(':') + 1))
+      : [value]
     if (candidates.some(isPlaceholderSecret)) flagged.push(field)
   }
   return flagged

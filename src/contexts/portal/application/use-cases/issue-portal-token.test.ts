@@ -7,6 +7,9 @@ import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { issueToken } from '../../domain/portal-token'
+import { createInMemoryPortalAddressRepo } from '#/shared/testing/in-memory-portal-address-repo'
+import { createInMemoryPortalAddressCipher } from '#/shared/testing/in-memory-portal-address-cipher'
+import { unbrand } from '#/shared/domain/ids'
 import { issuePortalToken } from './issue-portal-token'
 
 const NOW = new Date('2026-08-16T12:00:00.000Z')
@@ -42,6 +45,7 @@ describe('issuePortalToken', () => {
       portalRepo,
       portalTokenRepo,
       tokenCodec: { issue: vi.fn(() => material) } as unknown as PortalTokenCodec,
+      addressCipher: null,
       staffPublicApi,
       commandStore: createInMemoryPortalCommandStore({
         portalRepo,
@@ -126,6 +130,7 @@ describe('issuePortalToken', () => {
       portalRepo,
       portalTokenRepo,
       tokenCodec: { issue: vi.fn() } as unknown as PortalTokenCodec,
+      addressCipher: null,
       staffPublicApi,
       commandStore: createInMemoryPortalCommandStore({
         portalRepo,
@@ -140,5 +145,88 @@ describe('issuePortalToken', () => {
     await expect(
       useCase({ portalId: portal.id }, buildTestAuthContext()),
     ).rejects.toMatchObject({ code: 'token_unavailable' })
+  })
+
+  it('seals the address for the new token under its own scope when a cipher is configured', async () => {
+    const portalRepo = createInMemoryPortalRepo()
+    const portal = buildTestPortal({ updatedAt: CURRENT_REVISION })
+    portalRepo.seed([portal])
+    const portalTokenRepo = {
+      findLatestForPortal: vi.fn(async () => null),
+      insert: vi.fn(async () => undefined),
+    } as unknown as PortalTokenRepository
+    const portalAddressRepo = createInMemoryPortalAddressRepo()
+    const ids = [
+      '6a100000-0000-4000-8000-000000000001',
+      '6a100000-0000-4000-8000-000000000002',
+      '6a100000-0000-4000-8000-000000000003',
+    ]
+    const ctx = buildTestAuthContext()
+    const useCase = issuePortalToken({
+      portalRepo,
+      portalTokenRepo,
+      tokenCodec: { issue: vi.fn(() => material) } as unknown as PortalTokenCodec,
+      addressCipher: createInMemoryPortalAddressCipher({ activeKeyVersion: 3 }),
+      staffPublicApi,
+      commandStore: createInMemoryPortalCommandStore({
+        portalRepo,
+        portalTokenRepo,
+        portalAddressRepo,
+        outbox: createRecordedOutbox(),
+      }),
+      idGen: () => ids.shift()!,
+      clock: () => NOW,
+      baseUrl: 'https://example.test',
+    })
+
+    await useCase({ portalId: portal.id }, ctx)
+
+    const sealed = await portalAddressRepo.findRevealable(ctx.organizationId, portal.id)
+    expect(sealed).toMatchObject({
+      tokenId: '6a100000-0000-4000-8000-000000000001',
+      version: 1,
+      sealed: { keyVersion: 3 },
+      accessArtifactIds: {
+        qr: '6a100000-0000-4000-8000-000000000002',
+        nfc: '6a100000-0000-4000-8000-000000000003',
+      },
+    })
+    // Bound to its own row: the fake refuses any other scope, as the real cipher does.
+    expect(sealed?.sealed.ciphertext).toContain(
+      `${unbrand(ctx.organizationId)}/${unbrand(portal.propertyId)}/${unbrand(portal.id)}/6a100000-0000-4000-8000-000000000001/1`,
+    )
+  })
+
+  it('keeps the address request-local when no cipher is configured', async () => {
+    const portalRepo = createInMemoryPortalRepo()
+    const portal = buildTestPortal({ updatedAt: CURRENT_REVISION })
+    portalRepo.seed([portal])
+    const portalTokenRepo = {
+      findLatestForPortal: vi.fn(async () => null),
+      insert: vi.fn(async () => undefined),
+    } as unknown as PortalTokenRepository
+    const portalAddressRepo = createInMemoryPortalAddressRepo()
+    const ids = ['a', 'b', 'c']
+    const useCase = issuePortalToken({
+      portalRepo,
+      portalTokenRepo,
+      tokenCodec: { issue: vi.fn(() => material) } as unknown as PortalTokenCodec,
+      addressCipher: null,
+      staffPublicApi,
+      commandStore: createInMemoryPortalCommandStore({
+        portalRepo,
+        portalTokenRepo,
+        portalAddressRepo,
+        outbox: createRecordedOutbox(),
+      }),
+      idGen: () => ids.shift()!,
+      clock: () => NOW,
+      baseUrl: 'https://example.test',
+    })
+
+    await expect(
+      useCase({ portalId: portal.id }, buildTestAuthContext()),
+    ).resolves.toMatchObject({ rawToken: 'raw-token' })
+    expect(portalAddressRepo.sealedCount()).toBe(0)
   })
 })

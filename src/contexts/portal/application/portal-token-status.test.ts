@@ -18,6 +18,7 @@ describe('toPortalTokenStatus', () => {
         issuedAt: ISSUED,
         gracePeriodEnds: null,
         hasPublishedAccessArtifact: true,
+        addressKeyVersion: null,
       }),
     ).toEqual({
       hasActiveToken: true,
@@ -25,6 +26,7 @@ describe('toPortalTokenStatus', () => {
       version: 3,
       issuedAt: '2026-09-01T10:00:00.000Z',
       graceExpiresAt: null,
+      addressRecoverable: false,
     })
   })
 
@@ -35,11 +37,53 @@ describe('toPortalTokenStatus', () => {
         issuedAt: ISSUED,
         gracePeriodEnds: GRACE_END,
         hasPublishedAccessArtifact: false,
+        addressKeyVersion: null,
       }),
     ).toMatchObject({
       hasActiveToken: true,
       qualifiedScanReady: false,
       graceExpiresAt: '2026-10-01T10:00:00.000Z',
+    })
+  })
+
+  describe('addressRecoverable', () => {
+    const sealed = {
+      version: 1,
+      issuedAt: ISSUED,
+      gracePeriodEnds: null,
+      hasPublishedAccessArtifact: true,
+      addressKeyVersion: 2,
+    }
+
+    it('is on when the code was sealed and the keyring still holds that key', () => {
+      const status = toPortalTokenStatus(sealed, (version) => version === 2)
+      expect(status.addressRecoverable).toBe(true)
+    })
+
+    it('is off when the key that sealed the code was retired', () => {
+      expect(
+        toPortalTokenStatus(sealed, (version) => version === 3).addressRecoverable,
+      ).toBe(false)
+    })
+
+    it('is off when the code holds no sealed address', () => {
+      const status = toPortalTokenStatus(
+        { ...sealed, addressKeyVersion: null },
+        () => true,
+      )
+      expect(status.addressRecoverable).toBe(false)
+    })
+
+    it('is off when no keyring is configured, however the code was sealed', () => {
+      expect(toPortalTokenStatus(sealed).addressRecoverable).toBe(false)
+    })
+
+    it('is off for a code with no published markers, which could not be rebuilt', () => {
+      const status = toPortalTokenStatus(
+        { ...sealed, hasPublishedAccessArtifact: false },
+        () => true,
+      )
+      expect(status.addressRecoverable).toBe(false)
     })
   })
 })

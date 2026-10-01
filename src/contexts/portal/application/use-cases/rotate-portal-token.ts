@@ -3,6 +3,8 @@ import { portalAccessArtifactId, portalId } from '#/shared/domain/ids'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { PortalTokenRepository } from '../ports/portal-token.repository'
 import type { PortalTokenCodec } from '../ports/portal-token-codec.port'
+import type { PortalAddressCipher } from '../ports/portal-address-cipher.port'
+import { buildPortalPublicUrls } from '../portal-address-urls'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import { rotateToken } from '../../domain/portal-token'
@@ -19,6 +21,8 @@ export type RotatePortalTokenDeps = Readonly<{
   portalRepo: PortalRepository
   portalTokenRepo: PortalTokenRepository
   tokenCodec: PortalTokenCodec
+  /** Null when no keyring is configured: the address is then shown once (ADR 0062). */
+  addressCipher: PortalAddressCipher | null
   staffPublicApi: StaffPublicApi
   commandStore: PortalCommandStore
   idGen: () => string
@@ -101,6 +105,14 @@ export const rotatePortalToken =
     if (!gracePeriodEnds) {
       throw portalError('token_unavailable', 'Portal token rotation has no grace period')
     }
+    const sealedAddress =
+      deps.addressCipher?.seal(material.rawToken, {
+        organizationId: result.newToken.organizationId,
+        propertyId: result.newToken.propertyId,
+        portalId: result.newToken.portalId,
+        tokenId: result.newToken.id,
+        version: result.newToken.version,
+      }) ?? null
     const event = portalTokenRotated({
       portalId: portal.id,
       organizationId: portal.organizationId,
@@ -148,21 +160,18 @@ export const rotatePortalToken =
       expectedPortalUpdatedAt: portal.updatedAt,
       oldToken: result.oldToken,
       newToken: result.newToken,
+      issuedBy: ctx.userId,
+      sealedAddress,
       accessArtifacts,
       revision,
       occurredAt,
       event,
       accessArtifactEvents,
     })
-    const publicUrlFor = (artifact: (typeof accessArtifacts)[number]) => {
-      const url = new URL(`/p/${material.rawToken}`, deps.baseUrl)
-      url.searchParams.set('accessArtifact', artifact.id)
-      return url.toString()
-    }
-    const publicUrls = {
-      qr: publicUrlFor(qrArtifact),
-      nfc: publicUrlFor(nfcArtifact),
-    }
+    const publicUrls = buildPortalPublicUrls(deps.baseUrl, material.rawToken, {
+      qr: qrArtifact.id,
+      nfc: nfcArtifact.id,
+    })
     return {
       rawToken: material.rawToken,
       publicUrl: publicUrls.qr,
