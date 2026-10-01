@@ -13,7 +13,6 @@ import { sql } from 'drizzle-orm'
 import {
   check,
   foreignKey,
-  index,
   integer,
   pgTable,
   timestamp,
@@ -55,14 +54,14 @@ export const portalMediaAssets = pgTable(
     takenDownAt: timestamp('taken_down_at', { withTimezone: true }),
   },
   (t) => [
-    uniqueIndex('portal_media_assets_org_id_key').on(t.organizationId, t.id),
+    // The foreign-key target of every reference to an asset, and the index the
+    // per-Property lookups use (it leads with organization and Property).
     uniqueIndex('portal_media_assets_org_property_id_key').on(
       t.organizationId,
       t.propertyId,
       t.id,
     ),
     uniqueIndex('portal_media_assets_object_key_unique').on(t.objectKey),
-    index('portal_media_assets_property_idx').on(t.organizationId, t.propertyId),
     foreignKey({
       name: 'portal_media_assets_property_tenant_fk',
       columns: [t.organizationId, t.propertyId],

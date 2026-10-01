@@ -42,15 +42,13 @@ CREATE TABLE "portal_media_assets" (
 	CONSTRAINT "portal_media_assets_source_format_valid" CHECK ("portal_media_assets"."source_format" IN ('jpeg', 'png', 'webp')),
 	CONSTRAINT "portal_media_assets_source_bytes_positive" CHECK ("portal_media_assets"."source_bytes" >= 1)
 );--> statement-breakpoint
-CREATE UNIQUE INDEX "portal_media_assets_org_id_key" ON "portal_media_assets" USING btree ("organization_id","id");--> statement-breakpoint
 CREATE UNIQUE INDEX "portal_media_assets_org_property_id_key" ON "portal_media_assets" USING btree ("organization_id","property_id","id");--> statement-breakpoint
 CREATE UNIQUE INDEX "portal_media_assets_object_key_unique" ON "portal_media_assets" USING btree ("object_key");--> statement-breakpoint
-CREATE INDEX "portal_media_assets_property_idx" ON "portal_media_assets" USING btree ("organization_id","property_id");--> statement-breakpoint
 ALTER TABLE "portal_media_assets" ADD CONSTRAINT "portal_media_assets_property_tenant_fk" FOREIGN KEY ("organization_id","property_id") REFERENCES "public"."properties"("organization_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "property_portal_brand_profiles" ADD COLUMN "logo_asset_id" uuid;--> statement-breakpoint
 ALTER TABLE "property_portal_brand_profiles" ADD COLUMN "hero_asset_id" uuid;--> statement-breakpoint
-ALTER TABLE "property_portal_brand_profiles" ADD COLUMN "hero_focal_x" real;--> statement-breakpoint
-ALTER TABLE "property_portal_brand_profiles" ADD COLUMN "hero_focal_y" real;--> statement-breakpoint
+ALTER TABLE "property_portal_brand_profiles" ADD COLUMN "hero_focal_x" double precision;--> statement-breakpoint
+ALTER TABLE "property_portal_brand_profiles" ADD COLUMN "hero_focal_y" double precision;--> statement-breakpoint
 ALTER TABLE "portal_links" ADD COLUMN "image_asset_id" uuid;--> statement-breakpoint
 ALTER TABLE "property_portal_brand_profiles" ADD CONSTRAINT "property_portal_brand_profiles_logo_asset_fk" FOREIGN KEY ("organization_id","property_id","logo_asset_id") REFERENCES "public"."portal_media_assets"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
 ALTER TABLE "property_portal_brand_profiles" ADD CONSTRAINT "property_portal_brand_profiles_hero_asset_fk" FOREIGN KEY ("organization_id","property_id","hero_asset_id") REFERENCES "public"."portal_media_assets"("organization_id","property_id","id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint

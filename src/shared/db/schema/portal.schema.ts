@@ -21,7 +21,7 @@ import {
   jsonb,
   boolean,
   integer,
-  real,
+  doublePrecision,
   text,
   timestamp,
   index,
@@ -121,8 +121,8 @@ export const propertyPortalBrandProfiles = pgTable(
     heroAssetId: uuid('hero_asset_id'),
     // Where the photograph is anchored when the page crops it: 0 to 1 across
     // and down. Present exactly when there is a hero asset.
-    heroFocalX: real('hero_focal_x'),
-    heroFocalY: real('hero_focal_y'),
+    heroFocalX: doublePrecision('hero_focal_x'),
+    heroFocalY: doublePrecision('hero_focal_y'),
     primaryColor: varchar('primary_color', { length: 7 }).notNull(),
     backgroundColor: varchar('background_color', { length: 7 }).notNull(),
     textColor: varchar('text_color', { length: 7 }).notNull(),

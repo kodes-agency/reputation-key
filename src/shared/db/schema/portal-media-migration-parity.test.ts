@@ -50,6 +50,21 @@ describe('migration 0046 Portal media assets', () => {
     }
   })
 
+  it('stores the focal point as double precision, so 0.3 reads back as 0.3', () => {
+    expect(MIGRATION).toContain('"hero_focal_x" double precision')
+    expect(MIGRATION).toContain('"hero_focal_y" double precision')
+    expect(MIGRATION).not.toMatch(/"hero_focal_[xy]" real/)
+  })
+
+  it('keeps only the indexes something uses', () => {
+    // (organization_id, property_id, id) is the foreign-key target and also
+    // serves the per-Property lookups; the primary key already makes id unique.
+    expect(MIGRATION).not.toContain('portal_media_assets_org_id_key')
+    expect(MIGRATION).not.toContain('portal_media_assets_property_idx')
+    expect(MIGRATION).toContain('portal_media_assets_org_property_id_key')
+    expect(MIGRATION).toContain('portal_media_assets_object_key_unique')
+  })
+
   it('is journalled after the Property look model', () => {
     const entry = JOURNAL.entries.find((candidate) => candidate.idx === 46)
     expect(entry?.tag).toBe('0046_portal_media_assets')
