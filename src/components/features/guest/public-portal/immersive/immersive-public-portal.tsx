@@ -16,6 +16,7 @@ import { ImmersiveLinktree } from './immersive-linktree'
 import { bindLinkSelector } from './linktree-follow'
 import { ImmersiveResponseView } from './immersive-response-view'
 import { ImmersiveShell } from './immersive-shell'
+import { useGuestClock } from './use-guest-clock'
 import { useImmersiveGuestResponse } from './use-immersive-guest-response'
 
 /** What the route hands a live Immersive Hub page: the loader's data, the pack and the bound actions. */
@@ -34,7 +35,7 @@ export type ImmersivePublicPortalProps = Readonly<{
   csrfNonce: string
   initialResponse: GuestResponseView | null
   availability: 'available' | 'permission_denied' | 'error'
-  /** The instant the server read the page: deadlines are written against it, not the browser's clock. */
+  /** The instant the server read the page: deadlines are written against it first, then it moves on with the time the page is open (`useGuestClock`). */
   servedAt: string
   actions: GuestResponseActions &
     Readonly<{
@@ -75,6 +76,7 @@ export function ImmersivePublicPortal(props: ImmersivePublicPortalProps) {
     actions: props.actions,
   })
   const { csrfNonce, yourResponse, ...response } = session
+  const now = useGuestClock(props.servedAt, session.response)
   const hasRated =
     session.response !== null &&
     session.response.status !== 'deleted' &&
@@ -117,7 +119,7 @@ export function ImmersivePublicPortal(props: ImmersivePublicPortalProps) {
         displayName={brand.displayName}
         yourResponse={{
           ...yourResponse,
-          clock: { now: props.servedAt, timeZone: immersive.timeZone },
+          clock: { now, timeZone: immersive.timeZone },
         }}
       />
       <ImmersiveLinktree
