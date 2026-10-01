@@ -1,5 +1,6 @@
 import type { Action } from '#/components/hooks/use-action'
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
+import type { PortalPrintKitResources } from './portal-print-kit-types'
 
 export type IssuedPortalLink = Readonly<{
   publicUrl: string
@@ -48,5 +49,7 @@ export type PortalShareProps = Readonly<{
   /** An address fetched again is held like a made one, until the page is left. */
   onAddressRevealed: (link: IssuedPortalLink) => void
   onLinksRevoked: () => void
+  /** The Print kit section's read and download. Absent: the tab offers no print kit. */
+  printKit?: PortalPrintKitResources
 }> &
   PortalShareMutations

@@ -36,6 +36,8 @@ type SharePanelProps = Pick<
   | 'rotateTokenMutation'
   | 'revokeTokenMutation'
   | 'revealAddressMutation'
+  | 'getPortalPrintKit'
+  | 'downloadPrintKitMutation'
 > &
   PortalLinkIssuance
 
@@ -46,6 +48,8 @@ function SharePanel({
   rotateTokenMutation,
   revokeTokenMutation,
   revealAddressMutation,
+  getPortalPrintKit,
+  downloadPrintKitMutation,
   issuedLink,
   linksRevoked,
   onLinkIssued,
@@ -66,6 +70,11 @@ function SharePanel({
       rotateMutation={rotateTokenMutation}
       revokeMutation={revokeTokenMutation}
       revealMutation={revealAddressMutation}
+      printKit={
+        getPortalPrintKit && downloadPrintKitMutation
+          ? { read: getPortalPrintKit, downloadMutation: downloadPrintKitMutation }
+          : undefined
+      }
     />
   )
 }

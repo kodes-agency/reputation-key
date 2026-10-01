@@ -14,6 +14,7 @@ import {
   savePropertyPortalBrandContent,
   updatePortal,
 } from '#/contexts/portal/server/portals'
+import { downloadPortalPrintKit } from '#/contexts/portal/server/portal-print-kit'
 import { publishPortalChanges } from '#/contexts/portal/server/portal-publish-changes'
 import { updatePortalResponsibleManagers } from '#/contexts/portal/server/portal-responsible-managers'
 import type { Action } from '#/components/hooks/use-action'
@@ -140,6 +141,9 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
   // Silent: the address appearing is the acknowledgement. Nothing to refetch,
   // since a download changes no state the page shows (History reads it itself).
   const revealAddress = useActionMutation(revealPortalAddress)
+  // Silent on success (the browser's own download is the acknowledgement); the
+  // Print kit section shows a refusal under its button.
+  const downloadPrintKit = useActionMutation(downloadPortalPrintKit)
   const revokeToken = useActionMutation(revokePortalTokens, {
     successMessage: 'All codes stopped',
     invalidateKeys: tokenInvalidations,
@@ -188,6 +192,7 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
     rotateToken,
     revokeToken,
     revealAddress,
+    downloadPrintKit,
     completeReview,
     updateResponsibleManagers,
     makeVersionLive,

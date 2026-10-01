@@ -95,6 +95,7 @@ import { issuePortalToken } from './application/use-cases/issue-portal-token'
 import { rotatePortalToken } from './application/use-cases/rotate-portal-token'
 import { revokePortalTokens } from './application/use-cases/revoke-portal-tokens'
 import { revealPortalAddress } from './application/use-cases/reveal-portal-address'
+import { buildPortalPrintKit } from './build-print-kit'
 import {
   resolvePublicPortalToken,
   type GuestLocalePreference,
@@ -246,6 +247,14 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     idGen: deps.idGen,
     clock: deps.clock,
   }
+  const revealAddress = revealPortalAddress({
+    portalRepo,
+    staffPublicApi: deps.staffPublicApi,
+    portalAddressRepo,
+    addressCipher: portalAddressCipher,
+    clock: deps.clock,
+    baseUrl: deps.baseUrl,
+  })
   const useCases = {
     revalidatePortalApprovedDestinations: revalidatePortalApprovedDestinations({
       destinationRepo: portalApprovedDestinationRepo,
@@ -601,13 +610,15 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       baseUrl: deps.baseUrl,
       defaultGracePeriodSeconds: 30 * 24 * 60 * 60,
     }),
-    revealPortalAddress: revealPortalAddress({
+    revealPortalAddress: revealAddress,
+    ...buildPortalPrintKit({
       portalRepo,
       staffPublicApi: deps.staffPublicApi,
-      portalAddressRepo,
-      addressCipher: portalAddressCipher,
+      publicationRepo: portalPublicationRepo,
+      mediaRepo: portalMediaAssetRepo,
+      objectStore: storage,
+      revealAddress,
       clock: deps.clock,
-      baseUrl: deps.baseUrl,
     }),
     revokePortalTokens: revokePortalTokens({
       portalRepo,

@@ -31,8 +31,9 @@ export function PortalDetailPage(props: PortalDetailPageProps) {
 
       {view.tab === 'page' ? (
         <PortalEditor resources={props} requestedSection={activeSection} />
-      ) : view.tab === 'history' ? (
-        // The ledger and its Versions rail run edge to edge, like the editor.
+      ) : view.tab === 'history' || view.tab === 'share' ? (
+        // The ledger and its Versions rail, and the Share tab with its print
+        // preview, run edge to edge, like the editor; each lays out its own columns.
         <PortalDetailTabPanel {...props} {...issuance} tab={view.tab} />
       ) : (
         <PortalWorkspaceBodyFrame wide={view.tab === 'results'}>

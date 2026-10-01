@@ -27,16 +27,23 @@ async function qrcode() {
   return module.default
 }
 
-/** The code as a standalone SVG document, with its quiet zone drawn in. */
+type QrColors = Readonly<{ dark: string; light: string }>
+
+/**
+ * The code as a standalone SVG document, with its quiet zone drawn in. The
+ * colours default to the ones every download uses; the print kit's preview asks
+ * for the print's own.
+ */
 export async function renderQrSvg(
   address: string,
   quietZoneModules: number = QR_QUIET_ZONE_MODULES,
+  colors: QrColors = COLORS,
 ): Promise<string> {
   const QRCode = await qrcode()
   return QRCode.toString(address, {
     type: 'svg',
     margin: quietZoneModules,
-    color: COLORS,
+    color: colors,
   })
 }
 

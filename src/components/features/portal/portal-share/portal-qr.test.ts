@@ -85,6 +85,16 @@ describe('portal code rendering', () => {
     }
   })
 
+  it("draws the SVG in the colours it is asked for, the print kit preview's own paper and ink", async () => {
+    const svg = await renderQrSvg(ADDRESS, QR_QUIET_ZONE_MODULES, {
+      dark: '#121614',
+      light: '#f6f1e6',
+    })
+    expect(svg).toMatch(/#121614/iu)
+    expect(svg).toMatch(/#f6f1e6/iu)
+    expect(await renderQrSvg(ADDRESS)).not.toMatch(/#121614/iu)
+  })
+
   it('returns a standalone vector file with no script in it', async () => {
     const svg = await renderQrSvg(ADDRESS)
     expect(svg.startsWith('<svg')).toBe(true)
