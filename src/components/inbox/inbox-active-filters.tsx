@@ -48,7 +48,7 @@ function ActiveFiltersRow({ rowRef, chips, onRemove, onClearAll }: RowProps) {
       role="group"
       aria-label="Active filters"
       style={stripFadeStyle(edges)}
-      className="flex h-11 shrink-0 items-center gap-2 overflow-x-auto border-b px-4 scroll-px-4 [scrollbar-width:none]"
+      className="flex h-11 shrink-0 items-center gap-2 overflow-x-auto border-b px-4 scroll-px-6 [scrollbar-width:none]"
     >
       {chips.map((chip, index) => (
         <button

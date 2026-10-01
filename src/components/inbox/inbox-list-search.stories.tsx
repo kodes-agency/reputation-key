@@ -14,7 +14,7 @@ const meta: Meta<typeof InboxListSearch> = {
   parameters: { layout: 'centered' },
   decorators: [
     (Story) => (
-      <div className="flex w-[360px] items-center border px-4">
+      <div className="flex w-80 items-center border px-4">
         <Story />
       </div>
     ),

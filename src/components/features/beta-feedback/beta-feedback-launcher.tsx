@@ -75,7 +75,7 @@ export function BetaFeedbackLauncher({ submitFeedback, listFeedback }: Props) {
           launcher carrying that state.
 
           36 px tall below md. Where the label is hidden (below sm) the button
-          is a 36 px square: `max-sm:w-9`, not `max-sm:px-0`, because the
+          is a 36 px square: a fixed width, not zero side padding, because the
           size's `has-[>svg]:px-2.5` outranks a breakpoint padding utility.
         */}
         <Button

@@ -140,6 +140,17 @@
 // which s40 recorded at 331,663 B): 332,881 B (80 js + 1 css), +1,218 B. `main`
 // had 337 B of headroom under its 332,000 B. The budget moves to 333,300 B.
 //
+// 2026-10-01 (inbox phone bars, #675): the phone grid for the inbox bars, the
+// "Sort and filter" sheet, its choice chips and the active-filter chips add
+// about 25 phone-only Tailwind utilities (gutters, optical pulls, the sheet's
+// shape, the rows' resting gutter and tap targets) to the one global
+// stylesheet; the components themselves are in the inbox's lazy chunks. Three
+// utilities that only a comment or a story named were cut first (-21 B). Fresh
+// production builds of main (cfd084377) and of this change rebased onto it:
+// 333,126 B -> 333,447 B (79 js + 1 css), +321 B: styles.css 26,580 B ->
+// 26,895 B (+315 B), the entry chunk 43,769 B -> 43,760 B. `main` had 174 B of
+// headroom under its 333,300 B. The budget moves to 333,800 B.
+//
 // When this fails: resolve the new static importer and cut that source edge. Do
 // NOT raise the budget without recording a fresh production measurement here.
 // When a cycle fails it: the chunk group that moved a module away from the
@@ -155,7 +166,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 333_300, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730; raised to 331,400 on 2026-10-01 for the Linktree editor rebased onto the Languages section, measured 331,093; raised to 332,000 on 2026-10-01 for the All properties route, measured 331,663 (main 331,230)
+  initialClosureGzip: 333_800, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730; raised to 331,400 on 2026-10-01 for the Linktree editor rebased onto the Languages section, measured 331,093; raised to 332,000 on 2026-10-01 for the All properties route, measured 331,663 (main 331,230); raised to 333,300 for the group page route, measured 332,881; raised to 333,800 on 2026-10-01 for the inbox phone bars, measured 333,447 (main 333,126)
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 
