@@ -61,7 +61,7 @@ type VerificationFailureLog = Readonly<{
  * user's sessions, so a throw would leave every old session (a stolen one
  * included) alive. Verification is therefore best-effort and never fails the
  * reset: a user it misses recovers through resendVerificationEmail. The log
- * names the user id only, never the address.
+ * line carries no identity at all (neither id nor address).
  */
 export const markEmailVerifiedOnPasswordReset =
   (pool: VerificationWriter, logger: VerificationFailureLog) =>
@@ -73,7 +73,7 @@ export const markEmailVerifiedOnPasswordReset =
       )
     } catch (error) {
       logger.error(
-        { userId: user.id, error },
+        { error },
         'auth.password_reset_verify_failed: the address stays unverified; sessions are still revoked',
       )
     }

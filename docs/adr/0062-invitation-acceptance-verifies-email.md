@@ -52,7 +52,7 @@ to allow for:
 6. **A password reset verifies.** The reset token was mailed to the address, so
    `onPasswordReset` marks it verified. That write is best-effort: Better Auth
    revokes the user's sessions only after the hook returns, so a failure is
-   logged by user id and never fails the reset. Sign-in reports an unverified
+   logged (without naming the user) and never fails the reset. Sign-in reports an unverified
    address as `email_not_verified` (403), and `resendVerificationEmail` sends a
    new link.
    It is rate-limited per IP and per pseudonymised address, and it always

@@ -110,7 +110,7 @@ describe('Auth configuration', () => {
     expect(logger.error).not.toHaveBeenCalled()
   })
 
-  it('a failed verification write cannot fail the reset, and is logged by user id only', async () => {
+  it('a failed verification write cannot fail the reset, and is logged without naming the user', async () => {
     // Better Auth awaits this hook after the password update and BEFORE it
     // revokes the user's sessions. A throw here would spend the token, change
     // the password and leave every old session — a stolen one included —
@@ -131,9 +131,11 @@ describe('Auth configuration', () => {
       Record<string, unknown>,
       string,
     ]
-    expect(fields).toEqual({ userId: 'user-reset-2', error: failure })
+    // Neither the id nor the address: the line says what failed, not for whom.
+    expect(fields).toEqual({ error: failure })
     expect(message).toMatch(/auth\.password_reset_verify_failed/)
     expect(JSON.stringify(fields)).not.toContain('reset-2@example.test')
+    expect(JSON.stringify(fields)).not.toContain('user-reset-2')
   })
 
   it('keeps verification tokens valid for the 24-hour email promise', async () => {
