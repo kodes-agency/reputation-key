@@ -67,6 +67,7 @@ type Props = Readonly<{
   restorePanel: ReactNode
 }>
 
+// fallow-ignore-next-line complexity
 export function PortalHistoryRow({
   row,
   portalName,

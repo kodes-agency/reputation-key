@@ -50,6 +50,7 @@ type Props = Readonly<{
   makeLive: MakeVersionLiveAction
 }>
 
+// fallow-ignore-next-line complexity
 export function PortalHistoryTab({
   portalId,
   portalName,

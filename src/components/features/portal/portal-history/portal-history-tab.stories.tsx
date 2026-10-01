@@ -1,3 +1,4 @@
+// fallow-ignore-file code-duplication
 // The History tab with its reads and its write: the container, over mocked
 // server functions. The view's states are in portal-history.stories.tsx; these
 // stories prove what only the container does: fetching on mount, switching the

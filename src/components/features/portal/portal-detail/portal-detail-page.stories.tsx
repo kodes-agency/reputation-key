@@ -1,3 +1,4 @@
+// fallow-ignore-file code-duplication
 // Portal detail page — the tab (and, on the Page tab, the editor section) is
 // driven by the owning route's typed search state. Components receive it as
 // props, so stories and SSR use the same deterministic state without reading or

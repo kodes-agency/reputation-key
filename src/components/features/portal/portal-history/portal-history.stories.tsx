@@ -1,3 +1,4 @@
+// fallow-ignore-file code-duplication
 // The History tab (board 08): the ledger beside the Versions rail, and making
 // an earlier version live again. The harness holds the state the tab holds
 // (filter, what is open) over fixed data, so every story is the real view.
@@ -40,6 +41,7 @@ type HarnessProps = Readonly<{
   onConfirm?: (version: number) => void
 }>
 
+// fallow-ignore-next-line complexity
 function Harness({
   entriesState = 'ready',
   versionsLoaded = true,

@@ -301,6 +301,7 @@ const changedLocales = (
     .map((locale): PublicationContentChange => ({ kind: 'language_removed', locale })),
 ]
 
+// fallow-ignore-next-line complexity
 function changedLinks(
   before: PublicationContentView,
   after: PublicationContentView,

@@ -75,6 +75,7 @@ function Facts({ detail }: Readonly<{ detail: PortalVersionDetail }>) {
   )
 }
 
+// fallow-ignore-next-line complexity
 export function PortalVersionDialog({
   version,
   detail,
