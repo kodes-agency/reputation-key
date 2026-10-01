@@ -3,16 +3,10 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
 import { withRole } from '../../../../../.storybook/AuthedRouterDecorator'
+import { mockAction } from '../../../../../.storybook/mocks/mock-action'
+import { unhandledRejectionsDuring } from '../../../../../.storybook/play-helpers'
 import { InvitationTable } from './invitation-table'
 import { MemberTable } from './member-table'
-
-const action = <TInput,>(): Action<TInput> =>
-  Object.assign(async (_input: TInput) => undefined, {
-    isPending: false,
-    error: null,
-    isSuccess: false,
-    data: null,
-  }) as Action<TInput>
 
 /**
  * A command the server refuses. A plain function, not `fn()`: the spy attaches
@@ -20,14 +14,11 @@ const action = <TInput,>(): Action<TInput> =>
  * would mark the rejection handled and hide exactly what the stories look for.
  */
 const refusedAction = <TInput,>(refusals: Error[]): Action<TInput> =>
-  Object.assign(
-    async (_input: TInput) => {
-      const refusal = new Error('refused')
-      refusals.push(refusal)
-      throw refusal
-    },
-    { isPending: false, error: null, isSuccess: false, data: null },
-  ) as Action<TInput>
+  mockAction<TInput>(async () => {
+    const refusal = new Error('refused')
+    refusals.push(refusal)
+    throw refusal
+  })
 
 type MemberTableProps = Parameters<typeof MemberTable>[0]
 type InvitationActions = Pick<
@@ -68,7 +59,7 @@ const STRANDED_MANAGER = {
 }
 
 function MemberRows({
-  removeMemberAction = action(),
+  removeMemberAction = mockAction(),
   showProperties = true,
   members = [ADMIN, MANAGER, STRANDED_MANAGER],
   currentUserId = ADMIN.userId,
@@ -128,8 +119,8 @@ const INVITATIONS: Parameters<typeof InvitationTable>[0]['invitations'] = [
 
 function InvitationRows({
   invitations = INVITATIONS,
-  resendAction = action(),
-  cancelAction = action(),
+  resendAction = mockAction(),
+  cancelAction = mockAction(),
 }: Partial<InvitationActions> & {
   invitations?: Parameters<typeof InvitationTable>[0]['invitations']
 }) {
@@ -161,26 +152,22 @@ function expectRectangularTable(canvasElement: HTMLElement) {
 }
 
 /**
- * The unhandled rejections raised while `act` runs. `unhandledrejection` is
- * dispatched from a task queued after the microtask checkpoint, so two task
- * turns are waited out before reading.
+ * The rejections `act` left unhandled, with the story's table and the document
+ * (where the confirmation dialogs portal to) to act on.
  */
-async function unhandledRejectionsDuring(act: () => Promise<void>): Promise<unknown[]> {
-  const unhandled: unknown[] = []
-  const record = (event: PromiseRejectionEvent) => {
-    event.preventDefault()
-    unhandled.push(event.reason)
-  }
-  window.addEventListener('unhandledrejection', record)
-  try {
-    await act()
-    await new Promise((resolve) => setTimeout(resolve, 0))
-    await new Promise((resolve) => setTimeout(resolve, 0))
-  } finally {
-    window.removeEventListener('unhandledrejection', record)
-  }
-  return unhandled
-}
+const unhandledRejectionsWhile = (
+  canvasElement: HTMLElement,
+  act: (views: {
+    canvas: ReturnType<typeof within>
+    page: ReturnType<typeof within>
+  }) => Promise<void>,
+) =>
+  unhandledRejectionsDuring(() =>
+    act({
+      canvas: within(canvasElement),
+      page: within(canvasElement.ownerDocument.body),
+    }),
+  )
 
 /** A Property Manager reads the list: no Properties column, no actions. */
 export const ReadOnlyMembers: Story = {
@@ -287,19 +274,20 @@ export const RefusedInvitationCommands: Story = {
   ),
   play: async ({ canvasElement }) => {
     invitationRefusals.length = 0
-    const canvas = within(canvasElement)
-    const page = within(canvasElement.ownerDocument.body)
-    const unhandled = await unhandledRejectionsDuring(async () => {
-      await userEvent.click(
-        canvas.getByRole('button', { name: /^Resend invitation to / }),
-      )
-      await userEvent.click(
-        canvas.getByRole('button', { name: /^Cancel invitation to / }),
-      )
-      await userEvent.click(
-        await page.findByRole('button', { name: 'Cancel invitation' }),
-      )
-    })
+    const unhandled = await unhandledRejectionsWhile(
+      canvasElement,
+      async ({ canvas, page }) => {
+        await userEvent.click(
+          canvas.getByRole('button', { name: /^Resend invitation to / }),
+        )
+        await userEvent.click(
+          canvas.getByRole('button', { name: /^Cancel invitation to / }),
+        )
+        await userEvent.click(
+          await page.findByRole('button', { name: 'Cancel invitation' }),
+        )
+      },
+    )
     expect(invitationRefusals).toHaveLength(2)
     expect(unhandled).toEqual([])
   },
@@ -315,12 +303,13 @@ export const RefusedMemberRemoval: Story = {
   ),
   play: async ({ canvasElement }) => {
     memberRefusals.length = 0
-    const canvas = within(canvasElement)
-    const page = within(canvasElement.ownerDocument.body)
-    const unhandled = await unhandledRejectionsDuring(async () => {
-      await userEvent.click(canvas.getByRole('button', { name: 'Remove' }))
-      await userEvent.click(await page.findByRole('button', { name: 'Remove member' }))
-    })
+    const unhandled = await unhandledRejectionsWhile(
+      canvasElement,
+      async ({ canvas, page }) => {
+        await userEvent.click(canvas.getByRole('button', { name: 'Remove' }))
+        await userEvent.click(await page.findByRole('button', { name: 'Remove member' }))
+      },
+    )
     expect(memberRefusals).toHaveLength(1)
     expect(unhandled).toEqual([])
   },

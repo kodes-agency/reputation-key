@@ -6,26 +6,22 @@
 // (AccountAdmin) per the member-directory convention.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import type { AnyAction } from '#/components/hooks/use-action'
 import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
+import {
+  mockAction,
+  type MockActionState,
+} from '../../../../../.storybook/mocks/mock-action'
 import { InviteMemberForm } from './invite-member-form'
 
 type InviteInput = {
   data: { email: string; role: BetaInteractiveRole; propertyIds: string[] }
 }
 
-function makeAction(
+const makeAction = (
   impl: (input: InviteInput) => Promise<unknown>,
-  overrides: { isPending?: boolean; error?: unknown; isSuccess?: boolean } = {},
-): AnyAction {
-  return Object.assign(impl, {
-    isPending: overrides.isPending ?? false,
-    error: overrides.error ?? null,
-    isSuccess: overrides.isSuccess ?? false,
-    data: null,
-  })
-}
+  state?: MockActionState,
+) => mockAction<InviteInput>(impl, state)
 
 // The safe role first: an invitation starts as a Property Manager.
 const allowedRoles: ReadonlyArray<BetaInteractiveRole> = [

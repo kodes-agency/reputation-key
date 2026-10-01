@@ -3,13 +3,18 @@
 // rejects the route's Action; the dialog settles it and stays open for a retry.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
-import type { Action } from '#/components/hooks/use-action'
 import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
+import { mockAction } from '../../../../../.storybook/mocks/mock-action'
+import {
+  expectHeldOpen,
+  unhandledRejectionsDuring,
+} from '../../../../../.storybook/play-helpers'
 import { ChangeRoleDialog } from './change-role-dialog'
 
 type UpdateInput = { data: { memberId: string; role: BetaInteractiveRole } }
-type UpdateAction = Action<UpdateInput>
+const action = (impl: (input: UpdateInput) => Promise<unknown>, isPending = false) =>
+  mockAction<UpdateInput>(impl, { isPending })
 
 const allowedRoles: ReadonlyArray<BetaInteractiveRole> = [
   'PropertyManager',
@@ -21,17 +26,6 @@ const manager = {
   role: 'PropertyManager' as const,
 }
 const admin = { id: 'member-3', name: 'Petar Kolev', role: 'AccountAdmin' as const }
-
-const action = (
-  impl: (input: UpdateInput) => Promise<unknown>,
-  isPending = false,
-): UpdateAction =>
-  Object.assign(impl, {
-    isPending,
-    error: null,
-    isSuccess: false,
-    data: null,
-  }) as UpdateAction
 
 const meta: Meta<typeof ChangeRoleDialog> = {
   title: 'Identity/MemberDirectory/ChangeRoleDialog',
@@ -120,13 +114,7 @@ export const CannotBeLeftWhileChanging: Story = {
     onClose: fn(),
     updateRoleAction: action(() => new Promise<unknown>(() => {}), true),
   },
-  play: async ({ args }) => {
-    const body = within(await dialog())
-    expect(body.getByRole('button', { name: 'Cancel' })).toBeDisabled()
-    await userEvent.keyboard('{Escape}')
-    expect(args.onClose).not.toHaveBeenCalled()
-    expect(await dialog()).toBeInTheDocument()
-  },
+  play: ({ args }) => expectHeldOpen(dialog, args.onClose),
 }
 
 /**
@@ -145,21 +133,11 @@ export const Refused: Story = {
   },
   play: async () => {
     refusals.length = 0
-    const unhandled: unknown[] = []
-    const record = (event: PromiseRejectionEvent) => {
-      event.preventDefault()
-      unhandled.push(event.reason)
-    }
-    window.addEventListener('unhandledrejection', record)
-    try {
+    const unhandled = await unhandledRejectionsDuring(async () => {
       const body = within(await dialog())
       await userEvent.click(body.getByRole('radio', { name: /property manager/i }))
       await userEvent.click(body.getByRole('button', { name: 'Change role' }))
-      await new Promise((resolve) => setTimeout(resolve, 0))
-      await new Promise((resolve) => setTimeout(resolve, 0))
-    } finally {
-      window.removeEventListener('unhandledrejection', record)
-    }
+    })
     expect(refusals).toHaveLength(1)
     expect(unhandled).toEqual([])
     expect(await dialog()).toBeInTheDocument()
