@@ -26,43 +26,8 @@ import {
   submitted,
   type Locale,
 } from './__fixtures__/guest-page-fixtures'
+import { directChildren, text } from './__fixtures__/markup-walk'
 
-const TAG = /<(\/?)([a-zA-Z][\w-]*)((?:"[^"]*"|'[^']*'|[^>"'])*)>/g
-const VOID_TAGS = new Set(['img', 'input', 'br', 'hr', 'meta', 'link'])
-
-/** Direct-child markup of the first element whose opening tag contains `marker`. */
-function directChildren(html: string, marker: string): string[] {
-  const opening = html.indexOf(marker)
-  expect(opening, `${marker} is present`).toBeGreaterThan(-1)
-  const from = html.lastIndexOf('<', opening)
-  const children: string[] = []
-  let depth = 0
-  let childStart = -1
-  TAG.lastIndex = from
-  for (let match = TAG.exec(html); match; match = TAG.exec(html)) {
-    const [whole, closing, name] = match
-    const selfContained =
-      VOID_TAGS.has((name ?? '').toLowerCase()) || whole.endsWith('/>')
-    if (closing) depth -= 1
-    else if (!selfContained) depth += 1
-    if (!closing && depth === 2 && childStart === -1) childStart = match.index
-    if (childStart !== -1 && depth === 1) {
-      children.push(html.slice(childStart, match.index + whole.length))
-      childStart = -1
-    }
-    if (closing && depth === 0) return children
-    if (selfContained && !closing && depth === 1 && childStart === -1) {
-      children.push(whole)
-    }
-  }
-  throw new Error(`${marker} is not closed`)
-}
-
-const text = (html: string) =>
-  html
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
 const ratedSection = (html: string) =>
   directChildren(html, 'aria-labelledby="rating-receipt-heading"')
 const noteVisible = (response: GuestResponseView) =>
