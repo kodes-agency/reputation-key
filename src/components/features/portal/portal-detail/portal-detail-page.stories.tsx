@@ -257,6 +257,7 @@ const baseArgs = {
       activationSequence: 1,
       version: 1,
       kind: 'publish' as const,
+      activatedBy: { userId: 'user-1', displayName: 'Georgi Ivanov' },
       activatedAt: '2026-08-20T10:00:00.000Z',
       deactivatedAt: null,
       deactivationReason: null,

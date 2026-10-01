@@ -6,7 +6,8 @@ import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import type { PropertyId } from '#/shared/domain/ids'
+import type { PortalActorDirectory } from '../ports/portal-actor-directory.port'
+import { userId, type PropertyId, type UserId } from '#/shared/domain/ids'
 
 const NOW = new Date('2026-08-26T14:00:00.000Z')
 const portal = buildTestPortal({ publicationState: 'published' })
@@ -37,6 +38,22 @@ function publishedSnapshot(version: number, slug: string) {
     createdBy: 'manager-1',
     createdAt: new Date(NOW.getTime() - (3 - version) * 60_000),
   })
+}
+
+/** Names two of the people the fixtures use; anyone else is unknown to the directory. */
+const NAMES: ReadonlyMap<string, string> = new Map([
+  ['manager-1', 'Georgi Ivanov'],
+  ['manager-2', 'Elena Petrova'],
+])
+const actorDirectory: PortalActorDirectory = {
+  resolveDisplayNames: vi.fn(async (_org, ids: readonly UserId[]) => {
+    const found = new Map<UserId, string>()
+    for (const id of ids) {
+      const name = NAMES.get(id)
+      if (name !== undefined) found.set(userId(id), name)
+    }
+    return found
+  }),
 }
 
 const peopleApi = (accessible: readonly PropertyId[] | null = null): StaffPublicApi => ({
@@ -113,6 +130,14 @@ function setup(
               key: 'bg',
               sourceVersion: 'v2',
               changedAt: NOW,
+              changedBy: 'manager-2',
+            },
+            {
+              kind: 'portal_links' as const,
+              key: 'all',
+              sourceVersion: 'v3',
+              changedAt: NOW,
+              changedBy: null,
             },
           ]
         : [],
@@ -123,6 +148,7 @@ function setup(
       portalRepo,
       publicationRepo,
       staffPublicApi: peopleApi(options?.accessible ?? null),
+      actorDirectory,
     }),
     publicationRepo,
     listActivationHistoryPage,
@@ -179,6 +205,7 @@ function setupLocalized(options?: Readonly<{ workingDisplayName?: string }>) {
     portalRepo,
     publicationRepo,
     staffPublicApi: peopleApi(),
+    actorDirectory,
   })
 }
 
@@ -191,6 +218,7 @@ describe('getPortalPublicationHistory', () => {
         activationSequence: 3,
         version: 1,
         kind: 'rollback',
+        activatedBy: { userId: 'manager-2', displayName: 'Elena Petrova' },
         activatedAt: NOW.toISOString(),
         deactivatedAt: null,
         deactivationReason: null,
@@ -200,6 +228,7 @@ describe('getPortalPublicationHistory', () => {
           activationSequence: 2,
           version: 2,
           kind: 'publish',
+          activatedBy: { userId: 'manager-1', displayName: 'Georgi Ivanov' },
           activatedAt: new Date(NOW.getTime() - 60_000).toISOString(),
           deactivatedAt: NOW.toISOString(),
           deactivationReason: 'replaced',
@@ -251,9 +280,39 @@ describe('getPortalPublicationHistory', () => {
           kind: 'property_brand_content',
           key: 'bg',
           changedAt: NOW.toISOString(),
+          changedBy: { userId: 'manager-2', displayName: 'Elena Petrova' },
+        },
+        {
+          kind: 'portal_links',
+          key: 'all',
+          changedAt: NOW.toISOString(),
+          changedBy: null,
         },
       ],
     })
+  })
+
+  it('names a publisher the directory cannot name without exposing anything else', async () => {
+    const harness = setup()
+    vi.mocked(actorDirectory.resolveDisplayNames).mockResolvedValueOnce(new Map())
+
+    const result = await harness.useCase({ portalId: portal.id }, ctx)
+
+    expect(result.current?.activatedBy).toEqual({
+      userId: 'manager-2',
+      displayName: null,
+    })
+  })
+
+  it('asks the directory once, for the people behind the page and the open changes', async () => {
+    const harness = setup({ durablePending: true })
+    vi.mocked(actorDirectory.resolveDisplayNames).mockClear()
+
+    await harness.useCase({ portalId: portal.id }, ctx)
+
+    expect(actorDirectory.resolveDisplayNames).toHaveBeenCalledTimes(1)
+    const [, ids] = vi.mocked(actorDirectory.resolveDisplayNames).mock.calls[0] ?? []
+    expect([...(ids ?? [])].sort()).toEqual(['manager-1', 'manager-2'])
   })
 
   it('does not mark an identical localized experience as pending', async () => {

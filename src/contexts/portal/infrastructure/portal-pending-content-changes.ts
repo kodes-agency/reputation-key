@@ -20,6 +20,8 @@ export async function recordPortalPendingContentChange(
     key?: string
     sourceVersion: string
     changedAt: Date
+    /** Who made the change; null for the system. The first record of a revision keeps its person. */
+    changedBy?: string | null
   }>,
 ): Promise<number> {
   const key = input.key?.trim() || 'all'
@@ -54,6 +56,7 @@ export async function recordPortalPendingContentChange(
         changeKey: key,
         sourceVersion: input.sourceVersion,
         changedAt: input.changedAt,
+        changedBy: input.changedBy ?? null,
       })),
     )
     .onConflictDoNothing()

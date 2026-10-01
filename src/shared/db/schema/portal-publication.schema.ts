@@ -277,6 +277,9 @@ export const portalPendingContentChanges = pgTable(
     changeKey: varchar('change_key', { length: 160 }).notNull().default('all'),
     sourceVersion: varchar('source_version', { length: 160 }).notNull(),
     changedAt: timestamp('changed_at', { withTimezone: true }).notNull(),
+    // Who first recorded this revision's change. Null for the system and for
+    // rows written before the column existed.
+    changedBy: varchar('changed_by', { length: 255 }),
     resolvedSnapshotId: uuid('resolved_snapshot_id'),
     resolvedAt: timestamp('resolved_at', { withTimezone: true }),
   },

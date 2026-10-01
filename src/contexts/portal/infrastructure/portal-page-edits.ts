@@ -226,7 +226,7 @@ type PendingInput = Parameters<typeof recordPortalPendingContentChange>[1]
  */
 export async function recordPortalContentChange(
   tx: Tx,
-  input: Omit<PendingInput, 'key'> &
+  input: Omit<PendingInput, 'key' | 'changedBy'> &
     Readonly<{
       key?: string
       actorUserId: string | null
@@ -248,5 +248,5 @@ export async function recordPortalContentChange(
       occurredAt: fence.changedAt,
     })
   }
-  return recordPortalPendingContentChange(tx, fence)
+  return recordPortalPendingContentChange(tx, { ...fence, changedBy: actorUserId })
 }

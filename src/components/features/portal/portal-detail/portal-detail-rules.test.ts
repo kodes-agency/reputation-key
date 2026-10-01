@@ -192,6 +192,7 @@ describe('describePendingChanges — the "not live" note in the header', () => {
       kind: 'portal_links' as const,
       key,
       changedAt: '2026-09-30T10:00:00.000Z',
+      changedBy: null,
     })
     expect(
       describePendingChanges({
@@ -222,6 +223,7 @@ describe('countPendingChanges — the draft line of the History rail', () => {
     kind: 'portal_links' as const,
     key,
     changedAt: '2026-09-30T10:00:00.000Z',
+    changedBy: null,
   })
 
   it('is zero when the draft matches what guests see', () => {

@@ -62,10 +62,7 @@ import {
   publishPortalsChanges,
 } from './application/use-cases/publish-portal-changes'
 import { getPortal } from './application/use-cases/get-portal'
-import { getPortalPublicationHistory } from './application/use-cases/get-portal-publication-history'
-import { getPortalHistory } from './application/use-cases/get-portal-history'
-import { getPortalVersions } from './application/use-cases/get-portal-versions'
-import { getPortalVersion } from './application/use-cases/get-portal-version'
+import { buildPortalHistoryReads } from './build-history-reads'
 import { listPortals } from './application/use-cases/list-portals'
 import { listPortalOverview } from './application/use-cases/list-portal-overview'
 import { softDeletePortal } from './application/use-cases/soft-delete-portal'
@@ -409,30 +406,18 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       addressCipher: portalAddressCipher,
       clock: deps.clock,
     }),
-    getPortalPublicationHistory: getPortalPublicationHistory({
+    ...buildPortalHistoryReads({
       portalRepo,
+      portalLinkRepo,
+      experienceRepo: portalExperienceRepo,
       publicationRepo: portalPublicationRepo,
-      staffPublicApi: deps.staffPublicApi,
-    }),
-    getPortalHistory: getPortalHistory({
-      portalRepo,
-      staffPublicApi: deps.staffPublicApi,
       historyRepo: portalHistoryRepo,
       healthRepo: portalHealthRepo,
       actorDirectory: portalActorDirectory,
-    }),
-    getPortalVersions: getPortalVersions({
-      portalRepo,
+      portalTokenRepo,
+      propertyApi: deps.propertyApi,
       staffPublicApi: deps.staffPublicApi,
-      historyRepo: portalHistoryRepo,
-      publicationRepo: portalPublicationRepo,
-      actorDirectory: portalActorDirectory,
-    }),
-    getPortalVersion: getPortalVersion({
-      portalRepo,
-      staffPublicApi: deps.staffPublicApi,
-      publicationRepo: portalPublicationRepo,
-      actorDirectory: portalActorDirectory,
+      clock: deps.clock,
     }),
     listPortals: listPortals({ portalRepo, staffPublicApi: deps.staffPublicApi }),
     listPortalOverview: listPortalOverview({

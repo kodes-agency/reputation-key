@@ -36,6 +36,7 @@ const live = {
   activationSequence: 5,
   version: 5,
   kind: 'publish' as const,
+  activatedBy: { userId: 'user-1', displayName: 'Georgi Ivanov' },
   activatedAt: '2026-09-22T10:00:00.000Z',
   deactivatedAt: null,
   deactivationReason: null,

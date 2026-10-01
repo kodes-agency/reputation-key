@@ -2,18 +2,27 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalRepository } from '../ports/portal.repository'
+import type { PortalActorDirectory } from '../ports/portal-actor-directory.port'
 import type {
   PortalPublicationActivationRecord,
   PortalPublicationRepository,
 } from '../ports/portal-publication.repository'
 import { workingCopyMatchesSnapshot } from '../portal-working-copy-match'
 import { loadPortalOrThrow } from '../load-accessible-portal'
+import {
+  namedVersionActor,
+  resolveVersionActors,
+  versionActor,
+  type PortalVersionActor,
+} from '../portal-version-actors'
 import { portalError } from '../../domain/errors'
 
 export type PortalPublicationHistoryItem = Readonly<{
   activationSequence: number
   version: number
   kind: 'publish' | 'rollback'
+  /** Who published or restored this version. A person the directory cannot name has no name. */
+  activatedBy: PortalVersionActor
   activatedAt: string
   deactivatedAt: string | null
   deactivationReason: 'disabled' | 'archived' | 'replaced' | null
@@ -28,6 +37,8 @@ export type PortalPublicationHistory = Readonly<{
       kind: import('../ports/portal-publication.repository').PortalPendingContentChange['kind']
       key: string
       changedAt: string
+      /** Who made the change; null for the system and for a change made before it was recorded. */
+      changedBy: PortalVersionActor | null
     }>
   >
   nextCursor: number | null
@@ -40,15 +51,18 @@ type Deps = Readonly<{
   portalRepo: PortalRepository
   publicationRepo: PortalPublicationRepository
   staffPublicApi: StaffPublicApi
+  actorDirectory: PortalActorDirectory
 }>
 
 function historyItem(
   record: PortalPublicationActivationRecord,
+  names: ReadonlyMap<string, string>,
 ): PortalPublicationHistoryItem {
   return {
     activationSequence: record.activation.activationSequence,
     version: record.snapshot.version,
     kind: record.activation.kind,
+    activatedBy: namedVersionActor(record.activation.activatedBy, names),
     activatedAt: record.activation.activatedAt.toISOString(),
     deactivatedAt: record.activation.deactivatedAt?.toISOString() ?? null,
     deactivationReason: record.activation.deactivationReason,
@@ -97,15 +111,20 @@ export const getPortalPublicationHistory =
 
     const currentRecord = page.current
     const baseline = page.current ?? page.latest
+    const names = await resolveVersionActors(deps.actorDirectory, ctx.organizationId, [
+      ...(currentRecord ? [currentRecord.activation.activatedBy] : []),
+      ...page.records.map((record) => record.activation.activatedBy),
+      ...pendingChanges.map((change) => change.changedBy),
+    ])
     return {
-      current: currentRecord ? historyItem(currentRecord) : null,
+      current: currentRecord ? historyItem(currentRecord, names) : null,
       priorActivations: page.records
         .filter(
           (record) =>
             record.activation.activationSequence !==
             currentRecord?.activation.activationSequence,
         )
-        .map(historyItem),
+        .map((record) => historyItem(record, names)),
       hasPendingChanges:
         pendingChanges.length > 0 ||
         (baseline ? !workingCopyMatchesSnapshot(workingCopy, baseline.snapshot) : false),
@@ -113,6 +132,7 @@ export const getPortalPublicationHistory =
         kind: change.kind,
         key: change.key,
         changedAt: change.changedAt.toISOString(),
+        changedBy: versionActor(change.changedBy, names),
       })),
       nextCursor: page.nextCursor,
     }

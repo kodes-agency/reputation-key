@@ -483,12 +483,17 @@ describe.sequential('Portal publication repository (real PostgreSQL)', () => {
       'f5000000-0000-4000-8000-000000000001',
     )
     await getDb().insert(portalPublicationSnapshots).values(snapshotRow(published))
-    const change = (kind: string, key: string, resolved: boolean) =>
+    const change = (
+      kind: string,
+      key: string,
+      resolved: boolean,
+      changedBy: string | null = null,
+    ) =>
       getPool().query(
         `INSERT INTO portal_pending_content_changes
            (organization_id, property_id, portal_id, change_kind, change_key,
-            source_version, changed_at, resolved_snapshot_id, resolved_at)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+            source_version, changed_at, resolved_snapshot_id, resolved_at, changed_by)
+         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)`,
         [
           ORG,
           PROPERTY,
@@ -499,9 +504,10 @@ describe.sequential('Portal publication repository (real PostgreSQL)', () => {
           NOW,
           resolved ? published.id : null,
           resolved ? NOW : null,
+          changedBy,
         ],
       )
-    await change('portal_configuration', 'all', false)
+    await change('portal_configuration', 'all', false, 'manager-publication-1')
     await change('portal_links', 'all', false)
     await change('portal_links', 'settled', true)
 
@@ -509,6 +515,16 @@ describe.sequential('Portal publication repository (real PostgreSQL)', () => {
     const open = await repo.listOpenPendingContentChanges?.(ORG, PROPERTY, PORTAL)
 
     expect(open).toHaveLength(2)
+    // Who made each change comes back with it; a change nobody is recorded for is null.
+    // The read promises no order among changes made at the same instant.
+    expect(
+      open
+        ?.map((row) => [row.kind, row.changedBy])
+        .sort((a, b) => `${a[0]}`.localeCompare(`${b[0]}`)),
+    ).toEqual([
+      ['portal_configuration', 'manager-publication-1'],
+      ['portal_links', null],
+    ])
     await expect(repo.countOpenPendingContentChanges(ORG, [PORTAL])).resolves.toEqual([
       { portalId: PORTAL, count: 2 },
     ])
