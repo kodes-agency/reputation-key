@@ -216,6 +216,54 @@ The target Railway topology binds those variables to one private, cell-local
 `object-store` bucket; the variable names retain their `AWS_S3_*` compatibility
 prefix and do not identify the live storage provider.
 
+**Live bucket (beta, recorded 2026-10-01).** Railway bucket `object-store`
+(region `sjc`, private; Railway has no public buckets), wired on web and worker as
+`AWS_S3_ACCESS_KEY`, `AWS_S3_SECRET_ACCESS_KEY`, `AWS_S3_BUCKET_NAME` (the
+generated S3 name, display name plus a short hash), `AWS_S3_REGION=auto`,
+`S3_INTERNAL_ENDPOINT=S3_PRESIGN_ENDPOINT=https://t3.storageapi.dev` and
+`S3_FORCE_PATH_STYLE=false`. Railway addresses a bucket by virtual-host URL, so a
+signed URL is `https://<bucket>.t3.storageapi.dev/<key>`.
+
+How each path works against it:
+
+- **Portal images** are written and read by the server (`putObject`,
+  `getObject`) and served from `/api/public/portal-media/:assetId`. No browser
+  ever talks to the bucket and no CORS rule is involved.
+- **Avatars and organization logos** are uploaded by the browser with a presigned
+  `PUT` (`avatars/<user>/<uuid>`, `organizations/<org>/logo/<uuid>`), confirmed by
+  the server (`confirmUpload` is a `HEAD`; it returns no URL), and stored as an
+  address on the app, `<BETTER_AUTH_URL>/api/public/identity-assets/<key>`. That
+  route reads the object back and serves it, for the two key shapes above and
+  only for `image/jpeg|png|webp|gif`. No provider or AWS URL is ever stored, so
+  the stored value survives a change of endpoint, region or provider. A value
+  stored before this change (an `s3.<region>.amazonaws.com` address) never worked
+  against Railway; the owner uploads the picture or logo again.
+- **Content Security Policy.** `connect-src` carries the origin the upload is
+  signed for, derived from `S3_PRESIGN_ENDPOINT` (else `S3_INTERNAL_ENDPOINT`),
+  `AWS_S3_BUCKET_NAME` and `S3_FORCE_PATH_STYLE`: here
+  `https://<bucket>.t3.storageapi.dev`. `img-src` needs nothing for the bucket,
+  because images are same-origin.
+- **Signatures.** The clients send checksums only when the protocol requires
+  them (`requestChecksumCalculation: WHEN_REQUIRED`). The SDK default signs the
+  checksum of an empty body into a presigned `PUT`, which a store that checks it
+  rejects for any real file.
+
+**One manual step Railway needs, not done by code: bucket CORS.** A browser
+`PUT` to the bucket is cross-origin. Without a CORS rule the avatar and logo
+uploads fail in the browser even though the signature is right. Set it once per
+bucket from a shell that has the bucket credentials (never commit them):
+
+```shell
+AWS_ACCESS_KEY_ID=<bucket access key> AWS_SECRET_ACCESS_KEY=<bucket secret> \
+  aws s3api put-bucket-cors --bucket <AWS_S3_BUCKET_NAME> \
+  --endpoint-url https://t3.storageapi.dev \
+  --cors-configuration '{"CORSRules":[{"AllowedHeaders":["*"],"AllowedMethods":["PUT"],"AllowedOrigins":["<BETTER_AUTH_URL origin>"],"MaxAgeSeconds":3000}]}'
+```
+
+Allow only the app's own origin and only `PUT`. Drill: sign in on the beta,
+upload an avatar and an organization logo, and check that the browser's `PUT`
+returns 2xx and the picture then loads from `/api/public/identity-assets/...`.
+
 Bucket lifecycle remains external platform configuration. Before changing the
 live storage surface, record the exact provider/cell, provider lifecycle rules,
 deletion and restore behavior, and an end-to-end drill against the real object

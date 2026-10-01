@@ -130,11 +130,12 @@ design rather than a checklist.
   exist, then scrubs the rows; a failed removal leaves the phase `purging` and
   the next pass repeats it. The data export carries the asset rows (key, size,
   hash, status, takedown and removal times), not the image bytes.
-- **Known remaining AWS-only URL.** `getPublicUrl` is gone, but the storage
-  adapter's `confirmUpload` still returns an `s3.<region>.amazonaws.com` URL,
-  which Identity's avatar and organisation-logo finalize use cases store. With
-  region `auto` on Railway it is not a working address. It predates this slice
-  and is outside it; it needs its own change (serve those images the same way).
+- **No provider URL is stored (settled after this slice).** `getPublicUrl` is
+  gone and `confirmUpload` no longer returns an address at all (it confirms the
+  object exists). Identity's avatar and organisation-logo finalize use cases
+  store an address on the app, `/api/public/identity-assets/<key>`, which reads
+  the private object back the way Portal media is served. See
+  `docs/operations/backup-and-lifecycle.md` §3.
 - `sharp` is a runtime dependency with a native binding. It is externalized in
   the Nitro build and the worker bundle so it resolves from the installed
   `node_modules`, where pnpm links its platform package beside it.
