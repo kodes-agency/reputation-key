@@ -264,6 +264,8 @@ export const portalKeys = {
    */
   preview: (portalId: string, source: 'draft' | 'live') =>
     [...portalKeys.publicationHistory(portalId), 'preview', source] as const,
+  /** The guest copy pack the preview prints in one language; it never changes while the app runs. */
+  previewCopy: (locale: string) => [...portalKeys.all, 'preview-copy', locale] as const,
   propertyExperience: (propertyId: string) =>
     [...portalKeys.forProperty(propertyId), 'experience'] as const,
   experience: (propertyId: string, portalId: string) =>

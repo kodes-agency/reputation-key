@@ -19,6 +19,7 @@ import type {
   UpdatePortalVariables,
 } from '../shared/types'
 import type { getPortalAnalyticsFn } from '#/contexts/reporting/server/portal-analytics'
+import type { PortalPreviewReader } from '../portal-preview/portal-preview-pane'
 import type {
   PortalLanguageCoverage,
   PortalLinktreeView,
@@ -83,6 +84,8 @@ export type PortalDetailResources = Readonly<{
   /** C2: whether a public link is live. The raw URL is never part of this. */
   tokenStatus: PortalTokenStatus
   getPortalAnalytics: typeof getPortalAnalyticsFn
+  /** The editor's live preview read: the draft, or the version guests can open now. */
+  getPortalPreview: PortalPreviewReader
   responsibleManagers?: PortalResponsibleManagerState
   responsibleManagerMembers?: readonly ResponsibleManagerMember[]
   updateResponsibleManagersMutation?: Action<{

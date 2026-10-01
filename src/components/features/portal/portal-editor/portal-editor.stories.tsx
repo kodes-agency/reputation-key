@@ -4,6 +4,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, mocked, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
+import { previewReader } from '../portal-preview/__fixtures__/portal-preview-fixtures'
 import { PortalEditor } from './portal-editor'
 import { PortalDraftAutosaveProvider } from './portal-draft-autosave-context'
 import { PortalDraftSaveStatus } from './portal-draft-save-status'
@@ -31,8 +32,6 @@ function EditorWithStatus({ resources, requestedSection }: EditorStoryProps) {
         requestedSection={requestedSection}
         theme={resources.portal.theme}
         onThemeChange={() => undefined}
-        previewOpen={false}
-        onPreviewToggle={() => undefined}
       />
     </div>
   )
@@ -183,6 +182,7 @@ function makeResources(
       approveDestination: action(async () => undefined),
       disableDestination: action(async () => undefined),
     },
+    getPortalPreview: previewReader(),
   } satisfies PortalEditorResources
 }
 

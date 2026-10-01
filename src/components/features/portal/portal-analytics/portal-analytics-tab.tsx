@@ -55,8 +55,7 @@ function remember(key: string, value: string): void {
     localStorage.setItem(key, value)
   } catch {
     // Ignore storage errors (Safari private mode, sandboxed iframes): a
-    // preference write must never take down the tab. Matches
-    // portal-preview/use-preview-toggle.ts.
+    // preference write must never take down the tab.
   }
 }
 

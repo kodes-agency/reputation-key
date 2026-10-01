@@ -27,7 +27,7 @@ export type PortalEditorSectionProps = Readonly<{
   canEdit: boolean
 }>
 
-/** The palette draft, which the preview also reads, so the page owns it. */
+/** The palette draft, which outlives a section switch, so the page owns it. */
 export type PortalEditorThemeControls = Readonly<{
   theme: PortalThemeDraft
   onThemeChange: (theme: PortalThemeDraft) => void

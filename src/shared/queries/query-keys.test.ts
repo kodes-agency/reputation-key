@@ -243,6 +243,13 @@ describe('portal preview query key', () => {
   })
 })
 
+describe('portal preview copy query key', () => {
+  it('is per language and outside every Portal, so no Portal write refreshes it', () => {
+    expect(portalKeys.previewCopy('bg')).toEqual(['portals', 'preview-copy', 'bg'])
+    expect(portalKeys.previewCopy('bg')).not.toEqual(portalKeys.previewCopy('en'))
+  })
+})
+
 describe('portal analytics query keys', () => {
   it('isolates each range within a property-scoped portal analytics subtree', () => {
     expect(portalKeys.analytics('property-1', 'portal-1', 'last_30_days', true)).toEqual([

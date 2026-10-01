@@ -4,6 +4,7 @@
 // owns the once-shown public link and the autosave coordinator.
 import { createFileRoute, notFound } from '@tanstack/react-router'
 import { getPortalAnalyticsFn } from '#/contexts/reporting/server/portal-analytics'
+import { getPortalPreview } from '#/contexts/portal/server/portal-preview'
 import { PortalDetailPage } from '#/components/features/portal/portal-detail/portal-detail-page'
 import { usePortalDetailActions } from '../-portal-detail-actions'
 import { usePortalDetailData } from '../-portal-detail-data'
@@ -52,6 +53,7 @@ function PortalWorkspaceEditor() {
       revokeTokenMutation={actions.revokeToken}
       revealAddressMutation={actions.revealAddress}
       getPortalAnalytics={getPortalAnalyticsFn}
+      getPortalPreview={getPortalPreview}
       completeReviewMutation={actions.completeReview}
       responsibleManagers={data.responsibleManagers}
       responsibleManagerMembers={data.membersData.members}

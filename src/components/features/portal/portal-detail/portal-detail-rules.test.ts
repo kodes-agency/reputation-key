@@ -1,6 +1,6 @@
 // Portal detail shell rules — the decisions the page used to make inline in
 // JSX. The types cannot catch a wrong *value*: a withheld tab reappearing
-// through a deep link, the preview following a tab that cannot show one, or a
+// through a deep link, or a
 // dirty check that reports every refetch as an unsaved edit.
 
 import { describe, expect, it } from 'vitest'
@@ -130,20 +130,6 @@ describe('derivePortalDetailView — which tabs are offered', () => {
     expect(derivePortalDetailView('page', true).hiddenTabs).toBe(
       derivePortalDetailView('history', true).hiddenTabs,
     )
-  })
-})
-
-describe('derivePortalDetailView — where the preview belongs', () => {
-  it('offers the preview only on the tab that edits what it mirrors', () => {
-    expect(derivePortalDetailView('page', true).showPreview).toBe(true)
-    expect(derivePortalDetailView('share', true).showPreview).toBe(false)
-    expect(derivePortalDetailView('results', true).showPreview).toBe(false)
-    expect(derivePortalDetailView('history', true).showPreview).toBe(false)
-  })
-
-  it('follows the tab that renders, not the one the URL asked for', () => {
-    // The withheld results deep link lands on the Page tab, which HAS a preview.
-    expect(derivePortalDetailView('results', false).showPreview).toBe(true)
   })
 })
 

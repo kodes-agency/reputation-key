@@ -1,6 +1,5 @@
 // Every decision the portal workspace shell makes, with no JSX and no hooks:
-// which tab the URL really asks for, which tabs are offered, whether that tab
-// has a preview, what the quiet status line says, and whether the theme draft
+// which tab the URL really asks for, which tabs are offered, what the quiet status line says, and whether the theme draft
 // diverges from what is saved. The shell reads as a flat description of what is
 // on screen because the answers are derived here — the same split
 // portal-share-state.ts makes for the Share tab.
@@ -81,18 +80,10 @@ function resolveTab(raw: unknown): Readonly<{
 const RESULTS_HIDDEN: ReadonlyArray<PortalDetailTab> = ['results']
 const NONE_HIDDEN: ReadonlyArray<PortalDetailTab> = []
 
-/**
- * The live preview mirrors the theme draft and the link tree, so it only means
- * anything on the tab that edits them; Share, Results and History get neither
- * the toggle nor the panel.
- */
-const TABS_WITH_PREVIEW: ReadonlyArray<PortalDetailTab> = ['page']
-
 export type PortalDetailView = Readonly<{
   /** The tab actually rendered — not always the one the URL asked for. */
   tab: PortalDetailTab
   hiddenTabs: ReadonlyArray<PortalDetailTab>
-  showPreview: boolean
 }>
 
 export function derivePortalDetailView(
@@ -106,7 +97,6 @@ export function derivePortalDetailView(
   return {
     tab,
     hiddenTabs: resultsAvailable ? NONE_HIDDEN : RESULTS_HIDDEN,
-    showPreview: TABS_WITH_PREVIEW.includes(tab),
   }
 }
 
