@@ -6,7 +6,6 @@
 import { and, eq, isNull, or } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import {
-  portalResponsibleManagers,
   portalHealthIntervals,
   portals,
   portalTokens,
@@ -22,7 +21,6 @@ import {
 import { trace } from '#/shared/observability/trace'
 import { unbrand } from '#/shared/domain/ids'
 import type {
-  CreatePortalCommand,
   DeletePortalCommand,
   PortalCommandStore,
   PortalPublicationMutation,
@@ -37,13 +35,13 @@ import {
 } from './portal-working-copy.reader'
 import { workingCopyMatchesSnapshot } from '../application/portal-working-copy-match'
 import { snapshotMirrorColumns } from './mappers/portal-publication-snapshot.mapper'
-import { portalToRow } from './mappers/portal.mapper'
 import { verifyPortalPublicationSnapshot } from '../application/portal-publication-snapshot'
 import { assertCommittedRevision, sameInstant } from './portal-command-guards'
 import { createPortalGroupCommands } from './portal-group-commands'
 import { createPortalLinkCommands } from './portal-link-commands'
 import { assertLocaleSetFact, watchPrimaryLocaleChange } from './portal-locale-set'
 import { createPortalTokenCommands } from './portal-token-commands'
+import { createPortalCreateCommand } from './portal-create-command'
 
 type PortalSetValues = {
   name?: string
@@ -71,86 +69,6 @@ const PORTAL_WORKING_COPY_FIELDS: ReadonlySet<string> = new Set([
 
 function hasPortalWorkingCopyPatch(patch: UpdatePortalCommand['patch']): boolean {
   return Object.keys(patch).some((key) => PORTAL_WORKING_COPY_FIELDS.has(key))
-}
-
-/** The `portal.created` fact must name exactly the Portal being written. */
-function matchesPortalCreationScope(command: CreatePortalCommand): boolean {
-  const { portal, event } = command
-  return (
-    portal.organizationId === command.organizationId &&
-    event.organizationId === command.organizationId &&
-    event.propertyId === portal.propertyId &&
-    event.portalId === portal.id &&
-    event.publicationState === portal.publicationState &&
-    event.sourceAggregateVersion === portal.updatedAt.toISOString() &&
-    sameInstant(event.occurredAt, portal.createdAt)
-  )
-}
-
-/** Initial Health may only assert the Draft posture, pinned to the creation revision. */
-function matchesInitialDraftHealth(
-  health: NonNullable<CreatePortalCommand['health']>,
-  portal: CreatePortalCommand['portal'],
-): boolean {
-  return (
-    health.sourceVersion === portal.updatedAt.toISOString() &&
-    sameInstant(health.effectiveAt, portal.createdAt) &&
-    health.value.status === 'unavailable' &&
-    health.value.reason === 'publication_draft'
-  )
-}
-
-/** The recovery fact must carry the same scope and revision as the Portal it covers. */
-function matchesResponsibilityFactScope(
-  fact: NonNullable<CreatePortalCommand['responsibilityNeededEvent']>,
-  command: CreatePortalCommand,
-): boolean {
-  const { portal } = command
-  return (
-    fact.organizationId === command.organizationId &&
-    fact.propertyId === portal.propertyId &&
-    fact.portalId === portal.id &&
-    fact.sourceAggregateVersion === portal.updatedAt.toISOString() &&
-    sameInstant(fact.occurredAt, portal.createdAt)
-  )
-}
-
-function assertCreateCommand(command: CreatePortalCommand): void {
-  const { portal, responsibilityNeededEvent, initialResponsibleManagerId } = command
-  if (!matchesPortalCreationScope(command)) {
-    throw portalError('forbidden', 'Tenant or resource mismatch on Portal creation')
-  }
-  const needsResponsibility = initialResponsibleManagerId === null
-  if (
-    needsResponsibility !== Boolean(responsibilityNeededEvent) ||
-    needsResponsibility !== (portal.responsibilityNeededSince !== null)
-  ) {
-    throw portalError(
-      'revision_conflict',
-      'Portal responsibility state and recovery fact must be committed together',
-    )
-  }
-  if (command.health && !matchesInitialDraftHealth(command.health, portal)) {
-    throw portalError('forbidden', 'Initial Portal Health does not match Draft state')
-  }
-  if (
-    initialResponsibleManagerId !== null &&
-    portal.createdBy !== initialResponsibleManagerId
-  ) {
-    throw portalError(
-      'responsible_manager_ineligible',
-      'initial responsible manager must be the eligible Portal creator',
-    )
-  }
-  if (
-    responsibilityNeededEvent &&
-    !matchesResponsibilityFactScope(responsibilityNeededEvent, command)
-  ) {
-    throw portalError(
-      'forbidden',
-      'Tenant or resource mismatch on Portal responsibility fact',
-    )
-  }
 }
 
 function buildPortalSetClause(patch: Readonly<Partial<Portal>>): PortalSetValues {
@@ -616,55 +534,7 @@ export const createAtomicPortalCommandStore = (db: Database): PortalCommandStore
     ...createPortalLinkCommands(db),
     ...createPortalGroupCommands(db),
     ...createPortalTokenCommands(db),
-    createPortal: async (command) =>
-      trace('portal.commandStore.createPortal', async () => {
-        assertCreateCommand(command)
-        await db.transaction(async (tx) => {
-          const [created] = await tx
-            .insert(portals)
-            .values(portalToRow(command.portal))
-            .returning({ updatedAt: portals.updatedAt })
-          assertCommittedRevision(
-            created,
-            command.portal.updatedAt,
-            'Portal',
-            'Portal creation did not return its command revision',
-          )
-          if (command.initialResponsibleManagerId) {
-            await tx.insert(portalResponsibleManagers).values({
-              organizationId: command.organizationId,
-              propertyId: command.portal.propertyId,
-              portalId: command.portal.id,
-              userId: command.initialResponsibleManagerId,
-              effectiveFrom: command.portal.createdAt,
-              createdBy: command.initialResponsibleManagerId,
-            })
-          }
-          if (command.health) {
-            await tx.insert(portalHealthIntervals).values({
-              id: command.health.id,
-              organizationId: unbrand(command.organizationId),
-              propertyId: unbrand(command.portal.propertyId),
-              portalId: unbrand(command.portal.id),
-              status: command.health.value.status,
-              reason: command.health.value.reason,
-              sourceVersion: command.health.sourceVersion,
-              effectiveFrom: command.health.effectiveAt,
-              effectiveTo: null,
-              observedAt: command.health.observedAt,
-            })
-          }
-          await insertOutboxRow(tx, command.event, {
-            recordedAt: command.portal.createdAt,
-          })
-          if (command.responsibilityNeededEvent) {
-            await insertOutboxRow(tx, command.responsibilityNeededEvent, {
-              recordedAt: command.portal.createdAt,
-            })
-          }
-        })
-      }),
-
+    ...createPortalCreateCommand(db),
     updatePortal: async (command) =>
       trace('portal.commandStore.updatePortal', async () => {
         assertUpdateCommand(command)

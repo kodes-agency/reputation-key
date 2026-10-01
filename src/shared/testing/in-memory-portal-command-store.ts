@@ -1,7 +1,10 @@
 // Test-only Portal command store. Production always uses the atomic PostgreSQL
 // implementation; this fake keeps application tests at the command-store seam.
 
-import type { PortalCommandStore } from '#/contexts/portal/application/ports/portal-command-store.port'
+import type {
+  CopiedPortalOverride,
+  PortalCommandStore,
+} from '#/contexts/portal/application/ports/portal-command-store.port'
 import type { InMemoryPortalRepo } from './in-memory-portal-repo'
 import type { PortalRepository } from '#/contexts/portal/application/ports/portal.repository'
 import type { PortalTokenRepository } from '#/contexts/portal/application/ports/portal-token.repository'
@@ -19,6 +22,11 @@ export function createInMemoryPortalCommandStore(deps: {
   portalTokenRepo?: PortalTokenRepository
   portalGroupRepo?: PortalGroupRepository
   portalLinkRepo?: PortalLinkRepository
+  /** Where the wording copied into a new Portal lands; the fake has no override table. */
+  onCopiedOverrides?: (
+    portalId: string,
+    overrides: ReadonlyArray<CopiedPortalOverride>,
+  ) => void
 }): PortalCommandStore {
   const outbox = deps.outbox ?? createRecordedOutbox()
   const mutablePortalRepo = deps.portalRepo as InMemoryPortalRepo
@@ -72,9 +80,63 @@ export function createInMemoryPortalCommandStore(deps: {
       await mutablePortalRepo.insert(
         command.organizationId,
         command.portal,
-        command.initialResponsibleManagerId,
+        command.initialResponsibleManagerIds[0] ?? null,
       )
       await outbox.record(command.event)
+      if (command.groupMembership) {
+        const { portalGroupId, expectedGroupUpdatedAt, revision, event } =
+          command.groupMembership
+        if (!deps.portalGroupRepo) {
+          throw new Error('in-memory Portal Group repository is not configured')
+        }
+        const group = await deps.portalGroupRepo.findById(
+          command.organizationId,
+          portalGroupId,
+        )
+        if (!group || group.updatedAt.getTime() !== expectedGroupUpdatedAt.getTime()) {
+          throw portalError('revision_conflict', 'Portal Group changed during command')
+        }
+        await deps.portalGroupRepo.update(command.organizationId, portalGroupId, {
+          updatedAt: revision,
+        })
+        await deps.portalGroupRepo.addPortal(
+          command.organizationId,
+          portalGroupId,
+          command.portal.id,
+          command.portal.createdAt,
+          command.portal.createdBy ?? '',
+        )
+        await outbox.record(event)
+      }
+      if (command.copiedContent) {
+        const { categories, links, linkTexts, overrides } = command.copiedContent
+        const writer = {
+          actorUserId: command.portal.createdBy ?? '',
+          at: command.portal.createdAt,
+        }
+        for (const category of categories) {
+          await linkRepo().insertCategory(command.organizationId, category)
+        }
+        for (const link of links)
+          await linkRepo().insertLink(command.organizationId, link)
+        for (const link of links) {
+          linkRepo().saveTexts(
+            String(link.id),
+            linkTexts.filter((text) => text.linkId === link.id),
+            writer,
+          )
+        }
+        for (const override of overrides) {
+          if (override.linktreeTitle !== null) {
+            linkRepo().saveLinktreeTitle(
+              String(command.portal.id),
+              override.locale,
+              override.linktreeTitle,
+            )
+          }
+        }
+        deps.onCopiedOverrides?.(String(command.portal.id), overrides)
+      }
       if (command.responsibilityNeededEvent) {
         await outbox.record(command.responsibilityNeededEvent)
       }

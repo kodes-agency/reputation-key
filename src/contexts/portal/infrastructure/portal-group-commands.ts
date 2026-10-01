@@ -7,7 +7,7 @@ import type { Database } from '#/shared/db'
 import { portals } from '#/shared/db/schema'
 import { portalGroups } from '#/shared/db/schema/portal-group.schema'
 import { portalGroupMemberships } from '#/shared/db/schema/people-access.schema'
-import { insertOutboxRow } from '#/shared/outbox/commit'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { unbrand } from '#/shared/domain/ids'
 import type {
@@ -95,7 +95,7 @@ function assertUpdatePortalGroupCommand(command: UpdatePortalGroupCommand): void
   }
 }
 
-function assertMembershipCommand(
+export function assertMembershipCommand(
   command: AddPortalToGroupCommand | RemovePortalFromGroupCommand,
   expectedTag: 'portal_group.portal_added' | 'portal_group.portal_removed',
 ): void {
@@ -152,6 +152,76 @@ async function fencePortalGroup(
     'Portal Group',
     'Portal Group changed while the command was being committed',
   )
+}
+
+/**
+ * Put a Portal in a group inside a command transaction: fence the group, check
+ * the Portal is an active one of the same Property and not already grouped,
+ * write the effective-dated membership and its fact. Shared by the membership
+ * command and by Portal creation (the new Portal joins its group in the same
+ * commit), so both hold the same rules.
+ */
+export async function joinPortalGroupInTransaction(
+  tx: Tx,
+  command: AddPortalToGroupCommand,
+): Promise<void> {
+  await fencePortalGroup(tx, command)
+  await tx.execute(sql`
+    SELECT id FROM portals
+    WHERE organization_id = ${unbrand(command.organizationId)}
+      AND property_id = ${unbrand(command.propertyId)}
+      AND id = ${unbrand(command.portalId)}
+      AND deleted_at IS NULL
+    FOR UPDATE
+  `)
+  const [portal] = await tx
+    .select({ id: portals.id })
+    .from(portals)
+    .where(
+      and(
+        eq(portals.organizationId, unbrand(command.organizationId)),
+        eq(portals.propertyId, unbrand(command.propertyId)),
+        eq(portals.id, unbrand(command.portalId)),
+        isNull(portals.deletedAt),
+      ),
+    )
+    .limit(1)
+  if (!portal) {
+    throw portalError(
+      'forbidden',
+      'Portal Group membership requires an active same-property Portal',
+    )
+  }
+  await tx.execute(sql`
+    SELECT id FROM portal_group_memberships
+    WHERE organization_id = ${unbrand(command.organizationId)}
+      AND portal_id = ${unbrand(command.portalId)}
+      AND effective_to IS NULL
+    FOR UPDATE
+  `)
+  const [existing] = await tx
+    .select({ id: portalGroupMemberships.id })
+    .from(portalGroupMemberships)
+    .where(
+      and(
+        eq(portalGroupMemberships.organizationId, unbrand(command.organizationId)),
+        eq(portalGroupMemberships.portalId, unbrand(command.portalId)),
+        isNull(portalGroupMemberships.effectiveTo),
+      ),
+    )
+    .limit(1)
+  if (existing) {
+    throw portalError('portal_already_grouped', 'portal is already in a group')
+  }
+  await tx.insert(portalGroupMemberships).values({
+    organizationId: unbrand(command.organizationId),
+    propertyId: unbrand(command.propertyId),
+    portalId: unbrand(command.portalId),
+    portalGroupId: unbrand(command.portalGroupId),
+    effectiveFrom: command.occurredAt,
+    createdBy: unbrand(command.changedBy),
+  })
+  await insertOutboxRow(tx, command.event, { recordedAt: command.occurredAt })
 }
 
 export const createPortalGroupCommands = (db: Database): PortalGroupCommandStore => {
@@ -226,70 +296,7 @@ export const createPortalGroupCommands = (db: Database): PortalGroupCommandStore
     addPortalToGroup: async (command) =>
       trace('portal.commandStore.addPortalToGroup', async () => {
         assertMembershipCommand(command, 'portal_group.portal_added')
-        await db.transaction(async (tx) => {
-          await fencePortalGroup(tx, command)
-          await tx.execute(sql`
-            SELECT id FROM portals
-            WHERE organization_id = ${unbrand(command.organizationId)}
-              AND property_id = ${unbrand(command.propertyId)}
-              AND id = ${unbrand(command.portalId)}
-              AND deleted_at IS NULL
-            FOR UPDATE
-          `)
-          const [portal] = await tx
-            .select({ id: portals.id })
-            .from(portals)
-            .where(
-              and(
-                eq(portals.organizationId, unbrand(command.organizationId)),
-                eq(portals.propertyId, unbrand(command.propertyId)),
-                eq(portals.id, unbrand(command.portalId)),
-                isNull(portals.deletedAt),
-              ),
-            )
-            .limit(1)
-          if (!portal) {
-            throw portalError(
-              'forbidden',
-              'Portal Group membership requires an active same-property Portal',
-            )
-          }
-          await tx.execute(sql`
-            SELECT id FROM portal_group_memberships
-            WHERE organization_id = ${unbrand(command.organizationId)}
-              AND portal_id = ${unbrand(command.portalId)}
-              AND effective_to IS NULL
-            FOR UPDATE
-          `)
-          const [existing] = await tx
-            .select({ id: portalGroupMemberships.id })
-            .from(portalGroupMemberships)
-            .where(
-              and(
-                eq(
-                  portalGroupMemberships.organizationId,
-                  unbrand(command.organizationId),
-                ),
-                eq(portalGroupMemberships.portalId, unbrand(command.portalId)),
-                isNull(portalGroupMemberships.effectiveTo),
-              ),
-            )
-            .limit(1)
-          if (existing) {
-            throw portalError('portal_already_grouped', 'portal is already in a group')
-          }
-          await tx.insert(portalGroupMemberships).values({
-            organizationId: unbrand(command.organizationId),
-            propertyId: unbrand(command.propertyId),
-            portalId: unbrand(command.portalId),
-            portalGroupId: unbrand(command.portalGroupId),
-            effectiveFrom: command.occurredAt,
-            createdBy: unbrand(command.changedBy),
-          })
-          await insertOutboxRow(tx, command.event, {
-            recordedAt: command.occurredAt,
-          })
-        })
+        await db.transaction((tx) => joinPortalGroupInTransaction(tx, command))
       }),
 
     removePortalFromGroup: async (command) =>

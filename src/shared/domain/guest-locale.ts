@@ -131,6 +131,14 @@ export const OFFERED_GUEST_LOCALES = Object.freeze([
 ] as const satisfies readonly GuestLocale[])
 export type OfferedGuestLocale = (typeof OFFERED_GUEST_LOCALES)[number]
 
+/** Whether a manager may choose `value` today: a catalogue locale with a reviewed pack. */
+export function isOfferedGuestLocale(value: unknown): value is OfferedGuestLocale {
+  return (
+    typeof value === 'string' &&
+    (OFFERED_GUEST_LOCALES as readonly string[]).includes(value)
+  )
+}
+
 /** A Portal offers its primary locale plus at most this many more. */
 export const MAX_ADDITIONAL_GUEST_LOCALES = GUEST_LOCALES.length - 1
 

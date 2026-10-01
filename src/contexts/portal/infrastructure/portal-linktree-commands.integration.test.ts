@@ -104,7 +104,7 @@ beforeEach(async () => {
   await store().createPortal({
     organizationId: ORG_A,
     portal,
-    initialResponsibleManagerId: MANAGER,
+    initialResponsibleManagerIds: [MANAGER],
     event: portalCreated({
       portalId: portal.id,
       organizationId: ORG_A,

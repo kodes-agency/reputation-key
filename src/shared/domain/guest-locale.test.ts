@@ -7,6 +7,7 @@ import {
   currentGuestLanguagePack,
   guestLocaleFormatTag,
   isGuestLocale,
+  isOfferedGuestLocale,
   isValidAdditionalGuestLocales,
   MAX_ADDITIONAL_GUEST_LOCALES,
   isSupportedGuestLanguagePack,
@@ -87,6 +88,13 @@ describe('guest locale parsing', () => {
     expect(GUEST_LOCALES.every(isGuestLocale)).toBe(true)
     for (const value of ['EN', 'pt', 'en-US', '', null, undefined, 3]) {
       expect(isGuestLocale(value)).toBe(false)
+    }
+  })
+
+  it('offers only the locales with a reviewed pack', () => {
+    expect(OFFERED_GUEST_LOCALES.every(isOfferedGuestLocale)).toBe(true)
+    for (const value of ['de', 'es', 'EN', '', null, undefined, 3]) {
+      expect(isOfferedGuestLocale(value)).toBe(false)
     }
   })
 

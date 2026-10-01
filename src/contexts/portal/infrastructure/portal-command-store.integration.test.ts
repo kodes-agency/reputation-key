@@ -179,7 +179,7 @@ async function seedPortalGroupMembership(): Promise<void> {
   await createAtomicPortalCommandStore(getDb()).createPortal({
     organizationId: ORG_A,
     portal,
-    initialResponsibleManagerId: MANAGER,
+    initialResponsibleManagerIds: [MANAGER],
     event: createdFact(portal),
   })
   await getPool().query(
@@ -306,7 +306,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await createAtomicPortalCommandStore(getDb()).createPortal({
       organizationId: ORG_A,
       portal,
-      initialResponsibleManagerId: null,
+      initialResponsibleManagerIds: [],
       event: created,
       responsibilityNeededEvent: responsibility,
     })
@@ -344,7 +344,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       createAtomicPortalCommandStore(getDb()).createPortal({
         organizationId: ORG_A,
         portal,
-        initialResponsibleManagerId: MANAGER,
+        initialResponsibleManagerIds: [MANAGER],
         event: ghost,
       }),
     ).rejects.toThrow(/Event type portal\.ghost:v1 is not registered/)
@@ -367,7 +367,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await store.createPortal({
       organizationId: ORG_A,
       portal,
-      initialResponsibleManagerId: MANAGER,
+      initialResponsibleManagerIds: [MANAGER],
       event: createdFact(portal),
     })
     const event = portalUpdated({
@@ -474,7 +474,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await store.createPortal({
       organizationId: ORG_A,
       portal,
-      initialResponsibleManagerId: MANAGER,
+      initialResponsibleManagerIds: [MANAGER],
       event: createdFact(portal),
     })
     const publication = publicationMutation(portal, { name: portal.name })
@@ -539,7 +539,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await store.createPortal({
       organizationId: ORG_A,
       portal,
-      initialResponsibleManagerId: MANAGER,
+      initialResponsibleManagerIds: [MANAGER],
       event: createdFact(portal),
     })
     const genericEvent = portalUpdated({
@@ -589,7 +589,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await store.createPortal({
       organizationId: ORG_A,
       portal,
-      initialResponsibleManagerId: MANAGER,
+      initialResponsibleManagerIds: [MANAGER],
       event: createdFact(portal),
     })
     const archived = portalArchived({
@@ -709,7 +709,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await store.createPortal({
       organizationId: ORG_A,
       portal,
-      initialResponsibleManagerId: MANAGER,
+      initialResponsibleManagerIds: [MANAGER],
       event: createdFact(portal),
     })
 
@@ -909,7 +909,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await store.createPortal({
       organizationId: ORG_A,
       portal,
-      initialResponsibleManagerId: MANAGER,
+      initialResponsibleManagerIds: [MANAGER],
       event: createdFact(portal),
     })
 
@@ -1075,7 +1075,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await store.createPortal({
       organizationId: ORG_A,
       portal,
-      initialResponsibleManagerId: MANAGER,
+      initialResponsibleManagerIds: [MANAGER],
       event: createdFact(portal),
     })
     await getPool().query(
@@ -1156,7 +1156,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await store.createPortal({
       organizationId: ORG_A,
       portal,
-      initialResponsibleManagerId: MANAGER,
+      initialResponsibleManagerIds: [MANAGER],
       event: createdFact(portal),
     })
     await getPool().query(
@@ -1368,7 +1368,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await store.createPortal({
       organizationId: ORG_A,
       portal,
-      initialResponsibleManagerId: MANAGER,
+      initialResponsibleManagerIds: [MANAGER],
       event: createdFact(portal),
     })
     const group = {
@@ -1444,7 +1444,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await store.createPortal({
       organizationId: ORG_A,
       portal,
-      initialResponsibleManagerId: MANAGER,
+      initialResponsibleManagerIds: [MANAGER],
       event: createdFact(portal),
     })
     const group = {
@@ -1550,7 +1550,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await store.createPortal({
       organizationId: ORG_A,
       portal,
-      initialResponsibleManagerId: MANAGER,
+      initialResponsibleManagerIds: [MANAGER],
       event: createdFact(portal),
     })
     const category = {
@@ -1611,7 +1611,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await store.createPortal({
       organizationId: ORG_A,
       portal,
-      initialResponsibleManagerId: MANAGER,
+      initialResponsibleManagerIds: [MANAGER],
       event: createdFact(portal),
     })
     const token = issueToken({
@@ -1735,7 +1735,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await store.createPortal({
       organizationId: ORG_A,
       portal,
-      initialResponsibleManagerId: MANAGER,
+      initialResponsibleManagerIds: [MANAGER],
       event: createdFact(portal),
     })
     await getPool().query(
@@ -1832,7 +1832,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await store.createPortal({
       organizationId: ORG_A,
       portal,
-      initialResponsibleManagerId: MANAGER,
+      initialResponsibleManagerIds: [MANAGER],
       event: createdFact(portal),
     })
     await getPool().query(
@@ -1909,7 +1909,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await store.createPortal({
       organizationId: ORG_A,
       portal,
-      initialResponsibleManagerId: MANAGER,
+      initialResponsibleManagerIds: [MANAGER],
       event: createdFact(portal),
     })
     const categoryAt = UPDATED_AT
@@ -2052,7 +2052,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await store.createPortal({
       organizationId: ORG_A,
       portal,
-      initialResponsibleManagerId: MANAGER,
+      initialResponsibleManagerIds: [MANAGER],
       event: createdFact(portal),
     })
     const categoryRevision = UPDATED_AT
@@ -2289,7 +2289,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await store.createPortal({
       organizationId: ORG_A,
       portal,
-      initialResponsibleManagerId: MANAGER,
+      initialResponsibleManagerIds: [MANAGER],
       event: createdFact(portal),
     })
 
@@ -2428,7 +2428,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
     await store.createPortal({
       organizationId: ORG_A,
       portal,
-      initialResponsibleManagerId: MANAGER,
+      initialResponsibleManagerIds: [MANAGER],
       event: createdFact(portal),
     })
     const issueAt = UPDATED_AT

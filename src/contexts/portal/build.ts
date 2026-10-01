@@ -40,6 +40,7 @@ import { createPortalAiReplyBrandProfileAuthority } from './infrastructure/ai-re
 import type { StoragePort } from './application/ports/storage.port'
 import { createPortalTokenCodec } from './infrastructure/adapters/portal-token-codec'
 import { createPortal } from './application/use-cases/create-portal'
+import { getPortalCreationOptions } from './application/use-cases/get-portal-creation-options'
 import { updatePortal } from './application/use-cases/update-portal'
 import { rollbackPortalPublication } from './application/use-cases/rollback-portal-publication'
 import { getPortal } from './application/use-cases/get-portal'
@@ -305,12 +306,22 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     }),
     createPortal: createPortal({
       portalRepo,
+      portalGroupRepo,
+      portalLinkRepo,
+      experienceRepo: portalExperienceRepo,
       commandStore: portalCommandStore,
       propertyApi: deps.propertyApi,
       staffPublicApi: deps.staffPublicApi,
       identityPublicApi: deps.identityManagerFacts,
       idGen: portalIdGen,
+      entityIdGen: deps.idGen,
       clock: deps.clock,
+    }),
+    getPortalCreationOptions: getPortalCreationOptions({
+      propertyApi: deps.propertyApi,
+      staffPublicApi: deps.staffPublicApi,
+      identityPublicApi: deps.identityManagerFacts,
+      experienceRepo: portalExperienceRepo,
     }),
     updatePortal: updatePortal({
       portalRepo,
