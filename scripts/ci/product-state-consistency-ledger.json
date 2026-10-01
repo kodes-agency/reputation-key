@@ -388,6 +388,24 @@
       "policy": "Seeded once from the Property's default languages the page opened with and advanced only by the manager's own add, remove or make-fallback; a refresh never reorders them under the manager. Leaving the page is the reset boundary."
     },
     {
+      "id": "src/components/features/portal/property-look/use-property-look-media.ts:useState(media)",
+      "classification": "server_draft",
+      "owner": "Property look page",
+      "policy": "Seeded once from the photograph and logo the page opened with and advanced only by the answer of this page's own accepted write (a focal point moved, a photograph or logo put on or taken off), which carries the media as a page draws it; a later refresh of the experience read never overwrites a focal point still being dragged. Leaving the page is the reset boundary."
+    },
+    {
+      "id": "src/components/features/portal/property-look/use-photo-dialog.ts:useState(focal)",
+      "classification": "server_draft",
+      "owner": "Property look photograph dialog",
+      "policy": "Seeded once from the photograph's saved focal point when the dialog opens (the middle for a new file) and advanced only by the manager's own drag or arrow key; the dialog body is mounted only while it is open, so closing it is the reset boundary and nothing is written until Use photo or Save."
+    },
+    {
+      "id": "src/components/features/portal/property-look/use-photo-dialog.ts:useState(descriptions)",
+      "classification": "server_draft",
+      "owner": "Property look photograph dialog",
+      "policy": "Seeded once from the descriptions the Property has saved when the dialog opens and advanced only by the manager's typing (and emptied when a new file is chosen, because the old description was about the old photograph); a refresh of the experience read never overwrites it, and nothing is written until Use photo or Save."
+    },
+    {
       "id": "src/components/features/property-setup/setup-properties-step.tsx:useState(aiIdempotencyKey)",
       "classification": "local_runtime",
       "owner": "Import wizard consent ceremony",

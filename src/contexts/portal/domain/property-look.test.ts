@@ -5,6 +5,7 @@ import {
   changedLookFacets,
   lookPendingKey,
   normaliseDefaultGuestLocales,
+  normaliseFocalPoint,
   normaliseHeroAltText,
   normaliseWordmark,
   type PropertyLook,
@@ -139,6 +140,27 @@ describe('changedLookFacets', () => {
     ).toEqual(['images'])
   })
 
+  it('names images when the logo, the hero or where it is anchored changes', () => {
+    expect(changedLookFacets(look(), look({ logoAssetId: 'asset-1' }))).toEqual([
+      'images',
+    ])
+    expect(
+      changedLookFacets(look({ logoAssetId: 'asset-1' }), look({ logoAssetId: null })),
+    ).toEqual(['images'])
+    const hero = { heroAssetId: 'asset-2', heroFocalX: 0.5, heroFocalY: 0.4 }
+    expect(changedLookFacets(look(), look(hero))).toEqual(['images'])
+    expect(changedLookFacets(look(hero), look({ ...hero, heroFocalY: 0.6 }))).toEqual([
+      'images',
+    ])
+    expect(changedLookFacets(look(hero), look(hero))).toEqual([])
+  })
+
+  it('treats a profile that does not state its media as one with none', () => {
+    expect(
+      changedLookFacets(look(), look({ logoAssetId: null, heroAssetId: null })),
+    ).toEqual([])
+  })
+
   it('lists every moved facet in a fixed order', () => {
     expect(
       changedLookFacets(
@@ -146,5 +168,23 @@ describe('changedLookFacets', () => {
         look({ wordmark: 'K', primaryColor: '#C8A45A', textColor: '#000000' }),
       ),
     ).toEqual(['accent', 'text', 'wordmark'])
+  })
+})
+
+describe('normaliseFocalPoint', () => {
+  it('keeps a point inside the photo', () => {
+    expect(normaliseFocalPoint(0.5, 0.42)).toEqual({ x: 0.5, y: 0.42 })
+    expect(normaliseFocalPoint(0, 1)).toEqual({ x: 0, y: 1 })
+  })
+
+  it('refuses a point outside the photo or one that is not a number', () => {
+    for (const [x, y] of [
+      [-0.01, 0.5],
+      [0.5, 1.01],
+      [Number.NaN, 0.5],
+      [0.5, Number.POSITIVE_INFINITY],
+    ] as const) {
+      expect(() => normaliseFocalPoint(x, y)).toThrow(/focal point/iu)
+    }
   })
 })

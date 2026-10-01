@@ -12,12 +12,15 @@ import {
 } from '../../../../../.storybook/AuthedRouterDecorator'
 import { previewReader } from '../portal-preview/__fixtures__/portal-preview-fixtures'
 import {
+  AVELA_MEDIA,
   AVELA_PORTALS,
   AVELA_PROFILE,
   DEFAULT_PALETTE_PROFILE,
   publishingPortals,
   reviewingPortals,
+  savingHero,
   savingLocales,
+  savingLogo,
   savingLook,
 } from './property-look-page-fixtures'
 import { PropertyLookPage } from './property-look-page'
@@ -41,6 +44,10 @@ const meta = {
     canPublish: true,
     saveLook: savingLook(),
     saveLocales: savingLocales(),
+    saveHero: savingHero(),
+    saveLogo: savingLogo(),
+    media: AVELA_MEDIA,
+    photoDescriptions: { en: 'The colonnade pool at dusk' },
   },
 } satisfies Meta<typeof PropertyLookPage>
 
@@ -316,19 +323,6 @@ export const ReadOnly: Story = {
     await expect(canvas.getByLabelText('Accent')).toBeDisabled()
     await expect(canvas.getByLabelText('Wordmark')).toBeDisabled()
     await expect(canvas.queryByRole('button', { name: 'Add language' })).toBeNull()
-  },
-}
-
-/** The photo and logo controls (slice 42c2) mount in slots. */
-export const SlotsForLaterControls: Story = {
-  args: {
-    photoSlot: <button type="button">Replace photo</button>,
-    logoSlot: <button type="button">Upload logo</button>,
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(canvas.getByRole('button', { name: 'Replace photo' })).toBeVisible()
-    await expect(canvas.getByRole('button', { name: 'Upload logo' })).toBeVisible()
   },
 }
 

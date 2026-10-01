@@ -56,7 +56,10 @@ design rather than a checklist.
    key does not carry the purpose, so every writer of these columns must check
    it with `canReferencePortalMediaAsset` (a link picture is encoded at up to 1200 px, a
    hero at up to 2400 px with a larger minimum; the purpose chose the policy the
-   image passed).
+   image passed). The writers are `updateLink`, `savePropertyHero` and
+   `savePropertyLogo`; the size rules the policy applies are one shared constant
+   (`PORTAL_MEDIA_SIZE_RULES`), which the browser also reads to tell a manager
+   that a picture is too small before it is sent.
 6. **Snapshots name assets by id, with no foreign key.** A guest-facing URL is
    made when the page is read, so a takedown stops an image being served without
    rewriting an immutable snapshot.

@@ -22,7 +22,15 @@ import type { PortalApprovedDestination } from '../../domain/approved-destinatio
 import type { PortalPublicationSnapshot } from '../../domain/portal-publication-snapshot'
 import { APPROVED_DESTINATION_MAX_VALIDATION_AGE_MS } from '../approved-destination-age'
 import type { PortalExperienceRepository } from '../ports/portal-experience.repository'
-import { immersiveSnapshot } from '../__fixtures__/immersive-snapshot'
+import {
+  IMMERSIVE_HERO_ASSET_ID,
+  IMMERSIVE_LOGO_ASSET_ID,
+  immersiveSnapshot,
+} from '../__fixtures__/immersive-snapshot'
+import { createInMemoryPortalMediaAssetRepo } from '#/shared/testing/in-memory-portal-media-asset-repo'
+import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixtures'
+import type { PortalMediaAsset } from '../../domain/portal-media-asset'
+import type { PropertyPortalBrandProfile } from '../ports/portal-experience.repository'
 
 const ORG = organizationId('org-00000000-0000-0000-0000-000000000001')
 const PROPERTY = propertyId('a0000000-0000-0000-0000-000000000001')
@@ -66,6 +74,10 @@ type Options = Readonly<{
   active?: PortalPublicationSnapshot | null
   approvedUris?: readonly string[]
   timeZone?: string | null
+  /** The Brand Profile the Property has; none by default. */
+  profile?: PropertyPortalBrandProfile | null
+  /** The stored images of the Property. */
+  assets?: ReadonlyArray<PortalMediaAsset>
 }>
 
 function setup(options: Options = {}) {
@@ -100,13 +112,15 @@ function setup(options: Options = {}) {
   ])
   const queried: string[][] = []
   const validatedAfter: Date[] = []
+  const mediaRepo = createInMemoryPortalMediaAssetRepo()
+  mediaRepo.seed(options.assets ?? [])
   const useCase = getPortalPreview({
     portalRepo,
     portalLinkRepo,
-    mediaRepo: { listServableIds: async () => [] },
+    mediaRepo,
     experienceRepo: {
       getPropertyExperience: async () => ({
-        profile: null,
+        profile: options.profile ?? null,
         content: [
           {
             id: 'content-en',
@@ -200,6 +214,85 @@ describe('getPortalPreview (draft)', () => {
   })
 })
 
+const HERO = '30000000-0000-4000-8000-000000000001'
+const LOGO = '30000000-0000-4000-8000-000000000002'
+
+const lookProfile = (): PropertyPortalBrandProfile => ({
+  id: 'e0000000-0000-4000-8000-000000000001',
+  organizationId: ORG,
+  propertyId: PROPERTY,
+  displayName: 'Avela Resort',
+  logoUrl: null,
+  defaultHeroImageUrl: null,
+  logoAssetId: LOGO,
+  heroAssetId: HERO,
+  heroFocalX: 0.3,
+  heroFocalY: 0.6,
+  primaryColor: '#C8A45A',
+  backgroundColor: '#14110F',
+  textColor: '#111827',
+  wordmark: null,
+  backgroundMode: 'auto',
+  defaultGuestLocales: ['en'],
+  lookVersion: 2,
+  version: 1,
+  updatedBy: userId('user-1'),
+  createdAt: AT,
+  updatedAt: AT,
+})
+
+const storedImage = (id: string, purpose: 'hero' | 'logo', overrides = {}) =>
+  buildTestPortalMediaAsset({
+    id: id as never,
+    purpose,
+    organizationId: ORG,
+    propertyId: PROPERTY,
+    ...overrides,
+  })
+
+describe('getPortalPreview (draft photograph and logo)', () => {
+  it('draws the uploaded photograph and logo the Brand Profile names', async () => {
+    const { useCase } = setup({
+      profile: lookProfile(),
+      assets: [
+        storedImage(HERO, 'hero'),
+        storedImage(LOGO, 'logo', { width: 480, height: 120 }),
+      ],
+    })
+
+    const outcome = await useCase({ portalId: PORTAL, source: 'draft' }, manager())
+
+    if (outcome.status !== 'ready') throw new Error('expected a preview')
+    expect(outcome.preview.experiences.en?.brand).toMatchObject({
+      hero: {
+        url: `/api/public/portal-media/${HERO}`,
+        width: 2400,
+        height: 1600,
+        focalX: 0.3,
+        focalY: 0.6,
+      },
+      logo: { url: `/api/public/portal-media/${LOGO}`, width: 480, height: 120 },
+    })
+  })
+
+  it('draws the no-photo page for a photograph that was taken down', async () => {
+    const { useCase } = setup({
+      profile: lookProfile(),
+      assets: [
+        storedImage(HERO, 'hero', { status: 'taken_down', takenDownAt: AT }),
+        storedImage(LOGO, 'logo'),
+      ],
+    })
+
+    const outcome = await useCase({ portalId: PORTAL, source: 'draft' }, manager())
+
+    if (outcome.status !== 'ready') throw new Error('expected a preview')
+    const brand = outcome.preview.experiences.en?.brand
+    expect(brand?.hero).toBeNull()
+    expect(brand?.logo).not.toBeNull()
+  })
+})
+
 describe('getPortalPreview (live)', () => {
   const live = () => immersiveSnapshot()
   const published = ['https://harbor.example.com/menu', 'https://harbor.example.com/spa']
@@ -212,6 +305,27 @@ describe('getPortalPreview (live)', () => {
     expect(outcome.status).toBe('ready')
     if (outcome.status !== 'ready') return
     expect(outcome.preview).toMatchObject({ source: 'live', version: 6 })
+  })
+
+  it('shows the version its photograph and logo while they may be served, and not a taken-down one', async () => {
+    const { useCase } = setup({
+      active: live(),
+      approvedUris: published,
+      assets: [
+        storedImage(IMMERSIVE_HERO_ASSET_ID, 'hero'),
+        storedImage(IMMERSIVE_LOGO_ASSET_ID, 'logo', {
+          status: 'taken_down',
+          takenDownAt: AT,
+        }),
+      ],
+    })
+
+    const outcome = await useCase({ portalId: PORTAL, source: 'live' }, manager())
+
+    if (outcome.status !== 'ready') throw new Error('expected a preview')
+    const brand = outcome.preview.experiences.en?.brand
+    expect(brand?.hero?.url).toBe(`/api/public/portal-media/${IMMERSIVE_HERO_ASSET_ID}`)
+    expect(brand?.logo).toBeNull()
   })
 
   it('asks which of the published addresses are still approved, as the guest page does', async () => {

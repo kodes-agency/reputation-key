@@ -295,6 +295,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     }),
     ...buildExperienceUseCases({
       experienceRepo: portalExperienceRepo,
+      mediaRepo: portalMediaAssetRepo,
       portalRepo,
       staffPublicApi: deps.staffPublicApi,
       idGen: deps.idGen,

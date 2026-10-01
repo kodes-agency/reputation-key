@@ -2,12 +2,16 @@
 import { fn } from 'storybook/test'
 import type {
   PortalReview,
+  PropertyLookMedia,
   PublishPortalsChangesResult,
 } from '#/contexts/portal/application/public-api'
+import { PREVIEW_STORY_PHOTO } from '../portal-preview/__fixtures__/portal-preview-fixtures'
+import type { PortalImageUploader } from '../portal-media/upload-portal-image'
 import type { AffectedPortalRow } from './property-look-rules'
 import type { PropertyLookProfile } from './property-look-types'
 import type { PropertyLookSaves } from './use-property-look-draft'
 import type { PortalReviewReader, PublishPortalsAction } from './use-property-look-batch'
+import type { PropertyLookMediaSaves } from './use-property-look-media'
 
 /** The two languages a Property starts with in these stories, whatever else is offered. */
 const STORY_LOCALES = ['en', 'bg'] as const
@@ -114,6 +118,109 @@ export function savingLocales(): PropertyLookSaves['saveLocales'] {
     })),
     { isPending: false, error: null, isSuccess: false, data: null },
   ) as unknown as PropertyLookSaves['saveLocales']
+}
+
+const HERO_ASSET = '30000000-0000-4000-8000-0000000000a1'
+const LOGO_ASSET = '30000000-0000-4000-8000-0000000000a2'
+const UPLOADED_ASSET = '30000000-0000-4000-8000-0000000000b1'
+export { UPLOADED_ASSET }
+
+/** The Property's photograph, as the server's read gives it (the media route is not served in Storybook, so a data picture stands in). */
+export const AVELA_MEDIA: PropertyLookMedia = {
+  hero: {
+    assetId: HERO_ASSET,
+    url: PREVIEW_STORY_PHOTO,
+    width: 1600,
+    height: 1000,
+    focalX: 0.5,
+    focalY: 0.42,
+  },
+  logo: null,
+}
+
+const LOGO_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="480" height="120" viewBox="0 0 480 120"><text x="240" y="82" text-anchor="middle" font-family="Georgia, serif" font-size="64" letter-spacing="14" fill="#EAD6A8">AVELA</text></svg>`
+
+const AVELA_LOGO = {
+  assetId: LOGO_ASSET,
+  url: `data:image/svg+xml;utf8,${encodeURIComponent(LOGO_SVG)}`,
+  width: 480,
+  height: 120,
+} as const
+
+export const NO_MEDIA: PropertyLookMedia = { hero: null, logo: null }
+
+const saving = (answer: (input: never) => unknown) =>
+  Object.assign(fn(answer as never), {
+    isPending: false,
+    error: null,
+    isSuccess: false,
+    data: null,
+  })
+
+/**
+ * The server's answer to a photograph write: the media with the photograph the
+ * write names (every uploaded asset is the story's own 1600 × 1000 picture).
+ */
+export function savingHero(start: PropertyLookMedia = AVELA_MEDIA) {
+  let media = start
+  return saving(
+    async (input: {
+      data: { assetId: string | null; focalX?: number; focalY?: number }
+    }) => {
+      const { assetId, focalX, focalY } = input.data
+      media = {
+        ...media,
+        hero:
+          assetId === null
+            ? null
+            : {
+                assetId,
+                url: PREVIEW_STORY_PHOTO,
+                width: 1600,
+                height: 1000,
+                focalX: focalX ?? 0.5,
+                focalY: focalY ?? 0.5,
+              },
+      }
+      return { media }
+    },
+  ) as unknown as PropertyLookMediaSaves['saveHero']
+}
+
+/** The server's answer to a logo write. */
+export function savingLogo(start: PropertyLookMedia = AVELA_MEDIA) {
+  let media = start
+  return saving(async (input: { data: { assetId: string | null } }) => {
+    media = { ...media, logo: input.data.assetId === null ? null : AVELA_LOGO }
+    return { media }
+  }) as unknown as PropertyLookMediaSaves['saveLogo']
+}
+
+/** An upload that succeeds with `assetId`. */
+export const uploadingTo = (assetId: string = UPLOADED_ASSET): PortalImageUploader =>
+  fn(async () => ({ ok: true as const, assetId }))
+
+/** A picture made in the browser, for a story to choose: flat colour, any size. */
+export async function makeImageFile(
+  width: number,
+  height: number,
+  name = 'terrace-evening.png',
+  type = 'image/png',
+): Promise<File> {
+  const canvas = document.createElement('canvas')
+  canvas.width = width
+  canvas.height = height
+  const context = canvas.getContext('2d')
+  if (!context) throw new Error('A canvas is needed to make a picture')
+  context.fillStyle = '#3a6ea5'
+  context.fillRect(0, 0, width, height)
+  const blob = await new Promise<Blob>((resolve, reject) =>
+    canvas.toBlob(
+      (made) => (made ? resolve(made) : reject(new Error('The picture was not made'))),
+      type,
+    ),
+  )
+  return new File([blob], name, { type })
 }
 
 // ── The batch "Review & publish" ─────────────────────────────────────────────

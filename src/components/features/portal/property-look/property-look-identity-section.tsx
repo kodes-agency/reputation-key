@@ -1,11 +1,13 @@
 // Name and logo (board 09): what guests see at the top of every page. The
 // display name belongs to Property settings (AI reply drafts read it), so it is
-// shown here and changed there; the wordmark is the look's own. The logo's
-// upload control mounts in `logoSlot` (slice 42c2) and replaces the wordmark on
-// guest pages once a logo exists.
-import type { ReactNode } from 'react'
+// shown here and changed there; the wordmark is the look's own. The logo is
+// uploaded here and replaces the wordmark on guest pages once one exists.
 import { Link } from '@tanstack/react-router'
 import { Input } from '#/components/ui/input'
+import {
+  PropertyLookLogoField,
+  type PropertyLookLogoControls,
+} from './property-look-logo-field'
 import { PropertyLookSection } from './property-look-section'
 import { WORDMARK_MAX } from './property-look-rules'
 
@@ -15,7 +17,7 @@ type Props = Readonly<{
   wordmark: string
   onWordmarkChange: (wordmark: string) => void
   disabled: boolean
-  logoSlot?: ReactNode
+  logo: PropertyLookLogoControls
 }>
 
 const WORDMARK_HINT_ID = 'property-look-wordmark-hint'
@@ -26,7 +28,7 @@ export function PropertyLookIdentitySection({
   wordmark,
   onWordmarkChange,
   disabled,
-  logoSlot = null,
+  logo,
 }: Props) {
   const tooLong = wordmark.trim().length > WORDMARK_MAX
   return (
@@ -79,12 +81,7 @@ export function PropertyLookIdentitySection({
         <p className="text-sm font-medium">
           Logo <span className="font-normal text-muted-foreground">optional</span>
         </p>
-        {logoSlot ?? (
-          <p className="text-sm text-muted-foreground">
-            A light logo on a transparent background (SVG or PNG). It replaces the
-            wordmark on every page and on printed codes.
-          </p>
-        )}
+        <PropertyLookLogoField logo={logo} />
       </div>
     </PropertyLookSection>
   )

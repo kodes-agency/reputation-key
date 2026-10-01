@@ -172,7 +172,202 @@ function lookOfRow(row: typeof propertyPortalBrandProfiles.$inferSelect): Proper
     wordmark: profile.wordmark,
     logoUrl: profile.logoUrl,
     defaultHeroImageUrl: profile.defaultHeroImageUrl,
+    logoAssetId: profile.logoAssetId,
+    heroAssetId: profile.heroAssetId,
+    heroFocalX: profile.heroFocalX,
+    heroFocalY: profile.heroFocalY,
   }
+}
+
+type ProfileRow = typeof propertyPortalBrandProfiles.$inferSelect
+
+async function currentProfileRow(tx: Tx, scope: PropertyScope) {
+  const [current] = await tx
+    .select()
+    .from(propertyPortalBrandProfiles)
+    .where(propertyProfileScope(scope))
+    .limit(1)
+  return current
+}
+
+/**
+ * Run a Brand Profile write inside the Property's publication lock, with the
+ * profile as it is under that lock. Null when the Property has no profile.
+ */
+function withLockedProfile<T>(
+  db: Database,
+  scope: PropertyScope,
+  run: (tx: Tx, current: ProfileRow) => Promise<T>,
+): Promise<T | null> {
+  return db.transaction(async (tx) => {
+    await lockPropertyPublication(tx, scope)
+    const current = await currentProfileRow(tx, scope)
+    return current ? run(tx, current) : null
+  })
+}
+
+type LookColumns = Partial<
+  Pick<
+    ProfileRow,
+    | 'primaryColor'
+    | 'backgroundMode'
+    | 'backgroundColor'
+    | 'wordmark'
+    | 'logoAssetId'
+    | 'heroAssetId'
+    | 'heroFocalX'
+    | 'heroFocalY'
+  >
+>
+
+/**
+ * Write look columns and nothing else: the display name, the text colour and
+ * `updated_by` stay with the writers that own them. The caller has found which
+ * facets of the look the write moves; one that moves none writes nothing, and
+ * one that does moves the look version, fences the live Portals under
+ * `look:<facet>` and announces the profile.
+ */
+async function writeLookColumns(
+  tx: Tx,
+  input: PropertyScope & Readonly<{ actorUserId: UserId; at: Date }>,
+  current: ProfileRow,
+  columns: LookColumns,
+  facets: readonly LookFacet[],
+): Promise<ProfileRow> {
+  if (facets.length === 0) return current
+  const [row] = await tx
+    .update(propertyPortalBrandProfiles)
+    .set({
+      ...columns,
+      lookVersion: sql`${propertyPortalBrandProfiles.lookVersion} + 1`,
+      updatedAt: input.at,
+    })
+    .where(propertyProfileScope(input))
+    .returning()
+  if (!row) throw new Error('Property Brand Profile was not saved')
+  await recordPropertyProfileChange(tx, input, {
+    nameChanged: false,
+    previousName: current.displayName,
+    displayName: row.displayName,
+    facets,
+    version: row.version,
+    lookVersion: row.lookVersion,
+    actorUserId: unbrand(input.actorUserId),
+  })
+  return row
+}
+
+type MediaColumns = Pick<
+  Partial<ProfileRow>,
+  'logoAssetId' | 'heroAssetId' | 'heroFocalX' | 'heroFocalY'
+>
+
+/** The image columns of the look: the facets they move are found by comparing the look before and after. */
+function writeProfileMedia(
+  tx: Tx,
+  input: PropertyScope & Readonly<{ actorUserId: UserId; at: Date }>,
+  current: ProfileRow,
+  media: MediaColumns,
+): Promise<ProfileRow> {
+  const before = lookOfRow(current)
+  return writeLookColumns(
+    tx,
+    input,
+    current,
+    media,
+    changedLookFacets(before, { ...before, ...media }),
+  )
+}
+
+const FOCAL_CENTRE = 0.5
+
+/** One axis of the photograph's anchor: as given, else kept for a photograph that stays, else the middle; none without a photograph. */
+function heroFocalAxis(
+  current: ProfileRow,
+  hero: Readonly<{ assetId: string; focalX?: number; focalY?: number }> | null,
+  axis: 'x' | 'y',
+): number | null {
+  if (!hero) return null
+  const given = axis === 'x' ? hero.focalX : hero.focalY
+  if (given !== undefined) return given
+  const stored = axis === 'x' ? current.heroFocalX : current.heroFocalY
+  return hero.assetId === current.heroAssetId ? (stored ?? FOCAL_CENTRE) : FOCAL_CENTRE
+}
+
+/**
+ * Keep one language's description of the photograph. A language with wording
+ * keeps its title and text; one without gets a row holding the description
+ * alone (its title and text read as unwritten, so nothing is claimed as
+ * wording). Unchanged, or clearing what is not there, writes nothing.
+ */
+async function saveHeroAltText(
+  tx: Tx,
+  input: PropertyScope & Readonly<{ actorUserId: UserId; at: Date }>,
+  altText: Readonly<{ id: string; locale: PortalGuestLocale; text: string | null }>,
+): Promise<void> {
+  const [current] = await tx
+    .select()
+    .from(propertyPortalBrandContents)
+    .where(
+      and(
+        eq(propertyPortalBrandContents.organizationId, unbrand(input.organizationId)),
+        eq(propertyPortalBrandContents.propertyId, unbrand(input.propertyId)),
+        eq(propertyPortalBrandContents.locale, altText.locale),
+      ),
+    )
+    .limit(1)
+  if ((current?.heroAltText ?? null) === altText.text) return
+  const [row] = current
+    ? await tx
+        .update(propertyPortalBrandContents)
+        .set({
+          heroAltText: altText.text,
+          version: sql`${propertyPortalBrandContents.version} + 1`,
+          updatedBy: unbrand(input.actorUserId),
+          updatedAt: input.at,
+        })
+        .where(eq(propertyPortalBrandContents.id, current.id))
+        .returning()
+    : await tx
+        .insert(propertyPortalBrandContents)
+        .values({
+          id: altText.id,
+          organizationId: unbrand(input.organizationId),
+          propertyId: unbrand(input.propertyId),
+          locale: altText.locale,
+          title: '',
+          shortDescription: '',
+          heroAltText: altText.text,
+          version: 1,
+          updatedBy: unbrand(input.actorUserId),
+          createdAt: input.at,
+          updatedAt: input.at,
+        })
+        .returning()
+  if (!row) throw new Error('Property photograph description was not saved')
+  await recordPortalContentChange(tx, {
+    organizationId: unbrand(input.organizationId),
+    propertyId: unbrand(input.propertyId),
+    kind: 'property_brand_content',
+    key: altText.locale,
+    // No wording moved: the ledger says which language changed, not what it said.
+    ledger: [{ key: altText.locale }],
+    sourceVersion: `v${row.version}`,
+    changedAt: input.at,
+    actorUserId: unbrand(input.actorUserId),
+  })
+  await insertOutboxRow(
+    tx,
+    portalPropertyBrandContentUpdated({
+      organizationId: input.organizationId,
+      propertyId: input.propertyId,
+      guestLocale: altText.locale,
+      contentVersion: row.version,
+      sourceAggregateVersion: input.at.toISOString(),
+      occurredAt: input.at,
+    }),
+    { recordedAt: input.at },
+  )
 }
 
 type OverrideChange = Readonly<{
@@ -306,7 +501,10 @@ export const createPortalExperienceRepository = (
           wordmark: wordmark === undefined ? current.wordmark : wordmark,
           backgroundMode: backgroundMode ?? profileFromRow(current).backgroundMode,
         }
-        const facets = changedLookFacets(lookOfRow(current), next)
+        // The images this write has no field for stay as they are, so they are
+        // compared as they were.
+        const before = lookOfRow(current)
+        const facets = changedLookFacets(before, { ...before, ...next })
         const nameChanged = current.displayName !== next.displayName
         // A save that moves nothing still records who confirmed the profile.
         const [row] = await tx
@@ -343,15 +541,7 @@ export const createPortalExperienceRepository = (
 
   savePropertyLook: (input) =>
     trace('portalExperience.savePropertyLook', () =>
-      db.transaction(async (tx) => {
-        await lockPropertyPublication(tx, input)
-        const scope = propertyProfileScope(input)
-        const [current] = await tx
-          .select()
-          .from(propertyPortalBrandProfiles)
-          .where(scope)
-          .limit(1)
-        if (!current) return null
+      withLockedProfile(db, input, async (tx, current) => {
         const { look } = input
         const before = lookOfRow(current)
         const after: PropertyLook = {
@@ -361,34 +551,47 @@ export const createPortalExperienceRepository = (
           backgroundColor: look.backgroundColor ?? before.backgroundColor,
           wordmark: look.wordmark === undefined ? before.wordmark : look.wordmark,
         }
-        const facets = changedLookFacets(before, after)
-        if (facets.length === 0) return profileFromRow(current)
-        // Only the look's own columns: the display name, the images, the text
-        // colour and `updated_by` stay with the writers that own them.
-        const [row] = await tx
-          .update(propertyPortalBrandProfiles)
-          .set({
+        const row = await writeLookColumns(
+          tx,
+          input,
+          current,
+          {
             primaryColor: after.primaryColor,
             backgroundMode: after.backgroundMode,
             backgroundColor: after.backgroundColor,
             wordmark: after.wordmark,
-            lookVersion: sql`${propertyPortalBrandProfiles.lookVersion} + 1`,
-            updatedAt: input.at,
-          })
-          .where(scope)
-          .returning()
-        if (!row) throw new Error('Property Brand Profile was not saved')
-        await recordPropertyProfileChange(tx, input, {
-          nameChanged: false,
-          previousName: current.displayName,
-          displayName: row.displayName,
-          facets,
-          version: row.version,
-          lookVersion: row.lookVersion,
-          actorUserId: unbrand(input.actorUserId),
-        })
+          },
+          changedLookFacets(before, after),
+        )
         return profileFromRow(row)
       }),
+    ),
+
+  savePropertyHero: (input) =>
+    trace('portalExperience.savePropertyHero', () =>
+      withLockedProfile(db, input, async (tx, current) => {
+        const { hero } = input
+        const row = await writeProfileMedia(tx, input, current, {
+          heroAssetId: hero?.assetId ?? null,
+          heroFocalX: heroFocalAxis(current, hero, 'x'),
+          heroFocalY: heroFocalAxis(current, hero, 'y'),
+        })
+        for (const altText of input.altTexts ?? []) {
+          await saveHeroAltText(tx, input, altText)
+        }
+        return profileFromRow(row)
+      }),
+    ),
+
+  savePropertyLogo: (input) =>
+    trace('portalExperience.savePropertyLogo', () =>
+      withLockedProfile(db, input, async (tx, current) =>
+        profileFromRow(
+          await writeProfileMedia(tx, input, current, {
+            logoAssetId: input.logoAssetId,
+          }),
+        ),
+      ),
     ),
 
   saveDefaultGuestLocales: (input) =>

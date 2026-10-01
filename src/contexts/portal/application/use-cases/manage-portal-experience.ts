@@ -10,6 +10,8 @@ import {
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { PortalExperienceRepository } from '../ports/portal-experience.repository'
+import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.repository'
+import { resolvePropertyLookMedia } from '../property-look-media'
 import { assertPropertyAccess } from '../assert-property-access'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import { isPublicDisplayNameConfirmed } from '../../domain/portal-experience'
@@ -25,6 +27,8 @@ import {
 
 type Deps = Readonly<{
   experienceRepo: PortalExperienceRepository
+  /** Where the Brand Profile's photograph and logo are read from. */
+  mediaRepo: Pick<PortalMediaAssetRepository, 'findById'>
   portalRepo: PortalRepository
   staffPublicApi: StaffPublicApi
   idGen: () => string
@@ -66,10 +70,17 @@ export const getPropertyPortalExperience =
     const publicDisplayNameConfirmed = isPublicDisplayNameConfirmed(
       propertyExperience.profile,
     )
+    const media = await resolvePropertyLookMedia(
+      deps,
+      ctx.organizationId,
+      pid,
+      propertyExperience.profile,
+    )
     if (!input.portalId) {
       return {
         ...propertyExperience,
         overrides: [],
+        media,
         canManagePropertyBrand: canForContext(ctx, 'portal.admin'),
         publicDisplayNameConfirmed,
       }
@@ -88,6 +99,7 @@ export const getPropertyPortalExperience =
         pid,
         portal.id,
       ),
+      media,
       canManagePropertyBrand: canForContext(ctx, 'portal.admin'),
       publicDisplayNameConfirmed,
     }

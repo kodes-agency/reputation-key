@@ -15,9 +15,12 @@ import { getPortalReview } from '#/contexts/portal/server/portal-review'
 import { publishPortalsChanges } from '#/contexts/portal/server/portal-publish-changes'
 import {
   savePropertyDefaultGuestLocales,
+  savePropertyHero,
+  savePropertyLogo,
   savePropertyLook,
 } from '#/contexts/portal/server/property-look'
 import { PropertyLookPage } from '#/components/features/portal/property-look/property-look-page'
+import { savedDescriptions } from '#/components/features/portal/property-look/property-photo-rules'
 import {
   PortalListError,
   PortalListLoading,
@@ -99,6 +102,10 @@ function PropertyLookRoute() {
     // New portals read them in the New portal dialog.
     invalidateKeys: [portalKeys.creationOptions(propertyId)],
   })
+  // A photograph or logo changes what every portal's draft preview draws, and what each live
+  // portal has waiting to publish, exactly as the colours do.
+  const saveHero = useActionMutation(savePropertyHero, { onSuccess: refreshPortals })
+  const saveLogo = useActionMutation(savePropertyLogo, { onSuccess: refreshPortals })
 
   return (
     <PropertyLookPage
@@ -113,6 +120,10 @@ function PropertyLookRoute() {
       canPublish={canDo('portal.update') && has('portal.write')}
       saveLook={saveLook}
       saveLocales={saveLocales}
+      saveHero={saveHero}
+      saveLogo={saveLogo}
+      media={experience.media}
+      photoDescriptions={savedDescriptions(experience.content)}
     />
   )
 }

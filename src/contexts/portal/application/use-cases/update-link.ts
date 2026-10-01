@@ -2,15 +2,13 @@
 
 import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { PortalLink } from '../../domain/types'
-import { z } from 'zod/v4'
 import {
-  portalMediaAssetId,
   type OrganizationId,
   type PortalMediaAssetId,
   type PropertyId,
 } from '#/shared/domain/ids'
 import { portalError } from '../../domain/errors'
-import { canReferencePortalMediaAsset } from '../../domain/portal-media-asset'
+import { findReferencableMediaAsset } from '../referencable-media-asset'
 import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { validateLinkIconKey, validateLinkLabel } from '../../domain/rules'
@@ -45,14 +43,10 @@ export type UpdateLinkDeps = Readonly<{
   clock: () => Date
 }>
 
-const uuidSchema = z.uuid()
-
 /**
  * The asset a link may point at: a picture uploaded for a link tile, of this
  * Organization and this Property, that may still be served. Anything else is the
  * same refusal as a missing image, so a probe learns nothing about other tenants.
- * The database ties a reference to the Organization and Property, not to the
- * purpose, so the purpose is checked here.
  */
 async function resolveTileImage(
   deps: Pick<UpdateLinkDeps, 'mediaRepo'>,
@@ -60,16 +54,14 @@ async function resolveTileImage(
   propertyId: PropertyId,
   assetId: string,
 ): Promise<PortalMediaAssetId> {
-  const notFound = () => portalError('media_not_found', 'image not found for this link')
-  if (!uuidSchema.safeParse(assetId).success) throw notFound()
-  const asset = await deps.mediaRepo.findById(organizationId, portalMediaAssetId(assetId))
-  if (
-    !asset ||
-    asset.propertyId !== propertyId ||
-    !canReferencePortalMediaAsset('link_image', asset)
-  ) {
-    throw notFound()
-  }
+  const asset = await findReferencableMediaAsset(
+    deps.mediaRepo,
+    organizationId,
+    propertyId,
+    'link_image',
+    assetId,
+  )
+  if (!asset) throw portalError('media_not_found', 'image not found for this link')
   return asset.id
 }
 

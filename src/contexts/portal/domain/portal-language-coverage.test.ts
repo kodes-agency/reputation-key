@@ -72,6 +72,23 @@ describe('computePortalLanguageCoverage', () => {
     expect(bg?.present).toBe(0)
   })
 
+  it('a row that only holds a photograph description is not Property wording, so an override on it does not count', () => {
+    const coverage = computePortalLanguageCoverage(
+      base({
+        additionalLocales: ['bg'],
+        propertyContent: [
+          { locale: 'en', title: 'Avela Resort', shortDescription: 'By the sea' },
+          { locale: 'bg', title: '', shortDescription: '' },
+        ],
+        overrides: [{ locale: 'bg', title: 'Авела', shortDescription: 'До морето' }],
+      }),
+    )
+    expect(coverage.languages[1]?.missing.map((text) => text.kind)).toEqual([
+      'title',
+      'description',
+    ])
+  })
+
   it('marks a gap as blocking publishing only in the primary language', () => {
     const coverage = computePortalLanguageCoverage(
       base({

@@ -33,6 +33,39 @@ export const PORTAL_MEDIA_STORED_CONTENT_TYPE = 'image/webp'
  */
 export const PORTAL_MEDIA_MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
+/**
+ * How large, and how wide or tall, an image may be for each purpose, measured on
+ * the picture as it is shown (after its orientation is applied). One value for
+ * the image policy that refuses a picture and for the browser, which tells a
+ * manager before sending it.
+ */
+export const PORTAL_MEDIA_SIZE_RULES = Object.freeze({
+  hero: { minLongEdge: 1000, minShortEdge: 500, maxAspectRatio: 4 },
+  logo: { minLongEdge: 128, minShortEdge: 32, maxAspectRatio: 8 },
+  link_image: { minLongEdge: 200, minShortEdge: 100, maxAspectRatio: 4 },
+} as const satisfies Readonly<
+  Record<
+    PortalMediaPurpose,
+    Readonly<{ minLongEdge: number; minShortEdge: number; maxAspectRatio: number }>
+  >
+>)
+
+export type PortalMediaSizeProblem = 'too_small' | 'extreme_aspect'
+
+/** Why a picture of this size does not suit the purpose, or null when it does. Too small is named before too extreme, as the policy does. */
+export function portalMediaSizeProblem(
+  purpose: PortalMediaPurpose,
+  width: number,
+  height: number,
+): PortalMediaSizeProblem | null {
+  const rule = PORTAL_MEDIA_SIZE_RULES[purpose]
+  const longEdge = Math.max(width, height)
+  const shortEdge = Math.min(width, height)
+  if (longEdge < rule.minLongEdge || shortEdge < rule.minShortEdge) return 'too_small'
+  if (longEdge / shortEdge > rule.maxAspectRatio) return 'extreme_aspect'
+  return null
+}
+
 /** Where the browser sends an image: a POST of the raw bytes, same-origin. */
 export const PORTAL_MEDIA_UPLOAD_PATH = '/api/portal-media'
 
