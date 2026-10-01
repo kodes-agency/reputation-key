@@ -1,7 +1,8 @@
 // BQC-2.6 / ADR 0049 — controlled-feature containment matrix.
 //
 // Portal, Guest, Goal, email, and AI stay off by default. Most are promotable
-// through scoped persisted policy; portal.upload is temporarily safety-blocked.
+// through scoped persisted policy; only portal.guest_contact is safety-blocked
+// (portal.upload became controlled_beta on 2026-10-01, ADR 0063).
 // This file keeps the negative default-posture contract; positive P1/P2 scope
 // tests live with ExecutionPolicy and the product journeys.
 
