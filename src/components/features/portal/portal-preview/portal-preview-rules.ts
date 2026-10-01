@@ -8,9 +8,14 @@ import type {
 
 export type PreviewUnavailableNote = Readonly<{ title: string; body: string }>
 
+/** What a published page can be unavailable for: the live one, or a version chosen in the History. */
+export type PublishedPreviewSource = 'live' | 'version'
+
 export function describeUnavailable(
   reason: PortalPreviewUnavailableReason,
+  source: PublishedPreviewSource = 'live',
 ): PreviewUnavailableNote {
+  if (source === 'version') return describeUnavailableVersion(reason)
   switch (reason) {
     case 'not_published':
       return {
@@ -27,6 +32,22 @@ export function describeUnavailable(
         title: 'The live page can’t be shown here',
         body: 'The live version is missing something this preview needs. The draft preview still works.',
       }
+  }
+}
+
+function describeUnavailableVersion(
+  reason: PortalPreviewUnavailableReason,
+): PreviewUnavailableNote {
+  // A version that exists is never "not published"; the read refuses one that does not.
+  if (reason === 'earlier_design') {
+    return {
+      title: 'This version uses the earlier design',
+      body: 'It was published before the new design, and this preview does not draw it. What it lists is shown with it.',
+    }
+  }
+  return {
+    title: 'This version can’t be drawn here',
+    body: 'It is missing something this preview needs. What it lists is shown with it.',
   }
 }
 

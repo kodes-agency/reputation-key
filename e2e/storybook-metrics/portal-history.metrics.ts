@@ -8,6 +8,7 @@ import { openStory } from './storybook-story'
 
 const STORY = 'portal-portalhistory--all'
 const OPEN_STORY = 'portal-portalhistory--make-live-again-open'
+const VIEW_STORY = 'portal-portalhistory--view-version-with-page'
 
 const WIDTHS = [320, 390, 768, 1024, 1440, 1920] as const
 /** Tailwind's `lg`: the rail moves beside the ledger. */
@@ -91,3 +92,45 @@ test('a version line shows View and Make live again on hover and on keyboard foc
   await button.focus()
   await expect(actions).toHaveCSS('opacity', '1')
 })
+
+for (const width of [320, 390, 768, 1024, 1440] as const) {
+  test(`"View" shows the version's page in a ${width}px window and its buttons stay reachable`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 800 })
+    await openStory(page, VIEW_STORY)
+
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible()
+    const phone = dialog.getByRole('region', {
+      name: /^Preview of the guest page: Version 4/,
+    })
+    await expect(phone).toBeVisible()
+    const [panel, phoneBox] = await Promise.all([
+      dialog.boundingBox(),
+      phone.boundingBox(),
+    ])
+    if (panel === null || phoneBox === null)
+      throw new Error('the dialog or phone has no box')
+    // The page fits the dialog's width; a tall page scrolls inside the dialog, never the window.
+    expect(phoneBox.x, 'the phone starts left of the dialog').toBeGreaterThanOrEqual(
+      panel.x,
+    )
+    expect(
+      phoneBox.x + phoneBox.width,
+      'the phone runs out of the dialog',
+    ).toBeLessThanOrEqual(panel.x + panel.width)
+    expect(panel.y, 'the dialog starts above the window').toBeGreaterThanOrEqual(0)
+    expect(
+      panel.y + panel.height,
+      'the dialog runs below the window',
+    ).toBeLessThanOrEqual(800)
+    await expect(
+      dialog.getByRole('button', { name: 'Close', exact: true }).first(),
+    ).toBeVisible()
+    const documentScrolls = await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    )
+    expect(documentScrolls, 'the document scrolls sideways').toBe(false)
+  })
+}

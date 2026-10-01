@@ -3,7 +3,10 @@
 // what the filmstrip draws; the machine moves between the same states when a
 // manager clicks through the page, and writes nothing anywhere.
 
-import type { PortalPreviewSource } from '#/contexts/portal/application/public-api'
+import type {
+  PortalPreviewOrigin,
+  PortalPreviewSource,
+} from '#/contexts/portal/application/public-api'
 import type { GuestPagePreviewState } from '#/components/features/guest'
 
 /**
@@ -94,13 +97,16 @@ const SOURCE_NAME: Readonly<Record<PortalPreviewSource, string>> = {
   live: 'Live',
 }
 
-/** The line over the phone: "Draft · Arrival · English". */
+/** The line over the phone: "Draft · Arrival · English", or "Version 4 · Arrival · English". */
 export function stateCaption(
-  source: PortalPreviewSource,
+  source: PortalPreviewOrigin,
   stateLabel: string,
   languageName: string,
+  version: number | null = null,
 ): string {
-  return `${SOURCE_NAME[source]} · ${stateLabel} · ${languageName}`
+  const name =
+    source === 'version' ? `Version ${version ?? ''}`.trim() : SOURCE_NAME[source]
+  return `${name} · ${stateLabel} · ${languageName}`
 }
 
 export type TryAsGuestAction =

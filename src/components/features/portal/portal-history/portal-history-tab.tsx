@@ -14,17 +14,21 @@ import { portalKeys } from '#/shared/queries/query-keys'
 import type { getPortalHistory } from '#/contexts/portal/server/portals'
 import type {
   getPortalVersion,
+  getPortalVersionPreview,
   getPortalVersions,
 } from '#/contexts/portal/server/portal-versions'
 import { buildHistoryRows, type HistoryFilterKey } from './portal-history-rows'
 import { PortalHistoryView, type HistorySelection } from './portal-history-view'
+import { PortalVersionPreview } from './portal-version-preview'
 import { useNow } from './use-now'
 
-/** The three reads, handed in by the route (components never import server modules). */
+/** The reads, handed in by the route (components never import server modules). */
 export type PortalHistoryReads = Readonly<{
   getHistory: typeof getPortalHistory
   getVersions: typeof getPortalVersions
   getVersion: typeof getPortalVersion
+  /** One version's guest page, for "View". */
+  getVersionPreview: typeof getPortalVersionPreview
 }>
 
 export type MakeVersionLiveAction = Action<
@@ -165,6 +169,17 @@ export function PortalHistoryTab({
           : 'No version is live while the page is off. Turn it on from Review & publish to make a version live again.'
       }
       selection={selection}
+      versionPreview={
+        selection === null ? null : (
+          <PortalVersionPreview
+            // Another version is another page: its language and state start over.
+            key={selection.version}
+            portalId={portalId}
+            version={selection.version}
+            getVersionPreview={reads.getVersionPreview}
+          />
+        )
+      }
       detail={{
         status: detail.isError ? 'error' : detail.data ? 'ready' : 'loading',
         detail: detail.data ?? null,

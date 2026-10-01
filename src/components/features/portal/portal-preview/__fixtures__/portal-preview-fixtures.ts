@@ -121,6 +121,13 @@ export const PREVIEW_LIVE: PortalPreview = {
   },
 }
 
+/** A published version chosen from the History: the live page's tiles, under its own number. */
+export const previewOfVersion = (version: number): PortalPreview => ({
+  ...PREVIEW_LIVE,
+  source: 'version',
+  version,
+})
+
 export const PREVIEW_DRAFT_ONE_LANGUAGE: PortalPreview = {
   ...PREVIEW_DRAFT,
   locales: ['en'],

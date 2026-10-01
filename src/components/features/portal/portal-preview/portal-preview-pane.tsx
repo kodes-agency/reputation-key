@@ -22,7 +22,7 @@ import type {
 } from '#/contexts/portal/application/public-api'
 import { previewStateOptions, type PreviewStateId } from './portal-preview-states'
 import { previewPartOf, stateIdForPart, type PreviewSelection } from './preview-parts'
-import { describeUnavailable } from './portal-preview-rules'
+import { describeUnavailable, type PublishedPreviewSource } from './portal-preview-rules'
 import { PHONE_SCALE, PortalPreviewStage } from './portal-preview-stage'
 import { phoneFrameSize } from './preview-phone'
 import { PortalPreviewToolbar } from './portal-preview-toolbar'
@@ -111,7 +111,7 @@ export function PortalPreviewPane({ portalId, getPortalPreview, selection }: Pro
         onTryChange={setIsTrying}
         canTry={experience !== undefined && copy.data !== undefined}
       />
-      <PreviewBody
+      <PortalPreviewBody
         hasError={isError || copy.isError}
         isPending={isPending}
         data={data}
@@ -132,7 +132,7 @@ export function PortalPreviewPane({ portalId, getPortalPreview, selection }: Pro
   )
 }
 
-type BodyProps = Readonly<{
+export type PortalPreviewBodyProps = Readonly<{
   hasError: boolean
   isPending: boolean
   data: PortalPreviewOutcome | undefined
@@ -147,8 +147,11 @@ type BodyProps = Readonly<{
   selection: PreviewSelection | undefined
 }>
 
-/** What the pane shows under the toolbar: failure, loading, a reason, or the stage. */
-function PreviewBody({
+/**
+ * What the pane shows under the toolbar: failure, loading, a reason, or the
+ * stage. The History's "View" shows a version's page with the same body.
+ */
+export function PortalPreviewBody({
   hasError,
   isPending,
   data,
@@ -156,12 +159,19 @@ function PreviewBody({
   experience,
   onRetry,
   ...stage
-}: BodyProps) {
+}: PortalPreviewBodyProps) {
   if (hasError) return <PreviewFailure onRetry={onRetry} />
   const preview = data?.status === 'ready' ? data.preview : null
   if (isPending || (preview !== null && copyData === undefined))
     return <PreviewSkeleton />
-  if (data?.status === 'unavailable') return <PreviewUnavailable reason={data.reason} />
+  if (data?.status === 'unavailable') {
+    return (
+      <PreviewUnavailable
+        reason={data.reason}
+        source={data.source === 'version' ? 'version' : 'live'}
+      />
+    )
+  }
   if (!preview || !experience || !copyData) return null
   return (
     <PortalPreviewStage
@@ -185,8 +195,12 @@ function PreviewSkeleton() {
 
 function PreviewUnavailable({
   reason,
-}: Readonly<{ reason: Parameters<typeof describeUnavailable>[0] }>) {
-  const note = describeUnavailable(reason)
+  source,
+}: Readonly<{
+  reason: Parameters<typeof describeUnavailable>[0]
+  source: PublishedPreviewSource
+}>) {
+  const note = describeUnavailable(reason, source)
   return (
     <div className="rounded-lg border border-dashed p-6 text-center">
       <p className="text-sm font-medium">{note.title}</p>

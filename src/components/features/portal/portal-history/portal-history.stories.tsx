@@ -21,6 +21,8 @@ import {
   storyHistoryFor,
 } from './__fixtures__/portal-history-stories-data'
 import { PortalHistoryView, type HistorySelection } from './portal-history-view'
+import { PortalVersionPreview } from './portal-version-preview'
+import { storyVersionPreview } from './__fixtures__/portal-version-preview-stories-data'
 
 type HarnessProps = Readonly<{
   entriesState?: 'loading' | 'error' | 'ready'
@@ -38,6 +40,8 @@ type HarnessProps = Readonly<{
   afterRestore?: boolean
   /** Confirming succeeds: the confirmation closes, as the tab does. */
   confirmSucceeds?: boolean
+  /** The dialog draws the version's page (the tab's container passes it; here it answers from data). */
+  withPagePreview?: boolean
   onConfirm?: (version: number) => void
 }>
 
@@ -56,6 +60,7 @@ function Harness({
   note = null,
   afterRestore = false,
   confirmSucceeds = false,
+  withPagePreview = false,
   onConfirm = fn(),
 }: HarnessProps) {
   const [filter, setFilter] = useState<HistoryFilterKey>(initialFilter)
@@ -110,6 +115,16 @@ function Harness({
       canMakeLive={canMakeLive}
       note={note}
       selection={selection}
+      versionPreview={
+        withPagePreview && selection ? (
+          <PortalVersionPreview
+            key={selection.version}
+            portalId="portal-1"
+            version={selection.version}
+            getVersionPreview={async ({ data }) => storyVersionPreview(data.version)}
+          />
+        ) : null
+      }
       detail={{
         status: detailStatus,
         detail: selection ? (details[selection.version] ?? null) : null,
@@ -356,6 +371,32 @@ export const ViewVersionFromRail: Story = {
     await userEvent.click(dialog.getByRole('button', { name: 'Make live again…' }))
     await expect(
       await within(document.body).findByText('Make version 3 live again?'),
+    ).toBeInTheDocument()
+  },
+}
+
+// "View" with the page beside what the version lists (the metrics file measures it).
+export const ViewVersionWithPage: Story = {
+  args: {
+    initialSelection: { version: 4, mode: 'view', host: 'dialog' },
+    withPagePreview: true,
+  },
+  play: async () => {
+    const dialog = within(await within(document.body).findByRole('dialog'))
+    await expect(
+      await dialog.findByRole('region', { name: 'Version 4 as guests see it' }),
+    ).toBeInTheDocument()
+    await expect(
+      await dialog.findByRole(
+        'region',
+        {
+          name: (name: string) => name.startsWith('Preview of the guest page: Version 4'),
+        },
+        { timeout: 10_000 },
+      ),
+    ).toBeInTheDocument()
+    await expect(
+      dialog.getByRole('button', { name: 'Make live again…' }),
     ).toBeInTheDocument()
   },
 }

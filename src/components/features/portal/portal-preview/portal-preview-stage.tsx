@@ -105,6 +105,7 @@ export function PortalPreviewStage({
     preview.source,
     isTrying ? 'Trying' : chosen.label,
     GUEST_LOCALE_METADATA[locale].englishName,
+    preview.version,
   )
 
   return (
