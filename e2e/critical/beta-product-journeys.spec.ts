@@ -1146,7 +1146,9 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       return new Date(row.expiresAt).getTime()
     }
     const expiryBefore = await expiryOf()
-    await clickWhenReady(inviteRow.getByRole('button', { name: 'Resend' }))
+    await clickWhenReady(
+      inviteRow.getByRole('button', { name: `Resend invitation to ${inviteEmail}` }),
+    )
     await expect(page.getByText('Invitation renewed and sent')).toBeVisible()
     await expect.poll(expiryOf).toBeGreaterThan(expiryBefore)
     await expect
@@ -1156,8 +1158,10 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       .toHaveLength(2)
     await expect(page.getByText(inviteEmail, { exact: true })).toHaveCount(1)
 
-    await inviteRow.getByRole('button', { name: 'Cancel', exact: true }).click()
-    await page.getByRole('button', { name: /cancel invitation/i }).click()
+    await inviteRow
+      .getByRole('button', { name: `Cancel invitation to ${inviteEmail}`, exact: true })
+      .click()
+    await page.getByRole('button', { name: 'Cancel invitation', exact: true }).click()
     await expect(page.getByText(inviteEmail, { exact: true })).toHaveCount(0)
   })
 

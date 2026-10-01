@@ -32,7 +32,7 @@ import {
 import type { Action } from '#/components/hooks/use-action'
 import type { OrganizationInvitation } from '#/contexts/identity/application/dto/invitation.dto'
 import { formatInvitationDay } from './invitation-day'
-import { summarizeProperties } from './property-summary'
+import { PropertyNames } from './property-names'
 
 export type InvitationRow = OrganizationInvitation
 
@@ -56,15 +56,7 @@ function InvitedProperties({ invitation }: Readonly<{ invitation: InvitationRow 
       </span>
     )
   }
-  const { shown, hiddenCount, all } = summarizeProperties(invitation.properties)
-  return (
-    <span title={hiddenCount > 0 ? all : undefined}>
-      {shown.join(', ')}
-      {hiddenCount > 0 ? (
-        <span className="text-muted-foreground"> +{hiddenCount} more</span>
-      ) : null}
-    </span>
-  )
+  return <PropertyNames properties={invitation.properties} />
 }
 
 function ExpiryCell({ invitation }: Readonly<{ invitation: InvitationRow }>) {
@@ -93,6 +85,7 @@ function CancelInvitationDialog({
         <Button
           variant="outline"
           size="sm"
+          aria-label={`Cancel invitation to ${invitation.email}`}
           className="text-destructive hover:text-destructive"
         >
           Cancel
@@ -170,6 +163,11 @@ export function InvitationTable({ invitations, resendAction, cancelAction }: Pro
                       <Button
                         variant="outline"
                         size="sm"
+                        aria-label={
+                          inv.status === 'expired'
+                            ? `New link for ${inv.email}`
+                            : `Resend invitation to ${inv.email}`
+                        }
                         title="Resend and renew the expiry"
                         disabled={resendAction.isPending}
                         onClick={() =>

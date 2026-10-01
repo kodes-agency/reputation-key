@@ -21,7 +21,7 @@ import type { Action } from '#/components/hooks/use-action'
 import { EmptyState } from '#/components/ui/empty-state'
 import type { Role } from '#/shared/domain/roles'
 import { RemoveMemberDialog } from './remove-member-dialog'
-import { summarizeProperties } from './property-summary'
+import { PropertyNames } from './property-names'
 
 export interface PropertyRef {
   id: string
@@ -81,15 +81,7 @@ function PropertiesCell({ member }: Readonly<{ member: MemberRow }>) {
       </div>
     )
   }
-  const { shown, hiddenCount, all } = summarizeProperties(properties)
-  return (
-    <span title={hiddenCount > 0 ? all : undefined}>
-      {shown.join(', ')}
-      {hiddenCount > 0 ? (
-        <span className="text-muted-foreground"> +{hiddenCount} more</span>
-      ) : null}
-    </span>
-  )
+  return <PropertyNames properties={properties} />
 }
 
 export function MemberTable({
