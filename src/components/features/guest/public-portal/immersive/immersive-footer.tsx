@@ -21,7 +21,7 @@ export type ImmersiveFooterViewProps = Readonly<{
 
 /**
  * The page footer as a pure view (boards G01 and G04). While the guest has not
- * acknowledged the notice, it holds the disclosure, the privacy link and "Got
+ * acknowledged the notice, it holds the one-line notice, the privacy link and "Got
  * it". Afterwards it is one row: the privacy link and the attribution.
  */
 export function ImmersiveFooterView({

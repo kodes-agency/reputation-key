@@ -28,9 +28,7 @@ export const deV2 = defineGuestCopyV2({
     footerMadeWith: 'Erstellt mit Reputation Key',
     logoAlt: 'Logo von {name}',
     visitNotice:
-      'Diese Seite zählt Besuche für {name}. Keine Werbung, keine Tracker von Dritten.',
-    visitNoticeDetail:
-      'Ein notwendiges Sitzungs-Cookie schützt Ihre Antwort. Davon getrennt zählen wir diesen Besuch für {name} mit einem kurzlebigen, datenschutzfreundlichen Netzwerkmarker. Keine Werbung, keine Tracker von Dritten.',
+      '{name} zählt Besuche mit einem notwendigen Cookie und einem datenschutzfreundlichen Marker. Keine Werbung, keine Tracker von Dritten.',
     visitNoticeLabel: 'Besuchszählung',
     visitNoticeAcknowledge: 'Verstanden',
 

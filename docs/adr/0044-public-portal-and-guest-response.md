@@ -83,3 +83,19 @@ when the secondary links appear, and nothing else in this record:
   appear after the rating. The rule is pinned for them until they are republished.
 - The amendment is guest-visible on a portal only when a version 3 snapshot is published for it
   (slice 19 of the round-4 plan).
+
+## Amendment 2026-10-01 — the visit notice is one line
+
+Owner decision (round-4 owner questions 1 and 3): on the Immersive Hub guest page the footer
+shows one line in every language pack, "{name} counts visits with one essential cookie and a
+privacy-protected marker. No ads or third-party trackers." It replaces the longer text that
+separated the essential session cookie from the short-lived network marker.
+
+- The Consequences rule above is unchanged: the line names the essential cookie and the
+  privacy-protected marker and does not claim anonymity. Each language pack carries a
+  translation that names both and the absence of ads and third-party trackers, held by
+  `guest-copy-v2.test.ts`.
+- Visit recording stays independent of the acknowledgement. The notice is informational.
+- The privacy link stays the English `/privacy` page for the closed beta.
+- The printed QR kit shows only the host under the code. The token path is the code's own
+  secret, and the code and the NFC tag already carry it.
