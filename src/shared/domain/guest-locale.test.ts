@@ -70,7 +70,7 @@ describe('guest locale catalogue', () => {
     }
   })
 
-  it('keeps generation 1 as the pack a publication uses today, and names the v2 pack per generation', () => {
+  it('names the generation 1 and generation 2 pack of a locale separately', () => {
     expect(currentGuestLanguagePack('en', 1)).toBe('guest-ui-en-v1')
     expect(currentGuestLanguagePack('bg', 1)).toBe('guest-ui-bg-v1')
     expect(currentGuestLanguagePack('en', 2)).toBe('guest-ui-en-v2')

@@ -228,6 +228,31 @@ export const PhoneChipNamesTheMissingLanguage: Story = {
   },
 }
 
+// All six guest languages on one Portal, with a tile that has text in English
+// only: five tabs read "XX missing". The label tabs must wrap, not run past the
+// editor; the width is measured in `e2e/storybook-metrics/linktree-six-languages.metrics.ts`
+// (the Vitest story runner compiles no Tailwind, so it cannot see overflow).
+export const SixLanguagesWrapTheLanguageTabs: Story = {
+  args: {
+    view: view({
+      locales: ['en', 'es', 'it', 'fr', 'de', 'bg'],
+      titles: { en: 'Around the resort' },
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /^Olive Terrace menu/ }))
+    const label = within(canvas.getByRole('radiogroup', { name: 'Label language' }))
+    await expect(label.getAllByRole('radio')).toHaveLength(6)
+    await expect(label.getAllByText(/ missing$/u)).toHaveLength(5)
+    await expect(
+      within(canvas.getByRole('radiogroup', { name: 'Title language' })).getAllByRole(
+        'radio',
+      ),
+    ).toHaveLength(6)
+  },
+}
+
 const slowSave = () => new Promise<undefined>((done) => setTimeout(done, 400))
 
 // A write is still in flight when the manager presses the same arrow twice: each

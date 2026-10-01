@@ -1,6 +1,6 @@
 // The guest-locale catalogue: the one home of which languages a guest can read
-// a Portal in, which of them managers may offer today, and which reviewed
-// language packs exist for each.
+// a Portal in, which of them managers may offer today, and which
+// registered language packs exist for each.
 //
 // Pure on purpose (no zod, no I/O) so domain code may import it; the zod
 // schemas built from it live in `src/shared/guest-locale-schemas.ts`.

@@ -1,8 +1,9 @@
 import { defineGuestCopyV2 } from './guest-copy-v2'
 
 // Italian guest copy, generation 2 (schema version 3 snapshots). Sentences
-// address the guest as "Lei" (la sua esperienza, riprovi); buttons keep the
-// short imperative every Italian interface uses. No native check happens
+// address the guest as "Lei" (la sua esperienza, riprovi); buttons use the
+// neutral forms every Italian interface uses (Invia, Rimuovi, Mantieni or the
+// infinitive), never a tu imperative with a pronoun on the end. No native check happens
 // during the closed beta (owner decision 5, 2026-09-30). Industry-neutral: no
 // text names a kind of place.
 export const itV2 = defineGuestCopyV2({
@@ -66,7 +67,7 @@ export const itV2 = defineGuestCopyV2({
 
     noteOfferTitle: 'Aggiunga una nota privata per il team',
     noteOfferBody: 'Facoltativa. Condivisa in privato con {name}.',
-    noteOfferAction: 'Scrivi una nota privata',
+    noteOfferAction: 'Scrivere una nota privata',
     noteLabel: 'La sua nota (facoltativa)',
     noteHint: 'Non è necessario indicare il suo nome.',
     noteSend: 'Invia la nota in privato',
@@ -91,7 +92,7 @@ export const itV2 = defineGuestCopyV2({
     responseRemoveAllConfirmBody:
       'Verranno eliminate entrambe. L’operazione non può essere annullata.',
     responseRemoveAllConfirm: 'Rimuovi entrambe',
-    responseRemoveAllCancel: 'Conservale',
+    responseRemoveAllCancel: 'Mantieni',
     responseRemoveAllDoneTitle: 'La sua risposta è stata rimossa',
     responseRemoveAllDoneBody:
       'La sua valutazione e, se l’ha inviata, la sua nota sono state eliminate.',
@@ -100,12 +101,13 @@ export const itV2 = defineGuestCopyV2({
     responseRemoveRatingConfirmTitle: 'Rimuovere la valutazione?',
     responseRemoveRatingConfirmBody:
       'Verrà eliminata. L’operazione non può essere annullata.',
-    responseRemoveRatingConfirm: 'Rimuovila',
-    responseRemoveRatingCancel: 'Conservala',
+    responseRemoveRatingConfirm: 'Rimuovi',
+    responseRemoveRatingCancel: 'Mantieni',
 
     deadlineToday: 'Fino alle {time} di oggi, ora di {zone}',
     deadlineTomorrow: 'Fino alle {time} di domani, ora di {zone}',
-    deadlineDate: 'Fino al {date}, ore {time}, ora di {zone}',
+    // No article before the date: `Fino al` would need all'8 and all'11.
+    deadlineDate: 'Scadenza: {date}, ore {time}, ora di {zone}',
     windowEndedChange: 'Il tempo per modificare la sua valutazione è scaduto.',
     windowEndedNote: 'Il tempo per rimuovere la sua nota è scaduto.',
     windowEndedAll: 'Il tempo per rimuovere la sua risposta è scaduto.',
@@ -113,7 +115,7 @@ export const itV2 = defineGuestCopyV2({
     sharedDeviceTitle: 'Telefono o tablet condiviso?',
     sharedDeviceBody:
       'Ricominci da capo, così il prossimo ospite troverà una pagina nuova.',
-    startOverAction: 'Ricomincia da capo su questo dispositivo',
+    startOverAction: 'Ricominciare da capo su questo dispositivo',
     startOverDone:
       'Pronto per il prossimo ospite. La sua risposta precedente resta salvata.',
     startOverFailed: 'Non è stato possibile ricominciare. Riprovi.',

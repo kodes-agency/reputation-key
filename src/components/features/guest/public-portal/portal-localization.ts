@@ -31,7 +31,7 @@ export function resolvePortalLocale(
   const languagePackVersion =
     localization?.languagePackVersion ?? currentGuestLanguagePack(selectedLocale)
   if (!languagePackVersion) {
-    // The server never serves a locale that has no reviewed pack, so this is a
+    // The server never serves a locale that has no registered pack, so this is a
     // programming error, not a state to paper over with another language.
     throw new Error(`No guest language pack exists for locale ${selectedLocale}`)
   }

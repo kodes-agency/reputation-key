@@ -28,7 +28,7 @@ The owner approved both on 2026-09-30. The plan was checked against `/Users/bozh
    - its own first-paint checks.
 2. **Six languages (en, es, it, fr, de, bg) work end to end.** This covers the database checks, the types, publication snapshot v3, the guest session and `<html lang>`.
    - en and bg ship with new copy packs (`guest-ui-<locale>-v2`).
-   - es, it, fr and de are offered to managers only after the owner's native-speaker check.
+   - es, it, fr and de are offered to managers as soon as their packs are drafted (owner decision 5: no native-speaker check during the closed beta).
    - Each property sets default languages, and each portal picks its own. A portal with one language shows no language switch.
    - When a text is missing in a language, the portal's fallback-language text is copied into the snapshot at publish time and tagged with its source language.
 3. **The admin workspace works end to end, without uploads and without AI:**
@@ -834,7 +834,7 @@ The owner answered the §5 questions on 2026-09-30. Where this section differs f
 
 | #   | Action or decision                                                                                                                                                                                                                          | Who           | What it blocks                                                             |
 | --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------- | -------------------------------------------------------------------------- |
-| 1   | Native check of the BG v2 guest copy; later es, it, fr and de                                                                                                                                                                               | Owner         | Slice 19 (BG); slice 41 (offering each language)                           |
+| 1   | Native check of the BG v2 guest copy; later es, it, fr and de. **Superseded by decision 5: no check during the closed beta; slice 41 no longer waits for it**                                                                               | Owner         | Slice 19 (BG); slice 41 (offering each language)                           |
 | 2   | Short visit-notice copy against ADR 0044: it must still disclose the session cookie and network marker. Confirm the English `/privacy` link is acceptable for all six languages                                                             | Owner         | Final copy in slice 17 (full disclosure is used until then)                |
 | 3   | AI translation: accept the merchant-notice bump (AI turns off until re-consent) and 14 days' privacy notice. Recommendation: manual first                                                                                                   | Owner         | All of slice 43                                                            |
 | 4   | SAFE-01: name the signer and the independent reviewer; run the four deployed drills against the new ingest; sign `docs/release-evidence/safe-01/completion-record-<date>.md`. Decide HEIC, the size cap (10 or 15 MB) and raster-only logos | Owner + ops   | Switching on slice 42; the photo and logo controls in 39                   |

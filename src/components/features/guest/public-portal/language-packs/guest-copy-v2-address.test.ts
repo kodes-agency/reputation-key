@@ -7,6 +7,18 @@ import type { GuestPortalCopyV2 } from './guest-copy-v2'
 
 // The form of address is fixed per language so a pack never mixes registers:
 // German Sie (round 4 board G10), French vous, Spanish usted, Italian Lei.
+// What is pinned: no informal pronoun or possessive, and none of the informal
+// imperatives a button or sentence would slip into (`Elige`, `Choisis`,
+// `Rimuovila`). A word the lists do not know can still get through; the native
+// check deferred by owner decision 5 is what would catch it. Verbs that are
+// also the third person (`ouvre`, `abre`, `comparte`: "opens", "is shared") are
+// left out of the lists on purpose, since the hints use them.
+//
+// The boundaries are Unicode-aware: a plain \b treats an accented letter as a
+// non-word character, so `tú\b` would never match `tú `.
+const word = (alternatives: string) =>
+  new RegExp(`(?<![\\p{L}])(?:${alternatives})(?![\\p{L}])`, 'iu')
+
 describe('the form of address', () => {
   const text = (pack: GuestPortalCopyV2) =>
     [
@@ -16,22 +28,43 @@ describe('the form of address', () => {
 
   it('addresses the guest as Sie in German and never as du', () => {
     expect(deV2.copy.ratingTitle).toBe('Wie hat es Ihnen gefallen?')
-    expect(text(deV2)).not.toMatch(/\b(du|dich|dir|dein\w*|euch|euer\w*|ihr)\b/)
+    expect(text(deV2)).not.toMatch(word('du|dich|dir|dein\\p{L}*|euch|euer\\p{L}*'))
+    expect(text(deV2)).not.toMatch(
+      /(?<![\p{L}])(?:wähle|schreibe|versuche|teile|entferne|lösche|beginne|gib|sende|speichere)(?![\p{L}])/u,
+    )
     expect(text(deV2)).toMatch(/\bIhre?[mnrs]?\b/)
   })
 
   it('addresses the guest as vous in French and never as tu', () => {
-    expect(text(frV2)).not.toMatch(/\b(tu|toi|ton|ta|tes|te)\b/i)
+    expect(text(frV2)).not.toMatch(word('tu|toi|ton|ta|tes|te'))
+    expect(text(frV2)).not.toMatch(
+      word(
+        'choisis|écris|réessaie|essaie|partage|modifie|supprime|recommence|continue|ferme|ajoute|envoie|enregistre|raconte',
+      ),
+    )
     expect(text(frV2)).toMatch(/\bvotre\b/i)
   })
 
   it('addresses the guest as usted in Spanish and never as tú', () => {
-    expect(text(esV2)).not.toMatch(/\b(tú|tu|tus|ti|contigo)\b/i)
+    expect(text(esV2)).not.toMatch(word('tú|tu|tus|ti|contigo'))
+    expect(text(esV2)).not.toMatch(
+      word(
+        'elige|escribe|inténtalo|intenta|vuelve|cierra|borra|elimina|continúa|revisa|añade|envía|guarda|cambia|empieza',
+      ),
+    )
     expect(text(esV2)).toMatch(/\bsu\b/i)
   })
 
   it('addresses the guest as Lei in Italian and never as tu', () => {
-    expect(text(itV2)).not.toMatch(/\b(tuo|tua|tuoi|tue|ti|te)\b/i)
+    expect(text(itV2)).not.toMatch(word('tuo|tua|tuoi|tue|ti|te'))
+    // Buttons such as `Invia` and `Rimuovi` are the neutral form every Italian
+    // interface uses; what is ruled out is a tu imperative with a pronoun on
+    // the end, or one that has a Lei form of its own.
+    expect(text(itV2)).not.toMatch(
+      word(
+        'rimuovila|rimuovile|conservala|conservale|ricomincia|scrivi|riprova|scegli|aggiungi|condividi|apri',
+      ),
+    )
     expect(text(itV2)).toMatch(/\bsua\b/i)
   })
 

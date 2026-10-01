@@ -128,7 +128,7 @@ describe('formatGuestDeadline', () => {
       [
         'Fino alle 15:32 di oggi, ora di Sofia',
         'Fino alle 14:32 di domani, ora di Sofia',
-        'Fino al 4 ott 2026, ore 12:05, ora di Sofia',
+        'Scadenza: 4 ott 2026, ore 12:05, ora di Sofia',
       ],
     ],
     [
@@ -167,6 +167,29 @@ describe('formatGuestDeadline', () => {
     )
     expect(at(frV2, '2026-09-30T12:32:00.000Z', 'Europe/Istanbul', 'fr')).toBe(
       'Jusqu’à 15:32 aujourd’hui, heure locale (Istanbul)',
+    )
+  })
+
+  // "Fino al" would need an elided article before 1, 8 and 11 (all'8, all'11),
+  // so the Italian date template puts no article in front of the date.
+  it.each([
+    ['2026-10-01T09:05:00.000Z', 'Scadenza: 1 ott 2026, ore 12:05, ora di Sofia'],
+    ['2026-10-08T09:05:00.000Z', 'Scadenza: 8 ott 2026, ore 12:05, ora di Sofia'],
+    ['2026-10-11T09:05:00.000Z', 'Scadenza: 11 ott 2026, ore 12:05, ora di Sofia'],
+  ])('writes the Italian date of %s without an article before it', (deadline, line) => {
+    const now = '2026-09-28T09:00:00.000Z'
+    expect(formatGuestDeadline(itV2, deadline, now, 'Europe/Sofia', 'it')).toBe(line)
+  })
+
+  // UTC is a zone name, not a place, so the templates print "local time UTC".
+  // That is accepted wording for the rare Portal on UTC or a fixed offset, and
+  // is pinned here so a change to it is a decision.
+  it('prints UTC and fixed offsets through the same template as a place', () => {
+    expect(at(deV2, '2026-09-30T12:32:00.000Z', 'UTC', 'de')).toBe(
+      'Bis heute, 12:32 Uhr, Ortszeit UTC',
+    )
+    expect(at(frV2, '2026-09-30T12:32:00.000Z', 'Etc/GMT-3', 'fr')).toBe(
+      'Jusqu’à 15:32 aujourd’hui, heure locale (UTC+3)',
     )
   })
 

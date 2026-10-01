@@ -150,9 +150,23 @@ language is offered when its pack is drafted.
   of the new packs, as it must.
 - **Register of address.** German is the formal "Sie" (the owner's German
   glossary and round 4 board G10). French uses "vous", Spanish "usted", and
-  Italian "Lei" in sentences with the short imperative on buttons. The private
-  note is a "Nachricht" / "message" where "note" would collide with the rating
-  in French; a pack test pins each register so a pack never mixes two.
+  Italian "Lei" in sentences, with neutral forms on Italian buttons (`Invia`,
+  `Rimuovi`, the infinitive), never a tu imperative with a pronoun on the end.
+  The private note is a "Nachricht" / "message" where "note" would collide with
+  the rating in French. A pack test pins each register: no informal pronoun or
+  possessive, and none of a list of informal imperatives. It cannot know every
+  word, so a slip outside the lists still needs a native reader (deferred by
+  owner decision 5).
+- **Italian dates carry no article.** `Fino al {date}` would need `all'8` and
+  `all'11`, so the Italian date deadline reads `Scadenza: {date}, ore {time},
+ora di {zone}`; a test covers days 1, 8 and 11.
+- **UTC and fixed-offset zones.** The zone slot also takes `UTC` and `UTC+3`, so
+  German reads `Ortszeit UTC` and French `heure locale (UTC)`. That is accepted
+  for the rare Portal on such a zone and pinned in the deadline test.
+- **Open for the owner: the spelling of Kyiv.** The English pack maps
+  `Europe/Kiev` to "Kyiv"; the Spanish, Italian and French packs say "Kiev" and
+  German says "Kiew" (the German Foreign Office now writes "Kyjiw"). This is a
+  naming choice and is left as drafted until the owner decides it per language.
 - **Template slots drive wording.** The property name never follows "de" in
   French (it would need an elision before a vowel), and the French deadline
   names the zone in brackets for the same reason.
@@ -163,3 +177,11 @@ language is offered when its pack is drafted.
 - **Rollback.** Removing a language from `OFFERED_GUEST_LOCALES` stops
   managers choosing it; it must not remove its pack or its registry entry,
   because a snapshot that names the pack must verify for as long as it exists.
+  Two things follow. (1) Rolling the web image back to a release before this
+  one is a guest outage for every Portal that published one of the four new
+  languages: its version 3 snapshot names `guest-ui-{es,it,fr,de}-v2`, an older
+  reader does not hold that pack and refuses the snapshot, so the Portal shows
+  as unavailable. Roll forward instead. (2) After a language is de-offered, a
+  Portal that still holds it fails `asOfferedSet` in the language rules, so its
+  language section stops working until those Portals' language sets are handled
+  first; do that before de-offering.
