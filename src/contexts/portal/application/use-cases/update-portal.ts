@@ -31,6 +31,11 @@ import type {
   PropertyGoogleReviewDestinationPublicApi,
   PropertyLifecyclePublicApi,
 } from '#/contexts/property/application/public-api'
+import {
+  assertPortalHasOwnerAndAddress,
+  assertPropertyAllowsPublication,
+  loadVerifiedGoogleReviewDestination,
+} from '../portal-publication-readiness'
 import type { PortalCommandStore } from '../ports/portal-command-store.port'
 import type { PortalPublicationMutation } from '../ports/portal-command-store.port'
 import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
@@ -111,57 +116,6 @@ export function resolvePortalContentFields(
     primaryGuestLocale: input.primaryGuestLocale ?? existing.primaryGuestLocale,
     additionalGuestLocales:
       input.additionalGuestLocales ?? existing.additionalGuestLocales,
-  }
-}
-
-async function loadVerifiedGoogleReviewDestination(
-  deps: UpdatePortalDeps,
-  orgId: OrganizationId,
-  existing: Portal,
-): Promise<VerifiedPublicationDestination> {
-  const destination =
-    await deps.propertyGoogleReviewDestinationApi.getGoogleReviewDestination(
-      orgId,
-      existing.propertyId,
-    )
-  if (
-    destination?.state !== 'verified' ||
-    destination.uri === null ||
-    destination.retrievedAt === null ||
-    destination.sourceEpoch === null ||
-    destination.profileVersion === null
-  ) {
-    throw portalError(
-      'google_review_destination_unavailable',
-      'connect and refresh this property’s Google review destination before publishing',
-    )
-  }
-  return {
-    state: 'verified',
-    uri: destination.uri,
-    retrievedAt: destination.retrievedAt,
-    sourceEpoch: destination.sourceEpoch,
-    profileVersion: destination.profileVersion,
-  }
-}
-
-async function assertPropertyAllowsPublication(
-  deps: UpdatePortalDeps,
-  orgId: OrganizationId,
-  existing: Portal,
-): Promise<void> {
-  let active = false
-  try {
-    active = await deps.propertyLifecycleApi.isPropertyActive(orgId, existing.propertyId)
-  } catch {
-    // The lifecycle authority is a publication safety gate. Its implementation
-    // details are deliberately not exposed through the Portal error boundary.
-  }
-  if (!active) {
-    throw portalError(
-      'portal_inactive',
-      'This Portal cannot be published while its Property is unavailable',
-    )
   }
 }
 
@@ -287,23 +241,7 @@ async function buildPublicationMutation(
         'A verified destination must be pinned to the publication snapshot',
       )
     }
-    if (existing.responsibilityNeededSince !== null) {
-      throw portalError(
-        'responsible_manager_ineligible',
-        'Assign at least one responsible manager before publishing',
-      )
-    }
-    const address = await deps.portalTokenRepo.findResolvableSummaryForPortal(
-      ctx.organizationId,
-      existing.id,
-      at,
-    )
-    if (!address?.hasPublishedAccessArtifact) {
-      throw portalError(
-        'token_unavailable',
-        'Create the Portal public address before publishing',
-      )
-    }
+    await assertPortalHasOwnerAndAddress(deps, ctx, existing, at)
     const [workingCopy, cursor] = await Promise.all([
       deps.publicationRepo.loadWorkingCopy(ctx.organizationId, existing.id),
       deps.publicationRepo.getCursor(ctx.organizationId, existing.id),

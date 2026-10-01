@@ -227,6 +227,25 @@ export function createInMemoryPortalCommandStore(deps: {
       await outbox.record(command.event)
       if (command.lifecycleEvent) await outbox.record(command.lifecycleEvent)
     },
+    republishPortal: async (command) => {
+      // The real store updates the Portal only while it is Published, so a
+      // Portal that is not live refuses before the fence is taken.
+      const current = await deps.portalRepo.findById(
+        command.organizationId,
+        command.portalId,
+      )
+      if (current?.publicationState !== 'published') {
+        throw portalError('revision_conflict', 'Portal changed during command')
+      }
+      await fencePortal(
+        command.organizationId,
+        command.portalId,
+        command.expectedUpdatedAt,
+        command.revision,
+      )
+      await outbox.record(command.event)
+      await outbox.record(command.lifecycleEvent)
+    },
     deletePortal: async (command) => {
       const current = await deps.portalRepo.findById(
         command.organizationId,

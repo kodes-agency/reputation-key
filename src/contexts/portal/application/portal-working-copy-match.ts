@@ -14,6 +14,7 @@ import {
   IMMERSIVE_HUB_SCHEMA_VERSION,
   type PortalPublicationSnapshot,
 } from '../domain/portal-publication-snapshot'
+import type { VerifiedPublicationDestination } from '../domain/portal-publication-snapshot'
 import {
   resolvePortalPublication,
   type ImmersivePublicationContent,
@@ -78,5 +79,23 @@ export function workingCopyMatchesSnapshot(
     published !== null &&
     canonicalizeRfc8785(comparableWorkingContent(workingCopy)) ===
       canonicalizeRfc8785(published)
+  )
+}
+
+/**
+ * Is the snapshot still pinned to the Property's verified destination? The
+ * guest edge opens the Google gateway only while all four facts agree, so a
+ * disconnect and relink leaves every live Portal of the Property with a draft
+ * that matches its content and a gateway that no longer opens.
+ */
+export function destinationMatchesSnapshot(
+  destination: VerifiedPublicationDestination,
+  snapshot: PortalPublicationSnapshot,
+): boolean {
+  return (
+    destination.uri === snapshot.destinationUri &&
+    destination.retrievedAt.getTime() === snapshot.destinationRetrievedAt.getTime() &&
+    destination.sourceEpoch === snapshot.destinationSourceEpoch &&
+    destination.profileVersion === snapshot.destinationProfileVersion
   )
 }
