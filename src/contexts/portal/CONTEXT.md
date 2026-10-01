@@ -214,9 +214,12 @@ hidden in a segment do not survive, and the original is never stored.
   Its descriptions are per language (`property_portal_brand_contents.hero_alt_text`,
   at most 160 characters, a language left out keeps its own, null clears one). A
   language with no wording row gets one holding the description alone: its title
-  and description are `''`, which every reader (publication, the preview, the
-  language coverage) treats as unwritten, so the row claims no wording; the row
-  exists only because the description lives in it. A page reads the primary
+  and description are `''`. Every reader (publication, the preview, the language
+  coverage) asks `hasPropertyWording` (domain/property-wording.ts), which is
+  false for such a row, so it claims no wording and a Portal override on that
+  language still does not count until the Property writes some; the row exists
+  only because the description lives in it. The settings editor then shows the
+  fallback placeholder rather than an empty one. A page reads the primary
   language's description for every language that has none of its own. The write
   runs inside the Property's publication lock and moves what every look edit
   moves: `look_version`, a `look:images` pending change for each live Portal

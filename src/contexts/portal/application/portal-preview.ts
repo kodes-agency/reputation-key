@@ -26,6 +26,7 @@ import {
   type PortalPublicationSnapshot,
 } from '../domain/portal-publication-snapshot'
 import { linktreeDefaultTitle } from '../domain/portal-linktree'
+import { hasPropertyWording } from '../domain/property-wording'
 import {
   DEFAULT_PORTAL_ACCENT,
   DEFAULT_PORTAL_FIELD,
@@ -224,7 +225,7 @@ function contentOf(
   // override then replaces it (the same rule the coverage read applies).
   const wordingIn = (key: 'title' | 'shortDescription') => (code: GuestLocale) => {
     const row = contentIn(code)
-    if (!row) return undefined
+    if (!hasPropertyWording(row)) return undefined
     return firstWritten(overrideIn(code)?.[key], row[key])
   }
   const heroAltIn = (code: GuestLocale) => firstWritten(contentIn(code)?.heroAltText)

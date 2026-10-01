@@ -46,6 +46,7 @@ import type {
   PublicationMedia,
   PublicationWording,
 } from '../domain/portal-publication-source'
+import { hasPropertyWording } from '../domain/property-wording'
 
 /** A Database or a transaction: the reader only selects. */
 export type PortalWorkingCopyExecutor = Pick<Database, 'select'>
@@ -265,14 +266,16 @@ function resolveWording(
     localeSet.map((locale): [GuestLocale, PublicationWording] => {
       const content = contentByLocale.get(locale)
       const override = overrideByLocale.get(locale)
-      // A language has wording only when the Property wrote some for it; a
-      // Portal override then replaces it.
+      // A language has wording only when the Property wrote some for it (a row
+      // holding just the photograph's description is not wording); a Portal
+      // override then replaces it.
+      const wording = hasPropertyWording(content) ? content : undefined
       return [
         locale,
         {
-          title: content ? (override?.title ?? content.title) : null,
-          shortDescription: content
-            ? (override?.shortDescription ?? content.shortDescription)
+          title: wording ? (override?.title ?? wording.title) : null,
+          shortDescription: wording
+            ? (override?.shortDescription ?? wording.shortDescription)
             : null,
           heroAlt: content?.heroAltText ?? null,
           linktreeTitle: override?.linktreeTitle ?? null,

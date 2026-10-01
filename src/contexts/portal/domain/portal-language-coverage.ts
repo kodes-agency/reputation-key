@@ -7,7 +7,7 @@
 // them), so they are never "missing".
 //
 // A title and a description are read the way publishing reads them: a language
-// only has them when the Property has wording (a content row) for it, and the
+// only has them when the Property has wording (a content row with some) for it, and the
 // Portal's own override then takes the place of that wording. A Portal override
 // with no Property wording behind it does not count, because publishing reads
 // the Property's wording as the base.
@@ -23,6 +23,7 @@
 
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { gapBlocksPublication } from './portal-publication-source'
+import { hasPropertyWording } from './property-wording'
 
 export type PortalTextKind = 'title' | 'description' | 'link_label'
 
@@ -106,19 +107,18 @@ function missingTexts(
 ): { total: number; missing: MissingPortalText[] } {
   const content = input.propertyContent.find((item) => item.locale === locale)
   const override = input.overrides.find((item) => item.locale === locale)
-  // No Property wording for the language: nothing is written, whatever the
-  // overrides say (publishing drops the language).
-  const hasPropertyWording = content !== undefined
+  // No Property wording for the language (no row, or a row that only holds the
+  // photograph's description): nothing is written, whatever the overrides say.
+  const hasWording = hasPropertyWording(content)
   const wording: ReadonlyArray<Readonly<{ kind: PortalTextKind; written: boolean }>> = [
     {
       kind: 'title',
-      written: hasPropertyWording && anyWritten(override?.title, content.title),
+      written: hasWording && anyWritten(override?.title, content.title),
     },
     {
       kind: 'description',
       written:
-        hasPropertyWording &&
-        anyWritten(override?.shortDescription, content.shortDescription),
+        hasWording && anyWritten(override?.shortDescription, content.shortDescription),
     },
   ]
   const blocksPublish = gapBlocksPublication(locale, input.primaryLocale)

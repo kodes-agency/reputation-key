@@ -409,6 +409,29 @@ describe('buildDraftPortalPreview', () => {
     })
   })
 
+  it('does not count a Portal override on a language whose row holds only a photograph description', () => {
+    const preview = draft({
+      portal: buildTestPortal({ name: 'Pool & Terrace', additionalGuestLocales: ['bg'] }),
+      content: [
+        {
+          locale: 'en',
+          title: 'Avela Resort',
+          shortDescription: 'Rate your visit.',
+          heroAltText: null,
+        },
+        { locale: 'bg', title: '', shortDescription: '', heroAltText: 'Басейн' },
+      ],
+      overrides: [
+        { locale: 'bg', title: 'Басейн', shortDescription: null, heroImageUrl: null },
+      ],
+    })
+
+    expect(experienceOf(preview, 'bg').content.title).toEqual({
+      value: 'Avela Resort',
+      fallbackFrom: 'en',
+    })
+  })
+
   it('names the Portal when even the primary language has no wording', () => {
     const preview = draft({ content: [] })
 
