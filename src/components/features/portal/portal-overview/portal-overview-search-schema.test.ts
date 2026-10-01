@@ -44,12 +44,36 @@ describe('portalOverviewSearchSchema', () => {
     })
   })
 
+  it('reads the open New portal dialog however the router spelled it', () => {
+    for (const spelled of [true, 'true', 1, '1']) {
+      expect(portalOverviewSearchSchema.parse({ new: spelled })).toEqual({ new: true })
+    }
+    expect(portalOverviewSearchSchema.parse({ new: false })).toEqual({})
+    expect(portalOverviewSearchSchema.parse({ new: 'maybe' })).toEqual({})
+  })
+
   it('reads a page number the router left as a string', () => {
     expect(portalOverviewSearchSchema.parse({ page: '2' })).toEqual({ page: 2 })
   })
 })
 
 describe('portalOverviewSearchPatch', () => {
+  it('keeps the dialog open across list changes and closes it when asked', () => {
+    expect(portalOverviewSearchPatch({ new: true }, { q: 'pool' })).toEqual({
+      q: 'pool',
+      new: true,
+    })
+    expect(
+      portalOverviewSearchPatch({ q: 'pool', new: true }, { new: undefined }),
+    ).toEqual({
+      q: 'pool',
+    })
+    expect(portalOverviewSearchPatch({ q: 'pool' }, { new: true })).toEqual({
+      q: 'pool',
+      new: true,
+    })
+  })
+
   it('leaves the default view bare: defaults and blanks are not written', () => {
     expect(
       portalOverviewSearchPatch(

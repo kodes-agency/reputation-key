@@ -8,7 +8,12 @@ import {
 } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { listPortalOverview, updatePortal } from '#/contexts/portal/server/portals'
+import {
+  createPortal,
+  getPortalCreationOptions,
+  listPortalOverview,
+  updatePortal,
+} from '#/contexts/portal/server/portals'
 import {
   addPortalToGroup,
   createPortalGroup,
@@ -23,6 +28,8 @@ import {
   PortalListLoading,
 } from '#/components/features/portal/portal-route-fallbacks'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import { useRouteContext } from '@tanstack/react-router'
+import type { PortalNewData } from '#/components/features/portal/portal-new/portal-new-types'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { membersQuery, propertiesQuery } from '#/routes/-queries/route-queries'
 import { usePermissions } from '#/shared/hooks/usePermissions'
@@ -43,6 +50,16 @@ const portalOverviewQuery = (propertyId: string) =>
     staleTime: OVERVIEW_STALE_MS,
   })
 
+// What the New portal dialog reads about the Property. Only fetched once the
+// dialog is open; the cached copy is refreshed on each opening, because default
+// languages and eligible managers change in other places.
+const portalCreationOptionsQuery = (propertyId: string) =>
+  queryOptions({
+    queryKey: portalKeys.creationOptions(propertyId),
+    queryFn: () => getPortalCreationOptions({ data: { propertyId } }),
+    staleTime: OVERVIEW_STALE_MS,
+  })
+
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/portals/')({
   beforeLoad: async ({ context, params }) => {
     await gateControlledRoute({
@@ -55,7 +72,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/por
     const { role } = context as AuthRouteContext
     if (!can(role, 'portal.read')) throw redirect({ to: '/properties' })
   },
-  validateSearch: (search) => portalOverviewSearchSchema.parse(search),
+  validateSearch: portalOverviewSearchSchema,
   staleTime: 30_000,
   loader: async ({ params, context }) => {
     await Promise.all([
@@ -89,6 +106,46 @@ function PortalListRoute() {
   const { properties } = propsData
   const property = properties?.find((p) => p.id === propertyId)
   const propertyName = property?.name ?? ''
+
+  // The signed-in person is responsible for a new portal by default.
+  const { user } = useRouteContext({ from: '/_authenticated' }) as {
+    user: { id: string }
+  }
+  const dialogOpen = search.new === true && canDo('portal.create')
+  const creationOptions = useQuery({
+    ...portalCreationOptionsQuery(propertyId),
+    enabled: dialogOpen,
+    retry: false,
+  })
+  const createMutation = useActionMutation(createPortal, {
+    successMessage: 'Portal created',
+    invalidateKeys: [portalKeys.all],
+    onSuccess: async (output) => {
+      // `invalidateKeys` marks the list stale but only REFETCHES active queries,
+      // and the plain portals list has no observer here. The workspace's loader
+      // resolves the portal against that list, so refetch it first or it would
+      // not find the portal that was just created.
+      await queryClient.refetchQueries({ queryKey: portalKeys.list(propertyId) })
+      await navigate({
+        to: '/properties/$propertyId/portals/$portalId',
+        params: { propertyId, portalId: output.portal.id },
+        search: { tab: 'page' },
+      })
+    },
+  })
+  const newPortalData: PortalNewData | null = creationOptions.data
+    ? {
+        propertyId,
+        propertyName,
+        options: creationOptions.data,
+        groups: groups.map((group) => ({ id: group.id, name: group.name })),
+        // An archived portal is retired; it is not offered as a starting point.
+        sources: portals.filter((portal) => portal.publicationState !== 'archived'),
+        members: members.data?.members ?? [],
+        creatorId: user.id,
+        mutation: createMutation,
+      }
+    : null
 
   const archiveMutation = useActionMutation(updatePortal, {
     successMessage: 'Portal archived',
@@ -139,6 +196,7 @@ function PortalListRoute() {
       onSearchChange={(next) => void navigate({ search: next, replace: true })}
       archiveMutation={archiveMutation}
       restoreMutation={restoreMutation}
+      newPortal={{ data: newPortalData, loadError: creationOptions.error ?? undefined }}
       portalGroups={groups}
       createGroupMutation={createGroupMutation}
       updateGroupMutation={updateGroupMutation}

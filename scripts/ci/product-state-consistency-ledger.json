@@ -132,13 +132,14 @@
         "goalSubjects",
         "goalSubjectNames",
         "overview",
+        "creationOptions",
         "forProperty",
         "forPropertyPortal",
         "analyticsRoot",
         "analytics"
       ],
       "owner": "Portal query lifecycle",
-      "policy": "Property lists, groups, and goal-subject projections include propertyId. Every successful Portal Group create, rename, archive, member-add, or member-remove command goes through one named cache policy that invalidates only the exact groups, goalSubjects, goalSubjectNames, and overview keys for that Property (the Portals overview names each Portal's group); failed commands do not run the policy. The Portals overview (every Portal of a Property, read in one batch) sits under the property prefix apart from the plain list, and its read is always refetched on arrival. Property-wide guest-experience data has its own propertyId prefix, and Portal-specific experience projections descend from it so a brand-profile write refreshes every affected screen. Detail descendants use globally unique portalId, while approved destinations remain Portal-scoped. Analytics additionally nests propertyId, portalId, and time range so property teardown, portal teardown, and range-specific reads each have a usable prefix."
+      "policy": "Property lists, groups, and goal-subject projections include propertyId. Every successful Portal Group create, rename, archive, member-add, or member-remove command goes through one named cache policy that invalidates only the exact groups, goalSubjects, goalSubjectNames, and overview keys for that Property (the Portals overview names each Portal's group); failed commands do not run the policy. The Portals overview (every Portal of a Property, read in one batch) sits under the property prefix apart from the plain list, and its read is always refetched on arrival. What the New portal dialog reads about a Property (default languages, eligible managers) sits under the same prefix as creationOptions, is fetched only while the dialog is open, and is refreshed on each opening; a successful create invalidates the whole portals family. Property-wide guest-experience data has its own propertyId prefix, and Portal-specific experience projections descend from it so a brand-profile write refreshes every affected screen. Detail descendants use globally unique portalId, while approved destinations remain Portal-scoped. Analytics additionally nests propertyId, portalId, and time range so property teardown, portal teardown, and range-specific reads each have a usable prefix."
     },
     {
       "id": "integrationKeys",
@@ -317,12 +318,6 @@
       "classification": "local_runtime",
       "owner": "Portal blur-committed field values",
       "policy": "Seeded once from the form's own default values and advanced only when a write carrying the committed value is accepted; it holds what the server was last given for fields that commit on blur, so another write does not persist a half-typed value. It is not a second copy of the form's state."
-    },
-    {
-      "id": "src/components/features/portal/portal-form/portal-creation-with-preview.tsx:useState(preview)",
-      "classification": "local_runtime",
-      "owner": "Portal creation preview",
-      "policy": "This composite is a client-only blank form preview updated by CreatePortalForm; it has no server source."
     },
     {
       "id": "src/components/features/portal/portal-preview/use-preview-toggle.ts:useState(open)",

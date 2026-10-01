@@ -7,7 +7,6 @@
 // search and reports changes through `onSearchChange`. The results strip and the
 // measure columns join in slice 25b. Portal Group management stays below the
 // table until the group page (slice 38) replaces it.
-import { Link } from '@tanstack/react-router'
 import { Globe, Plus, SearchX } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
@@ -30,6 +29,8 @@ import {
   type PortalManagerName,
 } from './portal-overview/portal-overview-view'
 import type { Action } from '#/components/hooks/use-action'
+import { PortalNewDialog } from './portal-new/portal-new-dialog'
+import type { PortalNewData } from './portal-new/portal-new-types'
 
 export type PortalListPageProps = PortalArchiveMutations &
   Readonly<{
@@ -40,6 +41,8 @@ export type PortalListPageProps = PortalArchiveMutations &
     propertyName: string
     search: PortalOverviewSearch
     onSearchChange: (next: PortalOverviewSearch) => void
+    /** What the New portal dialog needs; null until the Property's options have loaded. */
+    newPortal: Readonly<{ data: PortalNewData | null; loadError?: unknown }>
     portalGroups: readonly PortalGroupView[]
     createGroupMutation: Action<{
       data: { propertyId: string; name: string; portalIds?: string[] }
@@ -68,6 +71,7 @@ export function PortalListPage({
   onSearchChange,
   archiveMutation,
   restoreMutation,
+  newPortal,
   portalGroups,
   createGroupMutation,
   updateGroupMutation,
@@ -80,12 +84,11 @@ export function PortalListPage({
   const update = (patch: Partial<PortalOverviewSearch>) =>
     onSearchChange(portalOverviewSearchPatch(search, patch))
 
-  const newPortalButton = can('portal.create') ? (
-    <Button asChild className="min-h-11 sm:min-h-9">
-      <Link to="/properties/$propertyId/portals/new" params={{ propertyId }}>
-        <Plus />
-        New portal
-      </Link>
+  const canCreate = can('portal.create')
+  const newPortalButton = canCreate ? (
+    <Button className="min-h-11 sm:min-h-9" onClick={() => update({ new: true })}>
+      <Plus />
+      New portal
     </Button>
   ) : undefined
 
@@ -144,6 +147,14 @@ export function PortalListPage({
           )}
         </section>
       )}
+      {canCreate ? (
+        <PortalNewDialog
+          open={search.new === true}
+          onOpenChange={(open) => update({ new: open ? true : undefined })}
+          data={newPortal.data}
+          loadError={newPortal.loadError}
+        />
+      ) : null}
       <PortalGroupManagement
         propertyId={propertyId}
         groups={portalGroups}

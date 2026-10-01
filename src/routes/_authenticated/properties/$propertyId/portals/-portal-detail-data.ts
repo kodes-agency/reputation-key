@@ -84,8 +84,8 @@ export const portalApprovedDestinationsQuery = (portalId: string) =>
  *
  * The list is refetched ONCE before concluding the portal is gone. `invalidate`
  * after a create only refetches ACTIVE queries, and this list has no observer
- * while the user is on `../portals/new`, so the cache still held the
- * pre-creation list: a portal created a second earlier was reported unavailable.
+ * while the user is on the Portals overview (the New portal dialog creates from
+ * there), so the cache still held the pre-creation list: a portal created a second earlier was reported unavailable.
  * The refetch costs nothing in the happy path — it runs only on a cache miss —
  * and removes that whole class of false negative for any stale list.
  */

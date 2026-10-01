@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, waitFor, within } from 'storybook/test'
+import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
 import { PortalListPage, type PortalListPageProps } from './portal-list-page'
 import {
   NO_CODE,
@@ -12,6 +12,7 @@ import {
   type PortalOverviewSearch,
 } from './portal-overview/portal-overview-search-schema'
 import type { Action } from '#/components/hooks/use-action'
+import type { CreatePortalInput } from '#/contexts/portal/application/dto/create-portal.dto'
 import {
   AuthedRouterDecorator,
   withRole,
@@ -86,9 +87,25 @@ const members = [
   { userId: 'u-elena', name: 'Elena Petrova' },
 ]
 
+const newPortalData: NonNullable<PortalListPageProps['newPortal']['data']> = {
+  propertyId: 'prop-1',
+  propertyName: 'Avela Resort',
+  options: {
+    defaultGuestLocales: ['en'],
+    eligibleManagerUserIds: ['u-georgi', 'u-elena'],
+    creatorIsEligible: false,
+  },
+  groups: [{ id: 'group-pool', name: 'Pool side' }],
+  sources: rows,
+  members,
+  creatorId: 'u-admin',
+  mutation: action<{ data: CreatePortalInput }>(),
+}
+
 const baseArgs = {
   rows,
   members,
+  newPortal: { data: null },
   propertyId: 'prop-1',
   propertyName: 'Avela Resort',
   archiveMutation: action<{
@@ -114,6 +131,22 @@ const baseArgs = {
 }
 
 export const Default: Story = { args: baseArgs }
+
+// "New portal" opens the dialog over the list (the page keeps it in the URL);
+// Cancel closes it again.
+export const OpensTheNewPortalDialog: Story = {
+  args: { ...baseArgs, newPortal: { data: newPortalData } },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: 'New portal' }),
+    )
+    const dialog = within(await screen.findByRole('dialog'))
+    await expect(dialog.getByRole('heading', { name: 'New portal' })).toBeInTheDocument()
+    await expect(dialog.getByText('No one will be responsible yet')).toBeInTheDocument()
+    await userEvent.click(dialog.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+  },
+}
 
 export const Empty: Story = {
   args: { ...baseArgs, rows: [], portalGroups: [] },

@@ -529,6 +529,14 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
 - `PortalNewDialog`; `/portals/new` becomes a redirect.
 - Update the inventory in `portal-form-standards.test.ts` and the in-memory store.
 - Depends on 10, 11, 22. Size L.
+- **As built.**
+  - **No place types** (owner decision): the dialog asks for a name, a group, languages and what to start from, as board 03 draws it. The group choice is left out while the Property has no group, and the copy choice while it has no other Portal.
+  - `createPortal` takes `groupId`, `guestLocales`, `startFrom` (`{kind:'property'}` or `{kind:'portal', portalId}`) and `responsibleManagerUserIds`, and commits them with the Portal in one transaction (the group is fenced like a membership change). `CreatePortalCommand.initialResponsibleManagerId` became `initialResponsibleManagerIds` (empty means nobody, with the recovery fact). The create command lives in `portal-create-command.ts` and `portal-create-guards.ts`, out of `portal-command-store.ts`, whose baseline entry is gone.
+  - **Languages.** Default: the Property's default languages (slice 11), or those of the copied Portal; English when there are none. Only offered languages (today English and Bulgarian) can be chosen, so the Español/Deutsch chips on the board arrive with slice 41.
+  - **Copy.** There was no `duplicatePortal` use case to extend, so the copy is part of `create` (`planPortalContentCopy`, a pure plan). It takes the settings, the wording and Linktree title per language, approved links with their categories and link texts, with fresh identifiers, for the languages the new Portal offers. It never takes codes and their artifacts, publication snapshots or activations, responsible managers, health or history. It leaves behind photos and any link that is not an approved destination (legacy URLs), and keeps within the four-link limit.
+  - **Address.** A name whose derived address is taken gets the next free numbered one (`rooftop-pool-2`); a database refusal at commit (two creates at once) is mapped to `slug_taken` and retried once. An address typed by the manager must be free.
+  - `getPortalCreationOptions` returns the Property's default languages and the eligible manager ids; the groups and the Portals to copy come from the reads the Portals page already holds. Manager names come from the member list when the role may read it, and are never replaced by an id.
+  - `/portals/new` redirects to `/portals?new=true`; the dialog's open state is the `new` key of the Portals overview URL. The old create form, its preview composite and their stories are gone.
 
 **27. Editor section nav and autosave (A5).**
 
