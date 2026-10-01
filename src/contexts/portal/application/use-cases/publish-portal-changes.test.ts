@@ -1,7 +1,11 @@
 // Portal context — publish changes while live
 
 import { describe, expect, it } from 'vitest'
-import { publishPortalChanges, publishPortalsChanges } from './publish-portal-changes'
+import {
+  previewPortalChanges,
+  publishPortalChanges,
+  publishPortalsChanges,
+} from './publish-portal-changes'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
@@ -619,5 +623,70 @@ describe('publishPortalsChanges', () => {
     await expect(batch({ portalIds: [harness.portal.id] }, manager())).rejects.toThrow(
       'connection reset',
     )
+  })
+})
+
+describe('previewPortalChanges', () => {
+  const preview = (harness: ReturnType<typeof setup>) =>
+    previewPortalChanges(harness.deps)
+
+  it('says what a publication would write and writes nothing', async () => {
+    const harness = setup({ openChanges: 1 })
+
+    const result = await preview(harness)({ portalId: harness.portal.id }, manager())
+
+    expect(result).toEqual({ outcome: 'would_publish', version: 3 })
+    expect(harness.commands).toEqual([])
+    expect(harness.outbox.facts).toEqual([])
+  })
+
+  it('reads nothing pending as unchanged', async () => {
+    const harness = setup()
+
+    await expect(
+      preview(harness)({ portalId: harness.portal.id }, manager()),
+    ).resolves.toEqual({ outcome: 'unchanged', version: 2 })
+  })
+
+  it.each([
+    ['hasAddress', { hasAddress: false }, 'token_unavailable'],
+    ['propertyActive', { propertyActive: false }, 'portal_inactive'],
+    [
+      'destination',
+      { destination: 'unavailable' },
+      'google_review_destination_unavailable',
+    ],
+    [
+      'responsibility',
+      { responsibilityNeededSince: NOW },
+      'responsible_manager_ineligible',
+    ],
+  ] as const)(
+    'refuses what the real publication refuses (%s), so a dry run predicts the apply',
+    async (_name, options, code) => {
+      const harness = setup({ openChanges: 1, ...options })
+
+      await expect(
+        preview(harness)({ portalId: harness.portal.id }, manager()),
+      ).rejects.toMatchObject({ code })
+      await expect(
+        harness.useCase({ portalId: harness.portal.id }, manager()),
+      ).rejects.toMatchObject({ code })
+    },
+  )
+
+  it('refuses a Portal that is not live and a role that cannot edit Portals', async () => {
+    const draft = setup({ state: 'draft', openChanges: 1 })
+    await expect(
+      preview(draft)({ portalId: draft.portal.id }, manager()),
+    ).rejects.toMatchObject({ code: 'invalid_publication_transition' })
+
+    const harness = setup({ openChanges: 1 })
+    await expect(
+      preview(harness)(
+        { portalId: harness.portal.id },
+        buildTestAuthContext({ role: 'Member' }),
+      ),
+    ).rejects.toMatchObject({ code: 'forbidden' })
   })
 })
