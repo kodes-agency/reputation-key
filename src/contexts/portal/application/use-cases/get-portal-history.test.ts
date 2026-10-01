@@ -429,7 +429,7 @@ describe('getPortalHistory', () => {
     }
     const { useCase } = setup(seed)
     const everything = await useCase({ portalId: portal.id, limit: 50 }, ctx)
-    expect(everything.entries).toHaveLength(13)
+    expect(everything.entries).toHaveLength(16)
 
     for (const limit of [1, 2, 3, 4, 7]) {
       const seen: PortalHistoryEntry[] = []
