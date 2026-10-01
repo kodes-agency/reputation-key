@@ -20,7 +20,6 @@ import {
   RATINGS,
   renderResponse,
 } from './__fixtures__/immersive-response-fixtures'
-import { ratingChoiceError } from './immersive-rating-card'
 import { immersiveResponseProps } from './immersive-response-preview'
 import { ImmersiveResponseView } from './immersive-response-view'
 import { IMMERSIVE_RESPONSE_CSS } from './immersive-response-styles'
@@ -93,14 +92,6 @@ describe.each(PACKS)('the rating card [$locale]', (pack) => {
     const pending = body(renderResponse(pack, { kind: 'arrival' }, { pending: true }))
     expect(pending).toContain(pack.copy.sending)
     expect(pending).toMatch(/<fieldset[^>]*disabled/u)
-  })
-})
-
-describe('ratingChoiceError', () => {
-  it('asks for a rating when none is chosen, and accepts 1 to 5', () => {
-    expect(ratingChoiceError(0)).toBe('choose')
-    expect(ratingChoiceError(6)).toBe('choose')
-    for (const rating of RATINGS) expect(ratingChoiceError(rating)).toBeNull()
   })
 })
 

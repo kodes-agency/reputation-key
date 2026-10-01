@@ -1,17 +1,13 @@
-import { useEffect, useId, useRef, useState, type FormEvent } from 'react'
-import { guestPrivateFeedbackFormDto } from '#/contexts/guest/application/dto/guest-response-form.dto'
+import { useEffect, useId, useRef, useState } from 'react'
 import { guestCopyText } from '../guest-copy-format'
 import type { GuestPortalCopyV2 } from '../language-packs/guest-copy-v2'
-import { ImmersiveBanner } from './immersive-banner'
-import { ImmersiveHoneypot } from './immersive-honeypot'
 import { CheckIcon, LockIcon, PencilIcon } from './immersive-icons'
+import { ImmersiveNoteForm, type NoteSubmission } from './immersive-note-form'
 
-export type NoteSubmission = Readonly<{ text: string; honeypot: string }>
+export type { NoteSubmission } from './immersive-note-form'
 
 /** The note the page starts with: closed and empty, unless a story or preview says otherwise. */
 export type NoteDraft = Readonly<{ open?: boolean; text?: string }>
-
-const NOTE_MAX_LENGTH = 2_000
 
 /**
  * The private note card (boards G04, G06, G07), offered after the Google card
@@ -81,9 +77,6 @@ function NoteComposer({
 }>) {
   const id = useId()
   const [open, setOpen] = useState(initial?.open ?? false)
-  const [text, setText] = useState(initial?.text ?? '')
-  const [honeypot, setHoneypot] = useState('')
-  const [required, setRequired] = useState(false)
   const field = useRef<HTMLTextAreaElement>(null)
   const opener = useRef<HTMLButtonElement>(null)
   // Focus moves only when the guest opens or closes the note, never on first render.
@@ -99,16 +92,6 @@ function NoteComposer({
     moveFocus.current = true
     setOpen(next)
   }
-  const send = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault()
-    const parsed = guestPrivateFeedbackFormDto.shape.text.safeParse(text)
-    if (!parsed.success) {
-      setRequired(true)
-      return
-    }
-    setRequired(false)
-    await onSubmit({ text: parsed.data, honeypot })
-  }
 
   return (
     <section className="ih-note" aria-labelledby={`${id}-title`}>
@@ -120,55 +103,16 @@ function NoteComposer({
         <span>{guestCopyText(pack, 'noteOfferBody', { name: displayName })}</span>
       </p>
       {open ? (
-        <form className="ih-note__form" onSubmit={(event) => void send(event)} noValidate>
-          <label className="ih-note__label" htmlFor={`${id}-text`}>
-            {pack.copy.noteLabel}
-          </label>
-          <textarea
-            id={`${id}-text`}
-            ref={field}
-            className="ih-note__field"
-            name="text"
-            rows={4}
-            maxLength={NOTE_MAX_LENGTH}
-            value={text}
-            disabled={pending}
-            aria-describedby={`${id}-hint`}
-            aria-invalid={required}
-            onChange={(event) => {
-              setText(event.target.value)
-              setRequired(false)
-            }}
-          />
-          <p id={`${id}-hint`} className="ih-note__fine">
-            {pack.copy.noteHint}
-          </p>
-          {required && <ImmersiveBanner message={pack.copy.noteRequired} />}
-          {sendFailed && <ImmersiveBanner message={pack.copy.noteSendFailed} />}
-          <ImmersiveHoneypot
-            id={`${id}-website`}
-            label={pack.copy.honeypotLabel}
-            value={honeypot}
-            onChange={setHoneypot}
-          />
-          <div className="ih-note__actions">
-            <button
-              type="submit"
-              className="ih-button ih-button--primary"
-              disabled={pending}
-            >
-              {pending ? pack.copy.sending : pack.copy.noteSend}
-            </button>
-            <button
-              type="button"
-              className="ih-text-button"
-              disabled={pending}
-              onClick={() => toggle(false)}
-            >
-              {pack.copy.noteDismiss}
-            </button>
-          </div>
-        </form>
+        <ImmersiveNoteForm
+          pack={pack}
+          idPrefix={id}
+          initialText={initial?.text ?? ''}
+          fieldRef={field}
+          pending={pending}
+          sendFailed={sendFailed}
+          onSubmit={onSubmit}
+          onDismiss={() => toggle(false)}
+        />
       ) : (
         <button
           ref={opener}

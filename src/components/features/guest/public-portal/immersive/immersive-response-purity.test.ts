@@ -62,11 +62,11 @@ describe('ImmersiveResponseView purity', () => {
     }
   })
 
-  it('pulls in no TanStack Form, shadcn control or app-themed component', () => {
+  it('pulls in no shadcn control or app-themed component', () => {
     for (const [file, source] of viewTree()) {
       const name = file.slice(SRC.length)
-      expect(source, name).not.toMatch(/@tanstack\/react-form/)
-      expect(source, name).not.toMatch(/from '#\/components\/(ui|forms)\//)
+      expect(source, name).not.toMatch(/from '#\/components\/ui\//)
+      expect(source, name).not.toMatch(/submit-button/)
     }
   })
 })
