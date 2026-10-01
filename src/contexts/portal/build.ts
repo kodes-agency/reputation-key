@@ -19,6 +19,7 @@ import {
 } from './infrastructure/repositories/portal.repository'
 import { createPortalResponsibilityRuntime } from './application/portal-responsibility-runtime'
 import { createPortalLinkRepository } from './infrastructure/repositories/portal-link.repository'
+import { createPortalGroupPublicApi } from './infrastructure/portal-group-public-api'
 import { createPortalGroupRepository } from './infrastructure/repositories/portal-group.repository'
 import { createPortalGroupHistoryRepository } from './infrastructure/repositories/portal-group-history.repository'
 import { createS3StorageAdapter } from './infrastructure/adapters/s3-storage.adapter'
@@ -109,7 +110,6 @@ import {
   portalGroupId,
   portalId,
   type OrganizationId,
-  type PortalGroupId,
   type PortalId,
   type PropertyId,
 } from '#/shared/domain/ids'
@@ -777,31 +777,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     },
   }
 
-  const portalGroupPublicApi = {
-    findGroupForPortal: async (orgId: OrganizationId, pid: PortalId, asOf?: Date) => {
-      const group = await portalGroupRepo.findGroupForPortal(
-        orgId,
-        pid,
-        asOf ?? deps.clock(),
-      )
-      if (!group) return null
-      return { id: group.id, propertyId: group.propertyId, name: group.name }
-    },
-    getGroupPortalIds: (orgId: OrganizationId, groupId: PortalGroupId) =>
-      portalGroupRepo.getGroupPortalIds(orgId, groupId),
-    findGroupIdsByPortalIds: (
-      orgId: OrganizationId,
-      portalIds: ReadonlyArray<PortalId>,
-    ) => portalGroupRepo.findGroupIdsByPortalIds(orgId, portalIds),
-    portalGroupBelongsToProperty: async (
-      orgId: OrganizationId,
-      pid: PropertyId,
-      groupId: PortalGroupId,
-    ) => {
-      const group = await portalGroupRepo.findById(orgId, groupId)
-      return group?.propertyId === pid
-    },
-  }
+  const portalGroupPublicApi = createPortalGroupPublicApi(portalGroupRepo, deps.clock)
 
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
     registerPortalHealthConsumers(consumerRegistry, portalHealthReconciliationStore)

@@ -54,6 +54,56 @@ const LOOK_ACTION: Readonly<Record<string, string>> = {
   images: 'changed the logo or photo',
 }
 
+type EditSentence = Readonly<{
+  action: Phrase
+  locale: GuestLocale | null
+  showWording: boolean
+}>
+
+const tileSentence = (action: Phrase): EditSentence => ({
+  action,
+  locale: null,
+  showWording: false,
+})
+
+const quotedText = (text: string): string => `‘${text}’`
+
+/** A tile edit: added, removed, renamed or otherwise changed, named when its text is known. */
+function describeLinkEdit(change: string, detail: PageEditDetail): EditSentence {
+  const { previousText, newText } = detail
+  if (change === 'created') {
+    return tileSentence(
+      newText === null
+        ? [plain('added a tile')]
+        : [plain('added '), strong(quotedText(newText))],
+    )
+  }
+  if (change === 'deleted') {
+    return tileSentence(
+      previousText === null
+        ? [plain('removed a tile')]
+        : [plain('removed '), strong(quotedText(previousText))],
+    )
+  }
+  if (previousText !== null && newText !== null && previousText !== newText) {
+    return tileSentence([
+      plain('renamed '),
+      strong(quotedText(previousText)),
+      plain(' to '),
+      strong(quotedText(newText)),
+    ])
+  }
+  return tileSentence([
+    plain('changed '),
+    strong(newText === null ? 'a tile' : quotedText(newText)),
+  ])
+}
+
+const CATEGORY_VERB: Readonly<Record<string, string>> = {
+  created: 'added',
+  renamed: 'renamed',
+}
+
 /** The sentence's action for a part of the page, and the language its wording is in. */
 function describeEditSubject(
   subject: PortalPageEditSubject,
@@ -90,44 +140,8 @@ function describeEditSubject(
         ],
         subject.locale,
       )
-    case 'link': {
-      const { previousText, newText } = detail
-      if (subject.change === 'created') {
-        return out(
-          newText === null
-            ? [plain('added a tile')]
-            : [plain('added '), strong(`‘${newText}’`)],
-          null,
-          false,
-        )
-      }
-      if (subject.change === 'deleted') {
-        return out(
-          previousText === null
-            ? [plain('removed a tile')]
-            : [plain('removed '), strong(`‘${previousText}’`)],
-          null,
-          false,
-        )
-      }
-      if (previousText !== null && newText !== null && previousText !== newText) {
-        return out(
-          [
-            plain('renamed '),
-            strong(`‘${previousText}’`),
-            plain(' to '),
-            strong(`‘${newText}’`),
-          ],
-          null,
-          false,
-        )
-      }
-      return out(
-        [plain('changed '), strong(newText === null ? 'a tile' : `‘${newText}’`)],
-        null,
-        false,
-      )
-    }
+    case 'link':
+      return describeLinkEdit(subject.change, detail)
     case 'link_text':
       return out(
         [plain('reworded '), strong(`a tile in ${englishLanguage(subject.locale)}`)],
@@ -148,11 +162,7 @@ function describeEditSubject(
       return out([plain('reordered '), strong('the tiles')], null, false)
     case 'category':
       return out(
-        [
-          plain(
-            `${subject.change === 'created' ? 'added' : subject.change === 'renamed' ? 'renamed' : 'removed'} a group of links`,
-          ),
-        ],
+        [plain(`${CATEGORY_VERB[subject.change] ?? 'removed'} a group of links`)],
         null,
         true,
       )
