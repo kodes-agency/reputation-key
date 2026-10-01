@@ -13,6 +13,8 @@ import {
   AVELA_PORTALS,
   AVELA_PROFILE,
   blockedReview,
+  manyLivePortals,
+  neverAnswered,
   nothingNewReview,
   publishingPortals,
   readyReview,
@@ -52,12 +54,14 @@ type Story = StoryObj<typeof meta>
 
 const body = (canvasElement: HTMLElement) => within(canvasElement.ownerDocument.body)
 
-async function openReview(canvasElement: HTMLElement) {
+async function openReview(canvasElement: HTMLElement, count = 5) {
   await userEvent.click(
-    within(canvasElement).getByRole('button', { name: 'Review & publish 5 portals' }),
+    within(canvasElement).getByRole('button', {
+      name: `Review & publish ${count} portals`,
+    }),
   )
   const dialog = await body(canvasElement).findByRole('dialog', {
-    name: 'Review & publish 5 portals',
+    name: `Review & publish ${count} portals`,
   })
   // The reviews are read when it opens; the list replaces "Checking".
   await within(dialog).findByRole('list', { name: 'Live portals' }, WAIT)
@@ -126,7 +130,7 @@ export const ReviewListsEachLivePortal: Story = {
     await expect(list.getByText('Nothing new to publish')).toBeVisible()
     await expect(
       list.getByText(
-        'Cannot be published · Nobody is responsible for it; Text missing in Bulgarian',
+        'Cannot be published · No one is responsible for this portal; Български · 1 text missing',
       ),
     ).toBeVisible()
     await expect(
@@ -166,10 +170,10 @@ export const PublishesTheTickedPortals: Story = {
 }
 
 /** One portal that cannot be published does not hold the others back, and can be tried again. */
-export const AFailedPortalDoesNotStopTheRest: Story = {
-  args: {
-    publishPortals: publishingPortals((ids) =>
-      allPublished(ids).map((outcome) =>
+const POOL_FAILS_AT_FIRST = publishingPortals((ids) =>
+  ids.length === 1
+    ? allPublished(ids)
+    : allPublished(ids).map((outcome) =>
         outcome.portalId === 'p-pool'
           ? {
               portalId: 'p-pool',
@@ -179,8 +183,10 @@ export const AFailedPortalDoesNotStopTheRest: Story = {
             }
           : outcome,
       ),
-    ),
-  },
+)
+
+export const AFailedPortalDoesNotStopTheRest: Story = {
+  args: { publishPortals: POOL_FAILS_AT_FIRST },
   play: async ({ canvasElement, args }) => {
     const dialog = await openReview(canvasElement)
     await userEvent.click(
@@ -198,10 +204,76 @@ export const AFailedPortalDoesNotStopTheRest: Story = {
     await expect(args.publishPortals).toHaveBeenLastCalledWith({
       data: { portalIds: ['p-pool'] },
     })
+    // Its new answer replaces the old one: three published, the retried portal listed once.
+    await waitFor(
+      () => expect(within(dialog).getByRole('status')).toHaveTextContent('3 published'),
+      WAIT,
+    )
+    const outcomes = within(within(dialog).getByRole('list', { name: /What happened/ }))
+    await expect(outcomes.getAllByRole('listitem')).toHaveLength(3)
+    await expect(outcomes.getAllByText('Published as version 4')).toHaveLength(3)
+    await expect(outcomes.queryByText(/Not published/)).toBeNull()
+    await expect(within(dialog).queryByRole('button', { name: /again/ })).toBeNull()
   },
 }
 
-/** A request refused as a whole says so, in the server's words, and nothing is claimed published. */
+/** While a retry runs, what the first run showed stays, with the retried portal marked in progress. */
+export const ARetryKeepsTheOutcomesOnScreen: Story = {
+  args: {
+    publishPortals: publishingPortals((ids) =>
+      ids.length === 1
+        ? neverAnswered(ids)
+        : allPublished(ids).map((outcome) =>
+            outcome.portalId === 'p-pool'
+              ? {
+                  portalId: 'p-pool',
+                  outcome: 'failed' as const,
+                  code: 'publication_not_ready' as never,
+                  message: 'Wait a moment',
+                }
+              : outcome,
+          ),
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const dialog = await openReview(canvasElement)
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Publish 3 portals' }),
+    )
+    await within(dialog).findByRole('button', { name: 'Try it again' }, WAIT)
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Try it again' }))
+    const outcomes = within(
+      await within(dialog).findByRole('list', { name: /What happened/ }, WAIT),
+    )
+    await expect(await outcomes.findByText('Trying again…')).toBeVisible()
+    // The two that went live are still listed; the review list does not come back.
+    await expect(outcomes.getAllByText('Published as version 4')).toHaveLength(2)
+    await expect(within(dialog).queryByRole('list', { name: 'Live portals' })).toBeNull()
+    await expect(within(dialog).getByRole('button', { name: 'Done' })).toBeDisabled()
+  },
+}
+
+/** The ticks are what was sent: while a request is in flight they cannot be changed. */
+export const TheTicksLockWhilePublishing: Story = {
+  args: { publishPortals: publishingPortals(neverAnswered) },
+  play: async ({ canvasElement }) => {
+    const dialog = await openReview(canvasElement)
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Publish 3 portals' }),
+    )
+    await expect(
+      await within(dialog).findByRole('button', { name: 'Publishing…' }),
+    ).toBeDisabled()
+    for (const tick of within(dialog).getAllByRole('checkbox')) {
+      await expect(tick).toBeDisabled()
+    }
+  },
+}
+
+/**
+ * A request refused as a whole says so in the server's words. It does not say
+ * the portals in it were left alone: the server publishes them one by one.
+ */
 export const ARefusedRequestSaysWhy: Story = {
   args: {
     publishPortals: publishingPortals(
@@ -218,12 +290,54 @@ export const ARefusedRequestSaysWhy: Story = {
     await userEvent.click(
       within(dialog).getByRole('button', { name: 'Publish 3 portals' }),
     )
-    await expect(await within(dialog).findByRole('alert', {}, WAIT)).toHaveTextContent(
-      'Publishing stopped: Portals are switched off here',
+    const alert = await within(dialog).findByRole('alert', {}, WAIT)
+    await expect(alert).toHaveTextContent(
+      'Publishing stopped: Portals are switched off here.',
     )
+    await expect(alert).toHaveTextContent('trying again is safe')
+    await expect(alert).not.toHaveTextContent(/not touched/i)
     await expect(
       within(dialog).getByRole('button', { name: 'Try them again' }),
     ).toBeVisible()
+  },
+}
+
+/** A fault that says nothing about which portals went live (a 500, a dropped answer) claims none was untouched. */
+export const AServerFaultDoesNotClaimNothingWasPublished: Story = {
+  args: {
+    publishPortals: publishingPortals(
+      new ServerFunctionError('InternalError', 'boom', 'internal_error', 500),
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const dialog = await openReview(canvasElement)
+    await userEvent.click(
+      within(dialog).getByRole('button', { name: 'Publish 3 portals' }),
+    )
+    const alert = await within(dialog).findByRole('alert', {}, WAIT)
+    await expect(alert).toHaveTextContent(
+      'Publishing stopped: Something went wrong. Try again.',
+    )
+    await expect(alert).not.toHaveTextContent(/not touched/i)
+    const outcomes = within(within(dialog).getByRole('list', { name: /What happened/ }))
+    await expect(
+      outcomes.getAllByText(
+        'Not confirmed · may have been published; trying again is safe',
+      ),
+    ).toHaveLength(3)
+    await expect(outcomes.queryByText(/Not tried/)).toBeNull()
+  },
+}
+
+/** A long list scrolls inside the dialog, so "Publish" stays on a phone screen (measured in the metrics). */
+export const FiftyLivePortals: Story = {
+  args: { rows: manyLivePortals(50) },
+  play: async ({ canvasElement }) => {
+    const dialog = await openReview(canvasElement, 50)
+    await expect(within(dialog).getAllByRole('checkbox')).toHaveLength(50)
+    await expect(
+      within(dialog).getByRole('button', { name: 'Publish 50 portals' }),
+    ).toBeEnabled()
   },
 }
 

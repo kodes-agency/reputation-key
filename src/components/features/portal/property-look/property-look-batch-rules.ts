@@ -13,7 +13,16 @@ import type {
   PublishPortalsChangesResult,
   ReviewCheck,
 } from '#/contexts/portal/application/public-api'
-import { GUEST_LOCALE_METADATA } from '#/shared/domain/guest-locale'
+import type { GuestLocale } from '#/shared/domain/guest-locale'
+import {
+  joinPhrases,
+  nativeLanguage,
+  phraseText,
+} from '../portal-history/portal-history-phrase'
+import {
+  describeReviewCheck,
+  reviewCheckContext,
+} from '../portal-review/portal-review-checks'
 
 /** One request publishes at most this many portals (`MAX_PORTALS_PER_PUBLISH_BATCH`, pinned by a test). */
 export const PUBLISH_BATCH_SIZE = 50
@@ -28,6 +37,7 @@ export type BatchReviewFacts = Pick<
   | 'changes'
   | 'changesMayBeIncomplete'
   | 'checks'
+  | 'languages'
 >
 
 export type BatchEntry =
@@ -45,51 +55,48 @@ export type BatchEntry =
   | Readonly<{ kind: 'not_live' }>
   | Readonly<{ kind: 'unreadable' }>
 
-type BlockedCode = ReviewCheck['code']
+/** One blocked check as a line: the title the review page gives it, without its closing full stop. */
+const briefOf = (check: ReviewCheck, languages: PortalReview['languages']): string =>
+  phraseText(
+    describeReviewCheck(check, reviewCheckContext(languages, check.locale)).title,
+  ).replace(/\.$/u, '')
 
-const FIXED_REASONS: Readonly<Partial<Record<BlockedCode, string>>> = {
-  property_available: 'The Property is not active',
-  google_destination: 'No verified Google review address',
-  responsible_manager: 'Nobody is responsible for it',
-  public_address: 'No public address',
-  time_zone: 'Its time zone is not valid',
+/** "Deutsch and Français have no guest wording yet": a language-by-language check said once. */
+function languagePacksBrief(locales: readonly GuestLocale[]): string {
+  const names = joinPhrases(locales.map((locale) => [nativeLanguage(locale)]))
+  return `${phraseText(names)} ${locales.length === 1 ? 'has' : 'have'} no guest wording yet`
 }
 
-const LANGUAGE_REASONS: Readonly<Partial<Record<BlockedCode, string>>> = {
-  primary_text: 'Text missing in',
-  language_packs: 'No guest text for',
-}
-
-function languageList(locales: readonly string[]): string {
-  const names = locales.map(
-    (locale) =>
-      GUEST_LOCALE_METADATA[locale as keyof typeof GUEST_LOCALE_METADATA]?.englishName ??
-      locale,
-  )
-  return names.length <= 1
-    ? (names[0] ?? '')
-    : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`
-}
-
-/** One line per blocked check, a check that concerns several languages named once. */
-export function blockedReasons(checks: readonly ReviewCheck[]): readonly string[] {
-  const order: BlockedCode[] = []
-  const locales = new Map<BlockedCode, string[]>()
+/**
+ * One line per blocked check, worded as the Review & publish page words it
+ * (`describeReviewCheck`), so a line here and the page its "Open" link leads to
+ * read alike. A check that concerns several languages is said once.
+ */
+export function blockedReasons(
+  checks: readonly ReviewCheck[],
+  languages: PortalReview['languages'],
+): readonly string[] {
+  const order: ReviewCheck['code'][] = []
+  const groups = new Map<ReviewCheck['code'], ReviewCheck[]>()
   for (const found of checks) {
     if (found.status !== 'blocked') continue
-    if (!locales.has(found.code)) {
+    const group = groups.get(found.code)
+    if (group === undefined) {
       order.push(found.code)
-      locales.set(found.code, [])
+      groups.set(found.code, [found])
+    } else {
+      group.push(found)
     }
-    if (found.locale !== null) locales.get(found.code)?.push(found.locale)
   }
   return order.map((code) => {
-    const lead = LANGUAGE_REASONS[code]
-    const named = locales.get(code) ?? []
-    if (lead === undefined) return FIXED_REASONS[code] ?? 'Needs attention'
-    return named.length === 0
-      ? lead.replace(/ (in|for)$/u, '')
-      : `${lead} ${languageList(named)}`
+    const group = groups.get(code) ?? []
+    const locales = group.flatMap((found) =>
+      found.locale === null ? [] : [found.locale],
+    )
+    if (code === 'language_packs' && locales.length === group.length) {
+      return languagePacksBrief(locales)
+    }
+    return group.map((found) => briefOf(found, languages)).join(', ')
   })
 }
 
@@ -113,7 +120,7 @@ export function batchEntryOf(review: BatchReviewFacts | null): BatchEntry {
       changesMayBeIncomplete: review.changesMayBeIncomplete,
     }
   }
-  const reasons = blockedReasons(review.checks)
+  const reasons = blockedReasons(review.checks, review.languages)
   return reasons.length > 0 ? { kind: 'blocked', reasons } : { kind: 'not_allowed' }
 }
 
@@ -206,4 +213,31 @@ export function describeOutcomesSummary(outcomes: readonly Outcome[]): string {
     .filter(([n]) => n > 0)
     .map(([n, label]) => `${n} ${label}`)
     .join(' · ')
+}
+
+/** A portal that was sent but has no outcome: its request failed (it may be live) or was never reached. */
+export function describeUnanswered(kind: 'unconfirmed' | 'untried'): Readonly<{
+  text: string
+  tone: 'warn'
+}> {
+  return kind === 'unconfirmed'
+    ? {
+        text: 'Not confirmed · may have been published; trying again is safe',
+        tone: 'warn',
+      }
+    : { text: 'Not tried · stopped before it', tone: 'warn' }
+}
+
+/**
+ * The alert for a request that failed as a whole. It does not say the portals of
+ * that request were untouched: some of them may be live. Trying again is safe
+ * because a portal already up to date answers "unchanged".
+ */
+export function describeStop(
+  reason: string,
+  counts: Readonly<{ untried: number }>,
+): string {
+  const sentence = /[.!?]$/u.test(reason) ? reason : `${reason}.`
+  const rest = counts.untried > 0 ? ' The others were not sent.' : ''
+  return `Publishing stopped: ${sentence} The portals in that request may or may not have been published; trying again is safe.${rest}`
 }

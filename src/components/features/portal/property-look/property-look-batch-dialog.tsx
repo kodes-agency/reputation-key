@@ -19,6 +19,7 @@ import { BatchOutcomeRows, BatchReviewRows } from './property-look-batch-rows'
 import {
   describeBatchSummary,
   describeOutcomesSummary,
+  describeStop,
   totalsOf,
 } from './property-look-batch-rules'
 import {
@@ -53,7 +54,10 @@ export function PropertyLookBatchDialog({
   })
   const { run } = batch
   const isPublishing = run.status === 'publishing'
-  const isDone = run.status === 'done'
+  // What a run left stays on screen while a retry is in flight.
+  const shown =
+    run.status === 'done' ? run : run.status === 'publishing' ? run.previous : null
+  const sending = run.status === 'publishing' ? run.sending : []
 
   return (
     <Dialog
@@ -61,34 +65,40 @@ export function PropertyLookBatchDialog({
       // Closing in the middle of a publish would hide what it did.
       onOpenChange={(open) => (open || isPublishing ? undefined : onClose())}
     >
-      <DialogContent className="sm:max-w-xl" aria-busy={batch.isLoading || isPublishing}>
+      <DialogContent
+        className="sm:max-w-xl"
+        aria-busy={batch.rows === null || isPublishing}
+      >
         <DialogHeader>
           <DialogTitle>Review &amp; publish {portalsOf(live.length)}</DialogTitle>
           <DialogDescription>
-            {isDone
+            {shown !== null
               ? 'Here is what happened to each portal.'
               : 'Each live portal gets its saved draft, with the new look, as a new version. Printed codes keep working.'}
           </DialogDescription>
         </DialogHeader>
 
-        {isDone ? (
+        {shown !== null ? (
           <>
             <p className="text-sm font-medium" role="status">
-              {describeOutcomesSummary(run.outcomes)}
+              {describeOutcomesSummary(shown.outcomes)}
             </p>
-            {run.error === null ? null : (
+            {shown.error === null || isPublishing ? null : (
               <p role="alert" className="text-sm text-negative">
-                Publishing stopped: {actionErrorMessage(run.error)} The portals after it
-                were not touched.
+                {describeStop(actionErrorMessage(shown.error), {
+                  untried: batch.untried,
+                })}
               </p>
             )}
             <BatchOutcomeRows
               rows={live}
-              attempted={run.attempted}
-              outcomes={run.outcomes}
+              attempted={shown.attempted}
+              outcomes={shown.outcomes}
+              unconfirmed={shown.unconfirmed}
+              sending={sending}
             />
           </>
-        ) : batch.isLoading ? (
+        ) : batch.rows === null ? (
           <div role="status" className="space-y-2">
             <p className="text-sm text-muted-foreground">
               Checking {portalsOf(live.length)}…
@@ -96,19 +106,6 @@ export function PropertyLookBatchDialog({
             <Skeleton className="h-11 w-full" />
             <Skeleton className="h-11 w-full" />
           </div>
-        ) : batch.rows === null || batch.hasReadFailed ? (
-          <p role="alert" className="text-sm text-negative">
-            The portals could not be checked.{' '}
-            <Button
-              type="button"
-              variant="link"
-              size="xs"
-              className="h-auto p-0"
-              onClick={batch.reload}
-            >
-              Try again
-            </Button>
-          </p>
         ) : (
           <>
             <p className="text-sm text-muted-foreground">
@@ -118,24 +115,28 @@ export function PropertyLookBatchDialog({
               propertyId={propertyId}
               rows={batch.rows}
               leftOut={batch.leftOut}
+              isLocked={isPublishing}
               onToggle={batch.toggle}
             />
           </>
         )}
 
         <DialogFooter>
-          {isDone ? (
+          {shown !== null ? (
             <>
-              {batch.retryable.length > 0 ? (
+              {batch.retryable.length > 0 || isPublishing ? (
                 <Button
                   type="button"
                   variant="outline"
+                  disabled={isPublishing}
                   onClick={() => void batch.retry()}
                 >
-                  Try {batch.retryable.length === 1 ? 'it' : 'them'} again
+                  {isPublishing
+                    ? 'Publishing…'
+                    : `Try ${batch.retryable.length === 1 ? 'it' : 'them'} again`}
                 </Button>
               ) : null}
-              <Button type="button" onClick={onClose}>
+              <Button type="button" disabled={isPublishing} onClick={onClose}>
                 Done
               </Button>
             </>

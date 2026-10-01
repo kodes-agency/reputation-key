@@ -8,6 +8,8 @@ import {
   describeEntry,
   describeOutcome,
   describeOutcomesSummary,
+  describeStop,
+  describeUnanswered,
   idsToPublish,
   PUBLISH_BATCH_SIZE,
   totalsOf,
@@ -19,7 +21,8 @@ const check = (
   code: ReviewCheck['code'],
   status: ReviewCheck['status'] = 'passed',
   locale: ReviewCheck['locale'] = null,
-): ReviewCheck => ({ code, status, locale, keys: [] })
+  keys: ReviewCheck['keys'] = [],
+): ReviewCheck => ({ code, status, locale, keys })
 
 const review = (patch: Partial<BatchReviewFacts> = {}): BatchReviewFacts => ({
   action: 'publish_changes',
@@ -47,6 +50,7 @@ const review = (patch: Partial<BatchReviewFacts> = {}): BatchReviewFacts => ({
   ],
   changesMayBeIncomplete: false,
   checks: [check('property_available')],
+  languages: [],
   ...patch,
 })
 
@@ -97,7 +101,7 @@ describe('batchEntryOf — what the batch can do with one live portal', () => {
     )
     expect(entry).toEqual({
       kind: 'blocked',
-      reasons: ['No verified Google review address'],
+      reasons: ['No verified Google link'],
     })
   })
 
@@ -120,30 +124,42 @@ describe('batchEntryOf — what the batch can do with one live portal', () => {
 })
 
 describe('blockedReasons', () => {
-  it('names each blocked check once and the languages it concerns', () => {
+  it('words each blocked check as the review page does, and names a check about languages once', () => {
     expect(
-      blockedReasons([
-        check('property_available', 'blocked'),
-        check('responsible_manager', 'blocked'),
-        check('public_address', 'blocked'),
-        check('primary_text', 'blocked', 'en'),
-        check('primary_text', 'blocked', 'bg'),
-        check('language_packs', 'blocked', 'de'),
-        check('time_zone', 'blocked'),
-      ]),
+      blockedReasons(
+        [
+          check('property_available', 'blocked'),
+          check('responsible_manager', 'blocked'),
+          check('public_address', 'blocked'),
+          check('primary_text', 'blocked', 'en', ['title']),
+          check('primary_text', 'blocked', 'bg', ['title', 'shortDescription']),
+          check('language_packs', 'blocked', 'de'),
+          check('language_packs', 'blocked', 'fr'),
+          check('google_destination', 'blocked'),
+          check('time_zone', 'blocked'),
+        ],
+        [],
+      ),
     ).toEqual([
-      'The Property is not active',
-      'Nobody is responsible for it',
-      'No public address',
-      'Text missing in English and Bulgarian',
-      'No guest text for German',
-      'Its time zone is not valid',
+      'The property is unavailable',
+      'No one is responsible for this portal',
+      'No working code',
+      'English · 1 text missing, Български · 2 texts missing',
+      'Deutsch and Français have no guest wording yet',
+      'No verified Google link',
+      'The property’s time zone is not valid',
+    ])
+  })
+
+  it('says a single language by itself', () => {
+    expect(blockedReasons([check('language_packs', 'blocked', 'de')], [])).toEqual([
+      'Deutsch has no guest wording yet',
     ])
   })
 
   it('leaves out warnings and checks that passed', () => {
     expect(
-      blockedReasons([check('copied_text', 'warning', 'bg'), check('time_zone')]),
+      blockedReasons([check('copied_text', 'warning', 'bg'), check('time_zone')], []),
     ).toEqual([])
   })
 })
@@ -274,5 +290,41 @@ describe('outcomes', () => {
 describe('PUBLISH_BATCH_SIZE', () => {
   it('is what the server accepts in one request', () => {
     expect(PUBLISH_BATCH_SIZE).toBe(MAX_PORTALS_PER_PUBLISH_BATCH)
+  })
+})
+
+describe('portals with no answer', () => {
+  it('says a portal of the request that failed may have been published, and that trying again is safe', () => {
+    expect(describeUnanswered('unconfirmed')).toEqual({
+      text: 'Not confirmed · may have been published; trying again is safe',
+      tone: 'warn',
+    })
+  })
+
+  it('says a portal of a later request was never sent', () => {
+    expect(describeUnanswered('untried')).toEqual({
+      text: 'Not tried · stopped before it',
+      tone: 'warn',
+    })
+  })
+})
+
+describe('describeStop — the alert when a request failed as a whole', () => {
+  it('puts the server’s sentence in its own sentence, and does not claim the failed request’s portals were untouched', () => {
+    const text = describeStop('Portals are switched off here', { untried: 0 })
+    expect(text).toBe(
+      'Publishing stopped: Portals are switched off here. The portals in that request may or may not have been published; trying again is safe.',
+    )
+    expect(text).not.toMatch(/not touched/i)
+  })
+
+  it('does not double a full stop the sentence already has', () => {
+    expect(describeStop('Wait a moment.', { untried: 0 })).toMatch(
+      /^Publishing stopped: Wait a moment\. The portals/,
+    )
+  })
+
+  it('says the later portals were not sent', () => {
+    expect(describeStop('Gone', { untried: 3 })).toMatch(/ The others were not sent\.$/)
   })
 })

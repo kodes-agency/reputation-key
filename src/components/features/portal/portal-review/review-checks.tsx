@@ -12,12 +12,12 @@ import type {
   PortalReview,
   ReviewLanguageRow,
 } from '#/contexts/portal/application/public-api'
-import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { PhraseView } from '../portal-history/portal-phrase-view'
 import {
   describeFixLink,
   describeFixerLine,
   describeReviewCheck,
+  reviewCheckContext,
   summarizePassedChecks,
   type ReviewCheckLine,
 } from './portal-review-checks'
@@ -38,13 +38,8 @@ export function ReviewChecks({
   portalId,
   whoCanFix,
 }: Props) {
-  const fallbackLocale: GuestLocale =
-    languages.find((row) => row.isFallback)?.locale ?? languages[0]?.locale ?? 'en'
   const lines = checks.map((check) =>
-    describeReviewCheck(check, {
-      missing: languages.find((row) => row.locale === check.locale)?.missing ?? [],
-      fallbackLocale,
-    }),
+    describeReviewCheck(check, reviewCheckContext(languages, check.locale)),
   )
   const findings = lines.filter((line) => line.status !== 'passed')
   const passed = lines.filter((line) => line.status === 'passed')

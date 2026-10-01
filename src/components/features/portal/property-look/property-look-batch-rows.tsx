@@ -7,7 +7,11 @@ import { Checkbox } from '#/components/ui/checkbox'
 import { cn } from '#/lib/utils'
 import type { PublishPortalsChangesResult } from '#/contexts/portal/application/public-api'
 import type { BatchRow } from './use-property-look-batch'
-import { describeEntry, describeOutcome } from './property-look-batch-rules'
+import {
+  describeEntry,
+  describeOutcome,
+  describeUnanswered,
+} from './property-look-batch-rules'
 import type { AffectedPortalRow } from './property-look-rules'
 
 /** A Property may have fifty live portals: the list scrolls inside the dialog, so the buttons stay on screen. */
@@ -42,11 +46,13 @@ function ReviewRow({
   propertyId,
   item,
   isLeftOut,
+  isLocked,
   onToggle,
 }: Readonly<{
   propertyId: string
   item: BatchRow
   isLeftOut: boolean
+  isLocked: boolean
   onToggle: (portalId: string) => void
 }>) {
   const { row, entry } = item
@@ -55,11 +61,18 @@ function ReviewRow({
     const id = `look-batch-${row.portalId}`
     return (
       <li className="border-t first:border-t-0">
-        <label htmlFor={id} className={cn(ROW, 'cursor-pointer hover:bg-muted/40')}>
+        <label
+          htmlFor={id}
+          className={cn(
+            ROW,
+            isLocked ? 'cursor-default' : 'cursor-pointer hover:bg-muted/40',
+          )}
+        >
           <Checkbox
             id={id}
             className="mt-0.5"
             checked={!isLeftOut}
+            disabled={isLocked}
             onCheckedChange={() => onToggle(row.portalId)}
           />
           <Names
@@ -102,11 +115,14 @@ export function BatchReviewRows({
   propertyId,
   rows,
   leftOut,
+  isLocked,
   onToggle,
 }: Readonly<{
   propertyId: string
   rows: readonly BatchRow[]
   leftOut: ReadonlySet<string>
+  /** A publish is in flight: what is ticked is what was sent, so it cannot change. */
+  isLocked: boolean
   onToggle: (portalId: string) => void
 }>) {
   return (
@@ -117,6 +133,7 @@ export function BatchReviewRows({
           propertyId={propertyId}
           item={item}
           isLeftOut={leftOut.has(item.row.portalId)}
+          isLocked={isLocked}
           onToggle={onToggle}
         />
       ))}
@@ -128,10 +145,16 @@ export function BatchOutcomeRows({
   rows,
   attempted,
   outcomes,
+  unconfirmed,
+  sending,
 }: Readonly<{
   rows: readonly AffectedPortalRow[]
   attempted: readonly string[]
   outcomes: PublishPortalsChangesResult
+  /** Sent in the request that failed as a whole: they may be live. */
+  unconfirmed: readonly string[]
+  /** Sent again right now: their earlier answer is not the last word. */
+  sending: readonly string[]
 }>) {
   return (
     <ul aria-label="What happened to each portal" className={LIST}>
@@ -139,9 +162,12 @@ export function BatchOutcomeRows({
         .filter((row) => attempted.includes(row.portalId))
         .map((row) => {
           const outcome = outcomes.find((o) => o.portalId === row.portalId)
-          const described =
-            outcome === undefined
-              ? ({ text: 'Not tried · stopped before it', tone: 'warn' } as const)
+          const described = sending.includes(row.portalId)
+            ? ({ text: 'Trying again…', tone: 'quiet' } as const)
+            : outcome === undefined
+              ? describeUnanswered(
+                  unconfirmed.includes(row.portalId) ? 'unconfirmed' : 'untried',
+                )
               : describeOutcome(outcome)
           const Icon =
             described.tone === 'ok'

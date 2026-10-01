@@ -13,7 +13,12 @@ import type {
 } from '#/contexts/portal/application/public-api'
 import type { Action } from '#/components/hooks/use-action'
 import { portalKeys } from '#/shared/queries/query-keys'
-import { mapWithConcurrency, publishInBatches } from './property-look-batch-run'
+import {
+  mapWithConcurrency,
+  mergeRun,
+  publishInBatches,
+  type RunRecord,
+} from './property-look-batch-run'
 import {
   batchEntryOf,
   idsToPublish,
@@ -40,17 +45,27 @@ const REVIEW_CONCURRENCY = 4
 
 export type BatchRow = Readonly<{ row: AffectedPortalRow; entry: BatchEntry }>
 
+/** What a run left: the portals sent, what each answered, and the request that failed, if one did. */
+export type DoneRun = RunRecord<Outcome> &
+  Readonly<{
+    status: 'done'
+    /** The portals of the request that failed as a whole: they may have been published. */
+    unconfirmed: readonly string[]
+    error: unknown
+  }>
+
 export type BatchRun =
   | Readonly<{ status: 'reviewing' }>
-  | Readonly<{ status: 'publishing' }>
+  /**
+   * A request is in flight. On a retry `previous` is what the run before it
+   * showed, which stays on screen with the retried portals marked in progress.
+   */
   | Readonly<{
-      status: 'done'
-      /** The portals that were sent, in the order shown. */
-      attempted: readonly string[]
-      outcomes: readonly Outcome[]
-      /** A request refused as a whole; the portals after it were not touched. */
-      error: unknown
+      status: 'publishing'
+      sending: readonly string[]
+      previous: DoneRun | null
     }>
+  | DoneRun
 
 type Args = Readonly<{
   propertyId: string
@@ -84,6 +99,7 @@ export function usePropertyLookBatch({
   })
   const [leftOut, setLeftOut] = useState<ReadonlySet<string>>(() => new Set())
   const [run, setRun] = useState<BatchRun>({ status: 'reviewing' })
+  const order = useMemo(() => live.map((row) => row.portalId), [live])
 
   const rows: readonly BatchRow[] | null = useMemo(() => {
     if (reviews.data === undefined) return null
@@ -103,25 +119,16 @@ export function usePropertyLookBatch({
 
   const send = async (
     sending: readonly string[],
-    before: Readonly<{ attempted: readonly string[]; outcomes: readonly Outcome[] }>,
+    before: RunRecord<Outcome>,
+    previous: DoneRun | null,
   ) => {
-    setRun({ status: 'publishing' })
+    setRun({ status: 'publishing', sending, previous })
     const result = await publishInBatches(
       sending,
       (batch) => publishPortals({ data: { portalIds: [...batch] } }),
       PUBLISH_BATCH_SIZE,
     )
-    const sent = new Set(sending)
-    const asked = new Set([...before.attempted, ...sending])
-    setRun({
-      status: 'done',
-      attempted: live.map((row) => row.portalId).filter((id) => asked.has(id)),
-      outcomes: [
-        ...before.outcomes.filter((o) => !sent.has(o.portalId)),
-        ...result.outcomes,
-      ],
-      error: result.error,
-    })
+    setRun({ status: 'done', ...mergeRun(before, sending, result, order) })
   }
 
   const publishable =
@@ -131,7 +138,7 @@ export function usePropertyLookBatch({
           rows.map((item) => ({ portalId: item.row.portalId, entry: item.entry })),
           leftOut,
         )
-  /** After a run: what did not go through (failed, or never reached), to try again. */
+  /** After a run: what did not go through (failed, or never answered), to try again. */
   const retryable =
     run.status !== 'done'
       ? []
@@ -139,19 +146,24 @@ export function usePropertyLookBatch({
           const outcome = run.outcomes.find((o) => o.portalId === id)
           return outcome === undefined || outcome.outcome === 'failed'
         })
+  /** Of those, the portals of requests that were never sent (the failed request's are `unconfirmed`). */
+  const untried =
+    run.status !== 'done'
+      ? 0
+      : retryable.filter(
+          (id) =>
+            !run.unconfirmed.includes(id) && !run.outcomes.some((o) => o.portalId === id),
+        ).length
 
   return {
     rows,
-    isLoading: reviews.isPending,
-    hasReadFailed: reviews.isError,
-    reload: () => void reviews.refetch(),
     leftOut,
     toggle,
     run,
     publishable,
     retryable,
-    publish: () => send(publishable, { attempted: [], outcomes: [] }),
-    retry: () =>
-      send(retryable, run.status === 'done' ? run : { attempted: [], outcomes: [] }),
+    untried,
+    publish: () => send(publishable, { attempted: [], outcomes: [] }, null),
+    retry: () => (run.status === 'done' ? send(retryable, run, run) : Promise.resolve()),
   }
 }

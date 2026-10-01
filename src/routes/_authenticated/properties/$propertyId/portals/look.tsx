@@ -64,15 +64,14 @@ function PropertyLookRoute() {
   const { data: experience } = useSuspenseQuery(propertyPortalExperienceQuery(propertyId))
   const { data: property } = useSuspenseQuery(propertyQuery(propertyId))
 
-  // A look edit changes what every portal's draft preview draws and what each
-  // live portal has waiting to publish, so the previews and the overview follow.
-  const refreshPortals = async () => {
+  // What a look edit and a publish both change: what every portal's draft
+  // preview draws and what each live portal has waiting to publish.
+  const refreshPublished = async () => {
     await Promise.all([
       queryClient.invalidateQueries({
         queryKey: portalKeys.propertyExperience(propertyId),
       }),
       queryClient.invalidateQueries({ queryKey: portalKeys.overview(propertyId) }),
-      queryClient.invalidateQueries({ queryKey: portalKeys.lookReview(propertyId) }),
       ...overview.portals.map((row) =>
         queryClient.invalidateQueries({
           queryKey: portalKeys.publicationHistory(row.portalId),
@@ -80,11 +79,21 @@ function PropertyLookRoute() {
       ),
     ])
   }
+  // A look edit also changes what the batch review would say, so it is read again.
+  const refreshPortals = async () => {
+    await Promise.all([
+      refreshPublished(),
+      queryClient.invalidateQueries({ queryKey: portalKeys.lookReview(propertyId) }),
+    ])
+  }
   const saveLook = useActionMutation(savePropertyLook, { onSuccess: refreshPortals })
-  // A publish changes what each live portal says is waiting and what its live
-  // preview draws, the same things a look edit refreshes.
+  // A publish refreshes the same things, but not the batch review: the dialog
+  // shows what the publish answered, and waiting for every live portal to be
+  // reviewed again would hold the next request back for nothing. A request that
+  // failed may still have published some of its portals, so it refreshes too.
   const publishPortals = useActionMutation(publishPortalsChanges, {
-    onSuccess: refreshPortals,
+    onSuccess: refreshPublished,
+    onError: () => void refreshPublished(),
   })
   const saveLocales = useActionMutation(savePropertyDefaultGuestLocales, {
     // New portals read them in the New portal dialog.

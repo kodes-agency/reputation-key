@@ -33,6 +33,15 @@ export const DEFAULT_PALETTE_PROFILE: PropertyLookProfile = {
 
 const group = (name: string) => ({ id: `group-${name}`, name })
 
+/** A Property with a great many live portals, to see the list scroll inside the dialog. */
+export const manyLivePortals = (count: number): readonly AffectedPortalRow[] =>
+  Array.from({ length: count }, (_, index) => ({
+    portalId: `p-live-${index + 1}`,
+    name: `Live portal ${index + 1}`,
+    publicationState: 'published' as const,
+    group: null,
+  }))
+
 export const AVELA_PORTALS: readonly AffectedPortalRow[] = [
   {
     portalId: 'p-reception',
@@ -157,7 +166,7 @@ export const blockedReview = (portalId: string): PortalReview => ({
   canPublish: false,
   checks: [
     { code: 'responsible_manager', status: 'blocked', locale: null, keys: [] },
-    { code: 'primary_text', status: 'blocked', locale: 'bg', keys: [] },
+    { code: 'primary_text', status: 'blocked', locale: 'bg', keys: ['title'] },
   ],
   checkCounts: { blocked: 2, warning: 0, passed: 0 },
 })
@@ -173,10 +182,16 @@ export function reviewingPortals(
   }) as unknown as PortalReviewReader
 }
 
-type PublishAnswer = (ids: readonly string[]) => PublishPortalsChangesResult
+/** What a publish answers, or a promise that never settles (a request still in flight). */
+type PublishAnswer = (
+  ids: readonly string[],
+) => PublishPortalsChangesResult | Promise<PublishPortalsChangesResult>
+
+/** A request that is still in flight when the story is read. */
+export const neverAnswered: PublishAnswer = () => new Promise(() => undefined)
 
 /** What a publish says when every portal goes live as the next version. */
-export const allPublished: PublishAnswer = (ids) =>
+export const allPublished = (ids: readonly string[]): PublishPortalsChangesResult =>
   ids.map((portalId) => ({
     portalId,
     outcome: 'published' as const,
