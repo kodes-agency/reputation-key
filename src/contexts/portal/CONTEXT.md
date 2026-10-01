@@ -130,7 +130,7 @@ hidden in a segment do not survive, and the original is never stored.
   columns must call `canReferencePortalMediaAsset(slot, asset)`, so a link
   picture cannot stand in as the hero and skip the hero's size and byte budget.
 
-`portal.upload` remains safety-blocked in this slice; ADR 0062 records the
+`portal.upload` remains safety-blocked in this slice; ADR 0063 records the
 decision to switch it on with the technical safeguards above and without a
 SAFE-01 completion record.
 

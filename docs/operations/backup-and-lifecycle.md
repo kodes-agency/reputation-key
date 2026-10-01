@@ -194,7 +194,7 @@ orthogonal: the SLA asks operators to drain; the TTL is the last-resort bound.
 
 Identity avatar and organization-logo uploads use the shared arbitrary-key
 storage stack through `container.assetStorage`. Portal images enter through one
-server-side ingest (`POST /api/portal-media`, ADR 0062): the bytes are decoded
+server-side ingest (`POST /api/portal-media`, ADR 0063): the bytes are decoded
 and re-encoded to WebP on the web process and stored under `portal-media/<id>.webp`
 with a `portal_media_assets` row; there is no presigned browser upload and no
 issuance table. `portal.upload` remains `safety_blocked` until the slice that
