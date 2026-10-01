@@ -28,7 +28,7 @@ import {
 } from '../../domain/portal-publication-content'
 
 /** More versions than a Portal is ever published; older ones are named, not listed. */
-export const MAX_LISTED_VERSIONS = 200
+const MAX_LISTED_VERSIONS = 200
 
 export type PortalVersionItem = Readonly<{
   version: number

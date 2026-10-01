@@ -10,7 +10,6 @@ import { getPortalLinktree, listPortalLinks } from '#/contexts/portal/server/por
 import { getPortalLanguageCoverage } from '#/contexts/portal/server/portal-language-coverage'
 import { listPortalGroups } from '#/contexts/portal/server/portal-groups'
 import { listPortalResponsibleManagers } from '#/contexts/portal/server/portal-responsible-managers'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import type { Portal, PortalTokenStatus } from '#/contexts/portal/application/public-api'
@@ -144,8 +143,6 @@ export function usePortalDetailData(propertyId: string, portalId: string) {
   const { data: approvedDestinations } = useSuspenseQuery(
     portalApprovedDestinationsQuery(portalId),
   )
-  const loadMorePublicationHistory = useActionMutation(getPortalPublicationHistory)
-
   return {
     portalData,
     linksData,
@@ -158,6 +155,5 @@ export function usePortalDetailData(propertyId: string, portalId: string) {
     publicationHistory,
     portalExperience,
     approvedDestinations,
-    loadMorePublicationHistory,
   }
 }

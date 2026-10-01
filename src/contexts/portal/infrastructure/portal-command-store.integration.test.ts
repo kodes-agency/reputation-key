@@ -1021,6 +1021,73 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
         }),
       },
     ])
+
+    // Making a later version live again (slice 36): the version that was live
+    // before the restore comes back as one more activation, not a rewrite.
+    const rolledForwardAt = new Date(rolledBackAt.getTime() + 60_000)
+    await store.updatePortal({
+      organizationId: ORG_A,
+      propertyId: PROPERTY_A,
+      portalId: PORTAL_A,
+      actorUserId: MANAGER,
+      expectedUpdatedAt: rolledBackAt,
+      revision: rolledForwardAt,
+      occurredAt: rolledForwardAt,
+      patch: {},
+      publication: {
+        kind: 'rollback' as const,
+        snapshotId: publicationV2.snapshot.id,
+        snapshotVersion: publicationV2.snapshot.version,
+        publicationDigest: publicationV2.snapshot.configurationDigest,
+        activation: {
+          id: '6e000000-0000-4000-8000-000000000014',
+          organizationId: ORG_A,
+          propertyId: PROPERTY_A,
+          portalId: PORTAL_A,
+          snapshotId: publicationV2.snapshot.id,
+          activationSequence: 4,
+          kind: 'rollback' as const,
+          activatedBy: MANAGER,
+          activatedAt: rolledForwardAt,
+          deactivatedAt: null,
+          deactivationReason: null,
+        },
+      },
+      lifecycleEvent: portalPublicationRolledBack({
+        organizationId: ORG_A,
+        propertyId: PROPERTY_A,
+        portalId: PORTAL_A,
+        publicationSnapshotId: publicationV2.snapshot.id,
+        publicationVersion: publicationV2.snapshot.version,
+        publicationDigest: publicationV2.snapshot.configurationDigest,
+        userId: MANAGER,
+        sourceAggregateVersion: rolledForwardAt.toISOString(),
+        occurredAt: rolledForwardAt,
+      }),
+      event: portalUpdated({
+        portalId: PORTAL_A,
+        organizationId: ORG_A,
+        propertyId: PROPERTY_A,
+        previousPublicationState: 'published',
+        publicationState: 'published',
+        sourceAggregateVersion: rolledForwardAt.toISOString(),
+        occurredAt: rolledForwardAt,
+      }),
+    })
+    const forward = await getPool().query(
+      `SELECT s.version, a.activation_sequence, a.deactivated_at IS NULL AS open
+       FROM portal_publication_activations a
+       JOIN portal_publication_snapshots s ON s.id = a.snapshot_id
+       WHERE a.organization_id = $1 AND a.portal_id = $2
+       ORDER BY a.activation_sequence`,
+      [ORG_A, PORTAL_A],
+    )
+    expect(forward.rows).toEqual([
+      { version: 1, activation_sequence: 1, open: false },
+      { version: 2, activation_sequence: 2, open: false },
+      { version: 1, activation_sequence: 3, open: false },
+      { version: 2, activation_sequence: 4, open: true },
+    ])
   })
 
   it('uses one Portal-first lock order for concurrent publishing and content edits', async () => {

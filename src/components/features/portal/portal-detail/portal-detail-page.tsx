@@ -39,6 +39,9 @@ export function PortalDetailPage(props: PortalDetailPageProps) {
           theme={theme}
           onThemeChange={setTheme}
         />
+      ) : view.tab === 'history' ? (
+        // The ledger and its Versions rail run edge to edge, like the editor.
+        <PortalDetailTabPanel {...props} {...issuance} tab={view.tab} />
       ) : (
         <PortalWorkspaceBodyFrame wide={view.tab === 'results'}>
           <PortalDetailTabPanel {...props} {...issuance} tab={view.tab} />

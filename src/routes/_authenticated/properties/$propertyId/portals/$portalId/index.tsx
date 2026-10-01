@@ -3,11 +3,23 @@
 // (`?tab=`, `?section=`), which also maps the pre-workspace names; the layout
 // owns the once-shown public link and the autosave coordinator.
 import { createFileRoute, notFound } from '@tanstack/react-router'
+import { getPortalHistory } from '#/contexts/portal/server/portals'
+import {
+  getPortalVersion,
+  getPortalVersions,
+} from '#/contexts/portal/server/portal-versions'
 import { getPortalAnalyticsFn } from '#/contexts/reporting/server/portal-analytics'
 import { getPortalPreview } from '#/contexts/portal/server/portal-preview'
 import { PortalDetailPage } from '#/components/features/portal/portal-detail/portal-detail-page'
 import { usePortalDetailActions } from '../-portal-detail-actions'
 import { usePortalDetailData } from '../-portal-detail-data'
+
+/** The History tab's reads: server functions are handed to components, never imported by them. */
+const HISTORY_READS = {
+  getHistory: getPortalHistory,
+  getVersions: getPortalVersions,
+  getVersion: getPortalVersion,
+}
 
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/$portalId/',
@@ -37,7 +49,9 @@ function PortalWorkspaceEditor() {
         retrievedAt: property.googleReviewDestination?.retrievedAt ?? null,
       }}
       publicationHistory={data.publicationHistory}
-      loadMorePublicationHistory={data.loadMorePublicationHistory}
+      historyReads={HISTORY_READS}
+      makeVersionLiveMutation={actions.makeVersionLive}
+      propertyTimeZone={property.timezone}
       categories={categories}
       links={links}
       languageCoverage={data.languageCoverage}

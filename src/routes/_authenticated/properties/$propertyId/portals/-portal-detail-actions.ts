@@ -8,6 +8,7 @@ import {
   requestPortalApprovedDestination,
   revealPortalAddress,
   revokePortalTokens,
+  rollbackPortalPublication,
   rotatePortalToken,
   savePortalLocalizedOverride,
   savePropertyPortalBrandContent,
@@ -162,6 +163,17 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
       portalKeys.responsibleManagers(portalId),
     ],
   })
+  // "Make live again": moves the live activation to another version. The
+  // Portal's detail holds the History reads and the header's status, and the
+  // Portals overview shows what is live, so all three follow.
+  const makeVersionLive = useActionMutation(rollbackPortalPublication, {
+    successMessage: 'The version is live again',
+    invalidateKeys: [
+      portalKeys.detail(portalId),
+      portalKeys.list(propertyId),
+      portalKeys.overview(propertyId),
+    ],
+  })
   const experience = usePortalExperienceActions(propertyId, portalId)
 
   return {
@@ -173,6 +185,7 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
     revealAddress,
     completeReview,
     updateResponsibleManagers,
+    makeVersionLive,
     experience,
   }
 }

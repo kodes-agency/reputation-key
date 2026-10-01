@@ -27,6 +27,10 @@ import type {
   PortalTokenStatus,
 } from '#/contexts/portal/application/public-api'
 import type { PortalDetailTab } from './portal-detail-rules'
+import type {
+  MakeVersionLiveAction,
+  PortalHistoryReads,
+} from '../portal-history/portal-history-tab'
 import type { PortalShareMutations } from '../portal-share/portal-share-types'
 import type { PortalEditorSection } from '../portal-editor/portal-editor-sections'
 import type { PortalGroupView } from '../portal-group/portal-group-types'
@@ -58,10 +62,12 @@ export type PortalDetailResources = Readonly<{
   propertyId: string
   googleReviewDestination: GoogleReviewDestinationStatus
   publicationHistory: PortalPublicationHistory
-  loadMorePublicationHistory?: Action<
-    { data: { portalId: string; cursor?: number; limit?: number } },
-    PortalPublicationHistory
-  >
+  /** The History tab's three reads: the ledger, the versions, and one version. */
+  historyReads: PortalHistoryReads
+  /** "Make live again": the live activation moves to another version. */
+  makeVersionLiveMutation: MakeVersionLiveAction
+  /** The property's IANA zone, whose days History counts in. */
+  propertyTimeZone: string
   categories: readonly LinkTreeCategory[]
   links: readonly LinkTreeLink[]
   /** Which wording each language has. Absent: the Languages section shows no counts. */

@@ -269,6 +269,21 @@ An address entry names who made it when `portal_tokens.issued_by` recorded that 
 made before round 4), and each time a manager was handed an existing address is a
 `code_downloaded` entry from `portal_address_downloads`.
 
+The History tab also reads the Portal's versions. `getPortalVersions` lists every
+published snapshot newest first (at most 200, with the 201st read only as the version the
+oldest is compared with), each with who published it, whether it is the one guests see and
+what it added over the version before it; beside them, what the draft is based on and who
+last edited it (the newest page edit made after the newest version). `getPortalVersion`
+reads one version: what it shows guests in plain words and what making it live would
+change, compared from the live version to that one. Both come from
+`diffPublicationContent`, a pure comparison of two immutable configurations that reads
+v1, v2 and v3 into one neutral view first, so a part a schema cannot tell (a v1 has no
+brand name, a v2 no Linktree switch) is never reported as changed, and a move between the
+legacy page and the Immersive Hub is one `design_changed`, not a list of colours. The
+changes name the manager's own words (a tile's label, a language) and are a read model for
+the people who manage the Portal: nothing here is published as a fact. A snapshot that no
+longer verifies is left out of the list, because it could not be served or made live again.
+
 `portal_page_edits` is the page-edit ledger: one row per change that can make a
 Portal's working page differ from what guests see, written in the same
 transaction as the write and its pending-change fence. `recordPortalContentChange`
@@ -328,7 +343,7 @@ for Identity avatar and organization-logo uploads through `container.assetStorag
 2. Private Feedback Threshold is an integer from 1 through 5.
 3. A Portal may have no secondary links. It cannot enter `published` unless its Property has a verified, provider-derived Google review destination.
 4. Publishing atomically creates and activates an immutable snapshot. Working-copy edits are prospective and cannot change the public response until another deliberate publication.
-5. Rollback never rewrites history: it closes the current activation and appends a new activation to an older valid snapshot.
+5. Rollback never rewrites history: it closes the current activation and appends a new activation to another valid snapshot of the same Portal, never the one already live. "Make live again" is that act, and it works in both directions (an earlier version, or a later one after an earlier was restored), so restoring a version never strands the ones after it. It does not touch the working copy or its pending changes.
 6. If that destination later becomes stale, unavailable, or temporarily unreadable, the published private rating/feedback gateway remains available in a degraded state. No stale URI is serialized and Google selection is denied with gentle guest copy.
 7. Public resolution fails closed when that Property destination is `awaiting_refresh` or `unavailable`; a stale URI is never rendered.
 8. Soft-deleting a Portal revokes its live tokens; a deleted Portal never has a live
