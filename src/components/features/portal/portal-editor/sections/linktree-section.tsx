@@ -13,12 +13,13 @@ import type { PortalEditorSectionProps } from '../portal-editor-types'
 export function LinktreeSection({ resources, canEdit }: PortalEditorSectionProps) {
   const {
     portal,
+    propertyId,
     linktree,
     responsibleManagerMembers,
     approvedDestinations,
     portalExperienceActions,
   } = resources
-  const mutations = useLinktreeMutations(portal.id)
+  const mutations = useLinktreeMutations(propertyId, portal.id)
   const { can } = usePermissions()
   // `deleteLink` asks for `portal.delete`, which a property manager does not hold.
   const canDelete = canEdit && can('portal.delete')

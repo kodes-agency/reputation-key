@@ -24,7 +24,7 @@ import { applyLinkOrder } from './linktree-rules'
 /** Which tile's address change was refused, and why: one shared action, many tiles. */
 export type LinkUpdateFailure = Readonly<{ linkId: string; error: unknown }>
 
-export function useLinktreeMutations(portalId: string) {
+export function useLinktreeMutations(propertyId: string, portalId: string) {
   const queryClient = useQueryClient()
   const [updateFailure, setUpdateFailure] = useState<LinkUpdateFailure | null>(null)
   const linktreeKey = portalKeys.linktree(portalId)
@@ -35,6 +35,8 @@ export function useLinktreeMutations(portalId: string) {
     linktreeKey,
     portalKeys.links(portalId),
     portalKeys.publicationHistory(portalId),
+    // The same edit changes which wording a language is missing.
+    portalKeys.languageCoverage(propertyId, portalId),
   ]
   /** Show a change at once; the returned thunk puts the old view back if the write fails. */
   const showNow = (change: (view: PortalLinktreeView) => PortalLinktreeView) => {
