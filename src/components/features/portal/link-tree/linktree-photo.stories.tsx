@@ -148,13 +148,26 @@ const JPEG = () => new File([new Uint8Array(2048)], 'terrace.jpg', { type: 'imag
 const dialog = () =>
   within(document.body).getByRole('dialog', { name: 'Photo for this tile' })
 
-async function openPhotoDialog(canvasElement: HTMLElement) {
+/** Opens the one tile the stories use, returning the canvas queries. */
+async function openTile(canvasElement: HTMLElement) {
   const canvas = within(canvasElement)
   await userEvent.click(canvas.getByRole('button', { name: /^Discover the resort/ }))
+  return canvas
+}
+
+async function openPhotoDialog(canvasElement: HTMLElement) {
+  const canvas = await openTile(canvasElement)
   await userEvent.click(
     canvas.getByRole('button', { name: 'Upload a photo instead of an icon' }),
   )
   return within(await within(document.body).findByRole('dialog'))
+}
+
+/** Picks a good photo, confirms the rights and presses Use photo. */
+async function submitJpeg(photo: ReturnType<typeof within>) {
+  await userEvent.upload(photo.getByLabelText('Photo file'), JPEG())
+  await userEvent.click(photo.getByRole('checkbox'))
+  await userEvent.click(photo.getByRole('button', { name: 'Use photo' }))
 }
 
 export const UploadsAPhotoForATile: Story = {
@@ -202,9 +215,7 @@ export const KeepsTheDialogOpenWhenTheServerRefuses: Story = {
   },
   play: async ({ canvasElement, args }) => {
     const photo = await openPhotoDialog(canvasElement)
-    await userEvent.upload(photo.getByLabelText('Photo file'), JPEG())
-    await userEvent.click(photo.getByRole('checkbox'))
-    await userEvent.click(photo.getByRole('button', { name: 'Use photo' }))
+    await submitJpeg(photo)
 
     await expect(await photo.findByRole('alert')).toHaveTextContent(/too small/)
     await expect(dialog()).toBeVisible()
@@ -242,9 +253,7 @@ export const SaysSoWhenThePhotoUploadsButTheTileCannotTakeIt: Story = {
   },
   play: async ({ canvasElement }) => {
     const photo = await openPhotoDialog(canvasElement)
-    await userEvent.upload(photo.getByLabelText('Photo file'), JPEG())
-    await userEvent.click(photo.getByRole('checkbox'))
-    await userEvent.click(photo.getByRole('button', { name: 'Use photo' }))
+    await submitJpeg(photo)
 
     await expect(await photo.findByRole('alert')).toHaveTextContent(
       'could not be put on the tile',
@@ -274,8 +283,7 @@ export const ATileWithAPhoto: Story = {
 export const ChoosingAnIconTakesThePhotoOff: Story = {
   args: { view: view(tile({ imageAssetId: ASSET })) },
   play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /^Discover the resort/ }))
+    const canvas = await openTile(canvasElement)
     await userEvent.click(canvas.getByRole('radio', { name: 'Car' }))
 
     await waitFor(() =>
@@ -289,8 +297,7 @@ export const ChoosingAnIconTakesThePhotoOff: Story = {
 export const ReadOnlyCannotUpload: Story = {
   args: { canEdit: false },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /^Discover the resort/ }))
+    const canvas = await openTile(canvasElement)
     await expect(
       canvas.getByRole('button', { name: 'Upload a photo instead of an icon' }),
     ).toBeDisabled()
@@ -301,8 +308,7 @@ export const AKeySlipDoesNotLoseThePhoto: Story = {
   render: (args) => <SavingHarness {...args} />,
   args: { view: view(tile({ imageAssetId: ASSET })) },
   play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /^Discover the resort/ }))
+    const canvas = await openTile(canvasElement)
     const photo = canvas.getByRole('radio', { name: 'Your photo' })
     await expect(photo).toBeChecked()
 
@@ -345,8 +351,7 @@ export const ChoosingThePhotoAgainSavesItsAssetNotAnUpload: Story = {
   render: (args) => <SavingHarness {...args} />,
   args: { view: view(tile({ imageAssetId: ASSET })), uploadPhoto: uploadOk() },
   play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /^Discover the resort/ }))
+    const canvas = await openTile(canvasElement)
     await userEvent.click(canvas.getByRole('radio', { name: 'Car' }))
     await userEvent.click(await canvas.findByRole('radio', { name: 'Your photo' }))
 
@@ -371,9 +376,7 @@ export const StaysOpenWhileThePhotoIsOnItsWay: Story = {
   },
   play: async ({ canvasElement, args }) => {
     const photo = await openPhotoDialog(canvasElement)
-    await userEvent.upload(photo.getByLabelText('Photo file'), JPEG())
-    await userEvent.click(photo.getByRole('checkbox'))
-    await userEvent.click(photo.getByRole('button', { name: 'Use photo' }))
+    await submitJpeg(photo)
     await waitFor(() => expect(args.uploadPhoto).toHaveBeenCalled())
 
     await userEvent.keyboard('{Escape}')

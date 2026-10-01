@@ -6,11 +6,12 @@
 
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { portalId, portalMediaAssetId } from '#/shared/domain/ids'
+import { portalId } from '#/shared/domain/ids'
 import {
   buildPortalLinktreeView,
   type PortalLinktreeView,
 } from '../../domain/portal-linktree-view'
+import { listServableTileImageIds } from '../servable-tile-images'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import type { PortalApprovedDestinationRepository } from '../ports/portal-approved-destination.repository'
 import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.repository'
@@ -55,17 +56,12 @@ export const getPortalLinktree =
       ),
       deps.destinationRepo.list(ctx.organizationId, portal.propertyId),
     ])
-    const pictureIds = links.flatMap((link) =>
-      link.imageAssetId ? [portalMediaAssetId(String(link.imageAssetId))] : [],
+    const servable = await listServableTileImageIds(
+      deps.mediaRepo,
+      ctx.organizationId,
+      portal.propertyId,
+      links,
     )
-    const servable =
-      pictureIds.length === 0
-        ? []
-        : await deps.mediaRepo.listServableIds(
-            ctx.organizationId,
-            portal.propertyId,
-            pictureIds,
-          )
     return buildPortalLinktreeView({
       portal,
       categories,
@@ -73,7 +69,7 @@ export const getPortalLinktree =
       texts,
       titles: overrides,
       destinations,
-      servableImageIds: new Set(servable.map(String)),
+      servableImageIds: servable,
     })
   }
 

@@ -15,7 +15,7 @@
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PropertyFactsPublicApi } from '#/contexts/property/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { portalId, portalMediaAssetId } from '#/shared/domain/ids'
+import { portalId } from '#/shared/domain/ids'
 import { IMMERSIVE_HUB_SCHEMA_VERSION } from '../../domain/portal-publication-snapshot'
 import { buildPortalLinktreeView } from '../../domain/portal-linktree-view'
 import { APPROVED_DESTINATION_MAX_VALIDATION_AGE_MS } from '../approved-destination-age'
@@ -26,6 +26,7 @@ import {
   type PortalPreviewOutcome,
   type PortalPreviewSource,
 } from '../portal-preview'
+import { listServableTileImageIds } from '../servable-tile-images'
 import type { PortalApprovedDestinationRepository } from '../ports/portal-approved-destination.repository'
 import type { PortalExperienceRepository } from '../ports/portal-experience.repository'
 import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.repository'
@@ -110,17 +111,12 @@ export const getPortalPreview =
         deps.destinationRepo.list(ctx.organizationId, portal.propertyId),
         deps.propertyFacts.getPropertyTimezone(ctx.organizationId, portal.propertyId),
       ])
-    const pictureIds = links.flatMap((link) =>
-      link.imageAssetId ? [portalMediaAssetId(String(link.imageAssetId))] : [],
+    const servable = await listServableTileImageIds(
+      deps.mediaRepo,
+      ctx.organizationId,
+      portal.propertyId,
+      links,
     )
-    const servable =
-      pictureIds.length === 0
-        ? []
-        : await deps.mediaRepo.listServableIds(
-            ctx.organizationId,
-            portal.propertyId,
-            pictureIds,
-          )
     const linktree = buildPortalLinktreeView({
       portal,
       categories,
@@ -128,7 +124,7 @@ export const getPortalPreview =
       texts,
       titles: overrides,
       destinations,
-      servableImageIds: new Set(servable.map(String)),
+      servableImageIds: servable,
     })
     return {
       status: 'ready',

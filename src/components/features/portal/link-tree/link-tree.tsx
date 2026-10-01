@@ -17,16 +17,13 @@ import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalLinkIconKey } from '#/shared/domain/portal-link-icon'
 import { usePortalDraftAutosave } from '../portal-editor/portal-draft-autosave-context'
 import { LinkAddForm } from './link-add-form'
-import {
-  iconChoiceWrite,
-  photoChoiceWrite,
-  rememberPhotos,
-  type PhotoMemory,
-} from './linktree-photo-rules'
+import { iconChoiceWrite, photoChoiceWrite } from './linktree-photo-rules'
 import type { PortalImageUploader } from '../portal-media/upload-portal-image'
 import { LinktreeLocaleTabs } from './linktree-locale-tabs'
 import { LINKTREE_MOVE_HINT_ID } from './linktree-move-controls'
 import { LinktreeTileEditor } from './linktree-tile-editor'
+import { useRememberedPhotos } from './use-remembered-photos'
+import { useSerialWrites } from './use-serial-writes'
 import { LinktreeTile } from './linktree-tile'
 import { LinktreeTitleForm } from './linktree-title-form'
 import {
@@ -80,9 +77,7 @@ export function LinkTree({
   // A photo an icon has replaced stays on offer, so choosing an icon is never
   // the end of the photo. Noted while rendering (the supported way to derive
   // state from props), so no frame shows the tile without it.
-  const [photos, setPhotos] = useState<PhotoMemory>({})
-  const remembered = rememberPhotos(photos, view.links)
-  if (remembered !== photos) setPhotos(remembered)
+  const remembered = useRememberedPhotos(view.links)
   const refocus = useRef<string | null>(null)
   const order = links.map((link) => link.id).join()
   const cap = describeLinkCap(view.links.length, view.maxLinks)
@@ -104,28 +99,8 @@ export function LinkTree({
     }
   }, [order])
 
-  // The section's writes run one after another, each after the typed text still
-  // waiting out its debounce: every write reads the Portal afresh, so two at once
-  // (a quick second move, an add beside a title edit) would refuse the second.
-  const queue = useRef<Promise<unknown>>(Promise.resolve())
-  const waiting = useRef(0)
-  const afterPendingText = <T,>(write: () => Promise<T>): Promise<T> => {
-    waiting.current += 1
-    const run = queue.current
-      .catch(() => undefined)
-      .then(async () => {
-        await autosave.flush()
-        return write()
-      })
-    queue.current = run
-    const settle = () => {
-      waiting.current -= 1
-      // Once the queue is empty the cache holds the truth, saved or rolled back.
-      if (waiting.current === 0) setPlans([])
-    }
-    run.then(settle, settle)
-    return run
-  }
+  // Once the queue is empty the cache holds the truth, saved or rolled back.
+  const afterPendingText = useSerialWrites(autosave.flush, () => setPlans([]))
   const reportFailure = (error: unknown) => toast.error(actionErrorMessage(error))
 
   const move = (
