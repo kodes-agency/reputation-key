@@ -66,6 +66,7 @@ export type {
 } from './use-cases/get-portal-version'
 export type { PortalVersionActor } from './portal-version-actors'
 export type { PortalReview, PortalReviewChange } from './use-cases/get-portal-review'
+export type { PublishPortalsChangesResult } from './use-cases/publish-portal-changes'
 export type {
   ReviewCheck,
   ReviewCheckCode,
@@ -92,7 +93,10 @@ export type {
   PortalHistoryDetail,
   PortalHistoryFilter,
 } from '../domain/portal-history'
-export type { PortalPageEditSubject } from '../domain/portal-page-edit'
+export type {
+  PortalPageEditKind,
+  PortalPageEditSubject,
+} from '../domain/portal-page-edit'
 
 import type {
   OrganizationId,

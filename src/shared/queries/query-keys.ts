@@ -264,6 +264,13 @@ export const portalKeys = {
    */
   preview: (portalId: string, source: 'draft' | 'live') =>
     [...portalKeys.publicationHistory(portalId), 'preview', source] as const,
+  /**
+   * Review & publish: the checks, the change list and the language rows. Under
+   * `publicationHistory` for the same reason as the preview: every write that
+   * changes the working copy already invalidates it, and so does publishing.
+   */
+  review: (portalId: string) =>
+    [...portalKeys.publicationHistory(portalId), 'review'] as const,
   /** The guest copy pack the preview prints in one language; it never changes while the app runs. */
   previewCopy: (locale: string) => [...portalKeys.all, 'preview-copy', locale] as const,
   /** The History tab's ledger; one entry per filter, each an infinite read. */
@@ -276,6 +283,11 @@ export const portalKeys = {
     [...portalKeys.versions(portalId), 'version', version] as const,
   propertyExperience: (propertyId: string) =>
     [...portalKeys.forProperty(propertyId), 'experience'] as const,
+  /** The Property look's batch "Review & publish": one review of each live portal, read together. */
+  lookReview: (propertyId: string) =>
+    [...portalKeys.forProperty(propertyId), 'look-review'] as const,
+  lookReviewOf: (propertyId: string, portalIds: string) =>
+    [...portalKeys.lookReview(propertyId), portalIds] as const,
   experience: (propertyId: string, portalId: string) =>
     [...portalKeys.propertyExperience(propertyId), 'portal', portalId] as const,
   /**

@@ -16,6 +16,8 @@ import {
   AVELA_PORTALS,
   AVELA_PROFILE,
   DEFAULT_PALETTE_PROFILE,
+  publishingPortals,
+  reviewingPortals,
   savingHero,
   savingLocales,
   savingLogo,
@@ -37,6 +39,9 @@ const meta = {
     canEdit: true,
     rows: AVELA_PORTALS,
     getPortalPreview: previewReader(),
+    getPortalReview: reviewingPortals(),
+    publishPortals: publishingPortals(),
+    canPublish: true,
     saveLook: savingLook(),
     saveLocales: savingLocales(),
     saveHero: savingHero(),
@@ -318,19 +323,6 @@ export const ReadOnly: Story = {
     await expect(canvas.getByLabelText('Accent')).toBeDisabled()
     await expect(canvas.getByLabelText('Wordmark')).toBeDisabled()
     await expect(canvas.queryByRole('button', { name: 'Add language' })).toBeNull()
-  },
-}
-
-/** The batch publish (39b) mounts in a slot beside the status line. */
-export const SlotForTheBatchPublish: Story = {
-  args: {
-    publishSlot: <button type="button">Review &amp; publish 5 portals</button>,
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await expect(
-      canvas.getByRole('button', { name: 'Review & publish 5 portals' }),
-    ).toBeVisible()
   },
 }
 

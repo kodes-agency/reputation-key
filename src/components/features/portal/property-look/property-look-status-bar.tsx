@@ -1,8 +1,7 @@
 // The line under the form (board 09): whether the edits are saved as a draft and
 // how many live portals use the look. The visible line changes twice at every
 // pause in editing, so it is not announced; a hidden alert speaks only when a
-// save did not go through. `action` is where the batch "Review &
-// publish N portals" mounts (slice 39b).
+// save did not go through. `action` is the batch "Review & publish N portals".
 import type { ReactNode } from 'react'
 import { Check, Loader2, TriangleAlert } from 'lucide-react'
 import { Button } from '#/components/ui/button'

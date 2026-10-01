@@ -12,7 +12,10 @@
 // button the server would then refuse, and cannot refuse one it would accept.
 
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import type { PortalLanguageCoverage } from './portal-language-coverage'
+import type {
+  MissingPortalText,
+  PortalLanguageCoverage,
+} from './portal-language-coverage'
 import {
   describePageEdit,
   pageEditCarriesWording,
@@ -452,6 +455,8 @@ export type ReviewLanguageRow = Readonly<{
   total: number
   present: number
   missingCount: number
+  /** The texts that are missing, so the page can name them (a link label by its fallback-language name). */
+  missing: ReadonlyArray<MissingPortalText>
   status: ReviewLanguageStatus
   /** Texts that began as an AI draft and have not been written over since. */
   aiDraftCount: number
@@ -474,6 +479,7 @@ export function reviewLanguageRows(
       total: row.total,
       present: row.present,
       missingCount,
+      missing: row.missing,
       status: blocked
         ? 'blocked'
         : missingCount > 0

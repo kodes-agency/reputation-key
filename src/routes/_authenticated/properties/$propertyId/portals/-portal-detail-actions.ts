@@ -14,6 +14,7 @@ import {
   savePropertyPortalBrandContent,
   updatePortal,
 } from '#/contexts/portal/server/portals'
+import { publishPortalChanges } from '#/contexts/portal/server/portal-publish-changes'
 import { updatePortalResponsibleManagers } from '#/contexts/portal/server/portal-responsible-managers'
 import type { Action } from '#/components/hooks/use-action'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
@@ -168,6 +169,16 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
       portalKeys.overview(propertyId),
     ],
   })
+  // Publish the draft of a Portal that is live: the next version replaces the
+  // live one. A Portal that is not live goes live through `update`. The page
+  // reports the outcome, so there is no toast here.
+  const publishChanges = useActionMutation(publishPortalChanges, {
+    invalidateKeys: [
+      portalKeys.detail(portalId),
+      portalKeys.list(propertyId),
+      portalKeys.overview(propertyId),
+    ],
+  })
   const experience = usePortalExperienceActions(propertyId, portalId)
 
   return {
@@ -180,6 +191,7 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
     completeReview,
     updateResponsibleManagers,
     makeVersionLive,
+    publishChanges,
     experience,
   }
 }
