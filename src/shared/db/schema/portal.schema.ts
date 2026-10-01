@@ -489,7 +489,7 @@ export const portalAddressDownloads = pgTable(
     }).onDelete('cascade'),
     check(
       'portal_address_downloads_purpose_valid',
-      sql`${t.purpose} IN ('download', 'copy')`,
+      sql`${t.purpose} IN ('download', 'copy', 'show')`,
     ),
   ],
 )

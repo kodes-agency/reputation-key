@@ -58,6 +58,8 @@ type ViewInput = Readonly<{
   tokenStatus: PortalTokenStatus
   /** The in-memory address was fetched again, not made in this session. */
   addressRevealed?: boolean
+  /** From the issue or replace result; overrides the stale `tokenStatus` value. */
+  addressRecoverable?: boolean
   /** The clock; injectable so "made today" is testable. */
   now?: Date
 }>
@@ -85,6 +87,7 @@ export function derivePortalShareView(input: ViewInput): PortalShareView {
     publicUrl,
     tokenStatus,
     addressRevealed = false,
+    addressRecoverable = tokenStatus.addressRecoverable,
     now = new Date(),
   } = input
 
@@ -95,7 +98,7 @@ export function derivePortalShareView(input: ViewInput): PortalShareView {
   // issue/revoke outcomes run ahead of it until the detail query refetches, so
   // they take precedence.
   const hasActiveToken = !revoked && (publicUrl !== null || tokenStatus.hasActiveToken)
-  const canDownloadAgain = canManage && hasActiveToken && tokenStatus.addressRecoverable
+  const canDownloadAgain = canManage && hasActiveToken && addressRecoverable
 
   return {
     showViewOnlyNotice: !canManage,
@@ -105,8 +108,7 @@ export function derivePortalShareView(input: ViewInput): PortalShareView {
     showAddress: hasActiveToken && publicUrl !== null,
     showAddressRow: hasActiveToken && (publicUrl !== null || canDownloadAgain),
     canDownloadAgain,
-    showSaveWarning:
-      hasActiveToken && publicUrl !== null && !tokenStatus.addressRecoverable,
+    showSaveWarning: hasActiveToken && publicUrl !== null && !addressRecoverable,
     showActions: canManage && hasActiveToken,
     // A code made in this session is newer than whatever tokenStatus last saw;
     // an address fetched again belongs to the code tokenStatus describes.

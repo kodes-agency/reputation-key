@@ -11,7 +11,7 @@ export const issuePortalTokenInputSchema = z.object({
  * address. It is recorded with the disclosure and nothing else is read from it.
  */
 export const revealPortalAddressInputSchema = issuePortalTokenInputSchema.extend({
-  purpose: z.enum(['download', 'copy']),
+  purpose: z.enum(['download', 'copy', 'show']),
 })
 
 const portalTokenGracePeriodDaysSchema = z

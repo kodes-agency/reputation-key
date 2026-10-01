@@ -17,7 +17,7 @@ CREATE TABLE "portal_address_downloads" (
 	"downloaded_by" varchar(255) NOT NULL,
 	"purpose" varchar(16) NOT NULL,
 	"downloaded_at" timestamp with time zone NOT NULL,
-	CONSTRAINT "portal_address_downloads_purpose_valid" CHECK ("portal_address_downloads"."purpose" IN ('download', 'copy'))
+	CONSTRAINT "portal_address_downloads_purpose_valid" CHECK ("portal_address_downloads"."purpose" IN ('download', 'copy', 'show'))
 );--> statement-breakpoint
 ALTER TABLE "portal_address_downloads" ADD CONSTRAINT "portal_address_downloads_token_scope_fk" FOREIGN KEY ("organization_id","property_id","portal_id","portal_token_id") REFERENCES "public"."portal_tokens"("organization_id","property_id","portal_id","id") ON DELETE cascade ON UPDATE no action;--> statement-breakpoint
 CREATE INDEX "portal_address_downloads_portal_idx" ON "portal_address_downloads" USING btree ("organization_id","portal_id","downloaded_at");--> statement-breakpoint

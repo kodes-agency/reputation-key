@@ -35,6 +35,7 @@ export function PortalShare(props: PortalShareProps) {
     linkRef: nfcLinkRef,
     copied: nfcCopied,
     copyFailed: nfcCopyFailed,
+    copyFetchedLink: copyFetchedNfc,
     copyLink: copyNfc,
   } = useCopyLink(nfcPublicUrl)
   const { error, isPending } = resolveMutationState(props)
@@ -44,19 +45,17 @@ export function PortalShare(props: PortalShareProps) {
     publicUrl,
     tokenStatus: props.tokenStatus,
     addressRevealed: props.issuedLink?.revealed ?? false,
+    addressRecoverable: props.issuedLink?.addressRecoverable,
   })
   // "Download again": each of these fetches the address once, which the server
   // records, and then works from memory like a made address.
   const reveal = useAddressReveal(props)
-  const showAddress = async () => {
-    await reveal('copy')
-  }
+  const showAddress = async () => (await reveal('show')) !== null
   const resolveQrAddress = async () => (await reveal('download'))?.publicUrl ?? null
-  const copyNfcAddress = async () => {
-    if (nfcPublicUrl !== null) return copyNfc()
-    const nfc = (await reveal('copy'))?.publicUrls?.nfc
-    if (nfc !== undefined) await copyNfc(nfc)
-  }
+  const copyNfcAddress = () =>
+    nfcPublicUrl !== null
+      ? copyNfc()
+      : copyFetchedNfc(async () => (await reveal('copy'))?.publicUrls?.nfc ?? null)
 
   return (
     <section className="flex flex-col gap-8" aria-label="Share">

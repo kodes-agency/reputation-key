@@ -48,6 +48,8 @@ export const rotatePortalToken =
       tokenIdentifier: string
       version: number
       gracePeriodEnds: Date
+      /** The new address was sealed, so a manager can download it again (ADR 0064). */
+      addressRecoverable: boolean
     }>
   > => {
     const portal = await loadPortalOrThrow(deps, ctx, portalId(input.portalId), {
@@ -179,6 +181,7 @@ export const rotatePortalToken =
       tokenIdentifier: result.newToken.tokenIdentifier,
       version: result.newToken.version,
       gracePeriodEnds,
+      addressRecoverable: sealedAddress !== null,
     }
   }
 

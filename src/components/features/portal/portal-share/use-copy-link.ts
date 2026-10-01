@@ -8,8 +8,8 @@
 // pastes whatever was already on the clipboard over a fresh code. On failure we
 // say so and select the rendered link so the user can copy it by hand.
 
-import { useCallback, useRef, useState } from 'react'
-import { copyToClipboard } from '#/lib/clipboard'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { copyResolvedText, copyToClipboard } from '#/lib/clipboard'
 import type { RefObject } from 'react'
 
 const COPIED_RESET_MS = 2000
@@ -29,33 +29,56 @@ export type CopyLinkState = Readonly<{
   linkRef: RefObject<HTMLElement | null>
   copied: boolean
   copyFailed: boolean
-  /** Copies the link, or `address` when the caller has just fetched a newer one. */
-  copyLink: (address?: string) => Promise<void>
+  /** Copies the link. */
+  copyLink: () => Promise<void>
+  /**
+   * Copies an address the caller fetches on this click. Call it straight from the
+   * click handler: the clipboard write starts before the address arrives, which
+   * is what keeps it allowed in Safari.
+   */
+  copyFetchedLink: (fetchAddress: () => Promise<string | null>) => Promise<void>
 }>
 
 export function useCopyLink(publicUrl: string | null): CopyLinkState {
   const linkRef = useRef<HTMLElement | null>(null)
   const [copied, setCopied] = useState(false)
+  const [failedCopies, setFailedCopies] = useState(0)
   const [copyFailed, setCopyFailed] = useState(false)
 
-  const copyLink = useCallback(
-    async (address?: string) => {
-      const target = address ?? publicUrl
-      if (!target) return
-      if (await copyToClipboard(target)) {
-        setCopyFailed(false)
-        setCopied(true)
-        window.setTimeout(() => setCopied(false), COPIED_RESET_MS)
-        return
-      }
-      setCopied(false)
-      setCopyFailed(true)
-      selectElementText(linkRef.current)
+  // Selected once the link text is on screen: a fetched address renders only
+  // after the fetch that a failed copy followed.
+  useEffect(() => {
+    if (failedCopies > 0) selectElementText(linkRef.current)
+  }, [failedCopies, publicUrl])
+
+  const succeeded = useCallback(() => {
+    setCopyFailed(false)
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), COPIED_RESET_MS)
+  }, [])
+
+  const failed = useCallback(() => {
+    setCopied(false)
+    setCopyFailed(true)
+    setFailedCopies((count) => count + 1)
+  }, [])
+
+  const copyLink = useCallback(async () => {
+    if (!publicUrl) return
+    if (await copyToClipboard(publicUrl)) succeeded()
+    else failed()
+  }, [publicUrl, succeeded, failed])
+
+  const copyFetchedLink = useCallback(
+    async (fetchAddress: () => Promise<string | null>) => {
+      const outcome = await copyResolvedText(fetchAddress)
+      if (outcome.status === 'copied') succeeded()
+      else if (outcome.status === 'failed') failed()
     },
-    [publicUrl],
+    [succeeded, failed],
   )
 
-  return { linkRef, copied, copyFailed, copyLink } as const
+  return { linkRef, copied, copyFailed, copyLink, copyFetchedLink } as const
 }
 
 export const COPY_FAILED_MESSAGE =

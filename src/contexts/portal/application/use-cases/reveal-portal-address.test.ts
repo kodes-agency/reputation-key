@@ -10,6 +10,8 @@ import { createInMemoryPortalAddressCipher } from '#/shared/testing/in-memory-po
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { unbrand } from '#/shared/domain/ids'
 import { issueToken } from '../../domain/portal-token'
+import type { PortalAddressCipher } from '../ports/portal-address-cipher.port'
+import type { PortalAddressRepository } from '../ports/portal-address.repository'
 import { issuePortalToken } from './issue-portal-token'
 import { revealPortalAddress } from './reveal-portal-address'
 import { revokePortalTokens } from './revoke-portal-tokens'
@@ -88,6 +90,21 @@ function harness(options: Readonly<{ cipher: boolean }> = { cipher: true }) {
       defaultGracePeriodSeconds: 30 * 24 * 60 * 60,
     }),
     revoke: revokePortalTokens(shared),
+    revealWith: (
+      overrides: Partial<{
+        addressRepo: PortalAddressRepository
+        addressCipher: PortalAddressCipher | null
+      }>,
+    ) =>
+      revealPortalAddress({
+        portalRepo,
+        staffPublicApi,
+        portalAddressRepo: overrides.addressRepo ?? addressRepo,
+        addressCipher:
+          overrides.addressCipher === undefined ? addressCipher : overrides.addressCipher,
+        clock: () => NOW,
+        baseUrl: 'https://example.test',
+      }),
     reveal: revealPortalAddress({
       portalRepo,
       staffPublicApi,
@@ -120,11 +137,51 @@ describe('revealPortalAddress', () => {
     ])
   })
 
-  it('records a copy as a copy', async () => {
+  it('records the disclosure before it decrypts anything', async () => {
     const h = harness()
     await h.issue({ portalId: h.portal.id }, h.ctx)
-    await h.reveal({ portalId: h.portal.id, purpose: 'copy' }, h.ctx)
-    expect(h.addressRepo.downloads()[0]?.purpose).toBe('copy')
+    const inner = createInMemoryPortalAddressCipher()
+    const rowsWhenOpened: number[] = []
+    const reveal = h.revealWith({
+      addressCipher: {
+        ...inner,
+        open: (sealed, context) => {
+          rowsWhenOpened.push(h.addressRepo.downloads().length)
+          return inner.open(sealed, context)
+        },
+      },
+    })
+
+    await reveal({ portalId: h.portal.id, purpose: 'download' }, h.ctx)
+
+    expect(rowsWhenOpened).toEqual([1])
+  })
+
+  it('does not decrypt when the disclosure row is refused (the code was stopped meanwhile)', async () => {
+    const h = harness()
+    await h.issue({ portalId: h.portal.id }, h.ctx)
+    const sealed = await h.addressRepo.findRevealable(h.ctx.organizationId, h.portal.id)
+    const inner = createInMemoryPortalAddressCipher()
+    const open = vi.fn(inner.open)
+    const reveal = h.revealWith({
+      addressRepo: {
+        findRevealable: async () => sealed,
+        recordDownload: async () => false,
+      },
+      addressCipher: { ...inner, open },
+    })
+
+    await expect(
+      reveal({ portalId: h.portal.id, purpose: 'download' }, h.ctx),
+    ).rejects.toMatchObject({ code: 'address_unavailable' })
+    expect(open).not.toHaveBeenCalled()
+  })
+
+  it.each(['copy', 'show'] as const)('records a %s as that purpose', async (purpose) => {
+    const h = harness()
+    await h.issue({ portalId: h.portal.id }, h.ctx)
+    await h.reveal({ portalId: h.portal.id, purpose }, h.ctx)
+    expect(h.addressRepo.downloads()[0]?.purpose).toBe(purpose)
   })
 
   it('does not write the audit row when it cannot disclose', async () => {
@@ -198,7 +255,12 @@ describe('revealPortalAddress', () => {
     const h = harness()
     await h.issue({ portalId: h.portal.id }, h.ctx)
     h.useRaw(ROTATED_RAW)
+    const first = await h.addressRepo.findRevealable(h.ctx.organizationId, h.portal.id)
     const rotated = await h.rotate({ portalId: h.portal.id }, h.ctx)
+    const second = await h.addressRepo.findRevealable(h.ctx.organizationId, h.portal.id)
+
+    expect(h.addressRepo.sealedCount()).toBe(1)
+    expect(second?.tokenId).not.toBe(first?.tokenId)
 
     const revealed = await h.reveal({ portalId: h.portal.id, purpose: 'download' }, h.ctx)
 

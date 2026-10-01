@@ -79,6 +79,7 @@ describe('rotatePortalToken', () => {
       tokenIdentifier: 'new-token-id',
       version: 5,
       gracePeriodEnds: new Date('2026-09-15T12:00:00.000Z'),
+      addressRecoverable: false,
     })
     expect(saveRotation).toHaveBeenCalledWith({
       oldToken: expect.objectContaining({
@@ -282,8 +283,9 @@ describe('rotatePortalToken', () => {
       defaultGracePeriodSeconds: 30 * 24 * 60 * 60,
     })
 
-    await useCase({ portalId: portal.id }, ctx)
+    const rotated = await useCase({ portalId: portal.id }, ctx)
 
+    expect(rotated.addressRecoverable).toBe(true)
     const live = await portalAddressRepo.findRevealable(ctx.organizationId, portal.id)
     expect(live).toMatchObject({
       tokenId: '6a200000-0000-4000-8000-000000000001',

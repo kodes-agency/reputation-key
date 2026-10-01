@@ -55,7 +55,7 @@ export type PortalHistoryDetail =
       /** The code that was handed out, by its version. */
       version: number
       /** The code as a file, or a copy of one of its addresses. */
-      purpose: 'download' | 'copy'
+      purpose: 'download' | 'copy' | 'show'
     }>
 
 export type PortalHistoryRecord = Readonly<{

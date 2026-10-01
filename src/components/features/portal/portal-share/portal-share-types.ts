@@ -6,10 +6,15 @@ export type IssuedPortalLink = Readonly<{
   publicUrls?: Readonly<{ qr: string; nfc: string }>
   /** Set by the page when the address was fetched again rather than made. */
   revealed?: boolean
+  /**
+   * Set by issue and replace: whether the address they made was sealed. It runs
+   * ahead of `tokenStatus`, which is stale until the detail refetch lands.
+   */
+  addressRecoverable?: boolean
 }>
 
 /** Why the address is wanted; recorded with the disclosure and nothing else. */
-export type RevealPurpose = 'download' | 'copy'
+export type RevealPurpose = 'download' | 'copy' | 'show'
 
 export type RotatePortalLinkInput = Readonly<{
   portalId: string

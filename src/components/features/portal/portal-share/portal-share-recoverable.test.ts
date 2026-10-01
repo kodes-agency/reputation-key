@@ -74,6 +74,35 @@ describe('derivePortalShareView — download again', () => {
   })
 })
 
+describe('derivePortalShareView — a code made or replaced in this session', () => {
+  it('trusts the result over a token status the detail refetch has not caught up with', () => {
+    // Made with a keyring while tokenStatus (read before) still says it is not recoverable.
+    const made = view({
+      publicUrl: URL_IN_MEMORY,
+      tokenStatus: LIVE,
+      addressRecoverable: true,
+    })
+    expect(made.showSaveWarning).toBe(false)
+    expect(made.canDownloadAgain).toBe(true)
+  })
+
+  it('warns for a replacement made without a keyring even if the old code was sealed', () => {
+    const replaced = view({
+      publicUrl: URL_IN_MEMORY,
+      tokenStatus: RECOVERABLE,
+      addressRecoverable: false,
+    })
+    expect(replaced.showSaveWarning).toBe(true)
+    expect(replaced.canDownloadAgain).toBe(false)
+  })
+
+  it('falls back to the token status when the address was fetched again', () => {
+    expect(
+      view({ publicUrl: URL_IN_MEMORY, tokenStatus: RECOVERABLE }).showSaveWarning,
+    ).toBe(false)
+  })
+})
+
 describe('derivePortalShareView — an address that was fetched, not made', () => {
   const now = new Date('2026-09-30T23:30:00Z')
 

@@ -12,7 +12,12 @@ export type RevealableAddress = Readonly<{
   accessArtifactIds: Readonly<{ qr: string; nfc: string }>
 }>
 
-export type AddressDownloadPurpose = 'download' | 'copy'
+/**
+ * What the manager did with the address they were handed: saved a code file
+ * (`download`), put an address on the clipboard (`copy`), or only displayed it
+ * (`show`).
+ */
+export type AddressDownloadPurpose = 'download' | 'copy' | 'show'
 
 export type RecordAddressDownloadInput = Readonly<{
   organizationId: OrganizationId

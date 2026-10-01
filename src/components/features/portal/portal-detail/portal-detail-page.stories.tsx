@@ -119,12 +119,14 @@ const revokeTokenMutation = Object.assign(
   { isPending: false, error: null as unknown, isSuccess: false, data: null },
 ) as Action<{ data: { portalId: string; reason: string } }, { revoked: boolean }>
 const revealAddressMutation = Object.assign(
-  async (_input: { data: { portalId: string; purpose: 'download' | 'copy' } }) => ({
+  async (_input: {
+    data: { portalId: string; purpose: 'download' | 'copy' | 'show' }
+  }) => ({
     publicUrl,
   }),
   { isPending: false, error: null as unknown, isSuccess: false, data: null },
 ) as Action<
-  { data: { portalId: string; purpose: 'download' | 'copy' } },
+  { data: { portalId: string; purpose: 'download' | 'copy' | 'show' } },
   { publicUrl: string }
 >
 const completeReviewMutation = Object.assign(

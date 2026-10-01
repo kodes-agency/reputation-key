@@ -172,8 +172,8 @@ describe('Portal form DTO contracts', () => {
     ).toBe(true)
   })
 
-  it('accepts only the two recorded purposes for "Download again"', () => {
-    for (const purpose of ['download', 'copy']) {
+  it('accepts only the three recorded purposes for "Download again"', () => {
+    for (const purpose of ['download', 'copy', 'show']) {
       expect(
         revealPortalAddressInputSchema.safeParse({ portalId: 'portal-1', purpose })
           .success,

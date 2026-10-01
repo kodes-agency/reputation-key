@@ -34,6 +34,8 @@ export type IssuedPortalTokenResult = Readonly<{
   tokenIdentifier: string
   version: number
   issuedAt: Date
+  /** The address was sealed, so a manager can download it again (ADR 0064). */
+  addressRecoverable: boolean
 }>
 
 export const issuePortalToken =
@@ -140,6 +142,7 @@ export const issuePortalToken =
       tokenIdentifier: token.tokenIdentifier,
       version: token.version,
       issuedAt: token.issuedAt,
+      addressRecoverable: sealedAddress !== null,
     }
   }
 

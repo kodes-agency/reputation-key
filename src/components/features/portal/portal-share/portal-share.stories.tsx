@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { PortalShare } from './portal-share'
@@ -17,7 +18,7 @@ type RotateInput = {
   }
 }
 type RevokeInput = { data: { portalId: string; reason: string } }
-type RevealInput = { data: { portalId: string; purpose: 'download' | 'copy' } }
+type RevealInput = { data: { portalId: string; purpose: 'download' | 'copy' | 'show' } }
 type LinkResult = {
   publicUrl: string
   publicUrls?: { qr: string; nfc: string }
@@ -268,7 +269,7 @@ export const ShowAddressFetchesItOnce: Story = {
     )
     await waitFor(() =>
       expect(args.revealMutation).toHaveBeenCalledWith({
-        data: { portalId: 'portal-1', purpose: 'copy' },
+        data: { portalId: 'portal-1', purpose: 'show' },
       }),
     )
     await waitFor(() => expect(args.onAddressRevealed).toHaveBeenCalledWith(issuedLink))
@@ -309,6 +310,45 @@ export const NewlyMadeWithKeyring: Story = {
     await expect(canvas.getByText(publicUrl)).toBeInTheDocument()
     await expect(canvas.queryByText(/save this address now/i)).toBeNull()
     await expect(canvas.getByRole('button', { name: /^download$/i })).toBeEnabled()
+  },
+}
+
+// The detail has not refetched since the code was made: the result's own answer
+// stands, so a newly made sealed code is not told to "save it now".
+export const NewlyMadeWithKeyringBeforeTheRefetch: Story = {
+  args: {
+    ...baseArgs,
+    issuedLink: { ...issuedLink, addressRecoverable: true },
+    tokenStatus: noActiveToken,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByText(publicUrl)).toBeInTheDocument()
+    await expect(canvas.queryByText(/save this address now/i)).toBeNull()
+  },
+}
+
+// The page keeps what a fetch returns, as the workspace does.
+function ShareThatKeepsTheFetchedAddress(args: React.ComponentProps<typeof PortalShare>) {
+  const [link, setLink] = useState<typeof issuedLink | null>(null)
+  return (
+    <PortalShare
+      {...args}
+      issuedLink={link}
+      onAddressRevealed={(revealed) => setLink({ ...issuedLink, ...revealed })}
+    />
+  )
+}
+
+// The button that was pressed is replaced by the address, so focus follows it.
+export const ShowAddressMovesFocusToIt: Story = {
+  args: { ...baseArgs, tokenStatus: recoverableToken },
+  render: (args) => <ShareThatKeepsTheFetchedAddress {...args} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: /show address/i }))
+    const address = await canvas.findByText(publicUrl)
+    await waitFor(() => expect(address).toHaveFocus())
   },
 }
 

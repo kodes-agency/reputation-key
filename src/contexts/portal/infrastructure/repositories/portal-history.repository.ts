@@ -143,7 +143,8 @@ export const createPortalHistoryRepository = (db: Database): PortalHistoryReposi
         .limit(clamp(page))
       return rows.map((row): PortalCodeDownloadRow => ({
         ...row,
-        purpose: row.purpose === 'copy' ? 'copy' : 'download',
+        purpose:
+          row.purpose === 'copy' || row.purpose === 'show' ? row.purpose : 'download',
       }))
     }),
 

@@ -41,7 +41,7 @@ export type PortalCodeDownloadRow = Readonly<{
   /** The version of the code that was handed out. */
   version: number
   downloadedBy: string
-  purpose: 'download' | 'copy'
+  purpose: 'download' | 'copy' | 'show'
   downloadedAt: Date
 }>
 

@@ -148,7 +148,7 @@ const download = (
   n: string,
   version: number,
   downloadedAt: Date,
-  purpose: 'download' | 'copy' = 'download',
+  purpose: 'download' | 'copy' | 'show' = 'download',
 ): PortalCodeDownloadRow => ({
   downloadId: `00000000-0000-4000-8000-0000000000${n.padStart(2, 'c')}`,
   version,

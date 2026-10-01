@@ -162,7 +162,7 @@ async function seedDownload(
     portal: string
     token: number
     by: string
-    purpose?: 'download' | 'copy'
+    purpose?: 'download' | 'copy' | 'show'
     when: Date
   }>,
 ) {
@@ -361,6 +361,7 @@ describe.sequential('Portal history repository (real PostgreSQL)', () => {
     await seedDownload(1, { ...base, by: 'elena', when: at(10) })
     await seedDownload(2, { ...base, by: 'georgi', purpose: 'copy', when: at(20) })
     await seedDownload(3, { ...base, by: 'georgi', when: at(20) })
+    await seedDownload(5, { ...base, by: 'elena', purpose: 'show', when: at(15) })
     await seedDownload(4, {
       org: OTHER_ORG,
       property: OTHER_PROPERTY,
@@ -389,6 +390,13 @@ describe.sequential('Portal history repository (real PostgreSQL)', () => {
         downloadedBy: 'georgi',
         purpose: 'copy',
         downloadedAt: at(20),
+      },
+      {
+        downloadId: downloadId(5),
+        version: 1,
+        downloadedBy: 'elena',
+        purpose: 'show',
+        downloadedAt: at(15),
       },
       {
         downloadId: downloadId(1),
@@ -420,7 +428,7 @@ describe.sequential('Portal history repository (real PostgreSQL)', () => {
       seen.push(row.downloadId)
       key = `${HISTORY_KEY_PREFIX.codeDownloaded}${row.downloadId}`
     }
-    expect(seen).toEqual([3, 2, 1].map(downloadId))
+    expect(seen).toEqual([3, 2, 5, 1].map(downloadId))
   })
 
   it('folds one "turn off all codes" act into a single revocation', async () => {

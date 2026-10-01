@@ -70,6 +70,7 @@ describe('issuePortalToken', () => {
       tokenIdentifier: 'token-id',
       version: 1,
       issuedAt: NOW,
+      addressRecoverable: false,
     })
     expect(insert).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -179,8 +180,9 @@ describe('issuePortalToken', () => {
       baseUrl: 'https://example.test',
     })
 
-    await useCase({ portalId: portal.id }, ctx)
+    const issued = await useCase({ portalId: portal.id }, ctx)
 
+    expect(issued.addressRecoverable).toBe(true)
     const sealed = await portalAddressRepo.findRevealable(ctx.organizationId, portal.id)
     expect(sealed).toMatchObject({
       tokenId: '6a100000-0000-4000-8000-000000000001',
@@ -226,7 +228,7 @@ describe('issuePortalToken', () => {
 
     await expect(
       useCase({ portalId: portal.id }, buildTestAuthContext()),
-    ).resolves.toMatchObject({ rawToken: 'raw-token' })
+    ).resolves.toMatchObject({ rawToken: 'raw-token', addressRecoverable: false })
     expect(portalAddressRepo.sealedCount()).toBe(0)
   })
 })
