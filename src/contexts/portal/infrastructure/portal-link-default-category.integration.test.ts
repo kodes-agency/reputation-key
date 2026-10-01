@@ -225,7 +225,7 @@ describe('createLink without a category (real PostgreSQL)', () => {
         { portalId: PORTAL_A, label: 'Menu', url: 'https://avela.example.com/menu' },
         admin(),
       ),
-    ).rejects.toThrow()
+    ).rejects.toThrow(/Failed query: insert into "portal_links"/)
 
     expect(await count('portal_links')).toBe(0)
     expect(await count('portal_link_categories')).toBe(0)
