@@ -119,10 +119,8 @@ export const CAPABILITY_FATE = Object.freeze({
   'portal.write': CONTROLLED(
     'Portal management and publication require controlled-beta policy and lifecycle readiness.',
   ),
-  'portal.upload': fate(
-    'safety_blocked',
-    'Portal upload activation waits for the complete SAFE-01 public-edge and object-store evidence.',
-    'Remove the safety block only after the signed SAFE-01 completion record; tenant policy alone cannot enable it.',
+  'portal.upload': CONTROLLED(
+    'Portal image upload is controlled beta behavior. The owner removed the SAFE-01 completion ceremony on 2026-09-30; the technical safeguards stay in the build (server-side re-encoding, metadata stripping, size and type limits, same-origin serving) - ADR 0063.',
   ),
   'portal.public_read': CONTROLLED(
     'The public review gateway is active only for published, allowlisted Portal resources.',

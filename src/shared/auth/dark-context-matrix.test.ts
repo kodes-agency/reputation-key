@@ -43,9 +43,9 @@ const DARK: ReadonlyArray<
   },
   {
     capability: 'portal.upload',
-    reason: 'capability_blocked',
+    reason: 'org_not_allowlisted',
     label: 'Portals',
-    category: 'temporarily_unavailable',
+    category: 'not_enabled_for_organization',
   },
   {
     capability: 'portal.read',

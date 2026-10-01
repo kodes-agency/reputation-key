@@ -65,10 +65,11 @@ describe('BQC-0.2 portal capability taxonomy (STD-P0-01)', () => {
       expect(capabilityForPermission('portal.delete')).toBe('portal.write')
     })
 
-    it('keeps read/write promotable while upload is safety-blocked', () => {
+    it('keeps read, write and upload promotable, and Contact Requests safety-blocked', () => {
       expect(isBlockedCapability('portal.write')).toBe(false)
-      expect(isBlockedCapability('portal.upload')).toBe(true)
+      expect(isBlockedCapability('portal.upload')).toBe(false)
       expect(isBlockedCapability('portal.read')).toBe(false)
+      expect(isBlockedCapability('portal.guest_contact')).toBe(true)
     })
   })
 
@@ -119,14 +120,16 @@ describe('BQC-0.2 portal capability taxonomy (STD-P0-01)', () => {
   })
 
   describe('controlled write/upload environment posture', () => {
-    it('cannot override the upload safety block from an E2E environment', () => {
+    it('treats upload like write in an E2E environment, and still cannot open a safety block', () => {
       const store = createEnvCapabilityPolicyStore({
         BETA_E2E_GLOBAL_CAPABILITIES:
-          'portal.read,portal.write,portal.upload,identity.register',
+          'portal.read,portal.write,portal.upload,portal.guest_contact,identity.register',
       })
       expect(store.isCapabilityGloballyEnabled('portal.read')).toBe(true)
       expect(store.isCapabilityGloballyEnabled('portal.write')).toBe(true)
-      expect(store.isCapabilityGloballyEnabled('portal.upload')).toBe(false)
+      expect(store.isCapabilityGloballyEnabled('portal.upload')).toBe(true)
+      expect(store.isCapabilityGloballyEnabled('portal.guest_contact')).toBe(false)
+      expect(store.isCapabilityGloballyEnabled('identity.register')).toBe(false)
     })
   })
 })

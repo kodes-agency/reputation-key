@@ -1,7 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { CAPABILITY_FATE } from '#/shared/governance/capability-fate'
 import { PORTAL_PURGE_PLAN } from './portal-organization-lifecycle.adapter'
 
 /** Physical-drop-blocked compatibility mirrors Portal may only DELETE from. */
@@ -51,12 +50,19 @@ describe('Portal Organization lifecycle contributor', () => {
     )
   })
 
-  it('keeps the dark Portal upload capability dark', () => {
-    // Portal upload has no public issuance surface. A lifecycle contributor
-    // must not be the thing that makes a dark capability reachable, so the
-    // governance authority is asserted byte-identical: this work changed no
-    // capability fate at all.
-    expect(CAPABILITY_FATE['portal.upload'].fate).toBe('safety_blocked')
+  it('changes no capability fate: a lifecycle contributor is not what opens a capability', () => {
+    // The fate of portal.upload is the owner's decision (ADR 0063), recorded in
+    // capability-fate.ts and pinned there. This contributor neither reads nor
+    // writes a capability, so closing and purging work whatever it is.
+    const source = readFileSync(
+      join(
+        process.cwd(),
+        'src/contexts/portal/infrastructure/adapters/portal-organization-lifecycle.adapter.ts',
+      ),
+      'utf8',
+    )
+    expect(source).not.toContain('capability-fate')
+    expect(source).not.toContain('beta-capabilities')
   })
 
   it('keeps the lifecycle contributor out of the Portal public API', () => {

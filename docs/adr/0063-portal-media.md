@@ -3,7 +3,7 @@ status: accepted
 date: 2026-10-01
 ---
 
-# 0062 — Portal media: re-encoded uploads, served same-origin
+# 0063 — Portal media: re-encoded uploads, served same-origin
 
 ## Context
 
@@ -70,12 +70,48 @@ design rather than a checklist.
 
 ## Consequences
 
-- **`portal.upload` is switched on by the slice that ships the manager
-  controls**, together with the amendments to `docs/BETA.md` §8 and ADR 0032.
-  This slice (42a) ships the ingest behind the existing fate, so the code is
-  reviewable and tested before it is reachable. Until the garbage collection,
-  takedown and object purge (42b) exist, the capability must stay off: a stored
-  object that nothing can delete is the one thing this design must not allow.
+- **`portal.upload` is `controlled_beta` as of slice 42b**, together with the
+  amendments to `docs/BETA.md` §8 and ADR 0032 that say the SAFE-01 ceremony was
+  removed by the owner on 2026-09-30 and the technical safeguards above remain.
+  Slice 42a shipped the ingest behind the old fate; the switch waited for what
+  this slice adds, because a stored object that nothing can delete is the one
+  thing this design must not allow.
+- **Serving.** A guest's browser fetches an image from
+  `GET /api/public/portal-media/:assetId`, on the app's own origin (the
+  bucket stays private and `img-src 'self'` is enough). There is no session and
+  no tenant: the asset id is a random UUID and acts as the capability, as a
+  Portal token does, and whether the asset may be served is decided from its row
+  on every request. The bytes are read through the storage port, which replaced
+  the AWS-only `getPublicUrl`, and are checked against the row's size and hash
+  before they are sent. A published page gets its image URLs when it is read
+  (never from the snapshot), so an asset that is taken down drops out of a
+  snapshot that can never change. Responses are cacheable for five minutes and
+  revalidated by hash; that is the longest a taken-down image stays visible to
+  someone who already has it. The route has no per-request rate limit of its
+  own, and an image is reachable by anyone who holds its id, including during an
+  Organization's closing window, until purge removes the object.
+- **Takedown.** An Account Admin takes an image down (`portal.write`, not
+  `portal.upload`, so it works with uploads switched off). The row flips first
+  and from then on the image is not served; the object is removed second, and a
+  failure leaves `object_deleted_at` empty for the sweep to retry (migration
+  0049). The row stays, because snapshots name assets by id.
+- **Garbage collection.** A scheduled sweep (hourly, not capability-gated, so
+  it runs when uploads are off) finishes takedown removals and deletes images
+  that no Brand Profile, link or publication snapshot refers to once they are a
+  day old. An image a snapshot names is kept for as long as the snapshot exists:
+  snapshots are immutable and must keep verifying and rendering. The row is
+  deleted and the object removed in one transaction with the row locked, object
+  first, so a failed removal keeps the row for the next run and a writer
+  attaching the image at that moment waits and then fails its foreign key
+  instead of pointing at a deleted image. One leak remains by design: if an ingest's row insert fails
+  and the cleanup delete of the just-written object also fails, the object is
+  orphaned and logged (`portal_media_orphan_object`); the sweep cannot find it
+  because nothing names it.
+- **Purge and export.** On an Organization purge the Portal contributor removes
+  the objects of the Organization's assets while the rows that name them still
+  exist, then scrubs the rows; a failed removal leaves the phase `purging` and
+  the next pass repeats it. The data export carries the asset rows (key, size,
+  hash, status, takedown and removal times), not the image bytes.
 - `sharp` is a runtime dependency with a native binding. It is externalized in
   the Nitro build and the worker bundle so it resolves from the installed
   `node_modules`, where pnpm links its platform package beside it.
@@ -84,6 +120,8 @@ design rather than a checklist.
   rate allowance is the control, and moving the decode to the worker is the
   escape hatch if it ever matters.
 - Object-store configuration (`AWS_S3_*`, `S3_INTERNAL_ENDPOINT`, region
-  `auto`) still has to be verified on web and worker before the switch-on.
+  `auto`) still has to be verified on web and worker in each deployed cell:
+  uploads are on in code, and without a configured bucket the store refuses and
+  nothing is stored.
 - Superseded: the 10 or 15 MB, HEIC and raster-only-logo questions in the round-4
   plan are settled here as 10 MiB, no HEIC, raster-only.
