@@ -3,7 +3,7 @@
 // about when it was made, and what the screen reader is told.
 
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
-import type { PortalShareMutations } from './portal-share-types'
+import type { PortalShareMutations, PortalShareProps } from './portal-share-types'
 
 // Fixed locale + UTC so the server and client render the same string (same
 // reason as property-dashboard-review-row.tsx): a mismatch hydrates as an error.
@@ -176,4 +176,34 @@ export function resolveMutationState(mutations: PortalShareMutations): MutationS
 export function liveStatusMessage(isPending: boolean, copied: boolean): string {
   if (isPending) return 'Updating the portal code'
   return copied ? 'Address copied' : ''
+}
+
+/** The scan-goal readiness notice shows while a code exists but cannot yet qualify. */
+export function showScanGoalReadiness(
+  props: Pick<PortalShareProps, 'revoked' | 'tokenStatus'>,
+  publicUrl: string | null,
+): boolean {
+  return (
+    !props.revoked &&
+    publicUrl === null &&
+    props.tokenStatus.hasActiveToken &&
+    !props.tokenStatus.qualifiedScanReady
+  )
+}
+
+/** Share view derived straight from the tab's props and the held address. */
+export function derivePortalShareViewFromProps(
+  props: PortalShareProps,
+  canManage: boolean,
+  publicUrl: string | null,
+): PortalShareView {
+  return derivePortalShareView({
+    canManage,
+    revoked: props.revoked,
+    publicUrl,
+    tokenStatus: props.tokenStatus,
+    addressRevealed: props.issuedLink?.revealed ?? false,
+    addressRecoverable: props.issuedLink?.addressRecoverable,
+    issuedVersion: props.issuedLink?.version ?? null,
+  })
 }
