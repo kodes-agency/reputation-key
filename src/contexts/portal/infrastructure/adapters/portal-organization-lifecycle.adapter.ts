@@ -45,6 +45,7 @@ import {
 import { portalLinkTexts } from '#/shared/db/schema/portal-localization.schema'
 import { portalMediaAssets } from '#/shared/db/schema/portal-assets.schema'
 import type { Tx } from '#/shared/outbox/commit'
+import type { StoragePort } from '../../application/ports/storage.port'
 
 /**
  * The only `deactivation_reason` the append-only activation guard accepts for
@@ -101,6 +102,12 @@ export type PortalLifecycleWorkbench = Readonly<{
   countLivePublications(tx: Tx, organizationId: string): Promise<number>
   /** Presence: does this Organization own any Portal-context row at all? */
   countTenantRows(tx: Tx, organizationId: string): Promise<number>
+  /**
+   * Purge: the object keys of this Organization's media whose objects may still
+   * be in the store (everything except a taken-down asset whose removal was
+   * recorded). READ ONLY. The rows hold the only record of these keys.
+   */
+  listMediaObjectKeys(tx: Tx, organizationId: string): Promise<readonly string[]>
   /** Purge: irreversible, content-free scrub of the plan above. */
   scrubTenantRows(tx: Tx, organizationId: string): Promise<void>
 }>
@@ -177,6 +184,19 @@ const drizzlePortalLifecycleWorkbench: PortalLifecycleWorkbench = Object.freeze(
     return count(result.rows[0], 'rows')
   },
 
+  listMediaObjectKeys: async (tx, organizationId) => {
+    const rows = await tx
+      .select({ objectKey: portalMediaAssets.objectKey })
+      .from(portalMediaAssets)
+      .where(
+        and(
+          eq(portalMediaAssets.organizationId, organizationId),
+          isNull(portalMediaAssets.objectDeletedAt),
+        ),
+      )
+    return rows.map((row) => row.objectKey)
+  },
+
   scrubTenantRows: async (tx, organizationId) => {
     // Order is the FK order. Guest rows RESTRICT `portals` and the publication
     // snapshots until Guest has purged; that failure is honest — the phase
@@ -227,8 +247,8 @@ const drizzlePortalLifecycleWorkbench: PortalLifecycleWorkbench = Object.freeze(
     await tx
       .delete(propertyPortalBrandProfiles)
       .where(eq(propertyPortalBrandProfiles.organizationId, organizationId))
-    // After every row that points at an asset (links, Brand Profiles). The stored
-    // objects are removed by the media purge, never left behind by this delete.
+    // After every row that points at an asset (links, Brand Profiles). The
+    // objects are already gone: `purge` removes them before it calls this.
     await tx
       .delete(portalMediaAssets)
       .where(eq(portalMediaAssets.organizationId, organizationId))
@@ -257,6 +277,12 @@ export const PORTAL_PURGE_READINESS_BLOCKED =
 
 export const createPortalOrganizationLifecycleContributor = (
   db: Database,
+  /**
+   * The object store that holds uploaded images. Required, not optional: a purge
+   * that deleted the rows without it would leave the images behind with nothing
+   * left that names them.
+   */
+  objectStore: Pick<StoragePort, 'deleteObject'>,
   workbench: PortalLifecycleWorkbench = drizzlePortalLifecycleWorkbench,
 ) => {
   /**
@@ -314,6 +340,16 @@ export const createPortalOrganizationLifecycleContributor = (
     const owned = await workbench.countTenantRows(tx, request.organizationId)
     if (owned === 0) {
       return { outcome: 'no_data', evidenceRef: evidenceRef('purge', 'no_data', request) }
+    }
+    // The objects go first, while the rows that name them still exist. A removal
+    // that fails throws, the phase stays `purging`, and the next pass finds the
+    // same rows and removes the same objects: deleting an object that is already
+    // gone is not an error. The reverse order could lose the keys for good.
+    for (const objectKey of await workbench.listMediaObjectKeys(
+      tx,
+      request.organizationId,
+    )) {
+      await objectStore.deleteObject(objectKey)
     }
     await workbench.scrubTenantRows(tx, request.organizationId)
     return { outcome: 'complete', evidenceRef: evidenceRef('purge', 'complete', request) }

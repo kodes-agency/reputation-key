@@ -77,6 +77,6 @@ describe('Portal Organization lifecycle contributor', () => {
         join(process.cwd(), 'src/composition/organization-export-contributors.ts'),
         'utf8',
       ),
-    ).toContain('createPortalOrganizationLifecycleContributor(db)')
+    ).toContain('createPortalOrganizationLifecycleContributor(db, portalObjectStore)')
   })
 })

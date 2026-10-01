@@ -310,7 +310,8 @@ async function readPayload(
                    source_format, source_bytes, created_by,
                    ${utc('rights_confirmed_at')} AS rights_confirmed_at,
                    ${utc('created_at')} AS created_at,
-                   ${utc('taken_down_at')} AS taken_down_at
+                   ${utc('taken_down_at')} AS taken_down_at,
+                   ${utc('object_deleted_at')} AS object_deleted_at
             FROM portal_media_assets WHERE organization_id = ${organizationId}`,
       )
       const approvedDestinations = await readRows(
