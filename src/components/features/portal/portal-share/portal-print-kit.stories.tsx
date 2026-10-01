@@ -128,10 +128,9 @@ export const TableTent: Story = {
     await expect(canvas.getByText(/table tent a6 · front · 105 × 148 mm/i)).toBeVisible()
     await expect(canvas.getByText(/3 mm bleed and crop marks/i)).toBeVisible()
     await expect(within(front).getByText('Оценете посещението си')).toBeInTheDocument()
-    // The short address is on the print as words, without the scan marker.
-    // Too long for one line at a legible size, it breaks before the code.
-    await expect(within(front).getByText('app.reputationkey.app/p/')).toBeInTheDocument()
-    await expect(within(front).getByText(/^pt_AbCdEfGhIjKl/)).toBeInTheDocument()
+    // Only the host is on the print as words: never the token path or the scan marker.
+    await expect(within(front).getByText('app.reputationkey.app')).toBeInTheDocument()
+    await expect(within(front).queryByText(/pt_AbCdEfGhIjKl/)).toBeNull()
     await expect(within(front).queryByText(/accessArtifact/i)).toBeNull()
   },
 }

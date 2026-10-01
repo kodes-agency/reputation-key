@@ -136,9 +136,7 @@ describe('createPortalPrintKit', () => {
     const [input] = rendered
     expect(input?.piece).toBe('table_tent')
     expect(input?.qrAddress).toBe(QR_ADDRESS)
-    expect(input?.shortAddress).toBe(
-      'app.example.test/p/pt_AAAAAAAAAAAAAAAA_bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
-    )
+    expect(input?.shortAddress).toBe('app.example.test')
     expect(input?.faces.map((face) => face.side)).toEqual(['front', 'back'])
     expect(input?.faces[0]?.blocks.map((block) => block.headline)).toEqual([
       'Rate your visit',

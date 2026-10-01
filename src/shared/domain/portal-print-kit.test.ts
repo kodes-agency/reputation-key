@@ -165,11 +165,19 @@ describe('printKitSheets', () => {
 })
 
 describe('shortPrintAddress', () => {
-  it('drops the scheme, the query and a trailing slash', () => {
+  it('prints only the host: no scheme, no secret path, no query', () => {
     expect(
       shortPrintAddress('https://app.reputationkey.app/p/pt_abc_def?accessArtifact=1'),
-    ).toBe('app.reputationkey.app/p/pt_abc_def')
+    ).toBe('app.reputationkey.app')
     expect(shortPrintAddress('http://localhost:3000/')).toBe('localhost:3000')
+  })
+
+  it('never carries any part of the token path', () => {
+    const printed = shortPrintAddress(
+      'https://app.reputationkey.app/p/pt_AbCdEfGhIjKlMnOp_AbCdEfGhIj?accessArtifact=1',
+    )
+    expect(printed).not.toContain('/')
+    expect(printed).not.toContain('pt_')
   })
 
   it('returns text it cannot read as an address unchanged', () => {
