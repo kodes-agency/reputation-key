@@ -141,7 +141,7 @@ export const frV2 = defineGuestCopyV2({
     'Europe/Bucharest': 'Bucarest',
     'Europe/Belgrade': 'Belgrade',
     'Europe/Istanbul': 'Istanbul',
-    'Europe/Kyiv': 'Kiev',
-    'Europe/Kiev': 'Kiev',
+    'Europe/Kyiv': 'Kyiv',
+    'Europe/Kiev': 'Kyiv',
   },
 })

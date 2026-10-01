@@ -48,6 +48,9 @@ function LanguageRow({ row }: Readonly<{ row: ReviewLanguageRow }>) {
           </Badge>
         )}
       </span>
+      {/* Shows only when a stored text carries `ai_draft` provenance. Nothing
+          writes that today (no AI translation, owner decision 3); the line stays
+          so a future AI draft is never published without being flagged. */}
       {line.aiDrafts === null ? null : (
         <span className="flex items-center gap-1 text-xs text-muted-foreground">
           <Sparkles aria-hidden="true" className="size-3.5" />
