@@ -5,10 +5,10 @@ import {
   type PortalMediaReferenceSlot,
 } from './portal-media-asset'
 
-const asset = (purpose: 'hero' | 'logo' | 'link_image', status = 'active' as const) => ({
-  purpose,
-  status,
-})
+const asset = (
+  purpose: 'hero' | 'logo' | 'link_image',
+  status: 'active' | 'taken_down' = 'active',
+) => ({ purpose, status })
 
 describe('canReferencePortalMediaAsset', () => {
   it.each([
@@ -32,9 +32,7 @@ describe('canReferencePortalMediaAsset', () => {
   })
 
   it('names every slot, so a new reference column has to choose its purpose', () => {
-    const slots: readonly PortalMediaReferenceSlot[] = Object.keys(
-      PORTAL_MEDIA_REFERENCE_SLOTS,
-    ) as PortalMediaReferenceSlot[]
-    expect(slots.sort()).toEqual(['brand_hero', 'brand_logo', 'link_image'])
+    const slots = Object.keys(PORTAL_MEDIA_REFERENCE_SLOTS) as PortalMediaReferenceSlot[]
+    expect([...slots].sort()).toEqual(['brand_hero', 'brand_logo', 'link_image'])
   })
 })
