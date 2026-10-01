@@ -45,9 +45,9 @@ type Props = Readonly<{
   /** One group's own figures (a group's page) instead of every Portal of the Property. */
   groupId?: string
   /**
-   * Property scope only: how many items wait in the Property's Inbox, which the
-   * strip links to. Null or zero leaves the link out; the Organization's and a
-   * group's strips never carry it.
+   * Property scope only: how many private notes from its Portals wait in the
+   * Inbox, linked under the Private notes figure. Null or zero leaves the link
+   * out; the Organization's and a group's strips never carry it.
    */
   inboxWaiting?: number | null
 }>
@@ -86,25 +86,27 @@ function scopeLine(
   return strip?.caption ? `${strip.caption} · ${everything}` : everything
 }
 
-/** "5 waiting in Inbox →", into the Inbox filtered by the Property. */
+/**
+ * "3 waiting in Inbox →", the Private notes cell's detail line, into the Inbox's
+ * private feedback queue for the Property. The accent link colour and the cell
+ * detail's size are the boards'; the padding only grows the touch target.
+ */
 function InboxWaitingLink({
   propertyId,
-  count,
-}: Readonly<{ propertyId: string; count: number | null }>) {
-  const label = inboxWaitingLabel(count)
-  if (label === null) return null
+  label,
+}: Readonly<{ propertyId: string; label: string }>) {
   return (
     <Link
       to="/inbox"
       search={{ propertyId, queue: INBOX_WAITING_QUEUE }}
       className={cn(
-        'ml-auto inline-flex min-h-11 items-center gap-1 rounded-sm text-sm font-medium sm:min-h-9',
-        'text-foreground! underline-offset-4 hover:underline',
+        '-my-1.5 inline-flex items-center gap-1 rounded-sm py-1.5 text-xs leading-4 font-medium',
+        'underline-offset-4 hover:underline',
         'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
       )}
     >
       {label}
-      <ArrowRight className="size-3.5" aria-hidden="true" />
+      <ArrowRight className="size-3" aria-hidden="true" />
     </Link>
   )
 }
@@ -152,6 +154,8 @@ export function PortalOverviewResultsStrip({
   const { state, timeRange, onTimeRangeChange, onRetry, busy = false } = controls
   if (state.status === 'off') return null
   const strip = stripOf(state, propertyId, groupId)
+  const waitingLabel =
+    propertyId !== null && groupId === undefined ? inboxWaitingLabel(inboxWaiting) : null
   return (
     <section aria-label="Results" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -178,15 +182,19 @@ export function PortalOverviewResultsStrip({
         <p className="text-sm text-muted-foreground">
           {scopeLine(state, strip, propertyId, propertiesListed, groupId)}
         </p>
-        {propertyId !== null && groupId === undefined ? (
-          <InboxWaitingLink propertyId={propertyId} count={inboxWaiting} />
-        ) : null}
       </div>
       {state.status === 'loading' ? <LoadingStrip /> : null}
       {state.status === 'failed' ? <FailedStrip onRetry={onRetry} /> : null}
       {strip ? (
         <div className={cn('transition-opacity', busy && 'opacity-60')} aria-busy={busy}>
-          <PortalResultsStrip cells={strip.cells} />
+          <PortalResultsStrip
+            cells={strip.cells}
+            notesDetail={
+              propertyId !== null && waitingLabel !== null ? (
+                <InboxWaitingLink propertyId={propertyId} label={waitingLabel} />
+              ) : undefined
+            }
+          />
         </div>
       ) : null}
     </section>
