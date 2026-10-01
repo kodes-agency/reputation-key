@@ -9,10 +9,13 @@ import { portalApprovedDestinationId, userId } from '#/shared/domain/ids'
 import type { PortalApprovedDestination } from '../domain/approved-destination'
 import type { ResolvedPortalLinkText } from '../domain/portal-linktree'
 import {
+  IMMERSIVE_HERO_ASSET_ID,
+  IMMERSIVE_LOGO_ASSET_ID,
   immersiveConfiguration,
   immersiveSnapshot,
 } from './__fixtures__/immersive-snapshot'
 import { buildDraftPortalPreview, buildLivePortalPreview } from './portal-preview'
+import { NO_PROPERTY_LOOK_MEDIA } from './property-look-media'
 import type { PortalPreview } from './portal-preview'
 
 const AT = new Date('2026-10-01T12:00:00Z')
@@ -122,6 +125,7 @@ function draft(options: DraftOptions = {}): PortalPreview {
     portal,
     linktree,
     profile: PROFILE,
+    media: NO_PROPERTY_LOOK_MEDIA,
     content: [
       {
         locale: 'en',
@@ -177,6 +181,38 @@ function draftWithSpaDestination(
           : [destination(PENDING_ID, PENDING_URL, approvalState)],
     }),
     profile: PROFILE,
+    media: NO_PROPERTY_LOOK_MEDIA,
+    content: [],
+    overrides: [],
+    timeZone: 'Europe/Sofia',
+  })
+}
+
+function draftWithTilePhoto(imageAssetId: string | null, isServable = true) {
+  const portal = buildTestPortal({ name: 'Pool', additionalGuestLocales: [] })
+  const category = buildTestPortalLinkCategory({})
+  const menu = buildTestPortalLink({
+    id: MENU_LINK as never,
+    categoryId: category.id,
+    destinationId: portalApprovedDestinationId(APPROVED_ID),
+    url: APPROVED_URL,
+    label: 'Menu',
+    sortKey: 'a0',
+    imageAssetId: imageAssetId as never,
+  })
+  return buildDraftPortalPreview({
+    portal,
+    linktree: buildPortalLinktreeView({
+      servableImageIds: new Set(imageAssetId && isServable ? [imageAssetId] : []),
+      portal,
+      categories: [category],
+      links: [menu],
+      texts: [text(MENU_LINK, 'en', 'Menu')],
+      titles: [],
+      destinations: [destination(APPROVED_ID, APPROVED_URL, 'approved')],
+    }),
+    profile: PROFILE,
+    media: NO_PROPERTY_LOOK_MEDIA,
     content: [],
     overrides: [],
     timeZone: 'Europe/Sofia',
@@ -206,18 +242,96 @@ describe('buildDraftPortalPreview', () => {
     })
   })
 
-  it('draws the look from the Brand Profile: accent, derived field, wordmark, photo', () => {
+  it('draws the look from the Brand Profile: accent, derived field, wordmark', () => {
     const { brand } = experienceOf(draft(), 'en')
 
     expect(brand).toMatchObject({
       displayName: 'Avela Resort',
       wordmark: 'AVELA',
       accentColour: '#C8A45A',
-      logo: null,
-      hero: { url: 'https://photos.example.test/avela.jpg', focalX: 0.5, focalY: 0.5 },
     })
     expect(brand.fieldColour).toMatch(/^#[0-9A-F]{6}$/)
     expect(brand.fieldColour).not.toBe('#14110F')
+  })
+
+  it('draws the photograph and logo the Property uploaded, with their sizes and the focal point', () => {
+    const { brand } = experienceOf(
+      draft({
+        media: {
+          hero: {
+            assetId: 'a1',
+            url: '/api/public/portal-media/a1',
+            width: 2400,
+            height: 1600,
+            focalX: 0.3,
+            focalY: 0.6,
+          },
+          logo: {
+            assetId: 'a2',
+            url: '/api/public/portal-media/a2',
+            width: 480,
+            height: 120,
+          },
+        },
+      }),
+      'en',
+    )
+
+    expect(brand.hero).toEqual({
+      url: '/api/public/portal-media/a1',
+      width: 2400,
+      height: 1600,
+      focalX: 0.3,
+      focalY: 0.6,
+    })
+    expect(brand.logo).toEqual({
+      url: '/api/public/portal-media/a2',
+      width: 480,
+      height: 120,
+    })
+  })
+
+  it('does not draw a photograph that is only an address, which a published page would drop', () => {
+    const rowWithAddresses = {
+      ...PROFILE,
+      logoUrl: 'https://photos.example.test/logo.png',
+      defaultHeroImageUrl: 'https://photos.example.test/avela.jpg',
+    }
+    const { brand } = experienceOf(
+      draft({
+        profile: rowWithAddresses,
+        overrides: [
+          {
+            locale: 'en',
+            title: null,
+            shortDescription: null,
+            heroImageUrl: 'https://photos.example.test/override.jpg',
+          },
+        ],
+      }),
+      'en',
+    )
+
+    expect(brand.hero).toBeNull()
+    expect(brand.logo).toBeNull()
+  })
+
+  it('shows a tile its uploaded photo', () => {
+    const preview = draftWithTilePhoto('70000000-0000-4000-8000-0000000000aa')
+
+    expect(experienceOf(preview, 'en').links[0]?.imageUrl).toBe(
+      '/api/public/portal-media/70000000-0000-4000-8000-0000000000aa',
+    )
+  })
+
+  it('shows a tile with no photo, or whose photo was taken down, as having none', () => {
+    expect(experienceOf(draftWithTilePhoto(null), 'en').links[0]?.imageUrl).toBeNull()
+    expect(
+      experienceOf(
+        draftWithTilePhoto('70000000-0000-4000-8000-0000000000aa', false),
+        'en',
+      ).links[0]?.imageUrl,
+    ).toBeNull()
   })
 
   it('uses the stored background as the field when the Property chose it by hand', () => {
@@ -506,7 +620,7 @@ describe('buildLivePortalPreview', () => {
     expect(json).not.toContain('70000000-0000-4000-8000')
   })
 
-  it('has no photo to show until media can be served', () => {
+  it('has no photo to show for an image nothing says may be served', () => {
     const outcome = buildLivePortalPreview({ snapshot, approvedUris: allApproved })
 
     if (outcome.status !== 'ready') throw new Error('expected a preview')
@@ -514,6 +628,22 @@ describe('buildLivePortalPreview', () => {
       hero: null,
       logo: null,
     })
+  })
+
+  it('shows the photo and logo of the live version when their addresses are given, and none that were not', () => {
+    const outcome = buildLivePortalPreview({
+      snapshot,
+      approvedUris: allApproved,
+      mediaUrls: {
+        [IMMERSIVE_HERO_ASSET_ID]: '/api/public/portal-media/hero',
+        [IMMERSIVE_LOGO_ASSET_ID]: '/api/public/portal-media/logo',
+      },
+    })
+
+    if (outcome.status !== 'ready') throw new Error('expected a preview')
+    const { brand } = experienceOf(outcome.preview, 'en')
+    expect(brand.hero?.url).toBe('/api/public/portal-media/hero')
+    expect(brand.logo?.url).toBe('/api/public/portal-media/logo')
   })
 
   it('says the version is incomplete when an approved tile has no words in a language it offers', () => {

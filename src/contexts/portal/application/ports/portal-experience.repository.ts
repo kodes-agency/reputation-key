@@ -13,6 +13,12 @@ export type PropertyPortalBrandProfile = PortalBrandProfileSnapshot &
     backgroundMode: BackgroundMode
     /** The languages a new Portal starts with, first = its primary. */
     defaultGuestLocales: readonly PortalGuestLocale[]
+    /** Uploaded logo and photograph (portal_media_assets of this Property); null for none. */
+    logoAssetId: string | null
+    heroAssetId: string | null
+    /** Where the photograph is anchored: 0 to 1 across and down; null exactly when there is no photograph. */
+    heroFocalX: number | null
+    heroFocalY: number | null
     /**
      * Moves with everything a guest sees of the look. `version` (the snapshot's
      * own field) moves only with the public display name.
@@ -111,6 +117,41 @@ export type PortalExperienceRepository = Readonly<{
         /** Left as it is when omitted; null clears it. */
         wordmark?: string | null
       }>
+      actorUserId: UserId
+      at: Date
+    }>,
+  ) => Promise<PropertyPortalBrandProfile | null>
+  /**
+   * Put the Property's photograph on its look, move where it is anchored, or
+   * take it off (`hero: null`, which also clears the focal point). The asset's
+   * purpose and state are the caller's to have checked. `altTexts` sets the
+   * photograph's description per language (null clears one; a language left
+   * out keeps its own). A description is kept in the language's wording row; a
+   * language with none gets one holding the description alone, which is not
+   * wording (its title and description read as unwritten). Like the other look
+   * writers it works inside the Property's publication lock, moves the look
+   * version, fences the live Portals and leaves the display name and who last
+   * saved the profile alone. Null when the Property has no Brand Profile.
+   */
+  savePropertyHero: (
+    input: Readonly<{
+      id: string
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      hero: Readonly<{ assetId: string; focalX: number; focalY: number }> | null
+      altTexts?: ReadonlyArray<
+        Readonly<{ locale: PortalGuestLocale; text: string | null }>
+      >
+      actorUserId: UserId
+      at: Date
+    }>,
+  ) => Promise<PropertyPortalBrandProfile | null>
+  /** Put an uploaded logo on the look, or take it off (`null`). The asset is the caller's to have checked; otherwise as `savePropertyHero`. */
+  savePropertyLogo: (
+    input: Readonly<{
+      organizationId: OrganizationId
+      propertyId: PropertyId
+      logoAssetId: string | null
       actorUserId: UserId
       at: Date
     }>,

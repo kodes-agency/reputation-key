@@ -13,6 +13,8 @@ import { tracedHandler } from '#/shared/observability/traced-server-fn'
 import { getContainer } from '#/composition'
 import {
   propertyDefaultLocalesInputSchema,
+  propertyHeroInputSchema,
+  propertyLogoInputSchema,
   propertyLookInputSchema,
 } from '../application/dto/property-look.dto'
 import { isPortalError } from '../domain/errors'
@@ -48,6 +50,55 @@ export const savePropertyLook = createServerFn({ method: 'POST' })
       },
       'POST',
       'portal.savePropertyLook',
+    ),
+  )
+
+/**
+ * Put an uploaded photograph on the look, move where it is anchored, or take it
+ * off. Attaching an image already stored is a Portals write: the upload endpoint
+ * asked for `portal.upload` when the bytes arrived, and taking an image off must
+ * keep working if uploads are ever switched off.
+ */
+export const savePropertyHero = createServerFn({ method: 'POST' })
+  .validator(propertyHeroInputSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const ctx = await resolveTenantContext(await headersFromContext())
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'portal.update',
+          capability: 'portal.write',
+          propertyId: data.propertyId,
+        })
+        return runLookCommand(() =>
+          getContainer().portalPublicApi.management.savePropertyHero(data, ctx),
+        )
+      },
+      'POST',
+      'portal.savePropertyHero',
+    ),
+  )
+
+/** Put an uploaded logo on the look, or take it off. */
+export const savePropertyLogo = createServerFn({ method: 'POST' })
+  .validator(propertyLogoInputSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const ctx = await resolveTenantContext(await headersFromContext())
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'portal.update',
+          capability: 'portal.write',
+          propertyId: data.propertyId,
+        })
+        return runLookCommand(() =>
+          getContainer().portalPublicApi.management.savePropertyLogo(data, ctx),
+        )
+      },
+      'POST',
+      'portal.savePropertyLogo',
     ),
   )
 

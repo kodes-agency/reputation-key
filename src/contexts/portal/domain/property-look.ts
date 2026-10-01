@@ -26,6 +26,15 @@ export type PropertyLook = Readonly<{
   wordmark: string | null
   logoUrl: string | null
   defaultHeroImageUrl: string | null
+  /**
+   * Uploaded media (round 4, slice 42). A profile that does not state them has
+   * none, so older callers and fixtures need not.
+   */
+  logoAssetId?: string | null
+  heroAssetId?: string | null
+  /** Where the hero is anchored when a page crops it; present with a hero. */
+  heroFocalX?: number | null
+  heroFocalY?: number | null
 }>
 
 /** The parts of the look a pending change can name, in the order they are listed. */
@@ -49,6 +58,22 @@ export function normaliseWordmark(value: string | null): string | null {
 /** The hero photo's alt text as stored: trimmed, at most 160 characters, empty meaning none. */
 export function normaliseHeroAltText(value: string | null): string | null {
   return boundedOrNull(value, 'Hero alt text', HERO_ALT_TEXT_MAX_LENGTH)
+}
+
+/**
+ * Where a photograph is anchored when a page crops it: 0 to 1 across and down.
+ * The database holds the same bounds, so a point outside them is refused here
+ * with a sentence, not as a constraint failure.
+ */
+export function normaliseFocalPoint(
+  x: number,
+  y: number,
+): Readonly<{ x: number; y: number }> {
+  const isInside = (value: number) => Number.isFinite(value) && value >= 0 && value <= 1
+  if (!isInside(x) || !isInside(y)) {
+    throw portalError('invalid_theme', 'Put the focal point inside the photo')
+  }
+  return { x, y }
 }
 
 /**
@@ -92,7 +117,11 @@ export function changedLookFacets(
     [
       'images',
       before.logoUrl !== after.logoUrl ||
-        before.defaultHeroImageUrl !== after.defaultHeroImageUrl,
+        before.defaultHeroImageUrl !== after.defaultHeroImageUrl ||
+        (before.logoAssetId ?? null) !== (after.logoAssetId ?? null) ||
+        (before.heroAssetId ?? null) !== (after.heroAssetId ?? null) ||
+        (before.heroFocalX ?? null) !== (after.heroFocalX ?? null) ||
+        (before.heroFocalY ?? null) !== (after.heroFocalY ?? null),
     ],
   ]
   return moved.flatMap(([facet, changed]) => (changed ? [facet] : []))

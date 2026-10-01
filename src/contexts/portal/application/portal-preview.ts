@@ -35,7 +35,9 @@ import type {
   PortalLinktreeView,
 } from '../domain/portal-linktree-view'
 import type { Portal } from '../domain/types'
-import { presentImmersivePortal } from './public-portal-immersive'
+import { portalMediaPublicPath } from '#/shared/domain/portal-media'
+import type { PropertyLookMedia } from './property-look-media'
+import { presentImmersivePortal, type ServableMediaUrls } from './public-portal-immersive'
 import type { PublicImmersiveExperience, PublicPortalText } from './public-api'
 
 export const PORTAL_PREVIEW_SOURCES = Object.freeze(['draft', 'live'] as const)
@@ -101,16 +103,9 @@ export type PortalPreviewOutcome =
 
 // ── The draft ────────────────────────────────────────────────────────────────
 
-// A working-copy image is an address, not a stored asset, so its size is not
-// known. The page boxes the photo with CSS, so these only give the aspect.
-const WORKING_COPY_HERO_SIZE = { width: 1600, height: 1000 } as const
-const WORKING_COPY_LOGO_SIZE = { width: 480, height: 120 } as const
-
 type PreviewProfile = Readonly<{
   displayName: string
   wordmark: string | null
-  logoUrl: string | null
-  defaultHeroImageUrl: string | null
   primaryColor: string
   backgroundColor: string
   backgroundMode: 'auto' | 'manual'
@@ -143,6 +138,12 @@ export type DraftPortalPreviewInput = Readonly<{
   >
   linktree: PortalLinktreeView
   profile: PreviewProfile | null
+  /**
+   * The Property's photograph and logo, from uploaded assets that may still be
+   * served. A page only ever draws these: an address left on the profile (or
+   * typed into an override) is not published, so it is not previewed either.
+   */
+  media: PropertyLookMedia
   content: readonly PreviewContent[]
   overrides: readonly PreviewOverride[]
   /** The Property's IANA time zone. */
@@ -185,27 +186,26 @@ function textIn(
  * The look as the page draws it. The field follows the accent unless the
  * Property chose it by hand; the page's own resolver still guards legibility.
  */
-function brandOf(
-  input: DraftPortalPreviewInput,
-  primary: GuestLocale,
-): PublicImmersiveExperience['brand'] {
-  const { profile, portal, overrides } = input
+function brandOf(input: DraftPortalPreviewInput): PublicImmersiveExperience['brand'] {
+  const { profile, portal, media } = input
   const accentColour = profile?.primaryColor ?? DEFAULT_PORTAL_ACCENT
   const fieldColour =
     profile?.backgroundMode === 'manual'
       ? profile.backgroundColor
       : (deriveFieldColour(accentColour) ?? DEFAULT_PORTAL_FIELD)
-  const heroUrl = firstWritten(
-    overrides.find((override) => override.locale === primary)?.heroImageUrl,
-    profile?.defaultHeroImageUrl,
-  )
-  const logoUrl = firstWritten(profile?.logoUrl)
+  const { hero, logo } = media
   return {
     displayName: firstWritten(profile?.displayName) ?? portal.name,
     wordmark: firstWritten(profile?.wordmark) ?? null,
-    logo: logoUrl ? { url: logoUrl, ...WORKING_COPY_LOGO_SIZE } : null,
-    hero: heroUrl
-      ? { url: heroUrl, ...WORKING_COPY_HERO_SIZE, focalX: 0.5, focalY: 0.5 }
+    logo: logo ? { url: logo.url, width: logo.width, height: logo.height } : null,
+    hero: hero
+      ? {
+          url: hero.url,
+          width: hero.width,
+          height: hero.height,
+          focalX: hero.focalX,
+          focalY: hero.focalY,
+        }
       : null,
     accentColour,
     fieldColour,
@@ -261,8 +261,8 @@ function linksOf(
       id: link.id,
       state: linkStateOf(link.destination.state),
       iconKey: link.iconKey,
-      // Tile photos need uploads, which are not live yet.
-      imageUrl: null,
+      // The view already leaves out a photo that may no longer be served.
+      imageUrl: link.imageAssetId ? portalMediaPublicPath(link.imageAssetId) : null,
       label: used?.label ?? '',
       line: used?.line ?? null,
       fallbackFrom: copied ? primary : null,
@@ -275,7 +275,7 @@ export function buildDraftPortalPreview(input: DraftPortalPreviewInput): PortalP
   const { portal } = input
   const primary = portal.primaryGuestLocale
   const locales = localeSetOf(portal)
-  const brand = brandOf(input, primary)
+  const brand = brandOf(input)
   const experiences = Object.fromEntries(
     locales.map((locale): [GuestLocale, PortalPreviewExperience] => [
       locale,
@@ -306,16 +306,19 @@ export type LivePortalPreviewInput = Readonly<{
   snapshot: PortalPublicationSnapshot
   /** The addresses an account admin currently stands behind, as the guest edge reads them. */
   approvedUris: ReadonlySet<string>
+  /** The address of each image the version names that may still be served; one not listed is not drawn. */
+  mediaUrls?: ServableMediaUrls
 }>
 
 /**
  * The version guests can open now, drawn from the verified snapshot the way the
  * public edge serves it: only addresses still approved, none when the Linktree
- * is off, and media only from what may be served (nothing yet).
+ * is off, and media only from what may be served.
  */
 export function buildLivePortalPreview({
   snapshot,
   approvedUris,
+  mediaUrls = {},
 }: LivePortalPreviewInput): PortalPreviewOutcome {
   const configuration = snapshot.configuration
   if (configuration.schemaVersion !== IMMERSIVE_HUB_SCHEMA_VERSION) {
@@ -325,7 +328,7 @@ export function buildLivePortalPreview({
     ? configuration.links.filter((link) => approvedUris.has(link.url))
     : []
   const entries = configuration.localeSet.map((locale) => {
-    const presented = presentImmersivePortal(configuration, locale, published, {})
+    const presented = presentImmersivePortal(configuration, locale, published, mediaUrls)
     return [locale, presented?.immersive] as const
   })
   const experiences: Partial<Record<GuestLocale, PortalPreviewExperience>> = {}
