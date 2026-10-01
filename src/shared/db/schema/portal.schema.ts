@@ -447,7 +447,7 @@ export const portalTokens = pgTable(
       'portal_tokens_encrypted_address_pair_valid',
       sql`(${t.encryptedRawToken} IS NULL) = (${t.addressEncryptionKeyVersion} IS NULL)`,
     ),
-    // A replaced or stopped code keeps no readable address (ADR 0062).
+    // A replaced or stopped code keeps no readable address (ADR 0064).
     check(
       'portal_tokens_sealed_address_active_only',
       sql`${t.encryptedRawToken} IS NULL OR ${t.status} = 'active'`,
@@ -458,7 +458,7 @@ export const portalTokens = pgTable(
 // One row per time a manager was handed an existing address: the download of
 // the code as a file, or a copy of its address. Written before the address is
 // decrypted, so a disclosure never happens without its row. Identifiers and an
-// enum only; the address itself is never here (ADR 0062).
+// enum only; the address itself is never here (ADR 0064).
 export const portalAddressDownloads = pgTable(
   'portal_address_downloads',
   {

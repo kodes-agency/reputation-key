@@ -4,7 +4,7 @@
 // NFC tag both carry it. Sealing it lets a manager download the code again
 // without the address ever being stored in the clear. The port is optional in
 // the composition: with no keyring there is no cipher, and the address is shown
-// once when a code is made (ADR 0062).
+// once when a code is made (ADR 0064).
 
 /**
  * What binds a sealed address to its row. A ciphertext copied to another tenant,

@@ -21,7 +21,7 @@ export type RotatePortalTokenDeps = Readonly<{
   portalRepo: PortalRepository
   portalTokenRepo: PortalTokenRepository
   tokenCodec: PortalTokenCodec
-  /** Null when no keyring is configured: the address is then shown once (ADR 0062). */
+  /** Null when no keyring is configured: the address is then shown once (ADR 0064). */
   addressCipher: PortalAddressCipher | null
   staffPublicApi: StaffPublicApi
   commandStore: PortalCommandStore

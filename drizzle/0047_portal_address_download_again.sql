@@ -1,4 +1,4 @@
--- Encrypted address and "Download again" (round 4, slice 33; ADR 0062).
+-- Encrypted address and "Download again" (round 4, slice 33; ADR 0064).
 --
 -- Additive. `portal_tokens.issued_by` records who made a code (null for codes
 -- made before this migration). `portal_address_downloads` records each time a

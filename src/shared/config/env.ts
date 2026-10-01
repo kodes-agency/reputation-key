@@ -183,7 +183,7 @@ const baseEnvSchema = z.object({
       ? z.string().min(32)
       : z.string().min(32).default('dev-only-portal-token-secret-32b'),
   // Sealed copy of each Portal's public address, which lets a manager download
-  // a code again (ADR 0062). Optional: without it the address is shown once,
+  // a code again (ADR 0064). Optional: without it the address is shown once,
   // when a code is made. Versioned keyring, first entry seals and every entry
   // opens. Format: <version>:<64 lowercase hex>[,<version>:<64 lowercase hex>]
   // with versions 1-9999, at most four entries. Web and worker read the same

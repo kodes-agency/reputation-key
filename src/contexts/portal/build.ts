@@ -134,7 +134,7 @@ type PortalContextDeps = Readonly<{
   secureRandomBytes: (size: number) => Buffer
   tokenHashSecret: string
   /**
-   * The versioned keyring that seals each code's address (ADR 0062). Absent,
+   * The versioned keyring that seals each code's address (ADR 0064). Absent,
    * the address is shown once, when a code is made. A malformed keyring fails
    * the build, so a boot never runs with a keyring it cannot use.
    */

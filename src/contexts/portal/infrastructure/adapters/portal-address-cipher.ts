@@ -1,4 +1,4 @@
-// Portal address cipher (round 4, slice 33; ADR 0062).
+// Portal address cipher (round 4, slice 33; ADR 0064).
 //
 // AES-256-GCM over the raw public address, with the row it belongs to as
 // authenticated data. Ciphertext layout `iv:tag:ciphertext`, each part base64.

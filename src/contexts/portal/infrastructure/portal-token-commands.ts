@@ -257,7 +257,7 @@ export const createPortalTokenCommands = (db: Database): PortalTokenCommandStore
               gracePeriodEnds: command.oldToken.gracePeriodEnds,
               retiredAt: command.oldToken.retiredAt,
               // The outgoing code keeps working for its window, but nobody can
-              // download it again (ADR 0062).
+              // download it again (ADR 0064).
               ...NO_SEALED_ADDRESS,
             })
             .where(

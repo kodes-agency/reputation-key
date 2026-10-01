@@ -1,4 +1,4 @@
-// The two `portal_tokens` columns that hold a code's sealed address (ADR 0062).
+// The two `portal_tokens` columns that hold a code's sealed address (ADR 0064).
 //
 // A code keeps a sealed address only while it is active: the table's CHECK
 // `portal_tokens_sealed_address_active_only` refuses any other state. Every

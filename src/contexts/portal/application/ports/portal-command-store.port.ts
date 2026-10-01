@@ -356,7 +356,7 @@ export type DeletePortalLinkCommand = PortalContentCommandBase &
 type PortalTokenCommandBase = PortalContentCommandBase
 
 /**
- * What a command that makes a code also carries (ADR 0062): who made it, and
+ * What a command that makes a code also carries (ADR 0064): who made it, and
  * the sealed copy of its address when a keyring is configured. The store writes
  * both with the token row, so a code never exists without its owner's record.
  */

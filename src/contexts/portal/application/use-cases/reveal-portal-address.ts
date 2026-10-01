@@ -1,4 +1,4 @@
-// Portal context — "Download again" (round 4, slice 33; ADR 0062).
+// Portal context — "Download again" (round 4, slice 33; ADR 0064).
 //
 // Hands a manager the address of the Portal's live code, decrypted from the
 // sealed copy made when the code was issued or replaced. The order is the

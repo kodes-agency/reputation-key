@@ -33,7 +33,7 @@ const ROOTS = ['src', 'services', 'scripts', 'e2e'] as const
 /**
  * The modules that own a format, each with a distinct plaintext and audience:
  * guest contact details, Google OAuth tokens, and the raw Portal address (ADR
- * 0062, bound to its token row so a download can be offered again). A fourth
+ * 0064, bound to its token row so a download can be offered again). A fourth
  * entry means either a genuine fourth format — which needs its own
  * justification here — or a copy.
  */

@@ -22,7 +22,7 @@ export type PortalTokenStatus = Readonly<{
   graceExpiresAt: string | null
   /**
    * The live code's address can be downloaded again: it was sealed, and the
-   * keyring still holds the key that sealed it (ADR 0062). While false the
+   * keyring still holds the key that sealed it (ADR 0064). While false the
    * address is shown once, when a code is made or replaced.
    */
   addressRecoverable: boolean

@@ -724,7 +724,7 @@ function disableAddressCaching(): void {
   setResponseHeader('Expires', '0')
 }
 
-// "Download again" (ADR 0062). A POST, so the address never travels in a URL,
+// "Download again" (ADR 0064). A POST, so the address never travels in a URL,
 // with no-store set before anything else can fail: an error response must not
 // be cached either. Order inside: authorise, rate limit, then the use case,
 // which records the disclosure before it decrypts.

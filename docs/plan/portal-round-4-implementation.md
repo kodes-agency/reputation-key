@@ -605,6 +605,15 @@ Screenshot baselines are deferred until fonts, OS and baseline storage are desig
 - In-memory store entries.
 - Depends on 4, 32. Size L.
 - **Ops:** the keyring.
+- **As built.**
+  - The ADR is 0064 (`0062` and `0063` are taken on other branches). It amends ADR 0044 decision 1 and invariant 9.
+  - The cipher is `infrastructure/adapters/portal-address-cipher.ts`, behind `PortalAddressCipher` (`seal`, `open`, `canOpen`). The keyring is `<version>:<64 hex>[,...]`, at most four entries, parsed at boot in `env.ts` and again in the adapter; the first entry seals. Production also checks it against the placeholder family.
+  - The `encrypted_raw_token` pair already existed and was never written. Migration 0046 adds `issued_by`, `portal_address_downloads` and a CHECK that only an `active` token holds a sealed address, so every path that leaves `active` (replace, stop, delete) clears both columns in the same statement or the database refuses.
+  - `revealPortalAddress` takes `{ portalId, purpose: 'download' | 'copy' }`. The order is authorise, find the sealed copy, insert the audit row, decrypt. The insert is one statement that writes nothing for a code that is no longer active and sealed, and a request that cannot disclose writes no row. The server function is a no-store POST with the actor (30 per hour) and Organization (200 per day) limits in `portal-address-rate-limit.server.ts`.
+  - `getPortal` and `listPortalOverview` return `addressRecoverable`: the live code was sealed and the keyring still holds that key. The reveal-once warning and wording go per code when it is true; without a keyring nothing changes. `PortalLinkReveal` stays as the public-address row ("Show address" after a reload).
+  - History gains the issuer's name on address entries and a `code_downloaded` entry per download (the History tab is slice 36). There is no download event: the row is the record.
+  - The new table has its data-fate row, export collection (without the token id) and purge step before `portal_tokens`. `PortalAddressRepository` is the only reader of the ciphertext; the in-memory command store writes and clears a test address repository.
+  - `PORTAL_ADDRESS_ENCRYPTION_KEYS` is documented in `.env.example`, `env.ts` (a runtime environment contract file, so its snapshot is refreshed) and runbook §26.
 
 **34. Results tab (R3 + A11).**
 

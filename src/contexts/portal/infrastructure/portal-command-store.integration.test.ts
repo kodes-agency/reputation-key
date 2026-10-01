@@ -1224,7 +1224,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       [ORG_A],
     )
     expect(state.rows[0]).toEqual({ deleted_at: DELETED_AT, updated_at: DELETED_AT })
-    // A deleted Portal keeps no readable address (ADR 0062).
+    // A deleted Portal keeps no readable address (ADR 0064).
     expect(token.rows[0]).toEqual({
       status: 'revoked',
       revoked_at: DELETED_AT,
