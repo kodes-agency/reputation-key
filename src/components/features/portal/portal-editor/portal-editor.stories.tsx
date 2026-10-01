@@ -112,6 +112,7 @@ function makeResources(
           categoryId: 'cat-1',
           url: 'https://google.com',
           iconKey: null,
+          imageAssetId: null,
           sortKey: 'a',
           texts: [
             {

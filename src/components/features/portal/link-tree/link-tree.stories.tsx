@@ -53,6 +53,7 @@ const tile = (
   categoryId: 'cat-1',
   url: `https://avela.bg/${id}`,
   iconKey: null,
+  imageAssetId: null,
   sortKey,
   texts: [
     { locale: 'en', label, line, provenance: null },

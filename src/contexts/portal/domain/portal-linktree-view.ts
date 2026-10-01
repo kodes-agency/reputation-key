@@ -45,6 +45,8 @@ export type PortalLinktreeLink = Readonly<{
   categoryId: string
   url: string
   iconKey: string | null
+  /** The uploaded picture the tile shows instead of its icon, if it has one. */
+  imageAssetId: string | null
   sortKey: string
   texts: ReadonlyArray<PortalLinktreeText>
   destination: PortalLinktreeDestination
@@ -141,6 +143,7 @@ export function buildPortalLinktreeView(
       categoryId: String(link.categoryId),
       url: link.url,
       iconKey: link.iconKey,
+      imageAssetId: link.imageAssetId ? String(link.imageAssetId) : null,
       sortKey: link.sortKey,
       texts: input.texts
         .filter((text) => text.linkId === String(link.id))

@@ -29,6 +29,9 @@ export const updateLinkInputSchema = z.object({
   label: portalLinkLabelSchema.optional(),
   url: portalLinkUrlSchema.optional(),
   iconKey: portalLinkIconKeySchema.nullable().optional(),
+  // A picture uploaded for this tile (POST /api/portal-media, purpose link_image),
+  // or null to take it off. Left out, the picture stays as it is.
+  imageAssetId: z.uuid().nullable().optional(),
 })
 
 // UpdateLinkInput — exported when consumed by route validators or forms

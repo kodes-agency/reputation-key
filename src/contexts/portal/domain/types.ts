@@ -11,6 +11,7 @@ import type {
   PortalLinkCategoryId,
   PortalLinkId,
   PortalApprovedDestinationId,
+  PortalMediaAssetId,
   TeamId,
   UserId,
 } from '#/shared/domain/ids'
@@ -97,6 +98,8 @@ export type PortalLink = Readonly<{
   label: string
   url: string
   iconKey: string | null
+  /** The picture on the tile instead of its icon: an uploaded asset of this Property. */
+  imageAssetId: PortalMediaAssetId | null
   sortKey: string
   createdAt: Date
   updatedAt: Date

@@ -9,6 +9,7 @@ import {
   linkTextFromRow,
   linkToRow,
 } from './portal-link.mapper'
+import { portalMediaAssetId } from '#/shared/domain/ids'
 import {
   buildTestPortalLinkCategory,
   buildTestPortalLink,
@@ -75,6 +76,29 @@ describe('portal-link.mapper', () => {
       expect(link.iconKey).toBe('calendar')
       expect(link.sortKey).toBe('a0')
     })
+
+    it('reads the tile picture, and a link with none as null', () => {
+      const row = {
+        id: 'link-11111111-1111-1111-1111-111111111111',
+        categoryId: 'cat-11111111-1111-1111-1111-111111111111',
+        portalId: 'portal-11111111-1111-1111-1111-111111111111',
+        organizationId: 'org-11111111-1111-1111-1111-111111111111',
+        label: 'Menu',
+        url: 'https://menu.example.com',
+        iconKey: null,
+        sortKey: 'a0',
+        createdAt: new Date('2026-04-10T12:00:00Z'),
+        updatedAt: new Date('2026-04-10T12:00:00Z'),
+      }
+
+      expect(
+        linkFromRow({
+          ...row,
+          imageAssetId: '30000000-0000-4000-8000-000000000001',
+        } as never).imageAssetId,
+      ).toBe('30000000-0000-4000-8000-000000000001')
+      expect(linkFromRow({ ...row, imageAssetId: null } as never).imageAssetId).toBeNull()
+    })
   })
 
   describe('linkToRow', () => {
@@ -92,6 +116,17 @@ describe('portal-link.mapper', () => {
       expect(row.url).toBe('https://concierge.example.com')
       expect(row.iconKey).toBe('bell')
       expect(row.sortKey).toBe('c2')
+    })
+
+    it('writes the tile picture, and null for a link with none', () => {
+      const withPicture = buildTestPortalLink({
+        imageAssetId: portalMediaAssetId('30000000-0000-4000-8000-000000000001'),
+      })
+
+      expect(linkToRow(withPicture).imageAssetId).toBe(
+        '30000000-0000-4000-8000-000000000001',
+      )
+      expect(linkToRow(buildTestPortalLink({})).imageAssetId).toBeNull()
     })
   })
 

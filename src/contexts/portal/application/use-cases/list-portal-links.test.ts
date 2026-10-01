@@ -48,6 +48,7 @@ const sampleLinks: ReadonlyArray<PortalLink> = [
     url: 'https://x.com',
     sortKey: 'a0',
     iconKey: null,
+    imageAssetId: null,
     createdAt: now,
     updatedAt: now,
   },

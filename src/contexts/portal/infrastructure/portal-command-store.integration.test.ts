@@ -2095,6 +2095,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       label: 'City guide',
       url: 'https://example.test/guide',
       iconKey: null,
+      imageAssetId: null,
       sortKey: 'a0',
       createdAt: linkAt,
       updatedAt: linkAt,
@@ -2254,6 +2255,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
       label: 'City guide',
       url: 'https://example.test/guide',
       iconKey: null,
+      imageAssetId: null,
       sortKey: 'a0',
       createdAt: CREATED_AT,
       updatedAt: CREATED_AT,
@@ -2318,6 +2320,7 @@ describe.sequential('Portal command store (real PostgreSQL)', () => {
         destinationId: null,
         legacyDestinationState: 'quarantined',
         iconKey: 'info',
+        imageAssetId: null,
       },
       event: portalLinkUpdated({
         portalId: PORTAL_A,

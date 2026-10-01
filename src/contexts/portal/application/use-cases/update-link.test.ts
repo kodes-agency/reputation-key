@@ -11,10 +11,18 @@ import {
 } from '#/shared/testing/fixtures'
 import { isPortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
-import { propertyId, type PropertyId, userId } from '#/shared/domain/ids'
+import {
+  organizationId,
+  portalMediaAssetId,
+  propertyId,
+  type PropertyId,
+  userId,
+} from '#/shared/domain/ids'
 import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../../domain/approved-destination'
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
+import { createInMemoryPortalMediaAssetRepo } from '#/shared/testing/in-memory-portal-media-asset-repo'
+import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixtures'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
 
@@ -27,9 +35,11 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalRepo = createInMemoryPortalRepo()
   const portalLinkRepo = createInMemoryPortalLinkRepo()
   const outbox = createRecordedOutbox()
+  const mediaRepo = createInMemoryPortalMediaAssetRepo()
   const deps = {
     portalRepo,
     portalLinkRepo,
+    mediaRepo,
     staffPublicApi: staffApiMock(accessible),
     commandStore: createInMemoryPortalCommandStore({
       portalRepo,
@@ -72,7 +82,7 @@ const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
     clock: () => FIXED_TIME,
   }
   const useCase = updateLink(deps)
-  return { useCase, portalRepo, portalLinkRepo, outbox }
+  return { useCase, portalRepo, portalLinkRepo, outbox, mediaRepo }
 }
 
 describe('updateLink', () => {
@@ -268,5 +278,101 @@ describe('updateLink', () => {
     const updated = await useCase({ linkId: link.id, label: 'New' }, ctx)
 
     expect(updated.label).toBe('New')
+  })
+})
+
+describe('updateLink tile photo', () => {
+  const PHOTO = '30000000-0000-4000-8000-000000000001'
+  const photo = (overrides: Parameters<typeof buildTestPortalMediaAsset>[0] = {}) =>
+    buildTestPortalMediaAsset({
+      id: portalMediaAssetId(PHOTO),
+      purpose: 'link_image',
+      ...overrides,
+    })
+
+  const arrange = (assets: ReadonlyArray<ReturnType<typeof photo>> = [photo()]) => {
+    const world = setup()
+    world.portalRepo.seed([buildTestPortal({})])
+    const link = buildTestPortalLink({ iconKey: 'star' })
+    world.portalLinkRepo.seedLinks([link])
+    world.mediaRepo.seed(assets)
+    return { ...world, link, ctx: buildTestAuthContext({ role: 'PropertyManager' }) }
+  }
+
+  it('puts an uploaded picture of this Property on the link', async () => {
+    const { useCase, link, ctx, portalLinkRepo, outbox } = arrange()
+
+    const updated = await useCase({ linkId: link.id, imageAssetId: PHOTO }, ctx)
+
+    expect(updated.imageAssetId).toBe(PHOTO)
+    expect(portalLinkRepo.allLinks()[0]?.imageAssetId).toBe(PHOTO)
+    expect(outbox.byTag('portal_link.updated')).toHaveLength(1)
+  })
+
+  it('keeps the icon when a picture is added, and the picture when only the label changes', async () => {
+    const { useCase, link, ctx } = arrange()
+
+    const withPhoto = await useCase({ linkId: link.id, imageAssetId: PHOTO }, ctx)
+    const relabelled = await useCase({ linkId: link.id, label: 'Menu' }, ctx)
+
+    expect(withPhoto.iconKey).toBe('star')
+    expect(relabelled.imageAssetId).toBe(PHOTO)
+  })
+
+  it('takes the picture off with null, in one write with the icon that replaces it', async () => {
+    const { useCase, link, ctx, portalLinkRepo } = arrange()
+    await useCase({ linkId: link.id, imageAssetId: PHOTO }, ctx)
+
+    const updated = await useCase(
+      { linkId: link.id, iconKey: 'map-pin', imageAssetId: null },
+      ctx,
+    )
+
+    expect(updated.imageAssetId).toBeNull()
+    expect(portalLinkRepo.allLinks()[0]).toMatchObject({
+      iconKey: 'map-pin',
+      imageAssetId: null,
+    })
+  })
+
+  it.each([
+    ['an asset that does not exist', []],
+    [
+      'an asset of another Property',
+      [photo({ propertyId: propertyId('a0000000-0000-0000-0000-0000000000ff') })],
+    ],
+    [
+      'an asset of another Organization',
+      [photo({ organizationId: organizationId('org-someone-else') })],
+    ],
+    ['an image uploaded as a hero photo', [photo({ purpose: 'hero' })]],
+    ['an image uploaded as a logo', [photo({ purpose: 'logo' })]],
+    ['an image that was taken down', [photo({ status: 'taken_down' })]],
+  ])('refuses %s, before any write', async (_name, assets) => {
+    const { useCase, link, ctx, portalLinkRepo, outbox } = arrange(assets)
+
+    await expect(
+      useCase({ linkId: link.id, imageAssetId: PHOTO }, ctx),
+    ).rejects.toMatchObject({ code: 'media_not_found' })
+
+    expect(portalLinkRepo.allLinks()[0]?.imageAssetId ?? null).toBeNull()
+    expect(outbox.byTag('portal_link.updated')).toEqual([])
+  })
+
+  it('refuses an id that is not a UUID without asking the store', async () => {
+    const { useCase, link, ctx } = arrange()
+
+    await expect(
+      useCase({ linkId: link.id, imageAssetId: 'not-a-uuid' }, ctx),
+    ).rejects.toMatchObject({ code: 'media_not_found' })
+  })
+
+  it('does not look the picture up when the caller left it alone', async () => {
+    const { useCase, link, ctx, mediaRepo } = arrange()
+    const lookup = vi.spyOn(mediaRepo, 'findById')
+
+    await useCase({ linkId: link.id, label: 'Menu' }, ctx)
+
+    expect(lookup).not.toHaveBeenCalled()
   })
 })

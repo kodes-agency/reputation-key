@@ -246,6 +246,7 @@ const baseArgs = {
       categoryId: link.categoryId,
       url: link.url,
       iconKey: null,
+      imageAssetId: null,
       sortKey: link.sortKey,
       texts: [{ locale: 'en' as const, label: link.label, line: null, provenance: null }],
       destination: {

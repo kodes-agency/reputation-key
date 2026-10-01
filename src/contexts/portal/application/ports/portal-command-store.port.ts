@@ -340,7 +340,12 @@ export type UpdatePortalLinkCommand = PortalContentCommandBase &
     patch: Readonly<
       Pick<
         PortalLink,
-        'label' | 'url' | 'destinationId' | 'legacyDestinationState' | 'iconKey'
+        | 'label'
+        | 'url'
+        | 'destinationId'
+        | 'legacyDestinationState'
+        | 'iconKey'
+        | 'imageAssetId'
       >
     >
     event: PortalLinkUpdated

@@ -16,6 +16,7 @@ import {
   portalId,
   portalLinkCategoryId,
   portalLinkId,
+  portalMediaAssetId,
   unbrand,
 } from '#/shared/domain/ids'
 
@@ -66,6 +67,7 @@ export const linkFromRow = (row: LinkRow, resolvedUrl?: string | null): PortalLi
     label: row.label,
     url,
     iconKey: row.iconKey,
+    imageAssetId: row.imageAssetId ? portalMediaAssetId(row.imageAssetId) : null,
     sortKey: row.sortKey,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -83,6 +85,7 @@ export const linkToRow = (link: PortalLink): LinkInsertRow => ({
   label: link.label,
   url: link.destinationId ? null : link.url,
   iconKey: link.iconKey,
+  imageAssetId: link.imageAssetId ? unbrand(link.imageAssetId) : null,
   sortKey: link.sortKey,
   createdAt: link.createdAt,
   updatedAt: link.updatedAt,

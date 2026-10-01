@@ -461,6 +461,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     updateLink: updateLink({
       portalRepo,
       portalLinkRepo,
+      mediaRepo: portalMediaAssetRepo,
       staffPublicApi: deps.staffPublicApi,
       commandStore: portalCommandStore,
       destinationRepo: portalApprovedDestinationRepo,

@@ -26,6 +26,7 @@ const link = (
   categoryId,
   url: `https://avela.bg/${id}`,
   iconKey: null,
+  imageAssetId: null,
   sortKey,
   texts: [{ locale: 'en', label: id.toUpperCase(), line: null, provenance: null }],
   destination: { state: 'approved', sourceType: 'custom', approvedByUserId: 'admin-1' },
