@@ -43,4 +43,39 @@ describe('createConcurrencyGate', () => {
     await expect(failed).rejects.toThrow('boom')
     await expect(next).resolves.toBe('ran')
   })
+
+  it('hands a freed place straight to a waiting task, so a late arrival cannot take it', async () => {
+    // Whatever microtask a new caller lands on after a release, the peak stays
+    // at the limit: sweep the arrival timing across the wake-up window.
+    for (let delay = 0; delay <= 6; delay += 1) {
+      const gate = createConcurrencyGate(2)
+      let running = 0
+      let peak = 0
+      const track = async (held: Promise<void>) => {
+        running += 1
+        peak = Math.max(peak, running)
+        await held
+        running -= 1
+      }
+      const first = deferred()
+      const second = deferred()
+      const third = deferred()
+      const fourth = deferred()
+      const runs = [
+        gate(() => track(first.promise)),
+        gate(() => track(second.promise)),
+        gate(() => track(third.promise)),
+      ]
+      await Promise.resolve()
+      first.resolve()
+      for (let tick = 0; tick < delay; tick += 1) await Promise.resolve()
+      runs.push(gate(() => track(fourth.promise)))
+      for (let tick = 0; tick < 10; tick += 1) await Promise.resolve()
+      second.resolve()
+      third.resolve()
+      fourth.resolve()
+      await Promise.all(runs)
+      expect(peak, `arrival ${delay} microtasks after the release`).toBe(2)
+    }
+  })
 })

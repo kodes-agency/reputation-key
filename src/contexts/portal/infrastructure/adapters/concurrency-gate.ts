@@ -6,13 +6,19 @@ export function createConcurrencyGate(limit: number): ConcurrencyGate {
   let running = 0
   const waiting: Array<() => void> = []
   return async (task) => {
-    if (running >= limit) await new Promise<void>((resume) => waiting.push(resume))
-    running += 1
+    if (running >= limit) {
+      // The place is handed over by whoever frees it, already counted, so
+      // nobody arriving in the meantime can take it.
+      await new Promise<void>((resume) => waiting.push(resume))
+    } else {
+      running += 1
+    }
     try {
       return await task()
     } finally {
-      running -= 1
-      waiting.shift()?.()
+      const next = waiting.shift()
+      if (next) next()
+      else running -= 1
     }
   }
 }

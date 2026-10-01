@@ -244,7 +244,7 @@ describe('reencode', () => {
     expect(sniffImageFormat(encoded.bytes)).toBe('webp')
   })
 
-  it('runs several uploads at once without exceeding its concurrency budget', async () => {
+  it('answers every upload when several arrive at once (the budget itself is pinned in the gate test)', async () => {
     const jpeg = await solid(1600, 1000).jpeg().toBuffer()
     const plan = await planFor(jpeg)
     const results = await Promise.all(
