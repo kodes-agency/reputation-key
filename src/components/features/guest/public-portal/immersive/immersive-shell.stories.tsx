@@ -3,35 +3,17 @@
 // on every story (`a11y.test = 'error'` in .storybook/preview.tsx). The play
 // functions add what axe cannot see: that the page answers the app's global
 // styles (link colour, theme class, line breaking) and does not inherit them.
-import type { Decorator, Meta, StoryObj } from '@storybook/react'
+import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
-import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import { enV2 } from '../language-packs/en-v2'
 import { ArrivalStandIn } from './__fixtures__/arrival-stand-in'
 import { LINKTREE_LINKS_NO_PHOTO } from './__fixtures__/linktree-links'
+import { PhoneFrame } from './__fixtures__/phone-frame'
 import { STORY_HERO_PHOTO } from './__fixtures__/story-hero-photo'
 import { immersiveFooterCopy } from './immersive-footer-copy'
 import { ImmersiveShell } from './immersive-shell'
 
-const PHONE_WIDTH = 390
-const PHONE_HEIGHT = 844
 const CHAMPAGNE = { accentColour: '#EAD6A8', fieldColour: '#15110D' } as const
-
-/** The phone of the boards: 390 x 844, so `container` height has a frame to fill. */
-const PhoneFrame: Decorator = (Story, { parameters }) => (
-  <div
-    data-testid="phone-frame"
-    style={{
-      width: parameters.frameWidth ?? PHONE_WIDTH,
-      height: PHONE_HEIGHT,
-      margin: '0 auto',
-      overflowY: 'auto',
-    }}
-  >
-    <link rel="stylesheet" href={GUEST_FONT_STYLESHEET} />
-    <Story />
-  </div>
-)
 
 const meta: Meta<typeof ImmersiveShell> = {
   title: 'Features/Guest/ImmersiveShell',
@@ -43,12 +25,7 @@ const meta: Meta<typeof ImmersiveShell> = {
     height: 'container',
     heroAlt: { value: 'The colonnade pool at dusk, under an old olive tree' },
     brand: { ...CHAMPAGNE, hero: STORY_HERO_PHOTO },
-    children: (
-      <ArrivalStandIn
-        displayName="Avela Resort"
-        footerCopy={immersiveFooterCopy(enV2, 'Avela Resort')}
-      />
-    ),
+    children: <ArrivalStandIn footerCopy={immersiveFooterCopy(enV2, 'Avela Resort')} />,
   },
 }
 export default meta

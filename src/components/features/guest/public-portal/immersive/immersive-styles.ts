@@ -1,4 +1,5 @@
 import { BACKDROP_WASH_ALPHA } from '#/shared/domain/portal-field-colour'
+import { IMMERSIVE_CHROME_CSS } from './immersive-chrome-styles'
 import { PHOTO_BACKDROP } from './immersive-look'
 
 // The Immersive Hub's stylesheet, as one string the shell hoists into the
@@ -249,5 +250,4 @@ a.ih-glass--tile:active, button.ih-glass--tile:active, button.ih-glass--chip:act
 @media (prefers-reduced-motion: reduce) {
   .ih-root .ih-glass { transition: none; }
   .ih-root a.ih-glass--tile:active, .ih-root button.ih-glass--tile:active, .ih-root button.ih-glass--chip:active { transform: none; }
-}
-`
+}${IMMERSIVE_CHROME_CSS}`
