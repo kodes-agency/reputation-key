@@ -60,3 +60,24 @@ raw address of an active code is also stored sealed (AES-256-GCM, bound to its
 tenant, Portal, token and version) so a manager can download the code again;
 every disclosure is recorded before it happens, and no other path reads the
 sealed copy. Without a keyring this ADR's behaviour is unchanged.
+
+## Amendment 2026-10-01 — the Linktree is visible from arrival
+
+Owner decision 2026-09-30: on the Immersive Hub guest page (snapshot schema version 3) the
+Linktree is visible from arrival and in every state after it, not only after the guest has rated.
+
+The rating card stays first and dominant: it comes before the Linktree in the page, it is the
+larger and more prominent surface, and the Linktree never competes with it. This changes
+when the secondary links appear, and nothing else in this record:
+
+- The anti-gating rule above is untouched. The Google Review Action is still shown only after a
+  rating, identical for ratings 1–5, and nothing in the Linktree can steer, hide or reorder it.
+- A tap on a link before any rating is navigation only. The tile is a plain link to the
+  navigation-only click route, which resolves the destination and redirects without recording
+  anything, so it is not a Qualified Link Action and never reaches product analytics. The
+  origin-, CSRF- and session-bound mutation that records one still requires a rated session
+  and is not called before a rating.
+- Snapshots of schema versions 1 and 2 keep the legacy renderer, where the destinations still
+  appear after the rating. The rule is pinned for them until they are republished.
+- The amendment is guest-visible on a portal only when a version 3 snapshot is published for it
+  (slice 19 of the round-4 plan).

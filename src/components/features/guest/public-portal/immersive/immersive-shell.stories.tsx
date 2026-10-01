@@ -8,6 +8,7 @@ import { expect, within } from 'storybook/test'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import { enV2 } from '../language-packs/en-v2'
 import { ArrivalStandIn } from './__fixtures__/arrival-stand-in'
+import { LINKTREE_LINKS_NO_PHOTO } from './__fixtures__/linktree-links'
 import { STORY_HERO_PHOTO } from './__fixtures__/story-hero-photo'
 import { immersiveFooterCopy } from './immersive-footer-copy'
 import { ImmersiveShell } from './immersive-shell'
@@ -84,7 +85,17 @@ export const G01Arrival: Story = {
 
 /** Board G09. No image at all: the field, its washes, the grain and the arch. */
 export const G09NoPhoto: Story = {
-  args: { brand: { ...CHAMPAGNE, hero: null }, heroAlt: { value: '' } },
+  args: {
+    brand: { ...CHAMPAGNE, hero: null },
+    heroAlt: { value: '' },
+    children: (
+      <ArrivalStandIn
+        displayName="Avela Resort"
+        footerCopy={immersiveFooterCopy(enV2, 'Avela Resort')}
+        links={LINKTREE_LINKS_NO_PHOTO}
+      />
+    ),
+  },
   play: async ({ canvasElement }) => {
     const root = rootOf(canvasElement)
     expect(root.dataset.ihSurface).toBe('field')

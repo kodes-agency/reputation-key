@@ -29,6 +29,13 @@ same Google Review Action; eligible private feedback is additive. Each response
 binds the exact Portal snapshot/configuration/locale evidence observed by the
 Guest. Corrections and withdrawals are append-only and source-addressed.
 
+The Immersive Hub (snapshot schema v3) shows the Linktree from arrival, below the
+rating card, which stays first and dominant (ADR 0044, amendment 2026-10-01). A tap
+before any rating follows the navigation-only click route and is not a Qualified Link
+Action; only a rated session may record one, and the page does not call the recording
+action before then. Schema v1/v2 snapshots keep the legacy renderer, where the
+destinations follow the rating.
+
 A Qualified Scan is a server-verified QR/NFC Access Artifact observation, accepted
 once per signed session and Portal in a rolling 24-hour window. Its correction path
 is reserved: `GuestObservationStore.retractQualifiedScan` appends
