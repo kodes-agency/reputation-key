@@ -133,7 +133,9 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       `/properties/${seed.p1PropertyId}/portals/${seed.portalId}?tab=page&section=welcome`,
     )
     await waitForHydration(page)
-    await expect(page.getByRole('heading', { name: 'E2E Guest Portal P1' })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'E2E Guest Portal P1' }).first(),
+    ).toBeVisible()
     // By id, not by label: the localized content editor also renders a field
     // whose accessible name is exactly "Description", so getByLabel resolves
     // three elements. This is the one the autosave writes.
@@ -151,7 +153,9 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(description).toHaveValue(
       'Published Portal fixture for local beta acceptance.',
     )
-    await expect(page.getByRole('heading', { name: 'E2E Guest Portal P1' })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'E2E Guest Portal P1' }).first(),
+    ).toBeVisible()
 
     await page.goto(`/p/${seed.portalToken}`)
     await expect(page.getByRole('heading', { name: 'E2E Guest Portal P1' })).toBeVisible()
