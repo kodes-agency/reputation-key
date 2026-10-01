@@ -12,6 +12,16 @@ import {
   LINK_TEXT_LINE_MAX_LENGTH,
 } from '../../domain/portal-linktree'
 
+// What the editor's forms show: the limits they enforce and the wording a
+// language's title has while it is empty. Re-exported so components never reach
+// into the domain.
+export {
+  LINKTREE_TITLE_MAX_LENGTH,
+  LINK_TEXT_LABEL_MAX_LENGTH,
+  LINK_TEXT_LINE_MAX_LENGTH,
+  linktreeDefaultTitle,
+} from '../../domain/portal-linktree'
+
 // The texts a manager writes for one link, one per language the Portal offers.
 // The use case checks the Portal's own language set; this only bounds the shape.
 export const savePortalLinkTextsInputSchema = z.object({

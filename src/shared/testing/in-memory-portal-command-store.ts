@@ -395,6 +395,13 @@ export function createInMemoryPortalCommandStore(deps: {
         throw portalError('link_limit_reached', 'A Portal can carry at most four links')
       }
       const { primary } = await localesOf(command.organizationId, command.portalId)
+      if (command.startCategory) {
+        await deps.portalLinkRepo.insertCategory(
+          command.organizationId,
+          command.startCategory.category,
+        )
+        await outbox.record(command.startCategory.event)
+      }
       await deps.portalLinkRepo.insertLink(command.organizationId, command.link)
       linkRepo().syncPrimaryText(String(command.link.id), primary, command.link.label, {
         actorUserId: String(command.actorUserId),

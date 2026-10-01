@@ -17,6 +17,8 @@ import { portalCreated } from '../domain/events'
 import { createAtomicPortalCommandStore } from './portal-command-store'
 import { createPortalApprovedDestinationRepository } from './repositories/portal-approved-destination.repository'
 import { createPortalLinkRepository } from './repositories/portal-link.repository'
+import type { PortalCommandStore } from '../application/ports/portal-command-store.port'
+import { createPortalExperienceRepository } from './repositories/portal-experience.repository'
 import { createPortalRepository } from './repositories/portal.repository'
 
 const ORG_A = organizationId('org-defcat-0000-0000-000000000001')
@@ -50,13 +52,16 @@ const staffApi: StaffPublicApi = {
 let ticks = 0
 let ids = 0
 
-function useCase() {
+function useCase(
+  wrapStore: (store: PortalCommandStore) => PortalCommandStore = (store) => store,
+) {
   const db = getDb()
   return createLink({
+    experienceRepo: createPortalExperienceRepository(db),
     portalRepo: createPortalRepository(db),
     portalLinkRepo: createPortalLinkRepository(db, () => CREATED_AT),
     staffPublicApi: staffApi,
-    commandStore: createAtomicPortalCommandStore(db),
+    commandStore: wrapStore(createAtomicPortalCommandStore(db)),
     destinationRepo: createPortalApprovedDestinationRepository(db),
     destinationNetworkValidator: {
       validate: async (uri: string) => ({
@@ -141,7 +146,7 @@ describe('createLink without a category (real PostgreSQL)', () => {
     )
     expect(rows).toEqual([
       {
-        title: 'Links',
+        title: 'Useful links',
         label: 'Olive Terrace menu',
         locale: 'en',
         text_label: 'Olive Terrace menu',
@@ -169,6 +174,38 @@ describe('createLink without a category (real PostgreSQL)', () => {
     )
 
     expect(await count('portal_link_categories')).toBe(0)
+  })
+
+  it('leaves no category and no category fact behind when a concurrent edit refuses the link', async () => {
+    // A manager saves the Portal between this create reading it and writing.
+    const racing = (store: PortalCommandStore): PortalCommandStore => ({
+      ...store,
+      createPortalLink: async (command) => {
+        await getPool().query(`UPDATE portals SET updated_at = $2 WHERE id = $1`, [
+          PORTAL_A,
+          new Date(command.revision.getTime() + 60_000),
+        ])
+        return store.createPortalLink(command)
+      },
+    })
+
+    await expect(
+      useCase(racing)(
+        { portalId: PORTAL_A, label: 'Menu', url: 'https://avela.example.com/menu' },
+        admin(),
+      ),
+    ).rejects.toSatisfy(
+      (error: unknown) => isPortalError(error) && error.code === 'revision_conflict',
+    )
+
+    expect(await count('portal_links')).toBe(0)
+    expect(await count('portal_link_categories')).toBe(0)
+    const { rows } = await getPool().query(
+      `SELECT count(*)::int AS n FROM outbox_events
+        WHERE organization_id = $1 AND event_type = 'portal_link_category.created'`,
+      [ORG_A],
+    )
+    expect(rows[0].n).toBe(0)
   })
 
   it('refuses a fifth link and leaves no extra category behind', async () => {

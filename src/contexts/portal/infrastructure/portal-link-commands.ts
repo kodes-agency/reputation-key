@@ -179,6 +179,14 @@ export const createPortalLinkCommands = (db: Database): PortalLinkCommandStore =
             )
           }
           const locales = await readPortalLocales(tx, scope)
+          if (command.startCategory) {
+            await tx
+              .insert(portalLinkCategories)
+              .values(categoryToRow(command.startCategory.category))
+            await insertOutboxRow(tx, command.startCategory.event, {
+              recordedAt: command.occurredAt,
+            })
+          }
           await tx.insert(portalLinks).values(linkToRow(command.link))
           await syncPrimaryLinkText(
             tx,

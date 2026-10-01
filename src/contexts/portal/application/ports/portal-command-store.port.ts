@@ -272,6 +272,15 @@ export type CreatePortalLinkCommand = PortalContentCommandBase &
     actorUserId: UserId
     link: PortalLink
     event: PortalLinkCreated
+    /**
+     * The Portal's first category, when the link starts it. Written in the same
+     * transaction and under the same fence as the link, so a refused link leaves
+     * neither the category nor its fact behind. The link's `categoryId` is its id.
+     */
+    startCategory?: Readonly<{
+      category: PortalLinkCategory
+      event: PortalLinkCategoryCreated
+    }>
   }>
 
 export type ReorderPortalLinksCommand = PortalContentCommandBase &
