@@ -77,7 +77,7 @@ export const G02LanguageSheet: Story = {
     const dialog = dialogOf(canvasElement)
     expect(dialog.open).toBe(true)
     expect(dialog.matches(':modal')).toBe(true)
-    expect(chip.getAttribute('aria-expanded')).toBe('true')
+    await waitFor(() => expect(chip.getAttribute('aria-expanded')).toBe('true'))
 
     const sheet = within(dialog)
     expect(dialog).toHaveAccessibleName('Language')
@@ -152,7 +152,7 @@ export const SheetKeyboardAndFocus: Story = {
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(dialog.open).toBe(false))
     await waitFor(() => expect(document.activeElement).toBe(chip))
-    expect(chip.getAttribute('aria-expanded')).toBe('false')
+    await waitFor(() => expect(chip.getAttribute('aria-expanded')).toBe('false'))
 
     // The Close button does the same.
     await userEvent.click(chip)
