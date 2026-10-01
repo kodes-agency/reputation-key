@@ -172,6 +172,35 @@ export const NamesTheWindowAndTheFloor: Story = {
   },
 }
 
+/** The strip's one non-result: what waits in the Inbox, opened filtered by the Property. */
+export const InboxWaitingLinksToTheInbox: Story = {
+  args: { ...withResults, inboxWaiting: 5 },
+  play: async ({ canvasElement }) => {
+    const strip = within(within(canvasElement).getByRole('region', { name: 'Results' }))
+    const link = strip.getByRole('link', { name: '5 waiting in Inbox' })
+    const href = new URL(link.getAttribute('href') ?? '', 'http://localhost')
+    await expect(href.pathname).toBe('/inbox')
+    await expect(href.searchParams.get('propertyId')).toBe('prop-1')
+    await expect(href.searchParams.get('queue')).toBe('open')
+    // There is no "Open results": the strip is already the results.
+    await expect(strip.queryByRole('link', { name: /open results/i })).toBeNull()
+  },
+}
+
+export const NothingWaitingSaysNothing: Story = {
+  args: { ...withResults, inboxWaiting: 0 },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).queryByText(/waiting in Inbox/)).toBeNull()
+  },
+}
+
+export const InboxCountNotReadSaysNothing: Story = {
+  args: withResults,
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).queryByText(/waiting in Inbox/)).toBeNull()
+  },
+}
+
 export const Loading: Story = {
   args: { ...baseArgs, results: controls({ status: 'loading' }) },
   play: async ({ canvasElement }) => {

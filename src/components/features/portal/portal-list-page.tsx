@@ -55,6 +55,8 @@ export type PortalListPageProps = PortalArchiveMutations &
     propertyName: string
     /** The results beside the list; left out, the list is shown without them. */
     results?: PortalOverviewResultsControls
+    /** Items waiting in the Property's Inbox; the strip links to them. Null leaves it out. */
+    inboxWaiting?: number | null
     search: PortalOverviewSearch
     onSearchChange: (next: PortalOverviewSearch) => void
     /** Every group of the Property, so one with no Portal can still be reached. */
@@ -73,6 +75,7 @@ type PortalListBodyProps = Readonly<{
   isEmpty: boolean
   newPortalButton: ReactNode
   results: PortalListPageProps['results']
+  inboxWaiting: number | null
   resultsState: PortalOverviewResultsState
   listSearch: PortalOverviewSearch
   overview: ReturnType<typeof buildPortalOverview>
@@ -90,6 +93,7 @@ function PortalListBody({
   isEmpty,
   newPortalButton,
   results,
+  inboxWaiting,
   resultsState,
   listSearch,
   overview,
@@ -111,7 +115,11 @@ function PortalListBody({
   ) : (
     <>
       {results ? (
-        <PortalOverviewResultsStrip controls={results} propertyId={propertyId} />
+        <PortalOverviewResultsStrip
+          controls={results}
+          propertyId={propertyId}
+          inboxWaiting={inboxWaiting}
+        />
       ) : null}
       <section aria-label="Portal list" className="flex flex-col gap-4">
         <PortalOverviewToolbar
@@ -176,6 +184,7 @@ export function PortalListPage({
   propertyId,
   propertyName,
   results,
+  inboxWaiting = null,
   search,
   onSearchChange,
   archiveMutation,
@@ -269,6 +278,7 @@ export function PortalListPage({
         isEmpty={rows.length === 0 && groups.length === 0}
         newPortalButton={newPortalButton}
         results={results}
+        inboxWaiting={inboxWaiting}
         resultsState={resultsState}
         listSearch={listSearch}
         overview={overview}
