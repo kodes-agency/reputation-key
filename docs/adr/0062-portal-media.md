@@ -37,7 +37,7 @@ design rather than a checklist.
    GIF, HEIC, AVIF and animated PNG or WebP are refused. HEIC is refused because
    no decoder for it is enabled; logos are raster-only.
 3. **The decoder is narrowed.** Only the JPEG, PNG and WebP loaders are enabled
-   in libvips for the whole process, the pixel limit and fail-on-warning are set
+   in libvips for the whole process, the pixel limit and fail-on-error are set
    on every decode, and at most two decodes run at once, because one decode can
    hold about 160 MB.
 4. **The edge refuses cheaply and in order.** Same-origin (`Sec-Fetch-Site`, or

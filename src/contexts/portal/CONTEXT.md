@@ -114,7 +114,7 @@ hidden in a segment do not survive, and the original is never stored.
   WebP are refused. Every refusal is `image_rejected` carrying one `reason`.
 - **Decoder** (`sharp-image-processor.adapter.ts`): only the JPEG, PNG and WebP
   loaders are enabled in libvips; the decoder holds at most 40 million pixels
-  and fails on any warning; at most two decodes run at once.
+  and fails on any decode error; at most two decodes run at once.
 - **Ingest** (`ingestPortalImage`): checks who (an Account Admin for a Property's
   photograph and logo, a Property Manager for a link tile's picture), the
   Property, the rights confirmation, the bytes, and a cap of 200 stored images per

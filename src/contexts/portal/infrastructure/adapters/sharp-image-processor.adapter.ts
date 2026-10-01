@@ -6,9 +6,11 @@
 //   1. Only the three decoders the policy accepts are enabled, process-wide.
 //      libvips ships loaders for SVG, PDF, GIF, TIFF and more; each is blocked,
 //      so a file that lies about its type reaches no parser we did not choose.
-//   2. The decoder is told how many pixels it may hold and fails on any
-//      warning, so a decompression bomb or a damaged file is refused rather
-//      than half-read.
+//   2. The decoder is told how many pixels it may hold and fails on any error,
+//      so a decompression bomb or a damaged (truncated, forged) file is refused
+//      rather than half-read. Warnings, which real cameras and editors do
+//      produce for harmless oddities, are not refused: the image is encoded
+//      again anyway, so nothing odd in the input reaches the output.
 //   3. At most MAX_CONCURRENT_DECODES run at once. A decode can hold about 160 MB;
 //      without a bound a burst of uploads is a memory exhaustion.
 //
@@ -64,7 +66,7 @@ const refusalFor = (error: unknown): PortalImageRejectionReason =>
 
 const decoderOptions = () =>
   ({
-    failOn: 'warning',
+    failOn: 'error',
     limitInputPixels: PORTAL_IMAGE_LIMITS.maxInputPixels,
     sequentialRead: true,
     animated: false,
