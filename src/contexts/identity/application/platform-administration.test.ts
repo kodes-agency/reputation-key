@@ -6,6 +6,7 @@ import type {
 } from './ports/platform-organization-store.port'
 import {
   assertOperatorMayAdminister,
+  readPermittedInvitation,
   toPlatformOrganizationView,
 } from './platform-administration'
 
@@ -69,6 +70,44 @@ describe('assertOperatorMayAdminister', () => {
         invitationId: invitationId('inv-elsewhere'),
       }),
     ).toThrow(refusal('invitation_not_found'))
+  })
+})
+
+describe('readPermittedInvitation', () => {
+  const input = { organizationId: 'org-new', invitationId: 'inv-open' }
+  const storeReading = (administration: OrganizationAdministration | null) => ({
+    readAdministration: async () => administration,
+  })
+
+  it('returns the Organization and the invitation the console may act on', async () => {
+    await expect(
+      readPermittedInvitation(storeReading(ownerless), input, { requireActive: true }),
+    ).resolves.toEqual({
+      organizationId: organizationId('org-new'),
+      invitationId: invitationId('inv-open'),
+      administration: ownerless,
+    })
+  })
+
+  it('refuses an invitation that is not one of the Organization open ones', async () => {
+    await expect(
+      readPermittedInvitation(
+        storeReading(ownerless),
+        { ...input, invitationId: 'inv-elsewhere' },
+        { requireActive: true },
+      ),
+    ).rejects.toEqual(refusal('invitation_not_found'))
+  })
+
+  it('applies the active-Organization requirement it is given', async () => {
+    const closing = { ...ownerless, lifecycleState: 'closure_requested' as const }
+
+    await expect(
+      readPermittedInvitation(storeReading(closing), input, { requireActive: true }),
+    ).rejects.toEqual(refusal('forbidden', /not active/))
+    await expect(
+      readPermittedInvitation(storeReading(closing), input, { requireActive: false }),
+    ).resolves.toMatchObject({ invitationId: invitationId('inv-open') })
   })
 })
 

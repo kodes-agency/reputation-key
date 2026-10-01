@@ -8,10 +8,6 @@
 // the same transaction names the operator, whom the fact does not.
 
 import type { Clock } from '#/shared/domain/clock'
-import {
-  invitationId as toInvitationId,
-  organizationId as toOrganizationId,
-} from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
 import { identityInvitationCanceled } from '../../domain/events'
 import type {
@@ -19,7 +15,7 @@ import type {
   PlatformOperatorActor,
 } from '../dto/platform-console.dto'
 import type { PlatformOrganizationStore } from '../ports/platform-organization-store.port'
-import { assertOperatorMayAdminister } from '../platform-administration'
+import { readPermittedInvitation } from '../platform-administration'
 
 export type CancelOrganizationAdminInvitationDeps = Readonly<{
   store: Pick<PlatformOrganizationStore, 'readAdministration' | 'cancelAdminInvitation'>
@@ -35,10 +31,11 @@ export type CancelOrganizationAdminInvitation = (
 export const cancelOrganizationAdminInvitation =
   (deps: CancelOrganizationAdminInvitationDeps): CancelOrganizationAdminInvitation =>
   async (input, operator) => {
-    const organizationId = toOrganizationId(input.organizationId)
-    const invitationId = toInvitationId(input.invitationId)
-    const administration = await deps.store.readAdministration(organizationId)
-    assertOperatorMayAdminister(administration, { requireActive: false, invitationId })
+    const { organizationId, invitationId } = await readPermittedInvitation(
+      deps.store,
+      input,
+      { requireActive: false },
+    )
 
     await deps.store.cancelAdminInvitation(
       {

@@ -6,7 +6,7 @@ import type { UserId } from '#/shared/domain/ids'
 import type { OrganizationLifecycleState } from '../../domain/organization-lifecycle'
 
 /** The slug rule Identity's validateSlug enforces, for inline form feedback. */
-export const ORGANIZATION_SLUG_INPUT_PATTERN = /^[a-z0-9][a-z0-9-]*[a-z0-9]$/
+const ORGANIZATION_SLUG_INPUT_PATTERN = /^[a-z0-9][a-z0-9-]*[a-z0-9]$/
 
 const emailSchema = z
   .string()
