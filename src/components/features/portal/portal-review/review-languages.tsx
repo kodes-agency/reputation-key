@@ -37,7 +37,7 @@ function LanguageRow({ row }: Readonly<{ row: ReviewLanguageRow }>) {
       >
         {line.chip}
       </span>
-      <span className="min-w-0 flex-1">
+      <span className="min-w-32 flex-1">
         <span lang={line.locale} className="font-medium">
           {line.native}
         </span>{' '}

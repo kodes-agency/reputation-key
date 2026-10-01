@@ -7,7 +7,6 @@ import { expect, test, type Page } from '@playwright/test'
 import { openStory } from './storybook-story'
 
 const STORY = 'portal-portalhistory--all'
-const OPEN_STORY = 'portal-portalhistory--make-live-again-open'
 const VIEW_STORY = 'portal-portalhistory--view-version-with-page'
 const EARLIER_DESIGN_STORY =
   'portal-portalhistorytab--view-of-an-earlier-design-falls-back-to-words'
@@ -60,7 +59,12 @@ for (const width of [320, 390, 768, 1440] as const) {
     page,
   }) => {
     await page.setViewportSize({ width, height: 900 })
-    await openStory(page, OPEN_STORY)
+    // Opened the way a person opens it: from the version's line. A story that
+    // mounts already open is scrolled back to the top by the router decorator's
+    // own scroll restoration, after the confirmation has brought its buttons
+    // into view, so it measures the decorator and not the page.
+    await openStory(page, STORY)
+    await page.getByRole('button', { name: 'Make live again… version 4' }).click()
 
     const confirmation = page.getByRole('region', { name: 'Make version 4 live again?' })
     await expect(confirmation).toBeVisible()

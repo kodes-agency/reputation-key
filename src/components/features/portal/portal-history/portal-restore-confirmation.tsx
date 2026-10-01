@@ -38,8 +38,13 @@ export function PortalRestoreConfirmation({
   focusOnOpen = true,
 }: Props) {
   const heading = useRef<HTMLHeadingElement>(null)
+  const actions = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (focusOnOpen) heading.current?.focus()
+    // On a phone the confirmation is taller than the window and opens under a
+    // row near the fold: bring the buttons that answer it on screen, instantly
+    // (no animated scroll for anyone who asked for less motion).
+    actions.current?.scrollIntoView?.({ block: 'nearest', behavior: 'instant' })
   }, [focusOnOpen])
   const published = formatHistoryTime(detail.publishedAt, now, timeZone)
   const by = detail.publishedBy?.displayName
@@ -120,10 +125,10 @@ export function PortalRestoreConfirmation({
         </p>
       )}
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
-        <p className="min-w-0 flex-1 text-xs text-muted-foreground">
+        <p className="w-full min-w-0 text-xs text-muted-foreground sm:w-auto sm:flex-1">
           {laterLine(detail)}
         </p>
-        <div className="flex flex-wrap gap-2">
+        <div ref={actions} className="flex flex-wrap gap-2">
           <Button
             type="button"
             variant="outline"
