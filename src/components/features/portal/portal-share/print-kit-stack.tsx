@@ -4,8 +4,13 @@
 
 import type { CSSProperties } from 'react'
 import type { PrintFace, PrintTextBlock } from '#/shared/domain/portal-print-kit'
-import { TRACKING_EM, TYPE_PT } from '#/shared/domain/portal-print-kit-layout'
+import {
+  SINGLE_LANGUAGE_SCALE,
+  TRACKING_EM,
+  TYPE_PT,
+} from '#/shared/domain/portal-print-kit-layout'
 import type { PrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
+import { previewKicker } from './print-kit-art-layout'
 
 type Props = Readonly<{
   face: PrintFace
@@ -15,9 +20,6 @@ type Props = Readonly<{
   /** Millimetres on the page, as a card-relative length. */
   u: (millimetres: number) => string
 }>
-
-/** One language alone is set larger: there is room for it. */
-const SINGLE_LANGUAGE_SCALE = 1.22
 
 export function PrintKitStack({ face, palette, pt, u }: Props) {
   const [first, second] = face.blocks
@@ -85,6 +87,8 @@ function FirstBlock({
     'pt' | 'u'
   >
 >) {
+  // A long title shrinks, then takes a second line, as it does in the file.
+  const kicker = previewKicker(block.kicker, scale)
   return (
     <>
       <p
@@ -93,14 +97,18 @@ function FirstBlock({
           margin: 0,
           paddingLeft: `${TRACKING_EM.kicker}em`,
           fontWeight: 600,
-          fontSize: pt(TYPE_PT.kicker * scale),
+          fontSize: pt(kicker.size),
           lineHeight: 1.4,
           letterSpacing: `${TRACKING_EM.kicker}em`,
           textTransform: 'uppercase',
           color: palette.kicker,
         }}
       >
-        {block.kicker}
+        {kicker.lines.map((line) => (
+          <span key={line} style={{ display: 'block', whiteSpace: 'nowrap' }}>
+            {line}
+          </span>
+        ))}
       </p>
       <p
         lang={block.locale}

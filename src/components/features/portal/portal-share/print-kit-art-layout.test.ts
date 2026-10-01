@@ -6,11 +6,51 @@ import {
   BOTTOM_MARGIN_MM,
   TYPE_PT,
 } from '#/shared/domain/portal-print-kit-layout'
+import { BRAND_FIT } from '#/shared/domain/portal-print-kit-layout'
 import {
   previewAddress,
+  previewKicker,
   previewPlateTopMm,
+  previewWordmark,
   mmToContainerWidth,
 } from './print-kit-art-layout'
+
+describe('previewWordmark', () => {
+  it('sets a short brand on one line at the full size', () => {
+    expect(previewWordmark('Avela')).toEqual({ lines: ['AVELA'], size: TYPE_PT.wordmark })
+  })
+
+  it('shrinks a longer brand to fit one line, no smaller than the floor', () => {
+    const fitted = previewWordmark('Grand Hotel Europe & Spa')
+    expect(fitted.lines).toEqual(['GRAND HOTEL EUROPE & SPA'])
+    expect(fitted.size).toBeLessThan(TYPE_PT.wordmark)
+    expect(fitted.size).toBeGreaterThanOrEqual(BRAND_FIT.wordmark.minPt)
+  })
+
+  it('wraps a very long brand to two lines rather than clip it', () => {
+    const fitted = previewWordmark('Kempinski Hotel Grand Arena Bansko')
+    expect(fitted.lines).toHaveLength(2)
+    expect(fitted.lines.join(' ')).toBe('KEMPINSKI HOTEL GRAND ARENA BANSKO')
+  })
+})
+
+describe('previewKicker', () => {
+  it('sets a short title on one line at its size', () => {
+    expect(previewKicker('Pool & Terrace', 1)).toEqual({
+      lines: ['POOL & TERRACE'],
+      size: TYPE_PT.kicker,
+    })
+  })
+
+  it('wraps a long title to two lines, as the PDF does', () => {
+    const fitted = previewKicker(
+      'Spa & Wellness Centre Reception Desk and Lobby, Ground Floor East Wing',
+      1,
+    )
+    expect(fitted.lines.length).toBeLessThanOrEqual(BRAND_FIT.kicker.maxLines)
+    expect(fitted.size).toBeLessThanOrEqual(TYPE_PT.kicker)
+  })
+})
 
 describe('previewAddress', () => {
   it('sets a short address on one line at the full size', () => {

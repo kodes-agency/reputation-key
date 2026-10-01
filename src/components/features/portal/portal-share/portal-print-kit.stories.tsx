@@ -188,6 +188,37 @@ export const WithThePropertyPhoto: Story = {
   },
 }
 
+/** A brand and a title far longer than most: they shrink and wrap inside the margins, as in the file. */
+export const LongBrandAndTitle: Story = {
+  args: {
+    ...baseArgs,
+    printKit: {
+      read: async () =>
+        view({
+          titles: {
+            en: 'Spa & Wellness Centre Reception Desk and Lobby',
+            bg: 'Басейн и тераса',
+          },
+          look: {
+            wordmark: 'Kempinski Hotel Grand Arena Bansko',
+            accentColour: '#EAD6A8',
+            fieldColour: '#15110D',
+            heroUrl: PHOTO,
+            heroFocal: { x: 0.7, y: 0.3 },
+            logoUrl: null,
+          },
+        }),
+      downloadMutation: downloadMutation(),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const front = await preview(canvasElement)
+    for (const word of [/KEMPINSKI/u, /BANSKO/u, /SPA & WELLNESS/u, /RECEPTION DESK/u]) {
+      await expect(within(front).getByText(word)).toBeInTheDocument()
+    }
+  },
+}
+
 export const DownloadsThePdf: Story = {
   args: baseArgs,
   play: async ({ canvasElement, args }) => {

@@ -182,6 +182,22 @@ describe('printKitFileName', () => {
     expect(printKitFileName('Pool & Terrace', 'table_tent')).toBe(
       'pool-terrace-table-tent.pdf',
     )
-    expect(printKitFileName('Бар', 'counter_card')).toBe('portal-counter-card.pdf')
+    expect(printKitFileName('!!!', 'counter_card')).toBe('portal-counter-card.pdf')
+  })
+
+  it('keeps the letters of any script, so a Cyrillic name is not lost', () => {
+    expect(printKitFileName('Хотел Рила', 'table_tent')).toBe('хотел-рила-table-tent.pdf')
+    expect(printKitFileName('Café Müller', 'counter_card')).toBe(
+      'café-müller-counter-card.pdf',
+    )
+  })
+
+  it('never lets a name break out of a file name', () => {
+    expect(printKitFileName('../../etc/passwd', 'table_tent')).toBe(
+      'etc-passwd-table-tent.pdf',
+    )
+    expect(printKitFileName('a'.repeat(200), 'table_tent')).toHaveLength(
+      60 + '-table-tent.pdf'.length,
+    )
   })
 })

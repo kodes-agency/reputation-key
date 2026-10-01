@@ -17,6 +17,8 @@ import {
   type PrintKitPiece,
 } from '#/shared/domain/portal-print-kit'
 import {
+  ADDRESS_OPACITY,
+  BRAND_FIT,
   BRAND_MIDDLE_MM,
   LOGO_BOX_MM,
   PHOTO_BAND_MM,
@@ -31,7 +33,6 @@ import {
   STACK_GAP_BELOW_MM,
   STACK_TOP_MM,
   TRACKING_EM,
-  TYPE_PT,
   printPageMm,
 } from '#/shared/domain/portal-print-kit-layout'
 import { printKitPalette } from '#/shared/domain/portal-print-kit-palette'
@@ -40,6 +41,7 @@ import {
   mmToContainerWidth,
   previewAddress,
   previewPlateTopMm,
+  previewWordmark,
 } from './print-kit-art-layout'
 import { PrintKitCropMarks } from './print-kit-crop-marks'
 import { PrintKitStack } from './print-kit-stack'
@@ -179,7 +181,7 @@ export function PrintKitArt({ piece, face, look, codeUrl, shortAddress }: Props)
               textAlign: 'center',
               fontSize: pt(address.sizePt),
               lineHeight: 1.3,
-              color: 'rgba(255,255,255,.66)',
+              color: `rgba(255,255,255,${ADDRESS_OPACITY})`,
               whiteSpace: 'nowrap',
             })}
           >
@@ -217,6 +219,8 @@ function Brand({ look }: Readonly<{ look: PortalPrintKitView['look'] }>) {
       </div>
     )
   }
+  // A long name shrinks, then takes a second line, as it does in the file.
+  const { lines, size } = previewWordmark(look.wordmark)
   return (
     <p
       style={{
@@ -225,14 +229,19 @@ function Brand({ look }: Readonly<{ look: PortalPrintKitView['look'] }>) {
         paddingLeft: `${TRACKING_EM.wordmark}em`,
         fontFamily: DISPLAY_FONT,
         fontWeight: 600,
-        fontSize: pt(TYPE_PT.wordmark),
+        fontSize: pt(size),
+        lineHeight: BRAND_FIT.wordmark.lineHeight,
         letterSpacing: `${TRACKING_EM.wordmark}em`,
         textTransform: 'uppercase',
         color: '#fff',
         whiteSpace: 'nowrap',
       }}
     >
-      {look.wordmark}
+      {lines.map((line) => (
+        <span key={line} style={{ display: 'block' }}>
+          {line}
+        </span>
+      ))}
     </p>
   )
 }

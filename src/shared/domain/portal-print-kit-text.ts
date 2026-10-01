@@ -63,3 +63,47 @@ export function fitFontSize(
   }
   return Math.max(size, input.minSize)
 }
+
+/** No text is set smaller than this: below it a line is a smudge, and no line fits it to a width. */
+const SMALLEST_SIZE = 4
+
+export type FittedLines = Readonly<{ lines: readonly string[]; size: number }>
+
+/**
+ * `text` set to a width. One line at the largest size, down to `minSize`, when
+ * it fits there; else wrapped into at most `maxLines` balanced lines at the
+ * largest size at which they fit, which may be smaller than `minSize` for text
+ * far longer than any brand. A word wider than the width is never broken, so it
+ * is shrunk to fit instead. Text is never left wider than `maxWidth` unless it
+ * would have to be set below the smallest size.
+ */
+export function fitLines(
+  input: Readonly<{
+    text: string
+    size: number
+    minSize: number
+    maxLines: number
+    maxWidth: number
+    /** The width of `text` set at `size`. */
+    widthAt: (text: string, size: number) => number
+  }>,
+): FittedLines {
+  const { text, maxWidth, widthAt } = input
+  if (text.trim() === '') return { lines: [], size: input.size }
+  const single = [text.trim().replace(/\s+/gu, ' ')]
+  const size = fitFontSize({
+    size: input.size,
+    minSize: input.minSize,
+    maxWidth,
+    widthAt: (candidate) => widthAt(single[0] ?? '', candidate),
+  })
+  if (widthAt(single[0] ?? '', size) <= maxWidth) return { lines: single, size }
+  let candidate = input.size
+  for (;;) {
+    const lines = wrapWords(text, maxWidth, (line) => widthAt(line, candidate))
+    const widest = Math.max(...lines.map((line) => widthAt(line, candidate)))
+    const fits = lines.length <= input.maxLines && widest <= maxWidth
+    if (fits || candidate <= SMALLEST_SIZE) return { lines, size: candidate }
+    candidate = Math.max(SMALLEST_SIZE, candidate - SHRINK_STEP)
+  }
+}

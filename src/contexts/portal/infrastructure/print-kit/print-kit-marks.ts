@@ -3,13 +3,12 @@
 // bleed are, so a preflight reads them without being told.
 
 import { PRINT_KIT_BLEED_MM, type PrintSheet } from '#/shared/domain/portal-print-kit'
+import {
+  MARK_LENGTH_MM,
+  MARK_OFFSET_MM,
+  SLUG_MM,
+} from '#/shared/domain/portal-print-kit-layout'
 import { mm } from './print-kit-geometry'
-
-/** Paper outside the trim: the bleed, then room for the marks. */
-export const SLUG_MM = 10
-/** Marks start this far from the trim, past the bleed, so they never print in it. */
-const MARK_OFFSET_MM = 4
-const MARK_LENGTH_MM = 5
 
 /** All four inks: marks stay visible on every plate. */
 const REGISTRATION: [number, number, number, number] = [100, 100, 100, 100]

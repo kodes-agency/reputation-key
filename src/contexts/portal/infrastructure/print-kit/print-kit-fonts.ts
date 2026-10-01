@@ -62,7 +62,7 @@ const DATA_URIS: Readonly<
 
 const decoded = new Map<string, Buffer>()
 
-/** The woff2 bytes of one subset of one face. */
+/** The TrueType bytes of one subset of one face. */
 export function printKitFontBytes(face: PrintKitFontFace, subset: FontSubset): Buffer {
   const key = `${face}:${subset}`
   const cached = decoded.get(key)

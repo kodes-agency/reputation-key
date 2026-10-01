@@ -228,12 +228,21 @@ export function shortPrintAddress(address: string): string {
   }
 }
 
-/** `pool-terrace-table-tent.pdf`: the portal's name, made safe for a file system. */
+const FILE_NAME_SLUG_MAX = 60
+
+/**
+ * `pool-terrace-table-tent.pdf`: the portal's name made safe for a file system.
+ * Letters and digits of any script stay (a Cyrillic name is common here), so a
+ * name is never lost to `portal`; everything else becomes one hyphen.
+ */
 export function printKitFileName(portalName: string, piece: PrintKitPiece): string {
   const slug = portalName
+    .normalize('NFC')
     .toLowerCase()
-    .replace(/[^a-z0-9]+/gu, '-')
+    .replace(/[^\p{L}\p{N}]+/gu, '-')
     .replace(/^-|-$/gu, '')
+    .slice(0, FILE_NAME_SLUG_MAX)
+    .replace(/-$/gu, '')
   const noun = PRINT_KIT_PIECE_FACTS[piece].noun.replace(/\s+/gu, '-')
   return `${slug === '' ? 'portal' : slug}-${noun}.pdf`
 }

@@ -7,10 +7,10 @@
 // one language shrinks the type instead of running into the code.
 
 import type { PrintTextBlock } from '#/shared/domain/portal-print-kit'
-import { mm, TYPE_PT, TRACKING_EM } from './print-kit-geometry'
+import { BRAND_FIT, mm, TYPE_PT, TRACKING_EM } from './print-kit-geometry'
 import type { PrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import { measureLine, type PdfTextStyle, type PrintKitFonts } from './print-kit-pdf-text'
-import { wrapWords } from './print-kit-text'
+import { fitLines, wrapWords } from '#/shared/domain/portal-print-kit-text'
 
 const POINTS_PER_MM = mm(1)
 const ptToMm = (points: number) => points / POINTS_PER_MM
@@ -57,14 +57,13 @@ function layoutFirstBlock(
   maxWidthPt: number,
   measure: Measure,
 ): void {
-  const kickerSize = TYPE_PT.kicker * scale
-  const kicker: PdfTextStyle = {
+  const kickerAt = (size: number): PdfTextStyle => ({
     face: 'bodyStrong',
-    size: kickerSize,
-    spacing: kickerSize * TRACKING_EM.kicker,
+    size,
+    spacing: size * TRACKING_EM.kicker,
     colour: palette.kicker,
     opacity: 1,
-  }
+  })
   const headline: PdfTextStyle = {
     face: 'display',
     size: TYPE_PT.headline * scale,
@@ -79,7 +78,18 @@ function layoutFirstBlock(
     colour: palette.body,
     opacity: 0.84,
   }
-  pushLines(cursor, [block.kicker.toUpperCase()], kicker, LEADING.kicker)
+  // A long title shrinks to a floor, then takes a second line, so it stays
+  // inside the margins instead of running to the bleed.
+  const kickerSize = TYPE_PT.kicker * scale
+  const kicker = fitLines({
+    text: block.kicker.toUpperCase(),
+    size: kickerSize,
+    minSize: Math.min(kickerSize, BRAND_FIT.kicker.minPt),
+    maxLines: BRAND_FIT.kicker.maxLines,
+    maxWidth: maxWidthPt,
+    widthAt: (text, size) => measure(text, kickerAt(size)),
+  })
+  pushLines(cursor, kicker.lines, kickerAt(kicker.size), LEADING.kicker)
   cursor.y += 1.6 * scale
   pushLines(
     cursor,

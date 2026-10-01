@@ -8,6 +8,7 @@
 import { PRINT_KIT_QR_QUIET_ZONE_MODULES } from '#/shared/domain/portal-print-kit'
 import type { PrintFace } from '#/shared/domain/portal-print-kit'
 import {
+  ADDRESS_OPACITY,
   BOTTOM_MARGIN_MM,
   BRAND_MIDDLE_MM,
   LOGO_BOX_MM,
@@ -20,19 +21,20 @@ import {
   PLATE_PAPER_MM,
   PLATE_PAPER_RADIUS_MM,
   PLATE_RADIUS_MM,
-  SIDE_MARGIN_MM,
+  SINGLE_LANGUAGE_SCALE,
   STACK_GAP_BELOW_MM,
   STACK_TOP_MM,
-  TRACKING_EM,
+  TEXT_WIDTH_PT,
   TYPE_PT,
   mm,
 } from './print-kit-geometry'
+import { drawWordmark } from './print-kit-brand'
 import { drawImage, type OpenedImage } from './print-kit-pdf-image'
 import type { PrintKitPalette } from '#/shared/domain/portal-print-kit-palette'
 import { drawCentredLine, measureLine, type PrintKitFonts } from './print-kit-pdf-text'
 import { qrDarkRuns, qrPlateModules, type QrMatrix } from './print-kit-qr'
 import { fitStack, layoutStack, measureWith } from './print-kit-stack'
-import { fitFontSize } from './print-kit-text'
+import { fitFontSize } from '#/shared/domain/portal-print-kit-text'
 
 export type PanelBleed = Readonly<{ topMm: number; sideMm: number; bottomMm: number }>
 
@@ -46,7 +48,6 @@ export type PanelArt = Readonly<{
   shortAddress: string
 }>
 
-const TEXT_WIDTH_PT = mm(PANEL_WIDTH_MM - 2 * SIDE_MARGIN_MM)
 const CENTRE_X = mm(PANEL_WIDTH_MM / 2)
 
 /** What the photo band covers, in millimetres, for a panel with this bleed. */
@@ -131,20 +132,7 @@ function drawBrand(doc: PDFKit.PDFDocument, fonts: PrintKitFonts, art: PanelArt)
     })
     return
   }
-  const size = TYPE_PT.wordmark
-  drawCentredLine(
-    doc,
-    fonts,
-    art.wordmark.toUpperCase(),
-    {
-      face: 'display',
-      size,
-      spacing: size * TRACKING_EM.wordmark,
-      colour: '#FFFFFF',
-      opacity: 1,
-    },
-    { centreX: CENTRE_X, middleY: mm(BRAND_MIDDLE_MM) },
-  )
+  drawWordmark(doc, fonts, art.wordmark)
 }
 
 type AddressBlock = Readonly<{
@@ -164,7 +152,7 @@ function layoutAddress(
     size,
     spacing: 0,
     colour: '#FFFFFF',
-    opacity: 0.66,
+    opacity: ADDRESS_OPACITY,
   })
   const widest = (lines: readonly string[]) => (size: number) =>
     Math.max(...lines.map((line) => measureLine(doc, fonts, line, styleAt(size))))
@@ -241,7 +229,7 @@ export function drawPanel(
   const stack = fitStack(
     (scale) => layoutStack(face.blocks, art.palette, scale, TEXT_WIDTH_PT, measure),
     roomMm,
-    face.blocks.length === 1 ? 1.22 : 1,
+    face.blocks.length === 1 ? SINGLE_LANGUAGE_SCALE : 1,
   )
   const startMm = STACK_TOP_MM + Math.max(0, roomMm - stack.heightMm) / 2
   for (const item of stack.items) {
@@ -267,7 +255,13 @@ export function drawPanel(
       doc,
       fonts,
       line,
-      { face: 'body', size: address.size, spacing: 0, colour: '#FFFFFF', opacity: 0.66 },
+      {
+        face: 'body',
+        size: address.size,
+        spacing: 0,
+        colour: '#FFFFFF',
+        opacity: ADDRESS_OPACITY,
+      },
       { centreX: CENTRE_X, middleY: mm(addressTopMm + lineMm * (index + 0.5)) },
     )
   })

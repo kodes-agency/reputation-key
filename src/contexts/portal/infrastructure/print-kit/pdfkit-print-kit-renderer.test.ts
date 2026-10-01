@@ -1,7 +1,9 @@
+import PDFDocument from 'pdfkit'
 import sharp from 'sharp'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import type { PrintKitRenderInput } from '../../application/ports/portal-print-kit-renderer.port'
 import { printKitFaces, type PrintKitChoice } from '#/shared/domain/portal-print-kit'
+import { PANEL_WIDTH_MM, SIDE_MARGIN_MM } from '#/shared/domain/portal-print-kit-layout'
 import { createPdfKitPrintKitRenderer } from './pdfkit-print-kit-renderer'
 import { qrDarkRuns, qrMatrix } from './print-kit-qr'
 
@@ -58,6 +60,106 @@ async function jpegPhoto(): Promise<Buffer> {
     .webp()
     .toBuffer()
 }
+
+type DrawnRun = Readonly<{ text: string; left: number; right: number }>
+
+/** Every run of text the renderer sets, with where it starts and ends across its panel. */
+async function drawnRuns(input: PrintKitRenderInput): Promise<readonly DrawnRun[]> {
+  const runs: DrawnRun[] = []
+  const original = PDFDocument.prototype.text
+  const spy = vi.spyOn(PDFDocument.prototype, 'text')
+  spy.mockImplementation(function (this: PDFKit.PDFDocument, ...args: unknown[]) {
+    const [text, x, , options] = args as [
+      string,
+      number,
+      number,
+      { characterSpacing?: number },
+    ]
+    const spacing = options.characterSpacing ?? 0
+    const width = this.widthOfString(text, { characterSpacing: spacing }) - spacing
+    runs.push({ text, left: x, right: x + width })
+    return original.apply(this, args as Parameters<typeof original>)
+  })
+  try {
+    await renderer.render(input)
+  } finally {
+    spy.mockRestore()
+  }
+  return runs
+}
+
+const panelLeft = SIDE_MARGIN_MM * MM
+const panelRight = (PANEL_WIDTH_MM - SIDE_MARGIN_MM) * MM
+
+describe('text longer than any brand or title', () => {
+  const longTitle =
+    'Spa & Wellness Centre Reception Desk and Lobby, Ground Floor East Wing'
+  const cases = [
+    ['a 24 character brand', 'GRAND HOTEL EUROPE & SPA', 'Pool & Terrace'],
+    [
+      'a 34 character brand',
+      'Kempinski Hotel Grand Arena Bansko',
+      'Spa & Wellness Centre',
+    ],
+    [
+      'a 40 character brand',
+      'Hotel Imperial Palace Grand Resort Sofia',
+      'Pool & Terrace',
+    ],
+    ['a 120 character title', 'Avela', longTitle.padEnd(120, ' and more').slice(0, 120)],
+    ['a long brand and a long title', 'Kempinski Hotel Grand Arena Bansko', longTitle],
+  ] as const
+
+  it.each(cases)(
+    'keeps every line inside the panel margins, with %s',
+    async (_name, wordmark, title) => {
+      const choice: PrintKitChoice = {
+        piece: 'table_tent',
+        languages: ['en', 'bg'],
+        callToAction: 'rate',
+      }
+      const input = inputFor(choice, {
+        wordmark,
+        faces: printKitFaces(choice, { en: title, bg: title }, title),
+      })
+      const runs = await drawnRuns(input)
+      expect(runs.length).toBeGreaterThan(8)
+      for (const run of runs) {
+        expect(run.left, run.text).toBeGreaterThanOrEqual(panelLeft - 0.5)
+        expect(run.right, run.text).toBeLessThanOrEqual(panelRight + 0.5)
+      }
+    },
+  )
+
+  it('still draws the whole of a long brand, on more than one line when it must', async () => {
+    const runs = await drawnRuns(
+      inputFor(tentEnBg, { wordmark: 'Kempinski Hotel Grand Arena Bansko' }),
+    )
+    const drawn = runs.map((run) => run.text).join(' ')
+    for (const word of ['KEMPINSKI', 'HOTEL', 'GRAND', 'ARENA', 'BANSKO']) {
+      expect(drawn).toContain(word)
+    }
+  })
+
+  it('keeps a long title whole, and the call to action unchanged', async () => {
+    const runs = await drawnRuns(
+      inputFor(
+        { piece: 'counter_card', languages: ['en'], callToAction: 'rate' },
+        {
+          faces: printKitFaces(
+            { piece: 'counter_card', languages: ['en'], callToAction: 'rate' },
+            { en: longTitle },
+            longTitle,
+          ),
+        },
+      ),
+    )
+    const drawn = runs.map((run) => run.text).join(' ')
+    expect(drawn).toContain('Rate your visit')
+    for (const word of longTitle.toUpperCase().split(/\s+/u))
+      expect(drawn).toContain(word)
+  })
+})
 
 describe('the print kit PDF', () => {
   it('is a PDF', async () => {
@@ -159,8 +261,14 @@ describe('the print kit PDF', () => {
   })
 
   it('drops characters no guest font carries instead of drawing broken glyphs', async () => {
-    const pdf = await renderer.render(inputFor(tentEnBg, { wordmark: 'Avela 酒' }))
-    expect(pdf.length).toBeGreaterThan(1000)
+    const input = inputFor(tentEnBg, { wordmark: 'Avela 酒' })
+    const drawn = (await drawnRuns(input)).map((run) => run.text).join(' ')
+    expect(drawn).toContain('AVELA')
+    expect(drawn).not.toContain('酒')
+    // Nor does the file map a glyph for U+9152, while it does for the V of AVELA.
+    const text = await renderText(input)
+    expect(text).not.toMatch(/<9152>/iu)
+    expect(text).toMatch(/<0056>/iu)
   })
 
   it('is the same bytes for the same input', async () => {

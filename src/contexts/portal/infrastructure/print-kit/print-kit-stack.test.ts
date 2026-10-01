@@ -45,6 +45,37 @@ describe('layoutStack', () => {
     expect(stack.items.filter((item) => item.kind === 'rule')).toHaveLength(1)
   })
 
+  it('wraps a long title to two lines, never wider than the line, and counts them in the height', () => {
+    const long: PrintTextBlock = {
+      ...english,
+      kicker: 'Spa & Wellness Centre Reception Desk and Lobby East Wing',
+    }
+    const stack = layoutStack([long], palette, 1, 300, measure)
+    const kicker = stack.items.filter(
+      (item) => item.kind === 'line' && item.style.face === 'bodyStrong',
+    )
+    expect(kicker).toHaveLength(2)
+    for (const item of kicker) {
+      if (item.kind !== 'line') continue
+      expect(measure(item.text, item.style)).toBeLessThanOrEqual(300)
+    }
+    const short = layoutStack([english], palette, 1, 300, measure)
+    expect(stack.heightMm).toBeGreaterThan(short.heightMm)
+  })
+
+  it('shrinks a long title toward its floor before it wraps it', () => {
+    const medium: PrintTextBlock = { ...english, kicker: 'Spa & Wellness Reception' }
+    const stack = layoutStack([medium], palette, 1, 7.9 * 22, measure)
+    const kicker = stack.items.filter(
+      (item) => item.kind === 'line' && item.style.face === 'bodyStrong',
+    )
+    expect(kicker).toHaveLength(1)
+    const [item] = kicker
+    if (item?.kind !== 'line') throw new Error('a line')
+    expect(item.style.size).toBeLessThan(7.9)
+    expect(item.style.size).toBeGreaterThanOrEqual(6)
+  })
+
   it('places each line below the one before it', () => {
     const middles = layoutStack(
       [english, bulgarian],

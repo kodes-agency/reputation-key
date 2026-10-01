@@ -3,8 +3,11 @@
 // preview cannot, so it estimates from the average width of a character, which
 // is close enough to place a plate and a line.
 
+import { fitLines, type FittedLines } from '#/shared/domain/portal-print-kit-text'
 import {
   BOTTOM_MARGIN_MM,
+  BRAND_FIT,
+  TRACKING_EM,
   PANEL_HEIGHT_MM,
   PANEL_WIDTH_MM,
   PLATE_ABOVE_ADDRESS_MM,
@@ -50,6 +53,46 @@ export function previewAddress(address: string): PreviewAddress {
   return cut > 0 && cut < address.length
     ? fitted([address.slice(0, cut), address.slice(cut)])
     : single
+}
+
+/**
+ * The average advance of a capital, in ems, of the display face and of the body
+ * face. The PDF measures; these err wide, so the preview never shows a line
+ * that fits when the file's would not.
+ */
+const DISPLAY_CAPITAL_EM = 0.6
+const BODY_CAPITAL_EM = 0.56
+
+const textWidthPt = (PANEL_WIDTH_MM - 2 * SIDE_MARGIN_MM) * POINTS_PER_MM
+
+/** A tracked line of capitals, in points: the tracking after the last one is not part of it. */
+const capitalsWidthPt =
+  (advanceEm: number, trackingEm: number) => (text: string, sizePt: number) =>
+    text.length * sizePt * (advanceEm + trackingEm) - sizePt * trackingEm
+
+/** The wordmark as the PDF sets it: one line to a floor, then two. */
+export function previewWordmark(wordmark: string): FittedLines {
+  return fitLines({
+    text: wordmark.toUpperCase(),
+    size: TYPE_PT.wordmark,
+    minSize: BRAND_FIT.wordmark.minPt,
+    maxLines: BRAND_FIT.wordmark.maxLines,
+    maxWidth: textWidthPt,
+    widthAt: capitalsWidthPt(DISPLAY_CAPITAL_EM, TRACKING_EM.wordmark),
+  })
+}
+
+/** The Portal's title as the PDF sets it above the call to action, at the stack's `scale`. */
+export function previewKicker(title: string, scale: number): FittedLines {
+  const size = TYPE_PT.kicker * scale
+  return fitLines({
+    text: title.toUpperCase(),
+    size,
+    minSize: Math.min(size, BRAND_FIT.kicker.minPt),
+    maxLines: BRAND_FIT.kicker.maxLines,
+    maxWidth: textWidthPt,
+    widthAt: capitalsWidthPt(BODY_CAPITAL_EM, TRACKING_EM.kicker),
+  })
 }
 
 /** Where the plate under the code starts, in millimetres from the top of the trim. */

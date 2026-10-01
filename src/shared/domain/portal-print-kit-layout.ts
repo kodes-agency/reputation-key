@@ -53,11 +53,31 @@ export const TYPE_PT = {
   secondHeadline: 17,
   secondSubline: 9.4,
   address: 8,
-  addressMin: 6,
+  addressMin: 6.5,
 } as const
+
+/**
+ * The address under the code is small type on a dark field, printed once and
+ * read at arm's length: it is set at four fifths white, not two thirds.
+ */
+export const ADDRESS_OPACITY = 0.8
 
 /** Tracking, in ems, of the uppercase lines. */
 export const TRACKING_EM = { wordmark: 0.38, kicker: 0.3 } as const
+
+/** One language alone is set larger than two: there is room for it. */
+export const SINGLE_LANGUAGE_SCALE = 1.22
+
+/**
+ * How the brand and the title give way to a long name. Each is one line at its
+ * size until that line would have to be smaller than `minPt`, then at most
+ * `maxLines` lines; and below `minPt` only for text longer than any brand has.
+ * The PDF measures its fonts for this; the preview estimates.
+ */
+export const BRAND_FIT = {
+  wordmark: { minPt: 8, maxLines: 2, lineHeight: 1.3 },
+  kicker: { minPt: 6, maxLines: 2 },
+} as const
 
 /** The page of one sheet in millimetres: its trim and a slug on every side. */
 export function printPageMm(trimWidthMm: number, trimHeightMm: number) {
