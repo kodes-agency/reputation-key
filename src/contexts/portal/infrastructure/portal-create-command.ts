@@ -18,12 +18,13 @@ import {
 } from '#/shared/db/schema'
 import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
-import { unbrand } from '#/shared/domain/ids'
+import { unbrand, type UserId } from '#/shared/domain/ids'
 import type {
   CreatePortalCommand,
   CreatePortalCopiedContent,
   PortalCommandStore,
 } from '../application/ports/portal-command-store.port'
+import { portalError } from '../domain/errors'
 import { categoryToRow, linkToRow } from './mappers/portal-link.mapper'
 import { portalToRow } from './mappers/portal.mapper'
 import { assertCommittedRevision } from './portal-command-guards'
@@ -32,6 +33,18 @@ import { joinPortalGroupInTransaction } from './portal-group-commands'
 import { upsertLinkTexts } from './portal-link-texts-store'
 
 export type PortalCreateCommandStore = Pick<PortalCommandStore, 'createPortal'>
+
+/** The person who created the Portal; every write beyond the Portal row is attributed to them. */
+function creatorOf(command: CreatePortalCommand): UserId {
+  const { createdBy } = command.portal
+  if (createdBy === null) {
+    throw portalError(
+      'forbidden',
+      'A Portal created with group or copied content needs its creator',
+    )
+  }
+  return createdBy
+}
 
 async function insertResponsibleManagers(
   tx: Tx,
@@ -59,7 +72,7 @@ async function insertCopiedContent(
   const { portal } = command
   const organizationId = unbrand(command.organizationId)
   const propertyId = unbrand(portal.propertyId)
-  const writer = { actorUserId: portal.createdBy ?? '', at: portal.createdAt }
+  const writer = { actorUserId: unbrand(creatorOf(command)), at: portal.createdAt }
   if (copy.overrides.length > 0) {
     await tx.insert(portalLocalizedOverrides).values(
       copy.overrides.map((override) => ({
@@ -111,54 +124,80 @@ async function joinGroup(tx: Tx, command: CreatePortalCommand): Promise<void> {
     expectedUpdatedAt: membership.expectedGroupUpdatedAt,
     revision: membership.revision,
     occurredAt: portal.createdAt,
-    changedBy:
-      portal.createdBy ?? command.initialResponsibleManagerIds[0] ?? ('' as never),
+    changedBy: creatorOf(command),
     event: membership.event,
   })
+}
+
+async function insertInitialHealth(tx: Tx, command: CreatePortalCommand): Promise<void> {
+  const { health, portal } = command
+  if (!health) return
+  await tx.insert(portalHealthIntervals).values({
+    id: health.id,
+    organizationId: unbrand(command.organizationId),
+    propertyId: unbrand(portal.propertyId),
+    portalId: unbrand(portal.id),
+    status: health.value.status,
+    reason: health.value.reason,
+    sourceVersion: health.sourceVersion,
+    effectiveFrom: health.effectiveAt,
+    effectiveTo: null,
+    observedAt: health.observedAt,
+  })
+}
+
+const SLUG_UNIQUE_CONSTRAINT = 'portals_org_property_slug_unique'
+
+/** Whether the database refused the Portal because its address is already in use at the Property. */
+function isSlugConflict(error: unknown): boolean {
+  let current = error
+  for (let depth = 0; depth < 3; depth += 1) {
+    if (!current || typeof current !== 'object') return false
+    const { code, constraint } = current as { code?: unknown; constraint?: unknown }
+    if (code === '23505' && constraint === SLUG_UNIQUE_CONSTRAINT) return true
+    current = (current as { cause?: unknown }).cause
+  }
+  return false
 }
 
 export const createPortalCreateCommand = (db: Database): PortalCreateCommandStore => ({
   createPortal: async (command) =>
     trace('portal.commandStore.createPortal', async () => {
       assertCreateCommand(command)
-      await db.transaction(async (tx) => {
-        const [created] = await tx
-          .insert(portals)
-          .values(portalToRow(command.portal))
-          .returning({ updatedAt: portals.updatedAt })
-        assertCommittedRevision(
-          created,
-          command.portal.updatedAt,
-          'Portal',
-          'Portal creation did not return its command revision',
-        )
-        await insertResponsibleManagers(tx, command)
-        if (command.health) {
-          await tx.insert(portalHealthIntervals).values({
-            id: command.health.id,
-            organizationId: unbrand(command.organizationId),
-            propertyId: unbrand(command.portal.propertyId),
-            portalId: unbrand(command.portal.id),
-            status: command.health.value.status,
-            reason: command.health.value.reason,
-            sourceVersion: command.health.sourceVersion,
-            effectiveFrom: command.health.effectiveAt,
-            effectiveTo: null,
-            observedAt: command.health.observedAt,
-          })
+      try {
+        await commitCreate(db, command)
+      } catch (error) {
+        if (isSlugConflict(error)) {
+          throw portalError('slug_taken', 'a portal with this slug already exists')
         }
-        if (command.copiedContent) {
-          await insertCopiedContent(tx, command, command.copiedContent)
-        }
-        await joinGroup(tx, command)
-        await insertOutboxRow(tx, command.event, {
-          recordedAt: command.portal.createdAt,
-        })
-        if (command.responsibilityNeededEvent) {
-          await insertOutboxRow(tx, command.responsibilityNeededEvent, {
-            recordedAt: command.portal.createdAt,
-          })
-        }
-      })
+        throw error
+      }
     }),
 })
+
+async function commitCreate(db: Database, command: CreatePortalCommand): Promise<void> {
+  await db.transaction(async (tx) => {
+    const [created] = await tx
+      .insert(portals)
+      .values(portalToRow(command.portal))
+      .returning({ updatedAt: portals.updatedAt })
+    assertCommittedRevision(
+      created,
+      command.portal.updatedAt,
+      'Portal',
+      'Portal creation did not return its command revision',
+    )
+    await insertResponsibleManagers(tx, command)
+    await insertInitialHealth(tx, command)
+    if (command.copiedContent) {
+      await insertCopiedContent(tx, command, command.copiedContent)
+    }
+    await joinGroup(tx, command)
+    await insertOutboxRow(tx, command.event, { recordedAt: command.portal.createdAt })
+    if (command.responsibilityNeededEvent) {
+      await insertOutboxRow(tx, command.responsibilityNeededEvent, {
+        recordedAt: command.portal.createdAt,
+      })
+    }
+  })
+}

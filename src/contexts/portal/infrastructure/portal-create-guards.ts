@@ -87,6 +87,9 @@ function assertGroupMembership(command: CreatePortalCommand): void {
   const membership = command.groupMembership
   if (!membership) return
   const { portal } = command
+  if (portal.createdBy === null) {
+    throw portalError('forbidden', 'A Portal joining a group needs its creator')
+  }
   if (membership.revision.getTime() <= membership.expectedGroupUpdatedAt.getTime()) {
     throw portalError(
       'revision_conflict',
@@ -102,7 +105,7 @@ function assertGroupMembership(command: CreatePortalCommand): void {
       expectedUpdatedAt: membership.expectedGroupUpdatedAt,
       revision: membership.revision,
       occurredAt: portal.createdAt,
-      changedBy: portal.createdBy ?? ('' as never),
+      changedBy: portal.createdBy,
       event: membership.event,
     },
     'portal_group.portal_added',
@@ -114,6 +117,9 @@ function assertCopiedContent(command: CreatePortalCommand): void {
   const copy = command.copiedContent
   if (!copy) return
   const { portal } = command
+  if (portal.createdBy === null) {
+    throw portalError('forbidden', 'A Portal with copied content needs its creator')
+  }
   const offered: readonly string[] = [
     portal.primaryGuestLocale,
     ...portal.additionalGuestLocales,

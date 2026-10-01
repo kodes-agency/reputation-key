@@ -16,7 +16,7 @@ import {
   portalLinkCategoryId,
   portalLinkId,
 } from '#/shared/domain/ids'
-import { isPortalError } from '../../domain/errors'
+import { isPortalError, portalError } from '../../domain/errors'
 import type { PortalGroup } from '../../domain/types'
 import {
   CLOCK,
@@ -69,6 +69,41 @@ describe('createPortal web address', () => {
     expect((await useCase({ ...base, name: 'Rooftop pool' }, ctx)).slug).toBe(
       'rooftop-pool',
     )
+  })
+
+  it('takes the next free address when another create took it between the check and the commit', async () => {
+    const { useCase, portalRepo, commandStore } = setupCreatePortal()
+    const commit = commandStore.createPortal
+    let first = true
+    const racing = vi
+      .spyOn(commandStore, 'createPortal')
+      .mockImplementation(async (command) => {
+        if (first) {
+          first = false
+          // The other create commits 'rooftop-pool' just before this one does.
+          portalRepo.seed([
+            buildTestPortal({ id: 'p-race', slug: 'rooftop-pool', propertyId: PROPERTY }),
+          ])
+          throw portalError('slug_taken', 'a portal with this slug already exists')
+        }
+        await commit(command)
+      })
+    const portal = await useCase({ ...base, name: 'Rooftop pool' }, ctx)
+    expect(portal.slug).toBe('rooftop-pool-2')
+    expect(racing).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not retry an address the manager typed', async () => {
+    const { useCase, commandStore } = setupCreatePortal()
+    const racing = vi
+      .spyOn(commandStore, 'createPortal')
+      .mockRejectedValue(
+        portalError('slug_taken', 'a portal with this slug already exists'),
+      )
+    expect(await codeOf(useCase({ ...base, name: 'Pool', slug: 'my-pool' }, ctx))).toBe(
+      'slug_taken',
+    )
+    expect(racing).toHaveBeenCalledTimes(1)
   })
 
   it('still refuses an address the manager typed that is already taken', async () => {

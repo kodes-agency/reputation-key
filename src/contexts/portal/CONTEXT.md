@@ -65,7 +65,23 @@ first is the primary) only seeds new Portals, so editing it bumps no version,
 records no pending change, emits no fact and leaves `updated_by` alone (that
 column decides whether the public display name counts as confirmed).
 
-The eligible creator is the initial Portal Responsible Manager. Multiple eligible
+A new Portal (`createPortal`, the New portal dialog) commits in one transaction
+with its group membership (the group is fenced like a membership change and the
+`portal_group.portal_added` fact is recorded), its responsible managers and, when
+it starts from another Portal, a copy of that Portal's settings, wording per
+language, Linktree title, approved links with their categories and link texts.
+It starts from the Property's own wording by default. Languages default to the
+Property's, or to those of the Portal being copied; only languages with a reviewed
+pack may be chosen. A copy never takes codes and their artifacts, publication
+snapshots or activations, responsible managers, health or history, and leaves
+behind photos (a hero image is a server-owned upload derivative) and any link that
+is not an approved destination (legacy URLs), within the four-link limit. A name
+whose derived address is taken at the Property gets the next free numbered
+address; an address the manager typed must be free. There are no place types: the
+dialog asks for a name, a group, languages and what to start from.
+
+The eligible creator is the initial Portal Responsible Manager (by default; the
+dialog may name other eligible managers, or nobody). Multiple eligible
 managers may be assigned; losing the last sets `responsibilityNeededSince`, and
 nobody is auto-promoted. Only a live Portal of an active Property also raises
 `portal.responsibility_became_needed`; a deleted or archived Portal, or one whose

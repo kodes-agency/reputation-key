@@ -234,6 +234,26 @@ describe.sequential('create Portal command (real PostgreSQL)', () => {
     expect(await count('outbox_events')).toBe(0)
   })
 
+  it('says the address is taken when another Portal holds it at the Property', async () => {
+    const first = portalOf({ id: SOURCE, name: 'Pool', slug: 'pool' })
+    await store().createPortal({
+      organizationId: ORG_A,
+      portal: first,
+      initialResponsibleManagerIds: [CREATOR],
+      ...factsFor(first, true),
+    })
+    const second = portalOf({ id: TARGET, name: 'Pool', slug: 'pool' })
+    await expect(
+      store().createPortal({
+        organizationId: ORG_A,
+        portal: second,
+        initialResponsibleManagerIds: [CREATOR],
+        ...factsFor(second, true),
+      }),
+    ).rejects.toMatchObject({ code: 'slug_taken' })
+    expect(await count('portals', 'id', TARGET)).toBe(0)
+  })
+
   it('refuses a membership fact that names another group', async () => {
     const portal = portalOf({ id: TARGET, name: 'Pool', slug: 'pool' })
     const membership = membershipFor(portal)
