@@ -32,6 +32,23 @@ async function maskedEmail(email: string): Promise<string> {
   return maskEmail(email)
 }
 
+/**
+ * The per-IP gate in front of the anonymous auth entries (register, sign in).
+ * Refuses with the entry's own message once the address has used its attempts;
+ * otherwise hands back what the entry needs next.
+ */
+async function admitAuthAttempt(action: 'register' | 'signin', refusal: string) {
+  const reqHeaders = await headersFromContext()
+  const { rateLimiter, logger } = getContainer()
+  const result = await rateLimiter.check(
+    `auth:${action}:${clientIpFromHeaders(reqHeaders)}`,
+  )
+  if (!result.allowed) {
+    throwContextError('AuthError', { code: 'rate_limited', message: refusal }, 429)
+  }
+  return { reqHeaders, logger }
+}
+
 // ── Register user only (no organization) ────────────────────────────
 // Used by invited members joining an existing org via /join.
 export const registerMemberHandler = createServerOnlyFn(
@@ -43,17 +60,10 @@ export const registerMemberHandler = createServerOnlyFn(
     // This is the sole beta account-creation route. The use case requires
     // and consumes an exact email-bound manager invitation; the separate
     // public-registration capability remains permanently blocked.
-    const reqHeaders = await headersFromContext()
-    const ip = clientIpFromHeaders(reqHeaders)
-    const { rateLimiter: rl, logger } = getContainer()
-    const rlResult = await rl.check(`auth:register:${ip}`)
-    if (!rlResult.allowed) {
-      throwContextError(
-        'AuthError',
-        { code: 'rate_limited', message: 'Too many registration attempts' },
-        429,
-      )
-    }
+    const { reqHeaders, logger } = await admitAuthAttempt(
+      'register',
+      'Too many registration attempts',
+    )
     try {
       await getContainer().identityPublicApi.requests.registerInvitedUser({
         ...data,
@@ -124,17 +134,10 @@ export const signInUser = createServerFn({ method: 'POST' })
   .handler(
     tracedHandler(
       async ({ data }) => {
-        const reqHeaders = await headersFromContext()
-        const ip = clientIpFromHeaders(reqHeaders)
-        const { rateLimiter: rl, logger } = getContainer()
-        const rlResult = await rl.check(`auth:signin:${ip}`)
-        if (!rlResult.allowed) {
-          throwContextError(
-            'AuthError',
-            { code: 'rate_limited', message: 'Too many sign-in attempts' },
-            429,
-          )
-        }
+        const { reqHeaders, logger } = await admitAuthAttempt(
+          'signin',
+          'Too many sign-in attempts',
+        )
 
         try {
           await signInAndForwardCookies(data.email, data.password, reqHeaders)
