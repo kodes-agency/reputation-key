@@ -49,12 +49,8 @@ import {
 import type { MemberRow } from '#/components/features/identity'
 import { identityKeys } from '#/shared/queries/query-keys'
 import { propertiesQuery } from '#/routes/-queries/route-queries'
-import { LeaveOrganizationDialog } from '#/components/features/people/leave-organization-dialog'
-import {
-  getSelfServiceLeaveAvailabilityFn,
-  leaveOrganizationFn,
-} from '#/contexts/identity/server/organization-leave-fns'
-import { outstandingResponsibilitiesQuery } from './-leave-organization-queries'
+import { getSelfServiceLeaveAvailabilityFn } from '#/contexts/identity/server/organization-leave-fns'
+import { LeaveOrganizationSection } from './-leave-organization-section'
 import { MemberAccessContainer } from './-member-access-container'
 
 const authRoute = getRouteApi('/_authenticated')
@@ -185,39 +181,6 @@ function MembersSettingsRoute() {
     errorMessage: actionErrorMessage,
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
   })
-  // NOT useSuspenseQuery. The identity container installs a fail-closed
-  // offboarding dependency until the responsibility facts are composed, so
-  // this read THROWS by design. Suspending the route on it meant one deliberately
-  // fenced capability took down the whole members page — the directory,
-  // invitations and role management with it — which is what the accessibility
-  // and shell suites caught on /settings/members. Where nothing is composed it
-  // is not issued at all (`selfServiceLeaveAvailable` is false).
-  //
-  // `undefined` (still loading) and an error both surface as a null worklist,
-  // which the dialog treats as "unknown" and refuses to leave on.
-  const { data: outstandingResult, isError: outstandingUnavailable } = useQuery(
-    outstandingResponsibilitiesQuery(selfServiceLeaveAvailable),
-  )
-  const leaveMutation = useActionMutation(leaveOrganizationFn, {
-    successMessage: 'You have left this organization',
-    invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
-    // Their session is already gone server-side; send them to sign-in rather
-    // than letting the app render a workspace they no longer belong to.
-    navigateTo: { to: '/login' },
-  })
-  // The caller cannot receive their own responsibilities, and the sole
-  // AccountAdmin guard is re-enforced under lock by the command store.
-  const successorCandidates = members
-    .filter((member) => member.userId !== user.id)
-    .map((member) => ({ userId: member.userId, name: member.name }))
-  // `hasRole` rather than a raw role comparison: the governed helper is the
-  // single place that knows how a role token maps to authority.
-  const isSoleAccountAdmin =
-    hasRole(role, 'AccountAdmin') &&
-    members.filter(
-      (member) => member.role !== null && hasRole(member.role, 'AccountAdmin'),
-    ).length <= 1
-
   return (
     <>
       <PageHeader
@@ -275,20 +238,11 @@ function MembersSettingsRoute() {
         )}
 
         {selfServiceLeaveAvailable && (
-          <section aria-labelledby="leave-organization-heading">
-            <h2 id="leave-organization-heading" className="mb-3 text-base font-semibold">
-              Leave this organization
-            </h2>
-            <LeaveOrganizationDialog
-              outstanding={
-                outstandingUnavailable ? null : (outstandingResult?.outstanding ?? null)
-              }
-              candidates={successorCandidates}
-              isSoleAccountAdmin={isSoleAccountAdmin}
-              selfServiceLeaveAvailable={selfServiceLeaveAvailable}
-              leaveOrganization={leaveMutation}
-            />
-          </section>
+          <LeaveOrganizationSection
+            members={members}
+            currentUserId={user.id}
+            role={role}
+          />
         )}
       </div>
 
