@@ -285,6 +285,29 @@ describe.sequential('Portal working copy (real PostgreSQL)', () => {
     expect(source?.links.map((link) => link.imageAssetId)).toEqual([null, null])
   })
 
+  it('reads the label of a link renamed after its primary text was written', async () => {
+    await seedPortalWorkingCopy(getPool(), COMPLETE_SCENARIO)
+    // Old code renamed the link and knew nothing of the text row.
+    await getPool().query(
+      `UPDATE portal_links SET label = 'Renamed by old code', updated_at = $1
+        WHERE id = 'c4000000-0000-4000-8000-000000000001'`,
+      [EDITED_AT],
+    )
+
+    const source = await publishRead(COMPLETE_SCENARIO)
+
+    const menu = source?.links.find(
+      (link) => link.id === 'c4000000-0000-4000-8000-000000000001',
+    )
+    expect(menu?.texts.bg).toEqual({
+      label: 'Renamed by old code',
+      line: 'Закуска до 11',
+      provenance: null,
+    })
+    // Another language is its own text and is never rewritten from the link.
+    expect(menu?.texts.en?.label).toBe('Menu')
+  })
+
   it('lists links in the order of their category, then their own', async () => {
     await seedPortalWorkingCopy(getPool(), COMPLETE_SCENARIO)
     await getPool().query(

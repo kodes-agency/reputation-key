@@ -34,6 +34,7 @@ import {
 } from '../src/shared/db/schema'
 import { propertyResponsibleManagers } from '../src/shared/db/schema/property.schema'
 import { buildPortalPublicationSnapshot } from '../src/contexts/portal/application/portal-publication-snapshot'
+import { OFFERED_GUEST_LOCALES } from '../src/shared/domain/guest-locale'
 import { snapshotMirrorColumns } from '../src/contexts/portal/infrastructure/mappers/portal-publication-snapshot.mapper'
 import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../src/contexts/portal/domain/approved-destination'
 import { portalGroups } from '../src/shared/db/schema/portal-group.schema'
@@ -554,7 +555,7 @@ async function publishPortalSnapshot(input: {
       // `?locale=bg` fall back to English: correct product behaviour, and a
       // fixture that can never exercise the other locale.
       primaryGuestLocale: 'en',
-      localeSet: ['en', 'bg'],
+      localeSet: [...OFFERED_GUEST_LOCALES],
       linktreeEnabled: true,
       timeZone: 'America/New_York',
       // No Brand Profile is seeded, so the page wears the default look.

@@ -83,7 +83,11 @@ export const createInMemoryPortalLinkRepo = (): InMemoryPortalLinkRepo => {
             ) || a.sortKey.localeCompare(b.sortKey),
         )
       return resolveLinkTexts({
-        links: links.map((l) => ({ id: String(l.id), label: l.label })),
+        links: links.map((l) => ({
+          id: String(l.id),
+          label: l.label,
+          updatedAt: l.updatedAt,
+        })),
         texts: [...textStore.values()],
         primaryLocale,
       })

@@ -114,7 +114,11 @@ export const createPortalLinkRepository = (
   listLinkTexts: async (orgId, portalId, primaryLocale) => {
     return trace('portalLink.listLinkTexts', async () => {
       const links = await db
-        .select({ id: portalLinks.id, label: portalLinks.label })
+        .select({
+          id: portalLinks.id,
+          label: portalLinks.label,
+          updatedAt: portalLinks.updatedAt,
+        })
         .from(portalLinks)
         .innerJoin(
           portalLinkCategories,
