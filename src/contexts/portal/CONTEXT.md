@@ -125,7 +125,10 @@ hidden in a segment do not survive, and the original is never stored.
 - **References**: the Brand Profile's `logo_asset_id`, `hero_asset_id` (with
   `hero_focal_x/y`, present exactly when there is a hero) and a link's
   `image_asset_id` are composite foreign keys to an asset of the same
-  Organization and Property. Nothing reads or writes them yet.
+  Organization and Property. Nothing reads or writes them yet. The database does
+  not tie a reference to the asset's **purpose**: whatever writes one of these
+  columns must call `canReferencePortalMediaAsset(slot, asset)`, so a link
+  picture cannot stand in as the hero and skip the hero's size and byte budget.
 
 `portal.upload` remains safety-blocked in this slice; ADR 0062 records the
 decision to switch it on with the technical safeguards above and without a

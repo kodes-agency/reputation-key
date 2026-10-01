@@ -52,7 +52,11 @@ design rather than a checklist.
    of the stored bytes, the format the upload arrived in, and when its uploader
    confirmed the rights. The Brand Profile gains `logo_asset_id`,
    `hero_asset_id` and a focal point; a link gains `image_asset_id`. Each is a
-   composite foreign key to an asset of the same Organization and Property.
+   composite foreign key to an asset of the same Organization and Property. The
+   key does not carry the purpose, so every writer of these columns must check
+   it with `canReferencePortalMediaAsset` (a link picture is encoded at up to 1200 px, a
+   hero at up to 2400 px with a larger minimum; the purpose chose the policy the
+   image passed).
 6. **Snapshots name assets by id, with no foreign key.** A guest-facing URL is
    made when the page is read, so a takedown stops an image being served without
    rewriting an immutable snapshot.

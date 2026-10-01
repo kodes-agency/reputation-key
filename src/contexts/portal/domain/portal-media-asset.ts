@@ -43,3 +43,25 @@ export const MAX_PORTAL_MEDIA_ASSETS_PER_PROPERTY = 200
 /** Whether the asset may be served to a guest. */
 export const isServablePortalMediaAsset = (asset: Pick<PortalMediaAsset, 'status'>) =>
   asset.status === 'active'
+
+/**
+ * The columns that may point at an asset, and the purpose each one takes. The
+ * database ties a reference to an asset of the same Organization and Property
+ * but not to its purpose, so whatever writes one of these columns must ask
+ * `canReferencePortalMediaAsset` first: a link picture accepted as the hero
+ * would skip the hero's minimum size, aspect and byte budget.
+ */
+export const PORTAL_MEDIA_REFERENCE_SLOTS = Object.freeze({
+  brand_hero: 'hero',
+  brand_logo: 'logo',
+  link_image: 'link_image',
+} as const satisfies Record<string, PortalMediaPurpose>)
+export type PortalMediaReferenceSlot = keyof typeof PORTAL_MEDIA_REFERENCE_SLOTS
+
+/** Whether `slot` may refer to this asset: the purpose it was uploaded for, and still servable. */
+export const canReferencePortalMediaAsset = (
+  slot: PortalMediaReferenceSlot,
+  asset: Pick<PortalMediaAsset, 'purpose' | 'status'>,
+): boolean =>
+  asset.purpose === PORTAL_MEDIA_REFERENCE_SLOTS[slot] &&
+  isServablePortalMediaAsset(asset)
