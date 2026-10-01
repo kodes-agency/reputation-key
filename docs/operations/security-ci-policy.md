@@ -142,7 +142,11 @@ drizzle-kit` — build tooling, reported). Full tree: 11 high, 0 critical —
   `3.5.7-1~deb13u3` in every base stage, not excepted (bumped from
   `~deb13u2` on 2026-09-30 for DSA-6531-1, whose three High CVEs —
   CVE-2026-72897 / -84782 / -84784 — failed every image scan once grype's
-  database listed them). The families Debian
+  database listed them). The same three are fixed in the provider Redis by
+  installing Alpine's `libssl3`/`libcrypto3` 3.3.7-r2 over the pinned
+  upstream build until upstream rebuilds on it. One more entry,
+  CVE-2026-102010 (gcc-14 runtime libraries), has no fix in any Debian
+  release yet. The families Debian
   marks won't-fix (perl-base, glibc, util-linux, zlib, gzip, ncurses, libacl,
   sqlite, pcre2) are the same on trixie as they were on bookworm; their
   reachable surface stays removed (npm CLI stripped, setuid/setgid bits
