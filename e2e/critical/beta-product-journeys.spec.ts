@@ -280,12 +280,14 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     // point of the gateway, a Portal with no secondary destinations is a
     // perfectly valid one. The journey still builds a link tree, because the
     // rotation and guest-facing assertions below need something to lay out.
-    const category = await callServerFn<{ category: { id: string } }>(page, {
-      file: 'src/contexts/portal/server/portal-link-categories.ts',
-      exportName: 'createLinkCategory',
-      data: { portalId: created.portal.id, title: 'E2E Rotating Links' },
+    // Categories are gone from the editor (s28), so the step touches the
+    // Linktree itself: its switch.
+    const linktree = await callServerFn<{ saved: boolean }>(page, {
+      file: 'src/contexts/portal/server/portal-links.ts',
+      exportName: 'saveLinktreeSettings',
+      data: { portalId: created.portal.id, enabled: true },
     })
-    expect(category.category.id).toBeTruthy()
+    expect(linktree.saved).toBe(true)
 
     // No link is created here, and that is an ENVIRONMENT limit rather than a
     // choice. `createLink` resolves the destination through
