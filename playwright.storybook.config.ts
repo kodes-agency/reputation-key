@@ -73,7 +73,18 @@ export default defineConfig({
   retries: 0,
   reporter: [
     ['list'],
-    ['json', { outputFile: 'test-results/storybook-metrics/report.json' }],
+    // `STORYBOOK_METRICS_REPORT` moves the file: `scripts/e2e/guest-quality.sh`
+    // runs two halves in a row and gives each its own, so the second does not
+    // overwrite the first's report. (Failure traces and screenshots are moved
+    // the same way, with `--output`.)
+    [
+      'json',
+      {
+        outputFile:
+          process.env.STORYBOOK_METRICS_REPORT ??
+          'test-results/storybook-metrics/report.json',
+      },
+    ],
   ],
   // Isolated from `test-results/playwright` so neither config's cleanup
   // deletes the other's evidence.

@@ -13,6 +13,7 @@ beforeAll(() => {
   outside = join(base, 'secret.txt')
   mkdirSync(join(root, 'assets'), { recursive: true })
   writeFileSync(join(root, 'index.html'), '<p>home</p>')
+  writeFileSync(join(root, 'iframe.html'), '<p>story</p>')
   writeFileSync(join(root, 'assets', 'app.js'), 'x')
   writeFileSync(join(root, 'my file.txt'), 'x')
   writeFileSync(outside, 'secret')
@@ -32,7 +33,9 @@ describe('resolveStaticFile', () => {
   })
 
   test('drops the query string', () => {
-    expect(resolveStaticFile(root, '/iframe?id=a&viewMode=story')).toBeNull()
+    expect(resolveStaticFile(root, '/iframe.html?id=a&viewMode=story')).toBe(
+      join(root, 'iframe.html'),
+    )
     expect(resolveStaticFile(root, '/assets/app.js?v=2')).toBe(
       join(root, 'assets', 'app.js'),
     )

@@ -31,10 +31,18 @@ pnpm exec storybook build --quiet -o "$production"
 NODE_ENV=development pnpm exec storybook build --quiet -o "$development"
 
 # Both halves run even when the first is red: a gate that stops at its first
-# failure hides the second one's.
+# failure hides the second one's. Each half has its own artifacts directory and
+# its own JSON report: Playwright empties its output directory at the start of a
+# run, and a shared one would delete the geometry half's failure traces and
+# screenshots as the vitals half began.
+results=test-results/storybook-metrics
 status=0
 STORYBOOK_METRICS_STATIC="$development" \
-  pnpm exec playwright test --config=playwright.storybook.config.ts guest-immersive || status=1
+STORYBOOK_METRICS_REPORT="$results/report-geometry.json" \
+  pnpm exec playwright test --config=playwright.storybook.config.ts guest-immersive \
+  --output "$results/artifacts-geometry" || status=1
 STORYBOOK_METRICS_STATIC="$production" \
-  pnpm exec playwright test --config=playwright.storybook.config.ts guest-vitals || status=1
+STORYBOOK_METRICS_REPORT="$results/report-vitals.json" \
+  pnpm exec playwright test --config=playwright.storybook.config.ts guest-vitals \
+  --output "$results/artifacts-vitals" || status=1
 exit "$status"
