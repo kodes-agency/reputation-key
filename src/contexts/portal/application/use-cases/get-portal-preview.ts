@@ -15,7 +15,7 @@
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PropertyFactsPublicApi } from '#/contexts/property/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { portalId } from '#/shared/domain/ids'
+import { portalId, portalMediaAssetId } from '#/shared/domain/ids'
 import { IMMERSIVE_HUB_SCHEMA_VERSION } from '../../domain/portal-publication-snapshot'
 import { buildPortalLinktreeView } from '../../domain/portal-linktree-view'
 import { APPROVED_DESTINATION_MAX_VALIDATION_AGE_MS } from '../approved-destination-age'
@@ -28,6 +28,7 @@ import {
 } from '../portal-preview'
 import type { PortalApprovedDestinationRepository } from '../ports/portal-approved-destination.repository'
 import type { PortalExperienceRepository } from '../ports/portal-experience.repository'
+import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.repository'
 import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
 import type { PortalRepository } from '../ports/portal.repository'
@@ -46,6 +47,8 @@ export type GetPortalPreviewDeps = Readonly<{
   >
   destinationRepo: Pick<PortalApprovedDestinationRepository, 'list' | 'listApprovedUris'>
   publicationRepo: Pick<PortalPublicationRepository, 'findActiveForPortal'>
+  /** Which tile pictures may still be served: a taken-down one is not shown as the tile's photo. */
+  mediaRepo: Pick<PortalMediaAssetRepository, 'listServableIds'>
   propertyFacts: Pick<PropertyFactsPublicApi, 'getPropertyTimezone'>
   staffPublicApi: StaffPublicApi
   clock: () => Date
@@ -107,6 +110,17 @@ export const getPortalPreview =
         deps.destinationRepo.list(ctx.organizationId, portal.propertyId),
         deps.propertyFacts.getPropertyTimezone(ctx.organizationId, portal.propertyId),
       ])
+    const pictureIds = links.flatMap((link) =>
+      link.imageAssetId ? [portalMediaAssetId(String(link.imageAssetId))] : [],
+    )
+    const servable =
+      pictureIds.length === 0
+        ? []
+        : await deps.mediaRepo.listServableIds(
+            ctx.organizationId,
+            portal.propertyId,
+            pictureIds,
+          )
     const linktree = buildPortalLinktreeView({
       portal,
       categories,
@@ -114,6 +128,7 @@ export const getPortalPreview =
       texts,
       titles: overrides,
       destinations,
+      servableImageIds: new Set(servable.map(String)),
     })
     return {
       status: 'ready',

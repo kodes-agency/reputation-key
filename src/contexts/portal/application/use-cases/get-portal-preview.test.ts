@@ -103,6 +103,7 @@ function setup(options: Options = {}) {
   const useCase = getPortalPreview({
     portalRepo,
     portalLinkRepo,
+    mediaRepo: { listServableIds: async () => [] },
     experienceRepo: {
       getPropertyExperience: async () => ({
         profile: null,

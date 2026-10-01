@@ -103,6 +103,7 @@ function draft(options: DraftOptions = {}): PortalPreview {
     sortKey: 'a1',
   })
   const linktree = buildPortalLinktreeView({
+    servableImageIds: new Set<string>(),
     portal,
     categories: [category],
     links: [menu, spa],
@@ -164,6 +165,7 @@ function draftWithSpaDestination(
   return buildDraftPortalPreview({
     portal,
     linktree: buildPortalLinktreeView({
+      servableImageIds: new Set<string>(),
       portal,
       categories: [category],
       links: [spa],
@@ -319,6 +321,7 @@ describe('buildDraftPortalPreview', () => {
     const preview = draft({
       portal,
       linktree: buildPortalLinktreeView({
+        servableImageIds: new Set<string>(),
         portal,
         categories: [],
         links: [],
@@ -408,6 +411,7 @@ describe('buildDraftPortalPreview', () => {
     const preview = draft({
       portal,
       linktree: buildPortalLinktreeView({
+        servableImageIds: new Set<string>(),
         portal,
         categories: [],
         links: [],
@@ -425,6 +429,7 @@ describe('buildDraftPortalPreview', () => {
     const preview = draft({
       portal,
       linktree: buildPortalLinktreeView({
+        servableImageIds: new Set<string>(),
         portal,
         categories: [],
         links: [],

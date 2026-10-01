@@ -44,6 +44,7 @@ const { getPool } = setupIntegrationDb({
     'portal_localized_overrides',
     'portal_links',
     'portal_link_categories',
+    'portal_page_edits',
     'portal_media_assets',
     'portal_responsible_managers',
     'outbox_events',
@@ -183,7 +184,7 @@ beforeEach(async () => {
   await store().createPortal({
     organizationId: ORG_A,
     portal,
-    initialResponsibleManagerId: MANAGER,
+    initialResponsibleManagerIds: [MANAGER],
     event: portalCreated({
       portalId: portal.id,
       organizationId: ORG_A,
