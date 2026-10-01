@@ -120,6 +120,14 @@ export function PropertyLookPage(props: PropertyLookPageProps) {
   )
 }
 
+function useSelectedPortal(affected: ReturnType<typeof affectedPortals>) {
+  const [chosenId, setChosenId] = useState<string | null>(null)
+  const selected =
+    affected.listed.find((row) => row.portalId === chosenId) ?? affected.listed[0] ?? null
+  const previewPortal = selected ? { id: selected.portalId, name: selected.name } : null
+  return { selectedId: selected?.portalId ?? null, previewPortal, setChosenId }
+}
+
 function PropertyLookEditor({
   propertyId,
   propertyName,
@@ -141,11 +149,8 @@ function PropertyLookEditor({
   const { draft, setDraft, locales, setLocales, problem, state, retry } =
     usePropertyLookDraft(propertyId, profile, { saveLook, saveLocales })
   const affected = affectedPortals(rows)
-  const [chosenId, setChosenId] = useState<string | null>(null)
   const [showPhoto, setShowPhoto] = useState(true)
-  const selected =
-    affected.listed.find((row) => row.portalId === chosenId) ?? affected.listed[0] ?? null
-  const previewPortal = selected ? { id: selected.portalId, name: selected.name } : null
+  const { selectedId, previewPortal, setChosenId } = useSelectedPortal(affected)
   const previewData = usePropertyLookPreview(previewPortal, getPortalPreview)
   const { media, photo, logo } = usePropertyLookMediaControls({
     propertyId,
@@ -230,7 +235,7 @@ function PropertyLookEditor({
         <aside className={SIDE_COLUMN}>
           <PropertyLookPortals
             affected={affected}
-            selectedId={selected?.portalId ?? null}
+            selectedId={selectedId}
             onSelect={setChosenId}
           />
         </aside>
