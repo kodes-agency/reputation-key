@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
 import {
   buildGuestResponseHandlers,
@@ -8,6 +8,7 @@ import type {
   ImmersiveResponseFailure,
   ImmersiveResponseNotice,
 } from './immersive-response-types'
+import { setBrowserExceptionCapture } from '#/shared/observability/browser-exception-capture'
 import { NONCE, RATED, TOKEN } from './__fixtures__/immersive-public-portal-fixtures'
 
 const SESSION = { token: TOKEN, csrfNonce: NONCE }
@@ -54,6 +55,38 @@ function harness(
   })
   return { actions, handlers, seen }
 }
+
+describe('a call that fails', () => {
+  afterEach(() => setBrowserExceptionCapture(undefined))
+
+  it('is reported, not swallowed, while the guest still sees the card failure', async () => {
+    const captured: unknown[] = []
+    setBrowserExceptionCapture((error) => captured.push(error))
+    const failure = new Error('the server said no')
+    const { handlers, seen } = harness({
+      submitResponse: vi.fn(async () => Promise.reject(failure)),
+    })
+
+    await handlers.onSubmitRating({ rating: 5, honeypot: '' })
+
+    expect(captured).toEqual([failure])
+    expect(lastOf(seen.failures)).toBe('rating')
+  })
+
+  it('leaves a refusal the server meant (a 4xx) out of the report', async () => {
+    const captured: unknown[] = []
+    setBrowserExceptionCapture((error) => captured.push(error))
+    const refusal = Object.assign(new Error('too many tries'), { status: 429 })
+    const { handlers, seen } = harness({
+      submitResponse: vi.fn(async () => Promise.reject(refusal)),
+    })
+
+    await handlers.onSubmitRating({ rating: 5, honeypot: '' })
+
+    expect(captured).toEqual([])
+    expect(lastOf(seen.failures)).toBe('rating')
+  })
+})
 
 const rejecting = () => vi.fn(async () => Promise.reject(new Error('the server said no')))
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0))

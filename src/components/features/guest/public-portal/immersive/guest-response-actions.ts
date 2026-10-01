@@ -11,6 +11,8 @@
 
 import type { GuestResponseView } from '#/contexts/guest/application/use-cases/guest-response-lifecycle'
 import type { GuestResponseFormProps } from '../guest-response-form-types'
+import { captureBrowserException } from '#/shared/observability/browser-exception-capture'
+import { isExpectedRefusal } from '#/shared/security/expected-refusal'
 import { isHttpsUrl } from './linktree-follow'
 import type { NoteSubmission } from './immersive-note-card'
 import type { RatingSubmission } from './immersive-rating-card'
@@ -75,7 +77,10 @@ export function buildGuestResponseHandlers(
     input.setNotice(null)
     try {
       return await call()
-    } catch {
+    } catch (error) {
+      // The guest sees the card's message; a failure the server did not mean
+      // (not a 4xx refusal) is also reported, so a systematic one is visible.
+      if (!isExpectedRefusal(error)) captureBrowserException(error)
       input.setFailure(failure)
       return null
     }
