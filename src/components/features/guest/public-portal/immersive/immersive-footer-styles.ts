@@ -88,6 +88,10 @@ export const IMMERSIVE_FOOTER_CSS = `
 .ih-root .ih-footer__ack:hover .ih-footer__ack-pill { border-color: rgba(255, 255, 255, 0.6); }
 .ih-root .ih-footer__ack:active .ih-footer__ack-pill { transform: scale(0.97); }
 
+.ih-root .ih-footer__ack--inert { cursor: default; }
+.ih-root .ih-footer__ack--inert:hover .ih-footer__ack-pill { border-color: rgba(255, 255, 255, 0.32); }
+.ih-root .ih-footer__ack--inert:active .ih-footer__ack-pill { transform: none; }
+
 @media (prefers-reduced-motion: reduce) {
   .ih-root .ih-footer__ack-pill { transition: none; }
   .ih-root .ih-footer__ack:active .ih-footer__ack-pill { transform: none; }

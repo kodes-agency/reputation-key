@@ -15,7 +15,7 @@ export type GuestLanguageSwitcherProps = Readonly<{
   /** The portal's own languages, in its order, the selected one included. */
   locales: readonly GuestLocale[]
   selectedLocale: GuestLocale
-  /** The public token. Omitted only by a manager's preview, which gets no switcher. */
+  /** The public token. A manager's preview has none: it draws `InertLanguageChip` instead. */
   token: string | undefined
   /** The public channel marker, kept when the guest switches language. */
   accessArtifactId: string | undefined
@@ -74,9 +74,7 @@ function LanguageChipAndSheet({
         aria-label={chipAccessibleName(selectedLocale, copy)}
         onClick={open}
       >
-        <Globe size={16} strokeWidth={1.6} aria-hidden="true" />
-        <span>{chipCode(selectedLocale)}</span>
-        <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
+        <ChipFace selectedLocale={selectedLocale} />
       </button>
       <LanguageSheet
         ref={dialogRef}
@@ -86,5 +84,39 @@ function LanguageChipAndSheet({
         onClosed={handleClosed}
       />
     </>
+  )
+}
+
+function ChipFace({ selectedLocale }: Readonly<{ selectedLocale: GuestLocale }>) {
+  return (
+    <>
+      <Globe size={16} strokeWidth={1.6} aria-hidden="true" />
+      <span>{chipCode(selectedLocale)}</span>
+      <ChevronDown size={14} strokeWidth={2} aria-hidden="true" />
+    </>
+  )
+}
+
+/**
+ * The chip as the admin's preview draws it: the same face, but not a control. It
+ * opens no sheet and holds no dialog, because the preview has its own language
+ * switch and a guest-page control that answered to nothing would mislead. The
+ * caller decides whether the portal offers a choice (`offersLanguageChoice`).
+ */
+export function InertLanguageChip({
+  selectedLocale,
+  copy,
+}: Readonly<{
+  selectedLocale: GuestLocale
+  copy: Pick<LanguageSwitcherCopy, 'languageChipLabel'>
+}>) {
+  return (
+    <span
+      className={glassClassName('chip', 'ih-chip')}
+      role="img"
+      aria-label={chipAccessibleName(selectedLocale, copy)}
+    >
+      <ChipFace selectedLocale={selectedLocale} />
+    </span>
   )
 }

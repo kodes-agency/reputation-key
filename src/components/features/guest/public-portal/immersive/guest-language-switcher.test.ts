@@ -6,6 +6,7 @@ import { bgV2 } from '../language-packs/bg-v2'
 import { enV2 } from '../language-packs/en-v2'
 import {
   GuestLanguageSwitcher,
+  InertLanguageChip,
   type GuestLanguageSwitcherProps,
 } from './guest-language-switcher'
 
@@ -128,5 +129,30 @@ describe('GuestLanguageSwitcher: the sheet', () => {
 
   it('explains when the page opens in the phone’s language', () => {
     expect(html).toContain('This page opens in your phone’s language when it has it.')
+  })
+})
+
+describe('InertLanguageChip (the admin preview)', () => {
+  const inert = (locale: GuestLocale = 'en') =>
+    renderToStaticMarkup(
+      createElement(InertLanguageChip, {
+        selectedLocale: locale,
+        copy: locale === 'bg' ? bgV2.copy : enV2.copy,
+      }),
+    )
+
+  it('draws the chip a guest sees, with its code and its name', () => {
+    const html = inert()
+    expect(html).toContain('ih-chip')
+    expect(html).toContain('>EN<')
+    expect(html).toContain('aria-label="EN, Language: English"')
+    expect(inert('bg')).toContain('>БГ<')
+  })
+
+  it('opens nothing: no button, no sheet, no dialog', () => {
+    const html = inert()
+    expect(html).not.toContain('<button')
+    expect(html).not.toContain('<dialog')
+    expect(html).not.toContain('aria-haspopup')
   })
 })
