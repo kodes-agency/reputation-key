@@ -608,6 +608,9 @@ test.describe('Critical: beta-local-1 product journeys', () => {
      * projections.
      */
 
+    // Goal results stay "reconciling" for 24 hours after an interval ends
+    // (GOAL_RECONCILIATION_DELAY_MS), so in the first 25 hours of a property's
+    // month the facts go into the interval before the previous one.
     const [period] = await dbQuery<{
       period_start: Date
       period_end: Date
@@ -615,17 +618,25 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       property_local_date: string
     }>(
       `SELECT
-         ((date_trunc('month', now() AT TIME ZONE timezone) - interval '1 month')
+         ((date_trunc('month', now() AT TIME ZONE timezone) - shift.months_back)
            AT TIME ZONE timezone) AS period_start,
-         (date_trunc('month', now() AT TIME ZONE timezone)
-           AT TIME ZONE timezone) AS period_end,
-         ((date_trunc('month', now() AT TIME ZONE timezone) - interval '1 month'
+         ((date_trunc('month', now() AT TIME ZONE timezone) - shift.months_back
+           + interval '1 month') AT TIME ZONE timezone) AS period_end,
+         ((date_trunc('month', now() AT TIME ZONE timezone) - shift.months_back
            + interval '12 hours') AT TIME ZONE timezone) AS occurred_at,
          to_char(
-           date_trunc('month', now() AT TIME ZONE timezone) - interval '1 month',
+           date_trunc('month', now() AT TIME ZONE timezone) - shift.months_back,
            'YYYY-MM-DD'
          ) AS property_local_date
        FROM properties
+       CROSS JOIN LATERAL (
+         SELECT CASE
+           WHEN now() < (date_trunc('month', now() AT TIME ZONE timezone)
+             AT TIME ZONE timezone) + interval '25 hours'
+           THEN interval '2 months'
+           ELSE interval '1 month'
+         END AS months_back
+       ) AS shift
        WHERE organization_id = $1 AND id = $2::uuid`,
       [seed.organizationId, seed.p1PropertyId],
     )
