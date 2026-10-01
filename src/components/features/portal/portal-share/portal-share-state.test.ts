@@ -274,6 +274,20 @@ describe('derivePortalShareView — a code made in this session', () => {
   })
 })
 
+describe('derivePortalShareView — a code made here, once tokenStatus has caught up', () => {
+  it('reads the day tokenStatus recorded, not the clock', () => {
+    const view = derivePortalShareView({
+      canManage: true,
+      revoked: false,
+      publicUrl: PUBLIC_URL,
+      tokenStatus: LIVE_TOKEN,
+      issuedVersion: 3,
+      now: new Date('2026-09-30T08:00:00Z'),
+    })
+    expect(view.madeLabel).toBe('4 Jan 2026')
+  })
+})
+
 describe('derivePortalShareView — who made the code', () => {
   const NAMED: PortalTokenStatus = { ...LIVE_TOKEN, madeBy: 'Georgi Ivanov' }
   const madeBy = (input: Partial<Parameters<typeof derivePortalShareView>[0]>) =>
@@ -296,6 +310,19 @@ describe('derivePortalShareView — who made the code', () => {
   it('does not credit the stale code maker with a code made in this session', () => {
     // tokenStatus has not refetched: it still describes the code that was replaced.
     expect(madeBy({ publicUrl: PUBLIC_URL })).toBeNull()
+  })
+
+  it('names the maker once tokenStatus has refetched and describes the code made here', () => {
+    // Issue/replace return the new code's version; the refetched tokenStatus
+    // reaching that version is what proves it no longer describes the old code.
+    expect(madeBy({ publicUrl: PUBLIC_URL, issuedVersion: 3 })).toBe('Georgi Ivanov')
+  })
+
+  it('still credits nobody while tokenStatus describes the code that was replaced', () => {
+    expect(madeBy({ publicUrl: PUBLIC_URL, issuedVersion: 4 })).toBeNull()
+    expect(
+      madeBy({ publicUrl: PUBLIC_URL, issuedVersion: 1, tokenStatus: NO_TOKEN }),
+    ).toBeNull()
   })
 
   it('keeps the maker for an address fetched again, which belongs to the described code', () => {

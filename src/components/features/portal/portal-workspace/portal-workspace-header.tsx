@@ -39,8 +39,9 @@ export type PortalWorkspaceHeaderProps = Readonly<{
    */
   saveStatus?: ReactNode
   /**
-   * "Open page" (`PortalOpenPageButton`), a slot like `saveStatus`. Absent in
-   * review mode, where the header is a focused step.
+   * "Open page" (`PortalOpenPageControl`), a slot like `saveStatus`. It sits
+   * after the save status and the pending note, right before "Review & publish".
+   * Absent in review mode, where the header is a focused step.
    */
   openPage?: ReactNode
 }>
@@ -79,7 +80,6 @@ export function PortalWorkspaceHeader(props: PortalWorkspaceHeaderProps) {
         </div>
         <p className="truncate text-xs text-muted-foreground">{propertyName}</p>
       </div>
-      {reviewing ? null : props.openPage}
       {reviewing ? null : <ReviewActions {...props} />}
     </header>
   )
@@ -93,6 +93,7 @@ function ReviewActions({
   activeTab,
   activeSection,
   saveStatus,
+  openPage,
 }: PortalWorkspaceHeaderProps) {
   if (!canReview) {
     return (
@@ -101,6 +102,7 @@ function ReviewActions({
         {pendingNote === null ? null : (
           <p className="text-sm text-muted-foreground">{pendingNote}</p>
         )}
+        {openPage}
       </div>
     )
   }
@@ -117,6 +119,7 @@ function ReviewActions({
           {pendingNote}
         </Link>
       )}
+      {openPage}
       <Button asChild className="min-h-11 sm:min-h-9">
         <Link
           to="/properties/$propertyId/portals/$portalId/review"

@@ -314,7 +314,9 @@ keyring still holds the key that sealed the live code. Without a keyring the
 address is shown once, when a code is made, as before. The same reveal, for the
 purpose `show`, backs the workspace header's "Open page", which opens the bare
 `/p/<token>` address (no scan marker) in a new tab and is offered only for a live
-portal with a recoverable live code; otherwise it links to Share. The token status
+portal with a recoverable live code (an address already held in the browser opens
+with no reveal); otherwise it links to Share, and it is absent for a caller
+without `portal.update` and `portal.write`, and on the Share tab itself. The token status
 also carries `madeBy`, the display name of the person `issued_by` recorded for the
 live code (an operator reads as the fixed label; null when unknown), which Share
 words as "Made 12 Mar by …". Only `getPortal` resolves it.

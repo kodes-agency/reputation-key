@@ -10,7 +10,6 @@ import { PortalWorkspaceShell } from './portal-workspace-shell'
 import { PortalWorkspaceTabs } from './portal-workspace-tabs'
 import type { Action } from '#/components/hooks/use-action'
 import type { PortalShareMutations } from '../portal-share/portal-share-types'
-import type { OpenPageMode } from './portal-open-page'
 import type { PortalDetailTab } from '../portal-detail/portal-detail-rules'
 import type { PortalEditorSection } from '../portal-editor/portal-editor-sections'
 
@@ -40,7 +39,7 @@ type FrameProps = Readonly<{
   activeTab: PortalDetailTab
   activeSection?: PortalEditorSection
   hiddenTabs: ReadonlyArray<PortalDetailTab>
-  openPageMode: OpenPageMode
+  openPageMode: 'reveal' | 'share'
 }>
 
 function Frame({
@@ -227,13 +226,47 @@ export const ViewerWhoCannotPublish: Story = {
   },
 }
 
+// The boards put it after the save status and the pending note, right before
+// "Review & publish"; a viewer, who has no publish button, still gets it last.
+function precedes(first: HTMLElement, second: HTMLElement): boolean {
+  return Boolean(first.compareDocumentPosition(second) & Node.DOCUMENT_POSITION_FOLLOWING)
+}
+
+export const OpenPageSitsBeforeReviewAndPublish: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const saved = canvas.getByText('Draft saved')
+    const note = canvas.getByRole('link', { name: '2 changes not live' })
+    const open = canvas.getByRole('button', { name: /^Open page/ })
+    const review = canvas.getByRole('link', { name: 'Review & publish' })
+    await expect(precedes(saved, note)).toBe(true)
+    await expect(precedes(note, open)).toBe(true)
+    await expect(precedes(open, review)).toBe(true)
+  },
+}
+
+export const OpenPageSitsAfterTheNoteForAViewer: Story = {
+  args: { canReview: false },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const note = canvas.getByText('2 changes not live')
+    await expect(precedes(note, canvas.getByRole('button', { name: /^Open page/ }))).toBe(
+      true,
+    )
+  },
+}
+
 // The address can be had again: "Open page" is a button, not a link, because it
 // has to fetch the address first.
 export const OpenPageForALivePortal: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('button', { name: 'Open page' })).toBeEnabled()
-    await expect(canvas.queryByRole('link', { name: 'Open page' })).toBeNull()
+    await expect(canvas.getByRole('button', { name: /^Open page/ })).toBeEnabled()
+    await expect(canvas.queryByRole('link', { name: /^Open page/ })).toBeNull()
+    // A new tab opens, and assistive technology is told so.
+    await expect(canvas.getByRole('button', { name: /^Open page/ })).toHaveAccessibleName(
+      'Open page (opens in a new tab)',
+    )
   },
 }
 
@@ -251,7 +284,7 @@ export const OpenPageRevealsForShowAndOpensTheBarePage: Story = {
     revealCalls.length = 0
     try {
       await userEvent.click(
-        within(canvasElement).getByRole('button', { name: 'Open page' }),
+        within(canvasElement).getByRole('button', { name: /^Open page/ }),
       )
       await waitFor(() => expect(sent).toHaveLength(1))
     } finally {
@@ -268,11 +301,14 @@ export const OpenPageLeadsToShareWhenItCannotReveal: Story = {
   args: { openPageMode: 'share' },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByRole('link', { name: 'Open page' })).toHaveAttribute(
+    const link = canvas.getByRole('link', { name: /^Open page/ })
+    await expect(link).toHaveAttribute(
       'href',
       `/properties/${PROPERTY_ID}/portals/${PORTAL_ID}?tab=share`,
     )
-    await expect(canvas.queryByRole('button', { name: 'Open page' })).toBeNull()
+    // It stays in the app, so it says where it goes rather than promising a new tab.
+    await expect(link).toHaveAccessibleName('Open page: get its address in Share')
+    await expect(canvas.queryByRole('button', { name: /^Open page/ })).toBeNull()
   },
 }
 
@@ -295,7 +331,7 @@ export const ReviewMode: Story = {
       canvas.queryByRole('link', { name: 'Review & publish' }),
     ).not.toBeInTheDocument()
     // The review is a focused step; the page opens from the editor.
-    await expect(canvas.queryByRole('button', { name: 'Open page' })).toBeNull()
-    await expect(canvas.queryByRole('link', { name: 'Open page' })).toBeNull()
+    await expect(canvas.queryByRole('button', { name: /^Open page/ })).toBeNull()
+    await expect(canvas.queryByRole('link', { name: /^Open page/ })).toBeNull()
   },
 }

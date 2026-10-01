@@ -8,22 +8,35 @@
 // where the address is shown or made.
 
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
+import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
+import { isServerFunctionError } from '#/shared/auth/server-function-error'
+import type { PortalDetailTab } from '../portal-detail/portal-detail-rules'
 import { directPortalAddress } from '../portal-share/portal-share-state'
 import type { PortalPublicationState } from '../shared/types'
 
-export type OpenPageMode = 'reveal' | 'share'
+/** `hidden`: nothing useful to offer (no permission, or Share is already on screen). */
+export type OpenPageMode = 'reveal' | 'share' | 'hidden'
 
 export function deriveOpenPageMode(
   input: Readonly<{
-    /** `portal.update` and the `portal.write` capability: what the reveal needs. */
-    canReveal: boolean
+    /** `portal.update`: what the reveal authorizes. */
+    canUpdate: boolean
+    /** The `portal.write` capability: the other half of what the reveal authorizes. */
+    portalWriteEnabled: boolean
     publicationState: PortalPublicationState
     tokenStatus: PortalTokenStatus
+    activeTab: PortalDetailTab
+    /** The address is in memory (made or fetched again here), so no reveal is needed. */
+    hasHeldAddress: boolean
   }>,
 ): OpenPageMode {
-  const { canReveal, publicationState, tokenStatus } = input
-  const live = publicationState === 'published' && tokenStatus.hasActiveToken
-  return canReveal && live && tokenStatus.addressRecoverable ? 'reveal' : 'share'
+  const { publicationState, tokenStatus, hasHeldAddress } = input
+  if (!(input.canUpdate && input.portalWriteEnabled)) return 'hidden'
+  const live =
+    publicationState === 'published' && (tokenStatus.hasActiveToken || hasHeldAddress)
+  if (live && (tokenStatus.addressRecoverable || hasHeldAddress)) return 'reveal'
+  // On Share itself a link to Share would do nothing.
+  return input.activeTab === 'share' ? 'hidden' : 'share'
 }
 
 /**
@@ -58,7 +71,19 @@ export type OpenPageOutcome = 'opened' | 'popup_blocked' | 'unavailable' | 'fail
 export async function openLivePage(deps: {
   openBlankTab: () => BlankTab | null
   reveal: (purpose: 'show') => Promise<Readonly<{ publicUrl: string }>>
+  /**
+   * An address already held in memory (made or fetched again here). It opens
+   * directly: nothing needs revealing, so nothing is disclosed or counted.
+   */
+  heldAddress?: string | null
+  openAddress?: (url: string) => void
 }): Promise<OpenPageOutcome> {
+  const held =
+    deps.heldAddress == null ? null : openablePageAddress({ publicUrl: deps.heldAddress })
+  if (held !== null && deps.openAddress !== undefined) {
+    deps.openAddress(held)
+    return 'opened'
+  }
   const tab = deps.openBlankTab()
   if (tab === null) return 'popup_blocked'
   let address: string | null
@@ -74,4 +99,22 @@ export async function openLivePage(deps: {
   }
   tab.navigate(address)
   return 'opened'
+}
+
+const RATE_LIMITED_MESSAGE =
+  'Too many requests to open the page. Please wait a little before trying again.'
+const ADDRESS_UNAVAILABLE_MESSAGE =
+  'The page could not be opened from here. Open it from the Share tab instead.'
+
+/**
+ * What a refused reveal says for "Open page". The server's own sentences are
+ * written for "Download again" ("Too many downloads…", "This code cannot be
+ * downloaded again…"), which is not what the manager clicked.
+ */
+export function openPageErrorMessage(error: unknown): string {
+  if (isServerFunctionError(error)) {
+    if (error.code === 'rate_limited') return RATE_LIMITED_MESSAGE
+    if (error.code === 'address_unavailable') return ADDRESS_UNAVAILABLE_MESSAGE
+  }
+  return actionErrorMessage(error)
 }

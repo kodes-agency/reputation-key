@@ -50,7 +50,7 @@ export type PortalShareView = Readonly<{
   madeLabel: string | null
   /**
    * Who made the live code, by display name; null when unknown, and for a code
-   * made in this session (`tokenStatus` still describes the one it replaced).
+   * made in this session until `tokenStatus` has caught up with it.
    */
   madeBy: string | null
   graceLabel: string | null
@@ -65,6 +65,12 @@ type ViewInput = Readonly<{
   addressRevealed?: boolean
   /** From the issue or replace result; overrides the stale `tokenStatus` value. */
   addressRecoverable?: boolean
+  /**
+   * The version of the code made in this session (from the issue or replace
+   * result). `tokenStatus` describes it once its own version reaches this one;
+   * until then it still describes the code that was replaced.
+   */
+  issuedVersion?: number | null
   /** The clock; injectable so "made today" is testable. */
   now?: Date
 }>
@@ -93,6 +99,7 @@ export function derivePortalShareView(input: ViewInput): PortalShareView {
     tokenStatus,
     addressRevealed = false,
     addressRecoverable = tokenStatus.addressRecoverable,
+    issuedVersion = null,
     now = new Date(),
   } = input
 
@@ -104,7 +111,14 @@ export function derivePortalShareView(input: ViewInput): PortalShareView {
   // they take precedence.
   const hasActiveToken = !revoked && (publicUrl !== null || tokenStatus.hasActiveToken)
   const canDownloadAgain = canManage && hasActiveToken && addressRecoverable
-  const madeInThisSession = !revoked && publicUrl !== null && !addressRevealed
+  // A code made here is newer than what `tokenStatus` last saw, until its
+  // refetch reaches the version that was made.
+  const tokenStatusCaughtUp =
+    issuedVersion !== null &&
+    tokenStatus.version !== null &&
+    tokenStatus.version >= issuedVersion
+  const madeInThisSession =
+    !revoked && publicUrl !== null && !addressRevealed && !tokenStatusCaughtUp
 
   return {
     showViewOnlyNotice: !canManage,
@@ -116,8 +130,9 @@ export function derivePortalShareView(input: ViewInput): PortalShareView {
     canDownloadAgain,
     showSaveWarning: hasActiveToken && publicUrl !== null && !addressRecoverable,
     showActions: canManage && hasActiveToken,
-    // A code made in this session is newer than whatever tokenStatus last saw;
-    // an address fetched again belongs to the code tokenStatus describes.
+    // While tokenStatus still describes the code that was replaced, the day is
+    // today and the maker is not known to it; an address fetched again belongs
+    // to the code tokenStatus describes.
     madeLabel: madeInThisSession
       ? formatTimestamp(now.toISOString())
       : formatTimestamp(tokenStatus.issuedAt),

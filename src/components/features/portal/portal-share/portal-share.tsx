@@ -43,6 +43,7 @@ export function PortalShare(props: PortalShareProps) {
     tokenStatus: props.tokenStatus,
     addressRevealed: props.issuedLink?.revealed ?? false,
     addressRecoverable: props.issuedLink?.addressRecoverable,
+    issuedVersion: props.issuedLink?.version ?? null,
   })
   const {
     show: showPrintKit,

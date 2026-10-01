@@ -29,8 +29,7 @@ import {
 import { PortalDraftAutosaveProvider } from '#/components/features/portal/portal-editor/portal-draft-autosave-context'
 import { PortalDraftSaveStatus } from '#/components/features/portal/portal-editor/portal-draft-save-status'
 import { PortalLinkIssuanceProvider } from '#/components/features/portal/portal-workspace/portal-link-issuance'
-import { PortalOpenPageButton } from '#/components/features/portal/portal-workspace/portal-open-page-button'
-import { deriveOpenPageMode } from '#/components/features/portal/portal-workspace/portal-open-page'
+import { PortalOpenPageControl } from '#/components/features/portal/portal-workspace/portal-open-page-control'
 import { PortalWorkspaceHeader } from '#/components/features/portal/portal-workspace/portal-workspace-header'
 import { isWorkspaceReviewRoute } from '#/components/features/portal/portal-workspace/portal-workspace-route'
 import { PortalWorkspaceShell } from '#/components/features/portal/portal-workspace/portal-workspace-shell'
@@ -192,14 +191,14 @@ function PortalWorkspaceLayout() {
       activeSection={section}
       saveStatus={<PortalDraftSaveStatus />}
       openPage={
-        <PortalOpenPageButton
+        <PortalOpenPageControl
           propertyId={propertyId}
           portalId={portalId}
-          mode={deriveOpenPageMode({
-            canReveal: canDo('portal.update') && has('portal.write'),
-            publicationState: portal.publicationState,
-            tokenStatus,
-          })}
+          canUpdate={canDo('portal.update')}
+          portalWriteEnabled={has('portal.write')}
+          publicationState={portal.publicationState}
+          tokenStatus={tokenStatus}
+          activeTab={view.tab}
           revealMutation={revealForOpenPage}
         />
       }
