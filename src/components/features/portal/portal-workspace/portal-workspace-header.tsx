@@ -4,7 +4,8 @@
 // decision): a portal that needs nothing shows only its name and its state.
 //
 // In review mode the row is the same but the way back reads "Back to editing"
-// and the publish actions are absent, because the page below is the publish step.
+// and the publish actions and "Open page" are absent, because the page below is
+// the publish step.
 
 import { Link } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
@@ -37,6 +38,11 @@ export type PortalWorkspaceHeaderProps = Readonly<{
    * presentational and the layout supplies the one that reads the coordinator.
    */
   saveStatus?: ReactNode
+  /**
+   * "Open page" (`PortalOpenPageButton`), a slot like `saveStatus`. Absent in
+   * review mode, where the header is a focused step.
+   */
+  openPage?: ReactNode
 }>
 
 export function PortalWorkspaceHeader(props: PortalWorkspaceHeaderProps) {
@@ -73,6 +79,7 @@ export function PortalWorkspaceHeader(props: PortalWorkspaceHeaderProps) {
         </div>
         <p className="truncate text-xs text-muted-foreground">{propertyName}</p>
       </div>
+      {reviewing ? null : props.openPage}
       {reviewing ? null : <ReviewActions {...props} />}
     </header>
   )

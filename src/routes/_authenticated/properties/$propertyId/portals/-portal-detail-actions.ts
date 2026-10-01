@@ -18,7 +18,10 @@ import { downloadPortalPrintKit } from '#/contexts/portal/server/portal-print-ki
 import { publishPortalChanges } from '#/contexts/portal/server/portal-publish-changes'
 import { updatePortalResponsibleManagers } from '#/contexts/portal/server/portal-responsible-managers'
 import type { Action } from '#/components/hooks/use-action'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import {
+  actionErrorMessage,
+  useActionMutation,
+} from '#/components/hooks/use-action-mutation'
 import { portalKeys } from '#/shared/queries/query-keys'
 import type { UpdatePortalVariables } from '#/components/features/portal/shared/types'
 import type { PortalQueryResult } from './-portal-detail-data'
@@ -117,6 +120,15 @@ function usePortalExperienceActions(propertyId: string, portalId: string) {
     approveDestination,
     disableDestination,
   }
+}
+
+/**
+ * The workspace header's "Open page": the same reveal as "Download again", for
+ * the purpose "show". It says why it failed itself (a rate limit, a retired
+ * key), because the header has no banner to carry the error.
+ */
+export function usePortalOpenPageReveal() {
+  return useActionMutation(revealPortalAddress, { errorMessage: actionErrorMessage })
 }
 
 /**

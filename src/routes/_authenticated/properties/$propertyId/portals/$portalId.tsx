@@ -29,6 +29,8 @@ import {
 import { PortalDraftAutosaveProvider } from '#/components/features/portal/portal-editor/portal-draft-autosave-context'
 import { PortalDraftSaveStatus } from '#/components/features/portal/portal-editor/portal-draft-save-status'
 import { PortalLinkIssuanceProvider } from '#/components/features/portal/portal-workspace/portal-link-issuance'
+import { PortalOpenPageButton } from '#/components/features/portal/portal-workspace/portal-open-page-button'
+import { deriveOpenPageMode } from '#/components/features/portal/portal-workspace/portal-open-page'
 import { PortalWorkspaceHeader } from '#/components/features/portal/portal-workspace/portal-workspace-header'
 import { isWorkspaceReviewRoute } from '#/components/features/portal/portal-workspace/portal-workspace-route'
 import { PortalWorkspaceShell } from '#/components/features/portal/portal-workspace/portal-workspace-shell'
@@ -39,6 +41,7 @@ import { Button } from '#/components/ui/button'
 import { AlertCircle } from 'lucide-react'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
+import { usePortalOpenPageReveal } from './-portal-detail-actions'
 import {
   findAuthorizedPortal,
   portalGroupsQuery,
@@ -163,7 +166,8 @@ function PortalWorkspaceLayout() {
   const { data: portalData } = useSuspenseQuery(portalQuery(portalId))
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: history } = useSuspenseQuery(portalPublicationHistoryQuery(portalId))
-  const { portal } = portalData
+  const revealForOpenPage = usePortalOpenPageReveal()
+  const { portal, tokenStatus } = portalData
   if (!portal) throw notFound()
 
   const reviewing = isWorkspaceReviewRoute(pathname)
@@ -187,6 +191,18 @@ function PortalWorkspaceLayout() {
       activeTab={view.tab}
       activeSection={section}
       saveStatus={<PortalDraftSaveStatus />}
+      openPage={
+        <PortalOpenPageButton
+          propertyId={propertyId}
+          portalId={portalId}
+          mode={deriveOpenPageMode({
+            canReveal: canDo('portal.update') && has('portal.write'),
+            publicationState: portal.publicationState,
+            tokenStatus,
+          })}
+          revealMutation={revealForOpenPage}
+        />
+      }
     />
   )
   const tabs = reviewing ? undefined : (

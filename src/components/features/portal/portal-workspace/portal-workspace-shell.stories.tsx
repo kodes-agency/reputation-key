@@ -2,16 +2,35 @@
 // distinguishes: live with changes waiting, a draft, the review mode, a viewer
 // who cannot publish, and a caller without the Results capability.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, within } from 'storybook/test'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
+import { PortalOpenPageButton } from './portal-open-page-button'
 import { PortalWorkspaceHeader } from './portal-workspace-header'
 import { PortalWorkspaceShell } from './portal-workspace-shell'
 import { PortalWorkspaceTabs } from './portal-workspace-tabs'
+import type { Action } from '#/components/hooks/use-action'
+import type { PortalShareMutations } from '../portal-share/portal-share-types'
+import type { OpenPageMode } from './portal-open-page'
 import type { PortalDetailTab } from '../portal-detail/portal-detail-rules'
 import type { PortalEditorSection } from '../portal-editor/portal-editor-sections'
 
 const PROPERTY_ID = '0b6f8a52-4c2e-4d61-9a55-2f1d3c7e9b10'
 const PORTAL_ID = '7c1e5a90-3b44-4f0d-8e21-6a9d0b2c4f33'
+
+const LIVE_ADDRESS = 'https://app.example.com/p/tok_pool?accessArtifact=artifact-qr-1'
+const revealCalls: Array<{ portalId: string; purpose: string }> = []
+const revealMutation = Object.assign(
+  async (input: {
+    data: { portalId: string; purpose: 'download' | 'copy' | 'show' }
+  }) => {
+    revealCalls.push(input.data)
+    return { publicUrl: LIVE_ADDRESS }
+  },
+  { isPending: false, error: null as unknown, isSuccess: false, data: null },
+) as Action<
+  { data: { portalId: string; purpose: 'download' | 'copy' | 'show' } },
+  { publicUrl: string }
+> as PortalShareMutations['revealMutation']
 
 type FrameProps = Readonly<{
   mode: 'edit' | 'review'
@@ -21,6 +40,7 @@ type FrameProps = Readonly<{
   activeTab: PortalDetailTab
   activeSection?: PortalEditorSection
   hiddenTabs: ReadonlyArray<PortalDetailTab>
+  openPageMode: OpenPageMode
 }>
 
 function Frame({
@@ -31,6 +51,7 @@ function Frame({
   activeTab,
   activeSection,
   hiddenTabs,
+  openPageMode,
 }: FrameProps) {
   return (
     <div className="h-[560px] border">
@@ -48,6 +69,14 @@ function Frame({
             activeTab={activeTab}
             activeSection={activeSection}
             saveStatus={<p className="text-xs text-muted-foreground">Draft saved</p>}
+            openPage={
+              <PortalOpenPageButton
+                propertyId={PROPERTY_ID}
+                portalId={PORTAL_ID}
+                mode={openPageMode}
+                revealMutation={revealMutation}
+              />
+            }
           />
         }
         tabs={
@@ -79,6 +108,7 @@ const meta: Meta<typeof Frame> = {
     canReview: true,
     activeTab: 'page',
     hiddenTabs: [],
+    openPageMode: 'reveal',
   },
 }
 export default meta
@@ -197,6 +227,55 @@ export const ViewerWhoCannotPublish: Story = {
   },
 }
 
+// The address can be had again: "Open page" is a button, not a link, because it
+// has to fetch the address first.
+export const OpenPageForALivePortal: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('button', { name: 'Open page' })).toBeEnabled()
+    await expect(canvas.queryByRole('link', { name: 'Open page' })).toBeNull()
+  },
+}
+
+// The tab opens on the click, the address is revealed for the purpose "show",
+// and the tab is sent to the bare page address (no scan marker).
+export const OpenPageRevealsForShowAndOpensTheBarePage: Story = {
+  play: async ({ canvasElement }) => {
+    const sent: string[] = []
+    const originalOpen = window.open
+    window.open = (() => ({
+      opener: undefined,
+      location: { replace: (url: string) => sent.push(url) },
+      close: () => undefined,
+    })) as unknown as typeof window.open
+    revealCalls.length = 0
+    try {
+      await userEvent.click(
+        within(canvasElement).getByRole('button', { name: 'Open page' }),
+      )
+      await waitFor(() => expect(sent).toHaveLength(1))
+    } finally {
+      window.open = originalOpen
+    }
+    await expect(revealCalls).toEqual([{ portalId: PORTAL_ID, purpose: 'show' }])
+    await expect(sent).toEqual(['https://app.example.com/p/tok_pool'])
+  },
+}
+
+// Not live, no live code, or a retired key: there is nothing to reveal, so the
+// control leads to Share, where the address is shown or made.
+export const OpenPageLeadsToShareWhenItCannotReveal: Story = {
+  args: { openPageMode: 'share' },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('link', { name: 'Open page' })).toHaveAttribute(
+      'href',
+      `/properties/${PROPERTY_ID}/portals/${PORTAL_ID}?tab=share`,
+    )
+    await expect(canvas.queryByRole('button', { name: 'Open page' })).toBeNull()
+  },
+}
+
 export const ReviewMode: Story = {
   args: { mode: 'review', activeTab: 'share' },
   play: async ({ canvasElement }) => {
@@ -215,5 +294,8 @@ export const ReviewMode: Story = {
     await expect(
       canvas.queryByRole('link', { name: 'Review & publish' }),
     ).not.toBeInTheDocument()
+    // The review is a focused step; the page opens from the editor.
+    await expect(canvas.queryByRole('button', { name: 'Open page' })).toBeNull()
+    await expect(canvas.queryByRole('link', { name: 'Open page' })).toBeNull()
   },
 }
