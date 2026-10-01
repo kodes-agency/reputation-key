@@ -88,7 +88,9 @@ export const G09NoPhoto: Story = {
   play: async ({ canvasElement }) => {
     const root = rootOf(canvasElement)
     expect(root.dataset.ihSurface).toBe('field')
-    expect(canvasElement.querySelectorAll('img')).toHaveLength(0)
+    // No hero and no backdrop photo: the only image left is a link tile's own.
+    expect(canvasElement.querySelector('.ih-hero__image')).toBeNull()
+    expect(canvasElement.querySelector('.ih-backdrop__photo')).toBeNull()
     const arch = canvasElement.querySelector('.ih-arch')
     expect(arch?.getAttribute('aria-hidden')).toBe('true')
     expect(canvasElement.querySelector('feTurbulence')).not.toBeNull()

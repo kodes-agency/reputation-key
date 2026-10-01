@@ -45,6 +45,9 @@ test.describe('Critical: public Portal basics', () => {
   // the secondary destinations follow the private rating rather than competing
   // with it. Both halves are asserted here, because a Portal that never showed
   // its destinations and a Portal that showed them too early are both defects.
+  // This pins the legacy renderer (publication schema v1 and v2). A v3 portal
+  // shows its Linktree from arrival (ADR 0044, amendment 2026-10-01); its e2e
+  // arrives with the v3 writer and seed (round 4, slice 19).
   test('published P1 token renders content immediately and destinations after the rating', async ({
     page,
     context,

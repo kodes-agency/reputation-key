@@ -156,7 +156,8 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await page.goto(`/p/${seed.portalToken}`)
     await expect(page.getByRole('heading', { name: 'E2E Guest Portal P1' })).toBeVisible()
     // The gateway is rating-first, so the secondary destinations follow the
-    // private rating rather than sitting beside it. Acknowledge the analytics
+    // private rating rather than sitting beside it (the legacy v1/v2 renderer;
+    // a v3 portal shows its Linktree from arrival). Acknowledge the analytics
     // notice too: it is a fixed bottom bar and would otherwise intercept the
     // submit click.
     await page
