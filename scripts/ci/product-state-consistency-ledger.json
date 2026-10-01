@@ -537,6 +537,18 @@
       "classification": "local_runtime",
       "owner": "Sidebar provider",
       "policy": "defaultOpen seeds uncontrolled client UI state; controlled openProp remains the render authority when supplied."
+    },
+    {
+      "id": "src/components/features/guest/public-portal/immersive/immersive-note-card.tsx:useState(open)",
+      "classification": "synchronized_prop_copy",
+      "owner": "Guest portal",
+      "policy": "Seeded once from the optional `initial` draft, which only previews and stories pass (a live page starts the note closed), and never synchronized afterwards, so the guest's own open and close is not overridden. The note composer mounts once per response, which is the reset boundary."
+    },
+    {
+      "id": "src/components/features/guest/public-portal/immersive/immersive-note-card.tsx:useState(text)",
+      "classification": "synchronized_prop_copy",
+      "owner": "Guest portal",
+      "policy": "Seeded once from the optional `initial` draft and never synchronized afterwards, so what the guest is typing is never replaced. It is the guest's unsent words, not server state: the server holds only a sent note's receipt, and a sent note replaces the composer."
     }
   ],
   "classificationDefinitions": {
