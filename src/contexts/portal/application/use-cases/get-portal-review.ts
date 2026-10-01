@@ -215,6 +215,56 @@ function viewOf(
   }
 }
 
+type ReviewAgainstLiveInput = Readonly<{
+  liveSnapshot: Parameters<typeof destinationMatchesSnapshot>[1] | null
+  workingCopy: Parameters<typeof workingCopyMatchesSnapshot>[0]
+  destination: Parameters<typeof destinationMatchesSnapshot>[0] | null
+  openChanges: Parameters<typeof buildReviewChanges>[0]['pending']
+  ledger: Parameters<typeof buildReviewChanges>[0]['edits']
+}>
+
+/** How the draft stands against what is live: the change list and whether there is anything to publish. */
+function reviewAgainstLive(input: ReviewAgainstLiveInput) {
+  const { liveSnapshot, workingCopy, destination, openChanges, ledger } = input
+  // A Portal that is not live has no live version to differ from, so it has no change list.
+  const destinationMoved =
+    liveSnapshot !== null &&
+    destination !== null &&
+    !destinationMatchesSnapshot(destination, liveSnapshot)
+  const workingCopyDiffers =
+    liveSnapshot !== null && !workingCopyMatchesSnapshot(workingCopy, liveSnapshot)
+  // The same question `publishPortalChanges` asks before it publishes nothing.
+  const nothingToPublish =
+    liveSnapshot !== null &&
+    openChanges.length === 0 &&
+    !destinationMoved &&
+    !workingCopyDiffers
+
+  // Edits the live version already took are not changes: a publication takes
+  // every edit made up to the instant it is committed. The baseline is the
+  // live version's own time, not the newest version's: a restore can put an
+  // older version live, and everything the draft holds since then reaches
+  // guests when it is published. The ledger never spans an activation
+  // (rollbacks included), so rows after this instant start from the live wording.
+  const baseline = liveSnapshot?.createdAt ?? null
+  const unpublished =
+    baseline === null ? [] : ledger.filter((row) => row.occurredAt > baseline)
+  const changes: readonly ReviewChange[] =
+    liveSnapshot === null
+      ? []
+      : buildReviewChanges({
+          edits: unpublished,
+          pending: openChanges,
+          liveIsEarlierDesign:
+            liveSnapshot.configuration.schemaVersion !== IMMERSIVE_HUB_SCHEMA_VERSION,
+          destinationMoved,
+          workingCopyDiffers,
+        })
+  const changesMayBeIncomplete =
+    ledger.length >= PAGE_EDIT_READ_LIMIT && unpublished.length === ledger.length
+  return { changes, changesMayBeIncomplete, nothingToPublish }
+}
+
 export const getPortalReview =
   (deps: GetPortalReviewDeps) =>
   async (
@@ -299,44 +349,13 @@ export const getPortalReview =
       warnings: resolution.warnings,
     })
 
-    // What is live, and how the draft stands against it. A Portal that is not
-    // live has no live version to differ from, so it has no change list.
-    const liveSnapshot = isLive && liveRecord ? liveRecord.snapshot : null
-    const destinationMoved =
-      liveSnapshot !== null &&
-      destination !== null &&
-      !destinationMatchesSnapshot(destination, liveSnapshot)
-    const workingCopyDiffers =
-      liveSnapshot !== null && !workingCopyMatchesSnapshot(workingCopy, liveSnapshot)
-    // The same question `publishPortalChanges` asks before it publishes nothing.
-    const nothingToPublish =
-      liveSnapshot !== null &&
-      openChanges.length === 0 &&
-      !destinationMoved &&
-      !workingCopyDiffers
-
-    // Edits the live version already took are not changes: a publication takes
-    // every edit made up to the instant it is committed. The baseline is the
-    // live version's own time, not the newest version's: a restore can put an
-    // older version live, and everything the draft holds since then reaches
-    // guests when it is published. The ledger never spans an activation
-    // (rollbacks included), so rows after this instant start from the live wording.
-    const baseline = liveSnapshot?.createdAt ?? null
-    const unpublished =
-      baseline === null ? [] : ledger.filter((row) => row.occurredAt > baseline)
-    const changes: readonly ReviewChange[] =
-      liveSnapshot === null
-        ? []
-        : buildReviewChanges({
-            edits: unpublished,
-            pending: openChanges,
-            liveIsEarlierDesign:
-              liveSnapshot.configuration.schemaVersion !== IMMERSIVE_HUB_SCHEMA_VERSION,
-            destinationMoved,
-            workingCopyDiffers,
-          })
-    const changesMayBeIncomplete =
-      ledger.length >= PAGE_EDIT_READ_LIMIT && unpublished.length === ledger.length
+    const { changes, changesMayBeIncomplete, nothingToPublish } = reviewAgainstLive({
+      liveSnapshot: isLive && liveRecord ? liveRecord.snapshot : null,
+      workingCopy,
+      destination,
+      openChanges,
+      ledger,
+    })
 
     const names = await resolveVersionActors(deps.actorDirectory, organizationId, [
       liveRecord?.activation.activatedBy ?? null,
