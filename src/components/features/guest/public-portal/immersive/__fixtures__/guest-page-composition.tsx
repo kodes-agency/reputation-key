@@ -1,8 +1,9 @@
 // A whole Immersive Hub page, for the quality gate: the real shell at page
 // height (the document scrolls, as on the public route), the real header and
 // title block, the real rating card, the real Linktree and the real footer. The
-// route does not mount this page until the v3 writer ships (slice 19), so this
-// is the one place the pieces sit together in a browser. Stories only.
+// route mounts the same pieces for a v3 snapshot (`ImmersivePublicPortal`); this
+// composition stays so the quality gate can place them in a story, with a story
+// photo and no session. Stories only.
 
 import { useEffect, useState } from 'react'
 import type { GuestPagePreviewState } from '../../guest-page-preview-state'

@@ -20,6 +20,12 @@ import { expectPortalUnavailable } from '../helpers/guest-unavailable'
 const seed = requireE2eSeedState()
 const guestMutationServerFile = 'src/contexts/guest/server/public.ts'
 const guestQueryServerFile = 'src/contexts/guest/server/guest-scans.ts'
+/** The English pack's word for each star: a choice is named "2 stars, Fair". */
+const RATING_WORDS = ['Poor', 'Fair', 'Good', 'Very good', 'Excellent'] as const
+
+const ratingName = (stars: number): string =>
+  `${stars} ${stars === 1 ? 'star' : 'stars'}, ${RATING_WORDS[stars - 1]}`
+
 /**
  * Pick a star the way a guest does — by clicking the label.
  *
@@ -28,9 +34,23 @@ const guestQueryServerFile = 'src/contexts/guest/server/guest-scans.ts'
  * `<label>`. Clicking the label is also the more faithful interaction.
  */
 const selectRating = async (page: Page, stars: number): Promise<void> => {
-  const name = `${stars} ${stars === 1 ? 'star' : 'stars'}`
+  const name = ratingName(stars)
   await page.locator(`label:has(input[aria-label="${name}"])`).click()
   await expect(page.getByRole('radio', { name })).toBeChecked()
+}
+
+/** The Linktree tile the seed publishes for P1: a link from arrival, in every state. */
+const seededTile = (page: Page) =>
+  page.getByRole('link', { name: 'Visit example review destination' })
+
+/** The receipt that opens the after-rating page: "Fair · sent privately". */
+const receipt = (page: Page, stars: number) =>
+  page.getByText(`${RATING_WORDS[stars - 1]} · sent privately`)
+
+/** Open "Your response", the guest's own controls, which the page keeps collapsed. */
+const openYourResponse = async (page: Page): Promise<void> => {
+  const toggle = page.getByRole('button', { name: /^Your response/ })
+  if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click()
 }
 
 test.describe('Critical: public Portal basics', () => {
@@ -40,15 +60,11 @@ test.describe('Critical: public Portal basics', () => {
     await refreshPortalDestinationApproval()
   })
 
-  // The gateway is rating-first ("feat(portal): make guest gateway rating
-  // first"): a guest sees the Portal's content and the rating immediately, and
-  // the secondary destinations follow the private rating rather than competing
-  // with it. Both halves are asserted here, because a Portal that never showed
-  // its destinations and a Portal that showed them too early are both defects.
-  // This pins the legacy renderer (publication schema v1 and v2). A v3 portal
-  // shows its Linktree from arrival (ADR 0044, amendment 2026-10-01); its e2e
-  // arrives with the v3 writer and seed (round 4, slice 19).
-  test('published P1 token renders content immediately and destinations after the rating', async ({
+  // The Immersive Hub (schema v3, ADR 0044 as amended): the rating card is first
+  // and dominant, and the Linktree is visible from arrival. A guest who has not
+  // rated sees the Portal's content, the rating and the tiles at once; the
+  // Google card is the one thing that waits for a rating.
+  test('published P1 token renders the Immersive Hub with its Linktree from arrival', async ({
     page,
     context,
   }) => {
@@ -56,16 +72,15 @@ test.describe('Critical: public Portal basics', () => {
     await page.goto(`/p/${seed.portalToken}`)
 
     await expect(page.getByRole('heading', { name: 'E2E Guest Portal P1' })).toBeVisible()
-    await expect(page.getByRole('radio', { name: '1 star' })).toBeVisible()
-    // The seeded portal is a legacy (v1/v2) publication, so it keeps the app
-    // fonts and loads none of the self-hosted guest fonts. The Immersive Hub
-    // page asserts the opposite (assertNoFontCdnRequests) once a v3 fixture
-    // exists.
-    expect(log.fontCdnHostsRequested()).toEqual(
-      expect.arrayContaining(['api.fontshare.com', 'fonts.googleapis.com']),
-    )
+    await expect(page.getByRole('radio', { name: ratingName(1) })).toBeVisible()
+    await expect(page.getByRole('radio', { name: ratingName(5) })).toBeVisible()
+    await expect(seededTile(page)).toBeVisible()
+    // The seeded portal is a v3 publication, so it wears the self-hosted guest
+    // fonts and contacts no font CDN at all (the legacy page asserts the
+    // opposite: see the schema v2 spec below).
+    log.assertNoFontCdnRequests()
     expect(log.requests.some((request) => request.url.includes('/fonts/guest/'))).toBe(
-      false,
+      true,
     )
     const sessionCookies = (await context.cookies()).filter(
       (cookie) => cookie.name === 'rk_guest_session',
@@ -85,84 +100,82 @@ test.describe('Critical: public Portal basics', () => {
     expect(sessionCookies.every((cookie) => cookie.sameSite === 'Lax')).toBe(true)
     // `Secure` follows NODE_ENV=production (composition.ts) and the stack runs
     // the production build under NODE_ENV=test; guest-session.test.ts covers it.
-    await expect(page.getByRole('radio', { name: '5 stars' })).toBeVisible()
 
-    // Not yet — and this half is the one that would silently rot if the flow
-    // regressed to showing everything at once.
-    await expect(
-      page.getByRole('link', { name: 'Visit example review destination' }),
-    ).toHaveCount(0)
+    // Not yet: Google waits for a rating, and says the same after every one.
+    await expect(page.getByRole('button', { name: /^Continue to Google/ })).toHaveCount(0)
 
-    await settleGuestConsent(page)
+    await settleGuestConsent(page, 'immersive')
     await selectRating(page, 5)
-    await page.getByRole('button', { name: 'Submit private rating' }).click()
+    await page.getByRole('button', { name: 'Send privately' }).click()
 
+    await expect(receipt(page, 5)).toBeVisible()
     await expect(
-      page.getByRole('link', { name: 'Visit example review destination' }),
+      page.getByRole('heading', { name: 'Share your experience on Google' }),
     ).toBeVisible()
+    await expect(page.getByRole('button', { name: /^Continue to Google/ })).toBeVisible()
+    // The tiles stay where they were; the rating did not move them.
+    await expect(seededTile(page)).toBeVisible()
 
     await page.reload()
     await expect(page.getByRole('heading', { name: 'E2E Guest Portal P1' })).toBeVisible()
+    await expect(receipt(page, 5)).toBeVisible()
     expect(log.requests.some((request) => request.url.includes(seed.portalToken))).toBe(
       true,
     )
   })
 
-  test('rating, private feedback, one correction, and withdrawal survive reload', async ({
+  test('rating, private note, one correction, and withdrawal survive reload', async ({
     page,
   }) => {
     await page.goto(`/p/${seed.portalToken}`)
-    await settleGuestConsent(page)
+    await settleGuestConsent(page, 'immersive')
 
-    const destination = page.getByRole('link', {
-      name: 'Visit example review destination',
-    })
     const expectedDestination = `/api/public/p/${encodeURIComponent(seed.portalToken)}/click/${seed.portalLinkId}`
 
     await selectRating(page, 2)
-    await page.getByRole('button', { name: 'Submit private rating' }).click()
-    await expect(
-      page.getByText('Thank you. Your private rating was submitted.'),
-    ).toBeVisible()
+    await page.getByRole('button', { name: 'Send privately' }).click()
+    await expect(receipt(page, 2)).toBeVisible()
+    // The tile was a plain link before the rating and stays one: a tap on it
+    // goes through the click route, which attributes it and keeps the guest's
+    // referrer off the target.
+    await expect(seededTile(page)).toHaveAttribute('href', expectedDestination)
 
-    // The destinations arrive with the receipt, and keep the signed
-    // click-through href rather than the raw external URL — the redirect is
-    // what attributes the click and keeps the guest's referrer off the target.
-    await expect(destination).toHaveAttribute('href', expectedDestination)
-
+    // A rating at or below the threshold is offered a private note.
+    await page.getByRole('button', { name: 'Write a private note' }).click()
     await page
-      .getByRole('textbox', { name: 'Private feedback' })
+      .getByRole('textbox', { name: 'Your note (optional)' })
       .fill('Initial private guest note.')
-    await page.getByRole('button', { name: 'Send private feedback' }).click()
-    // Exact: the receipt panel repeats this sentence with a trailing clause,
-    // and the live-region status is the one that proves the send landed.
+    await page.getByRole('button', { name: 'Send note privately' }).click()
     await expect(
-      page.getByText('Your private feedback was sent to the property team.', {
-        exact: true,
-      }),
+      page.getByText('Your note was sent privately to E2E Guest Portal P1.'),
     ).toBeVisible()
 
-    // The rating survives a full document load; the feedback text deliberately
-    // does NOT come back, because the receipt promises it is not shown again on
+    // The rating survives a full document load; the note text deliberately
+    // does NOT come back, because the page promises it is not shown again on
     // this device. Asserting both directions keeps that promise honest.
     await page.reload()
-    await expect(page.getByText('You rated this experience 2/5.')).toBeVisible()
+    await expect(receipt(page, 2)).toBeVisible()
     await expect(page.getByText('Initial private guest note.')).toHaveCount(0)
-    await expect(destination).toHaveAttribute('href', expectedDestination)
+    await expect(seededTile(page)).toHaveAttribute('href', expectedDestination)
 
-    await page.getByRole('button', { name: 'Change your private rating' }).click()
+    // The receipt's Change opens "Your response" on the rating form.
+    await page.getByRole('button', { name: 'Change', exact: true }).click()
     await selectRating(page, 5)
-    await page.getByRole('button', { name: 'Save rating correction' }).click()
-    await expect(page.getByText('You rated this experience 5/5.')).toBeVisible()
+    await page.getByRole('button', { name: 'Save new rating' }).click()
+    await expect(page.getByText('Your rating was updated.')).toBeVisible()
+    await expect(receipt(page, 5)).toBeVisible()
 
     await page.reload()
-    await expect(page.getByText('You rated this experience 5/5.')).toBeVisible()
+    await expect(receipt(page, 5)).toBeVisible()
 
-    await page.getByRole('button', { name: 'Withdraw my entire response' }).click()
-    await expect(page.getByText('Your response was withdrawn')).toBeVisible()
+    // Removing everything asks first: the note makes it the "rating and note" row.
+    await openYourResponse(page)
+    await page.getByRole('button', { name: /^Remove….*rating and note/ }).click()
+    await page.getByRole('button', { name: 'Remove both' }).click()
+    await expect(page.getByText('Your response was removed')).toBeVisible()
     await page.reload()
-    await expect(page.getByText('Your response was withdrawn')).toBeVisible()
-    await expect(page.getByText('You rated this experience')).toHaveCount(0)
+    await expect(page.getByText('Your response was removed')).toBeVisible()
+    await expect(page.getByText('· sent privately')).toHaveCount(0)
   })
 
   test('private feedback reaches the manager Inbox and can be marked handled', async ({
@@ -181,18 +194,15 @@ test.describe('Critical: public Portal basics', () => {
     )
 
     await page.goto(`/p/${seed.portalToken}`)
-    await settleGuestConsent(page)
+    await settleGuestConsent(page, 'immersive')
     await selectRating(page, 2)
-    await page.getByRole('button', { name: 'Submit private rating' }).click()
+    await page.getByRole('button', { name: 'Send privately' }).click()
+    await expect(receipt(page, 2)).toBeVisible()
+    await page.getByRole('button', { name: 'Write a private note' }).click()
+    await page.getByRole('textbox', { name: 'Your note (optional)' }).fill(feedbackBody)
+    await page.getByRole('button', { name: 'Send note privately' }).click()
     await expect(
-      page.getByText('Thank you. Your private rating was submitted.'),
-    ).toBeVisible()
-    await page.getByRole('textbox', { name: 'Private feedback' }).fill(feedbackBody)
-    await page.getByRole('button', { name: 'Send private feedback' }).click()
-    await expect(
-      page.getByText('Your private feedback was sent to the property team.', {
-        exact: true,
-      }),
+      page.getByText('Your note was sent privately to E2E Guest Portal P1.'),
     ).toBeVisible()
 
     const responseId = await waitFor(
@@ -351,7 +361,7 @@ test.describe('Critical: public Portal basics', () => {
     expect(withdrawn.response).toMatchObject({ status: 'deleted', rating: null })
 
     await page.reload()
-    await expect(page.getByText('Your response was withdrawn')).toBeVisible()
+    await expect(page.getByText('Your response was removed')).toBeVisible()
   })
 
   // Guest media is gone from the gateway, so the oversize case is now the
@@ -410,10 +420,8 @@ test.describe('Critical: public Portal basics', () => {
     // Neither refusal may leave a mark: the guest still sees their own rated
     // response, with no private feedback attached.
     await page.reload()
-    await expect(page.getByText('You rated this experience 2/5.')).toBeVisible()
-    await expect(
-      page.getByRole('button', { name: 'Send private feedback' }),
-    ).toBeVisible()
+    await expect(receipt(page, 2)).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Write a private note' })).toBeVisible()
   })
 
   // The portal.scan metric had NO producer: recordScanFn was exported and
@@ -460,14 +468,14 @@ test.describe('Critical: public Portal basics', () => {
     // guard is storage-backed plus a use-case dedupe on the signed session, so
     // it survives a full document load rather than only a re-render.
     await page.goto(`/p/${seed.portalToken}`)
-    await settleGuestConsent(page)
-    await expect(page.getByRole('radio', { name: '1 star' })).toBeVisible()
+    await settleGuestConsent(page, 'immersive')
+    await expect(page.getByRole('radio', { name: ratingName(1) })).toBeVisible()
     // Main run 33685556953 exhausted 10s (expected 8, received 7), then passed
     // on retry: the durable path includes the relay tick plus cold BullMQ startup.
     await expect.poll(countScans, { timeout: 20_000 }).toBe(before + 1)
 
     await page.reload()
-    await expect(page.getByRole('radio', { name: '1 star' })).toBeVisible()
+    await expect(page.getByRole('radio', { name: ratingName(1) })).toBeVisible()
     expect(await settledScanCount()).toBe(before + 1)
 
     // A DIFFERENT guest counts again, which is what proves the dedupe is
@@ -481,7 +489,7 @@ test.describe('Critical: public Portal basics', () => {
     })
     await context.clearCookies()
     await page.goto(`/p/${seed.portalToken}`)
-    await settleGuestConsent(page)
+    await settleGuestConsent(page, 'immersive')
     await expect.poll(countScans, { timeout: 10_000 }).toBe(before + 2)
   })
 
