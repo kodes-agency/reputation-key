@@ -107,6 +107,16 @@ ignore:
   - vulnerability: CVE-2026-5928 # wont-fix
   - vulnerability: CVE-2026-19499 # strfmon overflow, no-dsa minor issue on trixie
 
+  # ── libgcc-s1 / libstdc++6 / gcc-14-base 14.2.0-19: no fix yet (1 CVE) ─
+  # owner: platform — reason: CVE-2026-102010 (High) appeared in grype's
+  # database 2026-10-01 against the gcc-14 runtime libraries with no fixed
+  # version on trixie. Nothing to pin. The images run node, which links
+  # libstdc++/libgcc_s as runtime support only; there is no compiler in the
+  # image and the CVE is matched by package, not by a reachable code path
+  # from the app. Drop this entry at the first trixie gcc-14 update that
+  # fixes it. expiresAt: 2026-10-15
+  - vulnerability: CVE-2026-102010
+
   # ── Debian trixie base packages, misc (7 CVEs) ─────────────────────────
   # owner: platform — reason: won't-fix by Debian triage; the binaries/libs
   # are unused by the app runtime (no gzip/ncurses/libacl/sqlite/pcre2 calls
