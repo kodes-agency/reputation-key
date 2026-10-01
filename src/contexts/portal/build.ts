@@ -57,6 +57,7 @@ import { createPortalAddressRepository } from './infrastructure/repositories/por
 import { createPortal } from './application/use-cases/create-portal'
 import { getPortalCreationOptions } from './application/use-cases/get-portal-creation-options'
 import { updatePortal } from './application/use-cases/update-portal'
+import { buildExperienceUseCases } from './build-experience'
 import { rollbackPortalPublication } from './application/use-cases/rollback-portal-publication'
 import {
   publishPortalChanges,
@@ -119,15 +120,7 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import { registerPortalHealthConsumers } from './infrastructure/portal-health-outbox-consumers'
 import { createPortalHealthReconciliationStore } from './infrastructure/portal-health-reconciliation-store'
 import { createPortalDestinationNetworkValidator } from './infrastructure/adapters/portal-destination-network-validator.adapter'
-import {
-  getPropertyPortalExperience,
-  savePortalLocalizedOverride,
-  savePropertyDefaultGuestLocales,
-  savePropertyPortalBrandContent,
-  savePropertyPortalBrandProfile,
-  savePropertyPublicDisplayName,
-  ensureDefaultPublicDisplayName,
-} from './application/use-cases/manage-portal-experience'
+import { ensureDefaultPublicDisplayName } from './application/use-cases/manage-portal-experience'
 import {
   approvePortalApprovedDestination,
   disablePortalApprovedDestination,
@@ -291,42 +284,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       idGen: deps.idGen,
       clock: deps.clock,
     }),
-    getPropertyPortalExperience: getPropertyPortalExperience({
-      experienceRepo: portalExperienceRepo,
-      portalRepo,
-      staffPublicApi: deps.staffPublicApi,
-      idGen: deps.idGen,
-      clock: deps.clock,
-    }),
-    savePropertyPortalBrandProfile: savePropertyPortalBrandProfile({
-      experienceRepo: portalExperienceRepo,
-      portalRepo,
-      staffPublicApi: deps.staffPublicApi,
-      idGen: deps.idGen,
-      clock: deps.clock,
-    }),
-    savePropertyPublicDisplayName: savePropertyPublicDisplayName({
-      experienceRepo: portalExperienceRepo,
-      portalRepo,
-      staffPublicApi: deps.staffPublicApi,
-      idGen: deps.idGen,
-      clock: deps.clock,
-    }),
-    savePropertyDefaultGuestLocales: savePropertyDefaultGuestLocales({
-      experienceRepo: portalExperienceRepo,
-      portalRepo,
-      staffPublicApi: deps.staffPublicApi,
-      idGen: deps.idGen,
-      clock: deps.clock,
-    }),
-    savePropertyPortalBrandContent: savePropertyPortalBrandContent({
-      experienceRepo: portalExperienceRepo,
-      portalRepo,
-      staffPublicApi: deps.staffPublicApi,
-      idGen: deps.idGen,
-      clock: deps.clock,
-    }),
-    savePortalLocalizedOverride: savePortalLocalizedOverride({
+    ...buildExperienceUseCases({
       experienceRepo: portalExperienceRepo,
       portalRepo,
       staffPublicApi: deps.staffPublicApi,

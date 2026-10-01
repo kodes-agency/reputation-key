@@ -94,6 +94,19 @@ first is the primary) only seeds new Portals, so editing it bumps no version,
 records no pending change, emits no fact and leaves `updated_by` alone (that
 column decides whether the public display name counts as confirmed).
 
+The look is edited on one page, `/properties/:propertyId/portals/look` (board 9
+of the round-4 admin), by an Account Admin; everyone who may read portals can
+open it. `savePropertyLook` writes the accent, the background mode (and the
+colour when it is manual) and the wordmark through the profile writer above, and
+keeps the profile's display name, images and text colour as they are. It refuses
+a look the guest page could not read before anything persists: light text must
+reach AAA on the field (derived from the accent, or the chosen colour), and the
+accent must reach AA on it (`src/shared/domain/portal-look-readout.ts`, built
+on the same arithmetic the guest resolver uses). A Property with no Brand
+Profile is asked to set its public display name first. The page autosaves, so
+an edit is a draft until each live Portal is published again; the portal
+editor's Look section only shows the look and links there.
+
 A new Portal (`createPortal`, the New portal dialog) commits in one transaction
 with its group membership (the group is fenced like a membership change and the
 `portal_group.portal_added` fact is recorded), its responsible managers and, when
