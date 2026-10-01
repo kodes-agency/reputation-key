@@ -24,11 +24,7 @@ const meta: Meta<typeof ImmersiveShell> = {
     height: 'container',
     heroAlt: { value: 'The colonnade pool at dusk, under an old olive tree' },
     brand: { ...CHAMPAGNE, hero: STORY_HERO_PHOTO },
-    children: (
-      <ArrivalStandIn
-        footerCopy={immersiveFooterCopy(enV2, 'Avela Resort')}
-      />
-    ),
+    children: <ArrivalStandIn footerCopy={immersiveFooterCopy(enV2, 'Avela Resort')} />,
   },
 }
 export default meta

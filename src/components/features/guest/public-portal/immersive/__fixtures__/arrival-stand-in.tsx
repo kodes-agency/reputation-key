@@ -81,7 +81,6 @@ export type ArrivalStandInProps = AvelaChromeProps &
   }>
 
 export function ArrivalStandIn({ footerCopy, ...chrome }: ArrivalStandInProps) {
-  const displayName = chrome.displayName ?? 'Avela Resort'
   return (
     <>
       <AvelaChrome {...chrome} />
