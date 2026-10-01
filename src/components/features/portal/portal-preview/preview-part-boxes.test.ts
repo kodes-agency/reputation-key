@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  livePartBoxes,
   padBox,
   pageScale,
   sameBoxes,
@@ -76,5 +77,21 @@ describe('sameBoxes', () => {
     expect(sameBoxes([a], [{ ...a, box: box(1, 2, 3, 5) }])).toBe(false)
     expect(sameBoxes([a, b], [a])).toBe(false)
     expect(sameBoxes([a, b], [b, a])).toBe(false)
+  })
+})
+
+describe('livePartBoxes', () => {
+  const parts: readonly PartBox[] = [
+    { section: 'languages', box: box(8, 300, 60, 30) },
+    { section: 'welcome', box: box(80, 16, 358, 120) },
+    { section: 'footer', box: box(780, 16, 358, 90) },
+  ]
+
+  it('keeps every part while no sheet is open', () => {
+    expect(livePartBoxes(parts, false)).toEqual(parts)
+  })
+
+  it('keeps only the Languages part while the sheet is open, as the sheet covers the page', () => {
+    expect(livePartBoxes(parts, true).map((part) => part.section)).toEqual(['languages'])
   })
 })

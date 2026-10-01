@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { PORTAL_EDITOR_SECTIONS } from '../portal-editor/portal-editor-sections'
+import { previewStateOptions } from './portal-preview-states'
 import {
   PREVIEW_PART_SECTIONS,
+  partActionName,
+  selectionHint,
   PREVIEW_PART_SELECTORS,
   previewPartOf,
   stateIdForPart,
@@ -48,19 +51,40 @@ describe('PREVIEW_PART_SELECTORS', () => {
 })
 
 describe('stateIdForPart', () => {
+  const options = previewStateOptions(3)
+
   it('keeps the state the manager chose when the part is drawn in it', () => {
-    expect(stateIdForPart('linktree', 'high')).toBe('high')
-    expect(stateIdForPart('rating', 'arrival')).toBe('arrival')
-    expect(stateIdForPart('private-note', 'low')).toBe('low')
-    expect(stateIdForPart('private-note', 'done')).toBe('done')
+    expect(stateIdForPart('linktree', 'high', options)).toBe('high')
+    expect(stateIdForPart('rating', 'arrival', options)).toBe('arrival')
+    expect(stateIdForPart('private-note', 'low', options)).toBe('low')
+    expect(stateIdForPart('private-note', 'done', options)).toBe('done')
   })
 
   it('moves to the state that draws the private note, which a guest meets after a low rating', () => {
-    expect(stateIdForPart('private-note', 'arrival')).toBe('low')
-    expect(stateIdForPart('private-note', 'high')).toBe('low')
+    expect(stateIdForPart('private-note', 'arrival', options)).toBe('low')
+    expect(stateIdForPart('private-note', 'high', options)).toBe('low')
+  })
+
+  it('keeps a high rating when the threshold is high enough to offer the note after it', () => {
+    expect(stateIdForPart('private-note', 'high', previewStateOptions(5))).toBe('high')
+  })
+
+  it('stays where it is when no state draws the note', () => {
+    expect(stateIdForPart('private-note', 'arrival', previewStateOptions(0))).toBe(
+      'arrival',
+    )
   })
 
   it('changes nothing when no part is selected', () => {
-    expect(stateIdForPart(null, 'high')).toBe('high')
+    expect(stateIdForPart(null, 'high', options)).toBe('high')
+  })
+})
+
+describe('what the parts say when the editor cannot change them', () => {
+  it('invites an editor to edit and a reader to look', () => {
+    expect(partActionName(true, 'Welcome')).toBe('Edit Welcome')
+    expect(partActionName(false, 'Welcome')).toBe('Open Welcome')
+    expect(selectionHint(true)).toBe('Click any part of the page to edit it')
+    expect(selectionHint(false)).toBe('Click any part of the page to see its settings')
   })
 })

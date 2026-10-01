@@ -127,6 +127,6 @@ describe('previewLanguageOptions (the admin preview’s sheet)', () => {
   })
 
   it('gives a row no address: a preview has no token and goes nowhere', () => {
-    expect(preview(['en', 'bg']).map((option) => option.href)).toEqual([null, null])
+    for (const option of preview(['en', 'bg'])) expect(option).not.toHaveProperty('href')
   })
 })

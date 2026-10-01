@@ -197,6 +197,10 @@ describe('InertLanguageSheet (the admin preview)', () => {
     expect(html).toContain('data-preview-part="language-sheet"')
   })
 
+  it('is inert as a whole, so its close button answers nothing wherever it is drawn', () => {
+    expect(sheet()).toMatch(/<div class="ih-sheet-scene"[^>]*\sinert=""/u)
+  })
+
   it('keeps the dialog’s own markup for its panel', () => {
     const dialog = render({ locales: ['en', 'bg', 'de'] })
     for (const marker of ['ih-sheet__grab', 'ih-sheet__head', 'ih-sheet__list']) {

@@ -22,12 +22,18 @@ const onSelect = fn<(section: PreviewPartSection) => void>()
 type StoryProps = Readonly<{
   initial: PortalEditorSection
   getPortalPreview: ReturnType<typeof previewReader>
+  canEdit?: boolean
   /** A button that moves the editor to another section, as its section list does. */
   hasSectionButton?: boolean
 }>
 
 /** The editor's job in miniature: the active section is state, and a part's click moves it. */
-function PaneWithSection({ initial, getPortalPreview, hasSectionButton }: StoryProps) {
+function PaneWithSection({
+  initial,
+  getPortalPreview,
+  hasSectionButton,
+  canEdit = true,
+}: StoryProps) {
   const [active, setActive] = useState<PortalEditorSection>(initial)
   return (
     <div>
@@ -41,6 +47,7 @@ function PaneWithSection({ initial, getPortalPreview, hasSectionButton }: StoryP
         getPortalPreview={getPortalPreview}
         selection={{
           active,
+          canEdit,
           onSelect: (section) => {
             onSelect(section)
             setActive(section)
@@ -184,6 +191,21 @@ export const LanguagesOpensTheSheet: Story = {
     ).toBeLessThan(12)
     // The page does not scroll away from under it.
     await expect(frame.scrollTop).toBe(0)
+    // The sheet covers the page: only its own part is live, so no other part's
+    // button sits over it or takes the focus (and the scroll) away.
+    await expect(canvas.getAllByRole('button', { name: /^Edit / })).toEqual([languages])
+    const rect = sheetBox ?? languages.getBoundingClientRect()
+    for (const at of [0.5, 0.9]) {
+      const hit = document.elementFromPoint(
+        rect.left + rect.width / 2,
+        rect.top + rect.height * at,
+      )
+      await expect(hit?.getAttribute('aria-label')).toBe('Edit Languages')
+    }
+    await userEvent.tab()
+    await userEvent.tab()
+    await userEvent.tab()
+    await expect(frame.scrollTop).toBe(0)
   },
 }
 
@@ -279,5 +301,19 @@ export const WithoutSelectionThePhoneIsAPicture: StoryObj<typeof PortalPreviewPa
     await phone(canvas)
     await expect(canvas.queryByRole('button', { name: /^Edit / })).toBeNull()
     await expect(canvas.queryByText('Click any part of the page to edit it')).toBeNull()
+  },
+}
+
+/** A reader (no portal.update, or an archived portal) is told the parts open settings, not that they edit. */
+export const ReadOnlyPartsSayOpen: Story = {
+  args: { initial: 'welcome', canEdit: false },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await phone(canvas)
+    await canvas.findByRole('button', { name: 'Open Welcome' }, WAIT)
+    await expect(canvas.queryByRole('button', { name: /^Edit / })).toBeNull()
+    await expect(
+      canvas.getByText('Click any part of the page to see its settings'),
+    ).toBeVisible()
   },
 }

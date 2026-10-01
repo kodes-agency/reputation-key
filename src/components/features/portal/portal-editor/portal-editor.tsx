@@ -91,7 +91,7 @@ export function PortalEditor({ resources, requestedSection }: Props) {
           <PortalPreviewPane
             portalId={portal.id}
             getPortalPreview={resources.getPortalPreview}
-            selection={{ active: section, onSelect: openSection }}
+            selection={{ active: section, onSelect: openSection, canEdit }}
           />
         </aside>
       </div>

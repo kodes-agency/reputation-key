@@ -6,7 +6,14 @@ import {
   type Ref,
   type SyntheticEvent,
 } from 'react'
-import type { LanguageOption, LanguageSwitcherCopy } from './language-options'
+import type {
+  LanguageOption,
+  LanguageSwitcherCopy,
+  PreviewLanguageOption,
+} from './language-options'
+
+/** What the panel draws: a row of the guest's sheet has an address, a row of the preview has none. */
+type SheetRow = PreviewLanguageOption & Readonly<{ href?: string }>
 
 export type LanguageSheetProps = Readonly<{
   ref: Ref<HTMLDialogElement>
@@ -70,7 +77,7 @@ export function LanguageSheet({
 
 type LanguageSheetPanelProps = Readonly<{
   titleId: string
-  options: readonly LanguageOption[]
+  options: readonly SheetRow[]
   copy: LanguageSwitcherCopy
   onRequestClose: () => void
 }>
@@ -107,7 +114,7 @@ function LanguageSheetPanel({
         {options.map((option) => (
           <li key={option.locale}>
             <a
-              href={option.href ?? undefined}
+              href={option.href}
               hrefLang={option.locale}
               aria-current={option.isCurrent ? 'page' : undefined}
               className="ih-sheet__row"
@@ -142,22 +149,23 @@ function LanguageSheetPanel({
 /**
  * The sheet as the admin's preview draws it: open on the phone's first screen
  * over the dimmed page, a picture and not a dialog. It holds no `<dialog>` and
- * its rows go nowhere, because a preview has no token to build an address from
- * and nothing in it answers a click. `height` is the phone's own height, which
- * the page behind it is taller than.
+ * its rows go nowhere, because a preview has no token to build an address from.
+ * The whole scene is `inert`, so its close button and rows answer nothing
+ * wherever it is drawn. `height` is the phone's own height, which the page
+ * behind it is taller than.
  */
 export function InertLanguageSheet({
   options,
   copy,
   height,
 }: Readonly<{
-  options: readonly LanguageOption[]
+  options: readonly PreviewLanguageOption[]
   copy: LanguageSwitcherCopy
   height: number
 }>) {
   const titleId = useId()
   return (
-    <div className="ih-sheet-scene" style={{ height }}>
+    <div className="ih-sheet-scene" style={{ height }} inert>
       <div className="ih-sheet-scene__scrim" />
       <div className="ih-sheet-scene__sheet" data-preview-part="language-sheet">
         <LanguageSheetPanel

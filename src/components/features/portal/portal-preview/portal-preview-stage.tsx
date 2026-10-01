@@ -31,7 +31,7 @@ import { PortalPreviewFilmstrip } from './portal-preview-filmstrip'
 import { packFallbackNotice, TRY_AS_GUEST_NOTICE } from './portal-preview-rules'
 import { PreviewGuestPage } from './preview-guest-page'
 import { PreviewPartFrame } from './preview-part-frame'
-import { previewPartOf, type PreviewSelection } from './preview-parts'
+import { previewPartOf, selectionHint, type PreviewSelection } from './preview-parts'
 import { PreviewPhone } from './preview-phone'
 
 type PreviewLanguages = ReadonlyArray<GuestLocale>
@@ -135,14 +135,18 @@ export function PortalPreviewStage({
               isScrollLocked={isSheetOpen}
             >
               {selection ? (
-                <PreviewPartFrame scale={PHONE_SCALE} selection={selection}>
+                <PreviewPartFrame
+                  scale={PHONE_SCALE}
+                  selection={selection}
+                  isSheetOpen={isSheetOpen}
+                >
                   {phonePage}
                 </PreviewPartFrame>
               ) : (
                 <div inert>{phonePage}</div>
               )}
             </PreviewPhone>
-            {selection ? <SelectionHint /> : null}
+            {selection ? <SelectionHint canEdit={selection.canEdit} /> : null}
           </div>
         )}
         <PortalPreviewFilmstrip
@@ -161,11 +165,11 @@ export function PortalPreviewStage({
 }
 
 /** Board 02's line under the phone. */
-function SelectionHint() {
+function SelectionHint({ canEdit }: Readonly<{ canEdit: boolean }>) {
   return (
     <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
       <Sparkles className="size-3.5" aria-hidden="true" />
-      Click any part of the page to edit it
+      {selectionHint(canEdit)}
     </p>
   )
 }

@@ -25,16 +25,18 @@ export type LanguageSwitcherCopy = Readonly<
   >
 >
 
-export type LanguageOption = Readonly<{
+/** What a sheet row names, without where it goes: the part the guest page and the preview share. */
+export type PreviewLanguageOption = Readonly<{
   locale: GuestLocale
   /** The language written in itself: the sheet's first line. */
   nativeName: string
   /** The language named in the page's language, or null when it reads the same. */
   secondaryName: string | null
-  /** Where the row goes; none in the admin's preview, which has no token to build one from. */
-  href: string | null
   isCurrent: boolean
 }>
+
+/** A row of the guest's sheet: it always goes somewhere. */
+export type LanguageOption = PreviewLanguageOption & Readonly<{ href: string }>
 
 /** A portal offers a choice only when it has more than one language. */
 export function offersLanguageChoice(locales: readonly GuestLocale[]): boolean {
@@ -67,30 +69,24 @@ export function buildLanguageOptions(
     copy: LanguageSwitcherCopy
   }>,
 ): readonly LanguageOption[] {
-  return languageRows(input, (locale) =>
-    guestLocaleHref(input.token, locale, input.accessArtifactId),
-  )
+  return previewLanguageOptions(input).map((row) => ({
+    ...row,
+    href: guestLocaleHref(input.token, row.locale, input.accessArtifactId),
+  }))
 }
 
-/** The same rows for the admin's preview of the sheet: they name a language and go nowhere. */
+/**
+ * The same rows for the admin's preview of the sheet: they name a language and
+ * go nowhere, because a preview has no token to build an address from. They
+ * carry no `href` at all, so the guest's rows cannot lose theirs unnoticed.
+ */
 export function previewLanguageOptions(
   input: Readonly<{
     locales: readonly GuestLocale[]
     selectedLocale: GuestLocale
     copy: LanguageSwitcherCopy
   }>,
-): readonly LanguageOption[] {
-  return languageRows(input, () => null)
-}
-
-function languageRows(
-  input: Readonly<{
-    locales: readonly GuestLocale[]
-    selectedLocale: GuestLocale
-    copy: LanguageSwitcherCopy
-  }>,
-  hrefFor: (locale: GuestLocale) => string | null,
-): readonly LanguageOption[] {
+): readonly PreviewLanguageOption[] {
   return input.locales.map((locale) => {
     const { nativeName } = GUEST_LOCALE_METADATA[locale]
     const inPageLanguage = input.copy[LANGUAGE_NAME_KEYS[locale]]
@@ -101,7 +97,6 @@ function languageRows(
         inPageLanguage.toLocaleLowerCase() === nativeName.toLocaleLowerCase()
           ? null
           : inPageLanguage,
-      href: hrefFor(locale),
       isCurrent: locale === input.selectedLocale,
     }
   })

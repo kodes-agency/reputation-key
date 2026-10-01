@@ -115,3 +115,16 @@ export function measurePartBoxes(
   }
   return [...found].sort((a, b) => a.box.top - b.box.top || a.box.left - b.box.left)
 }
+
+/**
+ * The parts that can be clicked. The open language sheet covers the whole first
+ * screen, and the page under it is not to be reached: only the Languages part is
+ * live, so no other part's button sits over the sheet or takes focus (and with
+ * it the frame's scroll) away from it.
+ */
+export function livePartBoxes(
+  boxes: readonly PartBox[],
+  isSheetOpen: boolean,
+): readonly PartBox[] {
+  return isSheetOpen ? boxes.filter(({ section }) => section === 'languages') : boxes
+}

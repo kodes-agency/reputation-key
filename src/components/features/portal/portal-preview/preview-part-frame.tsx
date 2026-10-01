@@ -20,11 +20,19 @@ import {
 import { cn } from '#/lib/utils'
 import { PORTAL_EDITOR_SECTION_ICONS } from '../portal-editor/portal-editor-section-icons'
 import { PORTAL_EDITOR_SECTION_LABELS } from '../portal-editor/portal-editor-sections'
-import { measurePartBoxes, sameBoxes, type PartBox } from './preview-part-boxes'
-import { previewPartOf, type PreviewSelection } from './preview-parts'
+import {
+  livePartBoxes,
+  measurePartBoxes,
+  sameBoxes,
+  type Box,
+  type PartBox,
+} from './preview-part-boxes'
+import { partActionName, previewPartOf, type PreviewSelection } from './preview-parts'
 
 /** The outline's width on screen, whatever the phone's scale. */
 const LINE_WIDTH = 2
+/** The gap between a focused part and its focus ring, on screen. */
+const FOCUS_GAP = 2
 // Where things sit is geometry, not styling: it is set inline, with the numbers
 // it is computed from, and the classes carry only colour and shape.
 const FRAME_STYLE: CSSProperties = { position: 'relative', minHeight: '100%' }
@@ -38,14 +46,39 @@ const LAYER_STYLE: CSSProperties = {
 /** What the flag needs above a part, on screen: a part nearer the top gets its flag below. */
 const FLAG_ROOM = 28
 
+/** Where a part's button sits, and the outline's width and focus gap, drawn against the scale. */
+function partStyle(
+  box: Box,
+  scale: number,
+): CSSProperties & Record<'--part-gap', string> {
+  return {
+    position: 'absolute',
+    pointerEvents: 'auto',
+    top: box.top,
+    left: box.left,
+    width: box.width,
+    height: box.height,
+    outlineStyle: 'solid',
+    outlineWidth: LINE_WIDTH / scale,
+    '--part-gap': `${FOCUS_GAP / scale}px`,
+  }
+}
+
 type Props = Readonly<{
   scale: number
   selection: PreviewSelection
+  /** The language sheet is drawn open over the page: only the Languages part is live. */
+  isSheetOpen?: boolean
   /** The page, drawn inert. */
   children: ReactNode
 }>
 
-export function PreviewPartFrame({ scale, selection, children }: Props) {
+export function PreviewPartFrame({
+  scale,
+  selection,
+  isSheetOpen = false,
+  children,
+}: Props) {
   const frame = useRef<HTMLDivElement>(null)
   const content = useRef<HTMLDivElement>(null)
   const [boxes, setBoxes] = useState<readonly PartBox[]>([])
@@ -75,7 +108,7 @@ export function PreviewPartFrame({ scale, selection, children }: Props) {
         {children}
       </div>
       <div role="group" aria-label="Parts of the page you can edit" style={LAYER_STYLE}>
-        {boxes.map(({ section, box }) => {
+        {livePartBoxes(boxes, isSheetOpen).map(({ section, box }) => {
           const isActive = section === active
           const Icon = PORTAL_EDITOR_SECTION_ICONS[section]
           const label = PORTAL_EDITOR_SECTION_LABELS[section]
@@ -84,27 +117,20 @@ export function PreviewPartFrame({ scale, selection, children }: Props) {
             <button
               key={section}
               type="button"
-              aria-label={`Edit ${label}`}
+              aria-label={partActionName(selection.canEdit, label)}
               aria-current={isActive ? 'true' : undefined}
               onClick={() => selection.onSelect(section)}
               className={cn(
                 'cursor-pointer rounded-[28px] bg-transparent p-0',
-                'transition-[outline-color] duration-150 focus-visible:outline-primary',
+                'transition-[outline-color] duration-150',
+                // Focus is its own mark: a gap and the ring colour, so it is not
+                // taken for the outline of the part being edited.
+                '[outline-offset:0] focus-visible:[outline-offset:var(--part-gap)] focus-visible:outline-ring',
                 isActive
                   ? 'outline-primary'
                   : 'outline-transparent hover:outline-primary/45',
               )}
-              style={{
-                position: 'absolute',
-                pointerEvents: 'auto',
-                top: box.top,
-                left: box.left,
-                width: box.width,
-                height: box.height,
-                outlineStyle: 'solid',
-                outlineOffset: 0,
-                outlineWidth: LINE_WIDTH / scale,
-              }}
+              style={partStyle(box, scale)}
             >
               {isActive ? (
                 <span

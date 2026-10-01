@@ -20,13 +20,16 @@ import type {
   PortalPreviewOutcome,
   PortalPreviewSource,
 } from '#/contexts/portal/application/public-api'
-import type { PreviewStateId } from './portal-preview-states'
+import { previewStateOptions, type PreviewStateId } from './portal-preview-states'
 import { previewPartOf, stateIdForPart, type PreviewSelection } from './preview-parts'
 import { describeUnavailable } from './portal-preview-rules'
 import { PHONE_SCALE, PortalPreviewStage } from './portal-preview-stage'
 import { phoneFrameSize } from './preview-phone'
 import { PortalPreviewToolbar } from './portal-preview-toolbar'
 import { usePreviewCopy } from './use-preview-copy'
+
+/** The highest private-feedback threshold a portal can have. */
+const MAX_THRESHOLD = 5
 
 /** The read, as a route hands it in (a server function takes its input as `data`). */
 export type PortalPreviewReader = (args: {
@@ -47,17 +50,19 @@ type Props = Readonly<{
 export function PortalPreviewPane({ portalId, getPortalPreview, selection }: Props) {
   const [source, setSource] = useState<PortalPreviewSource>('draft')
   const [chosenLocale, setChosenLocale] = useState<GuestLocale | null>(null)
+  // Before the preview has loaded its threshold is not known: every valid one
+  // (1 to 5) offers the note after a low rating, which is all this needs.
   const [stateId, setStateId] = useState<PreviewStateId>(() =>
-    stateIdForPart(previewPartOf(selection?.active), 'arrival'),
+    stateIdForPart(
+      previewPartOf(selection?.active),
+      'arrival',
+      previewStateOptions(MAX_THRESHOLD),
+    ),
   )
   // Moving to another section shows the guest state that draws its part: the
   // private note is only on the page after a low rating. A state the manager
   // chose that already draws it is kept.
   const [shownFor, setShownFor] = useState(selection?.active)
-  if (shownFor !== selection?.active) {
-    setShownFor(selection?.active)
-    setStateId(stateIdForPart(previewPartOf(selection?.active), stateId))
-  }
   const [isTrying, setIsTrying] = useState(false)
   const { data, isPending, isError, refetch } = useQuery({
     queryKey: portalKeys.preview(portalId, source),
@@ -67,6 +72,16 @@ export function PortalPreviewPane({ portalId, getPortalPreview, selection }: Pro
     placeholderData: keepPreviousData,
   })
   const preview = data?.status === 'ready' ? data.preview : null
+  if (shownFor !== selection?.active) {
+    setShownFor(selection?.active)
+    setStateId(
+      stateIdForPart(
+        previewPartOf(selection?.active),
+        stateId,
+        previewStateOptions(preview?.privateFeedbackThreshold ?? MAX_THRESHOLD),
+      ),
+    )
+  }
   // The chosen language may not exist in the other version: fall back to its primary.
   const locale =
     chosenLocale !== null && preview?.locales.includes(chosenLocale)

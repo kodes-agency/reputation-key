@@ -7,7 +7,7 @@
 // they are not something the page shows.
 
 import type { PortalEditorSection } from '../portal-editor/portal-editor-sections'
-import type { PreviewStateId } from './portal-preview-states'
+import type { PreviewStateId, PreviewStateOption } from './portal-preview-states'
 
 export const PREVIEW_PART_SECTIONS = [
   'welcome',
@@ -27,7 +27,21 @@ export type PreviewSelection = Readonly<{
   active: PortalEditorSection
   /** A part was chosen with a click or Enter: the editor opens its section. */
   onSelect: (section: PreviewPartSection) => void
+  /** Whether the section that opens can be changed: a reader's parts say "open", not "edit". */
+  canEdit: boolean
 }>
+
+/** What a part's button is called: "Edit Welcome", or "Open Welcome" where the section is read-only. */
+export function partActionName(canEdit: boolean, label: string): string {
+  return `${canEdit ? 'Edit' : 'Open'} ${label}`
+}
+
+/** Board 02's line under the phone. */
+export function selectionHint(canEdit: boolean): string {
+  return canEdit
+    ? 'Click any part of the page to edit it'
+    : 'Click any part of the page to see its settings'
+}
 
 export function previewPartOf(
   section: PortalEditorSection | undefined,
@@ -42,6 +56,10 @@ export function previewPartOf(
  * language chip is the part until the sheet is open, and then the sheet is.
  * The markers are the page's own classes and the two `data-preview-part`
  * attributes the preview adds; `preview-guest-page.test.ts` pins each one.
+ *
+ * The "Your response" disclosure under the receipt (`.ih-yr`) is in no part, on
+ * purpose: it shows the guest's own answer, which no section sets, and adding
+ * it to the rating would stretch that part over the private note below it.
  */
 export const PREVIEW_PART_SELECTORS: Readonly<
   Record<PreviewPartSection, readonly string[]>
@@ -54,18 +72,23 @@ export const PREVIEW_PART_SELECTORS: Readonly<
   languages: ['[data-preview-part="language-sheet"]', '.ih-chip'],
 }
 
-/** The states of the filmstrip that draw the private note: after a low rating, and once it is sent. */
-const STATES_WITH_NOTE: ReadonlySet<PreviewStateId> = new Set(['low', 'done'])
+/** Whether a state draws the private note: after a rating, when it is offered or was sent. */
+const drawsNote = (option: PreviewStateOption): boolean =>
+  option.state.phase === 'rated' && option.state.note !== 'none'
 
 /**
  * The guest state to show once `part` is the one being edited: the one the
  * manager is on when it draws the part, else the first that does. Only the
- * private note is missing from some states, and a guest meets it after a low rating.
+ * private note is missing from some states, and which ones depends on the
+ * threshold, so `options` are the states the filmstrip offers.
  */
 export function stateIdForPart(
   part: PreviewPartSection | null,
   current: PreviewStateId,
+  options: readonly PreviewStateOption[],
 ): PreviewStateId {
-  if (part !== 'private-note' || STATES_WITH_NOTE.has(current)) return current
-  return 'low'
+  if (part !== 'private-note') return current
+  const shown = options.find((option) => option.id === current)
+  if (shown !== undefined && drawsNote(shown)) return current
+  return options.find(drawsNote)?.id ?? current
 }
