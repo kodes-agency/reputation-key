@@ -9,6 +9,7 @@ import { canForContext } from '#/shared/domain/permissions'
 import { isOwnerToken } from '#/shared/domain/roles'
 import { identityError } from '../../domain/errors'
 import { identityMemberRemoved } from '../../domain/events'
+import { assertAnotherOwnerRemains } from './last-owner-guard'
 import { userId as toUserId, type OrganizationId } from '#/shared/domain/ids'
 import type { RemoveMemberInput } from '../dto/invitation.dto'
 export type { RemoveMemberInput }
@@ -67,14 +68,11 @@ export const removeMember =
     // role string so a multi-role owner ('owner,editor') still counts as an owner.
     // The command store re-checks this under the advisory lock (TOCTOU backstop).
     if (isOwnerToken(targetMember.rawRole)) {
-      const members = await deps.identity.listMembers(ctx)
-      const ownerCount = members.filter((m) => isOwnerToken(m.rawRole)).length
-      if (ownerCount <= 1) {
-        throw identityError(
-          'forbidden',
-          'Cannot remove the last admin of the organization',
-        )
-      }
+      await assertAnotherOwnerRemains(
+        deps.identity,
+        ctx,
+        'Cannot remove the last admin of the organization',
+      )
     }
 
     // LIF-01-T21 ordering, and it is deliberate. These two fences belong to

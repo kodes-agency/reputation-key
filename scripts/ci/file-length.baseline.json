@@ -26,7 +26,7 @@
   "src/shared/db/schema/review.schema.ts": 1564,
   "src/shared/events/schema-registrations.ts": 1677,
   "src/shared/google-provider-control/route-catalogue.ts": 807,
-  "src/shared/governance/event-job-catalogue.ts": 882,
+  "src/shared/governance/event-job-catalogue.ts": 876,
   "src/shared/observability/metrics-schema.ts": 858,
   "src/shared/testing/scenarios/executors.ts": 1335
 }

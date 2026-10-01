@@ -12,6 +12,7 @@ import { ADMIN_ROLE, isOwnerToken, toBetterAuthRole } from '#/shared/domain/role
 import { canChangeRole } from '../../domain/rules'
 import { identityError } from '../../domain/errors'
 import { identityMemberRoleChanged } from '../../domain/events'
+import { assertAnotherOwnerRemains } from './last-owner-guard'
 import { userId as toUserId } from '#/shared/domain/ids'
 import type { UpdateMemberRoleInput } from '../dto/invitation.dto'
 export type { UpdateMemberRoleInput }
@@ -94,14 +95,11 @@ export const updateMemberRole =
     const demotesAccountAdmin =
       isOwnerToken(targetMember.rawRole) && input.role !== ADMIN_ROLE
     if (demotesAccountAdmin) {
-      const members = await deps.identity.listMembers(ctx)
-      const ownerCount = members.filter((m) => isOwnerToken(m.rawRole)).length
-      if (ownerCount <= 1) {
-        throw identityError(
-          'forbidden',
-          'Cannot demote the last admin of the organization',
-        )
-      }
+      await assertAnotherOwnerRemains(
+        deps.identity,
+        ctx,
+        'Cannot demote the last admin of the organization',
+      )
     }
 
     // 4. Persist + fact — atomic via the command store

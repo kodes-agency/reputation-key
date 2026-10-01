@@ -12,21 +12,16 @@
 import type { Capability } from '#/shared/auth/beta-capabilities'
 import type { SystemAction } from './entry-point-catalogue'
 import { IDENTITY_ROWS } from './event-job-catalogue-identity'
+import {
+  durable,
+  ev,
+  type EventConsumerRef,
+  type EventFamilyRow,
+} from './event-job-catalogue-rows'
 
 // ── Types ───────────────────────────────────────────────────────────
 
-/** A durable outbox consumer of an event family, pinned to its registration module. */
-export type EventConsumerRef = Readonly<{
-  /** Consumer name, e.g. 'inbox.on-review-created'. */
-  name: string
-  /** Repo-relative file containing the registerConsumer call. */
-  module: string
-}>
-
-export type EventFamilyRow = Readonly<{
-  eventType: string
-  consumers: ReadonlyArray<EventConsumerRef>
-}>
+export type { EventConsumerRef, EventFamilyRow }
 
 /** Registration posture of a job family. */
 export type JobRegistration =
@@ -61,15 +56,6 @@ export type JobFamilyRow = Readonly<{
 }>
 
 // ── Row factories (records of functions — no classes) ───────────────
-
-/** Durable outbox consumer ('<context>.<handler-name>'). */
-const durable = (name: string, module: string): EventConsumerRef => ({ name, module })
-
-/** Event family row used by readiness and dispatcher routing. */
-const ev = (
-  eventType: string,
-  consumers: ReadonlyArray<EventConsumerRef>,
-): EventFamilyRow => ({ eventType, consumers })
 
 type JobBase = Readonly<{
   queue: 'default' | 'background'
