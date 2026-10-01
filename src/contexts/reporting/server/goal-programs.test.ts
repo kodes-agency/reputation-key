@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   changeStatus: vi.fn(),
   get: vi.fn(),
   list: vi.fn(),
+  progress: vi.fn(),
   resolveTenantContext: vi.fn(),
   requireExecutionAllowed: vi.fn(),
 }))
@@ -23,6 +24,7 @@ vi.mock('#/composition', () => ({
         changeStatus: mocks.changeStatus,
         get: mocks.get,
         list: mocks.list,
+        progress: mocks.progress,
       },
     },
   }),
@@ -43,6 +45,8 @@ import {
   createGoalProgramSchema,
   changeGoalProgramAssignmentsSchema,
   getGoalProgram,
+  getGoalProgress,
+  getGoalProgressSchema,
   listGoalPrograms,
 } from './goal-programs'
 
@@ -136,6 +140,29 @@ describe('canonical Goal Program server functions', () => {
       PROPERTY_ID,
       assignedOnlyActor,
     )
+  })
+
+  it('reads live goal progress for one subject through the request policy', async () => {
+    const progress = [{ programId: 'program-1', reading: { kind: 'live', value: 3 } }]
+    mocks.progress.mockResolvedValue(progress)
+    const input = {
+      propertyId: PROPERTY_ID,
+      subject: {
+        kind: 'portal_group' as const,
+        portalGroupId: '00000000-0000-4000-8000-000000000005',
+      },
+    }
+
+    await withStartContext(() => getGoalProgress({ data: input }))
+
+    expect(mocks.progress).toHaveBeenCalledWith(expect.any(Object), input, actor)
+  })
+
+  it('accepts a progress read only for a subject that is an id', () => {
+    const subject = { kind: 'portal_group' as const, portalGroupId: 'not-an-id' }
+    expect(
+      getGoalProgressSchema.safeParse({ propertyId: PROPERTY_ID, subject }).success,
+    ).toBe(false)
   })
 
   it('rejects empty subjects and count targets are left to domain validation', () => {

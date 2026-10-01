@@ -6,7 +6,7 @@ import { and, eq, gte, isNull, lt } from 'drizzle-orm'
 import type { Database } from '#/shared/db'
 import { portalGroups } from '#/shared/db/schema/portal-group.schema'
 import { portalGroupMemberships } from '#/shared/db/schema/people-access.schema'
-import { insertOutboxRow } from '#/shared/outbox/commit'
+import { insertOutboxRow, type Tx } from '#/shared/outbox/commit'
 import { trace } from '#/shared/observability/trace'
 import { unbrand } from '#/shared/domain/ids'
 import type {
@@ -143,7 +143,7 @@ function assertUpdatePortalGroupCommand(command: UpdatePortalGroupCommand): void
   }
 }
 
-function assertMembershipCommand(
+export function assertMembershipCommand(
   command: AddPortalToGroupCommand | RemovePortalFromGroupCommand,
   expectedTag: 'portal_group.portal_added' | 'portal_group.portal_removed',
 ): void {
@@ -181,6 +181,46 @@ function assertMoveCommand(command: MovePortalToGroupCommand): void {
   if (mismatch || command.from?.portalGroupId === command.to.portalGroupId) {
     throw portalError('forbidden', 'Tenant or resource mismatch on Portal Group move')
   }
+}
+
+/**
+ * Put a Portal in a group inside a command transaction: fence the group, check
+ * the Portal is an active one of the same Property and not already grouped,
+ * write the effective-dated membership, the group history entry and the fact.
+ * Shared by the membership command and by Portal creation (the new Portal joins
+ * its group in the same commit), so both leave the same rows.
+ */
+export async function joinPortalGroupInTransaction(
+  tx: Tx,
+  command: AddPortalToGroupCommand,
+): Promise<void> {
+  await fencePortalGroup(tx, command)
+  await lockSamePropertyPortal(
+    tx,
+    command,
+    'Portal Group membership requires an active same-property Portal',
+  )
+  const existing = await lockActiveMembership(tx, command)
+  if (existing) {
+    throw portalError('portal_already_grouped', 'portal is already in a group')
+  }
+  await beginMembership(tx, {
+    ...command,
+    at: command.occurredAt,
+    createdBy: unbrand(command.changedBy),
+  })
+  await recordGroupHistory(tx, [
+    portalGroupHistoryEntry({
+      organizationId: command.organizationId,
+      propertyId: command.propertyId,
+      portalGroupId: command.portalGroupId,
+      kind: 'portal_added',
+      portalId: command.portalId,
+      actorUserId: unbrand(command.changedBy),
+      occurredAt: command.occurredAt,
+    }),
+  ])
+  await insertOutboxRow(tx, command.event, { recordedAt: command.occurredAt })
 }
 
 export const createPortalGroupCommands = (db: Database): PortalGroupCommandStore => {
@@ -306,37 +346,7 @@ export const createPortalGroupCommands = (db: Database): PortalGroupCommandStore
     addPortalToGroup: async (command) =>
       trace('portal.commandStore.addPortalToGroup', async () => {
         assertMembershipCommand(command, 'portal_group.portal_added')
-        await db.transaction(async (tx) => {
-          await fencePortalGroup(tx, command)
-          await lockSamePropertyPortal(
-            tx,
-            command,
-            'Portal Group membership requires an active same-property Portal',
-          )
-          const existing = await lockActiveMembership(tx, command)
-          if (existing) {
-            throw portalError('portal_already_grouped', 'portal is already in a group')
-          }
-          await beginMembership(tx, {
-            ...command,
-            at: command.occurredAt,
-            createdBy: unbrand(command.changedBy),
-          })
-          await recordGroupHistory(tx, [
-            portalGroupHistoryEntry({
-              organizationId: command.organizationId,
-              propertyId: command.propertyId,
-              portalGroupId: command.portalGroupId,
-              kind: 'portal_added',
-              portalId: command.portalId,
-              actorUserId: unbrand(command.changedBy),
-              occurredAt: command.occurredAt,
-            }),
-          ])
-          await insertOutboxRow(tx, command.event, {
-            recordedAt: command.occurredAt,
-          })
-        })
+        await db.transaction((tx) => joinPortalGroupInTransaction(tx, command))
       }),
 
     removePortalFromGroup: async (command) =>

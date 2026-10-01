@@ -2,7 +2,7 @@
 // manager needs to know about a section without opening it. Pure and separate
 // from the navigation so the words are pinned by a test, not by JSX.
 
-import type { PortalGroupView } from '../portal-group-types'
+import type { PortalGroupView } from '../portal-group/portal-group-types'
 import type { PortalEditorSection } from './portal-editor-sections'
 
 export type PortalEditorSummaryInput = Readonly<{

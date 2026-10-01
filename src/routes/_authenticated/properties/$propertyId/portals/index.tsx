@@ -1,68 +1,38 @@
+// fallow-ignore-file code-duplication
+// r4 s38: parallel dialog forms, server-function shells and ledger rows share intentional boilerplate.
 // Portal list — shows all portals for a property
-import { useMemo } from 'react'
 import { createFileRoute, redirect } from '@tanstack/react-router'
-import {
-  keepPreviousData,
-  queryOptions,
-  useQuery,
-  useQueryClient,
-  useSuspenseQuery,
-} from '@tanstack/react-query'
+import { useQuery, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import { listPortalOverview, updatePortal } from '#/contexts/portal/server/portals'
+import { updatePortal } from '#/contexts/portal/server/portals'
 import {
-  addPortalToGroup,
   createPortalGroup,
-  removePortalFromGroup,
   softDeletePortalGroup,
   updatePortalGroup,
 } from '#/contexts/portal/server/portal-groups'
-import { getPortalResultsOverviewFn } from '#/contexts/reporting/server/portal-results-overview'
-import type { PortalResultsTimeRange } from '#/contexts/reporting/application/public-api'
 import { PortalListPage } from '#/components/features/portal/portal-list-page'
 import {
-  indexOverviewResults,
-  resultsStateOf,
-} from '#/components/features/portal/portal-overview/portal-overview-results'
-import { portalOverviewSearchSchema } from '#/components/features/portal/portal-overview/portal-overview-search-schema'
-import { useOverviewRange } from '#/components/features/portal/portal-overview/use-overview-range'
+  portalOverviewSearchSchema,
+  type PortalOverviewSearch,
+} from '#/components/features/portal/portal-overview/portal-overview-search-schema'
 import {
   PortalListError,
   PortalListLoading,
 } from '#/components/features/portal/portal-route-fallbacks'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import {
+  actionErrorMessage,
+  useActionMutation,
+} from '#/components/hooks/use-action-mutation'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { membersQuery, propertiesQuery } from '#/routes/-queries/route-queries'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { portalGroupsQuery } from './-portal-detail-data'
+import { portalOverviewQuery } from './-portal-overview-data'
+import { useNewPortal } from './-use-new-portal'
+import { usePortalResultsControls } from './-portal-results-controls'
 import { portalGroupCachePolicy } from '#/components/features/portal/portal-group-cache-policy'
-
-// Read once for every Portal of the Property. A summary of state that changes in
-// many places (publishing, codes, managers, groups), so it is refetched on
-// arrival; the cached copy still renders first. Short, not zero: the loader has
-// just fetched it, and a zero would read the same six sources a second time.
-const OVERVIEW_STALE_MS = 5_000
-
-const portalOverviewQuery = (propertyId: string) =>
-  queryOptions({
-    queryKey: portalKeys.overview(propertyId),
-    queryFn: () => listPortalOverview({ data: { propertyId } }),
-    staleTime: OVERVIEW_STALE_MS,
-  })
-
-// The results beside the list: a separate read, so a slow or refused one never
-// holds the list back. Always compared with the period before, as the strip says.
-const RESULTS_STALE_MS = 30_000
-
-const portalResultsQuery = (propertyId: string, timeRange: PortalResultsTimeRange) =>
-  queryOptions({
-    queryKey: portalKeys.resultsOverview(propertyId, timeRange, true),
-    queryFn: () =>
-      getPortalResultsOverviewFn({ data: { propertyId, timeRange, compare: true } }),
-    staleTime: RESULTS_STALE_MS,
-  })
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/portals/')({
   beforeLoad: async ({ context, params }) => {
@@ -91,7 +61,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/por
 
 function PortalListRoute() {
   const { propertyId } = Route.useParams()
-  const search = Route.useSearch()
+  const search: PortalOverviewSearch = Route.useSearch()
   const navigate = Route.useNavigate()
   const queryClient = useQueryClient()
   const { can: canDo } = usePermissions()
@@ -105,29 +75,21 @@ function PortalListRoute() {
     enabled: canDo('member.list'),
     retry: false,
   })
-  const range = useOverviewRange()
-  // `dashboard.read` is a different capability from the `portal.read` that got the
-  // reader here: a role without it, or a beta-dark posture, gets the list alone.
-  const resultsQuery = useQuery({
-    ...portalResultsQuery(propertyId, range.timeRange),
-    enabled: range.ready && canDo('dashboard.read'),
-    placeholderData: keepPreviousData,
-    retry: false,
-  })
-  const resultsData = resultsQuery.data
-  const resultsIndex = useMemo(
-    () => (resultsData ? indexOverviewResults(resultsData) : null),
-    [resultsData],
-  )
-  const resultsState = resultsStateOf(
-    { allowed: canDo('dashboard.read'), error: resultsQuery.error },
-    resultsIndex,
-  )
+  const results = usePortalResultsControls(propertyId)
   const { portals } = overviewData
   const { groups } = portalGroupsData
   const { properties } = propsData
   const property = properties?.find((p) => p.id === propertyId)
   const propertyName = property?.name ?? ''
+
+  const newPortal = useNewPortal({
+    propertyId,
+    propertyName,
+    open: search.new === true && canDo('portal.create'),
+    groups,
+    portals,
+    members: members.data?.members,
+  })
 
   const archiveMutation = useActionMutation(updatePortal, {
     successMessage: 'Portal archived',
@@ -137,34 +99,24 @@ function PortalListRoute() {
     successMessage: 'Portal restored as Disabled',
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
-  const createGroupMutation = useActionMutation(createPortalGroup, {
-    successMessage: 'Portal group created',
+  // The dialogs show a refusal in place; the archive confirmation closes first,
+  // so its refusal is the page's banner and a toast.
+  const createMutation = useActionMutation(createPortalGroup, {
+    successMessage: 'Group created',
     onSuccess: () => portalGroupCachePolicy.onGroupCreated(queryClient, propertyId),
   })
-  const updateGroupMutation = useActionMutation(updatePortalGroup, {
-    successMessage: 'Portal group updated',
+  const renameMutation = useActionMutation(updatePortalGroup, {
+    successMessage: 'Group renamed',
     onSuccess: () => portalGroupCachePolicy.onGroupUpdated(queryClient, propertyId),
   })
-  const deleteGroupMutation = useActionMutation(softDeletePortalGroup, {
-    successMessage: 'Portal group archived',
+  const archiveGroupMutation = useActionMutation(softDeletePortalGroup, {
+    successMessage: 'Group archived',
+    errorMessage: actionErrorMessage,
     onSuccess: () => portalGroupCachePolicy.onGroupDeleted(queryClient, propertyId),
   })
-  const addPortalToGroupMutation = useActionMutation(addPortalToGroup, {
-    successMessage: 'Portal added to group',
-    onSuccess: () => portalGroupCachePolicy.onGroupMemberAdded(queryClient, propertyId),
-  })
-  const removePortalFromGroupMutation = useActionMutation(removePortalFromGroup, {
-    successMessage: 'Portal removed from group',
-    onSuccess: () => portalGroupCachePolicy.onGroupMemberRemoved(queryClient, propertyId),
-  })
 
-  // `groups` is `PortalGroupWithPortals` (a flat PortalGroup plus `portalIds`),
-  // which already satisfies `PortalGroupView`, so it goes straight to the page.
-  // The previous `item as unknown as {...}` normalization erased that type — the
-  // very drift it claimed to guard against — and its `throw` ran during RENDER,
-  // so one malformed group replaced the whole portals page via `errorComponent`.
-  // `listPortalGroups` always returns `portalIds`; if that ever needs defending,
-  // PortalGroupManagement's scoped `state="error"` + `onRetry` is the seam.
+  // `groups` is `PortalGroupWithPortals` (a flat PortalGroup plus `portalIds`):
+  // the page needs only each group's id and name, to reach one that holds no Portal.
   return (
     <PortalListPage
       rows={portals}
@@ -174,27 +126,16 @@ function PortalListRoute() {
       }))}
       propertyId={propertyId}
       propertyName={propertyName}
-      results={
-        resultsState.status === 'off'
-          ? undefined
-          : {
-              state: resultsState,
-              timeRange: range.timeRange,
-              onTimeRangeChange: range.setTimeRange,
-              onRetry: () => void resultsQuery.refetch(),
-              busy: resultsQuery.isPlaceholderData,
-            }
-      }
+      results={results}
       search={search}
       onSearchChange={(next) => void navigate({ search: next, replace: true })}
       archiveMutation={archiveMutation}
       restoreMutation={restoreMutation}
-      portalGroups={groups}
-      createGroupMutation={createGroupMutation}
-      updateGroupMutation={updateGroupMutation}
-      deleteGroupMutation={deleteGroupMutation}
-      addPortalToGroupMutation={addPortalToGroupMutation}
-      removePortalFromGroupMutation={removePortalFromGroupMutation}
+      groups={groups.map((group) => ({ id: group.id, name: group.name }))}
+      createMutation={createMutation}
+      renameMutation={renameMutation}
+      archiveGroupMutation={archiveGroupMutation}
+      newPortal={newPortal}
     />
   )
 }

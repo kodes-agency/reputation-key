@@ -1,3 +1,5 @@
+// fallow-ignore-file code-duplication
+// r4 s38: parallel dialog forms, server-function shells and ledger rows share intentional boilerplate.
 // The Portals overview as data: which Portals are listed, in which groups, in
 // which order and on which page, and the words each row carries. Pure, so every
 // rule (search, the attention filter, group order, paging across groups) is
@@ -224,6 +226,44 @@ function bucketByGroup(
 const clamp = (value: number, low: number, high: number): number =>
   Math.min(Math.max(value, low), high)
 
+const compareNames = (a: string, b: string): number =>
+  a.toLowerCase().localeCompare(b.toLowerCase())
+
+/**
+ * The groups of the Property that hold no Portal, as heads with nothing under
+ * them, so a group made first (or emptied) stays reachable. Shown on the last
+ * page, before the ungrouped Portals, and only while the list is grouped and
+ * nothing narrows it.
+ */
+function emptyGroupSections(
+  known: readonly NonNullable<PortalOverviewRow['group']>[],
+  used: ReadonlySet<string>,
+): readonly PortalOverviewSection[] {
+  return known
+    .filter((group) => !used.has(group.id))
+    .sort((a, b) => compareNames(a.name, b.name))
+    .map((group) => ({
+      kind: 'group' as const,
+      key: group.id,
+      group,
+      memberCount: 0,
+      matchedCount: 0,
+      items: [],
+    }))
+}
+
+/** Places `extra` before the ungrouped Portals, or at the end when there are none. */
+function withBeforeUngrouped(
+  sections: readonly PortalOverviewSection[],
+  extra: readonly PortalOverviewSection[],
+): readonly PortalOverviewSection[] {
+  if (extra.length === 0) return sections
+  const at = sections.findIndex((section) => section.kind === 'ungrouped')
+  return at < 0
+    ? [...sections, ...extra]
+    : [...sections.slice(0, at), ...extra, ...sections.slice(at)]
+}
+
 export function buildPortalOverview(
   rows: readonly PortalOverviewRow[],
   search: PortalOverviewSearch,
@@ -231,6 +271,8 @@ export function buildPortalOverview(
   pageSize: number = PORTAL_OVERVIEW_PAGE_SIZE,
   /** What the results say each row counted, for the scans sort; none until they arrive. */
   figures?: OverviewSortFigures,
+  /** Every group of the Property, so one with no Portal can still be listed. */
+  knownGroups: readonly NonNullable<PortalOverviewRow['group']>[] = [],
 ): PortalOverviewPage {
   const sort = search.sort ?? DEFAULT_PORTAL_OVERVIEW_SORT
   const dir = search.dir ?? defaultSortDirection(sort)
@@ -288,8 +330,14 @@ export function buildPortalOverview(
     ]
   })
 
+  const narrowed = (search.q?.trim() ?? '') !== '' || search.show !== undefined
+  const emptyGroups =
+    grouping && !narrowed && page === lastPage
+      ? emptyGroupSections(knownGroups, new Set(memberCounts.keys()))
+      : []
+
   return {
-    sections,
+    sections: withBeforeUngrouped(sections, emptyGroups),
     total: all.length,
     matched: matched.length,
     page,

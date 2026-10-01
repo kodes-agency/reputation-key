@@ -1,5 +1,5 @@
-// The Portals overview's URL: what is searched, shown, grouped, sorted and which
-// page is open. Every key is optional with no default, so the default view is a
+// The Portals overview's URL: what is searched, shown, grouped, sorted, which
+// page is open and whether the New portal dialog is. Every key is optional with no default, so the default view is a
 // bare `/portals` and a value a hand-edited URL cannot mean is dropped rather
 // than refusing the page (the same rule as the Properties list).
 import { z } from 'zod/v4'
@@ -33,6 +33,13 @@ export const portalOverviewSearchSchema = z.object({
   sort: z.enum(PORTAL_OVERVIEW_SORTS).optional().catch(undefined),
   dir: z.enum(['asc', 'desc']).optional().catch(undefined),
   page: z.coerce.number().int().min(1).optional().catch(undefined),
+  // Whether the New portal dialog is open. In the URL so a reload keeps it, and
+  // so the old /portals/new address can redirect here.
+  new: z
+    .union([z.literal(true), z.literal('true'), z.literal(1), z.literal('1')])
+    .transform((): true => true)
+    .optional()
+    .catch(undefined),
 })
 
 export type PortalOverviewSearch = z.infer<typeof portalOverviewSearchSchema>
@@ -79,6 +86,7 @@ export function portalOverviewSearchPatch(
       ? {}
       : { dir: merged.dir }),
     ...(page === undefined || page <= 1 ? {} : { page }),
+    ...(merged.new === true ? { new: true as const } : {}),
   }
   return next
 }

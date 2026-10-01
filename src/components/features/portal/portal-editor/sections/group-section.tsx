@@ -4,7 +4,7 @@
 
 import { Link } from '@tanstack/react-router'
 import { PortalEditorSectionFrame } from '../portal-editor-section-frame'
-import type { PortalGroupView } from '../../portal-group-types'
+import type { PortalGroupView } from '../../portal-group/portal-group-types'
 
 export function GroupSection({
   propertyId,

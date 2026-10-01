@@ -182,6 +182,66 @@ describe('buildPortalOverview', () => {
   })
 })
 
+describe('buildPortalOverview with groups that hold no portal', () => {
+  const quiet = overviewGroup('g-quiet', 'Quiet corner')
+  const known = [pool, front, quiet]
+  const withKnown = (search: Parameters<typeof buildPortalOverview>[1] = {}) =>
+    buildPortalOverview(rows, search, [], 20, undefined, known)
+
+  it('lists an empty group as a head with nothing under it, before the ungrouped Portals', () => {
+    const page = withKnown()
+
+    expect(
+      page.sections.map((section) => [section.group?.name ?? null, section.items.length]),
+    ).toEqual([
+      ['Front of house', 1],
+      ['Pool side', 3],
+      ['Quiet corner', 0],
+      [null, 1],
+    ])
+    const empty = page.sections.find((section) => section.group?.id === 'g-quiet')
+    expect(empty).toMatchObject({ kind: 'group', memberCount: 0, matchedCount: 0 })
+  })
+
+  it('does not change what the Portals count says', () => {
+    const page = withKnown()
+
+    expect(page.total).toBe(5)
+    expect(page.matched).toBe(5)
+  })
+
+  it('leaves an empty group out while a search or filter narrows the list', () => {
+    expect(withKnown({ q: 'spa' }).sections.map((s) => s.group?.name)).toEqual([
+      'Pool side',
+    ])
+    expect(
+      withKnown({ show: 'attention' }).sections.some((s) => s.group?.id === 'g-quiet'),
+    ).toBe(false)
+  })
+
+  it('leaves it out when the list is not grouped', () => {
+    const page = withKnown({ groupBy: 'none' })
+
+    expect(page.sections).toHaveLength(1)
+    expect(page.sections[0]?.kind).toBe('flat')
+  })
+
+  it('shows it on the last page only', () => {
+    const first = buildPortalOverview(rows, {}, [], 3, undefined, known)
+    const last = buildPortalOverview(rows, { page: 2 }, [], 3, undefined, known)
+
+    expect(first.sections.some((s) => s.group?.id === 'g-quiet')).toBe(false)
+    expect(last.sections.some((s) => s.group?.id === 'g-quiet')).toBe(true)
+  })
+
+  it('lists groups with no Portals at all when the property has none', () => {
+    const page = buildPortalOverview([], {}, [], 20, undefined, [quiet])
+
+    expect(page.sections.map((section) => section.group?.name)).toEqual(['Quiet corner'])
+    expect(page.total).toBe(0)
+  })
+})
+
 describe('channelLabel', () => {
   it('names the code a Portal has, never a place', () => {
     expect(channelLabel(overviewRow('a').token)).toBe('QR and NFC')

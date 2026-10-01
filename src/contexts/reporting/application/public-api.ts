@@ -72,6 +72,7 @@ export type {
 } from './goal-results-matrix'
 export type { GoalAssignmentChangeOutcome } from './goal-assignment-selection'
 export { GoalProgramError } from './use-cases/goal-programs'
+export type { GoalProgress, GoalProgressReading } from './use-cases/goal-progress'
 export type {
   GoalMonthlyResultClosed,
   GoalMonthlyResultReconciled,

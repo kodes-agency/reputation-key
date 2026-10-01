@@ -1,71 +1,26 @@
 // Portal context — create portal use case tests
 
 import { describe, it, expect } from 'vitest'
-import { createPortal } from './create-portal'
-import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
-import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
-import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-portal-command-store'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
-import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { isPortalError } from '../../domain/errors'
-import {
-  portalId,
-  propertyId,
-  type OrganizationId,
-  type PropertyId,
-} from '#/shared/domain/ids'
+import { portalId, propertyId, type PropertyId } from '#/shared/domain/ids'
+import { CLOCK, setupCreatePortal } from '#/shared/testing/portal-create-setup'
 
-const FIXED_ID = portalId('portal-00000000-0000-0000-0000-000000000001')
-const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
-
-const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublicApi => ({
-  getAccessiblePropertyIds: async () => accessible,
-  getAssignedPortals: async () => [],
-})
+const FIXED_ID = portalId('d0000000-0000-0000-0000-000000000001')
+const FIXED_TIME = CLOCK
 
 const setup = (
   accessible: ReadonlyArray<PropertyId> | null = [
     propertyId('a0000000-0000-0000-0000-000000000001'),
   ],
   managerRole: 'AccountAdmin' | 'PropertyManager' = 'PropertyManager',
-) => {
-  const portalRepo = createInMemoryPortalRepo()
-  const outbox = createRecordedOutbox()
-  const deps = {
-    portalRepo,
-    propertyApi: {
-      propertyExists: async (_orgId: OrganizationId, pid: PropertyId) =>
-        pid === propertyId('a0000000-0000-0000-0000-000000000001'),
-      getPropertyName: async () => null,
-      getPropertyNames: async () => [],
-      getPropertyTimezones: async () => [],
-      findByGbpLocationId: async () => null,
-      findBySlug: async () => null,
-      getSourceEpoch: async () => ({ sourceEpoch: 0 }),
-      findIdsByGoogleConnection: async () => [],
-      findGoogleNotificationAnchor: async () => null,
-      clearGoogleConnectionRef: async () => {},
-    },
-    staffPublicApi: staffApiMock(accessible),
-    identityPublicApi: {
-      listActiveManagers: async () => [
-        {
-          userId: 'user-00000000-0000-0000-0000-000000000001',
-          role: managerRole,
-          propertyAccessScope:
-            managerRole === 'AccountAdmin'
-              ? ('organization' as const)
-              : ('assigned-properties' as const),
-        },
-      ],
-    },
-    commandStore: createInMemoryPortalCommandStore({ portalRepo, outbox }),
-    idGen: () => FIXED_ID,
-    clock: () => FIXED_TIME,
-  }
-  const useCase = createPortal(deps)
-  return { useCase, portalRepo, outbox }
-}
+) =>
+  setupCreatePortal({
+    accessible,
+    managers: [
+      { userId: 'user-00000000-0000-0000-0000-000000000001', role: managerRole },
+    ],
+  })
 
 describe('createPortal', () => {
   it('creates a portal with defaults when optional fields are omitted', async () => {
@@ -132,7 +87,7 @@ describe('createPortal', () => {
     )
   })
 
-  it('rejects duplicate slug in same organization', async () => {
+  it('rejects a typed slug that is already taken at the property', async () => {
     const { useCase, portalRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })
 
@@ -144,7 +99,11 @@ describe('createPortal', () => {
 
     await expect(
       useCase(
-        { name: 'My Portal', propertyId: 'a0000000-0000-0000-0000-000000000001' },
+        {
+          name: 'Another name',
+          slug: 'my-portal',
+          propertyId: 'a0000000-0000-0000-0000-000000000001',
+        },
         ctx,
       ),
     ).rejects.toSatisfy(

@@ -1,5 +1,7 @@
 // Portal context — create portal use case
-// Full pattern: authorize → validate refs → check uniqueness → build → atomically persist with facts → return
+// Full pattern: authorize → resolve every choice (address, group, what to start
+// from, languages, managers) → build → atomically persist with facts → return.
+// Nothing is written until every choice resolved, so a refusal creates nothing.
 
 import type { PortalRepository } from '../ports/portal.repository'
 import type { PropertyPublicApi } from '#/contexts/property/application/public-api'
@@ -7,25 +9,47 @@ import type { Portal, PortalId } from '../../domain/types'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type { CreatePortalInput } from '../dto/create-portal.dto'
 export type { CreatePortalInput }
-import { normalizeSlug } from '../../domain/rules'
-import { buildPortal } from '../../domain/constructors'
-import { portalError } from '../../domain/errors'
-import { portalCreated, portalResponsibilityNeeded } from '../../domain/events'
-import { propertyId } from '#/shared/domain/ids'
+import { isPortalError } from '../../domain/errors'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { IdentityManagerFactsPublicApi } from '#/contexts/identity/application/public-api'
 import { assertNewPortalPropertyAccess } from '../load-accessible-portal'
-import { isEligiblePortalManager } from '../portal-manager-eligibility'
 import type { PortalCommandStore } from '../ports/portal-command-store.port'
-import { derivePortalHealth } from '../../domain/portal-health'
+import type { PortalApprovedDestinationRepository } from '../ports/portal-approved-destination.repository'
+import type { PortalExperienceRepository } from '../ports/portal-experience.repository'
+import type { PortalGroupRepository } from '../ports/portal-group.repository'
+import type { PortalLinkRepository } from '../ports/portal-link.repository'
+import { resolveNewPortalLocales } from '../../domain/portal-new-locales'
+import { buildCreatePortalCommand, type NewPortalPlan } from '../create-portal-commit'
+import {
+  allocateSlug,
+  loadCopySource,
+  loadPropertyDefaultLocales,
+  loadTargetGroup,
+  resolveResponsibleManagers,
+} from '../create-portal-resolvers'
+
+const isSlugTaken = (error: unknown): boolean =>
+  isPortalError(error) && error.code === 'slug_taken'
 
 export type CreatePortalDeps = Readonly<{
   portalRepo: PortalRepository
+  portalGroupRepo: Pick<PortalGroupRepository, 'findById'>
+  portalLinkRepo: Pick<
+    PortalLinkRepository,
+    'listCategories' | 'listAllLinks' | 'listLinkTexts'
+  >
+  destinationRepo: Pick<PortalApprovedDestinationRepository, 'list'>
+  experienceRepo: Pick<
+    PortalExperienceRepository,
+    'getPropertyExperience' | 'listPortalOverrides'
+  >
   propertyApi: PropertyPublicApi
   staffPublicApi: StaffPublicApi
   identityPublicApi: IdentityManagerFactsPublicApi
   commandStore: PortalCommandStore
   idGen: () => PortalId
+  /** Identifiers of everything else the command writes (health, copied rows). */
+  entityIdGen: () => string
   clock: () => Date
 }>
 
@@ -33,96 +57,54 @@ export const createPortal =
   (deps: CreatePortalDeps) =>
   async (input: CreatePortalInput, ctx: AuthContext): Promise<Portal> => {
     // 1. Authorize + 2. validate referenced property exists + assignment access (D6-001)
-    await assertNewPortalPropertyAccess(
+    const pid = await assertNewPortalPropertyAccess(
       deps,
       ctx,
       input.propertyId,
       'this role cannot create portals',
     )
 
-    // 3. Check uniqueness — slug must be unique per org+property
-    const candidateSlug = input.slug ?? normalizeSlug(input.name)
-    if (
-      await deps.portalRepo.slugExists(
-        ctx.organizationId,
-        input.propertyId,
-        candidateSlug,
-      )
-    ) {
-      throw portalError('slug_taken', 'a portal with this slug already exists')
-    }
-
-    const creatorIsEligible = await isEligiblePortalManager(
+    // 3. Resolve every choice before anything is built or written.
+    const group = input.groupId
+      ? await loadTargetGroup(deps, ctx, pid, input.groupId)
+      : null
+    const source =
+      input.startFrom?.kind === 'portal'
+        ? await loadCopySource(deps, ctx, pid, input.startFrom.portalId)
+        : null
+    const managerIds = await resolveResponsibleManagers(
       deps,
-      ctx.organizationId,
-      propertyId(input.propertyId),
-      ctx.userId,
+      ctx,
+      pid,
+      input.responsibleManagerUserIds,
     )
-
-    // 4. Build domain object
-    const portalResult = buildPortal({
-      id: deps.idGen(),
-      organizationId: ctx.organizationId,
-      propertyId: propertyId(input.propertyId),
-      name: input.name,
-      providedSlug: input.slug,
-      description: input.description,
-      theme: input.theme,
-      privateFeedbackThreshold: input.privateFeedbackThreshold,
-      createdBy: ctx.userId,
-      hasInitialResponsibleManager: creatorIsEligible,
-      now: deps.clock(),
+    const locales = resolveNewPortalLocales({
+      requested: input.guestLocales,
+      source: source?.portal && {
+        primary: source.portal.primaryGuestLocale,
+        additional: source.portal.additionalGuestLocales,
+      },
+      propertyDefaults: await loadPropertyDefaultLocales(deps, ctx, input.propertyId),
     })
 
-    if (portalResult.isErr()) {
-      throw portalResult.error
+    // 4. Build the domain object (a copy's settings first; what was typed wins).
+    const portalId = deps.idGen()
+    const plan: NewPortalPlan = { portalId, input, locales, managerIds, group, source }
+    const commit = async (slug: string): Promise<Portal> => {
+      const command = buildCreatePortalCommand(deps, ctx, plan, slug)
+      await deps.commandStore.createPortal(command)
+      return command.portal
     }
 
-    const portal = portalResult.value
-
-    const createdEvent = portalCreated({
-      portalId: portal.id,
-      organizationId: portal.organizationId,
-      propertyId: portal.propertyId,
-      publicationState: portal.publicationState,
-      sourceAggregateVersion: portal.updatedAt.toISOString(),
-      occurredAt: portal.createdAt,
-    })
-    const responsibilityNeededEvent = creatorIsEligible
-      ? null
-      : portalResponsibilityNeeded({
-          portalId: portal.id,
-          organizationId: portal.organizationId,
-          propertyId: portal.propertyId,
-          sourceAggregateVersion: portal.updatedAt.toISOString(),
-          occurredAt: portal.createdAt,
-        })
-
-    // 5 + 6. Commit authoritative state and every required durable fact.
-    await deps.commandStore.createPortal({
-      organizationId: ctx.organizationId,
-      portal,
-      initialResponsibleManagerId: creatorIsEligible ? ctx.userId : null,
-      event: createdEvent,
-      ...(responsibilityNeededEvent ? { responsibilityNeededEvent } : {}),
-      health: {
-        id: deps.idGen(),
-        value: derivePortalHealth({
-          publicationState: portal.publicationState,
-          propertyAvailable: true,
-          hasActivePublicationSnapshot: false,
-          hasResolvablePublicAddress: false,
-          hasResponsibleManager: creatorIsEligible,
-          googleDestinationState: 'unavailable',
-        }),
-        sourceVersion: portal.updatedAt.toISOString(),
-        effectiveAt: portal.createdAt,
-        observedAt: portal.createdAt,
-      },
-    })
-
-    // 7. Return
-    return portal
+    // The address is checked now and unique at commit; another create may take
+    // it in between. A derived address then moves to the next free one, once.
+    const slug = await allocateSlug(deps, ctx, pid, input, portalId)
+    try {
+      return await commit(slug)
+    } catch (error) {
+      if (!isSlugTaken(error) || input.slug !== undefined) throw error
+      return commit(await allocateSlug(deps, ctx, pid, input, portalId))
+    }
   }
 
 export type CreatePortal = ReturnType<typeof createPortal>

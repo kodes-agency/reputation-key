@@ -57,11 +57,44 @@ import type { SealedPortalAddress } from './portal-address-cipher.port'
 import type { PortalAccessArtifact } from '../../domain/portal-access-artifact'
 import type { PortalHealth } from '../../domain/portal-health'
 
+/** The wording of one language of a Portal being started from another. */
+export type CopiedPortalOverride = Readonly<{
+  id: string
+  locale: GuestLocale
+  title: string | null
+  shortDescription: string | null
+  linktreeTitle: string | null
+}>
+
+/**
+ * What a new Portal takes over from the Portal it is started from: wording,
+ * links and their texts, all with fresh identifiers that belong to the new
+ * Portal. Never codes, publication snapshots or responsible managers.
+ */
+export type CreatePortalCopiedContent = Readonly<{
+  sourcePortalId: PortalId
+  overrides: ReadonlyArray<CopiedPortalOverride>
+  categories: ReadonlyArray<PortalLinkCategory>
+  links: ReadonlyArray<PortalLink>
+  linkTexts: ReadonlyArray<Readonly<{ linkId: PortalLinkId }> & PortalLinkTextWrite>
+}>
+
+/** The Portal joins a group in the same commit, fencing the group like a membership change. */
+export type CreatePortalGroupMembership = Readonly<{
+  portalGroupId: PortalGroupId
+  expectedGroupUpdatedAt: Date
+  revision: Date
+  event: PortalAddedToGroup
+}>
+
 export type CreatePortalCommand = Readonly<{
   organizationId: OrganizationId
   portal: Portal
-  initialResponsibleManagerId: UserId | null
+  /** Who is responsible from the start; empty means nobody, and the recovery fact is required. */
+  initialResponsibleManagerIds: ReadonlyArray<UserId>
   event: PortalCreated
+  groupMembership?: CreatePortalGroupMembership
+  copiedContent?: CreatePortalCopiedContent
   responsibilityNeededEvent?: PortalResponsibilityNeeded
   health?: Readonly<{
     id: string

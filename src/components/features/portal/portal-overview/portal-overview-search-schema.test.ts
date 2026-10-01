@@ -46,6 +46,14 @@ describe('portalOverviewSearchSchema', () => {
     })
   })
 
+  it('reads the open New portal dialog however the router spelled it', () => {
+    for (const spelled of [true, 'true', 1, '1']) {
+      expect(portalOverviewSearchSchema.parse({ new: spelled })).toEqual({ new: true })
+    }
+    expect(portalOverviewSearchSchema.parse({ new: false })).toEqual({})
+    expect(portalOverviewSearchSchema.parse({ new: 'maybe' })).toEqual({})
+  })
+
   it('reads the sort by qualified scans, most first unless told otherwise', () => {
     expect(portalOverviewSearchSchema.parse({ sort: 'scans' })).toEqual({ sort: 'scans' })
     expect(defaultSortDirection('scans')).toBe('desc')
@@ -62,6 +70,22 @@ describe('portalOverviewSearchSchema', () => {
 })
 
 describe('portalOverviewSearchPatch', () => {
+  it('keeps the dialog open across list changes and closes it when asked', () => {
+    expect(portalOverviewSearchPatch({ new: true }, { q: 'pool' })).toEqual({
+      q: 'pool',
+      new: true,
+    })
+    expect(
+      portalOverviewSearchPatch({ q: 'pool', new: true }, { new: undefined }),
+    ).toEqual({
+      q: 'pool',
+    })
+    expect(portalOverviewSearchPatch({ q: 'pool' }, { new: true })).toEqual({
+      q: 'pool',
+      new: true,
+    })
+  })
+
   it('leaves the default view bare: defaults and blanks are not written', () => {
     expect(
       portalOverviewSearchPatch(

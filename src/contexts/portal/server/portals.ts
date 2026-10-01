@@ -426,6 +426,36 @@ export const createPortal = createServerFn({ method: 'POST' })
     ),
   )
 
+// ── getPortalCreationOptions ───────────────────────────────────────
+// What the New portal dialog needs beyond the Portals page's own reads: the
+// Property's default languages and who may be made responsible.
+
+const portalCreationOptionsSchema = z.object({
+  propertyId: z.string().min(1, 'Property ID is required'),
+})
+
+export const getPortalCreationOptions = createServerFn({ method: 'GET' })
+  .validator(portalCreationOptionsSchema)
+  .handler(
+    tracedHandler(
+      async ({ data }) => {
+        const headers = await headersFromContext()
+        const ctx = await resolveTenantContext(headers)
+        await requireExecutionAllowed({
+          actor: ctx,
+          action: 'portal.create',
+          capability: 'portal.write',
+          propertyId: data.propertyId,
+        })
+        return runPortalExperienceCommand(() =>
+          getContainer().portalPublicApi.management.getPortalCreationOptions(data, ctx),
+        )
+      },
+      'GET',
+      'portal.getPortalCreationOptions',
+    ),
+  )
+
 // ── updatePortal ───────────────────────────────────────────────────
 
 export const updatePortal = createServerFn({ method: 'POST' })

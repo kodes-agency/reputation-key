@@ -133,6 +133,15 @@ describe('goal query keys', () => {
     expect(portalKeys.overview('property-1')).not.toEqual(portalKeys.list('property-1'))
   })
 
+  it('keeps the New portal options in the property subtree, so a Property edit refreshes them', () => {
+    expect(portalKeys.creationOptions('property-1')).toEqual([
+      'portals',
+      'property',
+      'property-1',
+      'creation-options',
+    ])
+  })
+
   it('keeps each window of the overview results in its own read, under the property', () => {
     expect(portalKeys.resultsOverviewRoot('property-1')).toEqual([
       'portals',

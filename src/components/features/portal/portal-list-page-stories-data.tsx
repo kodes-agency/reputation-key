@@ -10,6 +10,7 @@ import {
 } from './portal-overview/portal-overview-fixtures'
 import type { PortalOverviewSearch } from './portal-overview/portal-overview-search-schema'
 import type { Action } from '#/components/hooks/use-action'
+import type { CreatePortalInput } from '#/contexts/portal/application/dto/create-portal.dto'
 
 // The page is presentational: the route owns the URL. A story keeps the search
 // in state so the toolbar, the pager and "Clear" behave as they do in the route.
@@ -20,7 +21,7 @@ export function ControlledPage(
   return <PortalListPage {...props} search={search} onSearchChange={setSearch} />
 }
 
-const action = <TInput,>(): Action<TInput> =>
+export const action = <TInput,>(): Action<TInput> =>
   Object.assign(async (_input: TInput) => undefined, {
     isPending: false,
     error: null,
@@ -77,9 +78,25 @@ const members = [
   { userId: 'u-elena', name: 'Elena Petrova' },
 ]
 
+export const newPortalData: NonNullable<PortalListPageProps['newPortal']['data']> = {
+  propertyId: 'prop-1',
+  propertyName: 'Avela Resort',
+  options: {
+    defaultGuestLocales: ['en'],
+    eligibleManagerUserIds: ['u-georgi', 'u-elena'],
+    creatorIsEligible: false,
+  },
+  groups: [{ id: 'group-pool', name: 'Pool side' }],
+  sources: rows,
+  members,
+  creatorId: 'u-admin',
+  mutation: action<{ data: CreatePortalInput }>(),
+}
+
 export const baseArgs = {
   rows,
   members,
+  newPortal: { data: null },
   propertyId: 'prop-1',
   propertyName: 'Avela Resort',
   archiveMutation: action<{
@@ -88,18 +105,10 @@ export const baseArgs = {
   restoreMutation: action<{
     data: { portalId: string; publicationState: 'disabled' }
   }>(),
-  portalGroups: [
-    { id: 'group-pool', name: 'Pool side', portalIds: ['p-terrace', 'p-spa', 'p-bar'] },
-  ],
-  createGroupMutation: action<{
+  groups: [poolSide, frontOfHouse],
+  createMutation: action<{
     data: { propertyId: string; name: string; portalIds?: string[] }
   }>(),
-  updateGroupMutation: action<{ data: { portalGroupId: string; name: string } }>(),
-  deleteGroupMutation: action<{ data: { portalGroupId: string } }>(),
-  addPortalToGroupMutation: action<{
-    data: { portalGroupId: string; portalId: string }
-  }>(),
-  removePortalFromGroupMutation: action<{
-    data: { portalGroupId: string; portalId: string }
-  }>(),
+  renameMutation: action<{ data: { portalGroupId: string; name: string } }>(),
+  archiveGroupMutation: action<{ data: { portalGroupId: string } }>(),
 }

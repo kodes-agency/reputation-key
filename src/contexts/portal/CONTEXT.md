@@ -43,6 +43,13 @@ renamed with the previous name, archived, Portal added, removed, moved in or out
 each with the actor and the time); names live in that ledger, never on a fact.
 `portal_groups.created_by` records who created a group (null before round 4).
 
+A group has a page in the admin (`portals/groups/$groupId`): its results (the group's
+own row of the Portals results read), its Portals, the live goal card and this ledger,
+read through `listPortalGroupHistory` and named in the browser. The New group dialog,
+Add portals (one `movePortalToGroup` per Portal) and Rename write through the same
+commands; the group's head in the Portals overview links to the page. A group with no
+Portal keeps its head in the overview, so it stays reachable.
+
 The link section of the guest page is the **Linktree**. Its working model is
 `portal_link_texts` (one label and optional line per link and language), a title
 per language in `portal_localized_overrides.linktree_title` (null means the
@@ -77,6 +84,27 @@ first is the primary) only seeds new Portals, so editing it bumps no version,
 records no pending change, emits no fact and leaves `updated_by` alone (that
 column decides whether the public display name counts as confirmed).
 
+A new Portal (`createPortal`, the New portal dialog) commits in one transaction
+with its group membership (the group is fenced like a membership change and the
+`portal_group.portal_added` fact is recorded), its responsible managers and, when
+it starts from another Portal, a copy of that Portal's settings, wording per
+language, Linktree title, approved links with their categories and link texts.
+It starts from the Property's own wording by default. Languages default to the
+Property's, or to those of the Portal being copied; only languages with a reviewed
+pack may be chosen. A copy never takes codes and their artifacts, publication
+snapshots or activations, responsible managers, health or history, and leaves
+behind photos (a hero image is a server-owned upload derivative) and every link
+whose destination is not approved now (disabled, quarantined or pending
+approval, or a legacy URL with no destination), which take no slot of the
+four-link limit. An archived Portal cannot be a starting point
+(`portal_inactive`, HTTP 410). A name whose derived address is taken at the
+Property gets the next free numbered address; a name that gives no address (no
+Latin letters or digits, as in Cyrillic) is addressed from the start of the new
+Portal's own id (`portal-<first 8 hex>`, a longer slice if that is held), so it
+never walks a counter; an address the manager typed must be free. There are no
+place types: the dialog asks for a name, a group, languages and what to start
+from.
+
 The editor no longer shows categories. `getPortalLinktree` reads the whole
 section (switch, written titles, and each link in guest order with its texts,
 icon and the approval of its destination), and a link is created without a
@@ -90,7 +118,8 @@ create command), so a refused link leaves neither it nor its fact behind. Re-ord
 editor moves a tile only among those of its own (older) category. The category
 commands stay until the snapshot builders flatten categories (slice 19).
 
-The eligible creator is the initial Portal Responsible Manager. Multiple eligible
+The eligible creator is the initial Portal Responsible Manager (by default; the
+dialog may name other eligible managers, or nobody). Multiple eligible
 managers may be assigned; losing the last sets `responsibilityNeededSince`, and
 nobody is auto-promoted. Only a live Portal of an active Property also raises
 `portal.responsibility_became_needed`; a deleted or archived Portal, or one whose

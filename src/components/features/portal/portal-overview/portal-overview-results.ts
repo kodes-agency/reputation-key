@@ -13,7 +13,6 @@
 import type {
   PortalResultsMeasures,
   PortalResultsOverview,
-  PortalResultsPropertyRow,
   PortalResultsThresholds,
 } from '#/contexts/reporting/application/public-api'
 import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'
@@ -26,9 +25,10 @@ import {
   type ResultsMeasuresInput,
 } from '../portal-analytics/portal-results-cells'
 import {
-  currentPeriodLabel,
-  windowCaption,
-} from '../portal-analytics/portal-results-window'
+  stripOf,
+  totalStripOf,
+  type OverviewStrip,
+} from './portal-overview-results-strips'
 
 /** `missing`: no figure (still processing, or cannot be counted). `withheld`: too small to show. */
 export type MeasureTone = 'figure' | 'withheld' | 'missing'
@@ -121,17 +121,7 @@ export type GroupFigures = Readonly<{
   memberCount: number
 }>
 
-/** The ruled strip above the table, for one Property's Portals or for the Organization's. */
-export type OverviewStrip = Readonly<{
-  cells: readonly ResultsCell[]
-  /**
-   * The days the figures cover, in the Property's own time zone. Null for the
-   * Organization: each Property reads its own days, so there is no one range.
-   */
-  caption: string | null
-  /** "Last 30 days, Europe/Sofia time · an average needs 5 private ratings". */
-  footer: string
-}>
+export type { OverviewStrip } from './portal-overview-results-strips'
 
 /** What the sort reads: each row's scans, or nothing where they are not ready. */
 export type OverviewSortFigures = Readonly<{
@@ -154,65 +144,10 @@ export type OverviewResultsIndex = Readonly<{
   propertiesRead: number
   /** The Organization's total: every Property's reading, added together. */
   total: () => OverviewStrip | null
+  /** The same strip for one group's own figures, in the window of its Property. */
+  groupStrip: (groupId: string) => OverviewStrip | null
   sortFigures: OrganizationSortFigures
 }>
-
-function stripOf(
-  property: PortalResultsPropertyRow,
-  thresholds: PortalResultsThresholds,
-): OverviewStrip {
-  const { localDays, timezone } = property
-  return {
-    cells: measureCells(
-      {
-        kpis: property.kpis,
-        thresholds,
-        timezone,
-        localDays,
-        funnel: property.engagementFunnel,
-      },
-      { compare: property.comparePeriod !== null },
-    ),
-    caption: windowCaption(localDays, timezone),
-    footer: `${currentPeriodLabel(localDays)}, ${timezone} time · an average needs ${thresholds.averageMinSample} private ratings`,
-  }
-}
-
-/**
- * The total's strip. The total carries no window of its own: each Property is
- * read through its own days, in its own zone. The days only name the window's
- * length ("the 30 days before"), which is the same for every Property.
- */
-function totalStripOf(
-  overview: PortalResultsOverview,
-  thresholds: PortalResultsThresholds,
-): OverviewStrip {
-  const { properties } = overview
-  const days = properties[0]?.localDays ?? null
-  const zones = new Set(properties.map((row) => row.timezone))
-  const [onlyZone] = zones
-  const floor = `an average needs ${thresholds.averageMinSample} private ratings`
-  return {
-    cells: measureCells(
-      {
-        kpis: overview.total.kpis,
-        thresholds,
-        // One shared zone says what its own readings say; mixed zones name none.
-        timezone: zones.size === 1 && onlyZone ? onlyZone : null,
-        localDays: days,
-        funnel: overview.total.engagementFunnel,
-      },
-      {
-        compare:
-          properties.length > 0 && properties.every((row) => row.comparePeriod !== null),
-      },
-    ),
-    caption: null,
-    footer: days
-      ? `${currentPeriodLabel(days)} · each property’s local time · ${floor}`
-      : `Each property’s local time · ${floor}`,
-  }
-}
 
 function keyed<T, R>(
   rows: readonly T[],
@@ -262,7 +197,15 @@ export function indexOverviewResults(
   const strips = keyed(
     overview.properties,
     (row) => row.propertyId,
-    (row) => stripOf(row, thresholds),
+    (row) => stripOf(row, row, thresholds),
+  )
+  const groupStrips = keyed(
+    overview.groups,
+    (row) => row.groupId,
+    (row) => {
+      const property = overview.properties.find((p) => p.propertyId === row.propertyId)
+      return property ? stripOf(property, row, thresholds) : null
+    },
   )
   const subtotals = keyed(
     overview.properties,
@@ -283,6 +226,7 @@ export function indexOverviewResults(
     strip: (propertyId) => strips.get(propertyId) ?? null,
     propertiesRead: overview.properties.length,
     total: () => totalStripOf(overview, thresholds),
+    groupStrip: (groupId) => groupStrips.get(groupId) ?? null,
     sortFigures: {
       portal: (portalId) => portals.get(portalId)?.row.kpis.scans.value ?? null,
       group: (groupId) => groups.get(groupId)?.row.kpis.scans.value ?? null,
