@@ -132,6 +132,37 @@ describe('takeDownPortalMedia', () => {
     expect((await mediaRepo.findById(ORG, asset.id))?.takenDownAt).toEqual(NOW)
   })
 
+  it('reports success when a concurrent takedown got there between the read and the update', async () => {
+    const { mediaRepo, objects, asset, store, infos, errors } = setup()
+    await store()
+    // The first reader saw it active; by the time it updates, the other request
+    // has taken it down, so its own conditional update changes nothing.
+    const racing = {
+      ...mediaRepo,
+      findById: async (...args: Parameters<typeof mediaRepo.findById>) => {
+        const seen = await mediaRepo.findById(...args)
+        await mediaRepo.markTakenDown(ORG, asset.id, NOW)
+        return seen
+      },
+    }
+    const takeDown = takeDownPortalMedia({
+      mediaRepo: racing,
+      objectStore: objects,
+      staffPublicApi: staffApi(null),
+      clock: () => NOW,
+      logger: {
+        info: (context: Record<string, unknown>) => infos.push(context),
+        error: (context: Record<string, unknown>) => errors.push(context),
+      } as unknown as Pick<LoggerPort, 'info' | 'error'>,
+    })
+
+    expect(await takeDown({ assetId: ASSET_ID }, admin())).toEqual({
+      assetId: ASSET_ID,
+      objectRemoved: true,
+    })
+    expect(objects.objects().has(asset.objectKey)).toBe(false)
+  })
+
   describe('who may take an image down', () => {
     it('refuses everyone but an Account Admin', async () => {
       const { takeDown, mediaRepo, asset } = setup()

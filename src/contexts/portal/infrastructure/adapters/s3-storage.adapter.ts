@@ -11,7 +11,10 @@ import {
   PutObjectCommand,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
-import type { StoragePort } from '../../application/ports/storage.port'
+import {
+  StoredObjectTooLargeError,
+  type StoragePort,
+} from '../../application/ports/storage.port'
 import { portalError } from '../../domain/errors'
 import { trace } from '#/shared/observability/trace'
 
@@ -131,12 +134,12 @@ export const createS3StorageAdapter = (config: S3StorageConfig): StoragePort => 
         )
         if (!response.Body) return null
         if ((response.ContentLength ?? 0) > maxBytes) {
-          throw portalError('upload_failed', 'The stored object is larger than allowed')
+          // Not reading it would leave the socket held by the client's pool.
+          ;(response.Body as { destroy?: () => void }).destroy?.()
+          throw new StoredObjectTooLargeError()
         }
         const body = await response.Body.transformToByteArray()
-        if (body.length > maxBytes) {
-          throw portalError('upload_failed', 'The stored object is larger than allowed')
-        }
+        if (body.length > maxBytes) throw new StoredObjectTooLargeError()
         return { body, contentType: response.ContentType ?? null }
       } catch (error) {
         if (error instanceof S3ServiceException && error.name === 'NoSuchKey') return null

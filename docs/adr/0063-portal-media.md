@@ -87,9 +87,15 @@ design rather than a checklist.
   (never from the snapshot), so an asset that is taken down drops out of a
   snapshot that can never change. Responses are cacheable for five minutes and
   revalidated by hash; that is the longest a taken-down image stays visible to
-  someone who already has it. The route has no per-request rate limit of its
-  own, and an image is reachable by anyone who holds its id, including during an
-  Organization's closing window, until purge removes the object.
+  someone who already has it. The use case asks the public execution policy
+  (`public:portal.read`, capability `portal.public_read`, the asset's own
+  Organization and Property) before it answers anything, including a 304, and a
+  denial gives the same 404 as a missing image. The `portal.public_read` kill
+  switch, a suspended Organization or Property and the allowlist therefore
+  switch images off with the rest of the public Portal surface, exactly as for
+  every other public Portal read; an Organization's closing window is treated
+  as that policy treats it for those reads, and purge removes the object at the
+  end. The route has no per-request rate limit of its own.
 - **Takedown.** An Account Admin takes an image down (`portal.write`, not
   `portal.upload`, so it works with uploads switched off). The row flips first
   and from then on the image is not served; the object is removed second, and a
@@ -106,12 +112,26 @@ design rather than a checklist.
   instead of pointing at a deleted image. One leak remains by design: if an ingest's row insert fails
   and the cleanup delete of the just-written object also fails, the object is
   orphaned and logged (`portal_media_orphan_object`); the sweep cannot find it
-  because nothing names it.
+  because nothing names it. Two limits of the sweep are
+  accepted at beta scale. The unreferenced check re-evaluates every active asset
+  older than a day against every snapshot of its Property each hour (the links
+  array is unpacked per snapshot); a Property holds at most 200 images, so the
+  work is bounded by that and by the number of its snapshots, and `LIMIT 100`
+  bounds the batch, not the scan. And each kind of work takes the oldest 100
+  first: an asset whose object removal fails every time stays at the head, so
+  100 such assets would hold up the rest. Each failure is logged
+  (`portal_media_sweep_object_failed`), which is what an operator acts on; a
+  cursor past failed ids is the escape hatch if it ever matters.
 - **Purge and export.** On an Organization purge the Portal contributor removes
   the objects of the Organization's assets while the rows that name them still
   exist, then scrubs the rows; a failed removal leaves the phase `purging` and
   the next pass repeats it. The data export carries the asset rows (key, size,
   hash, status, takedown and removal times), not the image bytes.
+- **Known remaining AWS-only URL.** `getPublicUrl` is gone, but the storage
+  adapter's `confirmUpload` still returns an `s3.<region>.amazonaws.com` URL,
+  which Identity's avatar and organisation-logo finalize use cases store. With
+  region `auto` on Railway it is not a working address. It predates this slice
+  and is outside it; it needs its own change (serve those images the same way).
 - `sharp` is a runtime dependency with a native binding. It is externalized in
   the Nitro build and the worker bundle so it resolves from the installed
   `node_modules`, where pnpm links its platform package beside it.

@@ -1,5 +1,6 @@
 import { GetObjectCommand, S3Client, S3ServiceException } from '@aws-sdk/client-s3'
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { StoredObjectTooLargeError } from '../../application/ports/storage.port'
 import { buildS3ClientConfigs, createS3StorageAdapter } from './s3-storage.adapter'
 
 const base = {
@@ -87,18 +88,31 @@ describe('getObject', () => {
       ContentLength: 101,
     } as never)
 
+    await expect(store().getObject('portal-media/a.webp', 100)).rejects.toBeInstanceOf(
+      StoredObjectTooLargeError,
+    )
+    expect(transformToByteArray).not.toHaveBeenCalled()
+  })
+
+  it('closes the connection of an object it will not read', async () => {
+    const destroy = vi.fn()
+    vi.spyOn(S3Client.prototype, 'send').mockResolvedValue({
+      Body: { transformToByteArray: vi.fn(), destroy },
+      ContentLength: 101,
+    } as never)
+
     await expect(store().getObject('portal-media/a.webp', 100)).rejects.toThrow(
       'larger than allowed',
     )
-    expect(transformToByteArray).not.toHaveBeenCalled()
+    expect(destroy).toHaveBeenCalledOnce()
   })
 
   it('refuses an object that turns out larger than it declared', async () => {
     vi.spyOn(S3Client.prototype, 'send').mockResolvedValue(
       response(new Uint8Array(101), { ContentLength: 5 }) as never,
     )
-    await expect(store().getObject('portal-media/a.webp', 100)).rejects.toThrow(
-      'larger than allowed',
+    await expect(store().getObject('portal-media/a.webp', 100)).rejects.toBeInstanceOf(
+      StoredObjectTooLargeError,
     )
   })
 

@@ -10,7 +10,10 @@ import { getDb } from '#/shared/db'
 import { getEnv } from '#/shared/config/env'
 import { organizationId, portalMediaAssetId, propertyId } from '#/shared/domain/ids'
 import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixtures'
+import { GOLDEN_V3_BG_PRIMARY_ROW } from '../../application/__fixtures__/publication-snapshot-v3.golden'
+import { immersiveAssetIds } from '../../application/public-portal-immersive'
 import type { PortalMediaAsset } from '../../domain/portal-media-asset'
+import { snapshotFromRow } from './portal-publication.repository'
 import { createPortalMediaAssetRepository } from './portal-media-asset.repository'
 
 const ORG_A = organizationId('org-sweep-aaaaaaaaaa')
@@ -296,6 +299,27 @@ describe('portalMediaAssetRepository sweeps (integration)', () => {
         expect(await candidates()).toEqual([])
       },
     )
+
+    // The hand-written shapes above could drift from the real schema and stay
+    // green while the sweep deletes images a live snapshot still renders. This
+    // one is the real v3 row: whatever it names, by whatever path, must be kept.
+    it('keeps every asset the real v3 snapshot names, wherever the schema puts it', async () => {
+      const snapshot = snapshotFromRow(GOLDEN_V3_BG_PRIMARY_ROW)
+      if (!snapshot || snapshot.configuration.schemaVersion !== 3) {
+        throw new Error('the golden v3 row no longer reads back as a v3 snapshot')
+      }
+      const named = immersiveAssetIds(snapshot.configuration)
+      // The golden names a hero, a logo and a link tile picture.
+      expect(named).toHaveLength(3)
+      for (const id of named) {
+        await store({ id: portalMediaAssetId(id), objectKey: `portal-media/${id}.webp` })
+      }
+      const unnamed = await store()
+
+      await insertSnapshot(GOLDEN_V3_BG_PRIMARY_ROW.configuration)
+
+      expect(await candidates()).toEqual([unnamed.id])
+    })
 
     it('reads older snapshots that have no media at all as naming nothing', async () => {
       const lonely = await store()

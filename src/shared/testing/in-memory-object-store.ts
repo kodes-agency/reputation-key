@@ -1,6 +1,9 @@
 // In-memory object store fake — the put, get and delete parts of StoragePort.
 
-import type { StoragePort } from '#/contexts/portal/application/ports/storage.port'
+import {
+  StoredObjectTooLargeError,
+  type StoragePort,
+} from '#/contexts/portal/application/ports/storage.port'
 
 export type InMemoryObjectStore = Pick<
   StoragePort,
@@ -35,7 +38,7 @@ export const createInMemoryObjectStore = (): InMemoryObjectStore => {
       }
       const object = objects.get(key)
       if (!object) return null
-      if (object.body.length > maxBytes) throw new Error('object larger than allowed')
+      if (object.body.length > maxBytes) throw new StoredObjectTooLargeError()
       return { body: new Uint8Array(object.body), contentType: object.contentType }
     },
     deleteObject: async (key) => {

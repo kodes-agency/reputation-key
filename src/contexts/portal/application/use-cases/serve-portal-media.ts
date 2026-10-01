@@ -7,6 +7,10 @@
 // on every request from its row, so a takedown works at once on snapshots that
 // can never change.
 //
+// Serving is a public Portal read like any other: the execution policy decides it
+// from the asset's own Organization and Property (kill switch, suspension,
+// allowlist), and a denial looks exactly like a missing image.
+//
 // The row is the authority for what the bytes are: the content type, the size
 // and the hash all come from it, and bytes that disagree are not served.
 
@@ -16,13 +20,24 @@ import { portalMediaAssetId } from '#/shared/domain/ids'
 import { PORTAL_MEDIA_STORED_CONTENT_TYPE } from '#/shared/domain/portal-media'
 import { isServablePortalMediaAsset } from '../../domain/portal-media-asset'
 import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.repository'
-import type { StoragePort } from '../ports/storage.port'
+import { StoredObjectTooLargeError, type StoragePort } from '../ports/storage.port'
 
 export type ServePortalMediaDeps = Readonly<{
   mediaRepo: Pick<PortalMediaAssetRepository, 'findForPublicRead'>
   objectStore: Pick<StoragePort, 'getObject'>
   sha256Hex: (bytes: Uint8Array) => string
   logger: Pick<LoggerPort, 'error'>
+  /** The public execution policy, as `decidePublicExecution`. */
+  decidePublic: (
+    request: Readonly<{
+      action: string
+      capability: 'portal.public_read'
+      organizationId: string
+      propertyId: string
+      now: Date
+    }>,
+  ) => Promise<Readonly<{ allowed: boolean }>>
+  clock: () => Date
 }>
 
 export type ServePortalMediaInput = Readonly<{
@@ -66,12 +81,32 @@ export const servePortalMedia =
     )
     if (!asset || !isServablePortalMediaAsset(asset)) return NOT_FOUND
 
+    // Before any 304: a cached copy must not outlive a switch that took Portal dark.
+    const decision = await deps.decidePublic({
+      action: 'public:portal.read',
+      capability: 'portal.public_read',
+      organizationId: asset.organizationId,
+      propertyId: asset.propertyId,
+      now: deps.clock(),
+    })
+    if (!decision.allowed) return NOT_FOUND
+
     const etag = etagOf(asset.contentSha256)
     if (ifNoneMatchMatches(input.ifNoneMatch, etag)) {
       return { kind: 'not_modified', etag }
     }
 
-    const object = await deps.objectStore.getObject(asset.objectKey, asset.byteSize)
+    let object: Awaited<ReturnType<ServePortalMediaDeps['objectStore']['getObject']>>
+    try {
+      object = await deps.objectStore.getObject(asset.objectKey, asset.byteSize)
+    } catch (error) {
+      // Bigger than the row says is bytes that are not what was stored, not a
+      // store outage: a 404 and a log line, not a 503 and an exception per request.
+      if (error instanceof StoredObjectTooLargeError) {
+        return refuse(deps, asset.id, 'portal_media_object_mismatch')
+      }
+      throw error
+    }
     if (!object) return refuse(deps, asset.id, 'portal_media_object_missing')
     if (
       object.body.length !== asset.byteSize ||

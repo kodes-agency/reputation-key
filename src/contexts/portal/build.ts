@@ -619,6 +619,8 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     objectStore: storage,
     sha256Hex: (bytes) => createHash('sha256').update(bytes).digest('hex'),
     logger: deps.logger,
+    decidePublic: decidePublicExecution,
+    clock: deps.clock,
   })
   const mediaUrls = resolvePortalMediaUrls({ mediaRepo: portalMediaAssetRepo })
 

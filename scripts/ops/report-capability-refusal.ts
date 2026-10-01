@@ -16,7 +16,8 @@
 // inside the web process and is reachable by an authenticated operator holding
 // `policy.admin`. Both call `createCapabilityRefusalExplainer`, so there is one
 // truth with two entry points — see #408 for why a third, internet-reachable
-// surface was rejected while SAFE-01 remains open.
+// surface was rejected while SAFE-01 was open (the owner removed that
+// ceremony on 2026-09-30).
 
 import { pathToFileURL } from 'node:url'
 import { CAPABILITIES } from '../../src/shared/auth/beta-capabilities'

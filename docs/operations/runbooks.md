@@ -1101,4 +1101,8 @@ within the hour (the `portal-media-sweep` job); if it stays empty, read the
 worker log for `portal_media_sweep_object_failed` and fix the bucket access.
 
 **Escalation/Evidence:** Bozhidar Denev. Record the asset id, who took it down and
-when (`taken_down_at`), and the time the object was confirmed removed.
+when (`taken_down_at`), and the time the object was confirmed removed. The table
+keeps the time but not the person. When the function did it, the actor is in the
+web log line `Portal media taken down` (`actorUserId`), and logs are kept for less
+time than the row: copy it into the incident record at once. The SQL path leaves
+no actor at all, so the operator who ran it must be named in the incident record.

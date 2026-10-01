@@ -61,17 +61,19 @@ export const takeDownPortalMedia =
 
     const now = deps.clock()
     const taken = await deps.mediaRepo.markTakenDown(ctx.organizationId, assetId, now)
+    // The conditional update changes nothing when another request got there
+    // first, and the row read above is then stale: ask again before judging.
+    const current = taken ?? (await deps.mediaRepo.findById(ctx.organizationId, assetId))
+    // Not active and not taken down is not a state the model has; refuse
+    // rather than act on a row this code does not understand.
+    if (!current || (!taken && current.status !== 'taken_down')) throw notFound()
     if (taken) {
       deps.logger.info({ assetId, actorUserId: ctx.userId }, 'Portal media taken down')
-    } else if (asset.status !== 'taken_down') {
-      // Not active and not taken down is not a state the model has; refuse
-      // rather than act on a row this code does not understand.
-      throw notFound()
     }
 
-    const objectRemoved = asset.objectDeletedAt
+    const objectRemoved = current.objectDeletedAt
       ? true
-      : await removeObject(deps, ctx, assetId, asset.objectKey, now)
+      : await removeObject(deps, ctx, assetId, current.objectKey, now)
     return { assetId, objectRemoved }
   }
 

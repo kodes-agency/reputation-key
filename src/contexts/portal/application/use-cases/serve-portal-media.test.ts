@@ -8,14 +8,19 @@ import { portalMediaAssetId } from '#/shared/domain/ids'
 import { createInMemoryObjectStore } from '#/shared/testing/in-memory-object-store'
 import { createInMemoryPortalMediaAssetRepo } from '#/shared/testing/in-memory-portal-media-asset-repo'
 import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixtures'
-import { servePortalMedia } from './serve-portal-media'
+import { servePortalMedia, type ServePortalMediaDeps } from './serve-portal-media'
 
 const BYTES = Buffer.from('RIFF....WEBPVP8 pretend image bytes')
 const sha256Hex = (bytes: Uint8Array) => createHash('sha256').update(bytes).digest('hex')
 const SHA = sha256Hex(BYTES)
 const ASSET_ID = '30000000-0000-4000-8000-000000000001'
 
-const setup = (assetOverrides: Parameters<typeof buildTestPortalMediaAsset>[0] = {}) => {
+const NOW = new Date('2026-10-01T10:00:00.000Z')
+
+const setup = (
+  assetOverrides: Parameters<typeof buildTestPortalMediaAsset>[0] = {},
+  decide: ServePortalMediaDeps['decidePublic'] = async () => ({ allowed: true }),
+) => {
   const mediaRepo = createInMemoryPortalMediaAssetRepo()
   const objects = createInMemoryObjectStore()
   const errors: Array<Record<string, unknown>> = []
@@ -29,9 +34,17 @@ const setup = (assetOverrides: Parameters<typeof buildTestPortalMediaAsset>[0] =
     ...assetOverrides,
   })
   mediaRepo.seed([asset])
-  const serve = servePortalMedia({ mediaRepo, objectStore: objects, sha256Hex, logger })
+  const decidePublic = vi.fn(decide)
+  const serve = servePortalMedia({
+    mediaRepo,
+    objectStore: objects,
+    sha256Hex,
+    logger,
+    decidePublic,
+    clock: () => NOW,
+  })
   const store = () => objects.putObject(asset.objectKey, BYTES, 'image/webp')
-  return { serve, asset, objects, mediaRepo, errors, store }
+  return { serve, asset, objects, mediaRepo, errors, store, decidePublic }
 }
 
 describe('servePortalMedia', () => {
@@ -85,6 +98,64 @@ describe('servePortalMedia', () => {
 
     expect(await serve({ assetId: ASSET_ID })).toEqual({ kind: 'not_found' })
     expect(get).not.toHaveBeenCalled()
+  })
+
+  describe('the execution policy', () => {
+    it("asks about the asset's own Organization and Property, as every public Portal read does", async () => {
+      const { serve, store, asset, decidePublic } = setup()
+      await store()
+
+      await serve({ assetId: ASSET_ID })
+
+      expect(decidePublic).toHaveBeenCalledExactlyOnceWith({
+        action: 'public:portal.read',
+        capability: 'portal.public_read',
+        organizationId: asset.organizationId,
+        propertyId: asset.propertyId,
+        now: NOW,
+      })
+    })
+
+    // The policy owns the reason (kill switch, suspended Organization or Property,
+    // allowlist); this use case only has to honour a denial of any kind.
+    it.each([
+      ['the portal.public_read kill switch'],
+      ['a suspended Organization'],
+      ['a suspended Property'],
+    ])(
+      'gives the same 404 as a missing image under %s, without reading the store',
+      async () => {
+        const { serve, store, objects } = setup({}, async () => ({ allowed: false }))
+        await store()
+        const get = vi.spyOn(objects, 'getObject')
+
+        expect(await serve({ assetId: ASSET_ID })).toEqual({ kind: 'not_found' })
+        expect(get).not.toHaveBeenCalled()
+      },
+    )
+
+    it('does not answer not modified when the policy denies', async () => {
+      const { serve, store } = setup({}, async () => ({ allowed: false }))
+      await store()
+      expect(await serve({ assetId: ASSET_ID, ifNoneMatch: `"${SHA}"` })).toEqual({
+        kind: 'not_found',
+      })
+    })
+
+    it('does not ask the policy about an id that is not an asset', async () => {
+      const { serve, decidePublic } = setup()
+      await serve({ assetId: '30000000-0000-4000-8000-0000000000ff' })
+      await serve({ assetId: 'nope' })
+      expect(decidePublic).not.toHaveBeenCalled()
+    })
+
+    it('lets a policy failure through, so the edge can say it is unavailable', async () => {
+      const { serve, store } = setup({}, async () => {
+        throw new Error('policy_unavailable')
+      })
+      await store()
+      await expect(serve({ assetId: ASSET_ID })).rejects.toThrow('policy_unavailable')
+    })
   })
 
   describe('revalidation', () => {
@@ -143,14 +214,17 @@ describe('servePortalMedia', () => {
       ])
     })
 
-    it('never reads an object larger than the row says; the store refuses it', async () => {
-      const { serve, asset, objects } = setup()
+    it('treats an object larger than the row says as a mismatch: a 404, logged, not a store failure', async () => {
+      const { serve, asset, objects, errors } = setup()
       await objects.putObject(
         asset.objectKey,
         Buffer.concat([BYTES, BYTES]),
         'image/webp',
       )
-      await expect(serve({ assetId: ASSET_ID })).rejects.toThrow('larger than allowed')
+      expect(await serve({ assetId: ASSET_ID })).toEqual({ kind: 'not_found' })
+      expect(errors).toEqual([
+        { assetId: ASSET_ID, errorCode: 'portal_media_object_mismatch' },
+      ])
     })
   })
 

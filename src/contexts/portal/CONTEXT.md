@@ -123,7 +123,8 @@ hidden in a segment do not survive, and the original is never stored.
 - **Serving**: a guest's browser gets an image from
   `GET /api/public/portal-media/:assetId` on the app's own origin (`servePortalMedia`).
   The asset is found by its id alone (the id is the capability), served only while
-  `active`, and only if the bytes the store returns match the row's size and hash.
+  `active`, only while the execution policy allows `portal.public_read` for its
+  Organization and Property (a denial is the same 404), and only if the bytes the store returns match the row's size and hash.
   A published page's image URLs are made when the page is read
   (`resolvePortalMediaUrls`), never stored in a snapshot.
 - **Takedown** (`takeDownPortalMedia`, an Account Admin, gated on `portal.write`):
