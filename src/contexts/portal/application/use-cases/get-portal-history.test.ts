@@ -187,6 +187,26 @@ const pageEdit = (
 })
 
 describe('getPortalHistory', () => {
+  it('shows an operator-run publication as Reputation Key and never exposes the operator id', async () => {
+    const { useCase, resolveDisplayNames } = setup({
+      publications: [{ ...publication(1, 10), activatedBy: 'ops:denev' }],
+      names: { creator: 'Georgi Ivanov' },
+    })
+
+    const result = await useCase({ portalId: portal.id }, ctx)
+
+    const published = result.entries.find(
+      (entry) => entry.detail.kind === 'version_published',
+    )
+    expect(published?.actor).toEqual({
+      userId: 'reputation-key',
+      displayName: 'Reputation Key',
+    })
+    expect(JSON.stringify(result)).not.toContain('ops:denev')
+    const asked = resolveDisplayNames.mock.calls.flatMap(([, ids]) => [...ids])
+    expect(asked).not.toContain('ops:denev')
+  })
+
   it('merges creation, publications, health and addresses newest first with actors named', async () => {
     const { useCase } = setup({
       publications: [publication(1, 10), publication(2, 30, 'rollback', 1)],

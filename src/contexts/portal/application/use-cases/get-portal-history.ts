@@ -11,13 +11,14 @@
 // same as the publication history: `portal.read` in the Portal's Property.
 
 import type { AuthContext } from '#/shared/domain/auth-context'
-import { portalId, userId as toUserId } from '#/shared/domain/ids'
+import { portalId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PortalRepository } from '../ports/portal.repository'
 import type { PortalHealthRepository } from '../ports/portal-health.repository'
 import type { PortalHistoryRepository } from '../ports/portal-history.repository'
 import type { PortalActorDirectory } from '../ports/portal-actor-directory.port'
 import { loadPortalOrThrow } from '../load-accessible-portal'
+import { resolveVersionActors, versionActor } from '../portal-version-actors'
 import {
   HISTORY_KEY_PREFIX,
   classifyCodeIssuance,
@@ -221,16 +222,10 @@ export const getPortalHistory =
     ]
 
     const merged = pageHistory(records, limit)
-    const actorIds = [
-      ...new Set(
-        merged.records.flatMap((record) =>
-          record.actorUserId === null ? [] : [record.actorUserId],
-        ),
-      ),
-    ]
-    const names = await deps.actorDirectory.resolveDisplayNames(
+    const names = await resolveVersionActors(
+      deps.actorDirectory,
       organizationId,
-      actorIds.map(toUserId),
+      merged.records.map((record) => record.actorUserId),
     )
 
     return {
@@ -238,13 +233,7 @@ export const getPortalHistory =
         key: record.key,
         category: record.category,
         occurredAt: record.at.toISOString(),
-        actor:
-          record.actorUserId === null
-            ? null
-            : {
-                userId: record.actorUserId,
-                displayName: names.get(toUserId(record.actorUserId)) ?? null,
-              },
+        actor: versionActor(record.actorUserId, names),
         detail: record.detail,
       })),
       nextCursor: merged.next ? encodeHistoryCursor(merged.next) : null,

@@ -7,6 +7,9 @@
 
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 
+/** The most Portals one read returns; a caller asking for more is given this many. */
+export const MAX_LEGACY_PORTAL_PAGE = 500
+
 export type LegacyLivePortal = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId

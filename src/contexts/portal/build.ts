@@ -806,7 +806,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       }),
     }),
     /** Operator-only Portal maintenance (round 4, slice 46); see build-maintenance.ts. */
-    maintenance: buildPortalMaintenance(deps.db, publishChangesDeps),
+    maintenance: buildPortalMaintenance(deps.db, publishChangesDeps, deps.logger),
     /** ARC-03-T11: the named member-authority capability. Replaces the root's
      * Portal responsible-manager repository reach-through. */
     responsibility: createPortalResponsibilityRuntime(portalResponsibleManagerRepo),

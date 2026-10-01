@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import type { Database } from '#/shared/db'
 import { organizationId } from '#/shared/domain/ids'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 import type { PublishPortalChangesDeps } from './application/use-cases/publish-portal-changes'
 import { buildPortalMaintenance } from './build-maintenance'
 
@@ -19,6 +20,7 @@ describe('buildPortalMaintenance', () => {
     const maintenance = buildPortalMaintenance(
       emptyDatabase(),
       {} as PublishPortalChangesDeps,
+      createMockLogger(),
     )
 
     expect(Object.isFrozen(maintenance)).toBe(true)

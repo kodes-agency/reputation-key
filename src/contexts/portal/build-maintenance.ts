@@ -4,6 +4,7 @@
 // which only scripts/ops reads.
 
 import type { Database } from '#/shared/db'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { createPortalLegacyPublicationReader } from './infrastructure/repositories/portal-legacy-publication.reader'
 import {
   previewPortalChanges,
@@ -16,11 +17,13 @@ import { republishLegacyPortals } from './application/use-cases/republish-legacy
 export const buildPortalMaintenance = (
   db: Database,
   publishDeps: PublishPortalChangesDeps,
+  logger: LoggerPort,
 ) =>
   Object.freeze({
     republishLegacyPortals: republishLegacyPortals({
       reader: createPortalLegacyPublicationReader(db),
       publishPortalChanges: publishPortalChanges(publishDeps),
       previewPortalChanges: previewPortalChanges(publishDeps),
+      logger,
     }),
   })

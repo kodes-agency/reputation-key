@@ -1,12 +1,15 @@
 // Portal context — republish every live v1/v2 Portal (round 4, slice 46).
 
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 import type { AuthContext } from '#/shared/domain/auth-context'
+import type { LoggerPort } from '#/shared/domain/logger.port'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 import { portalError } from '../../domain/errors'
-import type {
-  LegacyLivePortal,
-  PortalLegacyPublicationReader,
+import {
+  MAX_LEGACY_PORTAL_PAGE,
+  type LegacyLivePortal,
+  type PortalLegacyPublicationReader,
 } from '../ports/portal-legacy-publication.reader'
 import type {
   PreviewPortalChangesResult,
@@ -38,11 +41,17 @@ type Fault = (portal: string) => unknown
  * A reader over a mutable list of live Portals, so the run can be repeated: a
  * publication moves its Portal to schema 3, which the reader no longer lists.
  */
-function setup(portals: readonly LegacyLivePortal[], refuse: Fault = () => null) {
+function setup(
+  portals: readonly LegacyLivePortal[],
+  refuse: Fault = () => null,
+  /** Open pending content changes per Portal id: a manager's unpublished edits. */
+  pending: Readonly<Record<string, number>> = {},
+) {
   const rows = new Map(portals.map((portal) => [String(portal.portalId), portal]))
   const published: Array<{ portalId: string; ctx: AuthContext }> = []
   const previewed: string[] = []
   const reads: Array<{ afterPortalId: string | null; limit: number }> = []
+  const logger = { ...createMockLogger(), error: vi.fn() } satisfies LoggerPort
 
   const reader: PortalLegacyPublicationReader = {
     listLiveLegacyPortals: async (input) => {
@@ -90,6 +99,7 @@ function setup(portals: readonly LegacyLivePortal[], refuse: Fault = () => null)
     return {
       outcome: 'would_publish',
       version: (rows.get(input.portalId)?.liveVersion ?? 0) + 1,
+      pendingEdits: pending[input.portalId] ?? 0,
     }
   }
   return {
@@ -97,7 +107,13 @@ function setup(portals: readonly LegacyLivePortal[], refuse: Fault = () => null)
     previewed,
     reads,
     rows,
-    run: republishLegacyPortals({ reader, publishPortalChanges, previewPortalChanges }),
+    logger,
+    run: republishLegacyPortals({
+      reader,
+      publishPortalChanges,
+      previewPortalChanges,
+      logger,
+    }),
   }
 }
 
@@ -127,6 +143,7 @@ describe('republishLegacyPortals', () => {
         fromSchemaVersion: 1,
         outcome: 'republished',
         toVersion: 5,
+        pendingEdits: 0,
       },
       {
         organizationId: ORG,
@@ -136,10 +153,11 @@ describe('republishLegacyPortals', () => {
         fromSchemaVersion: 2,
         outcome: 'republished',
         toVersion: 8,
+        pendingEdits: 0,
       },
     ])
     expect(report.totals).toEqual({
-      selected: 2,
+      processed: 2,
       republished: 2,
       wouldRepublish: 0,
       skipped: 0,
@@ -186,7 +204,7 @@ describe('republishLegacyPortals', () => {
       ['would_republish', 2],
     ])
     expect(report.totals).toMatchObject({
-      selected: 2,
+      processed: 2,
       wouldRepublish: 2,
       republished: 0,
     })
@@ -222,7 +240,7 @@ describe('republishLegacyPortals', () => {
       },
     })
     expect(report.rows[1]).not.toHaveProperty('toVersion')
-    expect(report.totals).toMatchObject({ selected: 3, republished: 2, skipped: 1 })
+    expect(report.totals).toMatchObject({ processed: 3, republished: 2, skipped: 1 })
     expect(harness.rows.has(String(blocked.portalId))).toBe(true)
   })
 
@@ -253,8 +271,8 @@ describe('republishLegacyPortals', () => {
     const first = await harness.run(baseInput)
     const second = await harness.run(baseInput)
 
-    expect(first.totals).toMatchObject({ selected: 2, republished: 1, skipped: 1 })
-    expect(second.totals).toMatchObject({ selected: 1, republished: 0, skipped: 1 })
+    expect(first.totals).toMatchObject({ processed: 2, republished: 1, skipped: 1 })
+    expect(second.totals).toMatchObject({ processed: 1, republished: 0, skipped: 1 })
     expect(harness.published).toHaveLength(1)
   })
 
@@ -262,13 +280,18 @@ describe('republishLegacyPortals', () => {
     const run = republishLegacyPortals({
       reader: { listLiveLegacyPortals: async () => [live(1)] },
       publishPortalChanges: async () => ({ outcome: 'unchanged', version: 1 }),
-      previewPortalChanges: async () => ({ outcome: 'unchanged', version: 1 }),
+      previewPortalChanges: async () => ({
+        outcome: 'unchanged',
+        version: 1,
+        pendingEdits: 0,
+      }),
+      logger: createMockLogger(),
     })
 
     const report = await run({ ...baseInput, pageSize: 5 })
 
     expect(report.rows).toMatchObject([{ outcome: 'unchanged' }])
-    expect(report.totals).toMatchObject({ selected: 1, unchanged: 1, republished: 0 })
+    expect(report.totals).toMatchObject({ processed: 1, unchanged: 1, republished: 0 })
   })
 
   it('pages through every Portal, resuming after the last one seen', async () => {
@@ -326,7 +349,7 @@ describe('republishLegacyPortals', () => {
 
     expect(report.rows).toEqual([])
     expect(report.totals).toEqual({
-      selected: 0,
+      processed: 0,
       republished: 0,
       wouldRepublish: 0,
       skipped: 0,
@@ -349,5 +372,117 @@ describe('republishLegacyPortals', () => {
     })
     expect(JSON.stringify(report)).not.toContain('secret')
     expect(harness.rows.has(String(live(3).portalId))).toBe(true)
+  })
+
+  it('logs the fault that stopped the run, and the report names the Portal it stopped at', async () => {
+    const fault = new TypeError('connection reset')
+    const harness = setup([live(1), live(2)], (id) =>
+      id === String(live(2).portalId) ? fault : null,
+    )
+
+    const report = await harness.run(baseInput)
+
+    expect(harness.logger.error).toHaveBeenCalledTimes(1)
+    expect(harness.logger.error).toHaveBeenCalledWith(
+      { error: fault },
+      expect.stringContaining('republish'),
+    )
+    expect(report.halted?.portalId).toBe(live(2).portalId)
+  })
+
+  describe("a manager's unpublished edits", () => {
+    const edited = live(2, { propertyId: PROPERTY_B })
+    const pendingFor = (count: number) => ({ [String(edited.portalId)]: count })
+
+    it('does not publish them: the Portal is skipped with a reason of its own and the rest carry on', async () => {
+      const harness = setup([live(1), edited, live(3)], () => null, pendingFor(2))
+
+      const report = await harness.run(baseInput)
+
+      expect(report.rows.map((row) => row.outcome)).toEqual([
+        'republished',
+        'skipped',
+        'republished',
+      ])
+      expect(report.rows[1]).toMatchObject({
+        portalId: edited.portalId,
+        outcome: 'skipped',
+        reason: {
+          code: 'pending_edits',
+          message: expect.stringContaining('2 unpublished edits'),
+        },
+      })
+      expect(harness.published.map((entry) => entry.portalId)).not.toContain(
+        String(edited.portalId),
+      )
+      expect(harness.rows.has(String(edited.portalId))).toBe(true)
+      expect(report.totals).toMatchObject({ republished: 2, skipped: 1 })
+    })
+
+    it('says "edit" for one', async () => {
+      const harness = setup([edited], () => null, pendingFor(1))
+
+      const report = await harness.run({ ...baseInput, dryRun: true })
+
+      expect(report.rows[0]).toMatchObject({
+        outcome: 'skipped',
+        reason: { message: expect.stringContaining('1 unpublished edit;') },
+      })
+    })
+
+    it('reports it in a dry run too, so the report predicts the apply', async () => {
+      const harness = setup([live(1), edited], () => null, pendingFor(3))
+
+      const report = await harness.run({ ...baseInput, dryRun: true })
+
+      expect(report.rows.map((row) => row.outcome)).toEqual([
+        'would_republish',
+        'skipped',
+      ])
+      expect(harness.published).toEqual([])
+    })
+
+    it('publishes them only when the operator asks for it, and says how many went live', async () => {
+      const harness = setup([live(1), edited], () => null, pendingFor(2))
+
+      const report = await harness.run({ ...baseInput, includePendingEdits: true })
+
+      expect(report.rows).toMatchObject([
+        { outcome: 'republished', pendingEdits: 0 },
+        { outcome: 'republished', pendingEdits: 2 },
+      ])
+      expect(harness.published).toHaveLength(2)
+    })
+
+    it('shows what the opt-in would do in a dry run', async () => {
+      const harness = setup([edited], () => null, pendingFor(2))
+
+      const report = await harness.run({
+        ...baseInput,
+        dryRun: true,
+        includePendingEdits: true,
+      })
+
+      expect(report.rows[0]).toMatchObject({
+        outcome: 'would_republish',
+        pendingEdits: 2,
+      })
+    })
+  })
+
+  it('never asks the reader for more than it can give, and still visits every Portal', async () => {
+    const count = MAX_LEGACY_PORTAL_PAGE + 1
+    const harness = setup(Array.from({ length: count }, (_, index) => live(index + 1)))
+
+    const report = await harness.run({
+      ...baseInput,
+      pageSize: MAX_LEGACY_PORTAL_PAGE * 2,
+    })
+
+    expect(report.totals.republished).toBe(count)
+    expect(harness.reads.every((read) => read.limit === MAX_LEGACY_PORTAL_PAGE)).toBe(
+      true,
+    )
+    expect(report.halted).toBeNull()
   })
 })

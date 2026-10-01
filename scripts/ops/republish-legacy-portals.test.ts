@@ -24,19 +24,27 @@ const scope = (index: number) => ({
 })
 
 const rows: ReadonlyArray<RepublishLegacyPortalRow> = [
-  { ...scope(1), outcome: 'republished', toVersion: 4 },
+  { ...scope(1), outcome: 'republished', toVersion: 4, pendingEdits: 0 },
   {
     ...scope(2),
     outcome: 'skipped',
     reason: { code: 'token_unavailable', message: 'Create the Portal public address' },
   },
+  {
+    ...scope(3),
+    outcome: 'skipped',
+    reason: {
+      code: 'pending_edits',
+      message: '2 unpublished edits; the manager should publish or discard them',
+    },
+  },
 ]
 
 const totals = {
-  selected: 2,
+  processed: 3,
   republished: 1,
   wouldRepublish: 0,
-  skipped: 1,
+  skipped: 2,
   unchanged: 0,
   failed: 0,
 }
@@ -53,6 +61,7 @@ const report = (overrides: Partial<RepublishLegacyPortalsReport> = {}) =>
 function harness(
   result: RepublishLegacyPortalsReport,
   ctx: Partial<OperatorContext> = {},
+  flags: ReadonlyArray<string> = [],
 ) {
   const calls: RepublishLegacyPortalsInput[] = []
   const out: string[] = []
@@ -74,7 +83,7 @@ function harness(
     run: () =>
       action(
         { ...operatorContext, container: {} as never },
-        { positionals: [] } as unknown as OperatorArgs,
+        { positionals: [], flags: new Set(flags) } as unknown as OperatorArgs,
         { out: (line) => out.push(line), err: (line) => out.push(`ERR ${line}`) },
       ),
   }
@@ -104,9 +113,38 @@ describe('ops republish-legacy-portals', () => {
         propertyId: undefined,
         operatorId: 'denev',
         dryRun: true,
+        includePendingEdits: false,
         pageSize: 50,
       },
     ])
+  })
+
+  it("leaves a manager's unpublished edits alone unless --include-pending-edits is given", async () => {
+    const test = harness(report(), {}, ['include-pending-edits'])
+
+    await test.run()
+
+    expect(test.calls[0]).toMatchObject({ includePendingEdits: true })
+    expect(REPUBLISH_LEGACY_PORTALS_SPEC.extraFlags).toEqual(['include-pending-edits'])
+    expect(REPUBLISH_LEGACY_PORTALS_SPEC.usage).toContain('--include-pending-edits')
+  })
+
+  it('says how many unpublished edits a republish put live, or would', () => {
+    const lines = renderRepublishReport(
+      report({
+        rows: [
+          { ...scope(1), outcome: 'would_republish', toVersion: 4, pendingEdits: 2 },
+          { ...scope(2), outcome: 'republished', toVersion: 5, pendingEdits: 0 },
+        ],
+      }),
+    )
+
+    expect(lines[0]).toBe(
+      `portal=${scope(1).portalId} property=${PROPERTY} v3 (schema 2) would republish -> v4 (includes 2 unpublished edits)`,
+    )
+    expect(lines[1]).toBe(
+      `portal=${scope(2).portalId} property=${PROPERTY} v3 (schema 2) republished -> v5`,
+    )
   })
 
   it('applies only when the harness says it is not a dry run, and narrows to a Property', async () => {
@@ -126,6 +164,7 @@ describe('ops republish-legacy-portals', () => {
     expect(test.out).toEqual([
       `portal=${scope(1).portalId} property=${PROPERTY} v3 (schema 2) republished -> v4`,
       `portal=${scope(2).portalId} property=${PROPERTY} v3 (schema 2) skipped: token_unavailable - Create the Portal public address`,
+      `portal=${scope(3).portalId} property=${PROPERTY} v3 (schema 2) skipped: pending_edits - 2 unpublished edits; the manager should publish or discard them`,
       JSON.stringify(totals),
     ])
   })
@@ -144,7 +183,7 @@ describe('ops republish-legacy-portals', () => {
     const test = harness(
       report({
         rows: [{ ...scope(1), outcome: 'failed' }],
-        totals: { ...totals, selected: 1, republished: 0, skipped: 0, failed: 1 },
+        totals: { ...totals, processed: 1, republished: 0, skipped: 0, failed: 1 },
         halted: { portalId: scope(1).portalId, fault: 'TypeError' },
       }),
     )
@@ -162,12 +201,12 @@ describe('ops republish-legacy-portals', () => {
       renderRepublishReport(
         report({
           rows: [],
-          totals: { ...totals, selected: 0, republished: 0, skipped: 0 },
+          totals: { ...totals, processed: 0, republished: 0, skipped: 0 },
         }),
       ),
     ).toEqual([
       'no live portal is still on a version 1 or 2 page',
-      JSON.stringify({ ...totals, selected: 0, republished: 0, skipped: 0 }),
+      JSON.stringify({ ...totals, processed: 0, republished: 0, skipped: 0 }),
     ])
   })
 })

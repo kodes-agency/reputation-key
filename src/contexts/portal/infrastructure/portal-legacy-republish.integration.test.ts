@@ -7,9 +7,12 @@
 // in another organisation is left exactly as it was.
 
 import { randomUUID } from 'node:crypto'
+import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { getDb } from '#/shared/db'
 import { setupIntegrationDb } from '#/shared/testing/integration-helpers'
+import { createMockLogger } from '#/shared/testing/mock-logger'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import type { PropertyId } from '#/shared/domain/ids'
@@ -100,7 +103,9 @@ beforeEach(async () => {
   }
 })
 
-function harness(options: { onlyProperty?: PropertyId } = {}) {
+function harness(
+  options: { onlyProperty?: PropertyId; includePendingEdits?: boolean } = {},
+) {
   const db = getDb()
   const deps: PublishPortalChangesDeps = {
     portalRepo: createPortalRepository(db),
@@ -133,6 +138,7 @@ function harness(options: { onlyProperty?: PropertyId } = {}) {
     reader: createPortalLegacyPublicationReader(db),
     publishPortalChanges: publishPortalChanges(deps),
     previewPortalChanges: previewPortalChanges(deps),
+    logger: createMockLogger(),
   })
   return (dryRun: boolean) =>
     run({
@@ -140,6 +146,7 @@ function harness(options: { onlyProperty?: PropertyId } = {}) {
       propertyId: options.onlyProperty,
       operatorId: OPERATOR,
       dryRun,
+      includePendingEdits: options.includePendingEdits,
       pageSize: 10,
     })
 }
@@ -165,6 +172,43 @@ const portalState = async (portalId: string) =>
       [WORKING_COPY_ORG, portalId],
     )
   ).rows[0]?.publication_state
+
+/** A manager's unpublished edit: an open row in the pending-change ledger. */
+const seedPendingEdit = async (portal: typeof READY, count = 1) => {
+  for (let index = 0; index < count; index++) {
+    await getPool().query(
+      `INSERT INTO portal_pending_content_changes
+         (organization_id, property_id, portal_id, change_kind, change_key,
+          source_version, changed_at)
+       VALUES ($1, $2, $3, 'portal_links', 'all', $4, $5)`,
+      [WORKING_COPY_ORG, portal.propertyId, portal.portalId, `edit-${index}`, SEEDED_AT],
+    )
+  }
+}
+
+const openPendingEdits = async (portalId: string) =>
+  Number(
+    (
+      await getPool().query(
+        `SELECT count(*) AS n FROM portal_pending_content_changes
+          WHERE organization_id = $1 AND portal_id = $2 AND resolved_at IS NULL`,
+        [WORKING_COPY_ORG, portalId],
+      )
+    ).rows[0]?.n,
+  )
+
+/** The read-only fleet SQL the operator runbook documents, taken from the doc itself. */
+const documentedFleetSql = (): string => {
+  const doc = readFileSync(
+    resolve(__dirname, '../../../../docs/operations/operator-commands.md'),
+    'utf8',
+  )
+  const block = /```sql\n(\s*-- live-legacy-portals-by-organization\n[\s\S]*?)```/u.exec(
+    doc,
+  )
+  if (!block?.[1]) throw new Error('the fleet SQL is missing from operator-commands.md')
+  return block[1]
+}
 
 const outboxCount = async () =>
   Number(
@@ -192,7 +236,7 @@ describe.sequential('republishLegacyPortals (real PostgreSQL)', () => {
   it('republishes the ready Portal as a verified v3, closes the old activation as replaced and names the operator', async () => {
     const report = await harness()(false)
 
-    expect(report.totals).toMatchObject({ selected: 2, republished: 1, skipped: 1 })
+    expect(report.totals).toMatchObject({ processed: 2, republished: 1, skipped: 1 })
     expect(await activations(READY.portalId)).toEqual([
       {
         sequence: 1,
@@ -253,6 +297,69 @@ describe.sequential('republishLegacyPortals (real PostgreSQL)', () => {
     ])
   })
 
+  it("does not push a manager's unpublished edits live: the Portal is skipped and stays on its old page", async () => {
+    await seedPendingEdit(READY, 2)
+
+    const dry = await harness()(true)
+    const applied = await harness()(false)
+
+    for (const report of [dry, applied]) {
+      expect(report.rows.find((row) => row.portalId === READY.portalId)).toMatchObject({
+        outcome: 'skipped',
+        reason: { code: 'pending_edits' },
+      })
+    }
+    expect(applied.totals).toMatchObject({ republished: 0, skipped: 2 })
+    expect(await activations(READY.portalId)).toEqual([
+      expect.objectContaining({
+        sequence: 1,
+        schema: '1',
+        deactivated_at: null,
+        deactivation_reason: null,
+      }),
+    ])
+    expect(await openPendingEdits(READY.portalId)).toBe(2)
+    expect(await outboxCount()).toBe(0)
+  })
+
+  it('publishes them when the operator explicitly includes them, and resolves the edits', async () => {
+    await seedPendingEdit(READY, 2)
+
+    const report = await harness({ includePendingEdits: true })(false)
+
+    expect(report.rows.find((row) => row.portalId === READY.portalId)).toMatchObject({
+      outcome: 'republished',
+      pendingEdits: 2,
+    })
+    expect(await activations(READY.portalId)).toHaveLength(2)
+    expect(await openPendingEdits(READY.portalId)).toBe(0)
+  })
+
+  it('the documented fleet SQL lists the organisations with live v1/v2 Portals, and none once they are republished', async () => {
+    const before = await getPool().query(documentedFleetSql())
+    expect(before.rows).toEqual([
+      {
+        organization_id: WORKING_COPY_ORG,
+        live_legacy_portals: '2',
+        v1: '1',
+        v2: '1',
+      },
+    ])
+
+    await harness({ includePendingEdits: true })(false)
+    const after = await getPool().query(documentedFleetSql())
+
+    // The Portal that is not ready stays on its v2 page; the ready one moved to v3.
+    expect(after.rows).toEqual([
+      {
+        organization_id: WORKING_COPY_ORG,
+        live_legacy_portals: '1',
+        v1: '0',
+        v2: '1',
+      },
+    ])
+  })
+
   it('never touches a draft-only Portal', async () => {
     await harness()(false)
 
@@ -266,7 +373,7 @@ describe.sequential('republishLegacyPortals (real PostgreSQL)', () => {
 
     const second = await harness()(false)
 
-    expect(second.totals).toMatchObject({ selected: 1, republished: 0, skipped: 1 })
+    expect(second.totals).toMatchObject({ processed: 1, republished: 0, skipped: 1 })
     expect(await activations(READY.portalId)).toHaveLength(2)
     expect(await outboxCount()).toBe(factsAfterFirst)
   })

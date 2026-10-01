@@ -635,7 +635,7 @@ describe('previewPortalChanges', () => {
 
     const result = await preview(harness)({ portalId: harness.portal.id }, manager())
 
-    expect(result).toEqual({ outcome: 'would_publish', version: 3 })
+    expect(result).toEqual({ outcome: 'would_publish', version: 3, pendingEdits: 1 })
     expect(harness.commands).toEqual([])
     expect(harness.outbox.facts).toEqual([])
   })
@@ -645,7 +645,15 @@ describe('previewPortalChanges', () => {
 
     await expect(
       preview(harness)({ portalId: harness.portal.id }, manager()),
-    ).resolves.toEqual({ outcome: 'unchanged', version: 2 })
+    ).resolves.toEqual({ outcome: 'unchanged', version: 2, pendingEdits: 0 })
+  })
+
+  it("counts the manager's open unpublished edits, so a caller can tell a draft from a bare upgrade", async () => {
+    const harness = setup({ openChanges: 3 })
+
+    await expect(
+      preview(harness)({ portalId: harness.portal.id }, manager()),
+    ).resolves.toMatchObject({ outcome: 'would_publish', pendingEdits: 3 })
   })
 
   it.each([

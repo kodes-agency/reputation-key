@@ -69,8 +69,13 @@ export type PublishPortalsChangesResult = ReadonlyArray<
 
 /** What `publishPortalChanges` would write: nothing, or exactly this command. */
 type RepublishPlan =
-  | Readonly<{ outcome: 'unchanged'; version: number }>
-  | Readonly<{ outcome: 'ready'; command: RepublishPortalCommand }>
+  | Readonly<{ outcome: 'unchanged'; version: number; pendingEdits: 0 }>
+  | Readonly<{
+      outcome: 'ready'
+      command: RepublishPortalCommand
+      /** The manager's open unpublished edits this publication would put live. */
+      pendingEdits: number
+    }>
 
 /**
  * Everything `publishPortalChanges` does except the write: authorise, load,
@@ -135,7 +140,7 @@ const planPortalRepublish =
       !destinationMoved &&
       workingCopyMatchesSnapshot(workingCopy, live)
     ) {
-      return { outcome: 'unchanged', version: live.version }
+      return { outcome: 'unchanged', version: live.version, pendingEdits: 0 }
     }
 
     await assertPropertyAllowsPublication(deps, ctx.organizationId, portal)
@@ -157,6 +162,7 @@ const planPortalRepublish =
     const revision = nextPortalCommandAt(occurredAt, portal.updatedAt)
     return {
       outcome: 'ready',
+      pendingEdits: openChanges.length,
       command: {
         organizationId: ctx.organizationId,
         propertyId: portal.propertyId,
@@ -210,7 +216,9 @@ export const publishPortalChanges =
     ctx: AuthContext,
   ): Promise<PublishPortalChangesResult> => {
     const plan = await planPortalRepublish(deps)(input, ctx)
-    if (plan.outcome === 'unchanged') return plan
+    if (plan.outcome === 'unchanged') {
+      return { outcome: 'unchanged', version: plan.version }
+    }
     const { command } = plan
     await deps.commandStore.republishPortal(command)
     return {
@@ -223,8 +231,13 @@ export const publishPortalChanges =
   }
 
 export type PreviewPortalChangesResult =
-  | Readonly<{ outcome: 'would_publish'; version: number }>
-  | Readonly<{ outcome: 'unchanged'; version: number }>
+  | Readonly<{
+      outcome: 'would_publish'
+      version: number
+      /** Open unpublished edits by the manager that the publication would put live. */
+      pendingEdits: number
+    }>
+  | Readonly<{ outcome: 'unchanged'; version: number; pendingEdits: 0 }>
 
 /**
  * What `publishPortalChanges` would do for this Portal, with nothing written:
@@ -242,7 +255,11 @@ export const previewPortalChanges =
     const plan = await planPortalRepublish(deps)(input, ctx)
     return plan.outcome === 'unchanged'
       ? plan
-      : { outcome: 'would_publish', version: plan.command.snapshot.version }
+      : {
+          outcome: 'would_publish',
+          version: plan.command.snapshot.version,
+          pendingEdits: plan.pendingEdits,
+        }
   }
 
 export type PublishPortalChanges = ReturnType<typeof publishPortalChanges>

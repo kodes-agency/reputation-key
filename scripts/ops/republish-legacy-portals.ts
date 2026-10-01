@@ -9,14 +9,20 @@
 // Usage:
 //   pnpm ops republish-legacy-portals --operator <id> --org <id> [--property <id>] [--batch-size <n>]
 //     — dry run (the default): what would be republished, and which Portals
-//       would be skipped as not ready, and why. Writes nothing.
+//       would be skipped (not ready, or with unpublished manager edits), and
+//       why. Writes nothing.
 //   pnpm ops republish-legacy-portals --operator <id> --org <id> [--property <id>] \
 //     --reason <text> --apply
 //
+// A Portal whose manager has unpublished edits is skipped (`pending_edits`): the
+// republish would put those drafts live under the operator's name. Pass
+// --include-pending-edits only when the owner wants them published too.
+//
 // Idempotent: a republished Portal is on v3 and is not selected again; a Portal
-// that is not ready is skipped with the gate's reason, every run, until it is
-// fixed. Draft-only, disabled, archived and deleted Portals are never selected.
-// Output is identifiers, versions and Portal error codes only. Requires
+// that is not ready (or has unpublished edits) is skipped with its reason, every
+// run, until it is fixed. Draft-only, disabled, archived and deleted Portals are
+// never selected. Output is identifiers, versions and reason codes only; a fault
+// that stops the run is logged to stderr. Requires
 // DATABASE_URL and QUEUE_REDIS_URL, like every ops command.
 
 import { pathToFileURL } from 'node:url'
@@ -32,7 +38,7 @@ import { runOperatorCommand, type OpsAction } from './operator-command'
 
 const COMMAND_NAME = 'ops:republish-legacy-portals'
 const USAGE =
-  'pnpm ops republish-legacy-portals --operator <id> --org <id> [--property <id>] [--batch-size <n>] [--reason <text> --apply]'
+  'pnpm ops republish-legacy-portals --operator <id> --org <id> [--property <id>] [--batch-size <n>] [--include-pending-edits] [--reason <text> --apply]'
 
 export const REPUBLISH_LEGACY_PORTALS_SPEC = {
   name: COMMAND_NAME,
@@ -40,16 +46,22 @@ export const REPUBLISH_LEGACY_PORTALS_SPEC = {
   mutation: true,
   capability: 'portal.write',
   batchSize: { default: 50, max: 200 },
+  extraFlags: ['include-pending-edits'],
   usage: USAGE,
 } satisfies OperatorCommandSpec
+
+const includes = (pendingEdits: number): string =>
+  pendingEdits === 0
+    ? ''
+    : ` (includes ${pendingEdits} unpublished ${pendingEdits === 1 ? 'edit' : 'edits'})`
 
 const describeRow = (row: RepublishLegacyPortalRow): string => {
   const head = `portal=${row.portalId} property=${row.propertyId} v${row.fromVersion} (schema ${row.fromSchemaVersion})`
   switch (row.outcome) {
     case 'republished':
-      return `${head} republished -> v${row.toVersion}`
+      return `${head} republished -> v${row.toVersion}${includes(row.pendingEdits)}`
     case 'would_republish':
-      return `${head} would republish -> v${row.toVersion}`
+      return `${head} would republish -> v${row.toVersion}${includes(row.pendingEdits)}`
     case 'unchanged':
       return `${head} unchanged`
     case 'skipped':
@@ -74,12 +86,13 @@ export function renderRepublishReport(
 export function createRepublishLegacyPortalsAction(
   resolve: (container: Container) => RepublishLegacyPortals,
 ): OpsAction {
-  return async (ctx, _args, io) => {
+  return async (ctx, args, io) => {
     const report = await resolve(ctx.container)({
       organizationId: organizationId(ctx.organizationId as string),
       propertyId: ctx.propertyId ? propertyId(ctx.propertyId) : undefined,
       operatorId: ctx.operatorId,
       dryRun: ctx.dryRun,
+      includePendingEdits: args.flags.has('include-pending-edits'),
       pageSize: ctx.batchSize ?? REPUBLISH_LEGACY_PORTALS_SPEC.batchSize.default,
     })
     for (const line of renderRepublishReport(report)) io.out(line)

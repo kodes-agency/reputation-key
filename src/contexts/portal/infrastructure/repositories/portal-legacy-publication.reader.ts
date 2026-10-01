@@ -14,12 +14,11 @@ import {
 } from '#/shared/db/schema/portal-publication.schema'
 import { organizationId, portalId, propertyId, unbrand } from '#/shared/domain/ids'
 import { trace } from '#/shared/observability/trace'
-import type {
-  LegacyLivePortal,
-  PortalLegacyPublicationReader,
+import {
+  MAX_LEGACY_PORTAL_PAGE,
+  type LegacyLivePortal,
+  type PortalLegacyPublicationReader,
 } from '../../application/ports/portal-legacy-publication.reader'
-
-const MAX_PAGE = 500
 
 export function createPortalLegacyPublicationReader(
   db: Database,
@@ -79,7 +78,7 @@ export function createPortalLegacyPublicationReader(
             ),
           )
           .orderBy(asc(portals.id))
-          .limit(Math.min(MAX_PAGE, Math.max(1, input.limit)))
+          .limit(Math.min(MAX_LEGACY_PORTAL_PAGE, Math.max(1, input.limit)))
         return rows.map((row): LegacyLivePortal => ({
           organizationId: organizationId(row.organizationId),
           propertyId: propertyId(row.propertyId),
