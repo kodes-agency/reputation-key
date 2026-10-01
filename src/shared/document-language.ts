@@ -8,14 +8,7 @@
 
 import { isGuestLocale, type GuestLocale } from '#/shared/domain/guest-locale'
 
-const GUEST_PORTAL_ROUTE_ID = '/p/$token'
-
-function selectedLocaleOf(loaderData: unknown): unknown {
-  if (typeof loaderData !== 'object' || loaderData === null) return undefined
-  const localization: unknown = Reflect.get(loaderData, 'localization')
-  if (typeof localization !== 'object' || localization === null) return undefined
-  return Reflect.get(localization, 'selectedLocale')
-}
+type PortalLoaderData = { localization?: { selectedLocale?: unknown } } | null | undefined
 
 /**
  * The guest locale the portal route rendered in, any of the six, or English for
@@ -24,7 +17,7 @@ function selectedLocaleOf(loaderData: unknown): unknown {
 export function documentLanguageOfMatches(
   matches: readonly Readonly<{ routeId: string; loaderData?: unknown }>[],
 ): GuestLocale {
-  const portal = matches.find((match) => match.routeId === GUEST_PORTAL_ROUTE_ID)
-  const locale = portal ? selectedLocaleOf(portal.loaderData) : undefined
+  const portal = matches.find((match) => match.routeId === '/p/$token')
+  const locale = (portal?.loaderData as PortalLoaderData)?.localization?.selectedLocale
   return isGuestLocale(locale) ? locale : 'en'
 }
