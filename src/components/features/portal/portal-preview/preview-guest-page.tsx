@@ -1,31 +1,35 @@
 // The Immersive Hub guest page as the editor previews it: one language of a
 // `PortalPreviewExperience` in one state (arrival, after a rating, note sent).
 //
-// A pure view of its props. It reads no session and calls no server function;
-// with `onAction` (Try as guest) the page answers clicks by moving between the
-// same states locally. The response area is the guest page's own view
-// (`ImmersiveResponseView`), fed a controlled state, so the rating card, the
-// receipt, the Google card and the private note are the ones guests get. The
-// header, the Linktree and the footer are drawn here from the same shell,
-// glass and copy packs until slices 13, 15, 16 and 17 expose theirs.
+// A pure view of its props, and the real page: the header, the title block, the
+// response area, the Linktree and the footer are the pieces the live page is
+// built from, fed the preview's data. It reads no session and calls no server
+// function. Every piece that could open something is in its inert mode: the
+// language chip opens no sheet, a tile is no link, the footer's links and "Got
+// it" do nothing and nothing is recorded. With `onAction` (Try as guest) the
+// response area answers clicks by moving between the same states locally.
 
-import { useId } from 'react'
-import type { GuestLocale } from '#/shared/domain/guest-locale'
 import {
+  GuestHeader,
+  GuestTitleBlock,
   ImmersiveResponseView,
   ImmersiveShell,
+  InertImmersiveFooterView,
+  InertImmersiveLinktree,
+  InertLanguageChip,
+  guestCopyText,
+  immersiveFooterCopy,
   immersiveResponseProps,
 } from '#/components/features/guest'
 import type { GuestPortalCopyV2 } from '#/components/features/guest'
+import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalPreviewExperience } from '#/contexts/portal/application/public-api'
 import {
   guestPreviewState,
   type PreviewPageState,
   type TryAsGuestAction,
 } from './portal-preview-states'
-import { PreviewFooter } from './preview-footer'
-import { PreviewLinktree } from './preview-linktree'
-import { PreviewPageTop } from './preview-page-top'
+import { previewLinktreeLink } from './preview-linktree-links'
 
 export type PreviewGuestPageProps = Readonly<{
   experience: PortalPreviewExperience
@@ -45,8 +49,8 @@ export function PreviewGuestPage({
   state,
   onAction,
 }: PreviewGuestPageProps) {
-  const idPrefix = useId()
-  const { brand, content } = experience
+  const { brand, content, linktree, links } = experience
+  const hasLinktree = linktree.enabled && links.length > 0
   return (
     <ImmersiveShell
       brand={brand}
@@ -57,17 +61,42 @@ export function PreviewGuestPage({
       lang={locale}
       height="container"
     >
-      <PreviewPageTop
-        experience={experience}
-        copy={copy}
-        locale={locale}
-        hasLanguageChip={hasLanguageChip}
-      />
+      <GuestHeader
+        displayName={brand.displayName}
+        wordmark={brand.wordmark}
+        logo={brand.logo}
+        logoAlt={guestCopyText(copy, 'logoAlt', { name: brand.displayName })}
+      >
+        {hasLanguageChip ? (
+          <InertLanguageChip selectedLocale={locale} copy={copy.copy} />
+        ) : null}
+      </GuestHeader>
+      <div data-preview-part="welcome">
+        <GuestTitleBlock
+          title={{
+            value: content.title.value,
+            lang: content.title.fallbackFrom ?? undefined,
+          }}
+          displayName={brand.displayName}
+        />
+      </div>
       <ImmersiveResponseView
         {...responseProps(state, copy, brand.displayName, onAction)}
       />
-      <PreviewLinktree experience={experience} idPrefix={idPrefix} />
-      <PreviewFooter copy={copy} displayName={brand.displayName} />
+      {hasLinktree ? (
+        <div data-preview-part="linktree">
+          <InertImmersiveLinktree
+            enabled={linktree.enabled}
+            title={content.linktreeTitle}
+            defaultTitle={copy.copy.linktreeDefaultTitle}
+            links={links.map(previewLinktreeLink)}
+          />
+        </div>
+      ) : null}
+      <InertImmersiveFooterView
+        copy={immersiveFooterCopy(copy, brand.displayName)}
+        isNoticeVisible
+      />
     </ImmersiveShell>
   )
 }

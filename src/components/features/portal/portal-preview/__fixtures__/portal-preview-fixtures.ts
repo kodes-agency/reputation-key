@@ -46,7 +46,7 @@ const ENGLISH: PortalPreviewExperience = {
       id: 'l-1',
       state: 'ready',
       iconKey: 'book-open',
-      imageUrl: null,
+      imageUrl: PREVIEW_STORY_PHOTO,
       label: 'Discover the resort',
       line: 'Rooms, pools, the sea',
       fallbackFrom: null,
