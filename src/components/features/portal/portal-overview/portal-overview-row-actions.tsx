@@ -14,6 +14,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
+import { useOverviewClasses } from './portal-overview-density'
 import { PortalArchiveDialog, type PortalArchiveMutations } from './portal-archive-dialog'
 import type { PortalOverviewItem } from './portal-overview-view'
 import { portalRowMenu, type PortalRowMenuItem } from './portal-row-menu'
@@ -25,6 +26,7 @@ const BUTTON = 'min-h-11 md:min-h-8'
 type RowProps = Readonly<{ item: PortalOverviewItem; propertyId: string }>
 
 export function PortalRowButtons({ item, propertyId }: RowProps) {
+  const classes = useOverviewClasses()
   const { can } = usePermissions()
   const { row } = item
   const params = { propertyId, portalId: row.portalId }
@@ -39,7 +41,7 @@ export function PortalRowButtons({ item, propertyId }: RowProps) {
           search={{ tab: 'page' }}
           aria-label={`${verb} ${row.name}`}
         >
-          <Pencil aria-hidden="true" className="@4xl:hidden" />
+          <Pencil aria-hidden="true" className={classes.cardOnly} />
           {verb}
         </Link>
       </Button>
@@ -52,7 +54,7 @@ export function PortalRowButtons({ item, propertyId }: RowProps) {
             aria-label={`Share ${row.name}`}
           >
             <QrCode aria-hidden="true" />
-            Share
+            <span className={classes.shareLabel}>Share</span>
           </Link>
         </Button>
       ) : null}

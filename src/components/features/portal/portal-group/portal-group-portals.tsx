@@ -84,6 +84,7 @@ export function PortalGroupPortals({
           busy={results?.busy}
           scansOrder={byScans ? 'desc' : undefined}
           showGroup={false}
+          density="compact"
           rowMenuExtra={
             canEdit
               ? (item) => (

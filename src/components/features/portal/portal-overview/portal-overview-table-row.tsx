@@ -13,6 +13,7 @@ import {
   PortalNameLink,
 } from './portal-overview-cells'
 import type { PortalArchiveMutations } from './portal-archive-dialog'
+import { useOverviewClasses } from './portal-overview-density'
 import { PortalMeasureCells } from './portal-overview-measure-cells'
 import type { MeasureSlot } from './portal-overview-results'
 import { PortalRowButtons, PortalRowMenu } from './portal-overview-row-actions'
@@ -33,10 +34,6 @@ type Props = PortalArchiveMutations &
     menuExtra?: ReactNode
   }>
 
-const CARD_ROW =
-  'grid grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-3 rounded-lg border bg-card p-4 ' +
-  '@4xl:table-row @4xl:rounded-none @4xl:border-0 @4xl:border-b @4xl:bg-transparent @4xl:p-0'
-
 export function PortalOverviewTableRow({
   item,
   figures,
@@ -46,17 +43,15 @@ export function PortalOverviewTableRow({
   archiveMutation,
   restoreMutation,
 }: Props) {
+  const classes = useOverviewClasses()
   const { row } = item
   const archived = row.publicationState === 'archived'
   const draft = row.publicationState === 'draft'
   // A draft has no results: its card says so by saying nothing, as its table row does.
   const summary = figures.kind === 'figures' && !draft ? figures.measures.summary : null
   return (
-    <TableRow className={cn(CARD_ROW, archived && 'opacity-70')}>
-      <TableHead
-        scope="row"
-        className="col-start-1 row-start-1 h-auto min-w-0 p-0 text-left font-normal whitespace-normal @4xl:table-cell @4xl:px-4 @4xl:py-3"
-      >
+    <TableRow className={cn(classes.card, archived && 'opacity-70')}>
+      <TableHead scope="row" className={classes.nameCell}>
         <div className="flex min-w-0 flex-col gap-1">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5">
             <PortalNameLink
@@ -65,17 +60,17 @@ export function PortalOverviewTableRow({
             <PortalAttentionLine item={item} propertyId={propertyId} />
           </div>
           <PortalMetaLine item={item} showGroup={showGroup} />
-          {summary ? <p className="text-sm @4xl:hidden">{summary}</p> : null}
+          {summary ? <p className={cn('text-sm', classes.cardOnly)}>{summary}</p> : null}
         </div>
       </TableHead>
       <PortalMeasureCells slot={figures} draft={draft} />
-      <TableCell className="hidden p-0 @4xl:table-cell @4xl:w-36 @4xl:px-4 @4xl:py-3">
+      <TableCell className={classes.managersCell}>
         {archived ? null : <PortalManagersCell managers={item.managers} />}
       </TableCell>
-      <TableCell className="col-span-2 row-start-2 grid grid-cols-2 gap-2 p-0 @4xl:table-cell @4xl:w-48 @4xl:px-2 @4xl:py-3 @4xl:text-right [&>*]:justify-center @4xl:[&>*]:ml-2">
+      <TableCell className={classes.buttonsCell}>
         <PortalRowButtons item={item} propertyId={propertyId} />
       </TableCell>
-      <TableCell className="col-start-2 row-start-1 -mt-2 -mr-2 self-start p-0 @4xl:mt-0 @4xl:mr-0 @4xl:table-cell @4xl:w-12 @4xl:px-2 @4xl:py-3 @4xl:text-right">
+      <TableCell className={classes.menuCell}>
         <PortalRowMenu
           item={item}
           propertyId={propertyId}

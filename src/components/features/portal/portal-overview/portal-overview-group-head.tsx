@@ -7,6 +7,7 @@ import { Link } from '@tanstack/react-router'
 import { ChevronDown, ChevronRight } from 'lucide-react'
 import { TableCell, TableHead, TableRow } from '#/components/ui/table'
 import { cn } from '#/lib/utils'
+import { useOverviewClasses } from './portal-overview-density'
 import { PortalMeasureCells } from './portal-overview-measure-cells'
 import { groupHeadCount, type MeasureSlot } from './portal-overview-results'
 import { PORTAL_OVERVIEW_COLUMNS } from './portal-overview-table-row'
@@ -39,6 +40,7 @@ export function PortalOverviewGroupHead({
   onToggle,
   nested = false,
 }: Props) {
+  const classes = useOverviewClasses()
   const name = section.group?.name ?? NOT_IN_A_GROUP
   const { members, matched } = groupHeadCount(section, readCount)
   const summary = figures.kind === 'figures' ? figures.measures.summary : null
@@ -46,10 +48,9 @@ export function PortalOverviewGroupHead({
   return (
     <TableRow
       className={cn(
-        'relative block border-0 bg-transparent px-1 pt-2 hover:bg-transparent @4xl:table-row @4xl:border-b @4xl:px-0 @4xl:pt-0',
-        nested
-          ? '@4xl:bg-transparent @4xl:hover:bg-transparent'
-          : '@4xl:bg-muted/40 @4xl:hover:bg-muted/40',
+        classes.groupRow,
+        // Under a Property's head the group is lighter: no shade of its own.
+        nested && '@4xl:bg-transparent @4xl:hover:bg-transparent',
       )}
     >
       <TableHead
@@ -57,10 +58,7 @@ export function PortalOverviewGroupHead({
         // head covers only its row, not the Portals of the groups beside it.
         scope={nested ? 'row' : 'rowgroup'}
         colSpan={figures.kind === 'off' ? PORTAL_OVERVIEW_COLUMNS - 1 : 1}
-        className={cn(
-          'block h-auto p-0 text-left font-normal @4xl:table-cell @4xl:px-2 @4xl:py-2',
-          nested && '@4xl:pl-8',
-        )}
+        className={cn(classes.groupName, nested && '@4xl:pl-8')}
       >
         <button
           type="button"
@@ -86,23 +84,17 @@ export function PortalOverviewGroupHead({
           {' '}
           · {describeGroupCount(members, matched)}
         </span>
-        {summary ? (
-          <span className="block pl-10 text-sm text-muted-foreground md:pl-8 @4xl:hidden">
-            {summary}
-          </span>
-        ) : null}
+        {summary ? <span className={classes.groupSummary}>{summary}</span> : null}
       </TableHead>
       <PortalMeasureCells slot={figures} strong />
       {figures.kind === 'off' ? null : (
         <TableCell
           colSpan={PORTAL_OVERVIEW_COLUMNS - 2}
-          className="hidden @4xl:table-cell"
+          className={classes.groupSpacer}
         />
       )}
       {/* One place for the menu at every width: a corner of the card, a column of the table. */}
-      <TableCell className="absolute top-1 right-0 p-0 @4xl:static @4xl:table-cell @4xl:w-12 @4xl:px-2 @4xl:py-2 @4xl:text-right">
-        {actions}
-      </TableCell>
+      <TableCell className={classes.groupActions}>{actions}</TableCell>
     </TableRow>
   )
 }
