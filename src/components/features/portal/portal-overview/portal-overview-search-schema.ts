@@ -10,7 +10,7 @@ export type PortalOverviewSort = (typeof PORTAL_OVERVIEW_SORTS)[number]
 export const PORTAL_OVERVIEW_GROUP_BYS = ['group', 'none'] as const
 export type PortalOverviewGroupBy = (typeof PORTAL_OVERVIEW_GROUP_BYS)[number]
 
-export const PORTAL_OVERVIEW_SHOWS = ['attention'] as const
+const PORTAL_OVERVIEW_SHOWS = ['attention'] as const
 export type PortalOverviewShow = (typeof PORTAL_OVERVIEW_SHOWS)[number]
 
 export type SortDirection = 'asc' | 'desc'

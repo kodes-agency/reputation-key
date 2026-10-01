@@ -183,14 +183,23 @@ export const PortalRowsKeepTheirOwnLinks: Story = {
 }
 
 export const OnlyAPropertyHeadsItsWholeBody: Story = {
-  args: withResults,
+  args: {
+    ...withResults,
+    rows: allPropertiesRows({ harborGroups: true }),
+    results: controls({
+      status: 'ready',
+      index: indexOverviewResults(allPropertiesResults({ harborGroups: true })),
+    }),
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     // A rowgroup header covers the whole `<tbody>`: the Property's head is one;
     // its groups' heads (Harbor's "Front of house") head only their own row, so a
     // cell is not also described by the name of another group in the Property.
     const headerOf = (name: string) =>
-      canvas.getByRole('button', { name: `Portals in ${name}` }).closest('th')
+      tableOf(canvas)
+        .getByRole('button', { name: `Portals in ${name}` })
+        .closest('th')
     await expect(headerOf('The Harbor Hotel')).toHaveAttribute('scope', 'rowgroup')
     await expect(headerOf('Front of house')).toHaveAttribute('scope', 'row')
   },

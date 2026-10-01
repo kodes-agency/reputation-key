@@ -62,6 +62,78 @@ export type PortalAllPropertiesPageProps = PortalArchiveMutations &
     onSearchChange: (next: AllPropertiesSearch) => void
   }>
 
+// Without results there is nothing to sort by scans, whatever a bookmark says.
+function searchWithoutScansSort(
+  search: AllPropertiesSearch,
+  state: PortalOverviewResultsState,
+): AllPropertiesSearch {
+  return state.status === 'off' && search.sort === 'scans'
+    ? { ...search, sort: undefined, dir: undefined }
+    : search
+}
+
+function NoPortalsMatch({ onClear }: Readonly<{ onClear: () => void }>) {
+  return (
+    <EmptyState icon={SearchX} title="No portals match">
+      <Button variant="outline" onClick={onClear}>
+        Clear search
+      </Button>
+    </EmptyState>
+  )
+}
+
+function scansOrderOf(search: AllPropertiesSearch) {
+  return search.sort === 'scans'
+    ? (search.dir ?? defaultSortDirection('scans'))
+    : undefined
+}
+
+type ListProps = PortalArchiveMutations &
+  Readonly<{
+    overview: ReturnType<typeof buildAllPropertiesOverview>
+    results: PortalOverviewResultsControls | undefined
+    resultsState: PortalOverviewResultsState
+    search: AllPropertiesSearch
+    collapsed: readonly string[]
+    onToggleProperty: (propertyId: string) => void
+    onPage: (page: number) => void
+  }>
+
+function PortalAllPropertiesList({
+  overview,
+  results,
+  resultsState,
+  search,
+  collapsed,
+  onToggleProperty,
+  onPage,
+  archiveMutation,
+  restoreMutation,
+}: ListProps) {
+  return (
+    <>
+      <PortalAllPropertiesTable
+        properties={overview.properties}
+        results={resultsState}
+        busy={results?.busy}
+        scansOrder={scansOrderOf(search)}
+        collapsed={collapsed}
+        onToggleProperty={onToggleProperty}
+        archiveMutation={archiveMutation}
+        restoreMutation={restoreMutation}
+      />
+      {/* A folded Property's Portals are not on any page: count what is. */}
+      <PortalOverviewPager
+        overview={{ ...overview, matched: overview.listed }}
+        onPage={onPage}
+      />
+      {results ? (
+        <PortalOverviewResultsFooter controls={results} propertyId={null} />
+      ) : null}
+    </>
+  )
+}
+
 export function PortalAllPropertiesPage({
   rows,
   properties,
@@ -77,11 +149,7 @@ export function PortalAllPropertiesPage({
 }: PortalAllPropertiesPageProps) {
   const { collapsed, toggle } = useCollapsedProperties()
   const resultsState: PortalOverviewResultsState = results?.state ?? { status: 'off' }
-  // Without results there is nothing to sort by scans, whatever a bookmark says.
-  const listSearch: AllPropertiesSearch =
-    resultsState.status === 'off' && search.sort === 'scans'
-      ? { ...search, sort: undefined, dir: undefined }
-      : search
+  const listSearch = searchWithoutScansSort(search, resultsState)
   const overview = buildAllPropertiesOverview(
     rows,
     properties,
@@ -138,36 +206,19 @@ export function PortalAllPropertiesPage({
               onChange={update}
             />
             {overview.matched === 0 ? (
-              <EmptyState icon={SearchX} title="No portals match">
-                <Button variant="outline" onClick={() => update({ q: undefined })}>
-                  Clear search
-                </Button>
-              </EmptyState>
+              <NoPortalsMatch onClear={() => update({ q: undefined })} />
             ) : (
-              <>
-                <PortalAllPropertiesTable
-                  properties={overview.properties}
-                  results={resultsState}
-                  busy={results?.busy}
-                  scansOrder={
-                    listSearch.sort === 'scans'
-                      ? (listSearch.dir ?? defaultSortDirection('scans'))
-                      : undefined
-                  }
-                  collapsed={collapsed}
-                  onToggleProperty={toggle}
-                  archiveMutation={archiveMutation}
-                  restoreMutation={restoreMutation}
-                />
-                {/* A folded Property's Portals are not on any page: count what is. */}
-                <PortalOverviewPager
-                  overview={{ ...overview, matched: overview.listed }}
-                  onPage={(page) => update({ page })}
-                />
-                {results ? (
-                  <PortalOverviewResultsFooter controls={results} propertyId={null} />
-                ) : null}
-              </>
+              <PortalAllPropertiesList
+                overview={overview}
+                results={results}
+                resultsState={resultsState}
+                search={listSearch}
+                collapsed={collapsed}
+                onToggleProperty={toggle}
+                onPage={(page) => update({ page })}
+                archiveMutation={archiveMutation}
+                restoreMutation={restoreMutation}
+              />
             )}
           </section>
         </>
