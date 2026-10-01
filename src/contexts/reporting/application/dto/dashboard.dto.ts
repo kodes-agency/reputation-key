@@ -24,11 +24,12 @@ export const getPortalAnalyticsDto = z.object({
   compare: z.boolean().default(true),
 })
 
-// GET Portals overview results — one Property's Portals, read together. All
+// GET Portals overview results — one Property's Portals, or, with no Property
+// named, every Portal of the Organization the caller may read, together. All
 // Time is not a window here: a lifetime figure comes from the lifetime
 // aggregate, not from readings, and the two would disagree.
 export const getPortalResultsOverviewDto = z.object({
-  propertyId: z.uuid(),
+  propertyId: z.uuid().optional(),
   timeRange: timeRangePreset.exclude(['all']).default('30d'),
   /** Also read the equal-length window before. */
   compare: z.boolean().default(true),

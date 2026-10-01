@@ -287,6 +287,18 @@ export const portalKeys = {
       timeRange,
       compare ? 'compare' : 'alone',
     ] as const,
+  /** The All properties page: every Portal the reader may see, in one batch. */
+  organizationOverview: () => [...portalKeys.all, 'organization', 'overview'] as const,
+  /** Every window of the All properties results. */
+  organizationResultsOverviewRoot: () =>
+    [...portalKeys.all, 'organization', 'results-overview'] as const,
+  /** One window, with or without the period before: each is its own read. */
+  organizationResultsOverview: (timeRange: string, compare: boolean) =>
+    [
+      ...portalKeys.organizationResultsOverviewRoot(),
+      timeRange,
+      compare ? 'compare' : 'alone',
+    ] as const,
   analyticsRoot: (propertyId: string, portalId: string) =>
     [...portalKeys.forPropertyPortal(propertyId, portalId), 'analytics'] as const,
   /** One window, with or without the period before: each is its own read. */

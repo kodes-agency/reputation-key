@@ -10,7 +10,7 @@ export type PortalOverviewSort = (typeof PORTAL_OVERVIEW_SORTS)[number]
 export const PORTAL_OVERVIEW_GROUP_BYS = ['group', 'none'] as const
 export type PortalOverviewGroupBy = (typeof PORTAL_OVERVIEW_GROUP_BYS)[number]
 
-export const PORTAL_OVERVIEW_SHOWS = ['attention'] as const
+const PORTAL_OVERVIEW_SHOWS = ['attention'] as const
 export type PortalOverviewShow = (typeof PORTAL_OVERVIEW_SHOWS)[number]
 
 export type SortDirection = 'asc' | 'desc'
@@ -36,6 +36,19 @@ export const portalOverviewSearchSchema = z.object({
 })
 
 export type PortalOverviewSearch = z.infer<typeof portalOverviewSearchSchema>
+
+/**
+ * The All properties page keeps the search, the order and the page. It has no
+ * filter or grouping control, so a bookmarked `show` or `groupBy` is dropped.
+ */
+export const allPropertiesSearchSchema = portalOverviewSearchSchema.pick({
+  q: true,
+  sort: true,
+  dir: true,
+  page: true,
+})
+
+export type AllPropertiesSearch = z.infer<typeof allPropertiesSearchSchema>
 
 const isBlank = (value: string | undefined): boolean =>
   value === undefined || value.trim() === ''
