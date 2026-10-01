@@ -69,24 +69,53 @@ export async function loadVerifiedGoogleReviewDestination(
   )
 }
 
+/** Whether the Property is active, which publication needs. A failed lookup reads as "no". */
+export async function propertyAllowsPublication(
+  deps: Readonly<{ propertyLifecycleApi: PropertyLifecyclePublicApi }>,
+  orgId: OrganizationId,
+  existing: Portal,
+): Promise<boolean> {
+  try {
+    return await deps.propertyLifecycleApi.isPropertyActive(orgId, existing.propertyId)
+  } catch {
+    // The lifecycle authority is a publication safety gate. Its implementation
+    // details are deliberately not exposed through the Portal error boundary.
+    return false
+  }
+}
+
 export async function assertPropertyAllowsPublication(
   deps: Readonly<{ propertyLifecycleApi: PropertyLifecyclePublicApi }>,
   orgId: OrganizationId,
   existing: Portal,
 ): Promise<void> {
-  let active = false
-  try {
-    active = await deps.propertyLifecycleApi.isPropertyActive(orgId, existing.propertyId)
-  } catch {
-    // The lifecycle authority is a publication safety gate. Its implementation
-    // details are deliberately not exposed through the Portal error boundary.
-  }
-  if (!active) {
+  if (!(await propertyAllowsPublication(deps, orgId, existing))) {
     throw portalError(
       'portal_inactive',
       'This Portal cannot be published while its Property is unavailable',
     )
   }
+}
+
+/** Someone is responsible for the Portal. */
+export const portalHasResponsibleManager = (existing: Portal): boolean =>
+  existing.responsibilityNeededSince === null
+
+/** The Portal has an address guests can use right now. */
+export async function portalHasPublicAddress(
+  deps: Readonly<{
+    portalTokenRepo: Pick<PortalTokenRepository, 'findResolvableSummaryForPortal'>
+  }>,
+  ctx: AuthContext,
+  existing: Portal,
+  at: Date,
+): Promise<boolean> {
+  const address = await deps.portalTokenRepo.findResolvableSummaryForPortal(
+    ctx.organizationId,
+    existing.id,
+    at,
+  )
+  return address?.hasPublishedAccessArtifact === true
 }
 
 /** Someone is responsible for the Portal, and it has an address guests can use. */
@@ -98,18 +127,13 @@ export async function assertPortalHasOwnerAndAddress(
   existing: Portal,
   at: Date,
 ): Promise<void> {
-  if (existing.responsibilityNeededSince !== null) {
+  if (!portalHasResponsibleManager(existing)) {
     throw portalError(
       'responsible_manager_ineligible',
       'Assign at least one responsible manager before publishing',
     )
   }
-  const address = await deps.portalTokenRepo.findResolvableSummaryForPortal(
-    ctx.organizationId,
-    existing.id,
-    at,
-  )
-  if (!address?.hasPublishedAccessArtifact) {
+  if (!(await portalHasPublicAddress(deps, ctx, existing, at))) {
     throw portalError(
       'token_unavailable',
       'Create the Portal public address before publishing',

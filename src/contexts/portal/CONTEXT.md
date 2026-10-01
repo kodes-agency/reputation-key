@@ -348,6 +348,27 @@ starts at the deploy of migration 0050; earlier edits were never attributed and 
 not reconstructed. Rows are updated only by the fold above and never deleted while
 their Portal exists; a purge removes them first.
 
+The pending-change fence (`portal_pending_content_changes`) also records who opened
+each row (`changed_by`, migration 0051): the actor `recordPortalContentChange` was
+given, null for the system and for rows from before the column. The first record of a
+revision keeps its person (the row's unique key makes a second record a no-op). The
+publication history read returns it as `pendingChanges[].changedBy`, and
+`activatedBy` beside each activation, both as a person the directory can name or an
+unnamed placeholder.
+
+Review & publish reads through `getPortalReview` (`portal.read`, writes nothing). It
+asks the questions `publishPortalChanges` asks, in the same words: the Property is
+active, the Google destination is verified, someone is responsible, the address
+works, and the resolver's blockers and warnings (`portal-review-rules.ts` turns them
+into checks; a blocked check is exactly what publishing would refuse, a copied text
+is a warning). The change list is the page-edit ledger since the newest version was
+published, each part folded into one change (first wording to last, put-back wording
+and a tile added then removed are dropped), plus any open fence kind the ledger has
+no row for, a live version of the earlier design, and a Google address the Property
+has since left; "unlisted" stands in when the draft differs and nothing nameable is
+left. `nothingToPublish` is the question the publish use case answers `unchanged` to.
+A Portal that is not live has no change list: it has no live version to differ from.
+
 The earlier issued-image implementation (presigned browser upload, issuance
 table, background job) was removed and is not coming back. The nullable
 `portals.hero_image_url` column and read path remain so published historical

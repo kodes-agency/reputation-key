@@ -225,11 +225,11 @@ export type ReviewChangesInput = Readonly<{
   workingCopyDiffers: boolean
 }>
 
-type EditGroup = {
+type EditGroup = Readonly<{
   first: ReviewEditInput
   last: ReviewEditInput
   editCount: number
-}
+}>
 
 /** The tile or heading an edit belongs to; null for edits that belong to no one tile. */
 function entityOf(subject: PortalPageEditSubject): string | null {
@@ -259,12 +259,12 @@ function foldByPart(edits: readonly ReviewEditInput[]): EditGroup[] {
   for (const { edit } of ordered) {
     const id = `${edit.kind}\u0000${edit.key}`
     const group = groups.get(id)
-    if (group === undefined) {
-      groups.set(id, { first: edit, last: edit, editCount: edit.editCount })
-    } else {
-      group.last = edit
-      group.editCount += edit.editCount
-    }
+    groups.set(
+      id,
+      group === undefined
+        ? { first: edit, last: edit, editCount: edit.editCount }
+        : { ...group, last: edit, editCount: group.editCount + edit.editCount },
+    )
   }
   return [...groups.values()]
 }

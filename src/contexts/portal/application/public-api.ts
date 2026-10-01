@@ -60,6 +60,14 @@ export type {
   PortalVersionDetail,
 } from './use-cases/get-portal-version'
 export type { PortalVersionActor } from './portal-version-actors'
+export type { PortalReview, PortalReviewChange } from './use-cases/get-portal-review'
+export type {
+  ReviewCheck,
+  ReviewCheckCode,
+  ReviewCheckStatus,
+  ReviewLanguageRow,
+  ReviewLanguageStatus,
+} from '../domain/portal-review-rules'
 export type {
   PublicationContentChange,
   PublicationLookFacet,
