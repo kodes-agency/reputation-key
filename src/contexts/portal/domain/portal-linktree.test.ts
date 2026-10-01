@@ -6,7 +6,7 @@ import {
   MAX_PORTAL_LINKS,
   hasRoomForAnotherLink,
   linktreeDefaultTitle,
-  startedCategoryTitle,
+  STARTED_CATEGORY_TITLE,
   resolveLinkTexts,
   validateLinkTextInput,
   validateLinktreeTitle,
@@ -186,13 +186,8 @@ describe('linktreeDefaultTitle', () => {
   })
 })
 
-describe('startedCategoryTitle', () => {
-  it('uses the title the manager wrote for the primary language', () => {
-    expect(startedCategoryTitle('bg', { bg: 'Още', en: 'More' })).toBe('Още')
-  })
-
-  it('uses the default of the primary language when none is written', () => {
-    expect(startedCategoryTitle('bg', { en: 'More' })).toBe('Полезни връзки')
-    expect(startedCategoryTitle('en', {})).toBe('Useful links')
+describe('STARTED_CATEGORY_TITLE', () => {
+  it('is a fixed neutral name, because no guest reads a category any more', () => {
+    expect(STARTED_CATEGORY_TITLE).toBe('Links')
   })
 })

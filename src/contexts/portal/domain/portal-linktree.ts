@@ -32,14 +32,11 @@ export const linktreeDefaultTitle = (locale: GuestLocale): string =>
 
 /**
  * The title of the one category a Portal's links sit in once the editor no
- * longer shows categories. Only the legacy guest page, which still groups links
- * under their category, prints it, so it reads as that page's Linktree title
- * would: the manager's own wording for the primary language, else its default.
+ * longer shows categories. Publishing flattens categories, so no guest ever
+ * reads it and no language needs its wording; it exists because a category row
+ * must have a title.
  */
-export const startedCategoryTitle = (
-  primaryLocale: GuestLocale,
-  titles: Readonly<Partial<Record<GuestLocale, string>>>,
-): string => titles[primaryLocale] ?? linktreeDefaultTitle(primaryLocale)
+export const STARTED_CATEGORY_TITLE = 'Links'
 
 /** Equal to the legacy `portal_links.label` column, which the primary text is mirrored into. */
 export const LINK_TEXT_LABEL_MAX_LENGTH = 100

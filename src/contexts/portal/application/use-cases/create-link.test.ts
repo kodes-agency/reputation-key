@@ -23,8 +23,6 @@ import {
   type PropertyId,
   userId,
 } from '#/shared/domain/ids'
-import type { GuestLocale } from '#/shared/domain/guest-locale'
-import type { PortalLocalizedOverride } from '../ports/portal-experience.repository'
 import { PORTAL_DESTINATION_VALIDATION_VERSION } from '../../domain/approved-destination'
 
 const FIXED_TIME = new Date('2026-04-10T12:00:00Z')
@@ -34,12 +32,7 @@ const staffApiMock = (accessible: ReadonlyArray<PropertyId> | null): StaffPublic
   getAssignedPortals: async () => [],
 })
 
-type TitleOverride = Readonly<{ locale: GuestLocale; linktreeTitle: string | null }>
-
-const setup = (
-  accessible: ReadonlyArray<PropertyId> | null = null,
-  titles: ReadonlyArray<TitleOverride> = [],
-) => {
+const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const portalRepo = createInMemoryPortalRepo()
   const portalLinkRepo = createInMemoryPortalLinkRepo()
   const outbox = createRecordedOutbox()
@@ -51,9 +44,6 @@ const setup = (
     portalRepo,
     portalLinkRepo,
     staffPublicApi: staffApiMock(accessible),
-    experienceRepo: {
-      listPortalOverrides: async () => titles as readonly PortalLocalizedOverride[],
-    },
     commandStore: {
       ...store,
       createPortalLink: async (command: CreatePortalLinkCommand) => {
@@ -391,14 +381,14 @@ describe('createLink', () => {
       const link = await useCase(base, ctx())
 
       const categories = portalLinkRepo.allCategories()
-      expect(categories.map((category) => category.title)).toEqual(['Useful links'])
+      expect(categories.map((category) => category.title)).toEqual(['Links'])
       expect(link.categoryId).toBe(categories[0]?.id)
       expect(portalLinkRepo.allLinks()).toHaveLength(1)
       expect(outbox.byTag('portal_link_category.created')).toHaveLength(1)
       expect(outbox.byTag('portal_link.created')).toHaveLength(1)
     })
 
-    it("titles the started category in the Portal's primary language", async () => {
+    it('titles the started category neutrally, whatever language or Linktree title the Portal has', async () => {
       const { useCase, portalRepo, portalLinkRepo } = setup()
       portalRepo.seed([
         buildTestPortal({ primaryGuestLocale: 'bg', additionalGuestLocales: ['en'] }),
@@ -407,23 +397,7 @@ describe('createLink', () => {
       await useCase(base, ctx())
 
       expect(portalLinkRepo.allCategories().map((category) => category.title)).toEqual([
-        'Полезни връзки',
-      ])
-    })
-
-    it('uses the title the manager wrote for the primary language', async () => {
-      const { useCase, portalRepo, portalLinkRepo } = setup(null, [
-        { locale: 'bg', linktreeTitle: 'Още от нас' },
-        { locale: 'en', linktreeTitle: 'More' },
-      ])
-      portalRepo.seed([
-        buildTestPortal({ primaryGuestLocale: 'bg', additionalGuestLocales: ['en'] }),
-      ])
-
-      await useCase(base, ctx())
-
-      expect(portalLinkRepo.allCategories().map((category) => category.title)).toEqual([
-        'Още от нас',
+        'Links',
       ])
     })
 
