@@ -15,7 +15,6 @@ const mockSignUpEmail = vi.fn()
 const mockListMembers = vi.fn()
 const mockGetSession = vi.fn()
 const mockOnAcceptInvitation = vi.fn().mockResolvedValue(undefined)
-const mockListInvitations = vi.fn()
 const mockListUserInvitations = vi.fn()
 const mockSetActiveOrganization = vi.fn()
 const FIXED_NOW = new Date('2026-08-28T12:00:00.000Z')
@@ -37,7 +36,6 @@ vi.mock('#/shared/auth/auth', () => ({
     api: {
       signUpEmail: mockSignUpEmail,
       listMembers: mockListMembers,
-      listInvitations: mockListInvitations,
       listUserInvitations: mockListUserInvitations,
       setActiveOrganization: mockSetActiveOrganization,
       getSession: mockGetSession,
@@ -374,59 +372,6 @@ describe('createBetterAuthIdentityAdapter', () => {
       expect(adapterDeps.logger.warn).toHaveBeenCalledWith(
         { err: expect.any(Error) },
         'Failed to provision invited property access',
-      )
-    })
-  })
-
-  describe('listInvitations', () => {
-    it('maps raw invitations to InvitationRecord', async () => {
-      // Arrange
-      const now = new Date('2026-01-01')
-      const expires = new Date('2026-01-08')
-      mockListInvitations.mockResolvedValue([
-        {
-          id: 'inv-1',
-          email: 'a@t.com',
-          role: 'owner',
-          status: 'pending',
-          expiresAt: expires,
-          createdAt: now,
-        },
-        {
-          id: 'inv-2',
-          email: 'b@t.com',
-          role: 'member',
-          status: 'accepted',
-          expiresAt: expires,
-          createdAt: now,
-        },
-      ])
-
-      // Act
-      const invitations = await adapter.listInvitations(testCtx)
-
-      // Assert
-      expect(invitations).toHaveLength(2)
-      expect(invitations[0]).toEqual({
-        id: 'inv-1',
-        email: 'a@t.com',
-        role: 'AccountAdmin',
-        rawRole: 'owner',
-        status: 'pending',
-        propertyIds: [],
-        expiresAt: expires,
-        createdAt: now,
-      })
-      expect(invitations[1].role).toBe('Member')
-    })
-
-    it('throws when response does not match schema', async () => {
-      // Arrange
-      mockListInvitations.mockResolvedValue(null)
-
-      // Act & Assert
-      await expect(adapter.listInvitations(testCtx)).rejects.toThrow(
-        'listInvitations response did not match expected schema',
       )
     })
   })

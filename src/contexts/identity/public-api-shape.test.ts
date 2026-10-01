@@ -25,6 +25,8 @@ const EXPECTED_REQUEST_KEYS = [
   'cancelInvitation',
   'createCustomRole',
   'deleteCustomRole',
+  // The invitation link's anonymous preview (ADR 0062).
+  'getInvitationPreview',
   'inviteMember',
   // LIF-01-T21: leaving is its own operation, not a variant of removeMember.
   'leaveOrganization',
@@ -164,6 +166,7 @@ describe('Identity self-service leave availability', () => {
       sendEmail: async () => {},
       baseUrl: 'https://app.example.test',
       invitationExpiresInMs: 60_000,
+      propertyNames: async () => [],
       logger: createMockLogger(),
       betaFeedbackHmacSecret: 'test-beta-feedback-pseudonym-secret',
       policy: { env: {}, propertyBelongsToOrganization: async () => true },

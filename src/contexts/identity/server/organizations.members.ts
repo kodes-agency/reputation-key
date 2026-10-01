@@ -38,7 +38,9 @@ export const inviteMember = createServerFn({ method: 'POST' })
             organizationId: ctx.organizationId,
             keyHmacSecret: identityRequestSecurity.invitationRateLimitHmacSecret,
           })
-          await identityPublicApi.requests.inviteMember(data, ctx)
+          // `emailSent: false` means the invitation exists but its email did
+          // not go out; the Members page says so and offers Resend.
+          return await identityPublicApi.requests.inviteMember(data, ctx)
         } catch (e) {
           if (isIdentityError(e)) throwIdentityError(e)
           throw catchUntagged(e)

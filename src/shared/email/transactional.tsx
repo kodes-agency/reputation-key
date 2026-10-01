@@ -81,40 +81,72 @@ export type InvitationEmailContent = Readonly<{
   invitedByUsername: string
   organizationName: string
   inviteLink: string
+  role: 'AccountAdmin' | 'PropertyManager'
+  /** The invited Properties' names; [] for an Account Admin. */
+  propertyNames: ReadonlyArray<string>
+  /** Whole days the invitation stays valid; true at send because Resend renews. */
+  expiresInDays: number
 }>
 
+const ROLE_LABEL: Readonly<Record<InvitationEmailContent['role'], string>> = {
+  AccountAdmin: 'Account Admin',
+  PropertyManager: 'Property Manager',
+}
+
+/** "A", "A and B", "A, B and C". */
+function listNames(names: ReadonlyArray<string>): string {
+  if (names.length <= 1) return names.join('')
+  return `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`
+}
+
+/** What the role grants, after "You'll join as <role>". */
+function roleScope({ role, propertyNames }: InvitationEmailContent): string {
+  if (role === 'AccountAdmin') return ' with access to every Property'
+  return propertyNames.length > 0 ? ` for ${listNames(propertyNames)}` : ''
+}
+
+const expiryPhrase = (days: number): string =>
+  `This invitation expires in ${days} ${days === 1 ? 'day' : 'days'}.`
+
 /** Organization invitation. */
-export const renderInvitationEmail = ({
-  invitedByUsername,
-  organizationName,
-  inviteLink,
-}: InvitationEmailContent): RenderedEmail => ({
-  subject: `${invitedByUsername} invited you to join ${organizationName}`,
-  html: renderEmailDocument(
-    <EmailLayout
-      preheader={`${invitedByUsername} invited you to ${organizationName} on Reputation Key.`}
-      documentTitle="You have been invited"
-      whyReceived={`${invitedByUsername} invited this address to ${organizationName} on Reputation Key. The invitation expires in 7 days.`}
-    >
-      <EmailHeadline>Join {organizationName}</EmailHeadline>
-      <EmailParagraph>
-        <strong>{invitedByUsername}</strong> invited you to join{' '}
-        <strong>{organizationName}</strong> on Reputation Key.
-      </EmailParagraph>
-      <EmailButton href={inviteLink}>Accept invitation</EmailButton>
-      <EmailFallbackUrl href={inviteLink} />
-      <EmailMutedParagraph>
-        This invitation expires in 7 days. If you don&apos;t have an account yet,
-        you&apos;ll be guided to create one after opening the link. If you weren&apos;t
-        expecting this invitation, you can safely ignore this email.
-      </EmailMutedParagraph>
-    </EmailLayout>,
-  ),
-  text: composeText(
-    `Join ${organizationName}`,
-    `${invitedByUsername} invited you to join ${organizationName} on Reputation Key.`,
-    `Accept invitation: ${inviteLink}`,
-    'This invitation expires in 7 days. If you don\u2019t have an account yet, you\u2019ll be guided to create one after opening the link. If you weren\u2019t expecting this invitation, you can safely ignore this email.',
-    EMAIL_SIGNATURE,
-  ),
-})
+export const renderInvitationEmail = (content: InvitationEmailContent): RenderedEmail => {
+  const { invitedByUsername, organizationName, inviteLink } = content
+  const roleLabel = ROLE_LABEL[content.role]
+  const scope = roleScope(content)
+  const expiry = expiryPhrase(content.expiresInDays)
+  return {
+    subject: `${invitedByUsername} invited you to join ${organizationName}`,
+    html: renderEmailDocument(
+      <EmailLayout
+        preheader={`${invitedByUsername} invited you to ${organizationName} on Reputation Key.`}
+        documentTitle="You have been invited"
+        whyReceived={`${invitedByUsername} invited this address to ${organizationName} on Reputation Key. ${expiry}`}
+      >
+        <EmailHeadline>Join {organizationName}</EmailHeadline>
+        <EmailParagraph>
+          <strong>{invitedByUsername}</strong> invited you to join{' '}
+          <strong>{organizationName}</strong> on Reputation Key.
+        </EmailParagraph>
+        <EmailParagraph>
+          You&apos;ll join as <strong>{roleLabel}</strong>
+          {scope}.
+        </EmailParagraph>
+        <EmailButton href={inviteLink}>Accept invitation</EmailButton>
+        <EmailFallbackUrl href={inviteLink} />
+        <EmailMutedParagraph>
+          {expiry} If you don&apos;t have an account yet, you&apos;ll be guided to create
+          one after opening the link. If you weren&apos;t expecting this invitation, you
+          can safely ignore this email.
+        </EmailMutedParagraph>
+      </EmailLayout>,
+    ),
+    text: composeText(
+      `Join ${organizationName}`,
+      `${invitedByUsername} invited you to join ${organizationName} on Reputation Key.`,
+      `You\u2019ll join as ${roleLabel}${scope}.`,
+      `Accept invitation: ${inviteLink}`,
+      `${expiry} If you don\u2019t have an account yet, you\u2019ll be guided to create one after opening the link. If you weren\u2019t expecting this invitation, you can safely ignore this email.`,
+      EMAIL_SIGNATURE,
+    ),
+  }
+}

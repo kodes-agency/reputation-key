@@ -50,6 +50,13 @@ type ProviderObservation = Readonly<{
   userIsExpected: boolean
   credentialAccountIsExpected: boolean
   sessionsAreExpected: boolean
+  /**
+   * Every observed session belongs to the expected user. Registration signs
+   * the new member in after acceptance with a session id of its own, so once
+   * the invitation is accepted any number of the user's own sessions is
+   * ordinary; a session of someone else's is not.
+   */
+  sessionsAreUserOwned: boolean
   artifactsAreFenced: boolean
   artifactsAreAbsent: boolean
 }>
@@ -96,6 +103,9 @@ function observeProviderArtifacts(
       input.user.email.toLowerCase() === input.invitation.email.toLowerCase(),
     credentialAccountIsExpected,
     sessionsAreExpected,
+    sessionsAreUserOwned: input.sessions.every(
+      (session) => session.userId === input.expected.userId,
+    ),
     artifactsAreFenced:
       (input.accounts.length === 0 || credentialAccountIsExpected) && sessionsAreExpected,
     artifactsAreAbsent: input.accounts.length === 0 && input.sessions.length === 0,
@@ -150,7 +160,7 @@ function classifyAttemptWithExpectedUser(
   if (
     invitation.isAccepted &&
     provider.credentialAccountIsExpected &&
-    provider.sessionsAreExpected &&
+    provider.sessionsAreUserOwned &&
     authority.matchesAttempt
   ) {
     return { kind: 'already_accepted' }

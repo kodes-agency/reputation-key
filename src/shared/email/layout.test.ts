@@ -109,11 +109,15 @@ describe('renderPasswordResetEmail', () => {
 })
 
 describe('renderInvitationEmail', () => {
-  const email = renderInvitationEmail({
+  const content = {
     invitedByUsername: 'Ada Lovelace',
     organizationName: 'Riverside & Co',
     inviteLink: 'https://app.test/accept-invitation?id=inv-1',
-  })
+    role: 'PropertyManager',
+    propertyNames: ['Hotel A', 'Hotel B'],
+    expiresInDays: 7,
+  } as const
+  const email = renderInvitationEmail(content)
 
   it('keeps the established subject', () => {
     expect(email.subject).toBe('Ada Lovelace invited you to join Riverside & Co')
@@ -124,14 +128,66 @@ describe('renderInvitationEmail', () => {
     expect(email.text).toContain('https://app.test/accept-invitation?id=inv-1')
   })
 
+  it('names the role and the Properties a Property Manager joins for', () => {
+    expect(email.text).toContain(
+      'You\u2019ll join as Property Manager for Hotel A and Hotel B.',
+    )
+    expect(email.html).toContain('<strong>Property Manager</strong>')
+    expect(email.html).toContain('Hotel A and Hotel B')
+  })
+
+  it('lists three or more Properties with a final "and"', () => {
+    const three = renderInvitationEmail({
+      ...content,
+      propertyNames: ['Hotel A', 'Hotel B', 'Hotel C'],
+    })
+    expect(three.text).toContain('for Hotel A, Hotel B and Hotel C.')
+  })
+
+  it('tells an Account Admin they reach every Property', () => {
+    const admin = renderInvitationEmail({
+      ...content,
+      role: 'AccountAdmin',
+      propertyNames: [],
+    })
+    expect(admin.text).toContain(
+      'You\u2019ll join as Account Admin with access to every Property.',
+    )
+    expect(admin.html).toContain('<strong>Account Admin</strong>')
+  })
+
+  it('names no Properties when a Property Manager has none yet', () => {
+    const none = renderInvitationEmail({ ...content, propertyNames: [] })
+    expect(none.text).toContain('You\u2019ll join as Property Manager.')
+  })
+
+  it('promises the configured lifetime, never a literal seven days', () => {
+    const short = renderInvitationEmail({ ...content, expiresInDays: 3 })
+    for (const part of [short.html, short.text]) {
+      expect(part).toContain('expires in 3 days')
+      expect(part).not.toContain('7 days')
+    }
+    const oneDay = renderInvitationEmail({ ...content, expiresInDays: 1 })
+    expect(oneDay.text).toContain('expires in 1 day.')
+  })
+
   it('HTML-escapes an organization name carrying markup', () => {
     const hostile = renderInvitationEmail({
+      ...content,
       invitedByUsername: 'Mallory',
       organizationName: '<script>alert(1)</script>',
       inviteLink: 'https://app.test/accept-invitation?id=inv-2',
     })
     expect(hostile.html).not.toContain('<script>')
     expect(hostile.html).toContain('&lt;script&gt;alert(1)&lt;/script&gt;')
+  })
+
+  it('HTML-escapes a Property name carrying markup', () => {
+    const hostile = renderInvitationEmail({
+      ...content,
+      propertyNames: ['<img src=x onerror=alert(1)>'],
+    })
+    expect(hostile.html).not.toContain('<img src=x')
   })
 })
 

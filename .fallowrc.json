@@ -161,7 +161,15 @@
     },
     {
       "file": "src/contexts/identity/server/organizations.registration.ts",
-      "exports": ["setActiveOrganization"]
+      "exports": ["setActiveOrganization", "resendVerificationEmail"]
+    },
+    {
+      "file": "src/contexts/identity/server/invitation-preview.ts",
+      "exports": ["getInvitationPreview"]
+    },
+    {
+      "file": "src/contexts/identity/server/organizations.ts",
+      "exports": ["resendVerificationEmail", "getInvitationPreview"]
     },
     {
       "file": "src/contexts/inbox/domain/handling-history.ts",

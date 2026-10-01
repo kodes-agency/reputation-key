@@ -17,7 +17,9 @@
 //      Playwright stack depends on (compose.local.yml web service).
 //   5. Raw better-auth write endpoints on the refusal list — including
 //      self-service /sign-up/email, closed off because the beta onboards by
-//      invitation only — return 404 and never reach better-auth.
+//      invitation only, and /send-verification-email, whose per-address limit
+//      only the app-owned resend enforces — return 404 and never reach
+//      better-auth.
 
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -195,16 +197,44 @@ describe('auth catch-all blocked raw write endpoints', () => {
     expect(mocks.handler).toHaveBeenCalledTimes(1)
   })
 
+  // The per-address limit on resending a verification link (ADR 0062 §6) lives
+  // in the app-owned resendVerificationEmail, which calls Better Auth
+  // in-process. The raw route has only the per-IP limits, so it would let
+  // anyone mail any unverified address over and over.
+  it('refuses the raw verification-email send and leaves the mailed link reachable', async () => {
+    const { handleAuthRequest } = await loadRoute()
+
+    const send = await handleAuthRequest(
+      new Request('http://localhost:3000/api/auth/send-verification-email', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ email: 'unverified@example.invalid' }),
+      }),
+      { rateLimit: true },
+    )
+    const verify = await handleAuthRequest(
+      new Request('http://localhost:3000/api/auth/verify-email?token=tok-1'),
+      { rateLimit: false },
+    )
+
+    expect(send.status).toBe(404)
+    expect(mocks.check).not.toHaveBeenCalled()
+    expect(mocks.warn.mock.calls[0]?.[1]).toMatch(/auth\.raw_write_endpoint_blocked/)
+    expect(verify.status).toBe(200)
+    expect(mocks.handler).toHaveBeenCalledTimes(1)
+  })
+
   // Tripwire, not plumbing: the refusal list above is a list of better-auth's
   // OWN route paths. A version bump can rename a route, and this suite would
   // still pass while the refusal silently covered nothing — the strings are
   // asserted against our handler, never against better-auth's route table.
   // The dependency is therefore pinned exactly, and this fails on any move so
-  // the paths get re-verified deliberately. All 12 paths were confirmed present
+  // the paths get re-verified deliberately. All 13 paths were confirmed present
   // in 1.7.5, whose organization route table (36 paths) and core account routes
   // are identical to 1.7.3's; when this fails, re-check the org plugin route
-  // files under dist/plugins/organization plus /sign-up/email, then move
-  // VERIFIED_BETTER_AUTH_VERSION.
+  // files under dist/plugins/organization plus /sign-up/email and
+  // /send-verification-email (dist/api/routes/email-verification.mjs), then
+  // move VERIFIED_BETTER_AUTH_VERSION.
   it('pins the better-auth version the refusal paths were verified against', () => {
     const root = resolve(import.meta.dirname, '../../../..')
     const manifest = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8')) as {

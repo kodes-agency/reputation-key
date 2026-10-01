@@ -32,7 +32,9 @@ export const betterAuthInvitationSchema = z.object({
   id: z.string(),
   email: z.string(),
   role: z.string(),
-  status: z.enum(['pending', 'accepted', 'rejected', 'canceled']),
+  // 'expired' is written by Identity (a lapsed invitation superseded by
+  // another Organization's invite); Better Auth reads it back as free text.
+  status: z.enum(['pending', 'accepted', 'rejected', 'canceled', 'expired']),
   expiresAt: z.coerce.date(),
   createdAt: z.coerce.date(),
   organizationId: z.string().optional(),
@@ -71,9 +73,6 @@ export const listMembersResponseSchema = z.object({
   members: z.array(betterAuthMemberSchema),
   total: z.number().optional(),
 })
-
-/** listInvitations response — array of invitations directly. */
-export const listInvitationsResponseSchema = z.array(betterAuthInvitationSchema)
 
 /** listUserInvitations response — array of invitations (may include org info). */
 export const listUserInvitationsResponseSchema = z.array(betterAuthInvitationSchema)

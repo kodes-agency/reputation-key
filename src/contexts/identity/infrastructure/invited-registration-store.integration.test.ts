@@ -9,6 +9,7 @@ import { registerAllEventSchemas } from '#/shared/events/schema-registrations'
 import { clearEventSchemas } from '#/shared/events/schema-registry'
 import { identityInvitationAccepted } from '../domain/events'
 import { invitationId, userId, type InvitationId } from '#/shared/domain/ids'
+import { isIdentityError } from '../domain/errors'
 import { createAtomicIdentityCommandStore } from './identity-command-store'
 import { createInvitedRegistrationStore } from './invited-registration-store'
 
@@ -82,11 +83,14 @@ async function prepare(fixture: Fixture, proposedVerificationId: string = random
   })
 }
 
-async function insertProviderAuthority(fixture: Fixture): Promise<void> {
+async function insertProviderAuthority(
+  fixture: Fixture,
+  options: Readonly<{ emailVerified?: boolean }> = {},
+): Promise<void> {
   await lease.pool.query(
     `INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
-     VALUES ($1, 'Recovered manager', $2, true, $3, $3)`,
-    [fixture.authIds.userId, fixture.email, NOW],
+     VALUES ($1, 'Recovered manager', $2, $4, $3, $3)`,
+    [fixture.authIds.userId, fixture.email, NOW, options.emailVerified ?? true],
   )
   await lease.pool.query(
     `INSERT INTO account (
@@ -265,6 +269,121 @@ describe.sequential('invited registration store (integration)', () => {
       verification_count: '0',
       fact_count: '1',
     })
+  })
+
+  it('refuses an address that already has an account, leaving no verification behind', async () => {
+    const fixture = await seedInvitation()
+    const existingUserId = `${PREFIX}existing-${randomUUID()}`
+    await lease.pool.query(
+      `INSERT INTO "user" (id, name, email, "emailVerified", "createdAt", "updatedAt")
+       VALUES ($1, 'Former member', $2, true, $3, $3)`,
+      [existingUserId, fixture.email.toUpperCase(), NOW],
+    )
+
+    await expect(prepare(fixture)).rejects.toSatisfy(
+      (error: unknown) =>
+        isIdentityError(error) &&
+        error.code === 'account_exists' &&
+        error.message ===
+          'An account already exists for this email. Sign in, then open your invitation link again.',
+    )
+
+    const leftovers = await lease.pool.query<{ verifications: string; users: string }>(
+      `SELECT
+         (SELECT COUNT(*)::text FROM verification WHERE identifier = $1) AS verifications,
+         (SELECT COUNT(*)::text FROM "user" WHERE LOWER(email) = LOWER($2)) AS users`,
+      [`invited-registration:${fixture.invitationId as string}`, fixture.email],
+    )
+    expect(leftovers.rows[0]).toEqual({ verifications: '0', users: '1' })
+  })
+
+  it('tells a lapsed invitation from a consumed one, in fixed copy', async () => {
+    const lapsed = await seedInvitation()
+    await lease.pool.query(`UPDATE invitation SET "expiresAt" = $2 WHERE id = $1`, [
+      lapsed.invitationId as string,
+      new Date(NOW.getTime() - 1),
+    ])
+    const consumed = await seedInvitation()
+    await lease.pool.query(`UPDATE invitation SET status = 'canceled' WHERE id = $1`, [
+      consumed.invitationId as string,
+    ])
+
+    await expect(prepare(lapsed)).rejects.toSatisfy(
+      (error: unknown) =>
+        isIdentityError(error) &&
+        error.code === 'invitation_expired' &&
+        error.message ===
+          'This invitation has expired. Ask your Account Admin to resend it.',
+    )
+    await expect(prepare(consumed)).rejects.toSatisfy(
+      (error: unknown) =>
+        isIdentityError(error) &&
+        error.code === 'invitation_not_found' &&
+        !error.message.includes('canceled'),
+    )
+  })
+
+  it('lets an interrupted attempt resume over the account it created itself', async () => {
+    const fixture = await seedInvitation()
+    const prepared = await prepare(fixture, 'verification-own-attempt')
+    await insertProviderAuthority(fixture, { emailVerified: false })
+
+    await expect(prepare(fixture, 'verification-ignored')).resolves.toEqual(prepared)
+  })
+
+  it('settles a verified registration although the member then signed in', async () => {
+    const fixture = await seedInvitation()
+    const prepared = await prepare(fixture)
+    await insertProviderAuthority(fixture, { emailVerified: false })
+    const registrationStore = createInvitedRegistrationStore(db)
+    const recovery = await registrationStore.reconcile({
+      verificationId: prepared.verificationId,
+      now: NOW,
+      nextRecoveryAt: new Date(NOW.getTime() + 5 * 60_000),
+    })
+    if (recovery.kind !== 'ready_to_accept') throw new Error('expected recovery')
+
+    await createAtomicIdentityCommandStore(db, randomUUID).acceptInvitation({
+      invitationId: fixture.invitationId,
+      acceptorEmail: recovery.acceptorEmail,
+      acceptorUserId: userId(fixture.authIds.userId),
+      now: NOW,
+      markEmailVerified: true,
+      buildEvent: (currentInvitation) =>
+        identityInvitationAccepted({
+          organizationId: currentInvitation.organizationId,
+          userId: userId(fixture.authIds.userId),
+          invitationId: fixture.invitationId,
+          propertyIds: currentInvitation.propertyIds,
+          occurredAt: NOW,
+        }),
+    })
+    // Registration signs the member in after acceptance, on a session id
+    // Better Auth chose rather than the preallocated one.
+    await lease.pool.query(
+      `INSERT INTO session (id, "expiresAt", token, "userId", "createdAt", "updatedAt")
+       VALUES ($1, $2, $3, $4, $5, $5)`,
+      [
+        `${PREFIX}sign-in-${randomUUID()}`,
+        new Date('2026-09-27T12:00:00.000Z'),
+        randomUUID(),
+        fixture.authIds.userId,
+        NOW,
+      ],
+    )
+
+    await expect(
+      registrationStore.reconcile({
+        verificationId: prepared.verificationId,
+        now: NOW,
+        nextRecoveryAt: new Date(NOW.getTime() + 5 * 60_000),
+      }),
+    ).resolves.toMatchObject({ kind: 'accepted', userId: fixture.authIds.userId })
+    const verified = await lease.pool.query<{ emailVerified: boolean }>(
+      `SELECT "emailVerified" FROM "user" WHERE id = $1`,
+      [fixture.authIds.userId],
+    )
+    expect(verified.rows).toEqual([{ emailVerified: true }])
   })
 
   it('deletes only the exact partial provider user during compensation', async () => {

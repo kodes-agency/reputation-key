@@ -13,6 +13,13 @@ import { isBetaInteractiveMemberRoleToken } from '#/shared/domain/beta-interacti
 import { organizationId as toOrganizationId } from '#/shared/domain/ids'
 import { identityError } from '../domain/errors'
 import {
+  ACCOUNT_EXISTS_MESSAGE,
+  INELIGIBLE_ROLE_MESSAGE,
+  INVITATION_EXPIRED_MESSAGE,
+  INVITATION_INACTIVE_MESSAGE,
+} from '../domain/invitation-copy'
+import { invitationState } from '../domain/invitation-state'
+import {
   classifyInvitedRegistrationRecovery,
   type InvitedRegistrationRecoveryDecision,
 } from '../domain/invited-registration-recovery'
@@ -233,6 +240,26 @@ async function applyRecoveryDecision(
   return { kind: 'manual_review' }
 }
 
+/**
+ * An address that already has an account cannot be registered again. Better
+ * Auth would not say so: with verification required or autoSignIn off, its
+ * sign-up answers an existing email with a synthetic user that carries our
+ * preallocated id and writes nothing. Only this attempt's own user — one a
+ * retry of the same verification created — may exist already.
+ */
+async function assertAddressIsUnclaimed(
+  tx: InvitedRegistrationTx,
+  input: Readonly<{ email: string; ownAttemptUserId: string | null }>,
+): Promise<void> {
+  const users = await tx
+    .select({ id: userTable.id })
+    .from(userTable)
+    .where(sql`LOWER(${userTable.email}) = ${input.email.toLowerCase()}`)
+  if (users.some((user) => user.id !== input.ownAttemptUserId)) {
+    throw identityError('account_exists', ACCOUNT_EXISTS_MESSAGE)
+  }
+}
+
 /** Persist recovery identity in Better Auth before it starts creating records. */
 export const createInvitedRegistrationStore = (
   db: Database,
@@ -255,21 +282,25 @@ export const createInvitedRegistrationStore = (
         .where(eq(invitation.id, command.invitationId as string))
         .for('update')
       const currentInvitation = invitationRows[0]
-      if (
-        !currentInvitation ||
-        currentInvitation.status !== 'pending' ||
-        currentInvitation.expiresAt <= command.now
-      ) {
+      if (!currentInvitation) {
         throw identityError('invitation_not_found', 'Invitation is not available')
+      }
+      const state = invitationState(
+        currentInvitation.status,
+        currentInvitation.expiresAt,
+        command.now,
+      )
+      if (state === 'expired') {
+        throw identityError('invitation_expired', INVITATION_EXPIRED_MESSAGE)
+      }
+      if (state !== 'pending') {
+        throw identityError('invitation_not_found', INVITATION_INACTIVE_MESSAGE)
       }
       if (currentInvitation.email.toLowerCase() !== command.email.toLowerCase()) {
         throw identityError('forbidden', 'Invitation is not addressed to this email')
       }
       if (!isBetaInteractiveMemberRoleToken(currentInvitation.role ?? 'member')) {
-        throw identityError(
-          'forbidden',
-          'This invitation is not eligible for beta manager access',
-        )
+        throw identityError('forbidden', INELIGIBLE_ROLE_MESSAGE)
       }
 
       const identifier = VERIFICATION_IDENTIFIER_PREFIX + (command.invitationId as string)
@@ -282,6 +313,10 @@ export const createInvitedRegistrationStore = (
         .where(eq(verification.identifier, identifier))
         .for('update')
       const existing = existingRows[0]
+      await assertAddressIsUnclaimed(tx, {
+        email: command.email,
+        ownAttemptUserId: existing ? toPrepared(existing).authIds.userId : null,
+      })
       if (existing) {
         const prepared = toPrepared(existing)
         if (prepared.organizationId !== currentInvitation.organizationId) {

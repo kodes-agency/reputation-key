@@ -23,14 +23,17 @@ export type MemberRecord = Readonly<{
   createdAt: Date
 }>
 
-/** Invitation record shape returned by the port. */
+/**
+ * A signed-in user's own invitation (listUserInvitations). The Members page
+ * reads OrganizationInvitation from the invitation read model instead.
+ */
 export type InvitationRecord = Readonly<{
   id: string
   email: string
   role: Role | null
   /** Raw better-auth role string — for display + owner detection. */
   rawRole: string
-  status: 'pending' | 'accepted' | 'rejected' | 'canceled'
+  status: 'pending' | 'accepted' | 'rejected' | 'canceled' | 'expired'
   expiresAt: Date
   createdAt: Date
   organizationId?: OrganizationId
@@ -78,9 +81,6 @@ export type IdentityPort = Readonly<{
 
   /** Get a single member by ID within the active organization. */
   getMember: (ctx: AuthContext, memberId: string) => Promise<MemberRecord | null>
-
-  /** List pending invitations for the active organization. */
-  listInvitations: (ctx: AuthContext) => Promise<ReadonlyArray<InvitationRecord>>
 
   /** List invitations for the current user across all organizations. */
   listUserInvitations: (headers: Headers) => Promise<ReadonlyArray<InvitationRecord>>

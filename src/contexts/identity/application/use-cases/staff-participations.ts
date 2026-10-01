@@ -39,6 +39,20 @@ async function requirePropertyManage(
   }
 }
 
+/** The participation the caller may manage, or the refusal that says why not. */
+async function findManageableParticipation(
+  deps: StaffParticipationDeps,
+  ctx: AuthContext,
+  staffParticipationId: string,
+): Promise<StaffParticipation> {
+  const participation = await deps.repo.findById(ctx.organizationId, staffParticipationId)
+  if (!participation) {
+    throw staffError('participation_not_found', 'staff participation not found')
+  }
+  await requirePropertyManage(deps, ctx, participation.propertyId)
+  return participation
+}
+
 export const createStaffParticipation =
   (deps: StaffParticipationDeps) =>
   async (
@@ -149,14 +163,11 @@ export const archiveStaffParticipation =
     }>,
     ctx: AuthContext,
   ): Promise<StaffParticipation> => {
-    const participation = await deps.repo.findById(
-      ctx.organizationId,
+    const participation = await findManageableParticipation(
+      deps,
+      ctx,
       input.staffParticipationId,
     )
-    if (!participation) {
-      throw staffError('participation_not_found', 'staff participation not found')
-    }
-    await requirePropertyManage(deps, ctx, participation.propertyId)
     if (participation.status === 'archived') return participation
     const reason = input.reason.trim()
     if (reason.length === 0) {
@@ -189,14 +200,11 @@ export const updatePortalResponsibilities =
     }>,
     ctx: AuthContext,
   ) => {
-    const participation = await deps.repo.findById(
-      ctx.organizationId,
+    const participation = await findManageableParticipation(
+      deps,
+      ctx,
       input.staffParticipationId,
     )
-    if (!participation) {
-      throw staffError('participation_not_found', 'staff participation not found')
-    }
-    await requirePropertyManage(deps, ctx, participation.propertyId)
     if (participation.status !== 'active') {
       throw staffError(
         'participation_archived',
