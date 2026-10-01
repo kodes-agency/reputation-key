@@ -7,7 +7,6 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import { PortalCodeBlock } from './portal-code-block'
 import { PortalLinkIssueForm } from './portal-link-issue-form'
 import { PortalPrintKitPreview } from './portal-print-kit-preview'
-import type { PortalPrintKitReader } from './portal-print-kit-types'
 import { PortalPrintKitSection } from './portal-print-kit-section'
 import { PortalLinkReveal } from './portal-link-reveal'
 import {
@@ -17,38 +16,25 @@ import {
 } from './portal-share-notices'
 import {
   derivePortalShareView,
-  directPortalAddress,
   liveStatusMessage,
   resolveMutationState,
 } from './portal-share-state'
-import { printKitAvailability } from './print-kit-state'
-import { useAddressReveal } from './use-address-reveal'
-import { useCopyLink } from './use-copy-link'
-import { usePrintKit } from './use-print-kit'
-import { usePrintKitDownload } from './use-print-kit-download'
+import { usePortalShareAddresses } from './use-portal-share-addresses'
+import { usePortalPrintKit } from './use-portal-print-kit'
 import type { PortalShareProps } from './portal-share-types'
 
 export type { IssuedPortalLink } from './portal-share-types'
 
-/** Stands in for the read when the tab has no print kit; the query is off then and never calls it. */
-const NO_PRINT_KIT_READ: PortalPrintKitReader = () =>
-  Promise.reject(new Error('This tab has no print kit'))
-
 export function PortalShare(props: PortalShareProps) {
   const { can } = usePermissions()
-  // The QR address (it carries the access-artifact marker) draws the image; the
-  // address row and its Copy button show the direct one.
-  const publicUrl = props.issuedLink?.publicUrl ?? null
-  const directUrl = publicUrl === null ? null : directPortalAddress(publicUrl)
-  const nfcPublicUrl = props.issuedLink?.publicUrls?.nfc ?? null
-  const { linkRef, copied, copyFailed, copyLink } = useCopyLink(directUrl)
+  const addresses = usePortalShareAddresses(props)
+  const { publicUrl, directUrl, nfcPublicUrl } = addresses
+  const { linkRef, copied, copyFailed, copyLink } = addresses.direct
   const {
     linkRef: nfcLinkRef,
     copied: nfcCopied,
     copyFailed: nfcCopyFailed,
-    copyFetchedLink: copyFetchedNfc,
-    copyLink: copyNfc,
-  } = useCopyLink(nfcPublicUrl)
+  } = addresses.nfc
   const { error, isPending } = resolveMutationState(props)
   const view = derivePortalShareView({
     canManage: can('portal.update'),
@@ -58,29 +44,12 @@ export function PortalShare(props: PortalShareProps) {
     addressRevealed: props.issuedLink?.revealed ?? false,
     addressRecoverable: props.issuedLink?.addressRecoverable,
   })
-  // "Download again": each of these fetches the address once, which the server
-  // records, and then works from memory like a made address.
-  const reveal = useAddressReveal(props)
-  const showAddress = async () => (await reveal('show')) !== null
-  const resolveQrAddress = async () => (await reveal('download'))?.publicUrl ?? null
-  const copyNfcAddress = () =>
-    nfcPublicUrl !== null
-      ? copyNfc()
-      : copyFetchedNfc(async () => (await reveal('copy'))?.publicUrls?.nfc ?? null)
-  // The print kit is for a manager with a live code; it carries the preview
-  // beside the tab, so the tab is two columns when it is on.
-  const showPrintKit = props.printKit !== undefined && view.showActions && view.showCode
-  const printKit = usePrintKit({
-    portalId: props.portalId,
-    read: props.printKit?.read ?? NO_PRINT_KIT_READ,
-    enabled: showPrintKit,
-  })
-  const printKitDownload = usePrintKitDownload({
-    portalId: props.portalId,
-    choice: printKit.choice,
-    downloadMutation: props.printKit?.downloadMutation,
-  })
-  const availability = printKitAvailability({ canDownloadAgain: view.canDownloadAgain })
+  const {
+    show: showPrintKit,
+    printKit,
+    download: printKitDownload,
+    unavailableReason,
+  } = usePortalPrintKit(props, view)
 
   return (
     <div className="flex min-h-full flex-col lg:flex-row">
@@ -105,7 +74,7 @@ export function PortalShare(props: PortalShareProps) {
             copyFailed={copyFailed}
             onCopy={copyLink}
             showSaveWarning={view.showSaveWarning}
-            onShowAddress={view.canDownloadAgain ? showAddress : null}
+            onShowAddress={view.canDownloadAgain ? addresses.showAddress : null}
             disabled={isPending}
           />
         )}
@@ -134,9 +103,9 @@ export function PortalShare(props: PortalShareProps) {
               nfcLinkRef={nfcLinkRef}
               nfcCopied={nfcCopied}
               nfcCopyFailed={nfcCopyFailed}
-              onCopyNfc={copyNfcAddress}
+              onCopyNfc={addresses.copyNfcAddress}
               canDownloadAgain={view.canDownloadAgain}
-              resolveQrAddress={view.canDownloadAgain ? resolveQrAddress : null}
+              resolveQrAddress={view.canDownloadAgain ? addresses.resolveQrAddress : null}
               isPending={isPending}
               rotateMutation={props.rotateMutation}
               revokeMutation={props.revokeMutation}
@@ -162,7 +131,7 @@ export function PortalShare(props: PortalShareProps) {
             isError={printKit.isError}
             onRetry={printKit.retry}
             onChoiceChange={printKit.setChoice}
-            unavailableReason={availability.reason}
+            unavailableReason={unavailableReason}
             isWorking={printKitDownload.isWorking}
             errorMessage={printKitDownload.errorMessage}
             onDownload={() => void printKitDownload.download()}

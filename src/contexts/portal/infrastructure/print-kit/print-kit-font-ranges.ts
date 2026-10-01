@@ -82,7 +82,7 @@ const SUBSET_ORDER: readonly FontSubset[] = [
   'cyrillic-ext',
 ]
 
-export function subsetOfCodePoint(codePoint: number): FontSubset | null {
+function subsetOfCodePoint(codePoint: number): FontSubset | null {
   return (
     SUBSET_ORDER.find((subset) =>
       FONT_SUBSET_RANGES[subset].some(
