@@ -264,6 +264,18 @@
       "policy": "Read once from this browser's seen-outcome map when the reports panel opens, so an outcome keeps its New marker for the whole visit. Per-viewer convenience only: nothing server-side reads it, and losing it can only make a marker reappear, never hide an outcome."
     },
     {
+      "id": "src/components/features/guest/public-portal/immersive/use-immersive-guest-response.ts:useState(csrfNonce)",
+      "classification": "server_snapshot",
+      "owner": "Guest response CSRF lifecycle",
+      "policy": "Seed from the issued nonce and rotate only from confirmed start-over results; route-token remount remains the reset boundary."
+    },
+    {
+      "id": "src/components/features/guest/public-portal/immersive/use-immersive-guest-response.ts:useState(response)",
+      "classification": "server_snapshot",
+      "owner": "Guest response journey",
+      "policy": "Seed from the loader response, then replace only with confirmed response-mutation results; route-token remount remains the reset boundary."
+    },
+    {
       "id": "src/components/features/guest/public-portal/use-guest-response-controller.ts:useState(activeCsrfNonce)",
       "classification": "server_snapshot",
       "owner": "Guest response CSRF lifecycle",

@@ -94,8 +94,10 @@ const immersivePortal: PublicPortalData = {
     ],
   },
 }
+const SERVED_AT = '2026-10-01T12:00:00.000Z'
 const state = () => ({
   guestSession: { csrfNonce: crypto.randomUUID() },
+  servedAt: SERVED_AT,
   response: null,
   responseForm: { availability: 'available' as const },
 })
@@ -104,6 +106,7 @@ describe('public Portal loader projection', () => {
   it('does not serialize internal tenant identifiers to the guest page', () => {
     const projected = toPublicPortalLoaderData(portal, {
       guestSession: { csrfNonce: crypto.randomUUID() },
+      servedAt: SERVED_AT,
       response: null,
       responseForm: { availability: 'available' },
     })
@@ -125,9 +128,14 @@ describe('public Portal loader projection', () => {
     expect(JSON.stringify(projected)).not.toContain('secret-sort')
   })
 
+  it('carries the instant the server read the page, for deadlines both sides print alike', () => {
+    expect(toPublicPortalLoaderData(portal, state()).servedAt).toBe(SERVED_AT)
+  })
+
   it('declares the app fonts for a portal on the legacy guest surface', () => {
     const projected = toPublicPortalLoaderData(portal, {
       guestSession: { csrfNonce: crypto.randomUUID() },
+      servedAt: SERVED_AT,
       response: null,
       responseForm: { availability: 'available' },
     })
@@ -140,6 +148,7 @@ describe('public Portal loader projection', () => {
       { ...portal, guestSurface: 'immersive' },
       {
         guestSession: { csrfNonce: crypto.randomUUID() },
+        servedAt: SERVED_AT,
         response: null,
         responseForm: { availability: 'available' },
       },
@@ -160,6 +169,7 @@ describe('public Portal loader projection', () => {
       },
       {
         guestSession: { csrfNonce: crypto.randomUUID() },
+        servedAt: SERVED_AT,
         response: null,
         responseForm: { availability: 'available' },
       },

@@ -15,7 +15,13 @@ import {
   withdrawGuestResponseFn,
 } from '#/contexts/guest/server/public'
 import { getPublicPortal, recordScanFn } from '#/contexts/guest/server/guest-scans'
-import { GuestAnalyticsNotice, PublicPortalContent } from '#/components/features/guest'
+import {
+  GuestAnalyticsNotice,
+  ImmersivePublicPortal,
+  loadGuestPortalCopyV2,
+  PublicPortalContent,
+  type GuestPortalCopyV2,
+} from '#/components/features/guest'
 import { PortalUnavailable } from '#/components/features/guest/portal-unavailable'
 import type { PublicPortalLoaderData } from '#/contexts/guest/server/public'
 import { guestKeys } from '#/shared/queries/query-keys'
@@ -55,12 +61,29 @@ function isUnavailablePosture(error: unknown): boolean {
   return typeof status === 'number' && unavailablePostureStatus[status] === true
 }
 
+/**
+ * What the page renders from: the server's loader data and, for a schema
+ * version 3 portal, the one copy pack of the page's language. The pack is loaded
+ * with the data (one language, one dynamic import), so the server render and the
+ * hydration read the same copy and no client request fetches it afterwards. A
+ * pack that cannot be loaded fails the whole read, never to another language.
+ */
+export type GuestPageData = PublicPortalLoaderData &
+  Readonly<{ pack: GuestPortalCopyV2 | null }>
+
 const publicPortalQuery = (token: string, locale?: GuestLocale) =>
   queryOptions({
     queryKey: guestKeys.publicPortal({ token, locale: locale ?? 'auto' }),
-    queryFn: async () => {
+    queryFn: async (): Promise<GuestPageData | null> => {
       try {
-        return await getPublicPortal({ data: { token, locale } })
+        const data = await getPublicPortal({ data: { token, locale } })
+        const pack = data.immersive
+          ? await loadGuestPortalCopyV2(
+              data.localization.selectedLocale,
+              data.localization.languagePackVersion,
+            )
+          : null
+        return { ...data, pack }
       } catch (error) {
         if (isUnavailablePosture(error)) return null
         throw error
@@ -90,7 +113,7 @@ export const Route = createFileRoute('/p/$token')({
   validateSearch: portalSearchSchema,
   loaderDeps: ({ search }) => ({ locale: search.locale }),
   staleTime: 5 * 60 * 1000,
-  loader: async ({ context, params, deps }): Promise<PublicPortalLoaderData | null> => {
+  loader: async ({ context, params, deps }): Promise<GuestPageData | null> => {
     return context.queryClient.ensureQueryData(
       publicPortalQuery(params.token, deps.locale),
     )
@@ -151,7 +174,7 @@ function PublicPortalPage() {
 function PublicPortalView({
   token,
   data,
-}: Readonly<{ token: string; data: PublicPortalLoaderData }>) {
+}: Readonly<{ token: string; data: GuestPageData }>) {
   const { accessArtifact, locale } = Route.useSearch()
   const queryClient = useQueryClient()
   const submitResponse = useAction(useServerFn(submitGuestResponseFn))
@@ -168,7 +191,7 @@ function PublicPortalView({
   const startNewResponse = useCallback(
     async (input: Parameters<typeof startNewResponseAction>[0]) => {
       const nextSession = await startNewResponseAction(input)
-      queryClient.setQueryData<PublicPortalLoaderData | null>(
+      queryClient.setQueryData<GuestPageData | null>(
         guestKeys.publicPortal({ token, locale: locale ?? 'auto' }),
         (cached) =>
           cached
@@ -194,6 +217,38 @@ function PublicPortalView({
     if (result.success) return 'recorded' as const
     return result.retryable ? ('retryable' as const) : ('settled' as const)
   }, [recordScan, token, csrfNonce, accessArtifact])
+
+  if (data.immersive) {
+    // Schema version 3: the Immersive Hub. It records the visit from its own
+    // footer, where the notice sits inline, so it mounts no overlay.
+    if (!data.pack) return <PortalUnavailable />
+    return (
+      <ImmersivePublicPortal
+        token={token}
+        accessArtifactId={accessArtifact}
+        pack={data.pack}
+        immersive={data.immersive}
+        selectedLocale={data.localization.selectedLocale}
+        availableLocales={data.localization.availableLocales}
+        googleReview={data.reviewGateway.googleReview}
+        csrfNonce={csrfNonce}
+        initialResponse={data.response}
+        availability={formAvailability[data.responseForm.availability]}
+        servedAt={data.servedAt}
+        actions={{
+          submitResponse,
+          correctResponse,
+          startNewResponse,
+          submitPrivateFeedback,
+          selectGoogleReview,
+          withdrawResponse,
+          withdrawPrivateFeedback,
+          selectSecondaryLink,
+        }}
+        onPortalVisit={recordPortalVisit}
+      />
+    )
+  }
 
   return (
     <>
