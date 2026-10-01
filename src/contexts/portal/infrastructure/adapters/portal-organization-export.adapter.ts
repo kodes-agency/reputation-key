@@ -392,7 +392,7 @@ async function readPayload(
         snapshot,
         sql`SELECT id::text AS id, property_id::text AS property_id,
                    portal_id::text AS portal_id, change_kind, change_key,
-                   source_version, ${utc('changed_at')} AS changed_at,
+                   source_version, ${utc('changed_at')} AS changed_at, changed_by,
                    resolved_snapshot_id::text AS resolved_snapshot_id,
                    ${utc('resolved_at')} AS resolved_at
             FROM portal_pending_content_changes

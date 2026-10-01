@@ -46,6 +46,8 @@ export type PortalPendingContentChange = Readonly<{
   key: string
   sourceVersion: string
   changedAt: Date
+  /** Who made the change; null for the system and for a row written before it was recorded. */
+  changedBy: string | null
 }>
 
 export type PortalPublicationRepository = Readonly<{

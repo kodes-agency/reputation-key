@@ -116,6 +116,7 @@ function setup(options: Options = {}) {
         key: `link:${index}`,
         sourceVersion: NOW.toISOString(),
         changedAt: NOW,
+        changedBy: null,
       })),
     resolveActiveByTokenDigest: async () => null,
   }
