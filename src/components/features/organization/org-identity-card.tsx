@@ -2,8 +2,6 @@ import { FieldGroup } from '#/components/ui/field'
 import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import type { FormWithField } from '#/components/forms/form-with-field'
-import { Alert, AlertDescription } from '#/components/ui/alert'
-import { AlertTriangle } from 'lucide-react'
 
 type OrgIdentityFormValues = {
   name: string
@@ -13,10 +11,9 @@ type OrgIdentityFormValues = {
 
 type Props = Readonly<{
   form: FormWithField<OrgIdentityFormValues>
-  slugChanged: boolean
 }>
 
-export function OrgIdentityCard({ form, slugChanged }: Props) {
+export function OrgIdentityCard({ form }: Props) {
   return (
     <FieldGroup>
       <form.Field name="name">
@@ -48,16 +45,6 @@ export function OrgIdentityCard({ form, slugChanged }: Props) {
           />
         )}
       </form.Field>
-
-      {slugChanged && (
-        <Alert variant="destructive">
-          <AlertTriangle className="size-4" />
-          <AlertDescription>
-            Changing the slug will break existing guest portal URLs. Guests using the old
-            slug URL will no longer be able to access the portal.
-          </AlertDescription>
-        </Alert>
-      )}
     </FieldGroup>
   )
 }
