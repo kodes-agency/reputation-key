@@ -148,7 +148,7 @@ export const FourTiles: Story = {
     )
     // The tile with no Bulgarian text says so; the others do not.
     const languageLists = canvas.getAllByRole('list', { name: 'Languages' })
-    await expect(languageLists[2]).toHaveTextContent('БГ missing')
+    await expect(languageLists[2]).toHaveTextContent('BG missing')
     await expect(languageLists[0]).not.toHaveTextContent('missing')
   },
 }
@@ -223,7 +223,7 @@ export const MovesATileWithTheHandle: Story = {
 export const PhoneChipNamesTheMissingLanguage: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const chip = canvas.getByText('БГ missing')
+    const chip = canvas.getByText('BG missing')
     await expect(chip.className).toContain('sm:hidden')
   },
 }
@@ -300,7 +300,7 @@ export const OpenTileShowsTheApproval: Story = {
     await expect(canvas.getByLabelText('Opens')).toHaveValue('https://avela.bg/menu')
     await expect(canvas.getByText('Approved · Elena Petrova')).toBeVisible()
     // Bulgarian has no text yet: the tab says so, and so does the field.
-    await userEvent.click(canvas.getByRole('radio', { name: 'БГ missing Bulgarian' }))
+    await userEvent.click(canvas.getByRole('radio', { name: 'BG missing Bulgarian' }))
     await expect(
       canvas.getByText(/Bulgarian-speaking guests see it in English/),
     ).toBeVisible()
@@ -449,7 +449,7 @@ export const BulgarianPrimaryPortalListsItsLanguageFirst: Story = {
     // The title opens in the primary language, with that language's default.
     const tabs = within(canvas.getByRole('radiogroup', { name: 'Title language' }))
     await expect(tabs.getAllByRole('radio').map((tab) => tab.textContent)).toEqual([
-      expect.stringContaining('БГ'),
+      expect.stringContaining('BG'),
       expect.stringContaining('EN'),
     ])
     await expect(canvas.getByLabelText('Title on the page')).toHaveAttribute(
@@ -469,7 +469,7 @@ export const LineWithoutALabelSaysItIsNotSaved: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: /^Olive Terrace menu/ }))
-    await userEvent.click(canvas.getByRole('radio', { name: 'БГ missing Bulgarian' }))
+    await userEvent.click(canvas.getByRole('radio', { name: 'BG missing Bulgarian' }))
     await userEvent.type(canvas.getByLabelText(/^Line under the label/), 'Обяд')
     await expect(
       canvas.getByText(/Add a label first: a line is only saved together/),

@@ -13,7 +13,11 @@ export type GuestLocaleMetadata = Readonly<{
   code: GuestLocale
   nativeName: string
   englishName: string
-  /** The two-letter chip a language switcher shows: EN ES IT FR DE БГ. */
+  /**
+   * The two-letter chip the guest page's language switcher shows, in the
+   * language's own script: EN ES IT FR DE БГ. The admin codes a language with
+   * `adminLanguageCode` instead.
+   */
   chipLabel: string
   /** The tag handed to `Intl` when formatting dates and numbers. */
   intlTag: string
@@ -158,6 +162,15 @@ export function isOfferedGuestLocale(value: unknown): value is OfferedGuestLocal
 
 /** A Portal offers its primary locale plus at most this many more. */
 export const MAX_ADDITIONAL_GUEST_LOCALES = GUEST_LOCALES.length - 1
+
+/**
+ * A language's code in the admin: EN ES IT FR DE BG. Latin letters like the rest
+ * of the admin's chrome, so Bulgarian does not read as a typo beside the others;
+ * the guest page keeps its own chip (`chipLabel`).
+ */
+export function adminLanguageCode(locale: GuestLocale): string {
+  return locale.toUpperCase()
+}
 
 export function isGuestLocale(value: unknown): value is GuestLocale {
   return typeof value === 'string' && (GUEST_LOCALES as readonly string[]).includes(value)

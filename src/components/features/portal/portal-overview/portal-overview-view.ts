@@ -6,7 +6,11 @@
 // tested without a table, and the table only draws what this decides.
 import { personInitials } from '#/components/inbox/person-initials'
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
-import { GUEST_LOCALE_METADATA, type GuestLocale } from '#/shared/domain/guest-locale'
+import {
+  GUEST_LOCALE_METADATA,
+  adminLanguageCode,
+  type GuestLocale,
+} from '#/shared/domain/guest-locale'
 import { needsAttention, portalAttention, type PortalAttention } from './portal-attention'
 import { compareItems, orderGroups } from './portal-overview-order'
 import type { OverviewSortFigures } from './portal-overview-results'
@@ -77,6 +81,8 @@ export type PortalOverviewPage = Readonly<{
   total: number
   /** The Portals the search and filter keep, on every page. */
   matched: number
+  /** Every Portal that needs attention, before the search: what the filter would keep. */
+  needingAttention: number
   page: number
   lastPage: number
   /** 1-based position of the first and last Portal on this page; 0 when none. */
@@ -95,7 +101,7 @@ export function localeChips(
   const codes = [primary, ...additional.filter((code) => code !== primary)]
   const chips = codes.map((code) => ({
     code,
-    label: GUEST_LOCALE_METADATA[code].chipLabel,
+    label: adminLanguageCode(code),
     name: GUEST_LOCALE_METADATA[code].englishName,
   }))
   const names = chips.map((chip) => chip.name).join(', ')
@@ -340,6 +346,7 @@ export function buildPortalOverview(
     sections: withBeforeUngrouped(sections, emptyGroups),
     total: all.length,
     matched: matched.length,
+    needingAttention: all.filter((item) => needsAttention(item.attention)).length,
     page,
     lastPage,
     from: onPage.size === 0 ? 0 : start + 1,
