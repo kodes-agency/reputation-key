@@ -28,8 +28,8 @@ export function PortalLocalizedOverrideForm({
 }: Readonly<{
   locale: OfferedGuestLocale
   portalId: string
-  /** The name guests read in large type; the welcome line sits above it. */
-  propertyName: string
+  /** The large name guests read, which the welcome line sits above; null while there is none. */
+  propertyName: string | null
   initialTitle: string
   initialDescription: string
   titlePlaceholder: string
@@ -61,7 +61,7 @@ export function PortalLocalizedOverrideForm({
               placeholder={titlePlaceholder}
               maxLength={120}
               disabled={disabled}
-              hint={`The line guests read above ${propertyName}, such as Spa reception.`}
+              hint={`The line guests read above ${propertyName ?? 'the property’s name'}, such as Spa reception.`}
             />
           )}
         </form.Field>

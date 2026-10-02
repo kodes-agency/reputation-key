@@ -63,6 +63,7 @@ function PortalExperienceFormsShowcase({ actions }: ShowcaseProps) {
     <div className="space-y-4 p-6">
       <PortalLocalizedContentEditor
         locale="en"
+        isPrimary
         propertyId="property-1"
         portalId="portal-1"
         experience={experience}

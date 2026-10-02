@@ -1,12 +1,5 @@
 import type { Action } from '#/components/hooks/use-action'
-import {
-  OFFERED_GUEST_LOCALES,
-  type GuestLocale,
-  type OfferedGuestLocale,
-} from '#/shared/domain/guest-locale'
-
-/** The locales a manager can edit and publish today. */
-export const PORTAL_GUEST_LOCALES: readonly OfferedGuestLocale[] = OFFERED_GUEST_LOCALES
+import type { GuestLocale, OfferedGuestLocale } from '#/shared/domain/guest-locale'
 
 export type PortalExperienceSettings = Readonly<{
   profile: Readonly<{

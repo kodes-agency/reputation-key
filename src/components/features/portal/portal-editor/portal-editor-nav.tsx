@@ -7,17 +7,23 @@
 //
 // Below `xl` (phones, tablets and small laptops, where the form and the preview
 // need the width) the list becomes one scrolling row: the side that continues
-// fades, and the open section scrolls into view. The group headings and the
-// summary lines belong to the wider layout.
+// fades, and the open section scrolls into view, with the Inbox queue strip's
+// own measuring and mask (an inline style, so no stylesheet bytes). The group
+// headings and the summary lines belong to the wider layout.
 //
 // Each entry pins its ink (`!`): the global link colour is unlayered and would
 // otherwise paint every entry, and its icon, the accent.
 
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 import { Link } from '@tanstack/react-router'
 import { CircleAlert, Lock } from 'lucide-react'
 import { cn } from '#/lib/utils'
-import { useScrollEdges, type ScrollEdges } from '#/components/hooks/use-scroll-edges'
+import { useStripOverflow } from '#/components/inbox/use-strip-overflow'
+import {
+  STRIP_FADE_PX,
+  stripFadeStyle,
+  stripScrollLeftFor,
+} from '#/components/inbox/inbox-queue-strip-scroll'
 import { PORTAL_EDITOR_SECTION_ICONS } from './portal-editor-section-icons'
 import {
   PORTAL_EDITOR_SECTION_GROUPS,
@@ -34,25 +40,6 @@ type Props = Readonly<{
   summaries: Readonly<Record<PortalEditorSection, PortalEditorSectionSummary>>
 }>
 
-/** The strip's fade, written out in full so Tailwind sees each one. */
-const STRIP_FADE = {
-  none: '',
-  before:
-    'max-xl:[mask-image:linear-gradient(to_left,#000_calc(100%-2.5rem),transparent)]',
-  after:
-    'max-xl:[mask-image:linear-gradient(to_right,#000_calc(100%-2.5rem),transparent)]',
-  both: 'max-xl:[mask-image:linear-gradient(to_right,transparent,#000_2.5rem,#000_calc(100%-2.5rem),transparent)]',
-} as const
-
-const fadeOf = (edges: ScrollEdges): keyof typeof STRIP_FADE =>
-  edges.before && edges.after
-    ? 'both'
-    : edges.before
-      ? 'before'
-      : edges.after
-        ? 'after'
-        : 'none'
-
 export function PortalEditorNav({
   propertyId,
   portalId,
@@ -60,18 +47,25 @@ export function PortalEditorNav({
   available,
   summaries,
 }: Props) {
-  const [stripRef, edges] = useScrollEdges<HTMLDivElement>()
+  const stripRef = useRef<HTMLDivElement>(null)
+  const edges = useStripOverflow(stripRef)
 
   // Bring the open section into the row, sideways only: scrolling the page to
-  // the strip would jump away from the form being edited.
+  // the strip would jump away from the form being edited. In the column (xl)
+  // everything is in view, so nothing moves.
   useEffect(() => {
     const strip = stripRef.current
-    if (strip === null || strip.scrollWidth <= strip.clientWidth) return
-    const link = strip.querySelector<HTMLElement>('[aria-current="page"]')
-    if (link === null) return
-    const left = link.offsetLeft - (strip.clientWidth - link.offsetWidth) / 2
-    strip.scrollTo({ left: Math.max(0, left) })
-  }, [active, stripRef])
+    const link = strip?.querySelector<HTMLElement>('[aria-current="page"]')
+    if (!strip || !link) return
+    const left = stripScrollLeftFor({
+      pillLeft: link.offsetLeft,
+      pillWidth: link.offsetWidth,
+      scrollLeft: strip.scrollLeft,
+      clientWidth: strip.clientWidth,
+      padding: STRIP_FADE_PX,
+    })
+    if (left !== null) strip.scrollTo({ left })
+  }, [active])
 
   return (
     <nav
@@ -82,10 +76,8 @@ export function PortalEditorNav({
       <div className="xl:sticky xl:top-0">
         <div
           ref={stripRef}
-          className={cn(
-            'relative flex gap-1 overflow-x-auto px-4 py-2 md:px-6 xl:flex-col xl:gap-5 xl:px-3 xl:py-5',
-            STRIP_FADE[fadeOf(edges)],
-          )}
+          className="relative flex scroll-px-6 gap-1 overflow-x-auto px-4 py-2 md:px-6 xl:flex-col xl:gap-5 xl:px-3 xl:py-5"
+          style={stripFadeStyle(edges)}
         >
           {PORTAL_EDITOR_SECTION_GROUPS.map((group) => {
             const sections = group.sections.filter((section) =>

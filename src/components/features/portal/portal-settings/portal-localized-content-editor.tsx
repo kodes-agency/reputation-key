@@ -6,7 +6,12 @@
 //
 // A language only has wording when the property wrote some for it: publishing
 // reads the property's wording as the base, so without it this portal's own
-// lines do not count yet. Then the fold opens and says so.
+// lines do not count yet (and in the primary language the portal cannot be
+// published). Then the fold opens and says so.
+//
+// The fold keeps its form mounted while closed (hidden, not removed): an
+// unsaved edit to the property's wording must survive closing it, and so must
+// the guard that asks before leaving with one.
 
 import { useState, type ReactNode } from 'react'
 import { ChevronRight } from 'lucide-react'
@@ -53,6 +58,7 @@ export function PortalLocalizedContentEditor({
   experience,
   actions,
   disabled,
+  isPrimary,
 }: Readonly<{
   locale: OfferedGuestLocale
   propertyId: string
@@ -60,10 +66,13 @@ export function PortalLocalizedContentEditor({
   experience: PortalExperienceSettings
   actions: PortalExperienceActions
   disabled: boolean
+  /** The portal's primary language: without wording in it, publishing is refused. */
+  isPrimary: boolean
 }>) {
   const { property, own, hasWording } = linesIn(experience, locale)
   const canWriteProperty = !disabled && experience.canManagePropertyBrand
-  const propertyName = experience.profile?.displayName || 'the property'
+  // The large name guests read; until the property has one, there is none to name.
+  const propertyName = experience.profile?.displayName.trim() || null
   const headingId = `portal-wording-${locale}-heading`
 
   return (
@@ -74,7 +83,11 @@ export function PortalLocalizedContentEditor({
     >
       <LanguageHeading locale={locale} headingId={headingId} />
       {hasWording ? null : (
-        <MissingWordingNote locale={locale} canWriteProperty={canWriteProperty} />
+        <MissingWordingNote
+          locale={locale}
+          isPrimary={isPrimary}
+          canWriteProperty={canWriteProperty}
+        />
       )}
       <PortalLocalizedOverrideForm
         locale={locale}
@@ -136,13 +149,24 @@ function LanguageHeading({
 
 function MissingWordingNote({
   locale,
+  isPrimary,
   canWriteProperty,
-}: Readonly<{ locale: OfferedGuestLocale; canWriteProperty: boolean }>) {
+}: Readonly<{
+  locale: OfferedGuestLocale
+  isPrimary: boolean
+  canWriteProperty: boolean
+}>) {
   const { english } = languageDisplayName(locale)
+  // One string, so formatting can never split the sentence from its full stop.
+  const effect = isPrimary
+    ? 'so the portal cannot be published yet.'
+    : `so guests do not see these lines in ${english}.`
+  const next = canWriteProperty
+    ? 'Write it below first.'
+    : 'An account admin writes it first.'
   return (
     <p className="rounded-md border border-warn-line bg-warn-muted px-3 py-2 text-sm">
-      {english} has no property wording yet, so guests do not see these lines in {english}
-      . {canWriteProperty ? 'Write it below first.' : 'An account admin writes it first.'}
+      {`${english} has no property wording yet, ${effect} ${next}`}
     </p>
   )
 }
@@ -153,7 +177,7 @@ function PropertyWordingFold({
   canManagePropertyBrand,
   children,
 }: Readonly<{
-  propertyName: string
+  propertyName: string | null
   startsOpen: boolean
   canManagePropertyBrand: boolean
   children: ReactNode
@@ -168,10 +192,11 @@ function PropertyWordingFold({
         />
         Property wording
         <span className="font-normal text-muted-foreground">
-          · every portal at {propertyName}
+          · every portal at {propertyName ?? 'this property'}
         </span>
       </CollapsibleTrigger>
-      <CollapsibleContent className="pt-3">
+      {/* Mounted while closed (forceMount), hidden instead: see the note at the top. */}
+      <CollapsibleContent forceMount hidden={!open} className="pt-3">
         {canManagePropertyBrand ? null : (
           <p className="mb-3 text-sm text-muted-foreground">
             Only an account admin can change it.

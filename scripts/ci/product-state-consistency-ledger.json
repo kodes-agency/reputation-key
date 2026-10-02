@@ -645,12 +645,6 @@
       "classification": "synchronized_prop_copy",
       "owner": "Portal editor Welcome language card",
       "policy": "Seeded once from startsOpen (open when the property has no wording for the language yet) and never synchronized afterwards, so the manager's own open or closed choice is not overridden when a save lands; the note above it reads the wording directly."
-    },
-    {
-      "id": "src/components/hooks/use-scroll-edges.ts:useState(edges)",
-      "classification": "local_runtime",
-      "owner": "Horizontal strip scroll edges",
-      "policy": "A measurement of the strip's scroll position and size, updated from its scroll and resize events; it is never derived from or written to server data."
     }
   ],
   "classificationDefinitions": {

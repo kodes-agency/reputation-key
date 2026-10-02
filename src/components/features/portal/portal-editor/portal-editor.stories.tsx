@@ -103,6 +103,21 @@ function storyLink(
   }
 }
 
+/** One language's card in Welcome, found by the language's name. */
+function languageCard(canvasElement: HTMLElement, language: RegExp) {
+  return within(within(canvasElement).getByRole('group', { name: language }))
+}
+
+/** The same portal for someone who may not change the property's wording. */
+function asPropertyManager(resources: PortalEditorResources): PortalEditorResources {
+  const experience = resources.portalExperience
+  if (!experience) return resources
+  return {
+    ...resources,
+    portalExperience: { ...experience, canManagePropertyBrand: false },
+  }
+}
+
 /** The same portal before anyone wrote the property's Bulgarian wording. */
 function withoutBulgarianWording(
   resources: PortalEditorResources,
@@ -430,21 +445,76 @@ export const WelcomeLinesPerLanguage: Story = {
   args: { resources: makeResources(action(async () => undefined)) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const english = within(canvas.getByRole('group', { name: /English/ }))
-    await expect(english.getByLabelText('Welcome line')).toHaveValue('Pool & Terrace')
-    await expect(english.getByLabelText('Welcome line')).toHaveAttribute(
-      'placeholder',
-      'Welcome to Avela',
-    )
-    await expect(english.getByLabelText('Welcome line')).toHaveAccessibleDescription(
-      /above Avela Resort/,
-    )
-    await expect(english.getByLabelText('Link preview')).toBeVisible()
+    const english = languageCard(canvasElement, /English/)
+    await expect(
+      english.getByLabelText('Welcome line', { selector: '#portal-override-title-en' }),
+    ).toHaveValue('Pool & Terrace')
+    await expect(
+      english.getByLabelText('Welcome line', { selector: '#portal-override-title-en' }),
+    ).toHaveAttribute('placeholder', 'Welcome to Avela')
+    await expect(
+      english.getByLabelText('Welcome line', { selector: '#portal-override-title-en' }),
+    ).toHaveAccessibleDescription(/above Avela Resort/)
+    await expect(
+      english.getByLabelText('Link preview', {
+        selector: '#portal-override-description-en',
+      }),
+    ).toBeVisible()
     await expect(
       english.getByRole('button', { name: /Property wording/ }),
     ).toHaveAttribute('aria-expanded', 'false')
     await expect(canvas.queryByText(/url slug/i)).toBeNull()
     await expect(canvas.queryByRole('button', { name: /change slug/i })).toBeNull()
+  },
+}
+
+// Closing the property's wording keeps what was typed in it: the fold hides its
+// form rather than removing it, so an unsaved edit (and the guard that asks
+// before leaving with one) survives.
+export const PropertyWordingKeepsAnUnsavedEdit: Story = {
+  args: { resources: makeResources(action(async () => undefined)) },
+  play: async ({ canvasElement }) => {
+    const english = languageCard(canvasElement, /English/)
+    const fold = english.getByRole('button', { name: /Property wording/ })
+    await userEvent.click(fold)
+    const field = english.getByLabelText('Welcome line', {
+      selector: '#portal-content-title-en',
+    })
+    await userEvent.clear(field)
+    await userEvent.type(field, 'Welcome to the resort')
+    await userEvent.click(fold)
+    await expect(fold).toHaveAttribute('aria-expanded', 'false')
+    await userEvent.click(fold)
+    await expect(
+      english.getByLabelText('Welcome line', { selector: '#portal-content-title-en' }),
+    ).toHaveValue('Welcome to the resort')
+  },
+}
+
+// A property manager reads the property's wording but cannot change it, and a
+// language without it says who writes it.
+export const PropertyManagerReadsThePropertyWording: Story = {
+  args: {
+    resources: asPropertyManager(
+      withoutBulgarianWording(makeResources(action(async () => undefined))),
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const bulgarian = languageCard(canvasElement, /Bulgarian/)
+    await expect(bulgarian.getByText(/An account admin writes it first/)).toBeVisible()
+    await expect(
+      bulgarian.getByText('Only an account admin can change it.'),
+    ).toBeVisible()
+    await expect(
+      bulgarian.getByLabelText('Welcome line', { selector: '#portal-content-title-bg' }),
+    ).toBeDisabled()
+    await expect(
+      bulgarian.queryByRole('button', { name: 'Save property wording' }),
+    ).toBeNull()
+    // This portal's own lines are still the manager's to write.
+    await expect(
+      bulgarian.getByLabelText('Welcome line', { selector: '#portal-override-title-bg' }),
+    ).toBeEnabled()
   },
 }
 
@@ -456,9 +526,7 @@ export const LanguageWithoutPropertyWording: Story = {
     resources: withoutBulgarianWording(makeResources(action(async () => undefined))),
   },
   play: async ({ canvasElement }) => {
-    const bulgarian = within(
-      within(canvasElement).getByRole('group', { name: /Bulgarian/ }),
-    )
+    const bulgarian = languageCard(canvasElement, /Bulgarian/)
     await expect(bulgarian.getByText(/has no property wording yet/)).toBeVisible()
     await expect(
       bulgarian.getByRole('button', { name: /Property wording/ }),

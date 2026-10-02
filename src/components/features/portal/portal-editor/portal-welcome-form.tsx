@@ -1,7 +1,8 @@
-// The portal's name: the one Welcome field only the team reads, in lists,
-// menus and the workspace header. It is part of the portal's draft, so it saves
-// as it is typed (use-portal-form-autosave.ts). What guests read is each
-// language's welcome line, below it.
+// The portal's name: what the team reads in lists, menus and the workspace
+// header. It is part of the portal's draft, so it saves as it is typed
+// (use-portal-form-autosave.ts). What guests read is each language's welcome
+// line, below it, and the property's own name in large type; a property that
+// has no public name yet shows this name there instead.
 
 import { useForm } from '@tanstack/react-form'
 import { updatePortalInputSchema } from '#/contexts/portal/application/dto/update-portal.dto'
@@ -17,9 +18,16 @@ type Props = Readonly<{
   portal: PortalData
   mutation: Action<UpdatePortalVariables>
   disabled?: boolean
+  /** Whether the property has a public name; without one guests read this name in its place. */
+  propertyHasName?: boolean
 }>
 
-export function PortalWelcomeForm({ portal, mutation, disabled = false }: Props) {
+export function PortalWelcomeForm({
+  portal,
+  mutation,
+  disabled = false,
+  propertyHasName = true,
+}: Props) {
   const { can } = usePermissions()
   const isDisabled = disabled || !can('portal.update')
 
@@ -46,7 +54,11 @@ export function PortalWelcomeForm({ portal, mutation, disabled = false }: Props)
             id="edit-portal-name"
             maxLength={100}
             disabled={isDisabled}
-            hint="Only your team sees it, in lists and menus."
+            hint={
+              propertyHasName
+                ? 'Your team sees it in lists and menus.'
+                : 'Your team sees it in lists and menus. Until the property has a public name, guests read it in large type too.'
+            }
           />
         )}
       </form.Field>

@@ -1,5 +1,6 @@
 // The Page tab: the section list, the active section and the live preview, in
-// three columns (the preview stacks under the section below `xl`). Which
+// three columns from `xl`; from `lg` the list is a row above the section and
+// its preview, and below `lg` the preview stacks under the section. Which
 // section is showing comes from the route's `?section=`, and every save goes
 // through the portal's autosave coordinator.
 
