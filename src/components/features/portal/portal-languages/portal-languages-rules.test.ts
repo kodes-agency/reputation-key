@@ -239,8 +239,8 @@ describe('describeCoverage', () => {
 describe('describeMissingText and missingTextSection', () => {
   it('names a title, a description and a link label, and where each is written', () => {
     const label = labelGap('l-1', 'Book a table')
-    expect(describeMissingText(titleGap())).toBe('Title')
-    expect(describeMissingText(descriptionGap())).toBe('Description')
+    expect(describeMissingText(titleGap())).toBe('Welcome line')
+    expect(describeMissingText(descriptionGap())).toBe('Link preview')
     expect(describeMissingText(label)).toBe('Label for “Book a table”')
     expect(missingTextSection(titleGap())).toBe('welcome')
     expect(missingTextSection(descriptionGap())).toBe('welcome')
@@ -276,11 +276,11 @@ describe('describeFallbackEffect', () => {
 
   it('says a missing title or description in another language is read in the fallback language', () => {
     expect(describeFallbackEffect(row({ missing: [titleGap()] }), 'en')).toBe(
-      'Bulgarian guests see the title in English',
+      'Bulgarian guests see the welcome line in English',
     )
     expect(
       describeFallbackEffect(row({ missing: [titleGap(), descriptionGap()] }), 'en'),
-    ).toBe('Bulgarian guests see the title and the description in English')
+    ).toBe('Bulgarian guests see the welcome line and the link preview in English')
   })
 
   it('lists every kind of gap in one sentence', () => {
@@ -296,7 +296,9 @@ describe('describeFallbackEffect', () => {
         }),
         'en',
       ),
-    ).toBe('Bulgarian guests see the title, the description and 2 link labels in English')
+    ).toBe(
+      'Bulgarian guests see the welcome line, the link preview and 2 link labels in English',
+    )
   })
 
   it('never says another language stops the Portal being published', () => {

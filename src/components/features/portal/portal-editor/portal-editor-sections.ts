@@ -46,7 +46,7 @@ export const PORTAL_EDITOR_SECTION_GROUPS: ReadonlyArray<PortalEditorSectionGrou
 
 /**
  * The section that opens when the URL names none. Welcome, not Look: the
- * portal's name and description are what a manager edits most, and Look is
+ * portal's name and welcome lines are what a manager edits most, and Look is
  * property-wide.
  */
 export const DEFAULT_PORTAL_EDITOR_SECTION: PortalEditorSection = 'welcome'

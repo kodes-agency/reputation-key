@@ -5,12 +5,25 @@
 // navigation landmark with `aria-current`, not an ARIA tablist: a tablist
 // promises a panel in the same document, and the panel here is the route's.
 //
-// On a phone the list becomes one scrolling row; the group headings and the
-// summary lines belong to the wider layout.
+// Below `xl` (phones, tablets and small laptops, where the form and the preview
+// need the width) the list becomes one scrolling row: the side that continues
+// fades, and the open section scrolls into view, with the Inbox queue strip's
+// own measuring and mask (an inline style, so no stylesheet bytes). The group
+// headings and the summary lines belong to the wider layout.
+//
+// Each entry pins its ink (`!`): the global link colour is unlayered and would
+// otherwise paint every entry, and its icon, the accent.
 
+import { useEffect, useRef } from 'react'
 import { Link } from '@tanstack/react-router'
 import { CircleAlert, Lock } from 'lucide-react'
 import { cn } from '#/lib/utils'
+import { useStripOverflow } from '#/components/inbox/use-strip-overflow'
+import {
+  STRIP_FADE_PX,
+  stripFadeStyle,
+  stripScrollLeftFor,
+} from '#/components/inbox/inbox-queue-strip-scroll'
 import { PORTAL_EDITOR_SECTION_ICONS } from './portal-editor-section-icons'
 import {
   PORTAL_EDITOR_SECTION_GROUPS,
@@ -34,27 +47,51 @@ export function PortalEditorNav({
   available,
   summaries,
 }: Props) {
+  const stripRef = useRef<HTMLDivElement>(null)
+  const edges = useStripOverflow(stripRef)
+
+  // Bring the open section into the row, sideways only: scrolling the page to
+  // the strip would jump away from the form being edited. In the column (xl)
+  // everything is in view, so nothing moves.
+  useEffect(() => {
+    const strip = stripRef.current
+    const link = strip?.querySelector<HTMLElement>('[aria-current="page"]')
+    if (!strip || !link) return
+    const left = stripScrollLeftFor({
+      pillLeft: link.offsetLeft,
+      pillWidth: link.offsetWidth,
+      scrollLeft: strip.scrollLeft,
+      clientWidth: strip.clientWidth,
+      padding: STRIP_FADE_PX,
+    })
+    if (left !== null) strip.scrollTo({ left })
+  }, [active])
+
   return (
     <nav
       aria-label="Editor sections"
-      className="border-b lg:w-72 lg:shrink-0 lg:self-stretch lg:border-r lg:border-b-0"
+      className="border-b xl:w-72 xl:shrink-0 xl:self-stretch xl:border-r xl:border-b-0"
     >
-      {/* One scrolling row on a phone; a sticky column beside the section from lg. */}
-      <div className="lg:sticky lg:top-0">
-        <div className="flex gap-1 overflow-x-auto px-4 py-2 md:px-6 lg:flex-col lg:gap-5 lg:px-3 lg:py-5">
+      {/* One scrolling row below xl; a sticky column beside the section from xl. */}
+      <div className="xl:sticky xl:top-0">
+        <div
+          ref={stripRef}
+          className="relative flex scroll-px-6 gap-1 overflow-x-auto px-4 py-2 md:px-6 xl:flex-col xl:gap-5 xl:px-3 xl:py-5"
+          style={stripFadeStyle(edges)}
+        >
           {PORTAL_EDITOR_SECTION_GROUPS.map((group) => {
             const sections = group.sections.filter((section) =>
               available.includes(section),
             )
             if (sections.length === 0) return null
             return (
-              <div key={group.heading} className="max-lg:contents">
-                <p className="hidden px-3 pb-1 text-xs font-medium text-muted-foreground lg:block">
+              <div key={group.heading} className="max-xl:contents">
+                <p className="hidden px-3 pb-1 text-xs font-medium text-muted-foreground xl:block">
                   {group.heading}
                 </p>
-                <ul className="flex gap-1 lg:flex-col">
+                <ul className="flex gap-1 xl:flex-col">
                   {sections.map((section) => (
-                    <li key={section} className="max-lg:shrink-0">
+                    <li key={section} className="max-xl:shrink-0">
                       <SectionLink
                         propertyId={propertyId}
                         portalId={portalId}
@@ -69,7 +106,7 @@ export function PortalEditorNav({
             )
           })}
         </div>
-        <p className="hidden px-6 pb-5 text-xs text-muted-foreground lg:block">
+        <p className="hidden px-6 pb-5 text-xs text-muted-foreground xl:block">
           Edits stay in this draft until you publish. Printed codes keep working.
         </p>
       </div>
@@ -100,7 +137,7 @@ function SectionLink({
       className={cn(
         'flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
         'hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring',
-        isActive ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground',
+        isActive ? 'bg-muted font-medium text-foreground!' : 'text-muted-foreground!',
       )}
     >
       <Icon className="size-4 shrink-0" aria-hidden />
@@ -108,7 +145,7 @@ function SectionLink({
         <span className="block whitespace-nowrap text-foreground">
           {PORTAL_EDITOR_SECTION_LABELS[section]}
         </span>
-        <span className="hidden items-center gap-1 truncate text-xs font-normal text-muted-foreground lg:flex">
+        <span className="hidden items-center gap-1 truncate text-xs font-normal text-muted-foreground xl:flex">
           {summary.locked ? <Lock className="size-3 shrink-0" aria-hidden /> : null}
           <span className="truncate">{summary.text}</span>
           {summary.attention ? (

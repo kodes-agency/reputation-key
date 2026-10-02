@@ -61,7 +61,7 @@ describe('describeReviewCheck: warnings', () => {
 
     expect(line.title).toBe('Español · 2 texts missing.')
     expect(line.detail).toBe(
-      'Spanish guests see the title and the description in English.',
+      'Spanish guests see the welcome line and the link preview in English.',
     )
   })
 
@@ -96,7 +96,7 @@ describe('describeReviewCheck: warnings', () => {
       'bg',
     )
 
-    expect(line.detail).toBe('English guests see the title in Bulgarian.')
+    expect(line.detail).toBe('English guests see the welcome line in Bulgarian.')
   })
 })
 
@@ -115,7 +115,7 @@ describe('describeReviewCheck: blocked', () => {
     expect(line).toMatchObject({
       status: 'blocked',
       title: 'English · 2 texts missing.',
-      detail: 'Publishing needs the title and the label for ‘Spa’ in English.',
+      detail: 'Publishing needs the welcome line and the label for ‘Spa’ in English.',
       note: null,
     })
   })

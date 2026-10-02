@@ -3,6 +3,7 @@
  * Wraps TanStack Form's form.Field with shadcn's Field components.
  */
 
+import type { ReactNode } from 'react'
 import { Field, FieldLabel, FieldError } from '#/components/ui/field'
 import { Textarea } from '#/components/ui/textarea'
 
@@ -36,6 +37,8 @@ type Props = Readonly<{
    */
   labelClassName?: string
   textareaClassName?: string
+  /** A line under the field on what it is for; the textarea names it as its description. */
+  hint?: ReactNode
 }>
 
 export function FormTextarea({
@@ -48,8 +51,10 @@ export function FormTextarea({
   maxLength,
   labelClassName,
   textareaClassName,
+  hint,
 }: Props) {
   const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
+  const hintId = hint === undefined ? undefined : `${id}-hint`
 
   return (
     <Field data-invalid={isInvalid}>
@@ -64,12 +69,18 @@ export function FormTextarea({
         onBlur={field.handleBlur}
         onChange={(e) => field.handleChange(e.target.value)}
         aria-invalid={isInvalid}
+        aria-describedby={hintId}
         placeholder={placeholder}
         rows={rows}
         disabled={disabled}
         maxLength={maxLength}
       />
       {isInvalid && <FieldError errors={field.state.meta.errors} />}
+      {hint === undefined ? null : (
+        <p id={hintId} className="text-sm text-muted-foreground">
+          {hint}
+        </p>
+      )}
     </Field>
   )
 }

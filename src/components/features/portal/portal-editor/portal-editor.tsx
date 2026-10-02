@@ -1,5 +1,6 @@
 // The Page tab: the section list, the active section and the live preview, in
-// three columns (the preview stacks under the section below `xl`). Which
+// three columns from `xl`; from `lg` the list is a row above the section and
+// its preview, and below `lg` the preview stacks under the section. Which
 // section is showing comes from the route's `?section=`, and every save goes
 // through the portal's autosave coordinator.
 
@@ -65,7 +66,10 @@ export function PortalEditor({ resources, requestedSection }: Props) {
     })
 
   return (
-    <div className="flex min-h-full flex-col lg:flex-row">
+    // The form and its preview sit side by side from lg (iPad landscape, a
+    // small laptop), so an edit is seen as it is typed; the section list joins
+    // them as a column only from xl, where there is room for three.
+    <div className="flex min-h-full flex-col xl:flex-row">
       <PortalEditorNav
         propertyId={propertyId}
         portalId={portal.id}
@@ -73,7 +77,7 @@ export function PortalEditor({ resources, requestedSection }: Props) {
         available={available}
         summaries={summaries}
       />
-      <div className="flex min-w-0 flex-1 flex-col xl:flex-row">
+      <div className="flex min-w-0 flex-1 flex-col lg:flex-row">
         <div className="min-w-0 flex-1 px-4 py-5 md:px-8 md:py-8">
           <div className="mx-auto max-w-2xl space-y-6">
             <PortalEditorSectionPanel
@@ -86,7 +90,7 @@ export function PortalEditor({ resources, requestedSection }: Props) {
         </div>
         <aside
           aria-label="Live preview"
-          className="border-t bg-muted/20 px-4 py-5 md:px-8 xl:sticky xl:top-0 xl:max-h-dvh xl:w-[30rem] xl:shrink-0 xl:self-start xl:overflow-y-auto xl:border-t-0 xl:border-l xl:px-6"
+          className="border-t bg-muted/20 px-4 py-5 md:px-8 lg:sticky lg:top-0 lg:max-h-dvh lg:w-[26rem] lg:shrink-0 lg:self-start lg:overflow-y-auto lg:border-t-0 lg:border-l lg:px-6 xl:w-[30rem]"
         >
           <PortalPreviewPane
             portalId={portal.id}

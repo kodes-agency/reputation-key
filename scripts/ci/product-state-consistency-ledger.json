@@ -359,12 +359,6 @@
       "policy": "Seeded once from the form's own default values, which are what the server held when the form mounted, and advanced only by a write the server accepted; it is a comparison baseline for skipping no-op writes, not a second copy of the form's state."
     },
     {
-      "id": "src/components/features/portal/portal-editor/use-portal-form-autosave.ts:useState(fields)",
-      "classification": "local_runtime",
-      "owner": "Portal blur-committed field values",
-      "policy": "Seeded once from the form's own default values and advanced only when a write carrying the committed value is accepted; it holds what the server was last given for fields that commit on blur, so another write does not persist a half-typed value. It is not a second copy of the form's state."
-    },
-    {
       "id": "src/components/features/portal/property-look/use-property-look-batch.ts:useState(leftOut)",
       "classification": "local_runtime",
       "owner": "Property look batch publish",
@@ -645,6 +639,12 @@
       "classification": "synchronized_prop_copy",
       "owner": "Portal editor preview",
       "policy": "The editor section the guest state was last aligned to, held so the alignment happens once per section change (the documented adjust-state-during-render pattern). It is never written back, and a remount of the pane is its reset boundary."
+    },
+    {
+      "id": "src/components/features/portal/portal-settings/portal-localized-content-editor.tsx:useState(open)",
+      "classification": "synchronized_prop_copy",
+      "owner": "Portal editor Welcome language card",
+      "policy": "Seeded once from startsOpen (open when the property has no wording for the language yet) and never synchronized afterwards, so the manager's own open or closed choice is not overridden when a save lands; the note above it reads the wording directly."
     }
   ],
   "classificationDefinitions": {
