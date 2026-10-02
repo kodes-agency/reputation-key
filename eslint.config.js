@@ -897,7 +897,6 @@ export default tseslint.config(
   {
     ignores: [
       'src/components/ui/**',
-      'src/components/features/portal/link-tree/link-tree.tsx',
       'src/components/layout/manager-sidebar.tsx',
       // Story files are fixtures (many variants), not components — not subject to the monolith limit.
       'src/**/*.stories.tsx',
