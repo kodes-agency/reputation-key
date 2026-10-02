@@ -64,7 +64,15 @@ export type GoalMetricAggregate = Readonly<{
   correctionHead: Date | null
 }>
 
+export type MetricReadingPresenceQuery = Readonly<{
+  organizationId: OrganizationId
+  definitionVersionId: string
+  sourceEventId: string
+}>
+
 export type MetricRepository = Readonly<{
   queryAggregate(query: MetricReadingsQuery): Promise<MetricReadingsAggregate>
   queryGoalAggregate(query: GoalMetricAggregateQuery): Promise<GoalMetricAggregate>
+  /** Whether the source event has a reading under this version, corrected since or not. */
+  hasReading(query: MetricReadingPresenceQuery): Promise<boolean>
 }>

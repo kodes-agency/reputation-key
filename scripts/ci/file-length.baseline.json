@@ -23,7 +23,7 @@
   "src/shared/db/schema/ai.schema.ts": 1290,
   "src/shared/db/schema/inbox.schema.ts": 869,
   "src/shared/db/schema/review.schema.ts": 1564,
-  "src/shared/events/schema-registrations.ts": 1685,
+  "src/shared/events/schema-registrations.ts": 1663,
   "src/shared/google-provider-control/route-catalogue.ts": 807,
   "src/shared/governance/event-job-catalogue.ts": 932,
   "src/shared/observability/metrics-schema.ts": 858,

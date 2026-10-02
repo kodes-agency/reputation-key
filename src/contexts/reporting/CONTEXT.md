@@ -67,6 +67,12 @@ metric authority.
   read), a Property with no time zone on record is left out of the results rather than read in a
   guessed zone, and the one-read limit of 1000 Portals applies to the whole Organization (past it
   the page shows its list without results; each Property's own page still reads its own).
+- **Portal configuration completeness**: a content review's count of required Portal fields,
+  as a percentage. Version 1 holds counts on the legacy settings (every fact before event
+  version 3); version 3 holds counts on the Immersive Hub's fields. The fact's field set picks
+  the version, so each version's series holds only its own count. A correction replaces a
+  reading of its own version only: one that corrects a review counted on the other field set
+  starts its own version's series, and the earlier reading keeps its value.
 - **Property setup**: seven per-Property steps derived at read time from current facts
   (Google binding, first sync, reply language, AI decision, responsible manager, reply
   voice, published Portal). It records no milestones, unlike the Organization checklist.

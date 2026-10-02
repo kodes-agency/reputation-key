@@ -320,6 +320,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalRepo,
       staffPublicApi: deps.staffPublicApi,
       portalGroupLookup: portalGroupRepo,
+      propertyGoogleReviewDestinationApi: deps.propertyApi,
       factStore: portalWorkflowFactStore,
       clock: deps.clock,
     }),

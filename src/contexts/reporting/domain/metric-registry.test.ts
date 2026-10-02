@@ -224,6 +224,29 @@ describe('MetricRegistry', () => {
       }
     })
 
+    it('counts the Immersive Hub fields under their own completeness version', () => {
+      const legacy = findMetricVersionById(METRIC_VERSION_IDS.configurationCompleteness)
+      const immersive = findMetricVersionById(
+        METRIC_VERSION_IDS.configurationCompletenessImmersiveHub,
+      )
+
+      expect(immersive?.definition.key).toBe('portal.configuration_completeness')
+      expect(immersive?.version).toMatchObject({
+        version: 3,
+        definitionId: legacy?.version.definitionId,
+        effectiveFrom: new Date('2026-10-02T00:00:00.000Z'),
+        effectiveTo: null,
+        unit: 'percent',
+        permittedConsumers: legacy?.version.permittedConsumers,
+      })
+      // The legacy count keeps its meaning, and stays open for facts recorded before.
+      expect(legacy?.version).toMatchObject({
+        version: 1,
+        effectiveTo: null,
+        numeratorDescription: 'Published required fields present',
+      })
+    })
+
     it('keeps the widened measures private to Portal analytics', () => {
       // Widening the scope is not widening the audience.
       const widened = [
