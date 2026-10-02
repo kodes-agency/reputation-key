@@ -71,6 +71,11 @@ test.describe('Critical: guest language sheet on the live route', () => {
     await openPortalIn(page, 'en')
     const url = page.url()
     const chip = page.getByRole('button', { name: ENGLISH_CHIP })
+    // The current row's address is the page's own, so the URL cannot tell a
+    // reload from no navigation: a marker on the window does (a reload clears it).
+    await page.evaluate(() => {
+      ;(window as unknown as { __stayedPut?: boolean }).__stayedPut = true
+    })
 
     await chip.click()
     await expect(page.getByRole('dialog')).toBeVisible()
@@ -85,5 +90,9 @@ test.describe('Critical: guest language sheet on the live route', () => {
     await expect(page.getByRole('dialog')).toHaveCount(0)
     await expect(chip).toBeFocused()
     expect(page.url()).toBe(url)
+    const stayedPut = await page.evaluate(
+      () => (window as unknown as { __stayedPut?: boolean }).__stayedPut === true,
+    )
+    expect(stayedPut, 'the page reloaded instead of staying put').toBe(true)
   })
 })

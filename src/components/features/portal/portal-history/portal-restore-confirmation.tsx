@@ -11,6 +11,7 @@ import { formatHistoryTime } from './portal-history-time'
 import { PhraseView } from './portal-phrase-view'
 import { draftLine, laterLine } from './portal-restore-copy'
 import { describeGuestEffect } from './portal-guest-effect'
+import { revealRestoreConfirmation } from './portal-restore-reveal'
 
 type Props = Readonly<{
   detail: PortalVersionDetail
@@ -37,14 +38,15 @@ export function PortalRestoreConfirmation({
   onConfirm,
   focusOnOpen = true,
 }: Props) {
+  const section = useRef<HTMLElement>(null)
   const heading = useRef<HTMLHeadingElement>(null)
   const actions = useRef<HTMLDivElement>(null)
   useEffect(() => {
     if (focusOnOpen) heading.current?.focus()
-    // On a phone the confirmation is taller than the window and opens under a
-    // row near the fold: bring the buttons that answer it on screen, instantly
-    // (no animated scroll for anyone who asked for less motion).
-    actions.current?.scrollIntoView?.({ block: 'nearest', behavior: 'instant' })
+    revealRestoreConfirmation(
+      { section: section.current, heading: heading.current, actions: actions.current },
+      { focusOnOpen, viewportHeight: window.innerHeight },
+    )
   }, [focusOnOpen])
   const published = formatHistoryTime(detail.publishedAt, now, timeZone)
   const by = detail.publishedBy?.displayName
@@ -58,6 +60,7 @@ export function PortalRestoreConfirmation({
   const id = `restore-v${detail.version}`
   return (
     <section
+      ref={section}
       id={id}
       aria-labelledby={`${id}-title`}
       className="my-1 rounded-lg border bg-card p-4 shadow-xs md:p-5"

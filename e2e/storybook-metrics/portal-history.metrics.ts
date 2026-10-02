@@ -54,11 +54,20 @@ for (const width of WIDTHS) {
   })
 }
 
-for (const width of [320, 390, 768, 1440] as const) {
-  test(`the confirmation fits a ${width}px window and its buttons are on screen`, async ({
+/** [width, height]: the smallest phones (iPhone SE, 8), a common one, and desktop. */
+const CONFIRMATION_WINDOWS = [
+  [320, 568],
+  [375, 667],
+  [390, 844],
+  [768, 900],
+  [1440, 900],
+] as const
+
+for (const [width, height] of CONFIRMATION_WINDOWS) {
+  test(`the confirmation fits a ${width}x${height} window with its question and buttons on screen`, async ({
     page,
   }) => {
-    await page.setViewportSize({ width, height: 900 })
+    await page.setViewportSize({ width, height })
     // Opened the way a person opens it: from the version's line. A story that
     // mounts already open is scrolled back to the top by the router decorator's
     // own scroll restoration, after the confirmation has brought its buttons
@@ -68,25 +77,60 @@ for (const width of [320, 390, 768, 1440] as const) {
 
     const confirmation = page.getByRole('region', { name: 'Make version 4 live again?' })
     await expect(confirmation).toBeVisible()
+    // The question always stays on screen, the buttons only when the whole
+    // confirmation fits: a taller one keeps its start in view instead.
     await expect(
-      confirmation.getByRole('button', { name: 'Make version 4 live' }),
+      confirmation.getByRole('heading', { name: 'Make version 4 live again?' }),
     ).toBeInViewport({ ratio: 1 })
-    await expect(confirmation.getByRole('button', { name: 'Cancel' })).toBeInViewport({
-      ratio: 1,
-    })
-    // Neither button runs out of the panel, which a phone's width makes easy.
     const panel = await confirmation.boundingBox()
+    if (panel === null) throw new Error('the confirmation has no box')
+    if (panel.height <= height) {
+      await expect(
+        confirmation.getByRole('button', { name: 'Make version 4 live' }),
+      ).toBeInViewport({ ratio: 1 })
+      await expect(confirmation.getByRole('button', { name: 'Cancel' })).toBeInViewport({
+        ratio: 1,
+      })
+    }
+    // Neither button runs out of the panel, which a phone's width makes easy.
     for (const name of ['Cancel', 'Make version 4 live']) {
       const box = await confirmation.getByRole('button', { name }).boundingBox()
-      if (panel === null || box === null) throw new Error(`no box for ${name}`)
+      if (box === null) throw new Error(`no box for ${name}`)
       expect(box.x + box.width, `${name} runs out of the panel`).toBeLessThanOrEqual(
         panel.x + panel.width,
       )
     }
-    const documentScrolls = await page.evaluate(
-      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
-    )
-    expect(documentScrolls, 'the document scrolls sideways').toBe(false)
+    await expectNothingScrollsSideways(page)
+  })
+}
+
+for (const [width, height] of CONFIRMATION_WINDOWS) {
+  test(`"Make live again…" in the dialog opens at its question in a ${width}x${height} window`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height })
+    await openStory(page, VIEW_STORY)
+
+    const dialog = page.getByRole('dialog')
+    await expect(dialog).toBeVisible()
+    await dialog.getByRole('button', { name: 'Make live again…' }).click()
+
+    const heading = dialog.getByRole('heading', { name: 'Make version 4 live again?' })
+    await expect(heading).toBeVisible()
+    await expect(heading, 'the question is scrolled out of the dialog').toBeInViewport({
+      ratio: 1,
+    })
+    // The whole confirmation starts inside the dialog, not above its top edge.
+    const [panel, confirmation] = await Promise.all([
+      dialog.boundingBox(),
+      dialog.getByRole('region', { name: 'Make version 4 live again?' }).boundingBox(),
+    ])
+    if (panel === null || confirmation === null)
+      throw new Error('the dialog or the confirmation has no box')
+    expect(
+      confirmation.y,
+      'the confirmation starts above the dialog',
+    ).toBeGreaterThanOrEqual(panel.y)
   })
 }
 
