@@ -6,6 +6,7 @@
 import { SegmentedControl } from '#/components/ui/segmented-control'
 import {
   GUEST_LOCALE_METADATA,
+  adminLanguageCode,
   type OfferedGuestLocale,
 } from '#/shared/domain/guest-locale'
 
@@ -40,11 +41,12 @@ export function LinktreeLocaleTabs({
         if (next !== undefined) onChange(next)
       }}
       options={locales.map((locale) => {
-        const { chipLabel, englishName } = GUEST_LOCALE_METADATA[locale]
+        const { englishName } = GUEST_LOCALE_METADATA[locale]
+        const code = adminLanguageCode(locale)
         const isMissing = missing.includes(locale)
         return {
           value: locale,
-          label: isMissing ? `${chipLabel} missing` : chipLabel,
+          label: isMissing ? `${code} missing` : code,
           accessibleLabel: englishName,
         }
       })}

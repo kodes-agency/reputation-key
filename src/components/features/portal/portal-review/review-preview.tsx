@@ -11,7 +11,11 @@ import { Button } from '#/components/ui/button'
 import { Skeleton } from '#/components/ui/skeleton'
 import { SegmentedControl } from '#/components/ui/segmented-control'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
-import { GUEST_LOCALE_METADATA, type GuestLocale } from '#/shared/domain/guest-locale'
+import {
+  GUEST_LOCALE_METADATA,
+  adminLanguageCode,
+  type GuestLocale,
+} from '#/shared/domain/guest-locale'
 import {
   describeUnavailable,
   TRY_AS_GUEST_NOTICE,
@@ -158,7 +162,7 @@ function PreviewBody({
             }}
             options={preview.locales.map((code) => ({
               value: code,
-              label: GUEST_LOCALE_METADATA[code].chipLabel,
+              label: adminLanguageCode(code),
               accessibleLabel: GUEST_LOCALE_METADATA[code].englishName,
             }))}
           />

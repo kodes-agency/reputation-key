@@ -4,6 +4,7 @@ import {
   GUEST_LOCALE_METADATA,
   GUEST_LOCALES,
   OFFERED_GUEST_LOCALES,
+  adminLanguageCode,
   currentGuestLanguagePack,
   guestLocaleFormatTag,
   isGuestLocale,
@@ -32,6 +33,17 @@ describe('guest locale catalogue', () => {
     expect(GUEST_LOCALE_METADATA.bg.script).toBe('Cyrl')
     expect(GUEST_LOCALE_METADATA.de.chipLabel).toBe('DE')
     expect(GUEST_LOCALE_METADATA.en.script).toBe('Latn')
+  })
+
+  it('codes every locale in Latin letters for the admin, Bulgarian included', () => {
+    expect(GUEST_LOCALES.map(adminLanguageCode)).toEqual([
+      'EN',
+      'ES',
+      'IT',
+      'FR',
+      'DE',
+      'BG',
+    ])
   })
 
   it('formats dates in the locale-specific tag, keeping today’s bg-BG and en', () => {

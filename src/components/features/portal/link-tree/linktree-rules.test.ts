@@ -94,7 +94,7 @@ describe('linkLocaleChips', () => {
 
     expect(linkLocaleChips(tile, ['en', 'bg'])).toEqual([
       { locale: 'en', chip: 'EN', name: 'English', isMissing: false },
-      { locale: 'bg', chip: 'БГ', name: 'Bulgarian', isMissing: true },
+      { locale: 'bg', chip: 'BG', name: 'Bulgarian', isMissing: true },
     ])
   })
 

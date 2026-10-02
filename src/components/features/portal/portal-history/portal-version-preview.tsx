@@ -7,7 +7,11 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { SegmentedControl } from '#/components/ui/segmented-control'
-import { GUEST_LOCALE_METADATA, type GuestLocale } from '#/shared/domain/guest-locale'
+import {
+  GUEST_LOCALE_METADATA,
+  adminLanguageCode,
+  type GuestLocale,
+} from '#/shared/domain/guest-locale'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
 import type { PortalPreviewOutcome } from '#/contexts/portal/application/public-api'
@@ -83,7 +87,7 @@ export function PortalVersionPreview({
           }}
           options={preview.locales.map((code) => ({
             value: code,
-            label: GUEST_LOCALE_METADATA[code].chipLabel,
+            label: adminLanguageCode(code),
             accessibleLabel: GUEST_LOCALE_METADATA[code].englishName,
           }))}
         />

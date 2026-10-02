@@ -92,7 +92,7 @@ export const SwitchToBulgarian: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await phone(canvas, 'Draft · Arrival · English')
-    await userEvent.click(canvas.getByRole('radio', { name: /БГ/ }))
+    await userEvent.click(canvas.getByRole('radio', { name: /BG/ }))
     const page = within(await phone(canvas, 'Draft · Arrival · Bulgarian'))
     await expect(page.getByRole('heading', { name: 'Басейн и тераса' })).toBeVisible()
     await expect(page.getByText('Около курорта')).toBeVisible()

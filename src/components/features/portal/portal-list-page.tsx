@@ -28,6 +28,10 @@ import type { PortalGroupMutations } from './portal-group/portal-group-mutations
 import type { PortalArchiveMutations } from './portal-overview/portal-archive-dialog'
 import { PortalOverviewPager } from './portal-overview/portal-overview-pager'
 import {
+  PHONE_NEW_PORTAL_BAR_CLEARANCE,
+  PortalPhoneNewPortalBar,
+} from './portal-overview/portal-phone-new-portal-bar'
+import {
   PortalOverviewResultsFooter,
   PortalOverviewResultsStrip,
   type PortalOverviewResultsControls,
@@ -128,6 +132,7 @@ function PortalListBody({
           search={listSearch}
           matched={overview.matched}
           total={overview.total}
+          needingAttention={overview.needingAttention}
           canSortByScans={resultsState.status !== 'off'}
           onChange={onChange}
         />
@@ -244,15 +249,22 @@ export function PortalListPage({
   ) : undefined
 
   const canCreate = can('portal.create')
+  const openNewPortal = () => update({ new: true })
   const newPortalButton = canCreate ? (
-    <Button className="min-h-11 sm:min-h-9" onClick={() => update({ new: true })}>
+    <Button className="min-h-11 sm:min-h-9" onClick={openNewPortal}>
       <Plus />
       New portal
     </Button>
   ) : undefined
+  const isEmpty = rows.length === 0 && groups.length === 0
+  // An empty list offers New portal in its own message; a list has the phone bar.
+  const hasPhoneBar = canCreate && !isEmpty
 
   return (
-    <PageShell tier="dashboard">
+    <PageShell
+      tier="dashboard"
+      className={hasPhoneBar ? PHONE_NEW_PORTAL_BAR_CLEARANCE : undefined}
+    >
       <PageHeader
         title="Portals"
         description={describe(rows.length, propertyName)}
@@ -265,7 +277,11 @@ export function PortalListPage({
           <>
             {propertyLookButton}
             {newGroupButton}
-            {newPortalButton}
+            {hasPhoneBar ? (
+              <span className="hidden sm:contents">{newPortalButton}</span>
+            ) : (
+              newPortalButton
+            )}
           </>
         }
       />
@@ -280,7 +296,7 @@ export function PortalListPage({
       />
 
       <PortalListBody
-        isEmpty={rows.length === 0 && groups.length === 0}
+        isEmpty={isEmpty}
         newPortalButton={newPortalButton}
         results={results}
         inboxWaiting={inboxWaiting}
@@ -303,6 +319,7 @@ export function PortalListPage({
         rows={rows}
         createMutation={createMutation}
       />
+      {hasPhoneBar ? <PortalPhoneNewPortalBar onClick={openNewPortal} /> : null}
       {canCreate ? (
         <PortalNewDialog
           open={search.new === true}

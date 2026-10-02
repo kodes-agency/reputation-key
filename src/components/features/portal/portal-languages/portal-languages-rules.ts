@@ -7,6 +7,7 @@ import {
   GUEST_LOCALES,
   GUEST_LOCALE_METADATA,
   OFFERED_GUEST_LOCALES,
+  adminLanguageCode,
   type GuestLocale,
   type OfferedGuestLocale,
 } from '#/shared/domain/guest-locale'
@@ -143,7 +144,7 @@ export function languageDisplayName(locale: GuestLocale): {
   return {
     native: metadata.nativeName,
     english: metadata.englishName,
-    chip: metadata.chipLabel,
+    chip: adminLanguageCode(locale),
   }
 }
 

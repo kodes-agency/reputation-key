@@ -185,7 +185,7 @@ describe('languageDisplayName', () => {
     expect(languageDisplayName('bg')).toEqual({
       native: 'Български',
       english: 'Bulgarian',
-      chip: 'БГ',
+      chip: 'BG',
     })
   })
 })
