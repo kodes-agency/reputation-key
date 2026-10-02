@@ -83,6 +83,7 @@ type PortalListBodyProps = Readonly<{
   propertyName: string
   archiveMutation: PortalListPageProps['archiveMutation']
   restoreMutation: PortalListPageProps['restoreMutation']
+  disableMutation: PortalListPageProps['disableMutation']
   renameMutation: PortalListPageProps['renameMutation']
   archiveGroupMutation: PortalListPageProps['archiveGroupMutation']
   onChange: (patch: Partial<PortalOverviewSearch>) => void
@@ -101,6 +102,7 @@ function PortalListBody({
   propertyName,
   archiveMutation,
   restoreMutation,
+  disableMutation,
   renameMutation,
   archiveGroupMutation,
   onChange,
@@ -146,6 +148,7 @@ function PortalListBody({
               propertyName={propertyName}
               archiveMutation={archiveMutation}
               restoreMutation={restoreMutation}
+              disableMutation={disableMutation}
               results={resultsState}
               busy={results?.busy}
               groupActions={(group) => (
@@ -189,6 +192,7 @@ export function PortalListPage({
   onSearchChange,
   archiveMutation,
   restoreMutation,
+  disableMutation,
   groups,
   createMutation,
   renameMutation,
@@ -269,6 +273,7 @@ export function PortalListPage({
         error={
           archiveMutation.error ??
           restoreMutation.error ??
+          disableMutation?.error ??
           archiveGroupMutation.error ??
           renameMutation.error
         }
@@ -286,6 +291,7 @@ export function PortalListPage({
         propertyName={propertyName}
         archiveMutation={archiveMutation}
         restoreMutation={restoreMutation}
+        disableMutation={disableMutation}
         renameMutation={renameMutation}
         archiveGroupMutation={archiveGroupMutation}
         onChange={update}

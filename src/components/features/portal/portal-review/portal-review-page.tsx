@@ -4,20 +4,18 @@
 // publishes, as the one button the review read says the server will accept.
 //
 // Everything is a read (`getPortalReview`, the draft preview); the only write is
-// the publish the route hands in. A portal that is live keeps its one quiet
-// "Disable public page" action below the lists, which the interim page offered
-// and nothing else in the workspace does.
+// the publish the route hands in. Taking a live page down is not a step of
+// publishing, so it lives in the portal's "more actions" menu on the Portals
+// list, not here.
 
 import { useState } from 'react'
-import type { Action } from '#/components/hooks/use-action'
 import type { PortalReview } from '#/contexts/portal/application/public-api'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalDetailTab } from '../portal-detail/portal-detail-rules'
 import type { PortalEditorSection } from '../portal-editor/portal-editor-sections'
 import { useNow } from '../portal-history/use-now'
-import { PortalPublicationRow } from '../portal-settings/portal-publication-row'
 import type { PortalPreviewReader } from '../portal-preview/portal-preview-pane'
-import type { PortalData, UpdatePortalVariables } from '../shared/types'
+import type { PortalData } from '../shared/types'
 import { describeReviewFooter } from './portal-review-footer'
 import { describeWhoCanFix, type FixPerson } from './portal-review-checks'
 import type { ReviewChangeLine } from './portal-review-changes'
@@ -44,9 +42,6 @@ type Props = Readonly<{
   getPortalPreview: PortalPreviewReader
   onPublish: () => void
   isPublishing: boolean
-  /** The portal's own state change, for "Disable public page". */
-  updateMutation: Action<UpdatePortalVariables>
-  canManage: boolean
 }>
 
 export function PortalReviewPage({
@@ -61,8 +56,6 @@ export function PortalReviewPage({
   getPortalPreview,
   onPublish,
   isPublishing,
-  updateMutation,
-  canManage,
 }: Props) {
   const now = useNow()
   const [chosenLocale, setChosenLocale] = useState<GuestLocale | null>(null)
@@ -106,18 +99,6 @@ export function PortalReviewPage({
             onViewChange={setView}
             languageCount={review.languages.length}
           />
-          {portal.publicationState === 'published' ? (
-            <section aria-labelledby="review-public-page-heading" className="space-y-3">
-              <h2 id="review-public-page-heading" className="text-lg font-semibold">
-                Public page
-              </h2>
-              <PortalPublicationRow
-                portal={portal}
-                mutation={updateMutation}
-                canManage={canManage}
-              />
-            </section>
-          ) : null}
         </div>
         <ReviewFooter
           view={describeReviewFooter(review)}

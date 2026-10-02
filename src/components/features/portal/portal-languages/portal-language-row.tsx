@@ -66,9 +66,11 @@ export function PortalLanguageRow({
               <span lang={locale}>{name.native}</span>
               {isFallback ? <Badge variant="secondary">Fallback</Badge> : null}
             </p>
-            <p className="text-sm text-muted-foreground">
-              {isFallback ? 'Used when a text is missing' : name.english}
-            </p>
+            {isFallback || name.english !== name.native ? (
+              <p className="text-sm text-muted-foreground">
+                {isFallback ? 'Used when a text is missing' : name.english}
+              </p>
+            ) : null}
           </div>
           <div className="flex items-center gap-2 max-sm:order-last max-sm:basis-full max-sm:pl-14">
             {description === null ? null : (

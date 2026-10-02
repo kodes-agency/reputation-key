@@ -101,6 +101,10 @@ function PortalListRoute() {
     successMessage: 'Portal restored as Disabled',
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
+  const disableMutation = useActionMutation(updatePortal, {
+    successMessage: 'Public page disabled',
+    invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
+  })
   // The dialogs show a refusal in place; the archive confirmation closes first,
   // so its refusal is the page's banner and a toast.
   const createMutation = useActionMutation(createPortalGroup, {
@@ -134,6 +138,7 @@ function PortalListRoute() {
       onSearchChange={(next) => void navigate({ search: next, replace: true })}
       archiveMutation={archiveMutation}
       restoreMutation={restoreMutation}
+      disableMutation={disableMutation}
       groups={groups.map((group) => ({ id: group.id, name: group.name }))}
       createMutation={createMutation}
       renameMutation={renameMutation}

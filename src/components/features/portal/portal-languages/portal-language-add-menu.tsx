@@ -40,7 +40,9 @@ export function PortalLanguageAddMenu({ addable, hasLater, onChange }: Props) {
               onSelect={() => onChange({ kind: 'add', locale })}
             >
               <span lang={locale}>{name.native}</span>
-              <span className="text-xs text-muted-foreground">{name.english}</span>
+              {name.english === name.native ? null : (
+                <span className="text-xs text-muted-foreground">{name.english}</span>
+              )}
             </DropdownMenuItem>
           )
         })}

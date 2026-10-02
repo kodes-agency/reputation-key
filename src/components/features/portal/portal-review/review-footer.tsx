@@ -2,6 +2,8 @@
 // to printed codes, the way back, and the one publish button. It stays at the
 // bottom of the column while the lists scroll. The button is the one the review
 // read says the server will accept; when it cannot be used the footer says why.
+// On a phone the way back is the header's alone, so the facts and the button
+// share one row and the footer covers less of a small screen.
 
 import { Link } from '@tanstack/react-router'
 import { QrCode } from 'lucide-react'
@@ -49,7 +51,11 @@ export function ReviewFooter({
             </p>
           )}
         </div>
-        <Button variant="outline" asChild className="min-h-11 sm:min-h-9">
+        <Button
+          variant="outline"
+          asChild
+          className="hidden min-h-11 sm:inline-flex sm:min-h-9"
+        >
           <Link
             to="/properties/$propertyId/portals/$portalId"
             params={{ propertyId, portalId }}

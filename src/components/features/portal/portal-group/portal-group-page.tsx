@@ -125,7 +125,8 @@ export function PortalGroupPage(props: PortalGroupPageProps) {
           props.archiveGroupMutation.error ??
           props.archiveMutation.error ??
           props.removePortalMutation.error ??
-          props.restoreMutation.error
+          props.restoreMutation.error ??
+          props.disableMutation?.error
         }
       />
       {results ? (
@@ -147,6 +148,7 @@ export function PortalGroupPage(props: PortalGroupPageProps) {
           onAdd={() => setDialog('add')}
           archiveMutation={props.archiveMutation}
           restoreMutation={props.restoreMutation}
+          disableMutation={props.disableMutation}
           removePortalMutation={props.removePortalMutation}
         />
         <div className="flex flex-col gap-8">

@@ -155,6 +155,10 @@ function PortalGroupRoute() {
     successMessage: 'Portal restored as Disabled',
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
+  const disableMutation = useActionMutation(updatePortal, {
+    successMessage: 'Public page disabled',
+    invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
+  })
   const renameMutation = useActionMutation(updatePortalGroup, {
     successMessage: 'Group renamed',
     onSuccess: () => portalGroupCachePolicy.onGroupUpdated(queryClient, propertyId),
@@ -222,6 +226,7 @@ function PortalGroupRoute() {
       onRetryHistory={() => void history.refetch()}
       archiveMutation={archiveMutation}
       restoreMutation={restoreMutation}
+      disableMutation={disableMutation}
       renameMutation={renameMutation}
       archiveGroupMutation={archiveGroupMutation}
       movePortalMutation={movePortalMutation}

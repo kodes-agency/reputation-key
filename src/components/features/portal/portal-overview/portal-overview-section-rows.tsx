@@ -43,6 +43,7 @@ export function PortalOverviewSectionRows({
   showGroup,
   archiveMutation,
   restoreMutation,
+  disableMutation,
 }: Props) {
   const headed = section.kind !== 'flat'
   const head = groupSlot(results, (index) =>
@@ -73,6 +74,7 @@ export function PortalOverviewSectionRows({
               menuExtra={rowMenuExtra?.(item)}
               archiveMutation={archiveMutation}
               restoreMutation={restoreMutation}
+              disableMutation={disableMutation}
             />
           ))
         : null}

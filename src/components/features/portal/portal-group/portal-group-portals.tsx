@@ -52,6 +52,7 @@ export function PortalGroupPortals({
   onAdd,
   archiveMutation,
   restoreMutation,
+  disableMutation,
   removePortalMutation,
 }: Props) {
   const resultsState: PortalOverviewResultsState = results?.state ?? { status: 'off' }
@@ -80,6 +81,7 @@ export function PortalGroupPortals({
           propertyName={propertyName}
           archiveMutation={archiveMutation}
           restoreMutation={restoreMutation}
+          disableMutation={disableMutation}
           results={resultsState}
           busy={results?.busy}
           scansOrder={byScans ? 'desc' : undefined}

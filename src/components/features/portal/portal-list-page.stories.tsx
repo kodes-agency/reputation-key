@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
+import { expect, fn, screen, userEvent, waitFor, within } from 'storybook/test'
 import {
   OLDER_CODE,
   overviewGroup,
@@ -245,6 +245,60 @@ export const RecoverableLifecycle: Story = {
       }),
     ).toBeInTheDocument()
     await userEvent.click(within(document.body).getByRole('button', { name: /cancel/i }))
+  },
+}
+
+const disableSpy = fn(
+  async (_input: { data: { portalId: string; publicationState: 'disabled' } }) =>
+    undefined,
+)
+
+/** A live page is taken down from the row's menu, after a confirmation. */
+export const DisablesALivePage: Story = {
+  args: {
+    ...baseArgs,
+    disableMutation: Object.assign(disableSpy, {
+      isPending: false,
+      error: null,
+      isSuccess: false,
+      data: null,
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    disableSpy.mockClear()
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: 'More actions for Reception' }),
+    )
+    await userEvent.click(
+      await within(document.body).findByRole('menuitem', {
+        name: 'Disable public page…',
+      }),
+    )
+    const dialog = within(
+      await within(document.body).findByRole('alertdialog', {
+        name: 'Disable the public page of Reception?',
+      }),
+    )
+    await userEvent.click(dialog.getByRole('button', { name: 'Disable public page' }))
+    await waitFor(() =>
+      expect(disableSpy).toHaveBeenCalledWith({
+        data: { portalId: 'p-reception', publicationState: 'disabled' },
+      }),
+    )
+  },
+}
+
+/** A draft has nothing live to take down. */
+export const DraftOffersNoDisable: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: 'More actions for Pool bar' }),
+    )
+    const menu = within(await within(document.body).findByRole('menu'))
+    await expect(
+      menu.queryByRole('menuitem', { name: /disable public page/i }),
+    ).toBeNull()
   },
 }
 

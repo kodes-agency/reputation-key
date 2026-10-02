@@ -122,8 +122,8 @@ export function describePortalStatus(
 }
 
 /**
- * Whether the header offers "Review & publish". Archival is terminal in this
- * UI (see PUBLICATION_TOGGLES), so there is nothing left to publish. The review
+ * Whether the header offers "Review & publish". An archived portal is restored
+ * from the Portals list first, so there is nothing to publish here. The review
  * route needs both the role's `portal.update` permission and the organisation's
  * `portal.write` capability (a separate controlled-beta switch from reading), and
  * the server refuses the write without either — this only keeps a button off the

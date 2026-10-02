@@ -123,6 +123,10 @@ function AllPropertiesRoute() {
     successMessage: 'Portal restored as Disabled',
     invalidateKeys: [portalKeys.all],
   })
+  const disableMutation = useActionMutation(updatePortal, {
+    successMessage: 'Public page disabled',
+    invalidateKeys: [portalKeys.all],
+  })
 
   return (
     <PortalAllPropertiesPage
@@ -150,6 +154,7 @@ function AllPropertiesRoute() {
       onSearchChange={(next) => void navigate({ search: next, replace: true })}
       archiveMutation={archiveMutation}
       restoreMutation={restoreMutation}
+      disableMutation={disableMutation}
     />
   )
 }
