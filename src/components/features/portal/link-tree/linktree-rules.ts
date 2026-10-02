@@ -11,6 +11,7 @@ import { generateKeyBetween } from 'fractional-indexing'
 import {
   GUEST_LOCALE_METADATA,
   OFFERED_GUEST_LOCALES,
+  adminLanguageCode,
   type GuestLocale,
   type OfferedGuestLocale,
 } from '#/shared/domain/guest-locale'
@@ -50,7 +51,7 @@ export function linkLabelFor(
 
 export type LinkLocaleChip = Readonly<{
   locale: GuestLocale
-  /** The two-letter chip: EN, БГ. */
+  /** The two-letter code: EN, BG. */
   chip: string
   name: string
   isMissing: boolean
@@ -63,11 +64,10 @@ export function linkLocaleChips(
 ): ReadonlyArray<LinkLocaleChip> {
   return locales.map((locale) => {
     const text = link.texts.find((entry) => entry.locale === locale)
-    const { chipLabel, englishName } = GUEST_LOCALE_METADATA[locale]
     return {
       locale,
-      chip: chipLabel,
-      name: englishName,
+      chip: adminLanguageCode(locale),
+      name: GUEST_LOCALE_METADATA[locale].englishName,
       isMissing: text === undefined || text.label.trim() === '',
     }
   })

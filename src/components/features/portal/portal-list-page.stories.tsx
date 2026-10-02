@@ -37,14 +37,27 @@ export const Default: Story = {
   },
 }
 
+/**
+ * The header's New portal. The phone's bottom bar repeats it (board 11) and CSS
+ * decides which one shows; story tests run without CSS, so both are in the tree,
+ * the header's first.
+ */
+function headerNewPortalButton(canvasElement: HTMLElement): HTMLElement {
+  const [header, phone] = within(canvasElement).getAllByRole('button', {
+    name: 'New portal',
+  })
+  if (header === undefined || phone?.closest('.sm\\:hidden') == null) {
+    throw new Error('expected New portal in the header and in the phone bar')
+  }
+  return header
+}
+
 // "New portal" opens the dialog over the list (the page keeps it in the URL);
 // Cancel closes it again.
 export const OpensTheNewPortalDialog: Story = {
   args: { ...baseArgs, newPortal: { data: newPortalData } },
   play: async ({ canvasElement }) => {
-    await userEvent.click(
-      within(canvasElement).getByRole('button', { name: 'New portal' }),
-    )
+    await userEvent.click(headerNewPortalButton(canvasElement))
     const dialog = within(await screen.findByRole('dialog'))
     await expect(dialog.getByRole('heading', { name: 'New portal' })).toBeInTheDocument()
     await expect(dialog.getByText('No one will be responsible yet')).toBeInTheDocument()
@@ -305,16 +318,19 @@ export const NeedsAttentionFilter: Story = {
   args: baseArgs,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /show: all/i }))
-    await userEvent.click(
-      await within(document.body).findByRole('menuitemradio', {
-        name: 'Needs attention',
-      }),
-    )
+    const toggle = canvas.getByRole('button', { name: /needs attention/i })
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    await userEvent.click(toggle)
     await waitFor(() =>
       expect(canvas.queryByRole('link', { name: 'Reception' })).toBeNull(),
     )
     await expect(canvas.getByRole('link', { name: 'Pool bar' })).toBeInTheDocument()
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    // A second press shows every Portal again.
+    await userEvent.click(toggle)
+    await expect(
+      await canvas.findByRole('link', { name: 'Reception' }),
+    ).toBeInTheDocument()
   },
 }
 
@@ -322,9 +338,9 @@ export const FlatList: Story = {
   args: baseArgs,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /group by: group/i }))
+    await userEvent.click(canvas.getByRole('button', { name: /group by: portal group/i }))
     await userEvent.click(
-      await within(document.body).findByRole('menuitemradio', { name: 'Nothing' }),
+      await within(document.body).findByRole('menuitemradio', { name: 'None' }),
     )
     await waitFor(() =>
       expect(canvas.queryByRole('button', { name: /portals in/i })).toBeNull(),

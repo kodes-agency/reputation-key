@@ -71,7 +71,7 @@ export function PortalAttentionLine({
               params={{ propertyId, portalId: row.portalId }}
               search={{ tab: 'page' }}
               aria-label={`Continue setup for ${row.name}`}
-              className={cn('font-medium text-foreground!', FOCUS_RING)}
+              className={cn('font-medium whitespace-nowrap text-foreground!', FOCUS_RING)}
             >
               Continue setup
             </Link>

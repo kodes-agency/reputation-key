@@ -52,9 +52,12 @@ export function PortalNewStartFromField({
             id="portal-new-start-property"
             className="mt-1"
           />
-          <Label htmlFor="portal-new-start-property" className="flex flex-col gap-0.5">
+          <Label
+            htmlFor="portal-new-start-property"
+            className="flex flex-col items-start gap-0.5"
+          >
             {propertyName ? `${propertyName}'s wording` : 'The property’s wording'}
-            <span className="text-sm font-normal text-muted-foreground">
+            <span className="text-sm leading-snug font-normal text-muted-foreground">
               The property&apos;s welcome line, yours to edit
             </span>
           </Label>
