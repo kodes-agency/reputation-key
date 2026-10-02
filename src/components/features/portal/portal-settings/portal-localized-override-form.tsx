@@ -9,9 +9,16 @@ import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalExperienceActions } from './portal-experience-settings-types'
 import { usePortalFormAutosave } from '../portal-editor/use-portal-form-autosave'
 
+/**
+ * This portal's own welcome line and link preview in one language. Part of the
+ * portal's draft, so they save as they are typed (unlike the property's wording
+ * below them, which keeps an explicit Save). Empty, they use the property's
+ * wording, which the placeholders show.
+ */
 export function PortalLocalizedOverrideForm({
   locale,
   portalId,
+  propertyName,
   initialTitle,
   initialDescription,
   titlePlaceholder,
@@ -21,6 +28,8 @@ export function PortalLocalizedOverrideForm({
 }: Readonly<{
   locale: OfferedGuestLocale
   portalId: string
+  /** The name guests read in large type; the welcome line sits above it. */
+  propertyName: string
   initialTitle: string
   initialDescription: string
   titlePlaceholder: string
@@ -28,8 +37,6 @@ export function PortalLocalizedOverrideForm({
   action: PortalExperienceActions['saveOverride']
   disabled: boolean
 }>) {
-  // This portal's own wording is part of its draft, so it saves as it is typed
-  // (unlike the property-wide fallback above it, which keeps an explicit Save).
   const defaults = { title: initialTitle, shortDescription: initialDescription }
   const autosave = usePortalFormAutosave(`override-${locale}`, defaults)
   const form = useForm({
@@ -43,26 +50,18 @@ export function PortalLocalizedOverrideForm({
   })
   return (
     // The write is the coordinator's, so Enter must not also submit natively.
-    <form
-      className="space-y-3 border-t pt-4"
-      onSubmit={(event) => event.preventDefault()}
-    >
-      <div>
-        <p className="text-sm font-medium">This Portal only</p>
-        <p className="text-xs text-muted-foreground">
-          Leave a field empty to inherit the Property fallback.
-        </p>
-      </div>
+    <form onSubmit={(event) => event.preventDefault()}>
       <FieldGroup>
         <form.Field name="title">
           {(field: BaseFieldApi) => (
             <FormTextField
               field={field}
               id={`portal-override-title-${locale}`}
-              label="Title override"
+              label="Welcome line"
               placeholder={titlePlaceholder}
               maxLength={120}
               disabled={disabled}
+              hint={`The line guests read above ${propertyName}, such as Spa reception.`}
             />
           )}
         </form.Field>
@@ -71,10 +70,12 @@ export function PortalLocalizedOverrideForm({
             <FormTextarea
               field={field}
               id={`portal-override-description-${locale}`}
-              label="Description override"
+              label="Link preview"
               placeholder={descriptionPlaceholder}
               maxLength={500}
+              rows={2}
               disabled={disabled}
+              hint="Shown with the page’s link when it is shared in a chat app."
             />
           )}
         </form.Field>

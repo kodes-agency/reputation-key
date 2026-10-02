@@ -100,7 +100,7 @@ export const WithGaps: Story = {
     await expect(canvas.getByText('3 of 5 · 2 missing')).toBeVisible()
     await expect(
       canvas.getByText(
-        'Now: Bulgarian guests see the description and 1 link label in English.',
+        'Now: Bulgarian guests see the link preview and 1 link label in English.',
       ),
     ).toBeVisible()
     // There is no AI translation control.
@@ -116,7 +116,7 @@ export const ShowMissingNamesEachGap: Story = {
       canvas.getByRole('button', { name: 'Show missing texts in Bulgarian' }),
     )
     const list = canvas.getByRole('list', { name: 'Missing in Bulgarian' })
-    await expect(within(list).getByText('Description')).toBeVisible()
+    await expect(within(list).getByText('Link preview')).toBeVisible()
     await expect(within(list).getByText('Needs the Property’s wording')).toBeVisible()
     await expect(within(list).getByText('Label for “Spa”')).toBeVisible()
     await expect(
@@ -162,18 +162,20 @@ export const AddMenuOffersTheLaunchSet: Story = {
   },
 }
 
+/** Opens Bulgarian's "more actions" menu and picks `entry` from it. */
+async function chooseForBulgarian(canvasElement: HTMLElement, entry: string) {
+  await userEvent.click(
+    within(canvasElement).getByRole('button', { name: 'More actions for Български' }),
+  )
+  await userEvent.click(
+    await within(document.body).findByRole('menuitem', { name: entry }),
+  )
+}
+
 export const MakeFallbackSwapsTheLanguages: Story = {
   args: { ...WithGaps.args, update: update() },
   play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(
-      canvas.getByRole('button', { name: 'More actions for Български' }),
-    )
-    await userEvent.click(
-      await within(document.body).findByRole('menuitem', {
-        name: 'Make fallback language',
-      }),
-    )
+    await chooseForBulgarian(canvasElement, 'Make fallback language')
     await waitFor(() =>
       expect(args.update).toHaveBeenCalledWith({
         data: {
@@ -189,13 +191,7 @@ export const MakeFallbackSwapsTheLanguages: Story = {
 export const RemoveAnAdditionalLanguage: Story = {
   args: { ...WithGaps.args, update: update() },
   play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(
-      canvas.getByRole('button', { name: 'More actions for Български' }),
-    )
-    await userEvent.click(
-      await within(document.body).findByRole('menuitem', { name: 'Remove language' }),
-    )
+    await chooseForBulgarian(canvasElement, 'Remove language')
     await waitFor(() =>
       expect(args.update).toHaveBeenCalledWith({
         data: {

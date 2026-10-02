@@ -1,5 +1,5 @@
 // What the header's autosave line says for each state of the coordinator. The
-// server's own sentence for a refused write (a slug already taken, say) is added
+// server's own sentence for a refused write (a portal that was archived, say) is added
 // by the component, which owns the error-to-words mapping.
 
 import type { PortalDraftAutosaveState } from './portal-draft-autosave'

@@ -169,9 +169,9 @@ export function describeCoverage(row: PortalLanguageCoverageRow): CoverageDescri
 export function describeMissingText(text: MissingPortalText): string {
   switch (text.kind) {
     case 'title':
-      return 'Title'
+      return 'Welcome line'
     case 'description':
-      return 'Description'
+      return 'Link preview'
     case 'link_label':
       return text.linkLabel === null ? 'Link label' : `Label for “${text.linkLabel}”`
   }
@@ -207,8 +207,8 @@ const joinParts = (parts: readonly string[]): string =>
 function describeReadInFallback(texts: readonly MissingPortalText[]): string {
   const labels = texts.filter((text) => text.kind === 'link_label').length
   return joinParts([
-    ...(texts.some((text) => text.kind === 'title') ? ['the title'] : []),
-    ...(texts.some((text) => text.kind === 'description') ? ['the description'] : []),
+    ...(texts.some((text) => text.kind === 'title') ? ['the welcome line'] : []),
+    ...(texts.some((text) => text.kind === 'description') ? ['the link preview'] : []),
     ...(labels > 0 ? [plural(labels, 'link label', 'link labels')] : []),
   ])
 }

@@ -1,6 +1,5 @@
 import type { Action } from '#/components/hooks/use-action'
 import {
-  GUEST_LOCALE_METADATA,
   OFFERED_GUEST_LOCALES,
   type GuestLocale,
   type OfferedGuestLocale,
@@ -8,15 +7,6 @@ import {
 
 /** The locales a manager can edit and publish today. */
 export const PORTAL_GUEST_LOCALES: readonly OfferedGuestLocale[] = OFFERED_GUEST_LOCALES
-
-export const PORTAL_GUEST_LOCALE_LABEL: Readonly<Record<OfferedGuestLocale, string>> = {
-  en: GUEST_LOCALE_METADATA.en.englishName,
-  es: GUEST_LOCALE_METADATA.es.englishName,
-  it: GUEST_LOCALE_METADATA.it.englishName,
-  fr: GUEST_LOCALE_METADATA.fr.englishName,
-  de: GUEST_LOCALE_METADATA.de.englishName,
-  bg: GUEST_LOCALE_METADATA.bg.englishName,
-}
 
 export type PortalExperienceSettings = Readonly<{
   profile: Readonly<{

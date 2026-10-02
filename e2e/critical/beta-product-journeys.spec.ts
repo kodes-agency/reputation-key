@@ -136,10 +136,10 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await expect(
       page.getByRole('heading', { name: 'E2E Guest Portal P1' }).first(),
     ).toBeVisible()
-    // By id, not by label: the localized content editor also renders a field
-    // whose accessible name is exactly "Description", so getByLabel resolves
-    // three elements. This is the one the autosave writes.
-    const description = page.locator('#edit-portal-description')
+    // This portal's own English link preview, which the autosave writes. By id,
+    // not by label: every language has a "Link preview" field, and so does the
+    // property's wording.
+    const description = page.locator('#portal-override-description-en')
     await description.fill('Persisted Portal manager change.')
     await expect(page.getByText('Draft saved')).toBeVisible()
     await page.reload()

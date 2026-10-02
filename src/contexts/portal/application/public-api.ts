@@ -23,6 +23,8 @@ export type {
 } from '../domain/events'
 
 export { isValidExternalUrl } from '../domain/rules'
+/** Whether the Property wrote wording for a language: the base a Portal's own lines need. */
+export { hasPropertyWording } from '../domain/property-wording'
 export type { Portal } from '../domain/types'
 /** C2: portal token existence/metadata for management surfaces — never token material. */
 export type { PortalTokenStatus } from './portal-token-status'

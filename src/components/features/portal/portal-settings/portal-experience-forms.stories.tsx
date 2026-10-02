@@ -101,7 +101,9 @@ export const CommandsUseSharedDtos: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
 
-    await userEvent.click(canvas.getByRole('button', { name: /save property fallback/i }))
+    // The property's wording is written, so its fold starts closed.
+    await userEvent.click(canvas.getByRole('button', { name: /property wording/i }))
+    await userEvent.click(canvas.getByRole('button', { name: /save property wording/i }))
     await waitFor(() =>
       expect(args.actions.saveContent).toHaveBeenCalledWith({
         data: {
@@ -118,7 +120,10 @@ export const CommandsUseSharedDtos: Story = {
     await expect(
       canvas.queryByRole('button', { name: /save portal override/i }),
     ).not.toBeInTheDocument()
-    await userEvent.type(canvas.getByLabelText('Title override'), 'Pool')
+    await userEvent.type(
+      canvas.getByLabelText('Welcome line', { selector: '#portal-override-title-en' }),
+      'Pool',
+    )
     await waitFor(
       () =>
         expect(args.actions.saveOverride).toHaveBeenCalledWith({

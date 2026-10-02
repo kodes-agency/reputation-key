@@ -74,6 +74,51 @@ const portal = {
   additionalGuestLocales: ['bg' as const],
 }
 
+/** A Linktree link with an English label and, when given, a Bulgarian one. */
+function storyLink(
+  id: string,
+  sortKey: string,
+  label: string,
+  line: string,
+  bulgarian: string | null,
+) {
+  return {
+    id,
+    categoryId: 'cat-1',
+    url: `https://avela.example/${id}`,
+    iconKey: null,
+    imageAssetId: null,
+    sortKey,
+    texts: [
+      { locale: 'en' as const, label, line, provenance: null },
+      ...(bulgarian === null
+        ? []
+        : [{ locale: 'bg' as const, label: bulgarian, line: null, provenance: null }]),
+    ],
+    destination: {
+      state: 'approved' as const,
+      sourceType: 'recognized' as const,
+      approvedByUserId: 'u-1',
+    },
+  }
+}
+
+/** The same portal before anyone wrote the property's Bulgarian wording. */
+function withoutBulgarianWording(
+  resources: PortalEditorResources,
+): PortalEditorResources {
+  const experience = resources.portalExperience
+  if (!experience) return resources
+  return {
+    ...resources,
+    portalExperience: {
+      ...experience,
+      content: experience.content.filter((row) => row.locale !== 'bg'),
+      overrides: experience.overrides.filter((row) => row.locale !== 'bg'),
+    },
+  }
+}
+
 function makeResources(
   autosaveUpdateMutation: Action<UpdatePortalVariables>,
 ): PortalEditorResources {
@@ -84,44 +129,53 @@ function makeResources(
       state: 'verified' as const,
       retrievedAt: new Date('2026-08-20T10:00:00.000Z'),
     },
-    links: [
-      {
-        id: 'l-1',
-        label: 'Google Reviews',
-        url: 'https://google.com',
-        sortKey: 'a',
-        categoryId: 'cat-1',
-      },
-    ],
+    links: (
+      [
+        ['l-1', 'a', 'Discover the resort'],
+        ['l-2', 'b', 'Spa & treatments'],
+        ['l-3', 'c', 'Olive Terrace menu'],
+        ['l-4', 'd', 'Getting here'],
+      ] as const
+    ).map(([id, sortKey, label]) => ({
+      id,
+      label,
+      url: `https://avela.example/${id}`,
+      sortKey,
+      categoryId: 'cat-1',
+    })),
     linktree: {
       portalId: 'p-1',
       enabled: true,
       maxLinks: 4,
       primaryLocale: 'en' as const,
       locales: ['en' as const, 'bg' as const],
-      titles: {},
+      titles: { en: 'Around the resort', bg: 'Около курорта' },
+      // The four tiles the preview draws (portal-preview-fixtures.ts), so the
+      // list and the phone tell the same story.
       links: [
+        storyLink(
+          'l-1',
+          'a',
+          'Discover the resort',
+          'Rooms, pools, the sea',
+          'Открийте курорта',
+        ),
+        storyLink('l-2', 'b', 'Spa & treatments', 'Book a time', 'Спа и процедури'),
         {
-          id: 'l-1',
-          categoryId: 'cat-1',
-          url: 'https://google.com',
-          iconKey: null,
-          imageAssetId: null,
-          sortKey: 'a',
-          texts: [
-            {
-              locale: 'en' as const,
-              label: 'Google Reviews',
-              line: null,
-              provenance: null,
-            },
-          ],
+          ...storyLink('l-3', 'c', 'Olive Terrace menu', 'Lunch and dinner', null),
           destination: {
-            state: 'approved' as const,
-            sourceType: 'recognized' as const,
-            approvedByUserId: 'u-1',
+            state: 'pending' as const,
+            sourceType: null,
+            approvedByUserId: null,
           },
         },
+        storyLink(
+          'l-4',
+          'd',
+          'Getting here',
+          'Directions and parking',
+          'Как да стигнете',
+        ),
       ],
     },
     updateMutation: action(async (_input: UpdatePortalVariables) => undefined),
@@ -162,10 +216,36 @@ function makeResources(
         backgroundColor: '#FFFFFF',
         textColor: '#111827',
       },
+      // The property's wording in both languages, and this portal's own welcome
+      // lines on top: what the preview draws above "Avela Resort".
       content: [
-        { locale: 'en' as const, title: 'Welcome', shortDescription: 'Hi', version: 1 },
+        {
+          locale: 'en' as const,
+          title: 'Welcome to Avela',
+          shortDescription: 'Rate your visit to Avela Resort.',
+          version: 1,
+        },
+        {
+          locale: 'bg' as const,
+          title: 'Добре дошли в Авела',
+          shortDescription: 'Оценете посещението си в Авела.',
+          version: 1,
+        },
       ],
-      overrides: [],
+      overrides: [
+        {
+          locale: 'en' as const,
+          title: 'Pool & Terrace',
+          shortDescription: null,
+          version: 1,
+        },
+        {
+          locale: 'bg' as const,
+          title: 'Басейн и тераса',
+          shortDescription: null,
+          version: 1,
+        },
+      ],
       canManagePropertyBrand: true,
     },
     approvedDestinations: { destinations: [], canApprove: true },
@@ -187,18 +267,6 @@ function saveStatus(canvas: ReturnType<typeof within>): HTMLElement {
   return within(canvas.getByTestId('save-status')).getByRole('status')
 }
 
-/**
- * The portal's own description. By id, not by label: the property fallback and
- * this portal's override below it are labelled "Description" too.
- */
-function portalDescription(canvasElement: HTMLElement): HTMLTextAreaElement {
-  const field = canvasElement.querySelector<HTMLTextAreaElement>(
-    '#edit-portal-description',
-  )
-  if (field === null) throw new Error('the portal description field is not on the page')
-  return field
-}
-
 export const SectionList: Story = {
   args: { resources: makeResources(action(async () => undefined)) },
   play: async ({ canvasElement }) => {
@@ -210,7 +278,7 @@ export const SectionList: Story = {
       'WelcomePool & Terrace',
       'Rating & GoogleAlways included',
       'Private note3★ or below',
-      'Linktree1 link',
+      'Linktree4 links',
       'FooterPrivacy notice',
       'Languages2 languages',
       'GroupPool side',
@@ -250,7 +318,7 @@ export const LinktreeSection: Story = sectionStory('linktree', 'Linktree')
 async function openTileMenu(canvasElement: HTMLElement) {
   await userEvent.click(
     await within(canvasElement).findByRole('button', {
-      name: 'More actions for Google Reviews',
+      name: 'More actions for Discover the resort',
     }),
   )
 }
@@ -328,21 +396,16 @@ export const LanguagesFlagMissingText: Story = {
   },
 }
 
-export const AutosavesTheDescription: Story = {
+export const AutosavesTheName: Story = {
   args: { resources: makeResources(action(async () => undefined)) },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    await userEvent.type(portalDescription(canvasElement), ' Open all day.')
+    await userEvent.type(canvas.getByLabelText('Name'), ' 2')
     await expect(saveStatus(canvas)).toHaveTextContent('Saving…')
     await waitFor(
       () =>
         expect(args.resources.autosaveUpdateMutation).toHaveBeenCalledWith({
-          data: {
-            portalId: 'p-1',
-            name: 'Pool & Terrace',
-            slug: 'pool-terrace',
-            description: 'Drinks and lunch by the pool. Open all day.',
-          },
+          data: { portalId: 'p-1', name: 'Pool & Terrace 2' },
         }),
       AUTOSAVE_WAIT,
     )
@@ -356,6 +419,53 @@ export const AutosavesTheDescription: Story = {
     await expect(
       canvas.queryByRole('button', { name: /save changes/i }),
     ).not.toBeInTheDocument()
+  },
+}
+
+// Welcome names what guests read: each language's welcome line and link
+// preview, empty when they use the property's wording (shown as placeholders),
+// with the property's wording folded away below. The portal's address and its
+// old description are not guest-facing, so they are not here.
+export const WelcomeLinesPerLanguage: Story = {
+  args: { resources: makeResources(action(async () => undefined)) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const english = within(canvas.getByRole('group', { name: /English/ }))
+    await expect(english.getByLabelText('Welcome line')).toHaveValue('Pool & Terrace')
+    await expect(english.getByLabelText('Welcome line')).toHaveAttribute(
+      'placeholder',
+      'Welcome to Avela',
+    )
+    await expect(english.getByLabelText('Welcome line')).toHaveAccessibleDescription(
+      /above Avela Resort/,
+    )
+    await expect(english.getByLabelText('Link preview')).toBeVisible()
+    await expect(
+      english.getByRole('button', { name: /Property wording/ }),
+    ).toHaveAttribute('aria-expanded', 'false')
+    await expect(canvas.queryByText(/url slug/i)).toBeNull()
+    await expect(canvas.queryByRole('button', { name: /change slug/i })).toBeNull()
+  },
+}
+
+// Bulgarian is offered but the property has no Bulgarian wording, so this
+// portal's own Bulgarian lines would not count: the card says so and opens the
+// property's wording to be written.
+export const LanguageWithoutPropertyWording: Story = {
+  args: {
+    resources: withoutBulgarianWording(makeResources(action(async () => undefined))),
+  },
+  play: async ({ canvasElement }) => {
+    const bulgarian = within(
+      within(canvasElement).getByRole('group', { name: /Bulgarian/ }),
+    )
+    await expect(bulgarian.getByText(/has no property wording yet/)).toBeVisible()
+    await expect(
+      bulgarian.getByRole('button', { name: /Property wording/ }),
+    ).toHaveAttribute('aria-expanded', 'true')
+    await expect(
+      bulgarian.getByRole('button', { name: 'Save property wording' }),
+    ).toBeVisible()
   },
 }
 
@@ -384,7 +494,7 @@ export const FailedSaveCanBeRetried: Story = {
       new Error('offline'),
     )
     const canvas = within(canvasElement)
-    await userEvent.type(portalDescription(canvasElement), '!')
+    await userEvent.type(canvas.getByLabelText('Name'), '!')
     await waitFor(
       () => expect(saveStatus(canvas)).toHaveTextContent('Not saved'),
       AUTOSAVE_WAIT,
@@ -395,63 +505,6 @@ export const FailedSaveCanBeRetried: Story = {
       AUTOSAVE_WAIT,
     )
     await expect(args.resources.autosaveUpdateMutation).toHaveBeenCalledTimes(2)
-  },
-}
-
-export const SlugIsSavedWhenLeftNotWhileTyped: Story = {
-  args: { resources: makeResources(action(async () => undefined)) },
-  play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /change slug/i }))
-    const slug = canvas.getByRole('textbox', { name: /url slug/i })
-    await userEvent.clear(slug)
-    await userEvent.type(slug, 'pool-side')
-    // Longer than the debounce: a half-typed address must not have been written.
-    await new Promise((resolve) => setTimeout(resolve, 1200))
-    await expect(args.resources.autosaveUpdateMutation).not.toHaveBeenCalled()
-    await userEvent.tab()
-    await waitFor(
-      () =>
-        expect(args.resources.autosaveUpdateMutation).toHaveBeenCalledWith({
-          data: expect.objectContaining({ slug: 'pool-side' }),
-        }),
-      AUTOSAVE_WAIT,
-    )
-  },
-}
-
-// Every write of the form sends the whole form, so a name write that fires while
-// the slug is being typed must still send the slug the person last left it with.
-export const AnotherWriteKeepsTheCommittedSlug: Story = {
-  args: { resources: makeResources(action(async () => undefined)) },
-  play: async ({ canvasElement, args }) => {
-    const canvas = within(canvasElement)
-    await userEvent.type(canvas.getByLabelText('Name'), ' 2')
-    await userEvent.click(canvas.getByRole('button', { name: /change slug/i }))
-    const slug = canvas.getByRole('textbox', { name: /url slug/i })
-    await userEvent.clear(slug)
-    await userEvent.type(slug, 'pool-side')
-    await waitFor(
-      () =>
-        expect(args.resources.autosaveUpdateMutation).toHaveBeenCalledWith({
-          data: expect.objectContaining({
-            name: 'Pool & Terrace 2',
-            slug: 'pool-terrace',
-          }),
-        }),
-      AUTOSAVE_WAIT,
-    )
-    await expect(args.resources.autosaveUpdateMutation).not.toHaveBeenCalledWith({
-      data: expect.objectContaining({ slug: 'pool-side' }),
-    })
-    await userEvent.tab()
-    await waitFor(
-      () =>
-        expect(args.resources.autosaveUpdateMutation).toHaveBeenCalledWith({
-          data: expect.objectContaining({ slug: 'pool-side' }),
-        }),
-      AUTOSAVE_WAIT,
-    )
   },
 }
 

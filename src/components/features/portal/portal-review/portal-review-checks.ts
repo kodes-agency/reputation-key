@@ -106,8 +106,8 @@ type Wording = 'read' | 'needed'
 
 /** One missing text in words: what a guest reads ("‘Spa’") or what publishing needs ("the label for ‘Spa’"). */
 function textPhrase(key: string, wording: Wording, context: ReviewCheckContext): Phrase {
-  if (key === 'title') return [plain('the title')]
-  if (key === 'shortDescription') return [plain('the description')]
+  if (key === 'title') return [plain('the welcome line')]
+  if (key === 'shortDescription') return [plain('the link preview')]
   if (key === 'heroAlt') return [plain('the photo description')]
   const label = linkLabelOf(key, context.missing)
   if (label === null) return [plain('a link label')]

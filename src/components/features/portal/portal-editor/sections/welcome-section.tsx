@@ -1,6 +1,8 @@
-// Welcome: the portal's name and description, then the wording guests read in
-// each language. The name and this portal's own wording save as they are typed;
-// the property-wide fallback wording keeps an explicit Save.
+// Welcome: the portal's name, which only the team reads, then the words guests
+// read in each language: the welcome line above the property's name and the
+// link preview. The name and this portal's own lines save as they are typed;
+// the property's wording, which every portal starts from, keeps an explicit
+// Save.
 
 import { PortalEditorSectionFrame } from '../portal-editor-section-frame'
 import { PortalWelcomeForm } from '../portal-welcome-form'
