@@ -453,6 +453,21 @@ left, and "no_visible_change" when changes were recorded but the draft says what
 (Member) or a dark capability never gets a button the server would refuse. `nothingToPublish` is the question the publish use case answers `unchanged` to.
 A Portal that is not live has no change list: it has no live version to differ from.
 
+A content review (`completeContentReview`, a live Portal only) records three facts at
+once. The configuration completeness counts five fields on the working copy Publish reads,
+under the Portal lock (`portal-configuration-completeness.ts`): the Portal name; the
+primary language's welcome line, link preview and link labels (what the `primary_text`
+check asks); the Property look (a Brand Profile with a display name and an accent); a
+Linktree link guests can open (the Linktree on and an approved link); and the Property's
+verified Google review destination, which the use case looks up. The fact names the fields
+it counted (`fieldSet: 'immersive_hub'`, event version 3). Every version 1 and 2 fact
+counted the legacy settings (name, `portals.description`, the Portal theme's colour, link
+categories, link addresses), which a v3 Portal cannot complete; Metric keeps the two under
+separate versions of `portal.configuration_completeness`. The destination ratio counts every
+link: one with a Property destination when that destination is approved, a raw legacy
+address by the safe-link allowlist (ADR 0044). The ratio needs five links for a reading and
+a new Portal holds at most four, so only an older Portal with more links ever records one.
+
 The earlier issued-image implementation (presigned browser upload, issuance
 table, background job) was removed and is not coming back. The nullable
 `portals.hero_image_url` column and read path remain so published historical

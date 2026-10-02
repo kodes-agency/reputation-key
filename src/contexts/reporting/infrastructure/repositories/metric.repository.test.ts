@@ -18,6 +18,8 @@ const PORTAL_RATING_VERSION = '11111111-1111-4111-8111-111111111202'
 const CONTENT_REVIEW_VERSION = '11111111-1111-4111-8111-111111111101'
 const RATING_COUNT_VERSION = '11111111-1111-4111-8111-111111111302'
 const RATING_AVERAGE_VERSION = '11111111-1111-4111-8111-111111111303'
+const LEGACY_COMPLETENESS_VERSION = '11111111-1111-4111-8111-111111111102'
+const IMMERSIVE_COMPLETENESS_VERSION = '11111111-1111-4111-8111-111111113102'
 
 let pool: Pool
 let nextReading = 1
@@ -325,5 +327,34 @@ describe.sequential('governed metric aggregate reader (integration)', () => {
       readingCount: 1,
       correctionHead: NOW,
     })
+  })
+
+  it('finds a reading by its source event under one version and Organization only', async () => {
+    const readingId = await insertReading({
+      versionId: LEGACY_COMPLETENESS_VERSION,
+      metricKey: 'portal.configuration_completeness',
+      sourcePolicy: 'first_party_workflow',
+      value: 80,
+    })
+    const sourceEventId = `metric-repository-source-${readingId}`
+    const repository = createMetricRepository(getDb(), () => NOW)
+    const presence = (overrides: Partial<Parameters<typeof repository.hasReading>[0]>) =>
+      repository.hasReading({
+        organizationId: ORG_ID,
+        definitionVersionId: LEGACY_COMPLETENESS_VERSION,
+        sourceEventId,
+        ...overrides,
+      })
+
+    await expect(presence({})).resolves.toBe(true)
+    await expect(
+      presence({ definitionVersionId: IMMERSIVE_COMPLETENESS_VERSION }),
+    ).resolves.toBe(false)
+    await expect(presence({ sourceEventId: 'another-source-event' })).resolves.toBe(false)
+    await expect(
+      presence({
+        organizationId: organizationId('org-metricrepo-0000-0000-0000-000000000009'),
+      }),
+    ).resolves.toBe(false)
   })
 })

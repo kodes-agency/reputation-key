@@ -1,4 +1,5 @@
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type { PropertyGoogleReviewDestinationPublicApi } from '#/contexts/property/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import type {
   OrganizationId,
@@ -16,6 +17,7 @@ import type {
 import { portalError } from '../../domain/errors'
 import type { PortalRepository } from '../ports/portal.repository'
 import { assertPropertyAccess } from '../assert-property-access'
+import { findVerifiedGoogleReviewDestination } from '../portal-publication-readiness'
 
 export type PortalWorkflowSupersedes = Readonly<{
   contentReviewSourceEventId: string
@@ -32,6 +34,11 @@ export type PortalWorkflowFactCommand = Readonly<{
   revision: number
   supersedes: PortalWorkflowSupersedes | null
   occurredAt: Date
+  /**
+   * The Property's Google review destination is verified, as this review found
+   * it: the one completeness field the Portal's own rows cannot answer.
+   */
+  googleReviewDestinationVerified: boolean
 }>
 
 export type PortalWorkflowFactEvent =
@@ -69,6 +76,7 @@ export type CompleteContentReviewDeps = Readonly<{
   portalRepo: PortalRepository
   staffPublicApi: StaffPublicApi
   portalGroupLookup: PortalGroupLookup
+  propertyGoogleReviewDestinationApi: PropertyGoogleReviewDestinationPublicApi
   factStore: PortalWorkflowFactStore
   clock: () => Date
 }>
@@ -115,11 +123,14 @@ export const completeContentReview = (deps: CompleteContentReviewDeps) => {
     }
 
     const occurredAt = deps.clock()
-    const group = await deps.portalGroupLookup.findGroupForPortal(
-      ctx.organizationId,
-      portal.id,
-      occurredAt,
-    )
+    const [group, googleReviewDestination] = await Promise.all([
+      deps.portalGroupLookup.findGroupForPortal(
+        ctx.organizationId,
+        portal.id,
+        occurredAt,
+      ),
+      findVerifiedGoogleReviewDestination(deps, ctx.organizationId, portal),
+    ])
     if (group && group.propertyId !== portal.propertyId) {
       throw portalError('forbidden', 'Portal group attribution crosses property scope')
     }
@@ -133,6 +144,7 @@ export const completeContentReview = (deps: CompleteContentReviewDeps) => {
       revision: input.revision,
       supersedes: input.supersedes ?? null,
       occurredAt,
+      googleReviewDestinationVerified: googleReviewDestination !== null,
     })
   }
 }
