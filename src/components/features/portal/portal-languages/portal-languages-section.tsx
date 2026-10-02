@@ -127,8 +127,8 @@ function MissingTextNote({
         >
           Linktree
         </Link>
-        . A title and a description start from the property&rsquo;s wording, which an
-        account admin writes.
+        . A welcome line and a link preview start from the property&rsquo;s wording, which
+        an account admin writes.
       </p>
     </section>
   )
