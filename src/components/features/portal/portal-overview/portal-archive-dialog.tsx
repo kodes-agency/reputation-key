@@ -17,7 +17,12 @@ import {
   AlertDialogTitle,
 } from '#/components/ui/alert-dialog'
 import type { Action } from '#/components/hooks/use-action'
+import type { PortalDisableMutation } from './portal-disable-dialog'
 
+/**
+ * The Portal lifecycle actions a list offers in a row's "more actions" menu.
+ * A list without `disableMutation` leaves "Disable public page" out.
+ */
 export type PortalArchiveMutations = Readonly<{
   archiveMutation: Action<{
     data: { portalId: string; publicationState: 'archived' }
@@ -25,6 +30,7 @@ export type PortalArchiveMutations = Readonly<{
   restoreMutation: Action<{
     data: { portalId: string; publicationState: 'disabled' }
   }>
+  disableMutation?: PortalDisableMutation
 }>
 
 type Props = PortalArchiveMutations &

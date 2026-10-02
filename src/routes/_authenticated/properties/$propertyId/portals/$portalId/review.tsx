@@ -8,7 +8,6 @@ import { toast } from 'sonner'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { portalKeys } from '#/shared/queries/query-keys'
-import { usePermissions } from '#/shared/hooks/usePermissions'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
 import { getPortalPreview } from '#/contexts/portal/server/portal-preview'
@@ -68,7 +67,6 @@ function PortalWorkspaceReview() {
   const { data: managers } = useSuspenseQuery(responsibleManagersQuery(portalId))
   const { data: membersData } = useSuspenseQuery(membersQuery)
   const actions = usePortalDetailActions(propertyId, portalId)
-  const { can: canDo } = usePermissions()
   const { portal } = portalData
   if (!portal) throw notFound()
   // The update that makes a portal live reports through the page, not through
@@ -108,8 +106,6 @@ function PortalWorkspaceReview() {
       getPortalPreview={getPortalPreview}
       onPublish={() => void publish()}
       isPublishing={isPublishing}
-      updateMutation={actions.update}
-      canManage={canDo('portal.update')}
     />
   )
 }

@@ -1,4 +1,4 @@
-// "What guests will see change": every change since the live version, in plain
+// "Changes guests will see": every change since the live version, in plain
 // words, each with who made it and when, and "Show" to bring it into view in
 // the phones. A portal that is not live has no list: nothing is public yet, so
 // the heading says what publishing does instead.
@@ -43,7 +43,7 @@ export function ReviewChanges({ review, now, timeZone, shownId, onShow }: Props)
         id="review-changes-heading"
         className="flex items-baseline gap-2 text-lg font-semibold"
       >
-        What guests will see change
+        Changes guests will see
         {lines.length === 0 ? null : (
           <span className="text-sm font-normal text-muted-foreground">
             {lines.length}
@@ -128,7 +128,11 @@ function ChangeRow({
             {line.actor}
             {line.actor !== null && time !== null ? ' · ' : null}
             {time === null ? null : (
-              <time dateTime={time.dateTime} title={time.title}>
+              <time
+                dateTime={time.dateTime}
+                title={time.title}
+                className="whitespace-nowrap"
+              >
                 {time.label}
               </time>
             )}

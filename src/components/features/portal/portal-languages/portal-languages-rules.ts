@@ -135,6 +135,17 @@ export function applyLanguageChange(
   return next === null ? null : asOfferedSet(next)
 }
 
+/** The English name to show beside a language's own; none for English, which would repeat it. */
+export function englishNameBeside(locale: GuestLocale): string | null {
+  const { nativeName, englishName } = GUEST_LOCALE_METADATA[locale]
+  return englishName === nativeName ? null : englishName
+}
+
+/** The line under a language's name in the list: what the fallback does, or the English name. */
+export function languageSubline(locale: GuestLocale, isFallback: boolean): string | null {
+  return isFallback ? 'Used when a text is missing' : englishNameBeside(locale)
+}
+
 export function languageDisplayName(locale: GuestLocale): {
   native: string
   english: string

@@ -42,6 +42,7 @@ export function PortalOverviewTableRow({
   menuExtra,
   archiveMutation,
   restoreMutation,
+  disableMutation,
 }: Props) {
   const classes = useOverviewClasses()
   const { row } = item
@@ -76,6 +77,7 @@ export function PortalOverviewTableRow({
           propertyId={propertyId}
           archiveMutation={archiveMutation}
           restoreMutation={restoreMutation}
+          disableMutation={disableMutation}
           extra={menuExtra}
         />
       </TableCell>

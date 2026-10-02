@@ -5,8 +5,10 @@ import {
   describeCoverage,
   describeFallbackEffect,
   describeMissingText,
+  englishNameBeside,
   hasLaterLanguages,
   languageDisplayName,
+  languageSubline,
   missingTextAction,
   missingTextSection,
   type LanguageRegistry,
@@ -187,6 +189,28 @@ describe('languageDisplayName', () => {
       english: 'Bulgarian',
       chip: 'BG',
     })
+  })
+})
+
+describe('englishNameBeside', () => {
+  it('gives the English name beside a language read by another name', () => {
+    expect(englishNameBeside('bg')).toBe('Bulgarian')
+  })
+
+  it('gives nothing for English, whose own name is already English', () => {
+    expect(englishNameBeside('en')).toBeNull()
+  })
+})
+
+describe('languageSubline', () => {
+  it('says what the fallback language does', () => {
+    expect(languageSubline('en', true)).toBe('Used when a text is missing')
+    expect(languageSubline('bg', true)).toBe('Used when a text is missing')
+  })
+
+  it('gives another language its English name, and English none', () => {
+    expect(languageSubline('de', false)).toBe('German')
+    expect(languageSubline('en', false)).toBeNull()
   })
 })
 

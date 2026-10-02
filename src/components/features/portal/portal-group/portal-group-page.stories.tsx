@@ -55,6 +55,7 @@ const meta: Meta<typeof PortalGroupPage> = {
     onRetryHistory: fn(),
     archiveMutation: baseArgs.archiveMutation,
     restoreMutation: baseArgs.restoreMutation,
+    disableMutation: baseArgs.disableMutation,
     renameMutation: baseArgs.renameMutation,
     archiveGroupMutation: baseArgs.archiveGroupMutation,
     movePortalMutation: action<{ data: { portalGroupId: string; portalId: string } }>(),

@@ -37,6 +37,7 @@ export function PortalAllPropertiesTable({
   onToggleProperty,
   archiveMutation,
   restoreMutation,
+  disableMutation,
 }: Props) {
   const [foldedGroups, setFoldedGroups] = useState<readonly string[]>([])
   const toggleGroup = (key: string) =>
@@ -82,6 +83,7 @@ export function PortalAllPropertiesTable({
                         nested
                         archiveMutation={archiveMutation}
                         restoreMutation={restoreMutation}
+                        disableMutation={disableMutation}
                       />
                     )
                   })

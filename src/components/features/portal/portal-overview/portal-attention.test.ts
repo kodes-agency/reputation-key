@@ -4,6 +4,7 @@ import {
   attentionRank,
   needsAttention,
   portalAttention,
+  offersAttentionFilter,
 } from './portal-attention'
 import { NO_CODE, OLDER_CODE, overviewRow } from './portal-overview-fixtures'
 
@@ -191,5 +192,19 @@ describe('ordering by attention', () => {
     expect(needsAttention({ kind: 'older_code' })).toBe(true)
     expect(needsAttention({ kind: 'archived' })).toBe(false)
     expect(needsAttention({ kind: 'none' })).toBe(false)
+  })
+})
+
+describe('offersAttentionFilter', () => {
+  it('offers the filter while a Portal needs attention', () => {
+    expect(offersAttentionFilter(2, {})).toBe(true)
+  })
+
+  it('leaves it out when nothing needs attention, as it would keep nothing', () => {
+    expect(offersAttentionFilter(0, {})).toBe(false)
+  })
+
+  it('keeps it while it is on, so it can be turned off', () => {
+    expect(offersAttentionFilter(0, { show: 'attention' })).toBe(true)
   })
 })

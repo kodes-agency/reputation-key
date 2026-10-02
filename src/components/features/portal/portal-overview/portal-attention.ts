@@ -164,3 +164,15 @@ export function attentionRank(attention: PortalAttention): number {
 export function needsAttention(attention: PortalAttention): boolean {
   return attention.kind !== 'none' && attention.kind !== 'archived'
 }
+
+/**
+ * Whether the overview's toolbar offers its "Needs attention" toggle: while a
+ * Portal needs attention, and while the filter is on, so it can be turned off
+ * again. With nothing to keep it is left out.
+ */
+export function offersAttentionFilter(
+  needingAttention: number,
+  search: Readonly<{ show?: 'attention' }>,
+): boolean {
+  return needingAttention > 0 || search.show === 'attention'
+}
