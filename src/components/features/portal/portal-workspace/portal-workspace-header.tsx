@@ -16,6 +16,7 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { cn } from '#/lib/utils'
 import type { ReactNode } from 'react'
 import type { PortalDetailTab } from '../portal-detail/portal-detail-rules'
 import type { PortalEditorSection } from '../portal-editor/portal-editor-sections'
@@ -80,7 +81,14 @@ export function PortalWorkspaceHeader(props: PortalWorkspaceHeaderProps) {
           </Link>
         </Button>
       )}
-      <div className="min-w-0 flex-1 basis-0 border-l pl-3 sm:basis-56 sm:pl-4">
+      {/* In review the way back keeps its words ("Back to editing" is the only
+          way back on a phone), so the title takes a row of its own there. */}
+      <div
+        className={cn(
+          'min-w-0 flex-1 border-l pl-3 sm:basis-56 sm:pl-4',
+          reviewing ? 'basis-56' : 'basis-0',
+        )}
+      >
         <div className="flex flex-wrap items-baseline gap-x-2">
           <h1 className="truncate text-base font-semibold tracking-tight">
             {reviewing ? `Review changes to ${portalName}` : portalName}
@@ -119,7 +127,7 @@ function ReviewActions({
             to="/properties/$propertyId/portals/$portalId/review"
             params={{ propertyId, portalId }}
             search={reviewSearch}
-            className="text-sm text-muted-foreground! underline decoration-dotted underline-offset-4 hover:text-foreground!"
+            className="text-sm text-muted-foreground! underline! decoration-dotted! underline-offset-4 hover:text-foreground!"
           >
             {pendingNote}
           </Link>

@@ -11,7 +11,11 @@ import {
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
-import { languageDisplayName, type PortalLanguageChange } from './portal-languages-rules'
+import {
+  englishNameBeside,
+  languageDisplayName,
+  type PortalLanguageChange,
+} from './portal-languages-rules'
 
 type Props = Readonly<{
   addable: ReadonlyArray<GuestLocale>
@@ -33,6 +37,7 @@ export function PortalLanguageAddMenu({ addable, hasLater, onChange }: Props) {
       <DropdownMenuContent align="start" className="min-w-60">
         {addable.map((locale) => {
           const name = languageDisplayName(locale)
+          const english = englishNameBeside(locale)
           return (
             <DropdownMenuItem
               key={locale}
@@ -40,8 +45,8 @@ export function PortalLanguageAddMenu({ addable, hasLater, onChange }: Props) {
               onSelect={() => onChange({ kind: 'add', locale })}
             >
               <span lang={locale}>{name.native}</span>
-              {name.english === name.native ? null : (
-                <span className="text-xs text-muted-foreground">{name.english}</span>
+              {english === null ? null : (
+                <span className="text-xs text-muted-foreground">{english}</span>
               )}
             </DropdownMenuItem>
           )

@@ -23,6 +23,7 @@ import {
   describeCoverage,
   describeMissingText,
   languageDisplayName,
+  languageSubline,
   missingTextAction,
   type PortalLanguageChange,
 } from './portal-languages-rules'
@@ -48,6 +49,7 @@ export function PortalLanguageRow({
   onChange,
 }: Props) {
   const name = languageDisplayName(locale)
+  const subline = languageSubline(locale, isFallback)
   const description = coverage === null ? null : describeCoverage(coverage)
   const gaps = coverage?.missing ?? []
   const [showingMissing, setShowingMissing] = useState(false)
@@ -66,11 +68,9 @@ export function PortalLanguageRow({
               <span lang={locale}>{name.native}</span>
               {isFallback ? <Badge variant="secondary">Fallback</Badge> : null}
             </p>
-            {isFallback || name.english !== name.native ? (
-              <p className="text-sm text-muted-foreground">
-                {isFallback ? 'Used when a text is missing' : name.english}
-              </p>
-            ) : null}
+            {subline === null ? null : (
+              <p className="text-sm text-muted-foreground">{subline}</p>
+            )}
           </div>
           <div className="flex items-center gap-2 max-sm:order-last max-sm:basis-full max-sm:pl-14">
             {description === null ? null : (

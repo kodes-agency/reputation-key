@@ -301,6 +301,34 @@ export const DisablesALivePage: Story = {
   },
 }
 
+/** Cancel leaves the page live: nothing is written. */
+export const DisableCanBeCancelled: Story = {
+  args: {
+    ...baseArgs,
+    disableMutation: Object.assign(disableSpy, {
+      isPending: false,
+      error: null,
+      isSuccess: false,
+      data: null,
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    disableSpy.mockClear()
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: 'More actions for Reception' }),
+    )
+    await userEvent.click(
+      await within(document.body).findByRole('menuitem', {
+        name: 'Disable public page…',
+      }),
+    )
+    const dialog = await within(document.body).findByRole('alertdialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    await expect(disableSpy).not.toHaveBeenCalled()
+  },
+}
+
 /** A draft has nothing live to take down. */
 export const DraftOffersNoDisable: Story = {
   args: baseArgs,

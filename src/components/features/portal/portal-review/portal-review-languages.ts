@@ -6,6 +6,7 @@ import type { ReviewLanguageRow } from '#/contexts/portal/application/public-api
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import {
   describeCoverage,
+  englishNameBeside,
   languageDisplayName,
   type CoverageDescription,
 } from '../portal-languages/portal-languages-rules'
@@ -29,7 +30,7 @@ export function describeReviewLanguage(row: ReviewLanguageRow): ReviewLanguageLi
     locale: row.locale,
     chip: name.chip,
     native: name.native,
-    english: name.english === name.native ? null : name.english,
+    english: englishNameBeside(row.locale),
     tag: row.isFallback ? 'Fallback' : null,
     coverage: describeCoverage(row),
     aiDrafts:
