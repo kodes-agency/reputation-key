@@ -40,8 +40,10 @@ function LanguageRow({ row }: Readonly<{ row: ReviewLanguageRow }>) {
       <span className="min-w-32 flex-1">
         <span lang={line.locale} className="font-medium">
           {line.native}
-        </span>{' '}
-        <span className="text-muted-foreground">{line.english}</span>
+        </span>
+        {line.english === null ? null : (
+          <span className="text-muted-foreground"> {line.english}</span>
+        )}
         {line.tag === null ? null : (
           <Badge variant="secondary" className="ml-2">
             {line.tag}

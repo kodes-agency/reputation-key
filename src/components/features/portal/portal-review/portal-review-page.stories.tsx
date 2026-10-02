@@ -5,8 +5,6 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
-import type { Action } from '#/components/hooks/use-action'
-import type { UpdatePortalVariables } from '../shared/types'
 import {
   PREVIEW_DRAFT,
   PREVIEW_DRAFT_ONE_LANGUAGE,
@@ -23,11 +21,6 @@ import {
   REVIEW_PROPERTY_ID,
 } from './__fixtures__/portal-review-fixtures'
 import { PortalReviewPage } from './portal-review-page'
-
-const idleMutation = Object.assign(
-  async (_input: UpdatePortalVariables) => ({ success: true }),
-  { isPending: false, error: null as unknown, isSuccess: false, data: null },
-) as Action<UpdatePortalVariables, { success: boolean }>
 
 /** The four languages of board 05; the German and Spanish pages reuse the English one. */
 const FOUR_LANGUAGES = {
@@ -56,8 +49,6 @@ const meta = {
     getPortalPreview: previewReader({ draft: FOUR_LANGUAGES }),
     onPublish: fn(),
     isPublishing: false,
-    updateMutation: idleMutation,
-    canManage: true,
   },
 } satisfies Meta<typeof PortalReviewPage>
 
@@ -78,7 +69,7 @@ export const LiveWithChanges: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
-      canvas.getByRole('heading', { level: 2, name: /What guests will see change/ }),
+      canvas.getByRole('heading', { level: 2, name: /Changes guests will see/ }),
     ).toHaveTextContent('2')
     await expect(
       canvas.getByRole('button', {
@@ -205,13 +196,13 @@ export const FirstPublication: Story = {
   },
 }
 
-/** A live page can still be turned off, as the interim page offered. */
-export const LiveCanBeDisabled: Story = {
+/** Taking a live page down is not a step of publishing: the review offers no "Disable public page". */
+export const LiveOffersNoDisable: Story = {
   args: { review: REVIEW_ALL_CLEAR },
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByRole('button', { name: /disable public page/i }),
-    ).toBeVisible()
+      within(canvasElement).queryByRole('button', { name: /disable public page/i }),
+    ).toBeNull()
   },
 }
 

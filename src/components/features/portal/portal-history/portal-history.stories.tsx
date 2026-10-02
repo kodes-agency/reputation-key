@@ -436,12 +436,19 @@ export const PageIsOff: Story = {
   },
 }
 
+/** Nothing waiting: the draft matches the live version, so no edit is still in draft. */
 export const NoDraftChanges: Story = {
-  args: { pendingChanges: 0 },
+  args: {
+    pendingChanges: 0,
+    entries: STORY_ENTRIES.slice(
+      STORY_ENTRIES.findIndex((entry) => entry.detail.kind === 'version_published'),
+    ),
+  },
   play: async ({ canvasElement }) => {
     await expect(
       within(canvasElement).getByText('No changes waiting'),
     ).toBeInTheDocument()
+    await expect(within(canvasElement).queryByText('In draft')).toBeNull()
   },
 }
 

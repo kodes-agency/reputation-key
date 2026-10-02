@@ -29,6 +29,7 @@ import {
   type PortalOverviewSort,
   type SortDirection,
 } from './portal-overview-search-schema'
+import { offersAttentionFilter } from './portal-attention'
 
 const SORT_LABEL: Readonly<Record<PortalOverviewSort, string>> = {
   name: 'Name',
@@ -111,7 +112,7 @@ export function PortalOverviewToolbar({
 
       {scope === 'property' ? (
         <>
-          {needingAttention > 0 || attentionOnly ? (
+          {offersAttentionFilter(needingAttention, search) ? (
             <Button
               variant="outline"
               size="sm"

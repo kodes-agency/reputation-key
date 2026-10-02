@@ -109,6 +109,7 @@ function PortalAllPropertiesList({
   onPage,
   archiveMutation,
   restoreMutation,
+  disableMutation,
 }: ListProps) {
   return (
     <>
@@ -121,6 +122,7 @@ function PortalAllPropertiesList({
         onToggleProperty={onToggleProperty}
         archiveMutation={archiveMutation}
         restoreMutation={restoreMutation}
+        disableMutation={disableMutation}
       />
       {/* A folded Property's Portals are not on any page: count what is. */}
       <PortalOverviewPager
@@ -146,6 +148,7 @@ export function PortalAllPropertiesPage({
   onSearchChange,
   archiveMutation,
   restoreMutation,
+  disableMutation,
 }: PortalAllPropertiesPageProps) {
   const { collapsed, toggle } = useCollapsedProperties()
   const resultsState: PortalOverviewResultsState = results?.state ?? { status: 'off' }
@@ -178,7 +181,9 @@ export function PortalAllPropertiesPage({
         )}
         actions={newPortal}
       />
-      <FormErrorBanner error={archiveMutation.error ?? restoreMutation.error} />
+      <FormErrorBanner
+        error={archiveMutation.error ?? restoreMutation.error ?? disableMutation?.error}
+      />
 
       {rows.length === 0 ? (
         <EmptyState icon={Globe} title="No portals yet">
@@ -218,6 +223,7 @@ export function PortalAllPropertiesPage({
                 onPage={(page) => update({ page })}
                 archiveMutation={archiveMutation}
                 restoreMutation={restoreMutation}
+                disableMutation={disableMutation}
               />
             )}
           </section>

@@ -105,6 +105,9 @@ export const baseArgs = {
   restoreMutation: action<{
     data: { portalId: string; publicationState: 'disabled' }
   }>(),
+  disableMutation: action<{
+    data: { portalId: string; publicationState: 'disabled' }
+  }>(),
   groups: [poolSide, frontOfHouse],
   createMutation: action<{
     data: { propertyId: string; name: string; portalIds?: string[] }

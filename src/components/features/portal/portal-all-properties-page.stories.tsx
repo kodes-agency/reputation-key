@@ -70,6 +70,7 @@ const baseArgs = {
   organizationWide: true,
   archiveMutation: action<{ data: { portalId: string; publicationState: 'archived' } }>(),
   restoreMutation: action<{ data: { portalId: string; publicationState: 'disabled' } }>(),
+  disableMutation: action<{ data: { portalId: string; publicationState: 'disabled' } }>(),
 }
 const withResults = { ...baseArgs, results: controls(READY) }
 

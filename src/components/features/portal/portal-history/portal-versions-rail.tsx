@@ -60,7 +60,11 @@ function DraftTile({
       {edited === null ? null : (
         <p className="text-xs text-muted-foreground">
           Edited{' '}
-          <time dateTime={edited.dateTime} title={edited.title}>
+          <time
+            dateTime={edited.dateTime}
+            title={edited.title}
+            className="whitespace-nowrap"
+          >
             {edited.label}
           </time>
           {by ? ` by ${by.displayName ?? 'someone'}` : ''}

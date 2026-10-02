@@ -45,6 +45,7 @@ export function PortalOverviewTable({
   propertyName,
   archiveMutation,
   restoreMutation,
+  disableMutation,
   results,
   busy = false,
   scansOrder,
@@ -78,6 +79,7 @@ export function PortalOverviewTable({
                 showGroup={showGroup}
                 archiveMutation={archiveMutation}
                 restoreMutation={restoreMutation}
+                disableMutation={disableMutation}
               />
             </TableBody>
           ))}
