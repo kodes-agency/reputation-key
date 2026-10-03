@@ -312,3 +312,8 @@ export const Counts: Story = {
     expect(canvas.getByText('2').className).toContain('text-negative')
   },
 }
+
+export const CountsLight: Story = {
+  ...Counts,
+  parameters: { layout: 'padded', theme: 'light' },
+}

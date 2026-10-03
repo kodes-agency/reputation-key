@@ -90,7 +90,9 @@ function Row({
 function Group({
   group,
   showHeading,
-  ...rest
+  current,
+  frame,
+  presentation,
 }: Readonly<{
   group: SectionNavGroup
   showHeading: boolean
@@ -99,7 +101,6 @@ function Group({
   presentation: SectionNavPresentation
 }>) {
   const headingId = useId()
-  const { current, frame, presentation } = rest
   const heading = showHeading ? group.heading : null
   return (
     <div>
