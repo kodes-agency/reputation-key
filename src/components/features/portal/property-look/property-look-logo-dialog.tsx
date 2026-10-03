@@ -33,7 +33,7 @@ export function PropertyLookLogoDialog({
   ...input
 }: Props) {
   return (
-    <UploadDialogShell open={open} onOpenChange={onOpenChange} className="sm:max-w-md">
+    <UploadDialogShell open={open} onOpenChange={onOpenChange}>
       {(guard) => (
         <LogoDialogBody
           {...input}
@@ -115,11 +115,10 @@ function LogoDialogBody({
       </div>
       <FormErrorBanner error={dialog.message} />
       <UploadDialogFooter
-        primaryLabel={dialog.isBusy ? 'Uploading…' : 'Use logo'}
+        primaryLabel="Use logo"
         canSubmit={dialog.canSubmit}
         isBusy={dialog.isBusy}
         onSubmit={() => void dialog.submit()}
-        onCancel={input.onClose}
       />
     </>
   )

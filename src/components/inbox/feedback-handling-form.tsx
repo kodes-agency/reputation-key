@@ -1,6 +1,5 @@
 import { useForm } from '@tanstack/react-form'
-import { Button } from '#/components/ui/button'
-import { DialogFooter } from '#/components/ui/dialog'
+import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import { Field, FieldError, FieldLabel } from '#/components/ui/field'
 import {
   Select,
@@ -10,7 +9,7 @@ import {
   SelectValue,
 } from '#/components/ui/select'
 import { Textarea } from '#/components/ui/textarea'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { submitForm } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { feedbackHandlingDecisionDto } from '#/contexts/inbox/application/dto/inbox.dto'
@@ -31,7 +30,6 @@ type Props = Readonly<{
   initialNote?: string | null
   mutation: Readonly<{ isPending: boolean; error: unknown }>
   onConfirm: (decision: FeedbackHandlingDecision) => Promise<unknown>
-  onCancel: () => void
 }>
 
 export function FeedbackHandlingForm(props: Props) {
@@ -127,16 +125,9 @@ export function FeedbackHandlingForm(props: Props) {
           </Field>
         )}
       </form.Field>
-      <FormErrorBanner error={props.mutation.error} />
+      <DialogErrorBanner error={props.mutation.error} />
       <DialogFooter>
-        <Button
-          type="button"
-          variant="outline"
-          onClick={props.onCancel}
-          disabled={props.mutation.isPending}
-        >
-          Cancel
-        </Button>
+        <DialogCancel />
         <SubmitButton mutation={props.mutation} form={form}>
           {props.mode === 'mark' ? 'Mark as handled' : 'Save correction'}
         </SubmitButton>

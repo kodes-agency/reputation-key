@@ -19,7 +19,7 @@ export function InboxShortcutsDialog({
 }: Readonly<{ open: boolean; onOpenChange: (open: boolean) => void }>) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-sm">
+      <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle>Keyboard shortcuts</DialogTitle>
         </DialogHeader>

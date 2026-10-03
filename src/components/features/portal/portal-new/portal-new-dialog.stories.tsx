@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, screen, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
+import { useRefusingAction } from '#/components/forms/refusing-action.stories.fixtures'
 import { GENERIC_ACTION_ERROR_MESSAGE } from '#/components/hooks/use-action-mutation'
 import type { CreatePortalInput } from '#/contexts/portal/application/dto/create-portal.dto'
 import { PortalNewDialog } from './portal-new-dialog'
@@ -211,24 +212,33 @@ export const Saving: Story = {
   },
 }
 
+/** The mutation still holds a refusal from the last time the dialog was open. */
+function RefusingDialog() {
+  const mutation = useRefusingAction<CreateInput>(
+    () =>
+      new ServerFunctionError(
+        'PortalError',
+        'This role cannot create portals.',
+        'forbidden',
+        403,
+      ),
+    new Error('an earlier refusal'),
+  )
+  return (
+    <PortalNewDialog open onOpenChange={() => undefined} data={{ ...data, mutation }} />
+  )
+}
+
 export const Refused: Story = {
-  args: {
-    data: {
-      ...data,
-      mutation: action({
-        error: new ServerFunctionError(
-          'PortalError',
-          'This role cannot create portals.',
-          'forbidden',
-          403,
-        ),
-      }),
-    },
-  },
+  render: () => <RefusingDialog />,
   play: async () => {
+    await expect(dialog().queryByRole('alert')).toBeNull()
+    await userEvent.type(dialog().getByLabelText('Name'), 'Pool & Terrace')
+    await userEvent.click(dialog().getByRole('button', { name: 'Create draft' }))
     await expect(
       await dialog().findByText(/This role cannot create portals/),
     ).toBeInTheDocument()
+    await expect(dialog().queryByText(/earlier refusal/)).toBeNull()
   },
 }
 

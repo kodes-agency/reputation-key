@@ -7,11 +7,11 @@ import {
   type GoalProgramAssignmentEditorInput,
 } from '#/contexts/reporting/application/dto/goal-program.dto'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { submitForm } from '#/components/forms/form-submit'
 import { goalKeys } from '#/shared/queries/query-keys'
 import { SubmitButton } from '#/components/forms/submit-button'
-import { DialogFooter } from '#/components/ui/dialog'
+import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import { goalSubjectKey, goalSubjectsFromKeys } from './goal-subject-picker'
 import { GoalAssignmentOutcomes } from './goal-assignment-outcomes'
 import { goalAssignmentSubjectLabel } from './goal-assignment-subject-label'
@@ -90,6 +90,7 @@ export function GoalProgramAssignmentsDialog(props: Props) {
     <GoalProgramFormDialog
       open={open}
       onOpenChange={onOpenChange}
+      busy={mutation.isPending}
       trigger="Manage assignments"
       title="Manage goal assignments"
       description="Changes start next full month. Current-month targets and results stay unchanged."
@@ -131,8 +132,9 @@ export function GoalProgramAssignmentsDialog(props: Props) {
           }
         />
       ) : null}
-      <FormErrorBanner error={mutation.error} />
+      <DialogErrorBanner error={mutation.error} />
       <DialogFooter>
+        <DialogCancel />
         <SubmitButton mutation={mutation} form={form} disabled={!hasRequestedChange}>
           Review and schedule
         </SubmitButton>

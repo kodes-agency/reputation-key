@@ -10,12 +10,7 @@
 import { useRef, useState, type ChangeEvent } from 'react'
 import { Button } from '#/components/ui/button'
 import { Checkbox } from '#/components/ui/checkbox'
-import {
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '#/components/ui/dialog'
+import { DialogDescription, DialogHeader, DialogTitle } from '#/components/ui/dialog'
 import { Field, FieldLabel } from '#/components/ui/field'
 import {
   PORTAL_IMAGE_ACCEPT,
@@ -24,6 +19,7 @@ import {
   validatePortalImageFile,
   type PortalImageUploader,
 } from '../portal-media/upload-portal-image'
+import { UploadDialogFooter } from '../portal-media/upload-dialog-footer'
 import { UploadDialogShell } from '../portal-media/upload-dialog-shell'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 
@@ -50,7 +46,7 @@ export function LinktreePhotoDialog({
   upload,
 }: Props) {
   return (
-    <UploadDialogShell open={open} onOpenChange={onOpenChange} className="sm:max-w-md">
+    <UploadDialogShell open={open} onOpenChange={onOpenChange}>
       {(guard) => (
         <PhotoDialogBody
           propertyId={propertyId}
@@ -168,20 +164,14 @@ function PhotoDialogBody({
           </FieldLabel>
         </Field>
       </div>
-      <p className="text-sm text-muted-foreground">Live pages change when you publish.</p>
       <FormErrorBanner error={message} />
-      <DialogFooter>
-        <Button type="button" variant="ghost" disabled={isUploading} onClick={onClose}>
-          Cancel
-        </Button>
-        <Button
-          type="button"
-          disabled={!file || !confirmed || isUploading}
-          onClick={() => void submit()}
-        >
-          {isUploading ? 'Uploading…' : 'Use photo'}
-        </Button>
-      </DialogFooter>
+      <UploadDialogFooter
+        primaryLabel="Use photo"
+        note="Live pages change when you publish."
+        canSubmit={Boolean(file) && confirmed}
+        isBusy={isUploading}
+        onSubmit={() => void submit()}
+      />
     </>
   )
 }

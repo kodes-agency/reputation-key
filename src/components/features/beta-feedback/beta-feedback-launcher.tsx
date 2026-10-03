@@ -101,10 +101,7 @@ export function BetaFeedbackLauncher({ submitFeedback, listFeedback }: Props) {
         </Button>
       </DialogTrigger>
       {open && (
-        <DialogContent
-          className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-xl"
-          data-beta-feedback-capture-exclude
-        >
+        <DialogContent size="lg" data-beta-feedback-capture-exclude>
           <DialogHeader>
             <DialogTitle>Help shape RepKey</DialogTitle>
             <DialogDescription>

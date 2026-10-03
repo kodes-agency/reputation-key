@@ -3,6 +3,7 @@ import { Button } from '#/components/ui/button'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import {
   Dialog,
+  DialogCancel,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -95,33 +96,21 @@ export function InboxReopenDialog({
   }
 
   return (
-    // Escape and an outside click are refused while the reopen is in flight,
-    // exactly as Cancel is (`disabled={pending}` below). A caller that lets the
-    // refusal reject — the pane, whose `updateStatus` deliberately carries no
-    // toast, so one refused reopen is reported once — has it shown HERE, in the
-    // banner, and a dialog dismissed mid-request would have received it closed,
-    // where nobody sees it. The list's bulk reopen catches its own refusal
-    // (`inbox-bulk-actions.tsx`, `handleReopen`) and reports it in the list's
-    // own live region, so there this dialog just closes.
-    <Dialog
-      open={effectiveOpen}
-      onOpenChange={(next) => {
-        if (!next && pending) return
-        changeOpen(next)
-      }}
-    >
+    // Escape and an outside click are refused while the reopen is in flight
+    // (`busy`), exactly as Cancel is. A caller that lets the refusal reject — the
+    // pane, whose `updateStatus` deliberately carries no toast, so one refused
+    // reopen is reported once — has it shown HERE, in the banner, and a dialog
+    // dismissed mid-request would have received it closed, where nobody sees it.
+    // The list's bulk reopen catches its own refusal (`inbox-bulk-actions.tsx`,
+    // `handleReopen`) and reports it in the list's own live region, so there this
+    // dialog just closes.
+    <Dialog open={effectiveOpen} busy={pending} onOpenChange={changeOpen}>
       {children ? <DialogTrigger asChild>{children}</DialogTrigger> : null}
-      {/* `showCloseButton={false}`, the mobile sheet's answer to the same
-          problem (`inbox-detail-sheet.tsx:95`): the primitive's corner X is a
-          16x16 hit area — measured exactly 16 px at 390 px. v1 found no room
-          for a 44 px square beside the title on a 288 px-wide dialog; row 20's
-          36 px would crowd it less, but nobody has measured that, and the
-          dialog already carries a full-width `Cancel` below, which IS the
-          properly sized control — so the X stays dropped rather than grown.
-          It also takes the pane's only control whose accessible name is exactly
-          `Close` out of the DOM, which is the name `inbox-triage.spec.ts:85`
-          and `:222` assert a count of zero for. Escape and the overlay still
-          dismiss. */}
+      {/* `showCloseButton={false}`: the dialog's full-width `Cancel` is the exit
+          (a dialog whose footer has Cancel may drop the corner close), and it
+          keeps the pane's only control whose accessible name is exactly `Close`
+          out of the DOM, the name `inbox-triage.spec.ts:85` and `:222` assert a
+          count of zero for. Escape and the overlay still dismiss. */}
       <DialogContent showCloseButton={false} data-density="compact">
         <DialogHeader>
           <DialogTitle>
@@ -189,15 +178,8 @@ export function InboxReopenDialog({
           {/* No class on either button: the dialog is compact (`data-density`), so
               both are 36 px below `md`. The same markup is the list's bulk-reopen
               dialog (`inbox-bulk-actions.tsx`). */}
-          <Button
-            type="button"
-            variant="outline"
-            onClick={() => changeOpen(false)}
-            disabled={pending}
-          >
-            Cancel
-          </Button>
-          <Button type="button" onClick={submit} disabled={!canConfirm || pending}>
+          <DialogCancel />
+          <Button type="button" onClick={submit} pending={pending} disabled={!canConfirm}>
             Reopen
           </Button>
         </DialogFooter>

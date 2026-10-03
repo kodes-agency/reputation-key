@@ -190,7 +190,11 @@ function MembersSettingsRoute() {
         breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Members' }]}
         actions={
           canDo('invitation.create') && hasRole(role, 'AccountAdmin') ? (
-            <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+            <Dialog
+              open={inviteOpen}
+              busy={inviteMutation.isPending}
+              onOpenChange={setInviteOpen}
+            >
               <DialogTrigger asChild>
                 <Button>
                   <Plus />

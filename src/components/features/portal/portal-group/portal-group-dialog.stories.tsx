@@ -6,6 +6,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, screen, userEvent, waitFor, within } from 'storybook/test'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
+import { useRefusingAction } from '#/components/forms/refusing-action.stories.fixtures'
 import { action } from '../portal-list-page-stories-data'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { overviewGroup, overviewRow } from '../portal-overview/portal-overview-fixtures'
@@ -118,34 +119,46 @@ export const CreatesTheGroupWithTheChosenPortals: Story = {
   },
 }
 
-const refused = new ServerFunctionError(
-  'PortalGroupError',
-  'a group with this name already exists',
-  'group_name_taken',
-  409,
-)
+type CreateGroupInput = {
+  data: { propertyId: string; name: string; portalIds?: string[] }
+}
+
+/** The mutation still holds a refusal from the last time the dialog was open. */
+function RefusingNewGroupDialog() {
+  const mutation = useRefusingAction<CreateGroupInput>(
+    () => refusal(),
+    new Error('an earlier refusal'),
+  )
+  return (
+    <PortalGroupDialog
+      open
+      onOpenChange={() => undefined}
+      propertyId="prop-1"
+      rows={rows}
+      createMutation={mutation}
+    />
+  )
+}
+
+const refusal = () =>
+  new ServerFunctionError(
+    'PortalGroupError',
+    'a group with this name already exists',
+    'group_name_taken',
+    409,
+  )
 
 export const ARefusalIsShownInPlace: Story = {
-  args: {
-    createMutation: Object.assign(
-      fn(async () => {
-        throw refused
-      }),
-      {
-        isPending: false,
-        error: refused,
-        isSuccess: false,
-        data: null,
-      },
-    ),
-  },
+  render: () => <RefusingNewGroupDialog />,
   play: async () => {
     const d = dialog()
     // Nothing from an earlier attempt shows before this one is made.
-    await expect(d.queryByText(/already exists/i)).toBeNull()
+    await expect(d.queryByText(/earlier refusal/i)).toBeNull()
+    await expect(d.queryByRole('alert')).toBeNull()
     await userEvent.type(d.getByLabelText('Name'), 'Pool side')
     await userEvent.click(d.getByRole('button', { name: 'Create group' }))
     await waitFor(() => expect(d.getByText(/already exists/i)).toBeInTheDocument())
+    await expect(d.queryByText(/earlier refusal/i)).toBeNull()
   },
 }
 

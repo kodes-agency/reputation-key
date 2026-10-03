@@ -6,6 +6,7 @@
 import { useEffect, useRef } from 'react'
 import { Check, Undo2 } from 'lucide-react'
 import type { PortalVersionDetail } from '#/contexts/portal/application/public-api'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { Button } from '#/components/ui/button'
 import { formatHistoryTime } from './portal-history-time'
 import { PhraseView } from './portal-phrase-view'
@@ -122,11 +123,9 @@ export function PortalRestoreConfirmation({
           </ul>
         </div>
       </div>
-      {error === null ? null : (
-        <p role="alert" className="mt-3 text-sm text-negative">
-          {error}
-        </p>
-      )}
+      <div className="mt-3 empty:hidden">
+        <FormErrorBanner error={error} />
+      </div>
       <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t pt-3">
         <p className="w-full min-w-0 text-xs text-muted-foreground sm:w-auto sm:flex-1">
           {laterLine(detail)}
@@ -140,8 +139,13 @@ export function PortalRestoreConfirmation({
           >
             Cancel
           </Button>
-          <Button type="button" onClick={onConfirm} disabled={submitting}>
-            {submitting ? 'Making it live…' : `Make version ${detail.version} live`}
+          <Button
+            type="button"
+            onClick={onConfirm}
+            pending={submitting}
+            pendingLabel="Making it live…"
+          >
+            {`Make version ${detail.version} live`}
           </Button>
         </div>
       </div>

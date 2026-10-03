@@ -14,7 +14,7 @@ import { useState } from 'react'
 import { LogOut } from 'lucide-react'
 import {
   Dialog,
-  DialogClose,
+  DialogCancel,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -24,7 +24,8 @@ import {
 } from '#/components/ui/dialog'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { ConfirmationTrigger } from '#/components/ui/confirmation-dialog'
+import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { Label } from '#/components/ui/label'
 import {
   Select,
@@ -144,12 +145,14 @@ export function LeaveOrganizationDialog({
   })
 
   return (
-    <Dialog>
+    <Dialog busy={leaveOrganization.isPending}>
       <DialogTrigger asChild>
-        <Button variant="outline" data-testid="open-leave-organization">
+        {/* A transfer form rather than a yes/no, so a Dialog; the trigger is still
+            the destructive one, because leaving cannot be taken back. */}
+        <ConfirmationTrigger tone="destructive" data-testid="open-leave-organization">
           <LogOut aria-hidden="true" />
           Leave organization
-        </Button>
+        </ConfirmationTrigger>
       </DialogTrigger>
       <DialogContent data-testid="leave-organization-dialog">
         <DialogHeader>
@@ -226,12 +229,10 @@ export function LeaveOrganizationDialog({
             is said here, directly above the actions. The banner keeps a 4xx
             refusal's sentence and says the generic one for anything else (a
             database or lock failure in the offboarding command). */}
-        <FormErrorBanner error={leaveOrganization.error} />
+        <DialogErrorBanner error={leaveOrganization.error} />
 
         <DialogFooter>
-          <DialogClose asChild>
-            <Button variant="outline">Cancel</Button>
-          </DialogClose>
+          <DialogCancel />
           <Button
             variant="destructive"
             pending={leaveOrganization.isPending}
