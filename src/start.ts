@@ -1,6 +1,7 @@
 // Global TanStack Start configuration.
 import {
   createCsrfMiddleware,
+  createIsomorphicFn,
   createMiddleware,
   createStart,
 } from '@tanstack/react-start'
@@ -54,8 +55,28 @@ const cspNonceMiddleware = createMiddleware({ type: 'request' }).server(
   },
 )
 
-export const startInstance = createStart(() => ({
-  serializationAdapters: [serverFunctionErrorAdapter],
-  requestMiddleware: [sentryGlobalRequestMiddleware, csrfMiddleware, cspNonceMiddleware],
-  functionMiddleware: [sentryGlobalFunctionMiddleware],
-}))
+// Sentry's middlewares act only on the server. In the browser the package
+// exports inert placeholders in their place (no client handler, so a chain
+// passes straight through), yet importing even those pulls all of
+// `@sentry/react` into first paint: the 29 KB `vendor-sentry` chunk
+// (scripts/check-bundle-budget.mjs). The Start compiler keeps one branch per
+// environment and then drops the unused import from the client bundle. The
+// browser SDK still loads lazily from instrument.client.ts.
+const sentryGlobalMiddleware = createIsomorphicFn()
+  .server(
+    () =>
+      ({
+        request: [sentryGlobalRequestMiddleware],
+        function: [sentryGlobalFunctionMiddleware],
+      }) as const,
+  )
+  .client(() => ({ request: [], function: [] }) as const)
+
+export const startInstance = createStart(() => {
+  const sentry = sentryGlobalMiddleware()
+  return {
+    serializationAdapters: [serverFunctionErrorAdapter],
+    requestMiddleware: [...sentry.request, csrfMiddleware, cspNonceMiddleware],
+    functionMiddleware: [...sentry.function],
+  }
+})

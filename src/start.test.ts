@@ -1,4 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
+import {
+  sentryGlobalFunctionMiddleware,
+  sentryGlobalRequestMiddleware,
+} from '@sentry/tanstackstart-react'
 import { startInstance } from './start'
 
 type RequestResult = Response | Readonly<{ response: Response }>
@@ -47,6 +51,19 @@ function serverFnRequest(headers: HeadersInit = {}): Request {
     headers,
   })
 }
+
+describe('TanStack Start global middleware on the server', () => {
+  // Vitest runs start.ts without the Start compiler, where createIsomorphicFn
+  // answers with its server branch: the chains the production server runs.
+  it('runs Sentry request and function middleware before the application middleware', async () => {
+    const options = await startInstance.getOptions()
+
+    expect(options.requestMiddleware).toHaveLength(3)
+    expect(options.requestMiddleware?.[0]).toBe(sentryGlobalRequestMiddleware)
+    expect(options.requestMiddleware?.[0]?.options.server).toBeTypeOf('function')
+    expect(options.functionMiddleware).toEqual([sentryGlobalFunctionMiddleware])
+  })
+})
 
 describe('TanStack Start request CSRF boundary', () => {
   // @proof SERVER_FN_CSRF#1
