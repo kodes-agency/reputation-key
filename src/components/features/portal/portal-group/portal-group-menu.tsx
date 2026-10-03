@@ -19,8 +19,9 @@ import { PortalGroupRenameDialog } from './portal-group-dialogs'
 import { groupMenu } from './portal-group-menu-rules'
 import type { PortalGroupMutations, PortalGroupRef } from './portal-group-mutations'
 
-// The global `a` colour is unlayered, so a link used as a menu item pins its ink.
-const ITEM = 'min-h-11 text-foreground! md:min-h-8'
+// A 44 px target below `md`, 32 px from there up. A link used as a menu item
+// takes the menu's ink (`dropdown-menu-item` opts out of the link default).
+const ITEM = 'min-h-11 md:min-h-8'
 
 type Props = Readonly<{
   group: PortalGroupRef
@@ -107,7 +108,7 @@ export function PortalGroupMenu({
             <DropdownMenuItem
               key={entry.id}
               variant="destructive"
-              className="min-h-11 text-destructive! md:min-h-8"
+              className={ITEM}
               onSelect={() => setDialog('archive')}
             >
               {entry.label}

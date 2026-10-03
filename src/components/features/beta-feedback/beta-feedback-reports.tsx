@@ -58,11 +58,11 @@ function TrackedIssue({ reference }: Readonly<{ reference: string }>) {
       Tracked as{' '}
       {/*
         An in-text link must be distinguishable without colour (WCAG 1.4.1,
-        axe link-in-text-block). The global anchor rule in styles.css sets
-        `text-decoration: none` at a specificity (0,4,1) no utility class
-        reaches, so the underline is an inline style, which outranks it. The
-        anchor also stays inline: as a flex box it would not carry the
-        underline onto its text.
+        axe link-in-text-block). The underline is an inline style, not the
+        `underline` utility, because the Storybook Vitest runner that gates
+        axe compiles no Tailwind, so a utility would leave the link undecorated
+        there. The anchor also stays inline: as a flex box it would not carry
+        the underline onto its text.
       */}
       <a
         href={url}

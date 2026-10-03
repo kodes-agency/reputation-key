@@ -24,9 +24,9 @@ import {
   type PortalRowMenuItemId,
 } from './portal-row-menu'
 
-// The global `a` colour is unlayered, so a link used as a menu item pins its ink.
-const ITEM = 'min-h-11 text-foreground! md:min-h-8'
-const BUTTON = 'min-h-11 md:min-h-8'
+// A 44 px target below `md`, 32 px from there up. A link used as a menu item
+// takes the menu's ink (`dropdown-menu-item` opts out of the link default).
+const TOUCH = 'min-h-11 md:min-h-8'
 
 type RowProps = Readonly<{ item: PortalOverviewItem; propertyId: string }>
 
@@ -39,7 +39,7 @@ export function PortalRowButtons({ item, propertyId }: RowProps) {
   const canShare = row.publicationState !== 'draft' && row.publicationState !== 'archived'
   return (
     <>
-      <Button variant="outline" size="sm" asChild className={BUTTON}>
+      <Button variant="outline" size="sm" asChild className={TOUCH}>
         <Link
           to="/properties/$propertyId/portals/$portalId"
           params={params}
@@ -51,7 +51,7 @@ export function PortalRowButtons({ item, propertyId }: RowProps) {
         </Link>
       </Button>
       {canShare ? (
-        <Button variant="outline" size="sm" asChild className={BUTTON}>
+        <Button variant="outline" size="sm" asChild className={TOUCH}>
           <Link
             to="/properties/$propertyId/portals/$portalId"
             params={params}
@@ -86,7 +86,7 @@ function MenuLink({
           : 'page',
   } as const
   return (
-    <DropdownMenuItem asChild className={ITEM}>
+    <DropdownMenuItem asChild className={TOUCH}>
       <Link to={to} params={params} search={search}>
         {menuItem.label}
       </Link>
@@ -148,9 +148,7 @@ export function PortalRowMenu({
             <DropdownMenuItem
               key={entry.id}
               variant={entry.destructive ? 'destructive' : 'default'}
-              className={
-                entry.destructive ? 'min-h-11 text-destructive! md:min-h-8' : ITEM
-              }
+              className={TOUCH}
               onSelect={() => setConfirming(lifecycleId(entry.id))}
             >
               {entry.label}

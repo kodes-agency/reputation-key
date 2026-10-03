@@ -3,9 +3,7 @@
 // tab has an address that can be shared or bookmarked. That is why this is a
 // navigation landmark with `aria-current`, not an ARIA tablist: a tablist
 // promises a panel in the same document, and the panel here is the route below.
-// The ink is pinned (`!`): the global link colour is unlayered and would
-// otherwise paint every tab the accent, leaving only the underline to say
-// which one is open.
+// Each tab names its own ink; a link utility beats the global accent default.
 
 import { Link } from '@tanstack/react-router'
 import { cn } from '#/lib/utils'
@@ -51,10 +49,10 @@ export function PortalWorkspaceTabs({
                 className={cn(
                   'relative flex min-h-11 items-center px-3 text-sm transition-colors',
                   'after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent',
-                  'hover:text-foreground! focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring',
+                  'hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring',
                   active
-                    ? 'font-medium text-foreground! after:bg-primary'
-                    : 'text-muted-foreground!',
+                    ? 'font-medium text-foreground after:bg-primary'
+                    : 'text-muted-foreground',
                 )}
               >
                 {TAB_LABELS[tab]}

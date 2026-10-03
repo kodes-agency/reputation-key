@@ -72,6 +72,14 @@ Use `src/components/ui/chart.tsx` for Recharts composition. Define a `ChartConfi
 wrap the chart in `ChartContainer`, and use generated `--color-*` variables. Choose
 bar, area, or pie geometry from the data relationship, not decoration.
 
+A plain `<a>` or `Link` is a content link: `styles.css` gives it the accent ink as
+a default in `@layer base`, so any utility on the anchor wins and nothing needs
+an `!`. A link that belongs to a component with its own ink opts out by
+`data-slot` (button, badge, sidebar entry, dropdown-menu-item, breadcrumb-link).
+Navigation-like links (nav items, tabs, whole-row links) name their ink in
+classes. `link-ink.test.ts` fails on an important modifier on colour or
+decoration.
+
 Use `usePermissions()` for presentation affordances rather than threading
 `canEdit` flags. These affordances never replace server authorization. Prefer one
 cohesive component over one-caller fragments; extract only independently meaningful

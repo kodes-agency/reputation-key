@@ -2,9 +2,9 @@
 // languages under it, and the responsible managers. Each is a small answer to
 // one question, so the table and the phone card can place the same parts.
 //
-// Only the Portal's name keeps the link accent: it is the row's one way in. The
-// global `a` colour in styles.css is unlayered, so any other link pins its ink
-// with `!` to stay out of the accent (figures and notes must not turn purple).
+// Only the Portal's name keeps the link accent: it is the row's one way in. Any
+// other link names its ink (`text-foreground`) to stay out of the accent
+// (figures and notes must not turn purple).
 import { Link } from '@tanstack/react-router'
 import { CircleDashed, History, PencilLine, TriangleAlert } from 'lucide-react'
 import { OwnerDisc } from '#/components/ui/owner-disc'
@@ -71,7 +71,7 @@ export function PortalAttentionLine({
               params={{ propertyId, portalId: row.portalId }}
               search={{ tab: 'page' }}
               aria-label={`Continue setup for ${row.name}`}
-              className={cn('font-medium whitespace-nowrap text-foreground!', FOCUS_RING)}
+              className={cn('font-medium whitespace-nowrap text-foreground', FOCUS_RING)}
             >
               Continue setup
             </Link>
@@ -87,7 +87,7 @@ export function PortalAttentionLine({
             params={{ propertyId, portalId: row.portalId }}
             search={{ tab: 'share' }}
             aria-label={`${line}: open Share for ${row.name}`}
-            className={cn('text-foreground!', FOCUS_RING)}
+            className={cn('text-foreground', FOCUS_RING)}
           >
             {line}
           </Link>

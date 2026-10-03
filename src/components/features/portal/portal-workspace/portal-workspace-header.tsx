@@ -127,7 +127,7 @@ function ReviewActions({
             to="/properties/$propertyId/portals/$portalId/review"
             params={{ propertyId, portalId }}
             search={reviewSearch}
-            className="text-sm text-muted-foreground! underline! decoration-dotted! underline-offset-4 hover:text-foreground!"
+            className="text-sm text-muted-foreground underline decoration-dotted underline-offset-4 hover:text-foreground"
           >
             {pendingNote}
           </Link>
