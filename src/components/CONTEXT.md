@@ -78,7 +78,12 @@ an `!`. A link that belongs to a component with its own ink opts out by
 `data-slot` (button, badge, sidebar entry, dropdown-menu-item, breadcrumb-link).
 Navigation-like links (nav items, tabs, whole-row links) name their ink in
 classes. `link-ink.test.ts` fails on an important modifier on colour or
-decoration.
+decoration. What colour a link's classes actually resolve to, in both themes, is
+read only by `e2e/storybook-metrics/link-ink.metrics.ts` (`pnpm
+test:storybook:metrics`), because the Storybook Vitest runner compiles no
+Tailwind. That spec is not wired into CI (see `playwright.storybook.config.ts`),
+so a change to link ink, `@layer base` in `styles.css` or the sidebar entry
+classes must run it by hand before merge.
 
 Use `usePermissions()` for presentation affordances rather than threading
 `canEdit` flags. These affordances never replace server authorization. Prefer one

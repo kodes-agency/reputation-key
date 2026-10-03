@@ -241,8 +241,8 @@ In light mode, the same tonal stack inverts: near-white backgrounds step from pa
 - **Width:** 256px expanded, 48px collapsed (the icon rail). Below 768px (`md`) the sidebar is a sheet drawer; from 768px up it docks beside the content.
 - **One collapse mode:** the app sidebar and the Settings sidebar both collapse to the icon rail and share one open state, so collapsing on any page never leaves the other sidebar off-screen.
 - **Background:** Same as page (Graphite Obsidian). No distinction between sidebar and content area — they share the same foundation.
-- **Active item:** Spectral Violet Muted background with Spectral Violet text, font-weight 600. The muted purple fills the row, creating the Linear-style indent signal.
-- **Inactive item:** Ink Secondary text, no background. Hovered: subtle Graphite Surface background.
+- **Active item:** Spectral Violet Muted background with Ink Primary text (`sidebar-accent-foreground`), font-weight 600. The muted purple fills the row, creating the Linear-style indent signal; the text stays primary ink so the label keeps its contrast on the fill.
+- **Inactive item:** `sidebar-foreground` ink (Ink Primary), no background. Hovered: subtle Graphite Surface background.
 - **Icons:** Spectral Violet color in both themes. Lucide icon set, 16px, 1.5px stroke width. The consistent purple icon treatment anchors the navigation hierarchy.
 - **Section groups:** Separated by 1px Graphite Border lines. Group labels use the overline style (12px, 600 weight, uppercase, wide tracking).
 
