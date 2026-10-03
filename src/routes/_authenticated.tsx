@@ -20,7 +20,8 @@ import {
   type CapabilitySet,
 } from '#/shared/auth/capability-set'
 import { propertyIdFromLocation } from '#/components/hooks/use-property-id'
-import { isWorkspaceRoute } from '#/components/features/portal/portal-workspace/portal-workspace-route'
+import { isFullBleedRoute } from '#/components/layout/full-bleed-route'
+import { PAGE_GUTTER } from '#/components/layout/page-shell'
 import { httpStatus } from '#/shared/security/expected-refusal'
 import { SidebarProvider } from '#/components/ui/sidebar'
 import { ManagerSidebar } from '#/components/layout/manager-sidebar'
@@ -197,13 +198,10 @@ function AuthenticatedLayout() {
   const properties = partitionWorkspaceProperties(propsData.properties).workspace
   const pathname = useRouterState({ select: (s) => s.location.pathname })
   const isSettings = pathname.startsWith('/settings')
-  // Both surfaces are full-bleed: the sidebar collapses to the icon rail and
-  // the surface scrolls its own panes. The Inbox and the portal workspace share
-  // the treatment.
-  const isFullBleed =
-    pathname.startsWith('/inbox') ||
-    pathname.includes('/reviews') ||
-    isWorkspaceRoute(pathname)
+  // A full-bleed surface (Inbox, Property Reviews, the portal workspace): the
+  // sidebar collapses to the icon rail and the surface scrolls its own panes.
+  // `isFullBleedRoute` is the one place that says which routes those are.
+  const isFullBleed = isFullBleedRoute(pathname)
   const [sidebarOpen, setSidebarOpen] = useState(true)
 
   const content = (
@@ -249,9 +247,10 @@ function AuthenticatedLayout() {
             hasRole(ctx.role, 'PropertyManager') ? listMyBetaFeedbackFn : undefined
           }
         />
+        {/* The only element that pads a page (PAGE_GUTTER); nothing below adds a second gutter. */}
         <main
           className={`min-w-0 flex-1 ${
-            isFullBleed ? 'overflow-hidden' : 'overflow-auto px-4 py-5 md:px-6 md:py-8'
+            isFullBleed ? 'overflow-hidden' : `overflow-auto ${PAGE_GUTTER}`
           }`}
         >
           <Outlet />

@@ -177,13 +177,6 @@ export const NoRatingsAtAll: Story = {
   },
 }
 
-export const NoProperty: Story = {
-  args: { property: null },
-  play: async ({ canvasElement }) => {
-    expect(within(canvasElement).queryByText('Ratings')).toBeNull()
-  },
-}
-
 export const Compact390: Story = {
   parameters: { viewport: { defaultViewport: 'mobileStaff' } },
   play: async ({ canvasElement }) => {

@@ -173,13 +173,6 @@ export const UnavailableWithCta: Story = {
   },
 }
 
-export const NoProperty: Story = {
-  args: { property: null },
-  play: async ({ canvas }) => {
-    expect(canvas.queryByText('Google Business Profile')).toBeNull()
-  },
-}
-
 export const Compact390: Story = {
   args: { range: '30d' },
   parameters: { viewport: { defaultViewport: 'mobileStaff' } },

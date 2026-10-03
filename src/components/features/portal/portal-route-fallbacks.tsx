@@ -2,8 +2,8 @@ import type { ReactNode } from 'react'
 import type { ErrorComponentProps } from '@tanstack/react-router'
 
 import { PageHeader } from '#/components/layout/page-header'
+import { FullBleedFrame, PageShell } from '#/components/layout/page-shell'
 import { ErrorState, LoadingState } from '#/components/layout/page-states'
-import { PageShell } from '#/components/layout/page-shell'
 import {
   SignedOutRedirect,
   useGuardedRouteError,
@@ -51,16 +51,16 @@ export function PortalAllPropertiesError({ error }: ErrorComponentProps) {
 }
 
 /**
- * The portal workspace is full-bleed (see `isWorkspaceRoute`): the layout above
+ * The portal workspace is full-bleed (see `isFullBleedRoute`): the layout above
  * it clips overflow and pads nothing. Its loading, error and not-found states
  * render in that same frame, so they bring their own padding and their own
  * scroll instead of being cut off at the viewport.
  */
 export function PortalFallbackFrame({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <div className="h-full overflow-y-auto px-4 py-5 md:px-6 md:py-8">
+    <FullBleedFrame scroll>
       <PageShell>{children}</PageShell>
-    </div>
+    </FullBleedFrame>
   )
 }
 

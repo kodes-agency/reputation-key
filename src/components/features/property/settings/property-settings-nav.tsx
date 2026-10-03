@@ -1,4 +1,5 @@
 import { Link, useRouterState } from '@tanstack/react-router'
+import { PAGE_GUTTER_BLEED_PHONE } from '#/components/layout/page-shell'
 import { cn } from '#/lib/utils'
 import {
   activePropertySettingsSection,
@@ -34,7 +35,12 @@ export function PropertySettingsNav({
 
   return (
     <nav aria-label="Property settings sections" className="min-w-0">
-      <ul className="-mx-4 flex gap-1 overflow-x-auto px-4 pb-1 md:mx-0 md:flex-col md:overflow-visible md:px-0">
+      <ul
+        className={cn(
+          'flex gap-1 overflow-x-auto pb-1 md:flex-col md:overflow-visible',
+          PAGE_GUTTER_BLEED_PHONE,
+        )}
+      >
         {sections.map((section) => {
           const current = active === section.key
           return (
