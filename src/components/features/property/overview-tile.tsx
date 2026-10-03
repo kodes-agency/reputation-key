@@ -14,6 +14,11 @@ import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
 import { cn } from '#/lib/utils'
+import { dashboardRangeComparisonLabel } from '#/shared/dashboard-range'
+
+/** The pulse is the last 30 days against the 30 before; every delta on a tile names that baseline. */
+export const PULSE_COMPARISON_LABEL =
+  dashboardRangeComparisonLabel('30d') ?? 'vs the previous 30 days'
 
 /**
  * Where the tile goes: usually the page that explains its number, but a tile
@@ -105,23 +110,5 @@ export function OverviewTile({
     >
       {body}
     </Link>
-  )
-}
-
-/**
- * Direction marker for a pulse line. Never alone: the caller always renders a
- * signed figure beside it, so the meaning survives without colour (row 10).
- */
-export function PulseDelta({
-  percent,
-  suffix = 'vs the prior 30 days',
-}: Readonly<{ percent: number | null; suffix?: string }>) {
-  if (percent === null) return null
-  if (percent === 0) return <>No change {suffix}</>
-  const up = percent > 0
-  return (
-    <span className={up ? 'text-positive' : 'text-negative'}>
-      {up ? '↑' : '↓'} {Math.abs(percent)}% {suffix}
-    </span>
   )
 }

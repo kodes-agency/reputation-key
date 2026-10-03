@@ -13,6 +13,8 @@ import {
 } from '#/shared/dashboard-range'
 import { cn } from '#/lib/utils'
 import { PropertyReputationTrendChart } from './property-reputation-trend-chart'
+import { formatNumber } from '#/lib/format'
+import { MetricDelta } from '#/components/ui/metric-delta'
 
 export interface PropertyRatingsPageProps {
   property: Readonly<{ id: string; name: string }>
@@ -52,38 +54,14 @@ function MetricFigure({
   )
 }
 
-function Delta({
-  value,
-  comparisonLabel,
-  unit,
-}: Readonly<{
-  value: number
-  comparisonLabel: string
-  unit: 'rating' | 'percent'
-}>) {
-  if (value === 0) return <>No change {comparisonLabel}</>
-  const increased = value > 0
-  const magnitude =
-    unit === 'rating'
-      ? Math.abs(value).toFixed(1)
-      : Math.abs(value).toLocaleString(undefined, { maximumFractionDigits: 1 })
-
-  return (
-    <span className={increased ? 'text-positive' : 'text-negative'}>
-      {increased ? '↑' : '↓'} {magnitude}
-      {unit === 'percent' ? '%' : ''} {comparisonLabel}
-    </span>
-  )
-}
-
 function formatReplyTime(hours: number): string {
   if (hours < 1) return 'Less than 1 hour'
   if (hours < 24) {
     const rounded = Math.round(hours * 10) / 10
-    return `${rounded.toLocaleString()} ${rounded === 1 ? 'hour' : 'hours'}`
+    return `${formatNumber(rounded)} ${rounded === 1 ? 'hour' : 'hours'}`
   }
   const days = Math.round((hours / 24) * 10) / 10
-  return `${days.toLocaleString()} ${days === 1 ? 'day' : 'days'}`
+  return `${formatNumber(days)} ${days === 1 ? 'day' : 'days'}`
 }
 
 export function PropertyRatingsPage({
@@ -104,26 +82,22 @@ export function PropertyRatingsPage({
     ) : comparisonLabel === null ? null : kpis.avgRating.comparison === null ? (
       'Needs 10 ratings in each period to compare.'
     ) : (
-      <Delta
-        value={kpis.avgRating.comparison}
-        comparisonLabel={comparisonLabel}
-        unit="rating"
-      />
+      <MetricDelta value={kpis.avgRating.comparison} comparisonLabel={comparisonLabel} />
     )
 
   const reviewContext =
     comparisonLabel === null ? null : kpis.reviews.trend === null ? (
       `No reviews in the previous ${DASHBOARD_RANGE_LABELS[range].toLowerCase()} to compare.`
     ) : (
-      <Delta
+      <MetricDelta
         value={kpis.reviews.trend}
-        comparisonLabel={comparisonLabel}
         unit="percent"
+        comparisonLabel={comparisonLabel}
       />
     )
 
   const replyRateValue = hasReviews
-    ? `${replyPerformance.replyRate.toLocaleString(undefined, { maximumFractionDigits: 1 })}%`
+    ? `${formatNumber(replyPerformance.replyRate, { maximumFractionDigits: 1 })}%`
     : null
   const replyRateContext = hasReviews ? null : 'No reviews needed a reply in this period.'
   const replyTimeValue =
@@ -164,7 +138,7 @@ export function PropertyRatingsPage({
         />
         <MetricFigure
           label="Reviews"
-          value={kpis.reviews.value.toLocaleString()}
+          value={formatNumber(kpis.reviews.value)}
           context={reviewContext}
           className="py-4 sm:px-4"
         />

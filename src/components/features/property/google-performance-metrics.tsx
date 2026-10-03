@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react'
-import { ArrowDownRight, ArrowUpRight, Minus } from 'lucide-react'
 import type {
   PerformanceMetricValue,
   PropertyGooglePerformanceReportV1,
@@ -13,11 +12,13 @@ import {
   CardTitle,
 } from '#/components/ui/card'
 import { GlossaryTerm } from '#/components/features/shared/glossary-term'
-import { cn } from '#/lib/utils'
+import { formatNumber } from '#/lib/format'
+import { MetricDelta } from '#/components/ui/metric-delta'
 
-const numberFormat = new Intl.NumberFormat()
-
-function MetricDelta({ metric }: Readonly<{ metric: PerformanceMetricValue }>) {
+function MetricComparison({
+  metric,
+  comparisonLabel,
+}: Readonly<{ metric: PerformanceMetricValue; comparisonLabel: string }>) {
   const coverage =
     metric.availability === 'partial'
       ? `${metric.completeDayCount} current / ${metric.priorCompleteDayCount} prior complete days`
@@ -31,28 +32,12 @@ function MetricDelta({ metric }: Readonly<{ metric: PerformanceMetricValue }>) {
   } else if (metric.deltaPercent === null) {
     delta = <span>No comparable period</span>
   } else {
-    const rounded = Math.abs(metric.deltaPercent).toFixed(1)
-    const Icon =
-      metric.deltaPercent > 0
-        ? ArrowUpRight
-        : metric.deltaPercent < 0
-          ? ArrowDownRight
-          : Minus
-    const direction =
-      metric.deltaPercent > 0 ? 'up' : metric.deltaPercent < 0 ? 'down' : 'unchanged'
-
     delta = (
-      <span
-        className={cn(
-          'inline-flex items-center gap-1',
-          metric.deltaPercent > 0 && 'text-positive',
-          metric.deltaPercent < 0 && 'text-negative',
-        )}
-      >
-        <Icon aria-hidden="true" className="size-3.5" />
-        {direction === 'unchanged' ? 'Unchanged' : `${direction} ${rounded}%`} vs prior
-        period
-      </span>
+      <MetricDelta
+        value={metric.deltaPercent}
+        unit="percent"
+        comparisonLabel={comparisonLabel}
+      />
     )
   }
 
@@ -67,7 +52,13 @@ function MetricDelta({ metric }: Readonly<{ metric: PerformanceMetricValue }>) {
 export function GooglePerformanceMetric({
   metric,
   label,
-}: Readonly<{ metric: PerformanceMetricValue; label?: ReactNode }>) {
+  comparisonLabel,
+}: Readonly<{
+  metric: PerformanceMetricValue
+  label?: ReactNode
+  /** Names the baseline of the change, e.g. "vs the previous 90 days". */
+  comparisonLabel: string
+}>) {
   return (
     <div className="flex min-w-0 flex-col gap-2 p-4 sm:p-5">
       <div className="flex min-w-0 items-start justify-between gap-2">
@@ -77,16 +68,20 @@ export function GooglePerformanceMetric({
         ) : null}
       </div>
       <p className="text-2xl font-semibold tracking-tight tabular-nums sm:text-3xl">
-        {metric.value === null ? 'Not returned' : numberFormat.format(metric.value)}
+        {metric.value === null ? 'Not returned' : formatNumber(metric.value)}
       </p>
-      <MetricDelta metric={metric} />
+      <MetricComparison metric={metric} comparisonLabel={comparisonLabel} />
     </div>
   )
 }
 
 export function GooglePerformanceHeadlines({
   report,
-}: Readonly<{ report: PropertyGooglePerformanceReportV1 }>) {
+  comparisonLabel,
+}: Readonly<{
+  report: PropertyGooglePerformanceReportV1
+  comparisonLabel: string
+}>) {
   const metrics: ReadonlyArray<{
     metric: PerformanceMetricValue
     label?: ReactNode
@@ -113,7 +108,12 @@ export function GooglePerformanceHeadlines({
       <CardContent className="p-0">
         <div className="grid grid-cols-1 divide-y sm:grid-cols-2 sm:[&>*:nth-child(2n)]:border-l lg:grid-cols-4 lg:divide-y-0 lg:[&>*]:border-l lg:[&>*:first-child]:border-l-0">
           {metrics.map(({ metric, label }) => (
-            <GooglePerformanceMetric key={metric.label} metric={metric} label={label} />
+            <GooglePerformanceMetric
+              key={metric.label}
+              metric={metric}
+              label={label}
+              comparisonLabel={comparisonLabel}
+            />
           ))}
         </div>
       </CardContent>

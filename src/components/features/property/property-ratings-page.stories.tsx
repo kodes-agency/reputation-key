@@ -123,8 +123,11 @@ export const Populated90d: Story = {
 
     const summary = within(canvas.getByLabelText('Ratings summary'))
     expect(summary.getByText('4.3 ★')).toBeVisible()
-    expect(summary.getByText('↑ 0.2 vs the previous 90 days')).toBeVisible()
-    expect(summary.getByText('↑ 12.5% vs the previous 90 days')).toBeVisible()
+    // Each change is the shared MetricDelta: the figure and baseline in one
+    // run, the direction said again in words for a screen reader.
+    expect(summary.getByText('0.2 vs the previous 90 days')).toBeVisible()
+    expect(summary.getByText('12.5% vs the previous 90 days')).toBeVisible()
+    expect(summary.getAllByText('Up', { exact: false })).toHaveLength(2)
 
     const trend = canvas.getByTestId('reputation-trend-chart')
     expect(trend).toHaveAttribute('data-series', 'review-volume,average-rating')

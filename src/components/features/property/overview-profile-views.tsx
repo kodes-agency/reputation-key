@@ -9,11 +9,13 @@
 // The 30-day preset is fixed: Overview has no range control, and this is the
 // window Google itself shows managers, so the figure matches what they see
 // there (row 5).
-import { OverviewTile, PulseDelta } from './overview-tile'
+import { OverviewTile, PULSE_COMPARISON_LABEL } from './overview-tile'
 import { useGooglePerformance } from './use-google-performance'
 import type { GooglePerformanceServerFns } from './use-google-performance'
 import { isUnavailablePerformanceResult } from './google-performance-states'
 import { usePermissions } from '#/shared/hooks/usePermissions'
+import { formatNumber } from '#/lib/format'
+import { MetricDelta } from '#/components/ui/metric-delta'
 
 export type OverviewProfileViewsServerFns = GooglePerformanceServerFns
 
@@ -62,16 +64,19 @@ export function OverviewProfileViews({
   }
 
   return googleTile(
-    views.value.toLocaleString(),
+    formatNumber(views.value),
     <>
       in the last 30 days ·{' '}
-      <PulseDelta percent={roundPercent(views.deltaPercent)} suffix="vs the 30 before" />
-      {views.deltaPercent === null ? 'no comparable period' : null}
+      {views.deltaPercent === null ? (
+        'no comparable period'
+      ) : (
+        <MetricDelta
+          value={views.deltaPercent}
+          unit="percent"
+          fractionDigits={0}
+          comparisonLabel={PULSE_COMPARISON_LABEL}
+        />
+      )}
     </>,
   )
-}
-
-/** The contract carries a raw percentage; the tile shows whole points. */
-function roundPercent(deltaPercent: number | null): number | null {
-  return deltaPercent === null ? null : Math.round(deltaPercent)
 }

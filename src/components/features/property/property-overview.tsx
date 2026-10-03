@@ -20,7 +20,7 @@ import { Button } from '#/components/ui/button'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { AttentionBand } from './attention-band'
-import { OverviewTile, PulseDelta } from './overview-tile'
+import { OverviewTile, PULSE_COMPARISON_LABEL } from './overview-tile'
 import {
   OverviewGuestVoice,
   type OverviewGuestVoiceServerFns,
@@ -30,6 +30,8 @@ import {
   OverviewProfileViews,
   type OverviewProfileViewsServerFns,
 } from './overview-profile-views'
+import { formatNumber } from '#/lib/format'
+import { MetricDelta } from '#/components/ui/metric-delta'
 
 /** The ten-ratings-per-period rule the read model already enforces. */
 const MIN_RATING_COMPARISON_SAMPLE = 10
@@ -59,28 +61,20 @@ function ratingTile(lifetime: DashboardData, pulse: DashboardData, propertyId: s
   if (allTime.value === null) {
     context = 'No ratings yet.'
   } else if (recent.value === null) {
-    context = `From ${allTime.sampleCount.toLocaleString()} ratings · none in the last 30 days`
+    context = `From ${formatNumber(allTime.sampleCount)} ratings · none in the last 30 days`
   } else if (
     recent.comparison !== null &&
     recent.sampleCount >= MIN_RATING_COMPARISON_SAMPLE
   ) {
-    const up = recent.comparison > 0
-    const same = recent.comparison === 0
     context = (
       <>
         {recent.value.toFixed(1)} over the last 30 days ·{' '}
-        {same ? (
-          'unchanged'
-        ) : (
-          <span className={up ? 'text-positive' : 'text-negative'}>
-            {up ? '↑' : '↓'} {Math.abs(recent.comparison).toFixed(1)} vs the 30 before
-          </span>
-        )}
+        <MetricDelta value={recent.comparison} comparisonLabel={PULSE_COMPARISON_LABEL} />
       </>
     )
   } else {
     // Below the sample rule there is no delta to show, so say what there is.
-    context = `${recent.sampleCount.toLocaleString()} new ${
+    context = `${formatNumber(recent.sampleCount)} new ${
       recent.sampleCount === 1 ? 'rating' : 'ratings'
     } in the last 30 days`
   }
@@ -104,21 +98,27 @@ function reviewsTile(lifetime: DashboardData, pulse: DashboardData, propertyId: 
   return (
     <OverviewTile
       label="Reviews"
-      value={recent === 0 ? null : recent.toLocaleString()}
+      value={recent === 0 ? null : formatNumber(recent)}
       context={
         recent === 0 ? (
           allTime === 0 ? (
             'No reviews yet.'
           ) : (
-            `None in the last 30 days · ${allTime.toLocaleString()} all time`
+            `None in the last 30 days · ${formatNumber(allTime)} all time`
           )
         ) : (
           <>
             in the last 30 days ·{' '}
-            <PulseDelta percent={pulse.kpis.reviews.trend} suffix="vs the 30 before" />
-            {pulse.kpis.reviews.trend === null
-              ? `${allTime.toLocaleString()} all time`
-              : null}
+            {pulse.kpis.reviews.trend === null ? (
+              `${formatNumber(allTime)} all time`
+            ) : (
+              <MetricDelta
+                value={pulse.kpis.reviews.trend}
+                unit="percent"
+                fractionDigits={0}
+                comparisonLabel={PULSE_COMPARISON_LABEL}
+              />
+            )}
           </>
         )
       }
