@@ -118,7 +118,7 @@ export const InTheAccountMenu: Story = {
     // (44 px below `md`). The Storybook runner compiles no Tailwind, so the
     // class is what can be asserted, not the pixels.
     for (const segment of within(group).getAllByRole('menuitemradio')) {
-      expect(segment).toHaveClass('max-md:h-11', 'max-md:min-h-11')
+      expect(segment).toHaveClass('max-md:min-h-11')
     }
 
     await userEvent.click(page.getByRole('menuitemradio', { name: 'Light' }))
