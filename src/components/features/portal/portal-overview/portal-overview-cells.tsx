@@ -107,7 +107,7 @@ export function PortalAttentionLine({
 }
 
 /** `EN BG ES DE`, with the full names for a screen reader. */
-export function PortalLocaleChips({ locales }: Readonly<{ locales: PortalLocalesView }>) {
+function PortalLocaleChips({ locales }: Readonly<{ locales: PortalLocalesView }>) {
   return (
     <>
       <span aria-hidden="true" className="inline-flex flex-wrap gap-1">

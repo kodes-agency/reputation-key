@@ -27,6 +27,14 @@ const meta: Meta<typeof Alert> = {
 export default meta
 type Story = StoryObj<typeof Alert>
 
+/** A tone's notice is announced, names its variant, and wears exactly one icon the screen reader skips. */
+function expectTone(canvasElement: HTMLElement, variant: string): HTMLElement {
+  const alert = within(canvasElement).getByRole('alert')
+  expect(alert).toHaveAttribute('data-variant', variant)
+  expect(alert.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(1)
+  return alert
+}
+
 /** Something failed or is blocked. Keeps the card surface the form errors use. */
 export const Destructive: Story = {
   render: () => (
@@ -36,10 +44,8 @@ export const Destructive: Story = {
     </Alert>
   ),
   play: async ({ canvasElement }) => {
-    const alert = within(canvasElement).getByRole('alert')
-    expect(alert).toHaveAttribute('data-variant', 'destructive')
+    const alert = expectTone(canvasElement, 'destructive')
     expect(alert).toHaveTextContent('Unable to complete this action')
-    expect(alert.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(1)
   },
 }
 
@@ -54,9 +60,7 @@ export const Warning: Story = {
     </Alert>
   ),
   play: async ({ canvasElement }) => {
-    const alert = within(canvasElement).getByRole('alert')
-    expect(alert).toHaveAttribute('data-variant', 'warning')
-    expect(alert.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(1)
+    expectTone(canvasElement, 'warning')
   },
 }
 
@@ -71,9 +75,7 @@ export const Success: Story = {
     </Alert>
   ),
   play: async ({ canvasElement }) => {
-    const alert = within(canvasElement).getByRole('alert')
-    expect(alert).toHaveAttribute('data-variant', 'success')
-    expect(alert.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(1)
+    expectTone(canvasElement, 'success')
   },
 }
 
@@ -88,9 +90,7 @@ export const Info: Story = {
     </Alert>
   ),
   play: async ({ canvasElement }) => {
-    const alert = within(canvasElement).getByRole('alert')
-    expect(alert).toHaveAttribute('data-variant', 'info')
-    expect(alert.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(1)
+    expectTone(canvasElement, 'info')
   },
 }
 
