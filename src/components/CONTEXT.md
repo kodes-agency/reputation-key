@@ -10,9 +10,14 @@ and actions supply server state.
 
 - `ui/` holds vendored shadcn primitives plus app-wide presentation primitives
   that no feature owns (Fact, OwnerDisc, MetricStrip, SegmentedControl, Timeline,
-  StarRating, ConfirmationDialog). Every confirmation goes through
-  `ConfirmationDialog`; its `tone` is `destructive` only for an action the person
-  cannot take back.
+  StarRating, ConfirmationDialog, EmptyState, RegionError). Every confirmation goes
+  through `ConfirmationDialog`; its `tone` is `destructive` only for an action the
+  person cannot take back. A region with nothing to show, nothing that matches, or
+  a read that failed is `EmptyState` (`size` default or compact, `tone` neutral or
+  error, `description` and `action` slots) or `RegionError`, whose only recovery is
+  "Try again" wired to the region's refetch. Never hand-build a dashed box or a
+  "Retry" button; `region-states.test.ts` fails on both. The bell's could-not-load
+  body is plain markup on purpose: it sits in the first-paint closure.
 - `forms/` contains shared TanStack Form fields, submission, and error UI.
 - `layout/` contains app-shell and navigation pieces. `PageState` is the one
   page-level state (`loading`, `error`, `notFound`, `unavailable`): the router's
