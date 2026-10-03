@@ -78,7 +78,11 @@ export const WholePoints: Story = {
   },
 }
 
-/** Inside a sentence, as the Overview tiles use it. */
+/**
+ * Inside a sentence. Its words stand on the sentence's baseline: that is a
+ * geometry the Vitest runner cannot read (no Tailwind), so it is measured in
+ * `e2e/storybook-metrics/overview-tile-caption.metrics.ts`.
+ */
 export const InASentence: Story = {
   render: (args) => (
     <p className="text-sm text-muted-foreground">

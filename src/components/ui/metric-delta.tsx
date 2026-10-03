@@ -46,6 +46,11 @@ const DIRECTION_STYLE = {
  * (`--positive` / `--negative`), which clears 4.5:1 at body sizes and is never
  * the only carrier of meaning: the arrow and the screen-reader word say the same.
  *
+ * The words, not the arrow, give the box its baseline (`items-baseline`; the
+ * arrow centres itself), so a change set inside a sentence sits on the
+ * sentence's baseline instead of riding about 2px above it on the arrow's
+ * bottom edge.
+ *
  * Callers own the cases around it (no comparable period yet, too few ratings to
  * compare): this draws a change that exists.
  */
@@ -74,9 +79,9 @@ export function MetricDelta({
     <span
       data-slot="metric-delta"
       data-direction={direction}
-      className={cn('inline-flex items-center gap-1 tabular-nums', ink, className)}
+      className={cn('inline-flex items-baseline gap-1 tabular-nums', ink, className)}
     >
-      <Icon aria-hidden="true" className="size-3.5 shrink-0" />
+      <Icon aria-hidden="true" className="size-3.5 shrink-0 self-center" />
       <span>
         <span className="sr-only">{word} </span>
         {`${size}${unit === 'percent' ? '%' : ''} ${comparisonLabel}`}
