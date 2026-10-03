@@ -6,12 +6,12 @@
 // last cue before the click, so it must not vary for the same kind of action.
 // `destructive` is for an action the person cannot take back or that loses data
 // (remove a member, delete a link, remove a Property, disconnect Google, end a
-// goal). A reversible one (archive, restore, disable a public page) stays
-// `neutral`, and so does its menu item: a red item that opens a primary-coloured
-// confirm contradicts itself. A trigger follows the same rule: a destructive
-// confirm is started from a destructive Button (`ConfirmationTrigger`), a
-// neutral one from an outline Button, or a plain Button when it is the page's
-// affirmative action (Restore, Enable).
+// goal). A reversible one (archive, restore, disable a public page, turn off AI
+// features) stays `neutral`, and so does its menu item: a red item that opens a
+// primary-coloured confirm contradicts itself. A trigger follows the same rule:
+// a destructive confirm is started from a destructive Button
+// (`ConfirmationTrigger`), a neutral one from an outline Button, or a plain
+// Button when it is the page's affirmative action (Restore, Enable).
 //
 // What does not confirm (owner decision 3). Only a low-blast action the person
 // can undo on the spot skips this dialog:
@@ -40,7 +40,7 @@
 // Fields. `children` is the body between the question and the actions (an
 // archive note, a reason, a choice of how). `confirmDisabled` holds the confirm
 // back until they are valid, and Enter in a field confirms like the button does.
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import {
   AlertDialog,
@@ -167,6 +167,14 @@ function ConfirmationBody({
   const [error, setError] = useState<unknown>(null)
   // A second press while one is running would run it twice.
   const running = useRef(false)
+  const confirmButton = useRef<HTMLButtonElement>(null)
+
+  // The confirm is natively disabled while it runs, which drops focus to <body>.
+  // After a refusal it comes back, so a keyboard user is not sent to the top of
+  // the dialog to try again or cancel.
+  useEffect(() => {
+    if (error !== null) confirmButton.current?.focus()
+  }, [error])
 
   const confirm = async () => {
     if (running.current) return
@@ -208,6 +216,7 @@ function ConfirmationBody({
         <AlertDialogFooter>
           <AlertDialogCancel disabled={pending}>{cancelLabel}</AlertDialogCancel>
           <AlertDialogAction
+            ref={confirmButton}
             type="submit"
             variant={tone === 'destructive' ? 'destructive' : 'default'}
             pending={pending}

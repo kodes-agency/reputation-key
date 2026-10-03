@@ -121,6 +121,60 @@ export const TallContentScrolls: Story = {
   },
 }
 
+/**
+ * The corner close sits over the title's last column, so the title leaves it room.
+ * That holds when the header is not a direct child of the content (a form's first
+ * child, as in the Goal dialogs), and does not when the corner close is dropped.
+ */
+export const TitleLeavesRoomForTheCloseInAForm: Story = {
+  render: () => (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline">Open</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <form className="grid gap-4">
+          <DialogHeader>
+            <DialogTitle>
+              Change the monthly target for every portal in this group
+            </DialogTitle>
+            <DialogDescription>Changes start next full month.</DialogDescription>
+          </DialogHeader>
+        </form>
+      </DialogContent>
+    </Dialog>
+  ),
+  play: async ({ canvasElement }) => {
+    const { dialog } = await open(canvasElement)
+    const header = within(dialog).getByRole('heading').parentElement
+    expect(header?.className).toContain('[&>[data-slot=dialog-title]]:px-8')
+  },
+}
+
+export const TitleKeepsItsWidthWithoutTheCorner: Story = {
+  render: () => (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline">Open</Button>
+      </DialogTrigger>
+      <DialogContent showCloseButton={false}>
+        <DialogHeader>
+          <DialogTitle>Rename group</DialogTitle>
+          <DialogDescription>Only your team sees the name.</DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <DialogCancel />
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  ),
+  play: async ({ canvasElement }) => {
+    const { dialog } = await open(canvasElement)
+    const header = within(dialog).getByRole('heading').parentElement
+    expect(header?.className).not.toContain('dialog-title')
+  },
+}
+
 /** The corner close is a Button with the one name every close wears. */
 export const CloseIsAButton: Story = {
   render: () => <Demo />,

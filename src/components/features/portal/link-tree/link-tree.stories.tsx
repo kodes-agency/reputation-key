@@ -435,6 +435,59 @@ export const EditorWithoutDeletePermission: Story = {
   },
 }
 
+async function openDeleteConfirmation(canvasElement: HTMLElement) {
+  await userEvent.click(
+    within(canvasElement).getByRole('button', {
+      name: 'More actions for Spa & treatments',
+    }),
+  )
+  await userEvent.click(
+    within(document.body).getByRole('menuitem', { name: 'Delete link' }),
+  )
+  return within(await within(document.body).findByRole('alertdialog'))
+}
+
+// The confirmation waits for the delete and closes when it is done.
+export const DeleteLinkConfirmsThenCloses: Story = {
+  args: { mutations: stubMutations() },
+  play: async ({ canvasElement, args }) => {
+    const dialog = await openDeleteConfirmation(canvasElement)
+    await userEvent.click(dialog.getByRole('button', { name: 'Delete link' }))
+    await waitFor(() =>
+      expect(mocked(args.mutations.deleteLink)).toHaveBeenCalledWith({
+        data: { linkId: 'spa' },
+      }),
+    )
+    await waitFor(() =>
+      expect(within(document.body).queryByRole('alertdialog')).toBeNull(),
+    )
+  },
+}
+
+// A refused delete stays in the dialog, once, and the dialog can be left again.
+export const DeleteLinkRefusalStaysInTheDialog: Story = {
+  args: {
+    mutations: {
+      ...stubMutations(),
+      deleteLink: stubAction(async () => {
+        throw new Error('The link could not be deleted')
+      }),
+    } as unknown as LinktreeMutations,
+  },
+  play: async ({ canvasElement }) => {
+    const dialog = await openDeleteConfirmation(canvasElement)
+    await userEvent.click(dialog.getByRole('button', { name: 'Delete link' }))
+    await expect(await dialog.findByRole('alert')).toHaveTextContent(
+      'Something went wrong. Try again.',
+    )
+    await expect(dialog.getByRole('button', { name: 'Cancel' })).toBeEnabled()
+    await userEvent.click(dialog.getByRole('button', { name: 'Cancel' }))
+    await waitFor(() =>
+      expect(within(document.body).queryByRole('alertdialog')).toBeNull(),
+    )
+  },
+}
+
 export const BulgarianPrimaryPortalListsItsLanguageFirst: Story = {
   args: {
     view: view({

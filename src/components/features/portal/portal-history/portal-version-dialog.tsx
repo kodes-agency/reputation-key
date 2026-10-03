@@ -34,6 +34,8 @@ type Props = Readonly<{
   preview?: ReactNode
   /** Replaces the read-only view when the choice has been started. */
   confirmation: ReactNode | null
+  /** The confirmation's request is in flight: Escape and the overlay are refused. */
+  submitting?: boolean
   onMakeLive: () => void
   onRetry: () => void
   /** `onRetry` is reading; the failure stays, its button busy. */
@@ -93,6 +95,7 @@ export function PortalVersionDialog({
   canMakeLive,
   preview = null,
   confirmation,
+  submitting = false,
   onMakeLive,
   onRetry,
   retrying = false,
@@ -101,7 +104,12 @@ export function PortalVersionDialog({
   const published = detail ? formatHistoryTime(detail.publishedAt, now, timeZone) : null
   const by = detail?.publishedBy?.displayName ?? null
   return (
-    <Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
+    <Dialog
+      open
+      // Only the confirmation commits something; the read-only view is never held.
+      busy={confirmation !== null && submitting}
+      onOpenChange={(open) => (open ? undefined : onClose())}
+    >
       <DialogContent
         size="xl"
         // The footer's Close is the exit, so the corner close is dropped.

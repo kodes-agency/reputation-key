@@ -35,6 +35,8 @@ type HarnessProps = Readonly<{
   initialSelection?: HistorySelection | null
   detailStatus?: 'loading' | 'error' | 'ready'
   restoreError?: string | null
+  /** The restore request is in flight. */
+  submitting?: boolean
   entries?: typeof STORY_ENTRIES
   note?: string | null
   /** Version 4 was made live again after version 5; the draft is still on 5. */
@@ -57,6 +59,7 @@ function Harness({
   initialSelection = null,
   detailStatus = 'ready',
   restoreError = null,
+  submitting = false,
   entries,
   note = null,
   afterRestore = false,
@@ -133,7 +136,7 @@ function Harness({
         detail: selection ? (details[selection.version] ?? null) : null,
         retry: fn(),
       }}
-      submitting={false}
+      submitting={submitting}
       restoreError={restoreError}
       onSelect={setSelection}
       onConfirmRestore={(version) => {
@@ -344,6 +347,42 @@ export const MakeLiveAgainFailed: Story = {
     await expect(within(canvasElement).getByRole('alert')).toHaveTextContent(
       /currently published/,
     )
+  },
+}
+
+// The confirmation in the dialog holds it open while the request runs: Escape is
+// refused, so the refusal banner always has the surface it appears on.
+export const MakeLiveAgainDialogHeldWhileSubmitting: Story = {
+  args: {
+    initialSelection: { version: 4, mode: 'restore', host: 'dialog' },
+    submitting: true,
+  },
+  play: async () => {
+    const body = within(document.body)
+    const dialog = await body.findByRole('dialog')
+    await expect(
+      within(dialog).getByRole('button', { name: /making it live/i }),
+    ).toBeDisabled()
+    await expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    await userEvent.keyboard('{Escape}')
+    await expect(body.getByRole('dialog')).toBeInTheDocument()
+  },
+}
+
+// Once the request has settled (here: it was refused) Escape closes it again.
+export const MakeLiveAgainDialogClosesWhenIdle: Story = {
+  args: {
+    initialSelection: { version: 4, mode: 'restore', host: 'dialog' },
+    restoreError: 'Only a currently published Portal can make another version live again',
+  },
+  play: async () => {
+    const body = within(document.body)
+    const dialog = await body.findByRole('dialog')
+    await expect(within(dialog).getByRole('alert')).toHaveTextContent(
+      /currently published/,
+    )
+    await userEvent.keyboard('{Escape}')
+    await expect(body.queryByRole('dialog')).toBeNull()
   },
 }
 

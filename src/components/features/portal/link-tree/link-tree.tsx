@@ -152,11 +152,11 @@ export function LinkTree({
     )
   }
 
-  const remove = (linkId: string) => {
-    if (openId === linkId) setOpenId(null)
-    void afterPendingText(() => mutations.deleteLink({ data: { linkId } })).catch(
-      () => undefined,
-    )
+  // The confirmation dialog waits for this and shows a refusal itself, so it
+  // returns the write rather than reporting it (the mutation has no toast).
+  const remove = async (linkId: string) => {
+    await afterPendingText(() => mutations.deleteLink({ data: { linkId } }))
+    setOpenId((current) => (current === linkId ? null : current))
   }
 
   return (

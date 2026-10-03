@@ -148,7 +148,8 @@ const refusal = () => {
 
 /**
  * A refusal keeps the dialog open and says so once, in a banner above the
- * actions; the confirm is live again for a second try.
+ * actions; the confirm is live again for a second try, and has focus again (it was
+ * disabled while it ran, which dropped focus to the page).
  */
 export const Refused: Story = {
   args: { ...destructiveArgs, onConfirm: fn(async () => refusal()) },
@@ -160,6 +161,7 @@ export const Refused: Story = {
     expect(dialog.getByRole('alertdialog')).toBeVisible()
     const confirm = dialog.getByRole('button', { name: 'Remove Property' })
     expect(confirm).toBeEnabled()
+    await waitFor(() => expect(confirm).toHaveFocus())
     await userEvent.click(confirm)
     await waitFor(() => expect(args.onConfirm).toHaveBeenCalledTimes(2))
     expect(dialog.getAllByRole('alert')).toHaveLength(1)
@@ -217,6 +219,28 @@ export const WithAField: Story = {
     await userEvent.type(dialog.getByLabelText('Archive note'), 'Closed for works{Enter}')
     expect(args.onConfirm).toHaveBeenCalledTimes(1)
     await waitFor(() => expect(dialog.queryByRole('alertdialog')).not.toBeInTheDocument())
+  },
+}
+
+/**
+ * A confirmation that hosts fields (Replace code, Stop all codes, an archive
+ * note) is the viewport less a rem on each side and scrolls inside it, so on a
+ * short phone or with the soft keyboard open the confirm is still reachable.
+ */
+export const TallBodyScrolls: Story = {
+  render: (args) => (
+    <ConfirmationDialog {...args}>
+      {Array.from({ length: 12 }, (_, index) => (
+        <Input key={index} aria-label={`Field ${index + 1}`} />
+      ))}
+    </ConfirmationDialog>
+  ),
+  play: async ({ canvasElement }) => {
+    const dialog = await openDialog(canvasElement)
+    const content = dialog.getByRole('alertdialog')
+    expect(content.className).toContain('max-h-[calc(100dvh-2rem)]')
+    expect(content.className).toContain('overflow-y-auto')
+    expect(dialog.getByRole('button', { name: 'Archive' })).toBeInTheDocument()
   },
 }
 

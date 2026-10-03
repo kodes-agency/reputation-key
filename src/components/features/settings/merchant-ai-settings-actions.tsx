@@ -37,14 +37,15 @@ export function MerchantAiSettingsActions({
           <ConfirmationDialog
             trigger={
               <ConfirmationTrigger
-                tone="destructive"
+                tone="neutral"
                 className="w-full sm:w-auto"
                 disabled={pending}
               >
                 Turn off AI features
               </ConfirmationTrigger>
             }
-            tone="destructive"
+            // Reversible: Enable AI features turns it back on, so the tone is neutral.
+            tone="neutral"
             title={`Turn off AI features for ${propertyName}?`}
             description="Future review analysis, reply drafting, and property trend processing will stop for this property. This does not disconnect Google."
             cancelLabel="Keep AI features on"

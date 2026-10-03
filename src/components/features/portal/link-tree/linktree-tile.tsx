@@ -36,7 +36,8 @@ type Props = Readonly<{
   canMoveUp: boolean
   canMoveDown: boolean
   onMove: (direction: LinkMoveDirection, control: LinkMoveControl) => void
-  onDelete: () => void
+  /** Resolves when the link is deleted; a rejection stays in the confirmation. */
+  onDelete: () => Promise<unknown>
   /** The open tile's editor. */
   children: ReactNode
 }>

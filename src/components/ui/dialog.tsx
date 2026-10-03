@@ -103,6 +103,14 @@ const DIALOG_SIZE = {
 
 type DialogSize = keyof typeof DIALOG_SIZE
 
+/**
+ * Whether the dialog draws the corner close. Its header reads this, wherever it
+ * sits (a form's first child, not only a direct child of the content), so the
+ * title leaves the close room: on both sides while it is centred (a phone), at
+ * its end otherwise.
+ */
+const DialogCornerCloseContext = React.createContext(false)
+
 function DialogContent({
   className,
   children,
@@ -124,15 +132,13 @@ function DialogContent({
         className={cn(
           'fixed top-[50%] left-[50%] z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-lg border bg-background p-6 shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
           DIALOG_SIZE[size],
-          // The corner close sits over the title's last column: the title leaves it
-          // room, on both sides while it is centred (a phone), at its end otherwise.
-          showCloseButton &&
-            '[&>[data-slot=dialog-header]>[data-slot=dialog-title]]:px-8 sm:[&>[data-slot=dialog-header]>[data-slot=dialog-title]]:ps-0',
           className,
         )}
         {...props}
       >
-        {children}
+        <DialogCornerCloseContext value={showCloseButton}>
+          {children}
+        </DialogCornerCloseContext>
         {showCloseButton && <DialogCloseButton disabled={isBusy} />}
       </DialogPrimitive.Content>
     </DialogPortal>
@@ -140,10 +146,16 @@ function DialogContent({
 }
 
 function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
+  const hasCornerClose = React.useContext(DialogCornerCloseContext)
   return (
     <div
       data-slot="dialog-header"
-      className={cn('flex flex-col gap-2 text-center sm:text-left', className)}
+      className={cn(
+        'flex flex-col gap-2 text-center sm:text-left',
+        hasCornerClose &&
+          '[&>[data-slot=dialog-title]]:px-8 sm:[&>[data-slot=dialog-title]]:ps-0',
+        className,
+      )}
       {...props}
     />
   )

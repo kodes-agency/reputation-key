@@ -7,7 +7,8 @@ type Props = Readonly<{
   open: boolean
   onOpenChange: (open: boolean) => void
   label: string
-  onDelete: () => void
+  /** Resolves when the link is gone; a rejection is shown in the dialog. */
+  onDelete: () => Promise<unknown>
 }>
 
 export function DeleteLinkDialog({ open, onOpenChange, label, onDelete }: Props) {

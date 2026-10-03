@@ -172,6 +172,7 @@ export function PortalHistoryView(props: Props) {
               ? confirmation('dialog', selection.version)
               : null
           }
+          submitting={props.submitting}
           onMakeLive={() =>
             props.onSelect({
               version: selection.version,
