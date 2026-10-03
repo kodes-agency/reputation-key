@@ -19,7 +19,6 @@ import { isDarkCapabilityDenial } from '#/shared/auth/capability-denial'
 import {
   BELOW_MINIMUM_SAMPLE,
   DASH,
-  formatCount,
   measureCells,
   type ResultsCell,
   type ResultsMeasuresInput,
@@ -29,6 +28,7 @@ import {
   totalStripOf,
   type OverviewStrip,
 } from './portal-overview-results-strips'
+import { formatNumber } from '#/lib/format'
 
 /** `missing`: no figure (still processing, or cannot be counted). `withheld`: too small to show. */
 export type MeasureTone = 'figure' | 'withheld' | 'missing'
@@ -81,7 +81,7 @@ function summaryOf(
   if (scans.tone !== 'figure') return null
   const head = `${scans.text} ${scansWord(measures.kpis.scans.value, style)}`
   if (average.tone !== 'figure') return head
-  return `${head} · ${average.text} ★ from ${formatCount(measures.kpis.avgRating.sampleCount)}`
+  return `${head} · ${average.text} ★ from ${formatNumber(measures.kpis.avgRating.sampleCount)}`
 }
 
 /**

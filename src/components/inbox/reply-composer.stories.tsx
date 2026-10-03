@@ -1067,7 +1067,7 @@ export const OverLimit: Story = {
   args: { reply: makeReply({ text: 'x'.repeat(5000) }) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText(`5000/${MAX_REPLY_LENGTH}`)).toHaveClass('text-destructive')
+    expect(canvas.getByText(`5000/${MAX_REPLY_LENGTH}`)).toHaveClass('text-negative')
     expect(canvas.getByRole('textbox', { name: 'Public reply' })).toHaveAttribute(
       'aria-invalid',
       'true',
@@ -1801,7 +1801,7 @@ export const AutosaveStatesAt720: Story = atPane({
       () => expect(saveStateOf(canvasElement).textContent).toBe(NOT_SAVED_STATE),
       { timeout: 4_000 },
     )
-    expect(saveStateOf(canvasElement).className).toMatch(/text-destructive/)
+    expect(saveStateOf(canvasElement).className).toMatch(/text-negative/)
     expect(canvas.getByText(AUTOSAVE_ERROR)).toBeVisible()
     expectNoRemovedSentences(canvasElement)
 
@@ -1821,7 +1821,7 @@ export const AutosaveStatesAt720: Story = atPane({
       () => expect(saveStateOf(canvasElement).textContent).toBe(SAVED_STATE),
       { timeout: 4_000 },
     )
-    expect(saveStateOf(canvasElement).className).not.toMatch(/text-destructive/)
+    expect(saveStateOf(canvasElement).className).not.toMatch(/text-negative/)
     expect(onSaveDraft).toHaveBeenCalledTimes(2)
     expect(onSaveDraft).toHaveBeenLastCalledWith(DRAFT_TEXT)
     expect(canvas.queryByRole('button', { name: 'Retry save' })).toBeNull()

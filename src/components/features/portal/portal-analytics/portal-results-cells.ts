@@ -25,6 +25,7 @@ import {
   type MetricEvidenceSubject,
 } from '#/components/features/dashboard/metric-availability-presentation'
 import { dayCount } from './portal-results-window'
+import { formatNumber } from '#/lib/format'
 
 export type ResultsCellKey = 'scans' | 'ratings' | 'average' | 'googleOpens' | 'notes'
 
@@ -78,11 +79,9 @@ export const RESULTS_LABELS = {
 
 export const DASH = '—'
 
-export const formatCount = (value: number) => value.toLocaleString('en-US')
-
 function signed(delta: number): string {
   if (delta === 0) return 'No change'
-  return `${delta > 0 ? '+' : '−'}${formatCount(Math.abs(delta))}`
+  return `${delta > 0 ? '+' : '−'}${formatNumber(Math.abs(delta))}`
 }
 
 /** "the 30 days before", from the window's own local days. */
@@ -162,7 +161,7 @@ function countCell(
       detail: notReadyLine(subject, kpi.evidence, timeZone),
     }
   }
-  return { key, label, subject, value: formatCount(kpi.value), unit: null, detail }
+  return { key, label, subject, value: formatNumber(kpi.value), unit: null, detail }
 }
 
 function starChange(comparison: number): string {
@@ -171,7 +170,7 @@ function starChange(comparison: number): string {
 }
 
 function ratingsWord(count: number): string {
-  return count === 1 ? '1 rating' : `${formatCount(count)} ratings`
+  return count === 1 ? '1 rating' : `${formatNumber(count)} ratings`
 }
 
 /** The reason an average is withheld for want of ratings (the domain's `AVERAGE_BELOW_MINIMUM_REASON`). */
@@ -194,7 +193,7 @@ function averageCell(data: ResultsMeasuresInput, options: Options): ResultsCell 
           : notReadyLine('ratings', evidence, data.timezone)
     return { ...base, value: DASH, unit: null, detail }
   }
-  const parts = [`from ${formatCount(avgRating.sampleCount)}`]
+  const parts = [`from ${formatNumber(avgRating.sampleCount)}`]
   if (options.compare) {
     if (avgRating.comparison !== null) parts.push(starChange(avgRating.comparison))
     else if (avgRating.comparisonWithheld === 'sample_too_small') {

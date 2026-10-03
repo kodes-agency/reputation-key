@@ -133,7 +133,6 @@ export function InboxReopenDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4">
-          <FormErrorBanner error={refusal} />
           <div className="grid gap-2">
             <Label htmlFor="inbox-reopen-reason">Reason</Label>
             <Select
@@ -203,6 +202,7 @@ export function InboxReopenDialog({
               />
             </div>
           ) : null}
+          <FormErrorBanner error={refusal} />
         </div>
         <DialogFooter>
           {/* No class on either button. `Button`'s default size is 36 px,

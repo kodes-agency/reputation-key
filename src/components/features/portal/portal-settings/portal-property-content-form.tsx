@@ -10,6 +10,7 @@ import { propertyPortalBrandContentInputSchema } from '#/contexts/portal/applica
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalExperienceActions } from './portal-experience-settings-types'
 import { useExplicitDraftGuard } from '../portal-editor/use-portal-form-autosave'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
 
 const propertyContentFormSchema = propertyPortalBrandContentInputSchema
   .pick({ title: true, shortDescription: true })
@@ -72,9 +73,12 @@ export function PortalPropertyContentForm({
         </form.Field>
       </FieldGroup>
       {!readOnly ? (
-        <SubmitButton mutation={action} form={form} variant="outline">
-          Save property wording
-        </SubmitButton>
+        <>
+          <FormErrorBanner error={action.error} />
+          <SubmitButton mutation={action} form={form} variant="outline">
+            Save property wording
+          </SubmitButton>
+        </>
       ) : null}
     </form>
   )

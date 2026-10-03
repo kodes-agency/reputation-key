@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import { useForm, useStore } from '@tanstack/react-form'
-import { toast } from 'sonner'
 import type { reviseGoalProgram } from '#/contexts/reporting/server/goal-programs'
 import type {
   GoalMetric,
@@ -13,17 +12,14 @@ import {
 } from '#/contexts/reporting/application/dto/goal-program.dto'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { goalKeys } from '#/shared/queries/query-keys'
+import { Alert, AlertDescription } from '#/components/ui/alert'
 import { DialogFooter } from '#/components/ui/dialog'
 import { Input } from '#/components/ui/input'
 import { Field, FieldError, FieldLabel } from '#/components/ui/field'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { submitForm } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
-import {
-  goalRevisionScheduledMessage,
-  goalRevisionStartDate,
-  type GoalVersionStart,
-} from './goal-revision-start'
+import { goalRevisionReceipt, type GoalVersionStart } from './goal-revision-start'
 import { GoalProgramFormDialog } from './goal-program-form-dialog'
 import { GoalChangeReasonField, GoalSubjectsField } from './goal-program-fields'
 
@@ -55,10 +51,8 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
   const [scheduled, setScheduled] = useState<GoalVersionStart | null>(null)
   const mutation = useActionMutation(props.reviseGoalProgramFn, {
     invalidateKeys: [goalKeys.all],
-    onSuccess: ({ version }) => {
-      setScheduled(version)
-      toast.success(goalRevisionScheduledMessage(version))
-    },
+    // The dialog stays open on its receipt, which is the success: no toast.
+    onSuccess: ({ version }) => setScheduled(version),
   })
   const initialFormValues = (): ReviseGoalProgramFormInput => ({
     metric: props.metric,
@@ -154,12 +148,12 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
           />
         )}
       </form.Field>
-      <FormErrorBanner error={mutation.error} />
       {scheduled ? (
-        <p role="status" className="rounded-md bg-muted/50 p-3 text-sm">
-          {`Revision scheduled. This version starts ${goalRevisionStartDate(scheduled)} (${scheduled.propertyTimezone}).`}
-        </p>
+        <Alert variant="success">
+          <AlertDescription>{goalRevisionReceipt(scheduled)}</AlertDescription>
+        </Alert>
       ) : null}
+      <FormErrorBanner error={mutation.error} />
       <DialogFooter>
         <SubmitButton mutation={mutation} form={form} disabled={scheduled !== null}>
           Schedule revision

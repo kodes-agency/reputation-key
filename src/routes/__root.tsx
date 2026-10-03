@@ -99,7 +99,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         <FontSetLinks fontSet={fontSet} locale={documentLanguage} />
         <HeadContent />
       </head>
-      <body className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-[oklch(0.42_0.18_290/0.25)]">
+      <body className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-primary/25">
         {showChrome ? (
           <>
             <Header
@@ -117,7 +117,7 @@ function RootDocument({ children }: { children: React.ReactNode }) {
         ) : (
           children
         )}
-        <Toaster position="top-right" richColors closeButton />
+        <Toaster position="top-right" closeButton />
         <Scripts />
       </body>
     </html>

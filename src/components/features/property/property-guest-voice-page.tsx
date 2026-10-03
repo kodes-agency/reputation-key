@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Clock, Info, SearchX } from 'lucide-react'
 import { DashboardRangeControl } from '#/components/features/dashboard/dashboard-range-control'
 import { GlossaryTerm } from '#/components/features/shared/glossary-term'
 import { PageHeader } from '#/components/layout/page-header'
@@ -18,6 +17,7 @@ import { usePermissions } from '#/shared/hooks/usePermissions'
 import { aiKeys } from '#/shared/queries/query-keys'
 import { PropertyInsightsTopicTable } from './property-insights-aspect-table'
 import { PropertyInsightsEmergingIssues } from './property-insights-emerging-issues'
+import { formatNumber, formatLocalDate } from '#/lib/format'
 
 type ReadyInsights = Extract<AiPropertyInsightsRead, { status: 'ready' }>
 
@@ -26,7 +26,7 @@ export type PropertyGuestVoiceServerFns = Readonly<{
 }>
 
 function pluralized(count: number, singular: string, plural = `${singular}s`): string {
-  return `${count.toLocaleString()} ${count === 1 ? singular : plural}`
+  return `${formatNumber(count)} ${count === 1 ? singular : plural}`
 }
 
 export function PropertyGuestVoiceBasis({ result }: Readonly<{ result: ReadyInsights }>) {
@@ -35,7 +35,7 @@ export function PropertyGuestVoiceBasis({ result }: Readonly<{ result: ReadyInsi
     <div className="flex flex-col gap-2 text-sm text-muted-foreground">
       <p>
         Based on {pluralized(basis.reviewCount, 'review')} ·{' '}
-        {basis.analyzedReviewCount.toLocaleString()} analysed
+        {formatNumber(basis.analyzedReviewCount)} analysed
       </p>
       {result.provisional ? (
         <p>
@@ -57,25 +57,25 @@ export function PropertyGuestVoiceBasis({ result }: Readonly<{ result: ReadyInsi
           <div className="flex justify-between gap-6">
             <dt>Reviews without text</dt>
             <dd className="font-medium tabular-nums text-foreground">
-              {basis.starOnlyCount.toLocaleString()}
+              {formatNumber(basis.starOnlyCount)}
             </dd>
           </div>
           <div className="flex justify-between gap-6">
             <dt>Awaiting analysis</dt>
             <dd className="font-medium tabular-nums text-foreground">
-              {basis.awaitingAnalysisCount.toLocaleString()}
+              {formatNumber(basis.awaitingAnalysisCount)}
             </dd>
           </div>
           <div className="flex justify-between gap-6">
             <dt>In an unsupported language</dt>
             <dd className="font-medium tabular-nums text-foreground">
-              {basis.notAnalyzableCount.toLocaleString()}
+              {formatNumber(basis.notAnalyzableCount)}
             </dd>
           </div>
           <div className="flex justify-between gap-6">
             <dt>Not analysed for topics</dt>
             <dd className="font-medium tabular-nums text-foreground">
-              {basis.preAspectAnalysisCount.toLocaleString()}
+              {formatNumber(basis.preAspectAnalysisCount)}
             </dd>
           </div>
         </dl>
@@ -84,13 +84,8 @@ export function PropertyGuestVoiceBasis({ result }: Readonly<{ result: ReadyInsi
   )
 }
 
-const SUPPORTING_REVIEW_DATE = new Intl.DateTimeFormat('en-GB', {
-  dateStyle: 'medium',
-  timeZone: 'UTC',
-})
-
 function formatSupportingReviewDate(localDate: string): string {
-  return SUPPORTING_REVIEW_DATE.format(new Date(`${localDate}T00:00:00.000Z`))
+  return formatLocalDate(localDate) ?? localDate
 }
 
 function SupportingReview({
@@ -167,8 +162,7 @@ function TrendHeadline({
 function DisabledGuestVoice({ propertyId }: Readonly<{ propertyId: string }>) {
   const { can } = usePermissions()
   return (
-    <Alert>
-      <Info aria-hidden="true" />
+    <Alert variant="info">
       <AlertTitle>AI analysis is off for this property</AlertTitle>
       <AlertDescription className="flex flex-col gap-3">
         <p>
@@ -201,8 +195,7 @@ function GuestVoiceState({
   if (result.status === 'disabled') return <DisabledGuestVoice propertyId={propertyId} />
   if (result.status === 'preparing') {
     return (
-      <Alert>
-        <Clock aria-hidden="true" />
+      <Alert variant="info">
         <AlertTitle>Guest voice is being prepared</AlertTitle>
         <AlertDescription>
           AI analysis is still settling. Topics appear as soon as there is enough review
@@ -212,8 +205,7 @@ function GuestVoiceState({
     )
   }
   return (
-    <Alert>
-      <SearchX aria-hidden="true" />
+    <Alert variant="info">
       <AlertTitle>
         {range === 'all'
           ? 'Not enough review evidence in the available history'

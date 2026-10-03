@@ -7,6 +7,7 @@
 // (figures and notes must not turn purple).
 import { Link } from '@tanstack/react-router'
 import { CircleDashed, History, PencilLine, TriangleAlert } from 'lucide-react'
+import { Badge } from '#/components/ui/badge'
 import { OwnerDisc } from '#/components/ui/owner-disc'
 import { cn } from '#/lib/utils'
 import { attentionLine } from './portal-attention'
@@ -106,17 +107,14 @@ export function PortalAttentionLine({
 }
 
 /** `EN BG ES DE`, with the full names for a screen reader. */
-export function PortalLocaleChips({ locales }: Readonly<{ locales: PortalLocalesView }>) {
+function PortalLocaleChips({ locales }: Readonly<{ locales: PortalLocalesView }>) {
   return (
     <>
       <span aria-hidden="true" className="inline-flex flex-wrap gap-1">
         {locales.chips.map((chip) => (
-          <span
-            key={chip.code}
-            className="rounded-sm bg-muted px-1.5 text-[11px] leading-5 font-medium text-muted-foreground"
-          >
+          <Badge key={chip.code} variant="secondary">
             {chip.label}
-          </span>
+          </Badge>
         ))}
       </span>
       <span className="sr-only">{locales.description}</span>

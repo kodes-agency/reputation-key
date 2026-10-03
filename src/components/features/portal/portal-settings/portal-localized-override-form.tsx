@@ -14,6 +14,10 @@ import { usePortalFormAutosave } from '../portal-editor/use-portal-form-autosave
  * portal's draft, so they save as they are typed (unlike the property's wording
  * below them, which keeps an explicit Save). Empty, they use the property's
  * wording, which the placeholders show.
+ *
+ * A failed write is the editor header's to report (`PortalDraftSaveStatus`), not
+ * this form's: there is no button to sit a banner above, and a second report of
+ * the same failure would tell it twice.
  */
 export function PortalLocalizedOverrideForm({
   locale,

@@ -118,14 +118,9 @@ export function PortalCodeBlock({
             />
           )}
         </div>
-        {download.failed && (
-          <p className="text-sm text-destructive" role="alert">
-            The file could not be made. Try again, or replace the code to get a new set.
-          </p>
-        )}
         {nfcCopyFailed && nfcAddress !== null && (
           <div className="flex flex-col gap-2">
-            <p className="text-sm text-destructive" role="alert">
+            <p className="text-sm text-negative" role="alert">
               {COPY_FAILED_MESSAGE}
             </p>
             <code

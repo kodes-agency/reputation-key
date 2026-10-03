@@ -3,7 +3,7 @@
 // happens in its danger zone, where the responsible-manager rule is checked.
 import { Link } from '@tanstack/react-router'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { Badge } from '#/components/ui/badge'
+import { StatusBadge } from '#/components/ui/status-badge'
 import {
   Table,
   TableBody,
@@ -12,7 +12,10 @@ import {
   TableHeader,
   TableRow,
 } from '#/components/ui/table'
-import { propertyLifecycleLabel, propertyRestoreWindow } from './property-lifecycle-model'
+import {
+  PROPERTY_LIFECYCLE_STATUS,
+  propertyRestoreWindow,
+} from './property-lifecycle-model'
 import {
   buildPropertyListRows,
   sortPropertyListRows,
@@ -96,9 +99,10 @@ export function PropertyListRemoved({
                 </span>
               </TableCell>
               <TableCell className={`${CELL} col-start-2 row-start-1`}>
-                <Badge variant="outline">
-                  {propertyLifecycleLabel(property.lifecycleState)}
-                </Badge>
+                <StatusBadge
+                  status={property.lifecycleState}
+                  map={PROPERTY_LIFECYCLE_STATUS}
+                />
               </TableCell>
               <TableCell className={`${CELL} col-span-2 whitespace-normal`}>
                 <RestoreCell property={property} />

@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Clock, Inbox, Target, TrendingDown, AlertTriangle } from 'lucide-react'
-import { cn } from '#/lib/utils'
+import { Clock, Inbox, Target, TrendingDown, TriangleAlert } from 'lucide-react'
+import { Badge } from '#/components/ui/badge'
 import type { AttentionSignals } from '#/contexts/reporting/application/public-api'
 
 export interface AttentionBandProps {
@@ -9,34 +9,21 @@ export interface AttentionBandProps {
   readonly propertyId: string
 }
 
-type Tone = 'destructive' | 'warning'
-
-/**
- * `warning` sits on the warn tokens (`styles.css`), not raw Tailwind amber: it
- * was `amber-700` / `amber-400` on an `amber-500/10` tint, a shade no other
- * surface agreed on, and the inbox's warning text borrowed it from here.
- *
- * Its hover darkens the BORDER, not the fill, unlike `destructive` beside it.
- * The analogous fill (`bg-warn-track` over the page) measured 4.13:1 for
- * `text-warn` in the light theme — below 4.5:1 for this 14 px label — while
- * `--warn-muted` holds it at 4.62:1, so the rest state's fill has to stay put.
- * `--warn` against `--warn-line` is still a visible step under the pointer.
- *
- * `destructive` prints its label in `text-negative`, the text-grade red. The
- * chip's ink was always the tone's, but the global link colour used to override
- * it, so no one measured it: `text-destructive` on its own 10% tint is 3.85:1
- * in the light theme, under 4.5:1 for this 14 px label.
- */
-const TONE_CLASS: Record<Tone, string> = {
-  destructive:
-    'border-destructive/30 bg-destructive/10 text-negative hover:bg-destructive/15',
-  warning: 'border-warn-line bg-warn-muted text-warn hover:border-warn',
-}
+// The band's chips are links drawn as Badge tones: `negative` for what is late
+// or broken, `warn` for what is waiting. They wear the same tint, edge and ink as
+// every other status in the product, and a link badge steps its EDGE under the
+// pointer, never its fill: the ink's contrast was measured on that fill
+// (`token-contrast.test.ts`), where the red chip's old darker hover fill and its
+// fill-grade ink had measured 3.85:1 on the light theme, under 4.5:1 for this
+// 14 px label.
 
 // min-h-11 = 44 px: these are the page's most-tapped links and they were 30 px
-// tall (docs/plan/dashboard-redesign.md row 13).
-const CHIP_BASE =
-  'inline-flex min-h-11 items-center gap-1.5 rounded-full border px-4 py-1 text-sm font-medium transition-colors'
+// tall (docs/plan/dashboard-redesign.md row 13). The icon is sized here, as
+// `[&>svg]:size-4`, because Badge sizes its own glyph (`[&>svg]:size-3`, a
+// different selector from a `size-4` on the icon itself, which loses to it):
+// the same arbitrary variant lets tailwind-merge replace Badge's, and the 14 px
+// label keeps the 16 px glyph it always had.
+const CHIP_BASE = 'min-h-11 gap-1.5 px-4 py-1 text-sm [&>svg]:size-4'
 
 function ChipContent({
   icon: Icon,
@@ -49,7 +36,7 @@ function ChipContent({
 }): ReactNode {
   return (
     <>
-      <Icon className="size-4 shrink-0" />
+      <Icon className="shrink-0" />
       {count !== null && <span className="font-semibold tabular-nums">{count}</span>}
       <span>{label}</span>
     </>
@@ -69,79 +56,69 @@ export function AttentionBand({ signals, propertyId }: AttentionBandProps) {
 
   if (signals.overdue > 0) {
     chips.push(
-      <Link
-        key="overdue"
-        to="/inbox"
-        search={{ propertyId, sourceType: 'review' }}
-        className={cn(CHIP_BASE, TONE_CLASS.destructive)}
-      >
-        <ChipContent icon={Clock} count={signals.overdue} label="Overdue" />
-      </Link>,
+      <Badge key="overdue" asChild variant="negative" className={CHIP_BASE}>
+        <Link to="/inbox" search={{ propertyId, sourceType: 'review' }}>
+          <ChipContent icon={Clock} count={signals.overdue} label="Overdue" />
+        </Link>
+      </Badge>,
     )
   }
 
   if (signals.itemsToTriage > 0) {
     chips.push(
-      <Link
-        key="itemsToTriage"
-        to="/inbox"
-        search={{ propertyId, queue: 'reply' }}
-        className={cn(CHIP_BASE, TONE_CLASS.warning)}
-      >
-        <ChipContent
-          icon={Inbox}
-          count={signals.itemsToTriage}
-          label={signals.itemsToTriage === 1 ? 'item to triage' : 'items to triage'}
-        />
-      </Link>,
+      <Badge key="itemsToTriage" asChild variant="warn" className={CHIP_BASE}>
+        <Link to="/inbox" search={{ propertyId, queue: 'reply' }}>
+          <ChipContent
+            icon={Inbox}
+            count={signals.itemsToTriage}
+            label={signals.itemsToTriage === 1 ? 'item to triage' : 'items to triage'}
+          />
+        </Link>
+      </Badge>,
     )
   }
 
   if (signals.goalsBehindPace > 0) {
     chips.push(
-      <Link
-        key="goalsBehindPace"
-        to="/properties/$propertyId/goals"
-        params={{ propertyId }}
-        search={{ view: 'active' }}
-        className={cn(CHIP_BASE, TONE_CLASS.warning)}
-      >
-        <ChipContent
-          icon={Target}
-          count={signals.goalsBehindPace}
-          label={signals.goalsBehindPace === 1 ? 'goal behind pace' : 'goals behind pace'}
-        />
-      </Link>,
+      <Badge key="goalsBehindPace" asChild variant="warn" className={CHIP_BASE}>
+        <Link
+          to="/properties/$propertyId/goals"
+          params={{ propertyId }}
+          search={{ view: 'active' }}
+        >
+          <ChipContent
+            icon={Target}
+            count={signals.goalsBehindPace}
+            label={
+              signals.goalsBehindPace === 1 ? 'goal behind pace' : 'goals behind pace'
+            }
+          />
+        </Link>
+      </Badge>,
     )
   }
 
   if (signals.ratingDrop) {
     chips.push(
-      <Link
-        key="ratingDrop"
-        to="/properties/$propertyId/reviews"
-        params={{ propertyId }}
-        className={cn(CHIP_BASE, TONE_CLASS.destructive)}
-      >
-        <ChipContent icon={TrendingDown} count={null} label="rating dropped" />
-      </Link>,
+      <Badge key="ratingDrop" asChild variant="negative" className={CHIP_BASE}>
+        <Link to="/properties/$propertyId/reviews" params={{ propertyId }}>
+          <ChipContent icon={TrendingDown} count={null} label="rating dropped" />
+        </Link>
+      </Badge>,
     )
   }
 
   if (signals.escalated > 0) {
     chips.push(
-      <Link
-        key="escalated"
-        to="/inbox"
-        search={{ propertyId, queue: 'escalated' }}
-        className={cn(CHIP_BASE, TONE_CLASS.destructive)}
-      >
-        <ChipContent
-          icon={AlertTriangle}
-          count={signals.escalated}
-          label={signals.escalated === 1 ? 'escalated' : 'escalated'}
-        />
-      </Link>,
+      <Badge key="escalated" asChild variant="negative" className={CHIP_BASE}>
+        <Link to="/inbox" search={{ propertyId, queue: 'escalated' }}>
+          <ChipContent
+            icon={TriangleAlert}
+            count={signals.escalated}
+            label={signals.escalated === 1 ? 'escalated' : 'escalated'}
+          />
+        </Link>
+      </Badge>,
     )
   }
 

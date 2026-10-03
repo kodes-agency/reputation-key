@@ -1,4 +1,4 @@
-import { AlertCircle, Loader2 } from 'lucide-react'
+import { CircleAlert, Loader2 } from 'lucide-react'
 import type { ReactNode } from 'react'
 import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
@@ -102,7 +102,7 @@ export function RegionError({
 }: Props) {
   return (
     <EmptyState
-      icon={AlertCircle}
+      icon={CircleAlert}
       tone="error"
       size={size}
       title={message}

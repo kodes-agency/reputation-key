@@ -15,6 +15,7 @@
 
 import { useState, type ReactNode } from 'react'
 import { ChevronRight } from 'lucide-react'
+import { Alert, AlertDescription } from '#/components/ui/alert'
 import { Badge } from '#/components/ui/badge'
 import {
   Collapsible,
@@ -25,7 +26,6 @@ import { cn } from '#/lib/utils'
 import { hasPropertyWording } from '#/contexts/portal/application/public-api'
 import { adminLanguageCode, type OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import { languageDisplayName } from '../portal-languages/portal-languages-rules'
-import { PortalExperienceActionError } from './portal-experience-action-error'
 import { PortalLocalizedOverrideForm } from './portal-localized-override-form'
 import { PortalPropertyContentForm } from './portal-property-content-form'
 import { portalPropertyContentDraftKey } from '../portal-editor/portal-draft-keys'
@@ -118,8 +118,6 @@ export function PortalLocalizedContentEditor({
           readOnly={!canWriteProperty}
         />
       </PropertyWordingFold>
-      <PortalExperienceActionError action={actions.saveContent} />
-      <PortalExperienceActionError action={actions.saveOverride} />
     </div>
   )
 }
@@ -165,9 +163,11 @@ function MissingWordingNote({
     ? 'Write it below first.'
     : 'An account admin writes it first.'
   return (
-    <p className="rounded-md border border-warn-line bg-warn-muted px-3 py-2 text-sm">
-      {`${english} has no property wording yet, ${effect} ${next}`}
-    </p>
+    <Alert variant="warning" role="status">
+      <AlertDescription>
+        {`${english} has no property wording yet, ${effect} ${next}`}
+      </AlertDescription>
+    </Alert>
   )
 }
 

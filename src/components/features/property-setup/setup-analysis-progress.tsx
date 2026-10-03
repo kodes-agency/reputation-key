@@ -1,12 +1,25 @@
 import { Link } from '@tanstack/react-router'
 import { useQuery } from '@tanstack/react-query'
-import { reviewAnalysisShare } from '#/components/features/property/settings/review-analysis-progress-card'
-import { Badge } from '#/components/ui/badge'
+import {
+  REVIEW_ANALYSIS_STATUS,
+  reviewAnalysisShare,
+} from '#/components/features/property/settings/review-analysis-progress-card'
+import { StatusBadge, type StatusPresentation } from '#/components/ui/status-badge'
 import { aiKeys } from '#/shared/queries/query-keys'
 import { reviewAnalysisProgressRefetchInterval } from '#/shared/queries/review-analysis-progress-polling'
+import type { ReviewAnalysisProgress } from '#/contexts/ai/application/public-api'
 import type { PropertySetupFns, SetupImportedProperty } from './property-setup-contract'
+import { formatNumber } from '#/lib/format'
 
-const numberFormat = new Intl.NumberFormat('en')
+function analysisPill(
+  isError: boolean,
+  data: ReviewAnalysisProgress | undefined,
+): StatusPresentation {
+  if (isError) return { label: 'Unavailable', tone: 'warn' }
+  if (!data) return { label: 'Checking…', tone: 'neutral' }
+  if (data.status === 'disabled') return { label: 'Starting', tone: 'neutral' }
+  return REVIEW_ANALYSIS_STATUS[data.status]
+}
 
 function AnalysisRow({
   property,
@@ -36,17 +49,7 @@ function AnalysisRow({
         >
           {property.propertyName}
         </Link>
-        <Badge variant={counted?.status === 'caught_up' ? 'secondary' : 'outline'}>
-          {progress.isError
-            ? 'Unavailable'
-            : !data
-              ? 'Checking…'
-              : data.status === 'disabled'
-                ? 'Starting'
-                : data.status === 'caught_up'
-                  ? 'Up to date'
-                  : 'Analysing'}
-        </Badge>
+        <StatusBadge {...analysisPill(progress.isError, data)} />
       </div>
       <div
         role="progressbar"
@@ -63,9 +66,8 @@ function AnalysisRow({
       </div>
       {counted ? (
         <p className="text-xs text-muted-foreground tabular-nums">
-          {numberFormat.format(counted.analysed)} analysed ·{' '}
-          {numberFormat.format(counted.queued)} waiting ·{' '}
-          {numberFormat.format(counted.inProgress)} running
+          {formatNumber(counted.analysed)} analysed · {formatNumber(counted.queued)}{' '}
+          waiting · {formatNumber(counted.inProgress)} running
         </p>
       ) : null}
     </li>

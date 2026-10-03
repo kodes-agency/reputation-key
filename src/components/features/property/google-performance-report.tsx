@@ -1,7 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import type { PropertyGooglePerformanceReportV1 } from '#/shared/google-performance-report-contract'
-import type { DashboardRange } from '#/shared/dashboard-range'
-import { Badge } from '#/components/ui/badge'
+import {
+  dashboardRangeComparisonLabel,
+  toPerformancePreset,
+  type DashboardRange,
+} from '#/shared/dashboard-range'
+import { StatusBadge, type StatusMap } from '#/components/ui/status-badge'
 import {
   Card,
   CardContent,
@@ -12,37 +16,26 @@ import {
 import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
 import { GlossaryTerm } from '#/components/features/shared/glossary-term'
 import { formatDateTime } from '#/lib/format-date-time'
+import { formatLocalDate } from '#/lib/format'
 import { GooglePerformanceChart } from './google-performance-chart'
 import {
   GooglePerformanceHeadlines,
   GooglePerformanceMetric,
 } from './google-performance-metrics'
 
-const SOURCE_STATUS_LABELS: Readonly<
-  Record<PropertyGooglePerformanceReportV1['sourceHealth']['state'], string>
+const SOURCE_STATUS: StatusMap<
+  PropertyGooglePerformanceReportV1['sourceHealth']['state']
 > = {
-  ready: 'Current',
-  partial: 'Partial coverage',
-  no_data: 'No data returned',
-  delayed: 'Delayed',
-  stale: 'Stale',
+  ready: { label: 'Current', tone: 'positive' },
+  partial: { label: 'Partial coverage', tone: 'warn' },
+  no_data: { label: 'No data returned', tone: 'neutral' },
+  delayed: { label: 'Delayed', tone: 'warn' },
+  stale: { label: 'Stale', tone: 'warn' },
 }
 
-const MONTH_DAY_FORMATTER = new Intl.DateTimeFormat('en-US', {
-  month: 'short',
-  day: 'numeric',
-  timeZone: 'UTC',
-})
-const FULL_DATE_FORMATTER = new Intl.DateTimeFormat('en-US', {
-  year: 'numeric',
-  month: 'short',
-  day: 'numeric',
-  timeZone: 'UTC',
-})
-function formatLocalDate(localDate: string, includeYear = false): string {
-  const date = new Date(`${localDate}T00:00:00.000Z`)
-  return (includeYear ? FULL_DATE_FORMATTER : MONTH_DAY_FORMATTER).format(date)
-}
+/** A stored day for a sentence; the raw day if it cannot be read as one. */
+const dayText = (localDate: string, options?: Readonly<{ year?: boolean }>): string =>
+  formatLocalDate(localDate, options) ?? localDate
 
 export function formatGoogleFreshness(retrievedAt: string, now = new Date()): string {
   const retrievedAtMs = Date.parse(retrievedAt)
@@ -90,7 +83,8 @@ export function GooglePerformanceSourceStatus({
   report,
 }: Readonly<{ report: PropertyGooglePerformanceReportV1 }>) {
   const now = useFreshnessClock()
-  const statusLabel = SOURCE_STATUS_LABELS[report.sourceHealth.state]
+  const status = SOURCE_STATUS[report.sourceHealth.state]
+  const statusLabel = status.label
   const completeThrough = report.sourceHealth.latestCompleteCoreLocalDate
   const dataThrough =
     completeThrough ??
@@ -98,7 +92,7 @@ export function GooglePerformanceSourceStatus({
     report.sourceHealth.providerCheckedThroughLocalDate
   const coverageLabel = completeThrough ? 'Google data through' : 'Google checked through'
   const freshness = formatGoogleFreshness(report.retrievedAt, now)
-  const markText = `${freshness} · ${coverageLabel} ${formatLocalDate(dataThrough)}`
+  const markText = `${freshness} · ${coverageLabel} ${dayText(dataThrough, { year: false })}`
   const dateTimeOptions = {
     locale: 'en-US',
     timeZone: report.period.timezone,
@@ -107,9 +101,7 @@ export function GooglePerformanceSourceStatus({
 
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2">
-      {report.sourceHealth.state !== 'ready' ? (
-        <Badge variant="outline">{statusLabel}</Badge>
-      ) : null}
+      {report.sourceHealth.state !== 'ready' ? <StatusBadge {...status} /> : null}
       <div className="inline-flex min-w-0 flex-wrap items-baseline gap-x-1 text-sm text-muted-foreground">
         <GlossaryTerm term="updated">Updated</GlossaryTerm>
         <Popover>
@@ -135,8 +127,8 @@ export function GooglePerformanceSourceStatus({
               </SourceDetail>
               <SourceDetail label="Timezone">{report.period.timezone}</SourceDetail>
               <SourceDetail label="Period">
-                {formatLocalDate(report.period.currentStartLocalDate, true)}–
-                {formatLocalDate(report.period.currentEndLocalDate, true)}
+                {dayText(report.period.currentStartLocalDate)}–
+                {dayText(report.period.currentEndLocalDate)}
               </SourceDetail>
               <SourceDetail label="Data lag">
                 {report.sourceHealth.dataLagDays === null
@@ -173,13 +165,17 @@ export function GooglePerformanceReport({
   report: PropertyGooglePerformanceReportV1
   range: DashboardRange
 }>) {
+  // The report compares the window with the one just before it, at the length
+  // Google can serve (`all` is clamped to the six months it reaches back).
+  const comparisonLabel =
+    dashboardRangeComparisonLabel(toPerformancePreset(range)) ?? 'vs the previous period'
   const hasAdditionalInteractions = report.additionalInteractions.some(
     (metric) => metric.value !== null && metric.value !== 0,
   )
 
   return (
     <div className="flex flex-col gap-6">
-      <GooglePerformanceHeadlines report={report} />
+      <GooglePerformanceHeadlines report={report} comparisonLabel={comparisonLabel} />
       <div className="grid min-w-0 grid-cols-1 gap-4 xl:grid-cols-2">
         <GooglePerformanceChart
           title="How people found you"
@@ -210,7 +206,11 @@ export function GooglePerformanceReport({
           </CardHeader>
           <CardContent className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {report.additionalInteractions.map((metric) => (
-              <GooglePerformanceMetric key={metric.label} metric={metric} />
+              <GooglePerformanceMetric
+                key={metric.label}
+                metric={metric}
+                comparisonLabel={comparisonLabel}
+              />
             ))}
           </CardContent>
         </Card>

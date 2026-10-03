@@ -20,8 +20,12 @@
 // clean without it, so CI runs `pnpm typecheck` before `lint:ci`. Run
 // typecheck first locally too.
 //
-// COST. One program build, the time and heap of `tsc --noEmit`: about 50 s,
-// and like tsc it fails under a 3 GB V8 heap cap and passes under 3.5 GB.
+// COST. One program build, the time and heap of `tsc --noEmit`: about 40 s.
+// It peaks between 3.5 and 4 GB of V8 heap, right at Node's default cap on a
+// 16 GB runner, so a few hundred lines of new source tipped it over
+// ("JavaScript heap out of memory", exit 134) with nothing wrong in them. The
+// package script therefore sets `--max-old-space-size=6144` itself; run it
+// through `pnpm check:unchecked-indexed-access`, not `tsx` directly.
 //
 // UPDATING THE BASELINE. `pnpm check:unchecked-indexed-access --write-baseline`
 // (about a minute), then commit the JSON: when counts fell (the gate passes and

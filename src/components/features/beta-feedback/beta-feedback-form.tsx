@@ -89,8 +89,6 @@ export function BetaFeedbackForm({ submitFeedback, onSubmitted }: BetaFeedbackFo
 
   return (
     <form onSubmit={submitHandler(form)} onKeyDown={onKeyDown} className="space-y-5">
-      <FormErrorBanner error={submit.error} />
-
       <form.Field name="kind">
         {(field) => (
           <BetaFeedbackChoiceGroup
@@ -210,6 +208,7 @@ export function BetaFeedbackForm({ submitFeedback, onSubmitted }: BetaFeedbackFo
         )}
       </form.Field>
 
+      <FormErrorBanner error={submit.error} />
       <DialogFooter className="items-center gap-2 sm:justify-between">
         <p className="hidden text-xs text-muted-foreground sm:block">
           <Kbd>⌘</Kbd> <Kbd>↵</Kbd> to send

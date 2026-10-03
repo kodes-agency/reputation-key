@@ -1,8 +1,8 @@
-import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
+import { StatusBadge } from '#/components/ui/status-badge'
+import { APPROVED_DESTINATION_STATUS } from './portal-approved-destination-status'
 import { PortalApprovedDestinationRequestForm } from './portal-approved-destination-request-form'
-import { PortalExperienceActionError } from './portal-experience-action-error'
 import type {
   PortalApprovedDestinationList,
   PortalExperienceActions,
@@ -59,9 +59,6 @@ export function PortalApprovedDestinationsEditor({
           ))}
         </ul>
       )}
-      <PortalExperienceActionError action={actions.requestDestination} />
-      <PortalExperienceActionError action={actions.approveDestination} />
-      <PortalExperienceActionError action={actions.disableDestination} />
     </div>
   )
 }
@@ -83,11 +80,7 @@ function DestinationActions({
     destination.approvalState === 'approved' || destination.approvalState === 'pending'
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <Badge variant={destination.approvalState === 'approved' ? 'secondary' : 'outline'}>
-        {destination.approvalState === 'pending'
-          ? 'Waiting for approval'
-          : destination.approvalState}
-      </Badge>
+      <StatusBadge status={destination.approvalState} map={APPROVED_DESTINATION_STATUS} />
       {canApprove && destination.approvalState === 'pending' ? (
         <Button
           type="button"

@@ -1,9 +1,8 @@
-// The lifecycle controls a Property currently offers, and the errors they raise.
+// The lifecycle controls a Property currently offers.
 //
 // Split from the card so the card is about what the Property *is*, and this is
 // about what you can *do* to it. Every show/disable rule is decided in
 // property-lifecycle-model.ts; nothing here branches on permissions itself.
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import {
   PropertyArchiveDialog,
   PropertyGoogleDisconnectDialog,
@@ -82,15 +81,6 @@ export function PropertyLifecycleActions({
           />
         )}
       </div>
-
-      <FormErrorBanner
-        error={
-          actions.archive.error ??
-          actions.remove.error ??
-          actions.restore.error ??
-          actions.disconnect.error
-        }
-      />
     </>
   )
 }

@@ -1,6 +1,6 @@
-import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
+import { StatusBadge, type StatusMap } from '#/components/ui/status-badge'
 import type {
   GoogleAuthUrlInput,
   GoogleConnectionDto,
@@ -22,17 +22,14 @@ type Props = Readonly<{
   onDisconnect: (connectionId: string) => void
 }>
 
-const STATUS_META: Record<
-  GoogleConnectionStatus,
-  { label: string; variant: 'default' | 'secondary' | 'destructive' }
-> = {
-  pending: { label: 'Connecting…', variant: 'secondary' },
-  active: { label: 'Connected', variant: 'default' },
-  degraded: { label: 'Temporarily unavailable', variant: 'secondary' },
-  reauth_required: { label: 'Needs attention', variant: 'secondary' },
-  disconnecting: { label: 'Disconnecting…', variant: 'secondary' },
-  disconnected: { label: 'Disconnected', variant: 'secondary' },
-  failed: { label: 'Connection unavailable', variant: 'destructive' },
+const CONNECTION_STATUS: StatusMap<GoogleConnectionStatus> = {
+  pending: { label: 'Connecting…', tone: 'neutral' },
+  active: { label: 'Connected', tone: 'positive' },
+  degraded: { label: 'Temporarily unavailable', tone: 'warn' },
+  reauth_required: { label: 'Needs attention', tone: 'warn' },
+  disconnecting: { label: 'Disconnecting…', tone: 'neutral' },
+  disconnected: { label: 'Disconnected', tone: 'neutral' },
+  failed: { label: 'Connection unavailable', tone: 'negative' },
 }
 
 export function GoogleConnectionSettingsRow({
@@ -42,7 +39,6 @@ export function GoogleConnectionSettingsRow({
   onReauthorize,
   onDisconnect,
 }: Props) {
-  const status = STATUS_META[connection.status]
   const reauthorization = reauthorizationForConnection(connection)
   const accountEmailConsent = accountEmailConsentForConnection(connection)
 
@@ -51,7 +47,7 @@ export function GoogleConnectionSettingsRow({
       <div>
         <div className="flex items-center gap-2">
           <p className="text-sm font-medium">Google Business Profile</p>
-          <Badge variant={status.variant}>{status.label}</Badge>
+          <StatusBadge status={connection.status} map={CONNECTION_STATUS} />
         </div>
         <p className="mt-0.5 text-xs text-muted-foreground">
           {googleConnectionLabel(connection)}

@@ -2,11 +2,12 @@
 // replaces the organization setup banner: each figure the list can act on is a
 // button that shows those properties. It never names a property — the rows do.
 import type { ReactNode } from 'react'
-import { Star } from 'lucide-react'
 import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
+import { RatingFigure } from '#/components/ui/rating-figure'
 import { cn } from '#/lib/utils'
 import type { PropertyListShow } from './property-list-search-schema'
 import type { DataState, PropertyListSummary } from './property-list-view'
+import { formatNumber } from '#/lib/format'
 
 type Props = Readonly<{
   summary: PropertyListSummary
@@ -54,14 +55,8 @@ export function PropertyListSummaryStrip({ summary, fleet, setup, show, onShow }
           <MetricValue value="No ratings" detail="No property has a rating yet" />
         ) : (
           <MetricValue
-            value={
-              <span className="inline-flex items-center gap-1">
-                {summary.averageRating.toFixed(1)}
-                <Star className="size-4 fill-current text-rating" aria-hidden="true" />
-                <span className="sr-only">stars</span>
-              </span>
-            }
-            detail={`across ${summary.ratedReviews.toLocaleString()} reviews, all-time`}
+            value={<RatingFigure value={summary.averageRating} size="md" />}
+            detail={`across ${formatNumber(summary.ratedReviews)} reviews, all-time`}
           />
         )}
       </Metric>

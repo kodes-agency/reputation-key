@@ -186,7 +186,7 @@ export function SetupReview({
       ) : null}
 
       {nothingToSave ? (
-        <Alert>
+        <Alert variant="info">
           <AlertTitle>Nothing to save</AlertTitle>
           <AlertDescription>
             Every question was skipped. Go back to answer them, or finish later from each

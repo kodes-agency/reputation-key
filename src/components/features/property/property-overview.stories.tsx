@@ -218,11 +218,18 @@ export const Ready: Story = {
       expect(canvas.getByRole('heading', { name: heading, level: 2 })).toBeVisible()
     }
 
+    // The attention chips keep their 16 px glyphs beside the 14 px label: Badge's
+    // own 12 px glyph size is replaced on the chip, not left to win on specificity.
+    const chip = canvas.getByRole('link', { name: /Overdue/ })
+    expect(chip.querySelector(':scope > svg')).not.toBeNull()
+    expect(chip.className).toContain('[&>svg]:size-4')
+    expect(chip.className).not.toContain('[&>svg]:size-3')
+
     // No range control: Overview is a reading, not a report you configure.
     expect(canvas.queryByRole('group', { name: 'Time range' })).toBeNull()
 
     // Identity beside pulse. The rating leads all-time; reviews lead recent.
-    expect(canvas.getByText('4.3 ★')).toBeVisible()
+    expect(canvas.getByText('4.3')).toBeVisible()
     expect(canvas.getByText(/4\.3 over the last 30 days/)).toBeVisible()
     expect(await canvas.findByText('1,190')).toBeVisible()
 
@@ -261,7 +268,7 @@ export const WeekOne: Story = {
     // The rule: a number where there is one, otherwise a sentence and an action.
     expect(canvas.queryByText('—')).toBeNull()
 
-    expect(canvas.getByText('5.0 ★')).toBeVisible()
+    expect(canvas.getByText('5.0')).toBeVisible()
     expect(canvas.getByText(/2 new ratings in the last 30 days/)).toBeVisible()
     expect(canvas.getByText('2')).toBeVisible()
     // Two reviews arrived and neither has a reply: 0% is a true figure, not a
@@ -293,7 +300,7 @@ export const FillingIn: Story = {
       await canvas.findByText(/Analysing your reviews\. Topics appear as soon as/),
     ).toBeVisible()
     // The rest of the page is unaffected by an analysis that has not settled.
-    expect(canvas.getByText('4.3 ★')).toBeVisible()
+    expect(canvas.getByText('4.3')).toBeVisible()
   },
 }
 
@@ -303,7 +310,7 @@ export const GoogleUnavailable: Story = {
     const canvas = within(canvasElement)
     expect(await canvas.findByRole('link', { name: 'Connect Google' })).toBeVisible()
     // One tile degrading never takes the scorecard with it.
-    expect(canvas.getByText('4.3 ★')).toBeVisible()
+    expect(canvas.getByText('4.3')).toBeVisible()
     expect(canvas.getByText('78%')).toBeVisible()
   },
 }

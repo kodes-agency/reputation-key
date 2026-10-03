@@ -1,3 +1,4 @@
+import { formatNumber } from '#/lib/format'
 export type PortalResponseIntegritySummaryView = Readonly<{
   accepted: number
   filteredAutomatically: number
@@ -12,5 +13,5 @@ export function portalResponseIntegrityCopy(
   if (outside === 0) {
     return 'No Portal responses in this period are outside the private-rating figures.'
   }
-  return `${outside.toLocaleString()} Portal ${outside === 1 ? 'response is' : 'responses are'} currently outside the private-rating figures while quality checks are resolved.`
+  return `${formatNumber(outside)} Portal ${outside === 1 ? 'response is' : 'responses are'} currently outside the private-rating figures while quality checks are resolved.`
 }

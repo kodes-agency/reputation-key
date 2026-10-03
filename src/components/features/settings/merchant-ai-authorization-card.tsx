@@ -4,7 +4,7 @@ import type {
 } from '#/contexts/identity/application/public-api'
 import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import { renderMerchantAiNoticeCta } from '#/shared/merchant-ai-notice-contract'
-import { Badge } from '#/components/ui/badge'
+import { StatusBadge, type StatusMap } from '#/components/ui/status-badge'
 import {
   Card,
   CardAction,
@@ -15,10 +15,10 @@ import {
 import { MerchantAiSettingsActions } from './merchant-ai-settings-actions'
 import { MerchantAiSettingsContent } from './merchant-ai-settings-content'
 
-const STATUS_META = {
-  disabled: { label: 'Off', variant: 'secondary' as const },
-  enabled: { label: 'On', variant: 'default' as const },
-  revoked: { label: 'Off', variant: 'secondary' as const },
+const AI_STATE_STATUS: StatusMap<MerchantAiState> = {
+  disabled: { label: 'Off', tone: 'neutral' },
+  enabled: { label: 'On', tone: 'positive' },
+  revoked: { label: 'Off', tone: 'neutral' },
 }
 
 type Props = Readonly<{
@@ -46,9 +46,7 @@ export function MerchantAiAuthorizationCard(props: Props) {
         <CardTitle>{props.notice.payload.title}</CardTitle>
         <CardDescription>{props.notice.payload.summary}</CardDescription>
         <CardAction>
-          <Badge variant={STATUS_META[props.state].variant}>
-            {STATUS_META[props.state].label}
-          </Badge>
+          <StatusBadge status={props.state} map={AI_STATE_STATUS} />
         </CardAction>
       </CardHeader>
 

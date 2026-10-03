@@ -14,6 +14,7 @@ import { ImageRightsField } from '../portal-media/image-rights-field'
 import { UploadDialogFooter } from '../portal-media/upload-dialog-footer'
 import { UploadDialogShell } from '../portal-media/upload-dialog-shell'
 import { useLogoDialog, type LogoDialogInput } from './use-logo-dialog'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
 
 type Props = Readonly<
   Omit<LogoDialogInput, 'onBusyChange' | 'onClose'> & {
@@ -61,7 +62,8 @@ function LogoDialogBody({
         </DialogDescription>
       </DialogHeader>
       <div className="space-y-4">
-        <div className="grid min-h-16 place-items-center rounded-md bg-neutral-900 p-4">
+        {/* The guest page draws the logo on a dark header, so the preview is a dark-theme scope in either app theme. */}
+        <div className="dark grid min-h-16 place-items-center rounded-md bg-card p-4">
           {picker.chosen ? (
             <img
               src={picker.chosen.previewUrl}
@@ -72,7 +74,7 @@ function LogoDialogBody({
               style={{ maxHeight: 80 }}
             />
           ) : (
-            <p className="text-sm text-neutral-400">Your logo, on a dark page</p>
+            <p className="text-sm text-muted-foreground">Your logo, on a dark page</p>
           )}
         </div>
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -110,10 +112,8 @@ function LogoDialogBody({
             onCheckedChange={dialog.setIsConfirmed}
           />
         ) : null}
-        <p role="alert" className="min-h-5 text-sm text-negative">
-          {dialog.message}
-        </p>
       </div>
+      <FormErrorBanner error={dialog.message} />
       <UploadDialogFooter
         primaryLabel={dialog.isBusy ? 'Uploading…' : 'Use logo'}
         canSubmit={dialog.canSubmit}

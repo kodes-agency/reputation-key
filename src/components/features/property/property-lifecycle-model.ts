@@ -5,6 +5,9 @@
 // The lifecycle vocabulary is redeclared here rather than imported from the
 // Property domain, matching the component boundary the rest of this folder keeps.
 
+import { formatDate } from '#/lib/format'
+import type { StatusMap } from '#/components/ui/status-badge'
+
 export type PropertyLifecycleState =
   | 'active'
   | 'suspended'
@@ -26,14 +29,26 @@ export type LifecycleControls = Readonly<{
   statusLabel: string
 }>
 
-const LIFECYCLE_LABELS: Readonly<Record<PropertyLifecycleState, string>> = {
-  active: 'Active',
-  suspended: 'Paused',
-  archived: 'Archived',
-  disconnecting: 'Disconnecting',
-  purge_pending: 'Support review',
-  purging: 'Unavailable',
-  purged: 'Unavailable',
+/** How a Property's lifecycle state reads as a pill, wherever one is drawn. */
+export const PROPERTY_LIFECYCLE_STATUS: StatusMap<PropertyLifecycleState> = {
+  active: { label: 'Active', tone: 'positive' },
+  suspended: { label: 'Paused', tone: 'warn' },
+  archived: { label: 'Archived', tone: 'neutral' },
+  disconnecting: { label: 'Disconnecting', tone: 'warn' },
+  purge_pending: { label: 'Support review', tone: 'warn' },
+  purging: { label: 'Unavailable', tone: 'neutral' },
+  purged: { label: 'Unavailable', tone: 'neutral' },
+}
+
+/** How the Property's Google link reads as a pill on the lifecycle card. */
+export const GOOGLE_BINDING_STATUS: StatusMap<GoogleBindingState> = {
+  active: { label: 'Google connected for this Property', tone: 'positive' },
+  disconnected: { label: 'Google reconnection needed', tone: 'warn' },
+  account_confirmation_required: {
+    label: 'Google account confirmation needed',
+    tone: 'warn',
+  },
+  unbound: { label: 'No Google profile linked', tone: 'neutral' },
 }
 
 export const getPropertyLifecycleControls = (input: {
@@ -53,20 +68,10 @@ export const getPropertyLifecycleControls = (input: {
 
 export const formatPropertyRecoveryDeadline = (
   value: Date | string | null,
-): string | null => {
-  if (value === null) return null
-  const date = value instanceof Date ? value : new Date(value)
-  if (!Number.isFinite(date.getTime())) return null
-  return new Intl.DateTimeFormat('en', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(date)
-}
+): string | null => formatDate(value)
 
 export const propertyLifecycleLabel = (state: PropertyLifecycleState): string =>
-  LIFECYCLE_LABELS[state]
+  PROPERTY_LIFECYCLE_STATUS[state].label
 
 export type PropertyRestoreWindow =
   | Readonly<{ kind: 'self_service'; deadline: string }>

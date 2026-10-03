@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertCircle, Check, Loader2 } from 'lucide-react'
+import { Check, Loader2 } from 'lucide-react'
 import { submitForm } from '#/components/forms/form-submit'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
@@ -95,7 +95,7 @@ export function GoogleImportReviewForm({
                     </p>
                   </div>
                   <p
-                    className="text-sm font-medium data-[flagged=true]:text-destructive"
+                    className="text-sm font-medium data-[flagged=true]:text-negative"
                     data-flagged={flaggedCount > 0}
                     role="status"
                   >
@@ -149,7 +149,6 @@ export function GoogleImportReviewForm({
 
               {submitError ? (
                 <Alert variant="destructive">
-                  <AlertCircle aria-hidden="true" />
                   <AlertTitle>Import could not start</AlertTitle>
                   <AlertDescription>{submitError}</AlertDescription>
                 </Alert>
@@ -210,7 +209,7 @@ export function GoogleImportReviewForm({
                           and timezone above when the import starts.
                         </p>
                         {missing ? (
-                          <p role="alert" className="text-sm text-destructive">
+                          <p role="alert" className="text-sm text-negative">
                             Confirm that you have checked these details.
                           </p>
                         ) : null}

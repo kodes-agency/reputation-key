@@ -1,4 +1,4 @@
-import { CheckCircle2, Loader2, TriangleAlert } from 'lucide-react'
+import { Loader2 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import type { PropertySetupFns } from './property-setup-contract'
@@ -52,8 +52,7 @@ export function SetupResults({
   return (
     <section aria-labelledby="setup-results-title" className="flex flex-col gap-5">
       {failed.length === 0 ? (
-        <Alert>
-          <CheckCircle2 aria-hidden="true" />
+        <Alert variant="success">
           <AlertTitle id="setup-results-title">Setup saved</AlertTitle>
           <AlertDescription>
             {skipped
@@ -63,7 +62,6 @@ export function SetupResults({
         </Alert>
       ) : (
         <Alert variant="destructive">
-          <TriangleAlert aria-hidden="true" />
           <AlertTitle id="setup-results-title">Some answers were not saved</AlertTitle>
           <AlertDescription className="flex flex-col gap-3">
             <ul className="flex flex-col gap-1">

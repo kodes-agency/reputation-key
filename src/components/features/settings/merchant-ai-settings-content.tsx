@@ -1,5 +1,4 @@
 import { Link } from '@tanstack/react-router'
-import { AlertTriangle } from 'lucide-react'
 import type {
   CurrentMerchantAiCapability,
   MerchantAiState,
@@ -9,9 +8,10 @@ import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { CardContent } from '#/components/ui/card'
 import { Checkbox } from '#/components/ui/checkbox'
-import { Field, FieldError, FieldGroup, FieldLabel } from '#/components/ui/field'
+import { Field, FieldGroup, FieldLabel } from '#/components/ui/field'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { MerchantAiDataHandling } from './merchant-ai-data-handling'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
 
 export type MerchantAiPropertyOption = Readonly<{
   id: string
@@ -27,8 +27,7 @@ function MerchantAiGoogleSourceUnavailable() {
   const canConfirmGoogleProperty = can('property.import_gbp_v2')
 
   return (
-    <Alert variant="destructive">
-      <AlertTriangle aria-hidden="true" />
+    <Alert variant="warning">
       <AlertTitle>Google source unavailable</AlertTitle>
       <AlertDescription>
         <p>
@@ -133,17 +132,12 @@ export function MerchantAiSettingsContent({
       </FieldGroup>
 
       <div className="flex flex-col gap-2">
-        <Field
-          orientation="horizontal"
-          className="items-start"
-          data-invalid={Boolean(errorMessage)}
-        >
+        <Field orientation="horizontal" className="items-start">
           <Checkbox
             id="merchant-ai-acknowledgement"
             className="mt-0.5"
             checked={acknowledged}
             disabled={pending}
-            aria-invalid={Boolean(errorMessage)}
             aria-describedby="merchant-ai-acknowledgement-help"
             onCheckedChange={(next) => onAcknowledgedChange(next === true)}
           />
@@ -159,8 +153,10 @@ export function MerchantAiSettingsContent({
           Required to enable or change AI features. RepKey records who agreed and the
           notice version they read. Turning features off does not need it.
         </p>
-        {errorMessage ? <FieldError>{errorMessage}</FieldError> : null}
       </div>
+      {/* A refusal of the command, not of the checkbox: it ends the body, directly
+          above the actions. */}
+      <FormErrorBanner error={errorMessage} />
     </CardContent>
   )
 }

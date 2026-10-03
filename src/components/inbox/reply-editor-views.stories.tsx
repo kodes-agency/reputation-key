@@ -73,7 +73,7 @@ async function expectBlockedOverTheByteLimit(
   counter: string,
 ): Promise<void> {
   onSave.mockClear()
-  expect(canvas.getByText(counter)).toHaveClass('text-destructive')
+  expect(canvas.getByText(counter)).toHaveClass('text-negative')
   const review = canvas.getByRole('button', { name: /review update/i })
   expect(review).toHaveAttribute('aria-disabled', 'true')
   await expectUpdateClickRefused(review)

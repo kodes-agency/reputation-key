@@ -2,7 +2,7 @@
 // approved it, or why guests cannot see the tile yet. A tile whose address was
 // never checked (one from before approvals) can be checked from here.
 
-import { AlertTriangle, ShieldCheck } from 'lucide-react'
+import { TriangleAlert, ShieldCheck } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import type { PortalLinktreeDestination } from '#/contexts/portal/application/public-api'
 import { describeLinkApproval } from './linktree-rules'
@@ -23,7 +23,7 @@ export function LinktreeApprovalFact({
   disabled,
 }: Props) {
   const fact = describeLinkApproval(destination, memberNames)
-  const Icon = fact.tone === 'ok' ? ShieldCheck : AlertTriangle
+  const Icon = fact.tone === 'ok' ? ShieldCheck : TriangleAlert
   return (
     <p
       className={`flex flex-wrap items-center gap-x-2 gap-y-1 text-sm ${fact.tone === 'ok' ? 'text-muted-foreground' : 'text-warn'}`}

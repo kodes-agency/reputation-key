@@ -88,8 +88,6 @@ export function InviteMemberForm({ mutation, allowedRoles, properties }: Props) 
       }}
       className="flex flex-col gap-4"
     >
-      <FormErrorBanner error={mutation.error} />
-
       <FieldGroup>
         <form.Field name="email">
           {(field: BaseFieldApi) => (
@@ -120,6 +118,7 @@ export function InviteMemberForm({ mutation, allowedRoles, properties }: Props) 
         </form.Field>
       </FieldGroup>
 
+      <FormErrorBanner error={mutation.error} />
       <SubmitButton mutation={mutation} form={form}>
         Send Invitation
       </SubmitButton>

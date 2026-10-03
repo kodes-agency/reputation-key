@@ -6,7 +6,8 @@
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { RoleBadge } from '#/components/features/identity/shared/role-badge'
 import { Button } from '#/components/ui/button'
-import { Badge } from '#/components/ui/badge'
+import { StatusBadge } from '#/components/ui/status-badge'
+import { INVITATION_STATUS } from './invitation-status'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -75,7 +76,7 @@ export function InvitationTable({ invitations, resendAction, cancelAction }: Pro
                 <RoleBadge role={inv.role} rawRole={inv.rawRole} />
               </TableCell>
               <TableCell>
-                <Badge variant="outline">{inv.status}</Badge>
+                <StatusBadge status={inv.status} map={INVITATION_STATUS} />
               </TableCell>
               {canManage ? (
                 <TableCell className="text-right">
@@ -98,7 +99,7 @@ export function InvitationTable({ invitations, resendAction, cancelAction }: Pro
                           <Button
                             variant="outline"
                             size="sm"
-                            className="text-destructive hover:text-destructive"
+                            className="text-negative hover:text-negative"
                           >
                             Cancel
                           </Button>

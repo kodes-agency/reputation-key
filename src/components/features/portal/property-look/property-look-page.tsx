@@ -16,6 +16,7 @@ import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { PageHeader } from '#/components/layout/page-header'
 import { PageShell } from '#/components/layout/page-shell'
+import { Alert, AlertDescription } from '#/components/ui/alert'
 import { EmptyState } from '#/components/ui/empty-state'
 import { Palette } from 'lucide-react'
 import type { PropertyLookMedia } from '#/contexts/portal/application/public-api'
@@ -183,9 +184,11 @@ function PropertyLookEditor({
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_21rem] min-[90rem]:grid-cols-[minmax(0,1fr)_21rem_15rem]">
         <div className="min-w-0 space-y-4 lg:row-span-2 min-[90rem]:row-span-1">
           {canEdit ? null : (
-            <p className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
-              An Account Admin manages the look shared by every portal of this Property.
-            </p>
+            <Alert variant="info">
+              <AlertDescription>
+                An Account Admin manages the look shared by every portal of this Property.
+              </AlertDescription>
+            </Alert>
           )}
           <div>
             <PropertyLookPhotoSection

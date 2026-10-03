@@ -91,7 +91,6 @@ function PrivateFeedbackTargetFormCard({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <FormErrorBanner error={updatePolicy.error} />
           <form.Field name="useOrganizationTarget">
             {(field) => (
               <div className="flex items-start gap-3">
@@ -129,6 +128,7 @@ function PrivateFeedbackTargetFormCard({
               </form.Field>
             )}
           </form.Subscribe>
+          <FormErrorBanner error={updatePolicy.error} />
           <SubmitButton mutation={updatePolicy} form={form}>
             Save Property target
           </SubmitButton>

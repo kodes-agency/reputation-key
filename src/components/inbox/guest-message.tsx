@@ -12,13 +12,13 @@ import { presentGuestReviewBody } from './guest-message-view'
 import { personInitials } from './person-initials'
 import { languageDisplayName } from './reply-language-options'
 import { TopicChips } from './topic-chips'
-import { formatDate } from './utils'
 import type { GuestReviewBodyView, GuestReviewDisclosure } from './guest-message-view'
 import type { ReactNode } from 'react'
 import type {
   InboxItem,
   InboxItemDetailResult,
 } from '#/contexts/inbox/application/public-api'
+import { formatDate } from '#/lib/format'
 
 /**
  * Finding 9: review and reply text ran the full ≈670 px pane at ≈110 characters

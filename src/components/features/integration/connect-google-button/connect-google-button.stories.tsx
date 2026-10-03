@@ -3,6 +3,7 @@
 // and reach every state without a live OAuth round-trip.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
+import { ToasterDecorator } from '../../../../../.storybook/ToasterDecorator'
 import { ConnectGoogleButton } from './connect-google-button'
 
 type AuthOpts = {
@@ -46,18 +47,22 @@ export const Connecting: Story = {
   },
 }
 
-// Rejecting fn → the catch block surfaces the inline error alert.
+// Rejecting fn → connecting is an immediate action, so the failure is a toast
+// (the app's Toaster lives in the root route; the story mounts its own).
 export const ConnectionError: Story = {
   args: {
     getAuthUrl: async () => {
       throw new Error('network down')
     },
   },
+  decorators: [ToasterDecorator],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: /connect google account/i }))
     expect(
-      await canvas.findByText(/failed to connect google account/i),
+      await within(document.body).findByText(
+        "Couldn't connect your Google account. Try again.",
+      ),
     ).toBeInTheDocument()
   },
 }

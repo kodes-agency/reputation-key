@@ -114,11 +114,7 @@ function ImpactMeter({ value, maximum }: Readonly<{ value: number; maximum: numb
       <span
         className={cn(
           'w-12 shrink-0 text-right font-medium tabular-nums',
-          value > 0
-            ? 'text-positive'
-            : value < 0
-              ? 'text-destructive'
-              : 'text-foreground',
+          value > 0 ? 'text-positive' : value < 0 ? 'text-negative' : 'text-foreground',
         )}
       >
         {signedImpact(value)}

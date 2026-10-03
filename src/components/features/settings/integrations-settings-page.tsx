@@ -21,6 +21,7 @@ import type {
 } from '#/contexts/integration/application/public-api'
 import { NEW_GOOGLE_CONNECTION_AUTHORIZATION } from './google-connection-authorization'
 import { GoogleConnectionSettingsRow } from './google-connection-settings-row'
+import { actionFailureMessage } from '#/components/hooks/use-action-mutation'
 
 type ConnectInput = Readonly<{ data: GoogleAuthUrlInput }>
 type DisconnectInput = Readonly<{ data: Readonly<{ connectionId: string }> }>
@@ -40,21 +41,21 @@ export function IntegrationsSettingsPage({
     try {
       const { url } = await connectGoogle({ data: input })
       window.location.href = url
-    } catch {
+    } catch (error) {
       toast.error(
-        input.connectionMode === 'reauth'
-          ? 'Could not start Google reauthorization'
-          : 'Could not start Google connection',
+        actionFailureMessage(
+          input.connectionMode === 'reauth'
+            ? "Couldn't start Google reauthorization."
+            : "Couldn't start the Google connection.",
+        )(error),
       )
     }
   }
 
   const onDisconnect = async (connectionId: string) => {
-    try {
-      await disconnectGoogle({ data: { connectionId } })
-    } catch {
-      toast.error('Failed to disconnect Google account')
-    }
+    // The mutation toasts its own refusal (`errorMessage` in the route); the
+    // catch only keeps the rejection from escaping the click.
+    await disconnectGoogle({ data: { connectionId } }).catch(() => undefined)
   }
 
   return (

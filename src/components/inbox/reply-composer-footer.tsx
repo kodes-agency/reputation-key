@@ -174,7 +174,7 @@ export function ReplyComposerFooter({
       <p
         id={submitBlockedReasonId}
         role="status"
-        className="text-xs text-destructive empty:sr-only"
+        className="text-xs text-negative empty:sr-only"
       >
         {submitBlockedReason}
       </p>
@@ -195,7 +195,7 @@ export function ReplyComposerFooter({
           empties the line, so a second failure is a fresh change and is
           announced again. Submit points `aria-describedby` at it while it has
           something to say. */}
-      <p id={errorId} role="status" className="text-xs text-destructive empty:sr-only">
+      <p id={errorId} role="status" className="text-xs text-negative empty:sr-only">
         {error}
       </p>
     </div>

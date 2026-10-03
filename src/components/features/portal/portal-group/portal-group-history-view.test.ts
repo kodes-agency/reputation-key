@@ -72,16 +72,16 @@ describe('buildPortalGroupHistory', () => {
 
   it('writes the board lines, newest first', () => {
     expect(lines.map((line) => [line.text, line.detail, line.dateLabel])).toEqual([
-      ['Georgi Ivanov renamed Pools to Pool side', null, '14 Aug'],
+      ['Georgi Ivanov renamed Pools to Pool side', null, 'Aug 14'],
       [
         'Spa & thermal pools moved here from Wellness',
-        'Its results before 12 Aug stay with Wellness',
-        '12 Aug',
+        'Its results before Aug 12 stay with Wellness',
+        'Aug 12',
       ],
       [
         'Elena Petrova created Pools with 3 portals',
         'Pool & Terrace, Pool bar and Spa & thermal pools',
-        '12 Aug',
+        'Aug 12',
       ],
     ])
   })
@@ -158,7 +158,7 @@ describe('buildPortalGroupHistory', () => {
     )
 
     expect(line?.text).toBe('Spa & thermal pools moved to Wellness')
-    expect(line?.detail).toBe('Its results before 2 Sep stay here')
+    expect(line?.detail).toBe('Its results before Sep 2 stay here')
   })
 
   it('says a removed portal keeps its earlier results with the group', () => {
@@ -174,7 +174,7 @@ describe('buildPortalGroupHistory', () => {
     )
 
     expect(line?.text).toBe('Pool bar removed')
-    expect(line?.detail).toBe('Its results before 2 Sep stay with Pool side')
+    expect(line?.detail).toBe('Its results before Sep 2 stay with Pool side')
   })
 
   it('never prints an id for a name it cannot resolve', () => {
@@ -200,7 +200,7 @@ describe('buildPortalGroupHistory', () => {
       'A portal moved here from another group',
       'Someone created Pools',
     ])
-    expect(lines[0]?.detail).toBe('Its results before 2 Sep stay with that group')
+    expect(lines[0]?.detail).toBe('Its results before Sep 2 stay with that group')
   })
 
   it('names the year of an entry from an earlier year', () => {
@@ -210,7 +210,7 @@ describe('buildPortalGroupHistory', () => {
       frame,
     )
 
-    expect(line?.dateLabel).toBe('30 Dec 2025')
+    expect(line?.dateLabel).toBe('Dec 30, 2025')
   })
 
   it('dates an entry by the property day, not the UTC day', () => {
@@ -221,7 +221,7 @@ describe('buildPortalGroupHistory', () => {
       frame,
     )
 
-    expect(line?.dateLabel).toBe('1 Sep')
+    expect(line?.dateLabel).toBe('Sep 1')
   })
 
   it('writes the archive line for the group itself', () => {

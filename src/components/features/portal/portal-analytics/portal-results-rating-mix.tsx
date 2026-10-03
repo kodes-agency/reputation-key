@@ -3,6 +3,7 @@
 // the server says what the floor is.
 import { RatingDistributionChart } from '#/components/features/shared/rating-distribution-chart'
 import type { PortalAnalyticsData } from '#/contexts/reporting/application/public-api'
+import { formatNumber } from '#/lib/format'
 
 export function PortalResultsRatingMix({
   data,
@@ -23,7 +24,7 @@ export function PortalResultsRatingMix({
             label="Rating mix"
           />
           <p className="text-sm text-muted-foreground">
-            From {avgRating.sampleCount.toLocaleString('en-US')} private ratings.
+            From {formatNumber(avgRating.sampleCount)} private ratings.
           </p>
         </>
       ) : (

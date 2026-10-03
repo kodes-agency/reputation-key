@@ -97,7 +97,7 @@ function TopicChip({
 }: Readonly<{ tone: 'praise' | 'complaint'; entry: AiAspectAggregate }>) {
   return (
     <span className="flex items-center gap-1.5">
-      <Badge variant={tone === 'praise' ? 'secondary' : 'destructive'}>
+      <Badge variant={tone === 'praise' ? 'positive' : 'negative'}>
         {tone === 'praise' ? 'Praise' : 'Complaints'}
       </Badge>
       {ASPECT_LABELS[entry.aspect]}

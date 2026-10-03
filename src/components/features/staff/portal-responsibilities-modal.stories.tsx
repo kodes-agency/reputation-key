@@ -2,6 +2,7 @@ import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fireEvent, userEvent, within } from 'storybook/test'
 import { Button } from '#/components/ui/button'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import type { Action } from '#/components/hooks/use-action'
 import type { UpdatePortalResponsibilitiesMutationInput } from '#/components/features/staff/types'
 import { PortalResponsibilitiesModal } from './portal-responsibilities-modal'
@@ -54,7 +55,12 @@ export const MutationError: Story = {
   args: {
     updateAction: Object.assign(async () => ({ updated: false }), {
       ...idle,
-      error: new Error('Responsibilities could not be saved.'),
+      error: new ServerFunctionError(
+        'StaffError',
+        'Responsibilities could not be saved.',
+        'conflict',
+        409,
+      ),
     }),
   },
   play: async () => {

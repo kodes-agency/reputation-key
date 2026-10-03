@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { AlertCircle, UserRoundCheck } from 'lucide-react'
+import { UserRoundCheck } from 'lucide-react'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
@@ -97,8 +97,7 @@ export function ResponsibleManagersPanel({
       </div>
 
       {(state.responsibilityNeeded || selected.length === 0) && (
-        <Alert>
-          <AlertCircle aria-hidden="true" />
+        <Alert variant="warning">
           <AlertTitle>{copy.alertTitle}</AlertTitle>
           <AlertDescription>{copy.alertDescription}</AlertDescription>
         </Alert>

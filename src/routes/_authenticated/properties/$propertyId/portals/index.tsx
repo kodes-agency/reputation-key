@@ -91,18 +91,21 @@ function PortalListRoute() {
 
   const archiveMutation = useActionMutation(updatePortal, {
     successMessage: 'Portal archived',
+    errorMessage: actionErrorMessage,
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
   const restoreMutation = useActionMutation(updatePortal, {
     successMessage: 'Portal restored as Disabled',
+    errorMessage: actionErrorMessage,
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
   const disableMutation = useActionMutation(updatePortal, {
     successMessage: 'Public page disabled',
+    errorMessage: actionErrorMessage,
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
-  // The dialogs show a refusal in place; the archive confirmation closes first,
-  // so its refusal is the page's banner and a toast.
+  // The dialogs show a refusal in place (a form's banner); a row action such as
+  // archiving a group reports its refusal by toast.
   const createMutation = useActionMutation(createPortalGroup, {
     successMessage: 'Group created',
     onSuccess: () => portalGroupCachePolicy.onGroupCreated(queryClient, propertyId),

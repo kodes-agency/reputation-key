@@ -1,5 +1,5 @@
 import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
-import { Badge } from '#/components/ui/badge'
+import { StatusBadge } from '#/components/ui/status-badge'
 import { Checkbox } from '#/components/ui/checkbox'
 import {
   Table,
@@ -92,9 +92,10 @@ export function GoogleImportCandidateList({
                     {candidate.primaryCategory || 'Uncategorized'}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={selectable ? 'secondary' : 'outline'}>
-                      {eligibilityLabel(candidate)}
-                    </Badge>
+                    <StatusBadge
+                      tone={selectable ? 'positive' : 'neutral'}
+                      label={eligibilityLabel(candidate)}
+                    />
                   </TableCell>
                 </TableRow>
               )
@@ -127,9 +128,11 @@ export function GoogleImportCandidateList({
                 <span className="mt-1 block break-words text-sm text-muted-foreground">
                   {candidate.address || 'Address unavailable'}
                 </span>
-                <Badge className="mt-2" variant={selectable ? 'secondary' : 'outline'}>
-                  {eligibilityLabel(candidate)}
-                </Badge>
+                <StatusBadge
+                  className="mt-2"
+                  tone={selectable ? 'positive' : 'neutral'}
+                  label={eligibilityLabel(candidate)}
+                />
               </span>
             </label>
           )

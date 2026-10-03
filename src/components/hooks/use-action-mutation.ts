@@ -14,6 +14,16 @@
  *
  * Replaces BOTH `useMutationAction` (pass `successMessage` for a toast) and
  * `useMutationActionSilent` (omit `successMessage`).
+ *
+ * Who reports a failure (one rule, so nothing is told twice):
+ * - A FORM SUBMIT reports through `FormErrorBanner`, directly above that form's
+ *   actions. Its mutation passes no `errorMessage`: the action holds the error
+ *   and the banner shows it. The success may still toast.
+ * - A ROW or IMMEDIATE action (a switch, a menu item, a download, a command a
+ *   dialog has already closed on) reports through a toast: pass `errorMessage`
+ *   (`actionErrorMessage`, or `actionFailureMessage("Couldn't ….")` to name
+ *   what failed) and render no banner for it.
+ * `feedback-ownership.test.ts` fails on a file that does both.
  */
 import { useMutation, useQueryClient, type QueryKey } from '@tanstack/react-query'
 import { useRouter } from '@tanstack/react-router'
@@ -43,13 +53,27 @@ export function actionErrorMessage(error: unknown): string {
   return GENERIC_ACTION_ERROR_MESSAGE
 }
 
+/**
+ * The failure message for one action, for `errorMessage`: the server's sentence
+ * for a 4xx refusal, otherwise `what` and "Try again." `what` is a whole
+ * sentence that begins "Couldn't" and ends with a period ("Couldn't update
+ * quiet hours."), so every failure toast reads the same way.
+ */
+export const actionFailureMessage =
+  (what: string) =>
+  (error: unknown): string => {
+    const message = actionErrorMessage(error)
+    return message === GENERIC_ACTION_ERROR_MESSAGE ? `${what} Try again.` : message
+  }
+
 export interface ActionMutationOptions<TInput, TOutput> {
   /** Shown via toast.success on success. Omit for a silent mutation. */
   successMessage?: string
   /**
    * Shown via toast.error when the mutation rejects (after any recovery). Omit
-   * for a caller that reports failure itself. Pass `actionErrorMessage` for the
-   * default wording, or a function of the error to special-case one refusal.
+   * for a caller that reports failure itself, which is every form submit (its
+   * banner). Pass `actionErrorMessage` for the default wording, or a function of
+   * the error to special-case one refusal.
    *
    * Opt-in because `Action` is `mutateAsync`: every rejection also reaches the
    * caller, and a caller that already renders the error inline must not get a

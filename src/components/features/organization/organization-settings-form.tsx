@@ -62,8 +62,6 @@ export function OrganizationSettingsForm({
       }}
       className="flex flex-col gap-6"
     >
-      <FormErrorBanner error={error} />
-
       {/* Identity Card */}
       <Card>
         <CardHeader>
@@ -77,6 +75,7 @@ export function OrganizationSettingsForm({
         </CardContent>
       </Card>
 
+      <FormErrorBanner error={error} />
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <SubmitButton
           mutation={{ isPending, error }}

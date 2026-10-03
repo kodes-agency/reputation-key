@@ -1,6 +1,9 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import {
+  useActionMutation,
+  actionErrorMessage,
+} from '#/components/hooks/use-action-mutation'
 import { PropertyReplyLanguageCard } from '#/components/features/settings/property-reply-language-card'
 import { PropertyReplyProfileCard } from '#/components/features/property/property-reply-profile-card'
 import { PropertyReplyTemplateLibraryCard } from '#/components/features/property/property-reply-template-library-card'
@@ -57,8 +60,10 @@ function PropertyRepliesSettings() {
     successMessage: 'Reply template saved',
     invalidateKeys: libraryKeys,
   })
+  // A switch is an immediate action: its refusal is a toast, not a banner.
   const setTemplateEnabled = useActionMutation(setPropertyReplyTemplateEnabledFn, {
     successMessage: 'Reply template availability updated',
+    errorMessage: actionErrorMessage,
     invalidateKeys: libraryKeys,
   })
 

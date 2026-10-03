@@ -1,6 +1,7 @@
 import { Pencil, UserRoundX } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
-import { Badge } from '#/components/ui/badge'
+import { StatusBadge } from '#/components/ui/status-badge'
+import { formatDate } from '#/lib/format'
 import { Button } from '#/components/ui/button'
 import {
   AlertDialog,
@@ -26,24 +27,6 @@ type Props = Readonly<{
   onEditResponsibilities: () => void
 }>
 
-// Pinned, because the page is server-rendered in the container's zone and
-// hydrated in the viewer's: the runtime's own zone and locale printed two
-// different days, which React rejects as a hydration mismatch (#418).
-const participationDateFormat = new Intl.DateTimeFormat('en-US', {
-  dateStyle: 'medium',
-  timeZone: 'UTC',
-})
-
-/**
- * A participation boundary as a calendar date, or nothing when it is not a real
- * instant: `format` throws on an Invalid Date, and one bad row must not take the
- * People page down (the guard `formatReviewedAt` uses for the same reason).
- */
-function formatParticipationDate(value: string | Date): string | null {
-  const date = value instanceof Date ? value : new Date(value)
-  return Number.isFinite(date.getTime()) ? participationDateFormat.format(date) : null
-}
-
 export function StaffParticipationRow({
   participation,
   canManageResponsibilities,
@@ -58,17 +41,16 @@ export function StaffParticipationRow({
         <div className="min-w-40">
           <p className="font-medium">{participation.displayName}</p>
           <p className="text-xs text-muted-foreground">
-            {formatParticipationDate(participation.startedAt)} –{' '}
-            {participation.endedAt
-              ? formatParticipationDate(participation.endedAt)
-              : 'Present'}
+            {formatDate(participation.startedAt)} –{' '}
+            {participation.endedAt ? formatDate(participation.endedAt) : 'Present'}
           </p>
         </div>
       </TableCell>
       <TableCell>
-        <Badge variant={active ? 'secondary' : 'outline'}>
-          {active ? 'Active' : 'Archived'}
-        </Badge>
+        <StatusBadge
+          tone={active ? 'positive' : 'neutral'}
+          label={active ? 'Active' : 'Archived'}
+        />
       </TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end gap-1">
@@ -91,7 +73,7 @@ export function StaffParticipationRow({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground hover:text-destructive"
+                  className="text-muted-foreground hover:text-negative"
                   aria-label={`Archive staff participation for ${participation.displayName}`}
                 >
                   <UserRoundX aria-hidden="true" />

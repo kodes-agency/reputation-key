@@ -3,7 +3,6 @@
 // `portal.approved_destination_ratio` facts produced from the saved gateway.
 
 import { useState } from 'react'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import type { Action } from '#/components/hooks/use-action'
 import { ContentReviewAttestation } from './content-review-attestation'
 import { reviewStatusMessage } from './content-review-status'
@@ -38,8 +37,6 @@ export function ContentReviewCard({ portal, mutation, disabled }: Props) {
           Changes to this portal save as you make them.
         </p>
       </div>
-
-      <FormErrorBanner error={mutation.error} />
 
       {isPublished ? (
         <ContentReviewAttestation

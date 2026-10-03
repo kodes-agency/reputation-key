@@ -43,10 +43,10 @@ function ProfileSettings() {
   const ctx = Route.useRouteContext() as AuthRouteContext
   const organizationId = ctx.activeOrganization?.id ?? NO_ACTIVE_ORGANIZATION
   const updateProfile = useActionMutation(updateProfileFn, {
-    successMessage: 'Profile updated successfully',
+    successMessage: 'Profile updated',
   })
   const updateUserImage = useActionMutation(updateUserImageFn, {
-    successMessage: 'Avatar updated successfully',
+    successMessage: 'Avatar updated',
   })
   const requestUpload = useServerFn(requestAvatarUpload)
   const finalizeUpload = useServerFn(finalizeAvatarUpload)

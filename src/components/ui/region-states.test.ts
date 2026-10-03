@@ -47,14 +47,10 @@ const DASHED_ALLOWED: Readonly<Record<string, string>> = {
     'an upload tile, not a message',
   'src/components/features/portal/link-tree/link-add-form.tsx':
     'the slot a new link is typed into, a form and not a message',
-  'src/components/features/property/property-lifecycle-card.tsx':
-    'a recovery-details callout (tones: SURF-05)',
   'src/components/features/portal/property-look/property-look-photo-dialog.tsx':
     'the frame a photograph will fill',
   'src/components/features/property/settings/property-setup-strip.tsx':
     'a step chip that is not yet done',
-  'src/components/features/settings/organization-ai-overview-page.tsx':
-    'a status pill for "off"',
 }
 
 /** A dashed edge, as the utility or as an arbitrary property. */

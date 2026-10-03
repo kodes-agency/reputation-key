@@ -1,4 +1,4 @@
-import { AlertCircle, MapPin, Search } from 'lucide-react'
+import { MapPin, Search } from 'lucide-react'
 import type {
   ImportAccountDto,
   ImportCandidateDto,
@@ -97,8 +97,7 @@ export function GoogleImportDiscoveryPanel(props: Props) {
               </div>
 
               {props.selectAllError ? (
-                <Alert>
-                  <AlertCircle aria-hidden="true" />
+                <Alert variant="warning">
                   <AlertTitle>Some locations could not be loaded</AlertTitle>
                   <AlertDescription>{props.selectAllError}</AlertDescription>
                 </Alert>

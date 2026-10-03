@@ -2012,6 +2012,11 @@ export const AnalysisReadyNeedsAttentionOnly: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByRole('list', { name: 'Review topics' })).toBeVisible()
     await expect(canvas.getByText('Needs attention')).toBeVisible()
+    // One tone for the label across the product: a person has to act.
+    await expect(canvas.getByText('Needs attention')).toHaveAttribute(
+      'data-variant',
+      'warn',
+    )
   },
 }
 

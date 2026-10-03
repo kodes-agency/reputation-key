@@ -1,4 +1,3 @@
-import { TriangleAlert } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import {
   REPLY_TEMPLATE_SLOT_TOKENS,
@@ -34,8 +33,7 @@ export function ReplyTemplatePreview({ body, profile, rating }: Props) {
         </pre>
       </div>
       {hasNoSlots ? (
-        <Alert>
-          <TriangleAlert />
+        <Alert variant="warning">
           <AlertTitle>No slots in this body</AlertTitle>
           <AlertDescription>
             That is allowed. Add a slot only when this template needs a personalised

@@ -4,8 +4,9 @@ import { TimelineIndicator } from '#/components/ui/timeline'
 import { cn } from '#/lib/utils'
 import { MESSAGE_PROSE_CLASS } from './guest-message'
 import { personInitials } from './person-initials'
-import { formatDateTime, formatRelativeTime } from './utils'
+import { formatRelativeTime } from './utils'
 import type { InboxNoteView } from '#/contexts/inbox/application/public-api'
+import { formatTimestamp } from '#/lib/format'
 
 /**
  * IBX-01-T6: never render a raw user id. The server resolves the author's
@@ -145,7 +146,7 @@ export function NoteMessage({ note, currentUserId }: NoteProps): ReactNode {
         <time
           className="text-muted-foreground"
           dateTime={at.toISOString()}
-          title={formatDateTime(at)}
+          title={formatTimestamp(at) ?? undefined}
         >
           {formatRelativeTime(at)}
         </time>

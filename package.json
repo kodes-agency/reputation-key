@@ -65,7 +65,7 @@
     "check:product-state-consistency": "tsx scripts/ci/check-product-state-consistency.ts",
     "check:runtime-environment-contract": "tsx scripts/ci/check-runtime-environment-contract.ts",
     "check:file-length": "tsx scripts/ci/check-file-length.ts",
-    "check:unchecked-indexed-access": "tsx scripts/ci/check-unchecked-indexed-access.ts",
+    "check:unchecked-indexed-access": "NODE_OPTIONS=--max-old-space-size=6144 tsx scripts/ci/check-unchecked-indexed-access.ts",
     "ops": "tsx scripts/ops/index.ts",
     "db:baseline": "tsx scripts/db-baseline.ts",
     "db:reset": "tsx scripts/db-reset.ts"

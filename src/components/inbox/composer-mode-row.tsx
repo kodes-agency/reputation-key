@@ -26,7 +26,7 @@
 
 import { createContext, useContext, useLayoutEffect } from 'react'
 import {
-  CheckCircle2,
+  CircleCheck,
   LoaderCircle,
   Lock,
   MessageSquare,
@@ -391,7 +391,7 @@ function SaveStateGlyph({ status }: Readonly<{ status: ReplyAutosaveStatus }>) {
       />
     )
   }
-  if (status === 'saved') return <CheckCircle2 aria-hidden="true" className="size-3.5" />
+  if (status === 'saved') return <CircleCheck aria-hidden="true" className="size-3.5" />
   if (status === 'error') return <TriangleAlert aria-hidden="true" className="size-3.5" />
   return null
 }
@@ -426,7 +426,7 @@ function ComposerHeadState({
       aria-live="polite"
       className={cn(
         'ml-auto flex items-center gap-1.5 text-xs whitespace-nowrap text-muted-foreground',
-        saveState === 'error' && 'text-destructive',
+        saveState === 'error' && 'text-negative',
       )}
     >
       {saveState !== null && label !== null ? (

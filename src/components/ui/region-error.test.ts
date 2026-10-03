@@ -21,7 +21,7 @@ describe('RegionError', () => {
     const html = render()
 
     expect(html).toContain('role="alert"')
-    expect(html).toContain('bg-destructive/10')
+    expect(html).toContain('bg-negative-muted')
     expect(html).toContain('The goal couldn’t be loaded.')
   })
 

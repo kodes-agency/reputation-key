@@ -68,7 +68,7 @@ export const Submitting: Story = {
   },
 }
 
-// Server-rejected invitation — top-level banner surfaces the message.
+// Server-rejected invitation — the banner above the button surfaces the message.
 export const MutationError: Story = {
   args: {
     mutation: makeAction(

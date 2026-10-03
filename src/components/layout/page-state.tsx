@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { AlertCircle } from 'lucide-react'
+import { CircleAlert } from 'lucide-react'
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
@@ -73,7 +73,6 @@ function ErrorBody({
   return (
     <div className="space-y-4">
       <Alert variant="destructive">
-        <AlertCircle />
         <AlertDescription>{message}</AlertDescription>
       </Alert>
       {onRetry && (
@@ -94,7 +93,7 @@ function NoticeBody({
 }: Readonly<{ heading: string; reason?: string; back: PageStateBack }>) {
   return (
     <EmptyState
-      icon={AlertCircle}
+      icon={CircleAlert}
       title={heading}
       description={reason}
       action={

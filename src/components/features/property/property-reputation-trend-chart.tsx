@@ -21,6 +21,7 @@ import {
   buildPropertyReputationTrendData,
   type PropertyReputationTrendDatum,
 } from './property-reputation-trend-chart-data'
+import { formatNumber } from '#/lib/format'
 
 const config = {
   newReviews: { label: 'New reviews', color: 'var(--muted-foreground)' },
@@ -32,7 +33,7 @@ function formatRating(value: number): string {
 }
 
 function reviewCountLabel(count: number): string {
-  return `${count.toLocaleString()} new ${count === 1 ? 'review' : 'reviews'}`
+  return `${formatNumber(count)} new ${count === 1 ? 'review' : 'reviews'}`
 }
 
 function trendCaption(
@@ -196,7 +197,7 @@ export function PropertyReputationTrendChart({
             >
               <dt className="font-medium">{point.label}</dt>
               <dd className="text-right tabular-nums">
-                {point.newReviews.toLocaleString()} new{' '}
+                {formatNumber(point.newReviews)} new{' '}
                 {point.newReviews === 1 ? 'review' : 'reviews'}
               </dd>
               <dt className="text-muted-foreground">Running average</dt>

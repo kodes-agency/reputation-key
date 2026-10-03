@@ -28,6 +28,7 @@ import {
 } from './property-photo-rules'
 import { usePhotoDialog, type PhotoDialogInput } from './use-photo-dialog'
 import type { PreviewMedia } from './property-look-preview-brand'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
 
 type Props = Readonly<
   Omit<PhotoDialogInput, 'onBusyChange' | 'onClose'> & {
@@ -206,9 +207,7 @@ function PhotoDialogBody({ propertyName, renderPhone, ...input }: BodyProps) {
           onCheckedChange={dialog.setIsConfirmed}
         />
       ) : null}
-      <p role="alert" className="min-h-5 text-sm text-negative">
-        {dialog.message}
-      </p>
+      <FormErrorBanner error={dialog.message} />
       <UploadDialogFooter
         primaryLabel={photoButtonLabel(picker.chosen !== null, dialog.isBusy)}
         canSubmit={dialog.canSubmit}

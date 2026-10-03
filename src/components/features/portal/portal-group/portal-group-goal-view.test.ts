@@ -136,7 +136,7 @@ describe('goalCardView', () => {
       title: 'October · Private ratings',
       state: 'not_started',
       figure: null,
-      detail: 'Starts on 1 Oct',
+      detail: 'Starts on Oct 1',
       note: 'Set by Elena Petrova',
     })
   })

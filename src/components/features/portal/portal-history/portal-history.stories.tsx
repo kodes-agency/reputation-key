@@ -382,7 +382,7 @@ export const ViewVersionFromRail: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(
       canvas.getByRole('button', {
-        name: 'Version 3, published 14 Jul by Georgi Ivanov',
+        name: 'Version 3, published Jul 14 by Georgi Ivanov',
       }),
     )
     const dialog = within(await within(document.body).findByRole('dialog'))

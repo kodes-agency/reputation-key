@@ -238,7 +238,7 @@
   --color-destructive-foreground: var(--destructive-foreground);
   /* The direction pair as utilities (dashboard redesign row 10). `--success`
      existed but was never mapped, so "rating went up" had no colour while
-     "went down" had `text-destructive`. These point at the text-grade values,
+     "went down" had the destructive red. These point at the text-grade values,
      not the fill-grade ones. */
   --color-positive: var(--positive);
   --color-positive-muted: var(--success-muted);

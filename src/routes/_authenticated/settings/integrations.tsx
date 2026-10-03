@@ -4,7 +4,10 @@ import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { useServerFn } from '@tanstack/react-start'
 import { useAction } from '#/components/hooks/use-action'
 import { PageHeader } from '#/components/layout/page-header'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import {
+  useActionMutation,
+  actionFailureMessage,
+} from '#/components/hooks/use-action-mutation'
 import { can } from '#/shared/domain/permissions'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import {
@@ -44,6 +47,7 @@ function IntegrationsSettings() {
   const connectGoogle = useAction(useServerFn(getGoogleAuthUrl))
   const disconnectAction = useActionMutation(disconnectGoogle, {
     successMessage: 'Google account disconnected',
+    errorMessage: actionFailureMessage("Couldn't disconnect your Google account."),
     invalidateKeys: [integrationKeys.connections()],
   })
 

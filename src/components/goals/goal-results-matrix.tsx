@@ -14,6 +14,7 @@ import {
   TableRow,
 } from '#/components/ui/table'
 import { AvailabilityLine } from '#/components/features/dashboard/availability-line'
+import { formatDate, formatMonthYear } from '#/lib/format'
 
 type Props = Readonly<{ matrix: GoalResultsMatrixModel }>
 
@@ -38,7 +39,7 @@ export function GoalResultsMatrix({ matrix }: Props) {
               key={`${month.periodStart.toISOString()}:${month.periodEnd.toISOString()}`}
             >
               <h3 className="mb-2 text-sm font-medium">
-                {monthLabel(month.periodStart, month.propertyTimezone)}
+                {formatMonthYear(month.periodStart, month.propertyTimezone)}
               </h3>
               <Table>
                 <TableHeader>
@@ -122,7 +123,8 @@ function MatrixRow({
         </span>
       </TableCell>
       <TableCell>
-        {row.dataThrough ? formatDate(row.dataThrough, timezone) : 'Not available yet'}
+        {(row.dataThrough ? formatDate(row.dataThrough, timezone) : null) ??
+          'Not available yet'}
       </TableCell>
       <TableCell className="max-w-64 whitespace-normal">
         <span className="block">
@@ -174,19 +176,4 @@ function formatTarget(value: number, metric: string): string {
 
 function shortVersion(value: string): string {
   return value.length > 12 ? `…${value.slice(-8)}` : value
-}
-
-function monthLabel(start: Date, timezone: string): string {
-  return new Intl.DateTimeFormat('en-US', {
-    month: 'long',
-    year: 'numeric',
-    timeZone: timezone,
-  }).format(start)
-}
-
-function formatDate(date: Date, timezone: string): string {
-  return new Intl.DateTimeFormat('en-US', {
-    dateStyle: 'medium',
-    timeZone: timezone,
-  }).format(date)
 }

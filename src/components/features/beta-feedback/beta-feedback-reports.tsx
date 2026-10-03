@@ -5,15 +5,14 @@ import { Badge } from '#/components/ui/badge'
 import { EmptyState } from '#/components/ui/empty-state'
 import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
+import { StatusBadge } from '#/components/ui/status-badge'
 import { formatDateTime } from '#/lib/format-date-time'
-import { cn } from '#/lib/utils'
 import { identityKeys } from '#/shared/queries/query-keys'
 import type { ListMyBetaFeedback, MyBetaFeedbackItem } from './beta-feedback-form-context'
 import {
   issueUrlFor,
   reporterFeedbackStatus,
   reporterRouteLabel,
-  type ReporterFeedbackTone,
 } from './beta-feedback-status'
 import {
   browserStorage,
@@ -33,14 +32,6 @@ const REPORT_TIME = {
       ? 'UTC'
       : (Intl.DateTimeFormat().resolvedOptions().timeZone ?? 'UTC'),
 } as const
-
-const TONE_CLASS: Readonly<Record<ReporterFeedbackTone, string>> = {
-  pending: 'border-border text-muted-foreground',
-  active: 'border-primary/20 bg-primary/5 text-primary',
-  settled: 'border-positive/30 bg-positive-muted text-positive',
-  closed: 'border-border bg-muted text-muted-foreground',
-  failed: 'border-destructive/30 bg-destructive/10 text-destructive',
-}
 
 const IN_TEXT_LINK_STYLE = { textDecorationLine: 'underline' } as const
 
@@ -98,14 +89,8 @@ function ReportRow({
       <div className="min-w-0 flex-1 space-y-1">
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="text-sm font-medium">{reporterRouteLabel(item.routeKey)}</span>
-          <Badge variant="outline" className={cn('font-normal', TONE_CLASS[status.tone])}>
-            {status.label}
-          </Badge>
-          {isNew && (
-            <span className="rounded-full bg-primary px-1.5 py-0.5 text-xs font-medium text-primary-foreground">
-              New
-            </span>
-          )}
+          <StatusBadge tone={status.tone} label={status.label} />
+          {isNew && <Badge>New</Badge>}
         </div>
         <p className="text-sm text-muted-foreground">{status.description}</p>
         <p className="text-xs text-muted-foreground">

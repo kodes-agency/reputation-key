@@ -35,7 +35,8 @@ export function PropertyLookLogoField({
     <div className="space-y-2">
       {logo ? (
         <div className="flex flex-wrap items-center gap-4">
-          <div className="grid h-16 min-w-32 place-items-center rounded-md bg-neutral-900 px-4">
+          {/* A dark-theme scope in either app theme: the guest page draws the logo on a dark header. */}
+          <div className="dark grid h-16 min-w-32 place-items-center rounded-md bg-card px-4">
             <img
               src={logo.url}
               alt={`${controls.propertyName} logo`}

@@ -43,8 +43,6 @@ export function LoginForm({ mutation }: Props) {
       }}
       className="space-y-4"
     >
-      <FormErrorBanner error={mutation.error} />
-
       <FieldGroup>
         <form.Field name="email">
           {(field: BaseFieldApi) => (
@@ -73,6 +71,7 @@ export function LoginForm({ mutation }: Props) {
         </form.Field>
       </FieldGroup>
 
+      <FormErrorBanner error={mutation.error} />
       <SubmitButton mutation={mutation} form={form} className="w-full">
         Sign in
       </SubmitButton>

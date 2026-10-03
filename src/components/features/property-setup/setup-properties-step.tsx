@@ -184,7 +184,7 @@ function SetupStepBody({
   const [snapshot] = useState(ready)
   if (setupQuestionCount(snapshot.facts) === 0) {
     return (
-      <Alert>
+      <Alert variant="info">
         <AlertTitle>Nothing left to ask</AlertTitle>
         <AlertDescription>
           These properties already have a public display name, a reply language, a

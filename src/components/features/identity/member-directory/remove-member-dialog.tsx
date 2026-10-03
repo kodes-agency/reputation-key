@@ -27,11 +27,7 @@ export function RemoveMemberDialog({
   return (
     <AlertDialog>
       <AlertDialogTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          className="text-destructive hover:text-destructive"
-        >
+        <Button variant="outline" size="sm" className="text-negative hover:text-negative">
           Remove
         </Button>
       </AlertDialogTrigger>

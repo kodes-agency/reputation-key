@@ -301,7 +301,7 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
       </div>
 
       {publishBlockedReason !== null && (
-        <p id={publishBlockedReasonId} className="mt-2 text-xs text-destructive">
+        <p id={publishBlockedReasonId} className="mt-2 text-xs text-negative">
           {publishBlockedReason}
         </p>
       )}

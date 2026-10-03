@@ -183,7 +183,7 @@ function LinktreeActionsMenu({ name, isOpen, canDelete, onToggle, onDelete }: Me
         </DropdownMenuItem>
         {canDelete ? (
           <DropdownMenuItem
-            className="text-destructive focus:text-destructive"
+            className="text-negative focus:text-negative"
             onSelect={onDelete}
           >
             Delete link

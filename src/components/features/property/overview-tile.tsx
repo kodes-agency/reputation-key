@@ -14,6 +14,11 @@ import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
 import { cn } from '#/lib/utils'
+import { dashboardRangeComparisonLabel } from '#/shared/dashboard-range'
+
+/** The pulse is the last 30 days against the 30 before; every delta on a tile names that baseline. */
+export const PULSE_COMPARISON_LABEL =
+  dashboardRangeComparisonLabel('30d') ?? 'vs the previous 30 days'
 
 /**
  * Where the tile goes: usually the page that explains its number, but a tile
@@ -41,7 +46,7 @@ type TileLink =
 type Props = Readonly<{
   label: string
   /** The number a manager recognises. Absent means there is no number yet. */
-  value: string | null
+  value: ReactNode
   /** One line under the value: the pulse, or why there is no number. */
   context: ReactNode
   link: TileLink
@@ -49,6 +54,40 @@ type Props = Readonly<{
   linkLabel: string
   className?: string
 }>
+
+// The width of the lane a separator lives in, and the pull that hides it (below).
+const SEPARATOR_LANE = 'pl-3'
+const SEPARATOR_PULL = '-ml-3'
+
+/**
+ * A tile's caption and the detail after it ("in the last 30 days · Up 12% vs the
+ * previous 30 days"). They share a line when they fit; when they do not, the
+ * detail drops to its own line and the dot stays behind. A dot typed into the
+ * text would be left dangling at the end of the line above, so each part carries
+ * its dot in its own left lane and the row is pulled one lane out of the clip: a
+ * part that starts a line has its lane, and so its dot, clipped away.
+ *
+ * Nothing in here may be tall enough to want the clip's edge: the detail is a
+ * line of text or a `MetricDelta`.
+ */
+export function TileCaption({
+  caption,
+  detail,
+}: Readonly<{ caption: ReactNode; detail: ReactNode }>) {
+  return (
+    <span data-slot="tile-caption" className="block overflow-hidden">
+      <span className={cn('flex flex-wrap', SEPARATOR_PULL)}>
+        <span className={SEPARATOR_LANE}>{caption}</span>{' '}
+        <span className={cn('relative', SEPARATOR_LANE)}>
+          <span aria-hidden="true" className="absolute top-0 left-1">
+            ·
+          </span>{' '}
+          {detail}
+        </span>
+      </span>
+    </span>
+  )
+}
 
 const TILE_CLASS =
   'group flex min-w-0 flex-col rounded-lg border p-4 text-foreground transition-colors hover:border-border hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
@@ -105,23 +144,5 @@ export function OverviewTile({
     >
       {body}
     </Link>
-  )
-}
-
-/**
- * Direction marker for a pulse line. Never alone: the caller always renders a
- * signed figure beside it, so the meaning survives without colour (row 10).
- */
-export function PulseDelta({
-  percent,
-  suffix = 'vs the prior 30 days',
-}: Readonly<{ percent: number | null; suffix?: string }>) {
-  if (percent === null) return null
-  if (percent === 0) return <>No change {suffix}</>
-  const up = percent > 0
-  return (
-    <span className={up ? 'text-positive' : 'text-negative'}>
-      {up ? '↑' : '↓'} {Math.abs(percent)}% {suffix}
-    </span>
   )
 }

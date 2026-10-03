@@ -5,6 +5,8 @@ import type {
 } from '#/contexts/inbox/server/inbox'
 import { expect, fn, userEvent, within, waitFor } from 'storybook/test'
 import { InboxBulkActions } from './inbox-bulk-actions'
+import { ToasterDecorator } from '../../../.storybook/ToasterDecorator'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
 
@@ -237,14 +239,22 @@ export const ReopenClosed: Story = {
 }
 
 const failingBulkFn = mockServerFn(async (): Promise<BulkResult> => {
-  throw new Error('The selected items changed. Reload and try again.')
+  throw new ServerFunctionError(
+    'InboxError',
+    'The selected items changed. Reload and try again.',
+    'conflict',
+    409,
+  )
 }) as unknown as typeof bulkUpdateInboxStatusFn
 
+// A bulk command is an immediate action, so its refusal is a toast. The app's
+// Toaster lives in the root route; the story mounts its own.
 export const ReopenError: Story = {
   args: {
     ...AllFeedback.args,
     bulkUpdateFn: failingBulkFn,
   },
+  decorators: [ToasterDecorator],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: /^reopen$/i }))
@@ -257,8 +267,8 @@ export const ReopenError: Story = {
       within(await body.findByRole('dialog')).getByRole('button', { name: /^reopen$/i }),
     )
     expect(
-      await canvas.findByText(/selected items changed\. reload and try again/i),
-    ).toBeVisible()
+      await body.findByText(/selected items changed\. reload and try again/i),
+    ).toBeInTheDocument()
   },
 }
 

@@ -4,10 +4,12 @@
 // the property. The attention and setup cells are links too, but figures must
 // not turn purple (row 2 of the plan's findings), so those links name their ink.
 import { Link } from '@tanstack/react-router'
-import { Check, Link2Off, Star } from 'lucide-react'
-import { Badge } from '#/components/ui/badge'
+import { Check, Link2Off } from 'lucide-react'
+import { RatingFigure } from '#/components/ui/rating-figure'
+import { StatusBadge } from '#/components/ui/status-badge'
 import { Skeleton } from '#/components/ui/skeleton'
 import { cn } from '#/lib/utils'
+import { PROPERTY_LIFECYCLE_STATUS } from './property-lifecycle-model'
 import {
   propertySetupStepLabel,
   propertySetupStepTarget,
@@ -21,6 +23,7 @@ import {
   type PropertyListRow,
   type PropertySetupProgress,
 } from './property-list-view'
+import { formatNumber } from '#/lib/format'
 
 const FOCUS_RING =
   'rounded-sm underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
@@ -42,7 +45,9 @@ export function PropertyNameCell({ row }: Readonly<{ row: PropertyListRow }>) {
         >
           {property.name}
         </Link>
-        {row.paused ? <Badge variant="secondary">Paused</Badge> : null}
+        {row.paused ? (
+          <StatusBadge status="suspended" map={PROPERTY_LIFECYCLE_STATUS} />
+        ) : null}
       </div>
       {row.country || notice ? (
         <p className="flex min-w-0 flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
@@ -78,13 +83,7 @@ export function RatingValue({ comparison, fleet }: FigureProps) {
   if (comparison.avgRating === null) {
     return <span className="text-muted-foreground">No ratings</span>
   }
-  return (
-    <span className="inline-flex items-center gap-1 font-medium">
-      <span className="tabular-nums">{comparison.avgRating.toFixed(1)}</span>
-      <Star className="size-3.5 fill-current text-rating" aria-hidden="true" />
-      <span className="sr-only">stars</span>
-    </span>
-  )
+  return <RatingFigure value={comparison.avgRating} className="font-medium" />
 }
 
 export function ReviewsValue({ comparison, fleet }: FigureProps) {
@@ -93,7 +92,7 @@ export function ReviewsValue({ comparison, fleet }: FigureProps) {
   const count = comparison.reviewCount
   return (
     <span className="tabular-nums">
-      {count.toLocaleString()}
+      {formatNumber(count)}
       {/* The column header names the figure in the table; stacked, the words do. */}
       <span className="@4xl:sr-only"> {count === 1 ? 'review' : 'reviews'}</span>
     </span>

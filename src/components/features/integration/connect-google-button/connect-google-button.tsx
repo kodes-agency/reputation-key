@@ -1,8 +1,12 @@
 import { useCallback } from 'react'
+import { toast } from 'sonner'
 import { useAction } from '#/components/hooks/use-action'
 import { Button } from '#/components/ui/button'
 import { Loader2 } from 'lucide-react'
 import type { GoogleAuthUrlInput } from '#/contexts/integration/application/public-api'
+import { actionFailureMessage } from '#/components/hooks/use-action-mutation'
+
+const CONNECT_FAILED = "Couldn't connect your Google account."
 
 type NewGoogleAuthorization = Extract<GoogleAuthUrlInput, { connectionMode: 'new' }>
 
@@ -29,9 +33,10 @@ export function ConnectGoogleButton({
         },
       })
       window.location.href = result.url
-    } catch {
-      // useAction retains the rejection for the alert below. Catching it here
-      // keeps the click handler from producing an unhandled rejection.
+    } catch (error) {
+      // Connecting is an immediate action, so a failure is a toast. Catching it
+      // here also keeps the click handler from an unhandled rejection.
+      toast.error(actionFailureMessage(CONNECT_FAILED)(error))
     }
   }, [connect, visibility])
 
@@ -50,11 +55,6 @@ export function ConnectGoogleButton({
         )}
         Connect Google Account
       </Button>
-      {connect.error ? (
-        <p className="mt-2 text-sm text-destructive" role="alert">
-          Failed to connect Google account. Please try again.
-        </p>
-      ) : null}
     </div>
   )
 }

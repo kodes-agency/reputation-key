@@ -995,12 +995,12 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     const nameInput = page.getByLabel('Name')
     await nameInput.fill(`${seed.managerName} Persisted`)
     await clickWhenReady(page.getByRole('button', { name: 'Save Changes' }))
-    await expect(page.getByText('Profile updated successfully')).toBeVisible()
+    await expect(page.getByText('Profile updated')).toBeVisible()
     await page.reload()
     await expect(nameInput).toHaveValue(`${seed.managerName} Persisted`)
     await nameInput.fill(seed.managerName)
     await clickWhenReady(page.getByRole('button', { name: 'Save Changes' }))
-    await expect(page.getByText('Profile updated successfully')).toBeVisible()
+    await expect(page.getByText('Profile updated')).toBeVisible()
 
     await page.goto('/settings/notifications')
     // Quiet hours say which clock they run on, and link to where it is set.
@@ -1059,7 +1059,7 @@ test.describe('Critical: beta-local-1 product journeys', () => {
       await page.getByLabel('New password', { exact: true }).fill(temporaryPassword)
       await page.getByLabel('Confirm new password').fill(temporaryPassword)
       await clickWhenReady(page.getByRole('button', { name: 'Update password' }))
-      await expect(page.getByText('Password changed successfully')).toBeVisible()
+      await expect(page.getByText('Password changed')).toBeVisible()
       await page.getByLabel('Current password').fill(temporaryPassword)
       await page.getByLabel('New password', { exact: true }).fill(seed.password)
       await page.getByLabel('Confirm new password').fill(seed.password)

@@ -21,8 +21,7 @@
 import { useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import {
-  actionErrorMessage,
-  GENERIC_ACTION_ERROR_MESSAGE,
+  actionFailureMessage as failed,
   useActionMutation,
 } from '#/components/hooks/use-action-mutation'
 import { CATEGORY_COPY } from '#/components/features/settings/notifications-type-rows'
@@ -43,12 +42,6 @@ const readNow = (row: NotificationView): NotificationView => ({
   status: 'read',
   readAt: new Date(),
 })
-
-/** A failed action's toast: the server's sentence for a refusal, else what failed. */
-const failed = (what: string) => (error: unknown) => {
-  const message = actionErrorMessage(error)
-  return message === GENERIC_ACTION_ERROR_MESSAGE ? `${what} Try again.` : message
-}
 
 /**
  * Names what a mute switched off: this Property's in-app notices of one

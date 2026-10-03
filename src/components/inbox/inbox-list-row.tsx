@@ -7,7 +7,7 @@ import type { InboxCurrentUser } from './inbox-case-toolbar-props'
 import type { InboxAssignmentOption } from './inbox-owner-view'
 import { inboxRowView } from './inbox-list-row-view'
 import { STAR_FILLED_CLASS } from './inbox-detail-helpers'
-import { formatDateTime } from './utils'
+import { formatTimestamp } from '#/lib/format'
 
 type RowView = ReturnType<typeof inboxRowView>
 
@@ -163,7 +163,7 @@ function RowTrailing({ item, view }: Readonly<{ item: InboxItem; view: RowView }
       <time
         className="tabular-nums text-muted-foreground"
         dateTime={new Date(item.sourceDate).toISOString()}
-        title={formatDateTime(item.sourceDate)}
+        title={formatTimestamp(item.sourceDate) ?? undefined}
       >
         {view.age}
       </time>
