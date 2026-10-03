@@ -240,6 +240,12 @@ In light mode, the same tonal stack inverts: near-white backgrounds step from pa
 - **Error:** Border shifts to Signal Red with a matching red ring.
 - **Disabled:** 50% opacity, `cursor: not-allowed`.
 
+### View switchers
+
+- **Page views are underline tabs.** A page's sibling views (Staff / Directory, Workspace / Removed, Active / History, a Portal's Page / Share / Results / History) are one muted row on a baseline, the chosen view in foreground ink and medium weight with a 2px primary underline, `--control-touch` tall (44px, 36px in a compact workspace) at every width. When each view is a route or a search value of one it is a `LinkTabs` navigation landmark of links with `aria-current`; when the views swap a panel in the same document it is `Tabs variant="line"`. The look is the same.
+- **Pills are for modes.** The grey pill `Tabs` belongs inside a component (a composer's Reply / Note, a dialog's choice).
+- **Choices are segmented.** A short value or range choice is a `SegmentedControl`; a time range is a `RangeControl`, which becomes a Select below `sm`. Segments are a tap target below `md` and 26px from `md`.
+
 ### Navigation (Sidebar)
 
 - **Width:** 256px expanded, 48px collapsed (the icon rail). Below 768px (`md`) the sidebar is a sheet drawer; from 768px up it docks beside the content.

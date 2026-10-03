@@ -112,6 +112,24 @@ and actions supply server state.
   bar of pills) but wear the same fill (from `aria-current`), the same ring and
   `NavCount`, the shared trailing figure. The sidebar drawer on a phone closes when a
   link in it is chosen and its rows are the touch height.
+  A page's sibling views are underline tabs, drawn from one recipe
+  (`tabs-line-styles.ts`): `LinkTabs` / `LinkTab` when each view is a route or a
+  search value of one (a navigation landmark of links, `aria-current`, the link
+  passed as the child; People, Properties, Goals, the Portal workspace), and
+  `Tabs variant="line"` when the views swap a panel in the same document
+  (Notifications). The pill `Tabs` is for a mode inside a component (the
+  composer's Reply / Note, a dialog's choice) and nothing else; `TabCount` is the
+  one count beside a label. A short, always-answered value choice is
+  `SegmentedControl` (a radio group; `touch` makes its segments a tap target below
+  `md`), and a time range is `RangeControl`: segments from `sm`, a Select below,
+  one name ("Time range"), the page's own preset list worded from the one table
+  (`RANGE_PRESET_LABELS`: "30 days" everywhere, never "Last 30 days"). The range
+  lives where the page keeps its other state: a dashboard topic page keeps
+  `?range=` (`dashboardRangeSearch`); the Portal Results window is a reader-wide
+  preference that follows the reader from portal to portal and to the overview, so
+  it is remembered per reader. `view-switcher-sources.test.ts` fails on a pill on a
+  page, a hand-drawn underline, a toggled-Button view switch and a second range
+  picker.
 - `forms/` contains shared TanStack Form fields, submission, and error UI. A
   failure has one reporter. A form submit reports through `FormErrorBanner`,
   placed directly above that form's actions (the bottom of a card's body, above
