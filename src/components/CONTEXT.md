@@ -10,9 +10,14 @@ and actions supply server state.
 
 - `ui/` holds vendored shadcn primitives plus app-wide presentation primitives
   that no feature owns (Fact, OwnerDisc, MetricStrip, SegmentedControl, Timeline,
-  StarRating).
+  StarRating, ConfirmationDialog). Every confirmation goes through
+  `ConfirmationDialog`; its `tone` is `destructive` only for an action the person
+  cannot take back.
 - `forms/` contains shared TanStack Form fields, submission, and error UI.
-- `layout/` contains app-shell and navigation pieces.
+- `layout/` contains app-shell and navigation pieces. A route that renders its own
+  error component takes the guarded behaviour (sanitised message, report, 401
+  sign-in redirect, Try again) from `useGuardedRouteError`, as the router default
+  does.
 - `hooks/` contains cross-feature React behavior and action wrappers.
 - `inbox/` and `goals/` contain large cohesive manager experiences.
 - `features/<feature>/` contains feature presentation grouped by user concept;
