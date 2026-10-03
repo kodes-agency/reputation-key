@@ -11,6 +11,7 @@
 // its preview, and is a row above them until that space is wide enough for a
 // column beside them.
 
+import { linkOptions } from '@tanstack/react-router'
 import { CircleAlert, Lock } from 'lucide-react'
 import { SectionNav } from '#/components/ui/section-nav'
 import type { SectionNavItem } from '#/components/ui/section-nav-types'
@@ -59,9 +60,12 @@ export function portalEditorNavItems({
       .filter((section) => available.includes(section))
       .map((section): SectionNavItem => ({
         key: section,
-        to: '/properties/$propertyId/portals/$portalId',
-        params: { propertyId, portalId },
-        search: { tab: 'page', section },
+        // Checked against the route, which a plain `to: string` would not be.
+        ...linkOptions({
+          to: '/properties/$propertyId/portals/$portalId',
+          params: { propertyId, portalId },
+          search: { tab: 'page', section },
+        }),
         label: PORTAL_EDITOR_SECTION_LABELS[section],
         icon: PORTAL_EDITOR_SECTION_ICONS[section],
         summary: <SectionSummary summary={summaries[section]} />,

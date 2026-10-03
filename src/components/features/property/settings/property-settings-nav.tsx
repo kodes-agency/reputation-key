@@ -1,4 +1,4 @@
-import { useRouterState } from '@tanstack/react-router'
+import { linkOptions, useRouterState } from '@tanstack/react-router'
 import { SectionNav } from '#/components/ui/section-nav'
 import type { SectionNavItem } from '#/components/ui/section-nav-types'
 import {
@@ -28,8 +28,8 @@ export function propertySettingsNavItems(
 ): ReadonlyArray<SectionNavItem> {
   return sections.map((section) => ({
     key: section.key,
-    to: SECTION_PATH[section.key],
-    params: { propertyId },
+    // Checked against the routes, which a plain `to: string` would not be.
+    ...linkOptions({ to: SECTION_PATH[section.key], params: { propertyId } }),
     label: section.label,
     summary: section.description,
     ...(section.key === 'danger' ? { group: 'danger' } : {}),
