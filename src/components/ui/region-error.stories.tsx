@@ -48,9 +48,8 @@ export const WithDescription: Story = {
 export const Compact: Story = {
   args: { size: 'compact', message: 'The preview couldn’t be loaded' },
   play: async ({ canvasElement }) => {
-    expect(canvasElement.querySelector('[data-slot="empty-state"]')).toHaveAttribute(
-      'data-size',
-      'compact',
+    expect(canvasElement.querySelector('[data-slot="empty-state"]')?.className).toContain(
+      'py-6',
     )
   },
 }

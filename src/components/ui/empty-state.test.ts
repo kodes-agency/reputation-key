@@ -23,8 +23,6 @@ describe('EmptyState', () => {
     expect(html).toContain('size-10')
     expect(html).toContain('lucide-inbox')
     expect(html).toContain('>Nothing here</p>')
-    expect(html).toContain('data-size="default"')
-    expect(html).toContain('data-tone="neutral"')
   })
 
   it('is not an alert unless it reports a failure', () => {
@@ -34,15 +32,17 @@ describe('EmptyState', () => {
   it('draws no empty description or action wrapper when it has neither', () => {
     const html = render()
 
-    expect(html).not.toContain('data-slot="empty-state-description"')
-    expect(html).not.toContain('data-slot="empty-state-action"')
+    // The icon disc and the title are the only children of the panel.
+    expect(html.match(/<p /g)).toHaveLength(1)
+    expect(html).not.toContain('max-w-md')
+    expect(html).not.toContain('flex flex-col items-center gap-2')
   })
 
   it('puts the description under the title, in muted ink', () => {
     const html = render({ description: 'Add a template to get started.' })
 
     expect(html).toMatch(
-      /Nothing here<\/p><p data-slot="empty-state-description"[^>]*text-muted-foreground[^>]*>Add a template to get started\./,
+      /Nothing here<\/p><p class="[^"]*text-muted-foreground[^"]*">Add a template to get started\./,
     )
   })
 
@@ -66,7 +66,7 @@ describe('EmptyState', () => {
     })
 
     expect(html.indexOf('Describe it.')).toBeLessThan(html.indexOf('Create one'))
-    expect(html).toContain('data-slot="empty-state-action"')
+    expect(html).toContain('flex flex-col items-center gap-2')
   })
 
   it('keeps free-form children working for callers that have not moved to the slots', () => {
@@ -78,7 +78,7 @@ describe('EmptyState', () => {
   it('shrinks to a compact panel for a slot inside a list, a rail or a dialog', () => {
     const html = render({ size: 'compact' })
 
-    expect(html).toContain('data-size="compact"')
+    expect(html).toContain('gap-2 py-6')
     expect(html).toContain('py-6')
     expect(html).not.toContain('py-12')
     expect(html).toContain('size-8')
@@ -90,13 +90,8 @@ describe('EmptyState', () => {
     const html = render({ tone: 'error' })
 
     expect(html).toContain('role="alert"')
-    expect(html).toContain('data-tone="error"')
     expect(html).toContain('text-destructive')
     expect(html).toContain('bg-destructive/10')
     expect(html).not.toContain('bg-muted')
-  })
-
-  it('lets a caller add a class of its own, such as a width cap', () => {
-    expect(render({ className: 'max-w-md' })).toContain('max-w-md')
   })
 })

@@ -1,6 +1,5 @@
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
-import { cn } from '#/lib/utils'
 
 // The one dashed "nothing here / this could not be shown" panel. A page, a card
 // body, a rail, a popover and a dialog all draw it, so the size and the tone
@@ -10,36 +9,20 @@ import { cn } from '#/lib/utils'
 //         compact  a slot inside a list, a rail, a card, a popover or a dialog
 //   tone  neutral  nothing to show yet, or nothing matches
 //         error    the region failed (use RegionError, which adds "Try again")
-
-const SIZE = {
-  default: { panel: 'gap-3 px-4 py-12', disc: 'size-10' },
-  compact: { panel: 'gap-2 px-4 py-6', disc: 'size-8' },
-} as const
-
-const TONE = {
-  neutral: {
-    disc: 'bg-muted',
-    icon: 'text-muted-foreground',
-    title: 'text-muted-foreground',
-  },
-  error: {
-    disc: 'bg-destructive/10',
-    icon: 'text-destructive',
-    title: 'text-destructive',
-  },
-} as const
+//
+// It sits on the first-paint path (the page error state draws it), so it stays
+// small: two flags, no lookup tables.
 
 type Props = Readonly<{
   icon: LucideIcon
   title: string
   /** One or two quiet sentences under the title. A node, so a sentence can carry a link. */
   description?: ReactNode
-  /** What to do about it: a button or a link. Last in the panel. */
+  /** What to do about it: a button or a link, or a few in a row. Last in the panel. */
   action?: ReactNode
-  size?: keyof typeof SIZE
-  tone?: keyof typeof TONE
-  className?: string
-  /** Free-form content in a column under the action. Prefer `description` and `action`. */
+  size?: 'default' | 'compact'
+  tone?: 'neutral' | 'error'
+  /** Free-form content in the column under the action. Prefer `description` and `action`. */
   children?: ReactNode
 }>
 
@@ -50,52 +33,32 @@ export function EmptyState({
   action,
   size = 'default',
   tone = 'neutral',
-  className,
   children,
 }: Props) {
-  const sizing = SIZE[size]
-  const toning = TONE[tone]
+  const compact = size === 'compact'
+  const failed = tone === 'error'
+  const ink = failed ? 'text-destructive' : 'text-muted-foreground'
   return (
     <div
       data-slot="empty-state"
-      data-size={size}
-      data-tone={tone}
       // A failed region is announced; "nothing here" is not news.
-      role={tone === 'error' ? 'alert' : undefined}
-      className={cn(
-        'flex flex-col items-center rounded-lg border border-dashed text-center',
-        sizing.panel,
-        className,
-      )}
+      role={failed ? 'alert' : undefined}
+      className={`flex flex-col items-center rounded-lg border border-dashed px-4 text-center ${compact ? 'gap-2 py-6' : 'gap-3 py-12'}`}
     >
       <div
-        className={cn(
-          'flex items-center justify-center rounded-full',
-          sizing.disc,
-          toning.disc,
-        )}
+        className={`flex items-center justify-center rounded-full ${compact ? 'size-8' : 'size-10'} ${failed ? 'bg-destructive/10' : 'bg-muted'}`}
       >
-        <Icon className={cn('size-4', toning.icon)} />
+        <Icon className={`size-4 ${ink}`} />
       </div>
-      <p className={cn('text-sm font-medium', toning.title)}>{title}</p>
+      <p className={`text-sm font-medium ${ink}`}>{title}</p>
       {description ? (
-        <p
-          data-slot="empty-state-description"
-          className="max-w-md text-sm text-muted-foreground"
-        >
-          {description}
-        </p>
+        <p className="max-w-md text-sm text-muted-foreground">{description}</p>
       ) : null}
-      {action ? (
-        <div
-          data-slot="empty-state-action"
-          className="flex flex-wrap items-center justify-center gap-2"
-        >
+      {action || children ? (
+        <div className="flex flex-col items-center gap-2">
           {action}
+          {children}
         </div>
-      ) : null}
-      {children ? (
-        <div className="flex flex-col items-center gap-2">{children}</div>
       ) : null}
     </div>
   )

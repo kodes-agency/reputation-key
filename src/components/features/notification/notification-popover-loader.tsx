@@ -10,9 +10,8 @@
 // chunk name would miss again, so only a fresh page gets the new build.
 
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react'
-import { AlertCircle, RefreshCw } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 import { Button } from '#/components/ui/button'
-import { EmptyState } from '#/components/ui/empty-state'
 import { NotificationSheetHeader } from './notification-sheet-header'
 
 const reloadPage = () => window.location.reload()
@@ -21,6 +20,10 @@ const reloadPage = () => window.location.reload()
  * What the popover shows when its body could not be loaded. On a phone
  * (`onClose`, the sheet's) it keeps the sheet's title and Close: a
  * full-screen sheet has no outside to tap.
+ *
+ * Plain markup, not EmptyState: the bell is in the public header, so this file
+ * is in the first-paint closure and would pull the panel into it. The recovery
+ * is a reload, not a refetch (see above), which is why it is not RegionError.
  */
 export function PopoverBodyUnavailable({
   onReload = reloadPage,
@@ -29,21 +32,15 @@ export function PopoverBodyUnavailable({
   return (
     <>
       {onClose && <NotificationSheetHeader onClose={onClose} />}
-      <div className="px-3 py-3">
-        {/* Reload, not Try again: React.lazy keeps what the import resolved to,
-            so only a fresh page can fetch the new build's chunk. */}
-        <EmptyState
-          tone="error"
-          size="compact"
-          icon={AlertCircle}
-          title="Notifications couldn’t be loaded."
-          action={
-            <Button variant="outline" size="sm" onClick={onReload}>
-              <RefreshCw aria-hidden="true" className="size-3" />
-              Reload page
-            </Button>
-          }
-        />
+      <div
+        role="alert"
+        className="flex flex-col items-center gap-3 px-4 py-6 text-center"
+      >
+        <p className="text-sm text-muted-foreground">Notifications couldn’t be loaded.</p>
+        <Button variant="outline" size="sm" onClick={onReload}>
+          <RefreshCw aria-hidden="true" className="size-3" />
+          Reload page
+        </Button>
       </div>
     </>
   )

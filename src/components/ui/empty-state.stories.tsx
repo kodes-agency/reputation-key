@@ -30,8 +30,7 @@ export const FirstRun: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const panel = canvasElement.querySelector('[data-slot="empty-state"]')
-    expect(panel).toHaveAttribute('data-size', 'default')
-    expect(panel).toHaveAttribute('data-tone', 'neutral')
+    expect(panel?.className).toContain('py-12')
     // Not an alert: nothing went wrong.
     expect(panel).not.toHaveAttribute('role')
     expect(canvas.getByText('No portals yet')).toBeVisible()
@@ -57,10 +56,9 @@ export const NoResults: Story = {
 export const TitleOnly: Story = {
   args: { title: 'No active goals' },
   play: async ({ canvasElement }) => {
-    expect(
-      canvasElement.querySelector('[data-slot="empty-state-description"]'),
-    ).toBeNull()
-    expect(canvasElement.querySelector('[data-slot="empty-state-action"]')).toBeNull()
+    // The icon disc and the title are all there is.
+    expect(canvasElement.querySelectorAll('[data-slot="empty-state"] p')).toHaveLength(1)
+    expect(within(canvasElement).queryByRole('button')).toBeNull()
   },
 }
 
@@ -92,9 +90,8 @@ export const Compact: Story = {
     title: 'No portals in this group yet',
   },
   play: async ({ canvasElement }) => {
-    expect(canvasElement.querySelector('[data-slot="empty-state"]')).toHaveAttribute(
-      'data-size',
-      'compact',
+    expect(canvasElement.querySelector('[data-slot="empty-state"]')?.className).toContain(
+      'py-6',
     )
   },
 }
@@ -121,8 +118,6 @@ export const ErrorTone: Story = {
     title: 'The preview couldn’t be loaded',
   },
   play: async ({ canvasElement }) => {
-    const panel = canvasElement.querySelector('[data-slot="empty-state"]')
-    expect(panel).toHaveAttribute('data-tone', 'error')
     expect(within(canvasElement).getByRole('alert')).toBeVisible()
   },
 }

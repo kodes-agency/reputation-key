@@ -20,7 +20,7 @@ describe('RegionError', () => {
     const html = render()
 
     expect(html).toContain('role="alert"')
-    expect(html).toContain('data-tone="error"')
+    expect(html).toContain('bg-destructive/10')
     expect(html).toContain('The goal couldn’t be loaded.')
   })
 
@@ -66,8 +66,8 @@ describe('RegionError', () => {
   })
 
   it('has a compact size for a rail, a card or a dialog', () => {
-    expect(render({ size: 'compact' })).toContain('data-size="compact"')
-    expect(render()).toContain('data-size="default"')
+    expect(render({ size: 'compact' })).toContain('py-6')
+    expect(render()).toContain('py-12')
   })
 
   it('puts a second action, such as Cancel, after Try again', () => {

@@ -80,10 +80,10 @@ export function RegionError({
       title={message}
       description={description}
       action={
-        <>
+        <div className="flex flex-wrap items-center justify-center gap-2">
           <RetryButton onRetry={onRetry} retrying={retrying} />
           {secondary}
-        </>
+        </div>
       }
     />
   )
