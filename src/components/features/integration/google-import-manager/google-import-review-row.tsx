@@ -37,7 +37,7 @@ function RowIssue({
 }: Readonly<{ item: ImportReviewItem; field: ImportReviewField; message?: string }>) {
   if (!message) return null
   return (
-    <p id={issueId(item, field)} className="mt-1.5 text-xs text-destructive">
+    <p id={issueId(item, field)} className="mt-1.5 text-xs text-negative">
       {message}
     </p>
   )
@@ -95,9 +95,7 @@ export function GoogleImportReviewRow({ form, item, index, disabled }: Props) {
               <Badge variant="outline">Link existing</Badge>
             ) : null}
             {flagged ? (
-              <span className="text-xs font-medium text-destructive">
-                Needs attention
-              </span>
+              <span className="text-xs font-medium text-negative">Needs attention</span>
             ) : null}
           </div>
         ) : null}

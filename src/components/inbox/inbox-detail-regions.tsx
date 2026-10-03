@@ -72,7 +72,7 @@ export function DetailThreadRegion({
           replyActions={replyActions}
         />
         {reopen === 'failed' ? (
-          <p role="alert" className="text-xs text-destructive">
+          <p role="alert" className="text-xs text-negative">
             The rejected reply could not be reopened.
           </p>
         ) : null}

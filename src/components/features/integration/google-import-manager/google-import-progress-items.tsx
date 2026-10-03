@@ -38,7 +38,7 @@ function statusIcon(item: ImportProgressItemDto) {
     return <CheckCircle2 className="size-4 text-emerald-600" aria-hidden="true" />
   }
   if (item.status === 'failed') {
-    return <XCircle className="size-4 text-destructive" aria-hidden="true" />
+    return <XCircle className="size-4 text-negative" aria-hidden="true" />
   }
   return <AlertCircle className="size-4 text-amber-600" aria-hidden="true" />
 }

@@ -51,7 +51,7 @@ export function ConnectGoogleButton({
         Connect Google Account
       </Button>
       {connect.error ? (
-        <p className="mt-2 text-sm text-destructive" role="alert">
+        <p className="mt-2 text-sm text-negative" role="alert">
           Failed to connect Google account. Please try again.
         </p>
       ) : null}

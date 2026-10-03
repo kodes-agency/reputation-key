@@ -32,7 +32,7 @@ export function PortalDraftSaveStatus() {
           <span
             className={cn(
               'inline-flex flex-wrap items-center gap-x-1.5',
-              view.tone === 'warn' ? 'text-destructive' : 'text-muted-foreground',
+              view.tone === 'warn' ? 'text-negative' : 'text-muted-foreground',
             )}
           >
             {view.tone === 'busy' ? (

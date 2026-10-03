@@ -39,7 +39,7 @@ const TONE_CLASS: Readonly<Record<ReporterFeedbackTone, string>> = {
   active: 'border-primary/20 bg-primary/5 text-primary',
   settled: 'border-positive/30 bg-positive-muted text-positive',
   closed: 'border-border bg-muted text-muted-foreground',
-  failed: 'border-destructive/30 bg-destructive/10 text-destructive',
+  failed: 'border-destructive/30 bg-destructive/10 text-negative',
 }
 
 const IN_TEXT_LINK_STYLE = { textDecorationLine: 'underline' } as const

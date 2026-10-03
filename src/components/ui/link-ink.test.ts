@@ -176,7 +176,7 @@ describe('ink pins', () => {
       '!text-muted-foreground',
       'underline!',
       'decoration-dotted!',
-      'className="min-h-11 text-destructive! md:min-h-8"',
+      'className="min-h-11 text-foreground! md:min-h-8"',
     ]) {
       expect(IMPORTANT_INK.test(pinned)).toBe(true)
     }

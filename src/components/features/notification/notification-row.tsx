@@ -49,7 +49,7 @@ type Props = Readonly<{
 }>
 
 const TONE_ICON_CLASS: Readonly<Record<NotificationRowTone, string>> = {
-  critical: 'text-destructive',
+  critical: 'text-negative',
   'needs-you': 'text-foreground',
   update: 'text-muted-foreground',
   done: 'text-positive',

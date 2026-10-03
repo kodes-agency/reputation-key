@@ -46,7 +46,7 @@ function MetricDelta({ metric }: Readonly<{ metric: PerformanceMetricValue }>) {
         className={cn(
           'inline-flex items-center gap-1',
           metric.deltaPercent > 0 && 'text-positive',
-          metric.deltaPercent < 0 && 'text-destructive',
+          metric.deltaPercent < 0 && 'text-negative',
         )}
       >
         <Icon aria-hidden="true" className="size-3.5" />

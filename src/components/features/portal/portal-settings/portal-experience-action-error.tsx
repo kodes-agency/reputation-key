@@ -5,7 +5,7 @@ export function PortalExperienceActionError({
 }: Readonly<{ action: Pick<Action<unknown>, 'error'> }>) {
   if (!action.error) return null
   return (
-    <p role="alert" className="text-sm text-destructive">
+    <p role="alert" className="text-sm text-negative">
       {action.error instanceof Error
         ? action.error.message
         : 'The change could not be saved.'}

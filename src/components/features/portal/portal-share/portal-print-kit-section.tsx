@@ -93,7 +93,7 @@ export function PortalPrintKitSection({
           <p className="text-sm text-muted-foreground">{unavailableReason}</p>
         )}
         {errorMessage !== null && (
-          <p className="text-sm text-destructive" role="alert">
+          <p className="text-sm text-negative" role="alert">
             {errorMessage}
           </p>
         )}

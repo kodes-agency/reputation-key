@@ -122,7 +122,7 @@ export function ReplySuggestionControls(props: Props) {
           // Busy is our own capacity, not a failure: it reads as a wait.
           props.aiBusyUntil != null && !props.templateError
             ? 'text-muted-foreground'
-            : 'text-destructive',
+            : 'text-negative',
         )}
       >
         {(props.templateError || props.aiError) && <SuggestionErrorLine {...props} />}

@@ -24,7 +24,7 @@ type Tone = 'destructive' | 'warning'
  *
  * `destructive` prints its label in `text-negative`, the text-grade red. The
  * chip's ink was always the tone's, but the global link colour used to override
- * it, so no one measured it: `text-destructive` on its own 10% tint is 3.85:1
+ * it, so no one measured it: `text-negative` on its own 10% tint is 3.85:1
  * in the light theme, under 4.5:1 for this 14 px label.
  */
 const TONE_CLASS: Record<Tone, string> = {

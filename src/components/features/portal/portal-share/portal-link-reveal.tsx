@@ -72,7 +72,7 @@ export function PortalLinkReveal({
         />
       )}
       {copyFailed && (
-        <p className="text-sm text-destructive" role="alert">
+        <p className="text-sm text-negative" role="alert">
           {COPY_FAILED_MESSAGE}
         </p>
       )}

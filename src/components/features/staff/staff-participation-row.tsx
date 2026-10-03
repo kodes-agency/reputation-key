@@ -91,7 +91,7 @@ export function StaffParticipationRow({
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground hover:text-destructive"
+                  className="text-muted-foreground hover:text-negative"
                   aria-label={`Archive staff participation for ${participation.displayName}`}
                 >
                   <UserRoundX aria-hidden="true" />

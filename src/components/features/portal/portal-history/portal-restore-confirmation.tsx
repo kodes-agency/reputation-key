@@ -123,7 +123,7 @@ export function PortalRestoreConfirmation({
         </div>
       </div>
       {error === null ? null : (
-        <p role="alert" className="mt-3 text-sm text-destructive">
+        <p role="alert" className="mt-3 text-sm text-negative">
           {error}
         </p>
       )}

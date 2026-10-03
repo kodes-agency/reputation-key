@@ -95,7 +95,7 @@ export function GoogleImportReviewForm({
                     </p>
                   </div>
                   <p
-                    className="text-sm font-medium data-[flagged=true]:text-destructive"
+                    className="text-sm font-medium data-[flagged=true]:text-negative"
                     data-flagged={flaggedCount > 0}
                     role="status"
                   >
@@ -210,7 +210,7 @@ export function GoogleImportReviewForm({
                           and timezone above when the import starts.
                         </p>
                         {missing ? (
-                          <p role="alert" className="text-sm text-destructive">
+                          <p role="alert" className="text-sm text-negative">
                             Confirm that you have checked these details.
                           </p>
                         ) : null}

@@ -69,7 +69,7 @@ function Delta({
       : Math.abs(value).toLocaleString(undefined, { maximumFractionDigits: 1 })
 
   return (
-    <span className={increased ? 'text-positive' : 'text-destructive'}>
+    <span className={increased ? 'text-positive' : 'text-negative'}>
       {increased ? '↑' : '↓'} {magnitude}
       {unit === 'percent' ? '%' : ''} {comparisonLabel}
     </span>

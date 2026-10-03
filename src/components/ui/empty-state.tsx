@@ -34,7 +34,7 @@ export function EmptyState({
 }: Props) {
   const compact = size === 'compact'
   const failed = tone === 'error'
-  const ink = failed ? 'text-destructive' : 'text-muted-foreground'
+  const ink = failed ? 'text-negative' : 'text-muted-foreground'
   return (
     <div
       data-slot="empty-state"
@@ -43,7 +43,7 @@ export function EmptyState({
       className={`flex flex-col items-center rounded-lg border border-dashed px-4 text-center ${compact ? 'gap-2 py-6' : 'gap-3 py-12'}`}
     >
       <div
-        className={`flex items-center justify-center rounded-full ${compact ? 'size-8' : 'size-10'} ${failed ? 'bg-destructive/10' : 'bg-muted'}`}
+        className={`flex items-center justify-center rounded-full ${compact ? 'size-8' : 'size-10'} ${failed ? 'bg-negative-muted' : 'bg-muted'}`}
       >
         <Icon className={`size-4 ${ink}`} />
       </div>

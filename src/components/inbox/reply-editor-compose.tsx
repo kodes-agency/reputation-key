@@ -275,7 +275,7 @@ export function ReplyCompose(props: ReplyComposeProps) {
         <span
           className={cn(
             'px-1.5 text-xs tabular-nums',
-            state.overLimit ? 'text-destructive' : 'text-muted-foreground',
+            state.overLimit ? 'text-negative' : 'text-muted-foreground',
           )}
         >
           {replyCommentByteLength(state.draft.text)}/{GOOGLE_REPLY_COMMENT_MAX_BYTES}

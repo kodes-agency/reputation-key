@@ -170,7 +170,7 @@ export function ReviewReplyPublishedEditor({
       </div>
       <div className={DOCK_FOOT_ROW_CLASS}>
         <span
-          className={`px-1.5 text-xs tabular-nums ${isOverLimit ? 'text-destructive' : 'text-muted-foreground'}`}
+          className={`px-1.5 text-xs tabular-nums ${isOverLimit ? 'text-negative' : 'text-muted-foreground'}`}
         >
           {byteCount}/{GOOGLE_REPLY_COMMENT_MAX_BYTES}
         </span>
@@ -262,7 +262,7 @@ export function ReviewReplyPublishedEditor({
         {publishBlockedReason !== null && (
           <p
             id={publishBlockedReasonId}
-            className="basis-full px-1.5 text-xs text-destructive"
+            className="basis-full px-1.5 text-xs text-negative"
           >
             {publishBlockedReason}
           </p>

@@ -35,7 +35,7 @@ const POLARITY_CLASS: Readonly<Record<ReviewAspectPolarity, string>> = Object.fr
 })
 
 /** Verbatim from the list row's urgent chip, so the two surfaces agree. */
-const ATTENTION_CLASS = 'border-destructive/20 bg-destructive/10 text-destructive'
+const ATTENTION_CLASS = 'border-destructive/20 bg-destructive/10 text-negative'
 
 function PolarityArrow({
   polarity,

@@ -98,7 +98,7 @@ export function InvitationTable({ invitations, resendAction, cancelAction }: Pro
                           <Button
                             variant="outline"
                             size="sm"
-                            className="text-destructive hover:text-destructive"
+                            className="text-negative hover:text-negative"
                           >
                             Cancel
                           </Button>

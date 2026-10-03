@@ -426,7 +426,7 @@ function ComposerHeadState({
       aria-live="polite"
       className={cn(
         'ml-auto flex items-center gap-1.5 text-xs whitespace-nowrap text-muted-foreground',
-        saveState === 'error' && 'text-destructive',
+        saveState === 'error' && 'text-negative',
       )}
     >
       {saveState !== null && label !== null ? (

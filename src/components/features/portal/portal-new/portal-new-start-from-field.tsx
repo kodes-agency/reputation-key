@@ -94,7 +94,7 @@ export function PortalNewStartFromField({
                 </Select>
               ) : null}
               {sourceError ? (
-                <p role="alert" className="text-sm text-destructive">
+                <p role="alert" className="text-sm text-negative">
                   {sourceError}
                 </p>
               ) : null}

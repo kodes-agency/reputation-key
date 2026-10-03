@@ -166,7 +166,7 @@ function PhotoDialogBody({
             This property owns this photo or has permission to use it.
           </FieldLabel>
         </Field>
-        <p role="alert" className="min-h-5 text-sm text-destructive">
+        <p role="alert" className="min-h-5 text-sm text-negative">
           {message}
         </p>
       </div>

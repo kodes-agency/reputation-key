@@ -79,12 +79,12 @@ describe('EmptyState', () => {
     expect(html).toContain('border-dashed')
   })
 
-  it('reports a failure as an alert in the destructive ink', () => {
+  it('reports a failure as an alert in the text-grade red', () => {
     const html = render({ tone: 'error' })
 
     expect(html).toContain('role="alert"')
-    expect(html).toContain('text-destructive')
-    expect(html).toContain('bg-destructive/10')
+    expect(html).toContain('text-negative')
+    expect(html).toContain('bg-negative-muted')
     expect(html).not.toContain('bg-muted')
   })
 })

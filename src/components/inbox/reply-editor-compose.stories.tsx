@@ -264,7 +264,7 @@ export const OverLimit: Story = {
   args: { initialText: 'x'.repeat(5000) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText(/5000\/4096/)).toHaveClass('text-destructive')
+    expect(canvas.getByText(/5000\/4096/)).toHaveClass('text-negative')
     expect(canvas.getByRole('button', { name: /submit for approval/i })).toBeDisabled()
   },
 }
@@ -279,7 +279,7 @@ const CYRILLIC_AT_LIMIT = 'Б'.repeat(2_048)
 export const OverLimitInBytes: Story = {
   args: { initialText: CYRILLIC_OVER_LIMIT },
   play: async ({ canvas }) => {
-    expect(canvas.getByText('4098/4096')).toHaveClass('text-destructive')
+    expect(canvas.getByText('4098/4096')).toHaveClass('text-negative')
     expect(canvas.getByRole('button', { name: /submit for approval/i })).toBeDisabled()
   },
 }
