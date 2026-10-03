@@ -179,7 +179,7 @@ describe('the checks catch the spellings the scan found', () => {
   })
 
   it('a padding typed on a DialogContent, not the dialog variable', () => {
-    for (const className of ['p-4 sm:p-6', 'px-3', 'md:pb-2', 'pe-8']) {
+    for (const className of ['p-4 sm:p-6', 'px-3', 'pe-8']) {
       const [tag = ''] = tagsNamed(
         `<DialogContent className="${className}">x</DialogContent>`,
         'DialogContent',

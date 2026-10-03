@@ -118,7 +118,7 @@ type DialogSize = keyof typeof DIALOG_SIZE
  * thing in it.
  */
 const PINNED_FOOTER =
-  'sticky -bottom-(--dialog-pad) z-10 -mx-(--dialog-pad) -mb-(--dialog-pad) bg-background px-(--dialog-pad) pb-(--dialog-pad) before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-4 before:bg-linear-to-t before:from-background before:to-transparent'
+  'sticky -bottom-(--dialog-pad) z-10 -mx-(--dialog-pad) -mb-(--dialog-pad) bg-background px-(--dialog-pad) pb-(--dialog-pad) before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-4 before:bg-[linear-gradient(to_top,var(--background),transparent)]'
 
 /**
  * Whether the dialog draws the corner close. Its header reads this, wherever it
