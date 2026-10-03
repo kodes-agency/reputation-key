@@ -1,3 +1,4 @@
+import { useId } from 'react'
 import { useThemeMode, type ThemeMode } from '#/components/hooks/use-theme-mode'
 import {
   DropdownMenuLabel,
@@ -5,8 +6,6 @@ import {
   DropdownMenuSegmentedGroup,
 } from '#/components/ui/dropdown-menu'
 import { THEME_MODE_OPTIONS } from './theme-mode-options'
-
-const MENU_LABEL_ID = 'theme-mode-menu-label'
 
 /**
  * The theme control inside the account menu: the same Light / Dark / System
@@ -18,13 +17,15 @@ const MENU_LABEL_ID = 'theme-mode-menu-label'
  */
 export function ThemeModeMenuControl() {
   const { mode, setMode } = useThemeMode()
+  // Generated, so a second menu on the page cannot duplicate the label id.
+  const labelId = useId()
   return (
     <div className="px-2 pb-1.5">
-      <DropdownMenuLabel id={MENU_LABEL_ID} className="px-0 pt-1 pb-1.5 text-xs">
+      <DropdownMenuLabel id={labelId} className="px-0 pt-1 pb-1.5 text-xs">
         Theme
       </DropdownMenuLabel>
       <DropdownMenuSegmentedGroup
-        aria-labelledby={MENU_LABEL_ID}
+        aria-labelledby={labelId}
         value={mode}
         onValueChange={(next) => setMode(next as ThemeMode)}
       >
