@@ -4,7 +4,17 @@ import type { ErrorComponentProps } from '@tanstack/react-router'
 import { PageHeader } from '#/components/layout/page-header'
 import { ErrorState, LoadingState } from '#/components/layout/page-states'
 import { PageShell } from '#/components/layout/page-shell'
-import { errorMessage } from '#/shared/security/error-display'
+import {
+  SignedOutRedirect,
+  useGuardedRouteError,
+} from '#/components/layout/use-guarded-route-error'
+
+// Each error component keeps its page's frame (title, description, tier) and
+// takes everything else from `useGuardedRouteError`: the sanitised message, the
+// capture, the 401 sign-in redirect and Try again. The sentence below is the
+// page's own, shown where the raw message may not be.
+const PORTALS_NOT_LOADED = 'Portals could not be loaded.'
+const PORTAL_NOT_LOADED = 'This portal could not be loaded.'
 
 export function PortalListLoading() {
   return (
@@ -15,23 +25,27 @@ export function PortalListLoading() {
 }
 
 export function PortalListError({ error }: ErrorComponentProps) {
+  const guarded = useGuardedRouteError(error, PORTALS_NOT_LOADED)
+  if (guarded.signedOut) return <SignedOutRedirect />
   return (
     <PageShell>
       <PageHeader title="Portals" description="Manage this property’s public pages." />
-      <ErrorState message={errorMessage(error) || 'Portals could not be loaded.'} />
+      <ErrorState message={guarded.message} onRetry={guarded.retry} />
     </PageShell>
   )
 }
 
 /** The All properties page's own: its Portals are the Organization's, not one Property's. */
 export function PortalAllPropertiesError({ error }: ErrorComponentProps) {
+  const guarded = useGuardedRouteError(error, PORTALS_NOT_LOADED)
+  if (guarded.signedOut) return <SignedOutRedirect />
   return (
     <PageShell>
       <PageHeader
         title="Portals"
         description="Public pages across all of your properties."
       />
-      <ErrorState message={errorMessage(error) || 'Portals could not be loaded.'} />
+      <ErrorState message={guarded.message} onRetry={guarded.retry} />
     </PageShell>
   )
 }
@@ -59,10 +73,12 @@ export function PortalDetailLoading() {
 }
 
 export function PortalDetailError({ error }: ErrorComponentProps) {
+  const guarded = useGuardedRouteError(error, PORTAL_NOT_LOADED)
+  if (guarded.signedOut) return <SignedOutRedirect />
   return (
     <PortalFallbackFrame>
       <PageHeader title="Portal" description="Manage this property’s public page." />
-      <ErrorState message={errorMessage(error) || 'This portal could not be loaded.'} />
+      <ErrorState message={guarded.message} onRetry={guarded.retry} />
     </PortalFallbackFrame>
   )
 }
