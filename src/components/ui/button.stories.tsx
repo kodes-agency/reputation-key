@@ -85,6 +85,8 @@ export const Pending: Story = {
     const spinner = button.querySelector('svg')
     expect(spinner).toHaveAttribute('aria-hidden', 'true')
     expect(spinner?.getAttribute('class')).toContain('motion-reduce:animate-none')
+    // Disabled, but not faded: the label and the spinner are what the person reads.
+    expect(button.className).toContain('aria-busy:disabled:opacity-100')
     await userEvent.click(button, { pointerEventsCheck: 0 })
     expect(args.onClick).not.toHaveBeenCalled()
   },
