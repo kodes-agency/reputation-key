@@ -24,6 +24,18 @@ and actions supply server state.
   `density="compact"` (36px on a phone, not the 44px target). The bell's
   could-not-load body is plain markup on purpose: it sits in the first-paint
   closure.
+  A notice is an `Alert`: `destructive`, `warning`, `success` and `info` each
+  draw the one icon their tone wears (`ui/tone.ts`, which Alert, Badge and
+  StatusBadge all read), and `default` is a plain card for a notice that brings
+  its own icon. A status pill is a `Badge` tone (`positive`, `warn`, `negative`,
+  `neutral`) or, for a domain status, `StatusBadge`: the feature writes a
+  `StatusMap` once (label and tone per status) and never prints the raw enum.
+  Red text is `text-negative`, the text-grade red; the fill-grade red belongs to
+  a destructive button or bar. Colour comes from the tokens in `styles.css`: no
+  Tailwind palette class, no `oklch()` or hex in a component, no hand-tinted
+  box. `tone-sources.test.ts` fails on all three, and `token-contrast.test.ts`
+  holds every tone's ink on its own tint to 4.5:1 in both themes. The guest
+  renderer keeps its own colours.
 - `forms/` contains shared TanStack Form fields, submission, and error UI.
 - `layout/` contains app-shell and navigation pieces. `PageState` is the one
   page-level state (`loading`, `error`, `notFound`, `unavailable`): the router's
