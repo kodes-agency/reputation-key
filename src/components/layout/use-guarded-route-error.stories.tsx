@@ -12,6 +12,7 @@ import { useEffect } from 'react'
 import { useRouter } from '@tanstack/react-router'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, spyOn, userEvent, waitFor, within } from 'storybook/test'
+import { PageGutterDecorator } from '../../../.storybook/PageGutterDecorator'
 import { setBrowserExceptionCapture } from '#/shared/observability/browser-exception-capture'
 import { ErrorState } from './page-states'
 import { PageHeader } from './page-header'
@@ -49,6 +50,8 @@ const meta: Meta<typeof GuardedRouteError> = {
   title: 'Patterns/Guarded route error',
   component: GuardedRouteError,
   parameters: { layout: 'fullscreen' },
+  // A route error component sits in `<main>`, which pads the page.
+  decorators: [PageGutterDecorator],
   beforeEach: () => {
     reported.mockClear()
     setBrowserExceptionCapture(reported)

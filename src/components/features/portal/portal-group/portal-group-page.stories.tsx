@@ -5,6 +5,7 @@ import {
   AuthedRouterDecorator,
   withRole,
 } from '../../../../../.storybook/AuthedRouterDecorator'
+import { PageGutterDecorator } from '../../../../../.storybook/PageGutterDecorator'
 import { action, baseArgs } from '../portal-list-page-stories-data'
 import {
   indexOverviewResults,
@@ -32,7 +33,7 @@ const meta: Meta<typeof PortalGroupPage> = {
   title: 'Portal/PortalGroup/GroupPage',
   component: PortalGroupPage,
   parameters: { layout: 'fullscreen' },
-  decorators: [AuthedRouterDecorator],
+  decorators: [AuthedRouterDecorator, PageGutterDecorator],
   args: {
     propertyId: 'prop-1',
     propertyName: 'Avela Resort',
