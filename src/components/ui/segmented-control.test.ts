@@ -79,6 +79,29 @@ describe('SegmentedControl', () => {
     expect(render('en')).not.toContain('aria-orientation')
   })
 
+  it('keeps its 26px segments unless asked for the touch size', () => {
+    const html = render('en')
+
+    expect(html).toContain('h-[26px]')
+    expect(html).not.toContain('max-md:min-h-[calc(var(--control-touch)-0.25rem)]')
+  })
+
+  it('grows each segment to the touch height below md when asked, the pill included', () => {
+    const html = renderToStaticMarkup(
+      createElement(SegmentedControl, {
+        'aria-label': 'Range',
+        value: '30',
+        onValueChange: () => undefined,
+        options: [{ value: '30', label: '30 days' }],
+        touch: true,
+      }),
+    )
+
+    // The pill's 2px inset is paid out of the segment, so the pill is the token tall.
+    expect(html).toContain('max-md:min-h-[calc(var(--control-touch)-0.25rem)]')
+    expect(html).toContain('h-[26px]')
+  })
+
   it('can be named by a visible label instead of an aria-label', () => {
     const html = renderToStaticMarkup(
       createElement(SegmentedControl, {
