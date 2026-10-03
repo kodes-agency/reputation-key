@@ -21,6 +21,7 @@ const connectionsQuery = queryOptions({
 })
 
 export const Route = createFileRoute('/_authenticated/settings/integrations')({
+  staticData: { page: { title: 'Integrations', under: 'settings' } },
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     if (!can(role, 'integration.manage')) {

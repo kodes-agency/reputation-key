@@ -47,6 +47,7 @@ const subjectNamesQuery = (propertyId: string) =>
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/goals/$goalId',
 )({
+  staticData: { page: { title: 'Goal', under: 'goals' } },
   beforeLoad: ({ context }) => {
     if (!can((context as AuthRouteContext).role, 'goal.read')) {
       throw redirect({ to: '/properties' })

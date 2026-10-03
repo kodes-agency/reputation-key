@@ -21,6 +21,7 @@ import type { AuthRouteContext } from '#/routes/_authenticated'
 const NO_ACTIVE_ORGANIZATION = 'no-active-organization'
 
 export const Route = createFileRoute('/_authenticated/settings/profile')({
+  staticData: { page: { title: 'Profile', under: 'settings' } },
   loader: async ({ context }) => {
     const organizationId =
       (context as AuthRouteContext).activeOrganization?.id ?? NO_ACTIVE_ORGANIZATION

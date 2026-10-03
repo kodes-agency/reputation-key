@@ -67,6 +67,7 @@ const newGoalSearchSchema = z.object({
 })
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/goals/new')({
+  staticData: { page: { title: 'New Goal', under: 'goals' } },
   validateSearch: newGoalSearchSchema,
   beforeLoad: ({ context }) => {
     if (!can((context as AuthRouteContext).role, 'goal.create')) {

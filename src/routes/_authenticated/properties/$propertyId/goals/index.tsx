@@ -57,6 +57,7 @@ const metricLabel = (metric: string) => {
 }
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/goals/')({
+  staticData: { page: { title: 'Goals', tier: 'dashboard', under: 'property' } },
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     // BOTH gates, because the loader below calls a manager API that enforces

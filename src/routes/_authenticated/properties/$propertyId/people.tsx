@@ -60,6 +60,7 @@ const portalsQuery = (propertyId: string) =>
   })
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/people')({
+  staticData: { page: { title: 'People', tier: 'dashboard', under: 'property' } },
   beforeLoad: async ({ context, params }) => {
     await gateControlledRoute({
       data: {

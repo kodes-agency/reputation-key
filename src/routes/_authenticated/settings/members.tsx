@@ -65,6 +65,7 @@ const invitationsQuery = queryOptions({
 })
 
 export const Route = createFileRoute('/_authenticated/settings/members')({
+  staticData: { page: { title: 'Members', under: 'settings' } },
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     if (!can(role, 'member.list')) throw redirect({ to: '/settings/profile' })

@@ -58,6 +58,7 @@ const organizationResultsQuery = (timeRange: PortalResultsTimeRange) =>
   })
 
 export const Route = createFileRoute('/_authenticated/portals/')({
+  staticData: { page: { title: 'Portals', tier: 'dashboard' } },
   beforeLoad: async ({ context }) => {
     // Organization-wide: no Property is in scope, so the gate asks about the
     // Organization; the reads narrow to each Property the reader may use.

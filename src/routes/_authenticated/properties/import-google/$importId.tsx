@@ -19,6 +19,13 @@ const connectionsQuery = queryOptions({
 export const Route = createFileRoute(
   '/_authenticated/properties/import-google/$importId',
 )({
+  staticData: {
+    page: {
+      title: 'Import Google properties',
+      crumb: 'Import properties',
+      under: 'properties',
+    },
+  },
   beforeLoad: async ({ context }) => {
     const { role } = context as AuthRouteContext
     requireGoogleImportRole(role)

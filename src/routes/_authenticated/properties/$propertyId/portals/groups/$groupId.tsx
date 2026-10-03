@@ -70,6 +70,7 @@ const groupGoalQuery = (propertyId: string, groupId: string) =>
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/groups/$groupId',
 )({
+  staticData: { page: { title: 'Portal group', tier: 'dashboard', under: 'portals' } },
   beforeLoad: async ({ context, params }) => {
     await gateControlledRoute({
       data: {

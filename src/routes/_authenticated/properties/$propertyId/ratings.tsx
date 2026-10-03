@@ -20,6 +20,7 @@ const ratingsQuery = (propertyId: string, range: DashboardRange) =>
   })
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/ratings')({
+  staticData: { page: { title: 'Ratings', tier: 'dashboard', under: 'property' } },
   validateSearch: z.object({ range: dashboardRangeSearch }),
   staleTime: 60_000,
   loaderDeps: ({ search }) => ({ range: search.range }),

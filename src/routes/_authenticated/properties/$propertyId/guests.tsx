@@ -28,6 +28,7 @@ export const propertyGuestsQuery = (propertyId: string, range: DashboardRange) =
   })
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/guests')({
+  staticData: { page: { title: 'Guest voice', tier: 'dashboard', under: 'property' } },
   validateSearch: propertyGuestsSearchSchema,
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext

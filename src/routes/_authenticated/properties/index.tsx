@@ -61,6 +61,7 @@ const fleetQuery = (timeRange: TimeRangePreset) =>
   })
 
 export const Route = createFileRoute('/_authenticated/properties/')({
+  staticData: { page: { title: 'Properties', tier: 'dashboard' } },
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     // Properties admin list is a manager surface (property.admin).

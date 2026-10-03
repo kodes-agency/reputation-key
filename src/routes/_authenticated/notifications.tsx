@@ -28,6 +28,7 @@ const notificationSearch = z.object({
 })
 
 export const Route = createFileRoute('/_authenticated/notifications')({
+  staticData: { page: { title: 'Notifications', tier: 'narrow' } },
   validateSearch: notificationSearch,
   staleTime: 30_000,
   component: NotificationsRoute,

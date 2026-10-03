@@ -10,6 +10,9 @@ import { propertyQuery, propertySetupQuery } from '#/routes/-queries/route-queri
 import { can } from '#/shared/domain/permissions'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/settings')({
+  staticData: {
+    page: { title: 'Property settings', crumb: 'Settings', under: 'property' },
+  },
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     if (!can(role, 'property.read')) throw redirect({ to: '/properties' })

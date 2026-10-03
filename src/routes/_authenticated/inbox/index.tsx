@@ -19,6 +19,7 @@ import { useInboxRouteScope } from './-property-scope'
 const authRoute = getRouteApi('/_authenticated')
 
 export const Route = createFileRoute('/_authenticated/inbox/')({
+  staticData: { page: { title: 'Inbox', fullBleed: true } },
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     // Inbox triage is a manager surface (inbox.manage).

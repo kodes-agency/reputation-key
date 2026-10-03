@@ -57,6 +57,7 @@ import {
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/$portalId',
 )({
+  staticData: { page: { title: 'Portal', fullBleed: true } },
   // The input is typed so a Link can only name a current tab, and `tab` stays
   // optional (the Page tab is the default). At runtime the value can be
   // anything a bookmark carries; normalization maps the pre-workspace names.

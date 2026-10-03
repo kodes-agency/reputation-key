@@ -3,6 +3,7 @@ import { PageHeader } from '#/components/layout/page-header'
 import { PreferencesSettingsPage } from '#/components/features/settings'
 
 export const Route = createFileRoute('/_authenticated/settings/preferences')({
+  staticData: { page: { title: 'Preferences', under: 'settings' } },
   component: PreferencesSettings,
 })
 
