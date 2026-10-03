@@ -15,7 +15,6 @@ import { FolderPlus, Palette, Plus } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { Button } from '#/components/ui/button'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
@@ -279,16 +278,6 @@ export function PortalListPage({
           </>
         }
       />
-      <FormErrorBanner
-        error={
-          archiveMutation.error ??
-          restoreMutation.error ??
-          disableMutation?.error ??
-          archiveGroupMutation.error ??
-          renameMutation.error
-        }
-      />
-
       <PortalListBody
         isEmpty={isEmpty}
         newPortalButton={newPortalButton}

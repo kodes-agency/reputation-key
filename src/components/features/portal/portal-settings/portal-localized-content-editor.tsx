@@ -26,7 +26,6 @@ import { cn } from '#/lib/utils'
 import { hasPropertyWording } from '#/contexts/portal/application/public-api'
 import { adminLanguageCode, type OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import { languageDisplayName } from '../portal-languages/portal-languages-rules'
-import { PortalExperienceActionError } from './portal-experience-action-error'
 import { PortalLocalizedOverrideForm } from './portal-localized-override-form'
 import { PortalPropertyContentForm } from './portal-property-content-form'
 import { portalPropertyContentDraftKey } from '../portal-editor/portal-draft-keys'
@@ -119,8 +118,6 @@ export function PortalLocalizedContentEditor({
           readOnly={!canWriteProperty}
         />
       </PropertyWordingFold>
-      <PortalExperienceActionError action={actions.saveContent} />
-      <PortalExperienceActionError action={actions.saveOverride} />
     </div>
   )
 }

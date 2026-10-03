@@ -123,7 +123,6 @@ export function PortalShare(props: PortalShareProps) {
             onChoiceChange={printKit.setChoice}
             unavailableReason={unavailableReason}
             isWorking={printKitDownload.isWorking}
-            errorMessage={printKitDownload.errorMessage}
             onDownload={() => void printKitDownload.download()}
           />
         )}

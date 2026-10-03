@@ -38,7 +38,6 @@ type Props = Readonly<{
   /** Why the download is off, or null when it is on. */
   unavailableReason: string | null
   isWorking: boolean
-  errorMessage: string | null
   onDownload: () => void
 }>
 
@@ -51,7 +50,6 @@ export function PortalPrintKitSection({
   onChoiceChange,
   unavailableReason,
   isWorking,
-  errorMessage,
   onDownload,
 }: Props) {
   return (
@@ -91,11 +89,6 @@ export function PortalPrintKitSection({
         </Button>
         {unavailableReason !== null && (
           <p className="text-sm text-muted-foreground">{unavailableReason}</p>
-        )}
-        {errorMessage !== null && (
-          <p className="text-sm text-negative" role="alert">
-            {errorMessage}
-          </p>
         )}
       </div>
     </section>

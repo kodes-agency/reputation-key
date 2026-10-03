@@ -24,7 +24,10 @@ import {
 } from '#/components/features/portal/portal-overview/portal-overview-results'
 import { useOverviewRange } from '#/components/features/portal/portal-overview/use-overview-range'
 import { partitionWorkspaceProperties } from '#/components/features/property/property-workspace'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import {
+  useActionMutation,
+  actionErrorMessage,
+} from '#/components/hooks/use-action-mutation'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { membersQuery, propertiesQuery } from '#/routes/-queries/route-queries'
 import { usePermissions } from '#/shared/hooks/usePermissions'
@@ -118,14 +121,17 @@ function AllPropertiesRoute() {
 
   const archiveMutation = useActionMutation(updatePortal, {
     successMessage: 'Portal archived',
+    errorMessage: actionErrorMessage,
     invalidateKeys: [portalKeys.all],
   })
   const restoreMutation = useActionMutation(updatePortal, {
     successMessage: 'Portal restored as Disabled',
+    errorMessage: actionErrorMessage,
     invalidateKeys: [portalKeys.all],
   })
   const disableMutation = useActionMutation(updatePortal, {
     successMessage: 'Public page disabled',
+    errorMessage: actionErrorMessage,
     invalidateKeys: [portalKeys.all],
   })
 

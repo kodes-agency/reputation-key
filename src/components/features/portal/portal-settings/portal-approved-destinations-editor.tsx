@@ -3,7 +3,6 @@ import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import { StatusBadge } from '#/components/ui/status-badge'
 import { APPROVED_DESTINATION_STATUS } from './portal-approved-destination-status'
 import { PortalApprovedDestinationRequestForm } from './portal-approved-destination-request-form'
-import { PortalExperienceActionError } from './portal-experience-action-error'
 import type {
   PortalApprovedDestinationList,
   PortalExperienceActions,
@@ -60,9 +59,6 @@ export function PortalApprovedDestinationsEditor({
           ))}
         </ul>
       )}
-      <PortalExperienceActionError action={actions.requestDestination} />
-      <PortalExperienceActionError action={actions.approveDestination} />
-      <PortalExperienceActionError action={actions.disableDestination} />
     </div>
   )
 }

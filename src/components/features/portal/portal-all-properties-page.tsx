@@ -7,7 +7,6 @@
 // Presentational, like `PortalListPage`: the route owns the reads and the URL.
 // The results arrive as a separate read and are optional: a role that may not
 // read results gets the list without them.
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
@@ -172,10 +171,6 @@ export function PortalAllPropertiesPage({
         )}
         actions={newPortal}
       />
-      <FormErrorBanner
-        error={archiveMutation.error ?? restoreMutation.error ?? disableMutation?.error}
-      />
-
       {rows.length === 0 ? (
         <PortalOverviewEmpty action={newPortal} />
       ) : (

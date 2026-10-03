@@ -8,6 +8,7 @@ import { Checkbox } from '#/components/ui/checkbox'
 import { Field, FieldLabel } from '#/components/ui/field'
 import type { Action } from '#/components/hooks/use-action'
 import type { CompleteReviewResult, CompleteReviewVariables } from '../shared/types'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
 
 const CHECKBOX_ID = 'portal-content-review-attestation'
 
@@ -54,6 +55,7 @@ export function ContentReviewAttestation({
           intended review page.
         </FieldLabel>
       </Field>
+      <FormErrorBanner error={mutation.error} />
       <Button
         variant="outline"
         className="min-h-11 sm:min-h-9"

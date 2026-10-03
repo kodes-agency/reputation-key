@@ -6,6 +6,7 @@ import { Input } from '#/components/ui/input'
 import { Label } from '#/components/ui/label'
 import { portalApprovedDestinationRequestInputSchema } from '#/contexts/portal/application/dto/portal-experience.dto'
 import type { PortalExperienceActions } from './portal-experience-settings-types'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
 
 const destinationRequestFormSchema = portalApprovedDestinationRequestInputSchema
   .pick({ uri: true })
@@ -30,35 +31,38 @@ export function PortalApprovedDestinationRequestForm({
     },
   })
   return (
-    <form className="flex flex-col gap-2 sm:flex-row" onSubmit={submitHandler(form)}>
-      <form.Field name="uri">
-        {(field) => {
-          const invalid = field.state.meta.isTouched && !field.state.meta.isValid
-          return (
-            <div className="min-w-0 flex-1">
-              <Label className="sr-only" htmlFor="portal-approved-destination-uri">
-                HTTPS destination
-              </Label>
-              <Input
-                id="portal-approved-destination-uri"
-                name={field.name}
-                type="url"
-                placeholder="https://example.com/your-page"
-                maxLength={2_048}
-                value={field.state.value}
-                onBlur={field.handleBlur}
-                onChange={(event) => field.handleChange(event.currentTarget.value)}
-                aria-invalid={invalid}
-                disabled={disabled || action.isPending}
-              />
-              {invalid ? <FieldError errors={field.state.meta.errors} /> : null}
-            </div>
-          )
-        }}
-      </form.Field>
-      <SubmitButton mutation={action} form={form} variant="outline" disabled={disabled}>
-        {action.isPending ? 'Checking…' : 'Add destination'}
-      </SubmitButton>
+    <form className="flex flex-col gap-2" onSubmit={submitHandler(form)}>
+      <FormErrorBanner error={action.error} />
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <form.Field name="uri">
+          {(field) => {
+            const invalid = field.state.meta.isTouched && !field.state.meta.isValid
+            return (
+              <div className="min-w-0 flex-1">
+                <Label className="sr-only" htmlFor="portal-approved-destination-uri">
+                  HTTPS destination
+                </Label>
+                <Input
+                  id="portal-approved-destination-uri"
+                  name={field.name}
+                  type="url"
+                  placeholder="https://example.com/your-page"
+                  maxLength={2_048}
+                  value={field.state.value}
+                  onBlur={field.handleBlur}
+                  onChange={(event) => field.handleChange(event.currentTarget.value)}
+                  aria-invalid={invalid}
+                  disabled={disabled || action.isPending}
+                />
+                {invalid ? <FieldError errors={field.state.meta.errors} /> : null}
+              </div>
+            )
+          }}
+        </form.Field>
+        <SubmitButton mutation={action} form={form} variant="outline" disabled={disabled}>
+          {action.isPending ? 'Checking…' : 'Add destination'}
+        </SubmitButton>
+      </div>
     </form>
   )
 }

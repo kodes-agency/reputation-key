@@ -6,7 +6,6 @@ import { useState } from 'react'
 import { Pencil, Plus } from 'lucide-react'
 import { PageHeader } from '#/components/layout/page-header'
 import { PageShell } from '#/components/layout/page-shell'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { Button } from '#/components/ui/button'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
@@ -118,15 +117,6 @@ export function PortalGroupPage(props: PortalGroupPageProps) {
               archiveGroupMutation={props.archiveGroupMutation}
             />
           </>
-        }
-      />
-      <FormErrorBanner
-        error={
-          props.archiveGroupMutation.error ??
-          props.archiveMutation.error ??
-          props.removePortalMutation.error ??
-          props.restoreMutation.error ??
-          props.disableMutation?.error
         }
       />
       {results ? (

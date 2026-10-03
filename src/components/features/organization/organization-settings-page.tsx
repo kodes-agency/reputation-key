@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { useServerFn } from '@tanstack/react-start'
 import type { Action } from '#/components/hooks/use-action'
-import { toast } from 'sonner'
 import { Badge } from '#/components/ui/badge'
 import { ImageUploadField } from '#/components/forms/image-upload-field'
 import { putFilePresigned } from '#/components/forms/image-upload-field/put-file-presigned'
@@ -39,6 +38,15 @@ type Props = Readonly<{
     Parameters<typeof updateOrganization>[0],
     Awaited<ReturnType<typeof updateOrganization>>
   >
+  /**
+   * Removing the logo is an immediate action, not part of the identity form's
+   * submit, so it has its own mutation: its failure is a toast (its
+   * `errorMessage`) and never the form's banner.
+   */
+  removeOrganizationLogo: Action<
+    Parameters<typeof updateOrganization>[0],
+    Awaited<ReturnType<typeof updateOrganization>>
+  >
   requestOrgLogoUploadFn: typeof requestOrgLogoUpload
   finalizeOrgLogoUploadFn: typeof finalizeOrgLogoUpload
 }>
@@ -46,13 +54,13 @@ type Props = Readonly<{
 type LogoEditorProps = Readonly<
   Pick<
     Props,
-    'updateOrganization' | 'requestOrgLogoUploadFn' | 'finalizeOrgLogoUploadFn'
+    'removeOrganizationLogo' | 'requestOrgLogoUploadFn' | 'finalizeOrgLogoUploadFn'
   > & { logo: string | null }
 >
 
 function OrganizationLogoEditor({
   logo,
-  updateOrganization,
+  removeOrganizationLogo,
   requestOrgLogoUploadFn,
   finalizeOrgLogoUploadFn,
 }: LogoEditorProps) {
@@ -67,10 +75,8 @@ function OrganizationLogoEditor({
         setLogoUrl(url)
         // Only persist on remove (null) — upload persistence is handled by finalizeOrgLogoUpload
         if (url === null) {
-          updateOrganization({ data: { logo: null } }).catch(() => {
-            toast.error('Failed to remove logo')
-            setLogoUrl(logo)
-          })
+          // The toast is the mutation's; the catch only puts the logo back.
+          removeOrganizationLogo({ data: { logo: null } }).catch(() => setLogoUrl(logo))
         }
       }}
       onUpload={async (file, onProgress) => {
@@ -84,7 +90,7 @@ function OrganizationLogoEditor({
       variant="circle"
       emptyLabel="Upload logo"
       maxFileSize={5 * 1024 * 1024}
-      disabled={updateOrganization.isPending}
+      disabled={removeOrganizationLogo.isPending}
     />
   )
 }
@@ -96,6 +102,7 @@ export function OrganizationSettingsPage({
   googleReviewTargetAnalytics,
   updateResponseTargetPolicy,
   updateOrganization,
+  removeOrganizationLogo,
   requestOrgLogoUploadFn,
   finalizeOrgLogoUploadFn,
 }: Props) {
@@ -105,7 +112,7 @@ export function OrganizationSettingsPage({
         <OrganizationLogoEditor
           key={organization.logo ?? 'no-logo'}
           logo={organization.logo}
-          updateOrganization={updateOrganization}
+          removeOrganizationLogo={removeOrganizationLogo}
           requestOrgLogoUploadFn={requestOrgLogoUploadFn}
           finalizeOrgLogoUploadFn={finalizeOrgLogoUploadFn}
         />

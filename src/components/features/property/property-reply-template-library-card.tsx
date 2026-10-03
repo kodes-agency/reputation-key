@@ -1,6 +1,5 @@
 import { BookOpenText } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { Badge } from '#/components/ui/badge'
 import {
   Card,
@@ -161,7 +160,6 @@ export function PropertyReplyTemplateLibraryCard({
             </TableBody>
           </Table>
         )}
-        <FormErrorBanner error={toggleAction.error} />
       </CardContent>
     </Card>
   )

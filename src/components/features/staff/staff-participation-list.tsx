@@ -1,6 +1,5 @@
 import { UserRoundPlus } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { EmptyState } from '#/components/ui/empty-state'
 import { Table, TableBody, TableHead, TableHeader, TableRow } from '#/components/ui/table'
 import { StaffParticipationRow } from './staff-participation-row'
@@ -34,7 +33,6 @@ export function StaffParticipationList({
 
   return (
     <div className="space-y-3">
-      <FormErrorBanner error={archiveAction.error} />
       <div className="rounded-lg border">
         <Table>
           <TableHeader>

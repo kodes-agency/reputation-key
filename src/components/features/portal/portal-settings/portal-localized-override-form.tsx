@@ -8,6 +8,7 @@ import { portalLocalizedOverrideFormInputSchema } from '#/contexts/portal/applic
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalExperienceActions } from './portal-experience-settings-types'
 import { usePortalFormAutosave } from '../portal-editor/use-portal-form-autosave'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
 
 /**
  * This portal's own welcome line and link preview in one language. Part of the
@@ -80,6 +81,8 @@ export function PortalLocalizedOverrideForm({
           )}
         </form.Field>
       </FieldGroup>
+      {/* Autosaved, so there is no button to sit above: the refusal ends the form. */}
+      <FormErrorBanner error={action.error} />
     </form>
   )
 }

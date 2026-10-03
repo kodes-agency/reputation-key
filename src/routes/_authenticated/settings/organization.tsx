@@ -2,7 +2,10 @@ import { createFileRoute } from '@tanstack/react-router'
 import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
-import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import {
+  actionErrorMessage,
+  useActionMutation,
+} from '#/components/hooks/use-action-mutation'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import {
@@ -84,6 +87,12 @@ function OrganizationSettingsRoute() {
   const updateOrganizationAction = useActionMutation(updateOrganization, {
     onSuccess: () => organizationCachePolicy.onOrganizationUpdated(queryClient),
   })
+  // Removing the logo is an immediate action: it reports by toast, so its
+  // failure never lands in the identity form's banner.
+  const removeOrganizationLogo = useActionMutation(updateOrganization, {
+    errorMessage: actionErrorMessage,
+    onSuccess: () => organizationCachePolicy.onOrganizationUpdated(queryClient),
+  })
 
   return (
     <>
@@ -100,6 +109,7 @@ function OrganizationSettingsRoute() {
           googleReviewTargetAnalytics={googleReviewTargetAnalytics}
           updateResponseTargetPolicy={updateResponseTargetPolicy}
           updateOrganization={updateOrganizationAction}
+          removeOrganizationLogo={removeOrganizationLogo}
           requestOrgLogoUploadFn={requestOrgLogoUpload}
           finalizeOrgLogoUploadFn={finalizeOrgLogoUpload}
         />
