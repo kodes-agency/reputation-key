@@ -12,23 +12,9 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { InboxQueueCounts } from '#/contexts/inbox/application/public-api'
-import { InboxQueueStrip } from './inbox-queue-strip'
 import { STRIP_FADE_PX } from '#/components/ui/strip-scroll'
-
-/**
- * Whether Tailwind is compiled here. Storybook proper is; the Vitest runner is
- * not. `STRIP_LAYOUT` stands in for it only where it is missing: where it is
- * present the classes are what has to be measured, and a scaffold beside them
- * would decide the padding instead (the metrics gate reads the first pill's x).
- */
-function tailwindIsCompiled(): boolean {
-  const probe = document.createElement('div')
-  probe.className = 'hidden'
-  document.body.append(probe)
-  const compiled = getComputedStyle(probe).display === 'none'
-  probe.remove()
-  return compiled
-}
+import { tailwindIsCompiled } from '../../../.storybook/tailwind-compiled'
+import { InboxQueueStrip } from './inbox-queue-strip'
 
 const STRIP_LAYOUT = `
   nav[aria-label="Queues"] {

@@ -11,20 +11,11 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { Bell, Building2, Palette, Shield, User, Users } from 'lucide-react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
+import { tailwindIsCompiled } from '../../../.storybook/tailwind-compiled'
 import { NavCount } from './nav-count'
 import { SectionNav } from './section-nav'
 import { SectionNavLayout } from './section-nav-layout'
 import type { SectionNavItem } from './section-nav-types'
-
-/** Whether Tailwind is compiled here: Storybook proper is, the Vitest runner is not. */
-function tailwindIsCompiled(): boolean {
-  const probe = document.createElement('div')
-  probe.className = 'hidden'
-  document.body.append(probe)
-  const compiled = getComputedStyle(probe).display === 'none'
-  probe.remove()
-  return compiled
-}
 
 const STRIP_LAYOUT = `
   [data-slot='section-nav-scroller'] {
