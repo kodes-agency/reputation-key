@@ -4,33 +4,34 @@
 // direct navigation an intentional unavailable state while each loader and
 // server function still authorizes independently against the selected
 // property.
+//
+// The state is drawn in the app shell (see `route-notice`): a manager whose
+// feature is switched off keeps the sidebar and top bar and is told which
+// feature, why, and where to go.
 
-import { redirect } from '@tanstack/react-router'
 import { checkControlledRoute, type ControlledRouteInput } from './controlled-route-check'
 import type { CapabilityDecision } from './beta-capabilities'
 import { refusalCategory } from './capability-refusal-category'
+import { routeNotice } from './route-notice'
 
-/** Convert a plain capability decision into the owning router transition. */
-export function redirectDeniedControlledRoute(
+/** Answer a denied controlled feature in the shell. Allowed decisions pass through. */
+export function denyControlledRoute(
   decision: CapabilityDecision,
   input: ControlledRouteInput,
 ): void {
-  if (!decision.allowed) {
-    throw redirect({
-      to: '/unavailable',
-      search: {
-        feature: input.featureLabel,
-        category: refusalCategory(decision) ?? undefined,
-        propertyId: input.propertyId,
-      },
-    })
-  }
+  if (decision.allowed) return
+  throw routeNotice({
+    cause: 'feature',
+    title: input.featureLabel,
+    category: refusalCategory(decision) ?? 'not_in_beta',
+    ...(input.propertyId ? { propertyId: input.propertyId } : {}),
+  })
 }
 
 /**
  * Keep the server function transport plain-data-only. Client-side navigation
- * cannot deserialize a redirect thrown inside a server function reliably;
- * throw it here, on the same side that owns the router transition.
+ * cannot deserialize a router transition thrown inside a server function
+ * reliably; throw it here, on the same side that owns the router transition.
  */
 export async function gateControlledRoute(
   input: Readonly<{
@@ -38,5 +39,5 @@ export async function gateControlledRoute(
   }>,
 ): Promise<void> {
   const decision = await checkControlledRoute(input)
-  redirectDeniedControlledRoute(decision, input.data)
+  denyControlledRoute(decision, input.data)
 }

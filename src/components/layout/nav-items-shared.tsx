@@ -5,8 +5,8 @@
 // but cannot be clicked.
 //
 // A row goes inert when the destination route's own capability gate
-// (`gateControlledRoute` in its `beforeLoad`) would bounce the user to
-// `/unavailable`, so the nav never offers a dead link. Disabling here is a UI
+// (`gateControlledRoute` in its `beforeLoad`) would answer with the unavailable
+// page, so the nav never offers a dead link. Disabling here is a UI
 // affordance, not a security boundary — the route gate and every server
 // function still authorize independently (ADR 0049, mirroring the note in
 // `controlled-route-gate.ts`).

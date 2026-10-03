@@ -22,7 +22,10 @@ import {
 } from '#/shared/auth/capability-set'
 import { propertyIdFromLocation } from '#/components/hooks/use-property-id'
 import { isFullBleedRoute } from '#/components/layout/full-bleed-route'
-import { PAGE_GUTTER } from '#/components/layout/page-shell'
+import { pageHead } from '#/components/layout/page-identity'
+import { FullBleedFrame, PAGE_GUTTER } from '#/components/layout/page-shell'
+import { NoticeState } from '#/components/layout/route-notice-state'
+import { ShellPresence } from '#/components/layout/route-page-state'
 import { httpStatus } from '#/shared/security/expected-refusal'
 import { SidebarProvider } from '#/components/ui/sidebar'
 import { ViewportHintContext } from '#/components/hooks/use-viewport-below'
@@ -39,7 +42,7 @@ import {
   listMyBetaFeedbackFn,
   submitBetaFeedbackFn,
 } from '#/contexts/identity/server/beta-feedback'
-import { useState } from 'react'
+import { useContext, useState, type ReactNode } from 'react'
 
 export type AuthRouteContext = Readonly<{
   user: {
@@ -58,7 +61,7 @@ export type AuthRouteContext = Readonly<{
    * navigation, so switching property re-resolves it.
    *
    * UI affordance only: it exists so navigation can render an unavailable
-   * feature as disabled instead of routing into `/unavailable`. It is not a
+   * feature as disabled instead of routing into its unavailable page. It is not a
    * security boundary — every route gate and server function still asserts.
    */
   capabilities: CapabilitySet
@@ -194,10 +197,19 @@ export const Route = createFileRoute('/_authenticated')({
   // The property list rarely changes. It is cached via Query and refetched by
   // targeted invalidation after property mutations.
   staleTime: 5 * 60 * 1000, // 5 min — matches the Query staleTime
+  // The tab is titled after the deepest page in the chain, whether it rendered or
+  // was refused: a denied People page is still the People tab.
+  head: ({ matches }) => pageHead(matches),
   component: AuthenticatedLayout,
+  // The boundary for every not-found below the shell: an unknown address, a
+  // Property that is not there, and the notices of `route-notice` (a role or a
+  // feature that cannot open the page). A boundary replaces its route's own
+  // component, so the notice draws inside a shell of its own.
+  notFoundComponent: AuthenticatedNotFound,
 })
 
-function AuthenticatedLayout() {
+/** The app shell around `children`: sidebar, top bar and the one padded `<main>`. */
+function AuthenticatedShell({ children }: Readonly<{ children: ReactNode }>) {
   const ctx = Route.useRouteContext()
   const { viewportHint } = Route.useLoaderData()
   useRememberViewportWidth()
@@ -262,7 +274,7 @@ function AuthenticatedLayout() {
             isFullBleed ? 'overflow-hidden' : `overflow-auto ${PAGE_GUTTER}`
           }`}
         >
-          <Outlet />
+          <ShellPresence value>{children}</ShellPresence>
         </main>
       </div>
     </SidebarProvider>
@@ -280,4 +292,27 @@ function AuthenticatedLayout() {
       )}
     </ViewportHintContext.Provider>
   )
+}
+
+function AuthenticatedLayout() {
+  return (
+    <AuthenticatedShell>
+      <Outlet />
+    </AuthenticatedShell>
+  )
+}
+
+function AuthenticatedNotFound({ data }: Readonly<{ data?: unknown }>) {
+  const shellPresent = useContext(ShellPresence)
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
+  const notFound = <NoticeState data={data} />
+  const state = isFullBleedRoute(pathname) ? (
+    <FullBleedFrame scroll>{notFound}</FullBleedFrame>
+  ) : (
+    notFound
+  )
+  // An address no page answers renders inside this route's own layout, so the
+  // shell is already there; a not-found a loader threw replaces the layout, so
+  // it brings one.
+  return shellPresent ? state : <AuthenticatedShell>{state}</AuthenticatedShell>
 }
