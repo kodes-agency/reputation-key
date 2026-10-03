@@ -103,7 +103,7 @@ export function ManagerSidebar({
   }
 
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar>
       {/*
         BQC-6.8: the app sidebar IS the primary navigation — give it the nav
         landmark so its links don't fail axe's region rule (all page content

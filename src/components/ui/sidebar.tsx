@@ -146,10 +146,14 @@ function SidebarProvider({
   )
 }
 
+// The app has one collapse mode: the icon rail. ManagerSidebar and
+// SettingsSidebar share the shell's single open state, so a sidebar that slid
+// off-canvas would leave the other one invisible after a page change. The
+// default is therefore `icon` rather than shadcn's `offcanvas`.
 function Sidebar({
   side = 'left',
   variant = 'sidebar',
-  collapsible = 'offcanvas',
+  collapsible = 'icon',
   className,
   children,
   ...props
