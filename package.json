@@ -118,7 +118,7 @@
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@playwright/test": "1.63.0",
-    "@sentry/tanstackstart-react": "10.75.0",
+    "@sentry/tanstackstart-react": "11.1.0",
     "@storybook/addon-a11y": "^10.6.0",
     "@storybook/addon-docs": "~10.6.0",
     "@storybook/addon-vitest": "~10.6.0",
