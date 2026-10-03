@@ -20,6 +20,8 @@ import {
   resolveColour,
   type LinearRgb,
 } from '#/shared/testing/oklch-contrast'
+import { alertVariants } from './alert'
+import { badgeVariants } from './badge'
 import { buttonVariants } from './button'
 import { Skeleton } from './skeleton'
 
@@ -139,6 +141,95 @@ describe('the destructive Button as rendered', () => {
     expect(recipe).toContain('bg-destructive')
     expect(
       contrastRatio(colour(THEMES[0], '--destructive'), [1, 1, 1]),
+    ).toBeGreaterThanOrEqual(AA)
+  })
+})
+
+/**
+ * The `--token` behind a colour utility such as `bg-positive-muted` or
+ * `text-link`, read from the `@theme` block; null for a utility that is not a
+ * colour (`text-sm`) or is not mapped.
+ */
+function tokenBehind(utility: string): string | null {
+  const mapped = themeBlock.get(`--color-${utility}`)
+  return mapped === undefined ? null : (/^var\((--[\w-]+)\)$/.exec(mapped)?.[1] ?? null)
+}
+
+/** The tokens a variant's classes paint with the given prefix (`bg` or `text`), unprefixed utilities only. */
+function paintedWith(classes: string, prefix: 'bg' | 'text'): string[] {
+  return classes.split(/\s+/).flatMap((utility) => {
+    const name = new RegExp(`^${prefix}-([\\w-]+)$`).exec(utility)?.[1]
+    const token = name === undefined ? null : tokenBehind(name)
+    return token === null ? [] : [token]
+  })
+}
+
+// The tone variants (SURF-05, COLL-05). Each draws its ink on its own tint, so
+// the pair is read from the variant's classes rather than restated here: a tone
+// whose ink or tint is changed to something that fails is caught in the theme
+// it fails in, and a new tone is covered by adding its row.
+const TONE_VARIANTS: ReadonlyArray<readonly [name: string, classes: string]> = [
+  ['Alert warning', alertVariants({ variant: 'warning' })],
+  ['Alert success', alertVariants({ variant: 'success' })],
+  ['Alert info', alertVariants({ variant: 'info' })],
+  ['Badge positive', badgeVariants({ variant: 'positive' })],
+  ['Badge warn', badgeVariants({ variant: 'warn' })],
+  ['Badge negative', badgeVariants({ variant: 'negative' })],
+  ['Badge neutral', badgeVariants({ variant: 'neutral' })],
+]
+
+/** The words an Alert prints besides its title: the quiet ink, and the page ink. */
+const ALERT_BODY_INK = ['--muted-foreground', '--foreground'] as const
+
+describe.each(THEMES)('$name theme tones', (theme) => {
+  it.each(TONE_VARIANTS)(
+    '%s reads its ink on its own tint at 4.5:1',
+    (_name, classes) => {
+      const tints = paintedWith(classes, 'bg')
+      const inks = paintedWith(classes, 'text')
+
+      expect(tints).toHaveLength(1)
+      expect(inks).toHaveLength(1)
+      expect(
+        contrastRatio(colour(theme, tints[0]!), colour(theme, inks[0]!)),
+      ).toBeGreaterThanOrEqual(AA)
+    },
+  )
+
+  it.each(TONE_VARIANTS.filter(([name]) => name.startsWith('Alert')))(
+    '%s reads its title and its description on its own tint at 4.5:1',
+    (_name, classes) => {
+      const tint = colour(theme, paintedWith(classes, 'bg')[0]!)
+
+      for (const ink of ALERT_BODY_INK) {
+        expect(contrastRatio(tint, colour(theme, ink))).toBeGreaterThanOrEqual(AA)
+      }
+    },
+  )
+})
+
+// Red text: one token. `--destructive` is the fill-grade red (a button, a bar),
+// and as text it reads 4.52:1 on the page but 4.26:1 on `--muted` and 4.07:1 on
+// the tint of a failed notice in the light theme, so a field error in a muted
+// well failed AA. `--negative` is the text-grade red and clears 4.5:1 on every
+// surface a message lands on, in both themes. The fill-grade token is no longer
+// used as text anywhere in the source (`tone-sources.test.ts` keeps it so).
+const ERROR_TEXT_SURFACES = [
+  '--background',
+  '--card',
+  '--surface',
+  '--surface-elevated',
+  '--popover',
+  '--muted',
+  '--secondary',
+  '--destructive-muted',
+  '--accent-muted',
+] as const
+
+describe.each(THEMES)('$name theme red text', (theme) => {
+  it.each(ERROR_TEXT_SURFACES)('--negative reads on %s at 4.5:1 or better', (surface) => {
+    expect(
+      contrastRatio(colour(theme, '--negative'), colour(theme, surface)),
     ).toBeGreaterThanOrEqual(AA)
   })
 })
