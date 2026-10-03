@@ -1,6 +1,5 @@
 import { useRouterState, useNavigate } from '@tanstack/react-router'
 import { Settings } from 'lucide-react'
-import { Link } from '@tanstack/react-router'
 import {
   Sidebar,
   SidebarContent,
@@ -13,6 +12,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from '#/components/ui/sidebar'
+import { NavLink } from '#/components/ui/nav-link'
 import { usePropertyId } from '#/components/hooks/use-property-id'
 import { useInboxScopeNavigation } from '#/components/inbox/use-inbox-scope-navigation'
 import { ManagerNavItems } from './manager-nav-items'
@@ -143,10 +143,10 @@ export function ManagerSidebar({
                 isActive={activeSection === 'settings'}
                 tooltip="Settings"
               >
-                <Link to="/settings/profile">
+                <NavLink to="/settings/profile" current={activeSection === 'settings'}>
                   <Settings />
                   <span>Settings</span>
-                </Link>
+                </NavLink>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>

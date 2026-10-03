@@ -1,4 +1,4 @@
-import { Link, useRouterState } from '@tanstack/react-router'
+import { useRouterState } from '@tanstack/react-router'
 import {
   User,
   Users,
@@ -22,6 +22,7 @@ import {
   SidebarMenuItem,
   SidebarRail,
 } from '#/components/ui/sidebar'
+import { NavLink } from '#/components/ui/nav-link'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { hasRole } from '#/shared/domain/roles'
 
@@ -120,10 +121,10 @@ export function SettingsSidebar() {
           <SidebarMenu>
             <SidebarMenuItem>
               <SidebarMenuButton asChild tooltip="Back to app">
-                <Link to={isManager ? '/properties' : '/'}>
+                <NavLink to={isManager ? '/properties' : '/'} current={false}>
                   <ArrowLeft />
                   <span>Back to app</span>
-                </Link>
+                </NavLink>
               </SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
@@ -143,10 +144,10 @@ export function SettingsSidebar() {
                           isActive={activeSection === item.key}
                           tooltip={item.label}
                         >
-                          <Link to={item.href}>
+                          <NavLink to={item.href} current={activeSection === item.key}>
                             <item.icon />
                             <span>{item.label}</span>
-                          </Link>
+                          </NavLink>
                         </SidebarMenuButton>
                       </SidebarMenuItem>
                     ))}
