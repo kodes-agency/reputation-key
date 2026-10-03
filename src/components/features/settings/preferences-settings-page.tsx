@@ -5,8 +5,9 @@ import {
   CardTitle,
   CardDescription,
 } from '#/components/ui/card'
-import { Label } from '#/components/ui/label'
-import { ThemeToggle } from '#/components/layout/theme-toggle'
+import { ThemeModeControl } from '#/components/layout/theme-mode-control'
+
+const THEME_LABEL_ID = 'preferences-theme-label'
 
 export function PreferencesSettingsPage() {
   return (
@@ -17,9 +18,11 @@ export function PreferencesSettingsPage() {
           <CardDescription>Customize how the app looks on your device.</CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center justify-between">
-            <Label htmlFor="theme-toggle">Theme</Label>
-            <ThemeToggle />
+          <div className="flex items-center justify-between gap-4">
+            <span id={THEME_LABEL_ID} className="text-sm leading-none font-medium">
+              Theme
+            </span>
+            <ThemeModeControl labelledBy={THEME_LABEL_ID} />
           </div>
         </CardContent>
       </Card>

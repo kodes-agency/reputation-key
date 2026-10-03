@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { LogOut, Moon, Sun, Monitor } from 'lucide-react'
+import { LogOut } from 'lucide-react'
 import { SidebarTrigger } from '#/components/ui/sidebar'
 import { Button } from '#/components/ui/button'
 import {
@@ -15,6 +15,7 @@ import { authClient } from '#/shared/auth/auth-client'
 import { NotificationPanel } from '#/components/features/notification/notification-panel'
 import type { NotificationServerFns } from '#/components/features/notification/types'
 import { useThemeMode } from '#/components/hooks/use-theme-mode'
+import { ThemeModeMenuControl } from '#/components/layout/theme-mode-menu-control'
 import { BetaFeedbackLauncher } from '#/components/features/beta-feedback/beta-feedback-launcher'
 import type {
   ListMyBetaFeedback,
@@ -41,10 +42,10 @@ export function AppTopBar({
 }: Props) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { mode, setMode } = useThemeMode()
-
-  const ThemeIcon = mode === 'light' ? Sun : mode === 'dark' ? Moon : Monitor
-
+  // The bar is mounted for as long as the shell is, so it keeps the document in
+  // step with the stored theme, and with the device while the mode is System.
+  // The menu's control mounts only while the menu is open.
+  useThemeMode()
   const initials = user.name
     ? user.name
         .split(' ')
@@ -102,25 +103,13 @@ export function AppTopBar({
             )}
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuContent align="end" className="w-56">
           <div className="px-2 py-1.5">
             <p className="text-sm font-medium">{user.name}</p>
             <p className="text-xs text-muted-foreground truncate">{user.email}</p>
           </div>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            className="max-md:min-h-11"
-            onClick={() =>
-              setMode(mode === 'dark' ? 'light' : mode === 'light' ? 'auto' : 'dark')
-            }
-          >
-            <ThemeIcon className="size-4" />
-            {mode === 'dark'
-              ? 'Light mode'
-              : mode === 'light'
-                ? 'System theme'
-                : 'Dark mode'}
-          </DropdownMenuItem>
+          <ThemeModeMenuControl />
           <DropdownMenuSeparator />
           <DropdownMenuItem
             className="max-md:min-h-11"

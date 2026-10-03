@@ -1141,10 +1141,13 @@ test.describe('Critical: beta-local-1 product journeys', () => {
     await signIn(page, seed.email, seed.password, BASE_ORIGIN, '/settings/preferences')
     await page.evaluate(() => window.localStorage.setItem('theme', 'auto'))
     await page.reload()
-    await page.getByRole('button', { name: /Theme mode: auto/i }).click()
-    await expect(page.getByRole('button', { name: /Theme mode: light/i })).toBeVisible()
+    // Preferences draws the choice as one segmented control: Light, Dark, System.
+    const theme = page.getByRole('radiogroup', { name: 'Theme' })
+    await expect(theme.getByRole('radio', { name: 'System' })).toBeChecked()
+    await theme.getByRole('radio', { name: 'Light' }).click()
+    await expect(theme.getByRole('radio', { name: 'Light' })).toBeChecked()
     await page.reload()
-    await expect(page.getByRole('button', { name: /Theme mode: light/i })).toBeVisible()
+    await expect(theme.getByRole('radio', { name: 'Light' })).toBeChecked()
 
     const integrationSubject = `beta-integration-${e2eRunId}`
     const { connectionId } = await seedGoogleConnection({
