@@ -23,7 +23,7 @@ const meta: Meta = {
 export default meta
 type Story = StoryObj
 
-type View = 'workspace' | 'removed'
+type View = 'active' | 'archived'
 
 function PageViews({ initial }: Readonly<{ initial: View }>) {
   const [view, setView] = useState<View>(initial)
@@ -33,24 +33,22 @@ function PageViews({ initial }: Readonly<{ initial: View }>) {
   }
   return (
     <div className="flex max-w-3xl flex-col gap-4">
-      <LinkTabs aria-label="Which properties">
-        <LinkTab active={view === 'workspace'}>
-          <a href="#workspace" onClick={go('workspace')}>
-            Workspace
+      <LinkTabs aria-label="Which reports">
+        <LinkTab active={view === 'active'}>
+          <a href="#active" onClick={go('active')}>
+            Active
             <TabCount>6</TabCount>
           </a>
         </LinkTab>
-        <LinkTab active={view === 'removed'}>
-          <a href="#removed" onClick={go('removed')}>
-            Removed
+        <LinkTab active={view === 'archived'}>
+          <a href="#archived" onClick={go('archived')}>
+            Archived
             <TabCount>1</TabCount>
           </a>
         </LinkTab>
       </LinkTabs>
       <p className="text-sm text-muted-foreground">
-        {view === 'workspace'
-          ? 'The working list.'
-          : 'Properties waiting to be restored.'}
+        {view === 'active' ? 'The reports in use.' : 'Reports kept for the record.'}
       </p>
     </div>
   )
@@ -58,16 +56,16 @@ function PageViews({ initial }: Readonly<{ initial: View }>) {
 
 /** Views that are a route: a named landmark of links, the current one marked. */
 export const RouteViews: Story = {
-  render: () => <PageViews initial="workspace" />,
+  render: () => <PageViews initial="active" />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const nav = canvas.getByRole('navigation', { name: 'Which properties' })
+    const nav = canvas.getByRole('navigation', { name: 'Which reports' })
     // Not a tablist: nothing here swaps a panel in the same document.
     expect(canvas.queryByRole('tablist')).toBeNull()
     expect(within(nav).getAllByRole('link')).toHaveLength(2)
-    const workspace = within(nav).getByRole('link', { name: /Workspace\s*6/ })
-    expect(workspace).toHaveAttribute('aria-current', 'page')
-    expect(within(nav).getByRole('link', { name: /Removed\s*1/ })).not.toHaveAttribute(
+    const activeView = within(nav).getByRole('link', { name: /Active\s*6/ })
+    expect(activeView).toHaveAttribute('aria-current', 'page')
+    expect(within(nav).getByRole('link', { name: /Archived\s*1/ })).not.toHaveAttribute(
       'aria-current',
     )
   },
@@ -75,30 +73,27 @@ export const RouteViews: Story = {
 
 /** Choosing a view moves `aria-current` with it, and the count stays in the name. */
 export const ChoosingAView: Story = {
-  render: () => <PageViews initial="workspace" />,
+  render: () => <PageViews initial="active" />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('link', { name: /Removed\s*1/ }))
-    expect(canvas.getByRole('link', { name: /Removed\s*1/ })).toHaveAttribute(
-      'aria-current',
-      'page',
-    )
-    expect(canvas.getByRole('link', { name: /Workspace\s*6/ })).not.toHaveAttribute(
-      'aria-current',
-    )
-    expect(canvas.getByText('Properties waiting to be restored.')).toBeVisible()
+    const archived = canvas.getByRole('link', { name: /Archived\s*1/ })
+    const active = canvas.getByRole('link', { name: /Active\s*6/ })
+    await userEvent.click(archived)
+    expect(archived).toHaveAttribute('aria-current', 'page')
+    expect(active).not.toHaveAttribute('aria-current')
+    expect(canvas.getByText('Reports kept for the record.')).toBeVisible()
   },
 }
 
 /** Every link is one Tab stop, in order, with the same focus ring as the rest. */
 export const KeyboardOrder: Story = {
-  render: () => <PageViews initial="workspace" />,
+  render: () => <PageViews initial="active" />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.tab()
-    expect(canvas.getByRole('link', { name: /Workspace\s*6/ })).toHaveFocus()
+    expect(canvas.getByRole('link', { name: /Active\s*6/ })).toHaveFocus()
     await userEvent.tab()
-    expect(canvas.getByRole('link', { name: /Removed\s*1/ })).toHaveFocus()
+    expect(canvas.getByRole('link', { name: /Archived\s*1/ })).toHaveFocus()
   },
 }
 

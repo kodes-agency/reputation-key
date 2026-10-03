@@ -57,10 +57,13 @@ export const DashboardRanges: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const group = canvas.getByRole('radiogroup', { name: 'Time range' })
-    for (const label of ['30 days', '90 days', '6 months', 'All time']) {
-      expect(within(group).getByRole('radio', { name: label })).toBeVisible()
-    }
-    expect(within(group).getByRole('radio', { name: '90 days' })).toBeChecked()
+    const radios = within(group).getAllByRole('radio')
+    expect(radios.map((radio) => radio.textContent)).toEqual(
+      DASHBOARD.map((option) => option.label),
+    )
+    expect(
+      radios.filter((radio) => radio.getAttribute('aria-checked') === 'true'),
+    ).toEqual([within(group).getByRole('radio', { name: '90 days' })])
     // The same options stand in as a Select below `sm`, under the same name. CSS
     // shows one at a time; the Storybook Vitest project compiles no Tailwind, so
     // here both are in the tree.
