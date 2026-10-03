@@ -5,12 +5,13 @@
 // The server still validates — this is UI-level gating for UX, not security.
 
 import { useForm } from '@tanstack/react-form'
+import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import { FieldGroup } from '#/components/ui/field'
 import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import { SubmitButton } from '#/components/forms/submit-button'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { submitForm } from '#/components/forms/form-submit'
+import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
+import { submitHandler } from '#/components/forms/form-submit'
 import { inviteMemberInputSchema } from '#/contexts/identity/application/dto/invitation.dto'
 import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 import { z } from 'zod/v4'
@@ -80,14 +81,7 @@ export function InviteMemberForm({ mutation, allowedRoles, properties }: Props) 
   }
 
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        void submitForm(form)
-      }}
-      className="flex flex-col gap-4"
-    >
+    <form onSubmit={submitHandler(form)} className="flex flex-col gap-4">
       <FieldGroup>
         <form.Field name="email">
           {(field: BaseFieldApi) => (
@@ -118,10 +112,13 @@ export function InviteMemberForm({ mutation, allowedRoles, properties }: Props) 
         </form.Field>
       </FieldGroup>
 
-      <FormErrorBanner error={mutation.error} />
-      <SubmitButton mutation={mutation} form={form}>
-        Send Invitation
-      </SubmitButton>
+      <DialogErrorBanner error={mutation.error} />
+      <DialogFooter>
+        <DialogCancel />
+        <SubmitButton mutation={mutation} form={form}>
+          Send Invitation
+        </SubmitButton>
+      </DialogFooter>
     </form>
   )
 }

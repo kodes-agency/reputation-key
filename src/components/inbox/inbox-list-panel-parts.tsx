@@ -13,7 +13,6 @@ import { Button } from '#/components/ui/button'
 import type { bulkUpdateInboxStatusFn } from '#/contexts/inbox/server/inbox'
 import type { bulkAssignInboxItemsFn } from '#/contexts/inbox/server/inbox'
 import type { InboxAssignmentOption } from './inbox-owner-view'
-import { Loader2 } from 'lucide-react'
 import type { ReactNode, RefObject } from 'react'
 import type { InboxListFilterValues } from './inbox-filters'
 import { InboxListEmpty, InboxListError, InboxListSkeleton } from './inbox-list-states'
@@ -129,12 +128,9 @@ export function LoadMoreButton({
       <Button
         variant="outline"
         size="sm"
-        disabled={loadAction.isPending}
+        pending={loadAction.isPending}
         onClick={() => onLoadMore(nextCursor)}
       >
-        {loadAction.isPending && (
-          <Loader2 data-icon="inline-start" className="animate-spin" />
-        )}
         Load more
       </Button>
     </div>

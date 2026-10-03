@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react'
 import { useForm, useStore } from '@tanstack/react-form'
 import { Bug, Lightbulb } from 'lucide-react'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { submitHandler } from '#/components/forms/form-submit'
+import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
+import { submitForm, submitHandler } from '#/components/forms/form-submit'
 import { FormTextarea } from '#/components/forms/form-textarea'
 import type { BaseFieldApiTextarea } from '#/components/forms/form-textarea'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { useAction } from '#/components/hooks/use-action'
-import { Button } from '#/components/ui/button'
-import { DialogClose, DialogFooter } from '#/components/ui/dialog'
+import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
+import { useDialogBusy } from '#/components/ui/dialog-dismissal'
 import { Kbd } from '#/components/ui/kbd'
+import { useShortcutModifier } from '#/components/hooks/use-shortcut-modifier'
 import { betaFeedbackInputSchema } from '#/shared/beta-feedback-contract'
 import type {
   BetaFeedbackImpact,
@@ -50,6 +51,9 @@ const TYPE_OPTIONS: ReadonlyArray<BetaFeedbackChoice<BetaFeedbackType>> = [
 
 export function BetaFeedbackForm({ submitFeedback, onSubmitted }: BetaFeedbackFormProps) {
   const submit = useAction(submitFeedback)
+  // This body owns the request, the launcher owns the dialog: the report is not
+  // lost to an Escape while it is on its way.
+  useDialogBusy(submit.isPending)
   // Read once on mount: the list must not shift while the reporter is typing.
   const [recordedError] = useState(() => latestRecordedError())
   // Captured once, when the dialog opens over the page the reporter is
@@ -80,10 +84,11 @@ export function BetaFeedbackForm({ submitFeedback, onSubmitted }: BetaFeedbackFo
   const isBug = kind === 'bug'
   const impactOptions = useMemo(() => impactOptionsFor(kind), [kind])
 
+  const modifier = useShortcutModifier()
   const onKeyDown = (event: React.KeyboardEvent<HTMLFormElement>): void => {
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
       event.preventDefault()
-      void form.handleSubmit()
+      void submitForm(form)
     }
   }
 
@@ -208,21 +213,19 @@ export function BetaFeedbackForm({ submitFeedback, onSubmitted }: BetaFeedbackFo
         )}
       </form.Field>
 
-      <FormErrorBanner error={submit.error} />
-      <DialogFooter className="items-center gap-2 sm:justify-between">
-        <p className="hidden text-xs text-muted-foreground sm:block">
-          <Kbd>⌘</Kbd> <Kbd>↵</Kbd> to send
-        </p>
-        <div className="flex gap-2">
-          <DialogClose asChild>
-            <Button type="button" variant="outline" disabled={submit.isPending}>
-              Cancel
-            </Button>
-          </DialogClose>
-          <SubmitButton mutation={submit} form={form}>
-            Send report
-          </SubmitButton>
-        </div>
+      <DialogErrorBanner error={submit.error} />
+      <DialogFooter
+        noteClassName="text-xs max-sm:hidden"
+        note={
+          <span>
+            <Kbd>{modifier}</Kbd> <Kbd>↵</Kbd> to send
+          </span>
+        }
+      >
+        <DialogCancel />
+        <SubmitButton mutation={submit} form={form}>
+          Send report
+        </SubmitButton>
       </DialogFooter>
     </form>
   )

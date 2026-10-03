@@ -56,12 +56,7 @@ export function ContentReviewAttestation({
         </FieldLabel>
       </Field>
       <FormErrorBanner error={mutation.error} />
-      <Button
-        variant="outline"
-        className="min-h-11 sm:min-h-9"
-        disabled={busy || !attested}
-        onClick={record}
-      >
+      <Button variant="outline" disabled={busy || !attested} onClick={record}>
         {mutation.isPending ? 'Recording…' : 'Record content review'}
       </Button>
     </>

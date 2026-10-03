@@ -4,12 +4,11 @@
 // start with. A portal that is in another group moves, and the checklist says
 // so under it. The create call does all of it in one commit.
 import { useForm } from '@tanstack/react-form'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField } from '#/components/forms/form-text-field'
 import { SubmitButton } from '#/components/forms/submit-button'
-import { Button } from '#/components/ui/button'
-import { DialogFooter } from '#/components/ui/dialog'
+import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import { Label } from '#/components/ui/label'
 import { createPortalGroupInputSchema } from '#/contexts/portal/application/dto/create-portal-group.dto'
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
@@ -70,31 +69,21 @@ export function PortalGroupCreateForm({ propertyId, rows, mutation, onDone }: Pr
           )}
         </form.Field>
       </div>
-      {/* A refusal from an earlier time the dialog was open is not shown again. */}
-      <form.Subscribe selector={(state) => state.submissionAttempts}>
-        {(attempts) => (attempts > 0 ? <FormErrorBanner error={mutation.error} /> : null)}
+      <DialogErrorBanner error={mutation.error} />
+      <form.Subscribe selector={(state) => state.values.portalIds.length}>
+        {(count) => (
+          <DialogFooter note={<span aria-live="polite">{describeSelection(count)}</span>}>
+            <DialogCancel />
+            <form.Subscribe selector={(state) => state.values.name.trim()}>
+              {(name) => (
+                <SubmitButton mutation={mutation} form={form} disabled={name === ''}>
+                  Create group
+                </SubmitButton>
+              )}
+            </form.Subscribe>
+          </DialogFooter>
+        )}
       </form.Subscribe>
-      <DialogFooter className="items-center sm:justify-between">
-        <form.Subscribe selector={(state) => state.values.portalIds.length}>
-          {(count) => (
-            <p className="text-sm text-muted-foreground" aria-live="polite">
-              {describeSelection(count)}
-            </p>
-          )}
-        </form.Subscribe>
-        <div className="flex flex-col-reverse gap-2 sm:flex-row">
-          <Button type="button" variant="outline" onClick={onDone}>
-            Cancel
-          </Button>
-          <form.Subscribe selector={(state) => state.values.name.trim()}>
-            {(name) => (
-              <SubmitButton mutation={mutation} form={form} disabled={name === ''}>
-                Create group
-              </SubmitButton>
-            )}
-          </form.Subscribe>
-        </div>
-      </DialogFooter>
     </form>
   )
 }

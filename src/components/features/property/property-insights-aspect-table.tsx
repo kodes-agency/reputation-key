@@ -84,7 +84,7 @@ function CountLink({
       to="/inbox"
       search={{ propertyId, aspect: row.aspect, polarity }}
       aria-label={`${count} ${label} ${count === 1 ? 'mention' : 'mentions'} for ${ASPECT_LABELS[row.aspect]}; open in inbox`}
-      className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md px-2 font-medium tabular-nums text-link underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md px-2 font-medium tabular-nums text-link underline-offset-4 hover:underline focus-ring"
     >
       {count}
     </Link>
@@ -289,7 +289,7 @@ export function PropertyInsightsTopicTable({
       />
       {additional.length > 0 ? (
         <details className="rounded-lg border px-3">
-          <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-link outline-none focus-visible:ring-2 focus-visible:ring-ring">
+          <summary className="flex min-h-11 cursor-pointer items-center text-sm font-medium text-link focus-ring">
             Show all topics
           </summary>
           <div className="pb-3">

@@ -32,7 +32,11 @@ export function FeedbackHandlingDialog(props: Props) {
       : 'This adds a correction to the history. The original completion time and timing result stay unchanged.'
 
   return (
-    <Dialog open={props.open} onOpenChange={props.onOpenChange}>
+    <Dialog
+      open={props.open}
+      busy={props.mutation.isPending}
+      onOpenChange={props.onOpenChange}
+    >
       {/* No mobile class on this dialog any more. v1's row 15 raised the two
           controls this dialog owns but does not render itself — the outcome
           `SelectTrigger` and the footer's two buttons, both inside
@@ -60,14 +64,11 @@ export function FeedbackHandlingDialog(props: Props) {
           before, 36 after; the five options 44 px, unchanged. From 768 px up
           nothing matched before either, so the desktop dialog is unchanged.
 
-          `showCloseButton={false}` follows the mobile sheet
-          (`inbox-detail-sheet.tsx:95`): the primitive's corner X measures
-          16x16, v1 found no room to grow it to 44 beside the title on a
-          288 px-wide dialog, and the form's own full-width `Cancel` is the
-          properly sized exit. It also keeps the pane's count of controls
-          named exactly `Close` at zero — the number `inbox-triage.spec.ts:85`
-          and `:222` assert. Escape and the overlay still dismiss. */}
-      <DialogContent showCloseButton={false}>
+          `showCloseButton={false}`: the form's own full-width `Cancel` is the
+          exit (a dialog whose footer has Cancel may drop the corner close), and
+          it keeps the pane's count of controls named exactly `Close` at zero —
+          the number `inbox-triage.spec.ts:85` and `:222` assert. Escape and the overlay still dismiss. */}
+      <DialogContent showCloseButton={false} data-density="compact">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>
@@ -77,7 +78,6 @@ export function FeedbackHandlingDialog(props: Props) {
           initialOutcome={props.initialOutcome}
           initialNote={props.initialNote}
           mutation={props.mutation}
-          onCancel={() => props.onOpenChange(false)}
           onConfirm={async (decision) => {
             await props.onConfirm(decision)
             props.onOpenChange(false)

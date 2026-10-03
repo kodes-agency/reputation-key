@@ -1,17 +1,16 @@
-import { Link } from '@tanstack/react-router'
 import type {
   CurrentMerchantAiCapability,
   MerchantAiState,
 } from '#/contexts/identity/application/public-api'
 import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
-import { Button } from '#/components/ui/button'
 import { CardContent } from '#/components/ui/card'
 import { Checkbox } from '#/components/ui/checkbox'
 import { Field, FieldGroup, FieldLabel } from '#/components/ui/field'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { MerchantAiDataHandling } from './merchant-ai-data-handling'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { InlineLink } from '#/components/ui/inline-link'
 
 export type MerchantAiPropertyOption = Readonly<{
   id: string
@@ -37,14 +36,14 @@ function MerchantAiGoogleSourceUnavailable() {
         {canManageGoogleConnection || canConfirmGoogleProperty ? (
           <div className="flex flex-wrap items-center gap-1">
             {canManageGoogleConnection ? (
-              <Button asChild size="xs" variant="link">
-                <Link to="/settings/integrations">Open Google integrations</Link>
-              </Button>
+              <InlineLink to="/settings/integrations" className="text-xs">
+                Open Google integrations
+              </InlineLink>
             ) : null}
             {canConfirmGoogleProperty ? (
-              <Button asChild size="xs" variant="link">
-                <Link to="/properties/import-google">Review property import</Link>
-              </Button>
+              <InlineLink to="/properties/import-google" className="text-xs">
+                Review property import
+              </InlineLink>
             ) : null}
           </div>
         ) : null}

@@ -18,15 +18,14 @@ export function PortalGroupRemovePortalDialog({
   groupName,
   open,
   onOpenChange,
-  pending,
   onConfirm,
 }: Readonly<{
   portal: PortalChosenForRemoval | null
   groupName: string
   open: boolean
   onOpenChange: (open: boolean) => void
-  pending: boolean
-  onConfirm: (portalId: PortalChosenForRemoval['portalId']) => void
+  /** Rejects with the refusal, which the confirmation says in place. */
+  onConfirm: (portalId: PortalChosenForRemoval['portalId']) => Promise<unknown>
 }>) {
   return (
     <ConfirmationDialog
@@ -37,10 +36,7 @@ export function PortalGroupRemovePortalDialog({
       cancelLabel="Keep in group"
       confirmLabel="Remove from group"
       pendingLabel="Removing…"
-      pending={pending}
-      onConfirm={() => {
-        if (portal) onConfirm(portal.portalId)
-      }}
+      onConfirm={() => (portal ? onConfirm(portal.portalId) : undefined)}
     />
   )
 }

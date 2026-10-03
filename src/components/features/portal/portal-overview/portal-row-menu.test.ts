@@ -88,10 +88,11 @@ describe('portalRowMenu', () => {
     ).toEqual(['results', 'history'])
   })
 
-  it('marks disabling and archiving as the destructive choices', () => {
+  it('offers disabling and archiving as neutral entries: both are undone', () => {
     const items = portalRowMenu(overviewRow('a'), manager)
-    expect(items.find((item) => item.id === 'disable')?.destructive).toBe(true)
-    expect(items.find((item) => item.id === 'archive')?.destructive).toBe(true)
-    expect(items.find((item) => item.id === 'results')?.destructive).toBe(false)
+    expect(items.map((item) => item.id)).toEqual(
+      expect.arrayContaining(['disable', 'archive']),
+    )
+    expect(items.some((item) => 'destructive' in item)).toBe(false)
   })
 })

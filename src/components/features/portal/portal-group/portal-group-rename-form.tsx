@@ -3,12 +3,11 @@
 // The body of the "Rename group" dialog: one name, checked against the same rule
 // the server applies.
 import { useForm } from '@tanstack/react-form'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField } from '#/components/forms/form-text-field'
 import { SubmitButton } from '#/components/forms/submit-button'
-import { Button } from '#/components/ui/button'
-import { DialogFooter } from '#/components/ui/dialog'
+import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import { updatePortalGroupInputSchema } from '#/contexts/portal/application/dto/update-portal-group.dto'
 import type { PortalGroupMutations, PortalGroupRef } from './portal-group-mutations'
 
@@ -46,14 +45,9 @@ export function PortalGroupRenameForm({ group, mutation, onDone }: Props) {
           />
         )}
       </form.Field>
-      {/* A refusal from an earlier time the dialog was open is not shown again. */}
-      <form.Subscribe selector={(state) => state.submissionAttempts}>
-        {(attempts) => (attempts > 0 ? <FormErrorBanner error={mutation.error} /> : null)}
-      </form.Subscribe>
+      <DialogErrorBanner error={mutation.error} />
       <DialogFooter>
-        <Button type="button" variant="outline" onClick={onDone}>
-          Cancel
-        </Button>
+        <DialogCancel />
         <form.Subscribe selector={(state) => state.values.name.trim()}>
           {(name) => (
             <SubmitButton mutation={mutation} form={form} disabled={name === ''}>

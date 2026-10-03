@@ -122,9 +122,10 @@ function MembersSettingsRoute() {
       setInviteOpen(false)
     },
   })
-  // The tables have no inline error surface, so these report a refusal (the
-  // resend rate limit, the last Account Admin) by toast. The invite form shows
-  // its own banner, so inviteMutation does not: that would report it twice.
+  // A role change and a resend have no inline error surface, so they report a
+  // refusal (the resend rate limit, the last Account Admin) by toast. The invite
+  // form, and the Remove and Cancel invitation confirmations, stay open and show
+  // their own banner, so those mutations do not: that would report it twice.
   const updateRoleMutation = useActionMutation(updateMemberRole, {
     successMessage: 'Role updated',
     errorMessage: actionErrorMessage,
@@ -132,7 +133,6 @@ function MembersSettingsRoute() {
   })
   const removeMemberMutation = useActionMutation(removeMember, {
     successMessage: 'Member removed',
-    errorMessage: actionErrorMessage,
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
   })
   const resendMutation = useActionMutation(resendInvitation, {
@@ -145,7 +145,6 @@ function MembersSettingsRoute() {
   })
   const cancelMutation = useActionMutation(cancelInvitation, {
     successMessage: 'Invitation cancelled',
-    errorMessage: actionErrorMessage,
     invalidateKeys: [identityKeys.members(), identityKeys.invitations()],
   })
   // NOT useSuspenseQuery. The identity container installs a fail-closed
@@ -191,10 +190,14 @@ function MembersSettingsRoute() {
         breadcrumbs={[{ label: 'Settings', to: '/settings' }, { label: 'Members' }]}
         actions={
           canDo('invitation.create') && hasRole(role, 'AccountAdmin') ? (
-            <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
+            <Dialog
+              open={inviteOpen}
+              busy={inviteMutation.isPending}
+              onOpenChange={setInviteOpen}
+            >
               <DialogTrigger asChild>
                 <Button>
-                  <Plus className="size-4" />
+                  <Plus />
                   Invite member
                 </Button>
               </DialogTrigger>

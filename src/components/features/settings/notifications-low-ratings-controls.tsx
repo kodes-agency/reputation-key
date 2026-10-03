@@ -83,7 +83,7 @@ export function LowRatingSelect({
         <SelectTrigger
           id={id}
           aria-label={named(categoryLabel, CHANNEL_LABELS[channel])}
-          className="h-11 min-h-11 w-40 min-w-0"
+          className="w-40 min-w-0"
         >
           <SelectValue />
         </SelectTrigger>

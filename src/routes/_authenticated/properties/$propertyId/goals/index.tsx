@@ -122,7 +122,7 @@ function GoalsRoute() {
           canDo('goal.create') ? (
             <Button asChild>
               <Link to="/properties/$propertyId/goals/new" params={{ propertyId }}>
-                <Plus data-icon="inline-start" /> New Goal
+                <Plus /> New Goal
               </Link>
             </Button>
           ) : undefined

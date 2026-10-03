@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Check, Loader2 } from 'lucide-react'
-import { submitForm } from '#/components/forms/form-submit'
+import { Check } from 'lucide-react'
+import { submitHandler } from '#/components/forms/form-submit'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { Checkbox } from '#/components/ui/checkbox'
@@ -67,15 +67,7 @@ export function GoogleImportReviewForm({
   submitError,
 }: Props) {
   return (
-    <form
-      className="space-y-6"
-      aria-busy={isSubmitting}
-      onSubmit={(event) => {
-        event.preventDefault()
-        event.stopPropagation()
-        void submitForm(form)
-      }}
-    >
+    <form className="space-y-6" aria-busy={isSubmitting} onSubmit={submitHandler(form)}>
       <form.Subscribe
         selector={(state) => [state.values.items, state.submissionAttempts] as const}
       >
@@ -237,23 +229,13 @@ export function GoogleImportReviewForm({
                   ) : null}
                   <Button
                     type="submit"
-                    disabled={isSubmitting || flaggedCount > 0}
+                    pending={isSubmitting}
+                    pendingLabel="Starting import…"
+                    disabled={flaggedCount > 0}
                     aria-describedby={flaggedCount > 0 ? BLOCKED_REASON_ID : undefined}
                   >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2
-                          className="animate-spin motion-reduce:animate-none"
-                          aria-hidden="true"
-                        />
-                        Starting import…
-                      </>
-                    ) : (
-                      <>
-                        <Check aria-hidden="true" />
-                        Start import
-                      </>
-                    )}
+                    <Check aria-hidden="true" />
+                    Start import
                   </Button>
                 </div>
               </div>

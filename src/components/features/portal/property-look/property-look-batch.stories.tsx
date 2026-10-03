@@ -70,6 +70,10 @@ async function openReview(canvasElement: HTMLElement, count = 5) {
   const dialog = await body(canvasElement).findByRole('dialog', {
     name: `Review & publish ${count} portals`,
   })
+  // The dialog fades in over 200 ms from opacity 0, which `toBeVisible` reads as
+  // hidden, and the reviews answer in a few ms: wait the fade out (as Patterns/
+  // Dialog does) or the first visibility check races it where Tailwind is compiled.
+  await waitFor(() => expect(dialog).toBeVisible(), WAIT)
   // The reviews are read when it opens; the list replaces "Checking".
   await within(dialog).findByRole('list', { name: 'Live portals' }, WAIT)
   return dialog

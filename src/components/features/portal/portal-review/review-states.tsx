@@ -41,7 +41,7 @@ export function ReviewStates({ data, view, onViewChange, languageCount }: Props)
         >
           <ChevronRight
             aria-hidden="true"
-            className="size-4 shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-90"
+            className="shrink-0 text-muted-foreground transition-transform group-data-[state=open]:rotate-90"
           />
           <span className="font-medium">See every guest state</span>
           <span className="min-w-0 whitespace-normal text-xs text-muted-foreground">

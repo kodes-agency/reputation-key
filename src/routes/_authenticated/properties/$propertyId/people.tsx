@@ -4,10 +4,7 @@ import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
-import {
-  useActionMutation,
-  actionErrorMessage,
-} from '#/components/hooks/use-action-mutation'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import {
   archiveStaffParticipation,
   createStaffParticipation,
@@ -111,8 +108,7 @@ function PeopleRoute() {
   })
   const archiveParticipationMutation = useActionMutation(archiveStaffParticipation, {
     successMessage: 'Staff participation archived',
-    // A row action: its refusal is a toast.
-    errorMessage: actionErrorMessage,
+    // Confirmed in a dialog that stays open and says a refusal itself.
     invalidateKeys,
   })
   const updateResponsibilitiesMutation = useActionMutation(updatePortalResponsibilities, {

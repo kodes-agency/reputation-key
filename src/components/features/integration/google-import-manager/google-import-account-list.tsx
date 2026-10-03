@@ -1,4 +1,4 @@
-import { Building2, ChevronRight, Loader2 } from 'lucide-react'
+import { Building2, ChevronRight } from 'lucide-react'
 import type { ImportAccountDto } from '#/contexts/integration/application/public-api'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
@@ -87,12 +87,9 @@ export function GoogleImportAccountList({
             type="button"
             variant="outline"
             className="w-full"
-            disabled={isLoadingMore}
+            pending={isLoadingMore}
             onClick={onLoadMore}
           >
-            {isLoadingMore ? (
-              <Loader2 className="animate-spin" aria-hidden="true" />
-            ) : null}
             Load more accounts
           </Button>
         ) : null}

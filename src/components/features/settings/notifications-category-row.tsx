@@ -102,7 +102,7 @@ function CadenceSelect({
           id={`${category}-cadence`}
           aria-label={named(categoryLabel, 'Cadence')}
           aria-describedby={fixed ? `${category}-cadence-fixed` : undefined}
-          className="h-11 min-h-11 w-44 min-w-0"
+          className="w-44 min-w-0"
         >
           <SelectValue />
         </SelectTrigger>

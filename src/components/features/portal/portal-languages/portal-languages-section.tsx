@@ -3,7 +3,6 @@
 // written at once through the portal's autosave coordinator; the wording itself
 // is written by hand in the Welcome and Linktree sections (no AI translation).
 
-import { Link } from '@tanstack/react-router'
 import type { Action } from '#/components/hooks/use-action'
 import type { PortalLanguageCoverage } from '#/contexts/portal/application/public-api'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
@@ -17,6 +16,7 @@ import {
   languageDisplayName,
 } from './portal-languages-rules'
 import { usePortalLanguageChange } from './use-portal-language-change'
+import { InlineLink } from '#/components/ui/inline-link'
 
 type Props = Readonly<{
   portal: Readonly<{
@@ -110,23 +110,21 @@ function MissingTextNote({
       ) : null}
       <p className="text-sm text-muted-foreground">
         Write each language&rsquo;s text in{' '}
-        <Link
+        <InlineLink
           to="/properties/$propertyId/portals/$portalId"
           params={{ propertyId, portalId }}
           search={{ tab: 'page', section: 'welcome' }}
-          className="text-link underline-offset-4 hover:underline"
         >
           Welcome
-        </Link>{' '}
+        </InlineLink>{' '}
         and{' '}
-        <Link
+        <InlineLink
           to="/properties/$propertyId/portals/$portalId"
           params={{ propertyId, portalId }}
           search={{ tab: 'page', section: 'linktree' }}
-          className="text-link underline-offset-4 hover:underline"
         >
           Linktree
-        </Link>
+        </InlineLink>
         . A welcome line and a link preview start from the property&rsquo;s wording, which
         an account admin writes.
       </p>

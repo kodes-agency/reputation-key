@@ -1,7 +1,10 @@
 import { useState } from 'react'
 import { Archive, Link2Off, RotateCcw, Trash2 } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
-import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
+import {
+  ConfirmationDialog,
+  ConfirmationTrigger,
+} from '#/components/ui/confirmation-dialog'
 import { Button } from '#/components/ui/button'
 import { Label } from '#/components/ui/label'
 import { Textarea } from '#/components/ui/textarea'
@@ -27,10 +30,10 @@ export function PropertyRemoveDialog({
   return (
     <ConfirmationDialog
       trigger={
-        <Button variant="destructive" disabled={disabled}>
+        <ConfirmationTrigger tone="destructive" disabled={disabled}>
           <Trash2 aria-hidden="true" />
           Remove from workspace
-        </Button>
+        </ConfirmationTrigger>
       }
       title={`Remove ${propertyName} from your workspace?`}
       // Deliberately explicit that this is not destruction. Calling it "delete"
@@ -40,13 +43,8 @@ export function PropertyRemoveDialog({
       cancelLabel="Keep Property"
       confirmLabel="Remove Property"
       pendingLabel="Removing…"
-      pending={action.isPending}
       tone="destructive"
-      onConfirm={() => {
-        void action({
-          data: { propertyId, reason: 'Removed from workspace' },
-        }).catch(() => undefined)
-      }}
+      onConfirm={() => action({ data: { propertyId, reason: 'Removed from workspace' } })}
     />
   )
 }
@@ -68,26 +66,21 @@ export function PropertyArchiveDialog({
   return (
     <ConfirmationDialog
       trigger={
-        <Button variant="outline" disabled={disabled}>
+        <ConfirmationTrigger tone="neutral" disabled={disabled}>
           <Archive aria-hidden="true" />
           Archive Property
-        </Button>
+        </ConfirmationTrigger>
       }
       title={`Archive ${propertyName}?`}
       description="Guests and new provider work will pause. Retained settings, reviews, manager work, metrics, and identifiers stay in place, and you have 30 days to restore the Property yourself."
       cancelLabel="Keep Property active"
       confirmLabel="Archive Property"
       pendingLabel="Archiving…"
-      pending={action.isPending}
       confirmDisabled={!valid}
       onOpenChange={(open) => {
         if (!open) setReason('')
       }}
-      onConfirm={() => {
-        void action({ data: { propertyId, reason: normalizedReason } }).catch(
-          () => undefined,
-        )
-      }}
+      onConfirm={() => action({ data: { propertyId, reason: normalizedReason } })}
     >
       <div className="space-y-2">
         <Label htmlFor="property-archive-reason">Archive note</Label>
@@ -131,10 +124,7 @@ export function PropertyRestoreDialog({
       cancelLabel="Keep archived"
       confirmLabel="Restore Property"
       pendingLabel="Restoring…"
-      pending={action.isPending}
-      onConfirm={() => {
-        void action({ data: { propertyId } }).catch(() => undefined)
-      }}
+      onConfirm={() => action({ data: { propertyId } })}
     />
   )
 }
@@ -153,21 +143,18 @@ export function PropertyGoogleDisconnectDialog({
   return (
     <ConfirmationDialog
       trigger={
-        <Button variant="outline" disabled={disabled}>
+        <ConfirmationTrigger tone="destructive" disabled={disabled}>
           <Link2Off aria-hidden="true" />
           Disconnect this Property from Google
-        </Button>
+        </ConfirmationTrigger>
       }
       title={`Disconnect Google from ${propertyName}?`}
       description="This stops this archived Property from using its current Google profile binding. Your Organization's Google connection stays available to other Properties, and this Property's retained history stays in place."
       cancelLabel="Keep connected"
       confirmLabel="Disconnect this Property"
       pendingLabel="Disconnecting…"
-      pending={action.isPending}
       tone="destructive"
-      onConfirm={() => {
-        void action({ data: { propertyId } }).catch(() => undefined)
-      }}
+      onConfirm={() => action({ data: { propertyId } })}
     />
   )
 }

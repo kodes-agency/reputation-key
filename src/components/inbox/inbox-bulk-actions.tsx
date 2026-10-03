@@ -15,6 +15,7 @@ import type { InboxAssignmentOption } from './inbox-owner-view'
 import { InboxBulkAssignMenu } from './inbox-bulk-assign-menu'
 import type { bulkAssignInboxItemsFn } from '#/contexts/inbox/server/inbox'
 import { usePermissions } from '#/shared/hooks/usePermissions'
+import { IconButton } from '#/components/ui/icon-button'
 
 type Props = Readonly<{
   selectedIds: ReadonlyArray<string>
@@ -148,7 +149,7 @@ export function InboxBulkActions({
             <Button
               variant="outline"
               size="sm"
-              className="max-md:size-9 max-md:px-0"
+              iconBelow="md"
               disabled={bulkMutation.isPending || !hasClosed}
               aria-label="Reopen"
             >
@@ -158,15 +159,15 @@ export function InboxBulkActions({
           </InboxReopenDialog>
         </ButtonGroup>
         {/* 36px on phones, pulled out 10px so the 16px X glyph sits on the right gutter. */}
-        <Button
+        <IconButton
           variant="ghost"
           size="icon-sm"
-          className="max-md:-mr-2.5 max-md:size-9"
+          className="max-md:-mr-2.5"
           onClick={onClearSelection}
-          aria-label="Clear selection"
+          label="Clear selection"
         >
           <X />
-        </Button>
+        </IconButton>
       </div>
     </div>
   )

@@ -11,8 +11,38 @@ and actions supply server state.
 - `ui/` holds vendored shadcn primitives plus app-wide presentation primitives
   that no feature owns (Fact, OwnerDisc, MetricStrip, SegmentedControl, Timeline,
   StarRating, RatingFigure, ConfirmationDialog, EmptyState, RegionError). Every
-  confirmation goes through `ConfirmationDialog`; its `tone` is `destructive` only for an action the
-  person cannot take back. A region with nothing to show, nothing that matches, or
+  confirmation goes through `ConfirmationDialog`, never an AlertDialog put together
+  by hand (`dialog-sources.test.ts` fails on one). Its `tone` is `destructive` only
+  for an action the person cannot take back or that loses data; archive, restore,
+  disable-a-public-page and turn-off-AI-features are `neutral`, and so are their
+  menu items, but reversible means the app has the way back: a Portal group has no
+  restore, so its archive is `destructive`, in the menu too. A destructive
+  confirm is started from a `ConfirmationTrigger` (a destructive Button). Only a
+  low-blast action the person can undo on the spot skips the dialog (remove a
+  language from a draft, delete an unsent reply draft, dismiss one notification);
+  Leave organisation is a `Dialog` because it is a transfer form, and the Inbox's
+  Reject opens its reason inline. `onConfirm` returns the action's promise: the dialog
+  stays open with a pending Button, refuses Escape and Cancel meanwhile, closes
+  when it resolves and says a refusal once, above its actions (focus returns to the
+  confirm). The mutation behind it therefore passes no `errorMessage`, and a caller
+  returns the promise rather than dropping it. A dialog that holds a confirmation as
+  its body (the Portal Version dialog) is `<Dialog busy>` while the request runs. A dialog is `Dialog`: it gets its width
+  from `size` (`sm` 24rem, `md` 32rem the default, `lg` 42rem, `xl` 56rem, never wider
+  than the window less 1rem a side: `dialog-width.ts`, which a confirmation shares) and its
+  height bound and scroll from the primitive, so no `DialogContent` types a
+  `sm:max-w-*`, a `max-h-*` or a `p-*` (a dialog that wants less padding sets
+  `--dialog-pad`, which the footer reaches over). Its footer is `DialogFooter` (`note` is the line
+  at the start of the row) with `DialogCancel` then the primary; when the body
+  scrolls the footer stays pinned to the bottom, so it must be the last thing in the
+  dialog or in the form that is, and a wrapper between it and the dialog may not
+  scroll or clip. The corner close is
+  one Button named "Close"; a dialog whose footer has Cancel or Close may drop it
+  (`showCloseButton={false}`, as the Inbox's two do). A dialog that is committing
+  cannot be dismissed: `<Dialog busy={isPending}>`, or `useDialogBusy(isPending)`
+  in a body that owns the mutation (`dialog-dismissal.ts`). A refusal a mutation in
+  the page still holds from the last time a dialog was open is not shown again:
+  the dialog's banner is `DialogErrorBanner`, which shows only an error from an
+  attempt made since the dialog opened. A region with nothing to show, nothing that matches, or
   a read that failed is `EmptyState` (`size` default or compact, `tone` neutral or
   error, `description` and `action` slots) or `RegionError`, whose only recovery is
   "Try again" wired to the region's refetch. Never hand-build a dashed box or a
@@ -21,9 +51,29 @@ and actions supply server state.
   `hasFailed(query)` and pass `retrying` (`isRetrying(query)`) from
   `hooks/is-retrying`, because a query with no data drops its error and goes
   `pending` the moment it refetches. A dense workspace (the Inbox) passes
-  `density="compact"` (36px on a phone, not the 44px target). The bell's
-  could-not-load body is plain markup on purpose: it sits in the first-paint
-  closure.
+  `data-density="compact"` on its container (36px on a phone, not the 44px target).
+  The bell's could-not-load body is plain markup on purpose: it sits in the
+  first-paint closure.
+  A control's height is not spelled by the caller. `Button`, `Input`,
+  `SelectTrigger` and the menu items are 44px below `md` (the `--control-touch`
+  token) and keep their desktop height from `md`; a dense workspace (the Inbox, the
+  top bar) sets `data-density="compact"` on its container and the same controls
+  are 36px there. A menu, sheet or dialog that portals out of the container says
+  `data-density="compact"` itself. A small button that must stay a tap target on a
+  phone is `touch` (`size="xs"`, `icon-xs`), and one whose label hides below a width
+  is `iconBelow="md"` (or `"sm"`): no caller spells `--control-touch`. `Button` owns `pending` / `pendingLabel` (a
+  spinner that stops for reduced motion, `aria-busy`, disabled, an optional label
+  swap) and `SubmitButton` is that Button wired to a mutation: never draw a
+  spinner beside a Button or swap its label on `isPending`. An icon-only control is
+  an `IconButton` (a required `label` that is its name and its tooltip; the root
+  mounts the one `TooltipProvider`; one that opens a menu or popover shows no
+  tooltip), a link set in a sentence is `InlineLink`, text that explains itself on
+  request is `ExplainTrigger` (a Popover with the one dotted-underline cue,
+  `EXPLAIN_UNDERLINE`), a key hint prints the modifier this platform has
+  (`useShortcutModifier`), and a control that is not a Button wears `focus-ring`. `button-sources.test.ts` fails
+  on a per-file height, a hand-placed spinner, an icon-only Button, the old ring,
+  a hand-typed inline link or dotted underline, a `--control-touch` class and a
+  hand-copied form submit.
   A notice is an `Alert`: `destructive`, `warning`, `success` and `info` each
   draw the one icon their tone wears (`ui/tone.ts`, which Alert, Badge and
   StatusBadge all read), and `default` is a plain card for a notice that brings
@@ -43,7 +93,7 @@ and actions supply server state.
   failure has one reporter. A form submit reports through `FormErrorBanner`,
   placed directly above that form's actions (the bottom of a card's body, above
   its footer), and never also toasts. A row or immediate action (a switch, a menu
-  item, a download, a command whose dialog has closed) reports through a toast,
+  item, a download) reports through a toast,
   `errorMessage` on its `useActionMutation`, and never also a banner. A toast for
   a failure reads "Couldn't …. Try again." (`actionFailureMessage`), shows the
   server's own sentence only for a 4xx refusal, and a success says what changed
@@ -109,7 +159,10 @@ Use TanStack Form, Zod v4 DTO schemas, and shadcn fields. The owning context's
 Validate on submit unless the interaction has a specific live-validation need.
 Drive pending/error/result UI from the sanctioned `Action`; do not call a server
 function directly or hand-roll submission state. Shared building blocks include
-`SubmitButton`, `FormErrorBanner`, `FormTextField`, and `FormTextarea`.
+`SubmitButton`, `FormErrorBanner`, `FormTextField`, and `FormTextarea`. A form's
+`onSubmit` is `submitHandler(form)` (`forms/form-submit.ts`), never a copy of its
+`preventDefault` / `stopPropagation` / `handleSubmit`; a key shortcut calls
+`submitForm(form)`.
 
 ## Queries and actions
 

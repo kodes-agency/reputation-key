@@ -2,12 +2,11 @@
 // owns its state, and holding no half-made choice once it is closed (its body is
 // mounted only while it is open). It cannot be dismissed while a file is on its
 // way: Escape, the overlay and the close button would otherwise put the image on
-// the page after the person had walked away from it. The body says when it is
-// busy and closes the dialog itself once the image is in place.
+// the page after the person had walked away from it (the Dialog's `busy`). The
+// body says when it is busy and closes the dialog itself once the image is in place.
 
 import { useState, type ReactNode } from 'react'
-import { Dialog, DialogContent } from '#/components/ui/dialog'
-import { cn } from '#/lib/utils'
+import { Dialog, DialogContent, type DialogSize } from '#/components/ui/dialog'
 
 export type UploadDialogGuard = Readonly<{
   /** Tells the shell whether a file is on its way, so it stays open meanwhile. */
@@ -18,12 +17,11 @@ export type UploadDialogGuard = Readonly<{
 type Props = Readonly<{
   open: boolean
   onOpenChange: (open: boolean) => void
-  /** The dialog's width, as a `sm:max-w-*` class. */
-  className?: string
+  size?: DialogSize
   children: (guard: UploadDialogGuard) => ReactNode
 }>
 
-export function UploadDialogShell({ open, onOpenChange, className, children }: Props) {
+export function UploadDialogShell({ open, onOpenChange, size, children }: Props) {
   const [isBusy, setIsBusy] = useState(false)
   const close = () => {
     setIsBusy(false)
@@ -32,14 +30,10 @@ export function UploadDialogShell({ open, onOpenChange, className, children }: P
   return (
     <Dialog
       open={open}
-      onOpenChange={(next) => {
-        if (next) onOpenChange(true)
-        else if (!isBusy) close()
-      }}
+      busy={isBusy}
+      onOpenChange={(next) => (next ? onOpenChange(true) : close())}
     >
-      <DialogContent
-        className={cn('max-h-[calc(100dvh-2rem)] overflow-y-auto', className)}
-      >
+      <DialogContent size={size}>
         {children({ onBusyChange: setIsBusy, onClose: close })}
       </DialogContent>
     </Dialog>

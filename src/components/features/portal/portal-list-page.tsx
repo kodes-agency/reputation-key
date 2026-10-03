@@ -221,11 +221,7 @@ export function PortalListPage({
   // organisation's `portal.write` capability is off.
   const newGroupButton =
     can('portal.create') && has('portal.write') ? (
-      <Button
-        variant="outline"
-        className="min-h-11 sm:min-h-9"
-        onClick={() => setCreatingGroup(true)}
-      >
+      <Button variant="outline" onClick={() => setCreatingGroup(true)}>
         <FolderPlus />
         New group
       </Button>
@@ -233,7 +229,7 @@ export function PortalListPage({
 
   // The look is read by everyone who may read portals; only an Account Admin edits it.
   const propertyLookButton = can('portal.read') ? (
-    <Button variant="outline" className="min-h-11 sm:min-h-9" asChild>
+    <Button variant="outline" asChild>
       <Link to="/properties/$propertyId/portals/look" params={{ propertyId }}>
         <Palette />
         Property look
@@ -244,7 +240,7 @@ export function PortalListPage({
   const canCreate = can('portal.create')
   const openNewPortal = () => update({ new: true })
   const newPortalButton = canCreate ? (
-    <Button className="min-h-11 sm:min-h-9" onClick={openNewPortal}>
+    <Button onClick={openNewPortal}>
       <Plus />
       New portal
     </Button>

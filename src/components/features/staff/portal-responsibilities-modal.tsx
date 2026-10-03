@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import type { Action } from '#/components/hooks/use-action'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { Globe } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
 import {
   Dialog,
+  DialogCancel,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -79,7 +80,7 @@ export function PortalResponsibilitiesModal({
   }
 
   return (
-    <Dialog open onOpenChange={onOpenChange}>
+    <Dialog open busy={updateAction.isPending} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
           <DialogTitle>Portal responsibilities — {displayName}</DialogTitle>
@@ -126,22 +127,18 @@ export function PortalResponsibilitiesModal({
           </div>
         )}
 
-        <FormErrorBanner error={updateAction.error} />
+        <DialogErrorBanner error={updateAction.error} />
         <DialogFooter>
-          <Button
-            variant="outline"
-            onClick={() => onOpenChange(false)}
-            disabled={updateAction.isPending}
-          >
-            Cancel
-          </Button>
+          <DialogCancel />
           <Button
             // A refusal stays in the banner with the dialog open (handleSave
             // closes only on success); settling keeps it from escaping the click.
             onClick={() => void handleSave().catch(() => undefined)}
-            disabled={!primaryPortalId || !hasChanges || updateAction.isPending}
+            pending={updateAction.isPending}
+            pendingLabel="Saving…"
+            disabled={!primaryPortalId || !hasChanges}
           >
-            {updateAction.isPending ? 'Saving…' : 'Save responsibilities'}
+            Save responsibilities
           </Button>
         </DialogFooter>
       </DialogContent>

@@ -12,6 +12,8 @@ import {
 type GoalProgramFormDialogProps = Readonly<{
   open: boolean
   onOpenChange: (open: boolean) => void
+  /** The change is being saved, so the dialog cannot be dismissed meanwhile. */
+  busy: boolean
   /** The label of the outline button that opens the dialog. */
   trigger: string
   title: string
@@ -25,6 +27,7 @@ type GoalProgramFormDialogProps = Readonly<{
 export function GoalProgramFormDialog({
   open,
   onOpenChange,
+  busy,
   trigger,
   title,
   description,
@@ -32,11 +35,11 @@ export function GoalProgramFormDialog({
   children,
 }: GoalProgramFormDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <Dialog open={open} busy={busy} onOpenChange={onOpenChange}>
       <DialogTrigger asChild>
         <Button variant="outline">{trigger}</Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent size="lg">
         <form
           className="space-y-5"
           onSubmit={(event) => {

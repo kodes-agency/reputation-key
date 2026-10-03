@@ -165,7 +165,7 @@ export function InboxPageV2({
 
   if (s.isCompactLayout) {
     return (
-      <div className="flex h-full w-full flex-col overflow-hidden">
+      <div data-density="compact" className="flex h-full w-full flex-col overflow-hidden">
         <InboxListPanel
           {...listPanelProps}
           scopeControl={propertySelect('header')}
@@ -196,7 +196,7 @@ export function InboxPageV2({
   }
 
   return (
-    <div className="flex h-full min-w-0">
+    <div data-density="compact" className="flex h-full min-w-0">
       <InboxQueueRail
         queue={s.queue}
         counts={s.queueCounts}

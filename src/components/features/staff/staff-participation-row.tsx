@@ -3,17 +3,7 @@ import type { Action } from '#/components/hooks/use-action'
 import { StatusBadge } from '#/components/ui/status-badge'
 import { formatDate } from '#/lib/format'
 import { Button } from '#/components/ui/button'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '#/components/ui/alert-dialog'
+import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import { TableCell, TableRow } from '#/components/ui/table'
 import type {
   ArchiveStaffParticipationMutationInput,
@@ -67,48 +57,36 @@ export function StaffParticipationRow({
             </Button>
           )}
           {active && (
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
+            <ConfirmationDialog
+              trigger={
                 <Button
                   type="button"
                   variant="ghost"
                   size="sm"
-                  className="text-muted-foreground hover:text-negative"
+                  className="text-muted-foreground"
                   aria-label={`Archive staff participation for ${participation.displayName}`}
                 >
                   <UserRoundX aria-hidden="true" />
                   <span className="hidden sm:inline">Archive</span>
                 </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Archive staff participation?</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {participation.displayName} will no longer be available for new Portal
-                    responsibilities. Their effective history is preserved.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancel</AlertDialogCancel>
-                  <AlertDialogAction
-                    disabled={archiveAction.isPending}
-                    // The list's banner shows a refusal from the Action's error;
-                    // settling here keeps it from escaping as an unhandled one.
-                    onClick={() =>
-                      void archiveAction({
-                        data: {
-                          staffParticipationId: participation.id,
-                          reason: 'Archived from property People page',
-                          expectedRevision: participation.revision,
-                        },
-                      }).catch(() => undefined)
-                    }
-                  >
-                    {archiveAction.isPending ? 'Archiving…' : 'Archive participation'}
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+              }
+              title="Archive staff participation?"
+              description={`${participation.displayName} will no longer be available for new Portal responsibilities. Their effective history is preserved.`}
+              cancelLabel="Cancel"
+              confirmLabel="Archive participation"
+              pendingLabel="Archiving…"
+              // The confirmation stays open and says a refusal (a stale
+              // revision) itself.
+              onConfirm={() =>
+                archiveAction({
+                  data: {
+                    staffParticipationId: participation.id,
+                    reason: 'Archived from property People page',
+                    expectedRevision: participation.revision,
+                  },
+                })
+              }
+            />
           )}
         </div>
       </TableCell>

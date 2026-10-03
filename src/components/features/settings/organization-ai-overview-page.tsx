@@ -109,7 +109,7 @@ export function OrganizationAiOverviewPage({
                 <Link
                   to="/properties/$propertyId/settings/ai"
                   params={{ propertyId: entry.propertyId }}
-                  className="group grid gap-2 p-4 text-foreground outline-none transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-visible:ring-2 focus-visible:ring-ring md:grid-cols-[minmax(0,1.4fr)_7rem_minmax(0,1.6fr)_minmax(0,1fr)_1rem] md:items-center md:gap-4"
+                  className="group grid gap-2 p-4 text-foreground outline-none transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-ring md:grid-cols-[minmax(0,1.4fr)_7rem_minmax(0,1.6fr)_minmax(0,1fr)_1rem] md:items-center md:gap-4"
                 >
                   <span className="min-w-0 truncate font-medium">
                     {entry.propertyName}

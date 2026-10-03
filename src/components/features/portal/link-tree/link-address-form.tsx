@@ -4,7 +4,7 @@
 
 import { useForm } from '@tanstack/react-form'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { submitHandler } from '#/components/forms/form-submit'
+import { submitForm, submitHandler } from '#/components/forms/form-submit'
 import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
 import { updateLinkInputSchema } from '#/contexts/portal/application/dto/portal-link.dto'
 import type { PortalLinktreeLink } from '#/contexts/portal/application/public-api'
@@ -28,7 +28,7 @@ export function LinkAddressForm({ link, update, error, onEdit, disabled }: Props
       onChange: onEdit,
       onBlur: ({ formApi }) => {
         if (formApi.state.values.url.trim() === link.url) return
-        void formApi.handleSubmit().catch(() => undefined)
+        void submitForm(formApi)
       },
     },
     validators: { onSubmit: addressFormSchema },

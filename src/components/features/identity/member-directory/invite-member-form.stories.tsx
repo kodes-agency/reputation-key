@@ -9,6 +9,8 @@ import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { AnyAction } from '#/components/hooks/use-action'
 import type { BetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
+import { inADialog } from '../../../../../.storybook/InADialogDecorator'
+import { useRefusingAction } from '#/components/forms/refusing-action.stories.fixtures'
 import { InviteMemberForm } from './invite-member-form'
 
 type InviteInput = {
@@ -41,7 +43,8 @@ const meta: Meta<typeof InviteMemberForm> = {
   component: InviteMemberForm,
   tags: ['autodocs'],
   parameters: { layout: 'centered' },
-  decorators: [AuthedRouterDecorator],
+  // The form is the body of the Invite member dialog, and its play reads the page.
+  decorators: [inADialog('Invite a new member'), AuthedRouterDecorator],
 }
 export default meta
 type Story = StoryObj<typeof InviteMemberForm>
@@ -68,17 +71,35 @@ export const Submitting: Story = {
   },
 }
 
-// Server-rejected invitation — the banner above the button surfaces the message.
+// A server-rejected invitation: the banner above the actions surfaces the message
+// once the attempt is made, and not before. A refusal an earlier open left on the
+// mutation is already there when the form mounts.
+function RefusedInvite() {
+  const mutation = useRefusingAction<InviteInput>(
+    () => new Error('That email is already invited'),
+    new Error('An invitation to someone else was refused earlier'),
+  )
+  return (
+    <InviteMemberForm
+      mutation={mutation}
+      allowedRoles={allowedRoles}
+      properties={properties}
+    />
+  )
+}
+
 export const MutationError: Story = {
-  args: {
-    mutation: makeAction(
-      async () => {
-        throw new Error('That email is already invited')
-      },
-      { error: new Error('That email is already invited') },
-    ),
-    allowedRoles,
-    properties,
+  render: () => <RefusedInvite />,
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body)
+    expect(page.queryByText(/refused earlier/i)).not.toBeInTheDocument()
+    expect(page.queryByRole('alert')).not.toBeInTheDocument()
+    await userEvent.type(page.getByLabelText(/email address/i), 'teammate@example.com')
+    await userEvent.click(page.getByRole('button', { name: /send invitation/i }))
+    await waitFor(() => expect(page.getAllByRole('alert')).toHaveLength(1))
+    expect(page.queryByText(/refused earlier/i)).not.toBeInTheDocument()
+    // The refusal sits in the form, with Cancel beside the primary.
+    expect(page.getByRole('button', { name: 'Cancel' })).toBeInTheDocument()
   },
 }
 
@@ -86,7 +107,7 @@ export const MutationError: Story = {
 export const ValidationError: Story = {
   args: { mutation: resolvingAction, allowedRoles, properties },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
+    const canvas = within(canvasElement.ownerDocument.body)
     await userEvent.click(canvas.getByRole('button', { name: /send invitation/i }))
     expect(
       await canvas.findByText(/a valid email address is required/i),
@@ -106,7 +127,7 @@ export const Success: Story = {
   },
   play: async ({ canvasElement }) => {
     submitSpy.mockClear()
-    const canvas = within(canvasElement)
+    const canvas = within(canvasElement.ownerDocument.body)
     await userEvent.type(canvas.getByLabelText(/email address/i), 'teammate@example.com')
     await userEvent.click(canvas.getByRole('button', { name: /send invitation/i }))
     await waitFor(() => {

@@ -70,7 +70,6 @@ export function PropertyReplyProfileCard({ propertyId, profile, action }: Props)
                     <FieldLabel htmlFor="reply-profile-greeting">Greeting</FieldLabel>
                     <Input
                       id="reply-profile-greeting"
-                      className="min-h-11"
                       value={field.state.value}
                       onBlur={field.handleBlur}
                       onChange={(event) => field.handleChange(event.target.value)}
@@ -142,7 +141,6 @@ export function PropertyReplyProfileCard({ propertyId, profile, action }: Props)
                     </FieldLabel>
                     <Input
                       id="reply-profile-escalation"
-                      className="min-h-11"
                       value={field.state.value ?? ''}
                       onBlur={field.handleBlur}
                       onChange={(event) =>
@@ -189,7 +187,7 @@ export function PropertyReplyProfileCard({ propertyId, profile, action }: Props)
         </CardContent>
         {canManage ? (
           <CardFooter className="justify-end">
-            <SubmitButton mutation={action} form={form} className="min-h-11">
+            <SubmitButton mutation={action} form={form}>
               Save reply profile
             </SubmitButton>
           </CardFooter>

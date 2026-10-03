@@ -1,10 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
-import {
-  useActionMutation,
-  actionErrorMessage,
-} from '#/components/hooks/use-action-mutation'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { PropertyLifecycleCard } from '#/components/features/property/property-lifecycle-card'
 import {
   removePropertyFromWorkspace,
@@ -37,15 +34,14 @@ function PropertyDangerSettings() {
     responsibleManagersQuery(propertyId),
   )
   const invalidateKeys = [propertyKeys.detail(propertyId), propertyKeys.list()]
-  // Each of these is confirmed in a dialog that has closed by the time it fails,
-  // so a refusal is a toast, as for any command that is not a form.
+  // Each of these is confirmed in a dialog that stays open while it runs and
+  // says a refusal itself, in a banner above its actions. None passes an
+  // `errorMessage`: a toast as well would tell the person twice.
   const archive = useActionMutation(archiveProperty, {
     successMessage: 'Property archived. Its settings and history are retained.',
-    errorMessage: actionErrorMessage,
     invalidateKeys,
   })
   const restore = useActionMutation(restoreProperty, {
-    errorMessage: actionErrorMessage,
     invalidateKeys,
     onSuccess: (result) => {
       if (result.googleBindingReadiness === 'reconnect_required') {
@@ -64,7 +60,6 @@ function PropertyDangerSettings() {
         disconnect: disconnectPropertyGoogleBinding,
       }),
     {
-      errorMessage: actionErrorMessage,
       invalidateKeys,
       onSuccess: (result) => {
         if (result.googleDisconnected) {
@@ -82,7 +77,6 @@ function PropertyDangerSettings() {
   const disconnect = useActionMutation(disconnectPropertyGoogleBinding, {
     successMessage:
       'This Property is disconnected. The Organization Google connection is unchanged.',
-    errorMessage: actionErrorMessage,
     invalidateKeys,
   })
 

@@ -6,48 +6,14 @@
 // and the disclosure relationship between a trigger here and an editor that
 // mounts in a different subtree at the foot of the pane's scroller.
 
-import { Loader2 } from 'lucide-react'
 import { useEffect, useId, useRef, useState } from 'react'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '#/components/ui/alert-dialog'
+import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import { Button } from '#/components/ui/button'
 import { Label } from '#/components/ui/label'
 import { Textarea } from '#/components/ui/textarea'
 import { unfilledReplySlotsMessage } from '#/contexts/review/application/public-api'
 import type { ReplyMessageAction } from './reply-message-view'
 import type { ReactNode } from 'react'
-
-/**
- * Row 20's control height, on the one region whose controls are the reply's.
- *
- * `size="sm"` is 32 px — the density the desktop pane wants. `max-md:h-9`
- * raises it to 36 below `md` only, the same breakpoint and spelling as the
- * composer's footer (`reply-composer-footer.tsx`) and the case toolbar's status
- * control, so the whole pane switches density on one line. v1's row 15 raised
- * these to 44 (`max-md:h-11`); row 20 lowered every pane control to 36, because
- * WCAG 2.5.8 AA asks for 24 px and 44 is what made the phone pane a block of
- * large buttons (plan finding 6).
- *
- * Measured in Chromium against Storybook dev at 390 and 320
- * (`inbox-mobile-390--thread-reply-*`): Confirm & Publish, Reject, Confirm
- * Reject, Cancel and Edit reply were 44 px tall before the sweep and are 36
- * after it; Edit & resubmit and Try publishing again, measured after only, are
- * 36. At 768 px the variant stops matching and the desktop pane is unchanged.
- *
- * NOT applied to the confirmation dialog's pair: `AlertDialogCancel` and
- * `AlertDialogAction` are default-size buttons, already 36 px, so the constant
- * would only restate the primitive (see the footer below).
- */
-const TOUCH = 'max-md:h-9'
 
 export type ReplyMessageActionsProps = Readonly<{
   actions: readonly ReplyMessageAction[]
@@ -97,23 +63,20 @@ function SimpleAction({
       return (
         <Button
           size="sm"
-          className={TOUCH}
-          disabled={isSaving || isChecking}
-          // A read of Google takes seconds. `aria-busy` and the name change say
-          // the click was taken; the spinner is the same glyph the form submit
-          // button uses (`forms/submit-button.tsx`), still for reduced motion.
-          aria-busy={isChecking}
+          // A read of Google takes seconds. The Button's pending state (spinner,
+          // `aria-busy`, disabled) and the name change say the click was taken.
+          pending={isChecking}
+          pendingLabel="Checking Google…"
+          disabled={isSaving}
           onClick={onCheck}
         >
-          {isChecking && <Loader2 aria-hidden className="motion-safe:animate-spin" />}
-          {isChecking ? 'Checking Google…' : 'Check Google again'}
+          Check Google again
         </Button>
       )
     case 'retry':
       return (
         <Button
           size="sm"
-          className={TOUCH}
           disabled={isSaving}
           // The retry mutation toasts a refusal (use-reply-actions.ts
           // `errorMessage`); the catch only keeps the rejection handled.
@@ -126,7 +89,6 @@ function SimpleAction({
       return (
         <Button
           size="sm"
-          className={TOUCH}
           variant="outline"
           disabled={isSaving}
           // This trigger really is a disclosure: the editor it opens mounts at
@@ -144,7 +106,6 @@ function SimpleAction({
       return (
         <Button
           size="sm"
-          className={TOUCH}
           variant="outline"
           disabled={isSaving}
           // Deliberately NOT a disclosure, and deliberately not
@@ -226,8 +187,10 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
           focused button. */}
       <div data-reply-actions className="mt-3 flex flex-wrap items-center gap-2">
         {canApprove && (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
+          // A portal leaves the Inbox's compact density behind, so it says so.
+          <ConfirmationDialog
+            density="compact"
+            trigger={
               <Button
                 size="sm"
                 // A natively disabled button leaves the tab order and takes its
@@ -237,9 +200,6 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
                 // attribute, because it has nothing to explain.
                 disabled={isSaving}
                 aria-disabled={publishBlockedReason !== null}
-                // The look the native attribute used to carry, kept on the one
-                // state that no longer sets it.
-                className={`aria-disabled:opacity-50 ${TOUCH}`}
                 aria-describedby={
                   publishBlockedReason !== null ? publishBlockedReasonId : undefined
                 }
@@ -251,41 +211,21 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
               >
                 Confirm &amp; Publish
               </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Confirm and publish this reply?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This records your confirmation and starts publishing the exact reply
-                  shown here to Google. RepKey keeps it pending until Google confirms that
-                  it is live.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                {/* No class. The primitive's own `size="default"` is 36 px,
-                    which is row 20's control height below `md`. v1's row 15
-                    raised this pair to 44 at the call site (the shared
-                    primitives stay untouched); row 20 lowers it back to the
-                    primitive's own 36, so the override is deleted rather than
-                    re-spelled. Measured in Chromium against Storybook dev at
-                    390 and 320: 44 px tall before, 36 after. */}
-                <AlertDialogCancel>Keep reviewing</AlertDialogCancel>
-                <AlertDialogAction
-                  disabled={isSaving || publishBlockedReason !== null}
-                  // Toasted by the approve mutation's `errorMessage`; the catch
-                  // only keeps the rejection handled.
-                  onClick={() => void onApprove().catch(() => undefined)}
-                >
-                  {isSaving ? 'Confirming…' : 'Confirm & Publish'}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+            }
+            title="Confirm and publish this reply?"
+            description="This records your confirmation and starts publishing the exact reply shown here to Google. RepKey keeps it pending until Google confirms that it is live."
+            cancelLabel="Keep reviewing"
+            confirmLabel="Confirm & Publish"
+            pendingLabel="Confirming…"
+            confirmDisabled={isSaving || publishBlockedReason !== null}
+            // A refusal stays in the dialog (the approve mutation passes no
+            // toast), so the manager reads it where they pressed the button.
+            onConfirm={onApprove}
+          />
         )}
         {canReject && (
           <Button
             size="sm"
-            className={TOUCH}
             variant="destructive"
             disabled={isSaving}
             aria-expanded={showRejectInput}
@@ -322,7 +262,6 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
           <div className="flex gap-2">
             <Button
               size="sm"
-              className={TOUCH}
               variant="destructive"
               disabled={isSaving}
               // `Action` is `mutateAsync`, so an unguarded call turns a server
@@ -337,7 +276,6 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
             </Button>
             <Button
               size="sm"
-              className={TOUCH}
               variant="ghost"
               // Disabled with its siblings: the Reject trigger is natively
               // disabled while a write is in flight, so it cannot take focus,

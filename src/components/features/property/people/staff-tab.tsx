@@ -90,7 +90,11 @@ export function StaffTab({
   return (
     <TabsContent value="staff" className="mt-4 space-y-4">
       <div className="flex justify-end">
-        <Dialog open={createOpen} onOpenChange={onCreateOpenChange}>
+        <Dialog
+          open={createOpen}
+          busy={createMutation.isPending}
+          onOpenChange={onCreateOpenChange}
+        >
           <DialogTrigger asChild>
             <Button>
               <Plus aria-hidden="true" />

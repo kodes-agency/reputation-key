@@ -97,13 +97,8 @@ export function PortalCodeBlock({
             />
           )}
           {(nfcAddress !== null || canDownloadAgain) && (
-            <Button
-              type="button"
-              variant="outline"
-              className="min-h-11 sm:min-h-9"
-              onClick={() => void onCopyNfc()}
-            >
-              <Copy data-icon="inline-start" />
+            <Button type="button" variant="outline" onClick={() => void onCopyNfc()}>
+              <Copy />
               {nfcCopied ? 'Copied' : 'Copy NFC address'}
             </Button>
           )}

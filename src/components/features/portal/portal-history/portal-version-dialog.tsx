@@ -11,6 +11,7 @@ import { Button } from '#/components/ui/button'
 import { RegionError } from '#/components/ui/region-error'
 import {
   Dialog,
+  DialogCancel,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -33,6 +34,8 @@ type Props = Readonly<{
   preview?: ReactNode
   /** Replaces the read-only view when the choice has been started. */
   confirmation: ReactNode | null
+  /** The confirmation's request is in flight: Escape and the overlay are refused. */
+  submitting?: boolean
   onMakeLive: () => void
   onRetry: () => void
   /** `onRetry` is reading; the failure stays, its button busy. */
@@ -92,6 +95,7 @@ export function PortalVersionDialog({
   canMakeLive,
   preview = null,
   confirmation,
+  submitting = false,
   onMakeLive,
   onRetry,
   retrying = false,
@@ -100,12 +104,20 @@ export function PortalVersionDialog({
   const published = detail ? formatHistoryTime(detail.publishedAt, now, timeZone) : null
   const by = detail?.publishedBy?.displayName ?? null
   return (
-    <Dialog open onOpenChange={(open) => (open ? undefined : onClose())}>
+    <Dialog
+      open
+      // Only the confirmation commits something; the read-only view is never held.
+      busy={confirmation !== null && submitting}
+      onOpenChange={(open) => (open ? undefined : onClose())}
+    >
       <DialogContent
-        // The phone is taller than a laptop screen leaves room for: the dialog scrolls.
+        size="xl"
+        // The footer's Close is the exit, so the corner close is dropped.
+        showCloseButton={false}
         // Narrow windows give the page the room the padding would take; the
-        // dialog keeps its 1rem margin from the window at every width.
-        className="max-h-[calc(100dvh-2rem)] overflow-y-auto p-4 sm:max-w-[min(48rem,calc(100%-2rem))] sm:p-6"
+        // dialog keeps its 1rem margin from the window at every width. The padding
+        // is the dialog's variable, so the pinned footer reaches over the same amount.
+        className="[--dialog-pad:1rem] sm:[--dialog-pad:1.5rem]"
         // The confirmation has no description to point at; saying so keeps the
         // dialog from naming an element that is not there.
         {...(confirmation === null ? {} : { 'aria-describedby': undefined })}
@@ -154,9 +166,7 @@ export function PortalVersionDialog({
               </div>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={onClose}>
-                Close
-              </Button>
+              <DialogCancel>Close</DialogCancel>
               {canMakeLive && detail !== null && !detail.isLive ? (
                 <Button type="button" onClick={onMakeLive}>
                   Make live again…

@@ -28,7 +28,7 @@ export function PortalLanguageAddMenu({ addable, hasLater, onChange }: Props) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" className="min-h-11 md:min-h-9">
+        <Button variant="outline">
           <Plus aria-hidden="true" />
           Add language
           <ChevronDown aria-hidden="true" />
@@ -41,7 +41,7 @@ export function PortalLanguageAddMenu({ addable, hasLater, onChange }: Props) {
           return (
             <DropdownMenuItem
               key={locale}
-              className="min-h-11 justify-between gap-6 md:min-h-8"
+              className="justify-between gap-6"
               onSelect={() => onChange({ kind: 'add', locale })}
             >
               <span lang={locale}>{name.native}</span>
@@ -53,9 +53,7 @@ export function PortalLanguageAddMenu({ addable, hasLater, onChange }: Props) {
         })}
         {addable.length > 0 && hasLater ? <DropdownMenuSeparator /> : null}
         {hasLater ? (
-          <DropdownMenuItem disabled className="min-h-11 md:min-h-8">
-            More languages later
-          </DropdownMenuItem>
+          <DropdownMenuItem disabled>More languages later</DropdownMenuItem>
         ) : null}
       </DropdownMenuContent>
     </DropdownMenu>

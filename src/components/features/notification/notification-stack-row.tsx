@@ -11,7 +11,6 @@
 import { createElement, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Check, MoreHorizontal, Trash2 } from 'lucide-react'
-import { Button } from '#/components/ui/button'
 import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import {
   DropdownMenu,
@@ -34,6 +33,7 @@ import {
 } from './notification-utils'
 import { notificationStackView } from './notification-stacks'
 import type { NotificationRowActions } from './types'
+import { IconButton } from '#/components/ui/icon-button'
 
 type Props = Readonly<{
   /** Newest first; at least two. */
@@ -119,15 +119,16 @@ export function NotificationStackRow({
       <span className="shrink-0 py-2 pr-1.5 pl-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 has-[[data-state=open]]:opacity-100 pointer-coarse:opacity-100">
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <Button
+            <IconButton
               data-row-control="menu"
               variant="ghost"
               size="icon-xs"
               className="text-muted-foreground"
-              aria-label={`More actions for: ${view.accessibleName}`}
+              tooltip={false}
+              label={`More actions for: ${view.accessibleName}`}
             >
               <MoreHorizontal aria-hidden="true" />
-            </Button>
+            </IconButton>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56">
             {unreadIds.length > 0 && (
@@ -151,7 +152,6 @@ export function NotificationStackRow({
         cancelLabel="Keep notifications"
         confirmLabel="Dismiss all"
         pendingLabel="Dismissing…"
-        pending={false}
         onConfirm={() => actions.onDismissMany(allIds)}
       />
     </li>

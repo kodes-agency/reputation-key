@@ -4,9 +4,9 @@ import { useForm } from '@tanstack/react-form'
 import { useRef } from 'react'
 import { EyeOff } from 'lucide-react'
 import { submitHandler } from '#/components/forms/form-submit'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { SubmitButton } from '#/components/forms/submit-button'
-import { Button } from '#/components/ui/button'
+import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import { newPortalFormSchema } from '#/contexts/portal/application/dto/create-portal.dto'
 import type { PortalNewData } from './portal-new-types'
 import { PortalNewGroupField } from './portal-new-group-field'
@@ -17,10 +17,7 @@ import { PortalNewStartFromField } from './portal-new-start-from-field'
 import { languagesAfterChange } from './portal-new-follow-source'
 import { newPortalDefaults, toCreatePortalInput } from './portal-new-rules'
 
-export function PortalNewForm({
-  data,
-  onCancel,
-}: Readonly<{ data: PortalNewData; onCancel: () => void }>) {
+export function PortalNewForm({ data }: Readonly<{ data: PortalNewData }>) {
   const { options, propertyId, propertyName, mutation } = data
   // Once the person has chosen languages themselves, a copied portal no longer replaces them.
   const languagesEdited = useRef(false)
@@ -99,21 +96,21 @@ export function PortalNewForm({
           />
         )}
       </form.Field>
-      <FormErrorBanner error={mutation.error} />
-      <div className="flex flex-col-reverse items-start gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
-        <p className="flex items-center gap-2 text-sm text-muted-foreground">
-          <EyeOff aria-hidden="true" className="size-4 shrink-0" />
-          Nothing is public until you publish.
-        </p>
-        <div className="flex gap-2 self-end">
-          <Button type="button" variant="outline" onClick={onCancel} disabled={pending}>
-            Cancel
-          </Button>
-          <SubmitButton mutation={mutation} form={form}>
-            Create draft
-          </SubmitButton>
-        </div>
-      </div>
+      <DialogErrorBanner error={mutation.error} />
+      <DialogFooter
+        className="border-t pt-4"
+        note={
+          <>
+            <EyeOff aria-hidden="true" className="size-4 shrink-0" />
+            Nothing is public until you publish.
+          </>
+        }
+      >
+        <DialogCancel />
+        <SubmitButton mutation={mutation} form={form}>
+          Create draft
+        </SubmitButton>
+      </DialogFooter>
     </form>
   )
 }

@@ -1,10 +1,11 @@
 // Password reset request and completion page
-import { createFileRoute, Link } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { z } from 'zod/v4'
 import { authClient } from '#/shared/auth/auth-client'
 import { AuthCard, AuthFooterLink } from '#/components/layout/auth-layout'
 import { ResetPasswordForm, SetNewPasswordForm } from '#/components/features/identity'
 import { useAction } from '#/components/hooks/use-action'
+import { InlineLink } from '#/components/ui/inline-link'
 
 const resetPasswordSearch = z.object({
   token: z.string().optional(),
@@ -26,12 +27,9 @@ function ResetPasswordPage() {
         description="This password reset link is invalid or has expired. Request a new link to try again."
       >
         <div className="text-center">
-          <Link
-            to="/reset-password"
-            className="text-sm font-medium text-link underline-offset-4 hover:underline"
-          >
+          <InlineLink to="/reset-password" className="text-sm">
             Request a new reset link
-          </Link>
+          </InlineLink>
         </div>
       </AuthCard>
     )
@@ -76,12 +74,9 @@ function CompletePasswordReset({ token }: Readonly<{ token: string }>) {
         description="Your password has been reset. You can now sign in with your new password."
       >
         <div className="text-center">
-          <Link
-            to="/login"
-            className="text-sm font-medium text-link underline-offset-4 hover:underline"
-          >
+          <InlineLink to="/login" className="text-sm">
             Sign in
-          </Link>
+          </InlineLink>
         </div>
       </AuthCard>
     )
@@ -119,12 +114,9 @@ function RequestPasswordReset() {
         description={`If an account exists for ${mutation.data}, you'll receive a password reset link shortly.`}
       >
         <div className="text-center">
-          <Link
-            to="/login"
-            className="text-sm font-medium text-link underline-offset-4 hover:underline"
-          >
+          <InlineLink to="/login" className="text-sm">
             Back to sign in
-          </Link>
+          </InlineLink>
         </div>
       </AuthCard>
     )

@@ -50,7 +50,7 @@ export function PropertyAssignmentSelector({
                 <button
                   type="button"
                   onClick={() => onRemoveProperty(pid)}
-                  className="ml-0.5 rounded-full hover:bg-muted-foreground/20"
+                  className="ml-0.5 rounded-full hover:bg-muted-foreground/20 focus-ring"
                   aria-label={`Remove ${prop?.name ?? pid}`}
                 >
                   <X className="h-3 w-3" />

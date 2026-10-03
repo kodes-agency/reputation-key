@@ -137,12 +137,12 @@ function PassedChecks({ passed }: Readonly<{ passed: readonly ReviewCheckLine[] 
         <Button
           type="button"
           variant="link"
-          size="sm"
+          size="inline"
           aria-label={isOpen ? 'Hide passed checks' : 'Show passed checks'}
           aria-expanded={isOpen}
           aria-controls="review-passed-checks"
           onClick={() => setIsOpen((open) => !open)}
-          className="h-auto px-1 py-1"
+          className="px-1 py-1"
         >
           {isOpen ? 'Hide' : 'Show'}
         </Button>

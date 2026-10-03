@@ -30,8 +30,10 @@ export interface MemberRow {
 }
 
 /**
- * The route's Actions report their own outcome (toasts); a refusal still rejects
- * the call, so each command settles the promise rather than leaking it.
+ * A role change reports its own outcome (toasts); a refusal still rejects the
+ * call, so it settles the promise rather than leaking it. Removing a member is
+ * confirmed in a dialog, which stays open and says the refusal in place, so that
+ * Action's rejection goes to the dialog.
  */
 type Props = Readonly<{
   members: ReadonlyArray<MemberRow>
@@ -106,12 +108,7 @@ export function MemberTable({
                   <RemoveMemberDialog
                     memberName={member.name}
                     memberEmail={member.email}
-                    onRemove={() =>
-                      void removeMemberAction({ data: { memberId: member.id } }).catch(
-                        () => undefined,
-                      )
-                    }
-                    isPending={removeMemberAction.isPending}
+                    onRemove={() => removeMemberAction({ data: { memberId: member.id } })}
                   />
                 ) : null}
               </TableCell>

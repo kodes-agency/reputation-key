@@ -100,16 +100,24 @@ export const WithCancel: Story = {
 }
 
 /**
- * The dense-workspace density (the Inbox's panes): 36px on a phone where the
- * default is the 44px touch target. Browsers below `md` only; this story pins
- * the class pair so it cannot drift back to the default.
+ * The dense-workspace density (the Inbox's panes) is not a prop of the panel: a
+ * container says `data-density="compact"` and every Button inside takes the 36px
+ * touch height instead of the 44px default. This story pins that the recovery
+ * reads the shared token, not a height of its own.
  */
 export const CompactDensity: Story = {
-  args: { size: 'compact', density: 'compact' },
+  args: { size: 'compact' },
+  decorators: [
+    (Story) => (
+      <div data-density="compact">
+        <Story />
+      </div>
+    ),
+  ],
   play: async ({ canvasElement }) => {
     const button = within(canvasElement).getByRole('button', { name: 'Try again' })
-    expect(button.className).toContain('max-md:h-9')
-    expect(button.className).not.toContain('max-md:min-h-11')
+    expect(button.className).toContain('max-md:min-h-(--control-touch)')
+    expect(button.className).not.toContain('min-h-11')
   },
 }
 

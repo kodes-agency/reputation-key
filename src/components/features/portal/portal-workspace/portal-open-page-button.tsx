@@ -41,11 +41,10 @@ function openBrowserTab(): BlankTab | null {
 export function PortalOpenPageButton(props: PortalOpenPageButtonProps) {
   const { propertyId, portalId, mode, heldAddress = null, revealMutation } = props
   const [isOpening, setIsOpening] = useState(false)
-  const buttonClass = 'min-h-11 sm:min-h-8'
 
   if (mode === 'share') {
     return (
-      <Button variant="ghost" size="sm" asChild className={buttonClass}>
+      <Button variant="ghost" size="sm" asChild>
         <Link
           to="/properties/$propertyId/portals/$portalId"
           params={{ propertyId, portalId }}
@@ -79,7 +78,6 @@ export function PortalOpenPageButton(props: PortalOpenPageButtonProps) {
       type="button"
       variant="ghost"
       size="sm"
-      className={buttonClass}
       disabled={isOpening}
       onClick={() => void open()}
     >

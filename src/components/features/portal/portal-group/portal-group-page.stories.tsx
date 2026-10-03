@@ -290,7 +290,10 @@ export const ArchivingAsksFirstAndKeepsThePortals: Story = {
     await userEvent.click(
       within(canvasElement).getByRole('button', { name: 'Actions for group Pool side' }),
     )
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'Archive group…' }))
+    const item = await screen.findByRole('menuitem', { name: 'Archive group…' })
+    // A group has no restore, so its archive is red in the menu and in the confirm.
+    await expect(item).toHaveAttribute('data-variant', 'destructive')
+    await userEvent.click(item)
     const dialog = within(await screen.findByRole('alertdialog'))
     await expect(
       dialog.getByRole('heading', { name: 'Archive Pool side?' }),
@@ -299,7 +302,9 @@ export const ArchivingAsksFirstAndKeepsThePortals: Story = {
       dialog.getByText(/portals stay and become “Not in a group”/i),
     ).toBeInTheDocument()
     await expect(args.archiveGroupMutation).not.toHaveBeenCalled()
-    await userEvent.click(dialog.getByRole('button', { name: 'Archive group' }))
+    const confirm = dialog.getByRole('button', { name: 'Archive group' })
+    await expect(confirm).toHaveAttribute('data-variant', 'destructive')
+    await userEvent.click(confirm)
     await waitFor(() =>
       expect(args.archiveGroupMutation).toHaveBeenCalledWith({
         data: { portalGroupId: 'group-pool' },

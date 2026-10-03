@@ -1,8 +1,8 @@
 import { ArrowLeft, MessageSquare, X } from 'lucide-react'
-import { Button } from '#/components/ui/button'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import type { InboxDetailState } from './use-inbox-detail'
 import { InboxDetailCopyMenu } from './inbox-detail-copy-menu'
+import { IconButton } from '#/components/ui/icon-button'
 
 /**
  * How this pane is left, and therefore where the control sits and what it says.
@@ -75,7 +75,7 @@ export function InboxDetailHeader({ item, detail, onClose, dismiss = 'close' }: 
   return (
     <header className="flex h-14 min-w-0 shrink-0 items-center gap-2 border-b px-5 max-md:h-11 max-md:px-4 lg:px-6">
       {dismiss === 'back' && (
-        <Button
+        <IconButton
           size="icon-sm"
           variant="ghost"
           // 36 px below `md` (row 20 — v1's row 15 made it 44), and pulled
@@ -96,12 +96,12 @@ export function InboxDetailHeader({ item, detail, onClose, dismiss = 'close' }: 
           // phones get the 36 px back button and the 16 px gutter, tablets keep
           // the 32 px button inside the 20 px gutter (`px-5`). `-ml-2.5` is not
           // gated by a breakpoint, so it applies to both.
-          className="-ml-2.5 max-md:size-9"
-          aria-label="Back to list"
+          className="-ml-2.5"
+          label="Back to list"
           onClick={onClose}
         >
           <ArrowLeft />
-        </Button>
+        </IconButton>
       )}
 
       {/* Two `max-md:hidden`s, and they were the difference between this
@@ -141,21 +141,17 @@ export function InboxDetailHeader({ item, detail, onClose, dismiss = 'close' }: 
       <InboxDetailCopyMenu detail={detail} />
 
       {dismiss === 'close' && (
-        <Button
+        <IconButton
           size="icon-sm"
           variant="ghost"
-          // Row 20's 36 px, the same square as `Back to list` and the copy
-          // menu. `close` is the desktop panel's variant and the panel is
-          // `hidden md:flex`, so in the app this class never matches — measured
-          // at 390, `inbox-detail-panel--populated` renders no control at all.
-          // It is spelled anyway so a caller that ever mounts `close` below
-          // `md` gets a control-sized target, not the desktop's 32 px.
-          className="max-md:size-9"
-          aria-label="Close detail"
+          // `close` is the desktop panel's variant and the panel is
+          // `hidden md:flex`, so below `md` it is never in the app; a caller that
+          // mounts it there gets the same compact 36 px as `Back to list`.
+          label="Close detail"
           onClick={onClose}
         >
           <X />
-        </Button>
+        </IconButton>
       )}
     </header>
   )

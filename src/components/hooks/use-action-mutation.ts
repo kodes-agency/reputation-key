@@ -19,10 +19,13 @@
  * - A FORM SUBMIT reports through `FormErrorBanner`, directly above that form's
  *   actions. Its mutation passes no `errorMessage`: the action holds the error
  *   and the banner shows it. The success may still toast.
- * - A ROW or IMMEDIATE action (a switch, a menu item, a download, a command a
- *   dialog has already closed on) reports through a toast: pass `errorMessage`
- *   (`actionErrorMessage`, or `actionFailureMessage("Couldn't ….")` to name
- *   what failed) and render no banner for it.
+ * - A DIALOG SUBMIT or CONFIRMATION is a form submit: `ConfirmationDialog` and the
+ *   form dialogs stay open while it runs and show the refusal themselves
+ *   (`DialogErrorBanner`), so the mutation behind one passes no `errorMessage`.
+ * - A ROW or IMMEDIATE action (a switch, a menu item, a download) reports
+ *   through a toast: pass `errorMessage` (`actionErrorMessage`, or
+ *   `actionFailureMessage("Couldn't ….")` to name what failed) and render no
+ *   banner for it.
  * `feedback-ownership.test.ts` fails on a file that does both.
  */
 import { useMutation, useQueryClient, type QueryKey } from '@tanstack/react-query'

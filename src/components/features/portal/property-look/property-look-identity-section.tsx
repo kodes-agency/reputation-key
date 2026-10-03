@@ -2,7 +2,6 @@
 // display name belongs to Property settings (AI reply drafts read it), so it is
 // shown here and changed there; the wordmark is the look's own. The logo is
 // uploaded here and replaces the wordmark on guest pages once one exists.
-import { Link } from '@tanstack/react-router'
 import { Input } from '#/components/ui/input'
 import {
   PropertyLookLogoField,
@@ -10,6 +9,7 @@ import {
 } from './property-look-logo-field'
 import { PropertyLookSection } from './property-look-section'
 import { WORDMARK_MAX } from './property-look-rules'
+import { InlineLink } from '#/components/ui/inline-link'
 
 type Props = Readonly<{
   propertyId: string
@@ -42,13 +42,12 @@ export function PropertyLookIdentitySection({
           <p className="text-sm">{displayName}</p>
           <p className="text-sm text-muted-foreground">
             From{' '}
-            <Link
+            <InlineLink
               to="/properties/$propertyId/settings/profile"
               params={{ propertyId }}
-              className="font-medium text-link underline-offset-4 hover:underline"
             >
               Property settings
-            </Link>
+            </InlineLink>
           </p>
         </div>
         <div className="space-y-1.5">

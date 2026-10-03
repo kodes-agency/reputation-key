@@ -25,10 +25,7 @@ import {
   type PortalRowMenuItem,
   type PortalRowMenuItemId,
 } from './portal-row-menu'
-
-// A 44 px target below `md`, 32 px from there up. A link used as a menu item
-// takes the menu's ink (`dropdown-menu-item` opts out of the link default).
-const TOUCH = 'min-h-11 md:min-h-8'
+import { IconButton } from '#/components/ui/icon-button'
 
 type RowProps = Readonly<{ item: PortalOverviewItem; propertyId: string }>
 
@@ -41,7 +38,7 @@ export function PortalRowButtons({ item, propertyId }: RowProps) {
   const canShare = row.publicationState !== 'draft' && row.publicationState !== 'archived'
   return (
     <>
-      <Button variant="outline" size="sm" asChild className={TOUCH}>
+      <Button variant="outline" size="sm" asChild>
         <Link
           to="/properties/$propertyId/portals/$portalId"
           params={params}
@@ -53,7 +50,7 @@ export function PortalRowButtons({ item, propertyId }: RowProps) {
         </Link>
       </Button>
       {canShare ? (
-        <Button variant="outline" size="sm" asChild className={TOUCH}>
+        <Button variant="outline" size="sm" asChild>
           <Link
             to="/properties/$propertyId/portals/$portalId"
             params={params}
@@ -69,7 +66,6 @@ export function PortalRowButtons({ item, propertyId }: RowProps) {
           aria-hidden="true"
           className={cn(
             buttonVariants({ variant: 'outline', size: 'sm' }),
-            TOUCH,
             'invisible',
             classes.sharePlaceholder,
           )}
@@ -101,7 +97,7 @@ function MenuLink({
           : 'page',
   } as const
   return (
-    <DropdownMenuItem asChild className={TOUCH}>
+    <DropdownMenuItem asChild>
       <Link to={to} params={params} search={search}>
         {menuItem.label}
       </Link>
@@ -137,14 +133,15 @@ export function PortalRowMenu({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button
+          <IconButton
             variant="ghost"
-            size="icon"
-            className="size-11 text-muted-foreground md:size-8"
-            aria-label={`More actions for ${row.name}`}
+            size="icon-sm"
+            tooltip={false}
+            className="text-muted-foreground"
+            label={`More actions for ${row.name}`}
           >
             <Ellipsis aria-hidden="true" />
-          </Button>
+          </IconButton>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-48">
           {links.map((entry) => (
@@ -162,8 +159,6 @@ export function PortalRowMenu({
           {lifecycle.map((entry) => (
             <DropdownMenuItem
               key={entry.id}
-              variant={entry.destructive ? 'destructive' : 'default'}
-              className={TOUCH}
               onSelect={() => setConfirming(lifecycleId(entry.id))}
             >
               {entry.label}

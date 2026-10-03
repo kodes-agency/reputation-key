@@ -17,6 +17,8 @@ export type GroupMenuAccess = Readonly<{
 
 export type GroupMenuItemId = 'open' | 'rename' | 'goal' | 'archive'
 
+// Archiving a group is red, in the menu and in its confirmation: the history and
+// the portals stay, but a group has no restore, so it cannot be taken back.
 export type GroupMenuItem = Readonly<{
   id: GroupMenuItemId
   label: string

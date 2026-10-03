@@ -1,10 +1,11 @@
 import { useForm } from '@tanstack/react-form'
 import { toast } from 'sonner'
 import type { Action } from '#/components/hooks/use-action'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { submitForm } from '#/components/forms/form-submit'
+import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
+import { submitHandler } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { Field, FieldError, FieldGroup, FieldLabel } from '#/components/ui/field'
+import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import { Input } from '#/components/ui/input'
 import type { CreateStaffParticipationMutationInput } from '#/components/features/staff/types'
 import { createStaffParticipationInputSchema } from '#/contexts/identity/application/dto/staff-participation.dto'
@@ -30,14 +31,7 @@ export function StaffParticipationForm({ propertyId, mutation, onSuccess }: Prop
   })
 
   return (
-    <form
-      className="space-y-4"
-      onSubmit={(event) => {
-        event.preventDefault()
-        event.stopPropagation()
-        void submitForm(form)
-      }}
-    >
+    <form className="space-y-4" onSubmit={submitHandler(form)}>
       <FieldGroup>
         <form.Field name="displayName">
           {(field) => (
@@ -61,10 +55,13 @@ export function StaffParticipationForm({ propertyId, mutation, onSuccess }: Prop
           )}
         </form.Field>
       </FieldGroup>
-      <FormErrorBanner error={mutation.error} />
-      <SubmitButton mutation={mutation} form={form}>
-        Add staff
-      </SubmitButton>
+      <DialogErrorBanner error={mutation.error} />
+      <DialogFooter>
+        <DialogCancel />
+        <SubmitButton mutation={mutation} form={form}>
+          Add staff
+        </SubmitButton>
+      </DialogFooter>
     </form>
   )
 }

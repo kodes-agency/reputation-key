@@ -50,7 +50,7 @@ export function PropertyGuestVoiceBasis({ result }: Readonly<{ result: ReadyInsi
         <p>AI analysis covers the most recent 24 months.</p>
       ) : null}
       <details className="w-fit max-w-full">
-        <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring">
+        <summary className="flex min-h-11 cursor-pointer items-center font-medium text-foreground focus-ring">
           What is in this figure
         </summary>
         <dl className="grid gap-x-8 gap-y-2 pb-1 sm:grid-cols-2">
@@ -108,7 +108,7 @@ function SupportingReview({
       params={{ propertyId }}
       search={{ itemId: review.inboxItemId }}
       aria-label={`Open supporting review from ${date} in the inbox`}
-      className="inline-flex min-h-11 items-center rounded-md border px-3 text-sm text-link underline-offset-4 hover:bg-muted/40 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      className="inline-flex min-h-11 items-center rounded-md border px-3 text-sm text-link underline-offset-4 hover:bg-muted/40 hover:underline focus-ring"
     >
       {label}
     </Link>

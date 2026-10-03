@@ -56,11 +56,11 @@ export function PortalLinkReveal({
         <Button
           type="button"
           variant="outline"
-          className="min-h-11 self-start sm:min-h-9"
+          className="self-start"
           disabled={disabled}
           onClick={() => void onShowAddress?.().then(setFetchedHere)}
         >
-          <Eye data-icon="inline-start" /> Show address
+          <Eye /> Show address
         </Button>
       ) : (
         <AddressRow
@@ -106,13 +106,8 @@ function AddressRow({
       >
         {publicUrl}
       </code>
-      <Button
-        type="button"
-        variant="outline"
-        className="min-h-11 sm:min-h-9"
-        onClick={() => void onCopy()}
-      >
-        <Copy data-icon="inline-start" /> {copied ? 'Copied' : 'Copy'}
+      <Button type="button" variant="outline" onClick={() => void onCopy()}>
+        <Copy /> {copied ? 'Copied' : 'Copy'}
       </Button>
     </div>
   )

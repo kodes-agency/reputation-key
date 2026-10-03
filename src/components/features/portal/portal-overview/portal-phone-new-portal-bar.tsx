@@ -10,7 +10,7 @@ export const PHONE_NEW_PORTAL_BAR_CLEARANCE = 'pb-20 sm:pb-0'
 export function PortalPhoneNewPortalBar({ onClick }: Readonly<{ onClick: () => void }>) {
   return (
     <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 px-4 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] backdrop-blur-sm sm:hidden">
-      <Button className="min-h-11 w-full" onClick={onClick}>
+      <Button className="w-full" onClick={onClick}>
         <Plus />
         New portal
       </Button>

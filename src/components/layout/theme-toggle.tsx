@@ -16,6 +16,8 @@ export function ThemeToggle() {
   const Icon = THEME_MODE_DETAILS[mode].icon
 
   return (
+    // A plain Button with a `title`, not an IconButton: the public header is in the
+    // first-paint closure, and the tooltip primitives are not (the bundle budget).
     <Button
       type="button"
       variant="outline"

@@ -20,8 +20,8 @@ type OpenProps = Readonly<{
   onOpenChange: (open: boolean) => void
 }>
 
-const CONTENT =
-  'grid max-h-[calc(100dvh-2rem)] grid-rows-[auto_minmax(0,1fr)] sm:max-w-xl'
+// The checklist under the header takes the rest of the height and scrolls itself.
+const CONTENT = 'grid-rows-[auto_minmax(0,1fr)]'
 
 export function PortalGroupDialog({
   open,
@@ -36,8 +36,8 @@ export function PortalGroupDialog({
     createMutation: PortalGroupMutations['createMutation']
   }>) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={CONTENT}>
+    <Dialog open={open} busy={createMutation.isPending} onOpenChange={onOpenChange}>
+      <DialogContent size="lg" className={CONTENT}>
         <DialogHeader>
           <DialogTitle>New group</DialogTitle>
           <DialogDescription>
@@ -67,8 +67,8 @@ export function PortalGroupRenameDialog({
     renameMutation: PortalGroupMutations['renameMutation']
   }>) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
+    <Dialog open={open} busy={renameMutation.isPending} onOpenChange={onOpenChange}>
+      <DialogContent size="md">
         <DialogHeader>
           <DialogTitle>Rename group</DialogTitle>
           <DialogDescription>
@@ -98,8 +98,8 @@ export function PortalGroupAddPortalsDialog({
     movePortalMutation: PortalGroupMutations['movePortalMutation']
   }>) {
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className={CONTENT}>
+    <Dialog open={open} busy={movePortalMutation.isPending} onOpenChange={onOpenChange}>
+      <DialogContent size="lg" className={CONTENT}>
         <DialogHeader>
           <DialogTitle>Add portals to {group.name}</DialogTitle>
           <DialogDescription>

@@ -11,17 +11,7 @@
 import { useEffect, useId, useRef, useState } from 'react'
 import { Button } from '#/components/ui/button'
 import { Textarea } from '#/components/ui/textarea'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '#/components/ui/alert-dialog'
+import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import { unfilledReplySlotsMessage } from '#/contexts/review/application/public-api'
 import {
   GOOGLE_REPLY_COMMENT_MAX_BYTES,
@@ -179,17 +169,12 @@ export function ReviewReplyPublishedEditor({
               (`composer-mode-row.tsx`) and every other control in the dock's
               foot. v1's row 15 raised these to 44; row 20 lowered the rule to
               36 because WCAG 2.5.8 AA asks for 24 and 44 inflated the strip. */}
-          <Button
-            size="sm"
-            variant="ghost"
-            className="max-md:h-9"
-            disabled={isSaving}
-            onClick={onCancel}
-          >
+          <Button size="sm" variant="ghost" disabled={isSaving} onClick={onCancel}>
             Cancel
           </Button>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
+          <ConfirmationDialog
+            density="compact"
+            trigger={
               <Button
                 size="sm"
                 // The same rule the thread message's Confirm & Publish follows:
@@ -201,9 +186,6 @@ export function ReviewReplyPublishedEditor({
                 // to explain and nothing the reader can act on.
                 disabled={isSaving}
                 aria-disabled={isBlocked}
-                // The look the native attribute used to carry, kept on the
-                // states that no longer set it, plus row 20's mobile target.
-                className="aria-disabled:opacity-50 max-md:h-9"
                 aria-describedby={
                   publishBlockedReason !== null ? publishBlockedReasonId : undefined
                 }
@@ -215,42 +197,18 @@ export function ReviewReplyPublishedEditor({
               >
                 Review update
               </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Confirm and update this Google reply?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This records your confirmation and starts replacing the current Google
-                  reply with the exact text shown here. RepKey keeps the update pending
-                  until Google confirms it is live.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                {/* No class, for the reason the publish confirmation in
-                    `reply-message-actions.tsx` gives: the primitive's own
-                    `size="default"` is 36 px, which is row 20's control height
-                    below `md`. v1's row 15 raised this pair — the confirm and
-                    cancel for republishing to Google, one tap from the
-                    composer — to 44 at the call site (`max-md:h-11`, 36 → 44
-                    at 390 and 320); row 20 lowers it back to the primitive's
-                    own 36, so the override is deleted rather than re-spelled.
-                    Measured in Chromium against Storybook dev
-                    (`inbox-mobile-390--composer-editing-a-live-reply`, dialog
-                    open) at 390 and 320: 44 px tall before, 36 after. */}
-                <AlertDialogCancel>Keep editing</AlertDialogCancel>
-                <AlertDialogAction
-                  disabled={!canSave}
-                  // A refused update is toasted by the edit mutation's
-                  // `errorMessage` (use-reply-actions.ts) and the editor stays
-                  // open on the text (`reply-published-edit.tsx` closes only
-                  // after a save resolves); the catch only keeps it handled.
-                  onClick={() => void onSave(text).catch(() => undefined)}
-                >
-                  {isSaving ? 'Confirming…' : 'Confirm & Update'}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+            }
+            title="Confirm and update this Google reply?"
+            description="This records your confirmation and starts replacing the current Google reply with the exact text shown here. RepKey keeps the update pending until Google confirms it is live."
+            cancelLabel="Keep editing"
+            confirmLabel="Confirm & Update"
+            pendingLabel="Confirming…"
+            confirmDisabled={!canSave}
+            // A refused update stays in the dialog (the edit mutation passes no
+            // toast) and the editor stays open on the text
+            // (`reply-published-edit.tsx` closes only after a save resolves).
+            onConfirm={() => onSave(text)}
+          />
         </div>
         {/* NOT a live region. This paragraph mounts with its own content the
           moment the text contains an unfilled slot, and a live region announces

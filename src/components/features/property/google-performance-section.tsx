@@ -1,4 +1,3 @@
-import { Link } from '@tanstack/react-router'
 import { RefreshCw } from 'lucide-react'
 import type {
   PropertyGooglePerformanceReportV1,
@@ -7,13 +6,7 @@ import type {
 } from '#/shared/google-performance-report-contract'
 import type { DashboardRange } from '#/shared/dashboard-range'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
-import { Button } from '#/components/ui/button'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '#/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '#/components/ui/tooltip'
 import { cn } from '#/lib/utils'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import {
@@ -29,6 +22,8 @@ import {
   useGooglePerformance,
   type GooglePerformanceServerFns,
 } from './use-google-performance'
+import { IconButton } from '#/components/ui/icon-button'
+import { InlineLink } from '#/components/ui/inline-link'
 
 type UnavailablePerformanceResult = Extract<
   PropertyGooglePerformanceResultV1,
@@ -79,17 +74,16 @@ function GooglePerformanceUnavailable({
       <AlertDescription className="flex flex-col items-start gap-3">
         <span>{UNAVAILABLE_DESCRIPTIONS[unavailable.reason]}</span>
         {canOpenAction ? (
-          <Button asChild size="xs" variant="link">
-            <Link
-              to={
-                requiresPropertyImport
-                  ? '/properties/import-google'
-                  : '/settings/integrations'
-              }
-            >
-              {requiresPropertyImport ? 'Review property import' : 'Open integrations'}
-            </Link>
-          </Button>
+          <InlineLink
+            to={
+              requiresPropertyImport
+                ? '/properties/import-google'
+                : '/settings/integrations'
+            }
+            className="text-xs"
+          >
+            {requiresPropertyImport ? 'Review property import' : 'Open integrations'}
+          </InlineLink>
         ) : (
           <span>Ask an account admin to review this property&apos;s Google setup.</span>
         )}
@@ -122,26 +116,24 @@ function GooglePerformanceRefresh({
           {stateLabel}
         </span>
       ) : null}
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <span className="inline-flex">
-              <Button
-                type="button"
-                size="icon"
-                className="size-11"
-                variant="outline"
-                aria-label={accessibleLabel}
-                disabled={retryDisabled}
-                onClick={onRefresh}
-              >
-                <RefreshCw aria-hidden="true" />
-              </Button>
-            </span>
-          </TooltipTrigger>
-          <TooltipContent side="top">Refresh from Google</TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <Tooltip>
+        {/* The span takes the pointer a disabled button does not, so the hint
+            still shows while a refresh is running. */}
+        <TooltipTrigger asChild>
+          <span className="inline-flex">
+            <IconButton
+              variant="outline"
+              label={accessibleLabel}
+              tooltip={false}
+              disabled={retryDisabled}
+              onClick={onRefresh}
+            >
+              <RefreshCw aria-hidden="true" />
+            </IconButton>
+          </span>
+        </TooltipTrigger>
+        <TooltipContent side="top">Refresh from Google</TooltipContent>
+      </Tooltip>
     </div>
   )
 }

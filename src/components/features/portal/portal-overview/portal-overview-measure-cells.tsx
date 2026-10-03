@@ -8,6 +8,7 @@
 // Below a 56 rem container the table is a stack of cards and these cells are not
 // drawn; the row carries one summary line instead (`rowMeasures().summary`).
 import { Star } from 'lucide-react'
+import { EXPLAIN_UNDERLINE } from '#/components/ui/explain-trigger'
 import { Skeleton } from '#/components/ui/skeleton'
 import { TableCell } from '#/components/ui/table'
 import { cn } from '#/lib/utils'
@@ -49,8 +50,7 @@ function MeasureValue({ figure }: Readonly<{ figure: MeasureFigure }>) {
       title={figure.reason ?? undefined}
       className={cn(
         'text-muted-foreground',
-        figure.tone === 'withheld' &&
-          'cursor-help underline decoration-dotted underline-offset-4',
+        figure.tone === 'withheld' && `cursor-help ${EXPLAIN_UNDERLINE}`,
       )}
     >
       {figure.text}

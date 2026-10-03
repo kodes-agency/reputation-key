@@ -13,10 +13,10 @@ import {
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { goalKeys } from '#/shared/queries/query-keys'
 import { Alert, AlertDescription } from '#/components/ui/alert'
-import { DialogFooter } from '#/components/ui/dialog'
+import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import { Input } from '#/components/ui/input'
 import { Field, FieldError, FieldLabel } from '#/components/ui/field'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { submitForm } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { goalRevisionReceipt, type GoalVersionStart } from './goal-revision-start'
@@ -87,6 +87,7 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
     <GoalProgramFormDialog
       open={open}
       onOpenChange={onOpenChange}
+      busy={mutation.isPending}
       trigger="Revise"
       title="Revise goal"
       description="The month in progress keeps the current version. This version starts with the first full month in the Property's timezone that begins after it ends."
@@ -153,8 +154,10 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
           <AlertDescription>{goalRevisionReceipt(scheduled)}</AlertDescription>
         </Alert>
       ) : null}
-      <FormErrorBanner error={mutation.error} />
+      <DialogErrorBanner error={mutation.error} />
       <DialogFooter>
+        {/* The receipt above is the end of it: nothing is left to cancel. */}
+        <DialogCancel>{scheduled !== null ? 'Close' : 'Cancel'}</DialogCancel>
         <SubmitButton mutation={mutation} form={form} disabled={scheduled !== null}>
           Schedule revision
         </SubmitButton>

@@ -106,7 +106,8 @@ function usePortalExperienceActions(propertyId: string, portalId: string) {
     successMessage: 'Destination added',
     invalidateKeys: destinationInvalidations,
   })
-  // Approving and disabling are row actions: a refusal is a toast.
+  // Approving is a row action: a refusal is a toast. Disabling is confirmed in a
+  // dialog that stays open and says a refusal itself, so it passes no toast.
   const approveDestination = useActionMutation(approvePortalApprovedDestination, {
     successMessage: 'Destination approved',
     errorMessage: actionErrorMessage,
@@ -114,7 +115,6 @@ function usePortalExperienceActions(propertyId: string, portalId: string) {
   })
   const disableDestination = useActionMutation(disablePortalApprovedDestination, {
     successMessage: 'Destination disabled',
-    errorMessage: actionErrorMessage,
     invalidateKeys: destinationInvalidations,
   })
   return {

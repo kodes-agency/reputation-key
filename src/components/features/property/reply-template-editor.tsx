@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import { Pencil, Plus } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
 import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField, type BaseFieldApi } from '#/components/forms/form-text-field'
 import { FormTextarea, type BaseFieldApiTextarea } from '#/components/forms/form-textarea'
@@ -10,7 +10,7 @@ import { SubmitButton } from '#/components/forms/submit-button'
 import { Button } from '#/components/ui/button'
 import {
   Dialog,
-  DialogClose,
+  DialogCancel,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -90,14 +90,9 @@ function EditorTrigger({
         type="button"
         variant={editing ? 'ghost' : 'default'}
         size={editing ? 'sm' : 'default'}
-        className="min-h-11"
         aria-label={editing ? `Edit ${template.title}` : undefined}
       >
-        {editing ? (
-          <Pencil data-icon="inline-start" />
-        ) : (
-          <Plus data-icon="inline-start" />
-        )}
+        {editing ? <Pencil /> : <Plus />}
         {editing ? 'Edit' : 'Add template'}
       </Button>
     </DialogTrigger>
@@ -136,9 +131,9 @@ export function ReplyTemplateEditor({
   const editing = template !== null
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
+    <Dialog open={open} busy={action.isPending} onOpenChange={setOpen}>
       <EditorTrigger template={template} />
-      <DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-4xl [&>[data-slot=dialog-close]]:flex [&>[data-slot=dialog-close]]:size-11 [&>[data-slot=dialog-close]]:items-center [&>[data-slot=dialog-close]]:justify-center">
+      <DialogContent size="xl">
         <form className="flex flex-col gap-5" onSubmit={submitHandler(form)}>
           <EditorHeader editing={editing} />
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,0.85fr)]">
@@ -150,7 +145,6 @@ export function ReplyTemplateEditor({
                     id="reply-template-title"
                     label="Template title"
                     maxLength={REPLY_LIBRARY_FIELD_LIMITS.title}
-                    className="min-h-11"
                     disabled={action.isPending}
                   />
                 )}
@@ -206,7 +200,6 @@ export function ReplyTemplateEditor({
                     id="reply-template-open-label"
                     label="Open label (optional)"
                     maxLength={REPLY_LIBRARY_FIELD_LIMITS.openLabel}
-                    className="min-h-11"
                     disabled={action.isPending}
                   />
                 )}
@@ -219,7 +212,6 @@ export function ReplyTemplateEditor({
                     label="Language tag"
                     placeholder="en-Latn-US"
                     maxLength={REPLY_LIBRARY_FIELD_LIMITS.languageTag}
-                    className="min-h-11"
                     disabled={action.isPending}
                   />
                 )}
@@ -247,14 +239,10 @@ export function ReplyTemplateEditor({
               )}
             </form.Subscribe>
           </div>
-          <FormErrorBanner error={action.error} />
+          <DialogErrorBanner error={action.error} />
           <DialogFooter>
-            <DialogClose asChild>
-              <Button type="button" variant="outline" className="min-h-11">
-                Cancel
-              </Button>
-            </DialogClose>
-            <SubmitButton mutation={action} form={form} className="min-h-11">
+            <DialogCancel />
+            <SubmitButton mutation={action} form={form}>
               {editing ? 'Save template' : 'Create template'}
             </SubmitButton>
           </DialogFooter>

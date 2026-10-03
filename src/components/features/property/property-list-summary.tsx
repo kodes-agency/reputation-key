@@ -36,7 +36,7 @@ function ShowButton({
       aria-pressed={active}
       onClick={() => onShow(active ? undefined : show)}
       className={cn(
-        '-mx-1.5 -my-1 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+        '-mx-1.5 -my-1 rounded-md px-1.5 py-1 text-left transition-colors hover:bg-muted focus-ring',
         active && 'bg-muted',
       )}
     >

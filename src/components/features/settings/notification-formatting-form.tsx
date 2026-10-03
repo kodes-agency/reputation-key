@@ -116,7 +116,6 @@ export function NotificationFormattingForm({ settings, updateUserSettings }: Pro
               onBlur={field.handleBlur}
               disabled={pending}
               aria-describedby="profile-timezone-source"
-              className="h-11 min-h-11"
             />
             <p
               id="profile-timezone-source"
@@ -138,7 +137,7 @@ export function NotificationFormattingForm({ settings, updateUserSettings }: Pro
               onValueChange={field.handleChange}
               disabled={pending}
             >
-              <SelectTrigger id="profile-locale" className="h-11 min-h-11 w-full min-w-0">
+              <SelectTrigger id="profile-locale" className="w-full min-w-0">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>

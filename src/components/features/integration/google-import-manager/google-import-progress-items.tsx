@@ -60,15 +60,13 @@ function RetryButton({
       size="sm"
       variant="outline"
       className={mobile ? 'w-full' : undefined}
+      pending={isRetrying}
+      pendingLabel="Retrying…"
       disabled={retryingItemId !== null}
       onClick={() => onRetry(item)}
     >
-      {isRetrying ? (
-        <Loader2 className="animate-spin motion-reduce:animate-none" aria-hidden="true" />
-      ) : (
-        <RotateCcw aria-hidden="true" />
-      )}
-      {isRetrying ? 'Retrying…' : mobile ? 'Retry this property' : 'Retry'}
+      <RotateCcw aria-hidden="true" />
+      {mobile ? 'Retry this property' : 'Retry'}
     </Button>
   )
 }

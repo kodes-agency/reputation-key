@@ -4,7 +4,6 @@
 // text is written, because the wording is written by hand, in place.
 
 import { useState } from 'react'
-import { Link } from '@tanstack/react-router'
 import { CircleAlert } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
@@ -27,6 +26,7 @@ import {
   missingTextAction,
   type PortalLanguageChange,
 } from './portal-languages-rules'
+import { InlineLink } from '#/components/ui/inline-link'
 
 type Props = Readonly<{
   propertyId: string
@@ -91,9 +91,9 @@ export function PortalLanguageRow({
               <CollapsibleTrigger asChild>
                 <Button
                   variant="link"
-                  size="sm"
+                  size="inline"
                   aria-label={`${showingMissing ? 'Hide' : 'Show'} missing texts in ${name.english}`}
-                  className="h-auto px-1 py-2 text-link"
+                  className="px-1 py-2"
                 >
                   {showingMissing ? 'Hide missing' : 'Show missing'}
                 </Button>
@@ -148,13 +148,13 @@ function MissingTextAction({
     )
   }
   return (
-    <Link
+    <InlineLink
       to="/properties/$propertyId/portals/$portalId"
       params={{ propertyId, portalId }}
       search={{ tab: 'page', section: action.section }}
-      className="min-h-8 py-1 text-link underline-offset-4 hover:underline"
+      className="min-h-8 py-1"
     >
       Write it in {action.section === 'welcome' ? 'Welcome' : 'Linktree'}
-    </Link>
+    </InlineLink>
   )
 }

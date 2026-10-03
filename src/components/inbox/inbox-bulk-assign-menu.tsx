@@ -26,7 +26,7 @@ export function InboxBulkAssignMenu({
         <Button
           variant="outline"
           size="sm"
-          className="max-md:size-9 max-md:px-0"
+          iconBelow="md"
           disabled={pending || itemCount === 0}
           aria-label={`Assign ${itemCount} items`}
         >
@@ -37,18 +37,12 @@ export function InboxBulkAssignMenu({
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         {options.map((option) => (
-          <DropdownMenuItem
-            key={option.userId}
-            className="max-md:min-h-11"
-            onSelect={() => onAssign(option.userId)}
-          >
+          <DropdownMenuItem key={option.userId} onSelect={() => onAssign(option.userId)}>
             {option.name}
           </DropdownMenuItem>
         ))}
         <DropdownMenuSeparator />
-        <DropdownMenuItem className="max-md:min-h-11" onSelect={() => onAssign(null)}>
-          Unassign
-        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => onAssign(null)}>Unassign</DropdownMenuItem>
         <DropdownMenuSeparator />
         <div className="px-2 py-1.5 text-xs text-muted-foreground">
           Applies to all {itemCount} or none

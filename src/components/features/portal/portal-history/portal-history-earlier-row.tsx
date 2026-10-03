@@ -41,8 +41,8 @@ export function PortalHistoryEarlierRow({ versions, now, timeZone, onShow }: Pro
           <Button
             type="button"
             variant="link"
-            size="xs"
-            className="h-auto px-0 py-0 text-sm"
+            size="inline"
+            className="text-sm"
             aria-label={`Show ${versions.length} earlier versions`}
             onClick={() => {
               const first = versions[0]

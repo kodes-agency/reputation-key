@@ -25,8 +25,7 @@ import {
 } from './property-list-view'
 import { formatNumber } from '#/lib/format'
 
-const FOCUS_RING =
-  'rounded-sm underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
+const FOCUS_RING = 'rounded-sm underline-offset-4 hover:underline focus-ring'
 
 function Pending({ className }: Readonly<{ className?: string }>) {
   return <Skeleton className={cn('h-4', className)} aria-hidden="true" />

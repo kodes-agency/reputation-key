@@ -103,7 +103,8 @@ export function PropertyLookPhotoSection({ photo, onPreviewWithoutPhoto }: Props
           <Button
             type="button"
             variant="link"
-            className="h-auto p-0 text-sm"
+            size="inline"
+            className="text-sm"
             onClick={onPreviewWithoutPhoto}
           >
             Preview without a photo

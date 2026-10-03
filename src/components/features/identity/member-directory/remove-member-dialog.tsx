@@ -1,55 +1,30 @@
-import { Button } from '#/components/ui/button'
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '#/components/ui/alert-dialog'
+  ConfirmationDialog,
+  ConfirmationTrigger,
+} from '#/components/ui/confirmation-dialog'
 
 type Props = Readonly<{
   memberName: string
   memberEmail: string
-  onRemove: () => void
-  isPending: boolean
+  /** Rejects with the refusal, which the confirmation says in place. */
+  onRemove: () => Promise<unknown>
 }>
 
-export function RemoveMemberDialog({
-  memberName,
-  memberEmail,
-  onRemove,
-  isPending,
-}: Props) {
+export function RemoveMemberDialog({ memberName, memberEmail, onRemove }: Props) {
   return (
-    <AlertDialog>
-      <AlertDialogTrigger asChild>
-        <Button variant="outline" size="sm" className="text-negative hover:text-negative">
+    <ConfirmationDialog
+      trigger={
+        <ConfirmationTrigger tone="destructive" size="sm">
           Remove
-        </Button>
-      </AlertDialogTrigger>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Remove {memberName}?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This will remove {memberName} ({memberEmail}) from your organization. They
-            will lose access to the organization and its properties.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            variant="destructive"
-            onClick={onRemove}
-            disabled={isPending}
-          >
-            {isPending ? 'Removing…' : 'Remove member'}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+        </ConfirmationTrigger>
+      }
+      tone="destructive"
+      title={`Remove ${memberName}?`}
+      description={`This will remove ${memberName} (${memberEmail}) from your organization. They will lose access to the organization and its properties.`}
+      cancelLabel="Cancel"
+      confirmLabel="Remove member"
+      pendingLabel="Removing…"
+      onConfirm={onRemove}
+    />
   )
 }

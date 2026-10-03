@@ -4,6 +4,7 @@ import { expect, fireEvent, userEvent, within } from 'storybook/test'
 import { Button } from '#/components/ui/button'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import type { Action } from '#/components/hooks/use-action'
+import { useRefusingAction } from '#/components/forms/refusing-action.stories.fixtures'
 import type { UpdatePortalResponsibilitiesMutationInput } from '#/components/features/staff/types'
 import { PortalResponsibilitiesModal } from './portal-responsibilities-modal'
 
@@ -51,22 +52,44 @@ export const NoPortals: Story = {
   },
 }
 
-export const MutationError: Story = {
-  args: {
-    updateAction: Object.assign(async () => ({ updated: false }), {
-      ...idle,
-      error: new ServerFunctionError(
+/** The mutation still holds a refusal from the last time the modal was open. */
+function RefusingModal() {
+  const refusing = useRefusingAction<{ data: UpdatePortalResponsibilitiesMutationInput }>(
+    () =>
+      new ServerFunctionError(
         'StaffError',
         'Responsibilities could not be saved.',
         'conflict',
         409,
       ),
-    }),
-  },
+    new Error('an earlier refusal'),
+  )
+  return (
+    <PortalResponsibilitiesModal
+      staffParticipationId="sp-1"
+      displayName="Avery Morgan"
+      currentPrimaryPortalId="portal-1"
+      currentSupportingPortalIds={[]}
+      expectedRevision={3}
+      allPortals={portalOptions}
+      updateAction={refusing}
+      onOpenChange={() => {}}
+    />
+  )
+}
+
+export const MutationError: Story = {
+  render: () => <RefusingModal />,
   play: async () => {
+    const page = within(document.body)
+    expect(page.queryByRole('alert')).not.toBeInTheDocument()
+    await userEvent.click(page.getByRole('combobox', { name: 'Primary portal' }))
+    await userEvent.click(await page.findByRole('option', { name: 'Restaurant' }))
+    await userEvent.click(page.getByRole('button', { name: 'Save responsibilities' }))
     await expect(
-      within(document.body).getByText('Responsibilities could not be saved.'),
+      await page.findByText('Responsibilities could not be saved.'),
     ).toBeInTheDocument()
+    expect(page.queryByText(/earlier refusal/)).not.toBeInTheDocument()
   },
 }
 

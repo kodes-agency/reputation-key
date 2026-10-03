@@ -53,9 +53,6 @@ const DIRECTION_LABEL: Readonly<
   setup: { asc: 'Least done first', desc: 'Most done first' },
 }
 
-const CONTROL_HEIGHT = 'h-11 md:h-9'
-const MENU_ITEM = 'min-h-11 md:min-h-8'
-
 type Props = Readonly<{
   view: PropertyListView
   fleet: DataState
@@ -91,7 +88,7 @@ export function PropertyListToolbar({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <InputGroup className={`${CONTROL_HEIGHT} w-full sm:w-72`}>
+      <InputGroup className="w-full sm:w-72">
         <InputGroupAddon>
           <Search aria-hidden="true" />
         </InputGroupAddon>
@@ -107,7 +104,7 @@ export function PropertyListToolbar({
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className={CONTROL_HEIGHT}>
+          <Button variant="outline">
             <ListFilter aria-hidden="true" />
             Show: {view.show ? SHOW_LABEL[view.show] : 'All'}
           </Button>
@@ -121,11 +118,9 @@ export function PropertyListToolbar({
               })
             }
           >
-            <DropdownMenuRadioItem value="all" className={MENU_ITEM}>
-              All properties
-            </DropdownMenuRadioItem>
+            <DropdownMenuRadioItem value="all">All properties</DropdownMenuRadioItem>
             {PROPERTY_LIST_SHOWS.filter(available).map((show) => (
-              <DropdownMenuRadioItem key={show} value={show} className={MENU_ITEM}>
+              <DropdownMenuRadioItem key={show} value={show}>
                 {SHOW_LABEL[show]}
               </DropdownMenuRadioItem>
             ))}
@@ -135,7 +130,7 @@ export function PropertyListToolbar({
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className={CONTROL_HEIGHT}>
+          <Button variant="outline">
             <ArrowDownUp aria-hidden="true" />
             Sort: {SORT_LABEL[view.sort]}
           </Button>
@@ -149,7 +144,7 @@ export function PropertyListToolbar({
             }
           >
             {PROPERTY_LIST_SORTS.filter(available).map((sort) => (
-              <DropdownMenuRadioItem key={sort} value={sort} className={MENU_ITEM}>
+              <DropdownMenuRadioItem key={sort} value={sort}>
                 {SORT_LABEL[sort]}
               </DropdownMenuRadioItem>
             ))}
@@ -162,7 +157,7 @@ export function PropertyListToolbar({
             }
           >
             {directions(view.sort).map((dir) => (
-              <DropdownMenuRadioItem key={dir} value={dir} className={MENU_ITEM}>
+              <DropdownMenuRadioItem key={dir} value={dir}>
                 {DIRECTION_LABEL[view.sort][dir]}
               </DropdownMenuRadioItem>
             ))}
@@ -177,8 +172,6 @@ export function PropertyListToolbar({
       {narrowed ? (
         <Button
           variant="ghost"
-          size="sm"
-          className={CONTROL_HEIGHT}
           onClick={() => onChange({ q: undefined, show: undefined })}
         >
           Clear

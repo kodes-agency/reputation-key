@@ -1,7 +1,6 @@
 // The lists inside the batch "Review & publish" dialog: the live portals with
 // what the batch can do with each (a ready one has a tick, which leaves it out
 // when cleared), and, once the batch has run, what came of each.
-import { Link } from '@tanstack/react-router'
 import { Check, CircleAlert, Minus, TriangleAlert } from 'lucide-react'
 import { Checkbox } from '#/components/ui/checkbox'
 import { cn } from '#/lib/utils'
@@ -13,6 +12,7 @@ import {
   describeUnanswered,
 } from './property-look-batch-rules'
 import type { AffectedPortalRow } from './property-look-rules'
+import { InlineLink } from '#/components/ui/inline-link'
 
 /** A Property may have fifty live portals: the list scrolls inside the dialog, so the buttons stay on screen. */
 const LIST = 'max-h-[min(24rem,45dvh)] overflow-y-auto rounded-lg border'
@@ -97,14 +97,14 @@ function ReviewRow({
         />
         <Names row={row} detail={detail} tone={blocked ? 'warn' : 'quiet'} />
         {blocked ? (
-          <Link
+          <InlineLink
             to="/properties/$propertyId/portals/$portalId/review"
             params={{ propertyId, portalId: row.portalId }}
             aria-label={`Open ${row.name} to fix it`}
-            className="shrink-0 text-sm font-medium text-link underline-offset-4 hover:underline"
+            className="shrink-0 text-sm"
           >
             Open
-          </Link>
+          </InlineLink>
         ) : null}
       </div>
     </li>

@@ -76,9 +76,7 @@ function ErrorBody({
         <AlertDescription>{message}</AlertDescription>
       </Alert>
       {onRetry && (
-        // The same 44px phone target as a region's Try again (`RetryButton`),
-        // which this first-paint file does not import.
-        <Button variant="outline" className="max-md:min-h-11" onClick={onRetry}>
+        <Button variant="outline" onClick={onRetry}>
           Try again
         </Button>
       )}

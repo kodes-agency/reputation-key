@@ -1,7 +1,8 @@
 // Changing a member's role and removing a member call the route's Actions,
-// which reject on a refusal (a stale membership, the last Account Admin). The
-// route reports the refusal through useActionMutation's errorMessage; the table
-// only has to settle the promise, or it escapes as an unhandled rejection.
+// which reject on a refusal (a stale membership, the last Account Admin). A role
+// change is reported by the route's toast, so the table settles the promise or it
+// escapes as an unhandled rejection. Removing is confirmed in a dialog that stays
+// open and says the refusal itself, so the table hands it the rejection.
 //
 // There is no DOM here: the table is server-rendered with its role select and
 // remove dialog replaced by recorders, and their recorded callbacks are called.
@@ -96,7 +97,7 @@ describe('MemberTable commands', () => {
     expect(changes).toEqual([{ data: { memberId: 'member-1', role: 'PropertyManager' } }])
   })
 
-  it('settles a refused removal instead of leaking the rejection', async () => {
+  it('hands a refused removal to the dialog, which shows it in place', async () => {
     const removals: RemoveInput[] = []
     renderTable({
       updateRoleAction: refusingAction<RoleInput>([]),
@@ -105,9 +106,9 @@ describe('MemberTable commands', () => {
     const [dialog] = removeDialogs
     if (!dialog) throw new Error('no remove dialog was rendered')
 
-    const unhandled = await unhandledRejectionsDuring(() => dialog.onRemove())
-
-    expect(unhandled).toEqual([])
+    await expect(dialog.onRemove()).rejects.toThrow(
+      'The organization needs at least one Account Admin.',
+    )
     expect(removals).toEqual([{ data: { memberId: 'member-1' } }])
   })
 })

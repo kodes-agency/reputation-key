@@ -27,18 +27,14 @@ export function PortalDownloadMenu({ disabled, again = false, onDownload }: Prop
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" disabled={disabled} className="min-h-11 sm:min-h-9">
-          <Download data-icon="inline-start" /> {again ? 'Download again' : 'Download'}
-          <ChevronDown data-icon="inline-end" />
+        <Button variant="outline" disabled={disabled}>
+          <Download /> {again ? 'Download again' : 'Download'}
+          <ChevronDown />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="w-64">
         {FORMATS.map(({ format, label, hint }) => (
-          <DropdownMenuItem
-            key={format}
-            className="min-h-11 sm:min-h-9"
-            onSelect={() => onDownload(format)}
-          >
+          <DropdownMenuItem key={format} onSelect={() => onDownload(format)}>
             <span className="flex flex-col">
               <span>{label}</span>
               <span className="text-xs text-muted-foreground">{hint}</span>

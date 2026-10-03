@@ -61,7 +61,7 @@ function SortableHead({
         type="button"
         onClick={() => onSort(column)}
         className={cn(
-          '-mx-1 inline-flex h-8 items-center gap-1 rounded-md px-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+          '-mx-1 inline-flex h-8 items-center gap-1 rounded-md px-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground focus-ring',
           active && 'text-foreground',
           align === 'end' && 'flex-row-reverse',
         )}

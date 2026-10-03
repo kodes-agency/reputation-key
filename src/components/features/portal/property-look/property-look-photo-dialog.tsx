@@ -48,11 +48,7 @@ export function PropertyLookPhotoDialog({
   ...input
 }: Props) {
   return (
-    <UploadDialogShell
-      open={open}
-      onOpenChange={onOpenChange}
-      className="sm:max-w-2xl lg:max-w-4xl"
-    >
+    <UploadDialogShell open={open} onOpenChange={onOpenChange} size="xl">
       {(guard) => (
         <PhotoDialogBody
           {...input}
@@ -209,11 +205,11 @@ function PhotoDialogBody({ propertyName, renderPhone, ...input }: BodyProps) {
       ) : null}
       <FormErrorBanner error={dialog.message} />
       <UploadDialogFooter
-        primaryLabel={photoButtonLabel(picker.chosen !== null, dialog.isBusy)}
+        primaryLabel={photoButtonLabel(picker.chosen !== null, false)}
+        pendingLabel={photoButtonLabel(picker.chosen !== null, true)}
         canSubmit={dialog.canSubmit}
         isBusy={dialog.isBusy}
         onSubmit={() => void dialog.submit()}
-        onCancel={input.onClose}
       />
     </>
   )

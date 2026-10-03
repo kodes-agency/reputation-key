@@ -52,12 +52,6 @@ export function IntegrationsSettingsPage({
     }
   }
 
-  const onDisconnect = async (connectionId: string) => {
-    // The mutation toasts its own refusal (`errorMessage` in the route); the
-    // catch only keeps the rejection from escaping the click.
-    await disconnectGoogle({ data: { connectionId } }).catch(() => undefined)
-  }
-
   return (
     <Card>
       <CardHeader>
@@ -75,10 +69,11 @@ export function IntegrationsSettingsPage({
             action={
               <Button
                 onClick={() => void onAuthorize(NEW_GOOGLE_CONNECTION_AUTHORIZATION)}
-                disabled={connectGoogle.isPending}
+                pending={connectGoogle.isPending}
+                pendingLabel="Connecting…"
               >
-                <Plus className="size-4" />
-                {connectGoogle.isPending ? 'Connecting…' : 'Connect Google'}
+                <Plus />
+                Connect Google
               </Button>
             }
           />
@@ -92,16 +87,20 @@ export function IntegrationsSettingsPage({
                   authorizationPending={connectGoogle.isPending}
                   disconnectPending={disconnectGoogle.isPending}
                   onReauthorize={(request) => void onAuthorize(request)}
-                  onDisconnect={(connectionId) => void onDisconnect(connectionId)}
+                  // The confirmation stays open and says a refusal itself.
+                  onDisconnect={(connectionId) =>
+                    disconnectGoogle({ data: { connectionId } })
+                  }
                 />
               ))}
             </div>
             <Button
               onClick={() => void onAuthorize(NEW_GOOGLE_CONNECTION_AUTHORIZATION)}
-              disabled={connectGoogle.isPending}
+              pending={connectGoogle.isPending}
+              pendingLabel="Connecting…"
             >
-              <Plus className="size-4" />
-              {connectGoogle.isPending ? 'Connecting…' : 'Connect another account'}
+              <Plus />
+              Connect another account
             </Button>
           </>
         )}

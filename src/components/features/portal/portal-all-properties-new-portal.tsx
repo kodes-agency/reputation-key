@@ -16,8 +16,6 @@ import {
 
 export type NewPortalProperty = Readonly<{ id: string; name: string }>
 
-const BUTTON = 'min-h-11 sm:min-h-9'
-
 export function PortalAllPropertiesNewPortal({
   properties,
 }: Readonly<{ properties: readonly NewPortalProperty[] }>) {
@@ -26,7 +24,7 @@ export function PortalAllPropertiesNewPortal({
   if (!can('portal.create') || only === undefined) return null
   if (properties.length === 1) {
     return (
-      <Button asChild className={BUTTON}>
+      <Button asChild>
         <Link to="/properties/$propertyId/portals/new" params={{ propertyId: only.id }}>
           <Plus />
           New portal
@@ -37,7 +35,7 @@ export function PortalAllPropertiesNewPortal({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button className={BUTTON}>
+        <Button>
           <Plus aria-hidden="true" />
           New portal
           <ChevronDown aria-hidden="true" />
@@ -46,7 +44,7 @@ export function PortalAllPropertiesNewPortal({
       <DropdownMenuContent align="end" className="min-w-56">
         <DropdownMenuLabel>Which property is it for?</DropdownMenuLabel>
         {properties.map((property) => (
-          <DropdownMenuItem key={property.id} asChild className="min-h-11 md:min-h-8">
+          <DropdownMenuItem key={property.id} asChild>
             <Link
               to="/properties/$propertyId/portals/new"
               params={{ propertyId: property.id }}

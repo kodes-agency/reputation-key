@@ -9,22 +9,13 @@
 // property-wide form with edits and no Save yet. A reload or tab close is
 // guarded whenever anything at all is unsaved, because a write in flight does
 // not survive it.
-// The repo confirms destructive actions with AlertDialog — window.confirm is
-// used nowhere in src/ — so the blocker runs `withResolver` and drives a dialog.
+// The repo confirms destructive actions with ConfirmationDialog — window.confirm
+// is used nowhere in src/ — so the blocker runs `withResolver` and drives a dialog.
 
 import { useCallback } from 'react'
 import { useBlocker } from '@tanstack/react-router'
 import { usePortalDraftAutosave } from '../portal-editor/portal-draft-autosave-context'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '#/components/ui/alert-dialog'
+import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 
 const PORTAL_CHANGES_COPY =
   'Some changes to this portal have not been saved. If you go on, they are discarded.'
@@ -46,32 +37,22 @@ export function PortalUnsavedChangesPrompt({
   })
 
   return (
-    <AlertDialog
+    <ConfirmationDialog
       open={blocker.status === 'blocked'}
       onOpenChange={(open) => {
-        // Escape and the Cancel button both land here. `proceed`/`reset` settle
-        // the same promise, so the reset that follows a proceed is a no-op.
+        // Escape, Cancel and the confirm itself all land here. `proceed`/`reset`
+        // settle the same promise, so the reset that follows a proceed is a no-op.
         if (!open) blocker.reset?.()
       }}
-    >
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Leave without saving?</AlertDialogTitle>
-          <AlertDialogDescription>{description}</AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Keep editing</AlertDialogCancel>
-          <AlertDialogAction
-            variant="destructive"
-            onClick={() => {
-              autosave.discard()
-              blocker.proceed?.()
-            }}
-          >
-            Leave and discard
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+      tone="destructive"
+      title="Leave without saving?"
+      description={description}
+      cancelLabel="Keep editing"
+      confirmLabel="Leave and discard"
+      onConfirm={() => {
+        autosave.discard()
+        blocker.proceed?.()
+      }}
+    />
   )
 }

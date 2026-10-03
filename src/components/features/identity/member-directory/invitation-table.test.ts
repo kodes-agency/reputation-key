@@ -1,10 +1,11 @@
 // Resend and Cancel invitation call the route's Actions, which reject on a
-// refusal (the resend rate limit, an invitation already gone). The route reports
-// the refusal through useActionMutation's errorMessage; the table only has to
-// settle the promise, or it escapes the click as an unhandled rejection.
+// refusal (the resend rate limit, an invitation already gone). Resend is reported
+// by the route's toast, so the table settles the promise or it escapes the click
+// as an unhandled rejection. Cancelling is confirmed in a dialog that stays open
+// and says the refusal in place, so the table hands it the rejection.
 //
 // There is no DOM here: the table is server-rendered with its button and dialog
-// primitives replaced by recorders, and the recorded click handlers are called.
+// primitives replaced by recorders, and the recorded handlers are called.
 
 import { createElement, type ReactNode } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
@@ -28,24 +29,17 @@ vi.mock('#/components/ui/button', () => ({
   },
 }))
 
-vi.mock('#/components/ui/alert-dialog', async () => {
-  const { createElement: h, Fragment: F } = await import('react')
-  const Passthrough = ({ children }: { children?: ReactNode }) => h(F, null, children)
-  return {
-    AlertDialog: Passthrough,
-    AlertDialogCancel: Passthrough,
-    AlertDialogContent: Passthrough,
-    AlertDialogDescription: Passthrough,
-    AlertDialogFooter: Passthrough,
-    AlertDialogHeader: Passthrough,
-    AlertDialogTitle: Passthrough,
-    AlertDialogTrigger: Passthrough,
-    AlertDialogAction: (props: Recorded) => {
-      recorded.push(props)
-      return null
-    },
-  }
-})
+const { confirmations } = vi.hoisted(() => ({
+  confirmations: [] as Array<{ onConfirm: () => Promise<unknown> }>,
+}))
+
+vi.mock('#/components/ui/confirmation-dialog', () => ({
+  ConfirmationDialog: (props: (typeof confirmations)[number]) => {
+    confirmations.push(props)
+    return null
+  },
+  ConfirmationTrigger: () => null,
+}))
 
 type InvitationInput = { data: { invitationId: string } }
 
@@ -88,6 +82,7 @@ function recordedControl(label: string): Recorded {
 
 beforeEach(() => {
   recorded.length = 0
+  confirmations.length = 0
 })
 
 describe('InvitationTable commands', () => {
@@ -106,18 +101,18 @@ describe('InvitationTable commands', () => {
     expect(resends).toEqual([{ data: { invitationId: 'invitation-1' } }])
   })
 
-  it('settles a refused cancellation instead of leaking the rejection', async () => {
+  it('hands a refused cancellation to the dialog, which shows it in place', async () => {
     const cancels: InvitationInput[] = []
     renderTable({
       resendAction: refusingAction([]),
       cancelAction: refusingAction(cancels),
     })
+    const [dialog] = confirmations
+    if (!dialog) throw new Error('no cancel confirmation was rendered')
 
-    const unhandled = await unhandledRejectionsDuring(() =>
-      recordedControl('Cancel invitation').onClick?.(),
+    await expect(dialog.onConfirm()).rejects.toThrow(
+      'Please wait before sending more invitations.',
     )
-
-    expect(unhandled).toEqual([])
     expect(cancels).toEqual([{ data: { invitationId: 'invitation-1' } }])
   })
 })

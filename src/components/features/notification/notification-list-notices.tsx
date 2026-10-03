@@ -97,7 +97,10 @@ function LoadMoreLabel({ isLoadingMore, error }: Omit<LoadMoreProps, 'onLoadMore
   if (!isLoadingMore) return error ? 'Try again' : 'Load more'
   return (
     <>
-      <Loader2 aria-hidden="true" className="size-3 animate-spin" />
+      <Loader2
+        aria-hidden="true"
+        className="size-3 animate-spin motion-reduce:animate-none"
+      />
       Loading…
     </>
   )
@@ -135,7 +138,7 @@ export function NotificationLoadMore({
           }}
           aria-disabled={isLoadingMore || undefined}
           data-list-control="load-more"
-          className="w-full text-xs text-muted-foreground aria-disabled:cursor-default aria-disabled:opacity-50"
+          className="w-full text-xs text-muted-foreground aria-disabled:cursor-default"
         >
           <LoadMoreLabel isLoadingMore={isLoadingMore} error={error} />
         </Button>

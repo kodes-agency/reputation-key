@@ -78,14 +78,13 @@ export function PortalPrintKitSection({
       <div className="flex flex-col gap-2">
         <Button
           type="button"
-          className="min-h-11 self-start sm:min-h-9"
+          className="self-start"
           disabled={
             view === null || choice === null || unavailableReason !== null || isWorking
           }
           onClick={onDownload}
         >
-          <Download data-icon="inline-start" />{' '}
-          {isWorking ? 'Making the PDF…' : 'Download print kit (PDF)'}
+          <Download /> {isWorking ? 'Making the PDF…' : 'Download print kit (PDF)'}
         </Button>
         {unavailableReason !== null && (
           <p className="text-sm text-muted-foreground">{unavailableReason}</p>

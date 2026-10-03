@@ -115,10 +115,10 @@ export const InTheAccountMenu: Story = {
       .map((item) => item.textContent)
     expect(names).toEqual(['Light', 'Dark', 'System'])
     // Each segment keeps the phone touch target the menu item it replaced had
-    // (44 px below `md`). The Storybook runner compiles no Tailwind, so the
+    // (a tap target below `md`). The Storybook runner compiles no Tailwind, so the
     // class is what can be asserted, not the pixels.
     for (const segment of within(group).getAllByRole('menuitemradio')) {
-      expect(segment).toHaveClass('max-md:min-h-11')
+      expect(segment).toHaveClass('max-md:min-h-(--control-touch)')
     }
 
     await userEvent.click(page.getByRole('menuitemradio', { name: 'Light' }))
