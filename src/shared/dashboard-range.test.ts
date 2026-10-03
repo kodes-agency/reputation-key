@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 import { timeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
 import {
   DASHBOARD_RANGES,
+  DASHBOARD_RANGE_LABELS,
+  RANGE_PRESET_LABELS,
   DASHBOARD_RANGE_DEFAULT,
   bucketUnitForRange,
   dashboardRangeComparisonLabel,
@@ -23,6 +25,19 @@ describe('dashboardRangeSearch', () => {
     for (const range of DASHBOARD_RANGES) {
       expect(dashboardRangeSearch.parse(range)).toBe(range)
     }
+  })
+})
+
+describe('the range vocabulary', () => {
+  it('words every dashboard range from the one preset table', () => {
+    for (const range of DASHBOARD_RANGES) {
+      expect(DASHBOARD_RANGE_LABELS[range]).toBe(RANGE_PRESET_LABELS[range])
+    }
+  })
+
+  it('also words the 7- and 60-day windows Portal Results adds, in the same style', () => {
+    expect(RANGE_PRESET_LABELS['7d']).toBe('7 days')
+    expect(RANGE_PRESET_LABELS['60d']).toBe('60 days')
   })
 })
 

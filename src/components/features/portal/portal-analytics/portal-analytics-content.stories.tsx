@@ -99,7 +99,7 @@ export const ChangesTheRange: Story = {
   play: async ({ canvas, args }) => {
     await userEvent.click(
       within(canvas.getByRole('radiogroup', { name: 'Time range' })).getByRole('radio', {
-        name: 'Last 7 days',
+        name: '7 days',
       }),
     )
     await expect(args.onTimeRangeChange).toHaveBeenCalledWith('7d')

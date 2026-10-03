@@ -25,10 +25,10 @@ const DASHBOARD: ReadonlyArray<RangeOption<string>> = [
 ]
 
 const PORTAL_RESULTS: ReadonlyArray<RangeOption<string>> = [
-  { value: '7d', label: 'Last 7 days' },
-  { value: '30d', label: 'Last 30 days' },
-  { value: '60d', label: 'Last 60 days' },
-  { value: '90d', label: 'Last 90 days' },
+  { value: '7d', label: '7 days' },
+  { value: '30d', label: '30 days' },
+  { value: '60d', label: '60 days' },
+  { value: '90d', label: '90 days' },
   { value: 'all', label: 'All time' },
 ]
 
@@ -91,8 +91,8 @@ export const PortalResultsPresets: Story = {
   play: async ({ canvasElement }) => {
     const group = within(canvasElement).getByRole('radiogroup', { name: 'Time range' })
     expect(within(group).getAllByRole('radio')).toHaveLength(5)
-    expect(within(group).getByRole('radio', { name: 'Last 7 days' })).toBeVisible()
-    expect(within(group).getByRole('radio', { name: 'Last 30 days' })).toBeChecked()
+    expect(within(group).getByRole('radio', { name: '7 days' })).toBeVisible()
+    expect(within(group).getByRole('radio', { name: '30 days' })).toBeChecked()
   },
 }
 
