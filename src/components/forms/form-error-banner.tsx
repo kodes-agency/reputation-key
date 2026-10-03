@@ -64,6 +64,9 @@ const parseValidationIssues = (message: string): readonly string[] | null => {
 const extractErrorMessage = (error: unknown): string => {
   if (!error) return ''
 
+  // A failure a dialog already holds as a sentence (an upload refusal).
+  if (typeof error === 'string') return error
+
   // TanStack Start re-throws serialized Errors from server functions.
   // The .message contains the domain error message (e.g., "slug must be URL-friendly").
   if (error instanceof Error) {

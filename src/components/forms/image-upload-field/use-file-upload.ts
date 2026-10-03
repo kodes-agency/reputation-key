@@ -2,6 +2,9 @@
 
 import { useState, useCallback } from 'react'
 import { toast } from 'sonner'
+import { actionFailureMessage } from '#/components/hooks/use-action-mutation'
+
+export const uploadFailureMessage = actionFailureMessage("Couldn't upload that image.")
 
 type UseFileUploadOptions = Readonly<{
   acceptedTypes: ReadonlyArray<string>
@@ -51,14 +54,12 @@ export function useFileUpload({
         // Issuance-bound Portal uploads keep the previous image visible while
         // the private source is decoded and a public derivative is prepared.
         if (url !== null) onImageUrlChange(url)
-      } catch (err: unknown) {
-        const message =
-          (err instanceof Error ? err.message : '') ||
-          (typeof err === 'object' && err !== null && 'message' in err
-            ? String((err as { message: unknown }).message)
-            : '') ||
-          'Upload failed. Please try again.'
-        toast.error(message)
+      } catch (error: unknown) {
+        // An upload from this field is an immediate action: a toast, in the
+        // words every other action uses. A refusal the server wrote for the
+        // person keeps its sentence; a network or storage failure says what
+        // failed instead of echoing its internal text.
+        toast.error(uploadFailureMessage(error))
       } finally {
         setUploading(false)
         setUploadProgress(0)
