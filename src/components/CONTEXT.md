@@ -11,8 +11,29 @@ and actions supply server state.
 - `ui/` holds vendored shadcn primitives plus app-wide presentation primitives
   that no feature owns (Fact, OwnerDisc, MetricStrip, SegmentedControl, Timeline,
   StarRating, RatingFigure, ConfirmationDialog, EmptyState, RegionError). Every
-  confirmation goes through `ConfirmationDialog`; its `tone` is `destructive` only for an action the
-  person cannot take back. A region with nothing to show, nothing that matches, or
+  confirmation goes through `ConfirmationDialog`, never an AlertDialog put together
+  by hand (`dialog-sources.test.ts` fails on one). Its `tone` is `destructive` only
+  for an action the person cannot take back or that loses data; archive, restore and
+  disable-a-public-page are `neutral`, and so are their menu items. A destructive
+  confirm is started from a `ConfirmationTrigger` (a destructive Button). Only a
+  low-blast action the person can undo on the spot skips the dialog (remove a
+  language from a draft, delete an unsent reply draft, dismiss one notification);
+  Leave organisation is a `Dialog` because it is a transfer form, and the Inbox's
+  Reject opens its reason inline. `onConfirm` returns the action's promise: the dialog
+  stays open with a pending Button, refuses Escape and Cancel meanwhile, closes
+  when it resolves and says a refusal once, above its actions. The mutation behind
+  it therefore passes no `errorMessage`. A dialog is `Dialog`: it gets its width
+  from `size` (`sm` 24rem, `md` 32rem the default, `lg` 42rem, `xl` 56rem) and its
+  height bound and scroll from the primitive, so no `DialogContent` types a
+  `sm:max-w-*` or a `max-h-*`. Its footer is `DialogFooter` (`note` is the line
+  at the start of the row) with `DialogCancel` then the primary. The corner close is
+  one Button named "Close"; a dialog whose footer has Cancel or Close may drop it
+  (`showCloseButton={false}`, as the Inbox's two do). A dialog that is committing
+  cannot be dismissed: `<Dialog busy={isPending}>`, or `useDialogBusy(isPending)`
+  in a body that owns the mutation (`dialog-dismissal.ts`). A refusal a mutation in
+  the page still holds from the last time a dialog was open is not shown again:
+  the dialog's banner is `DialogErrorBanner`, which shows only an error from an
+  attempt made since the dialog opened. A region with nothing to show, nothing that matches, or
   a read that failed is `EmptyState` (`size` default or compact, `tone` neutral or
   error, `description` and `action` slots) or `RegionError`, whose only recovery is
   "Try again" wired to the region's refetch. Never hand-build a dashed box or a
@@ -57,7 +78,7 @@ and actions supply server state.
   failure has one reporter. A form submit reports through `FormErrorBanner`,
   placed directly above that form's actions (the bottom of a card's body, above
   its footer), and never also toasts. A row or immediate action (a switch, a menu
-  item, a download, a command whose dialog has closed) reports through a toast,
+  item, a download) reports through a toast,
   `errorMessage` on its `useActionMutation`, and never also a banner. A toast for
   a failure reads "Couldn't …. Try again." (`actionFailureMessage`), shows the
   server's own sentence only for a 4xx refusal, and a success says what changed

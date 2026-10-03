@@ -1,10 +1,10 @@
 // Who reports a failure (UI consistency scan: SURF-04, FORM-06).
 //
 // One rule per operation type. A form submit reports through FormErrorBanner,
-// directly above that form's actions, and does not also toast. A row or
-// immediate action (a switch, a menu item, a download, a command a dialog has
-// already closed on) reports through a toast, `errorMessage` on its
-// useActionMutation, and does not also print a banner. An autosaved form has no
+// directly above that form's actions, and does not also toast; a dialog's submit
+// or confirmation is such a form (it stays open and shows the refusal itself). A
+// row or immediate action (a switch, a menu item, a download) reports through a
+// toast, `errorMessage` on its useActionMutation, and does not also print a banner. An autosaved form has no
 // actions to sit a banner above: the editor header's save status reports its
 // failure, so it renders no banner either. These checks read the
 // sources, so a file that does both, a hand-built red paragraph, a toast that
@@ -51,7 +51,7 @@ const staleIn = (
     (path) => !FILES.some((file) => file.path === path && matches(file)),
   )
 
-const RENDERS_BANNER = /<FormErrorBanner\b/u
+const RENDERS_BANNER = /<(?:Form|Dialog)ErrorBanner\b/u
 /** `toast.error(…)` or the hook's `errorMessage: …` option (not a prop's type). */
 const REPORTS_BY_TOAST =
   /toast\.error\(|\berrorMessage:\s*(?:actionErrorMessage|actionFailureMessage\b|['"`(]|\w+Message\b)/u
@@ -111,8 +111,6 @@ const RED_PARAGRAPH_ALLOWED: Readonly<Record<string, string>> = {
     'the copy fallback: it sits beside the address the person can select instead',
   'src/components/features/portal/portal-share/portal-link-reveal.tsx':
     'the copy fallback: it sits beside the address the person can select instead',
-  'src/components/features/portal/portal-history/portal-restore-confirmation.tsx':
-    'a confirmation dialog’s own error (the dialog pass owns it)',
   'src/components/features/portal/portal-new/portal-new-start-from-field.tsx':
     'a field-level error, not an action failure',
   'src/components/features/portal/property-look/property-look-media-actions.tsx':

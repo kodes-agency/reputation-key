@@ -6,10 +6,13 @@
 // A dialog whose footer already has a Cancel may drop it (`showCloseButton`
 // false, as the Inbox's two do for the phone pane); a dialog with no footer
 // exit keeps it.
+//
+// A Button, not an IconButton: the beta launcher mounts a Dialog in the first
+// paint, and IconButton's tooltip is not in that closure. A close needs no hint.
 import { XIcon } from 'lucide-react'
 import { Dialog as DialogPrimitive } from 'radix-ui'
 
-import { IconButton } from '#/components/ui/icon-button'
+import { Button } from '#/components/ui/button'
 import { cn } from '#/lib/utils'
 
 export function DialogCloseButton({
@@ -22,16 +25,17 @@ export function DialogCloseButton({
 }>) {
   return (
     <DialogPrimitive.Close asChild>
-      <IconButton
+      <Button
         data-slot="dialog-close"
-        label="Close"
+        type="button"
+        variant="ghost"
         size="icon-sm"
-        tooltip={false}
+        aria-label="Close"
         disabled={disabled}
         className={cn('absolute top-3 right-3', className)}
       >
         <XIcon />
-      </IconButton>
+      </Button>
     </DialogPrimitive.Close>
   )
 }

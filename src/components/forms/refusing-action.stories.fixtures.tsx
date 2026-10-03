@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useReducer } from 'react'
 import type { Action } from '#/components/hooks/use-action'
 
 /**
@@ -11,7 +11,7 @@ export function useRefusingAction<TInput = never>(
   refuse: () => Error,
   earlier: unknown = null,
 ): Action<TInput> {
-  const [error, setError] = useState<unknown>(earlier)
+  const [error, setError] = useReducer((_held: unknown, next: unknown) => next, earlier)
   const call = async (_input: TInput): Promise<never> => {
     const refusal = refuse()
     setError(refusal)

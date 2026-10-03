@@ -8,6 +8,9 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
+import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
+import { useRefusingAction } from '#/components/forms/refusing-action.stories.fixtures'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { Button } from './button'
 import {
   Dialog,
@@ -218,4 +221,57 @@ export const ABodyHoldsTheDialog: Story = {
     await userEvent.keyboard('{Escape}')
     await waitFor(() => expect(page.queryByRole('dialog')).not.toBeInTheDocument())
   },
+}
+
+function Refusing() {
+  // The mutation lives in the page, so it still holds the last refusal when the
+  // dialog is opened again.
+  const mutation = useRefusingAction(
+    () => new ServerFunctionError('GroupError', 'That name is taken.', 'name_taken', 409),
+    new Error('An earlier refusal'),
+  )
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="outline">Open</Button>
+      </DialogTrigger>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>Rename group</DialogTitle>
+          <DialogDescription>Only your team sees the name.</DialogDescription>
+        </DialogHeader>
+        <DialogErrorBanner error={mutation.error} />
+        <DialogFooter>
+          <DialogCancel />
+          <Button
+            type="button"
+            onClick={() => void mutation(undefined as never).catch(() => undefined)}
+          >
+            Save name
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/**
+ * A refusal is shown above the footer once the attempt is made. The one the
+ * mutation held from the last time the dialog was open is not.
+ */
+export const ARefusalShowsOnlyOnceTried: Story = {
+  render: () => <Refusing />,
+  play: async ({ canvasElement }) => {
+    const { dialog } = await open(canvasElement)
+    expect(within(dialog).queryByRole('alert')).not.toBeInTheDocument()
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Save name' }))
+    await within(dialog).findByText('That name is taken.')
+    expect(within(dialog).getAllByRole('alert')).toHaveLength(1)
+    expect(within(dialog).queryByText('An earlier refusal')).not.toBeInTheDocument()
+  },
+}
+
+export const ARefusalShowsOnlyOnceTriedLight: Story = {
+  ...ARefusalShowsOnlyOnceTried,
+  parameters: { theme: 'light' },
 }

@@ -175,7 +175,7 @@ function DialogFooter({
       )}
     </>
   )
-  if (note === undefined) {
+  if (!note) {
     return (
       <div
         data-slot="dialog-footer"

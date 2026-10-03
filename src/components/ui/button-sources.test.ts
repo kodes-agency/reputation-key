@@ -142,6 +142,8 @@ describe('an icon-only control is an IconButton', () => {
       'the bell is first paint (the public header mounts it)',
     'src/components/features/notification/notification-sheet-header.tsx':
       "the bell's could-not-load body is first paint, on purpose",
+    'src/components/ui/dialog-close-button.tsx':
+      'the corner close of every dialog and sheet; the beta launcher mounts a Dialog in first paint',
   }
   const hasIconOnlyButton = (file: SourceFile) =>
     buttonTags(file.text).some(

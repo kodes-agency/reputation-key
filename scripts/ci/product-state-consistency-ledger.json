@@ -650,6 +650,24 @@
       "classification": "synchronized_prop_copy",
       "owner": "Portal editor Welcome language card",
       "policy": "Seeded once from startsOpen (open when the property has no wording for the language yet) and never synchronized afterwards, so the manager's own open or closed choice is not overridden when a save lands; the note above it reads the wording directly."
+    },
+    {
+      "id": "src/components/forms/use-fresh-error.ts:useState(heldAtMount)",
+      "classification": "local_runtime",
+      "owner": "Dialog error banner",
+      "policy": "The error a mutation already held when a dialog body mounted, kept to tell it from a later attempt's. It is never written back and never changes after mount, and the body mounting when the dialog opens is its reset boundary."
+    },
+    {
+      "id": "src/components/ui/dialog-dismissal.ts:useState(store)",
+      "classification": "local_runtime",
+      "owner": "Dialog dismissal guard",
+      "policy": "The dialog's in-flight counter, created once per dialog by a lazy initializer. It is a stable object the Radix callbacks read at the moment of the keypress, not a copy of any input."
+    },
+    {
+      "id": "src/components/ui/dialog.tsx:useState(ownOpen)",
+      "classification": "local_runtime",
+      "owner": "Dialog primitive",
+      "policy": "defaultOpen seeds the open state of a dialog opened by its own trigger; a controlled open prop remains the render authority when supplied."
     }
   ],
   "classificationDefinitions": {

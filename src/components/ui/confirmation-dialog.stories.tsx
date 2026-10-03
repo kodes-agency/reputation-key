@@ -36,6 +36,12 @@ type Story = StoryObj<typeof ConfirmationDialog>
 
 const openDialog = (canvasElement: HTMLElement) => openAlertDialog(canvasElement, 'Open')
 
+/** Presses the cancel and waits for the dialog to go. */
+async function keepProperty(dialog: ReturnType<typeof within>) {
+  await userEvent.click(dialog.getByRole('button', { name: 'Keep Property' }))
+  await waitFor(() => expect(dialog.queryByRole('alertdialog')).not.toBeInTheDocument())
+}
+
 const destructiveArgs = {
   tone: 'destructive',
   title: 'Remove Harborline Suites from your workspace?',
@@ -96,8 +102,7 @@ export const Cancel: Story = {
   args: destructiveArgs,
   play: async ({ canvasElement, args }) => {
     const dialog = await openDialog(canvasElement)
-    await userEvent.click(dialog.getByRole('button', { name: 'Keep Property' }))
-    await waitFor(() => expect(dialog.queryByRole('alertdialog')).not.toBeInTheDocument())
+    await keepProperty(dialog)
     expect(args.onConfirm).not.toHaveBeenCalled()
   },
 }
@@ -173,8 +178,7 @@ export const ReopenedWithoutTheOldError: Story = {
     const dialog = await openDialog(canvasElement)
     await userEvent.click(dialog.getByRole('button', { name: 'Remove Property' }))
     await dialog.findByText('Unable to complete this action')
-    await userEvent.click(dialog.getByRole('button', { name: 'Keep Property' }))
-    await waitFor(() => expect(dialog.queryByRole('alertdialog')).not.toBeInTheDocument())
+    await keepProperty(dialog)
     const reopened = await openDialog(canvasElement)
     expect(reopened.queryByRole('alert')).not.toBeInTheDocument()
   },
@@ -261,8 +265,7 @@ export const OpenedByTheCaller: Story = {
   args: destructiveArgs,
   play: async ({ canvasElement, args }) => {
     const dialog = await openDialog(canvasElement)
-    await userEvent.click(dialog.getByRole('button', { name: 'Keep Property' }))
-    await waitFor(() => expect(dialog.queryByRole('alertdialog')).not.toBeInTheDocument())
+    await keepProperty(dialog)
     expect(args.onConfirm).not.toHaveBeenCalled()
     const reopened = await openDialog(canvasElement)
     await userEvent.click(reopened.getByRole('button', { name: 'Remove Property' }))

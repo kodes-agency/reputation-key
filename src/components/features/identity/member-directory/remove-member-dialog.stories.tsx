@@ -43,17 +43,22 @@ export const ConfirmRemoval: Story = {
   },
 }
 
+/** Opens the dialog from the row and presses its confirm. */
+async function confirmRemoval(canvasElement: HTMLElement) {
+  await userEvent.click(within(canvasElement).getByRole('button', { name: /^remove$/i }))
+  const dialog = within(await within(document.body).findByRole('alertdialog'))
+  await userEvent.click(dialog.getByRole('button', { name: /remove member/i }))
+  return dialog
+}
+
 // Removal in flight: the confirm is a busy Button and Cancel is held back.
 export const Removing: Story = {
   args: { ...member, onRemove: () => new Promise<void>(() => undefined) },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /^remove$/i }))
-    const dialog = await within(document.body).findByRole('alertdialog')
-    await userEvent.click(within(dialog).getByRole('button', { name: /remove member/i }))
-    const confirm = await within(dialog).findByRole('button', { name: /removing/i })
+    const dialog = await confirmRemoval(canvasElement)
+    const confirm = await dialog.findByRole('button', { name: /removing/i })
     expect(confirm).toBeDisabled()
-    expect(within(dialog).getByRole('button', { name: 'Cancel' })).toBeDisabled()
+    expect(dialog.getByRole('button', { name: 'Cancel' })).toBeDisabled()
   },
 }
 
@@ -66,12 +71,9 @@ export const Refused: Story = {
     },
   },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /^remove$/i }))
-    const dialog = await within(document.body).findByRole('alertdialog')
-    await userEvent.click(within(dialog).getByRole('button', { name: /remove member/i }))
-    await within(dialog).findByText('Unable to complete this action')
-    expect(within(dialog).getAllByRole('alert')).toHaveLength(1)
-    expect(within(dialog).getByRole('button', { name: /remove member/i })).toBeEnabled()
+    const dialog = await confirmRemoval(canvasElement)
+    await dialog.findByText('Unable to complete this action')
+    expect(dialog.getAllByRole('alert')).toHaveLength(1)
+    expect(dialog.getByRole('button', { name: /remove member/i })).toBeEnabled()
   },
 }
