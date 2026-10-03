@@ -3,12 +3,16 @@
 // Laid out like a notification row — the whole row is the link, one facts
 // line, the menu its one sibling control — but it opens the Property's Inbox
 // queue for that kind (D5), where the items are worked, and following it marks
-// every row in it read. Its menu acts on all of them at once.
+// every row in it read. Its menu acts on all of them at once; "Dismiss all N"
+// asks first, like the page's "Dismiss all", because it takes several
+// notifications out in one press (the toast's Undo is the way back, not a
+// reason to skip the question).
 
-import { createElement } from 'react'
+import { createElement, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Check, MoreHorizontal, Trash2 } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -53,6 +57,9 @@ export function NotificationStackRow({
   })
   const unreadIds = notifications.filter(isStillWaiting).map((row) => row.id)
   const allIds = notifications.map((row) => row.id)
+  // Held here, above the menu: a dialog rendered inside a DropdownMenu unmounts
+  // with the menu.
+  const [isConfirmingDismissAll, setIsConfirmingDismissAll] = useState(false)
 
   return (
     <li
@@ -129,13 +136,24 @@ export function NotificationStackRow({
                 Mark all as read
               </DropdownMenuItem>
             )}
-            <DropdownMenuItem onSelect={() => actions.onDismissMany(allIds)}>
+            <DropdownMenuItem onSelect={() => setIsConfirmingDismissAll(true)}>
               <Trash2 aria-hidden="true" />
               Dismiss all {notifications.length}
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
       </span>
+      <ConfirmationDialog
+        open={isConfirmingDismissAll}
+        onOpenChange={setIsConfirmingDismissAll}
+        title={`Dismiss all ${notifications.length} notifications?`}
+        description={`This hides all ${notifications.length} notifications in this stack. It does not change the underlying reviews, feedback, or other work.`}
+        cancelLabel="Keep notifications"
+        confirmLabel="Dismiss all"
+        pendingLabel="Dismissing…"
+        pending={false}
+        onConfirm={() => actions.onDismissMany(allIds)}
+      />
     </li>
   )
 }
