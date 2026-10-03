@@ -13,6 +13,7 @@ import {
   type PropertyListPageProps,
   type PropertySetupProgress,
 } from './property-list-page'
+import { MAX_LIST_SEARCH_LENGTH } from '#/components/property/property-search'
 import type { PropertyListSearch } from './property-list-search-schema'
 import type { PropertyListProperty } from './property-list-view'
 
@@ -300,6 +301,19 @@ export const SearchByAddress: Story = {
     const canvas = within(canvasElement)
     expect(bodyRows(canvas)).toHaveLength(1)
     expect(canvas.getByText('Hotel Elegance')).toBeVisible()
+  },
+}
+
+/** The field stops where the URL schema does, instead of resetting on the 101st character. */
+export const SearchStopsAtItsLimit: Story = {
+  args: ready,
+  play: async ({ canvasElement }) => {
+    const box = within(canvasElement).getByRole('searchbox', {
+      name: 'Search properties',
+    })
+    await userEvent.click(box)
+    await userEvent.paste('a'.repeat(MAX_LIST_SEARCH_LENGTH + 20))
+    expect(box).toHaveValue('a'.repeat(MAX_LIST_SEARCH_LENGTH))
   },
 }
 

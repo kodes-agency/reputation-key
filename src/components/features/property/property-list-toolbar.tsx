@@ -3,6 +3,7 @@
 // state of its own. Sort lives in a menu at every width, because the stacked
 // layout has no column headers to click.
 import { ArrowDownUp, ListFilter, Search } from 'lucide-react'
+import { MAX_LIST_SEARCH_LENGTH } from '#/components/property/property-search'
 import { Button } from '#/components/ui/button'
 import {
   DropdownMenu,
@@ -98,6 +99,7 @@ export function PropertyListToolbar({
           type="search"
           aria-label="Search properties"
           placeholder="Search name or address"
+          maxLength={MAX_LIST_SEARCH_LENGTH}
           value={view.q}
           onChange={(event) => onChange({ q: event.target.value })}
         />

@@ -3,6 +3,7 @@
 // dashboard redirect and every typed link to the list rely on that — and a
 // value a hand-edited URL cannot mean is dropped rather than refusing the page.
 import { z } from 'zod/v4'
+import { MAX_LIST_SEARCH_LENGTH } from '#/components/property/property-search'
 
 export const PROPERTY_LIST_SORTS = [
   'attention',
@@ -21,7 +22,7 @@ export type SortDirection = 'asc' | 'desc'
 export const propertyListSearchSchema = z.object({
   /** The workspace is the default tab; only Removed is ever written. */
   tab: z.enum(['removed']).optional().catch(undefined),
-  q: z.string().max(100).optional().catch(undefined),
+  q: z.string().max(MAX_LIST_SEARCH_LENGTH).optional().catch(undefined),
   show: z.enum(PROPERTY_LIST_SHOWS).optional().catch(undefined),
   sort: z.enum(PROPERTY_LIST_SORTS).optional().catch(undefined),
   dir: z.enum(['asc', 'desc']).optional().catch(undefined),
