@@ -148,8 +148,13 @@ export function ResponsibleManagersPanel({
 
       <FormErrorBanner error={error} />
       <div className="flex justify-end">
-        <Button disabled={disabled || !dirty || isPending} onClick={save}>
-          {isPending ? 'Saving…' : 'Save responsible managers'}
+        <Button
+          pending={isPending}
+          pendingLabel="Saving…"
+          disabled={disabled || !dirty}
+          onClick={save}
+        >
+          Save responsible managers
         </Button>
       </div>
     </div>

@@ -1,4 +1,3 @@
-import { Loader2 } from 'lucide-react'
 import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import { MerchantAiDataHandling } from '#/components/features/settings/merchant-ai-data-handling'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
@@ -202,10 +201,10 @@ export function SetupReview({
         <Button
           type="button"
           className="h-auto min-h-9 whitespace-normal text-balance"
-          disabled={saving || nothingToSave || (consentNeeded && !acknowledged)}
+          pending={saving}
+          disabled={nothingToSave || (consentNeeded && !acknowledged)}
           onClick={onSave}
         >
-          {saving ? <Loader2 className="animate-spin" aria-hidden="true" /> : null}
           {consentNeeded
             ? renderMerchantAiNoticeCta(notice.payload, aiNames)
             : 'Save setup'}

@@ -1,4 +1,3 @@
-import { Loader2 } from 'lucide-react'
 import {
   AlertDialog,
   AlertDialogAction,
@@ -43,11 +42,7 @@ export function MerchantAiSettingsActions({
         <>
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button
-                variant="outline"
-                className="min-h-11 w-full sm:w-auto"
-                disabled={pending}
-              >
+              <Button variant="outline" className="w-full sm:w-auto" disabled={pending}>
                 Turn off AI features
               </Button>
             </AlertDialogTrigger>
@@ -71,17 +66,11 @@ export function MerchantAiSettingsActions({
           </AlertDialog>
           {isEnabled ? (
             <Button
-              className="min-h-11 w-full sm:w-auto"
+              className="w-full sm:w-auto"
+              pending={pending}
               disabled={!canSave}
               onClick={onChange}
             >
-              {pending ? (
-                <Loader2
-                  data-icon="inline-start"
-                  className="animate-spin motion-reduce:animate-none"
-                  aria-hidden="true"
-                />
-              ) : null}
               Save feature access
             </Button>
           ) : null}
@@ -89,7 +78,7 @@ export function MerchantAiSettingsActions({
       ) : (
         <AlertDialog>
           <AlertDialogTrigger asChild>
-            <Button className="min-h-11 w-full sm:w-auto" disabled={!canEnable}>
+            <Button className="w-full sm:w-auto" disabled={!canEnable}>
               Enable AI features
             </Button>
           </AlertDialogTrigger>

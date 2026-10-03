@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Check, Loader2 } from 'lucide-react'
+import { Check } from 'lucide-react'
 import { submitForm } from '#/components/forms/form-submit'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
@@ -237,23 +237,13 @@ export function GoogleImportReviewForm({
                   ) : null}
                   <Button
                     type="submit"
-                    disabled={isSubmitting || flaggedCount > 0}
+                    pending={isSubmitting}
+                    pendingLabel="Starting import…"
+                    disabled={flaggedCount > 0}
                     aria-describedby={flaggedCount > 0 ? BLOCKED_REASON_ID : undefined}
                   >
-                    {isSubmitting ? (
-                      <>
-                        <Loader2
-                          className="animate-spin motion-reduce:animate-none"
-                          aria-hidden="true"
-                        />
-                        Starting import…
-                      </>
-                    ) : (
-                      <>
-                        <Check aria-hidden="true" />
-                        Start import
-                      </>
-                    )}
+                    <Check aria-hidden="true" />
+                    Start import
                   </Button>
                 </div>
               </div>

@@ -75,10 +75,11 @@ export function IntegrationsSettingsPage({
             action={
               <Button
                 onClick={() => void onAuthorize(NEW_GOOGLE_CONNECTION_AUTHORIZATION)}
-                disabled={connectGoogle.isPending}
+                pending={connectGoogle.isPending}
+                pendingLabel="Connecting…"
               >
-                <Plus className="size-4" />
-                {connectGoogle.isPending ? 'Connecting…' : 'Connect Google'}
+                <Plus />
+                Connect Google
               </Button>
             }
           />
@@ -98,10 +99,11 @@ export function IntegrationsSettingsPage({
             </div>
             <Button
               onClick={() => void onAuthorize(NEW_GOOGLE_CONNECTION_AUTHORIZATION)}
-              disabled={connectGoogle.isPending}
+              pending={connectGoogle.isPending}
+              pendingLabel="Connecting…"
             >
-              <Plus className="size-4" />
-              {connectGoogle.isPending ? 'Connecting…' : 'Connect another account'}
+              <Plus />
+              Connect another account
             </Button>
           </>
         )}

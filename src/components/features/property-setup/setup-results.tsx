@@ -1,4 +1,3 @@
-import { Loader2 } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import type { PropertySetupFns } from './property-setup-contract'
@@ -76,12 +75,9 @@ export function SetupResults({
               <Button
                 type="button"
                 variant="outline"
-                disabled={retrying}
+                pending={retrying}
                 onClick={onRetry}
               >
-                {retrying ? (
-                  <Loader2 className="animate-spin" aria-hidden="true" />
-                ) : null}
                 Try again
               </Button>
             </div>

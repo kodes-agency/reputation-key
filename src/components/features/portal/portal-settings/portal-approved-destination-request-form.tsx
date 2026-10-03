@@ -59,8 +59,14 @@ export function PortalApprovedDestinationRequestForm({
             )
           }}
         </form.Field>
-        <SubmitButton mutation={action} form={form} variant="outline" disabled={disabled}>
-          {action.isPending ? 'Checking…' : 'Add destination'}
+        <SubmitButton
+          mutation={action}
+          form={form}
+          variant="outline"
+          pendingLabel="Checking…"
+          disabled={disabled}
+        >
+          Add destination
         </SubmitButton>
       </div>
     </form>

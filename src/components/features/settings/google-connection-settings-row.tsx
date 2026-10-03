@@ -68,8 +68,7 @@ export function GoogleConnectionSettingsRow({
             variant="outline"
             size="sm"
             onClick={() => onReauthorize(reauthorization)}
-            disabled={authorizationPending}
-            aria-busy={authorizationPending}
+            pending={authorizationPending}
           >
             Reauthorize
           </Button>
@@ -78,8 +77,7 @@ export function GoogleConnectionSettingsRow({
             variant="outline"
             size="sm"
             onClick={() => onReauthorize(accountEmailConsent)}
-            disabled={authorizationPending}
-            aria-busy={authorizationPending}
+            pending={authorizationPending}
           >
             Show account email
           </Button>

@@ -2,7 +2,6 @@ import { useCallback } from 'react'
 import { toast } from 'sonner'
 import { useAction } from '#/components/hooks/use-action'
 import { Button } from '#/components/ui/button'
-import { Loader2 } from 'lucide-react'
 import type { GoogleAuthUrlInput } from '#/contexts/integration/application/public-api'
 import { actionFailureMessage } from '#/components/hooks/use-action-mutation'
 
@@ -44,15 +43,9 @@ export function ConnectGoogleButton({
     <div>
       <Button
         onClick={() => void handleClick()}
-        disabled={disabled || connect.isPending}
-        aria-busy={connect.isPending}
+        pending={connect.isPending}
+        disabled={disabled}
       >
-        {connect.isPending && (
-          <Loader2
-            className="mr-2 size-4 animate-spin motion-reduce:animate-none"
-            aria-hidden="true"
-          />
-        )}
         Connect Google Account
       </Button>
     </div>

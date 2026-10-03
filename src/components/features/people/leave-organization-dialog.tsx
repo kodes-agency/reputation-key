@@ -234,7 +234,8 @@ export function LeaveOrganizationDialog({
           </DialogClose>
           <Button
             variant="destructive"
-            disabled={!canLeave || leaveOrganization.isPending}
+            pending={leaveOrganization.isPending}
+            disabled={!canLeave}
             data-testid="confirm-leave-organization"
             onClick={() =>
               void leaveOrganization({
