@@ -17,6 +17,8 @@ export const Populated: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Alice Adams')).toBeInTheDocument()
+    // A management list is a dashboard-tier page, like Portals and Properties.
+    expect(canvasElement.querySelector('.max-w-\\[1200px\\]')).not.toBeNull()
     await userEvent.click(canvas.getByRole('button', { name: /add staff/i }))
     const dialog = await within(document.body).findByRole('dialog')
     await expect(

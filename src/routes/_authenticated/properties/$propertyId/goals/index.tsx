@@ -106,7 +106,7 @@ function GoalsRoute() {
   })
 
   return (
-    <PageShell>
+    <PageShell tier="dashboard">
       <PageHeader
         title="Goals"
         description="Monthly targets for this property, its portal groups, and individual portals."

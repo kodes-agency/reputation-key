@@ -72,7 +72,7 @@ export function PeoplePage({
   const activeTab = tab ?? 'staff'
   const [createParticipationOpen, setCreateParticipationOpen] = useState(false)
   return (
-    <PageShell>
+    <PageShell tier="dashboard">
       <PageHeader
         title="People"
         description="Manage property participation and Portal responsibility."
