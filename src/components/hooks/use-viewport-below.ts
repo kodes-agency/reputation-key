@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useSyncExternalStore } from 'react'
+import { createContext, useContext, useSyncExternalStore } from 'react'
 import { isHintBelow, UNKNOWN_VIEWPORT, type ViewportHint } from './viewport-hint'
 
 /**
@@ -8,6 +8,15 @@ import { isHintBelow, UNKNOWN_VIEWPORT, type ViewportHint } from './viewport-hin
  */
 export const ViewportHintContext = createContext<ViewportHint>(UNKNOWN_VIEWPORT)
 
+// One subscription for every breakpoint: a width query can only change when
+// the window resizes, and the snapshot is a boolean, so a resize that crosses
+// no breakpoint re-renders nothing. Module-level, so it is never resubscribed.
+// This hook sits in a first-paint chunk (scripts/check-bundle-budget.mjs).
+function subscribeToResize(onStoreChange: () => void): () => void {
+  window.addEventListener('resize', onStoreChange)
+  return () => window.removeEventListener('resize', onStoreChange)
+}
+
 /**
  * Is the viewport narrower than `breakpointPx`? The browser answers with
  * `matchMedia`. The server render, and the hydration that must match it, answer
@@ -16,18 +25,9 @@ export const ViewportHintContext = createContext<ViewportHint>(UNKNOWN_VIEWPORT)
  */
 export function useViewportBelow(breakpointPx: number): boolean {
   const hint = useContext(ViewportHintContext)
-  const query = `(max-width: ${breakpointPx - 1}px)`
-  const subscribe = useCallback(
-    (onStoreChange: () => void) => {
-      const media = window.matchMedia(query)
-      media.addEventListener('change', onStoreChange)
-      return () => media.removeEventListener('change', onStoreChange)
-    },
-    [query],
-  )
   return useSyncExternalStore(
-    subscribe,
-    () => window.matchMedia(query).matches,
+    subscribeToResize,
+    () => window.matchMedia(`(max-width: ${breakpointPx - 1}px)`).matches,
     () => isHintBelow(hint, breakpointPx),
   )
 }

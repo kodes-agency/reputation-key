@@ -10,10 +10,7 @@ export type ViewportHint = Readonly<{
   mobile: boolean
 }>
 
-export const UNKNOWN_VIEWPORT: ViewportHint = Object.freeze({
-  width: null,
-  mobile: false,
-})
+export const UNKNOWN_VIEWPORT: ViewportHint = { width: null, mobile: false }
 
 /** Written by the browser (`useRememberViewportWidth`), read by the server. */
 export const VIEWPORT_COOKIE = 'rk_viewport'
