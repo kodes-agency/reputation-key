@@ -1,10 +1,12 @@
-// The Page tab: the section list, the active section and the live preview, in
-// three columns from `xl`; from `lg` the list is a row above the section and
-// its preview, and below `lg` the preview stacks under the section. Which
-// section is showing comes from the route's `?section=`, and every save goes
-// through the portal's autosave coordinator.
+// The Page tab: the section list, the active section and the live preview. The
+// list is a column beside the other two once the space the editor has is wide
+// enough for three (a container width, so an open sidebar counts), and a row
+// above them until then; the form and its preview sit side by side from `lg`,
+// and stack below it. Which section is showing comes from the route's
+// `?section=`, and every save goes through the portal's autosave coordinator.
 
 import { useNavigate } from '@tanstack/react-router'
+import { SectionNavLayout } from '#/components/ui/section-nav-layout'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { PortalPreviewPane } from '../portal-preview/portal-preview-pane'
 import type { PreviewPartSection } from '../portal-preview/preview-parts'
@@ -68,8 +70,8 @@ export function PortalEditor({ resources, requestedSection }: Props) {
   return (
     // The form and its preview sit side by side from lg (iPad landscape, a
     // small laptop), so an edit is seen as it is typed; the section list joins
-    // them as a column only from xl, where there is room for three.
-    <div className="flex min-h-full flex-col xl:flex-row">
+    // them as a column only where the container has room for three.
+    <SectionNavLayout frame="rail">
       <PortalEditorNav
         propertyId={propertyId}
         portalId={portal.id}
@@ -99,6 +101,6 @@ export function PortalEditor({ resources, requestedSection }: Props) {
           />
         </aside>
       </div>
-    </div>
+    </SectionNavLayout>
   )
 }

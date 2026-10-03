@@ -54,7 +54,7 @@ export const SectionNavigation: Story = {
     })
     const labels = within(nav)
       .getAllByRole('link')
-      .map((link) => link.querySelector('span')?.textContent)
+      .map((link) => link.querySelector('[data-slot="section-nav-label"]')?.textContent)
     expect(labels).toEqual([
       'Profile',
       'Google',
