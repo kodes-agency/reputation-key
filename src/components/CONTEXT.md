@@ -10,8 +10,8 @@ and actions supply server state.
 
 - `ui/` holds vendored shadcn primitives plus app-wide presentation primitives
   that no feature owns (Fact, OwnerDisc, MetricStrip, SegmentedControl, Timeline,
-  StarRating, ConfirmationDialog, EmptyState, RegionError). Every confirmation goes
-  through `ConfirmationDialog`; its `tone` is `destructive` only for an action the
+  StarRating, RatingFigure, ConfirmationDialog, EmptyState, RegionError). Every
+  confirmation goes through `ConfirmationDialog`; its `tone` is `destructive` only for an action the
   person cannot take back. A region with nothing to show, nothing that matches, or
   a read that failed is `EmptyState` (`size` default or compact, `tone` neutral or
   error, `description` and `action` slots) or `RegionError`, whose only recovery is
@@ -27,8 +27,11 @@ and actions supply server state.
   A notice is an `Alert`: `destructive`, `warning`, `success` and `info` each
   draw the one icon their tone wears (`ui/tone.ts`, which Alert, Badge and
   StatusBadge all read), and `default` is a plain card for a notice that brings
-  its own icon. A status pill is a `Badge` tone (`positive`, `warn`, `negative`,
-  `neutral`) or, for a domain status, `StatusBadge`: the feature writes a
+  its own icon. `destructive` and `warning` are announced at once
+  (`role="alert"`); `info`, `success` and `default` are `role="status"`, so a
+  notice already on the page does not interrupt a screen reader. A typed toast
+  wears the same icons and the information notice's colours. A status pill is a
+  `Badge` tone (`positive`, `warn`, `negative`, `neutral`) or, for a domain status, `StatusBadge`: the feature writes a
   `StatusMap` once (label and tone per status) and never prints the raw enum.
   Red text is `text-negative`, the text-grade red; the fill-grade red belongs to
   a destructive button or bar. Colour comes from the tokens in `styles.css`: no
@@ -44,8 +47,13 @@ and actions supply server state.
   `errorMessage` on its `useActionMutation`, and never also a banner. A toast for
   a failure reads "Couldn't …. Try again." (`actionFailureMessage`), shows the
   server's own sentence only for a 4xx refusal, and a success says what changed
-  without "successfully". `feedback-ownership.test.ts` reads the sources and
-  fails on a file that does both, a hand-built red paragraph, or a toast that
+  without "successfully". `FormErrorBanner` follows the same rule (a 4xx
+  refusal's sentence, a rejected schema's issue list, one generic sentence for
+  anything else), so hand it the mutation's error as it is. An autosaved portal
+  form (`usePortalFormAutosave`) has no actions to sit above and renders no
+  banner: the editor header's save status reports its failure.
+  `feedback-ownership.test.ts` reads the sources and fails on a file that does
+  both, a hand-built red paragraph, or a toast that
   echoes `error.message`. Typed toasts take their colours from the tone tokens
   (`toaster-theme.ts`) and follow the applied theme.
 - `ui/metric-delta` draws a period-over-period change (arrow, size, baseline,
