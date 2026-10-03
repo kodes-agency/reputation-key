@@ -3,7 +3,7 @@
 // dashboard redirect and every typed link to the list rely on that — and a
 // value a hand-edited URL cannot mean is dropped rather than refusing the page.
 import { z } from 'zod/v4'
-import { MAX_LIST_SEARCH_LENGTH } from '#/components/property/property-search'
+import { MAX_LIST_SEARCH_LENGTH } from '#/components/property/list-search-limit'
 
 export const PROPERTY_LIST_SORTS = [
   'attention',

@@ -13,7 +13,7 @@ import {
   type PropertyListPageProps,
   type PropertySetupProgress,
 } from './property-list-page'
-import { MAX_LIST_SEARCH_LENGTH } from '#/components/property/property-search'
+import { MAX_LIST_SEARCH_LENGTH } from '#/components/property/list-search-limit'
 import type { PropertyListSearch } from './property-list-search-schema'
 import type { PropertyListProperty } from './property-list-view'
 

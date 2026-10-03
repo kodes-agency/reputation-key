@@ -3,7 +3,7 @@
 // bare `/portals` and a value a hand-edited URL cannot mean is dropped rather
 // than refusing the page (the same rule as the Properties list).
 import { z } from 'zod/v4'
-import { MAX_LIST_SEARCH_LENGTH } from '#/components/property/property-search'
+import { MAX_LIST_SEARCH_LENGTH } from '#/components/property/list-search-limit'
 
 export const PORTAL_OVERVIEW_SORTS = ['name', 'attention', 'scans'] as const
 export type PortalOverviewSort = (typeof PORTAL_OVERVIEW_SORTS)[number]

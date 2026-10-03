@@ -32,12 +32,6 @@ export function offersPropertySearch(propertyCount: number): boolean {
 }
 
 /**
- * The longest search a list takes. The URL schemas drop a longer `q` outright,
- * so the field has to stop typing here too, or the 101st character resets it.
- */
-export const MAX_LIST_SEARCH_LENGTH = 100
-
-/**
  * Text as a search sees it: case and accents gone, compatibility forms (full
  * width, ligatures) flattened. Both sides of every comparison go through this,
  * so "cafe" finds "Café", "СТАРА" finds "Стара" and "CAFÉ" finds "Cafe".

@@ -3,7 +3,7 @@
 // state of its own. Sort lives in a menu at every width, because the stacked
 // layout has no column headers to click.
 import { ArrowDownUp, ListFilter, Search } from 'lucide-react'
-import { MAX_LIST_SEARCH_LENGTH } from '#/components/property/property-search'
+import { MAX_LIST_SEARCH_LENGTH } from '#/components/property/list-search-limit'
 import { Button } from '#/components/ui/button'
 import {
   DropdownMenu,
