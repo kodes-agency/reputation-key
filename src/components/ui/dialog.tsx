@@ -1,6 +1,7 @@
 // The app's dialog. Three things are decided here so no caller spells them:
 //
-// - How wide it is: `size` (sm, md, lg, xl), not a `sm:max-w-*` per dialog.
+// - How wide it is: `size` (sm, md, lg, xl), not a `sm:max-w-*` per dialog, and
+//   never wider than the window less a 1rem margin each side, at any width.
 // - How tall it can get: the viewport less a 1rem margin on every side, in `dvh`
 //   so a phone's address bar does not hide the footer, and the dialog scrolls
 //   inside that box. The footer is pinned to the bottom of it, so Cancel and the
@@ -23,6 +24,11 @@ import {
   useDialogIsBusy,
   useDismissalGuard,
 } from '#/components/ui/dialog-dismissal'
+import {
+  DIALOG_SIZE,
+  DIALOG_WIDTH_CAP,
+  type DialogSize,
+} from '#/components/ui/dialog-width'
 
 type DialogProps = React.ComponentProps<typeof DialogPrimitive.Root> & {
   /**
@@ -91,21 +97,6 @@ function DialogOverlay({
 }
 
 /**
- * The widths a dialog comes in, from the recipes the dialogs spelled by hand:
- * `sm` a short list (24rem), `md` a form of a few fields (32rem, the default),
- * `lg` a form with a column of choices (42rem), `xl` a form beside its preview
- * (56rem). Below `sm` every size is the window less 1rem a side.
- */
-const DIALOG_SIZE = {
-  sm: 'sm:max-w-sm',
-  md: 'sm:max-w-lg',
-  lg: 'sm:max-w-2xl',
-  xl: 'sm:max-w-4xl',
-} as const
-
-type DialogSize = keyof typeof DIALOG_SIZE
-
-/**
  * The footer, pinned. The dialog's padding is `--dialog-pad` (a caller that wants
  * less sets the variable, not `p-*`), so the footer can reach back over it: it
  * bleeds into the padding on three sides and keeps its own, with the dialog's
@@ -147,7 +138,8 @@ function DialogContent({
         data-size={size}
         aria-busy={isBusy || undefined}
         className={cn(
-          'fixed top-[50%] left-[50%] z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-lg border bg-background p-(--dialog-pad) shadow-lg [--dialog-pad:1.5rem] duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
+          'fixed top-[50%] left-[50%] z-50 grid max-h-[calc(100dvh-2rem)] w-full translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-lg border bg-background p-(--dialog-pad) shadow-lg [--dialog-pad:1.5rem] duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
+          DIALOG_WIDTH_CAP,
           DIALOG_SIZE[size],
           className,
         )}

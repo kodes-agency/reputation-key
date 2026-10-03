@@ -80,11 +80,14 @@ function Demo({
 }
 
 const WIDTH_CLASS: Readonly<Record<DialogSize, string>> = {
-  sm: 'sm:max-w-sm',
-  md: 'sm:max-w-lg',
-  lg: 'sm:max-w-2xl',
-  xl: 'sm:max-w-4xl',
+  sm: '[--dialog-w:24rem]',
+  md: '[--dialog-w:32rem]',
+  lg: '[--dialog-w:42rem]',
+  xl: '[--dialog-w:56rem]',
 }
+
+/** Every size is capped at the window less a rem a side, so none touches an edge. */
+const WINDOW_CAP_CLASS = 'max-w-[min(var(--dialog-w),calc(100%-2rem))]'
 
 function sizeStory(size: DialogSize, theme?: 'light'): Story {
   return {
@@ -94,6 +97,7 @@ function sizeStory(size: DialogSize, theme?: 'light'): Story {
       const { dialog } = await open(canvasElement)
       expect(dialog).toHaveAttribute('data-size', size)
       expect(dialog.className).toContain(WIDTH_CLASS[size])
+      expect(dialog.className).toContain(WINDOW_CAP_CLASS)
     },
   }
 }

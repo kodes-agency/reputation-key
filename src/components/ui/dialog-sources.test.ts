@@ -81,6 +81,8 @@ function tagsNamed(text: string, name: string): string[] {
 const RECIPE =
   /(?:^|[\s"'`])(?:sm:|md:|lg:)?(?:max-(?:w|h)-|p[xytrblse]?-)|overflow-y-auto/u
 const CANCEL_BUTTON = />\s*Cancel\s*<\/(?:Button|DialogClose)>/u
+/** A `max-w-*` utility in a class string, with its variants: `sm:max-w-4xl`. */
+const MAX_WIDTH_UTILITY = /[^\s'"`]*\bmax-w-[^\s'"`]+/gu
 /** An `onOpenChange` that decides by a pending flag is the guard, written by hand. */
 const HAND_GUARD = [
   /onOpenChange=\{[^}]*\b(?:isPending|isPublishing|isBusy|pending)\b/u,
@@ -130,6 +132,59 @@ describe('a dialog gets its width and height from the primitive', () => {
       /const [A-Z_]+ =\s*['"`][^'"`]*(?:max-w-|max-h-)/u.test(file.text)
 
     expect(offendersOf(named)).toEqual([])
+  })
+})
+
+describe('a dialog never touches the window edge', () => {
+  // A fixed dialog is centred, so a width past the window less 1rem a side puts
+  // it flush with both edges: `sm:max-w-4xl` is 56rem even in a 768px window,
+  // which is how the History "View" dialog lost its margin. The Storybook Vitest
+  // project compiles no Tailwind, so the geometry is `dialog.metrics.ts`'s; this
+  // reads the recipe, which is what a new size or a new primitive would get wrong.
+  const WIDTH_SOURCE = 'src/components/ui/dialog-width.ts'
+  const PRIMITIVES = [
+    'src/components/ui/dialog.tsx',
+    'src/components/ui/alert-dialog.tsx',
+  ]
+  const WINDOW_CAP = 'calc(100%-2rem)'
+  const textOf = (path: string) => FILES.find((file) => file.path === path)?.text ?? ''
+
+  const uncappedWidths = (text: string) =>
+    (text.match(MAX_WIDTH_UTILITY) ?? []).filter((width) => !width.includes(WINDOW_CAP))
+
+  it('caps every max-w it names at the window less 1rem a side', () => {
+    const text = textOf(WIDTH_SOURCE)
+
+    expect(text.match(MAX_WIDTH_UTILITY)?.length ?? 0).toBeGreaterThan(0)
+    expect(uncappedWidths(text)).toEqual([])
+  })
+
+  it('a size names a width and does not set one, so none can bypass the cap', () => {
+    const sizes = /const DIALOG_SIZE = \{([^}]*)\}/u.exec(textOf(WIDTH_SOURCE))?.[1] ?? ''
+
+    expect(sizes).toContain('--dialog-w')
+    expect(sizes).not.toContain('max-w')
+  })
+
+  it.each(PRIMITIVES)(
+    '%s takes its width from the shared cap, not a class of its own',
+    (path) => {
+      const text = textOf(path)
+
+      expect(text).toContain('DIALOG_WIDTH_CAP')
+      expect(text).toContain('DIALOG_SIZE')
+      expect(text.match(MAX_WIDTH_UTILITY) ?? []).toEqual([])
+    },
+  )
+
+  it('catches a width past the window', () => {
+    expect(uncappedWidths("'w-full sm:max-w-4xl data-[size=sm]:max-w-xs'")).toEqual([
+      'sm:max-w-4xl',
+      'data-[size=sm]:max-w-xs',
+    ])
+    expect(
+      uncappedWidths("'max-w-[min(var(--dialog-w),calc(100%-2rem))] [--dialog-w:24rem]'"),
+    ).toEqual([])
   })
 })
 
