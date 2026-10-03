@@ -2,7 +2,7 @@ import { useForm } from '@tanstack/react-form'
 import { FieldGroup } from '#/components/ui/field'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { submitForm } from '#/components/forms/form-submit'
+import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import type { Action } from '#/components/hooks/use-action'
@@ -28,15 +28,7 @@ export function SetNewPasswordForm({ mutation }: Props) {
   })
 
   return (
-    <form
-      method="post"
-      onSubmit={(event) => {
-        event.preventDefault()
-        event.stopPropagation()
-        void submitForm(form)
-      }}
-      className="space-y-4"
-    >
+    <form method="post" onSubmit={submitHandler(form)} className="space-y-4">
       <FieldGroup>
         <form.Field name="newPassword">
           {(field: BaseFieldApi) => (

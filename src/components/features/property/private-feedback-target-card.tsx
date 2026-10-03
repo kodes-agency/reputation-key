@@ -1,6 +1,6 @@
 import { useForm } from '@tanstack/react-form'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { submitForm } from '#/components/forms/form-submit'
+import { submitHandler } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { Checkbox } from '#/components/ui/checkbox'
 import { Label } from '#/components/ui/label'
@@ -75,13 +75,7 @@ function PrivateFeedbackTargetFormCard({
   })
 
   return (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault()
-        event.stopPropagation()
-        void submitForm(form)
-      }}
-    >
+    <form onSubmit={submitHandler(form)}>
       <Card>
         <CardHeader>
           <CardTitle>Private feedback handling target</CardTitle>

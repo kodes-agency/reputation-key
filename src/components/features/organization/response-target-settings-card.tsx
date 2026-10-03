@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import type { Action } from '#/components/hooks/use-action'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { submitForm } from '#/components/forms/form-submit'
+import { submitHandler } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { FormNumberField } from '#/components/forms/form-number-field'
 import {
@@ -160,11 +160,7 @@ function TargetPolicyForm({
   return (
     <form
       className="grid gap-3 rounded-lg border p-4 sm:grid-cols-[minmax(0,1fr)_9rem_auto] sm:items-end"
-      onSubmit={(event) => {
-        event.preventDefault()
-        event.stopPropagation()
-        void submitForm(form)
-      }}
+      onSubmit={submitHandler(form)}
     >
       {failure ? (
         <div className="sm:col-span-3">

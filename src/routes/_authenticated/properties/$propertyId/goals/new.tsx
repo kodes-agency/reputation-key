@@ -18,6 +18,7 @@ import { Input } from '#/components/ui/input'
 import { Textarea } from '#/components/ui/textarea'
 import { Field, FieldError, FieldLabel } from '#/components/ui/field'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { submitHandler } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import {
   GoalSubjectPicker,
@@ -147,11 +148,7 @@ function CreateGoalPage() {
       />
       <form
         className="grid max-w-5xl gap-4 lg:grid-cols-2"
-        onSubmit={(event) => {
-          event.preventDefault()
-          event.stopPropagation()
-          void form.handleSubmit()
-        }}
+        onSubmit={submitHandler(form)}
       >
         <Card>
           <CardHeader>

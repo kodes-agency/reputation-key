@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Check } from 'lucide-react'
-import { submitForm } from '#/components/forms/form-submit'
+import { submitHandler } from '#/components/forms/form-submit'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { Checkbox } from '#/components/ui/checkbox'
@@ -67,15 +67,7 @@ export function GoogleImportReviewForm({
   submitError,
 }: Props) {
   return (
-    <form
-      className="space-y-6"
-      aria-busy={isSubmitting}
-      onSubmit={(event) => {
-        event.preventDefault()
-        event.stopPropagation()
-        void submitForm(form)
-      }}
-    >
+    <form className="space-y-6" aria-busy={isSubmitting} onSubmit={submitHandler(form)}>
       <form.Subscribe
         selector={(state) => [state.values.items, state.submissionAttempts] as const}
       >

@@ -10,7 +10,7 @@ import {
 } from '#/components/ui/select'
 import { Textarea } from '#/components/ui/textarea'
 import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
-import { submitForm } from '#/components/forms/form-submit'
+import { submitHandler } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { feedbackHandlingDecisionDto } from '#/contexts/inbox/application/dto/inbox.dto'
 import {
@@ -49,14 +49,7 @@ export function FeedbackHandlingForm(props: Props) {
   })
 
   return (
-    <form
-      className="grid gap-5"
-      onSubmit={(event) => {
-        event.preventDefault()
-        event.stopPropagation()
-        void submitForm(form)
-      }}
-    >
+    <form className="grid gap-5" onSubmit={submitHandler(form)}>
       <form.Field name="outcome">
         {(field) => (
           <Field data-invalid={!field.state.meta.isValid}>

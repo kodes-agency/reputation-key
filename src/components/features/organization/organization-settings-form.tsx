@@ -3,7 +3,7 @@
 
 import { useForm } from '@tanstack/react-form'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { submitForm } from '#/components/forms/form-submit'
+import { submitHandler } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { Link } from '@tanstack/react-router'
 import { Button } from '#/components/ui/button'
@@ -54,14 +54,7 @@ export function OrganizationSettingsForm({
   })
 
   return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault()
-        e.stopPropagation()
-        void submitForm(form)
-      }}
-      className="flex flex-col gap-6"
-    >
+    <form onSubmit={submitHandler(form)} className="flex flex-col gap-6">
       {/* Identity Card */}
       <Card>
         <CardHeader>

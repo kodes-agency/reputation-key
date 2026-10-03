@@ -2,7 +2,7 @@ import { useForm } from '@tanstack/react-form'
 import { toast } from 'sonner'
 import type { Action } from '#/components/hooks/use-action'
 import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
-import { submitForm } from '#/components/forms/form-submit'
+import { submitHandler } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { Field, FieldError, FieldGroup, FieldLabel } from '#/components/ui/field'
 import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
@@ -31,14 +31,7 @@ export function StaffParticipationForm({ propertyId, mutation, onSuccess }: Prop
   })
 
   return (
-    <form
-      className="space-y-4"
-      onSubmit={(event) => {
-        event.preventDefault()
-        event.stopPropagation()
-        void submitForm(form)
-      }}
-    >
+    <form className="space-y-4" onSubmit={submitHandler(form)}>
       <FieldGroup>
         <form.Field name="displayName">
           {(field) => (

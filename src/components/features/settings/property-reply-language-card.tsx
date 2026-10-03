@@ -19,7 +19,7 @@ import {
   SelectValue,
 } from '#/components/ui/select'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { submitForm } from '#/components/forms/form-submit'
+import { submitHandler } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import type { Action } from '#/components/hooks/use-action'
 import { updatePropertyInputSchema } from '#/contexts/property/application/dto/update-property.dto'
@@ -64,13 +64,7 @@ export function PropertyReplyLanguageCard({ property, updateProperty }: Props) {
   })
 
   return (
-    <form
-      onSubmit={(event) => {
-        event.preventDefault()
-        event.stopPropagation()
-        void submitForm(form)
-      }}
-    >
+    <form onSubmit={submitHandler(form)}>
       <Card className="min-w-0">
         <CardHeader className="border-b">
           <CardTitle>Reply language</CardTitle>
