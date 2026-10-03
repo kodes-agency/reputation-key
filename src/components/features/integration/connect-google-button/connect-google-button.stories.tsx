@@ -3,7 +3,7 @@
 // and reach every state without a live OAuth round-trip.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
-import { Toaster } from '#/components/ui/sonner'
+import { ToasterDecorator } from '../../../../../.storybook/ToasterDecorator'
 import { ConnectGoogleButton } from './connect-google-button'
 
 type AuthOpts = {
@@ -55,14 +55,7 @@ export const ConnectionError: Story = {
       throw new Error('network down')
     },
   },
-  decorators: [
-    (Story) => (
-      <>
-        <Story />
-        <Toaster position="top-right" />
-      </>
-    ),
-  ],
+  decorators: [ToasterDecorator],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: /connect google account/i }))

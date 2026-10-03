@@ -5,7 +5,7 @@ import type {
 } from '#/contexts/inbox/server/inbox'
 import { expect, fn, userEvent, within, waitFor } from 'storybook/test'
 import { InboxBulkActions } from './inbox-bulk-actions'
-import { Toaster } from '#/components/ui/sonner'
+import { ToasterDecorator } from '../../../.storybook/ToasterDecorator'
 import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { mockServerFn } from '../../../.storybook/mocks/mock-action'
 import { makeInboxItem } from '../../../.storybook/in-memory/inbox-container'
@@ -254,14 +254,7 @@ export const ReopenError: Story = {
     ...AllFeedback.args,
     bulkUpdateFn: failingBulkFn,
   },
-  decorators: [
-    (Story) => (
-      <>
-        <Story />
-        <Toaster position="top-right" />
-      </>
-    ),
-  ],
+  decorators: [ToasterDecorator],
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: /^reopen$/i }))
