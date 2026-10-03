@@ -40,6 +40,7 @@ import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import { portalGroupsQuery } from '../-portal-detail-data'
 import { portalOverviewQuery } from '../-portal-overview-data'
 import { usePortalResultsControls } from '../-portal-results-controls'
+import { isRetrying } from '#/components/hooks/is-retrying'
 
 const SIDE_READ_STALE_MS = 30_000
 
@@ -194,11 +195,13 @@ function PortalGroupRoute() {
         allowed: canDo('goal.read') && has('goal.use') && isBetaInteractiveRole(role),
         error: goals.error,
         data: goals.data?.goals,
+        retrying: isRetrying(goals),
       })}
       history={readStateOf({
         allowed: true,
         error: history.error,
         data: history.data?.entries,
+        retrying: isRetrying(history),
       })}
       names={{
         actor: (userId) => memberNames.get(userId) ?? null,

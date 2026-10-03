@@ -32,6 +32,8 @@ type Props = Readonly<{
   choice: PrintKitChoice | null
   isError: boolean
   onRetry: () => void
+  /** Try again is reading; the error stays, its button busy. */
+  isRetrying?: boolean
   onChoiceChange: (choice: PrintKitChoice) => void
   /** Why the download is off, or null when it is on. */
   unavailableReason: string | null
@@ -45,6 +47,7 @@ export function PortalPrintKitSection({
   choice,
   isError,
   onRetry,
+  isRetrying = false,
   onChoiceChange,
   unavailableReason,
   isWorking,
@@ -66,6 +69,7 @@ export function PortalPrintKitSection({
           size="compact"
           message="The print kit couldn’t be loaded."
           onRetry={onRetry}
+          retrying={isRetrying}
         />
       )}
       {view === null || choice === null ? (

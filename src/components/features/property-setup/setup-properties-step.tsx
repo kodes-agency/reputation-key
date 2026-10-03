@@ -243,6 +243,7 @@ export function SetupPropertiesStep({ properties, fns, viewerUserId }: Props) {
           message="The setup questions couldn’t be loaded."
           description="Each property’s setup checklist still lists what is left to do."
           onRetry={state.retry}
+          retrying={state.retrying}
         />
       ) : (
         <SetupStepBody ready={state} fns={fns} viewerUserId={viewerUserId} />

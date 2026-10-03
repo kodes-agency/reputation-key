@@ -42,6 +42,7 @@ type NeedsYouList = Readonly<{
   isLoading: boolean
   isLoadingMore: boolean
   error: Error | null
+  isRetrying?: boolean
   loadMoreError?: Error | null
   hasMore: boolean
   onRetry: () => void
@@ -164,6 +165,7 @@ export function NotificationPopoverContent(props: Props) {
           isLoading={props.needsYou.isLoading}
           isLoadingMore={props.needsYou.isLoadingMore}
           error={props.needsYou.error}
+          isRetrying={props.needsYou.isRetrying}
           loadMoreError={props.needsYou.loadMoreError}
           hasMore={props.needsYou.hasMore}
           onRetry={props.needsYou.onRetry}
@@ -182,6 +184,7 @@ export function NotificationPopoverContent(props: Props) {
           isLoading={updates.isLoading}
           isLoadingMore={false}
           error={updates.error}
+          isRetrying={updates.isRetrying}
           hasMore={false}
           onRetry={updates.refetch}
           onLoadMore={updates.loadMore}

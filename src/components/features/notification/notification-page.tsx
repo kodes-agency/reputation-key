@@ -212,6 +212,7 @@ export function NotificationPage({
           isLoading={list.isLoading}
           isLoadingMore={list.isLoadingMore}
           error={list.error}
+          isRetrying={list.isRetrying}
           loadMoreError={list.loadMoreError}
           hasMore={list.hasMore}
           onRetry={list.refetch}

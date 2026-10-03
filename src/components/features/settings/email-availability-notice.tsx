@@ -11,7 +11,13 @@ export type EmailAvailability = 'checking' | 'allowed' | 'unavailable' | 'unknow
 export function EmailAvailabilityNotice({
   availability,
   onRetry,
-}: Readonly<{ availability: EmailAvailability; onRetry: () => void }>) {
+  retrying = false,
+}: Readonly<{
+  availability: EmailAvailability
+  onRetry: () => void
+  /** The check is running again; the notice stays, its button busy. */
+  retrying?: boolean
+}>) {
   if (availability === 'allowed') return null
   if (availability === 'checking') {
     return (
@@ -28,6 +34,7 @@ export function EmailAvailabilityNotice({
           message="Email availability for this property couldn’t be checked."
           description="The email controls stay off until it is known."
           onRetry={onRetry}
+          retrying={retrying}
         />
       </div>
     )

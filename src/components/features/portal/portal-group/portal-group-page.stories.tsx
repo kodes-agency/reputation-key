@@ -226,7 +226,7 @@ export const GoalNotOfferedToThisReader: Story = {
 }
 
 export const SideReadsWaitAndFailAlone: Story = {
-  args: { goals: { status: 'loading' }, history: { status: 'failed' } },
+  args: { goals: { status: 'loading' }, history: { status: 'failed', retrying: false } },
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Loading the goal')).toBeInTheDocument()

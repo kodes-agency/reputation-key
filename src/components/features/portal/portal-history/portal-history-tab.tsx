@@ -22,6 +22,7 @@ import { PortalHistoryView, type HistorySelection } from './portal-history-view'
 import { PortalVersionPreview } from './portal-version-preview'
 import { listedTileCount } from './portal-version-page-note'
 import { useNow } from './use-now'
+import { isRetrying } from '#/components/hooks/is-retrying'
 
 /** The reads, handed in by the route (components never import server modules). */
 export type PortalHistoryReads = Readonly<{
@@ -151,6 +152,7 @@ export function PortalHistoryTab({
       loadingMore={history.isFetchingNextPage}
       onLoadMore={() => void history.fetchNextPage()}
       onRetry={() => void history.refetch()}
+      entriesRetrying={isRetrying(history)}
       onShowEarlier={(firstVersion) => {
         setRevealedVersion(firstVersion)
         setShowEarlier(true)
@@ -163,6 +165,7 @@ export function PortalHistoryTab({
       versions={versions.data ?? null}
       versionsFailed={versions.isError}
       onRetryVersions={() => void versions.refetch()}
+      versionsRetrying={isRetrying(versions)}
       pendingChangeCount={pendingChangeCount}
       canMakeLive={mayMakeLive && pageIsLive}
       note={
@@ -187,6 +190,7 @@ export function PortalHistoryTab({
         status: detail.isError ? 'error' : detail.data ? 'ready' : 'loading',
         detail: detail.data ?? null,
         retry: () => void detail.refetch(),
+        retrying: isRetrying(detail),
       }}
       submitting={makeLive.isPending}
       restoreError={restoreError}

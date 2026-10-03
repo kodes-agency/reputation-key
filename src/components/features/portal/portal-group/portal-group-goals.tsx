@@ -49,6 +49,7 @@ export function PortalGroupGoals({
           size="compact"
           message="The goal couldn’t be loaded."
           onRetry={onRetry}
+          retrying={state.retrying}
         />
       ) : null}
       {state.status === 'ready' && state.data.length === 0 ? (

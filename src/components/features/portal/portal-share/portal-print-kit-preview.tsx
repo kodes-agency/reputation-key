@@ -35,6 +35,8 @@ type Props = Readonly<{
   qrAddress: string | null
   isError: boolean
   onRetry: () => void
+  /** Try again is reading; the error stays, its button busy. */
+  isRetrying?: boolean
 }>
 
 const SIDE_OPTIONS = [
@@ -52,6 +54,7 @@ export function PortalPrintKitPreview({
   qrAddress,
   isError,
   onRetry,
+  isRetrying = false,
 }: Props) {
   const codeUrl = usePrintKitCode(qrAddress)
   const captions = printKitCaptions(piece, side)
@@ -84,6 +87,7 @@ export function PortalPrintKitPreview({
             size="compact"
             message="The preview couldn’t be loaded."
             onRetry={onRetry}
+            retrying={isRetrying}
           />
         ) : view === null || face === null ? (
           <Skeleton className="mx-auto aspect-125/168 w-full max-w-md" />

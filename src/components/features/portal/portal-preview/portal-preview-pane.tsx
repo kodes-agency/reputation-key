@@ -29,6 +29,7 @@ import { PHONE_SCALE, PortalPreviewStage } from './portal-preview-stage'
 import { phoneFrameSize } from './preview-phone'
 import { PortalPreviewToolbar } from './portal-preview-toolbar'
 import { usePreviewCopy } from './use-preview-copy'
+import { isRetrying } from '#/components/hooks/is-retrying'
 
 /** The highest private-feedback threshold a portal can have. */
 const MAX_THRESHOLD = 5
@@ -66,13 +67,14 @@ export function PortalPreviewPane({ portalId, getPortalPreview, selection }: Pro
   // chose that already draws it is kept.
   const [shownFor, setShownFor] = useState(selection?.active)
   const [isTrying, setIsTrying] = useState(false)
-  const { data, isPending, isError, refetch } = useQuery({
+  const query = useQuery({
     queryKey: portalKeys.preview(portalId, source),
     queryFn: () => getPortalPreview({ data: { portalId, source } }),
     staleTime: 30_000,
     // Switching the version keeps the last page up while the other one loads.
     placeholderData: keepPreviousData,
   })
+  const { data, isPending, isError, refetch } = query
   const preview = data?.status === 'ready' ? data.preview : null
   if (shownFor !== selection?.active) {
     setShownFor(selection?.active)
@@ -115,6 +117,7 @@ export function PortalPreviewPane({ portalId, getPortalPreview, selection }: Pro
       />
       <PortalPreviewBody
         hasError={isError || copy.isError}
+        isRetrying={isRetrying(query, copy)}
         isPending={isPending}
         data={data}
         copyData={copy.data}
@@ -136,6 +139,8 @@ export function PortalPreviewPane({ portalId, getPortalPreview, selection }: Pro
 
 export type PortalPreviewBodyProps = Readonly<{
   hasError: boolean
+  /** Try again is reading; the failure stays, its button busy. */
+  isRetrying?: boolean
   isPending: boolean
   data: PortalPreviewOutcome | undefined
   copyData: GuestPortalCopyV2 | undefined
@@ -156,6 +161,7 @@ export type PortalPreviewBodyProps = Readonly<{
  */
 export function PortalPreviewBody({
   hasError,
+  isRetrying = false,
   isPending,
   data,
   copyData,
@@ -163,7 +169,7 @@ export function PortalPreviewBody({
   onRetry,
   ...stage
 }: PortalPreviewBodyProps) {
-  if (hasError) return <PreviewFailure onRetry={onRetry} />
+  if (hasError) return <PreviewFailure onRetry={onRetry} retrying={isRetrying} />
   const preview = data?.status === 'ready' ? data.preview : null
   if (isPending || (preview !== null && copyData === undefined))
     return <PreviewSkeleton scale={stage.phoneScale} />
@@ -214,12 +220,16 @@ function PreviewUnavailable({
   )
 }
 
-function PreviewFailure({ onRetry }: Readonly<{ onRetry: () => void }>) {
+function PreviewFailure({
+  onRetry,
+  retrying,
+}: Readonly<{ onRetry: () => void; retrying: boolean }>) {
   return (
     <RegionError
       size="compact"
       message="The preview couldn’t be loaded."
       onRetry={onRetry}
+      retrying={retrying}
     />
   )
 }

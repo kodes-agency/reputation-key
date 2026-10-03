@@ -45,6 +45,8 @@ type Props = Readonly<{
   loadingMore: boolean
   onLoadMore: () => void
   onRetry: () => void
+  /** `onRetry` is reading; the failure stays, its button busy. */
+  retrying?: boolean
   /** A quiet line under the filters, e.g. why no version can be made live. */
   note?: ReactNode
 }>
@@ -78,6 +80,7 @@ export function PortalHistoryLedger(props: Props) {
             size="compact"
             message="The history couldn’t be loaded."
             onRetry={props.onRetry}
+            retrying={props.retrying === true}
           />
         ) : null}
         {state === 'ready' && rows.length === 0 ? (

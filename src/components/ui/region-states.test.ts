@@ -57,10 +57,13 @@ const DASHED_ALLOWED: Readonly<Record<string, string>> = {
     'a status pill for "off"',
 }
 
+/** A dashed edge, as the utility or as an arbitrary property. */
+const DASHED = /border-dashed|\[border-style:\s*dashed\]/u
+
 describe('dashed panels', () => {
   it('are EmptyState, outside the few places a dashed edge means something else', () => {
     const offenders = FILES.filter(
-      (file) => file.text.includes('border-dashed') && !(file.path in DASHED_ALLOWED),
+      (file) => DASHED.test(file.text) && !(file.path in DASHED_ALLOWED),
     ).map((file) => file.path)
 
     expect(offenders).toEqual([])
@@ -68,23 +71,73 @@ describe('dashed panels', () => {
 
   it('are not allowed for a file that no longer draws one', () => {
     const stale = Object.keys(DASHED_ALLOWED).filter(
-      (path) =>
-        !FILES.some((file) => file.path === path && file.text.includes('border-dashed')),
+      (path) => !FILES.some((file) => file.path === path && DASHED.test(file.text)),
     )
 
     expect(stale).toEqual([])
   })
+
+  it('catches the arbitrary-property spelling of the same edge', () => {
+    expect(DASHED.test('rounded-lg border [border-style:dashed]')).toBe(true)
+    expect(DASHED.test('rounded-lg border border-dashed')).toBe(true)
+    expect(DASHED.test('rounded-lg border border-solid')).toBe(false)
+  })
 })
 
-describe('the recovery from a failed region', () => {
-  /** Button text on a line of its own, as JSX prints it: `Retry`, `Check again`. */
-  const WRONG_LABEL = /^\s*(Retry|Check again|Please try again)\s*$/mu
+/**
+ * The files that may still say "Retry", each for a job that is not the recovery
+ * from a region that failed to load. Everything else says "Try again".
+ */
+const RETRY_ALLOWED: Readonly<Record<string, string>> = {
+  'src/components/inbox/reply-composer-footer.tsx':
+    '"Retry save" saves the person’s own draft again: an action, not a read',
+  'src/components/features/integration/google-import-manager/google-import-progress-items.tsx':
+    '"Retry this property" runs one failed import step again: an action, not a read',
+  'src/components/features/property/google-performance-section.tsx':
+    '"Retry in 30s" counts down a Google rate limit before Refresh comes back',
+}
 
+/** The source without its comments, which are free to quote the wrong labels. */
+function code(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/(^|\s)\/\/.*$/gmu, '$1')
+}
+
+/**
+ * A wrong label wherever a person could read it: JSX text on a line of its own,
+ * inside an expression (`{busy ? 'Retrying…' : 'Retry'}`), or in a string prop.
+ */
+const WRONG_LABEL =
+  /\b(Retry|Retrying|Check again)\b|^\s*Please try again\s*$|(['"`])Please try again\2/mu
+
+describe('the recovery from a failed region', () => {
   it('reads "Try again", never "Retry" or "Check again"', () => {
-    const offenders = FILES.filter((file) => WRONG_LABEL.test(file.text)).map(
-      (file) => file.path,
-    )
+    const offenders = FILES.filter(
+      (file) => WRONG_LABEL.test(code(file.text)) && !(file.path in RETRY_ALLOWED),
+    ).map((file) => file.path)
 
     expect(offenders).toEqual([])
+  })
+
+  it('does not excuse a file that no longer says "Retry"', () => {
+    const stale = Object.keys(RETRY_ALLOWED).filter(
+      (path) =>
+        !FILES.some((file) => file.path === path && /\bRetry\b/u.test(code(file.text))),
+    )
+
+    expect(stale).toEqual([])
+  })
+
+  it('catches the labels the old line-only check missed', () => {
+    expect(WRONG_LABEL.test(code("{busy ? 'Retrying…' : 'Retry'}"))).toBe(true)
+    expect(WRONG_LABEL.test(code('<Button label="Retry" />'))).toBe(true)
+    expect(WRONG_LABEL.test(code('  Check again\n'))).toBe(true)
+    expect(WRONG_LABEL.test(code('  Please try again\n'))).toBe(true)
+    // A sentence that asks the reader to try again is copy, not a button label.
+    expect(WRONG_LABEL.test(code('<p>Could not connect. Please try again.</p>'))).toBe(
+      false,
+    )
+    expect(WRONG_LABEL.test(code('// Never "Retry" here'))).toBe(false)
+    expect(WRONG_LABEL.test(code('/* a Retry button */'))).toBe(false)
+    expect(WRONG_LABEL.test(code('<RetryButton onRetry={retry} />'))).toBe(false)
   })
 })

@@ -508,6 +508,7 @@ function makeDetailState(overrides: Partial<InboxDetailState> = {}): InboxDetail
     correctFeedbackHandlingOutcome:
       refuses as unknown as InboxDetailState['correctFeedbackHandlingOutcome'],
     refetch: () => {},
+    retrying: false,
     onNoteAdded: () => {},
     onReplyMutated: () => {},
     error: null,

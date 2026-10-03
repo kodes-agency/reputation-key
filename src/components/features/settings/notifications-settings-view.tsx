@@ -40,6 +40,7 @@ type NotificationsSettingsViewProps = Readonly<{
   /** The selected Property's server-enforced email capability, as far as known. */
   emailAvailability: EmailAvailability
   retryEmailAvailability: () => void
+  emailAvailabilityRetrying?: boolean
   setPropertyId: (value: string) => void
   updateQuietHours: Action<QuietHoursUpdate, EffectiveNotificationSettings>
   /** This property's override of the person's quiet hours, if it has one. */
@@ -140,6 +141,7 @@ export function NotificationsSettingsView(props: NotificationsSettingsViewProps)
           <EmailAvailabilityNotice
             availability={props.emailAvailability}
             onRetry={props.retryEmailAvailability}
+            retrying={props.emailAvailabilityRetrying}
           />
           {NOTIFICATION_SETTINGS_CATEGORIES.map((category) => (
             <NotificationsCategoryRow

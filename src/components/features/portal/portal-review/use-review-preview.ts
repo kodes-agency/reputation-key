@@ -14,10 +14,11 @@ import type {
 } from '#/contexts/portal/application/public-api'
 import type { PortalPreviewReader } from '../portal-preview/portal-preview-pane'
 import { usePreviewCopy } from '../portal-preview/use-preview-copy'
+import { isRetrying } from '#/components/hooks/is-retrying'
 
 export type ReviewPreviewData =
   | Readonly<{ status: 'loading' }>
-  | Readonly<{ status: 'error'; retry: () => void }>
+  | Readonly<{ status: 'error'; retry: () => void; retrying: boolean }>
   | Readonly<{ status: 'unavailable'; reason: PortalPreviewUnavailableReason }>
   | Readonly<{
       status: 'ready'
@@ -53,6 +54,7 @@ export function useReviewPreview(
         if (read.isError) void read.refetch()
         if (copy.isError) void copy.refetch()
       },
+      retrying: isRetrying(read, copy),
     }
   }
   if (read.data?.status === 'unavailable') {

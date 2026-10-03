@@ -10,6 +10,7 @@ function render(props: Partial<Props> = {}): string {
     createElement(RegionError, {
       message: 'The goal couldn’t be loaded.',
       onRetry: () => undefined,
+      retrying: false,
       ...props,
     }),
   )
@@ -43,6 +44,13 @@ describe('RegionError', () => {
     expect(render()).toContain('max-md:min-h-11')
   })
 
+  it('takes the compact density a dense workspace asks for: 36px, not the 44px target', () => {
+    const html = render({ density: 'compact' })
+
+    expect(html).toContain('max-md:h-9')
+    expect(html).not.toContain('max-md:min-h-11')
+  })
+
   it('says what is unaffected, or what to do meanwhile, under the sentence', () => {
     const html = render({ description: 'The portals below are unaffected.' })
 
@@ -56,13 +64,26 @@ describe('RegionError', () => {
     const html = render({ retrying: true })
 
     expect(html).toContain('Trying again…')
-    expect(html).not.toContain('>Try again<')
     expect(html).toContain('aria-disabled="true"')
+    expect(html).toContain('aria-busy="true"')
     expect(html).toContain('motion-reduce:animate-none')
   })
 
-  it('does not mark the button disabled when it is idle', () => {
-    expect(render()).not.toContain('aria-disabled')
+  it('keeps the name a screen reader hears when the retry starts, so the alert is not read out again', () => {
+    const idle = render()
+    const busy = render({ retrying: true })
+
+    // The visible words change; the one that is announced does not.
+    expect(idle).toContain('<span>Try again</span>')
+    expect(busy).toContain('<span class="sr-only">Try again</span>')
+    expect(busy).toContain('<span aria-hidden="true">Trying again…</span>')
+  })
+
+  it('does not mark the button disabled or busy when it is idle', () => {
+    const html = render()
+
+    expect(html).not.toContain('aria-disabled')
+    expect(html).not.toContain('aria-busy')
   })
 
   it('has a compact size for a rail, a card or a dialog', () => {
@@ -70,10 +91,15 @@ describe('RegionError', () => {
     expect(render()).toContain('py-12')
   })
 
-  it('puts a second action, such as Cancel, after Try again', () => {
-    const html = render({ secondary: createElement('button', null, 'Cancel') })
+  it('puts Cancel after Try again, in the same density, when the region can be left', () => {
+    const html = render({ onCancel: () => undefined, density: 'compact' })
 
     expect(html.indexOf('Try again')).toBeLessThan(html.indexOf('Cancel'))
+    expect(html.match(/max-md:h-9/g)).toHaveLength(2)
+  })
+
+  it('offers no Cancel unless the region can be left', () => {
+    expect(render()).not.toContain('Cancel')
   })
 })
 
@@ -86,5 +112,13 @@ describe('RetryButton', () => {
     expect(html).toContain('data-variant="outline"')
     expect(html).toContain('data-size="xs"')
     expect(html).toContain('>Try again<')
+  })
+
+  it('has no phone height of its own at the extra-small size', () => {
+    const html = renderToStaticMarkup(
+      createElement(RetryButton, { onRetry: () => undefined, size: 'xs' }),
+    )
+
+    expect(html).not.toContain('max-md:')
   })
 })

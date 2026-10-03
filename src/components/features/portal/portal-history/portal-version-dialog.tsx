@@ -35,6 +35,8 @@ type Props = Readonly<{
   confirmation: ReactNode | null
   onMakeLive: () => void
   onRetry: () => void
+  /** `onRetry` is reading; the failure stays, its button busy. */
+  retrying?: boolean
   onClose: () => void
 }>
 
@@ -92,6 +94,7 @@ export function PortalVersionDialog({
   confirmation,
   onMakeLive,
   onRetry,
+  retrying = false,
   onClose,
 }: Props) {
   const published = detail ? formatHistoryTime(detail.publishedAt, now, timeZone) : null
@@ -145,6 +148,7 @@ export function PortalVersionDialog({
                     size="compact"
                     message="This version couldn’t be loaded."
                     onRetry={onRetry}
+                    retrying={retrying}
                   />
                 ) : null}
               </div>

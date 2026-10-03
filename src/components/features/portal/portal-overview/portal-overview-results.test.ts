@@ -337,11 +337,16 @@ describe('resultsStateOf', () => {
     })
   })
 
-  it('says it failed on a real error, so the list can say so', () => {
-    expect(
-      resultsStateOf({ allowed: true, error: new Error('database down') }, null),
-    ).toEqual({
+  it('says it failed on a real error, and whether Try again is reading', () => {
+    const error = new Error('database down')
+
+    expect(resultsStateOf({ allowed: true, error }, null)).toEqual({
       status: 'failed',
+      retrying: false,
+    })
+    expect(resultsStateOf({ allowed: true, error, retrying: true }, null)).toEqual({
+      status: 'failed',
+      retrying: true,
     })
   })
 

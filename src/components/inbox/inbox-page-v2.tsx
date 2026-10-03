@@ -100,6 +100,7 @@ export function InboxPageV2({
     isLoading: s.isLoading,
     error: s.error,
     onRetry: s.refetch,
+    isRetrying: s.isRetrying,
     nextCursor: s.nextCursor,
     loadAction: s.loadAction,
     listRef,

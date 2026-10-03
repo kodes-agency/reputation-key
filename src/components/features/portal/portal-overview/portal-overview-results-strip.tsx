@@ -158,6 +158,7 @@ export function PortalOverviewResultsStrip({
           message="Results couldn’t be loaded."
           description="The portals below are unaffected."
           onRetry={onRetry}
+          retrying={state.retrying === true}
         />
       ) : null}
       {strip ? (

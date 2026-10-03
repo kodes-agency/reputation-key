@@ -22,6 +22,7 @@ import {
   unseenOutcomes,
   writeSeenOutcomes,
 } from './beta-feedback-updates'
+import { isRetrying } from '#/components/hooks/is-retrying'
 
 // The panel only ever renders after a click, so the viewer's own zone is safe
 // here and reads better than a pinned one.
@@ -185,6 +186,7 @@ export function BetaFeedbackReports({
         size="compact"
         message="Your reports couldn’t be loaded."
         onRetry={() => void query.refetch()}
+        retrying={isRetrying(query)}
       />
     )
   }

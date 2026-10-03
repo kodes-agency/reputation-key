@@ -34,7 +34,19 @@ describe('readStateOf', () => {
       readStateOf({ allowed: true, error: new Error('db down'), data: undefined }),
     ).toEqual({
       status: 'failed',
+      retrying: false,
     })
+  })
+
+  it('says so while Try again is reading, so the failure stays with its button busy', () => {
+    expect(
+      readStateOf({
+        allowed: true,
+        error: new Error('db down'),
+        data: undefined,
+        retrying: true,
+      }),
+    ).toEqual({ status: 'failed', retrying: true })
   })
 
   it('keeps data it already has over an error from a refetch', () => {

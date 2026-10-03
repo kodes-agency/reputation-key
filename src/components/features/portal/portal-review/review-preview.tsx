@@ -119,6 +119,7 @@ function PreviewBody({
         size="compact"
         message="The preview couldn’t be loaded."
         onRetry={data.retry}
+        retrying={data.retrying}
       />
     )
   }

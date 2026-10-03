@@ -28,10 +28,19 @@ function SignInAgain() {
   )
 }
 
-type FailureProps = Readonly<{ error: Error; onRetry: () => void }>
+type FailureProps = Readonly<{
+  error: Error
+  onRetry: () => void
+  /** `onRetry` is reading; the failure stays, its button busy. */
+  retrying?: boolean
+}>
 
 /** Nothing loaded to keep: the failure is the whole list. */
-export function NotificationErrorState({ error, onRetry }: FailureProps) {
+export function NotificationErrorState({
+  error,
+  onRetry,
+  retrying = false,
+}: FailureProps) {
   return (
     <div className="px-3 py-3">
       {isSessionEnded(error) ? (
@@ -47,6 +56,7 @@ export function NotificationErrorState({ error, onRetry }: FailureProps) {
           size="compact"
           message="Notifications couldn’t be loaded."
           onRetry={onRetry}
+          retrying={retrying}
         />
       )}
     </div>
@@ -54,14 +64,22 @@ export function NotificationErrorState({ error, onRetry }: FailureProps) {
 }
 
 /** A refresh failed above rows that are still worth reading. */
-export function NotificationRefreshNotice({ error, onRetry }: FailureProps) {
+export function NotificationRefreshNotice({
+  error,
+  onRetry,
+  retrying = false,
+}: FailureProps) {
   const ended = isSessionEnded(error)
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
       <p className="text-xs text-muted-foreground">
         {ended ? 'Your session has ended.' : 'Notifications couldn’t be refreshed.'}
       </p>
-      {ended ? <SignInAgain /> : <RetryButton size="xs" onRetry={onRetry} />}
+      {ended ? (
+        <SignInAgain />
+      ) : (
+        <RetryButton size="xs" onRetry={onRetry} retrying={retrying} />
+      )}
     </div>
   )
 }

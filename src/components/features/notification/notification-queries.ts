@@ -52,6 +52,7 @@ import type {
   NotificationFeedCursor,
   NotificationListFilter,
 } from '#/contexts/feed/application/public-api'
+import { isRetrying } from '#/components/hooks/is-retrying'
 
 export function useNotifications(
   getFeedHead: typeof getNotificationFeedHeadFn,
@@ -101,6 +102,8 @@ export function useNotifications(
     isLoadingMore: history.isFetchingNextPage,
     // Kept apart: a failed "Load more" must not hide the rows the head holds.
     error: head.error,
+    /** `refetch` is reading after a failure; the notice stays, its button busy. */
+    isRetrying: isRetrying(head),
     loadMoreError: history.error,
     hasMore,
     refetch: () => {

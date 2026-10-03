@@ -18,6 +18,7 @@ import {
 } from '#/routes/-queries/route-queries'
 import { checkControlledRoute } from '#/shared/auth/controlled-route-check'
 import type { AuthRouteContext } from '#/routes/_authenticated'
+import { isRetrying } from '#/components/hooks/is-retrying'
 
 const authRoute = getRouteApi('/_authenticated')
 
@@ -148,6 +149,7 @@ function NotificationSettingsPropertyScope({
           // a whole column of controls that could only ever fail.
           emailAvailability={emailAvailability}
           retryEmailAvailability={() => void emailCapability.refetch()}
+          emailAvailabilityRetrying={isRetrying(emailCapability)}
           setPropertyId={setPropertyId}
           updatePreference={updatePreference}
           resetPropertyCategory={resetPropertyCategory}

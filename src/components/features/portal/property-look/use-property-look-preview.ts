@@ -6,6 +6,7 @@ import { keepPreviousData, useQuery } from '@tanstack/react-query'
 import { portalKeys } from '#/shared/queries/query-keys'
 import type { PortalPreviewReader } from '../portal-preview/portal-preview-pane'
 import { usePreviewCopy } from '../portal-preview/use-preview-copy'
+import { isRetrying } from '#/components/hooks/is-retrying'
 
 export type PreviewPortal = Readonly<{ id: string; name: string }>
 
@@ -32,6 +33,7 @@ export function usePropertyLookPreview(
     copy,
     isPending: query.isPending,
     isError: query.isError || copy.isError,
+    isRetrying: isRetrying(query, copy),
     refetch: query.refetch,
   }
 }

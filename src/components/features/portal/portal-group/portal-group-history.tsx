@@ -94,6 +94,7 @@ export function PortalGroupHistory({ state, names, frame, onRetry }: Props) {
           size="compact"
           message="The history couldn’t be loaded."
           onRetry={onRetry}
+          retrying={state.retrying}
         />
       ) : null}
       {state.status === 'ready' && lines.length === 0 ? (

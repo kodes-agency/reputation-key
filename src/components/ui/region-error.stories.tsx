@@ -6,7 +6,6 @@
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, within } from 'storybook/test'
-import { Button } from './button'
 import { RegionError, RetryButton } from './region-error'
 
 const meta: Meta<typeof RegionError> = {
@@ -14,7 +13,7 @@ const meta: Meta<typeof RegionError> = {
   component: RegionError,
   tags: ['autodocs'],
   parameters: { layout: 'padded' },
-  args: { message: 'The goal couldn’t be loaded.', onRetry: fn() },
+  args: { message: 'The goal couldn’t be loaded.', onRetry: fn(), retrying: false },
 }
 
 export default meta
@@ -57,13 +56,18 @@ export const Compact: Story = {
 /**
  * The retry is reading: the panel stays, its button reads "Trying again…" and a
  * second press does nothing. The button is aria-disabled, not disabled, so a
- * keyboard user's focus is not dropped onto <body>.
+ * keyboard user's focus is not dropped onto <body>. Its accessible name stays
+ * "Try again" (the visible words are hidden from the tree), so the alert around
+ * it is not announced a second time each time the retry starts and ends.
  */
 export const Retrying: Story = {
   args: { retrying: true },
   play: async ({ canvasElement, args }) => {
-    const button = within(canvasElement).getByRole('button', { name: 'Trying again…' })
+    const canvas = within(canvasElement)
+    const button = canvas.getByRole('button', { name: 'Try again' })
+    expect(button).toHaveTextContent('Trying again…')
     expect(button).toHaveAttribute('aria-disabled', 'true')
+    expect(button).toHaveAttribute('aria-busy', 'true')
     button.focus()
     await userEvent.click(button)
     expect(button).toHaveFocus()
@@ -71,20 +75,33 @@ export const Retrying: Story = {
   },
 }
 
-/** A second action sits beside Try again. */
-export const WithSecondaryAction: Story = {
+/** A region that can be left, such as a restore check, offers Cancel beside Try again. */
+export const WithCancel: Story = {
   args: {
     size: 'compact',
-    message: 'Could not check what would change.',
-    secondary: (
-      <Button type="button" variant="outline" size="sm">
-        Cancel
-      </Button>
-    ),
+    message: 'What would change couldn’t be checked.',
+    onCancel: fn(),
   },
-  play: async ({ canvasElement }) => {
-    const buttons = within(canvasElement).getAllByRole('button')
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement)
+    const buttons = canvas.getAllByRole('button')
     expect(buttons.map((button) => button.textContent)).toEqual(['Try again', 'Cancel'])
+    await userEvent.click(canvas.getByRole('button', { name: 'Cancel' }))
+    expect(args.onCancel).toHaveBeenCalledTimes(1)
+  },
+}
+
+/**
+ * The dense-workspace density (the Inbox's panes): 36px on a phone where the
+ * default is the 44px touch target. Browsers below `md` only; this story pins
+ * the class pair so it cannot drift back to the default.
+ */
+export const CompactDensity: Story = {
+  args: { size: 'compact', density: 'compact' },
+  play: async ({ canvasElement }) => {
+    const button = within(canvasElement).getByRole('button', { name: 'Try again' })
+    expect(button.className).toContain('max-md:h-9')
+    expect(button.className).not.toContain('max-md:min-h-11')
   },
 }
 

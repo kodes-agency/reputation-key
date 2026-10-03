@@ -33,10 +33,18 @@ export function InboxListSkeleton() {
 export function InboxListError({
   error,
   onRetry,
-}: Readonly<{ error: string; onRetry: () => void }>) {
+  isRetrying = false,
+}: Readonly<{ error: string; onRetry: () => void; isRetrying?: boolean }>) {
   return (
     <div className="p-4">
-      <RegionError size="compact" message={error} onRetry={onRetry} />
+      {/* Compact density: the list pane's controls are 36px on a phone. */}
+      <RegionError
+        size="compact"
+        density="compact"
+        message={error}
+        onRetry={onRetry}
+        retrying={isRetrying}
+      />
     </div>
   )
 }

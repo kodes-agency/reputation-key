@@ -211,6 +211,7 @@ export function NotificationPanel({ notificationFns, organizationId }: Props) {
           isLoading: needsYou.isLoading,
           isLoadingMore: needsYou.isLoadingMore,
           error: needsYou.error,
+          isRetrying: needsYou.isRetrying,
           loadMoreError: needsYou.loadMoreError,
           hasMore: needsYou.hasMore,
           onRetry: needsYou.refetch,

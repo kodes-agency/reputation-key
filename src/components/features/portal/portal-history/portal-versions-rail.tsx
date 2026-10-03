@@ -18,6 +18,8 @@ type Props = Readonly<{
   failed: boolean
   /** Reads the versions again after a failure. */
   onRetry: () => void
+  /** `onRetry` is reading; the failure stays, its button busy. */
+  retrying?: boolean
   /** How many changes the draft holds, from the same read the header's note uses. */
   pendingChangeCount: number
   now: Date
@@ -134,6 +136,7 @@ export function PortalVersionsRail(props: Props) {
     activeVersion,
     onSelect,
     onRetry,
+    retrying = false,
     pendingChangeCount,
   } = props
   const published = versions?.versions.length ?? 0
@@ -164,6 +167,7 @@ export function PortalVersionsRail(props: Props) {
               size="compact"
               message="Versions couldn’t be loaded."
               onRetry={onRetry}
+              retrying={retrying}
             />
           </div>
         ) : (

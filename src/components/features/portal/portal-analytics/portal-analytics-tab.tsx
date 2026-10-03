@@ -17,6 +17,7 @@ import {
   PORTAL_RESULTS_RANGE_STORAGE_KEY,
   storedResultsRange,
 } from './portal-results-window'
+import { isRetrying } from '#/components/hooks/is-retrying'
 
 type Props = Readonly<{
   portalId: string
@@ -69,13 +70,7 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
   useEffect(() => remember(TIME_RANGE_KEY, timeRange), [timeRange])
   useEffect(() => remember(COMPARE_KEY, compare ? 'on' : 'off'), [compare])
 
-  const {
-    data,
-    isLoading: loading,
-    error: queryError,
-    isPlaceholderData: stale,
-    refetch,
-  } = useQuery({
+  const query = useQuery({
     queryKey: portalKeys.analytics(propertyId, portalId, timeRange, compare),
     queryFn: () =>
       getPortalAnalytics({ data: { propertyId, portalId, timeRange, compare } }),
@@ -83,6 +78,7 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
     // new figures load, instead of blanking it.
     placeholderData: keepPreviousData,
   })
+  const { data, isLoading: loading, error: queryError, isPlaceholderData: stale } = query
 
   if (loading) return <PortalResultsLoading />
 
@@ -103,7 +99,11 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
       )
     }
     return (
-      <RegionError message="Results couldn’t be loaded." onRetry={() => void refetch()} />
+      <RegionError
+        message="Results couldn’t be loaded."
+        onRetry={() => void query.refetch()}
+        retrying={isRetrying(query)}
+      />
     )
   }
 

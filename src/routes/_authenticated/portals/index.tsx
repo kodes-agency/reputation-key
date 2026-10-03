@@ -29,6 +29,7 @@ import { portalKeys } from '#/shared/queries/query-keys'
 import { membersQuery, propertiesQuery } from '#/routes/-queries/route-queries'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
+import { isRetrying } from '#/components/hooks/is-retrying'
 
 const authRoute = getRouteApi('/_authenticated')
 
@@ -102,7 +103,11 @@ function AllPropertiesRoute() {
     [resultsData],
   )
   const resultsState = resultsStateOf(
-    { allowed: canDo('dashboard.read'), error: resultsQuery.error },
+    {
+      allowed: canDo('dashboard.read'),
+      error: resultsQuery.error,
+      retrying: isRetrying(resultsQuery),
+    },
     resultsIndex,
   )
   const { properties } = propsData

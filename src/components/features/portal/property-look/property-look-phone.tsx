@@ -33,7 +33,8 @@ export function PropertyLookPhone({
   media,
   scale = PHONE_SCALE,
 }: Props) {
-  const { preview, experience, copy, locale, isPending, isError, refetch } = data
+  const { preview, experience, copy, locale, isPending, isError, isRetrying, refetch } =
+    data
   if (portal === null) {
     return (
       <EmptyState
@@ -49,6 +50,7 @@ export function PropertyLookPhone({
         size="compact"
         message="The preview couldn’t be loaded."
         onRetry={() => void refetch()}
+        retrying={isRetrying}
       />
     )
   }

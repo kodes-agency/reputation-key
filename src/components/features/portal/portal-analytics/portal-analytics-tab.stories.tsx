@@ -62,6 +62,47 @@ export const FailedThenRecovers: Story = {
   },
 }
 
+/**
+ * Try again stays on screen, its button busy, while the second read is pending: a
+ * refetch after a failure keeps the query in its error state, so without the
+ * flag the button would look dead and could be pressed again.
+ */
+export const RetryReadsWithTheButtonBusy: Story = {
+  args: {
+    getPortalAnalytics: (() => {
+      let calls = 0
+      let settle: (figures: unknown) => void = () => undefined
+      const second = new Promise<unknown>((resolve) => {
+        settle = resolve
+      })
+      return Object.assign(
+        asRead(async () => {
+          calls += 1
+          if (calls === 1) throw new Error('Reporting is down')
+          return second
+        }),
+        { settle: () => settle(RESULTS_HEALTHY) },
+      )
+    })(),
+  },
+  play: async ({ canvas, args }) => {
+    await expect(await canvas.findByRole('alert')).toHaveTextContent(
+      'Results couldn’t be loaded.',
+    )
+    const button = canvas.getByRole('button', { name: 'Try again' })
+    await userEvent.click(button)
+    await waitFor(() => expect(button).toHaveAttribute('aria-busy', 'true'))
+    await expect(button).toHaveTextContent('Trying again…')
+    // A second press while it reads asks nothing more of the server.
+    await userEvent.click(button)
+    await expect(args.getPortalAnalytics).toHaveBeenCalledTimes(2)
+    ;(args.getPortalAnalytics as unknown as { settle: () => void }).settle()
+    await waitFor(() =>
+      expect(canvas.getByLabelText('Portal results')).toBeInTheDocument(),
+    )
+  },
+}
+
 /** A deliberately dark capability is not a failure: friendly copy, and nothing to retry. */
 export const NotSwitchedOn: Story = {
   args: {
