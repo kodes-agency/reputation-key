@@ -16,9 +16,14 @@ import {
 const PORTALS_NOT_LOADED = 'Portals could not be loaded.'
 const PORTAL_NOT_LOADED = 'This portal could not be loaded.'
 
+// The three list-level fallbacks stand in for the Portals list, All properties,
+// Property look and the group page, which are all `dashboard` tier. A loading or
+// error frame in the `standard` tier would narrow the page on the way in and
+// widen it on the way out.
+
 export function PortalListLoading() {
   return (
-    <PageShell>
+    <PageShell tier="dashboard">
       <LoadingState label="Loading portals and portal groups" />
     </PageShell>
   )
@@ -28,7 +33,7 @@ export function PortalListError({ error }: ErrorComponentProps) {
   const guarded = useGuardedRouteError(error, PORTALS_NOT_LOADED)
   if (guarded.signedOut) return <SignedOutRedirect />
   return (
-    <PageShell>
+    <PageShell tier="dashboard">
       <PageHeader title="Portals" description="Manage this property’s public pages." />
       <ErrorState message={guarded.message} onRetry={guarded.retry} />
     </PageShell>
@@ -40,7 +45,7 @@ export function PortalAllPropertiesError({ error }: ErrorComponentProps) {
   const guarded = useGuardedRouteError(error, PORTALS_NOT_LOADED)
   if (guarded.signedOut) return <SignedOutRedirect />
   return (
-    <PageShell>
+    <PageShell tier="dashboard">
       <PageHeader
         title="Portals"
         description="Public pages across all of your properties."
