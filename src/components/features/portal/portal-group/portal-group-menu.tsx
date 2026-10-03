@@ -98,7 +98,11 @@ export function PortalGroupMenu({
           })}
           {others.length > 0 && archive.length > 0 ? <DropdownMenuSeparator /> : null}
           {archive.map((entry) => (
-            <DropdownMenuItem key={entry.id} onSelect={() => setDialog('archive')}>
+            <DropdownMenuItem
+              key={entry.id}
+              variant={entry.destructive ? 'destructive' : 'default'}
+              onSelect={() => setDialog('archive')}
+            >
               {entry.label}
             </DropdownMenuItem>
           ))}

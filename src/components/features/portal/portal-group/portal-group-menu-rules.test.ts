@@ -16,10 +16,12 @@ const ids = (access: GroupMenuAccess, where: 'overview' | 'page') =>
   groupMenu(access, where).map((entry) => entry.id)
 
 describe('groupMenu', () => {
-  it('offers the whole menu in the overview, archive last', () => {
+  it('offers the whole menu in the overview, archive last and marked destructive', () => {
     const menu = groupMenu(everything, 'overview')
 
     expect(menu.map((entry) => entry.id)).toEqual(['open', 'rename', 'goal', 'archive'])
+    expect(menu.at(-1)?.destructive).toBe(true)
+    expect(menu.slice(0, -1).every((entry) => !entry.destructive)).toBe(true)
   })
 
   it('leaves "Open group" and "Rename" out on the group page, which has its own Rename button', () => {

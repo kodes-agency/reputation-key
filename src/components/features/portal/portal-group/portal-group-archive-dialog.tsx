@@ -17,11 +17,13 @@ export function PortalGroupArchiveDialog({
   onOpenChange,
   archiveGroupMutation,
 }: Props) {
-  // Everything the group earned is kept, so it confirms like every Archive: neutral.
+  // The one Archive that is red: the history is kept, but a group has no restore
+  // anywhere in the app, so once archived it cannot be taken back (owner decision 2).
   return (
     <ConfirmationDialog
       open={open}
       onOpenChange={onOpenChange}
+      tone="destructive"
       title={`Archive ${group.name}?`}
       description="Its portals stay and become “Not in a group”. The group’s history and the results it earned are kept, and it is no longer offered for new goals."
       cancelLabel="Cancel"

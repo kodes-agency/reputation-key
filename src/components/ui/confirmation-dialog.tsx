@@ -8,10 +8,12 @@
 // (remove a member, delete a link, remove a Property, disconnect Google, end a
 // goal). A reversible one (archive, restore, disable a public page, turn off AI
 // features) stays `neutral`, and so does its menu item: a red item that opens a
-// primary-coloured confirm contradicts itself. A trigger follows the same rule:
-// a destructive confirm is started from a destructive Button
-// (`ConfirmationTrigger`), a neutral one from an outline Button, or a plain
-// Button when it is the page's affirmative action (Restore, Enable).
+// primary-coloured confirm contradicts itself. Reversible means the app has the
+// way back: a portal group has no restore, so archiving one is `destructive`. A
+// trigger follows the same rule: a destructive confirm is started from a
+// destructive Button (`ConfirmationTrigger`), a neutral one from an outline
+// Button, or a plain Button when it is the page's affirmative action (Restore,
+// Enable).
 //
 // What does not confirm (owner decision 3). Only a low-blast action the person
 // can undo on the spot skips this dialog:
