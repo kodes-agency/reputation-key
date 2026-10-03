@@ -1,12 +1,12 @@
 import type { ReactNode } from 'react'
 import { Button } from '#/components/ui/button'
 import { Kbd } from '#/components/ui/kbd'
+import { NavCount } from '#/components/ui/nav-count'
 import { Separator } from '#/components/ui/separator'
 import type {
   InboxQueue,
   InboxQueueCounts,
 } from '#/contexts/inbox/application/public-api'
-import { cn } from '#/lib/utils'
 import {
   CLOSED_INBOX_QUEUE,
   queueCount,
@@ -42,23 +42,18 @@ function QueueButton({
       variant="ghost"
       size="sm"
       aria-current={active ? 'page' : undefined}
-      className={cn(
-        'h-8 w-full justify-start gap-2 px-2 text-[13px] font-medium',
-        active && 'bg-accent text-foreground',
-      )}
+      className="h-8 w-full justify-start gap-2 px-2 text-[13px] font-medium aria-[current=page]:bg-accent aria-[current=page]:hover:bg-accent"
       onClick={onSelect}
     >
       <Icon aria-hidden="true" />
       <span>{item.label}</span>
       {count !== null && count > 0 && (
-        <span
-          className={cn(
-            'ml-auto text-xs tabular-nums text-muted-foreground',
-            item.key === 'escalated' && 'text-negative',
-          )}
+        <NavCount
+          tone={item.key === 'escalated' ? 'negative' : 'default'}
+          className="ml-auto"
         >
           {count}
-        </span>
+        </NavCount>
       )}
     </Button>
   )

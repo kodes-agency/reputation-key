@@ -3,7 +3,7 @@ import type {
   InboxQueue,
   InboxQueueCounts,
 } from '#/contexts/inbox/application/public-api'
-import { cn } from '#/lib/utils'
+import { NavCount } from '#/components/ui/nav-count'
 import { revealCurrentItem, stripFadeStyle } from '#/components/ui/strip-scroll'
 import { useStripOverflow } from '#/components/ui/use-strip-overflow'
 import { CLOSED_INBOX_QUEUE, queueCount, queuesForViewer } from './inbox-queues'
@@ -47,16 +47,18 @@ export function InboxQueueStrip({
             key={item.key}
             type="button"
             aria-current={queue === item.key ? 'page' : undefined}
-            className={cn(
-              'h-8 shrink-0 snap-start rounded-full px-3 text-xs font-medium',
-              queue === item.key
-                ? 'bg-accent text-(--accent)'
-                : 'bg-muted text-muted-foreground',
-            )}
+            className="h-8 shrink-0 snap-start rounded-full bg-muted px-3 text-xs font-medium text-muted-foreground focus-ring aria-[current=page]:bg-accent aria-[current=page]:text-(--accent)"
             onClick={() => onQueueChange(item.key)}
           >
             {item.label}
-            {count !== null && count > 0 ? ` ${count}` : ''}
+            {count !== null && count > 0 ? (
+              <>
+                {' '}
+                <NavCount tone={item.key === 'escalated' ? 'negative' : 'default'}>
+                  {count}
+                </NavCount>
+              </>
+            ) : null}
           </button>
         )
       })}
