@@ -1,5 +1,6 @@
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
+import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import type {
   GoogleAuthUrlInput,
   GoogleConnectionDto,
@@ -87,14 +88,24 @@ export function GoogleConnectionSettingsRow({
             Show account email
           </Button>
         ) : null}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => onDisconnect(connection.id)}
-          disabled={disconnectPending}
-        >
-          Disconnect
-        </Button>
+        {/* Revokes Google's access and removes what the account imported, for
+            every Property that uses it: higher blast radius than the
+            Property-level disconnect, which already confirms. */}
+        <ConfirmationDialog
+          trigger={
+            <Button variant="outline" size="sm" disabled={disconnectPending}>
+              Disconnect
+            </Button>
+          }
+          title="Disconnect this Google account?"
+          description="RepKey stops syncing and replying through this account for every property that uses it, revokes its access, and removes the reviews and replies it imported. Nothing is deleted on Google."
+          cancelLabel="Keep connected"
+          confirmLabel="Disconnect account"
+          pendingLabel="Disconnecting…"
+          pending={disconnectPending}
+          tone="destructive"
+          onConfirm={() => onDisconnect(connection.id)}
+        />
       </div>
     </div>
   )

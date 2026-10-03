@@ -20,10 +20,10 @@ import { propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { Badge } from '#/components/ui/badge'
-import { Button } from '#/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import { GoalProgramRevisionDialog } from '#/components/goals/goal-program-revision-dialog'
 import { GoalProgramAssignmentsDialog } from '#/components/goals/goal-program-assignments-dialog'
+import { GoalStatusActions } from '#/components/goals/goal-status-actions'
 
 const authRoute = getRouteApi('/_authenticated')
 const goalQuery = (propertyId: string, programId: string) =>
@@ -68,7 +68,7 @@ function GoalDetailRoute() {
   const { data } = useSuspenseQuery(goalQuery(propertyId, goalId))
   const { data: subjectNames } = useSuspenseQuery(subjectNamesQuery(propertyId))
   // Pause, Resume and End have no inline error surface, so a refusal (an
-  // invalid transition) is reported by toast.
+  // invalid transition) is reported by toast. End also confirms first.
   const mutation = useActionMutation(changeGoalProgramStatus, {
     successMessage: 'Goal status updated',
     errorMessage: actionErrorMessage,
@@ -146,34 +146,12 @@ function GoalDetailRoute() {
                 groups={subjectNames.groups}
                 portals={subjectNames.portals}
               />
-              {program.status === 'active' || program.status === 'paused' ? (
-                <>
-                  <Button
-                    variant="outline"
-                    disabled={mutation.isPending}
-                    onClick={() =>
-                      updateStatus(program.status === 'paused' ? 'active' : 'paused')
-                    }
-                  >
-                    {program.status === 'paused' ? 'Resume' : 'Pause'}
-                  </Button>
-                  <Button
-                    variant="destructive"
-                    disabled={mutation.isPending}
-                    onClick={() => updateStatus('ended')}
-                  >
-                    End goal
-                  </Button>
-                </>
-              ) : (
-                <Button
-                  variant="destructive"
-                  disabled={mutation.isPending}
-                  onClick={() => updateStatus('ended')}
-                >
-                  End goal
-                </Button>
-              )}
+              <GoalStatusActions
+                goalName={program.name}
+                status={program.status}
+                pending={mutation.isPending}
+                onChange={updateStatus}
+              />
             </div>
           ) : undefined
         }
