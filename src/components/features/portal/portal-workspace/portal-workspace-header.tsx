@@ -15,6 +15,7 @@
 
 import { Link } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
+import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import { Button } from '#/components/ui/button'
 import { cn } from '#/lib/utils'
 import type { ReactNode } from 'react'
@@ -57,7 +58,12 @@ export function PortalWorkspaceHeader(props: PortalWorkspaceHeaderProps) {
   const { propertyId, portalId, portalName, propertyName, statusLine, mode } = props
   const reviewing = mode === 'review'
   return (
-    <header className="flex flex-wrap items-center gap-x-3 gap-y-1 border-b px-4 py-2 sm:gap-x-4 sm:gap-y-2 sm:py-3 md:px-6">
+    <header
+      className={cn(
+        'flex flex-wrap items-center gap-x-3 gap-y-1 border-b py-2 sm:gap-x-4 sm:gap-y-2 sm:py-3',
+        PAGE_GUTTER_X,
+      )}
+    >
       {reviewing ? (
         <Button variant="ghost" size="sm" asChild className="-ml-2 min-h-11 sm:min-h-8">
           <Link
@@ -127,7 +133,7 @@ function ReviewActions({
             to="/properties/$propertyId/portals/$portalId/review"
             params={{ propertyId, portalId }}
             search={reviewSearch}
-            className="text-sm text-muted-foreground! underline! decoration-dotted! underline-offset-4 hover:text-foreground!"
+            className="text-sm text-muted-foreground underline decoration-dotted underline-offset-4 hover:text-foreground"
           >
             {pendingNote}
           </Link>

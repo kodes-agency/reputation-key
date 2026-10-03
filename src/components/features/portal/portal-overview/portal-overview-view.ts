@@ -5,6 +5,7 @@
 // rule (search, the attention filter, group order, paging across groups) is
 // tested without a table, and the table only draws what this decides.
 import { personInitials } from '#/components/inbox/person-initials'
+import { searchMatcher } from '#/components/property/property-search'
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
 import {
   GUEST_LOCALE_METADATA,
@@ -171,12 +172,12 @@ function toItem(
   }
 }
 
-function matchesSearch(item: PortalOverviewItem, search: PortalOverviewSearch): boolean {
-  const needle = search.q?.trim().toLowerCase() ?? ''
-  if (needle !== '') {
-    const haystack = `${item.row.name} ${item.row.group?.name ?? ''}`.toLowerCase()
-    if (!haystack.includes(needle)) return false
-  }
+function matchesSearch(
+  item: PortalOverviewItem,
+  search: PortalOverviewSearch,
+  matchesText: (text: string) => boolean,
+): boolean {
+  if (!matchesText(`${item.row.name} ${item.row.group?.name ?? ''}`)) return false
   return search.show !== 'attention' || needsAttention(item.attention)
 }
 
@@ -285,8 +286,9 @@ export function buildPortalOverview(
   const grouping = (search.groupBy ?? DEFAULT_PORTAL_OVERVIEW_GROUP_BY) === 'group'
 
   const all = rows.map((row) => toItem(row, members))
+  const matchesText = searchMatcher(search.q ?? '')
   const matched = all
-    .filter((item) => matchesSearch(item, search))
+    .filter((item) => matchesSearch(item, search, matchesText))
     .sort(compareItems(sort, dir, figures))
 
   const memberCounts = new Map<string, number>()

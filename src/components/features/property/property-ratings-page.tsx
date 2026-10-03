@@ -15,7 +15,7 @@ import { cn } from '#/lib/utils'
 import { PropertyReputationTrendChart } from './property-reputation-trend-chart'
 
 export interface PropertyRatingsPageProps {
-  property: Readonly<{ id: string; name: string }> | null | undefined
+  property: Readonly<{ id: string; name: string }>
   dashboard: DashboardData
   range: DashboardRange
   onRangeChange: (range: DashboardRange) => void
@@ -93,8 +93,6 @@ export function PropertyRatingsPage({
   onRangeChange,
 }: PropertyRatingsPageProps) {
   const distributionHeadingId = useId()
-  if (!property) return null
-
   const { kpis, ratingDistribution, ratingTrend, reviewVolume, replyPerformance } =
     dashboard
   const comparisonLabel = dashboardRangeComparisonLabel(range)

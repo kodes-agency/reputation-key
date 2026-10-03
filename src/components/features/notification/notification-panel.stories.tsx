@@ -1005,9 +1005,9 @@ const STACK_NAME =
 
 /**
  * Three new reviews at one Property read as one row that opens that
- * Property's reply queue. Its menu acts on all three: "Dismiss all 3" takes
- * them out together, says so in one toast, and that toast's one Undo brings
- * all three back.
+ * Property's reply queue. Its menu acts on all three: "Dismiss all 3" asks
+ * first, then takes them out together, says so in one toast, and that toast's
+ * one Undo brings all three back.
  */
 export const StackDismissAllOffersUndo: Story = {
   args: {
@@ -1040,6 +1040,25 @@ export const StackDismissAllOffersUndo: Story = {
     const menu = within(document.body)
     await menu.findByRole('menuitem', { name: 'Mark all as read' })
     await userEvent.click(menu.getByRole('menuitem', { name: 'Dismiss all 3' }))
+
+    // It asks first, as the page's "Dismiss all" does. Cancel leaves the stack
+    // and every row in it.
+    const ask = within(await menu.findByRole('alertdialog'))
+    expect(ask.getByText('Dismiss all 3 notifications?')).toBeVisible()
+    await userEvent.click(ask.getByRole('button', { name: 'Keep notifications' }))
+    await waitFor(() => expect(menu.queryByRole('alertdialog')).toBeNull())
+    expect(dismissEach).not.toHaveBeenCalled()
+    expect(popover.getByRole('link', { name: STACK_NAME })).toBeInTheDocument()
+
+    await userEvent.click(
+      within(row).getByRole('button', { name: /^More actions for: 3 new reviews / }),
+    )
+    await userEvent.click(await menu.findByRole('menuitem', { name: 'Dismiss all 3' }))
+    await userEvent.click(
+      within(await menu.findByRole('alertdialog')).getByRole('button', {
+        name: 'Dismiss all',
+      }),
+    )
 
     await waitFor(() =>
       expect(popover.queryByRole('link', { name: STACK_NAME })).toBeNull(),

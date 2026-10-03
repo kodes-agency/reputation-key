@@ -23,6 +23,14 @@ business rules or persistence.
 Missing Organization access or role resolves to the appropriate unavailable state.
 Never synthesize a fallback role or run tenant loaders before both bindings exist.
 
+`<main>` in `_authenticated.tsx` is the only element that pads a page (`PAGE_GUTTER`
+in `components/layout/page-shell.tsx`); a route, a layout route such as the
+Property layout, or a page adds no gutter of its own. A full-bleed surface (Inbox,
+a Property's Reviews, the portal workspace) owns its scroll and `<main>` pads
+nothing there; `isFullBleedRoute` (`components/layout/full-bleed-route.ts`) is the
+one place that names those routes, and a padded body inside one wears
+`FullBleedFrame`. Width comes from `PageShell` tiers, not ad hoc `max-w` boxes.
+
 Route `beforeLoad` checks improve navigation and availability copy; they are not
 the mutation authority. Server functions and owning contexts re-resolve current
 tenant, permission, capability, and Property scope for every protected operation.

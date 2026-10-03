@@ -3,6 +3,7 @@
 // bare `/portals` and a value a hand-edited URL cannot mean is dropped rather
 // than refusing the page (the same rule as the Properties list).
 import { z } from 'zod/v4'
+import { MAX_LIST_SEARCH_LENGTH } from '#/components/property/list-search-limit'
 
 export const PORTAL_OVERVIEW_SORTS = ['name', 'attention', 'scans'] as const
 export type PortalOverviewSort = (typeof PORTAL_OVERVIEW_SORTS)[number]
@@ -16,7 +17,7 @@ export type PortalOverviewShow = (typeof PORTAL_OVERVIEW_SHOWS)[number]
 export type SortDirection = 'asc' | 'desc'
 
 /** The longest search the URL keeps; the box stops here rather than clearing itself. */
-export const MAX_SEARCH_LENGTH = 100
+export const MAX_SEARCH_LENGTH = MAX_LIST_SEARCH_LENGTH
 
 export const DEFAULT_PORTAL_OVERVIEW_SORT: PortalOverviewSort = 'name'
 export const DEFAULT_PORTAL_OVERVIEW_GROUP_BY: PortalOverviewGroupBy = 'group'

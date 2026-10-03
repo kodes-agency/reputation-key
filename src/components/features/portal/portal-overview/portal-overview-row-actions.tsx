@@ -1,12 +1,14 @@
 // A Portal's actions in the overview: Edit and Share as buttons, and everything
 // else behind "more actions". Share is not offered where there is nothing to
 // share: a draft has no code to give out, and an archived Portal is finished.
+// Its place stays, unseen, in a table row, so Edit sits in one column in every row.
 import { useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Ellipsis, Pencil, QrCode } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
-import { Button } from '#/components/ui/button'
+import { Button, buttonVariants } from '#/components/ui/button'
+import { cn } from '#/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,9 +26,9 @@ import {
   type PortalRowMenuItemId,
 } from './portal-row-menu'
 
-// The global `a` colour is unlayered, so a link used as a menu item pins its ink.
-const ITEM = 'min-h-11 text-foreground! md:min-h-8'
-const BUTTON = 'min-h-11 md:min-h-8'
+// A 44 px target below `md`, 32 px from there up. A link used as a menu item
+// takes the menu's ink (`dropdown-menu-item` opts out of the link default).
+const TOUCH = 'min-h-11 md:min-h-8'
 
 type RowProps = Readonly<{ item: PortalOverviewItem; propertyId: string }>
 
@@ -39,7 +41,7 @@ export function PortalRowButtons({ item, propertyId }: RowProps) {
   const canShare = row.publicationState !== 'draft' && row.publicationState !== 'archived'
   return (
     <>
-      <Button variant="outline" size="sm" asChild className={BUTTON}>
+      <Button variant="outline" size="sm" asChild className={TOUCH}>
         <Link
           to="/properties/$propertyId/portals/$portalId"
           params={params}
@@ -51,7 +53,7 @@ export function PortalRowButtons({ item, propertyId }: RowProps) {
         </Link>
       </Button>
       {canShare ? (
-        <Button variant="outline" size="sm" asChild className={BUTTON}>
+        <Button variant="outline" size="sm" asChild className={TOUCH}>
           <Link
             to="/properties/$propertyId/portals/$portalId"
             params={params}
@@ -62,7 +64,20 @@ export function PortalRowButtons({ item, propertyId }: RowProps) {
             <span className={classes.shareLabel}>Share</span>
           </Link>
         </Button>
-      ) : null}
+      ) : (
+        <span
+          aria-hidden="true"
+          className={cn(
+            buttonVariants({ variant: 'outline', size: 'sm' }),
+            TOUCH,
+            'invisible',
+            classes.sharePlaceholder,
+          )}
+        >
+          <QrCode />
+          <span className={classes.shareLabel}>Share</span>
+        </span>
+      )}
     </>
   )
 }
@@ -86,7 +101,7 @@ function MenuLink({
           : 'page',
   } as const
   return (
-    <DropdownMenuItem asChild className={ITEM}>
+    <DropdownMenuItem asChild className={TOUCH}>
       <Link to={to} params={params} search={search}>
         {menuItem.label}
       </Link>
@@ -148,9 +163,7 @@ export function PortalRowMenu({
             <DropdownMenuItem
               key={entry.id}
               variant={entry.destructive ? 'destructive' : 'default'}
-              className={
-                entry.destructive ? 'min-h-11 text-destructive! md:min-h-8' : ITEM
-              }
+              className={TOUCH}
               onSelect={() => setConfirming(lifecycleId(entry.id))}
             >
               {entry.label}

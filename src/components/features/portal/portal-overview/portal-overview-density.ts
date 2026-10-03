@@ -30,6 +30,8 @@ export type OverviewClasses = Readonly<{
   cardOnly: string
   /** The words of Share: beside its icon in the regular table, only for a screen reader in the compact one. */
   shareLabel: string
+  /** Where Share is not offered (a draft, an archived Portal), the unseen box that keeps Edit in its column; a card has no column to keep. */
+  sharePlaceholder: string
   /** A measure's figure, and the words that fill the columns of a draft. */
   measureCell: string
   measureSpan: string
@@ -62,6 +64,7 @@ export const OVERVIEW_CLASSES: Readonly<Record<OverviewDensity, OverviewClasses>
       'col-start-2 row-start-1 -mt-2 -mr-2 self-start p-0 @4xl:mt-0 @4xl:mr-0 @4xl:table-cell @4xl:w-12 @4xl:px-2 @4xl:py-3 @4xl:text-right',
     cardOnly: '@4xl:hidden',
     shareLabel: '',
+    sharePlaceholder: 'hidden @4xl:inline-flex',
     measureCell:
       'hidden px-2 py-3 text-right text-sm tabular-nums @4xl:table-cell @4xl:w-24',
     measureSpan: 'hidden px-2 py-3 text-sm text-muted-foreground @4xl:table-cell',
@@ -94,6 +97,7 @@ export const OVERVIEW_CLASSES: Readonly<Record<OverviewDensity, OverviewClasses>
       'col-start-2 row-start-1 -mt-2 -mr-2 self-start p-0 @2xl:mt-0 @2xl:mr-0 @2xl:table-cell @2xl:w-10 @2xl:px-1 @2xl:py-3 @2xl:text-right',
     cardOnly: '@2xl:hidden',
     shareLabel: '@2xl:sr-only',
+    sharePlaceholder: 'hidden @2xl:inline-flex',
     measureCell:
       'hidden px-1 py-3 text-right text-sm tabular-nums @2xl:table-cell @2xl:w-16',
     measureSpan: 'hidden px-1 py-3 text-sm text-muted-foreground @2xl:table-cell',

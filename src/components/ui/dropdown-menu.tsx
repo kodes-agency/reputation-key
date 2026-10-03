@@ -4,6 +4,10 @@ import { CircleIcon } from 'lucide-react'
 import { DropdownMenu as DropdownMenuPrimitive } from 'radix-ui'
 
 import { cn } from '#/lib/utils'
+import {
+  SEGMENT_CLASS,
+  SEGMENTED_CONTROL_CLASS,
+} from '#/components/ui/segmented-control-styles'
 
 function DropdownMenu({
   ...props
@@ -115,6 +119,44 @@ function DropdownMenuRadioItem({
   )
 }
 
+/**
+ * A choice that lives inside a menu and is drawn as the segmented pill
+ * (`SegmentedControl`'s look). The segments are menu radio items, not a bare
+ * radio group, so the menu's own arrow-key navigation reaches them: Radix
+ * prevents Tab inside a menu, which would leave a plain radio group unreachable
+ * from the keyboard. Each segment is a touch target, so below `md` it is at
+ * least 44 px tall (the menu item it replaced was), and 26 px from `md` up.
+ */
+function DropdownMenuSegmentedGroup({
+  className,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.RadioGroup>) {
+  return (
+    <DropdownMenuPrimitive.RadioGroup
+      data-slot="dropdown-menu-segmented-group"
+      className={cn(SEGMENTED_CONTROL_CLASS, 'flex w-full', className)}
+      {...props}
+    />
+  )
+}
+
+function DropdownMenuSegment({
+  className,
+  ...props
+}: React.ComponentProps<typeof DropdownMenuPrimitive.RadioItem>) {
+  return (
+    <DropdownMenuPrimitive.RadioItem
+      data-slot="dropdown-menu-segment"
+      className={cn(
+        SEGMENT_CLASS,
+        'flex-1 cursor-default px-2 max-md:min-h-11',
+        className,
+      )}
+      {...props}
+    />
+  )
+}
+
 function DropdownMenuSeparator({
   className,
   ...props
@@ -137,5 +179,7 @@ export {
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSegment,
+  DropdownMenuSegmentedGroup,
   DropdownMenuSeparator,
 }

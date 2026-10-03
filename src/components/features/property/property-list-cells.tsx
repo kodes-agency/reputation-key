@@ -2,8 +2,7 @@
 //
 // Only the property name keeps the link accent: it is the row's one way to open
 // the property. The attention and setup cells are links too, but figures must
-// not turn purple (row 2 of the plan's findings), and the global `a` colour in
-// styles.css is unlayered, so those links pin their ink with `!`.
+// not turn purple (row 2 of the plan's findings), so those links name their ink.
 import { Link } from '@tanstack/react-router'
 import { Check, Link2Off, Star } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
@@ -54,7 +53,7 @@ export function PropertyNameCell({ row }: Readonly<{ row: PropertyListRow }>) {
               params={{ propertyId: property.id }}
               aria-label={`${notice} for ${property.name}`}
               className={cn(
-                'inline-flex items-center gap-1 font-medium text-warn!',
+                'inline-flex items-center gap-1 font-medium text-warn',
                 FOCUS_RING,
               )}
             >
@@ -138,7 +137,7 @@ export function AttentionValue({
     </>
   )
   const className = cn(
-    'inline-flex flex-wrap items-baseline gap-x-1.5 text-foreground!',
+    'inline-flex flex-wrap items-baseline gap-x-1.5 text-foreground',
     FOCUS_RING,
   )
   // Work the fleet counts without a page to open (a rating drop, on a bounded
@@ -237,7 +236,7 @@ export function SetupValue({
       to={target}
       params={{ propertyId }}
       aria-label={`Setup ${completedCount} of ${stepCount} at ${propertyName}. Next: ${next}`}
-      className={cn('flex flex-col gap-0.5 text-foreground!', FOCUS_RING)}
+      className={cn('flex flex-col gap-0.5 text-foreground', FOCUS_RING)}
     >
       {progress}
       <span className="text-xs text-muted-foreground">Next: {next}</span>

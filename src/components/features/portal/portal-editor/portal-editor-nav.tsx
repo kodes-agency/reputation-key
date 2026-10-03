@@ -11,13 +11,14 @@
 // own measuring and mask (an inline style, so no stylesheet bytes). The group
 // headings and the summary lines belong to the wider layout.
 //
-// Each entry pins its ink (`!`): the global link colour is unlayered and would
-// otherwise paint every entry, and its icon, the accent.
+// Each entry names its ink, active and inactive, and its icon follows it: the
+// global link colour is a default in `@layer base`, so these utilities win.
 
 import { useEffect, useRef } from 'react'
 import { Link } from '@tanstack/react-router'
 import { CircleAlert, Lock } from 'lucide-react'
 import { cn } from '#/lib/utils'
+import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import { useStripOverflow } from '#/components/inbox/use-strip-overflow'
 import {
   STRIP_FADE_PX,
@@ -76,7 +77,10 @@ export function PortalEditorNav({
       <div className="xl:sticky xl:top-0">
         <div
           ref={stripRef}
-          className="relative flex scroll-px-6 gap-1 overflow-x-auto px-4 py-2 md:px-6 xl:flex-col xl:gap-5 xl:px-3 xl:py-5"
+          className={cn(
+            PAGE_GUTTER_X,
+            'relative flex scroll-px-6 gap-1 overflow-x-auto py-2 xl:flex-col xl:gap-5 xl:px-3 xl:py-5',
+          )}
           style={stripFadeStyle(edges)}
         >
           {PORTAL_EDITOR_SECTION_GROUPS.map((group) => {
@@ -137,7 +141,7 @@ function SectionLink({
       className={cn(
         'flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors',
         'hover:bg-muted focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring',
-        isActive ? 'bg-muted font-medium text-foreground!' : 'text-muted-foreground!',
+        isActive ? 'bg-muted font-medium text-foreground' : 'text-muted-foreground',
       )}
     >
       <Icon className="size-4 shrink-0" aria-hidden />

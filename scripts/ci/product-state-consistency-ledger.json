@@ -235,6 +235,11 @@
       "id": "src/routes/login.tsx:router.invalidate#1",
       "owner": "Authentication bootstrap",
       "rationale": "After sign-in and active-organization selection, the authenticated route context must be rebuilt before redirect; this is the sole whole-router bootstrap exception."
+    },
+    {
+      "id": "src/components/layout/use-guarded-route-error.tsx:router.invalidate#1",
+      "owner": "Route error boundaries",
+      "rationale": "Try again on a failed route re-runs that route's loaders and resets the boundary. The failed match can be a loader error or a render error under a match that loaded, so the retry cannot name the matches to refresh; the router default error component did the same before it moved into this shared hook."
     }
   ],
   "stateMirrorCandidates": [
@@ -658,6 +663,6 @@
     "This executable inventory covers production TypeScript and TSX files under src/components, src/routes, src/hooks, and src/shared/hooks; it excludes tests, stories, context internals, workers, and external packages.",
     "The state-mirror inventory is a conservative syntax heuristic over non-literal useState initializers. It requires unique, current, owned classifications and rejects an effect that overwrites a declared server draft, but feature-owned tests must still prove each remount, conflict, synchronization, or mutation-adoption policy.",
     "The query-key check rejects direct array literals, requires every factory member to descend acyclically from its own unique family root, inventories every member against an owned lifecycle policy, requires every explicit or shorthand queryKey site to resolve to a registered factory member or a narrow documented generic delegate, and requires every useActionMutation invalidation array to resolve to owned factory keys. It still does not prove that every server read uses TanStack Query or that every mutation invalidates all semantically related sibling projections; those fan-outs need feature-owned behavioral tests such as the Portal Group to Goal cache matrix.",
-    "The invalidation check detects zero-argument .invalidate() calls in scope. The login auth-bootstrap row is the only approved whole-router exception."
+    "The invalidation check detects zero-argument .invalidate() calls in scope. The login auth-bootstrap row and the route error boundaries' Try again are the only approved whole-router exceptions."
   ]
 }

@@ -5,6 +5,7 @@ import {
   AuthedRouterDecorator,
   withRole,
 } from '../../../../../.storybook/AuthedRouterDecorator'
+import { PageGutterDecorator } from '../../../../../.storybook/PageGutterDecorator'
 import { action, baseArgs } from '../portal-list-page-stories-data'
 import {
   indexOverviewResults,
@@ -32,7 +33,7 @@ const meta: Meta<typeof PortalGroupPage> = {
   title: 'Portal/PortalGroup/GroupPage',
   component: PortalGroupPage,
   parameters: { layout: 'fullscreen' },
-  decorators: [AuthedRouterDecorator],
+  decorators: [AuthedRouterDecorator, PageGutterDecorator],
   args: {
     propertyId: 'prop-1',
     propertyName: 'Avela Resort',
@@ -120,6 +121,27 @@ export const ListsOnlyThePortalsInTheGroup: Story = {
     ).toBeInTheDocument()
     await expect(
       canvas.getByText('A portal can be in one group at a time.'),
+    ).toBeInTheDocument()
+  },
+}
+
+// A draft has no code to give out, so its row has no Share link. The place stays,
+// unseen and hidden from a screen reader, so Edit sits where it does in the rows
+// that have one (the geometry is measured against real CSS in the metrics suite).
+export const DraftRowKeepsTheSharePlace: Story = {
+  play: async ({ canvasElement }) => {
+    const table = within(
+      within(canvasElement).getByRole('table', { name: /portals at avela resort/i }),
+    )
+    const draft = within(table.getByRole('link', { name: 'Pool bar' }).closest('tr')!)
+    await expect(draft.queryByRole('link', { name: /^Share / })).toBeNull()
+    await expect(draft.getByText('Share').closest('[aria-hidden="true"]')).not.toBeNull()
+    // The rows that can be shared keep their link.
+    const live = within(
+      table.getByRole('link', { name: 'Pool & Terrace' }).closest('tr')!,
+    )
+    await expect(
+      live.getByRole('link', { name: 'Share Pool & Terrace' }),
     ).toBeInTheDocument()
   },
 }
@@ -286,22 +308,45 @@ export const ArchivingAsksFirstAndKeepsThePortals: Story = {
   },
 }
 
+async function chooseRemoveFromGroup(canvasElement: HTMLElement) {
+  await userEvent.click(
+    within(canvasElement).getByRole('button', { name: 'More actions for Pool bar' }),
+  )
+  await userEvent.click(
+    await screen.findByRole('menuitem', { name: 'Remove from group' }),
+  )
+  return within(await screen.findByRole('alertdialog'))
+}
+
+/** The menu item asks first; the portal leaves the group only when that is confirmed. */
 export const RemovingAPortalTakesItOutOfTheGroup: Story = {
   args: {
     removePortalMutation: spy<{ data: { portalGroupId: string; portalId: string } }>(),
   },
   play: async ({ canvasElement, args }) => {
-    await userEvent.click(
-      within(canvasElement).getByRole('button', { name: 'More actions for Pool bar' }),
-    )
-    await userEvent.click(
-      await screen.findByRole('menuitem', { name: 'Remove from group' }),
-    )
+    const dialog = await chooseRemoveFromGroup(canvasElement)
+    await expect(
+      dialog.getByRole('heading', { name: 'Remove Pool bar from Pool side?' }),
+    ).toBeInTheDocument()
+    await expect(args.removePortalMutation).not.toHaveBeenCalled()
+    await userEvent.click(dialog.getByRole('button', { name: 'Remove from group' }))
     await waitFor(() =>
       expect(args.removePortalMutation).toHaveBeenCalledWith({
         data: { portalGroupId: 'group-pool', portalId: 'p-bar' },
       }),
     )
+  },
+}
+
+export const KeepingAPortalInTheGroup: Story = {
+  args: {
+    removePortalMutation: spy<{ data: { portalGroupId: string; portalId: string } }>(),
+  },
+  play: async ({ canvasElement, args }) => {
+    const dialog = await chooseRemoveFromGroup(canvasElement)
+    await userEvent.click(dialog.getByRole('button', { name: 'Keep in group' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    await expect(args.removePortalMutation).not.toHaveBeenCalled()
   },
 }
 

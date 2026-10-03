@@ -62,6 +62,7 @@ describe('production error-monitoring wiring', () => {
     const instrumentation = read('src/instrument.client.ts')
     const clientEntry = read('src/client.tsx')
     const router = read('src/router.tsx')
+    const guardedRouteError = read('src/components/layout/use-guarded-route-error.tsx')
     const telemetry = read('src/shared/observability/telemetry.ts')
     const viteConfig = read('vite.config.ts')
 
@@ -73,8 +74,15 @@ describe('production error-monitoring wiring', () => {
     expect(instrumentation).toContain(
       "from '#/shared/observability/browser-exception-capture'",
     )
-    expect(router).toContain("from '#/shared/observability/browser-exception-capture'")
+    // The router's default error component reports through the guarded route
+    // error hook, which holds the one `captureBrowserException` call every
+    // route boundary shares. Neither may import the Sentry SDK statically.
+    expect(router).toContain("from '#/components/layout/use-guarded-route-error'")
+    expect(guardedRouteError).toContain(
+      "from '#/shared/observability/browser-exception-capture'",
+    )
     expect(router).not.toContain("from '@sentry/tanstackstart-react'")
+    expect(guardedRouteError).not.toContain("from '@sentry/tanstackstart-react'")
     expect(instrumentation).toContain('beforeBreadcrumb: scrubSentryBreadcrumb')
     expect(viteConfig).toContain("'**/shared/observability/browser-exception-capture.ts'")
     expect(telemetry).toContain("from './sentry-event-scrub'")

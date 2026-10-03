@@ -35,7 +35,7 @@ import {
 const MIN_RATING_COMPARISON_SAMPLE = 10
 
 export interface PropertyOverviewProps {
-  property: Readonly<{ id: string; name: string }> | null | undefined
+  property: Readonly<{ id: string; name: string }>
   propertyId: string
   /** All-time read: the numbers a manager recognises. */
   lifetime: DashboardData
@@ -166,8 +166,6 @@ export function PropertyOverview({
   profileViewsFns,
   setupStrip,
 }: PropertyOverviewProps) {
-  if (!property) return null
-
   return (
     <PageShell tier="dashboard">
       <PageHeader

@@ -21,10 +21,15 @@ type Tone = 'destructive' | 'warning'
  * `text-warn` in the light theme — below 4.5:1 for this 14 px label — while
  * `--warn-muted` holds it at 4.62:1, so the rest state's fill has to stay put.
  * `--warn` against `--warn-line` is still a visible step under the pointer.
+ *
+ * `destructive` prints its label in `text-negative`, the text-grade red. The
+ * chip's ink was always the tone's, but the global link colour used to override
+ * it, so no one measured it: `text-destructive` on its own 10% tint is 3.85:1
+ * in the light theme, under 4.5:1 for this 14 px label.
  */
 const TONE_CLASS: Record<Tone, string> = {
   destructive:
-    'border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/15',
+    'border-destructive/30 bg-destructive/10 text-negative hover:bg-destructive/15',
   warning: 'border-warn-line bg-warn-muted text-warn hover:border-warn',
 }
 

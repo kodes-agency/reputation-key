@@ -62,6 +62,34 @@ for (const width of TABLE_WIDTHS) {
   })
 }
 
+// A draft has no Share, and an archived Portal none either. Its row keeps the
+// place, unseen, so Edit and the menu sit where they do in every other row and
+// the actions read as one column rather than a ragged edge.
+for (const [story, rowName] of [
+  [STORY, 'Pool bar'],
+  ['portal-portalgroup-grouppage--default', 'Pool bar'],
+] as const) {
+  test(`${story}: a draft's Edit and menu line up with the other rows' (1280px)`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width: 1280, height: 900 })
+    await openStory(page, story)
+
+    const table = page.getByRole('table', { name: /portals at avela resort/i })
+    const left = async (role: 'link' | 'button', name: string): Promise<number> => {
+      const box = await table.getByRole(role, { name }).boundingBox()
+      if (box === null) throw new Error(`${name} has no box`)
+      return Math.round(box.x)
+    }
+    const shared = await left('link', 'Edit Pool & Terrace')
+    expect(await left('link', `Edit ${rowName}`), 'the draft row’s Edit').toBe(shared)
+    expect(
+      await left('button', `More actions for ${rowName}`),
+      'the draft row’s menu',
+    ).toBe(await left('button', 'More actions for Pool & Terrace'))
+  })
+}
+
 for (const width of CARD_WIDTHS) {
   test(`a ${width}px window shows cards with one summary line, not measure columns`, async ({
     page,

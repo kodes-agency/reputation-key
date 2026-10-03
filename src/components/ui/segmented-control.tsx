@@ -7,6 +7,7 @@
 // boards draw it. Not `Tabs`: nothing here swaps a panel.
 import { RadioGroup as RadioGroupPrimitive } from 'radix-ui'
 import { cn } from '#/lib/utils'
+import { SEGMENT_CLASS, SEGMENTED_CONTROL_CLASS } from './segmented-control-styles'
 
 export type SegmentedControlOption = Readonly<{
   value: string
@@ -42,19 +43,6 @@ type Props = Naming &
     className?: string
   }>
 
-/**
- * A 26 px segment inside a 2 px inset in a muted pill. The chosen segment is
- * the boards' white chip: `bg-card` with a 1 px `--border-control` ring (3:1 on
- * the pill, WCAG 1.4.11) and a soft drop, so it reads as chosen without leaning
- * on text weight or hue. In the dark theme the fill follows `tabs.tsx`
- * (`bg-input/30`) and the ring carries the shape.
- */
-const CHOSEN_EDGE =
-  'data-[state=checked]:shadow-[0_0_0_1px_var(--border-control),0_1px_2px_rgb(0_0_0/0.1)]'
-const SEGMENT_CLASS =
-  'inline-flex h-[26px] items-center justify-center rounded-sm px-2.5 text-[13px] leading-5 whitespace-nowrap text-muted-foreground transition-colors outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-card data-[state=checked]:font-medium data-[state=checked]:text-foreground dark:data-[state=checked]:bg-input/30 ' +
-  CHOSEN_EDGE
-
 export function SegmentedControl({
   value,
   onValueChange,
@@ -71,10 +59,7 @@ export function SegmentedControl({
       disabled={disabled}
       aria-label={props['aria-label']}
       aria-labelledby={props['aria-labelledby']}
-      className={cn(
-        'inline-flex items-center gap-0.5 rounded-md bg-muted p-0.5',
-        className,
-      )}
+      className={cn(SEGMENTED_CONTROL_CLASS, className)}
     >
       {options.map((option) => (
         <RadioGroupPrimitive.Item

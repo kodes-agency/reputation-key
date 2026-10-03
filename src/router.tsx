@@ -1,11 +1,6 @@
-import { useEffect } from 'react'
 import { getGlobalStartContext } from '@tanstack/react-start'
 import { QueryClient } from '@tanstack/react-query'
-import {
-  createRouter as createTanStackRouter,
-  Navigate,
-  useRouter,
-} from '@tanstack/react-router'
+import { createRouter as createTanStackRouter, useRouter } from '@tanstack/react-router'
 import type { ErrorComponentProps } from '@tanstack/react-router'
 import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query'
 import { routeTree } from './routeTree.gen'
@@ -14,9 +9,10 @@ import { Skeleton } from '#/components/ui/skeleton'
 import { Alert, AlertDescription } from '#/components/ui/alert'
 import { AlertCircle } from 'lucide-react'
 import { Button } from '#/components/ui/button'
-import { publicErrorMessage } from '#/shared/security/error-display'
-import { captureBrowserException } from '#/shared/observability/browser-exception-capture'
-import { httpStatus, isExpectedRefusal } from '#/shared/security/expected-refusal'
+import {
+  SignedOutRedirect,
+  useGuardedRouteError,
+} from '#/components/layout/use-guarded-route-error'
 
 /** Default pending component — shown while route loaders are resolving. */
 function DefaultPendingComponent() {
@@ -34,24 +30,15 @@ function DefaultPendingComponent() {
 /**
  * Default error component — shown when route loaders throw.
  *
- * A 401 here means the session ended under an open page (sign-out elsewhere,
- * expiry) and a query or loader refused: that is the login page's job, not a
- * failure. Expected refusals (4xx) are never reported; `beforeSend` drops
- * them too, this keeps the boundary honest about what it captures.
+ * The guarded behaviour (sanitised message, capture, 401 sign-out redirect,
+ * Try again) lives in `useGuardedRouteError`, shared with every route that
+ * renders its own error component. A 401 here means the session ended under an
+ * open page: that is the login page's job, not a failure.
  */
 function DefaultErrorComponent({ error }: ErrorComponentProps) {
-  const router = useRouter()
-  const signedOut = httpStatus(error) === 401
+  const guarded = useGuardedRouteError(error)
 
-  useEffect(() => {
-    if (!isExpectedRefusal(error)) captureBrowserException(error)
-  }, [error])
-
-  if (signedOut) {
-    return (
-      <Navigate to="/login" search={{ redirect: router.state.location.href }} replace />
-    )
-  }
+  if (guarded.signedOut) return <SignedOutRedirect />
 
   return (
     <div className="page-wrap px-4 pb-8 pt-14">
@@ -60,10 +47,10 @@ function DefaultErrorComponent({ error }: ErrorComponentProps) {
         <AlertDescription>
           {/* BQC-7.6: production never renders raw error text (SQL/stack/
               secret leakage); development keeps it for debuggability. */}
-          {publicErrorMessage(error, import.meta.env.PROD)}
+          {guarded.message}
         </AlertDescription>
       </Alert>
-      <Button variant="outline" className="mt-4" onClick={() => router.invalidate()}>
+      <Button variant="outline" className="mt-4" onClick={guarded.retry}>
         Try again
       </Button>
     </div>

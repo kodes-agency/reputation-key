@@ -158,7 +158,7 @@ export const Route = createFileRoute('/unavailable')({
 })
 
 function UnavailablePageLink({ link }: Readonly<{ link: UnavailableLink }>) {
-  const className = 'text-primary underline underline-offset-4'
+  const className = 'text-link underline underline-offset-4'
   if (link.to === '/properties/$propertyId/settings') {
     return (
       <Link to={link.to} params={link.params} className={className}>

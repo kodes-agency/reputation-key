@@ -50,7 +50,6 @@ export function PortalAllPropertiesNewPortal({
             <Link
               to="/properties/$propertyId/portals/new"
               params={{ propertyId: property.id }}
-              className="text-foreground!"
             >
               {property.name}
             </Link>

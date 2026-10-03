@@ -2,6 +2,7 @@
 // sections below it. Every visibility rule is derived in portal-share-state.ts.
 
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { FullBleedFrame } from '#/components/layout/page-shell'
 import { cn } from '#/lib/utils'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { PortalCodeBlock } from './portal-code-block'
@@ -47,9 +48,10 @@ export function PortalShare(props: PortalShareProps) {
 
   return (
     <div className="flex min-h-full flex-col lg:flex-row">
-      <section
+      <FullBleedFrame
+        as="section"
         className={cn(
-          'flex flex-col gap-8 px-4 py-5 md:px-6 md:py-8',
+          'flex flex-col gap-8',
           showPrintKit ? 'lg:w-172 lg:shrink-0 lg:border-r' : 'mx-auto w-full max-w-5xl',
         )}
         aria-label="Share"
@@ -128,7 +130,7 @@ export function PortalShare(props: PortalShareProps) {
         <p className="sr-only" role="status" aria-live="polite">
           {liveStatusMessage(isPending, copied || nfcCopied)}
         </p>
-      </section>
+      </FullBleedFrame>
       {showPrintKit && (
         <PortalPrintKitPreview
           piece={printKit.choice?.piece ?? 'table_tent'}

@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { LockKeyhole } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
+import type { Role } from '#/shared/domain/roles'
 import { DirectoryTab } from '#/components/features/property/people/directory-tab'
 import { StaffTab } from '#/components/features/property/people/staff-tab'
 import { PageHeader } from '#/components/layout/page-header'
@@ -21,7 +22,8 @@ type DirectoryMember = Readonly<{
   userId: string
   name: string
   email: string
-  role: string | null
+  role: Role | null
+  rawRole: string
 }>
 
 interface PeoplePageProps {
@@ -70,7 +72,7 @@ export function PeoplePage({
   const activeTab = tab ?? 'staff'
   const [createParticipationOpen, setCreateParticipationOpen] = useState(false)
   return (
-    <PageShell>
+    <PageShell tier="dashboard">
       <PageHeader
         title="People"
         description="Manage property participation and Portal responsibility."

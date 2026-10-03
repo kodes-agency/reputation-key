@@ -24,7 +24,7 @@ const FIX_LABEL: Readonly<Record<PortalIssueFix, string>> = {
   page: 'Open the portal',
 }
 
-const LINK = 'text-xs font-medium underline underline-offset-4 text-foreground!'
+const LINK = 'text-xs font-medium text-foreground underline underline-offset-4'
 
 function FixLink({
   fix,

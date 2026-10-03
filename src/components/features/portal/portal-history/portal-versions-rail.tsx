@@ -4,6 +4,7 @@
 
 import { ShieldCheck } from 'lucide-react'
 import type { PortalVersions } from '#/contexts/portal/application/public-api'
+import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import { Skeleton } from '#/components/ui/skeleton'
 import { cn } from '#/lib/utils'
 import { formatHistoryTime } from './portal-history-time'
@@ -129,7 +130,10 @@ export function PortalVersionsRail(props: Props) {
   return (
     <aside
       aria-labelledby="portal-versions-title"
-      className="border-t px-4 py-5 md:px-6 lg:w-[22rem] lg:shrink-0 lg:border-t-0 lg:border-l"
+      className={cn(
+        PAGE_GUTTER_X,
+        'border-t py-5 lg:w-[22rem] lg:shrink-0 lg:border-t-0 lg:border-l',
+      )}
     >
       <div className="flex items-baseline justify-between gap-2">
         <h2 id="portal-versions-title" className="text-base font-semibold">

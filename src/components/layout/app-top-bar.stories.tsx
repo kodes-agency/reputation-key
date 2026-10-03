@@ -1,15 +1,16 @@
 // Storybook stories for AppTopBar — the authenticated header bar.
 // AppTopBar renders the sidebar trigger, the notification bell (with an unread
 // count badge fed by NotificationPanel), and the signed-in user's avatar/menu.
-// Stateful: useThemeMode() reads the persisted theme on mount and the menu
-// cycles light/dark/auto; the sign-out item calls authClient.signOut() on click.
+// Stateful: useThemeMode() reads the persisted theme on mount and the menu holds
+// the Light / Dark / System control; the sign-out item calls authClient.signOut()
+// on click.
 //
 // notificationFns is a prop bundle (Phase-1 fn-as-prop channel). Each entry is
 // wrapped by useAction(useServerFn(...)) inside the notification hooks, so the
 // story feeds plain callables cast to each fn brand — the same pattern every
 // notification/inbox story uses. No value import from #/contexts/*/server/**.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, within } from 'storybook/test'
+import { expect, userEvent, within } from 'storybook/test'
 import { SidebarProvider, SidebarInset } from '#/components/ui/sidebar'
 import type { NotificationServerFns } from '#/components/features/notification/types'
 import { AppTopBar } from './app-top-bar'
@@ -134,5 +135,40 @@ export const SidebarLocked: Story = {
       'max-md:size-9',
       'max-md:-mr-1',
     )
+  },
+}
+
+// The account menu holds the theme control: Light, Dark, System (the order
+// Preferences uses), reachable with the menu's own arrow keys. Choosing leaves
+// the menu open and writes the choice where the page reads it.
+export const ThemeInTheAccountMenu: Story = {
+  args: { user, notificationFns: makeNotificationFns(0) },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const page = within(canvasElement.ownerDocument.body)
+    const trigger = await canvas.findByRole('button', { name: 'Account menu' })
+    trigger.focus()
+    await userEvent.keyboard('{Enter}')
+
+    const group = await page.findByRole('group', { name: 'Theme' })
+    expect(
+      within(group)
+        .getAllByRole('menuitemradio')
+        .map((item) => item.textContent),
+    ).toEqual(['Light', 'Dark', 'System'])
+
+    // Opened from the keyboard, the menu focuses its first item: the Light
+    // segment. Arrow Down steps to the next segment.
+    expect(page.getByRole('menuitemradio', { name: 'Light' })).toHaveFocus()
+    await userEvent.keyboard('{ArrowDown}')
+    expect(page.getByRole('menuitemradio', { name: 'Dark' })).toHaveFocus()
+    await userEvent.keyboard('{Enter}')
+    expect(page.getByRole('menuitemradio', { name: 'Dark' })).toBeChecked()
+    expect(window.localStorage.getItem('theme')).toBe('dark')
+    expect(document.documentElement).toHaveClass('dark')
+    expect(page.getByRole('menu')).toBeVisible()
+    // Sign out is still the last item, after the three segments.
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}')
+    expect(page.getByRole('menuitem', { name: 'Sign out' })).toHaveFocus()
   },
 }

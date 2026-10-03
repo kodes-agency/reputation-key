@@ -11,8 +11,9 @@
 // list itself (`data-list-control`: "Load more", gone with the last page)
 // hands focus to the list.
 //
-// A row's menu renders in a portal outside the list. Focus moving into it keeps
-// the record, because the menu's trigger is what its actions remove.
+// A row's menu, and the confirmation a menu item opens (a stack's "Dismiss
+// all"), render in portals outside the list. Focus moving into either keeps the
+// record, because the menu's trigger is what their actions remove.
 //
 // Focus the reader moved away stays away. Tabbing out of the list forgets the
 // record, and so does a pointer press anywhere outside the list and its row
@@ -69,8 +70,10 @@ function neighbourOf(
 const isFocusLost = () =>
   document.activeElement === null || document.activeElement === document.body
 
-const isInRowMenu = (target: EventTarget | null) =>
-  target instanceof Element && target.closest('[role="menu"]') !== null
+const ROW_OVERLAY_SELECTOR = '[role="menu"], [role="alertdialog"]'
+
+const isInRowOverlay = (target: EventTarget | null) =>
+  target instanceof Element && target.closest(ROW_OVERLAY_SELECTOR) !== null
 
 /**
  * `list` is the focusable list container; `rowIds` the rows in rendered order.
@@ -104,7 +107,7 @@ export function useNotificationFocusRecovery(
     const forgetOnPressElsewhere = (event: PointerEvent) => {
       const target = event.target
       if (target instanceof Node && list.current?.contains(target)) return
-      if (isInRowMenu(target)) return
+      if (isInRowOverlay(target)) return
       focused.current = null
     }
     document.addEventListener('pointerdown', forgetOnPressElsewhere, true)
@@ -113,7 +116,8 @@ export function useNotificationFocusRecovery(
 
   return {
     onFocus: (event: FocusEvent<HTMLElement>) => {
-      // A target outside the container is a row's menu, rendered in a portal.
+      // A target outside the container is a row's menu or confirmation, rendered
+      // in a portal.
       if (list.current?.contains(event.target)) {
         focused.current = focusedControlOf(event.target)
       }
@@ -121,7 +125,7 @@ export function useNotificationFocusRecovery(
     onBlur: (event: FocusEvent<HTMLElement>) => {
       const next = event.relatedTarget
       if (!(next instanceof Element) || list.current?.contains(next)) return
-      if (isInRowMenu(next)) return
+      if (isInRowOverlay(next)) return
       focused.current = null
     },
   }
