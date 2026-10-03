@@ -38,8 +38,6 @@ export type NotificationListBodyProps = Readonly<{
   isLoadingMore: boolean
   /** The head read failed. Rows already loaded stay listed beneath a notice. */
   error: Error | null
-  /** `onRetry` is reading; the failure stays, its button busy. */
-  isRetrying?: boolean
   /** The last "Load more" failed. */
   loadMoreError?: Error | null
   hasMore: boolean
@@ -168,13 +166,7 @@ export function NotificationListBody(props: NotificationListBodyProps) {
 function NotificationListState(props: NotificationListBodyProps): ReactNode {
   const hasRows = props.groups.length > 0
   if (props.error && !hasRows) {
-    return (
-      <NotificationErrorState
-        error={props.error}
-        onRetry={props.onRetry}
-        retrying={props.isRetrying}
-      />
-    )
+    return <NotificationErrorState error={props.error} onRetry={props.onRetry} />
   }
   if (props.isLoading) return <NotificationLoadingState />
   if (!hasRows) {
@@ -192,11 +184,7 @@ function NotificationListState(props: NotificationListBodyProps): ReactNode {
   return (
     <div className="flex flex-col gap-2 py-1">
       {props.error && (
-        <NotificationRefreshNotice
-          error={props.error}
-          onRetry={props.onRetry}
-          retrying={props.isRetrying}
-        />
+        <NotificationRefreshNotice error={props.error} onRetry={props.onRetry} />
       )}
       {props.groups.map((group) => (
         <NotificationSection

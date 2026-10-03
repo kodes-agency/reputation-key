@@ -6,6 +6,7 @@
 // like any other failure: a retry that could never succeed. Now a failure sits
 // beside the rows it leaves in place, and a 401 offers the way back in.
 
+import { useState } from 'react'
 import { Link, useRouterState } from '@tanstack/react-router'
 import { Loader2, LogIn } from 'lucide-react'
 import { Button } from '#/components/ui/button'
@@ -28,19 +29,10 @@ function SignInAgain() {
   )
 }
 
-type FailureProps = Readonly<{
-  error: Error
-  onRetry: () => void
-  /** `onRetry` is reading; the failure stays, its button busy. */
-  retrying?: boolean
-}>
+type FailureProps = Readonly<{ error: Error; onRetry: () => void }>
 
 /** Nothing loaded to keep: the failure is the whole list. */
-export function NotificationErrorState({
-  error,
-  onRetry,
-  retrying = false,
-}: FailureProps) {
+export function NotificationErrorState({ error, onRetry }: FailureProps) {
   return (
     <div className="px-3 py-3">
       {isSessionEnded(error) ? (
@@ -56,20 +48,24 @@ export function NotificationErrorState({
           size="compact"
           message="Notifications couldn’t be loaded."
           onRetry={onRetry}
-          retrying={retrying}
+          // A retry with no rows to keep resets the read to pending, and the list
+          // shows its loading state (the list recovers focus itself).
+          retrying={false}
         />
       )}
     </div>
   )
 }
 
-/** A refresh failed above rows that are still worth reading. */
-export function NotificationRefreshNotice({
-  error,
-  onRetry,
-  retrying = false,
-}: FailureProps) {
+/**
+ * A refresh failed above rows that are still worth reading. The rows keep the
+ * read in its error state while it tries again, so the notice cannot see the retry
+ * in the query: the button is busy from the press until the failure is a different
+ * one (the read failed again) or the notice is gone (it answered).
+ */
+export function NotificationRefreshNotice({ error, onRetry }: FailureProps) {
   const ended = isSessionEnded(error)
+  const [triedFor, setTriedFor] = useState<Error | null>(null)
   return (
     <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
       <p className="text-xs text-muted-foreground">
@@ -78,7 +74,14 @@ export function NotificationRefreshNotice({
       {ended ? (
         <SignInAgain />
       ) : (
-        <RetryButton size="xs" onRetry={onRetry} retrying={retrying} />
+        <RetryButton
+          size="xs"
+          retrying={triedFor === error}
+          onRetry={() => {
+            setTriedFor(error)
+            onRetry()
+          }}
+        />
       )}
     </div>
   )
