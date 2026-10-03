@@ -38,7 +38,7 @@ export function ReviewRow({
     <Link
       to="/inbox"
       search={{ propertyId, reviewId: review.id }}
-      className="flex min-h-11 items-center gap-4 rounded-lg border p-3 transition-colors hover:border-border hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+      className="flex min-h-11 items-center gap-4 rounded-lg border p-3 text-foreground transition-colors hover:border-border hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
     >
       <span className="flex flex-col items-center gap-1">
         <span className="text-lg font-semibold">{review.rating}</span>

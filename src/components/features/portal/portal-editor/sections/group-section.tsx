@@ -28,7 +28,7 @@ export function GroupSection({
         <Link
           to="/properties/$propertyId/portals"
           params={{ propertyId }}
-          className="font-medium text-primary underline-offset-4 hover:underline"
+          className="font-medium text-link underline-offset-4 hover:underline"
         >
           Manage groups on the portals list
         </Link>
