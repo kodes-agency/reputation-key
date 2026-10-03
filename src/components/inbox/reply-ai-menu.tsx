@@ -10,7 +10,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
-import { CASE_SQUARE_CLASS } from './inbox-case-member'
 import {
   hasPropertyDefaultOption,
   replyLanguageMenuEntries,
@@ -98,7 +97,7 @@ export function ReplyAiMenu(props: ReplyAiMenuProps) {
           type="button"
           size="sm"
           variant="outline"
-          className={CASE_SQUARE_CLASS}
+          iconBelow="md"
           // Blocked-with-a-reason is `aria-disabled`, not `disabled`: a natively
           // disabled button leaves the tab order and takes its
           // `aria-describedby` with it, so the one sentence saying why this

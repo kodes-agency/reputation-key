@@ -15,18 +15,13 @@
 // both hold here: a fact IS `ButtonGroupText`, with the box taken off (`Fact`,
 // in `ui/fact.tsx`, hoisted so the portal workspace prints its facts the same
 // way).
-/**
- * A control's geometry for the owner and escalation members: 32 px from `md`
- * up, a glyph square below it, as wide as the Button is tall there (the compact
- * density's 36 px: row 20 — WCAG 2.5.8 AA asks for 24 px, and 44 px on every
- * strip control is what inflated v1's row). The status
- * control is deliberately NOT this shape: its word is the information, so it
- * keeps `[● Closed ▾]` at every width. `has-[>svg]:px-0` is needed because
- * `Button`'s `sm` size sets `has-[>svg]:px-2.5`, whose `:has()` out-specifies a
- * bare `max-md:px-0`.
- */
-export const CASE_SQUARE_CLASS =
-  'gap-1.5 max-md:w-(--control-touch) max-md:px-0 max-md:has-[>svg]:px-0'
+//
+// A control's geometry for the owner and escalation members is the Button's
+// `iconBelow="md"`: 32 px from `md` up, a glyph square below it, as wide as the
+// Button is tall there (the compact density's 36 px: row 20 — WCAG 2.5.8 AA asks
+// for 24 px, and 44 px on every strip control is what inflated v1's row). The
+// status control is deliberately NOT this shape: its word is the information, so
+// it keeps `[● Closed ▾]` at every width.
 
 /**
  * Restores a control's own edge where it meets a fact. `ButtonGroup` squares

@@ -76,13 +76,17 @@ function buttonTags(text: string): string[] {
 describe('a control gets its touch height from the primitive', () => {
   /** The recipes a Button, an Input or a menu item re-derived per file. */
   const RECIPE =
-    /min-h-11 (?:sm|md):min-h-[89]|h-11 md:h-9|size-11 (?:sm|md):size-[89]|max-md:(?:size|h)-9\b|max-md:min-h-9\b/u
+    /\bmin-h-11\b[^"'`]*\b(?:sm|md):min-h-[89]\b|h-11 md:h-9|size-11 (?:sm|md):size-[89]|max-md:(?:size|h)-9\b|max-md:min-h-9\b/u
   /** Files where the recipe sizes something that is not a control. */
   const RECIPE_ALLOWED: Readonly<Record<string, string>> = {
     'src/components/inbox/composer-mode-row.tsx': 'the mode segments are tab triggers',
     'src/components/inbox/inbox-case-toolbar.tsx': 'the due chip is a popover trigger',
     'src/components/inbox/reply-draft-origin-tag.tsx':
       'the origin tag is a menu trigger set in a line of text',
+    'src/components/features/portal/portal-settings/portal-localized-content-editor.tsx':
+      'a disclosure header row that spans the card, not a Button',
+    'src/components/features/integration/google-import-manager/google-import-review-row.tsx':
+      'the label of a checkbox is its own touch box, not a Button',
   }
   const hasRecipe = (file: SourceFile) => RECIPE.test(file.text)
 
@@ -104,6 +108,65 @@ describe('a control gets its touch height from the primitive', () => {
   })
 })
 
+describe('the touch token is the primitives', () => {
+  const spellsToken = (file: SourceFile) =>
+    /--control-touch/u.test(file.text) && !file.path.startsWith('src/components/ui/')
+  const TOKEN_ALLOWED: Readonly<Record<string, string>> = {
+    'src/components/inbox/inbox-property-select.tsx':
+      "the list header's scope line is a text trigger, not a Button; it sizes itself from the token",
+  }
+
+  it('is `touch` or `iconBelow` on a Button, not `--control-touch` in a class', () => {
+    expect(offendersOf(spellsToken, TOKEN_ALLOWED)).toEqual([])
+  })
+
+  it('lists no file that no longer spells it', () => {
+    expect(staleIn(spellsToken, TOKEN_ALLOWED)).toEqual([])
+  })
+})
+
+describe('a form submits through submitHandler', () => {
+  // The wiring copied by hand: prevent the native submit, stop the event, then run
+  // the form (or call `handleSubmit` and leave its rejection unhandled).
+  const HAND_WIRED =
+    /preventDefault\(\)\s*(?:\w+\.)?stopPropagation\(\)\s*void (?:submitForm|\w+\.handleSubmit)\(/u
+  const isHandWired = (file: SourceFile) => HAND_WIRED.test(file.text)
+  const WIRING_ALLOWED: Readonly<Record<string, string>> = {
+    'src/components/forms/form-submit.ts': 'the wiring itself',
+  }
+
+  it('is `onSubmit={submitHandler(form)}`, not a copy of it', () => {
+    expect(offendersOf(isHandWired, WIRING_ALLOWED)).toEqual([])
+  })
+
+  it('lists no file that no longer has the wiring', () => {
+    expect(staleIn(isHandWired, WIRING_ALLOWED)).toEqual([])
+  })
+
+  it('never calls `handleSubmit` and drops its promise', () => {
+    const DROPPED = /\bvoid \w+\.handleSubmit\(\)/u
+    expect(offendersOf((file) => DROPPED.test(file.text))).toEqual([])
+  })
+})
+
+describe('an explanation wears one cue', () => {
+  const HAND_TYPED = /decoration-dotted/u
+  const hasDotted = (file: SourceFile) => HAND_TYPED.test(file.text)
+  const DOTTED_ALLOWED: Readonly<Record<string, string>> = {
+    'src/components/ui/explain-trigger.tsx': 'the primitive itself',
+    'src/components/features/portal/portal-workspace/portal-workspace-header.tsx':
+      'a link to the review page, not an explanation',
+  }
+
+  it('is `EXPLAIN_UNDERLINE` or `ExplainTrigger`, not a dotted underline typed by hand', () => {
+    expect(offendersOf(hasDotted, DOTTED_ALLOWED)).toEqual([])
+  })
+
+  it('lists no file that no longer types one', () => {
+    expect(staleIn(hasDotted, DOTTED_ALLOWED)).toEqual([])
+  })
+})
+
 describe('a pending button is the Button', () => {
   const draws = (file: SourceFile) =>
     /<Button\b/u.test(file.text) && /animate-spin/u.test(file.text)
@@ -117,10 +180,10 @@ describe('a pending button is the Button', () => {
       'the status glyph of a progress row, beside a Retry that is a pending Button',
     'src/components/inbox/composer-mode-row.tsx': 'a status glyph in the mode row',
     'src/components/features/notification/notification-list-notices.tsx':
-      'the status line of a feed that is loading more, not a button',
+      'Load more is aria-disabled while it loads, not disabled, so keyboard focus stays in the popover; a pending Button is natively disabled',
   }
 
-  it('is `pending`, not a hand-placed spinner or a label swapped on isPending', () => {
+  it('is `pending`, not a hand-placed spinner beside a Button', () => {
     expect(offendersOf(draws, SPINNER_ALLOWED)).toEqual([])
   })
 

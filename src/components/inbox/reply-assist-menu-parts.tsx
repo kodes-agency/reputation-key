@@ -177,7 +177,7 @@ export function PropertyLanguageMissingItem({
         asChild
         aria-label="Set property language"
         aria-describedby={reasonId}
-        className="flex-col items-start gap-0.5 max-md:min-h-11"
+        className="flex-col items-start gap-0.5"
       >
         <Link to="/properties/$propertyId/settings/replies" params={{ propertyId }}>
           <span className="flex items-center gap-2">
@@ -195,7 +195,7 @@ export function PropertyLanguageMissingItem({
       aria-disabled="true"
       aria-label="Ask a manager to set this property’s reply language"
       aria-describedby={reasonId}
-      className="flex-col items-start gap-0.5 text-muted-foreground max-md:min-h-11"
+      className="flex-col items-start gap-0.5 text-muted-foreground"
       onSelect={(event) => event.preventDefault()}
     >
       <span className="flex items-center gap-2">

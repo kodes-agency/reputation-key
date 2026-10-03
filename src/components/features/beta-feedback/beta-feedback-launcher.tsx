@@ -83,7 +83,8 @@ export function BetaFeedbackLauncher({ submitFeedback, listFeedback }: Props) {
           type="button"
           variant="ghost"
           size="sm"
-          className="relative gap-2 max-sm:w-(--control-touch)"
+          iconBelow="sm"
+          className="relative gap-2"
         >
           <MessageSquarePlus aria-hidden="true" />
           <span className="sr-only">Feedback: report a problem or share an idea</span>

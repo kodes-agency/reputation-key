@@ -26,7 +26,7 @@ export function InboxBulkAssignMenu({
         <Button
           variant="outline"
           size="sm"
-          className="max-md:w-(--control-touch) max-md:px-0"
+          iconBelow="md"
           disabled={pending || itemCount === 0}
           aria-label={`Assign ${itemCount} items`}
         >

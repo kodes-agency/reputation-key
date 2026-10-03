@@ -5,6 +5,7 @@
 // that may be off for this reader, still loading, or failed.
 import { Link } from '@tanstack/react-router'
 import { Target } from 'lucide-react'
+import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
 import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
@@ -60,14 +61,15 @@ export function PortalGroupGoals({
           description="A goal is a monthly target the group’s portals share."
           action={
             canSetGoal ? (
-              <Link
-                to="/properties/$propertyId/goals/new"
-                params={{ propertyId }}
-                search={{ subject: `portal_group:${groupId}` }}
-                className="inline-flex min-h-11 items-center rounded-sm text-sm font-medium underline-offset-4 hover:underline focus-ring md:min-h-8"
-              >
-                Set a goal
-              </Link>
+              <Button asChild variant="link" size="sm" className="px-0">
+                <Link
+                  to="/properties/$propertyId/goals/new"
+                  params={{ propertyId }}
+                  search={{ subject: `portal_group:${groupId}` }}
+                >
+                  Set a goal
+                </Link>
+              </Button>
             ) : undefined
           }
         />

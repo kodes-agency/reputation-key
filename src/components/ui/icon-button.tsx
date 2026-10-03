@@ -14,8 +14,10 @@ type IconButtonProps = Omit<ButtonProps, 'aria-label' | 'children' | 'size'> & {
   /**
    * What a pointer or a keyboard user reads on hover or focus. `true` (the default)
    * shows the label; a string shows that instead (the label and a shortcut);
-   * `false` shows none, for a trigger whose open menu already says what it is.
-   * Needs a `TooltipProvider` above it: the authenticated shell mounts the app's
+   * `false` shows none. A button that opens a menu, popover or sheet
+   * (`aria-haspopup`, which Radix's triggers add) shows none either: the open
+   * popup says what it is, and when it closes Radix returns focus to the button,
+   * which would open the tooltip unprompted. Needs a `TooltipProvider` above it: the authenticated shell mounts the app's
    * (`SidebarProvider`), and a story gets the preview's. Outside the shell, pass
    * `false`.
    */
@@ -23,6 +25,9 @@ type IconButtonProps = Omit<ButtonProps, 'aria-label' | 'children' | 'size'> & {
   /** The glyph. */
   children: ReactNode
 }
+
+const opensPopup = (haspopup: ButtonProps['aria-haspopup']) =>
+  haspopup !== undefined && haspopup !== false && haspopup !== 'false'
 
 /**
  * A Button with no words: the glyph, a required name and a tooltip that repeats
@@ -55,7 +60,7 @@ function IconButton({
       aria-label={label}
     />
   )
-  if (tooltip === false) return button
+  if (tooltip === false || opensPopup(props['aria-haspopup'])) return button
 
   return (
     <Tooltip delayDuration={TOOLTIP_DELAY_MS}>

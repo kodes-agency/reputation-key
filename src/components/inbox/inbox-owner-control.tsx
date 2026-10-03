@@ -20,7 +20,6 @@ import {
 // The viewer has ONE definition for the whole pane, in the pure selector module
 // every surface above this control already imports from; see its comment.
 import type { InboxCurrentUser } from './inbox-case-toolbar-props'
-import { CASE_SQUARE_CLASS } from './inbox-case-member'
 
 /**
  * Mirror of `SOURCE_HANDLE_PERMISSION` in
@@ -134,7 +133,7 @@ function buildChoices(
  * `[&>*]` selectors only reach direct children, and Radix's `DropdownMenu`
  * root renders no DOM, so the trigger `Button` is that child.
  *
- * Below `md` the TRIGGER is `CASE_SQUARE_CLASS`'s 36 px square (row 20, the
+ * Below `md` the TRIGGER is `iconBelow="md"`'s 36 px square (row 20, the
  * canvas's `[Closed ▾][GI][⚑]` = 180 px at 390), so its label goes `sr-only`
  * and its chevron away, and the disc or glyph alone remains. `sr-only`, not
  * `hidden`: the `aria-label` is the name either way, and the word stays in the
@@ -225,7 +224,8 @@ export function InboxOwnerControl({
           size="sm"
           disabled={isPending}
           aria-label={`Assignment: ${owner.label}`}
-          className={`group/owner ${CASE_SQUARE_CLASS}`}
+          iconBelow="md"
+          className="group/owner"
         >
           <OwnerMark owner={owner} tone="control" />
           <span className={TRIGGER_LABEL_CLASS}>{owner.label}</span>

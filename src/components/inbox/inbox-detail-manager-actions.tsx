@@ -4,7 +4,6 @@ import { Button } from '#/components/ui/button'
 import { Fact } from '#/components/ui/fact'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import type { SourceType } from '#/contexts/inbox/application/public-api'
-import { CASE_SQUARE_CLASS } from './inbox-case-member'
 import { INBOX_SOURCE_HANDLE_PERMISSION } from './inbox-owner-control'
 
 type Props = Readonly<{
@@ -122,9 +121,9 @@ export function InboxDetailManagerActions({
       <Button
         size="sm"
         variant="outline"
+        iconBelow="md"
         disabled={isPending}
         aria-describedby={isEscalationActive ? factId : undefined}
-        className={CASE_SQUARE_CLASS}
         onClick={isEscalationActive ? onResolveEscalation : onEscalate}
       >
         <Glyph aria-hidden="true" />

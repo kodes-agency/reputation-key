@@ -104,9 +104,11 @@ export const ReplySuggestionPreview = (props: Props) => {
           // segment (`composer-mode-row.tsx`), the note submit and
           // `Submit for approval` below.
           disabled={props.disabled}
+          pending={props.isAdopting}
+          pendingLabel="Saving…"
           onClick={props.onAdopt}
         >
-          {props.isAdopting ? 'Saving…' : 'Use draft'}
+          Use draft
         </Button>
         <Button
           type="button"

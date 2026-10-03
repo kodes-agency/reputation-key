@@ -173,8 +173,9 @@ function SuggestionErrorLine(props: SuggestionErrorLineProps) {
             <Button
               type="button"
               size="xs"
+              touch
               variant="link"
-              className="px-0 max-md:min-h-(--control-touch)"
+              className="px-0"
               disabled={props.disabled}
               onClick={props.onUseTemplateInstead}
             >
@@ -186,12 +187,7 @@ function SuggestionErrorLine(props: SuggestionErrorLineProps) {
       )}
       {props.errorFixTarget === 'public_display_name' &&
         (canManagePortalBrand ? (
-          <Button
-            asChild
-            size="xs"
-            variant="link"
-            className="max-md:min-h-(--control-touch)"
-          >
+          <Button asChild size="xs" touch variant="link">
             <Link
               to="/properties/$propertyId/settings/profile"
               params={{ propertyId: props.propertyId }}
@@ -204,12 +200,7 @@ function SuggestionErrorLine(props: SuggestionErrorLineProps) {
         ))}
       {props.errorFixTarget === 'ai_settings' &&
         (canManageAi ? (
-          <Button
-            asChild
-            size="xs"
-            variant="link"
-            className="max-md:min-h-(--control-touch)"
-          >
+          <Button asChild size="xs" touch variant="link">
             <Link
               to="/properties/$propertyId/settings/ai"
               params={{ propertyId: props.propertyId }}
@@ -236,8 +227,9 @@ function RetryAfterButton(
     <Button
       type="button"
       size="xs"
+      touch
       variant="link"
-      className="px-0 max-md:min-h-(--control-touch)"
+      className="px-0"
       disabled={props.disabled || seconds > 0}
       onClick={props.onRetry}
     >

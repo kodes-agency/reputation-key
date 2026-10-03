@@ -6,6 +6,12 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { Copy, Ellipsis, RefreshCw, X } from 'lucide-react'
 import { expect, fn, screen, userEvent, waitFor, within } from 'storybook/test'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './dropdown-menu'
 import { IconButton } from './icon-button'
 
 const meta: Meta<typeof IconButton> = {
@@ -63,6 +69,34 @@ export const WithoutTooltip: Story = {
       name: 'More actions for Anna',
     })
     await userEvent.hover(button)
+    expect(screen.queryByRole('tooltip')).toBeNull()
+  },
+}
+
+/**
+ * A menu trigger shows no tooltip: when the menu closes Radix returns focus to the
+ * button, and a tooltip that opened on that focus would speak over the menu.
+ */
+export const MenuTriggerHasNoTooltip: Story = {
+  render: (args) => (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <IconButton {...args} label="Account menu">
+          <Ellipsis />
+        </IconButton>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent>
+        <DropdownMenuItem>Sign out</DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  ),
+  play: async ({ canvasElement }) => {
+    const trigger = within(canvasElement).getByRole('button', { name: 'Account menu' })
+    await userEvent.hover(trigger)
+    expect(screen.queryByRole('tooltip')).toBeNull()
+    await userEvent.click(trigger)
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Sign out' }))
+    await waitFor(() => expect(trigger).toHaveFocus())
     expect(screen.queryByRole('tooltip')).toBeNull()
   },
 }

@@ -149,7 +149,7 @@ export function InboxBulkActions({
             <Button
               variant="outline"
               size="sm"
-              className="max-md:w-(--control-touch) max-md:px-0"
+              iconBelow="md"
               disabled={bulkMutation.isPending || !hasClosed}
               aria-label="Reopen"
             >

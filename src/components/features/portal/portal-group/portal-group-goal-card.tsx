@@ -4,6 +4,7 @@
 // and a figure that cannot be read says so instead of showing a zero.
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
+import { Button } from '#/components/ui/button'
 import type { GoalProgress } from '#/contexts/reporting/application/public-api'
 import { goalCardView, type GoalCardContext } from './portal-group-goal-view'
 
@@ -47,14 +48,20 @@ export function PortalGroupGoalCard({ goal, propertyId, context }: Props) {
       {view.note === '' ? null : (
         <p className="mt-2 text-xs text-muted-foreground">{view.note}</p>
       )}
-      <Link
-        to="/properties/$propertyId/goals/$goalId"
-        params={{ propertyId, goalId: goal.programId }}
-        className="mt-3 inline-flex min-h-11 items-center gap-1 rounded-sm text-sm font-medium underline-offset-4 hover:underline focus-ring md:min-h-8"
+      <Button
+        asChild
+        variant="link"
+        size="sm"
+        className="mt-3 gap-1 px-0 has-[>svg]:px-0"
       >
-        Open in Goals
-        <ArrowRight className="size-3.5" aria-hidden="true" />
-      </Link>
+        <Link
+          to="/properties/$propertyId/goals/$goalId"
+          params={{ propertyId, goalId: goal.programId }}
+        >
+          Open in Goals
+          <ArrowRight className="size-3.5" aria-hidden="true" />
+        </Link>
+      </Button>
     </article>
   )
 }

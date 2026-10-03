@@ -63,6 +63,20 @@ describe('IconButton', () => {
     expect(html).toContain('aria-label="Refresh"')
   })
 
+  it.each(['menu', 'dialog', 'true'] as const)(
+    'goes without a tooltip when it opens a popup (aria-haspopup="%s")',
+    (haspopup) => {
+      const html = render({ 'aria-haspopup': haspopup })
+
+      expect(html).not.toContain('data-state=')
+      expect(html).toContain('aria-label="Refresh"')
+    },
+  )
+
+  it('keeps its tooltip when aria-haspopup is false', () => {
+    expect(render({ 'aria-haspopup': 'false' })).toContain('data-state="closed"')
+  })
+
   it('does not add a title: one hint, not two', () => {
     expect(render()).not.toContain('title=')
   })
