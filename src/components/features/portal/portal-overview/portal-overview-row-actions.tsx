@@ -1,12 +1,14 @@
 // A Portal's actions in the overview: Edit and Share as buttons, and everything
 // else behind "more actions". Share is not offered where there is nothing to
 // share: a draft has no code to give out, and an archived Portal is finished.
+// Its place stays, unseen, in a table row, so Edit sits in one column in every row.
 import { useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Ellipsis, Pencil, QrCode } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
-import { Button } from '#/components/ui/button'
+import { Button, buttonVariants } from '#/components/ui/button'
+import { cn } from '#/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -62,7 +64,20 @@ export function PortalRowButtons({ item, propertyId }: RowProps) {
             <span className={classes.shareLabel}>Share</span>
           </Link>
         </Button>
-      ) : null}
+      ) : (
+        <span
+          aria-hidden="true"
+          className={cn(
+            buttonVariants({ variant: 'outline', size: 'sm' }),
+            TOUCH,
+            'invisible',
+            classes.sharePlaceholder,
+          )}
+        >
+          <QrCode />
+          <span className={classes.shareLabel}>Share</span>
+        </span>
+      )}
     </>
   )
 }
