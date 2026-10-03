@@ -113,7 +113,7 @@ describe('TrendSupportingReviews', () => {
       `href="/properties/${PROPERTY_ID}/reviews?itemId=${INBOX_ITEM}"`,
     )
     expect(markup).toContain(
-      'aria-label="Open supporting review from 8 Sept 2026 in the inbox"',
+      'aria-label="Open supporting review from Sep 8, 2026 in the inbox"',
     )
     expect(markup).not.toContain('reviewId=')
   })

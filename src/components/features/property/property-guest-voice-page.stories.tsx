@@ -273,7 +273,7 @@ export const ReadyWithComparison: Story = {
       await canvas.findByText('Service complaints fell from 30.0% to 15.0%.'),
     ).toBeVisible()
     const supportingReview = canvas.getByRole('link', {
-      name: /Open supporting review from 8 Sept 2026 in the inbox/,
+      name: /Open supporting review from Sep 8, 2026 in the inbox/,
     })
     expect(supportingReview).toHaveAttribute(
       'href',

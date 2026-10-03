@@ -242,7 +242,7 @@ export const CodeAfterReload: Story = {
   args: { ...baseArgs, tokenStatus: activeToken },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(/made 12 aug 2026/i)).toBeInTheDocument()
+    await expect(canvas.getByText(/made aug 12, 2026/i)).toBeInTheDocument()
     await expect(canvas.getByText(/shown only when a code is made/i)).toBeInTheDocument()
     await expect(canvas.queryByText(publicUrl)).toBeNull()
     await expect(canvas.queryByRole('img', { name: /qr code/i })).toBeNull()
@@ -377,7 +377,9 @@ export const FetchedAddressKeepsTheMadeDate: Story = {
     tokenStatus: recoverableToken,
   },
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByText(/made 12 aug 2026/i)).toBeInTheDocument()
+    await expect(
+      within(canvasElement).getByText(/made aug 12, 2026/i),
+    ).toBeInTheDocument()
   },
 }
 
@@ -431,7 +433,7 @@ export const ReplacedWithinTransition: Story = {
   },
   play: async ({ canvasElement }) => {
     await expect(
-      within(canvasElement).getByText(/keeps working until 19 aug 2026/i),
+      within(canvasElement).getByText(/keeps working until aug 19, 2026/i),
     ).toBeInTheDocument()
   },
 }
@@ -442,8 +444,8 @@ export const ReplacedInSessionWithOldStatus: Story = {
   args: { ...baseArgs, issuedLink, tokenStatus: activeToken },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText(/^made \d+ \w+ \d{4}$/i)).toBeInTheDocument()
-    await expect(canvas.queryByText(/made 12 aug 2026/i)).toBeNull()
+    await expect(canvas.getByText(/^made \w+ \d+, \d{4}$/i)).toBeInTheDocument()
+    await expect(canvas.queryByText(/made aug 12, 2026/i)).toBeNull()
   },
 }
 

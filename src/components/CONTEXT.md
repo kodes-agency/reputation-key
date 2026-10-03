@@ -36,7 +36,23 @@ and actions supply server state.
   box. `tone-sources.test.ts` fails on all three, and `token-contrast.test.ts`
   holds every tone's ink on its own tint to 4.5:1 in both themes. The guest
   renderer keeps its own colours.
-- `forms/` contains shared TanStack Form fields, submission, and error UI.
+- `forms/` contains shared TanStack Form fields, submission, and error UI. A
+  failure has one reporter. A form submit reports through `FormErrorBanner`,
+  placed directly above that form's actions (the bottom of a card's body, above
+  its footer), and never also toasts. A row or immediate action (a switch, a menu
+  item, a download, a command whose dialog has closed) reports through a toast,
+  `errorMessage` on its `useActionMutation`, and never also a banner. A toast for
+  a failure reads "Couldn't …. Try again." (`actionFailureMessage`), shows the
+  server's own sentence only for a 4xx refusal, and a success says what changed
+  without "successfully". `feedback-ownership.test.ts` reads the sources and
+  fails on a file that does both, a hand-built red paragraph, or a toast that
+  echoes `error.message`. Typed toasts take their colours from the tone tokens
+  (`toaster-theme.ts`) and follow the applied theme.
+- `ui/metric-delta` draws a period-over-period change (arrow, size, baseline,
+  and the direction in words) and `#/lib/format` is the one place a date or a
+  number becomes text: en-US, UTC unless a zone is named, `null` for an instant
+  that is not one. Notifications and the guest renderer keep their own
+  formatters because they honour a person's or a guest's own locale.
 - `layout/` contains app-shell and navigation pieces. `PageState` is the one
   page-level state (`loading`, `error`, `notFound`, `unavailable`): the router's
   defaults and every route fallback draw it through `RoutePending`, `RouteError`
