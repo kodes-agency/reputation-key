@@ -1,14 +1,15 @@
 // The workspace's review page: where a manager checks what guests will see
 // before publishing. Publishing is a write, so it is gated like one; a viewer
-// who cannot update the portal is sent back to the editor rather than shown a
-// page whose only action the server would refuse.
-import { createFileRoute, notFound, redirect, useNavigate } from '@tanstack/react-router'
+// who cannot update the portal is told so, with a way back to the portal, rather
+// than shown a page whose only action the server would refuse.
+import { createFileRoute, notFound, useNavigate } from '@tanstack/react-router'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
 import { getPortalPreview } from '#/contexts/portal/server/portal-preview'
 import { PortalReviewPage } from '#/components/features/portal/portal-review/portal-review-page'
@@ -35,10 +36,10 @@ export const Route = createFileRoute(
     })
     const { role } = context as AuthRouteContext
     if (!can(role, 'portal.update')) {
-      throw redirect({
-        to: '/properties/$propertyId/portals/$portalId',
-        params,
-        search: { tab: 'page' },
+      // The portal itself opens on its Page tab, which a reader can see.
+      throw roleUnavailable('Review and publish', {
+        to: `/properties/${params.propertyId}/portals/${params.portalId}`,
+        label: 'Back to Portal',
       })
     }
   },
