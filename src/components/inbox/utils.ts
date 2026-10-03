@@ -3,26 +3,12 @@
 // The date text itself comes from `#/lib/format` (one locale, UTC unless a
 // caller names a zone, and formatters built once: the rail formats a date for
 // every row). This file keeps what is Inbox-specific, the relative clocks.
-import {
-  formatDate as formatDateText,
-  formatMonthDay,
-  formatTimestamp,
-} from '#/lib/format'
+import { formatDate, formatMonthDay } from '#/lib/format'
 
 const LANGUAGE_NAMES = new Intl.DisplayNames(['en'], { type: 'language' })
 
 const asDate = (date: Date | string): Date =>
   typeof date === 'string' ? new Date(date) : date
-
-/** Zone-stable (UTC) calendar date; empty for an instant that is not one. */
-export function formatDate(date: Date | string): string {
-  return formatDateText(date) ?? ''
-}
-
-/** Zone-stable (UTC) date and time; empty for an instant that is not one. */
-export function formatDateTime(date: Date | string): string {
-  return formatTimestamp(date) ?? ''
-}
 
 /**
  * `just now`, `Nm ago`, `Nh ago`, `Nd ago`, then an absolute date from the
@@ -39,7 +25,7 @@ export function formatDateTime(date: Date | string): string {
  * formats in the viewer's own time zone. That is deliberate and unchanged: a
  * relative stamp is only meaningful against the reader's `now`, and every
  * caller renders it inside a `<time>` whose `title` carries the zone-stable
- * `formatDateTime`.
+ * `formatTimestamp` (`#/lib/format`).
  */
 export function formatRelativeTime(date: Date | string): string {
   const d = asDate(date)
@@ -54,7 +40,7 @@ export function formatRelativeTime(date: Date | string): string {
   if (diffHours < 24) return `${diffHours}h ago`
   if (diffDays < 7) return `${diffDays}d ago`
 
-  return formatDateText(d, 'viewer') ?? ''
+  return formatDate(d, 'viewer') ?? ''
 }
 
 /** The fixed-width list clock: relative under a week, compact absolute after. */
@@ -67,7 +53,7 @@ export function formatCompactAge(date: Date | string, now = new Date()): string 
   if (hours < 24) return `${hours}h`
   if (days < 7) return `${days}d`
   const sameYear = value.getUTCFullYear() === now.getUTCFullYear()
-  return (sameYear ? formatMonthDay(value) : formatDateText(value)) ?? ''
+  return (sameYear ? formatMonthDay(value) : formatDate(value)) ?? ''
 }
 
 export function formatReviewLanguage(languageCode: string | null | undefined) {
