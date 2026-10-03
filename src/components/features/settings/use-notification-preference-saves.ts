@@ -19,6 +19,7 @@ import {
   applyEverywhereInOrder,
   applyEverywhereNotice,
 } from './notification-apply-everywhere'
+import { actionFailureMessage } from '#/components/hooks/use-action-mutation'
 
 export type PreferenceUpdate = Readonly<{
   data: Readonly<
@@ -108,8 +109,10 @@ export function useNotificationPreferenceSaves({
         }),
       )
       toast.success('Notification preference updated')
-    } catch {
-      toast.error('Could not update notification preference')
+    } catch (error) {
+      toast.error(
+        actionFailureMessage("Couldn't update that notification preference.")(error),
+      )
     } finally {
       // The row's last request has settled; the refetched row is the truth.
       if (latest.current.get(key) === values) {

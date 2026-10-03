@@ -13,6 +13,11 @@ export function goalRevisionStartDate(version: GoalVersionStart): string {
   return formatDate(version.effectiveFrom, version.propertyTimezone) ?? 'a later date'
 }
 
-export function goalRevisionScheduledMessage(version: GoalVersionStart): string {
-  return `Goal revision scheduled. It starts ${goalRevisionStartDate(version)} (${version.propertyTimezone}).`
+/**
+ * The receipt the revision dialog keeps on screen once the revision is
+ * scheduled. It is the only word on the success: the dialog stays open on it, so
+ * a toast saying the same thing again would be a second channel for one event.
+ */
+export function goalRevisionReceipt(version: GoalVersionStart): string {
+  return `Revision scheduled. This version starts ${goalRevisionStartDate(version)} (${version.propertyTimezone}).`
 }

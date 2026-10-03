@@ -14,7 +14,7 @@ async function copyText(text: string, label: string): Promise<void> {
     await navigator.clipboard.writeText(text)
     toast.success(`${label} copied`)
   } catch {
-    toast.error(`Could not copy ${label.toLowerCase()}`)
+    toast.error(`Couldn't copy the ${label.toLowerCase()}.`)
   }
 }
 

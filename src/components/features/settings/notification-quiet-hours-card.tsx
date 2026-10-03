@@ -25,6 +25,7 @@ import type {
   PersonalDeliveryWindow,
 } from '#/contexts/feed/application/public-api'
 import { QuietHoursEditor } from './quiet-hours-editor'
+import { actionFailureMessage } from '#/components/hooks/use-action-mutation'
 
 export type QuietHoursUpdate = Readonly<{
   data: Readonly<{
@@ -88,8 +89,8 @@ export function NotificationQuietHoursCard({
     try {
       await updateQuietHours({ data })
       toast.success(done)
-    } catch {
-      toast.error('Could not update quiet hours')
+    } catch (error) {
+      toast.error(actionFailureMessage("Couldn't update quiet hours.")(error))
     }
   }
 

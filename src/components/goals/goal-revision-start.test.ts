@@ -1,8 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import {
-  goalRevisionScheduledMessage,
-  goalRevisionStartDate,
-} from './goal-revision-start'
+import { goalRevisionReceipt, goalRevisionStartDate } from './goal-revision-start'
 
 // After the Property's timezone moves east, the revision can start a month
 // later than "next month", so the start is stated as a date. It is the first
@@ -18,8 +15,8 @@ describe('goal revision start', () => {
   })
 
   it('says when the scheduled revision starts, and in which timezone', () => {
-    expect(goalRevisionScheduledMessage(sofiaMay)).toBe(
-      'Goal revision scheduled. It starts May 1, 2026 (Europe/Sofia).',
+    expect(goalRevisionReceipt(sofiaMay)).toBe(
+      'Revision scheduled. This version starts May 1, 2026 (Europe/Sofia).',
     )
   })
 })
