@@ -3,18 +3,8 @@
 // beside it. All Time has no period before, so the switch is not drawn there.
 import { useId } from 'react'
 import { Checkbox } from '#/components/ui/checkbox'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '#/components/ui/select'
-import {
-  timeRangePreset,
-  type TimeRangePreset,
-} from '#/contexts/reporting/application/dto/dashboard.dto'
+import { RangeControl } from '#/components/ui/range-control'
+import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
 import type { PortalAnalyticsData } from '#/contexts/reporting/application/public-api'
 import {
   PORTAL_RESULTS_RANGES,
@@ -44,26 +34,11 @@ export function PortalResultsToolbar({
   return (
     <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
       <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-        <Select
+        <RangeControl
           value={timeRange}
-          onValueChange={(value) => {
-            const parsed = timeRangePreset.safeParse(value)
-            if (parsed.success) onTimeRangeChange(parsed.data)
-          }}
-        >
-          <SelectTrigger aria-label="Time range" className="min-w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {PORTAL_RESULTS_RANGES.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+          onValueChange={onTimeRangeChange}
+          options={PORTAL_RESULTS_RANGES}
+        />
         <p className="text-sm text-muted-foreground">
           {localDays === null
             ? `Every reading so far, ${timezone} time`

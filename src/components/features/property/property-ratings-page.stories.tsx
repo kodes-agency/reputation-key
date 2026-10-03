@@ -115,11 +115,8 @@ export const Populated90d: Story = {
       expect(canvas.getByRole('heading', { name: heading, level: 2 })).toBeVisible()
     }
 
-    const range = canvas.getByRole('group', { name: 'Time range' })
-    expect(within(range).getByRole('button', { name: '90 days' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    const range = canvas.getByRole('radiogroup', { name: 'Time range' })
+    expect(within(range).getByRole('radio', { name: '90 days' })).toBeChecked()
 
     const summary = within(canvas.getByLabelText('Ratings summary'))
     expect(summary.getByText('4.3')).toBeVisible()
@@ -142,11 +139,8 @@ export const AllTime: Story = {
   args: { dashboard: allTimeDashboard, range: 'all' },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    const range = canvas.getByRole('group', { name: 'Time range' })
-    expect(within(range).getByRole('button', { name: 'All time' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    const range = canvas.getByRole('radiogroup', { name: 'Time range' })
+    expect(within(range).getByRole('radio', { name: 'All time' })).toBeChecked()
     expect(canvas.queryByText(/vs the previous/i)).toBeNull()
     expect(canvas.queryByText(/ratings in each period to compare/i)).toBeNull()
     expect(canvas.getByTestId('reputation-trend-chart')).toHaveAttribute(

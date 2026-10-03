@@ -7,17 +7,9 @@
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
 import { RegionError } from '#/components/ui/region-error'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '#/components/ui/select'
+import { RangeControl } from '#/components/ui/range-control'
 import { cn } from '#/lib/utils'
 import type { PortalResultsTimeRange } from '#/contexts/reporting/application/public-api'
-import { timeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
 import {
   PortalResultsLoadingStrip,
   PortalResultsStrip,
@@ -127,26 +119,11 @@ export function PortalOverviewResultsStrip({
   return (
     <section aria-label="Results" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <Select
+        <RangeControl
           value={timeRange}
-          onValueChange={(value) => {
-            const parsed = timeRangePreset.safeParse(value)
-            if (parsed.success && parsed.data !== 'all') onTimeRangeChange(parsed.data)
-          }}
-        >
-          <SelectTrigger aria-label="Time range" className="min-w-40">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectGroup>
-              {PORTAL_OVERVIEW_RANGES.map((option) => (
-                <SelectItem key={option.value} value={option.value}>
-                  {option.label}
-                </SelectItem>
-              ))}
-            </SelectGroup>
-          </SelectContent>
-        </Select>
+          onValueChange={onTimeRangeChange}
+          options={PORTAL_OVERVIEW_RANGES}
+        />
         <p className="text-sm text-muted-foreground">
           {scopeLine(state, strip, propertyId, propertiesListed, groupId)}
         </p>
