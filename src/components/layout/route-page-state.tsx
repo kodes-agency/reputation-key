@@ -7,7 +7,7 @@ import {
   type ErrorComponentProps,
 } from '@tanstack/react-router'
 import { propertyKeys } from '#/shared/queries/query-keys'
-import { fallbackIdentity, pageTier, resolveCrumbs } from './page-identity'
+import { fallbackIdentity, resolveCrumbs } from './page-identity'
 import { PageState, type PageStateBack, type PageStateFrame } from './page-state'
 import { SignedOutRedirect, useGuardedRouteError } from './use-guarded-route-error'
 
@@ -68,7 +68,7 @@ function useRouteFrame(): RouteFrame {
     frame: {
       title: identity.title,
       breadcrumbs: resolveCrumbs(identity, where),
-      tier: pageTier(identity),
+      tier: identity.tier,
       fullBleed: identity.fullBleed,
     },
   }

@@ -12,14 +12,11 @@ import { responseTargetPolicyQuery } from '../-settings-queries'
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/settings/targets',
 )({
-  beforeLoad: ({ context, params }) => {
+  beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     if (!can(role, 'organization.update')) {
       // The section is hidden from a role without it, so this is a stale link.
-      throw roleUnavailable('Target settings', {
-        to: `/properties/${params.propertyId}/settings/profile`,
-        label: 'Back to Property settings',
-      })
+      throw roleUnavailable('Target settings', 'propertySettings')
     }
   },
   loader: ({ params: { propertyId }, context }) =>

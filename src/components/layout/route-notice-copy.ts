@@ -24,10 +24,13 @@ export function isRouteNotice(data: unknown): data is RouteNotice {
 const PROPERTIES: RouteBack = { to: '/properties', label: 'Back to Properties' }
 const PROFILE: RouteBack = { to: '/settings/profile', label: 'Back to Profile' }
 
-/** What the reader can reach, which decides where "back" can lead. */
+/** What the reader can reach, and where they are, which decide where "back" can lead. */
 export type NoticeAccess = Readonly<{
   /** The reader may open the Properties list (`property.admin`). */
   canOpenProperties: boolean
+  /** The Property and the Portal in the address, for a refusal whose way back is one of them. */
+  propertyId?: string
+  portalId?: string
 }>
 
 const OPEN_ACCESS: NoticeAccess = { canOpenProperties: true }
@@ -40,9 +43,38 @@ function propertiesOrProfile({ canOpenProperties }: NoticeAccess): RouteBack {
   return canOpenProperties ? PROPERTIES : PROFILE
 }
 
+/** A place inside the Property the address names; the Properties list when the address names none. */
+function withinProperty(
+  access: NoticeAccess,
+  place: (propertyId: string, portalId: string | undefined) => RouteBack,
+): RouteBack {
+  const { propertyId, portalId } = access
+  return propertyId ? place(propertyId, portalId) : propertiesOrProfile(access)
+}
+
 function backTo(target: RouteBackTarget, access: NoticeAccess): RouteBack {
-  if (target === 'properties') return propertiesOrProfile(access)
-  return target === 'profile' ? PROFILE : target
+  switch (target) {
+    case 'properties':
+      return propertiesOrProfile(access)
+    case 'profile':
+      return PROFILE
+    case 'propertySettings':
+      return withinProperty(access, (propertyId) => ({
+        to: `/properties/${propertyId}/settings/profile`,
+        label: 'Back to Property settings',
+      }))
+    case 'portal':
+      return withinProperty(access, (propertyId, portalId) =>
+        portalId
+          ? {
+              to: `/properties/${propertyId}/portals/${portalId}`,
+              label: 'Back to Portal',
+            }
+          : { to: `/properties/${propertyId}/portals`, label: 'Back to Portals' },
+      )
+    default:
+      return target
+  }
 }
 
 /** The page, heading, reason and way back for a notice. */

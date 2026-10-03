@@ -1,7 +1,7 @@
-import { useMatches } from '@tanstack/react-router'
+import { useMatches, useParams } from '@tanstack/react-router'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { refusalFrame } from './page-identity'
 import { PageState } from './page-state'
+import { refusalFrame } from './refusal-frame'
 import { isRouteNotice, noticeProps } from './route-notice-copy'
 import { NotFoundState, usePageWhere } from './route-page-state'
 
@@ -18,9 +18,14 @@ import { NotFoundState, usePageWhere } from './route-page-state'
 export function NoticeState({ data }: Readonly<{ data?: unknown }>) {
   const matches = useMatches()
   const where = usePageWhere()
+  const { portalId } = useParams({ strict: false }) as { portalId?: string }
   const { can } = usePermissions()
   if (!isRouteNotice(data)) return <NotFoundState />
-  const notice = noticeProps(data, { canOpenProperties: can('property.admin') })
+  const notice = noticeProps(data, {
+    canOpenProperties: can('property.admin'),
+    propertyId: where.propertyId,
+    portalId,
+  })
   const frame =
     data.cause === 'property' ? {} : refusalFrame(matches, notice.title, where)
   return <PageState {...notice} {...frame} />

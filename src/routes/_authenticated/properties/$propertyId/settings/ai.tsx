@@ -26,14 +26,11 @@ import {
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/settings/ai',
 )({
-  beforeLoad: ({ context, params }) => {
+  beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     if (!can(role, 'ai.manage')) {
       // The section is hidden from a role without it, so this is a stale link.
-      throw roleUnavailable('AI settings', {
-        to: `/properties/${params.propertyId}/settings/profile`,
-        label: 'Back to Property settings',
-      })
+      throw roleUnavailable('AI settings', 'propertySettings')
     }
   },
   loader: ({ params: { propertyId }, context }) =>

@@ -258,13 +258,31 @@
 // gained a size, a tone, and description and action slots, and RegionError (with
 // its Try again button) became a shared lazy chunk. Fresh production builds of
 // main (e1d39e526) and of the slice: 336,745 B -> 336,959 B (82 js + 1 css),
-// +214 B: the empty-state chunk +176 B (the page error state draws it on first
-// paint), the entry chunk +95 B (the preload map lists one more shared chunk),
-// the stylesheet -56 B, the page-states chunk -1 B. The bell's "could not load" body stays plain markup so
-// the entry does not import EmptyState. The budget moves to 337,000 B, which
-// leaves 41 B on its own. This is baseline growth, so it waits for the owner's approval
-// (plan decision 12); the alternative is to keep the page error state off
-// EmptyState, which slice C1's PageState decides.
+// +214 B: the empty-state chunk +176 B (PageState's missing and unavailable
+// bodies draw it on first paint once slice C1 lands; the page error body draws an
+// Alert), the entry chunk +95 B (the preload map lists one more shared chunk), the
+// stylesheet -56 B, the old page-states chunk -1 B. The bell's "could not load"
+// body stays plain markup so the entry does not import EmptyState. The slice alone
+// raised the budget to 337,000 B (41 B of headroom); it is folded into the
+// combined stage's figure below. This is baseline growth, so it waits for the
+// owner's approval (plan decision 12); the alternative is to render PageState's
+// notice body without EmptyState.
+//
+// 2026-10-03 (UI consistency, stage S2, review fixes): a fresh production build of
+// the combined stage (6d7f28200) measured 337,964 B; the review fixes (a refusal
+// answers in its page's frame and the shell keeps its sidebar state and focus; the
+// three remaining role redirects answer in the shell; Try again reports its retry
+// and takes the Inbox's compact density) measure 337,986 B (82 js + 1 css), +22 B,
+// so the budget stays at 338,000 B with 14 B of headroom. The fixes were kept out
+// of first paint on purpose: the refusal frame, the way-back links and the
+// continuity hooks live in the shell's lazy not-found boundary and component chunk,
+// the three role refusals name their way back instead of writing the link (the
+// first draft wrote it in the route configs: +21 B in the entry chunk), the
+// Notifications bell does not import the retry helper (it joined the closure:
+// +145 B), and the tests spell no Tailwind class whole (two stray class strings in
+// a guard test added their rules to the stylesheet: +19 B). The budget does not
+// move, so these fixes add no baseline growth beyond what the stage already
+// waits on the owner for.
 //
 // When this fails: resolve the new static importer and cut that source edge. Do
 // NOT raise the budget without recording a fresh production measurement here.

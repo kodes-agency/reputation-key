@@ -38,10 +38,7 @@ describe('role refusals answer in the shell with a way back', () => {
       data: {
         cause: 'role',
         title: 'AI settings',
-        back: {
-          to: `/properties/${PROPERTY_ID}/settings/profile`,
-          label: 'Back to Property settings',
-        },
+        back: 'propertySettings',
       },
     })
   })
@@ -54,10 +51,7 @@ describe('role refusals answer in the shell with a way back', () => {
       data: {
         cause: 'role',
         title: 'Target settings',
-        back: {
-          to: `/properties/${PROPERTY_ID}/settings/profile`,
-          label: 'Back to Property settings',
-        },
+        back: 'propertySettings',
       },
     })
   })
@@ -77,10 +71,7 @@ describe('role refusals answer in the shell with a way back', () => {
           cause: 'role',
           title: 'Review and publish',
           // The portal opens on its Page tab, which a reader can see.
-          back: {
-            to: `/properties/${PROPERTY_ID}/portals/${PORTAL_ID}`,
-            label: 'Back to Portal',
-          },
+          back: 'portal',
         },
       },
     )

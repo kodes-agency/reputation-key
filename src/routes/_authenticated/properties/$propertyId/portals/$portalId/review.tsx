@@ -37,10 +37,7 @@ export const Route = createFileRoute(
     const { role } = context as AuthRouteContext
     if (!can(role, 'portal.update')) {
       // The portal itself opens on its Page tab, which a reader can see.
-      throw roleUnavailable('Review and publish', {
-        to: `/properties/${params.propertyId}/portals/${params.portalId}`,
-        label: 'Back to Portal',
-      })
+      throw roleUnavailable('Review and publish', 'portal')
     }
   },
   // Fetched afresh on every entry: a review of stale facts is worse than none.

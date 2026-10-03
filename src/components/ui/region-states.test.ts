@@ -78,9 +78,14 @@ describe('dashed panels', () => {
   })
 
   it('catches the arbitrary-property spelling of the same edge', () => {
-    expect(DASHED.test('rounded-lg border [border-style:dashed]')).toBe(true)
-    expect(DASHED.test('rounded-lg border border-dashed')).toBe(true)
-    expect(DASHED.test('rounded-lg border border-solid')).toBe(false)
+    // Spelled in pieces: Tailwind scans test files, and a whole class here would
+    // ship its rule in the stylesheet every page loads.
+    const arbitrary = ['[border-style', 'dashed]'].join(':')
+    const utility = ['border', 'dashed'].join('-')
+
+    expect(DASHED.test(`rounded-lg ${arbitrary}`)).toBe(true)
+    expect(DASHED.test(`rounded-lg ${utility}`)).toBe(true)
+    expect(DASHED.test('rounded-lg border')).toBe(false)
   })
 })
 

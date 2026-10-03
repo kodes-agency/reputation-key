@@ -102,6 +102,47 @@ describe('a feature that is switched off', () => {
   })
 })
 
+describe('a way back inside the Property in the address', () => {
+  const where = { canOpenProperties: true, propertyId: 'p1', portalId: 'pt1' }
+
+  it('leads back to the Property’s settings', () => {
+    expect(
+      noticeProps(
+        { cause: 'role', title: 'AI settings', back: 'propertySettings' },
+        where,
+      ).back,
+    ).toEqual({
+      to: '/properties/p1/settings/profile',
+      label: 'Back to Property settings',
+    })
+  })
+
+  it('leads back to the Portal, which opens on its Page tab', () => {
+    expect(
+      noticeProps({ cause: 'role', title: 'Review and publish', back: 'portal' }, where)
+        .back,
+    ).toEqual({ to: '/properties/p1/portals/pt1', label: 'Back to Portal' })
+  })
+
+  it('leads back to the Portals list when the address names no Portal', () => {
+    expect(
+      noticeProps(
+        { cause: 'role', title: 'Review and publish', back: 'portal' },
+        { canOpenProperties: true, propertyId: 'p1' },
+      ).back,
+    ).toEqual({ to: '/properties/p1/portals', label: 'Back to Portals' })
+  })
+
+  it('falls back to the way out of the app when the address names no Property', () => {
+    expect(
+      noticeProps(
+        { cause: 'role', title: 'AI settings', back: 'propertySettings' },
+        { canOpenProperties: true },
+      ).back,
+    ).toEqual({ to: '/properties', label: 'Back to Properties' })
+  })
+})
+
 describe('a way back the reader cannot follow', () => {
   const noProperties = { canOpenProperties: false }
   const profile = { to: '/settings/profile', label: 'Back to Profile' }

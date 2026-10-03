@@ -22,8 +22,14 @@ import type { CapabilityRefusalCategory } from './capability-refusal-category'
 /** The one way out of a dead end. */
 export type RouteBack = Readonly<{ to: string; label: string }>
 
-/** Where a refusal sends the reader: a named place, or a link of its own. */
-export type RouteBackTarget = 'properties' | 'profile' | RouteBack
+/**
+ * Where a refusal sends the reader: a named place, or a link of its own. The
+ * places that depend on the address (`propertySettings`, `portal`) are named, not
+ * linked, so the route that throws stays small and the shell's lazy boundary,
+ * which reads the address, writes the link.
+ */
+export type RouteBackTarget =
+  'properties' | 'profile' | 'propertySettings' | 'portal' | RouteBack
 
 export type RouteNotice =
   /** The signed-in role cannot open `title`. */
