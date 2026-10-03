@@ -9,7 +9,7 @@
 // The 30-day preset is fixed: Overview has no range control, and this is the
 // window Google itself shows managers, so the figure matches what they see
 // there (row 5).
-import { OverviewTile, PULSE_COMPARISON_LABEL } from './overview-tile'
+import { OverviewTile, PULSE_COMPARISON_LABEL, TileCaption } from './overview-tile'
 import { useGooglePerformance } from './use-google-performance'
 import type { GooglePerformanceServerFns } from './use-google-performance'
 import { isUnavailablePerformanceResult } from './google-performance-states'
@@ -65,18 +65,20 @@ export function OverviewProfileViews({
 
   return googleTile(
     formatNumber(views.value),
-    <>
-      in the last 30 days ·{' '}
-      {views.deltaPercent === null ? (
-        'no comparable period'
-      ) : (
-        <MetricDelta
-          value={views.deltaPercent}
-          unit="percent"
-          fractionDigits={0}
-          comparisonLabel={PULSE_COMPARISON_LABEL}
-        />
-      )}
-    </>,
+    <TileCaption
+      caption="in the last 30 days"
+      detail={
+        views.deltaPercent === null ? (
+          'no comparable period'
+        ) : (
+          <MetricDelta
+            value={views.deltaPercent}
+            unit="percent"
+            fractionDigits={0}
+            comparisonLabel={PULSE_COMPARISON_LABEL}
+          />
+        )
+      }
+    />,
   )
 }

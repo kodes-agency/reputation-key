@@ -55,6 +55,40 @@ type Props = Readonly<{
   className?: string
 }>
 
+// The width of the lane a separator lives in, and the pull that hides it (below).
+const SEPARATOR_LANE = 'pl-3'
+const SEPARATOR_PULL = '-ml-3'
+
+/**
+ * A tile's caption and the detail after it ("in the last 30 days · Up 12% vs the
+ * previous 30 days"). They share a line when they fit; when they do not, the
+ * detail drops to its own line and the dot stays behind. A dot typed into the
+ * text would be left dangling at the end of the line above, so each part carries
+ * its dot in its own left lane and the row is pulled one lane out of the clip: a
+ * part that starts a line has its lane, and so its dot, clipped away.
+ *
+ * Nothing in here may be tall enough to want the clip's edge: the detail is a
+ * line of text or a `MetricDelta`.
+ */
+export function TileCaption({
+  caption,
+  detail,
+}: Readonly<{ caption: ReactNode; detail: ReactNode }>) {
+  return (
+    <span data-slot="tile-caption" className="block overflow-hidden">
+      <span className={cn('flex flex-wrap', SEPARATOR_PULL)}>
+        <span className={SEPARATOR_LANE}>{caption}</span>{' '}
+        <span className={cn('relative', SEPARATOR_LANE)}>
+          <span aria-hidden="true" className="absolute top-0 left-1">
+            ·
+          </span>{' '}
+          {detail}
+        </span>
+      </span>
+    </span>
+  )
+}
+
 const TILE_CLASS =
   'group flex min-w-0 flex-col rounded-lg border p-4 text-foreground transition-colors hover:border-border hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
 

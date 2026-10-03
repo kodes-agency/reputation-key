@@ -20,7 +20,7 @@ import { Button } from '#/components/ui/button'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { AttentionBand } from './attention-band'
-import { OverviewTile, PULSE_COMPARISON_LABEL } from './overview-tile'
+import { OverviewTile, PULSE_COMPARISON_LABEL, TileCaption } from './overview-tile'
 import {
   OverviewGuestVoice,
   type OverviewGuestVoiceServerFns,
@@ -65,10 +65,15 @@ function ratingTile(lifetime: DashboardData, pulse: DashboardData, propertyId: s
     recent.sampleCount >= MIN_RATING_COMPARISON_SAMPLE
   ) {
     context = (
-      <>
-        {recent.value.toFixed(1)} over the last 30 days ·{' '}
-        <MetricDelta value={recent.comparison} comparisonLabel={PULSE_COMPARISON_LABEL} />
-      </>
+      <TileCaption
+        caption={`${recent.value.toFixed(1)} over the last 30 days`}
+        detail={
+          <MetricDelta
+            value={recent.comparison}
+            comparisonLabel={PULSE_COMPARISON_LABEL}
+          />
+        }
+      />
     )
   } else {
     // Below the sample rule there is no delta to show, so say what there is.
@@ -108,19 +113,21 @@ function reviewsTile(lifetime: DashboardData, pulse: DashboardData, propertyId: 
             `None in the last 30 days · ${formatNumber(allTime)} all time`
           )
         ) : (
-          <>
-            in the last 30 days ·{' '}
-            {pulse.kpis.reviews.trend === null ? (
-              `${formatNumber(allTime)} all time`
-            ) : (
-              <MetricDelta
-                value={pulse.kpis.reviews.trend}
-                unit="percent"
-                fractionDigits={0}
-                comparisonLabel={PULSE_COMPARISON_LABEL}
-              />
-            )}
-          </>
+          <TileCaption
+            caption="in the last 30 days"
+            detail={
+              pulse.kpis.reviews.trend === null ? (
+                `${formatNumber(allTime)} all time`
+              ) : (
+                <MetricDelta
+                  value={pulse.kpis.reviews.trend}
+                  unit="percent"
+                  fractionDigits={0}
+                  comparisonLabel={PULSE_COMPARISON_LABEL}
+                />
+              )
+            }
+          />
         )
       }
       link={{ to: '/properties/$propertyId/ratings', params: { propertyId } }}
