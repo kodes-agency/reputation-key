@@ -116,13 +116,13 @@ export function InvitationTable({ invitations, resendAction, cancelAction }: Pro
                           <AlertDialogFooter>
                             <AlertDialogCancel>Keep invitation</AlertDialogCancel>
                             <AlertDialogAction
+                              variant="destructive"
                               onClick={() =>
                                 void cancelAction({
                                   data: { invitationId: inv.id },
                                 }).catch(() => undefined)
                               }
                               disabled={cancelAction.isPending}
-                              className="bg-destructive text-white hover:bg-destructive/90"
                             >
                               {cancelAction.isPending
                                 ? 'Cancelling…'

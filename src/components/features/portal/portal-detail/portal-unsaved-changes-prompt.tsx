@@ -62,7 +62,7 @@ export function PortalUnsavedChangesPrompt({
         <AlertDialogFooter>
           <AlertDialogCancel>Keep editing</AlertDialogCancel>
           <AlertDialogAction
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            variant="destructive"
             onClick={() => {
               autosave.discard()
               blocker.proceed?.()

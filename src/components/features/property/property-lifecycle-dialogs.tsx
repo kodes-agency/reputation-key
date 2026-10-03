@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Archive, Link2Off, RotateCcw, Trash2 } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
-import { ConfirmationDialog } from './property-lifecycle-confirmation-dialog'
+import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import { Button } from '#/components/ui/button'
 import { Label } from '#/components/ui/label'
 import { Textarea } from '#/components/ui/textarea'
@@ -41,6 +41,7 @@ export function PropertyRemoveDialog({
       confirmLabel="Remove Property"
       pendingLabel="Removing…"
       pending={action.isPending}
+      tone="destructive"
       onConfirm={() => {
         void action({
           data: { propertyId, reason: 'Removed from workspace' },
@@ -163,6 +164,7 @@ export function PropertyGoogleDisconnectDialog({
       confirmLabel="Disconnect this Property"
       pendingLabel="Disconnecting…"
       pending={action.isPending}
+      tone="destructive"
       onConfirm={() => {
         void action({ data: { propertyId } }).catch(() => undefined)
       }}
