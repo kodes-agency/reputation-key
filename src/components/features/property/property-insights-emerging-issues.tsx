@@ -49,10 +49,10 @@ export function PropertyInsightsEmergingIssues({
               <Badge
                 variant={
                   issue.comparison.delta > 0
-                    ? 'destructive'
+                    ? 'negative'
                     : issue.comparison.delta < 0
-                      ? 'secondary'
-                      : 'outline'
+                      ? 'positive'
+                      : 'neutral'
                 }
                 aria-label={`${signedInteger(issue.comparison.delta)} compared with the previous period`}
               >

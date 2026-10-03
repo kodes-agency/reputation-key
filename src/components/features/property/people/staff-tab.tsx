@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { LockKeyhole, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
 import { PortalResponsibilitiesModal } from '#/components/features/staff/portal-responsibilities-modal'
 import {
@@ -77,8 +77,7 @@ export function StaffTab({
   if (!canManageStaff) {
     return (
       <TabsContent value="staff" className="mt-4">
-        <Alert>
-          <LockKeyhole aria-hidden="true" />
+        <Alert variant="info">
           <AlertTitle>Staff management is unavailable</AlertTitle>
           <AlertDescription>
             You do not have permission to manage participation at this property.
@@ -116,8 +115,7 @@ export function StaffTab({
       </div>
 
       {portalsDenied && (
-        <Alert>
-          <LockKeyhole aria-hidden="true" />
+        <Alert variant="info">
           <AlertTitle>Portal responsibilities are unavailable</AlertTitle>
           <AlertDescription>
             You can still manage staff participation. Portal responsibility controls

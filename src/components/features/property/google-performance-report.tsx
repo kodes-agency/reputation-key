@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import type { PropertyGooglePerformanceReportV1 } from '#/shared/google-performance-report-contract'
 import type { DashboardRange } from '#/shared/dashboard-range'
-import { Badge } from '#/components/ui/badge'
+import { StatusBadge, type StatusMap } from '#/components/ui/status-badge'
 import {
   Card,
   CardContent,
@@ -18,14 +18,14 @@ import {
   GooglePerformanceMetric,
 } from './google-performance-metrics'
 
-const SOURCE_STATUS_LABELS: Readonly<
-  Record<PropertyGooglePerformanceReportV1['sourceHealth']['state'], string>
+const SOURCE_STATUS: StatusMap<
+  PropertyGooglePerformanceReportV1['sourceHealth']['state']
 > = {
-  ready: 'Current',
-  partial: 'Partial coverage',
-  no_data: 'No data returned',
-  delayed: 'Delayed',
-  stale: 'Stale',
+  ready: { label: 'Current', tone: 'positive' },
+  partial: { label: 'Partial coverage', tone: 'warn' },
+  no_data: { label: 'No data returned', tone: 'neutral' },
+  delayed: { label: 'Delayed', tone: 'warn' },
+  stale: { label: 'Stale', tone: 'warn' },
 }
 
 const MONTH_DAY_FORMATTER = new Intl.DateTimeFormat('en-US', {
@@ -90,7 +90,8 @@ export function GooglePerformanceSourceStatus({
   report,
 }: Readonly<{ report: PropertyGooglePerformanceReportV1 }>) {
   const now = useFreshnessClock()
-  const statusLabel = SOURCE_STATUS_LABELS[report.sourceHealth.state]
+  const status = SOURCE_STATUS[report.sourceHealth.state]
+  const statusLabel = status.label
   const completeThrough = report.sourceHealth.latestCompleteCoreLocalDate
   const dataThrough =
     completeThrough ??
@@ -107,9 +108,7 @@ export function GooglePerformanceSourceStatus({
 
   return (
     <div className="flex min-w-0 flex-wrap items-center gap-2">
-      {report.sourceHealth.state !== 'ready' ? (
-        <Badge variant="outline">{statusLabel}</Badge>
-      ) : null}
+      {report.sourceHealth.state !== 'ready' ? <StatusBadge {...status} /> : null}
       <div className="inline-flex min-w-0 flex-wrap items-baseline gap-x-1 text-sm text-muted-foreground">
         <GlossaryTerm term="updated">Updated</GlossaryTerm>
         <Popover>

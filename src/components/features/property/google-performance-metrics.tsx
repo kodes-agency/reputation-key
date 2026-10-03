@@ -4,7 +4,7 @@ import type {
   PerformanceMetricValue,
   PropertyGooglePerformanceReportV1,
 } from '#/shared/google-performance-report-contract'
-import { Badge } from '#/components/ui/badge'
+import { StatusBadge } from '#/components/ui/status-badge'
 import {
   Card,
   CardContent,
@@ -73,7 +73,7 @@ export function GooglePerformanceMetric({
       <div className="flex min-w-0 items-start justify-between gap-2">
         <p className="text-sm text-muted-foreground">{label ?? metric.label}</p>
         {metric.availability === 'partial' ? (
-          <Badge variant="outline">Partial</Badge>
+          <StatusBadge tone="warn" label="Partial" />
         ) : null}
       </div>
       <p className="text-2xl font-semibold tracking-tight tabular-nums sm:text-3xl">

@@ -15,8 +15,9 @@ import { propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { Button } from '#/components/ui/button'
-import { Badge } from '#/components/ui/badge'
 import { EmptyState } from '#/components/ui/empty-state'
+import { StatusBadge } from '#/components/ui/status-badge'
+import { GOAL_STATUS } from '#/components/goals/goal-status'
 import { GoalResultsMatrix } from '#/components/goals/goal-results-matrix'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { goalForResult } from './-goal-for-result'
@@ -177,7 +178,7 @@ function GoalsRoute() {
                     {currentAssignmentCount === 1 ? 'subject' : 'subjects'}
                   </p>
                 </div>
-                <Badge variant="outline">{program.status}</Badge>
+                <StatusBadge status={program.status} map={GOAL_STATUS} />
               </div>
             )
           })}

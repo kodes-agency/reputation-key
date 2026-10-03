@@ -13,6 +13,7 @@ import {
 } from '#/contexts/reporting/application/dto/goal-program.dto'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { goalKeys } from '#/shared/queries/query-keys'
+import { Alert, AlertDescription } from '#/components/ui/alert'
 import { DialogFooter } from '#/components/ui/dialog'
 import { Input } from '#/components/ui/input'
 import { Field, FieldError, FieldLabel } from '#/components/ui/field'
@@ -156,9 +157,11 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
       </form.Field>
       <FormErrorBanner error={mutation.error} />
       {scheduled ? (
-        <p role="status" className="rounded-md bg-muted/50 p-3 text-sm">
-          {`Revision scheduled. This version starts ${goalRevisionStartDate(scheduled)} (${scheduled.propertyTimezone}).`}
-        </p>
+        <Alert variant="success" role="status">
+          <AlertDescription>
+            {`Revision scheduled. This version starts ${goalRevisionStartDate(scheduled)} (${scheduled.propertyTimezone}).`}
+          </AlertDescription>
+        </Alert>
       ) : null}
       <DialogFooter>
         <SubmitButton mutation={mutation} form={form} disabled={scheduled !== null}>

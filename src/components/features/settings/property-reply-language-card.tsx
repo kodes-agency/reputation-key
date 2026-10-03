@@ -1,5 +1,5 @@
 import { useForm } from '@tanstack/react-form'
-import { Badge } from '#/components/ui/badge'
+import { StatusBadge } from '#/components/ui/status-badge'
 import {
   Card,
   CardAction,
@@ -79,9 +79,10 @@ export function PropertyReplyLanguageCard({ property, updateProperty }: Props) {
             still use the guest&apos;s language instead.
           </CardDescription>
           <CardAction>
-            <Badge variant={configuredLanguage ? 'secondary' : 'outline'}>
-              {configuredLanguage ? 'Configured' : 'Not configured'}
-            </Badge>
+            <StatusBadge
+              tone={configuredLanguage ? 'positive' : 'neutral'}
+              label={configuredLanguage ? 'Configured' : 'Not configured'}
+            />
           </CardAction>
         </CardHeader>
 

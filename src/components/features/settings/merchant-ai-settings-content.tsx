@@ -1,5 +1,4 @@
 import { Link } from '@tanstack/react-router'
-import { AlertTriangle } from 'lucide-react'
 import type {
   CurrentMerchantAiCapability,
   MerchantAiState,
@@ -27,8 +26,7 @@ function MerchantAiGoogleSourceUnavailable() {
   const canConfirmGoogleProperty = can('property.import_gbp_v2')
 
   return (
-    <Alert variant="destructive">
-      <AlertTriangle aria-hidden="true" />
+    <Alert variant="warning">
       <AlertTitle>Google source unavailable</AlertTitle>
       <AlertDescription>
         <p>

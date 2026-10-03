@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { AlertCircle, Check, Loader2 } from 'lucide-react'
+import { Check, Loader2 } from 'lucide-react'
 import { submitForm } from '#/components/forms/form-submit'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
@@ -149,7 +149,6 @@ export function GoogleImportReviewForm({
 
               {submitError ? (
                 <Alert variant="destructive">
-                  <AlertCircle aria-hidden="true" />
                   <AlertTitle>Import could not start</AlertTitle>
                   <AlertDescription>{submitError}</AlertDescription>
                 </Alert>

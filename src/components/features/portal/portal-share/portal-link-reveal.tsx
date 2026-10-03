@@ -6,7 +6,7 @@
 // cannot be fetched again (ADR 0064).
 
 import { useEffect, useState } from 'react'
-import { Copy, Eye, Link2 } from 'lucide-react'
+import { Copy, Eye } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { COPY_FAILED_MESSAGE } from './use-copy-link'
@@ -120,8 +120,7 @@ function AddressRow({
 
 function SaveAddressWarning() {
   return (
-    <Alert>
-      <Link2 />
+    <Alert variant="warning">
       <AlertTitle>Save this address now</AlertTitle>
       <AlertDescription>
         For security, the full address and the QR image are not shown again after this

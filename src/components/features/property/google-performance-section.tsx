@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { AlertCircle, RefreshCw } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 import type {
   PropertyGooglePerformanceReportV1,
   PropertyGooglePerformanceResultV1,
@@ -72,8 +72,7 @@ function GooglePerformanceUnavailable({
     can(requiresPropertyImport ? 'property.import_gbp_v2' : 'integration.manage')
 
   return (
-    <Alert>
-      <AlertCircle aria-hidden="true" />
+    <Alert variant="info">
       <AlertTitle className="line-clamp-none">
         Performance is not available for this property
       </AlertTitle>
@@ -162,7 +161,6 @@ function GooglePerformanceContent({
   if (authorizationLost) {
     return (
       <Alert variant="destructive">
-        <AlertCircle aria-hidden="true" />
         <AlertTitle className="line-clamp-none">
           {contentExpired ? 'Report expired' : 'Authorization changed'}
         </AlertTitle>

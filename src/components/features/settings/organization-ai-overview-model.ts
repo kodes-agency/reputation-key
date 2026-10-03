@@ -3,6 +3,7 @@ import type {
   AiOrganizationMonthSpend,
   ReviewAnalysisProgress,
 } from '#/contexts/ai/application/public-api'
+import type { StatusMap } from '#/components/ui/status-badge'
 
 export type AiOverviewStatus = 'on' | 'not_now' | 'turned_off' | 'off'
 
@@ -13,11 +14,12 @@ export function aiOverviewStatus(entry: MerchantAiOverviewEntry): AiOverviewStat
   return 'off'
 }
 
-export const AI_OVERVIEW_STATUS_LABEL: Readonly<Record<AiOverviewStatus, string>> = {
-  on: 'On',
-  not_now: 'Not now',
-  turned_off: 'Turned off',
-  off: 'Off',
+/** How a property's AI state reads as a pill: only "On" is a colour. */
+export const AI_OVERVIEW_STATUS: StatusMap<AiOverviewStatus> = {
+  on: { label: 'On', tone: 'positive' },
+  not_now: { label: 'Not now', tone: 'neutral' },
+  turned_off: { label: 'Turned off', tone: 'neutral' },
+  off: { label: 'Off', tone: 'neutral' },
 }
 
 const CAPABILITY_LABEL: Readonly<Record<string, string>> = {

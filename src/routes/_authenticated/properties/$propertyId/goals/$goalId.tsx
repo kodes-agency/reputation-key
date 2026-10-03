@@ -20,11 +20,12 @@ import { goalKeys, portalKeys } from '#/shared/queries/query-keys'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
-import { Badge } from '#/components/ui/badge'
+import { StatusBadge } from '#/components/ui/status-badge'
 import { Card, CardContent, CardHeader, CardTitle } from '#/components/ui/card'
 import { GoalProgramRevisionDialog } from '#/components/goals/goal-program-revision-dialog'
 import { GoalProgramAssignmentsDialog } from '#/components/goals/goal-program-assignments-dialog'
 import { GoalStatusActions } from '#/components/goals/goal-status-actions'
+import { GOAL_STATUS, goalResultStatus } from '#/components/goals/goal-status'
 
 const authRoute = getRouteApi('/_authenticated')
 const goalQuery = (propertyId: string, programId: string) =>
@@ -161,7 +162,7 @@ function GoalDetailRoute() {
       <Card>
         <CardHeader className="flex-row items-center justify-between">
           <CardTitle>Program</CardTitle>
-          <Badge variant="outline">{program.status}</Badge>
+          <StatusBadge status={program.status} map={GOAL_STATUS} />
         </CardHeader>
         <CardContent className="grid gap-3 text-sm md:grid-cols-2">
           <p>
@@ -232,14 +233,9 @@ function GoalDetailRoute() {
                       {result.evaluation.value ?? '—'} /{' '}
                       {resultVersion?.targetValue ?? '—'}
                     </p>
-                    <Badge variant="outline">
-                      {result.revision ? 'Corrected · ' : ''}
-                      {result.evaluation.state === 'eligible'
-                        ? result.evaluation.achieved
-                          ? 'Achieved'
-                          : 'Not achieved'
-                        : evaluationLabel(result.evaluation.state)}
-                    </Badge>
+                    <StatusBadge
+                      {...goalResultStatus(result.evaluation, Boolean(result.revision))}
+                    />
                   </div>
                 )
               })}
@@ -268,11 +264,4 @@ function statusReasonLabel(reason: string) {
   if (reason === 'metric_source_not_active') return 'Waiting for the metric source'
   if (reason === 'awaiting_first_full_month') return 'Starts with the next full month'
   return reason.replaceAll('_', ' ')
-}
-
-function evaluationLabel(state: string) {
-  if (state === 'insufficient_data') return 'More ratings needed'
-  if (state === 'updating') return 'Updating'
-  if (state === 'quarantined') return 'Needs review'
-  return 'Unavailable'
 }

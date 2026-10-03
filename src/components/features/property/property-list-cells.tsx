@@ -5,9 +5,10 @@
 // not turn purple (row 2 of the plan's findings), so those links name their ink.
 import { Link } from '@tanstack/react-router'
 import { Check, Link2Off, Star } from 'lucide-react'
-import { Badge } from '#/components/ui/badge'
+import { StatusBadge } from '#/components/ui/status-badge'
 import { Skeleton } from '#/components/ui/skeleton'
 import { cn } from '#/lib/utils'
+import { PROPERTY_LIFECYCLE_STATUS } from './property-lifecycle-model'
 import {
   propertySetupStepLabel,
   propertySetupStepTarget,
@@ -42,7 +43,9 @@ export function PropertyNameCell({ row }: Readonly<{ row: PropertyListRow }>) {
         >
           {property.name}
         </Link>
-        {row.paused ? <Badge variant="secondary">Paused</Badge> : null}
+        {row.paused ? (
+          <StatusBadge status="suspended" map={PROPERTY_LIFECYCLE_STATUS} />
+        ) : null}
       </div>
       {row.country || notice ? (
         <p className="flex min-w-0 flex-wrap items-center gap-x-2 text-xs text-muted-foreground">

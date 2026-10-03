@@ -1,5 +1,5 @@
 import { Link } from '@tanstack/react-router'
-import { Badge } from '#/components/ui/badge'
+import { StatusBadge } from '#/components/ui/status-badge'
 import { Button } from '#/components/ui/button'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import {
@@ -24,7 +24,7 @@ export function GoogleReviewDestinationCard({
         <h3 id="google-destination-title" className="text-sm font-medium">
           Google review destination
         </h3>
-        <Badge variant={presentation.badgeVariant}>{presentation.label}</Badge>
+        <StatusBadge tone={presentation.tone} label={presentation.label} />
       </div>
       <p className="mt-1 text-xs text-muted-foreground">
         {presentation.description} No separate link needs to be entered for this portal.

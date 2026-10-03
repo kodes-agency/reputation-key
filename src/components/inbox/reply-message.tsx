@@ -1,11 +1,12 @@
 import { Building2 } from 'lucide-react'
-import { Badge } from '#/components/ui/badge'
+import { Badge, type BadgeVariant } from '#/components/ui/badge'
 import {
   TimelineConnector,
   TimelineContent,
   TimelineIndicator,
   TimelineItem,
 } from '#/components/ui/timeline'
+import { TONE_FILL, TONE_INK } from '#/components/ui/tone'
 import type { ReplyPublicationCheckResult } from '#/contexts/review/application/public-api'
 import { cn } from '#/lib/utils'
 import { MESSAGE_PROSE_CLASS } from './guest-message'
@@ -43,10 +44,17 @@ import { useRef, type ReactNode } from 'react'
  * needs no measured exception. Every tinted chip prints its own words, so
  * colour never carries the meaning alone.
  */
-const TONE_CLASS: Readonly<Record<ReplyMessageTone, string>> = {
+const CHIP_VARIANT = {
+  neutral: 'outline',
+  positive: 'positive',
+  negative: 'negative',
+  accent: 'secondary',
+} as const satisfies Record<ReplyMessageTone, BadgeVariant>
+
+const CHIP_CLASS: Readonly<Record<ReplyMessageTone, string>> = {
   neutral: '',
-  positive: 'bg-positive-muted text-positive',
-  negative: 'bg-negative-muted text-negative',
+  positive: '',
+  negative: '',
   accent: 'bg-foreground text-background',
 }
 
@@ -68,7 +76,7 @@ const TONE_CLASS: Readonly<Record<ReplyMessageTone, string>> = {
  * beside a neutral chip; toning the disc by the chip instead is what keeps one
  * state from reading two ways.
  *
- * No reply disc is amber, for the reason `TONE_CLASS` gives: amber on the rail
+ * No reply disc is amber, for the reason `CHIP_VARIANT` gives: amber on the rail
  * is the note's alone, so an initial in an amber disc is always a teammate's
  * private note and never the property's public reply. The toned rings are
  * transparent, like the canvas's toned discs. Neither disc carries its meaning
@@ -77,8 +85,8 @@ const TONE_CLASS: Readonly<Record<ReplyMessageTone, string>> = {
  */
 const INDICATOR_TONE_CLASS: Readonly<Record<ReplyMessageTone, string>> = {
   neutral: '',
-  positive: 'border-transparent bg-positive-muted text-positive',
-  negative: 'border-transparent bg-negative-muted text-negative',
+  positive: `border-transparent ${TONE_FILL.positive} ${TONE_INK.positive}`,
+  negative: `border-transparent ${TONE_FILL.negative} ${TONE_INK.negative}`,
   accent: 'border-transparent bg-foreground text-background',
 }
 
@@ -219,11 +227,11 @@ export function ReplyMessage({
               {author}
             </span>
             <Badge
-              variant={view.tone === 'neutral' ? 'outline' : 'secondary'}
+              variant={CHIP_VARIANT[view.tone]}
               className={cn(
                 INBOX_CHIP_STATIC_CLASS,
                 'font-normal',
-                TONE_CLASS[view.tone],
+                CHIP_CLASS[view.tone],
               )}
             >
               {view.chip}

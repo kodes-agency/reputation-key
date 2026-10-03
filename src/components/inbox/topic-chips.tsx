@@ -1,5 +1,6 @@
-import { AlertTriangle, ArrowDown, ArrowUp } from 'lucide-react'
-import { Badge } from '#/components/ui/badge'
+import { ArrowDown, ArrowUp } from 'lucide-react'
+import { Badge, type BadgeVariant } from '#/components/ui/badge'
+import { StatusBadge } from '#/components/ui/status-badge'
 import { cn } from '#/lib/utils'
 import { ASPECT_LABELS } from '#/shared/aspect-labels'
 import { INBOX_CHIP_STATIC_CLASS } from './inbox-chip'
@@ -28,14 +29,12 @@ const POLARITY_WORD: Readonly<Record<ReviewAspectPolarity, string>> = Object.fre
  * every tinted chip also prints its arrow and its polarity word. A neutral
  * mention gets no tint and no arrow, because there is no direction to show.
  */
-const POLARITY_CLASS: Readonly<Record<ReviewAspectPolarity, string>> = Object.freeze({
-  positive: 'bg-positive-muted text-positive',
-  neutral: '',
-  negative: 'bg-negative-muted text-negative',
-})
-
-/** Verbatim from the list row's urgent chip, so the two surfaces agree. */
-const ATTENTION_CLASS = 'border-destructive/20 bg-destructive/10 text-negative'
+const POLARITY_VARIANT: Readonly<Record<ReviewAspectPolarity, BadgeVariant>> =
+  Object.freeze({
+    positive: 'positive',
+    neutral: 'outline',
+    negative: 'negative',
+  })
 
 function PolarityArrow({
   polarity,
@@ -46,15 +45,10 @@ function PolarityArrow({
 }
 
 function AspectChip({ aspect }: Readonly<{ aspect: ReviewAnalysisAspect }>): ReactNode {
-  const tinted = aspect.polarity !== 'neutral'
   return (
     <Badge
-      variant={tinted ? 'secondary' : 'outline'}
-      className={cn(
-        INBOX_CHIP_STATIC_CLASS,
-        'font-normal',
-        POLARITY_CLASS[aspect.polarity],
-      )}
+      variant={POLARITY_VARIANT[aspect.polarity]}
+      className={cn(INBOX_CHIP_STATIC_CLASS, 'font-normal')}
     >
       <PolarityArrow polarity={aspect.polarity} />
       {ASPECT_LABELS[aspect.aspect]} · {POLARITY_WORD[aspect.polarity]}
@@ -106,13 +100,11 @@ export function TopicChips({
       ))}
       {needsAttention && (
         <li>
-          <Badge
-            variant="outline"
-            className={cn(INBOX_CHIP_STATIC_CLASS, 'font-normal', ATTENTION_CLASS)}
-          >
-            <AlertTriangle aria-hidden="true" />
-            Needs attention
-          </Badge>
+          <StatusBadge
+            tone="negative"
+            label="Needs attention"
+            className={cn(INBOX_CHIP_STATIC_CLASS, 'font-normal')}
+          />
         </li>
       )}
     </ul>

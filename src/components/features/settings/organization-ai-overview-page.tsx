@@ -1,7 +1,8 @@
 import { Link } from '@tanstack/react-router'
-import { AlertTriangle, ArrowRight, BrainCircuit } from 'lucide-react'
+import { ArrowRight, BrainCircuit } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
 import { EmptyState } from '#/components/ui/empty-state'
+import { StatusBadge } from '#/components/ui/status-badge'
 import type { MerchantAiOverview } from '#/contexts/identity/application/public-api'
 import type {
   AiOrganizationMonthSpend,
@@ -9,14 +10,13 @@ import type {
 } from '#/contexts/ai/application/public-api'
 import { cn } from '#/lib/utils'
 import {
-  AI_OVERVIEW_STATUS_LABEL,
+  AI_OVERVIEW_STATUS,
   aiCapabilityLabel,
   aiOverviewStatus,
   analysisSummary,
   formatMicros,
   spendShare,
   summarizeAiOverview,
-  type AiOverviewStatus,
 } from './organization-ai-overview-model'
 
 type Props = Readonly<{
@@ -24,13 +24,6 @@ type Props = Readonly<{
   spend: AiOrganizationMonthSpend | undefined
   progressByProperty: ReadonlyMap<string, ReviewAnalysisProgress | undefined>
 }>
-
-const STATUS_TONE: Readonly<Record<AiOverviewStatus, string>> = {
-  on: 'border-positive/30 bg-positive-muted text-positive',
-  not_now: 'text-muted-foreground',
-  turned_off: 'text-muted-foreground',
-  off: 'border-dashed text-muted-foreground',
-}
 
 function Fact({
   label,
@@ -122,33 +115,24 @@ export function OrganizationAiOverviewPage({
                     {entry.propertyName}
                   </span>
                   <span className="flex flex-wrap items-center gap-1.5">
-                    <Badge variant="outline" className={STATUS_TONE[status]}>
-                      {AI_OVERVIEW_STATUS_LABEL[status]}
-                    </Badge>
+                    <StatusBadge status={status} map={AI_OVERVIEW_STATUS} />
                   </span>
                   <span className="flex min-w-0 flex-wrap gap-1.5 text-xs">
                     {entry.reconsentRequired ? (
-                      <Badge
-                        variant="outline"
-                        className="border-warn-line bg-warn-muted text-warn"
-                      >
-                        Re-consent needed
-                      </Badge>
+                      <StatusBadge tone="warn" label="Re-consent needed" />
                     ) : null}
                     {!entry.googleBindingActive ? (
-                      <span className="inline-flex items-center gap-1 text-muted-foreground">
-                        <AlertTriangle className="size-3.5" aria-hidden="true" />
-                        Google not linked
-                      </span>
+                      <StatusBadge tone="warn" label="Google not linked" />
                     ) : null}
                     {entry.state === 'enabled'
                       ? entry.capabilities.map((capability) => (
-                          <span
+                          <Badge
                             key={capability}
-                            className="rounded-full bg-muted px-2 py-0.5 text-muted-foreground"
+                            variant="secondary"
+                            className="font-normal"
                           >
                             {aiCapabilityLabel(capability)}
-                          </span>
+                          </Badge>
                         ))
                       : null}
                   </span>

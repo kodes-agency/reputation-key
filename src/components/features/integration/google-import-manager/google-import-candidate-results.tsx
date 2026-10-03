@@ -1,4 +1,4 @@
-import { AlertCircle, SearchX } from 'lucide-react'
+import { SearchX } from 'lucide-react'
 import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
@@ -34,7 +34,6 @@ export function GoogleImportCandidateResults({
   if (error) {
     return (
       <Alert variant="destructive">
-        <AlertCircle aria-hidden="true" />
         <AlertTitle>Locations unavailable</AlertTitle>
         <AlertDescription className="space-y-3">
           <p>{error}</p>

@@ -1,4 +1,4 @@
-import { Badge } from '#/components/ui/badge'
+import { StatusBadge, type StatusMap } from '#/components/ui/status-badge'
 import {
   Card,
   CardAction,
@@ -18,6 +18,12 @@ const dateFormat = new Intl.DateTimeFormat('en', {
   dateStyle: 'medium',
   timeStyle: 'short',
 })
+
+/** How the two counting states read as a pill; the setup flow adds its own around them. */
+export const REVIEW_ANALYSIS_STATUS: StatusMap<'analysing' | 'caught_up'> = {
+  analysing: { label: 'Analysing', tone: 'neutral' },
+  caught_up: { label: 'Up to date', tone: 'positive' },
+}
 
 /** How much of the review history has been read, as a share of what exists. */
 export function reviewAnalysisShare(
@@ -72,9 +78,7 @@ export function ReviewAnalysisProgressCard({ progress }: Props) {
             : 'Every review this property has is analysed.'}
         </CardDescription>
         <CardAction>
-          <Badge variant={progress.status === 'caught_up' ? 'secondary' : 'outline'}>
-            {progress.status === 'caught_up' ? 'Up to date' : 'Analysing'}
-          </Badge>
+          <StatusBadge status={progress.status} map={REVIEW_ANALYSIS_STATUS} />
         </CardAction>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">

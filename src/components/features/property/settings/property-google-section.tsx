@@ -1,6 +1,5 @@
 import { Link } from '@tanstack/react-router'
 import { ExternalLink } from 'lucide-react'
-import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
 import {
   Card,
@@ -11,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
+import { StatusBadge } from '#/components/ui/status-badge'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 
 type GoogleBindingState =
@@ -81,9 +81,10 @@ export function PropertyGoogleSection({ property }: Props) {
         <CardTitle>Google Business Profile</CardTitle>
         <CardDescription>{binding.detail}</CardDescription>
         <CardAction>
-          <Badge variant={binding.tone === 'ok' ? 'secondary' : 'outline'}>
-            {binding.label}
-          </Badge>
+          <StatusBadge
+            tone={binding.tone === 'ok' ? 'positive' : 'warn'}
+            label={binding.label}
+          />
         </CardAction>
       </CardHeader>
       <CardContent>

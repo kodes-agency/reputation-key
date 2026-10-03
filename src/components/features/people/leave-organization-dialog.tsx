@@ -11,7 +11,7 @@
 // it up front instead of letting someone fill in a whole transfer form first.
 
 import { useState } from 'react'
-import { LogOut, TriangleAlert } from 'lucide-react'
+import { LogOut } from 'lucide-react'
 import {
   Dialog,
   DialogClose,
@@ -163,7 +163,6 @@ export function LeaveOrganizationDialog({
 
         {worklistUnavailable && (
           <Alert variant="destructive" data-testid="leave-worklist-unavailable">
-            <TriangleAlert aria-hidden="true" />
             <AlertTitle>Leaving is unavailable right now</AlertTitle>
             <AlertDescription>
               We could not read what you are currently responsible for, so we cannot
@@ -174,8 +173,7 @@ export function LeaveOrganizationDialog({
         )}
 
         {isSoleAccountAdmin ? (
-          <Alert variant="destructive" data-testid="sole-account-admin-block">
-            <TriangleAlert aria-hidden="true" />
+          <Alert variant="warning" data-testid="sole-account-admin-block">
             <AlertTitle>You are the only account administrator</AlertTitle>
             <AlertDescription>
               Promote another person to account administrator first. Leaving now would

@@ -15,6 +15,7 @@
 
 import { useState, type ReactNode } from 'react'
 import { ChevronRight } from 'lucide-react'
+import { Alert, AlertDescription } from '#/components/ui/alert'
 import { Badge } from '#/components/ui/badge'
 import {
   Collapsible,
@@ -165,9 +166,11 @@ function MissingWordingNote({
     ? 'Write it below first.'
     : 'An account admin writes it first.'
   return (
-    <p className="rounded-md border border-warn-line bg-warn-muted px-3 py-2 text-sm">
-      {`${english} has no property wording yet, ${effect} ${next}`}
-    </p>
+    <Alert variant="warning" role="status">
+      <AlertDescription>
+        {`${english} has no property wording yet, ${effect} ${next}`}
+      </AlertDescription>
+    </Alert>
   )
 }
 

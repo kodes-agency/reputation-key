@@ -1,6 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Clock, Info, SearchX } from 'lucide-react'
 import { DashboardRangeControl } from '#/components/features/dashboard/dashboard-range-control'
 import { GlossaryTerm } from '#/components/features/shared/glossary-term'
 import { PageHeader } from '#/components/layout/page-header'
@@ -167,8 +166,7 @@ function TrendHeadline({
 function DisabledGuestVoice({ propertyId }: Readonly<{ propertyId: string }>) {
   const { can } = usePermissions()
   return (
-    <Alert>
-      <Info aria-hidden="true" />
+    <Alert variant="info">
       <AlertTitle>AI analysis is off for this property</AlertTitle>
       <AlertDescription className="flex flex-col gap-3">
         <p>
@@ -201,8 +199,7 @@ function GuestVoiceState({
   if (result.status === 'disabled') return <DisabledGuestVoice propertyId={propertyId} />
   if (result.status === 'preparing') {
     return (
-      <Alert>
-        <Clock aria-hidden="true" />
+      <Alert variant="info">
         <AlertTitle>Guest voice is being prepared</AlertTitle>
         <AlertDescription>
           AI analysis is still settling. Topics appear as soon as there is enough review
@@ -212,8 +209,7 @@ function GuestVoiceState({
     )
   }
   return (
-    <Alert>
-      <SearchX aria-hidden="true" />
+    <Alert variant="info">
       <AlertTitle>
         {range === 'all'
           ? 'Not enough review evidence in the available history'

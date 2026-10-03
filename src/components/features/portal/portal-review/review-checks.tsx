@@ -5,8 +5,9 @@
 
 import { useState } from 'react'
 import { Link } from '@tanstack/react-router'
-import { CircleAlert, CircleCheck, OctagonAlert } from 'lucide-react'
+import { CircleCheck } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { TONE_ICON, TONE_INK, TONE_SURFACE } from '#/components/ui/tone'
 import { cn } from '#/lib/utils'
 import type {
   PortalReview,
@@ -78,25 +79,17 @@ function Finding({
   whoCanFix: string | null
 }>) {
   const isBlocked = line.status === 'blocked'
-  const Icon = isBlocked ? OctagonAlert : CircleAlert
+  // A blocked check is a failure, a warning is a caution: the tone table draws
+  // each with its own tint, ink and icon, as Alert and Badge do.
+  const tone = isBlocked ? 'negative' : 'warn'
+  const Icon = TONE_ICON[tone]
   const fix = line.fix === null ? null : describeFixLink(line.fix)
   const fixerLine = describeFixerLine(line.fixer, whoCanFix)
   return (
     <li
-      className={cn(
-        'flex items-start gap-3 rounded-md border p-3',
-        isBlocked
-          ? 'border-destructive/40 bg-destructive/5'
-          : 'border-warn-line bg-warn-muted',
-      )}
+      className={cn('flex items-start gap-3 rounded-md border p-3', TONE_SURFACE[tone])}
     >
-      <Icon
-        aria-hidden="true"
-        className={cn(
-          'mt-0.5 size-4 shrink-0',
-          isBlocked ? 'text-negative' : 'text-warn',
-        )}
-      />
+      <Icon aria-hidden="true" className={cn('mt-0.5 size-4 shrink-0', TONE_INK[tone])} />
       <div className="min-w-0 flex-1 space-y-1 text-sm">
         <p className="font-medium">
           <span className="sr-only">

@@ -1,5 +1,6 @@
-import { Archive, CalendarClock } from 'lucide-react'
-import { Badge } from '#/components/ui/badge'
+import { Archive } from 'lucide-react'
+import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
+import { StatusBadge } from '#/components/ui/status-badge'
 import {
   PropertyLifecycleActions,
   type PropertyLifecycleActionSet,
@@ -7,23 +8,12 @@ import {
 import {
   formatPropertyRecoveryDeadline,
   getPropertyLifecycleControls,
+  GOOGLE_BINDING_STATUS,
+  PROPERTY_LIFECYCLE_STATUS,
   type GoogleBindingState,
   type LifecyclePermissions,
   type PropertyLifecycleState,
 } from './property-lifecycle-model'
-
-const googleBindingLabel = (state: GoogleBindingState): string => {
-  switch (state) {
-    case 'active':
-      return 'Google connected for this Property'
-    case 'disconnected':
-      return 'Google reconnection needed'
-    case 'account_confirmation_required':
-      return 'Google account confirmation needed'
-    case 'unbound':
-      return 'No Google profile linked'
-  }
-}
 
 export function PropertyLifecycleCard({
   property,
@@ -62,7 +52,10 @@ export function PropertyLifecycleCard({
             <h2 id="property-lifecycle-title" className="font-semibold">
               Property lifecycle
             </h2>
-            <Badge variant="outline">{controls.statusLabel}</Badge>
+            <StatusBadge
+              status={property.lifecycleState}
+              map={PROPERTY_LIFECYCLE_STATUS}
+            />
           </div>
           <p className="max-w-2xl text-sm text-muted-foreground">
             Archive pauses guest access, publication, and new Google work while keeping
@@ -70,34 +63,29 @@ export function PropertyLifecycleCard({
             for recovery.
           </p>
         </div>
-        <Badge variant="secondary">
-          {googleBindingLabel(property.googleBindingState)}
-        </Badge>
+        <StatusBadge status={property.googleBindingState} map={GOOGLE_BINDING_STATUS} />
       </div>
 
       <div className="space-y-4 p-4">
         {property.lifecycleState === 'archived' && (
-          <div className="rounded-md border border-dashed bg-muted/20 p-3 text-sm">
-            <div className="flex items-center gap-2 font-medium">
-              <CalendarClock className="size-4" aria-hidden="true" />
-              Recovery details
-            </div>
-            <p className="mt-1 text-muted-foreground">
-              {recoveryDeadline
-                ? `Self-service recovery is available before ${recoveryDeadline}. After that date, the Property remains safely archived and support can help with next steps.`
-                : 'This Property remains safely archived. Contact support if the recovery date is unavailable.'}
-            </p>
-            {property.lifecycleReason && (
-              <p className="mt-2 text-muted-foreground">
-                Archive note: {property.lifecycleReason}
+          <Alert variant="info" role="status">
+            <AlertTitle>Recovery details</AlertTitle>
+            <AlertDescription>
+              <p>
+                {recoveryDeadline
+                  ? `Self-service recovery is available before ${recoveryDeadline}. After that date, the Property remains safely archived and support can help with next steps.`
+                  : 'This Property remains safely archived. Contact support if the recovery date is unavailable.'}
               </p>
-            )}
-            {controls.restoreDisabled && (
-              <p className="mt-2 font-medium">
-                Assign an eligible Responsible Manager above before restoring.
-              </p>
-            )}
-          </div>
+              {property.lifecycleReason && (
+                <p>Archive note: {property.lifecycleReason}</p>
+              )}
+              {controls.restoreDisabled && (
+                <p className="font-medium text-foreground">
+                  Assign an eligible Responsible Manager above before restoring.
+                </p>
+              )}
+            </AlertDescription>
+          </Alert>
         )}
 
         <PropertyLifecycleActions

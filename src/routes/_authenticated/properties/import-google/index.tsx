@@ -1,7 +1,6 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
-import { AlertCircle } from 'lucide-react'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { integrationKeys } from '#/shared/queries/query-keys'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
@@ -72,7 +71,6 @@ function ImportPage() {
 
       {search.error ? (
         <Alert variant="destructive">
-          <AlertCircle />
           <AlertDescription>
             {search.error === 'denied'
               ? 'Google authorization was cancelled.'

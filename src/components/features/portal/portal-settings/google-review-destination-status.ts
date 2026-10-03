@@ -1,3 +1,5 @@
+import type { StatusTone } from '#/components/ui/status-badge'
+
 export type GoogleReviewDestinationStatus = Readonly<{
   state: 'verified' | 'awaiting_refresh' | 'unavailable'
   retrievedAt: Date | string | null
@@ -5,7 +7,7 @@ export type GoogleReviewDestinationStatus = Readonly<{
 
 export type GoogleReviewDestinationPresentation = Readonly<{
   label: 'Ready' | 'Refreshing' | 'Needs connection'
-  badgeVariant: 'default' | 'secondary' | 'outline'
+  tone: StatusTone
   description: string
   confirmedAt: string | null
 }>
@@ -31,7 +33,7 @@ export function presentGoogleReviewDestination(
   if (destination.state === 'verified') {
     return {
       label: 'Ready',
-      badgeVariant: 'default',
+      tone: 'positive',
       description:
         'The Google review action is supplied automatically by this portal’s property.',
       confirmedAt: formatConfirmedAt(destination.retrievedAt),
@@ -40,7 +42,7 @@ export function presentGoogleReviewDestination(
   if (destination.state === 'awaiting_refresh') {
     return {
       label: 'Refreshing',
-      badgeVariant: 'secondary',
+      tone: 'neutral',
       description:
         'The property connection is being refreshed. Private ratings and feedback remain available.',
       confirmedAt: formatConfirmedAt(destination.retrievedAt),
@@ -48,7 +50,7 @@ export function presentGoogleReviewDestination(
   }
   return {
     label: 'Needs connection',
-    badgeVariant: 'outline',
+    tone: 'warn',
     description:
       'Guests cannot continue to Google while this property has no verified destination. Publishing is also blocked.',
     confirmedAt: null,

@@ -1,6 +1,6 @@
 import { Pencil, UserRoundX } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
-import { Badge } from '#/components/ui/badge'
+import { StatusBadge } from '#/components/ui/status-badge'
 import { Button } from '#/components/ui/button'
 import {
   AlertDialog,
@@ -66,9 +66,10 @@ export function StaffParticipationRow({
         </div>
       </TableCell>
       <TableCell>
-        <Badge variant={active ? 'secondary' : 'outline'}>
-          {active ? 'Active' : 'Archived'}
-        </Badge>
+        <StatusBadge
+          tone={active ? 'positive' : 'neutral'}
+          label={active ? 'Active' : 'Archived'}
+        />
       </TableCell>
       <TableCell className="text-right">
         <div className="flex justify-end gap-1">

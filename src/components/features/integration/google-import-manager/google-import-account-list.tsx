@@ -1,4 +1,4 @@
-import { AlertCircle, Building2, ChevronRight, Loader2 } from 'lucide-react'
+import { Building2, ChevronRight, Loader2 } from 'lucide-react'
 import type { ImportAccountDto } from '#/contexts/integration/application/public-api'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
@@ -44,7 +44,6 @@ export function GoogleImportAccountList({
       <CardContent className="space-y-3">
         {error ? (
           <Alert variant="destructive">
-            <AlertCircle aria-hidden="true" />
             <AlertTitle>Accounts unavailable</AlertTitle>
             <AlertDescription>{error}</AlertDescription>
           </Alert>
