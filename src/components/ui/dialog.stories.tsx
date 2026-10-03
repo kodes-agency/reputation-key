@@ -111,6 +111,8 @@ export const MediumLight: Story = sizeStory('md', 'light')
 /**
  * Whatever the content, the dialog is the viewport less a rem on each side, in
  * `dvh` so a phone's address bar does not hide the footer, and scrolls inside it.
+ * The footer is pinned to the bottom of that box, so Cancel and the primary action
+ * are on screen while the body scrolls under them. (`dialog.metrics.ts` measures it.)
  */
 export const TallContentScrolls: Story = {
   render: () => <Demo tall />,
@@ -118,13 +120,30 @@ export const TallContentScrolls: Story = {
     const { dialog } = await open(canvasElement)
     expect(dialog.className).toContain('max-h-[calc(100dvh-2rem)]')
     expect(dialog.className).toContain('overflow-y-auto')
+    const footer = within(dialog)
+      .getByRole('button', { name: 'Save name' })
+      .closest('[data-slot=dialog-footer]')
+    expect(footer?.className).toContain('sticky')
+    expect(footer?.className).toContain('-bottom-(--dialog-pad)')
+  },
+}
+
+/** A footer with a note is pinned the same way. */
+export const TallContentWithANoteKeepsTheFooter: Story = {
+  render: () => <Demo tall note="Nothing is public until you publish." />,
+  play: async ({ canvasElement }) => {
+    const { dialog } = await open(canvasElement)
+    const note = within(dialog).getByText('Nothing is public until you publish.')
+    expect(note.closest('[data-slot=dialog-footer]')?.className).toContain('sticky')
   },
 }
 
 /**
- * The corner close sits over the title's last column, so the title leaves it room.
- * That holds when the header is not a direct child of the content (a form's first
- * child, as in the Goal dialogs), and does not when the corner close is dropped.
+ * The corner close sits over the title's last column, so the title leaves it room,
+ * wider below `md` where the close is a tap target. That holds when the header is
+ * not a direct child of the content (a form's first child, as in the Goal
+ * dialogs), and does not when the corner close is dropped. The header reads from
+ * the start at every width, like the body and footer under it.
  */
 export const TitleLeavesRoomForTheCloseInAForm: Story = {
   render: () => (
@@ -147,7 +166,9 @@ export const TitleLeavesRoomForTheCloseInAForm: Story = {
   play: async ({ canvasElement }) => {
     const { dialog } = await open(canvasElement)
     const header = within(dialog).getByRole('heading').parentElement
-    expect(header?.className).toContain('[&>[data-slot=dialog-title]]:px-8')
+    expect(header?.className).toContain('[&>[data-slot=dialog-title]]:pe-12')
+    expect(header?.className).toContain('md:[&>[data-slot=dialog-title]]:pe-8')
+    expect(header?.className).not.toContain('text-center')
   },
 }
 

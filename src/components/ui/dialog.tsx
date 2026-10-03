@@ -3,7 +3,9 @@
 // - How wide it is: `size` (sm, md, lg, xl), not a `sm:max-w-*` per dialog.
 // - How tall it can get: the viewport less a 1rem margin on every side, in `dvh`
 //   so a phone's address bar does not hide the footer, and the dialog scrolls
-//   inside that box.
+//   inside that box. The footer is pinned to the bottom of it, so Cancel and the
+//   primary action stay on screen while the body scrolls under them; the title
+//   and the corner close scroll with the body.
 // - Whether it can be dismissed mid-request: `busy`, or `useDialogBusy` from a
 //   body that owns the mutation (dialog-dismissal.ts).
 //
@@ -104,10 +106,25 @@ const DIALOG_SIZE = {
 type DialogSize = keyof typeof DIALOG_SIZE
 
 /**
+ * The footer, pinned. The dialog's padding is `--dialog-pad` (a caller that wants
+ * less sets the variable, not `p-*`), so the footer can reach back over it: it
+ * bleeds into the padding on three sides and keeps its own, with the dialog's
+ * background behind it. A sticky box measures its offset from the scroll box's
+ * content edge, not its padding edge, so `-bottom-(--dialog-pad)` is what puts the
+ * stuck footer flush with the dialog's bottom. When the dialog fits, this draws
+ * what the grid's own gap and padding would. When it scrolls, the body slides
+ * under the footer and fades out just above it. It must sit in the dialog's
+ * scroll box, directly or as the last thing in the form that is, and be the last
+ * thing in it.
+ */
+const PINNED_FOOTER =
+  'sticky -bottom-(--dialog-pad) z-10 -mx-(--dialog-pad) -mb-(--dialog-pad) bg-background px-(--dialog-pad) pb-(--dialog-pad) before:pointer-events-none before:absolute before:inset-x-0 before:bottom-full before:h-4 before:bg-linear-to-t before:from-background before:to-transparent'
+
+/**
  * Whether the dialog draws the corner close. Its header reads this, wherever it
  * sits (a form's first child, not only a direct child of the content), so the
- * title leaves the close room: on both sides while it is centred (a phone), at
- * its end otherwise.
+ * title leaves the close room at its end: the close is a tap target (44px) below
+ * `md`, so the room is wider there and still leaves a gap.
  */
 const DialogCornerCloseContext = React.createContext(false)
 
@@ -130,7 +147,7 @@ function DialogContent({
         data-size={size}
         aria-busy={isBusy || undefined}
         className={cn(
-          'fixed top-[50%] left-[50%] z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-lg border bg-background p-6 shadow-lg duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
+          'fixed top-[50%] left-[50%] z-50 grid max-h-[calc(100dvh-2rem)] w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-lg border bg-background p-(--dialog-pad) shadow-lg [--dialog-pad:1.5rem] duration-200 outline-none data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95',
           DIALOG_SIZE[size],
           className,
         )}
@@ -151,9 +168,9 @@ function DialogHeader({ className, ...props }: React.ComponentProps<'div'>) {
     <div
       data-slot="dialog-header"
       className={cn(
-        'flex flex-col gap-2 text-center sm:text-left',
+        'flex flex-col gap-2',
         hasCornerClose &&
-          '[&>[data-slot=dialog-title]]:px-8 sm:[&>[data-slot=dialog-title]]:ps-0',
+          '[&>[data-slot=dialog-title]]:pe-12 md:[&>[data-slot=dialog-title]]:pe-8',
         className,
       )}
       {...props}
@@ -194,6 +211,7 @@ function DialogFooter({
       <div
         data-slot="dialog-footer"
         className={cn(
+          PINNED_FOOTER,
           'flex flex-col-reverse gap-2 sm:flex-row sm:justify-end',
           className,
         )}
@@ -207,6 +225,7 @@ function DialogFooter({
     <div
       data-slot="dialog-footer"
       className={cn(
+        PINNED_FOOTER,
         'flex flex-col-reverse gap-3 sm:flex-row sm:items-center sm:justify-between',
         className,
       )}

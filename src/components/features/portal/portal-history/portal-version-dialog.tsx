@@ -115,8 +115,9 @@ export function PortalVersionDialog({
         // The footer's Close is the exit, so the corner close is dropped.
         showCloseButton={false}
         // Narrow windows give the page the room the padding would take; the
-        // dialog keeps its 1rem margin from the window at every width.
-        className="p-4 sm:p-6"
+        // dialog keeps its 1rem margin from the window at every width. The padding
+        // is the dialog's variable, so the pinned footer reaches over the same amount.
+        className="[--dialog-pad:1rem] sm:[--dialog-pad:1.5rem]"
         // The confirmation has no description to point at; saying so keeps the
         // dialog from naming an element that is not there.
         {...(confirmation === null ? {} : { 'aria-describedby': undefined })}

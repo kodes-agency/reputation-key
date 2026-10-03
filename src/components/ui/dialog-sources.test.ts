@@ -74,8 +74,12 @@ function tagsNamed(text: string, name: string): string[] {
   return tags
 }
 
-/** A width or a height bound typed on a DialogContent instead of `size`. */
-const RECIPE = /(?:^|[\s"'`])(?:sm:|md:|lg:)?max-(?:w|h)-|overflow-y-auto/u
+/**
+ * A width or a height bound typed on a DialogContent instead of `size`, or a
+ * padding instead of the `--dialog-pad` variable the pinned footer reaches over.
+ */
+const RECIPE =
+  /(?:^|[\s"'`])(?:sm:|md:|lg:)?(?:max-(?:w|h)-|p[xytrblse]?-)|overflow-y-auto/u
 const CANCEL_BUTTON = />\s*Cancel\s*<\/(?:Button|DialogClose)>/u
 /** An `onOpenChange` that decides by a pending flag is the guard, written by hand. */
 const HAND_GUARD = [
@@ -112,7 +116,7 @@ describe('a dialog gets its width and height from the primitive', () => {
     tagsNamed(file.text, 'DialogContent').some((tag) => RECIPE.test(tag))
   const RECIPE_ALLOWED: Readonly<Record<string, string>> = {}
 
-  it('is `size`, not a `sm:max-w-*`, a `max-h-*` or an `overflow-y-auto` per dialog', () => {
+  it('is `size`, not a `sm:max-w-*`, a `max-h-*`, an `overflow-y-auto` or a `p-*` per dialog', () => {
     expect(offendersOf(hasRecipe, RECIPE_ALLOWED)).toEqual([])
   })
 
@@ -172,6 +176,21 @@ describe('the checks catch the spellings the scan found', () => {
         .map((tag) => RECIPE.test(tag))
         .includes(true),
     ).toBe(false)
+  })
+
+  it('a padding typed on a DialogContent, not the dialog variable', () => {
+    for (const className of ['p-4 sm:p-6', 'px-3', 'md:pb-2', 'pe-8']) {
+      const [tag = ''] = tagsNamed(
+        `<DialogContent className="${className}">x</DialogContent>`,
+        'DialogContent',
+      )
+      expect(RECIPE.test(tag), className).toBe(true)
+    }
+    const [variable = ''] = tagsNamed(
+      '<DialogContent className="[--dialog-pad:1rem] sm:[--dialog-pad:1.5rem] placeholder-x pointer-events-none">',
+      'DialogContent',
+    )
+    expect(RECIPE.test(variable)).toBe(false)
   })
 
   it('a Cancel built from a Button, ghost or outline', () => {

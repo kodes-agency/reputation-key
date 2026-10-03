@@ -28,8 +28,12 @@ and actions supply server state.
   its body (the Portal Version dialog) is `<Dialog busy>` while the request runs. A dialog is `Dialog`: it gets its width
   from `size` (`sm` 24rem, `md` 32rem the default, `lg` 42rem, `xl` 56rem) and its
   height bound and scroll from the primitive, so no `DialogContent` types a
-  `sm:max-w-*` or a `max-h-*`. Its footer is `DialogFooter` (`note` is the line
-  at the start of the row) with `DialogCancel` then the primary. The corner close is
+  `sm:max-w-*`, a `max-h-*` or a `p-*` (a dialog that wants less padding sets
+  `--dialog-pad`, which the footer reaches over). Its footer is `DialogFooter` (`note` is the line
+  at the start of the row) with `DialogCancel` then the primary; when the body
+  scrolls the footer stays pinned to the bottom, so it must be the last thing in the
+  dialog or in the form that is, and a wrapper between it and the dialog may not
+  scroll or clip. The corner close is
   one Button named "Close"; a dialog whose footer has Cancel or Close may drop it
   (`showCloseButton={false}`, as the Inbox's two do). A dialog that is committing
   cannot be dismissed: `<Dialog busy={isPending}>`, or `useDialogBusy(isPending)`
