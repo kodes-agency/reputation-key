@@ -286,22 +286,45 @@ export const ArchivingAsksFirstAndKeepsThePortals: Story = {
   },
 }
 
+async function chooseRemoveFromGroup(canvasElement: HTMLElement) {
+  await userEvent.click(
+    within(canvasElement).getByRole('button', { name: 'More actions for Pool bar' }),
+  )
+  await userEvent.click(
+    await screen.findByRole('menuitem', { name: 'Remove from group' }),
+  )
+  return within(await screen.findByRole('alertdialog'))
+}
+
+/** The menu item asks first; the portal leaves the group only when that is confirmed. */
 export const RemovingAPortalTakesItOutOfTheGroup: Story = {
   args: {
     removePortalMutation: spy<{ data: { portalGroupId: string; portalId: string } }>(),
   },
   play: async ({ canvasElement, args }) => {
-    await userEvent.click(
-      within(canvasElement).getByRole('button', { name: 'More actions for Pool bar' }),
-    )
-    await userEvent.click(
-      await screen.findByRole('menuitem', { name: 'Remove from group' }),
-    )
+    const dialog = await chooseRemoveFromGroup(canvasElement)
+    await expect(
+      dialog.getByRole('heading', { name: 'Remove Pool bar from Pool side?' }),
+    ).toBeInTheDocument()
+    await expect(args.removePortalMutation).not.toHaveBeenCalled()
+    await userEvent.click(dialog.getByRole('button', { name: 'Remove from group' }))
     await waitFor(() =>
       expect(args.removePortalMutation).toHaveBeenCalledWith({
         data: { portalGroupId: 'group-pool', portalId: 'p-bar' },
       }),
     )
+  },
+}
+
+export const KeepingAPortalInTheGroup: Story = {
+  args: {
+    removePortalMutation: spy<{ data: { portalGroupId: string; portalId: string } }>(),
+  },
+  play: async ({ canvasElement, args }) => {
+    const dialog = await chooseRemoveFromGroup(canvasElement)
+    await userEvent.click(dialog.getByRole('button', { name: 'Keep in group' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    await expect(args.removePortalMutation).not.toHaveBeenCalled()
   },
 }
 

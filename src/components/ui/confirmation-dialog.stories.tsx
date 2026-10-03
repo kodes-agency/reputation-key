@@ -5,6 +5,7 @@
 // light surface. The Storybook Vitest project compiles no Tailwind, so the plays
 // check which variant recipe the confirm carries, not a pixel; whether that
 // recipe is readable is `token-contrast.test.ts`'s job, measured from the tokens.
+import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { Button } from './button'
@@ -120,5 +121,40 @@ export const ConfirmDisabled: Story = {
     const confirm = dialog.getByRole('button', { name: 'Archive' })
     expect(confirm).toBeDisabled()
     expect(args.onConfirm).not.toHaveBeenCalled()
+  },
+}
+
+function Controlled(props: React.ComponentProps<typeof ConfirmationDialog>) {
+  const [open, setOpen] = useState(false)
+  return (
+    <>
+      <Button variant="outline" onClick={() => setOpen(true)}>
+        Open
+      </Button>
+      <ConfirmationDialog
+        {...props}
+        trigger={undefined}
+        open={open}
+        onOpenChange={setOpen}
+      />
+    </>
+  )
+}
+
+/**
+ * With no trigger the caller owns `open`: how a menu item asks, since a dialog
+ * inside a menu would unmount with it. Cancel closes it again.
+ */
+export const OpenedByTheCaller: Story = {
+  render: (args) => <Controlled {...args} />,
+  args: destructiveArgs,
+  play: async ({ canvasElement, args }) => {
+    const dialog = await openDialog(canvasElement)
+    await userEvent.click(dialog.getByRole('button', { name: 'Keep Property' }))
+    await waitFor(() => expect(dialog.queryByRole('alertdialog')).not.toBeInTheDocument())
+    expect(args.onConfirm).not.toHaveBeenCalled()
+    const reopened = await openDialog(canvasElement)
+    await userEvent.click(reopened.getByRole('button', { name: 'Remove Property' }))
+    expect(args.onConfirm).toHaveBeenCalledTimes(1)
   },
 }

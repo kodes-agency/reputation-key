@@ -7,6 +7,11 @@
 // disconnect Google, end a goal); a reversible one (archive, restore) stays
 // `neutral`. The colour is the last cue before the click, so it must not vary
 // for the same kind of action.
+//
+// Two ways to open it. Pass a `trigger` and it opens itself. Pass `open` (and
+// `onOpenChange`) and the caller owns it: that is how a menu item asks, because
+// a dialog rendered inside a DropdownMenu unmounts with the menu, so its state
+// has to live above it.
 import type { ReactNode } from 'react'
 import {
   AlertDialog,
@@ -24,6 +29,7 @@ export type ConfirmationTone = 'neutral' | 'destructive'
 
 export function ConfirmationDialog({
   trigger,
+  open,
   title,
   description,
   cancelLabel,
@@ -36,7 +42,9 @@ export function ConfirmationDialog({
   onOpenChange,
   children,
 }: Readonly<{
-  trigger: ReactNode
+  trigger?: ReactNode
+  /** Controlled open state, for a dialog with no trigger of its own. */
+  open?: boolean
   title: string
   description: string
   cancelLabel: string
@@ -50,8 +58,8 @@ export function ConfirmationDialog({
   children?: ReactNode
 }>) {
   return (
-    <AlertDialog onOpenChange={onOpenChange}>
-      <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
+    <AlertDialog open={open} onOpenChange={onOpenChange}>
+      {trigger ? <AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger> : null}
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>{title}</AlertDialogTitle>
