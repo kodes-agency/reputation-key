@@ -1,6 +1,7 @@
 // The guarded route error pattern: what any route error component gets from
 // `useGuardedRouteError` before it adds its own frame. These stories use the
-// recommended shape (frame + ErrorState fed by the hook) and prove the four
+// recommended shape (PageState fed by the hook, which is what `RouteError` does)
+// and prove the four
 // behaviours the Portal routes used to lose: an unexpected failure is reported,
 // an expected refusal is not, Try again re-runs the loaders, and a 401 sends
 // the person to sign in instead of showing an error.
@@ -14,9 +15,7 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, spyOn, userEvent, waitFor, within } from 'storybook/test'
 import { PageGutterDecorator } from '../../../.storybook/PageGutterDecorator'
 import { setBrowserExceptionCapture } from '#/shared/observability/browser-exception-capture'
-import { ErrorState } from './page-states'
-import { PageHeader } from './page-header'
-import { PageShell } from './page-shell'
+import { PageState } from './page-state'
 import { SignedOutRedirect, useGuardedRouteError } from './use-guarded-route-error'
 
 type HarnessProps = Readonly<{ error: unknown; fallback?: string }>
@@ -33,10 +32,12 @@ function GuardedRouteError({ error, fallback }: HarnessProps) {
   const guarded = useGuardedRouteError(error, fallback)
   if (guarded.signedOut) return <SignedOutRedirect />
   return (
-    <PageShell>
-      <PageHeader title="Portals" description="Manage this property’s public pages." />
-      <ErrorState message={guarded.message} onRetry={guarded.retry} />
-    </PageShell>
+    <PageState
+      kind="error"
+      title="Portals"
+      message={guarded.message}
+      onRetry={guarded.retry}
+    />
   )
 }
 
