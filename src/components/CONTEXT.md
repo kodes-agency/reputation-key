@@ -89,6 +89,29 @@ and actions supply server state.
   box. `tone-sources.test.ts` fails on all three, and `token-contrast.test.ts`
   holds every tone's ink on its own tint to 4.5:1 in both themes. The guest
   renderer keeps its own colours.
+  A navigation link is a `NavLink`, never a router `Link` carrying its own
+  `aria-current`: the router marks a link current whenever the location is at or
+  below its path, after every prop, so a nav that draws its own active row from a
+  different test announced several current pages. `NavLink` drops the router's
+  current marks and sets `aria-current` once, from the `current` the nav passes; the
+  sidebars and every section nav use it, and a row is styled from
+  `aria-[current=page]`, so what is drawn and what is announced are one answer. The
+  sections of one place (Property settings, the Portal editor's page parts) are a
+  `SectionNav`: items with an optional icon, summary, count and group, drawn as a
+  strip (one scrolling row that fades the side that continues, keeps the open item in
+  view and hides its scrollbar) or a list, or `auto`, a strip until the space the nav
+  shares with its content is wide enough. That is a container width, not a viewport
+  breakpoint, so an open sidebar or a preview pane counts: put the nav and its
+  content in a `SectionNavLayout` (`frame="rail"` for a full-bleed workspace,
+  `"inline"` for a page's own content), which declares the container the nav waits
+  for. The current row wears the sidebar's accent-muted fill, hover and keyboard
+  focus are shared (`focus-ring`), and rows take the touch token; no nav draws its
+  own active fill or its own ring. A group that must stay apart (Danger zone) is a
+  group of its own, never an offset that depends on which section is open. The Inbox
+  queue rail and strip keep their own composition (buttons that change a filter, a
+  bar of pills) but wear the same fill (from `aria-current`), the same ring and
+  `NavCount`, the shared trailing figure. The sidebar drawer on a phone closes when a
+  link in it is chosen and its rows are the touch height.
 - `forms/` contains shared TanStack Form fields, submission, and error UI. A
   failure has one reporter. A form submit reports through `FormErrorBanner`,
   placed directly above that form's actions (the bottom of a card's body, above
