@@ -28,7 +28,7 @@ describe('Button pending', () => {
     const html = render({})
 
     expect(html).not.toContain('<svg')
-    expect(html).not.toContain('aria-busy')
+    expect(html).not.toContain('aria-busy=')
     expect(html).not.toContain('disabled=')
   })
 

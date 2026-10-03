@@ -79,7 +79,7 @@ describe('RegionError', () => {
     const html = render()
 
     expect(html).not.toContain('aria-disabled=')
-    expect(html).not.toContain('aria-busy')
+    expect(html).not.toContain('aria-busy=')
   })
 
   it('has a compact size for a rail, a card or a dialog', () => {

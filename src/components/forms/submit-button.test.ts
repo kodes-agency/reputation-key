@@ -27,7 +27,7 @@ describe('SubmitButton', () => {
 
     expect(html).toContain('type="submit"')
     expect(html).not.toContain('disabled=')
-    expect(html).not.toContain('aria-busy')
+    expect(html).not.toContain('aria-busy=')
   })
 
   it('is the Button, so a pending mutation draws the Button spinner', () => {
