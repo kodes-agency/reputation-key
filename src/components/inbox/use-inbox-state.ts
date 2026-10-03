@@ -226,7 +226,7 @@ export function useInboxState(
     responseCutoff,
     viewedUpTo,
     isLoading: query.isPending,
-    error: query.error ? 'Failed to load inbox. Try again.' : null,
+    error: query.error ? 'The inbox couldn’t be loaded.' : null,
     selectedIds,
     setSelectedIds,
     // LoadMoreButton compat: nextCursor (has-more) + a loadAction-shaped pending flag.

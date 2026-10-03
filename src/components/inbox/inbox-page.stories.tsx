@@ -460,7 +460,7 @@ export const FailedLoadPreservesVisitWatermark: Story = {
   render: () => <InboxPageHarness ctx={orgCtx} inboxFns={failedVisitFns} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await canvas.findByText('Failed to load inbox. Try again.')
+    await canvas.findByText('The inbox couldn’t be loaded.')
     await expect(failedVisitContainer.readLastInboxView()).resolves.toBeNull()
   },
 }

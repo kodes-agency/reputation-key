@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Bug, ExternalLink, Lightbulb, MessageSquareDashed } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
+import { EmptyState } from '#/components/ui/empty-state'
+import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import { formatDateTime } from '#/lib/format-date-time'
 import { cn } from '#/lib/utils'
@@ -121,13 +123,12 @@ function ReportRow({
 
 function EmptyReports() {
   return (
-    <div className="flex flex-col items-center gap-2 py-8 text-center">
-      <MessageSquareDashed className="size-6 text-muted-foreground" aria-hidden="true" />
-      <p className="text-sm font-medium">Nothing reported yet</p>
-      <p className="max-w-xs text-sm text-muted-foreground">
-        Anything you send from this panel shows up here, with where it got to.
-      </p>
-    </div>
+    <EmptyState
+      size="compact"
+      icon={MessageSquareDashed}
+      title="Nothing reported yet"
+      description="Anything you send from this panel shows up here, with where it got to."
+    />
   )
 }
 
@@ -180,9 +181,11 @@ export function BetaFeedbackReports({
 
   if (query.isError) {
     return (
-      <p className="py-8 text-center text-sm text-muted-foreground">
-        Your reports could not be loaded just now.
-      </p>
+      <RegionError
+        size="compact"
+        message="Your reports couldn’t be loaded."
+        onRetry={() => void query.refetch()}
+      />
     )
   }
 

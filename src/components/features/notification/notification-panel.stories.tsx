@@ -694,7 +694,7 @@ export const Loading: Story = {
   },
 }
 
-/** The feed head rejects → each list says so, with its own Retry. */
+/** The feed head rejects → each list says so, with its own Try again. */
 export const ErrorState: Story = {
   args: {
     notificationFns: makeNotificationFns({
@@ -705,13 +705,13 @@ export const ErrorState: Story = {
   },
   play: async ({ canvasElement }) => {
     const portal = await openBell(canvasElement)
-    expect(await portal.findAllByRole('button', { name: /retry/i })).toHaveLength(2)
+    expect(await portal.findAllByRole('button', { name: 'Try again' })).toHaveLength(2)
   },
 }
 
 /**
  * The session ended under the open tab (signed out elsewhere, expired, or a
- * password change revoked it): the bell offers sign-in, not a Retry that can
+ * password change revoked it): the bell offers sign-in, not a Try again that can
  * never succeed.
  */
 export const SessionEnded: Story = {
@@ -727,7 +727,7 @@ export const SessionEnded: Story = {
     expect(
       (await popover.findAllByRole('link', { name: 'Sign in again' })).length,
     ).toBeGreaterThan(0)
-    expect(popover.queryByRole('button', { name: /retry/i })).toBeNull()
+    expect(popover.queryByRole('button', { name: 'Try again' })).toBeNull()
   },
 }
 

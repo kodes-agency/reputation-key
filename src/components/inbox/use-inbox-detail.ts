@@ -274,7 +274,7 @@ function useInboxDetailQueries(
     notesUnavailable: notesQuery.isError && notesQuery.data === undefined,
     isLoading: detailQuery.isLoading || notesQuery.isLoading,
     currentItem: detail?.item ?? fallbackItem,
-    error: detailQuery.error ? 'Failed to load detail. Try again.' : null,
+    error: detailQuery.error ? 'This item couldn’t be loaded.' : null,
     refetch: () => {
       void detailQuery.refetch()
       void notesQuery.refetch()

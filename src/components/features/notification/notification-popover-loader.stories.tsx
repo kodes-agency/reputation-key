@@ -53,7 +53,7 @@ export const BodyChunkFailed: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(await canvas.findByRole('alert')).toHaveTextContent(
-      "Couldn't load notifications.",
+      'Notifications couldn’t be loaded.',
     )
     expect(canvas.getByRole('button', { name: 'Reload page' })).toBeInTheDocument()
     expect(canvas.getByText('Page content outside the popover')).toBeInTheDocument()
@@ -97,7 +97,7 @@ export const InTheSheetKeepsItsNameAndClose: Story = {
       await within(document.body).findByRole('dialog', { name: 'Notifications' }),
     )
     expect(await dialog.findByRole('alert')).toHaveTextContent(
-      "Couldn't load notifications.",
+      'Notifications couldn’t be loaded.',
     )
     expect(dialog.getByRole('heading', { name: 'Notifications' })).toBeInTheDocument()
     await userEvent.click(dialog.getByRole('button', { name: 'Close notifications' }))

@@ -1,4 +1,4 @@
-import { Button } from '#/components/ui/button'
+import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import { InboxDetailContent } from '#/components/inbox/inbox-detail-content'
 import { InboxDetailHeader } from '#/components/inbox/inbox-detail-header'
@@ -55,12 +55,11 @@ export function InboxDetailPanel({
       {!isCaseToolbarShown(detailState) || !currentItem ? (
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
           {detailState.error ? (
-            <>
-              <p className="text-sm text-destructive">{detailState.error}</p>
-              <Button variant="outline" size="sm" onClick={() => detailState.refetch()}>
-                Retry
-              </Button>
-            </>
+            <RegionError
+              size="compact"
+              message={detailState.error}
+              onRetry={() => detailState.refetch()}
+            />
           ) : (
             <>
               <Skeleton className="h-6 w-3/4" />

@@ -111,7 +111,7 @@ export const ErrorState: Story = {
   },
   play: async ({ canvasElement }) => {
     expect(
-      within(needsYouListOf(canvasElement)!).getByRole('button', { name: /retry/i }),
+      within(needsYouListOf(canvasElement)!).getByRole('button', { name: 'Try again' }),
     ).toBeInTheDocument()
   },
 }

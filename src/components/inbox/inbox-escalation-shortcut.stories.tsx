@@ -8,7 +8,7 @@
 // from the header — which renders in every branch of the detail pane — into
 // the case toolbar, which renders only once the detail has loaded
 // (`inbox-detail-panel.tsx:52`). Until review caught it, the key still fired
-// from a pane showing skeletons or `Failed to load detail`, with no escalation
+// from a pane showing skeletons or the detail error, with no escalation
 // control anywhere on screen. These stories mount `InboxPageV2` itself, open an
 // item through `search.itemId`, hold its detail query in each branch, and press
 // the key.
@@ -156,13 +156,13 @@ export const DetailLoading: Story = {
   },
 }
 
-/** The detail failed: `Retry` in place of the content, and again no toolbar. */
+/** The detail failed: `Try again` in place of the content, and again no toolbar. */
 export const DetailFailed: Story = {
   args: { branch: 'failed' },
   play: async ({ canvasElement }) => {
     resetSpies()
     const canvas = within(canvasElement)
-    await canvas.findByRole('button', { name: 'Retry' })
+    await canvas.findByRole('button', { name: 'Try again' })
     await expect(canvas.queryByRole('region', { name: 'Case status' })).toBeNull()
 
     await expect(pressE()).toBe(false)

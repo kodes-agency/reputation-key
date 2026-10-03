@@ -10,8 +10,9 @@
 // chunk name would miss again, so only a fresh page gets the new build.
 
 import { lazy, type ComponentType, type LazyExoticComponent } from 'react'
-import { RefreshCw } from 'lucide-react'
+import { AlertCircle, RefreshCw } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { EmptyState } from '#/components/ui/empty-state'
 import { NotificationSheetHeader } from './notification-sheet-header'
 
 const reloadPage = () => window.location.reload()
@@ -28,15 +29,21 @@ export function PopoverBodyUnavailable({
   return (
     <>
       {onClose && <NotificationSheetHeader onClose={onClose} />}
-      <div
-        role="alert"
-        className="flex flex-col items-center gap-3 px-4 py-6 text-center"
-      >
-        <p className="text-sm text-muted-foreground">Couldn&apos;t load notifications.</p>
-        <Button variant="outline" size="sm" onClick={onReload}>
-          <RefreshCw aria-hidden="true" className="size-3" />
-          Reload page
-        </Button>
+      <div className="px-3 py-3">
+        {/* Reload, not Try again: React.lazy keeps what the import resolved to,
+            so only a fresh page can fetch the new build's chunk. */}
+        <EmptyState
+          tone="error"
+          size="compact"
+          icon={AlertCircle}
+          title="Notifications couldn’t be loaded."
+          action={
+            <Button variant="outline" size="sm" onClick={onReload}>
+              <RefreshCw aria-hidden="true" className="size-3" />
+              Reload page
+            </Button>
+          }
+        />
       </div>
     </>
   )

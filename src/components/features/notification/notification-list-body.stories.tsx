@@ -69,8 +69,8 @@ export const ErrorState: Story = {
   args: { groups: [], error: new Error('Notifications service unavailable') },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByText(/couldn't load notifications/i)).toBeInTheDocument()
-    expect(canvas.getByRole('button', { name: /retry/i })).toBeInTheDocument()
+    expect(canvas.getByText(/notifications couldn’t be loaded/i)).toBeInTheDocument()
+    expect(canvas.getByRole('button', { name: 'Try again' })).toBeInTheDocument()
   },
 }
 
@@ -93,7 +93,11 @@ const expectRowsKeptWithNotice = (
 export const RefreshFailureKeepsTheRows: Story = {
   args: { error: new Error('Notifications service unavailable') },
   play: async ({ canvasElement }) => {
-    expectRowsKeptWithNotice(canvasElement, /couldn't refresh notifications/i, /retry/i)
+    expectRowsKeptWithNotice(
+      canvasElement,
+      /notifications couldn’t be refreshed/i,
+      'Try again',
+    )
   },
 }
 
@@ -114,7 +118,7 @@ export const SessionEnded: Story = {
       'href',
       expect.stringMatching(/^\/login\?redirect=/),
     )
-    expect(canvas.queryByRole('button', { name: /retry/i })).toBeNull()
+    expect(canvas.queryByRole('button', { name: 'Try again' })).toBeNull()
   },
 }
 
@@ -124,7 +128,7 @@ export const LoadMoreFailure: Story = {
   play: async ({ canvasElement }) => {
     expectRowsKeptWithNotice(
       canvasElement,
-      /couldn't load older notifications/i,
+      /older notifications couldn’t be loaded/i,
       'Try again',
     )
   },
