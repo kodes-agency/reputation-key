@@ -224,6 +224,18 @@
 // owner's approval at the S1 pull request (plan decision 12); the alternative is
 // to cut the guarded error hook out of the router's first paint.
 //
+// 2026-10-03 (Inbox first paint on phones, #672): `useIsMobile` and
+// `useInboxCompactLayout` now answer from the request's viewport hint during
+// SSR and hydration, so a phone's first paint is already the phone layout. The
+// shared hook (`useViewportBelow`, its context and the hint's breakpoint check)
+// is first-paint code, because the notification bell in the entry chunk calls
+// `useIsMobile`. A chunk group for the three hook modules was tried and made
+// the closure larger (337,008 B): the entry imports them statically. The cookie
+// writer stays in the code-split authenticated layout. Fresh production builds
+// of main (3e2a53028) and of this change merged onto it: 336,745 B -> 336,870 B
+// (82 js + 1 css), +125 B, against main's 55 B of headroom. The budget moves to
+// 337,000 B.
+//
 // When this fails: resolve the new static importer and cut that source edge. Do
 // NOT raise the budget without recording a fresh production measurement here.
 // When a cycle fails it: the chunk group that moved a module away from the
@@ -239,7 +251,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 336_800, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730; raised to 331,400 on 2026-10-01 for the Linktree editor rebased onto the Languages section, measured 331,093; raised to 332,000 on 2026-10-01 for the All properties route, measured 331,663 (main 331,230); raised to 333,300 for the group page route, measured 332,881; raised to 333,800 on 2026-10-01 for the inbox phone bars, measured 333,447 (main 333,126); raised to 334,300 on 2026-10-01 for the v3 writer and the guest mount rebased onto the inbox phone bars, measured 334,045 (main 333,447); raised to 335,700 on 2026-10-01 for the Review & publish page's loader, measured 335,082 (main 334,045); raised to 335,900 on 2026-10-01 for the Property look photo and logo controls, measured 335,517 (main 335,331); raised to 336,300 on 2026-10-02 for the click-to-edit preview, measured 335,910; raised to 336,700 on 2026-10-03 for the Portal route errors' guarded boundary (sanitised message, report, sign-in redirect, Try again, shared with the router default: UI consistency A1), measured 336,593 (main 336,222); raised to 336,800 on 2026-10-03 for the combined S1 stage (A1 + B1 + B2 + review fixes, see the 2026-10-03 entry above), measured 336,713, pending the owner's approval
+  initialClosureGzip: 337_000, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730; raised to 331,400 on 2026-10-01 for the Linktree editor rebased onto the Languages section, measured 331,093; raised to 332,000 on 2026-10-01 for the All properties route, measured 331,663 (main 331,230); raised to 333,300 for the group page route, measured 332,881; raised to 333,800 on 2026-10-01 for the inbox phone bars, measured 333,447 (main 333,126); raised to 334,300 on 2026-10-01 for the v3 writer and the guest mount rebased onto the inbox phone bars, measured 334,045 (main 333,447); raised to 335,700 on 2026-10-01 for the Review & publish page's loader, measured 335,082 (main 334,045); raised to 335,900 on 2026-10-01 for the Property look photo and logo controls, measured 335,517 (main 335,331); raised to 336,300 on 2026-10-02 for the click-to-edit preview, measured 335,910; raised to 336,700 on 2026-10-03 for the Portal route errors' guarded boundary (sanitised message, report, sign-in redirect, Try again, shared with the router default: UI consistency A1), measured 336,593 (main 336,222); raised to 336,800 on 2026-10-03 for the combined S1 stage (A1 + B1 + B2 + review fixes, see the 2026-10-03 entry above), measured 336,713, pending the owner's approval; raised to 337,000 on 2026-10-03 for the Inbox's server-rendered phone layout, measured 336,870 (main 336,745)
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 

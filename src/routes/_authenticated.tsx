@@ -12,6 +12,7 @@ import { getSession } from '#/shared/auth/auth.functions'
 import { getActiveOrganization } from '#/contexts/identity/server/organizations'
 import { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
 import { notificationFns } from '#/routes/-notification-fns'
+import { readViewportHint } from '#/routes/-viewport-hint'
 import type { Role } from '#/shared/domain/roles'
 import type { ClientAuthz } from '#/shared/domain/auth-context'
 import {
@@ -24,6 +25,9 @@ import { isFullBleedRoute } from '#/components/layout/full-bleed-route'
 import { PAGE_GUTTER } from '#/components/layout/page-shell'
 import { httpStatus } from '#/shared/security/expected-refusal'
 import { SidebarProvider } from '#/components/ui/sidebar'
+import { ViewportHintContext } from '#/components/hooks/use-viewport-below'
+import { useRememberViewportWidth } from '#/components/hooks/use-remember-viewport-width'
+import { UNKNOWN_VIEWPORT } from '#/components/hooks/viewport-hint'
 import { ManagerSidebar } from '#/components/layout/manager-sidebar'
 import { SettingsSidebar } from '#/components/layout/settings-sidebar'
 import { AppTopBar } from '#/components/layout/app-top-bar'
@@ -183,6 +187,9 @@ export const Route = createFileRoute('/_authenticated')({
   },
   loader: async ({ context }) => {
     await context.queryClient.ensureQueryData(propertiesQuery)
+    // Read here, not in the component: loader data is what hydration reuses,
+    // so the browser's first render answers exactly as the server's did.
+    return { viewportHint: readViewportHint() }
   },
   // The property list rarely changes. It is cached via Query and refetched by
   // targeted invalidation after property mutations.
@@ -192,6 +199,8 @@ export const Route = createFileRoute('/_authenticated')({
 
 function AuthenticatedLayout() {
   const ctx = Route.useRouteContext()
+  const { viewportHint } = Route.useLoaderData()
+  useRememberViewportWidth()
   const { data: propsData } = useSuspenseQuery(propertiesQuery)
   // Removed properties stay out of the navigation. They remain reachable and
   // restorable from the Properties page, which lists them under "Removed".
@@ -259,12 +268,16 @@ function AuthenticatedLayout() {
     </SidebarProvider>
   )
 
-  return isFullBleed ? (
-    <div className="h-screen overflow-hidden flex flex-col">
-      <style>{`[data-slot="sidebar-wrapper"]{flex:1 1 0%;overflow:hidden}`}</style>
-      {content}
-    </div>
-  ) : (
-    content
+  return (
+    <ViewportHintContext.Provider value={viewportHint ?? UNKNOWN_VIEWPORT}>
+      {isFullBleed ? (
+        <div className="h-screen overflow-hidden flex flex-col">
+          <style>{`[data-slot="sidebar-wrapper"]{flex:1 1 0%;overflow:hidden}`}</style>
+          {content}
+        </div>
+      ) : (
+        content
+      )}
+    </ViewportHintContext.Provider>
   )
 }
