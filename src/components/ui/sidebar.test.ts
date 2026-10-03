@@ -112,3 +112,44 @@ describe('Sidebar rows on a phone', () => {
     expect(row).toContain('max-md:min-h-(--control-touch)')
   })
 })
+
+describe('Sidebar rows share the focus ring', () => {
+  // The sidebar drew its own 2px ring in its own token while every other control wore
+  // the Button's (UI consistency scan: NAV-05).
+  const html = renderToStaticMarkup(
+    createElement(
+      SidebarProvider,
+      null,
+      createElement(
+        SidebarMenu,
+        null,
+        createElement(
+          SidebarMenuItem,
+          null,
+          createElement(SidebarMenuButton, null, 'Dashboard'),
+          createElement(
+            SidebarMenuSub,
+            null,
+            createElement(
+              SidebarMenuSubItem,
+              null,
+              createElement(SidebarMenuSubButton, null, 'Ratings'),
+            ),
+          ),
+        ),
+      ),
+    ),
+  )
+  const button = /<button [^>]*data-slot="sidebar-menu-button"[^>]*>/u.exec(html)?.[0]
+  const sub = /<a [^>]*data-slot="sidebar-menu-sub-button"[^>]*>/u.exec(html)?.[0]
+  const OLD_RING = ['focus-visible', 'ring-2'].join(':')
+
+  it.each([
+    ['a menu row', button],
+    ['a sub-row', sub],
+  ])('is the shared ring on %s, not a ring of its own', (_name, row) => {
+    expect(row).toContain('focus-ring')
+    expect(row).not.toContain(OLD_RING)
+    expect(row).not.toContain('ring-sidebar-ring')
+  })
+})
