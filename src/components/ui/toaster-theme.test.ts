@@ -3,8 +3,9 @@
 // Sonner 2 colours a typed toast from hsl() literals keyed on its `theme` prop
 // (light by default), so a success toast on the dark UI was a pastel light card
 // that ignored `.dark` and `--success`. These cases pin what replaces it: every
-// typed colour is a token reference, the text on each tinted surface reads at
-// 4.5:1 in both themes, and the `theme` prop follows the theme the app applied.
+// typed colour is a token reference, and the text on each tinted surface reads
+// at 4.5:1 in both themes. The pairs are read back from the style object the
+// Toaster hands Sonner, so the proof follows the code and not a second table.
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -14,10 +15,11 @@ import {
   resolveColour,
   type LinearRgb,
 } from '#/shared/testing/oklch-contrast'
-import { TOAST_TONES, TOASTER_STYLE, type ToastTone } from './toaster-theme'
+import { TOASTER_STYLE } from './toaster-theme'
 
 const AA = 4.5
-const TONES = Object.keys(TOAST_TONES) as ToastTone[]
+const TONES = ['success', 'info', 'warning', 'error'] as const
+const style = TOASTER_STYLE as Record<string, string>
 
 const css = readFileSync(resolve(__dirname, '../../styles.css'), 'utf8')
 const light = readTokenBlock(css, ':root')
@@ -30,18 +32,22 @@ const THEMES = [
 const colour = (theme: (typeof THEMES)[number], token: string): LinearRgb =>
   resolveColour(token, theme.tokens, theme.base)
 
-describe('TOASTER_STYLE', () => {
-  const style = TOASTER_STYLE as Record<string, string>
+/** The `--token` a plain `var(--token)` value names. */
+const tokenOf = (value: string | undefined): string => {
+  const token = /^var\((--[\w-]+)\)$/u.exec(value ?? '')?.[1]
+  if (token === undefined) throw new Error(`${value} is not a plain token reference`)
+  return token
+}
 
+describe('TOASTER_STYLE', () => {
   it.each(TONES)(
     'gives a %s toast a background, text and border from the tokens',
     (tone) => {
-      // Sonner names the typed variables `--success-*`, `--info-*`, `--warning-*`
-      // and `--error-*`.
-      const prefix = tone
-      expect(style[`--${prefix}-bg`]).toMatch(/^var\(--[\w-]+\)$/)
-      expect(style[`--${prefix}-text`]).toMatch(/^var\(--[\w-]+\)$/)
-      expect(style[`--${prefix}-border`]).toMatch(/var\(--[\w-]+\)/)
+      // Sonner names the typed variables `--success-*`, `--info-*`,
+      // `--warning-*` and `--error-*`.
+      expect(style[`--${tone}-bg`]).toMatch(/^var\(--[\w-]+\)$/)
+      expect(style[`--${tone}-text`]).toMatch(/^var\(--[\w-]+\)$/)
+      expect(style[`--${tone}-border`]).toMatch(/var\(--[\w-]+\)/)
     },
   )
 
@@ -61,7 +67,8 @@ describe('TOASTER_STYLE', () => {
 
 describe.each(THEMES)('$name theme toast tones', (theme) => {
   it.each(TONES)('%s text reads at 4.5:1 on its own surface', (tone) => {
-    const { background, text } = TOAST_TONES[tone]
+    const background = tokenOf(style[`--${tone}-bg`])
+    const text = tokenOf(style[`--${tone}-text`])
 
     expect(
       contrastRatio(colour(theme, text), colour(theme, background)),

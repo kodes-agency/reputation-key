@@ -46,8 +46,8 @@ const DATE_SHAPES = {
   monthYear: { month: 'long', year: 'numeric' },
   longDate: { dateStyle: 'long' },
   time: { hour: 'numeric', minute: '2-digit' },
-  dayKey: { year: 'numeric', month: '2-digit', day: '2-digit' },
   clock: { hour: 'numeric', minute: '2-digit', second: '2-digit' },
+  dayKey: { year: 'numeric', month: '2-digit', day: '2-digit' },
 } as const satisfies Record<string, Intl.DateTimeFormatOptions>
 
 type DateShape = keyof typeof DATE_SHAPES

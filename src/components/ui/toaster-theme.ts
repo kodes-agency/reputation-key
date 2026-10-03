@@ -6,54 +6,37 @@ import type { CSSProperties } from 'react'
  * (`--success-bg`, `--error-text`…). Setting those variables to the app's tokens
  * makes a toast follow `.dark` and mean what the same colour means in an Alert,
  * a delta or a badge. No value is a colour literal, and nothing is added to the
- * stylesheet, so first paint is unchanged.
+ * stylesheet.
  *
- * Each tone is a tinted surface (`background`), the text-grade ink that sits on
- * it (`text`), and an edge. The pairs are measured at 4.5:1 in both themes by
- * `toaster-theme.test.ts`.
- */
-export type ToastTone = 'success' | 'info' | 'warning' | 'error'
-
-export const TOAST_TONES = {
-  success: { background: '--success-muted', text: '--positive', edge: '--success' },
-  info: { background: '--accent-muted', text: '--accent-foreground', edge: '--accent' },
-  warning: { background: '--warn-muted', text: '--warn', edge: '--warn-line' },
-  error: { background: '--destructive-muted', text: '--negative', edge: '--destructive' },
-} as const satisfies Record<
-  ToastTone,
-  Readonly<{ background: string; text: string; edge: string }>
->
-
-/** The edge is a quiet line: the fill-grade colour at 40% over whatever is behind. */
-const edgeOf = (token: string): string =>
-  token === '--warn-line'
-    ? 'var(--warn-line)'
-    : `color-mix(in oklab, var(${token}) 40%, transparent)`
-
-const toneVariables = (): Record<string, string> =>
-  Object.fromEntries(
-    (Object.keys(TOAST_TONES) as ToastTone[]).flatMap((tone) => {
-      const { background, text, edge } = TOAST_TONES[tone]
-      return [
-        [`--${tone}-bg`, `var(${background})`],
-        [`--${tone}-text`, `var(${text})`],
-        [`--${tone}-border`, edgeOf(edge)],
-      ] as const
-    }),
-  )
-
-/**
- * The variables handed to Sonner. The plain toast sits on the popover surface;
- * the grays are the ones Sonner reads for a close button's hover and a loading
- * bar, which would otherwise stay light on the dark UI.
+ * Each tone is a tinted surface (`-bg`), the text-grade ink that sits on it
+ * (`-text`) and an edge (`-border`): success is `--success-muted` with
+ * `--positive`, error `--destructive-muted` with `--negative`, warning
+ * `--warn-muted` with `--warn`, info `--accent-muted` with `--accent-foreground`.
+ * `toaster-theme.test.ts` reads the pairs back from this object and measures
+ * them at 4.5:1 in both themes.
+ *
+ * A plain object literal, not generated: the Toaster is mounted by the root
+ * route, so this is in the first-paint closure, which has bytes to spare for
+ * nothing.
  */
 export const TOASTER_STYLE = {
   '--normal-bg': 'var(--popover)',
   '--normal-text': 'var(--popover-foreground)',
   '--normal-border': 'var(--border)',
   '--border-radius': 'var(--radius)',
+  // Sonner's close-button hover reads these grays.
   '--gray2': 'var(--muted)',
   '--gray5': 'var(--border)',
-  '--gray11': 'var(--muted-foreground)',
-  ...toneVariables(),
+  '--success-bg': 'var(--success-muted)',
+  '--success-text': 'var(--positive)',
+  '--success-border': 'color-mix(in oklab, var(--success) 40%, transparent)',
+  '--info-bg': 'var(--accent-muted)',
+  '--info-text': 'var(--accent-foreground)',
+  '--info-border': 'color-mix(in oklab, var(--accent) 40%, transparent)',
+  '--warning-bg': 'var(--warn-muted)',
+  '--warning-text': 'var(--warn)',
+  '--warning-border': 'var(--warn-line)',
+  '--error-bg': 'var(--destructive-muted)',
+  '--error-text': 'var(--negative)',
+  '--error-border': 'color-mix(in oklab, var(--destructive) 40%, transparent)',
 } as CSSProperties

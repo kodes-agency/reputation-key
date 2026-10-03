@@ -2,13 +2,6 @@ import { useCallback, useEffect, useSyncExternalStore } from 'react'
 
 export type ThemeMode = 'light' | 'dark' | 'auto'
 
-/** `dark` when the document carries the dark class, else `light`. */
-export function resolveAppliedTheme(
-  classes: Readonly<{ contains: (name: string) => boolean }>,
-): 'light' | 'dark' {
-  return classes.contains('dark') ? 'dark' : 'light'
-}
-
 const THEME_STORAGE_KEY = 'theme'
 const THEME_CHANGE_EVENT = 'rep-key:theme-change'
 let volatileThemeMode: ThemeMode | null = null
@@ -69,7 +62,7 @@ function subscribeToAppliedTheme(onStoreChange: () => void) {
 export function useResolvedTheme(): 'light' | 'dark' {
   return useSyncExternalStore(
     subscribeToAppliedTheme,
-    () => resolveAppliedTheme(document.documentElement.classList),
+    () => (document.documentElement.classList.contains('dark') ? 'dark' : 'light'),
     () => 'light',
   )
 }

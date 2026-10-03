@@ -16,7 +16,6 @@ import {
   type NotificationListFilter,
 } from '#/contexts/feed/application/public-api'
 import { CATEGORY_COPY } from '#/components/features/settings/notifications-type-rows'
-import { formatDayKey } from '#/lib/format'
 
 /**
  * `'urgent'` is the PRIORITY flag (any category); `'urgent_operational'` is the
@@ -113,10 +112,21 @@ export function byUrgency(
 }
 
 const DAY_MS = 86_400_000
+const dayFormatters = new Map<string, Intl.DateTimeFormat>()
 
 /** The calendar day an instant falls on, on the reader's own clock. */
 function dayOf(instant: number, timeZone: string): number {
-  return Date.parse(`${formatDayKey(instant, timeZone)}T00:00:00Z`) / DAY_MS
+  let format = dayFormatters.get(timeZone)
+  if (format === undefined) {
+    format = new Intl.DateTimeFormat('en-CA', {
+      timeZone,
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+    })
+    dayFormatters.set(timeZone, format)
+  }
+  return Date.parse(`${format.format(instant)}T00:00:00Z`) / DAY_MS
 }
 
 const DAY_GROUPS = [
