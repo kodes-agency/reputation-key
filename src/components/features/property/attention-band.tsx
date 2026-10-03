@@ -18,8 +18,12 @@ export interface AttentionBandProps {
 // 14 px label.
 
 // min-h-11 = 44 px: these are the page's most-tapped links and they were 30 px
-// tall (docs/plan/dashboard-redesign.md row 13).
-const CHIP_BASE = 'min-h-11 gap-1.5 px-4 py-1 text-sm'
+// tall (docs/plan/dashboard-redesign.md row 13). The icon is sized here, as
+// `[&>svg]:size-4`, because Badge sizes its own glyph (`[&>svg]:size-3`, a
+// different selector from a `size-4` on the icon itself, which loses to it):
+// the same arbitrary variant lets tailwind-merge replace Badge's, and the 14 px
+// label keeps the 16 px glyph it always had.
+const CHIP_BASE = 'min-h-11 gap-1.5 px-4 py-1 text-sm [&>svg]:size-4'
 
 function ChipContent({
   icon: Icon,
@@ -32,7 +36,7 @@ function ChipContent({
 }): ReactNode {
   return (
     <>
-      <Icon className="size-4 shrink-0" />
+      <Icon className="shrink-0" />
       {count !== null && <span className="font-semibold tabular-nums">{count}</span>}
       <span>{label}</span>
     </>

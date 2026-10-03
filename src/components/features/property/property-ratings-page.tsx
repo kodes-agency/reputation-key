@@ -15,6 +15,7 @@ import { cn } from '#/lib/utils'
 import { PropertyReputationTrendChart } from './property-reputation-trend-chart'
 import { formatNumber } from '#/lib/format'
 import { MetricDelta } from '#/components/ui/metric-delta'
+import { RatingFigure } from '#/components/ui/rating-figure'
 
 export interface PropertyRatingsPageProps {
   property: Readonly<{ id: string; name: string }>
@@ -30,7 +31,7 @@ function MetricFigure({
   className,
 }: Readonly<{
   label: ReactNode
-  value: string | null
+  value: ReactNode
   context?: ReactNode
   className?: string
 }>) {
@@ -131,7 +132,9 @@ export function PropertyRatingsPage({
         <MetricFigure
           label="Average rating"
           value={
-            kpis.avgRating.value === null ? null : `${kpis.avgRating.value.toFixed(1)} ★`
+            kpis.avgRating.value === null ? null : (
+              <RatingFigure value={kpis.avgRating.value} size="lg" />
+            )
           }
           context={ratingContext}
           className="py-4 sm:pr-4"

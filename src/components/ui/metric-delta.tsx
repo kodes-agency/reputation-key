@@ -7,9 +7,13 @@ export type MetricDeltaDirection = 'up' | 'down' | 'flat'
 export type MetricDeltaProps = Readonly<{
   /** The signed change from the comparison period: positive is up, negative is down. */
   value: number
-  /** `percent` prints a trailing %; `points` (the default) prints the bare figure. */
+  /**
+   * `percent` prints a trailing % and drops trailing zeros ("12%"). `points` (the
+   * default, a rating) prints the bare figure and keeps its decimals ("1.0"), as
+   * the headline figure it qualifies does ("4.0").
+   */
   unit?: 'points' | 'percent'
-  /** The most decimals to keep; trailing zeros are dropped. Defaults to one. */
+  /** The decimals to keep, at most for `percent` and exactly for `points`. Defaults to one. */
   fractionDigits?: number
   /** Names the baseline, e.g. `dashboardRangeComparisonLabel(range)`: "vs the previous 30 days". */
   comparisonLabel: string
@@ -62,7 +66,10 @@ export function MetricDelta({
   }
 
   const { Icon, ink, word } = DIRECTION_STYLE[direction]
-  const size = formatNumber(Math.abs(value), { maximumFractionDigits: fractionDigits })
+  const size = formatNumber(Math.abs(value), {
+    maximumFractionDigits: fractionDigits,
+    ...(unit === 'points' ? { minimumFractionDigits: fractionDigits } : {}),
+  })
   return (
     <span
       data-slot="metric-delta"

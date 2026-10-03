@@ -32,6 +32,7 @@ import {
 } from './overview-profile-views'
 import { formatNumber } from '#/lib/format'
 import { MetricDelta } from '#/components/ui/metric-delta'
+import { RatingFigure } from '#/components/ui/rating-figure'
 
 /** The ten-ratings-per-period rule the read model already enforces. */
 const MIN_RATING_COMPARISON_SAMPLE = 10
@@ -53,9 +54,6 @@ export interface PropertyOverviewProps {
 function ratingTile(lifetime: DashboardData, pulse: DashboardData, propertyId: string) {
   const allTime = lifetime.kpis.avgRating
   const recent = pulse.kpis.avgRating
-
-  // Identity leads: this is the number on the Google profile.
-  const value = allTime.value === null ? null : allTime.value.toFixed(1)
 
   let context: React.ReactNode
   if (allTime.value === null) {
@@ -82,7 +80,10 @@ function ratingTile(lifetime: DashboardData, pulse: DashboardData, propertyId: s
   return (
     <OverviewTile
       label="Rating"
-      value={value === null ? null : `${value} ★`}
+      // Identity leads: this is the number on the Google profile.
+      value={
+        allTime.value === null ? null : <RatingFigure value={allTime.value} size="lg" />
+      }
       context={context}
       link={{ to: '/properties/$propertyId/ratings', params: { propertyId } }}
       linkLabel="Rating — open Ratings"

@@ -40,6 +40,16 @@ export const Down: Story = {
   },
 }
 
+/** A rating change keeps its decimal, like the headline figure it qualifies. */
+export const KeepsTheDecimal: Story = {
+  args: { value: 1, unit: 'points', comparisonLabel: 'vs the previous 30 days' },
+  play: async ({ canvasElement }) => {
+    expect(canvasElement.querySelector('[data-slot="metric-delta"]')).toHaveTextContent(
+      'Up 1.0 vs the previous 30 days',
+    )
+  },
+}
+
 /** No movement says so in plain words: no arrow, no colour. */
 export const NoChange: Story = {
   args: { value: 0 },

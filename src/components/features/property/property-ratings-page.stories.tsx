@@ -122,7 +122,7 @@ export const Populated90d: Story = {
     )
 
     const summary = within(canvas.getByLabelText('Ratings summary'))
-    expect(summary.getByText('4.3 ★')).toBeVisible()
+    expect(summary.getByText('4.3')).toBeVisible()
     // Each change is the shared MetricDelta: the figure and baseline in one
     // run, the direction said again in words for a screen reader.
     expect(summary.getByText('0.2 vs the previous 90 days')).toBeVisible()
@@ -186,7 +186,7 @@ export const Compact390: Story = {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('combobox', { name: 'Time range' })).toBeVisible()
     expect(
-      within(canvas.getByLabelText('Ratings summary')).getByText('4.3 ★'),
+      within(canvas.getByLabelText('Ratings summary')).getByText('4.3'),
     ).toBeVisible()
     expect(canvas.getByRole('img', { name: 'Rating over time' })).toBeVisible()
     expect(canvas.getByRole('figure', { name: 'Rating mix' })).toBeVisible()

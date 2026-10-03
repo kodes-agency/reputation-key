@@ -46,7 +46,7 @@ type TileLink =
 type Props = Readonly<{
   label: string
   /** The number a manager recognises. Absent means there is no number yet. */
-  value: string | null
+  value: ReactNode
   /** One line under the value: the pulse, or why there is no number. */
   context: ReactNode
   link: TileLink

@@ -64,7 +64,16 @@ describe('MetricDelta', () => {
     expect(render({ value: 12.5, comparisonLabel: BASELINE })).not.toContain('%')
   })
 
-  it('keeps as many digits as it is told to and drops trailing zeros', () => {
+  it('keeps the decimal of a rating change, as the figure beside it does', () => {
+    expect(render({ value: 1, comparisonLabel: BASELINE })).toContain('1.0 vs')
+    expect(render({ value: -2, comparisonLabel: BASELINE })).toContain('2.0 vs')
+    expect(render({ value: 0.2, comparisonLabel: BASELINE })).toContain('0.2 vs')
+    expect(render({ value: 1, fractionDigits: 0, comparisonLabel: BASELINE })).toContain(
+      '1 vs',
+    )
+  })
+
+  it('keeps as many digits as it is told to and drops trailing zeros of a percent', () => {
     expect(render({ value: 12, unit: 'percent', comparisonLabel: BASELINE })).toContain(
       '12%',
     )
@@ -74,7 +83,9 @@ describe('MetricDelta', () => {
   })
 
   it('groups thousands in a large change', () => {
-    expect(render({ value: 1234, comparisonLabel: BASELINE })).toContain('1,234')
+    expect(render({ value: 1234, unit: 'percent', comparisonLabel: BASELINE })).toContain(
+      '1,234%',
+    )
   })
 
   it('says "No change" without a tone or an arrow when nothing moved', () => {

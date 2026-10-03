@@ -4,7 +4,8 @@
 // the property. The attention and setup cells are links too, but figures must
 // not turn purple (row 2 of the plan's findings), so those links name their ink.
 import { Link } from '@tanstack/react-router'
-import { Check, Link2Off, Star } from 'lucide-react'
+import { Check, Link2Off } from 'lucide-react'
+import { RatingFigure } from '#/components/ui/rating-figure'
 import { StatusBadge } from '#/components/ui/status-badge'
 import { Skeleton } from '#/components/ui/skeleton'
 import { cn } from '#/lib/utils'
@@ -82,13 +83,7 @@ export function RatingValue({ comparison, fleet }: FigureProps) {
   if (comparison.avgRating === null) {
     return <span className="text-muted-foreground">No ratings</span>
   }
-  return (
-    <span className="inline-flex items-center gap-1 font-medium">
-      <span className="tabular-nums">{comparison.avgRating.toFixed(1)}</span>
-      <Star className="size-3.5 fill-current text-rating" aria-hidden="true" />
-      <span className="sr-only">stars</span>
-    </span>
-  )
+  return <RatingFigure value={comparison.avgRating} className="font-medium" />
 }
 
 export function ReviewsValue({ comparison, fleet }: FigureProps) {
