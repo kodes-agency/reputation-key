@@ -124,7 +124,8 @@ function DropdownMenuRadioItem({
  * (`SegmentedControl`'s look). The segments are menu radio items, not a bare
  * radio group, so the menu's own arrow-key navigation reaches them: Radix
  * prevents Tab inside a menu, which would leave a plain radio group unreachable
- * from the keyboard.
+ * from the keyboard. Each segment is a touch target, so below `md` it is 44 px
+ * tall (the menu item it replaced was), and 26 px from `md` up.
  */
 function DropdownMenuSegmentedGroup({
   className,
@@ -146,7 +147,11 @@ function DropdownMenuSegment({
   return (
     <DropdownMenuPrimitive.RadioItem
       data-slot="dropdown-menu-segment"
-      className={cn(SEGMENT_CLASS, 'flex-1 cursor-default px-2', className)}
+      className={cn(
+        SEGMENT_CLASS,
+        'flex-1 cursor-default px-2 max-md:h-11 max-md:min-h-11',
+        className,
+      )}
       {...props}
     />
   )
