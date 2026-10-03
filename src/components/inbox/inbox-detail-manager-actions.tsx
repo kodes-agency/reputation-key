@@ -127,7 +127,7 @@ export function InboxDetailManagerActions({
         className={CASE_SQUARE_CLASS}
         onClick={isEscalationActive ? onResolveEscalation : onEscalate}
       >
-        <Glyph data-icon="inline-start" aria-hidden="true" />
+        <Glyph aria-hidden="true" />
         <span className={LABEL_CLASS}>{isEscalationActive ? 'Resolve' : 'Escalate'}</span>
       </Button>
       {fact}

@@ -179,13 +179,7 @@ export function ReviewReplyPublishedEditor({
               (`composer-mode-row.tsx`) and every other control in the dock's
               foot. v1's row 15 raised these to 44; row 20 lowered the rule to
               36 because WCAG 2.5.8 AA asks for 24 and 44 inflated the strip. */}
-          <Button
-            size="sm"
-            variant="ghost"
-            className="max-md:h-9"
-            disabled={isSaving}
-            onClick={onCancel}
-          >
+          <Button size="sm" variant="ghost" disabled={isSaving} onClick={onCancel}>
             Cancel
           </Button>
           <AlertDialog>
@@ -203,7 +197,6 @@ export function ReviewReplyPublishedEditor({
                 aria-disabled={isBlocked}
                 // The look the native attribute used to carry, kept on the
                 // states that no longer set it, plus row 20's mobile target.
-                className="aria-disabled:opacity-50 max-md:h-9"
                 aria-describedby={
                   publishBlockedReason !== null ? publishBlockedReasonId : undefined
                 }
@@ -216,7 +209,7 @@ export function ReviewReplyPublishedEditor({
                 Review update
               </Button>
             </AlertDialogTrigger>
-            <AlertDialogContent>
+            <AlertDialogContent data-density="compact">
               <AlertDialogHeader>
                 <AlertDialogTitle>Confirm and update this Google reply?</AlertDialogTitle>
                 <AlertDialogDescription>
@@ -226,17 +219,6 @@ export function ReviewReplyPublishedEditor({
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
-                {/* No class, for the reason the publish confirmation in
-                    `reply-message-actions.tsx` gives: the primitive's own
-                    `size="default"` is 36 px, which is row 20's control height
-                    below `md`. v1's row 15 raised this pair — the confirm and
-                    cancel for republishing to Google, one tap from the
-                    composer — to 44 at the call site (`max-md:h-11`, 36 → 44
-                    at 390 and 320); row 20 lowers it back to the primitive's
-                    own 36, so the override is deleted rather than re-spelled.
-                    Measured in Chromium against Storybook dev
-                    (`inbox-mobile-390--composer-editing-a-live-reply`, dialog
-                    open) at 390 and 320: 44 px tall before, 36 after. */}
                 <AlertDialogCancel>Keep editing</AlertDialogCancel>
                 <AlertDialogAction
                   disabled={!canSave}

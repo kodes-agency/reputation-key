@@ -2,7 +2,6 @@ import { useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { LogOut } from 'lucide-react'
 import { SidebarTrigger } from '#/components/ui/sidebar'
-import { Button } from '#/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +21,7 @@ import type {
   SubmitBetaFeedback,
 } from '#/components/features/beta-feedback/beta-feedback-form-context'
 import { clearTenantCacheAfterSessionEnd } from '#/shared/queries/tenant-cache-transition'
+import { IconButton } from '#/components/ui/icon-button'
 
 type Props = Readonly<{
   user: { id: string; name: string; email: string; image: string | null }
@@ -57,20 +57,23 @@ export function AppTopBar({
 
   return (
     // Below md the inbox bar is 44 px like every other bar on the phone grid;
-    // other pages keep h-13. The controls are 36 px, and the two ghost buttons
+    // other pages keep h-13. The controls are 36 px (the bar is a compact
+    // workspace, `data-density`, so Button, IconButton and Input take the 36 px
+    // touch height and not the 44 px one), and the two ghost buttons
     // at the edges are pulled out by half of (36 - glyph) so the glyph, not the
     // box, sits on the 16 px gutter: the trigger's 16 px glyph by 10 px, the
     // account button's 28 px circle by 4 px. Non-inbox phone pages keep the
     // 52 px bar (h-13) with the same 36 px controls on purpose; only inbox
     // routes (`sidebarLocked`) compress to 44.
     <header
+      data-density="compact"
       className={cn(
         'flex h-13 shrink-0 items-center gap-2 border-b px-4',
         sidebarLocked && 'max-md:h-11',
       )}
     >
       <SidebarTrigger
-        className={cn('-ml-1 max-md:size-9 max-md:-ml-2.5', sidebarLocked && 'md:hidden')}
+        className={cn('-ml-1 max-md:-ml-2.5', sidebarLocked && 'md:hidden')}
       />
 
       <div className="flex-1" />
@@ -88,11 +91,11 @@ export function AppTopBar({
       />
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button
+          <IconButton
             variant="ghost"
             size="icon-sm"
-            className="rounded-full max-md:size-9 max-md:-mr-1"
-            aria-label="Account menu"
+            className="rounded-full max-md:-mr-1"
+            label="Account menu"
           >
             {user.image ? (
               <img src={user.image} alt="" className="size-7 rounded-full object-cover" />
@@ -101,7 +104,7 @@ export function AppTopBar({
                 {initials}
               </div>
             )}
-          </Button>
+          </IconButton>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
           <div className="px-2 py-1.5">
@@ -112,7 +115,6 @@ export function AppTopBar({
           <ThemeModeMenuControl />
           <DropdownMenuSeparator />
           <DropdownMenuItem
-            className="max-md:min-h-11"
             onClick={async () => {
               await clearTenantCacheAfterSessionEnd(
                 queryClient,

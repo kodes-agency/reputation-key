@@ -100,14 +100,9 @@ export const ReplySuggestionPreview = (props: Props) => {
           type="button"
           size="sm"
           variant="outline"
-          // Row 20: 36 px on mobile over `size="sm"`'s 32, matching the mode
+          // 36 px on mobile (the Inbox's compact density), matching the mode
           // segment (`composer-mode-row.tsx`), the note submit and
-          // `Submit for approval` below. v1's row 15 had made both of these 44
-          // (`max-md:h-11`), taller than the dock's own primary. Measured in
-          // Chromium against Storybook dev after the sweep
-          // (`inbox-replycomposer--suggestion-awaiting-adoption`, preview open):
-          // `Use draft` and `Dismiss` 36 px tall at 390 and 320.
-          className="max-md:h-9"
+          // `Submit for approval` below.
           disabled={props.disabled}
           onClick={props.onAdopt}
         >
@@ -117,7 +112,6 @@ export const ReplySuggestionPreview = (props: Props) => {
           type="button"
           size="sm"
           variant="ghost"
-          className="max-md:h-9"
           disabled={props.disabled}
           onClick={props.onDismiss}
         >

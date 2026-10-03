@@ -40,15 +40,11 @@ describe('RegionError', () => {
     expect(html).toContain('type="button"')
   })
 
-  it('gives the recovery a touch-sized target on a phone', () => {
-    expect(render()).toContain('max-md:min-h-11')
-  })
+  it('takes its phone height from the Button, so a dense workspace sets it once on a container', () => {
+    const html = render()
 
-  it('takes the compact density a dense workspace asks for: 36px, not the 44px target', () => {
-    const html = render({ density: 'compact' })
-
-    expect(html).toContain('max-md:h-9')
-    expect(html).not.toContain('max-md:min-h-11')
+    expect(html).toContain('max-md:min-h-(--control-touch)')
+    expect(html).not.toContain('min-h-11')
   })
 
   it('says what is unaffected, or what to do meanwhile, under the sentence', () => {
@@ -82,7 +78,7 @@ describe('RegionError', () => {
   it('does not mark the button disabled or busy when it is idle', () => {
     const html = render()
 
-    expect(html).not.toContain('aria-disabled')
+    expect(html).not.toContain('aria-disabled=')
     expect(html).not.toContain('aria-busy')
   })
 
@@ -92,10 +88,10 @@ describe('RegionError', () => {
   })
 
   it('puts Cancel after Try again, in the same density, when the region can be left', () => {
-    const html = render({ onCancel: () => undefined, density: 'compact' })
+    const html = render({ onCancel: () => undefined })
 
     expect(html.indexOf('Try again')).toBeLessThan(html.indexOf('Cancel'))
-    expect(html.match(/max-md:h-9/g)).toHaveLength(2)
+    expect(html.match(/max-md:min-h-\(--control-touch\)/g)).toHaveLength(2)
   })
 
   it('offers no Cancel unless the region can be left', () => {

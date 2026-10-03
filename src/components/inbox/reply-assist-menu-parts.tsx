@@ -102,7 +102,6 @@ export function LanguageRow({ entry, updateLanguage }: LanguageRowProps) {
     <DropdownMenuItem
       disabled={entry.disabledReason !== null}
       aria-current={entry.isSelected ? 'true' : undefined}
-      className="max-md:min-h-11"
       onSelect={() => {
         if (!entry.isSelected) updateLanguage(entry.tag)
       }}

@@ -1,11 +1,6 @@
 import { useId } from 'react'
 import { Button } from '#/components/ui/button'
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from '#/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipTrigger } from '#/components/ui/tooltip'
 import type { ReplyAutosaveStatus } from './use-reply-autosave'
 
 type Props = Readonly<{
@@ -76,7 +71,6 @@ export function ReplyComposerFooter({
           <Button
             size="sm"
             variant="ghost"
-            className="max-md:h-9"
             disabled={disabled}
             // Settled only so a retry that fails again is not an unhandled
             // rejection: the coordinator has already put the failure back on
@@ -90,7 +84,6 @@ export function ReplyComposerFooter({
           <Button
             size="sm"
             variant="ghost"
-            className="max-md:h-9"
             disabled={disabled}
             // Settled only so a refused delete is not an unhandled rejection:
             // the delete mutation's `errorMessage` (use-reply-actions.ts)
@@ -124,44 +117,41 @@ export function ReplyComposerFooter({
             the tooltip too and both descriptions are live at once — which is
             why `aria-describedby` is spelled out below rather than left to
             either party. */}
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button
-                size="sm"
-                className="max-md:h-9 aria-disabled:opacity-50"
-                disabled={disabled || (!canSubmit && submitBlockedReason === null)}
-                aria-disabled={submitBlockedReason !== null}
-                // Both descriptions, spelled here rather than left to Radix.
-                // `TooltipTrigger asChild` merges through `Slot`, where the
-                // CHILD wins a non-handler prop — so a bare
-                // `aria-describedby={submitBlockedReasonId}` overwrote the id
-                // Radix points at the open tooltip, and the publication
-                // guarantee became unreachable in exactly the state that also
-                // shows a blocking reason. An id whose element is not mounted
-                // is ignored, so listing both is safe while the tooltip is shut.
-                aria-describedby={[
-                  submitBlockedReason !== null ? submitBlockedReasonId : null,
-                  error ? errorId : null,
-                  guaranteeId,
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-                // The early return is the guard: there is no form and no
-                // `AlertDialogTrigger` here, so nothing downstream reads a
-                // prevented default (unlike `reply-message-actions.tsx`, where
-                // the trigger honours one).
-                onClick={() => {
-                  if (!canSubmit) return
-                  void onSubmit()
-                }}
-              >
-                {isSubmitting ? 'Submitting…' : 'Submit for approval'}
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent id={guaranteeId}>{PUBLICATION_GUARANTEE}</TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
+        <Tooltip delayDuration={0}>
+          <TooltipTrigger asChild>
+            <Button
+              size="sm"
+              disabled={disabled || (!canSubmit && submitBlockedReason === null)}
+              aria-disabled={submitBlockedReason !== null}
+              // Both descriptions, spelled here rather than left to Radix.
+              // `TooltipTrigger asChild` merges through `Slot`, where the
+              // CHILD wins a non-handler prop — so a bare
+              // `aria-describedby={submitBlockedReasonId}` overwrote the id
+              // Radix points at the open tooltip, and the publication
+              // guarantee became unreachable in exactly the state that also
+              // shows a blocking reason. An id whose element is not mounted
+              // is ignored, so listing both is safe while the tooltip is shut.
+              aria-describedby={[
+                submitBlockedReason !== null ? submitBlockedReasonId : null,
+                error ? errorId : null,
+                guaranteeId,
+              ]
+                .filter(Boolean)
+                .join(' ')}
+              // The early return is the guard: there is no form and no
+              // `AlertDialogTrigger` here, so nothing downstream reads a
+              // prevented default (unlike `reply-message-actions.tsx`, where
+              // the trigger honours one).
+              onClick={() => {
+                if (!canSubmit) return
+                void onSubmit()
+              }}
+            >
+              {isSubmitting ? 'Submitting…' : 'Submit for approval'}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent id={guaranteeId}>{PUBLICATION_GUARANTEE}</TooltipContent>
+        </Tooltip>
       </div>
       {/* One region, always mounted, holding its message conditionally.
           A live region has to be in the document — and in the accessibility

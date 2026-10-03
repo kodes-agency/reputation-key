@@ -37,10 +37,8 @@ export function InboxListError({
 }: Readonly<{ error: string; onRetry: () => void; isRetrying?: boolean }>) {
   return (
     <div className="p-4">
-      {/* Compact density: the list pane's controls are 36px on a phone. */}
       <RegionError
         size="compact"
-        density="compact"
         message={error}
         onRetry={onRetry}
         retrying={isRetrying}

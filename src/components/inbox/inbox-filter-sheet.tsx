@@ -22,6 +22,7 @@ import {
   type InboxFilterOption,
 } from './inbox-filter-options'
 import { countActiveInboxFilters, type InboxListFilterValues } from './inbox-filters'
+import { IconButton } from '#/components/ui/icon-button'
 
 // The group heading already says what "All" is all of ("All ratings" under
 // "Rating" would read twice), so the first choice of each group is plain "All".
@@ -94,12 +95,12 @@ export function InboxFilterSheet({
   return (
     <Sheet>
       <SheetTrigger asChild>
-        <Button
+        <IconButton
           variant="ghost"
           size="icon"
-          className="relative size-9"
+          className="relative"
           data-inbox-filter-trigger
-          aria-label={activeCount > 0 ? `Filters, ${activeCount} active` : 'Filters'}
+          label={activeCount > 0 ? `Filters, ${activeCount} active` : 'Filters'}
         >
           <Filter />
           {activeCount > 0 && (
@@ -110,24 +111,22 @@ export function InboxFilterSheet({
               {activeCount}
             </span>
           )}
-        </Button>
+        </IconButton>
       </SheetTrigger>
       <SheetContent
         side="bottom"
         showCloseButton={false}
         className="max-h-[85dvh] gap-0 rounded-t-xl p-0"
       >
-        <div className="flex h-11 shrink-0 items-center justify-between border-b px-4">
+        <div
+          data-density="compact"
+          className="flex h-11 shrink-0 items-center justify-between border-b px-4"
+        >
           <SheetTitle className="text-base">Sort and filter</SheetTitle>
           <SheetClose asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="-mr-2.5 size-9"
-              aria-label="Close"
-            >
+            <IconButton variant="ghost" className="-mr-2.5" label="Close" tooltip={false}>
               <X />
-            </Button>
+            </IconButton>
           </SheetClose>
         </div>
         <SheetDescription className="sr-only">
@@ -191,17 +190,11 @@ export function InboxFilterSheet({
           />
         </div>
         <div className="flex shrink-0 gap-2 border-t px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          <Button
-            variant="outline"
-            size="lg"
-            className="h-11"
-            disabled={!canClear}
-            onClick={clearAll}
-          >
+          <Button variant="outline" size="lg" disabled={!canClear} onClick={clearAll}>
             Clear all
           </Button>
           <SheetClose asChild>
-            <Button ref={primaryRef} size="lg" className="h-11 flex-1">
+            <Button ref={primaryRef} size="lg" className="flex-1">
               {resultsLabel(totalCount, isLoading)}
             </Button>
           </SheetClose>

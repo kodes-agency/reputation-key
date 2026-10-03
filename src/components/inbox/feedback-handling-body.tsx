@@ -67,14 +67,10 @@ const noOutcomeSentence = (closeReason: FeedbackHandlingState['closeReason']): s
  * with no action below leaves `Add note` primary for the plainer reason that
  * there is nothing else for the accent to be.
  *
- * `max-md:h-9` is row 20's 36 px control height over `size="sm"`'s 32 — the
- * height of the note form's `Add note` directly above it (a default-size
- * `Button`, `inbox-notes-thread.tsx`) and of the reply footer's controls
- * (`reply-composer-footer.tsx`), so region 4's column of controls keeps one
- * height. v1's row 15 had made it 44 (`max-md:h-11`), which on a feedback item
- * put a 44 px primary under a 36 px `Add note`. Measured in Chromium against
- * Storybook dev (`inbox-mobile-390--feedback-open`) at 390 and 320: 44 px tall
- * before, 36 after.
+ * Below `md` it is 36 px, the Inbox's compact density, so it matches the note
+ * form's `Add note` directly above it (`inbox-notes-thread.tsx`) and the reply
+ * footer's controls (`reply-composer-footer.tsx`): region 4's column of controls
+ * keeps one height.
  */
 function ActionFoot({
   label,
@@ -82,7 +78,7 @@ function ActionFoot({
 }: Readonly<{ label: string; onClick: () => void }>): ReactNode {
   return (
     <div className="flex shrink-0 justify-end">
-      <Button size="sm" variant="default" className="max-md:h-9" onClick={onClick}>
+      <Button size="sm" variant="default" onClick={onClick}>
         {label}
       </Button>
     </div>

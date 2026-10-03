@@ -96,6 +96,7 @@ export function InboxDetailSheet({
           shift the 16 px gutter by 1 px. */}
       <SheetContent
         side="right"
+        data-density="compact"
         showCloseButton={false}
         className="flex w-full flex-col gap-0 overflow-hidden max-sm:border-l-0 sm:max-w-lg"
       >
@@ -126,15 +127,8 @@ export function InboxDetailSheet({
         {!isCaseToolbarShown(detailState) || !detailState.currentItem ? (
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
             {detailState.error ? (
-              // The pane's controls are 36px on a phone, not the 44px default
-              // (row 20: WCAG 2.5.8 AA asks for 24, and 44 is what inflated the
-              // phone pane), so Try again takes the compact density. This surface
-              // only renders below `md`. Measured in Chromium against Storybook
-              // dev at 390 (`inbox-detail-sheet--error-state`): 44px before the
-              // density, 36px after.
               <RegionError
                 size="compact"
-                density="compact"
                 message={detailState.error}
                 onRetry={detailState.refetch}
                 retrying={detailState.retrying}

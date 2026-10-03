@@ -12,28 +12,11 @@ import { EmptyState } from '#/components/ui/empty-state'
 // Copy: "The goal couldn’t be loaded." One sentence naming the thing, past
 // tense, curly apostrophe. Never "Retry", "Check again" or "Please try again".
 
-/**
- * How tall the recovery is on a phone, until the Button carries a density of its
- * own (plan D1, decision 1).
- *
- *   default  the 44px touch target
- *   compact  the named dense-workspace density, 36px: the Inbox's panes, whose
- *            controls were measured at 36px on purpose (WCAG 2.5.8 AA asks for
- *            24, and 44 is what inflated the phone pane)
- */
-export type RetryDensity = 'default' | 'compact'
-
-const PHONE_HEIGHT: Readonly<Record<RetryDensity, string>> = {
-  default: 'max-md:min-h-11',
-  compact: 'max-md:h-9',
-}
-
 type RetryButtonProps = Readonly<{
   onRetry: () => void
   /** The retry is reading. The button stays (so focus does not fall to <body>) but is inert. */
   retrying?: boolean
   size?: 'sm' | 'xs'
-  density?: RetryDensity
 }>
 
 /**
@@ -44,14 +27,12 @@ export function RetryButton({
   onRetry,
   retrying = false,
   size = 'sm',
-  density = 'default',
 }: RetryButtonProps) {
   return (
     <Button
       type="button"
       variant="outline"
       size={size}
-      className={size === 'sm' ? PHONE_HEIGHT[density] : undefined}
       // aria-disabled, not disabled: a focused button that becomes disabled drops
       // focus to <body> in Chromium.
       aria-disabled={retrying || undefined}
@@ -86,7 +67,6 @@ type Props = Readonly<{
    */
   retrying: boolean
   size?: 'default' | 'compact'
-  density?: RetryDensity
   /** Leave the region instead of trying again, beside Try again (a dialog's Cancel). */
   onCancel?: () => void
 }>
@@ -97,7 +77,6 @@ export function RegionError({
   onRetry,
   retrying,
   size = 'default',
-  density = 'default',
   onCancel,
 }: Props) {
   return (
@@ -109,15 +88,9 @@ export function RegionError({
       description={description}
       action={
         <div className="flex flex-wrap items-center justify-center gap-2">
-          <RetryButton onRetry={onRetry} retrying={retrying} density={density} />
+          <RetryButton onRetry={onRetry} retrying={retrying} />
           {onCancel ? (
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className={PHONE_HEIGHT[density]}
-              onClick={onCancel}
-            >
+            <Button type="button" variant="outline" size="sm" onClick={onCancel}>
               Cancel
             </Button>
           ) : null}

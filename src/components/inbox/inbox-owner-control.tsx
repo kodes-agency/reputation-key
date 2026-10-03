@@ -240,7 +240,6 @@ export function InboxOwnerControl({
           <DropdownMenuItem
             key={choice.userId ?? 'release'}
             aria-current={choice.isCurrent ? 'true' : undefined}
-            className="max-md:min-h-11"
             onSelect={() => onAssign(choice.userId)}
           >
             {choice.label}

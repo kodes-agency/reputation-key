@@ -187,7 +187,7 @@ function RowOpenButton({
       aria-current={isActive ? 'true' : undefined}
       aria-label={view.accessibleName}
       aria-describedby={view.owner.isAssigned ? ownerDescriptionId : undefined}
-      className="flex min-w-0 flex-1 gap-2 rounded-sm text-left outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className="flex min-w-0 flex-1 gap-2 rounded-sm text-left focus-ring"
       onClick={() => onOpen(item)}
     >
       <span className="min-w-0 flex-1">

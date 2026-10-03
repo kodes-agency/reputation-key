@@ -49,11 +49,12 @@ type Props = Omit<ReplyAiMenuProps & ReplyTemplateMenuProps, 'isPrimary'> &
  *
  * Mobile (row 20): 36 px, not v1's 44. WCAG 2.5.8 AA asks for 24 px, and 44 on
  * every half of two split buttons is what turned the phone's composer into a
- * block of large buttons (plan finding 6). `max-md:h-9` on `Undo` (a `size="sm"`
- * button), `max-md:min-h-9` on the link-styled fix buttons, which wrap rather
- * than sit on one line; menu ITEMS inside the two menus keep `max-md:min-h-11`
- * — stacked edge to edge with no gap, they are a different target class. `max-md:`,
- * not unconditional: the desktop pane is dense on purpose.
+ * block of large buttons (plan finding 6). The Inbox is a compact workspace
+ * (`data-density="compact"`), so every Button here takes the 36 px touch height
+ * from the primitive; the link-styled fix buttons are `size="xs"`, which wrap
+ * rather than sit on one line, so they reach it by `min-height` on the same
+ * token. Menu ITEMS inside the two menus are 44 px on a phone: stacked edge to
+ * edge with no gap, they are a different target class.
  */
 export function ReplySuggestionControls(props: Props) {
   // The recommended path leads. `primaryMode` is `template` whenever the review
@@ -77,7 +78,6 @@ export function ReplySuggestionControls(props: Props) {
             type="button"
             size="sm"
             variant="outline"
-            className="max-md:h-9"
             disabled={props.disabled || props.aiDisabled}
             onClick={() => void props.onRequestAi('friendly')}
           >
@@ -87,11 +87,10 @@ export function ReplySuggestionControls(props: Props) {
             type="button"
             size="sm"
             variant="outline"
-            className="max-md:h-9"
             disabled={props.disabled || props.aiDisabled}
             onClick={() => void props.onRequestAi()}
           >
-            <RotateCcw data-icon="inline-start" aria-hidden="true" /> Try again
+            <RotateCcw aria-hidden="true" /> Try again
           </Button>
         </>
       )}
@@ -100,11 +99,10 @@ export function ReplySuggestionControls(props: Props) {
           type="button"
           size="sm"
           variant="ghost"
-          className="max-md:h-9"
           disabled={props.disabled}
           onClick={props.onUndo}
         >
-          <Undo2 data-icon="inline-start" /> Undo
+          <Undo2 /> Undo
         </Button>
       )}
       {/* One region, always mounted, holding its message conditionally. A live
@@ -176,11 +174,11 @@ function SuggestionErrorLine(props: SuggestionErrorLineProps) {
               type="button"
               size="xs"
               variant="link"
-              className="px-0 max-md:min-h-9"
+              className="px-0 max-md:min-h-(--control-touch)"
               disabled={props.disabled}
               onClick={props.onUseTemplateInstead}
             >
-              <FileText data-icon="inline-start" aria-hidden="true" />
+              <FileText aria-hidden="true" />
               Use a template instead
             </Button>
           )}
@@ -188,7 +186,12 @@ function SuggestionErrorLine(props: SuggestionErrorLineProps) {
       )}
       {props.errorFixTarget === 'public_display_name' &&
         (canManagePortalBrand ? (
-          <Button asChild size="xs" variant="link" className="max-md:min-h-9">
+          <Button
+            asChild
+            size="xs"
+            variant="link"
+            className="max-md:min-h-(--control-touch)"
+          >
             <Link
               to="/properties/$propertyId/settings/profile"
               params={{ propertyId: props.propertyId }}
@@ -201,7 +204,12 @@ function SuggestionErrorLine(props: SuggestionErrorLineProps) {
         ))}
       {props.errorFixTarget === 'ai_settings' &&
         (canManageAi ? (
-          <Button asChild size="xs" variant="link" className="max-md:min-h-9">
+          <Button
+            asChild
+            size="xs"
+            variant="link"
+            className="max-md:min-h-(--control-touch)"
+          >
             <Link
               to="/properties/$propertyId/settings/ai"
               params={{ propertyId: props.propertyId }}
@@ -229,11 +237,11 @@ function RetryAfterButton(
       type="button"
       size="xs"
       variant="link"
-      className="px-0 max-md:min-h-9"
+      className="px-0 max-md:min-h-(--control-touch)"
       disabled={props.disabled || seconds > 0}
       onClick={props.onRetry}
     >
-      <RotateCcw data-icon="inline-start" aria-hidden="true" />
+      <RotateCcw aria-hidden="true" />
       {seconds > 0 ? (
         <span>
           Try again in <span className="tabular-nums">{seconds}s</span>

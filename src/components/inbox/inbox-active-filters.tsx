@@ -56,7 +56,7 @@ function ActiveFiltersRow({ rowRef, chips, onRemove, onClearAll }: RowProps) {
           type="button"
           data-active-filter-chip
           aria-label={`Remove filter: ${chip.label}`}
-          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border bg-background pr-2 pl-3 text-xs font-medium outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          className="inline-flex h-8 shrink-0 items-center gap-1 rounded-full border bg-background pr-2 pl-3 text-xs font-medium focus-ring"
           onClick={(event) => onRemove(chip, index, event.currentTarget)}
         >
           {chip.label}
@@ -66,7 +66,10 @@ function ActiveFiltersRow({ rowRef, chips, onRemove, onClearAll }: RowProps) {
       {chips.length >= 2 && (
         <Button
           variant="ghost"
-          className="h-8 shrink-0 px-2 text-xs"
+          size="sm"
+          // Chip height (32px) on a phone as well: the row is chips, and this is
+          // the last of them, not a control of its own.
+          className="shrink-0 px-2 text-xs max-md:min-h-0"
           onClick={(event) => onClearAll(event.currentTarget)}
         >
           Clear all

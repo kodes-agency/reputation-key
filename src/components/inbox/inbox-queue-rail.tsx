@@ -48,7 +48,7 @@ function QueueButton({
       )}
       onClick={onSelect}
     >
-      <Icon className="size-4" aria-hidden="true" />
+      <Icon aria-hidden="true" />
       <span>{item.label}</span>
       {count !== null && count > 0 && (
         <span

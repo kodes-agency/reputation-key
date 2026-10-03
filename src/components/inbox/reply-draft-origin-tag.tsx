@@ -94,8 +94,8 @@ function TagWords({ parts }: Readonly<{ parts: ReplyDraftOriginParts }>) {
  * lost its top and left edges (measured: a 3 px ring at the scrollport edge).
  *
  * Mobile (row 20): the trigger gets `max-md:min-h-9` so the one tappable thing
- * on this line is a 36 px target, and the menu's rows keep `max-md:min-h-11`
- * like every other assist menu row.
+ * on this line is a 36 px target, and the menu's rows are 44 px like every
+ * other assist menu row.
  */
 export function ReplyDraftOriginTag(props: Props) {
   const parts = replyDraftOriginParts(props.origin)
@@ -136,7 +136,6 @@ export function ReplyDraftOriginTag(props: Props) {
         {choices.map((choice) => (
           <DropdownMenuItem
             key={choice.tag}
-            className="max-md:min-h-11"
             onSelect={() => props.onRegenerate(choice.tag)}
           >
             <Globe2 aria-hidden="true" />

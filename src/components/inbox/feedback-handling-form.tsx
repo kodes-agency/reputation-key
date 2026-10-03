@@ -88,7 +88,7 @@ export function FeedbackHandlingForm(props: Props) {
                   // on the item itself. `min-h-`, not `h-`, because `Reviewed —
                   // no additional step` wraps at 320 px. Same spelling as
                   // `inbox-reopen-dialog.tsx`.
-                  <SelectItem key={outcome} className="max-md:min-h-11" value={outcome}>
+                  <SelectItem key={outcome} value={outcome}>
                     {feedbackHandlingOutcomeLabel(outcome)}
                   </SelectItem>
                 ))}

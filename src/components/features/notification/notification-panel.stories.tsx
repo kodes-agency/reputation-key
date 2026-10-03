@@ -157,11 +157,11 @@ export const Default: Story = {
     expect(
       canvas.getByText(`${needsYouCount} notifications need you`),
     ).toBeInTheDocument()
-    // A 36 px control on a phone bar (size-8 elsewhere); geometry is the
-    // Playwright metrics gate's, since Tailwind is not compiled in this runner.
-    // This only pins the class; the real check is `inbox-phone-chrome.metrics.ts`
-    // ("notification bell").
-    expect(bell).toHaveClass('max-md:size-9')
+    // A 36 px control on a phone bar (the top bar's compact density; size-8
+    // elsewhere); geometry is the Playwright metrics gate's, since Tailwind is not
+    // compiled in this runner. This only pins the class; the real check is
+    // `inbox-phone-chrome.metrics.ts` ("notification bell").
+    expect(bell).toHaveClass('max-md:min-w-(--control-touch)')
   },
 }
 

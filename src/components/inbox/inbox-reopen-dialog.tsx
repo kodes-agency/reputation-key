@@ -122,7 +122,7 @@ export function InboxReopenDialog({
           `Close` out of the DOM, which is the name `inbox-triage.spec.ts:85`
           and `:222` assert a count of zero for. Escape and the overlay still
           dismiss. */}
-      <DialogContent showCloseButton={false}>
+      <DialogContent showCloseButton={false} data-density="compact">
         <DialogHeader>
           <DialogTitle>
             {itemCount === 1 ? 'Reopen work' : `Reopen ${itemCount} items`}
@@ -147,25 +147,10 @@ export function InboxReopenDialog({
               <SelectTrigger
                 id="inbox-reopen-reason"
                 aria-label="Reason for reopening"
-                // No class. The trigger is a CONTROL, and row 20's height for a
-                // control below `md` is 36 px — which is exactly what the
-                // primitive already draws (`ui/select.tsx`,
-                // `data-[size=default]:h-9`). v1's row 15 raised it to 44 with
-                // BOTH `max-md:h-11` and `max-md:data-[size=default]:h-11`,
-                // because the primitive's `data-[size=…]` selector outranks a
-                // bare `h-11`; lowering to 36 means deleting both, not
-                // re-spelling them as a `max-md:h-9` that would only restate
-                // the default. Measured in Chromium against Storybook dev
-                // (`inbox-reopen-dialog--refused`) at 390 and 320: 44 px tall
-                // before, 36 after.
-                //
-                // NOT only the pane's: the inbox LIST's bulk `Reopen` wraps its
-                // toolbar button in this same dialog (`inbox-bulk-actions.tsx`
-                // `<InboxReopenDialog>`), so the list's phone bulk-reopen
-                // dialog lost its 44 px too — an accepted change to a surface
-                // the plan otherwise leaves alone (row 20's PR 5 amendment).
-                // Measured on `inbox-bulk-actions--reopen-closed` after
-                // pressing `Reopen`: this trigger 153.5x36 at 390 and 320.
+                // No class: the dialog is a compact surface (`data-density`),
+                // so the trigger is 36 px below `md`, the Inbox's control
+                // height. The bulk `Reopen` in the list wraps its toolbar
+                // button in this same dialog (`inbox-bulk-actions.tsx`).
               >
                 <SelectValue placeholder="Choose a reason" />
               </SelectTrigger>
@@ -179,11 +164,7 @@ export function InboxReopenDialog({
                   // durable explanation for why the cycle came back. Measured
                   // 44 px each, zero gap between neighbours, at 390 and 320.
                   // `min-h-`, because these labels wrap at 320 px.
-                  <SelectItem
-                    key={option.value}
-                    className="max-md:min-h-11"
-                    value={option.value}
-                  >
+                  <SelectItem key={option.value} value={option.value}>
                     {option.label}
                   </SelectItem>
                 ))}
@@ -205,25 +186,9 @@ export function InboxReopenDialog({
           <FormErrorBanner error={refusal} />
         </div>
         <DialogFooter>
-          {/* No class on either button. `Button`'s default size is 36 px,
-              which is row 20's control height below `md`; v1's row 15 had
-              raised both to 44 here (`max-md:h-11`), the way it raised the
-              publish confirmation in `reply-message-actions.tsx`, and row 20
-              lowers both back to the primitive's own 36 — one tap from the
-              pane, since the case toolbar's `Work status` control opens this
-              dialog directly. Measured in Chromium against Storybook dev
-              (`inbox-reopen-dialog--refused`): 44 px tall before, 36 after,
-              at 390 and 320.
-
-              The same markup is the inbox LIST's bulk-reopen dialog
-              (`inbox-bulk-actions.tsx` wraps its `Reopen` in
-              `<InboxReopenDialog>`), so on a phone that dialog's `Cancel` and
-              `Reopen` dropped from 44 px to 36 as well: measured on
-              `inbox-bulk-actions--reopen-closed`, 308x36 each at 390 and
-              238x36 at 320, with the five reasons still 44 px rows. That
-              matches the list's sibling `InboxBulkAssignmentDialog`, whose
-              buttons carry no mobile class, and it is recorded as an accepted
-              change to an out-of-scope surface in row 20's PR 5 amendment. */}
+          {/* No class on either button: the dialog is compact (`data-density`), so
+              both are 36 px below `md`. The same markup is the list's bulk-reopen
+              dialog (`inbox-bulk-actions.tsx`). */}
           <Button
             type="button"
             variant="outline"

@@ -8,7 +8,6 @@
 // permanently visible trigger, not a hover-only affordance.
 
 import { BellOff, Check, MoreHorizontal, Trash2, Undo2 } from 'lucide-react'
-import { Button } from '#/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +21,7 @@ import {
   type NotificationView,
 } from '#/contexts/feed/application/public-api'
 import type { NotificationRowActions } from './types'
+import { IconButton } from '#/components/ui/icon-button'
 
 type Props = Readonly<{
   notification: NotificationView
@@ -54,15 +54,16 @@ export function NotificationRowMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
+        <IconButton
           data-row-control="menu"
           variant="ghost"
           size="icon-xs"
           className="text-muted-foreground"
-          aria-label={`More actions for: ${title}`}
+          tooltip={false}
+          label={`More actions for: ${title}`}
         >
           <MoreHorizontal aria-hidden="true" />
-        </Button>
+        </IconButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
         {!isSettled && isUnread && (

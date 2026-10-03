@@ -15,6 +15,7 @@ import { InboxFilterPopover } from './inbox-filter-popover'
 import { InboxFilterSheet } from './inbox-filter-sheet'
 import type { InboxListFilterValues } from './inbox-filters'
 import { InboxListSearch } from './inbox-list-search'
+import { IconButton } from '#/components/ui/icon-button'
 
 type Props = Readonly<{
   queueLabel: string
@@ -90,15 +91,9 @@ function PhoneControls({
   }>) {
   return (
     <>
-      <Button
-        variant="ghost"
-        size="icon"
-        className="size-9"
-        aria-label="Search"
-        onClick={onOpenSearch}
-      >
+      <IconButton variant="ghost" size="icon" label="Search" onClick={onOpenSearch}>
         <Search />
-      </Button>
+      </IconButton>
       <InboxFilterSheet
         filters={filters}
         sort={sort}
@@ -126,9 +121,9 @@ function WideControls({
 }: ControlsProps) {
   return (
     <>
-      <Button variant="ghost" size="icon-sm" aria-label="Search" onClick={onOpenSearch}>
+      <IconButton variant="ghost" size="icon-sm" label="Search" onClick={onOpenSearch}>
         <Search />
-      </Button>
+      </IconButton>
       <ButtonGroup>
         <InboxFilterPopover value={filters} onChange={onFiltersChange} />
         <Select value={sort} onValueChange={(value) => onSortChange(value as InboxSort)}>

@@ -748,7 +748,7 @@ export const NeedsCheckWhileSaving: Story = {
   play: async ({ canvas }) => {
     const check = canvas.getByRole('button', { name: 'Check Google again' })
     expect(check).toBeDisabled()
-    expect(check).toHaveAttribute('aria-busy', 'false')
+    expect(check).not.toHaveAttribute('aria-busy')
     expect(canvas.queryByRole('button', { name: 'Checking Google…' })).toBeNull()
   },
 }
@@ -885,7 +885,7 @@ async function expectCheckMovedTheReplyOn(
 async function expectCheckEnabledAgain(message: ReturnType<typeof within>) {
   const check = await message.findByRole('button', { name: 'Check Google again' })
   await waitFor(() => expect(check).toBeEnabled())
-  expect(check).toHaveAttribute('aria-busy', 'false')
+  expect(check).not.toHaveAttribute('aria-busy')
   expect(check.querySelector('svg')).toBeNull()
 }
 

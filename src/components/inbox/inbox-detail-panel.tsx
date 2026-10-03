@@ -57,7 +57,6 @@ export function InboxDetailPanel({
           {detailState.error ? (
             <RegionError
               size="compact"
-              density="compact"
               message={detailState.error}
               onRetry={() => detailState.refetch()}
               retrying={detailState.retrying}

@@ -125,14 +125,18 @@ export const SidebarLocked: Story = {
     const trigger = await canvas.findByRole('button', { name: /toggle sidebar/i })
     expect(trigger).toHaveClass('md:hidden')
     // Phone grid: a 44 px bar, a 36 px trigger whose glyph (not its box) lands
-    // on the 16 px gutter, and the 28 px avatar's right edge on the gutter.
-    // Tailwind is not compiled in this runner, so the geometry itself is the
-    // Playwright metrics gate's; this pins the classes that produce it. The
-    // real check is `inbox-phone-chrome.metrics.ts` ("app top bar").
-    expect(canvasElement.querySelector('header')).toHaveClass('max-md:h-11')
-    expect(trigger).toHaveClass('max-md:size-9', 'max-md:-ml-2.5')
+    // on the 16 px gutter, and the 28 px avatar's right edge on the gutter. The
+    // bar is a compact workspace, so its controls read the 36 px touch token from
+    // the Button; the margins pull the glyphs onto the gutter. Tailwind is not
+    // compiled in this runner, so the geometry itself is the Playwright metrics
+    // gate's; this pins the classes that produce it. The real check is
+    // `inbox-phone-chrome.metrics.ts` ("app top bar").
+    const header = canvasElement.querySelector('header')
+    expect(header).toHaveClass('max-md:h-11')
+    expect(header).toHaveAttribute('data-density', 'compact')
+    expect(trigger).toHaveClass('max-md:min-w-(--control-touch)', 'max-md:-ml-2.5')
     expect(canvas.getByRole('button', { name: 'Account menu' })).toHaveClass(
-      'max-md:size-9',
+      'max-md:min-w-(--control-touch)',
       'max-md:-mr-1',
     )
   },

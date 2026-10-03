@@ -233,7 +233,7 @@ function StatusMember({
           // alone, so a long outcome truncates here while the owner and flag
           // squares keep their 36 px. The accessible name is the `aria-label`,
           // so an ellipsis on screen never shortens what is announced.
-          className="min-w-0 shrink gap-2 max-md:h-9"
+          className="min-w-0 shrink gap-2"
         >
           {dot}
           <span className="truncate">{label}</span>
@@ -244,8 +244,8 @@ function StatusMember({
         {/* A menu ITEM keeps 44 px below `md`: it is a different target class
             from a toolbar control, stacked edge to edge with no gap between
             neighbours, and it was never what inflated the row (row 20). */}
-        <DropdownMenuItem className="max-md:min-h-11" onSelect={onReopen}>
-          <RotateCcw data-icon="inline-start" />
+        <DropdownMenuItem onSelect={onReopen}>
+          <RotateCcw />
           Reopen
         </DropdownMenuItem>
       </DropdownMenuContent>

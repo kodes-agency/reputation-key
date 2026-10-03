@@ -67,7 +67,7 @@ export function FeedbackHandlingDialog(props: Props) {
           properly sized exit. It also keeps the pane's count of controls
           named exactly `Close` at zero — the number `inbox-triage.spec.ts:85`
           and `:222` assert. Escape and the overlay still dismiss. */}
-      <DialogContent showCloseButton={false}>
+      <DialogContent showCloseButton={false} data-density="compact">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription>{description}</DialogDescription>

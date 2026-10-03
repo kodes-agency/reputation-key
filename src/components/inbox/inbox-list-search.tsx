@@ -1,6 +1,6 @@
 import { Search, X } from 'lucide-react'
-import { Button } from '#/components/ui/button'
 import { Input } from '#/components/ui/input'
+import { IconButton } from '#/components/ui/icon-button'
 
 export function InboxListSearch({
   value,
@@ -25,7 +25,7 @@ export function InboxListSearch({
         aria-label="Search reviews"
         placeholder="Search reviews"
         value={value ?? ''}
-        className="h-8 min-w-0 flex-1 border-0 px-0 shadow-none focus-visible:ring-0 max-md:h-9"
+        className="h-8 min-w-0 flex-1 border-0 px-0 shadow-none focus-visible:ring-0"
         onChange={(event) => onChange(event.target.value || undefined)}
         onKeyDown={(event) => {
           if (event.key === 'Escape') close()
@@ -37,15 +37,15 @@ export function InboxListSearch({
         </span>
       ) : null}
       {/* 36px on phones, pulled out 10px so the 16px X glyph sits on the right gutter. */}
-      <Button
+      <IconButton
         variant="ghost"
         size="icon-sm"
-        className="max-md:-mr-2.5 max-md:size-9"
+        className="max-md:-mr-2.5"
         onClick={close}
-        aria-label="Close search"
+        label="Close search"
       >
         <X />
-      </Button>
+      </IconButton>
     </div>
   )
 }
