@@ -13,7 +13,7 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { InboxQueueCounts } from '#/contexts/inbox/application/public-api'
 import { InboxQueueStrip } from './inbox-queue-strip'
-import { STRIP_FADE_PX } from './inbox-queue-strip-scroll'
+import { STRIP_FADE_PX } from '#/components/ui/strip-scroll'
 
 /**
  * Whether Tailwind is compiled here. Storybook proper is; the Vitest runner is

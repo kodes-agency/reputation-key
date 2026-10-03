@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useState, type RefObject } from 'react'
-import { stripEdgesFor, type StripEdges } from './inbox-queue-strip-scroll'
+import { stripEdgesFor, type StripEdges } from './strip-scroll'
 
 // Until measured, claim everything fits: no fade is the safe first paint.
 const FITS: StripEdges = { atStart: true, atEnd: true }

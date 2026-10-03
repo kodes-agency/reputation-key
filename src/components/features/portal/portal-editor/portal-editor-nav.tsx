@@ -19,12 +19,12 @@ import { Link } from '@tanstack/react-router'
 import { CircleAlert, Lock } from 'lucide-react'
 import { cn } from '#/lib/utils'
 import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
-import { useStripOverflow } from '#/components/inbox/use-strip-overflow'
+import { useStripOverflow } from '#/components/ui/use-strip-overflow'
 import {
   STRIP_FADE_PX,
   stripFadeStyle,
   stripScrollLeftFor,
-} from '#/components/inbox/inbox-queue-strip-scroll'
+} from '#/components/ui/strip-scroll'
 import { PORTAL_EDITOR_SECTION_ICONS } from './portal-editor-section-icons'
 import {
   PORTAL_EDITOR_SECTION_GROUPS,

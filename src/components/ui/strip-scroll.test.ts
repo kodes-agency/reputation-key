@@ -4,7 +4,7 @@ import {
   stripEdgesFor,
   stripFadeStyle,
   stripScrollLeftFor,
-} from './inbox-queue-strip-scroll'
+} from './strip-scroll'
 
 // A 320 px strip whose 16 px scroll padding is where a snapped pill starts.
 const VIEW = { clientWidth: 320, padding: 16 }

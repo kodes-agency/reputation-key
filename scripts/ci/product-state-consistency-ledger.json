@@ -598,10 +598,10 @@
       "policy": "The selection stores its originating filter scope; a changed scope renders an empty selection and the setter rebases future ids onto the current scope."
     },
     {
-      "id": "src/components/inbox/use-strip-overflow.ts:useState(edges)",
+      "id": "src/components/ui/use-strip-overflow.ts:useState(edges)",
       "classification": "local_runtime",
-      "owner": "Inbox strip scroll fade",
-      "policy": "Which edges of a horizontally scrolling inbox strip (the queue strip, the active-filters row) have pills out of reach, measured from the DOM on every render, on scroll and on resize. It only decides whether the strip draws an edge fade, holds no server-owned record, and returns the previous object while the answer is unchanged so scrolling does not re-render each frame."
+      "owner": "Strip scroll fade",
+      "policy": "Which edges of a horizontally scrolling strip (the Inbox queue strip, the active-filters row, a section nav) have items out of reach, measured from the DOM on every render, on scroll and on resize. It only decides whether the strip draws an edge fade, holds no server-owned record, and returns the previous object while the answer is unchanged so scrolling does not re-render each frame."
     },
     {
       "id": "src/components/ui/sidebar.tsx:useState(_open)",
