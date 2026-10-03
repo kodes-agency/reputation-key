@@ -8,15 +8,18 @@ import {
   requestPortalApprovedDestination,
   revealPortalAddress,
   revokePortalTokens,
+  rollbackPortalPublication,
   rotatePortalToken,
   savePortalLocalizedOverride,
   savePropertyPortalBrandContent,
-  savePropertyPortalBrandProfile,
   updatePortal,
 } from '#/contexts/portal/server/portals'
+import { downloadPortalPrintKit } from '#/contexts/portal/server/portal-print-kit'
+import { publishPortalChanges } from '#/contexts/portal/server/portal-publish-changes'
 import { updatePortalResponsibleManagers } from '#/contexts/portal/server/portal-responsible-managers'
 import type { Action } from '#/components/hooks/use-action'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import { openPageErrorMessage } from '#/components/features/portal/portal-workspace/portal-open-page'
 import { portalKeys } from '#/shared/queries/query-keys'
 import type { UpdatePortalVariables } from '#/components/features/portal/shared/types'
 import type { PortalQueryResult } from './-portal-detail-data'
@@ -88,10 +91,6 @@ function usePortalExperienceActions(propertyId: string, portalId: string) {
     portalKeys.publicationHistory(portalId),
     portalKeys.links(portalId),
   ]
-  const saveProfile = useActionMutation(savePropertyPortalBrandProfile, {
-    successMessage: 'Property brand saved',
-    invalidateKeys: experienceInvalidations,
-  })
   const saveContent = useActionMutation(savePropertyPortalBrandContent, {
     successMessage: 'Guest content saved',
     invalidateKeys: experienceInvalidations,
@@ -113,13 +112,22 @@ function usePortalExperienceActions(propertyId: string, portalId: string) {
     invalidateKeys: destinationInvalidations,
   })
   return {
-    saveProfile,
     saveContent,
     saveOverride,
     requestDestination,
     approveDestination,
     disableDestination,
   }
+}
+
+/**
+ * The workspace header's "Open page": the same reveal as "Download again", for
+ * the purpose "show". It says why it failed itself (a rate limit, a retired
+ * key) in Open page's words, because the header has no banner to carry the error.
+ * It shares the reveal's budget with "Download again" (ADR 0064).
+ */
+export function usePortalOpenPageReveal() {
+  return useActionMutation(revealPortalAddress, { errorMessage: openPageErrorMessage })
 }
 
 /**
@@ -144,6 +152,9 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
   // Silent: the address appearing is the acknowledgement. Nothing to refetch,
   // since a download changes no state the page shows (History reads it itself).
   const revealAddress = useActionMutation(revealPortalAddress)
+  // Silent on success (the browser's own download is the acknowledgement); the
+  // Print kit section shows a refusal under its button.
+  const downloadPrintKit = useActionMutation(downloadPortalPrintKit)
   const revokeToken = useActionMutation(revokePortalTokens, {
     successMessage: 'All codes stopped',
     invalidateKeys: tokenInvalidations,
@@ -162,6 +173,27 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
       portalKeys.responsibleManagers(portalId),
     ],
   })
+  // "Make live again": moves the live activation to another version. The
+  // Portal's detail holds the History reads and the header's status, and the
+  // Portals overview shows what is live, so all three follow.
+  const makeVersionLive = useActionMutation(rollbackPortalPublication, {
+    successMessage: 'The version is live again',
+    invalidateKeys: [
+      portalKeys.detail(portalId),
+      portalKeys.list(propertyId),
+      portalKeys.overview(propertyId),
+    ],
+  })
+  // Publish the draft of a Portal that is live: the next version replaces the
+  // live one. A Portal that is not live goes live through `update`. The page
+  // reports the outcome, so there is no toast here.
+  const publishChanges = useActionMutation(publishPortalChanges, {
+    invalidateKeys: [
+      portalKeys.detail(portalId),
+      portalKeys.list(propertyId),
+      portalKeys.overview(propertyId),
+    ],
+  })
   const experience = usePortalExperienceActions(propertyId, portalId)
 
   return {
@@ -171,8 +203,11 @@ export function usePortalDetailActions(propertyId: string, portalId: string) {
     rotateToken,
     revokeToken,
     revealAddress,
+    downloadPrintKit,
     completeReview,
     updateResponsibleManagers,
+    makeVersionLive,
+    publishChanges,
     experience,
   }
 }

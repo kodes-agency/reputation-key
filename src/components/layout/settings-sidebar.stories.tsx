@@ -104,3 +104,31 @@ export const AsMember: Story = {
     }
   },
 }
+
+// One collapse mode for the whole app: the icon rail. The shell shares a single
+// open state between this sidebar and ManagerSidebar, so collapsing the app
+// sidebar on any page and opening Settings must leave a rail with the section
+// links and 'Back to app' reachable, not a sidebar slid off-screen. A class pin:
+// Tailwind is not compiled in this runner, so the rail's width is the browser's.
+export const CollapsedToIconRail: Story = {
+  decorators: [
+    withRole('AccountAdmin'),
+    // The nearest provider wins: this one holds the sidebar collapsed.
+    (Story) => (
+      <SidebarProvider open={false} style={{ minHeight: '100vh' }}>
+        <Story />
+      </SidebarProvider>
+    ),
+  ],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const sidebar = canvasElement.querySelector('[data-slot="sidebar"]')
+    expect(sidebar).toHaveAttribute('data-state', 'collapsed')
+    expect(sidebar).toHaveAttribute('data-collapsible', 'icon')
+    expect(
+      await canvas.findByRole('link', { name: /^back to app$/i }),
+    ).toBeInTheDocument()
+    expect(canvas.getByRole('link', { name: /^profile$/i })).toBeInTheDocument()
+    expect(canvas.getByRole('link', { name: /^members$/i })).toBeInTheDocument()
+  },
+}

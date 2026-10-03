@@ -353,7 +353,8 @@ const baseEnvSchema = z.object({
   // shared/auth/beta-capabilities.ts). The Playwright stack sets E2E=1
   // (compose.local.yml); production must never set it.
   E2E: z.literal('1').optional(),
-  // Org slugs/IDs suspended from the beta (B0.5 operator controls).
+  // Organizations suspended from the beta (B0.5 operator controls):
+  // comma-separated Organization IDs — not slugs; a slug matches nothing.
   BETA_SUSPENDED_ORGS: z.string().optional(),
   // Deployed request-edge contract. Production defaults to Railway's documented
   // X-Real-IP edge headers; local/test defaults to trusting no forwarding header.

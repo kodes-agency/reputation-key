@@ -140,6 +140,90 @@
 // which s40 recorded at 331,663 B): 332,881 B (80 js + 1 css), +1,218 B. `main`
 // had 337 B of headroom under its 332,000 B. The budget moves to 333,300 B.
 //
+// 2026-10-01 (Portal round 4, s18, the guest quality gate): measured on a fresh
+// production build of this branch merged (trial merge, aborted) onto origin/main
+// at cfd084377: entry 43,769 B, initial closure 333,126 B (79 js + 1 css), 174 B
+// under the unchanged 333,300 B. The slice adds stories, a story fixture, e2e
+// helpers and a Playwright config, and no module a production build reaches, so
+// the figure is main's own (main has moved since, through s30's live preview and
+// s35b's page-edit ledger, and is the reason it is not the 333,029 B first
+// recorded against 80fa0fad7). The Immersive Hub page is not in this closure at
+// all yet (the route does not mount it before slice 19); its own CSS is
+// TypeScript strings that ship with the page's JavaScript, and the guest font
+// stylesheet and 16 woff2 files sit in public/fonts/guest, outside
+// .output/public/assets. Slice 19, which mounts the page, is the one that moves
+// this figure, and 174 B of headroom is less than it will need: it must
+// re-measure and raise the budget with a fresh figure recorded here.
+//
+// 2026-10-01 (inbox phone bars, #675): the phone grid for the inbox bars, the
+// "Sort and filter" sheet, its choice chips and the active-filter chips add
+// about 25 phone-only Tailwind utilities (gutters, optical pulls, the sheet's
+// shape, the rows' resting gutter and tap targets) to the one global
+// stylesheet; the components themselves are in the inbox's lazy chunks. Three
+// utilities that only a comment or a story named were cut first (-21 B). Fresh
+// production builds of main (cfd084377) and of this change rebased onto it:
+// 333,126 B -> 333,447 B (79 js + 1 css), +321 B: styles.css 26,580 B ->
+// 26,895 B (+315 B), the entry chunk 43,769 B -> 43,760 B. `main` had 174 B of
+// headroom under its 333,300 B. The budget moves to 333,800 B.
+//
+// 2026-10-01 (Portal round 4, s19, the v3 writer and the guest mount): fresh
+// production builds of main (021f6bcc6) and of this change: 333,126 B -> 333,290
+// B (79 js + 1 css), +164 B, all of it in the entry chunk (43,769 B -> 43,933 B):
+// the guest route's loader now reads the page's copy pack and `servedAt`, and
+// the route's component names the Immersive Hub. Every other chunk, the
+// stylesheet and the chunk count are unchanged. The Immersive Hub page itself is
+// NOT in this closure: its code and its CSS strings (TypeScript strings that
+// ship with the page's JavaScript) sit in the guest route's lazy component
+// chunk, and the copy packs sit behind a dynamic import. The first attempt
+// imported the pack loader from the guest barrel inside the loader, which is in
+// the route's critical chunk: that put the whole guest page into the initial
+// closure (383,029 B, +49,903 B), so the loader imports the loader's own module
+// dynamically and a comment on it says why. The budget moves to 333,700 B, which
+// leaves 410 B for the slices that follow.
+//
+// 2026-10-01 (Portal round 4, s31b, the Review & publish page): the review
+// route's loader now fetches the review read afresh on each entry, so the
+// route's critical chunk carries one more query (portalReviewQuery in
+// -portal-detail-data, with the server-function stub of getPortalReview and the
+// publish stub the editor's actions hold) and the query key; the page itself
+// (portal-review/) is in the route's lazy component chunk. Fresh production
+// builds of main (8ffd8e3f3) and of this change: 334,045 B (81 js + 1 css) ->
+// 335,082 B (84 js + 1 css), +1,037 B, three more shared stub chunks. `main` had
+// 255 B of headroom under its 334,300 B. The budget moves to 335,700 B.
+//
+// 2026-10-01 (Portal round 4, s42c2, the Property look's photo and logo
+// controls): the controls and their dialogs are in the look route's lazy
+// component chunk, so the JavaScript closure barely moves (the entry chunk
+// 44,483 B -> 44,530 B). The one global stylesheet grows by ten utilities the
+// focal-point circle, the logo swatch and the two-column dialog need (689 B raw):
+// `cursor-grab`, `touch-none`, `size-1`, `bg-neutral-900` and the like. Arbitrary
+// values, a ring, a rendered-empty alert and three one-off sizes were cut first.
+// Fresh production builds of main (0ea2f2547, with s31b and s39b) and of this
+// change merged onto it: 335,331 B -> 335,517 B (83 js + 1 css), +186 B. `main`
+// had 369 B of headroom under its 335,700 B. The budget moves to 335,900 B.
+//
+// 2026-10-02 (Portal round 4, s47b, click a part of the preview to edit it):
+// the preview's part boxes and the language sheet are in the portal editor's lazy
+// chunks; the initial closure moves by ten bytes (a shared stub chunk). The CI
+// production build of this change merged onto main measured 335,910 B (83 js + 1
+// css) against the 335,900 B budget. The budget moves to 336,300 B.
+//
+// 2026-10-03 (UI consistency, stage S1: safety bugs, link layer and shell
+// ownership): A1 (guarded Portal route errors), B1 (link layer in @layer base,
+// sidebar classes) and B2 (page gutter owner, theme control, dashboard tier)
+// were each measured alone, never together. Fresh production builds of main
+// (484f3cc2b) and of the combined stage branch: 336,222 B -> 336,691 B (82 js + 1
+// css) before the review fixes, +469 B (A1 +371, B1 +16 and B2 +73 alone, 9 B
+// more together), which left 9 B under the 336,700 B A1 had raised to. The review
+// fixes add 22 B on top (336,691 B -> 336,713 B): mostly the Portal list
+// fallbacks' dashboard tier, so they stop narrowing the page while it loads
+// (that chunk +15 B), the account menu's generated label id and phone touch
+// target (entry chunk +9 B) and the stylesheet (+6 B). Final measurement:
+// 336,713 B (82 js + 1 css, entry 45,629 B), +491 B over main. The budget moves
+// to 336,800 B, which leaves 87 B. This is baseline growth, so it waits for the
+// owner's approval at the S1 pull request (plan decision 12); the alternative is
+// to cut the guarded error hook out of the router's first paint.
+//
 // When this fails: resolve the new static importer and cut that source edge. Do
 // NOT raise the budget without recording a fresh production measurement here.
 // When a cycle fails it: the chunk group that moved a module away from the
@@ -155,7 +239,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 333_300, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730; raised to 331,400 on 2026-10-01 for the Linktree editor rebased onto the Languages section, measured 331,093; raised to 332,000 on 2026-10-01 for the All properties route, measured 331,663 (main 331,230)
+  initialClosureGzip: 336_800, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730; raised to 331,400 on 2026-10-01 for the Linktree editor rebased onto the Languages section, measured 331,093; raised to 332,000 on 2026-10-01 for the All properties route, measured 331,663 (main 331,230); raised to 333,300 for the group page route, measured 332,881; raised to 333,800 on 2026-10-01 for the inbox phone bars, measured 333,447 (main 333,126); raised to 334,300 on 2026-10-01 for the v3 writer and the guest mount rebased onto the inbox phone bars, measured 334,045 (main 333,447); raised to 335,700 on 2026-10-01 for the Review & publish page's loader, measured 335,082 (main 334,045); raised to 335,900 on 2026-10-01 for the Property look photo and logo controls, measured 335,517 (main 335,331); raised to 336,300 on 2026-10-02 for the click-to-edit preview, measured 335,910; raised to 336,700 on 2026-10-03 for the Portal route errors' guarded boundary (sanitised message, report, sign-in redirect, Try again, shared with the router default: UI consistency A1), measured 336,593 (main 336,222); raised to 336,800 on 2026-10-03 for the combined S1 stage (A1 + B1 + B2 + review fixes, see the 2026-10-03 entry above), measured 336,713, pending the owner's approval
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 

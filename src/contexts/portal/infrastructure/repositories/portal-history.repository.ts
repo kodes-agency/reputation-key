@@ -7,27 +7,36 @@ import {
 } from '#/shared/db/schema/portal-publication.schema'
 import { portalAddressDownloads, portalTokens } from '#/shared/db/schema/portal.schema'
 import { unbrand } from '#/shared/domain/ids'
+import type { LoggerPort } from '#/shared/domain/logger.port'
 import { trace } from '#/shared/observability/trace'
-import type {
-  PortalCodeDownloadRow,
-  PortalCodeIssuanceRow,
-  PortalCodeRevocationRow,
-  PortalHistoryPage,
-  PortalHistoryRepository,
-  PortalPageEditRow,
-  PortalPublicationEventRow,
+import {
+  MAX_HISTORY_SOURCE_ROWS,
+  type PortalCodeDownloadRow,
+  type PortalCodeIssuanceRow,
+  type PortalCodeRevocationRow,
+  type PortalHistoryPage,
+  type PortalHistoryRepository,
+  type PortalPageEditRow,
+  type PortalPublicationEventRow,
+  type PortalPublishedVersionRow,
 } from '../../application/ports/portal-history.repository'
 import { PORTAL_PAGE_EDIT_KINDS } from '../../domain/portal-page-edit'
 import { historyBoundCondition, historyIdOrder } from '../portal-history-bound'
+import { snapshotFromRow } from './portal-publication.repository'
 
-const MAX_SOURCE_ROWS = 100
+const MAX_SOURCE_ROWS = MAX_HISTORY_SOURCE_ROWS
+/** Versions one read lists; far more than a Portal is ever published. */
+const MAX_VERSION_ROWS = 201
 
 const clamp = (page: PortalHistoryPage): number =>
   Number.isSafeInteger(page.limit)
     ? Math.min(MAX_SOURCE_ROWS, Math.max(1, page.limit))
     : 21
 
-export const createPortalHistoryRepository = (db: Database): PortalHistoryRepository => ({
+export const createPortalHistoryRepository = (
+  db: Database,
+  logger?: LoggerPort,
+): PortalHistoryRepository => ({
   listPublicationEvents: (orgId, propertyIdValue, portalIdValue, page) =>
     trace('portalHistory.listPublicationEvents', async () => {
       const a = portalPublicationActivations
@@ -64,6 +73,48 @@ export const createPortalHistoryRepository = (db: Database): PortalHistoryReposi
         ...row,
         kind: row.kind === 'rollback' ? 'rollback' : 'publish',
       }))
+    }),
+
+  listPublishedVersions: (orgId, propertyIdValue, portalIdValue, limit) =>
+    trace('portalHistory.listPublishedVersions', async () => {
+      const s = portalPublicationSnapshots
+      const rows = await db
+        .select()
+        .from(s)
+        .where(
+          and(
+            eq(s.organizationId, unbrand(orgId)),
+            eq(s.propertyId, unbrand(propertyIdValue)),
+            eq(s.portalId, unbrand(portalIdValue)),
+          ),
+        )
+        .orderBy(desc(s.version))
+        .limit(Math.min(MAX_VERSION_ROWS, Math.max(1, limit)))
+      return rows.flatMap((row): PortalPublishedVersionRow[] => {
+        const snapshot = snapshotFromRow(row)
+        // An immutable snapshot that stops verifying is an integrity problem,
+        // not a missing row: say so, since the list will simply skip it.
+        if (!snapshot) {
+          logger?.warn(
+            {
+              portalId: row.portalId,
+              snapshotId: row.id,
+              version: row.version,
+            },
+            'Portal publication snapshot no longer verifies and is left out of History',
+          )
+        }
+        return snapshot
+          ? [
+              {
+                version: snapshot.version,
+                publishedAt: snapshot.createdAt,
+                publishedBy: snapshot.createdBy,
+                configuration: snapshot.configuration,
+              },
+            ]
+          : []
+      })
     }),
 
   listCodeIssuances: (orgId, propertyIdValue, portalIdValue, page) =>

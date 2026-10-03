@@ -6,6 +6,7 @@
 import { SegmentedControl } from '#/components/ui/segmented-control'
 import {
   GUEST_LOCALE_METADATA,
+  adminLanguageCode,
   type OfferedGuestLocale,
 } from '#/shared/domain/guest-locale'
 
@@ -33,16 +34,19 @@ export function LinktreeLocaleTabs({
       aria-label={naming['aria-label']}
       value={active}
       disabled={disabled}
+      // Six languages with "missing" on five is wider than a phone: wrap.
+      className="max-w-full flex-wrap"
       onValueChange={(value) => {
         const next = locales.find((locale) => locale === value)
         if (next !== undefined) onChange(next)
       }}
       options={locales.map((locale) => {
-        const { chipLabel, englishName } = GUEST_LOCALE_METADATA[locale]
+        const { englishName } = GUEST_LOCALE_METADATA[locale]
+        const code = adminLanguageCode(locale)
         const isMissing = missing.includes(locale)
         return {
           value: locale,
-          label: isMissing ? `${chipLabel} missing` : chipLabel,
+          label: isMissing ? `${code} missing` : code,
           accessibleLabel: englishName,
         }
       })}

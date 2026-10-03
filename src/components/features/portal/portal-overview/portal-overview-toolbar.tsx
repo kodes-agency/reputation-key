@@ -1,9 +1,12 @@
 // Search, filter, group and sort for the Portals overview. Every control writes
 // the URL through `onChange`; nothing here keeps state of its own. The same
 // shape as the Properties list's toolbar: sort lives in a menu at every width,
-// because the stacked layout has no column headers to click.
+// because the stacked layout has no column headers to click. The one filter is
+// a toggle that names what it keeps and how many, and it is left out while no
+// Portal needs attention, as it would keep nothing.
 import { ArrowDownUp, ListFilter, ListTree, Search } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { cn } from '#/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -26,6 +29,7 @@ import {
   type PortalOverviewSort,
   type SortDirection,
 } from './portal-overview-search-schema'
+import { offersAttentionFilter } from './portal-attention'
 
 const SORT_LABEL: Readonly<Record<PortalOverviewSort, string>> = {
   name: 'Name',
@@ -42,8 +46,8 @@ const DIRECTION_LABEL: Readonly<
 }
 
 const GROUP_BY_LABEL: Readonly<Record<PortalOverviewGroupBy, string>> = {
-  group: 'Group',
-  none: 'Nothing',
+  group: 'Portal group',
+  none: 'None',
 }
 
 const CONTROL_HEIGHT = 'h-11 md:h-9'
@@ -59,6 +63,8 @@ type Props = Readonly<{
   search: PortalOverviewSearch
   matched: number
   total: number
+  /** Every Portal that needs attention, before the search (`PortalOverviewPage`). */
+  needingAttention?: number
   /** Offered only where the results are shown to this reader. */
   canSortByScans: boolean
   onChange: (patch: Partial<PortalOverviewSearch>) => void
@@ -73,6 +79,7 @@ export function PortalOverviewToolbar({
   search,
   matched,
   total,
+  needingAttention = 0,
   canSortByScans,
   onChange,
 }: Props) {
@@ -83,6 +90,7 @@ export function PortalOverviewToolbar({
     (option) => option !== 'scans' || canSortByScans,
   )
   const narrowed = (search.q ?? '').trim() !== '' || search.show !== undefined
+  const attentionOnly = search.show === 'attention'
   const searchLabel =
     scope === 'organization' ? 'Search portals or properties' : 'Search portals'
 
@@ -104,29 +112,24 @@ export function PortalOverviewToolbar({
 
       {scope === 'property' ? (
         <>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className={CONTROL_HEIGHT}>
-                <ListFilter aria-hidden="true" />
-                Show: {search.show === 'attention' ? 'Needs attention' : 'All'}
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="start" className="min-w-52">
-              <DropdownMenuRadioGroup
-                value={search.show ?? 'all'}
-                onValueChange={(value) =>
-                  onChange({ show: value === 'attention' ? 'attention' : undefined })
-                }
-              >
-                <DropdownMenuRadioItem value="all" className={MENU_ITEM}>
-                  All portals
-                </DropdownMenuRadioItem>
-                <DropdownMenuRadioItem value="attention" className={MENU_ITEM}>
-                  Needs attention
-                </DropdownMenuRadioItem>
-              </DropdownMenuRadioGroup>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          {offersAttentionFilter(needingAttention, search) ? (
+            <Button
+              variant="outline"
+              size="sm"
+              aria-pressed={attentionOnly}
+              className={cn(
+                CONTROL_HEIGHT,
+                attentionOnly && 'border-primary bg-primary/10 hover:bg-primary/15',
+              )}
+              onClick={() => onChange({ show: attentionOnly ? undefined : 'attention' })}
+            >
+              <ListFilter aria-hidden="true" />
+              Needs attention
+              <span className="text-muted-foreground tabular-nums">
+                {needingAttention}
+              </span>
+            </Button>
+          ) : null}
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

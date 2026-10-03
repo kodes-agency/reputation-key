@@ -10,7 +10,8 @@
 // Groups are made in the New group dialog and managed on each group's page; the
 // head of a group in the table links there and carries the group's actions.
 import { useState, type ReactNode } from 'react'
-import { FolderPlus, Globe, Plus, SearchX } from 'lucide-react'
+import { Link } from '@tanstack/react-router'
+import { FolderPlus, Globe, Palette, Plus, SearchX } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { Button } from '#/components/ui/button'
@@ -26,6 +27,10 @@ import { PortalGroupMenu } from './portal-group/portal-group-menu'
 import type { PortalGroupMutations } from './portal-group/portal-group-mutations'
 import type { PortalArchiveMutations } from './portal-overview/portal-archive-dialog'
 import { PortalOverviewPager } from './portal-overview/portal-overview-pager'
+import {
+  PHONE_NEW_PORTAL_BAR_CLEARANCE,
+  PortalPhoneNewPortalBar,
+} from './portal-overview/portal-phone-new-portal-bar'
 import {
   PortalOverviewResultsFooter,
   PortalOverviewResultsStrip,
@@ -54,6 +59,8 @@ export type PortalListPageProps = PortalArchiveMutations &
     propertyName: string
     /** The results beside the list; left out, the list is shown without them. */
     results?: PortalOverviewResultsControls
+    /** Items waiting in the Property's Inbox; the strip links to them. Null leaves it out. */
+    inboxWaiting?: number | null
     search: PortalOverviewSearch
     onSearchChange: (next: PortalOverviewSearch) => void
     /** Every group of the Property, so one with no Portal can still be reached. */
@@ -72,6 +79,7 @@ type PortalListBodyProps = Readonly<{
   isEmpty: boolean
   newPortalButton: ReactNode
   results: PortalListPageProps['results']
+  inboxWaiting: number | null
   resultsState: PortalOverviewResultsState
   listSearch: PortalOverviewSearch
   overview: ReturnType<typeof buildPortalOverview>
@@ -79,6 +87,7 @@ type PortalListBodyProps = Readonly<{
   propertyName: string
   archiveMutation: PortalListPageProps['archiveMutation']
   restoreMutation: PortalListPageProps['restoreMutation']
+  disableMutation: PortalListPageProps['disableMutation']
   renameMutation: PortalListPageProps['renameMutation']
   archiveGroupMutation: PortalListPageProps['archiveGroupMutation']
   onChange: (patch: Partial<PortalOverviewSearch>) => void
@@ -89,6 +98,7 @@ function PortalListBody({
   isEmpty,
   newPortalButton,
   results,
+  inboxWaiting,
   resultsState,
   listSearch,
   overview,
@@ -96,6 +106,7 @@ function PortalListBody({
   propertyName,
   archiveMutation,
   restoreMutation,
+  disableMutation,
   renameMutation,
   archiveGroupMutation,
   onChange,
@@ -110,13 +121,18 @@ function PortalListBody({
   ) : (
     <>
       {results ? (
-        <PortalOverviewResultsStrip controls={results} propertyId={propertyId} />
+        <PortalOverviewResultsStrip
+          controls={results}
+          propertyId={propertyId}
+          inboxWaiting={inboxWaiting}
+        />
       ) : null}
       <section aria-label="Portal list" className="flex flex-col gap-4">
         <PortalOverviewToolbar
           search={listSearch}
           matched={overview.matched}
           total={overview.total}
+          needingAttention={overview.needingAttention}
           canSortByScans={resultsState.status !== 'off'}
           onChange={onChange}
         />
@@ -137,6 +153,7 @@ function PortalListBody({
               propertyName={propertyName}
               archiveMutation={archiveMutation}
               restoreMutation={restoreMutation}
+              disableMutation={disableMutation}
               results={resultsState}
               busy={results?.busy}
               groupActions={(group) => (
@@ -175,10 +192,12 @@ export function PortalListPage({
   propertyId,
   propertyName,
   results,
+  inboxWaiting = null,
   search,
   onSearchChange,
   archiveMutation,
   restoreMutation,
+  disableMutation,
   groups,
   createMutation,
   renameMutation,
@@ -219,16 +238,33 @@ export function PortalListPage({
       </Button>
     ) : undefined
 
+  // The look is read by everyone who may read portals; only an Account Admin edits it.
+  const propertyLookButton = can('portal.read') ? (
+    <Button variant="outline" className="min-h-11 sm:min-h-9" asChild>
+      <Link to="/properties/$propertyId/portals/look" params={{ propertyId }}>
+        <Palette />
+        Property look
+      </Link>
+    </Button>
+  ) : undefined
+
   const canCreate = can('portal.create')
+  const openNewPortal = () => update({ new: true })
   const newPortalButton = canCreate ? (
-    <Button className="min-h-11 sm:min-h-9" onClick={() => update({ new: true })}>
+    <Button className="min-h-11 sm:min-h-9" onClick={openNewPortal}>
       <Plus />
       New portal
     </Button>
   ) : undefined
+  const isEmpty = rows.length === 0 && groups.length === 0
+  // An empty list offers New portal in its own message; a list has the phone bar.
+  const hasPhoneBar = canCreate && !isEmpty
 
   return (
-    <PageShell tier="dashboard">
+    <PageShell
+      tier="dashboard"
+      className={hasPhoneBar ? PHONE_NEW_PORTAL_BAR_CLEARANCE : undefined}
+    >
       <PageHeader
         title="Portals"
         description={describe(rows.length, propertyName)}
@@ -239,8 +275,13 @@ export function PortalListPage({
         ]}
         actions={
           <>
+            {propertyLookButton}
             {newGroupButton}
-            {newPortalButton}
+            {hasPhoneBar ? (
+              <span className="hidden sm:contents">{newPortalButton}</span>
+            ) : (
+              newPortalButton
+            )}
           </>
         }
       />
@@ -248,15 +289,17 @@ export function PortalListPage({
         error={
           archiveMutation.error ??
           restoreMutation.error ??
+          disableMutation?.error ??
           archiveGroupMutation.error ??
           renameMutation.error
         }
       />
 
       <PortalListBody
-        isEmpty={rows.length === 0 && groups.length === 0}
+        isEmpty={isEmpty}
         newPortalButton={newPortalButton}
         results={results}
+        inboxWaiting={inboxWaiting}
         resultsState={resultsState}
         listSearch={listSearch}
         overview={overview}
@@ -264,6 +307,7 @@ export function PortalListPage({
         propertyName={propertyName}
         archiveMutation={archiveMutation}
         restoreMutation={restoreMutation}
+        disableMutation={disableMutation}
         renameMutation={renameMutation}
         archiveGroupMutation={archiveGroupMutation}
         onChange={update}
@@ -275,6 +319,7 @@ export function PortalListPage({
         rows={rows}
         createMutation={createMutation}
       />
+      {hasPhoneBar ? <PortalPhoneNewPortalBar onClick={openNewPortal} /> : null}
       {canCreate ? (
         <PortalNewDialog
           open={search.new === true}

@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, screen, userEvent, waitFor, within } from 'storybook/test'
-import { overviewGroup, overviewRow } from './portal-overview/portal-overview-fixtures'
+import { expect, fn, screen, userEvent, waitFor, within } from 'storybook/test'
+import {
+  OLDER_CODE,
+  overviewGroup,
+  overviewRow,
+} from './portal-overview/portal-overview-fixtures'
 import { MAX_SEARCH_LENGTH } from './portal-overview/portal-overview-search-schema'
 import {
   ControlledPage,
@@ -23,16 +27,37 @@ const meta: Meta<typeof ControlledPage> = {
 export default meta
 type Story = StoryObj<typeof ControlledPage>
 
-export const Default: Story = { args: baseArgs }
+export const Default: Story = {
+  args: baseArgs,
+  // The Property look is one click from the list, as board 1 draws it.
+  play: async ({ canvasElement }) => {
+    await expect(
+      within(canvasElement).getByRole('link', { name: 'Property look' }),
+    ).toHaveAttribute('href', '/properties/prop-1/portals/look')
+  },
+}
+
+/**
+ * The header's New portal. The phone's bottom bar repeats it (board 11) and CSS
+ * decides which one shows; story tests run without CSS, so both are in the tree,
+ * the header's first.
+ */
+function headerNewPortalButton(canvasElement: HTMLElement): HTMLElement {
+  const [header, phone] = within(canvasElement).getAllByRole('button', {
+    name: 'New portal',
+  })
+  if (header === undefined || phone?.closest('.sm\\:hidden') == null) {
+    throw new Error('expected New portal in the header and in the phone bar')
+  }
+  return header
+}
 
 // "New portal" opens the dialog over the list (the page keeps it in the URL);
 // Cancel closes it again.
 export const OpensTheNewPortalDialog: Story = {
   args: { ...baseArgs, newPortal: { data: newPortalData } },
   play: async ({ canvasElement }) => {
-    await userEvent.click(
-      within(canvasElement).getByRole('button', { name: 'New portal' }),
-    )
+    await userEvent.click(headerNewPortalButton(canvasElement))
     const dialog = within(await screen.findByRole('dialog'))
     await expect(dialog.getByRole('heading', { name: 'New portal' })).toBeInTheDocument()
     await expect(dialog.getByText('No one will be responsible yet')).toBeInTheDocument()
@@ -143,6 +168,24 @@ export const StatusOnlyByException: Story = {
   },
 }
 
+// A code issued before access artifacts works, but its scans are not counted: one
+// line, which leads to Share where the code is replaced. Not an "issue".
+export const OlderCodeLinksToShare: Story = {
+  args: {
+    ...baseArgs,
+    rows: [...rows, overviewRow('p-gym', { name: 'Gym', token: OLDER_CODE })],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const line = canvas.getByRole('link', { name: /older code · scans not counted/i })
+    const href = new URL(line.getAttribute('href') ?? '', 'http://localhost')
+    await expect(href.pathname).toBe('/properties/prop-1/portals/p-gym')
+    await expect(href.searchParams.get('tab')).toBe('share')
+    // Gym's own row carries it; no other Portal does.
+    await expect(canvas.getAllByText(/older code/i)).toHaveLength(1)
+  },
+}
+
 export const IssuesSaySpecifically: Story = {
   args: baseArgs,
   play: async ({ canvasElement }) => {
@@ -218,6 +261,88 @@ export const RecoverableLifecycle: Story = {
   },
 }
 
+const disableSpy = fn(
+  async (_input: { data: { portalId: string; publicationState: 'disabled' } }) =>
+    undefined,
+)
+
+/** A live page is taken down from the row's menu, after a confirmation. */
+export const DisablesALivePage: Story = {
+  args: {
+    ...baseArgs,
+    disableMutation: Object.assign(disableSpy, {
+      isPending: false,
+      error: null,
+      isSuccess: false,
+      data: null,
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    disableSpy.mockClear()
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: 'More actions for Reception' }),
+    )
+    await userEvent.click(
+      await within(document.body).findByRole('menuitem', {
+        name: 'Disable public page…',
+      }),
+    )
+    const dialog = within(
+      await within(document.body).findByRole('alertdialog', {
+        name: 'Disable the public page of Reception?',
+      }),
+    )
+    await userEvent.click(dialog.getByRole('button', { name: 'Disable public page' }))
+    await waitFor(() =>
+      expect(disableSpy).toHaveBeenCalledWith({
+        data: { portalId: 'p-reception', publicationState: 'disabled' },
+      }),
+    )
+  },
+}
+
+/** Cancel leaves the page live: nothing is written. */
+export const DisableCanBeCancelled: Story = {
+  args: {
+    ...baseArgs,
+    disableMutation: Object.assign(disableSpy, {
+      isPending: false,
+      error: null,
+      isSuccess: false,
+      data: null,
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    disableSpy.mockClear()
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: 'More actions for Reception' }),
+    )
+    await userEvent.click(
+      await within(document.body).findByRole('menuitem', {
+        name: 'Disable public page…',
+      }),
+    )
+    const dialog = await within(document.body).findByRole('alertdialog')
+    await userEvent.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+    await waitFor(() => expect(screen.queryByRole('alertdialog')).toBeNull())
+    await expect(disableSpy).not.toHaveBeenCalled()
+  },
+}
+
+/** A draft has nothing live to take down. */
+export const DraftOffersNoDisable: Story = {
+  args: baseArgs,
+  play: async ({ canvasElement }) => {
+    await userEvent.click(
+      within(canvasElement).getByRole('button', { name: 'More actions for Pool bar' }),
+    )
+    const menu = within(await within(document.body).findByRole('menu'))
+    await expect(
+      menu.queryByRole('menuitem', { name: /disable public page/i }),
+    ).toBeNull()
+  },
+}
+
 export const ArchivedCanBeRestored: Story = {
   args: {
     ...baseArgs,
@@ -275,16 +400,19 @@ export const NeedsAttentionFilter: Story = {
   args: baseArgs,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /show: all/i }))
-    await userEvent.click(
-      await within(document.body).findByRole('menuitemradio', {
-        name: 'Needs attention',
-      }),
-    )
+    const toggle = canvas.getByRole('button', { name: /needs attention/i })
+    await expect(toggle).toHaveAttribute('aria-pressed', 'false')
+    await userEvent.click(toggle)
     await waitFor(() =>
       expect(canvas.queryByRole('link', { name: 'Reception' })).toBeNull(),
     )
     await expect(canvas.getByRole('link', { name: 'Pool bar' })).toBeInTheDocument()
+    await expect(toggle).toHaveAttribute('aria-pressed', 'true')
+    // A second press shows every Portal again.
+    await userEvent.click(toggle)
+    await expect(
+      await canvas.findByRole('link', { name: 'Reception' }),
+    ).toBeInTheDocument()
   },
 }
 
@@ -292,9 +420,9 @@ export const FlatList: Story = {
   args: baseArgs,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /group by: group/i }))
+    await userEvent.click(canvas.getByRole('button', { name: /group by: portal group/i }))
     await userEvent.click(
-      await within(document.body).findByRole('menuitemradio', { name: 'Nothing' }),
+      await within(document.body).findByRole('menuitemradio', { name: 'None' }),
     )
     await waitFor(() =>
       expect(canvas.queryByRole('button', { name: /portals in/i })).toBeNull(),

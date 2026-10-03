@@ -1,12 +1,14 @@
 // A Portal's actions in the overview: Edit and Share as buttons, and everything
 // else behind "more actions". Share is not offered where there is nothing to
 // share: a draft has no code to give out, and an archived Portal is finished.
+// Its place stays, unseen, in a table row, so Edit sits in one column in every row.
 import { useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
 import { Ellipsis, Pencil, QrCode } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
-import { Button } from '#/components/ui/button'
+import { Button, buttonVariants } from '#/components/ui/button'
+import { cn } from '#/lib/utils'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,12 +18,17 @@ import {
 } from '#/components/ui/dropdown-menu'
 import { useOverviewClasses } from './portal-overview-density'
 import { PortalArchiveDialog, type PortalArchiveMutations } from './portal-archive-dialog'
+import { PortalDisableDialog } from './portal-disable-dialog'
 import type { PortalOverviewItem } from './portal-overview-view'
-import { portalRowMenu, type PortalRowMenuItem } from './portal-row-menu'
+import {
+  portalRowMenu,
+  type PortalRowMenuItem,
+  type PortalRowMenuItemId,
+} from './portal-row-menu'
 
-// The global `a` colour is unlayered, so a link used as a menu item pins its ink.
-const ITEM = 'min-h-11 text-foreground! md:min-h-8'
-const BUTTON = 'min-h-11 md:min-h-8'
+// A 44 px target below `md`, 32 px from there up. A link used as a menu item
+// takes the menu's ink (`dropdown-menu-item` opts out of the link default).
+const TOUCH = 'min-h-11 md:min-h-8'
 
 type RowProps = Readonly<{ item: PortalOverviewItem; propertyId: string }>
 
@@ -34,7 +41,7 @@ export function PortalRowButtons({ item, propertyId }: RowProps) {
   const canShare = row.publicationState !== 'draft' && row.publicationState !== 'archived'
   return (
     <>
-      <Button variant="outline" size="sm" asChild className={BUTTON}>
+      <Button variant="outline" size="sm" asChild className={TOUCH}>
         <Link
           to="/properties/$propertyId/portals/$portalId"
           params={params}
@@ -46,7 +53,7 @@ export function PortalRowButtons({ item, propertyId }: RowProps) {
         </Link>
       </Button>
       {canShare ? (
-        <Button variant="outline" size="sm" asChild className={BUTTON}>
+        <Button variant="outline" size="sm" asChild className={TOUCH}>
           <Link
             to="/properties/$propertyId/portals/$portalId"
             params={params}
@@ -57,7 +64,20 @@ export function PortalRowButtons({ item, propertyId }: RowProps) {
             <span className={classes.shareLabel}>Share</span>
           </Link>
         </Button>
-      ) : null}
+      ) : (
+        <span
+          aria-hidden="true"
+          className={cn(
+            buttonVariants({ variant: 'outline', size: 'sm' }),
+            TOUCH,
+            'invisible',
+            classes.sharePlaceholder,
+          )}
+        >
+          <QrCode />
+          <span className={classes.shareLabel}>Share</span>
+        </span>
+      )}
     </>
   )
 }
@@ -81,7 +101,7 @@ function MenuLink({
           : 'page',
   } as const
   return (
-    <DropdownMenuItem asChild className={ITEM}>
+    <DropdownMenuItem asChild className={TOUCH}>
       <Link to={to} params={params} search={search}>
         {menuItem.label}
       </Link>
@@ -94,6 +114,7 @@ export function PortalRowMenu({
   propertyId,
   archiveMutation,
   restoreMutation,
+  disableMutation,
   extra,
 }: RowProps &
   PortalArchiveMutations &
@@ -103,17 +124,15 @@ export function PortalRowMenu({
   }>) {
   const { can } = usePermissions()
   const { has } = useCapabilities()
-  const [confirming, setConfirming] = useState(false)
+  const [confirming, setConfirming] = useState<LifecycleId | null>(null)
   const { row } = item
   const menu = portalRowMenu(row, {
     canUpdate: can('portal.update'),
     canArchive: can('portal.delete'),
     portalWriteEnabled: has('portal.write'),
-  })
-  const links = menu.filter((entry) => entry.id !== 'archive' && entry.id !== 'restore')
-  const lifecycle = menu.filter(
-    (entry) => entry.id === 'archive' || entry.id === 'restore',
-  )
+  }).filter((entry) => entry.id !== 'disable' || disableMutation !== undefined)
+  const links = menu.filter((entry) => !isLifecycle(entry.id))
+  const lifecycle = menu.filter((entry) => isLifecycle(entry.id))
   return (
     <>
       <DropdownMenu>
@@ -144,27 +163,46 @@ export function PortalRowMenu({
             <DropdownMenuItem
               key={entry.id}
               variant={entry.destructive ? 'destructive' : 'default'}
-              className={
-                entry.destructive ? 'min-h-11 text-destructive! md:min-h-8' : ITEM
-              }
-              onSelect={() => setConfirming(true)}
+              className={TOUCH}
+              onSelect={() => setConfirming(lifecycleId(entry.id))}
             >
               {entry.label}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>
       </DropdownMenu>
-      {lifecycle.length > 0 ? (
+      {lifecycle.some((entry) => entry.id !== 'disable') ? (
         <PortalArchiveDialog
           portalId={row.portalId}
           portalName={row.name}
           restoring={row.publicationState === 'archived'}
-          open={confirming}
-          onOpenChange={setConfirming}
+          open={confirming === 'archive' || confirming === 'restore'}
+          onOpenChange={(open) => setConfirming(open ? confirming : null)}
           archiveMutation={archiveMutation}
           restoreMutation={restoreMutation}
         />
       ) : null}
+      {disableMutation !== undefined &&
+      lifecycle.some((entry) => entry.id === 'disable') ? (
+        <PortalDisableDialog
+          portalId={row.portalId}
+          portalName={row.name}
+          open={confirming === 'disable'}
+          onOpenChange={(open) => setConfirming(open ? 'disable' : null)}
+          disableMutation={disableMutation}
+        />
+      ) : null}
     </>
   )
+}
+
+/** The menu entries that open a confirmation rather than a page. */
+type LifecycleId = Extract<PortalRowMenuItemId, 'disable' | 'archive' | 'restore'>
+
+function isLifecycle(id: PortalRowMenuItemId): id is LifecycleId {
+  return id === 'disable' || id === 'archive' || id === 'restore'
+}
+
+function lifecycleId(id: PortalRowMenuItemId): LifecycleId | null {
+  return isLifecycle(id) ? id : null
 }

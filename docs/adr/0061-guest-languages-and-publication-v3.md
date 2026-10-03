@@ -22,8 +22,9 @@ immutable evidence:
   fails closed on an unknown version, and the digest is recomputed over the
   zod-parsed object, so a field the reader does not know is stripped and the
   digest stops matching.
-- The copy for es, it, fr and de is not written yet, and the redesigned guest
-  page needs new copy for en and bg too.
+- The copy for es, it, fr and de was not written when this ADR was accepted
+  (slice 41 drafted it, see Amendment 1), and the redesigned guest page needed
+  new copy for en and bg too.
 
 ## Decision
 
@@ -100,16 +101,88 @@ immutable evidence:
    guest page. Geographic availability is not localization (BETA.md §3), and
    the operational email stays English.
 
+9. **The writer switched (2026-10-01, slice 19).** Publishing writes schema
+   version 3 and nothing else; the silent fallback to a version 1 snapshot is
+   gone. A publication source is resolved by one pure function, which the
+   builder, the in-transaction comparison and the history read all use, so they
+   cannot disagree about what a publication is: a gap in the primary language
+   blocks publishing, a gap in another language is copied from the primary and
+   tagged `fallbackFrom`, the Linktree title reads its pack default and is never
+   copied, a language with no generation 2 pack cannot be published, a Property
+   with no Brand Profile publishes the default look (champagne on a dark
+   field), and an image that may no longer be served is left out. The pack a
+   publication writes is `currentGuestLanguagePack(locale, 2)`. Links are
+   flattened in category-then-link order, and categories reach no snapshot. A
+   v1 or v2 snapshot never matches a working copy, so a Portal published before
+   the switch reads as having changes to publish until it is published again;
+   until then it keeps the legacy renderer, which the public route still
+   chooses by `schemaVersion`.
+
 ## Consequences
 
 - Offering a language later is a registry entry and a pack, not a migration.
   The database accepts any of the six from migration 0043 on.
 - The application, not the database, is what keeps an unregistered language away
-  from guests. A snapshot row naming `guest-ui-de-v2` passes the CHECK and is
-  still rejected by the reader; an integration test proves both halves.
+  from guests. A snapshot row naming a pack the registry does not hold, such
+  as `guest-ui-de-v3`, passes the CHECK and is still rejected by the reader; an
+  integration test proves both halves.
 - Re-narrowing the CHECKs is safe only while no row uses a new locale. That
-  holds until the first non-en, non-bg language is offered.
+  held until the first non-en, non-bg language was offered; since Amendment 1
+  a Portal may use any of the six, so the CHECKs stay wide.
 - The same catalogue feeds events, DTOs, mappers and schema. Offering one of
   the six is one edit and a migration-free release; adding a seventh locale to
   the catalogue is one edit plus a widening migration, which drift detection
   demands.
+
+## Amendment 1 — es, it, fr and de are offered (round 4, slice 41)
+
+The four packs `guest-ui-es-v2`, `guest-ui-it-v2`, `guest-ui-fr-v2` and
+`guest-ui-de-v2` are registered, each as a generation 2 pack with no generation
+1 pack (these languages never had a legacy page, so `current` stays null for
+them), and all six locales are in `OFFERED_GUEST_LOCALES`. Per owner decision 5
+(2026-09-30) there is no native-speaker check during the closed beta: a
+language is offered when its pack is drafted.
+
+- **No migration and no new reader.** The CHECKs have admitted all six since
+  0043, and the verifier, the resolver and the writer already read the pack
+  registry. The registry and the packs ship in one release, so web and worker
+  deploy together: a reader built before it refuses a snapshot that names one
+  of the new packs, as it must.
+- **Register of address.** German is the formal "Sie" (the owner's German
+  glossary and round 4 board G10). French uses "vous", Spanish "usted", and
+  Italian "Lei" in sentences, with neutral forms on Italian buttons (`Invia`,
+  `Rimuovi`, the infinitive), never a tu imperative with a pronoun on the end.
+  The private note is a "Nachricht" / "message" where "note" would collide with
+  the rating in French. A pack test pins each register: no informal pronoun or
+  possessive, and none of a list of informal imperatives. It cannot know every
+  word, so a slip outside the lists still needs a native reader (deferred by
+  owner decision 5).
+- **Italian dates carry no article.** `Fino al {date}` would need `all'8` and
+  `all'11`, so the Italian date deadline reads `Scadenza: {date}, ore {time},
+ora di {zone}`; a test covers days 1, 8 and 11.
+- **UTC and fixed-offset zones.** The zone slot also takes `UTC` and `UTC+3`, so
+  German reads `Ortszeit UTC` and French `heure locale (UTC)`. That is accepted
+  for the rare Portal on such a zone and pinned in the deadline test.
+- **Decided: the spelling of Kyiv.** Every Latin-script pack (English, Spanish,
+  Italian, French, German) spells the city "Kyiv", matching the IANA zone id
+  `Europe/Kyiv`; the old id `Europe/Kiev` resolves to the same word. Bulgarian is
+  Cyrillic and keeps its own spelling. A pack test pins it (owner question 10,
+  taken at the recommended default).
+- **Template slots drive wording.** The property name never follows "de" in
+  French (it would need an elision before a vowel), and the French deadline
+  names the zone in brackets for the same reason.
+- **One loader entry per pack.** `loadGuestPortalCopyV2` reaches each pack
+  through its own dynamic import, so a request still ships one language. The
+  Linktree default title is pinned beside the Linktree rules for every
+  language, and a test holds it to the pack's own wording.
+- **Rollback.** Removing a language from `OFFERED_GUEST_LOCALES` stops
+  managers choosing it; it must not remove its pack or its registry entry,
+  because a snapshot that names the pack must verify for as long as it exists.
+  Two things follow. (1) Rolling the web image back to a release before this
+  one is a guest outage for every Portal that published one of the four new
+  languages: its version 3 snapshot names `guest-ui-{es,it,fr,de}-v2`, an older
+  reader does not hold that pack and refuses the snapshot, so the Portal shows
+  as unavailable. Roll forward instead. (2) After a language is de-offered, a
+  Portal that still holds it fails `asOfferedSet` in the language rules, so its
+  language section stops working until those Portals' language sets are handled
+  first; do that before de-offering.

@@ -40,8 +40,19 @@ describe('offeredLocales', () => {
     expect(offeredLocales(['en', 'bg'])).toEqual(['en', 'bg'])
   })
 
-  it('drops a language that has no reviewed pack yet', () => {
-    expect(offeredLocales(['en', 'de'])).toEqual(['en'])
+  it('keeps every guest language, since each has a pack', () => {
+    expect(offeredLocales(['en', 'es', 'it', 'fr', 'de', 'bg'])).toEqual([
+      'en',
+      'es',
+      'it',
+      'fr',
+      'de',
+      'bg',
+    ])
+  })
+
+  it('drops a language outside the catalogue', () => {
+    expect(offeredLocales(['en', 'pt' as never])).toEqual(['en'])
   })
 })
 
@@ -83,7 +94,7 @@ describe('linkLocaleChips', () => {
 
     expect(linkLocaleChips(tile, ['en', 'bg'])).toEqual([
       { locale: 'en', chip: 'EN', name: 'English', isMissing: false },
-      { locale: 'bg', chip: 'БГ', name: 'Bulgarian', isMissing: true },
+      { locale: 'bg', chip: 'BG', name: 'Bulgarian', isMissing: true },
     ])
   })
 

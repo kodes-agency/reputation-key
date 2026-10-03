@@ -4,11 +4,13 @@
 // about what a tab shows. The Page tab is the section editor (portal-editor/),
 // which lays itself out edge to edge, so it does not come through here.
 
+import { useCapabilities } from '#/shared/hooks/useCapabilities'
+import { usePermissions } from '#/shared/hooks/usePermissions'
 import { PortalAnalyticsTab } from '../portal-analytics/portal-analytics-tab'
-import { PortalPublicationHistoryCard } from '../portal-settings/portal-publication-history-card'
+import { PortalHistoryTab } from '../portal-history/portal-history-tab'
 import { PortalShare } from '../portal-share/portal-share'
 import type { PortalLinkIssuance } from '../portal-workspace/portal-link-issuance'
-import type { PortalDetailTab } from './portal-detail-rules'
+import { countPendingChanges, type PortalDetailTab } from './portal-detail-rules'
 import type { PortalDetailResources } from './portal-detail-types'
 
 type Props = PortalDetailResources &
@@ -34,6 +36,8 @@ type SharePanelProps = Pick<
   | 'rotateTokenMutation'
   | 'revokeTokenMutation'
   | 'revealAddressMutation'
+  | 'getPortalPrintKit'
+  | 'downloadPrintKitMutation'
 > &
   PortalLinkIssuance
 
@@ -44,6 +48,8 @@ function SharePanel({
   rotateTokenMutation,
   revokeTokenMutation,
   revealAddressMutation,
+  getPortalPrintKit,
+  downloadPrintKitMutation,
   issuedLink,
   linksRevoked,
   onLinkIssued,
@@ -64,6 +70,11 @@ function SharePanel({
       rotateMutation={rotateTokenMutation}
       revokeMutation={revokeTokenMutation}
       revealMutation={revealAddressMutation}
+      printKit={
+        getPortalPrintKit && downloadPrintKitMutation
+          ? { read: getPortalPrintKit, downloadMutation: downloadPrintKitMutation }
+          : undefined
+      }
     />
   )
 }
@@ -84,17 +95,30 @@ function AnalyticsPanel({
 
 function HistoryPanel({
   portal,
+  propertyTimeZone,
   publicationHistory,
-  loadMorePublicationHistory,
+  historyReads,
+  makeVersionLiveMutation,
 }: Pick<
   PortalDetailResources,
-  'portal' | 'publicationHistory' | 'loadMorePublicationHistory'
+  | 'portal'
+  | 'propertyTimeZone'
+  | 'publicationHistory'
+  | 'historyReads'
+  | 'makeVersionLiveMutation'
 >) {
+  const { can } = usePermissions()
+  const { has } = useCapabilities()
   return (
-    <PortalPublicationHistoryCard
-      history={publicationHistory}
+    <PortalHistoryTab
       portalId={portal.id}
-      loadMoreAction={loadMorePublicationHistory}
+      portalName={portal.name}
+      timeZone={propertyTimeZone}
+      pendingChangeCount={countPendingChanges(publicationHistory)}
+      mayMakeLive={can('portal.update') && has('portal.write')}
+      pageIsLive={portal.publicationState === 'published'}
+      reads={historyReads}
+      makeLive={makeVersionLiveMutation}
     />
   )
 }

@@ -9,7 +9,7 @@ import {
   PORTAL_PUBLICATION_SCHEMA_VERSION,
   PRIMARY_GUEST_LOCALE,
   type PortalGuestLocale,
-  type PortalPublicationExperienceSource,
+  type LegacyPortalPublicationExperienceSource,
 } from './portal-publication-snapshot'
 import { portalError } from './errors'
 
@@ -36,7 +36,7 @@ export function isPublicDisplayNameConfirmed(
 }
 
 export function assertCompletePortalPublicationExperience(
-  experience: PortalPublicationExperienceSource,
+  experience: LegacyPortalPublicationExperienceSource,
 ): void {
   const localeSet = [...new Set(experience.localeSet)]
   if (

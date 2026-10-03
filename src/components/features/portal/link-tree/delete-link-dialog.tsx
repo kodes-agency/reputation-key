@@ -32,10 +32,7 @@ export function DeleteLinkDialog({ open, onOpenChange, label, onDelete }: Props)
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            onClick={onDelete}
-          >
+          <AlertDialogAction variant="destructive" onClick={onDelete}>
             Delete link
           </AlertDialogAction>
         </AlertDialogFooter>

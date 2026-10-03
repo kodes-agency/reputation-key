@@ -17,10 +17,12 @@ import { usePropertyId } from '#/components/hooks/use-property-id'
 import { useInboxScopeNavigation } from '#/components/inbox/use-inbox-scope-navigation'
 import { ManagerNavItems } from './manager-nav-items'
 import { ManagerPropertySwitcher } from './manager-property-switcher'
+import { isOrganisationView, organisationViewFor } from './organisation-scope'
 import type { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
 
 type Props = Readonly<{
   properties: ReadonlyArray<{ id: string; name: string; slug: string }>
+  organizationName?: string | undefined
   getLastVisitCount: typeof getLastVisitCountFn
 }>
 
@@ -57,12 +59,19 @@ function useActiveSection(): string {
   })
 }
 
-export function ManagerSidebar({ properties, getLastVisitCount }: Props) {
+export function ManagerSidebar({
+  properties,
+  organizationName,
+  getLastVisitCount,
+}: Props) {
   const propertyId = usePropertyId()
   const activeSection = useActiveSection()
   const navigate = useNavigate()
   const selectInboxScope = useInboxScopeNavigation()
+  const pathname = useRouterState({ select: (s) => s.location.pathname })
   const isInboxSection = activeSection === 'inbox' || activeSection === 'reviews'
+  const allPropertiesPath = organisationViewFor(activeSection)
+  const isAllProperties = isOrganisationView(pathname, propertyId)
 
   // The tile is the app's property context on every page. Inside the Inbox,
   // switching property keeps you in the Inbox; the rail offers All properties.
@@ -78,8 +87,23 @@ export function ManagerSidebar({ properties, getLastVisitCount }: Props) {
     })
   }
 
+  // All properties keeps you in the section you are in when that section has a
+  // view over the whole Organization (Inbox, Portals); otherwise it is the
+  // property list. The Inbox goes through its scope hook so queue and filters
+  // survive the move.
+  function handleSelectAllProperties() {
+    // Already looking at the whole Organization: nothing changes, so the open
+    // page keeps its own state instead of being reloaded.
+    if (isAllProperties) return
+    if (isInboxSection) {
+      selectInboxScope(null)
+      return
+    }
+    void navigate({ to: allPropertiesPath })
+  }
+
   return (
-    <Sidebar collapsible="icon">
+    <Sidebar>
       {/*
         BQC-6.8: the app sidebar IS the primary navigation — give it the nav
         landmark so its links don't fail axe's region rule (all page content
@@ -91,7 +115,11 @@ export function ManagerSidebar({ properties, getLastVisitCount }: Props) {
           <ManagerPropertySwitcher
             properties={properties}
             propertyId={propertyId ?? undefined}
+            organizationName={organizationName}
+            isAllProperties={isAllProperties}
+            allPropertiesIsListed={allPropertiesPath !== '/properties'}
             onSwitch={handlePropertySwitch}
+            onSelectAllProperties={handleSelectAllProperties}
           />
         </SidebarHeader>
 

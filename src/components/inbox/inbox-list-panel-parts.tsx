@@ -44,6 +44,8 @@ export interface InboxListPanelProps {
   onSearchChange: (q: string | undefined) => void
   onFiltersChange: (patch: Partial<InboxListFilterValues>) => void
   onSortChange: (sort: InboxSort) => void
+  /** Drops every filter and the sort in one navigation. */
+  onClearAll: () => void
   onToggleSelect: (id: string) => void
   onSelectAll: () => void
   onDeselectAll: () => void

@@ -56,7 +56,10 @@ design rather than a checklist.
    key does not carry the purpose, so every writer of these columns must check
    it with `canReferencePortalMediaAsset` (a link picture is encoded at up to 1200 px, a
    hero at up to 2400 px with a larger minimum; the purpose chose the policy the
-   image passed).
+   image passed). The writers are `updateLink`, `savePropertyHero` and
+   `savePropertyLogo`; the size rules the policy applies are one shared constant
+   (`PORTAL_MEDIA_SIZE_RULES`), which the browser also reads to tell a manager
+   that a picture is too small before it is sent.
 6. **Snapshots name assets by id, with no foreign key.** A guest-facing URL is
    made when the page is read, so a takedown stops an image being served without
    rewriting an immutable snapshot.
@@ -127,11 +130,23 @@ design rather than a checklist.
   exist, then scrubs the rows; a failed removal leaves the phase `purging` and
   the next pass repeats it. The data export carries the asset rows (key, size,
   hash, status, takedown and removal times), not the image bytes.
-- **Known remaining AWS-only URL.** `getPublicUrl` is gone, but the storage
-  adapter's `confirmUpload` still returns an `s3.<region>.amazonaws.com` URL,
-  which Identity's avatar and organisation-logo finalize use cases store. With
-  region `auto` on Railway it is not a working address. It predates this slice
-  and is outside it; it needs its own change (serve those images the same way).
+- **No provider URL is stored (settled after this slice).** `getPublicUrl` is
+  gone and `confirmUpload` no longer returns an address at all (it confirms the
+  object exists). Identity's avatar and organisation-logo finalize use cases
+  store a root-relative path on the app, `/api/public/identity-assets/<key>`,
+  which reads the private object back the way Portal media is served; a path
+  carries no host, so it survives a change of domain. The route is public, so it
+  serves an object only while something still points at it: the user whose id is
+  in the key has it as their `image`, or the organisation in the key has it as
+  its `logo` and has not reached `purging` or `closed`. A replaced picture, an
+  upload that was never saved, an erased user's photo and a purged
+  organisation's logo are therefore 404 at once, with no deletion job. Saving a
+  new avatar or logo also deletes the object it replaces. **Known deviation:**
+  the Organization purge and user removal do not delete avatar or logo bytes
+  (no code removes `user` or `organization` rows, and the Identity purge
+  contributor holds no storage). Those objects are unreachable but remain in the
+  bucket, with never-saved uploads, until a bucket lifecycle rule or a later
+  Identity sweep removes them (`docs/operations/backup-and-lifecycle.md` §3).
 - `sharp` is a runtime dependency with a native binding. It is externalized in
   the Nitro build and the worker bundle so it resolves from the installed
   `node_modules`, where pnpm links its platform package beside it.

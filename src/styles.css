@@ -128,7 +128,10 @@
   --sidebar-accent-foreground: oklch(0.18 0.008 270);
   --sidebar-border: oklch(0.9 0.006 270);
   --sidebar-ring: oklch(0.58 0.16 290);
-  --destructive-foreground: oklch(0.58 0.22 25);
+  /* The text ON a --destructive fill, not red text. It was the fill's own value
+     (oklch(0.58 0.22 25)), so every label painted with it vanished into the
+     button. Near-white reads 4.78:1 on the fill. */
+  --destructive-foreground: oklch(1 0.003 270);
 }
 
 .dark {
@@ -204,7 +207,10 @@
   --sidebar-accent-foreground: oklch(0.93 0.008 270);
   --sidebar-border: oklch(0.28 0.012 270);
   --sidebar-ring: oklch(0.52 0.16 290);
-  --destructive-foreground: oklch(0.93 0.008 270);
+  /* Dark ink on the lifted dark --destructive (5.6:1). The near-white this was
+     reached only 2.9:1 on a full-strength fill; the Button variant instead
+     draws the fill at 60% with white text and does not read this token. */
+  --destructive-foreground: oklch(0.13 0.008 270);
 }
 
 @theme inline {
@@ -287,19 +293,6 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-a:not([data-slot='button']):not([data-slot='sidebar-menu-button']):not(
-    [data-slot='sidebar-menu-sub-button']
-  ):not([data-slot='badge']) {
-  color: var(--accent);
-  text-decoration: none;
-}
-
-a:not([data-slot='button']):not([data-slot='sidebar-menu-button']):not(
-    [data-slot='sidebar-menu-sub-button']
-  ):not([data-slot='badge']):hover {
-  color: var(--accent-hover);
-}
-
 code {
   font-family: var(--font-mono);
   font-size: 0.875em;
@@ -333,35 +326,29 @@ pre code {
     background-color: var(--background);
     color: var(--foreground);
   }
-}
 
-/* Sidebar active state */
-[data-slot='sidebar-menu-button'][data-active='true'] {
-  background: var(--accent-muted);
-  font-weight: 600;
-}
+  /* Content links: a plain <a> reads as a link, in the accent ink.
+     This is a DEFAULT, so it sits in the base layer and any utility on the
+     anchor (text-*, underline, hover:*) wins; outside every layer it beat all
+     of them and navs pinned their ink back with `!`. An anchor that belongs to
+     a component with its own ink opts out by data-slot: buttons, badges,
+     sidebar entries, menu items and breadcrumbs (a bare breadcrumb or menu
+     link takes the ink of the list or menu it sits in). */
+  a:not(
+    [data-slot='button'],
+    [data-slot='badge'],
+    [data-slot='sidebar-menu-button'],
+    [data-slot='sidebar-menu-sub-button'],
+    [data-slot='dropdown-menu-item'],
+    [data-slot='breadcrumb-link']
+  ) {
+    color: var(--accent);
+    text-decoration: none;
 
-/* Sidebar icon color — purple in both themes */
-[data-slot='sidebar-menu-button'] svg {
-  color: var(--accent);
-}
-
-/* Sidebar text color — black in light, white in dark */
-[data-slot='sidebar-menu-button'] {
-  color: var(--sidebar-foreground);
-}
-
-[data-slot='sidebar-menu-sub-button'][data-active='true'] {
-  background: var(--accent-muted);
-  font-weight: 600;
-}
-
-[data-slot='sidebar-menu-sub-button'] svg {
-  color: var(--accent);
-}
-
-[data-slot='sidebar-menu-sub-button'] {
-  color: var(--sidebar-foreground);
+    &:hover {
+      color: var(--accent-hover);
+    }
+  }
 }
 
 .page-wrap {

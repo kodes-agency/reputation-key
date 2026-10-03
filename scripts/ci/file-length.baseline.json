@@ -1,5 +1,5 @@
 {
-  "scripts/seed-e2e-user.ts": 1398,
+  "scripts/seed-e2e-user.ts": 1360,
   "src/contexts/ai/infrastructure/adapters/ai-output-store.adapter.ts": 1538,
   "src/contexts/ai/infrastructure/adapters/ai-property-aggregate-store.adapter.ts": 1280,
   "src/contexts/inbox/infrastructure/inbox-command-store.ts": 2778,
@@ -23,7 +23,7 @@
   "src/shared/db/schema/ai.schema.ts": 1290,
   "src/shared/db/schema/inbox.schema.ts": 869,
   "src/shared/db/schema/review.schema.ts": 1564,
-  "src/shared/events/schema-registrations.ts": 1685,
+  "src/shared/events/schema-registrations.ts": 1663,
   "src/shared/google-provider-control/route-catalogue.ts": 807,
   "src/shared/governance/event-job-catalogue.ts": 932,
   "src/shared/observability/metrics-schema.ts": 858,

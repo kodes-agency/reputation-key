@@ -16,6 +16,7 @@ import type { Result } from '#/shared/domain'
 import {
   PORTAL_MEDIA_MAX_UPLOAD_BYTES,
   PORTAL_MEDIA_PURPOSES,
+  PORTAL_MEDIA_SIZE_RULES,
   PORTAL_MEDIA_STORED_CONTENT_TYPE,
   type PortalMediaPurpose,
   type PortalMediaSourceFormat,
@@ -72,27 +73,21 @@ export const PORTAL_IMAGE_LIMITS = Object.freeze({
   purposes: {
     hero: {
       maxEdge: 2400,
-      minLongEdge: 1000,
-      minShortEdge: 500,
-      maxAspectRatio: 4,
+      ...PORTAL_MEDIA_SIZE_RULES.hero,
       maxOutputBytes: 3 * MIB,
       quality: 82,
       allowsAlpha: false,
     },
     logo: {
       maxEdge: 800,
-      minLongEdge: 128,
-      minShortEdge: 32,
-      maxAspectRatio: 8,
+      ...PORTAL_MEDIA_SIZE_RULES.logo,
       maxOutputBytes: 1 * MIB,
       quality: 90,
       allowsAlpha: true,
     },
     link_image: {
       maxEdge: 1200,
-      minLongEdge: 200,
-      minShortEdge: 100,
-      maxAspectRatio: 4,
+      ...PORTAL_MEDIA_SIZE_RULES.link_image,
       maxOutputBytes: 1.5 * MIB,
       quality: 80,
       allowsAlpha: true,

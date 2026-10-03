@@ -1,6 +1,6 @@
-// Group: which group the portal belongs to. Moving a portal between groups is
-// done from the portals list until the group dialog lands, so this section says
-// where the portal is and points there.
+// Group: which group the portal belongs to. Groups are created, renamed and
+// filled from the portals list (the group dialog and group page), so this
+// section only says where the portal is and points there.
 
 import { Link } from '@tanstack/react-router'
 import { PortalEditorSectionFrame } from '../portal-editor-section-frame'
@@ -28,7 +28,7 @@ export function GroupSection({
         <Link
           to="/properties/$propertyId/portals"
           params={{ propertyId }}
-          className="font-medium text-primary underline-offset-4 hover:underline"
+          className="font-medium text-link underline-offset-4 hover:underline"
         >
           Manage groups on the portals list
         </Link>

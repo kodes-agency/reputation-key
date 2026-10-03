@@ -13,6 +13,7 @@ const LIVE: PortalTokenStatus = {
   issuedAt: '2026-01-04T12:00:00Z',
   graceExpiresAt: null,
   addressRecoverable: false,
+  madeBy: null,
 }
 const RECOVERABLE: PortalTokenStatus = { ...LIVE, addressRecoverable: true }
 const NONE: PortalTokenStatus = {

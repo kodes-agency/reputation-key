@@ -3,7 +3,9 @@ import {
   resolvePublicPortalToken,
   type ResolvePublicPortalTokenDeps,
 } from './resolve-public-portal-token'
-import { buildPortalPublicationSnapshot } from '../portal-publication-snapshot'
+// The legacy page and resolver must keep serving schema versions 1 and 2, so this
+// suite builds them with the builder publishing used before round 4's writer switch.
+import { buildLegacyPortalPublicationSnapshot as buildPortalPublicationSnapshot } from '../__fixtures__/legacy-snapshot-builder'
 import { organizationId, portalId, propertyId } from '#/shared/domain/ids'
 
 const NOW = new Date('2026-08-08T12:00:00.000Z')

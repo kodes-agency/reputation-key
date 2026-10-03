@@ -112,6 +112,21 @@ export const ThreeSelected: Story = {
   },
 }
 
+// 390 px: the bar the header shows while selecting. Behaviour is unchanged;
+// the story gives the metrics gate a mounted phone bar to measure.
+const phoneClearSpy = fn()
+export const ThreeSelectedOnPhone: Story = {
+  args: { ...ThreeSelected.args, onClearSelection: phoneClearSpy },
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+  play: async ({ canvasElement }) => {
+    phoneClearSpy.mockClear()
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('3 selected')).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: /^clear selection$/i }))
+    expect(phoneClearSpy).toHaveBeenCalledTimes(1)
+  },
+}
+
 export const OnlyReviewsSelected: Story = {
   args: {
     ...ThreeSelected.args,

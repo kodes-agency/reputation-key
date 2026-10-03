@@ -61,6 +61,7 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'guestPublicApi',
   'handleResendEvent',
   'idGen',
+  'identityAssetReferences',
   // The reporter's beta-feedback requests; the triage repository itself is
   // never on the container.
   'identityBetaFeedback',
@@ -95,6 +96,7 @@ const EXPECTED_TOP_LEVEL_KEYS = [
   'outboxRepo',
   'policyAdmin',
   'pool',
+  'portalMaintenanceRuntime',
   'portalPublicApi',
   'portalWorkerRuntime',
   'propertyPublicApi',
@@ -394,7 +396,7 @@ describe('provider DI slots (BQC-6.1)', () => {
 
   const fakeStorage: StoragePort = {
     createPresignedUploadUrl: async (key) => ({ uploadUrl: 'memory://upload', key }),
-    confirmUpload: async (key) => `memory://${key}`,
+    confirmUpload: async () => {},
     deleteObject: async () => {},
     getObject: async () => null,
     putObject: async () => {},

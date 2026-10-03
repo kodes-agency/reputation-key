@@ -116,19 +116,4 @@ describe('saveDraftForm', () => {
     await expect(saveDraftForm(form, tracker)).resolves.toBe('unchanged')
     expect(form.handleSubmit).toHaveBeenCalledTimes(1)
   })
-
-  it('compares and records the projected values, not what is in the fields', async () => {
-    // A blur-committed field (the slug) is written as its committed value, so
-    // that is what the server holds and what the baseline must say.
-    const form = fakeForm({ name: 'Pool 2', slug: 'po' })
-    const tracker = createDraftFormSaveTracker({ name: 'Pool', slug: 'pool' })
-    const project = (values: unknown) => ({ ...(values as object), slug: 'pool' })
-
-    await saveDraftForm(form, tracker, project)
-    await expect(saveDraftForm(form, tracker, project)).resolves.toBe('unchanged')
-    expect(form.handleSubmit).toHaveBeenCalledTimes(1)
-
-    form.state.values = { name: 'Pool 2', slug: 'pool' }
-    await expect(saveDraftForm(form, tracker)).resolves.toBe('unchanged')
-  })
 })

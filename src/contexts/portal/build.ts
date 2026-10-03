@@ -19,6 +19,7 @@ import {
 } from './infrastructure/repositories/portal.repository'
 import { createPortalResponsibilityRuntime } from './application/portal-responsibility-runtime'
 import { createPortalLinkRepository } from './infrastructure/repositories/portal-link.repository'
+import { createPortalGroupPublicApi } from './infrastructure/portal-group-public-api'
 import { createPortalGroupRepository } from './infrastructure/repositories/portal-group.repository'
 import { createPortalGroupHistoryRepository } from './infrastructure/repositories/portal-group-history.repository'
 import { createS3StorageAdapter } from './infrastructure/adapters/s3-storage.adapter'
@@ -26,6 +27,7 @@ import { createSharpImageProcessor } from './infrastructure/adapters/sharp-image
 import { createPortalMediaAssetRepository } from './infrastructure/repositories/portal-media-asset.repository'
 import { createPortalTokenRepository } from './infrastructure/repositories/portal-token.repository'
 import { createPortalPublicationRepository } from './infrastructure/repositories/portal-publication.repository'
+import { buildPortalMaintenance } from './build-maintenance'
 import { createPortalScopeRepository } from './infrastructure/repositories/portal-scope.repository'
 import {
   createPortalResponsibilityRecoveryStore,
@@ -45,7 +47,7 @@ import { createPortalAiReplyBrandProfileAuthority } from './infrastructure/ai-re
 import type { StoragePort } from './application/ports/storage.port'
 import type { ImageProcessorPort } from './application/ports/image-processor.port'
 import { ingestPortalImage } from './application/use-cases/ingest-portal-image'
-import { resolvePortalMediaUrls } from './application/use-cases/resolve-portal-media-urls'
+import { resolvePortalMediaUrls } from './application/resolve-portal-media-urls'
 import { servePortalMedia } from './application/use-cases/serve-portal-media'
 import { sweepPortalMedia } from './application/use-cases/sweep-portal-media'
 import { takeDownPortalMedia } from './application/use-cases/take-down-portal-media'
@@ -55,17 +57,17 @@ import { createPortalAddressRepository } from './infrastructure/repositories/por
 import { createPortal } from './application/use-cases/create-portal'
 import { getPortalCreationOptions } from './application/use-cases/get-portal-creation-options'
 import { updatePortal } from './application/use-cases/update-portal'
+import { buildExperienceUseCases } from './build-experience'
 import { rollbackPortalPublication } from './application/use-cases/rollback-portal-publication'
+import {
+  publishPortalChanges,
+  publishPortalsChanges,
+} from './application/use-cases/publish-portal-changes'
 import { getPortal } from './application/use-cases/get-portal'
-import { getPortalPublicationHistory } from './application/use-cases/get-portal-publication-history'
-import { getPortalHistory } from './application/use-cases/get-portal-history'
+import { buildPortalHistoryReads } from './build-history-reads'
 import { listPortals } from './application/use-cases/list-portals'
 import { listPortalOverview } from './application/use-cases/list-portal-overview'
 import { softDeletePortal } from './application/use-cases/soft-delete-portal'
-import { createLinkCategory } from './application/use-cases/create-link-category'
-import { updateLinkCategory } from './application/use-cases/update-link-category'
-import { deleteLinkCategory } from './application/use-cases/delete-link-category'
-import { reorderCategories } from './application/use-cases/reorder-categories'
 import { createLink } from './application/use-cases/create-link'
 import { updateLink } from './application/use-cases/update-link'
 import { savePortalLinkTexts } from './application/use-cases/save-portal-link-texts'
@@ -89,6 +91,7 @@ import { issuePortalToken } from './application/use-cases/issue-portal-token'
 import { rotatePortalToken } from './application/use-cases/rotate-portal-token'
 import { revokePortalTokens } from './application/use-cases/revoke-portal-tokens'
 import { revealPortalAddress } from './application/use-cases/reveal-portal-address'
+import { buildPortalPrintKit } from './build-print-kit'
 import {
   resolvePublicPortalToken,
   type GuestLocalePreference,
@@ -107,7 +110,6 @@ import {
   portalGroupId,
   portalId,
   type OrganizationId,
-  type PortalGroupId,
   type PortalId,
   type PropertyId,
 } from '#/shared/domain/ids'
@@ -115,15 +117,7 @@ import type { LoggerPort } from '#/shared/domain/logger.port'
 import { registerPortalHealthConsumers } from './infrastructure/portal-health-outbox-consumers'
 import { createPortalHealthReconciliationStore } from './infrastructure/portal-health-reconciliation-store'
 import { createPortalDestinationNetworkValidator } from './infrastructure/adapters/portal-destination-network-validator.adapter'
-import {
-  getPropertyPortalExperience,
-  savePortalLocalizedOverride,
-  savePropertyDefaultGuestLocales,
-  savePropertyPortalBrandContent,
-  savePropertyPortalBrandProfile,
-  savePropertyPublicDisplayName,
-  ensureDefaultPublicDisplayName,
-} from './application/use-cases/manage-portal-experience'
+import { ensureDefaultPublicDisplayName } from './application/use-cases/manage-portal-experience'
 import {
   approvePortalApprovedDestination,
   disablePortalApprovedDestination,
@@ -189,6 +183,8 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalLinkRepo = createPortalLinkRepository(deps.db, deps.clock)
   const portalGroupRepo = createPortalGroupRepository(deps.db)
   const portalGroupHistoryRepo = createPortalGroupHistoryRepository(deps.db)
+  const portalHistoryRepo = createPortalHistoryRepository(deps.db, deps.logger)
+  const portalActorDirectory = createPortalActorDirectoryAdapter(deps.db)
   const portalAccessArtifactRepo = createPortalAccessArtifactRepository(
     deps.db,
     portalGroupRepo,
@@ -236,6 +232,25 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
   const portalIdGen = () => portalId(deps.idGen())
   const portalGroupIdGen = () => portalGroupId(deps.idGen())
   const linkIdGen = () => deps.idGen()
+  const publishChangesDeps = {
+    portalRepo,
+    commandStore: portalCommandStore,
+    publicationRepo: portalPublicationRepo,
+    portalTokenRepo,
+    propertyGoogleReviewDestinationApi: deps.propertyApi,
+    propertyLifecycleApi: deps.propertyApi,
+    staffPublicApi: deps.staffPublicApi,
+    idGen: deps.idGen,
+    clock: deps.clock,
+  }
+  const revealAddress = revealPortalAddress({
+    portalRepo,
+    staffPublicApi: deps.staffPublicApi,
+    portalAddressRepo,
+    addressCipher: portalAddressCipher,
+    clock: deps.clock,
+    baseUrl: deps.baseUrl,
+  })
   const useCases = {
     revalidatePortalApprovedDestinations: revalidatePortalApprovedDestinations({
       destinationRepo: portalApprovedDestinationRepo,
@@ -274,43 +289,9 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       idGen: deps.idGen,
       clock: deps.clock,
     }),
-    getPropertyPortalExperience: getPropertyPortalExperience({
+    ...buildExperienceUseCases({
       experienceRepo: portalExperienceRepo,
-      portalRepo,
-      staffPublicApi: deps.staffPublicApi,
-      idGen: deps.idGen,
-      clock: deps.clock,
-    }),
-    savePropertyPortalBrandProfile: savePropertyPortalBrandProfile({
-      experienceRepo: portalExperienceRepo,
-      portalRepo,
-      staffPublicApi: deps.staffPublicApi,
-      idGen: deps.idGen,
-      clock: deps.clock,
-    }),
-    savePropertyPublicDisplayName: savePropertyPublicDisplayName({
-      experienceRepo: portalExperienceRepo,
-      portalRepo,
-      staffPublicApi: deps.staffPublicApi,
-      idGen: deps.idGen,
-      clock: deps.clock,
-    }),
-    savePropertyDefaultGuestLocales: savePropertyDefaultGuestLocales({
-      experienceRepo: portalExperienceRepo,
-      portalRepo,
-      staffPublicApi: deps.staffPublicApi,
-      idGen: deps.idGen,
-      clock: deps.clock,
-    }),
-    savePropertyPortalBrandContent: savePropertyPortalBrandContent({
-      experienceRepo: portalExperienceRepo,
-      portalRepo,
-      staffPublicApi: deps.staffPublicApi,
-      idGen: deps.idGen,
-      clock: deps.clock,
-    }),
-    savePortalLocalizedOverride: savePortalLocalizedOverride({
-      experienceRepo: portalExperienceRepo,
+      mediaRepo: portalMediaAssetRepo,
       portalRepo,
       staffPublicApi: deps.staffPublicApi,
       idGen: deps.idGen,
@@ -339,6 +320,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalRepo,
       staffPublicApi: deps.staffPublicApi,
       portalGroupLookup: portalGroupRepo,
+      propertyGoogleReviewDestinationApi: deps.propertyApi,
       factStore: portalWorkflowFactStore,
       clock: deps.clock,
     }),
@@ -373,6 +355,8 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       idGen: deps.idGen,
       clock: deps.clock,
     }),
+    publishPortalChanges: publishPortalChanges(publishChangesDeps),
+    publishPortalsChanges: publishPortalsChanges(publishChangesDeps),
     rollbackPortalPublication: rollbackPortalPublication({
       portalRepo,
       publicationRepo: portalPublicationRepo,
@@ -385,20 +369,24 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       portalRepo,
       portalTokenRepo,
       staffPublicApi: deps.staffPublicApi,
+      actorDirectory: portalActorDirectory,
       addressCipher: portalAddressCipher,
       clock: deps.clock,
     }),
-    getPortalPublicationHistory: getPortalPublicationHistory({
+    ...buildPortalHistoryReads({
       portalRepo,
+      portalLinkRepo,
+      experienceRepo: portalExperienceRepo,
       publicationRepo: portalPublicationRepo,
-      staffPublicApi: deps.staffPublicApi,
-    }),
-    getPortalHistory: getPortalHistory({
-      portalRepo,
-      staffPublicApi: deps.staffPublicApi,
-      historyRepo: createPortalHistoryRepository(deps.db),
+      historyRepo: portalHistoryRepo,
       healthRepo: portalHealthRepo,
-      actorDirectory: createPortalActorDirectoryAdapter(deps.db),
+      actorDirectory: portalActorDirectory,
+      portalTokenRepo,
+      destinationRepo: portalApprovedDestinationRepo,
+      mediaRepo: portalMediaAssetRepo,
+      propertyApi: deps.propertyApi,
+      staffPublicApi: deps.staffPublicApi,
+      clock: deps.clock,
     }),
     listPortals: listPortals({ portalRepo, staffPublicApi: deps.staffPublicApi }),
     listPortalOverview: listPortalOverview({
@@ -418,40 +406,10 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       staffPublicApi: deps.staffPublicApi,
       clock: deps.clock,
     }),
-    createLinkCategory: createLinkCategory({
-      portalRepo,
-      portalLinkRepo,
-      staffPublicApi: deps.staffPublicApi,
-      commandStore: portalCommandStore,
-      idGen: linkIdGen,
-      clock: deps.clock,
-    }),
-    updateLinkCategory: updateLinkCategory({
-      portalRepo,
-      portalLinkRepo,
-      staffPublicApi: deps.staffPublicApi,
-      commandStore: portalCommandStore,
-      clock: deps.clock,
-    }),
-    deleteLinkCategory: deleteLinkCategory({
-      portalRepo,
-      portalLinkRepo,
-      staffPublicApi: deps.staffPublicApi,
-      commandStore: portalCommandStore,
-      clock: deps.clock,
-    }),
-    reorderCategories: reorderCategories({
-      portalRepo,
-      portalLinkRepo,
-      staffPublicApi: deps.staffPublicApi,
-      commandStore: portalCommandStore,
-      clock: deps.clock,
-    }),
     createLink: createLink({
       portalRepo,
       portalLinkRepo,
       staffPublicApi: deps.staffPublicApi,
-      experienceRepo: portalExperienceRepo,
       commandStore: portalCommandStore,
       destinationRepo: portalApprovedDestinationRepo,
       destinationNetworkValidator: portalDestinationNetworkValidator,
@@ -623,13 +581,15 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
       baseUrl: deps.baseUrl,
       defaultGracePeriodSeconds: 30 * 24 * 60 * 60,
     }),
-    revealPortalAddress: revealPortalAddress({
+    revealPortalAddress: revealAddress,
+    ...buildPortalPrintKit({
       portalRepo,
       staffPublicApi: deps.staffPublicApi,
-      portalAddressRepo,
-      addressCipher: portalAddressCipher,
+      publicationRepo: portalPublicationRepo,
+      mediaRepo: portalMediaAssetRepo,
+      objectStore: storage,
+      revealAddress,
       clock: deps.clock,
-      baseUrl: deps.baseUrl,
     }),
     revokePortalTokens: revokePortalTokens({
       portalRepo,
@@ -674,13 +634,11 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
         ),
     listPortalIdsByProperty: async (orgId: OrganizationId, pid: PropertyId) =>
       (await portalRepo.listByProperty(orgId, pid)).map((p) => p.id),
-    listCurrentPortalIds: async (
+    listCurrentPortalIds: (
       orgId: OrganizationId,
       propertyId: PropertyId,
       limit: number,
-    ) => {
-      return listCurrentPortalIds(orgId, propertyId, limit)
-    },
+    ) => listCurrentPortalIds(orgId, propertyId, limit),
     findPublicPortalByToken: async (
       rawToken: string,
       preference?: GuestLocalePreference,
@@ -760,31 +718,7 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
     },
   }
 
-  const portalGroupPublicApi = {
-    findGroupForPortal: async (orgId: OrganizationId, pid: PortalId, asOf?: Date) => {
-      const group = await portalGroupRepo.findGroupForPortal(
-        orgId,
-        pid,
-        asOf ?? deps.clock(),
-      )
-      if (!group) return null
-      return { id: group.id, propertyId: group.propertyId, name: group.name }
-    },
-    getGroupPortalIds: (orgId: OrganizationId, groupId: PortalGroupId) =>
-      portalGroupRepo.getGroupPortalIds(orgId, groupId),
-    findGroupIdsByPortalIds: (
-      orgId: OrganizationId,
-      portalIds: ReadonlyArray<PortalId>,
-    ) => portalGroupRepo.findGroupIdsByPortalIds(orgId, portalIds),
-    portalGroupBelongsToProperty: async (
-      orgId: OrganizationId,
-      pid: PropertyId,
-      groupId: PortalGroupId,
-    ) => {
-      const group = await portalGroupRepo.findById(orgId, groupId)
-      return group?.propertyId === pid
-    },
-  }
+  const portalGroupPublicApi = createPortalGroupPublicApi(portalGroupRepo, deps.clock)
 
   const registerOutboxConsumers = (consumerRegistry: ConsumerRegistry) => {
     registerPortalHealthConsumers(consumerRegistry, portalHealthReconciliationStore)
@@ -812,6 +746,8 @@ export const buildPortalContext = (deps: PortalContextDeps) => {
         logger: deps.logger,
       }),
     }),
+    /** Operator-only Portal maintenance (round 4, slice 46); see build-maintenance.ts. */
+    maintenance: buildPortalMaintenance(deps.db, publishChangesDeps, deps.logger),
     /** ARC-03-T11: the named member-authority capability. Replaces the root's
      * Portal responsible-manager repository reach-through. */
     responsibility: createPortalResponsibilityRuntime(portalResponsibleManagerRepo),

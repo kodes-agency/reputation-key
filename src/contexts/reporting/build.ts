@@ -210,6 +210,7 @@ function buildMetricModule(input: ReportingContextBuildInput) {
     registerPortalWorkflowMetricConsumers(consumerRegistry, {
       recordMetric: record,
       resolveAttribution: resolvePortalWorkflowAttribution,
+      hasReading: metricRepo.hasReading,
     })
     registerGuestMetricConsumers(consumerRegistry, {
       recordMetrics: recordBatch,

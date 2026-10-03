@@ -189,21 +189,29 @@ describe.sequential('schema version 3 publication (real PostgreSQL)', () => {
     await expect(resolveNow()).resolves.toBeNull()
   })
 
-  it('is broad in the database and strict in the application: a de pack passes the CHECKs but is never served', async () => {
-    const english = immersiveConfiguration().localizedContent.en
-    const german = scopedConfiguration(
+  const germanConfiguration = (pack: string) =>
+    scopedConfiguration(
       immersiveConfiguration({
         guestLocale: 'de',
-        languagePackVersion: 'guest-ui-de-v2',
+        languagePackVersion: pack,
         localeSet: ['de'],
-        languagePackVersions: { de: 'guest-ui-de-v2' },
-        localizedContent: { de: english },
+        languagePackVersions: { de: pack },
+        localizedContent: { de: immersiveConfiguration().localizedContent.en },
         links: [],
       }),
     )
+
+  it('serves a German row, whose generation 2 pack is registered', async () => {
+    await insertActive(scopedSnapshot(germanConfiguration('guest-ui-de-v2')))
+
+    await expect(resolveNow()).resolves.not.toBeNull()
+  })
+
+  it('is broad in the database and strict in the application: an unregistered de pack passes the CHECKs but is never served', async () => {
     // The insert succeeding is the point: the six-locale CHECKs from slice 2
-    // accept it, and only the verifier, which knows the pack registry, refuses.
-    await insertActive(scopedSnapshot(german))
+    // accept any generation of any catalogue locale, and only the verifier,
+    // which knows the pack registry, refuses a pack that is not in it.
+    await insertActive(scopedSnapshot(germanConfiguration('guest-ui-de-v3')))
 
     await expect(resolveNow()).resolves.toBeNull()
   })

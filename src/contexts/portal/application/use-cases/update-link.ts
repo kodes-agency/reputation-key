@@ -2,15 +2,13 @@
 
 import type { PortalLinkRepository } from '../ports/portal-link.repository'
 import type { PortalLink } from '../../domain/types'
-import { z } from 'zod/v4'
 import {
-  portalMediaAssetId,
   type OrganizationId,
   type PortalMediaAssetId,
   type PropertyId,
 } from '#/shared/domain/ids'
 import { portalError } from '../../domain/errors'
-import { canReferencePortalMediaAsset } from '../../domain/portal-media-asset'
+import { findReferencableMediaAsset } from '../referencable-media-asset'
 import type { PortalMediaAssetRepository } from '../ports/portal-media-asset.repository'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { validateLinkIconKey, validateLinkLabel } from '../../domain/rules'
@@ -45,14 +43,10 @@ export type UpdateLinkDeps = Readonly<{
   clock: () => Date
 }>
 
-const uuidSchema = z.uuid()
-
 /**
  * The asset a link may point at: a picture uploaded for a link tile, of this
  * Organization and this Property, that may still be served. Anything else is the
  * same refusal as a missing image, so a probe learns nothing about other tenants.
- * The database ties a reference to the Organization and Property, not to the
- * purpose, so the purpose is checked here.
  */
 async function resolveTileImage(
   deps: Pick<UpdateLinkDeps, 'mediaRepo'>,
@@ -60,19 +54,23 @@ async function resolveTileImage(
   propertyId: PropertyId,
   assetId: string,
 ): Promise<PortalMediaAssetId> {
-  const notFound = () => portalError('media_not_found', 'image not found for this link')
-  if (!uuidSchema.safeParse(assetId).success) throw notFound()
-  const asset = await deps.mediaRepo.findById(organizationId, portalMediaAssetId(assetId))
-  if (
-    !asset ||
-    asset.propertyId !== propertyId ||
-    !canReferencePortalMediaAsset('link_image', asset)
-  ) {
-    throw notFound()
-  }
+  const asset = await findReferencableMediaAsset(
+    deps.mediaRepo,
+    organizationId,
+    propertyId,
+    'link_image',
+    assetId,
+  )
+  if (!asset) throw portalError('media_not_found', 'image not found for this link')
   return asset.id
 }
 
+/**
+ * Updates a link. The returned link's `label` is the new name when this call
+ * renamed it; otherwise it is whatever the legacy column holds (`''` for a link
+ * written after round 4's contract), NOT the link's name, which is its
+ * primary-language text. Callers that need the name read the Linktree.
+ */
 export const updateLink =
   (deps: UpdateLinkDeps) =>
   async (input: UpdateLinkInput, ctx: AuthContext): Promise<PortalLink> => {
@@ -123,7 +121,6 @@ export const updateLink =
     if (!needsUpdate) return existing
 
     const expectedPortalUpdatedAt = target.portalUpdatedAt ?? portal.updatedAt
-    const newLabel = validatedLabel ?? existing.label
     const newUrl = destination?.normalizedUri ?? existing.url
     const destinationId = destination?.id ?? existing.destinationId
     const newIconKey = input.iconKey !== undefined ? input.iconKey : existing.iconKey
@@ -141,7 +138,9 @@ export const updateLink =
       linkId: existing.id,
       categoryId: existing.categoryId,
       patch: {
-        label: newLabel,
+        // Only a rename carries a label: the primary-language text is the link's
+        // name, and the stored legacy label is no longer the source of it.
+        ...(validatedLabel === undefined ? {} : { label: validatedLabel }),
         url: newUrl,
         destinationId,
         legacyDestinationState: destination
@@ -163,7 +162,7 @@ export const updateLink =
 
     return {
       ...existing,
-      label: newLabel,
+      ...(validatedLabel === undefined ? {} : { label: validatedLabel }),
       url: newUrl,
       destinationId,
       legacyDestinationState: destination ? 'migrated' : existing.legacyDestinationState,

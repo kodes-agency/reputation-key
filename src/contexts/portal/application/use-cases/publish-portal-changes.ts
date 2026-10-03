@@ -1,0 +1,306 @@
+// Portal context — publish changes while live.
+//
+// A Portal that is already Published can publish its working copy again: a new
+// immutable snapshot and activation replace the live ones in one commit, and
+// the activation they replace closes as `replaced`. Nothing else about the
+// Portal changes. A Portal that is not Published goes live through
+// `updatePortal` (publishing), which is a state change; this is not.
+
+import type { AuthContext } from '#/shared/domain/auth-context'
+import { portalId as toPortalId, unbrand } from '#/shared/domain/ids'
+import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
+import type {
+  PropertyGoogleReviewDestinationPublicApi,
+  PropertyLifecyclePublicApi,
+} from '#/contexts/property/application/public-api'
+import type { PortalRepository } from '../ports/portal.repository'
+import type {
+  PortalCommandStore,
+  RepublishPortalCommand,
+} from '../ports/portal-command-store.port'
+import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
+import type { PortalTokenRepository } from '../ports/portal-token.repository'
+import { loadPortalOrThrow } from '../load-accessible-portal'
+import {
+  assertPortalHasOwnerAndAddress,
+  assertPropertyAllowsPublication,
+  findVerifiedGoogleReviewDestination,
+  requireVerifiedGoogleReviewDestination,
+} from '../portal-publication-readiness'
+import { buildPortalPublicationSnapshot } from '../portal-publication-snapshot'
+import { nextPortalCommandAt } from '../portal-command-version'
+import {
+  destinationMatchesSnapshot,
+  workingCopyMatchesSnapshot,
+} from '../portal-working-copy-match'
+import { portalError, isPortalError, type PortalErrorCode } from '../../domain/errors'
+import { portalPublicationPublished, portalUpdated } from '../../domain/events'
+
+export type PublishPortalChangesDeps = Readonly<{
+  portalRepo: PortalRepository
+  commandStore: PortalCommandStore
+  publicationRepo: PortalPublicationRepository
+  portalTokenRepo: Pick<PortalTokenRepository, 'findResolvableSummaryForPortal'>
+  propertyGoogleReviewDestinationApi: PropertyGoogleReviewDestinationPublicApi
+  propertyLifecycleApi: PropertyLifecyclePublicApi
+  staffPublicApi: StaffPublicApi
+  idGen: () => string
+  clock: () => Date
+}>
+
+export type PublishPortalChangesResult =
+  | Readonly<{
+      outcome: 'published'
+      snapshotId: string
+      version: number
+      configurationDigest: string
+      activatedAt: Date
+    }>
+  /** Nothing was pending: the live version already says what the draft says. */
+  | Readonly<{ outcome: 'unchanged'; version: number }>
+
+export type PublishPortalsChangesResult = ReadonlyArray<
+  Readonly<{ portalId: string }> &
+    (
+      | PublishPortalChangesResult
+      | Readonly<{ outcome: 'failed'; code: PortalErrorCode; message: string }>
+    )
+>
+
+/** What `publishPortalChanges` would write: nothing, or exactly this command. */
+type RepublishPlan =
+  | Readonly<{ outcome: 'unchanged'; version: number; pendingEdits: 0 }>
+  | Readonly<{
+      outcome: 'ready'
+      command: RepublishPortalCommand
+      /** The manager's open unpublished edits this publication would put live. */
+      pendingEdits: number
+    }>
+
+/**
+ * Everything `publishPortalChanges` does except the write: authorise, load,
+ * decide whether anything is pending, ask the readiness gates, and build the
+ * snapshot and the command that would replace the live version. A refusal is a
+ * Portal error, exactly as in the real publication, so a plan that returns is a
+ * publication that the gates would let through.
+ */
+const planPortalRepublish =
+  (deps: PublishPortalChangesDeps) =>
+  async (
+    input: Readonly<{ portalId: string }>,
+    ctx: AuthContext,
+  ): Promise<RepublishPlan> => {
+    const pid = toPortalId(input.portalId)
+    const portal = await loadPortalOrThrow(deps, ctx, pid, {
+      permission: 'portal.update',
+      forbiddenMessage: 'Insufficient permissions to publish Portal changes',
+    })
+    if (portal.publicationState !== 'published') {
+      throw portalError(
+        'invalid_publication_transition',
+        'Only a Portal that is live can publish its changes; publish it first',
+      )
+    }
+
+    const [workingCopy, live, cursor, openChanges] = await Promise.all([
+      deps.publicationRepo.loadWorkingCopy(ctx.organizationId, pid),
+      deps.publicationRepo.findActiveForPortal(ctx.organizationId, pid),
+      deps.publicationRepo.getCursor(ctx.organizationId, pid),
+      deps.publicationRepo.listOpenPendingContentChanges?.(
+        ctx.organizationId,
+        portal.propertyId,
+        pid,
+      ) ?? Promise.resolve([]),
+    ])
+    if (!workingCopy) {
+      throw portalError(
+        'publication_snapshot_unavailable',
+        'Portal publication content is unavailable',
+      )
+    }
+    if (!live) {
+      throw portalError(
+        'publication_snapshot_unavailable',
+        'This Portal has no live version to replace',
+      )
+    }
+    // Pending is a recorded change, a draft that no longer says what the live
+    // version says, or a live version pinned to a Google destination the
+    // Property has since left (a relink), which closes the guest gateway.
+    const verifiedDestination = await findVerifiedGoogleReviewDestination(
+      deps,
+      ctx.organizationId,
+      portal,
+    )
+    const destinationMoved =
+      verifiedDestination !== null &&
+      !destinationMatchesSnapshot(verifiedDestination, live)
+    if (
+      openChanges.length === 0 &&
+      !destinationMoved &&
+      workingCopyMatchesSnapshot(workingCopy, live)
+    ) {
+      return { outcome: 'unchanged', version: live.version, pendingEdits: 0 }
+    }
+
+    await assertPropertyAllowsPublication(deps, ctx.organizationId, portal)
+    const destination = requireVerifiedGoogleReviewDestination(verifiedDestination)
+    const occurredAt = deps.clock()
+    await assertPortalHasOwnerAndAddress(deps, ctx, portal, occurredAt)
+
+    const snapshot = buildPortalPublicationSnapshot({
+      id: deps.idGen(),
+      portalId: unbrand(pid),
+      organizationId: unbrand(portal.organizationId),
+      propertyId: unbrand(portal.propertyId),
+      version: cursor.nextSnapshotVersion,
+      source: workingCopy,
+      destination,
+      createdBy: unbrand(ctx.userId),
+      createdAt: occurredAt,
+    })
+    const revision = nextPortalCommandAt(occurredAt, portal.updatedAt)
+    return {
+      outcome: 'ready',
+      pendingEdits: openChanges.length,
+      command: {
+        organizationId: ctx.organizationId,
+        propertyId: portal.propertyId,
+        portalId: pid,
+        actorUserId: ctx.userId,
+        expectedUpdatedAt: portal.updatedAt,
+        revision,
+        occurredAt,
+        snapshot,
+        activation: {
+          id: deps.idGen(),
+          organizationId: snapshot.organizationId,
+          propertyId: snapshot.propertyId,
+          portalId: snapshot.portalId,
+          snapshotId: snapshot.id,
+          activationSequence: cursor.nextActivationSequence,
+          kind: 'publish',
+          activatedBy: unbrand(ctx.userId),
+          activatedAt: occurredAt,
+          deactivatedAt: null,
+          deactivationReason: null,
+        },
+        lifecycleEvent: portalPublicationPublished({
+          organizationId: ctx.organizationId,
+          propertyId: portal.propertyId,
+          portalId: pid,
+          publicationSnapshotId: snapshot.id,
+          publicationVersion: snapshot.version,
+          publicationDigest: snapshot.configurationDigest,
+          userId: ctx.userId,
+          sourceAggregateVersion: revision.toISOString(),
+          occurredAt,
+        }),
+        event: portalUpdated({
+          portalId: pid,
+          organizationId: ctx.organizationId,
+          propertyId: portal.propertyId,
+          previousPublicationState: 'published',
+          publicationState: 'published',
+          sourceAggregateVersion: revision.toISOString(),
+          occurredAt,
+        }),
+      },
+    }
+  }
+
+export const publishPortalChanges =
+  (deps: PublishPortalChangesDeps) =>
+  async (
+    input: Readonly<{ portalId: string }>,
+    ctx: AuthContext,
+  ): Promise<PublishPortalChangesResult> => {
+    const plan = await planPortalRepublish(deps)(input, ctx)
+    if (plan.outcome === 'unchanged') {
+      return { outcome: 'unchanged', version: plan.version }
+    }
+    const { command } = plan
+    await deps.commandStore.republishPortal(command)
+    return {
+      outcome: 'published',
+      snapshotId: command.snapshot.id,
+      version: command.snapshot.version,
+      configurationDigest: command.snapshot.configurationDigest,
+      activatedAt: command.occurredAt,
+    }
+  }
+
+export type PreviewPortalChangesResult =
+  | Readonly<{
+      outcome: 'would_publish'
+      version: number
+      /** Open unpublished edits by the manager that the publication would put live. */
+      pendingEdits: number
+    }>
+  | Readonly<{ outcome: 'unchanged'; version: number; pendingEdits: 0 }>
+
+/**
+ * What `publishPortalChanges` would do for this Portal, with nothing written:
+ * the same authorisation, the same pending check and the same readiness gates,
+ * so a Portal that is reported as `would_publish` is one the real publication
+ * would let through (bar a change that lands in between). It is the dry run an
+ * operator reads before applying a bulk republish.
+ */
+export const previewPortalChanges =
+  (deps: PublishPortalChangesDeps) =>
+  async (
+    input: Readonly<{ portalId: string }>,
+    ctx: AuthContext,
+  ): Promise<PreviewPortalChangesResult> => {
+    const plan = await planPortalRepublish(deps)(input, ctx)
+    return plan.outcome === 'unchanged'
+      ? plan
+      : {
+          outcome: 'would_publish',
+          version: plan.command.snapshot.version,
+          pendingEdits: plan.pendingEdits,
+        }
+  }
+
+export type PublishPortalChanges = ReturnType<typeof publishPortalChanges>
+export type PreviewPortalChanges = ReturnType<typeof previewPortalChanges>
+
+/**
+ * Publish several Portals' changes, one after another, and say what happened to
+ * each. A Property-look change reaches every live Portal of the Property, and
+ * each of them is its own commit: one that cannot be published (its address is
+ * gone, a language has no text) is reported and does not hold back the rest.
+ * Each Portal is authorized on its own, so a manager sees `forbidden` for a
+ * Portal outside their Properties (the server function checks every scope up
+ * front and refuses the whole request for one; it lets a Portal that no longer
+ * exists through, and that Portal reads `portal_not_found` here). Running it again is safe: a Portal that
+ * already went live reads as `unchanged`. A fault that is not a Portal error
+ * stops the batch and surfaces, because there is no per-Portal answer to give.
+ * The size of a batch is bounded where it enters (the DTO), not here.
+ */
+export const publishPortalsChanges =
+  (deps: PublishPortalChangesDeps) =>
+  async (
+    input: Readonly<{ portalIds: ReadonlyArray<string> }>,
+    ctx: AuthContext,
+  ): Promise<PublishPortalsChangesResult> => {
+    const portalIds = [...new Set(input.portalIds)]
+    const publishOne = publishPortalChanges(deps)
+    const results: Array<PublishPortalsChangesResult[number]> = []
+    for (const portalId of portalIds) {
+      try {
+        results.push({ portalId, ...(await publishOne({ portalId }, ctx)) })
+      } catch (error) {
+        if (!isPortalError(error)) throw error
+        results.push({
+          portalId,
+          outcome: 'failed',
+          code: error.code,
+          message: error.message,
+        })
+      }
+    }
+    return results
+  }
+
+export type PublishPortalsChanges = ReturnType<typeof publishPortalsChanges>

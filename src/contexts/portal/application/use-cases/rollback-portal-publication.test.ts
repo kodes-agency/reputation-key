@@ -5,28 +5,19 @@ import { createInMemoryPortalCommandStore } from '#/shared/testing/in-memory-por
 import { createRecordedOutbox } from '#/shared/testing/recorded-outbox'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { buildPortalPublicationSnapshot } from '../portal-publication-snapshot'
+import { publicationSource } from '../../domain/__fixtures__/publication-source'
 import type { PortalPublicationRepository } from '../ports/portal-publication.repository'
 import type { UpdatePortalCommand } from '../ports/portal-command-store.port'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 
 const NOW = new Date('2026-08-26T12:00:00.000Z')
 const portal = buildTestPortal({ publicationState: 'published' })
-const source = {
-  portal: {
-    id: portal.id,
-    name: portal.name,
-    slug: portal.slug,
-    description: portal.description,
-    heroImageUrl: portal.heroImageUrl,
-    theme: portal.theme,
-    organizationName: 'Example Organization',
-  },
-  categories: [],
-  links: [],
-  privateFeedbackThreshold: portal.privateFeedbackThreshold,
+const source = publicationSource({
   organizationId: portal.organizationId,
   propertyId: portal.propertyId,
-} as const
+  portal: { id: portal.id, name: portal.name, slug: portal.slug },
+  privateFeedbackThreshold: portal.privateFeedbackThreshold,
+})
 const destination = {
   state: 'verified',
   uri: 'https://search.google.com/local/writereview?placeid=test',
@@ -53,7 +44,7 @@ const versionTwo = buildPortalPublicationSnapshot({
   version: 2,
   source: {
     ...source,
-    portal: { ...source.portal, name: 'Current published name' },
+    portal: { ...source.portal, slug: 'current-published-address' },
   },
   destination,
   createdBy: 'manager-1',
@@ -66,7 +57,12 @@ const staffPublicApi: StaffPublicApi = {
 }
 
 function setup(
-  options: { targetExists?: boolean; state?: 'published' | 'disabled' } = {},
+  options: {
+    targetExists?: boolean
+    state?: 'published' | 'disabled'
+    /** The version live right now; the later one by default. */
+    live?: 1 | 2
+  } = {},
 ) {
   const portalRepo = createInMemoryPortalRepo()
   const seeded = { ...portal, publicationState: options.state ?? 'published' }
@@ -82,8 +78,11 @@ function setup(
       nextActivationSequence: 3,
     }),
     findSnapshotByVersion: async (_organizationId, _portalId, version) =>
-      options.targetExists === false || version !== 1 ? null : versionOne,
-    findActiveForPortal: async () => versionTwo,
+      options.targetExists === false
+        ? null
+        : ([versionOne, versionTwo].find((snapshot) => snapshot.version === version) ??
+          null),
+    findActiveForPortal: async () => (options.live === 1 ? versionOne : versionTwo),
     listActivationHistoryPage: async () => ({
       records: [],
       latest: null,
@@ -155,6 +154,29 @@ describe('rollbackPortalPublication', () => {
       occurredAt: NOW,
     })
     expect(harness.portalRepo.all()[0].publicationState).toBe('published')
+  })
+
+  it('makes a later version live again after an earlier one was restored', async () => {
+    const harness = setup({ live: 1 })
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await expect(
+      harness.useCase({ portalId: portal.id, version: 2 }, ctx),
+    ).resolves.toMatchObject({ snapshotId: 'snapshot-v2', version: 2 })
+    expect(harness.command()?.publication).toMatchObject({
+      kind: 'rollback',
+      snapshotVersion: 2,
+    })
+  })
+
+  it('refuses to make the version that is already live live again', async () => {
+    const harness = setup({ live: 2 })
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+
+    await expect(
+      harness.useCase({ portalId: portal.id, version: 2 }, ctx),
+    ).rejects.toMatchObject({ code: 'publication_snapshot_unavailable' })
+    expect(harness.command()).toBeNull()
   })
 
   it('rejects a version outside the current tenant Portal', async () => {

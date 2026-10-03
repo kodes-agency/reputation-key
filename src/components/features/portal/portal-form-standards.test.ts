@@ -77,7 +77,6 @@ describe('Portal form and command DTO architecture standards', () => {
       'src/components/features/portal/portal-new/portal-new-form.tsx',
       'src/components/features/portal/portal-settings/portal-approved-destination-request-form.tsx',
       'src/components/features/portal/portal-settings/portal-localized-override-form.tsx',
-      'src/components/features/portal/portal-settings/portal-property-brand-editor.tsx',
       'src/components/features/portal/portal-settings/portal-property-content-form.tsx',
       'src/components/features/portal/portal-share/portal-replace-code-form.tsx',
       'src/components/features/portal/portal-share/portal-revoke-links-form.tsx',

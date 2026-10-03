@@ -1,6 +1,6 @@
-// Linktree working model (round 4, slice 10) against real PostgreSQL: the link
-// cap under the Portal row lock, the dual write of the primary-language label,
-// per-language texts, the section title and switch, and the pending-change rows
+// Linktree working model (round 4, slices 10 and 44) against real PostgreSQL: the
+// link cap under the Portal row lock, the primary-language text as the only
+// name of a link (the legacy `portal_links.label` is never written), per-language texts, the section title and switch, and the pending-change rows
 // each of them records. Migration backfill lives in portal-linktree-backfill.
 
 import { randomUUID } from 'node:crypto'
@@ -373,7 +373,7 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
     it('writes the link and its primary-language text together', async () => {
       const id = await createLink('City guide', 'a0')
 
-      expect(await linkLabel(id)).toBe('City guide')
+      expect(await linkLabel(id)).toBe('')
       expect(await textRows(id)).toEqual([
         {
           locale: 'en',
@@ -451,6 +451,7 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
             createdAt: command.occurredAt,
             updatedAt: command.occurredAt,
           }),
+          label: sortKey,
           event: portalLinkCreated({
             portalId: PORTAL_A,
             linkId: id,
@@ -482,7 +483,7 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
   })
 
   describe('saving link texts', () => {
-    it('writes the primary-language label through to the link, and only that one', async () => {
+    it('writes every language as a text and leaves the legacy label column alone', async () => {
       const id = await createLink('City guide', 'a0')
 
       await saveTexts(id, [
@@ -490,7 +491,7 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
         { locale: 'bg', label: 'Разгледайте града', line: null },
       ])
 
-      expect(await linkLabel(id)).toBe('Explore the city')
+      expect(await linkLabel(id)).toBe('')
       expect(await textRows(id)).toEqual([
         expect.objectContaining({
           locale: 'bg',
@@ -507,12 +508,28 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
       ])
     })
 
-    it('leaves the link label alone when only another language is saved', async () => {
+    it('does not touch the link row when a text is saved', async () => {
       const id = await createLink('City guide', 'a0')
+      const before = (
+        await getPool().query(
+          `SELECT label, updated_at FROM portal_links WHERE organization_id = $1 AND id = $2`,
+          [ORG_A, id],
+        )
+      ).rows[0]
 
-      await saveTexts(id, [{ locale: 'bg', label: 'Градски справочник' }])
+      await saveTexts(id, [
+        { locale: 'en', label: 'Explore the city' },
+        { locale: 'bg', label: 'Градски справочник' },
+      ])
 
-      expect(await linkLabel(id)).toBe('City guide')
+      expect(
+        (
+          await getPool().query(
+            `SELECT label, updated_at FROM portal_links WHERE organization_id = $1 AND id = $2`,
+            [ORG_A, id],
+          )
+        ).rows[0],
+      ).toEqual(before)
     })
 
     it('records one structured pending row per changed text', async () => {
@@ -620,7 +637,7 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
         }),
       ).rejects.toMatchObject({ code: 'revision_conflict' })
 
-      expect(await linkLabel(id)).toBe('City guide')
+      expect(await linkLabel(id)).toBe('')
       expect((await textRows(id))[0]?.label).toBe('City guide')
     })
 
@@ -652,22 +669,20 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
   })
 
   describe('updating and deleting a link', () => {
-    it('keeps the primary text in step when the legacy label changes', async () => {
-      const id = await createLink('City guide', 'a0')
+    async function updateLinkWith(id: string, patch: Record<string, unknown>) {
       const command = await base()
-
       await store().updatePortalLink({
         ...command,
         actorUserId: MANAGER,
         linkId: portalLinkId(id),
         categoryId: CATEGORY_A,
         patch: {
-          label: 'Updated guide',
           url: `https://example.test/${id}`,
           destinationId: null,
           legacyDestinationState: 'unclassified',
-          iconKey: 'map-pin',
+          iconKey: null,
           imageAssetId: null,
+          ...patch,
         },
         event: portalLinkUpdated({
           portalId: PORTAL_A,
@@ -679,44 +694,66 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
           occurredAt: command.occurredAt,
         }),
       })
+    }
+
+    it('renames a link in its primary text and never in the legacy label column', async () => {
+      const id = await createLink('City guide', 'a0')
+
+      await updateLinkWith(id, { label: 'Updated guide', iconKey: 'map-pin' })
 
       expect((await textRows(id))[0]).toMatchObject({
         locale: 'en',
         label: 'Updated guide',
         version: 2,
       })
+      expect(await linkLabel(id)).toBe('')
     })
 
-    it('creates the primary text when a link written by old code is updated', async () => {
-      const id = await seedLegacyLink('Old label', 'a0')
-      const command = await base()
+    it('leaves the primary text alone when an update carries no label', async () => {
+      const id = await createLink('City guide', 'a0')
+      await saveTexts(id, [{ locale: 'en', label: 'Explore the city', line: 'Maps' }])
 
-      await store().updatePortalLink({
-        ...command,
-        actorUserId: MANAGER,
-        linkId: portalLinkId(id),
-        categoryId: CATEGORY_A,
-        patch: {
-          label: 'New label',
-          url: `https://example.test/${id}`,
-          destinationId: null,
-          legacyDestinationState: 'unclassified',
-          iconKey: null,
-          imageAssetId: null,
-        },
-        event: portalLinkUpdated({
-          portalId: PORTAL_A,
-          linkId: portalLinkId(id),
-          categoryId: CATEGORY_A,
-          organizationId: ORG_A,
-          propertyId: PROPERTY_A,
-          sourceAggregateVersion: command.revision.toISOString(),
-          occurredAt: command.occurredAt,
-        }),
+      await updateLinkWith(id, { iconKey: 'map-pin' })
+
+      expect((await textRows(id))[0]).toMatchObject({
+        locale: 'en',
+        label: 'Explore the city',
+        line: 'Maps',
+        version: 2,
       })
+      expect(await linkLabel(id)).toBe('')
+    })
+
+    it('creates the primary text when a link written by old code is given a label', async () => {
+      const id = await seedLegacyLink('Old label', 'a0')
+
+      await updateLinkWith(id, { label: 'New label' })
 
       expect((await textRows(id)).map((row) => [row.locale, row.label])).toEqual([
         ['en', 'New label'],
+      ])
+      expect(await linkLabel(id)).toBe('Old label')
+    })
+
+    it('keeps a link written by old code reading its label when an update carries none', async () => {
+      const id = await seedLegacyLink('Old label', 'a0')
+
+      await updateLinkWith(id, { iconKey: 'map-pin' })
+
+      expect(await textRows(id)).toEqual([])
+      expect(await linkLabel(id)).toBe('Old label')
+    })
+
+    it('records the wording a rename replaced, read from the primary text', async () => {
+      const id = await createLink('City guide', 'a0')
+      await saveTexts(id, [{ locale: 'en', label: 'Explore the city' }])
+
+      await updateLinkWith(id, { label: 'Updated guide' })
+
+      expect((await pageEditWording()).get(`link:${id}:updated`)).toEqual([
+        'Explore the city',
+        'Updated guide',
+        1,
       ])
     })
 
@@ -746,7 +783,7 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
   })
 
   describe('changing the Portal primary language', () => {
-    it('keeps the primary text and the label in step when a link is renamed after the switch', async () => {
+    it('keeps naming the link in the new primary language when it is renamed after the switch', async () => {
       const id = await createLink('Menu', 'a0')
 
       await switchPrimary('bg', ['en'])
@@ -757,10 +794,10 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
         ['bg', 'Food menu'],
         ['en', 'Menu'],
       ])
-      expect(await linkLabel(id)).toBe('Food menu')
+      expect(await linkLabel(id)).toBe('')
     })
 
-    it('starts the new primary text from the current label when it has none', async () => {
+    it('starts the new primary text from the old primary text when it has none', async () => {
       const id = await createLink('Menu', 'a0')
 
       await switchPrimary('bg', ['en'])
@@ -769,30 +806,49 @@ describe.sequential('Linktree commands (real PostgreSQL)', () => {
         ['bg', 'Menu'],
         ['en', 'Menu'],
       ])
-      expect(await linkLabel(id)).toBe('Menu')
+      expect(await linkLabel(id)).toBe('')
     })
 
-    it('takes the label from a text saved in the new primary language before the switch', async () => {
+    it('keeps a text already written in the new primary language', async () => {
       const id = await createLink('Menu', 'a0')
       await saveTexts(id, [{ locale: 'bg', label: 'Меню' }])
-      expect(await linkLabel(id)).toBe('Menu')
 
       await switchPrimary('bg', ['en'])
 
-      expect(await linkLabel(id)).toBe('Меню')
       expect((await textRows(id)).map((row) => [row.locale, row.label])).toEqual([
         ['bg', 'Меню'],
         ['en', 'Menu'],
       ])
+      expect(await linkLabel(id)).toBe('')
     })
 
-    it('leaves texts and labels alone when the primary language is not what changed', async () => {
+    it('keeps the label of a link written by old code as the old primary text and starts the new one from it', async () => {
+      const id = await seedLegacyLink('Food menu', 'a0')
+
+      await switchPrimary('bg', ['en'])
+
+      expect((await textRows(id)).map((row) => [row.locale, row.label])).toEqual([
+        ['bg', 'Food menu'],
+        ['en', 'Food menu'],
+      ])
+      expect(await linkLabel(id)).toBe('Food menu')
+    })
+
+    it('invents no text for a link that has neither a text nor a label', async () => {
+      const id = await seedLegacyLink('', 'a0')
+
+      await switchPrimary('bg', ['en'])
+
+      expect(await textRows(id)).toEqual([])
+    })
+
+    it('leaves texts alone when the primary language is not what changed', async () => {
       const id = await createLink('Menu', 'a0')
       await saveTexts(id, [{ locale: 'bg', label: 'Меню' }])
 
       await switchPrimary('en', ['bg'])
 
-      expect(await linkLabel(id)).toBe('Menu')
+      expect(await linkLabel(id)).toBe('')
       expect((await textRows(id)).map((row) => [row.locale, row.label])).toEqual([
         ['bg', 'Меню'],
         ['en', 'Menu'],

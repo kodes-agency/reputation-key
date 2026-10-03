@@ -5,15 +5,14 @@ import {
   Outlet,
   notFound,
   redirect,
-  useNavigate,
   useRouterState,
 } from '@tanstack/react-router'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { propertyQuery } from '#/routes/-queries/route-queries'
-import { ErrorState } from '#/components/layout/page-states'
-import { isWorkspaceRoute } from '#/components/features/portal/portal-workspace/portal-workspace-route'
+import { isFullBleedRoute } from '#/components/layout/full-bleed-route'
+import { PropertyNotFound } from '#/components/features/property/property-not-found'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId')({
   beforeLoad: ({ context, params }) => {
@@ -57,28 +56,27 @@ function isNotFoundStatus(error: unknown): boolean {
   )
 }
 
+/**
+ * The shell of every Property route. It adds no padding: `<main>` in the
+ * authenticated layout is the one gutter owner, so a Property page sits on the
+ * same edge as the Properties list and Settings. A full-bleed child (Reviews,
+ * the portal workspace) gets the whole height instead.
+ *
+ * This is also the one place a missing Property is answered. The loader turns a
+ * 404 into `notFound()`, so the branch below is a guard, not a state a child
+ * page repeats: every child receives a Property that exists.
+ */
 function PropertyLayout() {
-  // propertyId available via Route.useParams() if needed
-  const navigate = useNavigate()
   const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const isFullHeight = pathname.includes('/reviews') || isWorkspaceRoute(pathname)
+  const isFullHeight = isFullBleedRoute(pathname)
   const { propertyId } = Route.useParams()
   const { data } = useSuspenseQuery(propertyQuery(propertyId))
   const property = data.property
 
-  if (!property) {
-    return (
-      <div className="flex flex-col items-center gap-4 py-20">
-        <ErrorState
-          message="Property not found."
-          onRetry={() => navigate({ to: '/properties' })}
-        />
-      </div>
-    )
-  }
+  if (!property) return <PropertyNotFound />
 
   return (
-    <div className={isFullHeight ? 'min-w-0 h-full overflow-hidden' : 'min-w-0 p-6'}>
+    <div className={isFullHeight ? 'min-w-0 h-full overflow-hidden' : 'min-w-0'}>
       {/*
         TanStack Router can retain the same file-route component when only the
         dynamic Property parameter changes. Remount the complete child surface

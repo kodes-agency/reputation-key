@@ -19,6 +19,15 @@ import {
   goalMonthlyResultReconciledSchema,
   goalMonthlyResultRevisedSchema,
 } from './goal-event-schemas'
+import {
+  portalApprovedDestinationRatioRecordedV1Schema,
+  portalApprovedDestinationRatioRecordedV2Schema,
+  portalConfigurationCompletenessRecordedV1Schema,
+  portalConfigurationCompletenessRecordedV2Schema,
+  portalConfigurationCompletenessRecordedV3Schema,
+  portalContentReviewCompletedV1Schema,
+  portalContentReviewCompletedV2Schema,
+} from './portal-workflow-event-schemas'
 
 // ── Review event schemas ────────────────────────────────────────────
 
@@ -1070,45 +1079,6 @@ const connectionVisibilityChangedSchema = z.object({
 
 // ── Portal event schemas ───────────────────────────────────────────
 
-const portalWorkflowFactV1Schema = z.object({
-  reviewId: z.string().min(1),
-  revision: z.number().int().positive(),
-  organizationId: z.string().min(1),
-  propertyId: z.string().min(1),
-  portalId: z.string().min(1),
-  portalGroupId: z.string().nullable(),
-  supersedesSourceEventId: z.string().min(1).nullable(),
-  occurredAt: z.string(),
-})
-
-const portalWorkflowFactV2Schema = portalWorkflowFactV1Schema.extend({
-  sourceAggregateVersion: z.iso.datetime(),
-  occurredAt: z.iso.datetime(),
-})
-
-const portalContentReviewCompletedV1Schema = portalWorkflowFactV1Schema
-const portalContentReviewCompletedV2Schema = portalWorkflowFactV2Schema
-const portalConfigurationCompletenessRecordedV1Schema = portalWorkflowFactV1Schema.extend(
-  {
-    completedFields: z.number().int().nonnegative(),
-    requiredFields: z.number().int().positive(),
-  },
-)
-const portalConfigurationCompletenessRecordedV2Schema = portalWorkflowFactV2Schema.extend(
-  {
-    completedFields: z.number().int().nonnegative(),
-    requiredFields: z.number().int().positive(),
-  },
-)
-const portalApprovedDestinationRatioRecordedV1Schema = portalWorkflowFactV1Schema.extend({
-  approvedDestinations: z.number().int().nonnegative(),
-  configuredDestinations: z.number().int().nonnegative(),
-})
-const portalApprovedDestinationRatioRecordedV2Schema = portalWorkflowFactV2Schema.extend({
-  approvedDestinations: z.number().int().nonnegative(),
-  configuredDestinations: z.number().int().nonnegative(),
-})
-
 const portalLifecycleFactSchema = z.object({
   portalId: z.string(),
   organizationId: z.string(),
@@ -1863,6 +1833,11 @@ export function registerAllEventSchemas(): void {
     type: 'portal.configuration_completeness.recorded',
     version: 2,
     schema: portalConfigurationCompletenessRecordedV2Schema,
+  })
+  registerEventSchema({
+    type: 'portal.configuration_completeness.recorded',
+    version: 3,
+    schema: portalConfigurationCompletenessRecordedV3Schema,
   })
   registerEventSchema({
     type: 'portal.approved_destination_ratio.recorded',

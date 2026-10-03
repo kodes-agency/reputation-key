@@ -11,6 +11,8 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { assertPropertyAccess } from '../assert-property-access'
 import { toPortalTokenStatus, type PortalTokenStatus } from '../portal-token-status'
 import type { PortalAddressCipher } from '../ports/portal-address-cipher.port'
+import type { PortalActorDirectory } from '../ports/portal-actor-directory.port'
+import { resolveVersionActors, versionActor } from '../portal-version-actors'
 
 export type GetPortalInput = Readonly<{
   portalId: string
@@ -25,10 +27,22 @@ export type GetPortalDeps = Readonly<{
   portalRepo: PortalRepository
   portalTokenRepo: Pick<PortalTokenRepository, 'findResolvableSummaryForPortal'>
   staffPublicApi: StaffPublicApi
+  /** Names the person who made the live code. */
+  actorDirectory: PortalActorDirectory
   /** Says whether the live code can be downloaded again; null when no keyring is configured. */
   addressCipher: Pick<PortalAddressCipher, 'canOpen'> | null
   clock: () => Date
 }>
+
+async function nameCodeMaker(
+  directory: PortalActorDirectory,
+  ctx: AuthContext,
+  issuedBy: string | null,
+): Promise<string | null> {
+  if (issuedBy === null) return null
+  const names = await resolveVersionActors(directory, ctx.organizationId, [issuedBy])
+  return versionActor(issuedBy, names)?.displayName ?? null
+}
 
 export const getPortal =
   (deps: GetPortalDeps) =>
@@ -49,11 +63,13 @@ export const getPortal =
       pid,
       deps.clock(),
     )
+    const madeBy = await nameCodeMaker(deps.actorDirectory, ctx, token?.issuedBy ?? null)
     return {
       portal,
       tokenStatus: toPortalTokenStatus(
         token,
         (version) => deps.addressCipher?.canOpen(version) ?? false,
+        madeBy,
       ),
     }
   }

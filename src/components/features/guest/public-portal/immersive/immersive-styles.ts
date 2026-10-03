@@ -16,9 +16,10 @@ import { PHOTO_BACKDROP } from './immersive-look'
 // global styles are marked NEUTRALISE, because they exist only because those
 // globals reach a page that must not look like the app:
 //
-//   - `a { color: var(--accent) }` is a global rule of specificity (0,4,1). A
-//     scoped selector could outrank it (an ID-weighted one reaches (1,1,1)),
-//     but then every slice would have to repeat that weight to colour a link.
+//   - `a { color: var(--accent) }` is a global default in `@layer base`. Any
+//     unlayered rule here already beats it, but a page that must not look like
+//     the app should not hang on layer order, and a utility or a stray class
+//     must not recolour an anchor either.
 //     `!important` is the deliberate choice instead, confined to `color` and
 //     `text-decoration` on anchors inside the root: no class can recolour an
 //     anchor by accident, and a link chooses its colour through the

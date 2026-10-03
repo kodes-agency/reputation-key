@@ -1,11 +1,12 @@
 // Portal command store — writes to `portal_link_texts` and the Portal's
-// language set, shared by the link commands (create, update: the dual write of
-// the primary-language label) and the Linktree commands (per-language texts).
+// language set, shared by the link commands (create, update: the primary-language
+// text) and the Linktree commands (per-language texts). A link's wording lives
+// here and only here: the legacy `portal_links.label` column is never written.
 //
 // Every function runs inside a command transaction that already holds the
 // Portal fence (ADR 0060), so a locale read here cannot change before commit.
 
-import { and, eq, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { portalLinks, portalLinkTexts, portals } from '#/shared/db/schema'
 import { parseGuestLocale, type GuestLocale } from '#/shared/domain/guest-locale'
 import type { Tx } from '#/shared/outbox/commit'
@@ -127,9 +128,9 @@ export async function upsertLinkTexts(
 }
 
 /**
- * Keep the primary-language text in step with the link's own label. Used when a
- * caller only knows the label (a link created or renamed through the legacy
- * path): the line, if any, is kept, and the text becomes manager-written.
+ * Write the primary-language text of a link from a label alone (a link created
+ * or renamed through the link commands): the line, if any, is kept, and the
+ * text becomes manager-written.
  */
 export async function syncPrimaryLinkText(
   tx: Tx,
@@ -168,17 +169,55 @@ export async function syncPrimaryLinkText(
 }
 
 /**
- * A Portal's primary language just changed: bring every link back to the
- * invariant "the link's label mirrors its primary-language text". Where the new
- * primary already has a text, the link label takes it; where it has none, the
- * text starts from the current label (a link holds at most four, so a plain
- * per-link pass is cheap). Runs inside the Portal update transaction.
+ * What a link says in the Portal's primary language: its text there, else the
+ * legacy label of a link written before the texts existed (never an empty one),
+ * else null. `primary` is the Portal's primary language, or the one it had.
+ */
+export async function readPrimaryLinkLabel(
+  tx: Tx,
+  scope: PortalLinkTextScope,
+  primary: GuestLocale,
+): Promise<string | null> {
+  const [text] = await tx
+    .select({ label: portalLinkTexts.label })
+    .from(portalLinkTexts)
+    .where(
+      and(
+        eq(portalLinkTexts.organizationId, scope.organizationId),
+        eq(portalLinkTexts.linkId, scope.linkId),
+        eq(portalLinkTexts.locale, primary),
+      ),
+    )
+    .limit(1)
+  if (text) return text.label
+  const [link] = await tx
+    .select({ label: portalLinks.label })
+    .from(portalLinks)
+    .where(
+      and(
+        eq(portalLinks.organizationId, scope.organizationId),
+        eq(portalLinks.portalId, scope.portalId),
+        eq(portalLinks.id, scope.linkId),
+      ),
+    )
+    .limit(1)
+  return link && link.label !== '' ? link.label : null
+}
+
+/**
+ * A Portal's primary language just changed: no link may be left unnamed in the
+ * language that now has to be complete before publishing. Each link keeps its
+ * wording in the old primary language (a link written before the texts existed
+ * starts that text from its legacy label), and the new primary language starts
+ * from it where it has no text of its own. A link with no wording at all is
+ * left as it is. Runs inside the Portal update transaction.
  */
 export async function reconcileLinkTextsToPrimary(
   tx: Tx,
   scope: Omit<PortalLinkTextScope, 'linkId'>,
   writer: Writer,
   primary: GuestLocale,
+  previousPrimary: GuestLocale,
 ): Promise<void> {
   const links = await tx
     .select({ id: portalLinks.id, label: portalLinks.label })
@@ -191,33 +230,29 @@ export async function reconcileLinkTextsToPrimary(
     )
   if (links.length === 0) return
   const texts = await tx
-    .select({ linkId: portalLinkTexts.linkId, label: portalLinkTexts.label })
+    .select({ linkId: portalLinkTexts.linkId, locale: portalLinkTexts.locale })
     .from(portalLinkTexts)
     .where(
       and(
         eq(portalLinkTexts.organizationId, scope.organizationId),
         eq(portalLinkTexts.portalId, scope.portalId),
-        eq(portalLinkTexts.locale, primary),
+        inArray(portalLinkTexts.locale, [primary, previousPrimary]),
       ),
     )
-  const textLabelByLink = new Map(texts.map((text) => [text.linkId, text.label]))
+  const hasText = (linkId: string, locale: GuestLocale) =>
+    texts.some((text) => text.linkId === linkId && text.locale === locale)
   for (const link of links) {
-    const textLabel = textLabelByLink.get(link.id)
-    if (textLabel === undefined) {
-      await syncPrimaryLinkText(tx, { ...scope, linkId: link.id }, writer, {
-        locale: primary,
-        label: link.label,
+    const linkScope = { ...scope, linkId: link.id }
+    const base = await readPrimaryLinkLabel(tx, linkScope, previousPrimary)
+    if (base === null) continue
+    if (!hasText(link.id, previousPrimary)) {
+      await syncPrimaryLinkText(tx, linkScope, writer, {
+        locale: previousPrimary,
+        label: base,
       })
-    } else if (textLabel !== link.label) {
-      await tx
-        .update(portalLinks)
-        .set({ label: textLabel, updatedAt: writer.at })
-        .where(
-          and(
-            eq(portalLinks.organizationId, scope.organizationId),
-            eq(portalLinks.id, link.id),
-          ),
-        )
+    }
+    if (!hasText(link.id, primary)) {
+      await syncPrimaryLinkText(tx, linkScope, writer, { locale: primary, label: base })
     }
   }
 }

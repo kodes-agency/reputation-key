@@ -38,7 +38,13 @@ export type PortalLocalizedContentSnapshot = Readonly<{
   heroImageUrl: string | null
 }>
 
-export type PortalPublicationExperienceSource = Readonly<{
+/**
+ * The working copy as schema versions 1 and 2 were built from it. Publishing no
+ * longer writes either (see `portal-publication-source.ts`), so these two types
+ * remain only to describe what those configurations were made of, for the test
+ * builder that proves historical rows still verify.
+ */
+export type LegacyPortalPublicationExperienceSource = Readonly<{
   primaryGuestLocale: PortalGuestLocale
   localeSet: readonly PortalGuestLocale[]
   languagePackVersions: Readonly<Partial<Record<PortalGuestLocale, string>>>
@@ -48,7 +54,7 @@ export type PortalPublicationExperienceSource = Readonly<{
   brandProfile: PortalBrandProfileSnapshot
 }>
 
-export type PortalPublicationSource = Readonly<{
+export type LegacyPortalPublicationSource = Readonly<{
   portal: Readonly<{
     id: string
     name: string
@@ -72,7 +78,7 @@ export type PortalPublicationSource = Readonly<{
   organizationId: string
   propertyId: string
   /** Missing only for immutable pre-localization snapshots and legacy classification. */
-  experience?: PortalPublicationExperienceSource
+  experience?: LegacyPortalPublicationExperienceSource
 }>
 
 export type VerifiedPublicationDestination = Readonly<{
@@ -98,9 +104,9 @@ type PortalPublicationGatewayFacts = Readonly<{
 
 type PortalPublicationConfigurationBase = PortalPublicationGatewayFacts &
   Readonly<{
-    portal: PortalPublicationSource['portal']
-    categories: PortalPublicationSource['categories']
-    links: PortalPublicationSource['links']
+    portal: LegacyPortalPublicationSource['portal']
+    categories: LegacyPortalPublicationSource['categories']
+    links: LegacyPortalPublicationSource['links']
   }>
 
 export type LegacyPortalPublicationConfiguration = PortalPublicationConfigurationBase &

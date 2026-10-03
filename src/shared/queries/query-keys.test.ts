@@ -133,6 +133,14 @@ describe('goal query keys', () => {
     expect(portalKeys.overview('property-1')).not.toEqual(portalKeys.list('property-1'))
   })
 
+  it('keeps the page of one version under that version, so a restore refreshes it with the rest', () => {
+    const key = portalKeys.versionPreview('portal-1', 4)
+
+    expect(key.slice(0, -1)).toEqual(portalKeys.version('portal-1', 4))
+    expect(key).not.toEqual(portalKeys.version('portal-1', 4))
+    expect(key).not.toEqual(portalKeys.versionPreview('portal-1', 3))
+  })
+
   it('keeps the New portal options in the property subtree, so a Property edit refreshes them', () => {
     expect(portalKeys.creationOptions('property-1')).toEqual([
       'portals',

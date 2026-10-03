@@ -310,8 +310,25 @@ describe('updatePortal input validation', () => {
     expect(result.success).toBe(true)
   })
 
-  it('still refuses locales that have no reviewed pack as manager input', () => {
-    for (const locale of ['es', 'it', 'fr', 'de', 'pt']) {
+  it('accepts every guest language as manager input', () => {
+    for (const locale of ['en', 'es', 'it', 'fr', 'de', 'bg']) {
+      expect(
+        updatePortalInputSchema.safeParse({
+          portalId: 'portal-123',
+          primaryGuestLocale: locale,
+        }).success,
+      ).toBe(true)
+      expect(
+        updatePortalInputSchema.safeParse({
+          portalId: 'portal-123',
+          additionalGuestLocales: [locale],
+        }).success,
+      ).toBe(true)
+    }
+  })
+
+  it('still refuses a locale outside the catalogue as manager input', () => {
+    for (const locale of ['pt', 'DE', 'de-AT']) {
       expect(
         updatePortalInputSchema.safeParse({
           portalId: 'portal-123',

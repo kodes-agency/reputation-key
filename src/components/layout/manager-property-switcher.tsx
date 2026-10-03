@@ -14,25 +14,68 @@ import { personInitials } from '#/components/inbox/person-initials'
 type Props = Readonly<{
   properties: ReadonlyArray<{ id: string; name: string; slug: string }>
   propertyId: string | undefined
+  organizationName: string | undefined
+  /** The page in view is over every Property: the tile names the Organization. */
+  isAllProperties: boolean
+  /**
+   * Whether All properties opens somewhere other than the property list. When
+   * it does not, the list entry would be a second way to the same page.
+   */
+  allPropertiesIsListed: boolean
   onSwitch: (propertyId: string) => void
+  onSelectAllProperties: () => void
 }>
 
-export function ManagerPropertySwitcher({ properties, propertyId, onSwitch }: Props) {
+const ALL_PROPERTIES = 'All properties'
+
+/** What the tile reads as: the property in view, All properties, or a prompt. */
+function tileCopy(
+  activeProperty: Props['properties'][number] | undefined,
+  isAllProperties: boolean,
+  organizationName: string | undefined,
+) {
+  if (activeProperty) {
+    return {
+      title: activeProperty.name,
+      subtitle: activeProperty.slug,
+      label: activeProperty.name,
+    }
+  }
+  if (isAllProperties) {
+    return {
+      title: organizationName ?? ALL_PROPERTIES,
+      subtitle: organizationName ? ALL_PROPERTIES : undefined,
+      label: `${organizationName ?? ALL_PROPERTIES}, all properties. Switch to a property`,
+    }
+  }
+  return {
+    title: 'Select property',
+    subtitle: 'No property selected',
+    label: 'Select property',
+  }
+}
+
+export function ManagerPropertySwitcher({
+  properties,
+  propertyId,
+  organizationName,
+  isAllProperties,
+  allPropertiesIsListed,
+  onSwitch,
+  onSelectAllProperties,
+}: Props) {
   const navigate = useNavigate()
   const { can } = usePermissions()
   const activeProperty = properties.find((p) => p.id === propertyId)
   const initials = personInitials(activeProperty?.name)
+  const copy = tileCopy(activeProperty, isAllProperties, organizationName)
 
   return (
     <SidebarMenu>
       <SidebarMenuItem>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <SidebarMenuButton
-              size="lg"
-              tooltip={activeProperty?.name ?? 'Select property'}
-              aria-label={activeProperty?.name ?? 'Select property'}
-            >
+            <SidebarMenuButton size="lg" tooltip={copy.label} aria-label={copy.label}>
               <div
                 className={`flex aspect-square size-8 items-center justify-center rounded-lg ${
                   initials
@@ -43,12 +86,12 @@ export function ManagerPropertySwitcher({ properties, propertyId, onSwitch }: Pr
                 {initials ?? <Building2 className="size-4 text-link" />}
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
-                <span className="truncate font-semibold">
-                  {activeProperty?.name ?? 'Select property'}
-                </span>
-                <span className="truncate text-xs text-muted-foreground">
-                  {activeProperty?.slug ?? 'No property selected'}
-                </span>
+                <span className="truncate font-semibold">{copy.title}</span>
+                {copy.subtitle ? (
+                  <span className="truncate text-xs text-muted-foreground">
+                    {copy.subtitle}
+                  </span>
+                ) : null}
               </div>
               <ChevronsUpDown className="ml-auto size-4 group-data-[collapsible=icon]:hidden" />
             </SidebarMenuButton>
@@ -58,6 +101,13 @@ export function ManagerPropertySwitcher({ properties, propertyId, onSwitch }: Pr
               Properties
             </div>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onSelectAllProperties}>
+              <Building2 className="mr-2 size-4" />
+              {ALL_PROPERTIES}
+              {isAllProperties && (
+                <span className="ml-auto text-xs text-muted-foreground">Active</span>
+              )}
+            </DropdownMenuItem>
             {properties.map((prop) => (
               <DropdownMenuItem key={prop.id} onClick={() => onSwitch(prop.id)}>
                 {prop.name}
@@ -67,10 +117,12 @@ export function ManagerPropertySwitcher({ properties, propertyId, onSwitch }: Pr
               </DropdownMenuItem>
             ))}
             <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={() => navigate({ to: '/properties' })}>
-              <Building2 className="mr-2 size-4" />
-              View all properties
-            </DropdownMenuItem>
+            {allPropertiesIsListed ? (
+              <DropdownMenuItem onClick={() => navigate({ to: '/properties' })}>
+                <Building2 className="mr-2 size-4" />
+                View all properties
+              </DropdownMenuItem>
+            ) : null}
             {can('property.import_gbp_v2') ? (
               <DropdownMenuItem
                 onClick={() => navigate({ to: '/properties/import-google' })}

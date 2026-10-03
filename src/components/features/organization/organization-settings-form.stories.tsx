@@ -31,17 +31,17 @@ export const Default: Story = {
   },
 }
 
-// Slug-change warning — editing the slug warns that guest portal URLs will break.
-export const SlugWarning: Story = {
+// Slug edit — no warning. Guest links are /p/<token>, and no link, email,
+// QR code or NFC tag carries the organization slug, so a new one breaks nothing.
+export const SlugEdit: Story = {
   args: { ...Default.args },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const slugInput = canvas.getByLabelText(/slug/i)
     await userEvent.clear(slugInput)
     await userEvent.type(slugInput, 'acme-renamed')
-    // The slug-changed warning renders reactively via form.Subscribe once
-    // the slug field diverges from the persisted organization.slug.
-    await expect(await canvas.findByText(/changing the slug will break/i)).toBeVisible()
+    await expect(slugInput).toHaveValue('acme-renamed')
+    await expect(canvas.queryByRole('alert')).not.toBeInTheDocument()
   },
 }
 

@@ -306,6 +306,7 @@ export const getPublicPortal = createServerFn({ method: 'GET' })
           })
           return toPublicPortalLoaderData(portal, {
             guestSession: { csrfNonce: session.csrfNonce },
+            servedAt: now.toISOString(),
             response,
             responseForm: {
               availability: formAvailability(responseDecision),

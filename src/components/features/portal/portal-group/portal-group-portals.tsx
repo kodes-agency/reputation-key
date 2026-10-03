@@ -2,6 +2,7 @@
 // overview, with no group heads, ordered by qualified scans where the results
 // are shown. Under the table: a quiet "Add portal", the one-group rule, and what
 // the group's results count.
+import { useState } from 'react'
 import { Info, Plus } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { DropdownMenuItem } from '#/components/ui/dropdown-menu'
@@ -15,6 +16,10 @@ import {
   type PortalManagerName,
 } from '../portal-overview/portal-overview-view'
 import type { PortalGroupMutations, PortalGroupRef } from './portal-group-mutations'
+import {
+  PortalGroupRemovePortalDialog,
+  type PortalChosenForRemoval,
+} from './portal-group-remove-portal-dialog'
 
 const MENU_ITEM = 'min-h-11 md:min-h-8'
 
@@ -52,8 +57,13 @@ export function PortalGroupPortals({
   onAdd,
   archiveMutation,
   restoreMutation,
+  disableMutation,
   removePortalMutation,
 }: Props) {
+  // The menu item only chooses; the dialog lives out here because a dialog
+  // inside a menu unmounts with it.
+  const [removing, setRemoving] = useState<PortalChosenForRemoval | null>(null)
+  const [removeOpen, setRemoveOpen] = useState(false)
   const resultsState: PortalOverviewResultsState = results?.state ?? { status: 'off' }
   const byScans = resultsState.status === 'ready'
   const overview = buildPortalOverview(
@@ -80,6 +90,7 @@ export function PortalGroupPortals({
           propertyName={propertyName}
           archiveMutation={archiveMutation}
           restoreMutation={restoreMutation}
+          disableMutation={disableMutation}
           results={resultsState}
           busy={results?.busy}
           scansOrder={byScans ? 'desc' : undefined}
@@ -92,9 +103,8 @@ export function PortalGroupPortals({
                     className={MENU_ITEM}
                     disabled={removePortalMutation.isPending}
                     onSelect={() => {
-                      void removePortalMutation({
-                        data: { portalGroupId: group.id, portalId: item.row.portalId },
-                      }).catch(() => undefined)
+                      setRemoving({ portalId: item.row.portalId, name: item.row.name })
+                      setRemoveOpen(true)
                     }}
                   >
                     Remove from group
@@ -122,6 +132,18 @@ export function PortalGroupPortals({
         </p>
       </div>
       {basis ? <p className="text-xs text-muted-foreground">{basis}</p> : null}
+      <PortalGroupRemovePortalDialog
+        portal={removing}
+        groupName={group.name}
+        open={removeOpen}
+        onOpenChange={setRemoveOpen}
+        pending={removePortalMutation.isPending}
+        onConfirm={(portalId) => {
+          void removePortalMutation({
+            data: { portalGroupId: group.id, portalId },
+          }).catch(() => undefined)
+        }}
+      />
     </section>
   )
 }

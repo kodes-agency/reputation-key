@@ -14,8 +14,9 @@ import {
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
 
-// The global `a` colour is unlayered, so a link used as a menu item pins its ink.
-const ITEM = 'min-h-11 text-foreground! md:min-h-8'
+// A 44 px target below `md`, 32 px from there up. A link used as a menu item
+// takes the menu's ink (`dropdown-menu-item` opts out of the link default).
+const ITEM = 'min-h-11 md:min-h-8'
 
 export function PropertyRowActions({
   propertyId,
@@ -53,11 +54,7 @@ export function PropertyRowActions({
         {can('property.archive') ? (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem
-              asChild
-              variant="destructive"
-              className="min-h-11 text-destructive! md:min-h-8"
-            >
+            <DropdownMenuItem asChild variant="destructive" className={ITEM}>
               <Link to="/properties/$propertyId/settings/danger" params={{ propertyId }}>
                 Remove from workspace…
               </Link>

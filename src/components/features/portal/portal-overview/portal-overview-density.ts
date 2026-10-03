@@ -23,12 +23,15 @@ export type OverviewClasses = Readonly<{
   /** The Portal's name cell and the Portal's cells that follow it. */
   nameCell: string
   managersCell: string
+  /** Edit and Share; aligned by their middles, as Share starts with an icon and Edit with text. */
   buttonsCell: string
   menuCell: string
   /** Shown as a card only: the one summary line, and the pencil on Edit. */
   cardOnly: string
   /** The words of Share: beside its icon in the regular table, only for a screen reader in the compact one. */
   shareLabel: string
+  /** Where Share is not offered (a draft, an archived Portal), the unseen box that keeps Edit in its column; a card has no column to keep. */
+  sharePlaceholder: string
   /** A measure's figure, and the words that fill the columns of a draft. */
   measureCell: string
   measureSpan: string
@@ -56,11 +59,12 @@ export const OVERVIEW_CLASSES: Readonly<Record<OverviewDensity, OverviewClasses>
       'col-start-1 row-start-1 h-auto min-w-0 p-0 text-left font-normal whitespace-normal @4xl:table-cell @4xl:px-4 @4xl:py-3',
     managersCell: 'hidden p-0 @4xl:table-cell @4xl:w-36 @4xl:px-4 @4xl:py-3',
     buttonsCell:
-      'col-span-2 row-start-2 grid grid-cols-2 gap-2 p-0 @4xl:table-cell @4xl:w-48 @4xl:px-2 @4xl:py-3 @4xl:text-right [&>*]:justify-center @4xl:[&>*]:ml-2',
+      'col-span-2 row-start-2 grid grid-cols-2 gap-2 p-0 @4xl:table-cell @4xl:w-48 @4xl:px-2 @4xl:py-3 @4xl:text-right [&>*]:justify-center @4xl:[&>*]:ml-2 @4xl:[&>*]:align-middle',
     menuCell:
       'col-start-2 row-start-1 -mt-2 -mr-2 self-start p-0 @4xl:mt-0 @4xl:mr-0 @4xl:table-cell @4xl:w-12 @4xl:px-2 @4xl:py-3 @4xl:text-right',
     cardOnly: '@4xl:hidden',
     shareLabel: '',
+    sharePlaceholder: 'hidden @4xl:inline-flex',
     measureCell:
       'hidden px-2 py-3 text-right text-sm tabular-nums @4xl:table-cell @4xl:w-24',
     measureSpan: 'hidden px-2 py-3 text-sm text-muted-foreground @4xl:table-cell',
@@ -88,11 +92,12 @@ export const OVERVIEW_CLASSES: Readonly<Record<OverviewDensity, OverviewClasses>
       'col-start-1 row-start-1 h-auto min-w-0 p-0 text-left font-normal whitespace-normal @2xl:table-cell @2xl:px-3 @2xl:py-3',
     managersCell: 'hidden p-0 @2xl:table-cell @2xl:w-24 @2xl:px-2 @2xl:py-3',
     buttonsCell:
-      'col-span-2 row-start-2 grid grid-cols-2 gap-2 p-0 @2xl:table-cell @2xl:w-28 @2xl:px-1 @2xl:py-3 @2xl:text-right [&>*]:justify-center @2xl:[&>*]:ml-2',
+      'col-span-2 row-start-2 grid grid-cols-2 gap-2 p-0 @2xl:table-cell @2xl:w-28 @2xl:px-1 @2xl:py-3 @2xl:text-right [&>*]:justify-center @2xl:[&>*]:ml-2 @2xl:[&>*]:align-middle',
     menuCell:
       'col-start-2 row-start-1 -mt-2 -mr-2 self-start p-0 @2xl:mt-0 @2xl:mr-0 @2xl:table-cell @2xl:w-10 @2xl:px-1 @2xl:py-3 @2xl:text-right',
     cardOnly: '@2xl:hidden',
     shareLabel: '@2xl:sr-only',
+    sharePlaceholder: 'hidden @2xl:inline-flex',
     measureCell:
       'hidden px-1 py-3 text-right text-sm tabular-nums @2xl:table-cell @2xl:w-16',
     measureSpan: 'hidden px-1 py-3 text-sm text-muted-foreground @2xl:table-cell',

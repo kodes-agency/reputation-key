@@ -1,5 +1,6 @@
 import { TabsContent } from '#/components/ui/tabs'
-import { Badge } from '#/components/ui/badge'
+import { RoleBadge } from '#/components/features/identity/shared/role-badge'
+import type { Role } from '#/shared/domain/roles'
 import {
   Table,
   TableBody,
@@ -14,7 +15,9 @@ interface DirectoryTabProps {
     userId: string
     name: string
     email: string
-    role: string | null
+    /** The built-in role, or null for a custom-only member (then `rawRole` is shown). */
+    role: Role | null
+    rawRole: string
   }>
 }
 
@@ -38,11 +41,7 @@ export function DirectoryTab({ members }: DirectoryTabProps) {
                 <TableCell className="font-medium">{member.name}</TableCell>
                 <TableCell className="text-muted-foreground">{member.email}</TableCell>
                 <TableCell>
-                  {member.role ? (
-                    <Badge variant="secondary">{member.role}</Badge>
-                  ) : (
-                    <span className="text-muted-foreground">—</span>
-                  )}
+                  <RoleBadge role={member.role} rawRole={member.rawRole} />
                 </TableCell>
               </TableRow>
             ))}

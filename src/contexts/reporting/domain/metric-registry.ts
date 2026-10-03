@@ -182,7 +182,10 @@ export function isGamificationViolation(version: MetricDefinitionVersion): boole
 /** Stable IDs in the code-reviewed catalogue; producers never select by mutable key. */
 export const METRIC_VERSION_IDS = {
   contentReviewCompleted: '11111111-1111-4111-8111-111111111101',
+  /** Counted on the legacy settings: every completeness fact before the Immersive Hub. */
   configurationCompleteness: '11111111-1111-4111-8111-111111111102',
+  /** Counted on the Immersive Hub's five fields (portal-configuration-completeness.ts). */
+  configurationCompletenessImmersiveHub: '11111111-1111-4111-8111-111111113102',
   approvedDestinationRatio: '11111111-1111-4111-8111-111111111103',
   portalScanAnalytics: '11111111-1111-4111-8111-111111111201',
   portalRatingAnalytics: '11111111-1111-4111-8111-111111111202',
@@ -356,6 +359,32 @@ export const METRIC_DEFINITIONS = Object.freeze([
         correctionBehavior: 'append_delta',
         fairnessReviewStatus: 'approved_for_consumers',
         createdAt: '2026-09-05 23:07:05.116845+03',
+      },
+      {
+        // The Immersive Hub's fields: Portal name, primary-language wording, a
+        // Property look, a Linktree link guests can open and a verified Google
+        // review destination. Versions 1 and 2 keep the legacy count.
+        id: '11111111-1111-4111-8111-111111113102',
+        definitionId: '11111111-1111-4111-8111-111111110102',
+        version: 3,
+        effectiveFrom: new Date('2026-10-02T03:00:00+0300'),
+        effectiveTo: null,
+        numeratorDescription: 'Immersive Hub configuration fields complete',
+        denominatorDescription: 'Immersive Hub configuration fields required',
+        unit: 'percent',
+        precision: 2,
+        aggregationRule: 'latest',
+        lateArrivalRule: 'accept_with_source_event_time',
+        allowedScopes: ['property', 'portal_group'],
+        attributionRule: 'property and effective Portal group at event time',
+        minimumSample: 1,
+        insufficientDataBehavior: 'unavailable',
+        sourcePolicyAllowlist: ['first_party_workflow'],
+        permittedConsumers: ['dashboard', 'goal', 'notification'],
+        employmentDecisionEligible: false,
+        correctionBehavior: 'append_delta',
+        fairnessReviewStatus: 'approved_for_consumers',
+        createdAt: '2026-10-02 18:00:00+03',
       },
     ],
   ),

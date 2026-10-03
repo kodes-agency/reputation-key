@@ -117,10 +117,6 @@ describe('portalLinkRepository (integration)', () => {
       const categories = await repo.listCategories(ORG_A, portal.id)
       expect(categories).toHaveLength(1)
       expect(categories[0].title).toBe('Category A')
-      await expect(repo.findCategoryCommandTarget(ORG_A, cat.id)).resolves.toEqual({
-        category: cat,
-        portalUpdatedAt: portal.updatedAt,
-      })
     })
 
     it('tenant-isolates category list', async () => {
@@ -153,80 +149,6 @@ describe('portalLinkRepository (integration)', () => {
       const orgBCats = await repo.listCategories(ORG_B, portalB.id)
       expect(orgBCats).toHaveLength(1)
       expect(orgBCats[0].title).toBe('Org B Cat')
-    })
-
-    it('updates a category title', async () => {
-      const db = getDb()
-      const repo = createPortalLinkRepository(db, () => REPOSITORY_NOW)
-      const portal = await seedPortal(ORG_A, 'cat-update')
-
-      const cat = buildTestPortalLinkCategory({
-        id: portalLinkCategoryId(crypto.randomUUID()),
-        portalId: portal.id,
-        organizationId: ORG_A,
-        title: 'Old Title',
-        sortKey: 'a0',
-      })
-      await repo.insertCategory(ORG_A, cat)
-      await repo.updateCategory(ORG_A, portal.id, cat.id, { title: 'New Title' })
-
-      const found = await repo.findCategoryById(ORG_A, cat.id)
-      expect(found?.title).toBe('New Title')
-    })
-
-    it('deletes a category', async () => {
-      const db = getDb()
-      const repo = createPortalLinkRepository(db, () => REPOSITORY_NOW)
-      const portal = await seedPortal(ORG_A, 'cat-delete')
-
-      const cat = buildTestPortalLinkCategory({
-        id: portalLinkCategoryId(crypto.randomUUID()),
-        portalId: portal.id,
-        organizationId: ORG_A,
-        title: 'To Delete',
-        sortKey: 'a0',
-      })
-      await repo.insertCategory(ORG_A, cat)
-      await repo.deleteCategory(ORG_A, portal.id, cat.id)
-
-      const found = await repo.findCategoryById(ORG_A, cat.id)
-      expect(found).toBeNull()
-    })
-
-    it('reorders categories', async () => {
-      const db = getDb()
-      const repo = createPortalLinkRepository(db, () => REPOSITORY_NOW)
-      const portal = await seedPortal(ORG_A, 'cat-reorder')
-
-      const cat1 = buildTestPortalLinkCategory({
-        id: portalLinkCategoryId(crypto.randomUUID()),
-        portalId: portal.id,
-        organizationId: ORG_A,
-        title: 'Cat 1',
-        sortKey: 'a0',
-      })
-      const cat2 = buildTestPortalLinkCategory({
-        id: portalLinkCategoryId(crypto.randomUUID()),
-        portalId: portal.id,
-        organizationId: ORG_A,
-        title: 'Cat 2',
-        sortKey: 'a1',
-      })
-      await repo.insertCategory(ORG_A, cat1)
-      await repo.insertCategory(ORG_A, cat2)
-
-      await repo.reorderCategories(ORG_A, portal.id, [
-        { id: cat1.id, sortKey: 'b0' },
-        { id: cat2.id, sortKey: 'a0' },
-      ])
-
-      const categories = await repo.listCategories(ORG_A, portal.id)
-      expect(categories[0].sortKey).toBe('a0')
-      expect(categories[1].sortKey).toBe('b0')
-      expect(categories.map((category) => category.updatedAt)).toEqual([
-        REPOSITORY_NOW,
-        REPOSITORY_NOW,
-      ])
     })
   })
 
@@ -327,12 +249,12 @@ describe('portalLinkRepository (integration)', () => {
       })
       await repo.insertLink(ORG_A, link)
       await repo.updateLink(ORG_A, portal.id, link.id, {
-        label: 'New Label',
         url: 'https://new.example.com',
       })
 
       const found = await repo.findLinkById(ORG_A, link.id)
-      expect(found?.label).toBe('New Label')
+      // The legacy label column is never written by an update.
+      expect(found?.label).toBe('Old Label')
       expect(found?.url).toBe('https://new.example.com')
     })
 

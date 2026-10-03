@@ -4,11 +4,20 @@
 // decision): a portal that needs nothing shows only its name and its state.
 //
 // In review mode the row is the same but the way back reads "Back to editing"
-// and the publish actions are absent, because the page below is the publish step.
+// and the publish actions and "Open page" are absent, because the page below is
+// the publish step.
+//
+// On a phone the row becomes two: the way back (an arrow), the name and
+// "Review & publish" first, then the save line, what is waiting and "Open page";
+// the Property's name is left out there. Flex `order` lifts the button onto the
+// first row; the document keeps the wider order (what is waiting, then the
+// button), which is the order the Tab key and a screen reader follow.
 
 import { Link } from '@tanstack/react-router'
 import { ArrowLeft } from 'lucide-react'
+import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import { Button } from '#/components/ui/button'
+import { cn } from '#/lib/utils'
 import type { ReactNode } from 'react'
 import type { PortalDetailTab } from '../portal-detail/portal-detail-rules'
 import type { PortalEditorSection } from '../portal-editor/portal-editor-sections'
@@ -37,13 +46,24 @@ export type PortalWorkspaceHeaderProps = Readonly<{
    * presentational and the layout supplies the one that reads the coordinator.
    */
   saveStatus?: ReactNode
+  /**
+   * "Open page" (`PortalOpenPageControl`), a slot like `saveStatus`. It sits
+   * after the save status and the pending note, right before "Review & publish".
+   * Absent in review mode, where the header is a focused step.
+   */
+  openPage?: ReactNode
 }>
 
 export function PortalWorkspaceHeader(props: PortalWorkspaceHeaderProps) {
   const { propertyId, portalId, portalName, propertyName, statusLine, mode } = props
   const reviewing = mode === 'review'
   return (
-    <header className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b px-4 py-3 md:px-6">
+    <header
+      className={cn(
+        'flex flex-wrap items-center gap-x-3 gap-y-1 border-b py-2 sm:gap-x-4 sm:gap-y-2 sm:py-3',
+        PAGE_GUTTER_X,
+      )}
+    >
       {reviewing ? (
         <Button variant="ghost" size="sm" asChild className="-ml-2 min-h-11 sm:min-h-8">
           <Link
@@ -55,13 +75,26 @@ export function PortalWorkspaceHeader(props: PortalWorkspaceHeaderProps) {
           </Link>
         </Button>
       ) : (
-        <Button variant="ghost" size="sm" asChild className="-ml-2 min-h-11 sm:min-h-8">
+        <Button
+          variant="ghost"
+          size="sm"
+          asChild
+          className="-ml-2 min-h-11 min-w-11 px-0 sm:min-h-8 sm:min-w-0 sm:px-3"
+        >
           <Link to="/properties/$propertyId/portals" params={{ propertyId }}>
-            <ArrowLeft aria-hidden /> Portals
+            <ArrowLeft aria-hidden />{' '}
+            <span className="sr-only sm:not-sr-only">Portals</span>
           </Link>
         </Button>
       )}
-      <div className="min-w-0 flex-1 basis-56 border-l pl-4">
+      {/* In review the way back keeps its words ("Back to editing" is the only
+          way back on a phone), so the title takes a row of its own there. */}
+      <div
+        className={cn(
+          'min-w-0 flex-1 border-l pl-3 sm:basis-56 sm:pl-4',
+          reviewing ? 'basis-56' : 'basis-0',
+        )}
+      >
         <div className="flex flex-wrap items-baseline gap-x-2">
           <h1 className="truncate text-base font-semibold tracking-tight">
             {reviewing ? `Review changes to ${portalName}` : portalName}
@@ -71,7 +104,9 @@ export function PortalWorkspaceHeader(props: PortalWorkspaceHeaderProps) {
             {statusLine}
           </p>
         </div>
-        <p className="truncate text-xs text-muted-foreground">{propertyName}</p>
+        <p className="hidden truncate text-xs text-muted-foreground sm:block">
+          {propertyName}
+        </p>
       </div>
       {reviewing ? null : <ReviewActions {...props} />}
     </header>
@@ -86,39 +121,38 @@ function ReviewActions({
   activeTab,
   activeSection,
   saveStatus,
+  openPage,
 }: PortalWorkspaceHeaderProps) {
-  if (!canReview) {
-    return (
-      <div className="flex flex-wrap items-center gap-3">
+  const reviewSearch = { tab: activeTab, section: activeSection }
+  return (
+    <>
+      <div className="order-last flex basis-full flex-wrap items-center gap-x-3 gap-y-1 sm:order-none sm:basis-auto">
         {saveStatus}
-        {pendingNote === null ? null : (
+        {pendingNote === null ? null : canReview ? (
+          <Link
+            to="/properties/$propertyId/portals/$portalId/review"
+            params={{ propertyId, portalId }}
+            search={reviewSearch}
+            className="text-sm text-muted-foreground underline decoration-dotted underline-offset-4 hover:text-foreground"
+          >
+            {pendingNote}
+          </Link>
+        ) : (
           <p className="text-sm text-muted-foreground">{pendingNote}</p>
         )}
+        {openPage}
       </div>
-    )
-  }
-  return (
-    <div className="flex flex-wrap items-center gap-3">
-      {saveStatus}
-      {pendingNote === null ? null : (
-        <Link
-          to="/properties/$propertyId/portals/$portalId/review"
-          params={{ propertyId, portalId }}
-          search={{ tab: activeTab, section: activeSection }}
-          className="text-sm text-muted-foreground underline decoration-dotted underline-offset-4 hover:text-foreground"
-        >
-          {pendingNote}
-        </Link>
-      )}
-      <Button asChild className="min-h-11 sm:min-h-9">
-        <Link
-          to="/properties/$propertyId/portals/$portalId/review"
-          params={{ propertyId, portalId }}
-          search={{ tab: activeTab, section: activeSection }}
-        >
-          Review &amp; publish
-        </Link>
-      </Button>
-    </div>
+      {canReview ? (
+        <Button asChild className="min-h-11 sm:min-h-9">
+          <Link
+            to="/properties/$propertyId/portals/$portalId/review"
+            params={{ propertyId, portalId }}
+            search={reviewSearch}
+          >
+            Review &amp; publish
+          </Link>
+        </Button>
+      ) : null}
+    </>
   )
 }

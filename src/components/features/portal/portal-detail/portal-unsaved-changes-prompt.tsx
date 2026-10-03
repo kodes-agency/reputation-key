@@ -26,7 +26,13 @@ import {
   AlertDialogTitle,
 } from '#/components/ui/alert-dialog'
 
-export function PortalUnsavedChangesPrompt() {
+const PORTAL_CHANGES_COPY =
+  'Some changes to this portal have not been saved. If you go on, they are discarded.'
+
+/** `description` names what would be lost; the portal editor's own wording when omitted. */
+export function PortalUnsavedChangesPrompt({
+  description = PORTAL_CHANGES_COPY,
+}: Readonly<{ description?: string }>) {
   const autosave = usePortalDraftAutosave()
   const shouldBlockFn = useCallback(async () => {
     await autosave.flush()
@@ -51,15 +57,12 @@ export function PortalUnsavedChangesPrompt() {
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle>Leave without saving?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Some changes to this portal have not been saved. If you go on, they are
-            discarded.
-          </AlertDialogDescription>
+          <AlertDialogDescription>{description}</AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>
           <AlertDialogCancel>Keep editing</AlertDialogCancel>
           <AlertDialogAction
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            variant="destructive"
             onClick={() => {
               autosave.discard()
               blocker.proceed?.()

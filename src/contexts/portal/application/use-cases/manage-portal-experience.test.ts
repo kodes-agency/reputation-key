@@ -16,6 +16,8 @@ import { organizationId, propertyId } from '#/shared/domain/ids'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { buildTestAuthContext, buildTestPortal } from '#/shared/testing/fixtures'
 import { createInMemoryPortalRepo } from '#/shared/testing/in-memory-portal-repo'
+import { createInMemoryPortalMediaAssetRepo } from '#/shared/testing/in-memory-portal-media-asset-repo'
+import { buildTestPortalMediaAsset } from '#/shared/testing/portal-media-fixtures'
 import { isPortalError } from '../../domain/errors'
 import { AUTOMATIC_PUBLIC_DISPLAY_NAME_ACTOR } from '../../domain/portal-experience'
 import type { PortalExperienceRepository } from '../ports/portal-experience.repository'
@@ -60,6 +62,10 @@ const createExperienceRepo = () => ({
       wordmark: input.profile.wordmark ?? null,
       backgroundMode: input.profile.backgroundMode ?? 'auto',
       defaultGuestLocales: ['en'],
+      logoAssetId: null,
+      heroAssetId: null,
+      heroFocalX: null,
+      heroFocalY: null,
       lookVersion: 1,
       id: input.id,
       organizationId: input.organizationId,
@@ -87,12 +93,25 @@ const createExperienceRepo = () => ({
       wordmark: null,
       backgroundMode: 'auto',
       defaultGuestLocales: ['en'],
+      logoAssetId: null,
+      heroAssetId: null,
+      heroFocalX: null,
+      heroFocalY: null,
       lookVersion: 1,
       version: 1,
       updatedBy: input.updatedBy,
       createdAt: input.at,
       updatedAt: input.at,
     }),
+  ),
+  savePropertyLook: vi.fn<PortalExperienceRepository['savePropertyLook']>(
+    async () => null,
+  ),
+  savePropertyHero: vi.fn<PortalExperienceRepository['savePropertyHero']>(
+    async () => null,
+  ),
+  savePropertyLogo: vi.fn<PortalExperienceRepository['savePropertyLogo']>(
+    async () => null,
   ),
   saveDefaultGuestLocales: vi.fn<PortalExperienceRepository['saveDefaultGuestLocales']>(
     async (input) => ({
@@ -108,6 +127,10 @@ const createExperienceRepo = () => ({
       wordmark: null,
       backgroundMode: 'auto',
       defaultGuestLocales: input.locales,
+      logoAssetId: null,
+      heroAssetId: null,
+      heroFocalX: null,
+      heroFocalY: null,
       lookVersion: 1,
       version: 1,
       updatedBy: 'admin-user' as never,
@@ -150,11 +173,14 @@ const createExperienceRepo = () => ({
 const setup = (accessible: ReadonlyArray<PropertyId> | null = null) => {
   const experienceRepo = createExperienceRepo()
   const portalRepo = createInMemoryPortalRepo()
+  const mediaRepo = createInMemoryPortalMediaAssetRepo()
   return {
     experienceRepo,
     portalRepo,
+    mediaRepo,
     deps: {
       experienceRepo,
+      mediaRepo,
       portalRepo,
       staffPublicApi: staffApiMock(accessible),
       idGen: () => GENERATED_ID,
@@ -204,6 +230,7 @@ describe('getPropertyPortalExperience', () => {
       profile: null,
       content: [],
       overrides: [],
+      media: { hero: null, logo: null },
       canManagePropertyBrand: false,
       publicDisplayNameConfirmed: false,
     })
@@ -271,6 +298,10 @@ describe('getPropertyPortalExperience', () => {
         wordmark: null,
         backgroundMode: 'auto' as const,
         defaultGuestLocales: ['en' as const],
+        logoAssetId: null,
+        heroAssetId: null,
+        heroFocalX: null,
+        heroFocalY: null,
         lookVersion: 1,
         version: 1,
         updatedBy: updatedBy as never,
@@ -291,6 +322,58 @@ describe('getPropertyPortalExperience', () => {
 
     expect(automatic.publicDisplayNameConfirmed).toBe(false)
     expect(saved.publicDisplayNameConfirmed).toBe(true)
+  })
+
+  it('reads the photograph and logo the profile names as the media a page draws, leaving out a taken-down one', async () => {
+    const { deps, experienceRepo, mediaRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'AccountAdmin' })
+    const heroId = '30000000-0000-4000-8000-000000000001'
+    const logoId = '30000000-0000-4000-8000-000000000002'
+    mediaRepo.seed([
+      buildTestPortalMediaAsset({
+        id: heroId as never,
+        purpose: 'hero',
+        propertyId: PROPERTY,
+        width: 2400,
+        height: 1600,
+      }),
+      buildTestPortalMediaAsset({
+        id: logoId as never,
+        purpose: 'logo',
+        propertyId: PROPERTY,
+        status: 'taken_down',
+        takenDownAt: NOW,
+      }),
+    ])
+    const profile = await experienceRepo.savePropertyDisplayName({
+      id: GENERATED_ID,
+      organizationId: ORG,
+      propertyId: PROPERTY,
+      displayName: 'Seaside Retreat',
+      updatedBy: ctx.userId,
+      at: NOW,
+    })
+    experienceRepo.getPropertyExperience.mockResolvedValueOnce({
+      profile: {
+        ...profile,
+        heroAssetId: heroId,
+        heroFocalX: 0.5,
+        heroFocalY: 0.42,
+        logoAssetId: logoId,
+      },
+      content: [],
+    })
+
+    const result = await getPropertyPortalExperience(deps)({ propertyId: PROPERTY }, ctx)
+
+    expect(result.media.hero).toMatchObject({
+      assetId: heroId,
+      width: 2400,
+      height: 1600,
+      focalX: 0.5,
+      focalY: 0.42,
+    })
+    expect(result.media.logo).toBeNull()
   })
 
   it('refuses a Portal that belongs to a different Property', async () => {

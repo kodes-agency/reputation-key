@@ -9,15 +9,6 @@
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalExperienceSettings } from '../portal-settings/portal-experience-settings-types'
 
-export function portalBrandDraftKey(experience: PortalExperienceSettings): string {
-  return JSON.stringify([
-    experience.profile?.displayName ?? '',
-    experience.profile?.primaryColor ?? '#2563EB',
-    experience.profile?.backgroundColor ?? '#FFFFFF',
-    experience.profile?.textColor ?? '#111827',
-  ])
-}
-
 export function portalPropertyContentDraftKey(
   experience: PortalExperienceSettings,
   locale: OfferedGuestLocale,

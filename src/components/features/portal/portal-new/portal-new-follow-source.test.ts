@@ -5,7 +5,7 @@ import type { PortalNewSource } from './portal-new-types'
 const options = { defaultGuestLocales: ['en'] as const }
 const sources: PortalNewSource[] = [
   { portalId: 'a', name: 'A', primaryGuestLocale: 'bg', additionalGuestLocales: ['en'] },
-  { portalId: 'b', name: 'B', primaryGuestLocale: 'de', additionalGuestLocales: [] },
+  { portalId: 'b', name: 'B', primaryGuestLocale: 'de', additionalGuestLocales: ['fr'] },
 ]
 
 describe('languagesAfterChange', () => {
@@ -21,7 +21,11 @@ describe('languagesAfterChange', () => {
     expect(languagesAfterChange(options, sources, 'portal', '')).toEqual(['en'])
   })
 
-  it('keeps the Property languages when the copied portal has none that are offered yet', () => {
-    expect(languagesAfterChange(options, sources, 'portal', 'b')).toEqual(['en'])
+  it('brings the languages of a copied portal that uses German and French', () => {
+    expect(languagesAfterChange(options, sources, 'portal', 'b')).toEqual(['de', 'fr'])
+  })
+
+  it('keeps the Property languages when the copied portal cannot be found', () => {
+    expect(languagesAfterChange(options, sources, 'portal', 'missing')).toEqual(['en'])
   })
 })

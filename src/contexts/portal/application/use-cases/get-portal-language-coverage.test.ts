@@ -135,9 +135,10 @@ describe('getPortalLanguageCoverage', () => {
       'description',
       'link_label',
     ])
+    // A gap in a non-primary language is copied from the primary, not blocking.
     expect(
       coverage.languages[1]?.missing.filter((text) => text.blocksPublish),
-    ).toHaveLength(2)
+    ).toHaveLength(0)
   })
 
   it('refuses a caller who holds no Portal read permission', async () => {

@@ -5,8 +5,10 @@ import {
   describeCoverage,
   describeFallbackEffect,
   describeMissingText,
+  englishNameBeside,
   hasLaterLanguages,
   languageDisplayName,
+  languageSubline,
   missingTextAction,
   missingTextSection,
   type LanguageRegistry,
@@ -30,26 +32,31 @@ const everythingShipped: LanguageRegistry = {
   hasGuestCopyPack: () => true,
 }
 
-const titleGap: MissingPortalText = {
+// A gap blocks publishing only in the primary language, so the fixtures take it.
+const titleGap = (blocksPublish = false): MissingPortalText => ({
   key: 'title',
   kind: 'title',
   linkId: null,
   linkLabel: null,
-  blocksPublish: true,
-}
-const descriptionGap: MissingPortalText = {
+  blocksPublish,
+})
+const descriptionGap = (blocksPublish = false): MissingPortalText => ({
   key: 'description',
   kind: 'description',
   linkId: null,
   linkLabel: null,
-  blocksPublish: true,
-}
-const labelGap = (linkId: string, linkLabel: string | null): MissingPortalText => ({
+  blocksPublish,
+})
+const labelGap = (
+  linkId: string,
+  linkLabel: string | null,
+  blocksPublish = false,
+): MissingPortalText => ({
   key: `link:${linkId}`,
   kind: 'link_label',
   linkId,
   linkLabel,
-  blocksPublish: false,
+  blocksPublish,
 })
 
 const row = (
@@ -87,8 +94,20 @@ describe('addableLanguages', () => {
     ])
   })
 
-  it('reads the live registry when none is given', () => {
-    expect(addableLanguages({ primary: 'en', additional: [] })).toContain('bg')
+  it('reads the live registry when none is given: all six languages, in catalogue order', () => {
+    expect(addableLanguages({ primary: 'en', additional: [] })).toEqual([
+      'es',
+      'it',
+      'fr',
+      'de',
+      'bg',
+    ])
+    expect(addableLanguages({ primary: 'de', additional: ['en'] })).toEqual([
+      'es',
+      'it',
+      'fr',
+      'bg',
+    ])
   })
 })
 
@@ -99,6 +118,10 @@ describe('hasLaterLanguages', () => {
 
   it('is false once every language in the catalogue can be added', () => {
     expect(hasLaterLanguages(everythingShipped)).toBe(false)
+  })
+
+  it('is false on the live registry, which offers every catalogue language with a pack', () => {
+    expect(hasLaterLanguages()).toBe(false)
   })
 
   it('is true for a language that is offered but has no pack yet', () => {
@@ -164,8 +187,30 @@ describe('languageDisplayName', () => {
     expect(languageDisplayName('bg')).toEqual({
       native: 'Български',
       english: 'Bulgarian',
-      chip: 'БГ',
+      chip: 'BG',
     })
+  })
+})
+
+describe('englishNameBeside', () => {
+  it('gives the English name beside a language read by another name', () => {
+    expect(englishNameBeside('bg')).toBe('Bulgarian')
+  })
+
+  it('gives nothing for English, whose own name is already English', () => {
+    expect(englishNameBeside('en')).toBeNull()
+  })
+})
+
+describe('languageSubline', () => {
+  it('says what the fallback language does', () => {
+    expect(languageSubline('en', true)).toBe('Used when a text is missing')
+    expect(languageSubline('bg', true)).toBe('Used when a text is missing')
+  })
+
+  it('gives another language its English name, and English none', () => {
+    expect(languageSubline('de', false)).toBe('German')
+    expect(languageSubline('en', false)).toBeNull()
   })
 })
 
@@ -179,7 +224,7 @@ describe('describeCoverage', () => {
 
   it('counts what is written and what is missing', () => {
     expect(
-      describeCoverage(row({ total: 14, present: 13, missing: [titleGap] })),
+      describeCoverage(row({ total: 14, present: 13, missing: [titleGap()] })),
     ).toEqual({ tone: 'missing', text: '13 of 14 · 1 missing' })
   })
 
@@ -194,11 +239,11 @@ describe('describeCoverage', () => {
 describe('describeMissingText and missingTextSection', () => {
   it('names a title, a description and a link label, and where each is written', () => {
     const label = labelGap('l-1', 'Book a table')
-    expect(describeMissingText(titleGap)).toBe('Title')
-    expect(describeMissingText(descriptionGap)).toBe('Description')
+    expect(describeMissingText(titleGap())).toBe('Welcome line')
+    expect(describeMissingText(descriptionGap())).toBe('Link preview')
     expect(describeMissingText(label)).toBe('Label for “Book a table”')
-    expect(missingTextSection(titleGap)).toBe('welcome')
-    expect(missingTextSection(descriptionGap)).toBe('welcome')
+    expect(missingTextSection(titleGap())).toBe('welcome')
+    expect(missingTextSection(descriptionGap())).toBe('welcome')
     expect(missingTextSection(label)).toBe('linktree')
   })
 
@@ -207,8 +252,18 @@ describe('describeMissingText and missingTextSection', () => {
       kind: 'write',
       section: 'linktree',
     })
-    expect(missingTextAction(titleGap)).toEqual({ kind: 'needs_property_wording' })
-    expect(missingTextAction(descriptionGap)).toEqual({ kind: 'needs_property_wording' })
+    expect(missingTextAction(titleGap())).toEqual({ kind: 'needs_property_wording' })
+    expect(missingTextAction(descriptionGap())).toEqual({
+      kind: 'needs_property_wording',
+    })
+  })
+
+  it('sends the same gap to the same place whether or not it blocks publishing', () => {
+    expect(missingTextAction(titleGap(true))).toEqual({ kind: 'needs_property_wording' })
+    expect(missingTextAction(labelGap('l-1', 'Menu', true))).toEqual({
+      kind: 'write',
+      section: 'linktree',
+    })
   })
 })
 
@@ -219,24 +274,39 @@ describe('describeFallbackEffect', () => {
     ).toBe('Bulgarian guests see 1 link label in English')
   })
 
-  it('says a missing title or description stops the Portal being published', () => {
-    expect(describeFallbackEffect(row({ missing: [titleGap] }), 'en')).toBe(
-      'Bulgarian is missing 1 text that publishing needs',
+  it('says a missing title or description in another language is read in the fallback language', () => {
+    expect(describeFallbackEffect(row({ missing: [titleGap()] }), 'en')).toBe(
+      'Bulgarian guests see the welcome line in English',
     )
     expect(
-      describeFallbackEffect(row({ missing: [titleGap, descriptionGap] }), 'en'),
-    ).toBe('Bulgarian is missing 2 texts that publishing needs')
+      describeFallbackEffect(row({ missing: [titleGap(), descriptionGap()] }), 'en'),
+    ).toBe('Bulgarian guests see the welcome line and the link preview in English')
   })
 
-  it('says both when a language lacks both kinds', () => {
+  it('lists every kind of gap in one sentence', () => {
     expect(
       describeFallbackEffect(
-        row({ missing: [titleGap, labelGap('l-1', 'Menu'), labelGap('l-2', 'Spa')] }),
+        row({
+          missing: [
+            titleGap(),
+            descriptionGap(),
+            labelGap('l-1', 'Menu'),
+            labelGap('l-2', 'Spa'),
+          ],
+        }),
         'en',
       ),
     ).toBe(
-      'Bulgarian is missing 1 text that publishing needs, and its guests see 2 link labels in English',
+      'Bulgarian guests see the welcome line, the link preview and 2 link labels in English',
     )
+  })
+
+  it('never says another language stops the Portal being published', () => {
+    const effect = describeFallbackEffect(
+      row({ missing: [titleGap(), descriptionGap(), labelGap('l-1', 'Menu')] }),
+      'en',
+    )
+    expect(effect).not.toMatch(/publish/i)
   })
 
   it('is null for a language with nothing missing', () => {
@@ -246,16 +316,19 @@ describe('describeFallbackEffect', () => {
     ).toBeNull()
   })
 
-  it('has nothing to fall back to for the fallback language, but its missing title still blocks publishing', () => {
+  it('says a gap in the fallback language itself stops publishing, since there is nothing to fall back to', () => {
     const fallback = { isFallback: true, locale: 'en' } as const
     expect(
+      describeFallbackEffect(row({ ...fallback, missing: [titleGap(true)] }), 'en'),
+    ).toBe('English is missing 1 text that publishing needs')
+    expect(
       describeFallbackEffect(
-        row({ ...fallback, missing: [labelGap('l-1', 'Menu')] }),
+        row({
+          ...fallback,
+          missing: [titleGap(true), labelGap('l-1', 'Menu', true)],
+        }),
         'en',
       ),
-    ).toBeNull()
-    expect(describeFallbackEffect(row({ ...fallback, missing: [titleGap] }), 'en')).toBe(
-      'English is missing 1 text that publishing needs',
-    )
+    ).toBe('English is missing 2 texts that publishing needs')
   })
 })

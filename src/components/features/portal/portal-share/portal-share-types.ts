@@ -1,5 +1,6 @@
 import type { Action } from '#/components/hooks/use-action'
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
+import type { PortalPrintKitResources } from './portal-print-kit-types'
 
 export type IssuedPortalLink = Readonly<{
   publicUrl: string
@@ -11,6 +12,11 @@ export type IssuedPortalLink = Readonly<{
    * ahead of `tokenStatus`, which is stale until the detail refetch lands.
    */
   addressRecoverable?: boolean
+  /**
+   * Set by issue and replace: the version of the code they made. `tokenStatus`
+   * describes that code once its own `version` reaches this one.
+   */
+  version?: number
 }>
 
 /** Why the address is wanted; recorded with the disclosure and nothing else. */
@@ -48,5 +54,7 @@ export type PortalShareProps = Readonly<{
   /** An address fetched again is held like a made one, until the page is left. */
   onAddressRevealed: (link: IssuedPortalLink) => void
   onLinksRevoked: () => void
+  /** The Print kit section's read and download. Absent: the tab offers no print kit. */
+  printKit?: PortalPrintKitResources
 }> &
   PortalShareMutations

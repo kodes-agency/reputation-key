@@ -308,14 +308,6 @@ export const GoogleUnavailable: Story = {
   },
 }
 
-export const NoProperty: Story = {
-  args: { property: null },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    expect(canvas.queryByText('Overview')).toBeNull()
-  },
-}
-
 /**
  * Row 13: Overview is a phone screen. Two screens of a 390 × 844 viewport is
  * 1,688 px; the page it replaces was 5,837 px.

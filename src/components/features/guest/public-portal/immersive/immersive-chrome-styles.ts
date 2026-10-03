@@ -195,6 +195,33 @@ body:has(.ih-root--page .ih-sheet[open]) { overflow: hidden; }
 }
 .ih-sheet__hint svg { flex-shrink: 0; }
 
+/* The sheet as the admin's preview draws it: not a dialog and not in the top
+   layer, but open on the phone's first screen (its height is set inline) over
+   the dimmed page, with the panel at the bottom as on the guest's phone. */
+.ih-sheet-scene {
+  position: absolute;
+  inset: 0 0 auto 0;
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  overflow: hidden;
+}
+.ih-sheet-scene__scrim {
+  position: absolute;
+  inset: 0;
+  background: rgba(4, 6, 5, 0.52);
+  -webkit-backdrop-filter: blur(3px);
+  backdrop-filter: blur(3px);
+}
+.ih-sheet-scene__sheet {
+  position: relative;
+  width: 100%;
+  max-width: 30rem;
+  margin: 0 auto;
+}
+.ih-sheet-scene .ih-sheet__panel { max-height: none; overflow: visible; }
+
 @media (prefers-reduced-motion: no-preference) {
   .ih-sheet[open] .ih-sheet__panel { animation: ih-sheet-in 240ms cubic-bezier(0.16, 1, 0.3, 1); }
   .ih-sheet[open]::backdrop { animation: ih-sheet-fade 200ms ease-out; }

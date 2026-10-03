@@ -87,6 +87,15 @@ const pending = async () =>
     )
   ).rows
 
+const pendingChangedBy = async () =>
+  (
+    await query(
+      `SELECT change_key, changed_by FROM portal_pending_content_changes
+        WHERE organization_id = $1 ORDER BY changed_at, change_key`,
+      [ORG_A],
+    )
+  ).rows
+
 /** A publication of the Portal (its activation) at an instant. */
 const activate = (portalId: string, at: Date, sequence: number) =>
   query(
@@ -565,5 +574,49 @@ describe('recordPortalContentChange', () => {
     ).rejects.toThrow('later step failed')
     expect(await ledger()).toEqual([])
     expect(await pending()).toEqual([])
+  })
+
+  it('records who opened each fence row, and null when the system did', async () => {
+    const open = (actorUserId: string | null, sourceVersion: string, key: string) =>
+      write((tx) =>
+        recordPortalContentChange(tx, {
+          organizationId: ORG_A,
+          propertyId: PROPERTY,
+          portalId: PORTAL_PUBLISHED,
+          kind: 'portal_links',
+          key,
+          ledger: [],
+          sourceVersion,
+          changedAt: NOW,
+          actorUserId,
+        }),
+      )
+    await open(ACTOR, 'v1', 'person')
+    await open(null, 'v1', 'system')
+
+    expect(await pendingChangedBy()).toEqual([
+      { change_key: 'person', changed_by: ACTOR },
+      { change_key: 'system', changed_by: null },
+    ])
+  })
+
+  it('keeps the first person when the same revision is recorded twice', async () => {
+    const open = (actorUserId: string) =>
+      write((tx) =>
+        recordPortalContentChange(tx, {
+          organizationId: ORG_A,
+          propertyId: PROPERTY,
+          portalId: PORTAL_PUBLISHED,
+          kind: 'portal_links',
+          ledger: [],
+          sourceVersion: 'v1',
+          changedAt: NOW,
+          actorUserId,
+        }),
+      )
+    expect(await open(ACTOR)).toBe(1)
+    expect(await open(OTHER_ACTOR)).toBe(0)
+
+    expect(await pendingChangedBy()).toEqual([{ change_key: 'all', changed_by: ACTOR }])
   })
 })

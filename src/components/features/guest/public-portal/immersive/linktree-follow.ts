@@ -31,7 +31,8 @@ export function bindLinkSelector(
   return (linkId) => selectSecondaryLink({ data: { token, csrfNonce, linkId } })
 }
 
-function isHttpsUrl(value: string): boolean {
+/** Whether `value` is an absolute https URL: the only kind a guest is ever sent to. */
+export function isHttpsUrl(value: string): boolean {
   try {
     return new URL(value).protocol === 'https:'
   } catch {

@@ -27,18 +27,20 @@ import type {
 } from '../application/ports/portal-command-store.port'
 import type { Portal, PortalTheme } from '../domain/types'
 import { portalError } from '../domain/errors'
-import {
-  lockPortalWorkingCopyTables,
-  readPortalWorkingCopy,
-} from './portal-working-copy.reader'
-import { workingCopyMatchesSnapshot } from '../application/portal-working-copy-match'
-import { snapshotMirrorColumns } from './mappers/portal-publication-snapshot.mapper'
+import { lockPortalWorkingCopyTables } from './portal-working-copy.reader'
 import { verifyPortalPublicationSnapshot } from '../application/portal-publication-snapshot'
 import { assertCommittedRevision, sameInstant } from './portal-command-guards'
 import { createPortalGroupCommands } from './portal-group-commands'
 import { createPortalLinkCommands } from './portal-link-commands'
 import { assertLocaleSetFact, watchPrimaryLocaleChange } from './portal-locale-set'
 import { createPortalTokenCommands } from './portal-token-commands'
+import {
+  activationToRow,
+  assertSnapshotMatchesCommittedWorkingCopy,
+  closeActivePublication,
+  createPortalPublicationCommands,
+  snapshotToRow,
+} from './portal-publication-commands'
 import { createPortalCreateCommand } from './portal-create-command'
 import { NO_SEALED_ADDRESS } from './portal-sealed-address-columns'
 
@@ -377,110 +379,6 @@ async function applyPortalHealthMutation(
   })
 }
 
-/**
- * The snapshot about to be inserted must say exactly what the committed working
- * rows say. The rows are read by the same reader that built the snapshot, so a
- * difference means content moved between the read and this commit.
- */
-async function assertSnapshotMatchesCommittedWorkingCopy(
-  tx: Parameters<Parameters<Database['transaction']>[0]>[0],
-  command: UpdatePortalCommand &
-    Readonly<{
-      publication: Extract<
-        NonNullable<UpdatePortalCommand['publication']>,
-        Readonly<{ kind: 'publish' }>
-      >
-    }>,
-): Promise<void> {
-  const committed = await readPortalWorkingCopy(
-    tx,
-    {
-      organizationId: unbrand(command.organizationId),
-      propertyId: unbrand(command.propertyId),
-      portalId: unbrand(command.portalId),
-    },
-    { lockOrganization: true },
-  )
-  if (!committed) {
-    throw portalError(
-      'publication_snapshot_unavailable',
-      'Portal working copy disappeared while its publication snapshot was being committed',
-    )
-  }
-  if (!workingCopyMatchesSnapshot(committed, command.publication.snapshot)) {
-    throw portalError(
-      'revision_conflict',
-      'Portal content changed while the publication snapshot was being committed',
-    )
-  }
-}
-
-function snapshotToRow(
-  snapshot: import('../domain/portal-publication-snapshot').PortalPublicationSnapshot,
-) {
-  return {
-    id: snapshot.id,
-    organizationId: snapshot.organizationId,
-    propertyId: snapshot.propertyId,
-    portalId: snapshot.portalId,
-    version: snapshot.version,
-    configurationDigest: snapshot.configurationDigest,
-    configuration: snapshot.configuration,
-    guestLocale: snapshot.configuration.guestLocale,
-    languagePackVersion: snapshot.configuration.languagePackVersion,
-    ...snapshotMirrorColumns(snapshot.configuration),
-    privateFeedbackThreshold:
-      snapshot.configuration.reviewGateway.privateFeedbackThreshold,
-    destinationUri: snapshot.destinationUri,
-    destinationRetrievedAt: snapshot.destinationRetrievedAt,
-    destinationSourceEpoch: snapshot.destinationSourceEpoch,
-    destinationProfileVersion: snapshot.destinationProfileVersion,
-    createdBy: snapshot.createdBy,
-    createdAt: snapshot.createdAt,
-  } satisfies typeof portalPublicationSnapshots.$inferInsert
-}
-
-function activationToRow(
-  activation: import('../domain/portal-publication-snapshot').PortalPublicationActivation,
-) {
-  return {
-    id: activation.id,
-    organizationId: activation.organizationId,
-    propertyId: activation.propertyId,
-    portalId: activation.portalId,
-    snapshotId: activation.snapshotId,
-    activationSequence: activation.activationSequence,
-    kind: activation.kind,
-    activatedBy: activation.activatedBy,
-    activatedAt: activation.activatedAt,
-    deactivatedAt: activation.deactivatedAt,
-    deactivationReason: activation.deactivationReason,
-  } satisfies typeof portalPublicationActivations.$inferInsert
-}
-
-async function closeActivePublication(
-  tx: Parameters<Parameters<Database['transaction']>[0]>[0],
-  command: UpdatePortalCommand,
-  reason: 'disabled' | 'archived' | 'replaced',
-): Promise<number> {
-  const closed = await tx
-    .update(portalPublicationActivations)
-    .set({
-      deactivatedAt: command.occurredAt,
-      deactivationReason: reason,
-    })
-    .where(
-      and(
-        eq(portalPublicationActivations.organizationId, unbrand(command.organizationId)),
-        eq(portalPublicationActivations.propertyId, unbrand(command.propertyId)),
-        eq(portalPublicationActivations.portalId, unbrand(command.portalId)),
-        isNull(portalPublicationActivations.deactivatedAt),
-      ),
-    )
-    .returning({ id: portalPublicationActivations.id })
-  return closed.length
-}
-
 function assertDeleteCommand(command: DeletePortalCommand): void {
   const matches = (event: {
     organizationId: DeletePortalCommand['organizationId']
@@ -518,6 +416,7 @@ export const createAtomicPortalCommandStore = (db: Database): PortalCommandStore
     ...createPortalLinkCommands(db),
     ...createPortalGroupCommands(db),
     ...createPortalTokenCommands(db),
+    ...createPortalPublicationCommands(db),
     ...createPortalCreateCommand(db),
     updatePortal: async (command) =>
       trace('portal.commandStore.updatePortal', async () => {
@@ -560,12 +459,8 @@ export const createAtomicPortalCommandStore = (db: Database): PortalCommandStore
             await lockPortalWorkingCopyTables(tx)
             await assertSnapshotMatchesCommittedWorkingCopy(
               tx,
-              command as UpdatePortalCommand & {
-                publication: Extract<
-                  NonNullable<UpdatePortalCommand['publication']>,
-                  { kind: 'publish' }
-                >
-              },
+              command,
+              command.publication.snapshot,
             )
             const unexpectedlyActive = await closeActivePublication(
               tx,

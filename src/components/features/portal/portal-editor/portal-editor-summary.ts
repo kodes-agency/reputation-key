@@ -42,7 +42,7 @@ export function summarizePortalEditorSections(
   const open = (text: string): PortalEditorSectionSummary => ({ text, locked: false })
   const fixed = (text: string): PortalEditorSectionSummary => ({ text, locked: true })
   return {
-    look: open('Colours · property-wide'),
+    look: open('Photo and colours · property-wide'),
     welcome: open(input.portalName.trim() === '' ? 'Untitled portal' : input.portalName),
     rating: fixed('Always included'),
     'private-note': open(`${input.privateFeedbackThreshold}★ or below`),

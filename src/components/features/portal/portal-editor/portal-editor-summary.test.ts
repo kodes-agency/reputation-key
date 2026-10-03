@@ -22,7 +22,7 @@ const base: PortalEditorSummaryInput = {
 describe('summarizePortalEditorSections', () => {
   it('describes every section the way board 02 does', () => {
     expect(summarizePortalEditorSections(base)).toEqual({
-      look: { text: 'Colours · property-wide', locked: false },
+      look: { text: 'Photo and colours · property-wide', locked: false },
       welcome: { text: 'Pool & Terrace', locked: false },
       rating: { text: 'Always included', locked: true },
       'private-note': { text: '3★ or below', locked: false },

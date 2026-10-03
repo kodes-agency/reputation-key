@@ -5,14 +5,12 @@
 //
 // The Page tab is the section editor (portal-editor/), which carries the live
 // preview beside the section; the other tabs are the interim bodies in
-// portal-detail-tab-panel.tsx. The page owns what must outlive a section
-// switch — the palette draft — and the navigation guard; the once-shown public
-// link is held by the workspace layout, and every branch behind what is on
+// portal-detail-tab-panel.tsx. The page owns the navigation guard; the once-shown
+// public link is held by the workspace layout, and every branch behind what is on
 // screen lives in portal-detail-rules.ts.
 
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { PortalEditor } from '../portal-editor/portal-editor'
-import { usePortalThemeAutosave } from '../portal-editor/use-portal-theme-autosave'
 import { usePortalLinkIssuance } from '../portal-workspace/portal-link-issuance'
 import { PortalWorkspaceBodyFrame } from '../portal-workspace/portal-workspace-body-frame'
 import { derivePortalDetailView } from './portal-detail-rules'
@@ -21,10 +19,9 @@ import { PortalUnsavedChangesPrompt } from './portal-unsaved-changes-prompt'
 import type { PortalDetailPageProps } from './portal-detail-types'
 
 export function PortalDetailPage(props: PortalDetailPageProps) {
-  const { portal, activeTab, activeSection } = props
+  const { activeTab, activeSection } = props
   const issuance = usePortalLinkIssuance()
   const { has } = useCapabilities()
-  const { theme, setTheme } = usePortalThemeAutosave(portal, props.autosaveUpdateMutation)
 
   const view = derivePortalDetailView(activeTab, has('dashboard.use'))
 
@@ -33,12 +30,11 @@ export function PortalDetailPage(props: PortalDetailPageProps) {
       <PortalUnsavedChangesPrompt />
 
       {view.tab === 'page' ? (
-        <PortalEditor
-          resources={props}
-          requestedSection={activeSection}
-          theme={theme}
-          onThemeChange={setTheme}
-        />
+        <PortalEditor resources={props} requestedSection={activeSection} />
+      ) : view.tab === 'history' || view.tab === 'share' ? (
+        // The ledger and its Versions rail, and the Share tab with its print
+        // preview, run edge to edge, like the editor; each lays out its own columns.
+        <PortalDetailTabPanel {...props} {...issuance} tab={view.tab} />
       ) : (
         <PortalWorkspaceBodyFrame wide={view.tab === 'results'}>
           <PortalDetailTabPanel {...props} {...issuance} tab={view.tab} />

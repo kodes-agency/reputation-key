@@ -7,6 +7,7 @@ import {
   GUEST_LOCALES,
   GUEST_LOCALE_METADATA,
   OFFERED_GUEST_LOCALES,
+  adminLanguageCode,
   type GuestLocale,
   type OfferedGuestLocale,
 } from '#/shared/domain/guest-locale'
@@ -134,6 +135,17 @@ export function applyLanguageChange(
   return next === null ? null : asOfferedSet(next)
 }
 
+/** The English name to show beside a language's own; none for English, which would repeat it. */
+export function englishNameBeside(locale: GuestLocale): string | null {
+  const { nativeName, englishName } = GUEST_LOCALE_METADATA[locale]
+  return englishName === nativeName ? null : englishName
+}
+
+/** The line under a language's name in the list: what the fallback does, or the English name. */
+export function languageSubline(locale: GuestLocale, isFallback: boolean): string | null {
+  return isFallback ? 'Used when a text is missing' : englishNameBeside(locale)
+}
+
 export function languageDisplayName(locale: GuestLocale): {
   native: string
   english: string
@@ -143,7 +155,7 @@ export function languageDisplayName(locale: GuestLocale): {
   return {
     native: metadata.nativeName,
     english: metadata.englishName,
-    chip: metadata.chipLabel,
+    chip: adminLanguageCode(locale),
   }
 }
 
@@ -168,9 +180,9 @@ export function describeCoverage(row: PortalLanguageCoverageRow): CoverageDescri
 export function describeMissingText(text: MissingPortalText): string {
   switch (text.kind) {
     case 'title':
-      return 'Title'
+      return 'Welcome line'
     case 'description':
-      return 'Description'
+      return 'Link preview'
     case 'link_label':
       return text.linkLabel === null ? 'Link label' : `Label for “${text.linkLabel}”`
   }
@@ -182,34 +194,50 @@ export function missingTextSection(text: MissingPortalText): 'welcome' | 'linktr
 }
 
 /**
- * What a manager does about a missing text. A title or description that blocks
- * publishing is missing because the Property has no wording for the language (an
- * override alone does not count), which an account admin writes; a link label is
- * written in the Linktree section.
+ * What a manager does about a missing text. A title or description is missing
+ * because the Property has no wording for the language (an override alone does
+ * not count), which an account admin writes; a link label is written in the
+ * Linktree section. Where the gap is does not change who fixes it.
  */
 export type MissingTextAction =
   | Readonly<{ kind: 'write'; section: 'welcome' | 'linktree' }>
   | Readonly<{ kind: 'needs_property_wording' }>
 
 export function missingTextAction(text: MissingPortalText): MissingTextAction {
-  return text.blocksPublish
-    ? { kind: 'needs_property_wording' }
-    : { kind: 'write', section: missingTextSection(text) }
+  return text.kind === 'link_label'
+    ? { kind: 'write', section: missingTextSection(text) }
+    : { kind: 'needs_property_wording' }
+}
+
+const joinParts = (parts: readonly string[]): string =>
+  parts.length < 2
+    ? (parts[0] ?? '')
+    : `${parts.slice(0, -1).join(', ')} and ${parts[parts.length - 1]}`
+
+/** What guests of another language read in the fallback language, in words. */
+function describeReadInFallback(texts: readonly MissingPortalText[]): string {
+  const labels = texts.filter((text) => text.kind === 'link_label').length
+  return joinParts([
+    ...(texts.some((text) => text.kind === 'title') ? ['the welcome line'] : []),
+    ...(texts.some((text) => text.kind === 'description') ? ['the link preview'] : []),
+    ...(labels > 0 ? [plural(labels, 'link label', 'link labels')] : []),
+  ])
 }
 
 /**
  * What a language's gaps mean for publishing and for guests; null when there is
- * nothing to say. A missing title or description stops the Portal being
- * published (there is no fallback copy for them yet); a missing link label is
- * shown in the fallback language, which the fallback language itself has no
- * other language to do.
+ * nothing to say. A gap in the fallback language stops the Portal being
+ * published (there is nothing to copy in); a gap in any other language is read
+ * in the fallback language, which is a warning, not a block.
  */
 export function describeFallbackEffect(
   row: PortalLanguageCoverageRow,
   fallbackLocale: GuestLocale,
 ): string | null {
   const blocking = row.missing.filter((text) => text.blocksPublish).length
-  const labels = row.isFallback ? 0 : row.missing.length - blocking
+  const readInFallback = row.isFallback
+    ? []
+    : row.missing.filter((text) => !text.blocksPublish)
   const language = languageDisplayName(row.locale).english
   const fallback = languageDisplayName(fallbackLocale).english
   const needs =
@@ -217,8 +245,8 @@ export function describeFallbackEffect(
       ? `${language} is missing ${plural(blocking, 'text', 'texts')} that publishing needs`
       : null
   const shown =
-    labels > 0
-      ? `${needs === null ? `${language} guests` : 'its guests'} see ${plural(labels, 'link label', 'link labels')} in ${fallback}`
+    readInFallback.length > 0
+      ? `${needs === null ? `${language} guests` : 'its guests'} see ${describeReadInFallback(readInFallback)} in ${fallback}`
       : null
   return needs !== null && shown !== null ? `${needs}, and ${shown}` : (needs ?? shown)
 }

@@ -33,8 +33,8 @@ export function ContentReviewCard({ portal, mutation, disabled }: Props) {
       <div className="space-y-1">
         <h3 className="text-sm font-medium">Content review</h3>
         <p className="text-xs text-muted-foreground">
-          Review the saved gateway details — name, description, appearance, categories and
-          destinations — and confirm every destination opens the intended review page.
+          Check the saved page — the welcome lines, the look and the Linktree — and
+          confirm the Google link and every Linktree link open the page they should.
           Changes to this portal save as you make them.
         </p>
       </div>

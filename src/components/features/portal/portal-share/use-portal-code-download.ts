@@ -6,21 +6,7 @@
 import { useCallback, useState } from 'react'
 import { qrDownloadFileName, renderQrPngDataUrl, renderQrSvg } from './portal-qr'
 import type { QrFormat } from './portal-qr'
-
-const OBJECT_URL_LIFETIME_MS = 10_000
-
-/**
- * Detached anchors still activate in current browsers, but that is not
- * guaranteed, so the anchor is attached for the click.
- */
-function saveFile(href: string, fileName: string) {
-  const link = document.createElement('a')
-  link.href = href
-  link.download = fileName
-  document.body.appendChild(link)
-  link.click()
-  link.remove()
-}
+import { saveBlob, saveFile } from './save-file'
 
 async function saveCode(address: string, portalName: string, format: QrFormat) {
   const fileName = qrDownloadFileName(portalName, format)
@@ -28,10 +14,7 @@ async function saveCode(address: string, portalName: string, format: QrFormat) {
     saveFile(await renderQrPngDataUrl(address), fileName)
     return
   }
-  const svg = await renderQrSvg(address)
-  const objectUrl = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }))
-  saveFile(objectUrl, fileName)
-  window.setTimeout(() => URL.revokeObjectURL(objectUrl), OBJECT_URL_LIFETIME_MS)
+  saveBlob(new Blob([await renderQrSvg(address)], { type: 'image/svg+xml' }), fileName)
 }
 
 /** Fetches the QR address again; null when it could not be (the tab says why). */

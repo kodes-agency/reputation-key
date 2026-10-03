@@ -151,58 +151,6 @@ export const createPortalLinkRepository = (
     })
   },
 
-  updateCategory: async (orgId, portalId, id, patch) => {
-    return trace('portalLink.updateCategory', async () => {
-      const setValues: Partial<typeof portalLinkCategories.$inferInsert> = {}
-      if (patch.title !== undefined) setValues.title = patch.title
-      if (patch.sortKey !== undefined) setValues.sortKey = patch.sortKey
-      if (patch.updatedAt !== undefined) setValues.updatedAt = patch.updatedAt
-
-      await db
-        .update(portalLinkCategories)
-        .set(setValues)
-        .where(and(catOrg(orgId), catPortal(portalId), catIdEq(id)))
-    })
-  },
-
-  deleteCategory: async (orgId, portalId, id) => {
-    return trace('portalLink.deleteCategory', async () => {
-      await db
-        .delete(portalLinkCategories)
-        .where(and(catOrg(orgId), catPortal(portalId), catIdEq(id)))
-    })
-  },
-
-  reorderCategories: async (orgId, portalId, updates) => {
-    return trace('portalLink.reorderCategories', async () => {
-      const updatedAt = clock()
-      await db.transaction(async (tx) => {
-        const ids = updates.map(({ id }) => unbrand(id))
-        if (ids.length > 0) {
-          const scoped = await tx
-            .select({ id: portalLinkCategories.id })
-            .from(portalLinkCategories)
-            .where(
-              and(
-                catOrg(orgId),
-                catPortal(portalId),
-                inArray(portalLinkCategories.id, ids),
-              ),
-            )
-          if (scoped.length !== ids.length) {
-            throw portalError('forbidden', 'Portal category scope mismatch')
-          }
-        }
-        for (const { id, sortKey } of updates) {
-          await tx
-            .update(portalLinkCategories)
-            .set({ sortKey, updatedAt })
-            .where(and(catOrg(orgId), catPortal(portalId), catIdEq(id)))
-        }
-      })
-    })
-  },
-
   insertLink: async (orgId, link) => {
     return trace('portalLink.insertLink', async () => {
       if (link.organizationId !== orgId) {
@@ -215,7 +163,6 @@ export const createPortalLinkRepository = (
   updateLink: async (orgId, portalId, id, patch) => {
     return trace('portalLink.updateLink', async () => {
       const setValues: Partial<typeof portalLinks.$inferInsert> = {}
-      if (patch.label !== undefined) setValues.label = patch.label
       if (patch.destinationId !== undefined) {
         setValues.destinationId = patch.destinationId
           ? unbrand(patch.destinationId)
@@ -317,30 +264,6 @@ export const createPortalLinkRepository = (
         .where(and(linkOrg(orgId), linkIdEq(id)))
         .limit(1)
       return rows[0] ? linkFromRow(rows[0].link, rows[0].destinationUri) : null
-    })
-  },
-
-  findCategoryCommandTarget: async (orgId, id) => {
-    return trace('portalLink.findCategoryCommandTarget', async () => {
-      const [row] = await db
-        .select({ category: portalLinkCategories, portalUpdatedAt: portals.updatedAt })
-        .from(portalLinkCategories)
-        .innerJoin(
-          portals,
-          and(
-            eq(portals.organizationId, portalLinkCategories.organizationId),
-            eq(portals.id, portalLinkCategories.portalId),
-            isNull(portals.deletedAt),
-          ),
-        )
-        .where(and(catOrg(orgId), catIdEq(id)))
-        .limit(1)
-      return row
-        ? {
-            category: categoryFromRow(row.category),
-            portalUpdatedAt: row.portalUpdatedAt,
-          }
-        : null
     })
   },
 

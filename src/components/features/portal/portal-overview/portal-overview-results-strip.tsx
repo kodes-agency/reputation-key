@@ -4,6 +4,8 @@
 // single Portal's Results tab prints. The range is a viewing
 // preference that follows the reader from the Results tab (All Time is not
 // offered: a lifetime figure comes from the lifetime aggregate, not from readings).
+import { Link } from '@tanstack/react-router'
+import { ArrowRight } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { Metric, MetricStrip } from '#/components/ui/metric-strip'
 import {
@@ -20,6 +22,7 @@ import { timeRangePreset } from '#/contexts/reporting/application/dto/dashboard.
 import { RESULTS_LABELS } from '../portal-analytics/portal-results-cells'
 import { PortalResultsStrip } from '../portal-analytics/portal-results-strip'
 import { PORTAL_OVERVIEW_RANGES } from '../portal-analytics/portal-results-window'
+import { INBOX_WAITING_QUEUE, inboxWaitingLabel } from './portal-overview-inbox'
 import type { PortalOverviewResultsState } from './portal-overview-results'
 import { organizationScopeLine } from './portal-overview-strip-scope'
 
@@ -41,6 +44,12 @@ type Props = Readonly<{
   propertiesListed?: number
   /** One group's own figures (a group's page) instead of every Portal of the Property. */
   groupId?: string
+  /**
+   * Property scope only: how many private notes from its Portals wait in the
+   * Inbox, linked under the Private notes figure. Null or zero leaves the link
+   * out; the Organization's and a group's strips never carry it.
+   */
+  inboxWaiting?: number | null
 }>
 
 const COLLAPSE_NOTE = 'collapsed properties stay collapsed for you'
@@ -75,6 +84,31 @@ function scopeLine(
         ? 'all portals'
         : 'this group'
   return strip?.caption ? `${strip.caption} · ${everything}` : everything
+}
+
+/**
+ * "3 waiting in Inbox →", the Private notes cell's detail line, into the Inbox's
+ * private feedback queue for the Property. The accent link colour and the cell
+ * detail's size are the boards'; the padding only grows the touch target.
+ */
+function InboxWaitingLink({
+  propertyId,
+  label,
+}: Readonly<{ propertyId: string; label: string }>) {
+  return (
+    <Link
+      to="/inbox"
+      search={{ propertyId, queue: INBOX_WAITING_QUEUE }}
+      className={cn(
+        '-my-1.5 inline-flex items-center gap-1 rounded-sm py-1.5 text-xs leading-4 font-medium',
+        'underline-offset-4 hover:underline',
+        'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+      )}
+    >
+      {label}
+      <ArrowRight className="size-3" aria-hidden="true" />
+    </Link>
+  )
 }
 
 function LoadingStrip() {
@@ -115,10 +149,13 @@ export function PortalOverviewResultsStrip({
   propertyId,
   propertiesListed,
   groupId,
+  inboxWaiting = null,
 }: Props) {
   const { state, timeRange, onTimeRangeChange, onRetry, busy = false } = controls
   if (state.status === 'off') return null
   const strip = stripOf(state, propertyId, groupId)
+  const waitingLabel =
+    propertyId !== null && groupId === undefined ? inboxWaitingLabel(inboxWaiting) : null
   return (
     <section aria-label="Results" className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -150,7 +187,14 @@ export function PortalOverviewResultsStrip({
       {state.status === 'failed' ? <FailedStrip onRetry={onRetry} /> : null}
       {strip ? (
         <div className={cn('transition-opacity', busy && 'opacity-60')} aria-busy={busy}>
-          <PortalResultsStrip cells={strip.cells} />
+          <PortalResultsStrip
+            cells={strip.cells}
+            notesDetail={
+              propertyId !== null && waitingLabel !== null ? (
+                <InboxWaitingLink propertyId={propertyId} label={waitingLabel} />
+              ) : undefined
+            }
+          />
         </div>
       ) : null}
     </section>

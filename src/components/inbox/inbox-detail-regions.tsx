@@ -61,7 +61,7 @@ export function DetailThreadRegion({
       {...{ [INBOX_SCROLL_REGION]: '' }}
       className="min-h-0 flex-1 overflow-y-auto focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ring"
     >
-      <div className="flex min-w-0 flex-col gap-6 p-5 lg:p-6">
+      <div className="flex min-w-0 flex-col gap-6 p-5 max-md:px-4 lg:p-6">
         <InboxThread
           item={currentItem}
           detail={detail}

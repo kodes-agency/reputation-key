@@ -18,7 +18,6 @@ import { createAtomicPortalCommandStore } from './portal-command-store'
 import { createPortalApprovedDestinationRepository } from './repositories/portal-approved-destination.repository'
 import { createPortalLinkRepository } from './repositories/portal-link.repository'
 import type { PortalCommandStore } from '../application/ports/portal-command-store.port'
-import { createPortalExperienceRepository } from './repositories/portal-experience.repository'
 import { createPortalRepository } from './repositories/portal.repository'
 
 const ORG_A = organizationId('org-defcat-0000-0000-000000000001')
@@ -58,7 +57,6 @@ function useCase(
 ) {
   const db = getDb()
   return createLink({
-    experienceRepo: createPortalExperienceRepository(db),
     portalRepo: createPortalRepository(db),
     portalLinkRepo: createPortalLinkRepository(db, () => CREATED_AT),
     staffPublicApi: staffApi,
@@ -147,8 +145,9 @@ describe('createLink without a category (real PostgreSQL)', () => {
     )
     expect(rows).toEqual([
       {
-        title: 'Useful links',
-        label: 'Olive Terrace menu',
+        title: 'Links',
+        // The name is the text; the legacy label column is not written.
+        label: '',
         locale: 'en',
         text_label: 'Olive Terrace menu',
       },
@@ -163,7 +162,10 @@ describe('createLink without a category (real PostgreSQL)', () => {
 
     expect(await count('portal_link_categories')).toBe(1)
     const { rows } = await getPool().query(
-      `SELECT label FROM portal_links WHERE organization_id = $1 ORDER BY sort_key`,
+      `SELECT t.label
+         FROM portal_links l
+         JOIN portal_link_texts t ON t.link_id = l.id
+        WHERE l.organization_id = $1 ORDER BY l.sort_key`,
       [ORG_A],
     )
     expect(rows.map((row) => row.label)).toEqual(['First', 'Second', 'Third'])
@@ -210,14 +212,14 @@ describe('createLink without a category (real PostgreSQL)', () => {
   })
 
   it('rolls the category and its fact back when the link write fails after them', async () => {
-    // The category is inserted first; a label past its column fails the link
+    // The category is inserted first; a sort key past its column fails the link
     // insert behind it, so only a single transaction takes the category back.
     const tooLong = (store: PortalCommandStore): PortalCommandStore => ({
       ...store,
       createPortalLink: async (command) =>
         store.createPortalLink({
           ...command,
-          link: { ...command.link, label: 'x'.repeat(101) },
+          link: { ...command.link, sortKey: 'x'.repeat(51) },
         }),
     })
 

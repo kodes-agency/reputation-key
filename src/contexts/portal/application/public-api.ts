@@ -3,6 +3,7 @@
  * Re-exports ports for cross-context dependency injection.
  */
 export type { StoragePort } from './ports/storage.port'
+export { StoredObjectTooLargeError } from './ports/storage.port'
 import type { GuestLanguagePackVersion, GuestLocale } from '#/shared/domain/guest-locale'
 
 // Event re-exports — cross-context consumers must import events from public-api, not domain/events.
@@ -22,6 +23,8 @@ export type {
 } from '../domain/events'
 
 export { isValidExternalUrl } from '../domain/rules'
+/** Whether the Property wrote wording for a language: the base a Portal's own lines need. */
+export { hasPropertyWording } from '../domain/property-wording'
 export type { Portal } from '../domain/types'
 /** C2: portal token existence/metadata for management surfaces — never token material. */
 export type { PortalTokenStatus } from './portal-token-status'
@@ -41,10 +44,16 @@ export type {
   PortalLinktreeView,
 } from '../domain/portal-linktree-view'
 export type {
+  PropertyLookHero,
+  PropertyLookLogo,
+  PropertyLookMedia,
+} from './property-look-media'
+export type {
   PortalPreview,
   PortalPreviewExperience,
   PortalPreviewLink,
   PortalPreviewLinkState,
+  PortalPreviewOrigin,
   PortalPreviewOutcome,
   PortalPreviewSource,
   PortalPreviewUnavailableReason,
@@ -54,6 +63,28 @@ export type {
   PortalHistoryEntry,
   GetPortalHistoryInput,
 } from './use-cases/get-portal-history'
+export type { PortalVersionItem, PortalVersions } from './use-cases/get-portal-versions'
+export type {
+  PortalVersionContent,
+  PortalVersionDetail,
+} from './use-cases/get-portal-version'
+export type { PortalVersionActor } from './portal-version-actors'
+export type { PortalPrintKitView } from './portal-print-kit-context'
+export type { PortalPrintKitDownload } from './use-cases/create-portal-print-kit'
+export type { PortalReview, PortalReviewChange } from './use-cases/get-portal-review'
+export type { PublishPortalsChangesResult } from './use-cases/publish-portal-changes'
+export type {
+  ReviewCheck,
+  ReviewCheckCode,
+  ReviewCheckStatus,
+  ReviewLanguageRow,
+  ReviewLanguageStatus,
+} from '../domain/portal-review-rules'
+export type {
+  PublicationContentChange,
+  PublicationLookFacet,
+  PublicationWordingField,
+} from '../domain/portal-publication-content'
 export type {
   MissingPortalText,
   PortalLanguageCoverage,
@@ -68,7 +99,10 @@ export type {
   PortalHistoryDetail,
   PortalHistoryFilter,
 } from '../domain/portal-history'
-export type { PortalPageEditSubject } from '../domain/portal-page-edit'
+export type {
+  PortalPageEditKind,
+  PortalPageEditSubject,
+} from '../domain/portal-page-edit'
 
 import type {
   OrganizationId,

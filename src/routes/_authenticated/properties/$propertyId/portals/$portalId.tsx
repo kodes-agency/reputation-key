@@ -29,6 +29,7 @@ import {
 import { PortalDraftAutosaveProvider } from '#/components/features/portal/portal-editor/portal-draft-autosave-context'
 import { PortalDraftSaveStatus } from '#/components/features/portal/portal-editor/portal-draft-save-status'
 import { PortalLinkIssuanceProvider } from '#/components/features/portal/portal-workspace/portal-link-issuance'
+import { PortalOpenPageControl } from '#/components/features/portal/portal-workspace/portal-open-page-control'
 import { PortalWorkspaceHeader } from '#/components/features/portal/portal-workspace/portal-workspace-header'
 import { isWorkspaceReviewRoute } from '#/components/features/portal/portal-workspace/portal-workspace-route'
 import { PortalWorkspaceShell } from '#/components/features/portal/portal-workspace/portal-workspace-shell'
@@ -39,6 +40,7 @@ import { Button } from '#/components/ui/button'
 import { AlertCircle } from 'lucide-react'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
+import { usePortalOpenPageReveal } from './-portal-detail-actions'
 import {
   findAuthorizedPortal,
   portalGroupsQuery,
@@ -163,7 +165,8 @@ function PortalWorkspaceLayout() {
   const { data: portalData } = useSuspenseQuery(portalQuery(portalId))
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data: history } = useSuspenseQuery(portalPublicationHistoryQuery(portalId))
-  const { portal } = portalData
+  const revealForOpenPage = usePortalOpenPageReveal()
+  const { portal, tokenStatus } = portalData
   if (!portal) throw notFound()
 
   const reviewing = isWorkspaceReviewRoute(pathname)
@@ -187,6 +190,18 @@ function PortalWorkspaceLayout() {
       activeTab={view.tab}
       activeSection={section}
       saveStatus={<PortalDraftSaveStatus />}
+      openPage={
+        <PortalOpenPageControl
+          propertyId={propertyId}
+          portalId={portalId}
+          canUpdate={canDo('portal.update')}
+          portalWriteEnabled={has('portal.write')}
+          publicationState={portal.publicationState}
+          tokenStatus={tokenStatus}
+          activeTab={view.tab}
+          revealMutation={revealForOpenPage}
+        />
+      }
     />
   )
   const tabs = reviewing ? undefined : (

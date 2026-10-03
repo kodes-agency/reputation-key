@@ -1,5 +1,7 @@
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { PgDialect } from 'drizzle-orm/pg-core'
+import type { SQL } from 'drizzle-orm'
 import { describe, expect, it } from 'vitest'
 import type { Database } from '#/shared/db'
 import { createPortalOrganizationExportContributor } from './portal-organization-export.adapter'
@@ -10,7 +12,6 @@ type Row = Record<string, unknown>
 const READ_ORDER = [
   'portals',
   'portalGroups',
-  'portalGroupMembers',
   'portalGroupHistory',
   'linkCategories',
   'links',
@@ -121,6 +122,30 @@ describe('Portal Organization Export contributor', () => {
     await expect(contribute(seeded, '2026-08-28T10:16:01.000000Z')).rejects.toThrow(
       /snapshot window is unavailable/u,
     )
+  })
+
+  it('reads nothing from the retired portal_group_members compatibility mirror', async () => {
+    const statements: string[] = []
+    const dialect = new PgDialect()
+    const snapshot = {
+      execute: async (query: SQL) => {
+        statements.push(dialect.sqlToQuery(query).sql)
+        return { rows: statements.length === 1 ? [{ snapshot_at: SNAPSHOT_AT }] : [] }
+      },
+    }
+    const database = {
+      transaction: async (run: (executor: typeof snapshot) => Promise<unknown>) =>
+        run(snapshot),
+    } as unknown as Database
+
+    await createPortalOrganizationExportContributor(database).contribute({
+      organizationId: 'org-portal-export',
+      requestId: 'req-1',
+      asOf: ASOF,
+    })
+
+    expect(statements.length).toBeGreaterThan(10)
+    expect(statements.filter((text) => text.includes('portal_group_members'))).toEqual([])
   })
 
   it('stays composition input: no Portal server function, route or public API reaches it', () => {

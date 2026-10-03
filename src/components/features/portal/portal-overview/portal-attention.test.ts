@@ -4,8 +4,9 @@ import {
   attentionRank,
   needsAttention,
   portalAttention,
+  offersAttentionFilter,
 } from './portal-attention'
-import { NO_CODE, overviewRow } from './portal-overview-fixtures'
+import { NO_CODE, OLDER_CODE, overviewRow } from './portal-overview-fixtures'
 
 const attentionOf = (overrides: Parameters<typeof overviewRow>[1]) =>
   portalAttention(overviewRow('p', overrides))
@@ -58,18 +59,41 @@ describe('portalAttention', () => {
     expect(attention.issues.map((issue) => issue.code)).toEqual(['no_code'])
   })
 
-  it('does not raise an older code as an issue; the Share tab says it', () => {
-    const attention = attentionOf({
-      token: {
-        hasActiveToken: true,
-        qualifiedScanReady: false,
-        version: 1,
-        issuedAt: '2026-01-01T00:00:00.000Z',
-        graceExpiresAt: null,
-        addressRecoverable: false,
-      },
+  it('flags a live Portal whose code predates access artifacts, as its own line', () => {
+    const attention = attentionOf({ token: OLDER_CODE })
+    expect(attention).toEqual({ kind: 'older_code' })
+    expect(attentionLine(attention)).toBe('Older code · scans not counted')
+    expect(needsAttention(attention)).toBe(true)
+  })
+
+  it('does not call an older code an issue: it still works, so it is not counted in "N issues"', () => {
+    const attention = attentionOf({ token: OLDER_CODE, responsibleManagerUserIds: [] })
+    if (attention.kind !== 'issues') throw new Error('expected issues')
+    expect(attention.issues.map((issue) => issue.code)).toEqual(['no_responsible'])
+  })
+
+  it('puts an older code before changes that are not live, so it is not hidden', () => {
+    expect(attentionOf({ token: OLDER_CODE, pendingChangeCount: 2 })).toEqual({
+      kind: 'older_code',
     })
-    expect(attention).toEqual({ kind: 'none' })
+  })
+
+  it('says nothing about an older code on a Portal that is not live', () => {
+    expect(attentionOf({ token: OLDER_CODE, publicationState: 'draft' })).toEqual({
+      kind: 'draft',
+    })
+    expect(attentionOf({ token: OLDER_CODE, publicationState: 'disabled' })).toEqual({
+      kind: 'disabled',
+    })
+    expect(attentionOf({ token: OLDER_CODE, publicationState: 'archived' })).toEqual({
+      kind: 'archived',
+    })
+  })
+
+  it('says nothing about a Portal with no code: that is the "No working code" issue', () => {
+    const attention = attentionOf({ token: NO_CODE })
+    if (attention.kind !== 'issues') throw new Error('expected issues')
+    expect(attention.issues.map((issue) => issue.code)).toEqual(['no_code'])
   })
 
   it('reads what Health knows and the row cannot: property, version, Google', () => {
@@ -145,7 +169,7 @@ describe('attentionLine', () => {
 })
 
 describe('ordering by attention', () => {
-  it('ranks issues, then changes, then setup, then disabled, then quiet, then archived', () => {
+  it('ranks issues, then an older code, then changes, then setup, then disabled, then quiet, then archived', () => {
     const ranks = (
       [
         { kind: 'archived' },
@@ -153,6 +177,7 @@ describe('ordering by attention', () => {
         { kind: 'disabled' },
         { kind: 'draft' },
         { kind: 'pending', count: 1 },
+        { kind: 'older_code' },
         { kind: 'issues', issues: [] },
       ] as const
     ).map(attentionRank)
@@ -164,7 +189,22 @@ describe('ordering by attention', () => {
     expect(needsAttention({ kind: 'draft' })).toBe(true)
     expect(needsAttention({ kind: 'disabled' })).toBe(true)
     expect(needsAttention({ kind: 'pending', count: 1 })).toBe(true)
+    expect(needsAttention({ kind: 'older_code' })).toBe(true)
     expect(needsAttention({ kind: 'archived' })).toBe(false)
     expect(needsAttention({ kind: 'none' })).toBe(false)
+  })
+})
+
+describe('offersAttentionFilter', () => {
+  it('offers the filter while a Portal needs attention', () => {
+    expect(offersAttentionFilter(2, {})).toBe(true)
+  })
+
+  it('leaves it out when nothing needs attention, as it would keep nothing', () => {
+    expect(offersAttentionFilter(0, {})).toBe(false)
+  })
+
+  it('keeps it while it is on, so it can be turned off', () => {
+    expect(offersAttentionFilter(0, { show: 'attention' })).toBe(true)
   })
 })

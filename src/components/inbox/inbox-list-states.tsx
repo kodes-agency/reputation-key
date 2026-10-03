@@ -9,8 +9,14 @@ export function InboxListSkeleton() {
   return (
     <div>
       {Array.from({ length: 8 }).map((_, index) => (
-        <div key={index} className="flex h-[78px] items-center gap-3 border-b px-3 py-3">
-          <Skeleton className="size-4 rounded" />
+        // Phone rows start on the 16px gutter and have no selection gutter at
+        // rest, so the skeleton drops its leading square there too: rows would
+        // otherwise jump from x=40 to x=16 when the data arrives.
+        <div
+          key={index}
+          className="flex h-[78px] items-center gap-3 border-b px-3 py-3 max-md:px-4"
+        >
+          <Skeleton className="size-4 rounded max-md:hidden" />
           <div className="flex flex-1 flex-col gap-1.5">
             <Skeleton className="h-4 w-3/4" />
             <Skeleton className="h-3 w-1/2" />

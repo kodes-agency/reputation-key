@@ -521,6 +521,120 @@ export const MobileViewport: Story = {
   },
 }
 
+// Two filters and a non-default sort on a phone: the bar carries only the
+// Filters trigger, so this row is where the narrowing shows. The filters leave
+// rows on screen, so the metrics gate measures the chips and the list together.
+export const MobileFilteredViewport: Story = {
+  render: () => (
+    <InboxPageHarness
+      ctx={orgCtx}
+      inboxFns={makeInboxFns(container)}
+      initialSearch={{ sourceType: 'review', ratingMax: 3, sort: 'oldest' }}
+    />
+  ),
+  parameters: {
+    viewport: { defaultViewport: 'mobileStaff' },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const chips = await canvas.findByRole('group', { name: 'Active filters' })
+    await expect(
+      within(chips).getByRole('button', { name: 'Remove filter: Reviews' }),
+    ).toBeVisible()
+    await expect(
+      within(chips).getByRole('button', { name: 'Remove filter: Oldest first' }),
+    ).toBeVisible()
+    await expect(
+      within(chips).getByRole('button', { name: 'Remove filter: 3 stars and below' }),
+    ).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Filters, 2 active' })).toBeVisible()
+    await expect(await canvas.findAllByRole('listitem')).not.toHaveLength(0)
+    // Sort lives in the filter sheet on a phone, not on the bar.
+    expect(canvas.queryByRole('combobox', { name: 'Sort reviews' })).toBeNull()
+    // Removing a filter chip narrows the row and the trigger's count with it.
+    // The play stops with two chips left: the metrics gate measures the row
+    // and the list as this story ends.
+    await userEvent.click(
+      within(chips).getByRole('button', { name: 'Remove filter: Reviews' }),
+    )
+    await expect(
+      await canvas.findByRole('button', { name: 'Filters, 1 active' }),
+    ).toBeVisible()
+    await expect(
+      within(chips).queryByRole('button', { name: 'Remove filter: Reviews' }),
+    ).toBeNull()
+    await expect(
+      within(chips).getByRole('button', { name: 'Remove filter: 3 stars and below' }),
+    ).toBeVisible()
+  },
+}
+
+// Every chip removed one by one, ending with no row at all and focus on the
+// trigger that can bring the filters back.
+export const MobileRemovingEveryFilter: Story = {
+  render: () => (
+    <InboxPageHarness
+      ctx={orgCtx}
+      inboxFns={makeInboxFns(container)}
+      initialSearch={{ sourceType: 'review', ratingMax: 3, sort: 'oldest' }}
+    />
+  ),
+  parameters: {
+    viewport: { defaultViewport: 'mobileStaff' },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const chips = await canvas.findByRole('group', { name: 'Active filters' })
+    // The sort is not a counted filter, so its chip leaves the count alone.
+    await userEvent.click(
+      within(chips).getByRole('button', { name: 'Remove filter: Oldest first' }),
+    )
+    await waitFor(() =>
+      expect(
+        within(chips).queryByRole('button', { name: 'Remove filter: Oldest first' }),
+      ).toBeNull(),
+    )
+    await expect(canvas.getByRole('button', { name: 'Filters, 2 active' })).toBeVisible()
+    await userEvent.click(
+      within(chips).getByRole('button', { name: 'Remove filter: Reviews' }),
+    )
+    await expect(
+      await canvas.findByRole('button', { name: 'Filters, 1 active' }),
+    ).toBeVisible()
+    // The last chip takes the row with it; focus goes to the Filters trigger.
+    await userEvent.click(
+      within(chips).getByRole('button', { name: 'Remove filter: 3 stars and below' }),
+    )
+    await waitFor(() =>
+      expect(canvas.queryByRole('group', { name: 'Active filters' })).toBeNull(),
+    )
+    await expect(canvas.getByRole('button', { name: 'Filters' })).toHaveFocus()
+  },
+}
+
+// "Clear all" is one navigation that drops every filter and the sort together.
+export const MobileClearAllFilters: Story = {
+  render: () => (
+    <InboxPageHarness
+      ctx={orgCtx}
+      inboxFns={makeInboxFns(container)}
+      initialSearch={{ sourceType: 'review', ratingMax: 3, sort: 'oldest' }}
+    />
+  ),
+  parameters: {
+    viewport: { defaultViewport: 'mobileStaff' },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const chips = await canvas.findByRole('group', { name: 'Active filters' })
+    await userEvent.click(within(chips).getByRole('button', { name: 'Clear all' }))
+    await waitFor(() =>
+      expect(canvas.queryByRole('group', { name: 'Active filters' })).toBeNull(),
+    )
+    await expect(canvas.getByRole('button', { name: 'Filters' })).toHaveFocus()
+  },
+}
+
 // The desktop workspace needs 48 px app rail + 224 px queue rail + 320 px list,
 // a 6 px separator, and 480 px detail. Until that 1078 px floor, use the
 // strip/sheet composition.

@@ -191,7 +191,16 @@ const config = defineConfig(({ mode }) => {
                 // optional package pnpm links only beside sharp itself, so a
                 // bundled copy cannot find it from `.output`; it must resolve
                 // from the installed `node_modules/sharp`.
-                external: [/^@sentry\/node(?:\/|$)/, /^cld3-asm(\/|$)/, /^sharp(\/|$)/],
+                //
+                // `pdfkit` (the print kit's PDF, round 4 slice 45) resolves its
+                // font and colour data relative to its own files, which a bundled
+                // copy would lose, so it too loads from `node_modules`.
+                external: [
+                  /^@sentry\/node(?:\/|$)/,
+                  /^cld3-asm(\/|$)/,
+                  /^sharp(\/|$)/,
+                  /^pdfkit(\/|$)/,
+                ],
               },
               // serverDir scanning stays off (default false under TanStack
               // Start), so this explicit list is the ONLY plugin registration

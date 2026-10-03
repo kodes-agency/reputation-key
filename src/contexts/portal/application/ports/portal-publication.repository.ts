@@ -1,8 +1,8 @@
 import type {
   PortalPublicationActivation,
   PortalPublicationSnapshot,
-  PortalPublicationSource,
 } from '../../domain/portal-publication-snapshot'
+import type { PortalPublicationSource } from '../../domain/portal-publication-source'
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 
 export type PortalPublicationCursor = Readonly<{
@@ -46,6 +46,8 @@ export type PortalPendingContentChange = Readonly<{
   key: string
   sourceVersion: string
   changedAt: Date
+  /** Who made the change; null for the system and for a row written before it was recorded. */
+  changedBy: string | null
 }>
 
 export type PortalPublicationRepository = Readonly<{

@@ -12,6 +12,7 @@ import { getAuth } from '#/shared/auth/auth'
 import { getContainer } from '#/composition'
 import { isIdentityError } from '../domain/errors'
 import { MAX_UPLOAD_BYTES } from './organizations.shared'
+import { retireReplacedIdentityAsset } from '../application/retire-replaced-identity-asset'
 import { throwIdentityError } from './organizations.errors.server'
 import { requestOrgLogoUpload as requestOrgLogoUploadUseCase } from '../application/use-cases/request-org-logo-upload'
 import { finalizeOrgLogoUpload as finalizeOrgLogoUploadUseCase } from '../application/use-cases/finalize-org-logo-upload'
@@ -62,9 +63,12 @@ export const finalizeOrgLogoUpload = createServerFn({ method: 'POST' })
         const headers = await headersFromContext()
         const ctx = await resolveTenantContext(headers)
         await requireExecutionAllowed({ actor: ctx, action: 'identity.logo_upload' })
-        const { assetStorage: storage } = getContainer()
+        const { assetStorage: storage, identityAssetReferences, logger } = getContainer()
         const useCase = finalizeOrgLogoUploadUseCase({
           storage,
+          currentLogo: () =>
+            identityAssetReferences.currentOrganizationLogo(ctx.organizationId),
+          retireReplaced: retireReplacedIdentityAsset({ storage, logger }),
           // Persist the logo via the auth provider — injected as a closure so the
           // use case owns the persistence step (mirrors update-organization.ts).
           updateOrg: async (updateData) => {

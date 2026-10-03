@@ -1,6 +1,5 @@
 // Organization settings form — edit beta organization identity.
 // Per conventions: receives organization data and onSubmit callback, uses TanStack Form + Zod schema.
-// Shows warning when slug changes (breaks guest URLs).
 
 import { useForm } from '@tanstack/react-form'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
@@ -74,17 +73,7 @@ export function OrganizationSettingsForm({
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {/* Subscribe to slug so slugChanged reactively updates — a plain
-              form.getFieldValue read in the parent doesn't subscribe, so the
-              warning would never re-render when the slug field changes. */}
-          <form.Subscribe selector={(state) => state.values.slug}>
-            {(slug) => (
-              <OrgIdentityCard
-                form={form}
-                slugChanged={slug !== organization.slug && slug !== ''}
-              />
-            )}
-          </form.Subscribe>
+          <OrgIdentityCard form={form} />
         </CardContent>
       </Card>
 

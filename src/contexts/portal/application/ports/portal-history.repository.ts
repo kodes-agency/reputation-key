@@ -1,6 +1,10 @@
 import type { OrganizationId, PortalId, PropertyId } from '#/shared/domain/ids'
 import type { HistoryBound } from '../../domain/portal-history'
 import type { PortalPageEditKind } from '../../domain/portal-page-edit'
+import type { PortalPublicationConfiguration } from '../../domain/portal-publication-snapshot'
+
+/** The most rows one read of one source returns, whatever limit it asks for. */
+export const MAX_HISTORY_SOURCE_ROWS = 100
 
 /** One read of one source: rows strictly before `bound`, newest first. */
 export type PortalHistoryPage = Readonly<{
@@ -65,6 +69,14 @@ export type PortalPageEditRow = Readonly<{
   editCount: number
 }>
 
+/** One published version: an immutable snapshot, read back verified. */
+export type PortalPublishedVersionRow = Readonly<{
+  version: number
+  publishedAt: Date
+  publishedBy: string
+  configuration: PortalPublicationConfiguration
+}>
+
 /**
  * The Portal's own History sources. Health history comes from
  * `PortalHealthRepository.listHistory`; every read is scoped to one
@@ -95,6 +107,17 @@ export type PortalHistoryRepository = Readonly<{
     portalId: PortalId,
     page: PortalHistoryPage,
   ) => Promise<readonly PortalCodeRevocationRow[]>
+  /**
+   * The Portal's published versions, newest first: at most `limit` of them. A
+   * snapshot that no longer verifies is left out (it could not be served or
+   * made live again either), so the numbers may skip.
+   */
+  listPublishedVersions: (
+    organizationId: OrganizationId,
+    propertyId: PropertyId,
+    portalId: PortalId,
+    limit: number,
+  ) => Promise<readonly PortalPublishedVersionRow[]>
   /**
    * Page edits of this Portal plus Property-wide edits made since `since`
    * (the Portal's creation: a look changed before the page existed is not its

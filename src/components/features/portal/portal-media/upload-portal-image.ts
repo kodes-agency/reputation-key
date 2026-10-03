@@ -17,6 +17,10 @@ import {
 export const PORTAL_IMAGE_ACCEPT = 'image/jpeg,image/png,image/webp'
 
 const ACCEPTED_TYPES: ReadonlySet<string> = new Set(PORTAL_IMAGE_ACCEPT.split(','))
+
+/** Whether the browser's name for the file's type is one the server accepts. */
+export const isAcceptedPortalImageType = (type: string): boolean =>
+  ACCEPTED_TYPES.has(type)
 const BYTES_PER_MB = 1024 * 1024
 const MAX_MB = PORTAL_MEDIA_MAX_UPLOAD_BYTES / BYTES_PER_MB
 
@@ -69,6 +73,16 @@ const REFUSAL_MESSAGES: Readonly<Record<string, string>> = {
     'That photo is too wide or too tall. Choose one that is closer to square.',
   undecodable: 'We could not read that photo. Try another file.',
   output_too_large: 'That photo is too detailed to store. Try a smaller or simpler one.',
+}
+
+/**
+ * The sentences above talk about a photo, which is what most uploads are. A
+ * logo is not one, so what a person reads about a logo says logo.
+ */
+export function messageFor(purpose: PortalMediaPurpose, message: string): string {
+  return purpose === 'logo'
+    ? message.replaceAll('stored photos', 'stored images').replaceAll('photo', 'logo')
+    : message
 }
 
 /** Why a file should not be sent, or null if it may be. The server checks again. */
@@ -127,9 +141,11 @@ export async function uploadPortalImage(
   file: File,
   send: typeof fetch = (...args) => fetch(...args),
 ): Promise<PortalImageUploadResult> {
+  const refused = (message: string) =>
+    ({ ok: false, message: messageFor(input.purpose, message) }) as const
   const invalid = validatePortalImageFile(file)
-  if (invalid) return { ok: false, message: invalid }
-  if (!input.rightsConfirmed) return { ok: false, message: MESSAGES.rights }
+  if (invalid) return refused(invalid)
+  if (!input.rightsConfirmed) return refused(MESSAGES.rights)
 
   const query = new URLSearchParams({
     propertyId: input.propertyId,
@@ -146,13 +162,11 @@ export async function uploadPortalImage(
       credentials: 'same-origin',
     })
   } catch {
-    return { ok: false, message: MESSAGES.network }
+    return refused(MESSAGES.network)
   }
 
   const body: unknown = await response.json().catch(() => null)
-  if (!response.ok) {
-    return { ok: false, message: messageForRefusal(response.status, body) }
-  }
+  if (!response.ok) return refused(messageForRefusal(response.status, body))
   const assetId = assetIdOf(body)
-  return assetId ? { ok: true, assetId } : { ok: false, message: MESSAGES.failed }
+  return assetId ? { ok: true, assetId } : refused(MESSAGES.failed)
 }

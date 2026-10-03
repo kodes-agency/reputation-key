@@ -1,0 +1,15 @@
+-- Who opened a pending-change fence row (round 4, slice 31).
+--
+-- Purely additive and nullable. `portal_pending_content_changes` says that a
+-- published input of a Portal moved after the newest version; Review & publish
+-- names the person behind each change. The page-edit ledger already carries
+-- the person for every part of the page it can name, so this column is what
+-- lets the review attribute a change the ledger has no row for (one made
+-- before the ledger existed, or one whose part it cannot name) and lets the
+-- publication history read say who changed what is still unpublished. It is the
+-- person who first recorded the row for that revision: a second record of the
+-- same revision changes nothing (the row's unique key already says so). Rows
+-- written before this column existed, and rows the system wrote (an automatic
+-- name, a destination that failed its network check), have no person and stay
+-- NULL; none is reconstructed.
+ALTER TABLE "portal_pending_content_changes" ADD COLUMN "changed_by" varchar(255);

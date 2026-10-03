@@ -1,316 +1,226 @@
-import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
-import { canonicalizeRfc8785 } from '#/shared/canonical-json'
-import type { PortalPublicationSnapshot } from '../domain/portal-publication-snapshot'
+import {
+  IMMERSIVE_HUB_SCHEMA_VERSION,
+  type PortalPublicationSnapshot,
+} from '../domain/portal-publication-snapshot'
+import type { PortalPublicationSource } from '../domain/portal-publication-source'
+import { publicationSource } from '../domain/__fixtures__/publication-source'
 import {
   buildPortalPublicationSnapshot,
   verifyPortalPublicationSnapshot,
 } from './portal-publication-snapshot'
 
-const NOW = new Date('2026-08-26T10:00:00.000Z')
-
-const source = {
-  portal: {
-    id: '10000000-0000-4000-8000-000000000001',
-    name: 'Lobby review gateway',
-    slug: 'lobby',
-    description: 'Tell us how your visit went.',
-    heroImageUrl: null,
-    theme: { primaryColor: '#123456' },
-    organizationName: 'Example Hotels',
-  },
-  categories: [{ id: 'category-1', title: 'More', sortKey: 'a0' }],
-  links: [
-    {
-      id: 'link-1',
-      label: 'Property website',
-      url: 'https://hotel.example.org/',
-      categoryId: 'category-1',
-      sortKey: 'a0',
-    },
-  ],
-  privateFeedbackThreshold: 3,
-  organizationId: 'org-1',
-  propertyId: '20000000-0000-4000-8000-000000000001',
-} as const
+const NOW = new Date('2026-10-01T10:00:00.000Z')
 
 const destination = {
   state: 'verified',
   uri: 'https://search.google.com/local/writereview?placeid=example',
-  retrievedAt: new Date('2026-08-25T09:00:00.000Z'),
+  retrievedAt: new Date('2026-09-30T09:00:00.000Z'),
   sourceEpoch: 4,
   profileVersion: 7,
 } as const
 
-describe('Portal publication snapshot', () => {
-  it('pins the exact rating-first public configuration behind a stable digest', () => {
-    const snapshot = buildPortalPublicationSnapshot({
-      id: '30000000-0000-4000-8000-000000000001',
-      portalId: source.portal.id,
-      organizationId: source.organizationId,
-      propertyId: source.propertyId,
-      version: 1,
-      source,
-      destination,
-      createdBy: 'manager-1',
-      createdAt: NOW,
-    })
+function build(
+  source: PortalPublicationSource = publicationSource(),
+  overrides: Partial<Parameters<typeof buildPortalPublicationSnapshot>[0]> = {},
+): PortalPublicationSnapshot {
+  return buildPortalPublicationSnapshot({
+    id: '30000000-0000-4000-8000-000000000001',
+    portalId: source.portal.id,
+    organizationId: source.organizationId,
+    propertyId: source.propertyId,
+    version: 1,
+    source,
+    destination,
+    createdBy: 'manager-1',
+    createdAt: NOW,
+    ...overrides,
+  })
+}
 
-    expect(snapshot.configuration).toEqual({
-      schemaVersion: 1,
-      guestLocale: 'en',
-      languagePackVersion: 'guest-ui-en-v1',
-      portal: source.portal,
-      categories: source.categories,
-      links: source.links,
+describe('the schema version 3 writer', () => {
+  it('writes schema version 3 and nothing else', () => {
+    const snapshot = build()
+
+    expect(snapshot.configuration.schemaVersion).toBe(IMMERSIVE_HUB_SCHEMA_VERSION)
+    expect(verifyPortalPublicationSnapshot(snapshot)).toBe(true)
+  })
+
+  it('pins the gateway and the Google binding beside the resolved content', () => {
+    const { configuration } = build()
+
+    expect(configuration).toMatchObject({
       reviewGateway: {
         privateFeedbackThreshold: 3,
-        googleReview: {
-          status: 'available',
-          uri: destination.uri,
-        },
+        googleReview: { status: 'available', uri: destination.uri },
       },
       googleReviewBinding: {
         retrievedAt: destination.retrievedAt.toISOString(),
         sourceEpoch: 4,
         profileVersion: 7,
       },
+      guestLocale: 'en',
+      languagePackVersion: 'guest-ui-en-v2',
+      timeZone: 'Europe/Sofia',
     })
-    expect(snapshot.configurationDigest).toBe(
-      'b559d36b2e64b34dc66bf3df0abbab13a4d48792a43dfa182c7e0b9907b059d4',
+  })
+
+  it('keeps the row columns the reader cross-checks in step with the configuration', () => {
+    const snapshot = build()
+
+    expect(snapshot.destinationUri).toBe(destination.uri)
+    expect(snapshot.destinationSourceEpoch).toBe(4)
+    expect(snapshot.destinationProfileVersion).toBe(7)
+  })
+
+  it('is deterministic, and a changed working copy changes the digest', () => {
+    const first = build()
+
+    expect(build().configurationDigest).toBe(first.configurationDigest)
+    expect(
+      build(publicationSource({ linktreeEnabled: false })).configurationDigest,
+    ).not.toBe(first.configurationDigest)
+  })
+
+  it('publishes a Bulgarian-primary portal as Bulgarian, never as English', () => {
+    const snapshot = build(
+      publicationSource({ primaryGuestLocale: 'bg', localeSet: ['bg', 'en'] }),
     )
-    expect(verifyPortalPublicationSnapshot(snapshot)).toBe(true)
-  })
-
-  it('does not let a changed working copy masquerade as the published version', () => {
-    const first = buildPortalPublicationSnapshot({
-      id: '30000000-0000-4000-8000-000000000001',
-      portalId: source.portal.id,
-      organizationId: source.organizationId,
-      propertyId: source.propertyId,
-      version: 1,
-      source,
-      destination,
-      createdBy: 'manager-1',
-      createdAt: NOW,
-    })
-    const changed = buildPortalPublicationSnapshot({
-      id: '30000000-0000-4000-8000-000000000002',
-      portalId: source.portal.id,
-      organizationId: source.organizationId,
-      propertyId: source.propertyId,
-      version: 2,
-      source: {
-        ...source,
-        portal: { ...source.portal, name: 'Changed working copy' },
-      },
-      destination,
-      createdBy: 'manager-1',
-      createdAt: new Date(NOW.getTime() + 1_000),
-    })
-
-    expect(changed.configurationDigest).not.toBe(first.configurationDigest)
-    expect(first.configuration).toMatchObject({
-      portal: { name: 'Lobby review gateway' },
-    })
-  })
-
-  it('pins the complete accessible EN/BG brand experience in schema version 2', () => {
-    const snapshot = buildPortalPublicationSnapshot({
-      id: '30000000-0000-4000-8000-000000000010',
-      portalId: source.portal.id,
-      organizationId: source.organizationId,
-      propertyId: source.propertyId,
-      version: 3,
-      source: {
-        ...source,
-        experience: {
-          primaryGuestLocale: 'bg',
-          localeSet: ['bg', 'en'],
-          languagePackVersions: {
-            en: 'guest-ui-en-v1',
-            bg: 'guest-ui-bg-v1',
-          },
-          localizedContent: {
-            en: {
-              title: 'Tell us about your stay',
-              shortDescription: 'Your view matters.',
-              heroImageUrl: null,
-            },
-            bg: {
-              title: 'Разкажете ни за престоя си',
-              shortDescription: 'Вашето мнение е важно.',
-              heroImageUrl: 'https://cdn.example.com/bg-hero.webp',
-            },
-          },
-          brandProfile: {
-            displayName: 'Хотел Пример',
-            logoUrl: null,
-            defaultHeroImageUrl: null,
-            primaryColor: '#1D4ED8',
-            backgroundColor: '#FFFFFF',
-            textColor: '#111827',
-            version: 7,
-          },
-        },
-      },
-      destination,
-      createdBy: 'manager-1',
-      createdAt: NOW,
-    })
 
     expect(snapshot.configuration).toMatchObject({
-      schemaVersion: 2,
       guestLocale: 'bg',
-      languagePackVersion: 'guest-ui-bg-v1',
+      languagePackVersion: 'guest-ui-bg-v2',
       localeSet: ['bg', 'en'],
-      brandProfile: { displayName: 'Хотел Пример', version: 7 },
+    })
+    expect(verifyPortalPublicationSnapshot(snapshot)).toBe(true)
+  })
+
+  it('publishes a property with no brand profile, with the default look', () => {
+    const snapshot = build(publicationSource({ look: null }))
+
+    expect(snapshot.configuration).toMatchObject({
+      brandProfile: { accentColour: '#EAD6A8', lookVersion: 1, hero: null, logo: null },
+    })
+    expect(verifyPortalPublicationSnapshot(snapshot)).toBe(true)
+  })
+
+  it('fills a gap in another language and tags the copy', () => {
+    const base = publicationSource()
+    const snapshot = build(
+      publicationSource({
+        wording: {
+          en: base.wording.en!,
+          bg: { title: null, shortDescription: null, heroAlt: null, linktreeTitle: null },
+        },
+      }),
+    )
+
+    expect(snapshot.configuration).toMatchObject({
       localizedContent: {
-        bg: { title: 'Разкажете ни за престоя си' },
-        en: { title: 'Tell us about your stay' },
+        bg: { title: { value: 'Tell us about your visit', fallbackFrom: 'en' } },
       },
     })
     expect(verifyPortalPublicationSnapshot(snapshot)).toBe(true)
   })
 
-  it('fails verification when stored content no longer matches its digest', () => {
-    const snapshot = buildPortalPublicationSnapshot({
-      id: '30000000-0000-4000-8000-000000000001',
-      portalId: source.portal.id,
-      organizationId: source.organizationId,
-      propertyId: source.propertyId,
-      version: 1,
-      source,
-      destination,
-      createdBy: 'manager-1',
-      createdAt: NOW,
+  describe('what it refuses', () => {
+    it('does not silently fall back to an earlier design when the primary wording is missing', () => {
+      const base = publicationSource()
+
+      expect(() =>
+        build(
+          publicationSource({
+            wording: { en: { ...base.wording.en!, title: null }, bg: base.wording.bg! },
+          }),
+        ),
+      ).toThrow(/title.*primary language \(English\)/u)
     })
 
-    expect(
-      verifyPortalPublicationSnapshot({
-        ...snapshot,
-        configuration: {
-          ...snapshot.configuration,
-          portal: { ...snapshot.configuration.portal, name: 'Tampered' },
-        } as PortalPublicationSnapshot['configuration'],
-      }),
-    ).toBe(false)
-  })
+    it('tells the manager what to fix in plain words, never a key or a locale code', () => {
+      const base = publicationSource()
+      const messageFor = (overrides: Parameters<typeof publicationSource>[0]) => {
+        try {
+          build(publicationSource(overrides))
+        } catch (error) {
+          return (error as Error).message
+        }
+        return null
+      }
 
-  describe('language pack and schema version binding', () => {
-    const localized = buildPortalPublicationSnapshot({
-      id: '30000000-0000-4000-8000-000000000020',
-      portalId: source.portal.id,
-      organizationId: source.organizationId,
-      propertyId: source.propertyId,
-      version: 2,
-      source: {
-        ...source,
-        experience: {
-          primaryGuestLocale: 'en',
-          localeSet: ['en', 'bg'],
-          languagePackVersions: { en: 'guest-ui-en-v1', bg: 'guest-ui-bg-v1' },
-          localizedContent: {
-            en: { title: 'Tell us', shortDescription: 'Your view.', heroImageUrl: null },
-            bg: { title: 'Кажете ни', shortDescription: 'Мнението.', heroImageUrl: null },
+      expect(
+        messageFor({
+          wording: { en: { ...base.wording.en!, title: null }, bg: base.wording.bg! },
+        }),
+      ).toBe('Write the title in the primary language (English) before publishing')
+      expect(
+        messageFor({
+          wording: {
+            en: { ...base.wording.en!, shortDescription: null },
+            bg: base.wording.bg!,
           },
-          brandProfile: {
-            displayName: 'Example Hotel',
-            logoUrl: null,
-            defaultHeroImageUrl: null,
-            primaryColor: '#1D4ED8',
-            backgroundColor: '#FFFFFF',
-            textColor: '#111827',
-            version: 1,
+        }),
+      ).toBe(
+        'Write the short description in the primary language (English) before publishing',
+      )
+      expect(
+        messageFor({ links: [{ ...base.links[0]!, texts: {} }, ...base.links.slice(1)] }),
+      ).toBe('Write the link wording in the primary language (English) before publishing')
+    })
+
+    it('publishes German beside English, copying the English text where German has none', () => {
+      const snapshot = build(
+        publicationSource({
+          localeSet: ['en', 'de'],
+          wording: { en: publicationSource().wording.en! },
+        }),
+      )
+
+      expect(verifyPortalPublicationSnapshot(snapshot)).toBe(true)
+      expect(snapshot.configuration).toMatchObject({
+        localeSet: ['en', 'de'],
+        languagePackVersions: { en: 'guest-ui-en-v2', de: 'guest-ui-de-v2' },
+        localizedContent: {
+          de: {
+            title: { fallbackFrom: 'en' },
+            // German has its own default Linktree title, not the English one.
+            linktreeTitle: { value: 'Nützliche Links', fallbackFrom: null },
           },
         },
-      },
-      destination,
-      createdBy: 'manager-1',
-      createdAt: NOW,
-    })
-
-    /** Rewrites the configuration and re-digests it, so only the content check can object. */
-    function withConfiguration(
-      overrides: Record<string, unknown>,
-    ): PortalPublicationSnapshot {
-      const configuration = { ...localized.configuration, ...overrides }
-      return {
-        ...localized,
-        configuration: configuration as PortalPublicationSnapshot['configuration'],
-        configurationDigest: createHash('sha256')
-          .update(canonicalizeRfc8785(configuration), 'utf8')
-          .digest('hex'),
-      }
-    }
-
-    it('accepts the untouched localized snapshot', () => {
-      expect(verifyPortalPublicationSnapshot(localized)).toBe(true)
-      expect(verifyPortalPublicationSnapshot(withConfiguration({}))).toBe(true)
-    })
-
-    it('rejects the Bulgarian pack recorded for English', () => {
-      expect(
-        verifyPortalPublicationSnapshot(
-          withConfiguration({
-            languagePackVersions: { en: 'guest-ui-bg-v1', bg: 'guest-ui-bg-v1' },
-          }),
-        ),
-      ).toBe(false)
-    })
-
-    it('rejects a generation 2 pack in a v2 snapshot, and a missing pack', () => {
-      // guest-ui-en-v2 is a real pack, but only schema version 3 may carry it.
-      expect(
-        verifyPortalPublicationSnapshot(
-          withConfiguration({
-            languagePackVersions: { en: 'guest-ui-en-v2', bg: 'guest-ui-bg-v1' },
-          }),
-        ),
-      ).toBe(false)
-      expect(
-        verifyPortalPublicationSnapshot(
-          withConfiguration({ languagePackVersions: { en: 'guest-ui-en-v1' } }),
-        ),
-      ).toBe(false)
-    })
-
-    it('fails closed on a schema version this build does not know', () => {
-      for (const schemaVersion of [0, 4, 99]) {
-        expect(
-          verifyPortalPublicationSnapshot(withConfiguration({ schemaVersion })),
-        ).toBe(false)
-      }
-    })
-
-    it('rejects a v2 configuration relabelled v3: its shape and packs are not v3', () => {
-      expect(
-        verifyPortalPublicationSnapshot(withConfiguration({ schemaVersion: 3 })),
-      ).toBe(false)
-    })
-
-    it('rejects a v1 configuration that carries any pack but the English v1 pack', () => {
-      const v1 = buildPortalPublicationSnapshot({
-        id: '30000000-0000-4000-8000-000000000021',
-        portalId: source.portal.id,
-        organizationId: source.organizationId,
-        propertyId: source.propertyId,
-        version: 1,
-        source,
-        destination,
-        createdBy: 'manager-1',
-        createdAt: NOW,
       })
-      const bgPack = { ...v1.configuration, languagePackVersion: 'guest-ui-bg-v1' }
-      expect(
-        verifyPortalPublicationSnapshot({
-          ...v1,
-          configuration: bgPack as PortalPublicationSnapshot['configuration'],
-          configurationDigest: createHash('sha256')
-            .update(canonicalizeRfc8785(bgPack), 'utf8')
-            .digest('hex'),
+    })
+
+    it('refuses a Property with no usable time zone', () => {
+      expect(() => build(publicationSource({ timeZone: null }))).toThrow(/time zone/u)
+    })
+
+    it('refuses content the reader would refuse, which no blocker names', () => {
+      expect(() =>
+        build(
+          publicationSource({
+            look: { ...publicationSource().look!, displayName: '  ' },
+          }),
+        ),
+      ).toThrow(/incomplete or out of range/u)
+    })
+
+    it('refuses an input whose scope disagrees with its source', () => {
+      expect(() => build(publicationSource(), { portalId: 'another-portal' })).toThrow(
+        /scope/u,
+      )
+    })
+
+    it.each([0, 6])('refuses a private-feedback threshold of %s', (threshold) => {
+      expect(() =>
+        build(publicationSource({ privateFeedbackThreshold: threshold })),
+      ).toThrow(/threshold/u)
+    })
+
+    it('refuses a destination that is not verified and complete', () => {
+      expect(() =>
+        build(publicationSource(), {
+          destination: { ...destination, profileVersion: 0 },
         }),
-      ).toBe(false)
+      ).toThrow(/Google destination/u)
     })
   })
 })

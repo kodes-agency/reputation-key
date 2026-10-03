@@ -434,7 +434,8 @@ describe.sequential('create Portal command: copied content (real PostgreSQL)', (
     )
     expect(links.rows).toEqual([
       expect.objectContaining({
-        label: 'Menu',
+        // The copy is named by its texts; the legacy label column stays empty.
+        label: '',
         destination_id: DESTINATION,
         icon_key: 'map-pin',
         category: 'Food',
@@ -514,7 +515,10 @@ describe.sequential('create Portal command: copied content (real PostgreSQL)', (
     await store().createPortal(await copyCommand(true))
 
     const copied = await getPool().query(
-      `SELECT label FROM portal_links WHERE portal_id = $1 ORDER BY sort_key`,
+      `SELECT t.label
+         FROM portal_links l
+         JOIN portal_link_texts t ON t.link_id = l.id AND t.locale = 'en'
+        WHERE l.portal_id = $1 ORDER BY l.sort_key`,
       [TARGET],
     )
     expect(copied.rows.map((row) => row.label)).toEqual([

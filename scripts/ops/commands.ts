@@ -33,7 +33,9 @@ export const COMMANDS: Readonly<
   'reparse-review-translations': ['scripts/ops/reparse-review-translations.ts'],
   'report-capability-refusal': ['scripts/ops/report-capability-refusal.ts'],
   'report-organization-lifecycle': ['scripts/ops/report-organization-lifecycle.ts'],
+  'republish-legacy-portals': ['scripts/ops/republish-legacy-portals.ts'],
   'restore-preflight': ['scripts/ops/restore-preflight.ts'],
   'restore-verify': ['scripts/ops/restore-verify.ts'],
+  'storage-cors': ['scripts/ops/storage-cors.ts'],
   'triage-beta-feedback': ['scripts/ops/triage-beta-feedback.ts'],
 })

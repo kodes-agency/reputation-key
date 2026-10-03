@@ -1,6 +1,6 @@
 // The guest-locale catalogue: the one home of which languages a guest can read
-// a Portal in, which of them managers may offer today, and which reviewed
-// language packs exist for each.
+// a Portal in, which of them managers may offer today, and which
+// registered language packs exist for each.
 //
 // Pure on purpose (no zod, no I/O) so domain code may import it; the zod
 // schemas built from it live in `src/shared/guest-locale-schemas.ts`.
@@ -13,7 +13,11 @@ export type GuestLocaleMetadata = Readonly<{
   code: GuestLocale
   nativeName: string
   englishName: string
-  /** The two-letter chip a language switcher shows: EN ES IT FR DE БГ. */
+  /**
+   * The two-letter chip the guest page's language switcher shows, in the
+   * language's own script: EN ES IT FR DE БГ. The admin codes a language with
+   * `adminLanguageCode` instead.
+   */
   chipLabel: string
   /** The tag handed to `Intl` when formatting dates and numbers. */
   intlTag: string
@@ -76,10 +80,14 @@ export const GUEST_LOCALE_METADATA: Readonly<Record<GuestLocale, GuestLocaleMeta
  * Language packs per locale. `supported` is append-only forever, oldest first:
  * a snapshot pins the pack it was published with and must verify for as long
  * as it exists. `generation` ties a pack to the snapshot schemas that may
- * carry it (1 for schema versions 1 and 2, 2 for version 3). `current` is the
- * generation 1 pack a publication uses today, or null while the locale has no
- * reviewed pack; `currentGuestLanguagePack(locale, 2)` names the generation 2
- * pack, which only version 3 snapshots may carry.
+ * carry it (1 for schema versions 1 and 2, 2 for version 3).
+ *
+ * Publishing writes schema version 3 only (round 4, slice 19), so the pack a
+ * publication uses is `currentGuestLanguagePack(locale, 2)`: the newest
+ * generation 2 pack, or null while the locale has none (it cannot be
+ * published). `current` is the generation 1 pack the legacy guest page falls
+ * back to for a snapshot that names none; it is frozen with the packs it names
+ * and no longer says anything about what a publication uses.
  */
 export const GUEST_LANGUAGE_PACKS = Object.freeze({
   en: {
@@ -96,10 +104,13 @@ export const GUEST_LANGUAGE_PACKS = Object.freeze({
       { id: 'guest-ui-bg-v2', generation: 2 },
     ],
   },
-  es: { current: null, supported: [] },
-  it: { current: null, supported: [] },
-  fr: { current: null, supported: [] },
-  de: { current: null, supported: [] },
+  // es, it, fr and de never had a legacy page, so they have a generation 2
+  // pack only: `current`, the generation 1 pack the legacy page falls back to,
+  // stays null for them for good.
+  es: { current: null, supported: [{ id: 'guest-ui-es-v2', generation: 2 }] },
+  it: { current: null, supported: [{ id: 'guest-ui-it-v2', generation: 2 }] },
+  fr: { current: null, supported: [{ id: 'guest-ui-fr-v2', generation: 2 }] },
+  de: { current: null, supported: [{ id: 'guest-ui-de-v2', generation: 2 }] },
 } as const satisfies Record<
   GuestLocale,
   {
@@ -124,14 +135,24 @@ export type GuestLanguagePackV2 = Extract<
   { generation: 2 }
 >['id']
 
-/** The locales a manager may choose today: those with a reviewed current pack. */
+/**
+ * The locales a manager may choose today: every catalogue locale, each with a
+ * generation 2 pack in `GUEST_LANGUAGE_PACKS`. During the closed beta a language
+ * is offered as soon as its pack is drafted, with no native-speaker check
+ * (owner decision 5, 2026-09-30), so a locale joins this list in the change
+ * that registers its pack.
+ */
 export const OFFERED_GUEST_LOCALES = Object.freeze([
   'en',
+  'es',
+  'it',
+  'fr',
+  'de',
   'bg',
 ] as const satisfies readonly GuestLocale[])
 export type OfferedGuestLocale = (typeof OFFERED_GUEST_LOCALES)[number]
 
-/** Whether a manager may choose `value` today: a catalogue locale with a reviewed pack. */
+/** Whether a manager may choose `value` today: a catalogue locale with a pack. */
 export function isOfferedGuestLocale(value: unknown): value is OfferedGuestLocale {
   return (
     typeof value === 'string' &&
@@ -141,6 +162,15 @@ export function isOfferedGuestLocale(value: unknown): value is OfferedGuestLocal
 
 /** A Portal offers its primary locale plus at most this many more. */
 export const MAX_ADDITIONAL_GUEST_LOCALES = GUEST_LOCALES.length - 1
+
+/**
+ * A language's code in the admin: EN ES IT FR DE BG. Latin letters like the rest
+ * of the admin's chrome, so Bulgarian does not read as a typo beside the others;
+ * the guest page keeps its own chip (`chipLabel`).
+ */
+export function adminLanguageCode(locale: GuestLocale): string {
+  return locale.toUpperCase()
+}
 
 export function isGuestLocale(value: unknown): value is GuestLocale {
   return typeof value === 'string' && (GUEST_LOCALES as readonly string[]).includes(value)
@@ -187,9 +217,10 @@ export function isSupportedGuestLanguagePack(
 }
 
 /**
- * The pack a new publication uses for `locale`, or null while none is
- * reviewed. Generation 1 (the default) is what every publication writes today;
- * generation 2 is the newest pack a version 3 snapshot may carry.
+ * The newest pack of `locale` in a generation, or null while there is none.
+ * Generation 2 is what a new publication writes (and the newest pack a version
+ * 3 snapshot may carry); generation 1, the default, is the frozen pack the
+ * legacy page falls back to.
  */
 export function currentGuestLanguagePack(
   locale: GuestLocale,

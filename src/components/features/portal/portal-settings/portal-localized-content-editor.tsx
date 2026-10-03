@@ -1,14 +1,55 @@
+// One language of the Welcome section. The portal's own welcome line and link
+// preview come first, as they save as they are typed; empty, they use the
+// property's wording, shown as their placeholders. The property's wording
+// (every portal of the property starts from it, an account admin writes it and
+// it keeps an explicit Save) folds away below.
+//
+// A language only has wording when the property wrote some for it: publishing
+// reads the property's wording as the base, so without it this portal's own
+// lines do not count yet (and in the primary language the portal cannot be
+// published). Then the fold opens and says so.
+//
+// The fold keeps its form mounted while closed (hidden, not removed): an
+// unsaved edit to the property's wording must survive closing it, and so must
+// the guard that asks before leaving with one.
+
+import { useState, type ReactNode } from 'react'
+import { ChevronRight } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from '#/components/ui/collapsible'
+import { cn } from '#/lib/utils'
+import { hasPropertyWording } from '#/contexts/portal/application/public-api'
+import { adminLanguageCode, type OfferedGuestLocale } from '#/shared/domain/guest-locale'
+import { languageDisplayName } from '../portal-languages/portal-languages-rules'
 import { PortalExperienceActionError } from './portal-experience-action-error'
 import { PortalLocalizedOverrideForm } from './portal-localized-override-form'
 import { PortalPropertyContentForm } from './portal-property-content-form'
-import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import { portalPropertyContentDraftKey } from '../portal-editor/portal-draft-keys'
-import {
-  PORTAL_GUEST_LOCALE_LABEL,
-  type PortalExperienceActions,
-  type PortalExperienceSettings,
+import type {
+  PortalExperienceActions,
+  PortalExperienceSettings,
 } from './portal-experience-settings-types'
+
+type Lines = Readonly<{ title: string; shortDescription: string }>
+
+/** The property's wording and this portal's own lines in one language, as the forms start. */
+function linesIn(experience: PortalExperienceSettings, locale: OfferedGuestLocale) {
+  const baseline = experience.content.find((item) => item.locale === locale)
+  const override = experience.overrides.find((item) => item.locale === locale)
+  const property: Lines = {
+    title: baseline?.title ?? '',
+    shortDescription: baseline?.shortDescription ?? '',
+  }
+  const own: Lines = {
+    title: override?.title ?? '',
+    shortDescription: override?.shortDescription ?? '',
+  }
+  return { property, own, hasWording: hasPropertyWording(baseline) }
+}
 
 export function PortalLocalizedContentEditor({
   locale,
@@ -17,6 +58,7 @@ export function PortalLocalizedContentEditor({
   experience,
   actions,
   disabled,
+  isPrimary,
 }: Readonly<{
   locale: OfferedGuestLocale
   propertyId: string
@@ -24,44 +66,144 @@ export function PortalLocalizedContentEditor({
   experience: PortalExperienceSettings
   actions: PortalExperienceActions
   disabled: boolean
+  /** The portal's primary language: without wording in it, publishing is refused. */
+  isPrimary: boolean
 }>) {
-  const baseline = experience.content.find((item) => item.locale === locale)
-  const override = experience.overrides.find((item) => item.locale === locale)
-  const baselineReadOnly = disabled || !experience.canManagePropertyBrand
+  const { property, own, hasWording } = linesIn(experience, locale)
+  const canWriteProperty = !disabled && experience.canManagePropertyBrand
+  // The large name guests read; until the property has one, there is none to name.
+  const propertyName = experience.profile?.displayName.trim() || null
+  const headingId = `portal-wording-${locale}-heading`
 
   return (
-    <div className="space-y-4 rounded-md border p-4">
-      <div className="flex items-center justify-between gap-2">
-        <h3 className="font-medium">{PORTAL_GUEST_LOCALE_LABEL[locale]} guest content</h3>
-        <Badge variant="secondary">{locale.toUpperCase()}</Badge>
-      </div>
-      {!experience.canManagePropertyBrand ? (
-        <p className="text-sm text-muted-foreground">Managed by an Account Admin</p>
-      ) : null}
-      {/* Keyed on the property fallback only: it keeps an explicit Save, so it
-          remounts on the saved values. The override below autosaves as it is
-          typed and must NOT remount when a save lands. */}
-      <PortalPropertyContentForm
-        key={portalPropertyContentDraftKey(experience, locale)}
-        locale={locale}
-        propertyId={propertyId}
-        initialTitle={baseline?.title ?? ''}
-        initialDescription={baseline?.shortDescription ?? ''}
-        action={actions.saveContent}
-        readOnly={baselineReadOnly}
-      />
+    <div
+      role="group"
+      aria-labelledby={headingId}
+      className="space-y-4 rounded-lg border p-4"
+    >
+      <LanguageHeading locale={locale} headingId={headingId} />
+      {hasWording ? null : (
+        <MissingWordingNote
+          locale={locale}
+          isPrimary={isPrimary}
+          canWriteProperty={canWriteProperty}
+        />
+      )}
       <PortalLocalizedOverrideForm
         locale={locale}
         portalId={portalId}
-        initialTitle={override?.title ?? ''}
-        initialDescription={override?.shortDescription ?? ''}
-        titlePlaceholder={baseline?.title ?? 'Uses Property fallback'}
-        descriptionPlaceholder={baseline?.shortDescription ?? 'Uses Property fallback'}
+        propertyName={propertyName}
+        initialTitle={own.title}
+        initialDescription={own.shortDescription}
+        titlePlaceholder={property.title}
+        descriptionPlaceholder={property.shortDescription}
         action={actions.saveOverride}
         disabled={disabled}
       />
+      <PropertyWordingFold
+        propertyName={propertyName}
+        startsOpen={!hasWording}
+        canManagePropertyBrand={experience.canManagePropertyBrand}
+      >
+        {/* Keyed on the property wording only: it keeps an explicit Save, so
+            it remounts on the saved values. The portal's own lines above
+            autosave as they are typed and must NOT remount when a save lands. */}
+        <PortalPropertyContentForm
+          key={portalPropertyContentDraftKey(experience, locale)}
+          locale={locale}
+          propertyId={propertyId}
+          initialTitle={property.title}
+          initialDescription={property.shortDescription}
+          action={actions.saveContent}
+          readOnly={!canWriteProperty}
+        />
+      </PropertyWordingFold>
       <PortalExperienceActionError action={actions.saveContent} />
       <PortalExperienceActionError action={actions.saveOverride} />
     </div>
+  )
+}
+
+function LanguageHeading({
+  locale,
+  headingId,
+}: Readonly<{ locale: OfferedGuestLocale; headingId: string }>) {
+  const name = languageDisplayName(locale)
+  return (
+    <div className="flex items-start justify-between gap-3">
+      <div className="space-y-0.5">
+        <h3 id={headingId} className="font-medium">
+          <span lang={locale}>{name.native}</span>
+          {name.english === name.native ? null : (
+            <span className="font-normal text-muted-foreground"> · {name.english}</span>
+          )}
+        </h3>
+        <p className="text-sm text-muted-foreground">
+          An empty line uses the property&rsquo;s wording.
+        </p>
+      </div>
+      <Badge variant="secondary">{adminLanguageCode(locale)}</Badge>
+    </div>
+  )
+}
+
+function MissingWordingNote({
+  locale,
+  isPrimary,
+  canWriteProperty,
+}: Readonly<{
+  locale: OfferedGuestLocale
+  isPrimary: boolean
+  canWriteProperty: boolean
+}>) {
+  const { english } = languageDisplayName(locale)
+  // One string, so formatting can never split the sentence from its full stop.
+  const effect = isPrimary
+    ? 'so the portal cannot be published yet.'
+    : `so guests do not see these lines in ${english}.`
+  const next = canWriteProperty
+    ? 'Write it below first.'
+    : 'An account admin writes it first.'
+  return (
+    <p className="rounded-md border border-warn-line bg-warn-muted px-3 py-2 text-sm">
+      {`${english} has no property wording yet, ${effect} ${next}`}
+    </p>
+  )
+}
+
+function PropertyWordingFold({
+  propertyName,
+  startsOpen,
+  canManagePropertyBrand,
+  children,
+}: Readonly<{
+  propertyName: string | null
+  startsOpen: boolean
+  canManagePropertyBrand: boolean
+  children: ReactNode
+}>) {
+  const [open, setOpen] = useState(startsOpen)
+  return (
+    <Collapsible open={open} onOpenChange={setOpen} className="border-t pt-3">
+      <CollapsibleTrigger className="group flex min-h-11 w-full items-center gap-2 rounded-md text-left text-sm font-medium focus-visible:outline-2 focus-visible:outline-ring md:min-h-8">
+        <ChevronRight
+          aria-hidden="true"
+          className={cn('size-4 shrink-0 transition-transform', open && 'rotate-90')}
+        />
+        Property wording
+        <span className="font-normal text-muted-foreground">
+          · every portal at {propertyName ?? 'this property'}
+        </span>
+      </CollapsibleTrigger>
+      {/* Mounted while closed (forceMount), hidden instead: see the note at the top. */}
+      <CollapsibleContent forceMount hidden={!open} className="pt-3">
+        {canManagePropertyBrand ? null : (
+          <p className="mb-3 text-sm text-muted-foreground">
+            Only an account admin can change it.
+          </p>
+        )}
+        {children}
+      </CollapsibleContent>
+    </Collapsible>
   )
 }

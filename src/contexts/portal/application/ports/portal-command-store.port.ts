@@ -31,9 +31,6 @@ import type {
   PortalGroupUpdated,
   PortalRemovedFromGroup,
   PortalLinkCategoryCreated,
-  PortalLinkCategoryDeleted,
-  PortalLinkCategoryReordered,
-  PortalLinkCategoryUpdated,
   PortalLinkCreated,
   PortalLinkDeleted,
   PortalLinkReordered,
@@ -156,6 +153,31 @@ export type PortalPublicationMutation =
       reason: 'disabled' | 'archived'
       at: Date
     }>
+
+/**
+ * Publish the working copy of a Portal that is already live: one new immutable
+ * snapshot and activation replace the live one. The Portal stays Published, so
+ * the command carries no patch, no Health fact and no locale-set fact; those
+ * belong to a state change, and this is not one.
+ */
+export type RepublishPortalCommand = Readonly<{
+  organizationId: OrganizationId
+  propertyId: PropertyId
+  portalId: PortalId
+  /** Authenticated actor; the semantic fact and the snapshot both name them. */
+  actorUserId: UserId
+  /** Optimistic fence captured by the application pre-read. */
+  expectedUpdatedAt: Date
+  /** Monotonic aggregate revision; may be later than business occurrence time. */
+  revision: Date
+  occurredAt: Date
+  snapshot: PortalPublicationSnapshot
+  /** An ordinary publish activation: the one it replaces closes as `replaced`. */
+  activation: PortalPublicationActivation & Readonly<{ kind: 'publish' }>
+  lifecycleEvent: PortalPublicationPublished
+  /** Published to Published, like a rollback's. */
+  event: PortalUpdated
+}>
 
 export type DeletePortalCommand = Readonly<{
   organizationId: OrganizationId
@@ -282,35 +304,15 @@ type PortalContentCommandBase = Readonly<{
 type PortalPageEditCommandBase = PortalContentCommandBase &
   Readonly<{ actorUserId: UserId }>
 
-export type CreatePortalLinkCategoryCommand = PortalPageEditCommandBase &
-  Readonly<{
-    category: PortalLinkCategory
-    event: PortalLinkCategoryCreated
-  }>
-
-export type ReorderPortalLinkCategoriesCommand = PortalPageEditCommandBase &
-  Readonly<{
-    updates: ReadonlyArray<Readonly<{ id: PortalLinkCategoryId; sortKey: string }>>
-    event: PortalLinkCategoryReordered
-  }>
-
-export type UpdatePortalLinkCategoryCommand = PortalPageEditCommandBase &
-  Readonly<{
-    categoryId: PortalLinkCategoryId
-    title: string
-    event: PortalLinkCategoryUpdated
-  }>
-
-export type DeletePortalLinkCategoryCommand = PortalPageEditCommandBase &
-  Readonly<{
-    categoryId: PortalLinkCategoryId
-    event: PortalLinkCategoryDeleted
-  }>
-
 export type CreatePortalLinkCommand = PortalContentCommandBase &
   Readonly<{
     /** Who wrote the link; recorded on its primary-language text. */
     actorUserId: UserId
+    /**
+     * The link, whose `label` is its name once: the store writes it as the
+     * link's primary-language text (its first text, and the only place the name
+     * is written) and writes `''` to the row's legacy `label` column.
+     */
     link: PortalLink
     event: PortalLinkCreated
     /**
@@ -340,13 +342,14 @@ export type UpdatePortalLinkCommand = PortalContentCommandBase &
     patch: Readonly<
       Pick<
         PortalLink,
-        | 'label'
-        | 'url'
-        | 'destinationId'
-        | 'legacyDestinationState'
-        | 'iconKey'
-        | 'imageAssetId'
-      >
+        'url' | 'destinationId' | 'legacyDestinationState' | 'iconKey' | 'imageAssetId'
+      > & {
+        /**
+         * A new primary-language label, written to the link's text and nowhere
+         * else. Left out, the text stays as it is.
+         */
+        label?: string
+      }
     >
     event: PortalLinkUpdated
   }>
@@ -360,8 +363,8 @@ export type PortalLinkTextWrite = Readonly<{
 }>
 
 /**
- * Write the per-language texts of one link. The primary-language label is also
- * written to the link's own `label` (the legacy column) in the same commit.
+ * Write the per-language texts of one link. The texts are the only place its
+ * wording lives: the link's own legacy `label` column is not written.
  */
 export type SavePortalLinkTextsCommand = PortalContentCommandBase &
   Readonly<{
@@ -447,15 +450,12 @@ export type PortalCommandStore = Readonly<{
   createPortal(command: CreatePortalCommand): Promise<void>
   updatePortal(command: UpdatePortalCommand): Promise<void>
   deletePortal(command: DeletePortalCommand): Promise<Readonly<{ revoked: number }>>
+  republishPortal(command: RepublishPortalCommand): Promise<void>
   createPortalGroup(command: CreatePortalGroupCommand): Promise<void>
   updatePortalGroup(command: UpdatePortalGroupCommand): Promise<void>
   addPortalToGroup(command: AddPortalToGroupCommand): Promise<void>
   removePortalFromGroup(command: RemovePortalFromGroupCommand): Promise<void>
   movePortalToGroup(command: MovePortalToGroupCommand): Promise<void>
-  createPortalLinkCategory(command: CreatePortalLinkCategoryCommand): Promise<void>
-  updatePortalLinkCategory(command: UpdatePortalLinkCategoryCommand): Promise<void>
-  deletePortalLinkCategory(command: DeletePortalLinkCategoryCommand): Promise<void>
-  reorderPortalLinkCategories(command: ReorderPortalLinkCategoriesCommand): Promise<void>
   createPortalLink(command: CreatePortalLinkCommand): Promise<void>
   updatePortalLink(command: UpdatePortalLinkCommand): Promise<void>
   deletePortalLink(command: DeletePortalLinkCommand): Promise<void>

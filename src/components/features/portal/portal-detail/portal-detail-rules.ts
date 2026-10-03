@@ -5,7 +5,7 @@
 // portal-share-state.ts makes for the Share tab.
 
 import type { PortalPublicationHistory } from '#/contexts/portal/application/public-api'
-import type { PortalPublicationState, PortalThemeDraft } from '../shared/types'
+import type { PortalPublicationState } from '../shared/types'
 import {
   isPortalEditorSection,
   type PortalEditorSection,
@@ -122,8 +122,8 @@ export function describePortalStatus(
 }
 
 /**
- * Whether the header offers "Review & publish". Archival is terminal in this
- * UI (see PUBLICATION_TOGGLES), so there is nothing left to publish. The review
+ * Whether the header offers "Review & publish". An archived portal is restored
+ * from the Portals list first, so there is nothing to publish here. The review
  * route needs both the role's `portal.update` permission and the organisation's
  * `portal.write` capability (a separate controlled-beta switch from reading), and
  * the server refuses the write without either — this only keeps a button off the
@@ -149,18 +149,11 @@ export function describePendingChanges(history: PortalPublicationHistory): strin
 }
 
 /**
- * Whether the in-progress theme differs from the saved one. Compared colour by
- * colour rather than by object identity: the detail query hands back a fresh
- * theme object on every refetch, so an identity check reports every draft as
- * dirty and the unsaved-changes prompt fires on navigation that lost nothing.
+ * How many changes the draft holds, for the History tab's rail. The read's own
+ * list when it gives one; a draft the flag knows differs but cannot list counts
+ * as one, so the rail never says "no changes" about a draft that has some.
  */
-export function isThemeDraftDirty(
-  draft: PortalThemeDraft,
-  saved: PortalThemeDraft,
-): boolean {
-  return (
-    draft.primaryColor !== saved.primaryColor ||
-    draft.backgroundColor !== saved.backgroundColor ||
-    draft.textColor !== saved.textColor
-  )
+export function countPendingChanges(history: PortalPublicationHistory): number {
+  if (!history.hasPendingChanges) return 0
+  return Math.max(1, history.pendingChanges?.length ?? 0)
 }

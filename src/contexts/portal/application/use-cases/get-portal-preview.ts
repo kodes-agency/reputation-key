@@ -16,9 +16,7 @@ import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import type { PropertyFactsPublicApi } from '#/contexts/property/application/public-api'
 import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalId } from '#/shared/domain/ids'
-import { IMMERSIVE_HUB_SCHEMA_VERSION } from '../../domain/portal-publication-snapshot'
 import { buildPortalLinktreeView } from '../../domain/portal-linktree-view'
-import { APPROVED_DESTINATION_MAX_VALIDATION_AGE_MS } from '../approved-destination-age'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import {
   buildDraftPortalPreview,
@@ -26,6 +24,8 @@ import {
   type PortalPreviewOutcome,
   type PortalPreviewSource,
 } from '../portal-preview'
+import { readPublishedPreviewInputs } from '../published-preview-inputs'
+import { resolvePropertyLookMedia } from '../property-look-media'
 import { listServableTileImageIds } from '../servable-tile-images'
 import type { PortalApprovedDestinationRepository } from '../ports/portal-approved-destination.repository'
 import type { PortalExperienceRepository } from '../ports/portal-experience.repository'
@@ -48,8 +48,11 @@ export type GetPortalPreviewDeps = Readonly<{
   >
   destinationRepo: Pick<PortalApprovedDestinationRepository, 'list' | 'listApprovedUris'>
   publicationRepo: Pick<PortalPublicationRepository, 'findActiveForPortal'>
-  /** Which tile pictures may still be served: a taken-down one is not shown as the tile's photo. */
-  mediaRepo: Pick<PortalMediaAssetRepository, 'listServableIds'>
+  /**
+   * Which images may still be served: a taken-down one is not shown, as the
+   * tile's photo, the Property's photograph or its logo.
+   */
+  mediaRepo: Pick<PortalMediaAssetRepository, 'listServableIds' | 'findById'>
   propertyFacts: Pick<PropertyFactsPublicApi, 'getPropertyTimezone'>
   staffPublicApi: StaffPublicApi
   clock: () => Date
@@ -73,23 +76,16 @@ export const getPortalPreview =
       if (!snapshot) {
         return { status: 'unavailable', source: 'live', reason: 'not_published' }
       }
-      const urls =
-        snapshot.configuration.schemaVersion === IMMERSIVE_HUB_SCHEMA_VERSION &&
-        snapshot.configuration.linktree.enabled
-          ? snapshot.configuration.links.map((link) => link.url)
-          : []
-      const approved =
-        urls.length === 0
-          ? []
-          : await deps.destinationRepo.listApprovedUris(
-              ctx.organizationId,
-              portal.propertyId,
-              urls,
-              new Date(
-                deps.clock().getTime() - APPROVED_DESTINATION_MAX_VALIDATION_AGE_MS,
-              ),
-            )
-      return buildLivePortalPreview({ snapshot, approvedUris: new Set(approved) })
+      const { approvedUris, mediaUrls } = await readPublishedPreviewInputs(
+        deps,
+        { organizationId: ctx.organizationId, propertyId: portal.propertyId },
+        snapshot,
+      )
+      return buildLivePortalPreview({
+        snapshot,
+        approvedUris,
+        mediaUrls,
+      })
     }
 
     // fallow-ignore-next-line code-duplication
@@ -111,12 +107,20 @@ export const getPortalPreview =
         deps.destinationRepo.list(ctx.organizationId, portal.propertyId),
         deps.propertyFacts.getPropertyTimezone(ctx.organizationId, portal.propertyId),
       ])
-    const servable = await listServableTileImageIds(
-      deps.mediaRepo,
-      ctx.organizationId,
-      portal.propertyId,
-      links,
-    )
+    const [servable, media] = await Promise.all([
+      listServableTileImageIds(
+        deps.mediaRepo,
+        ctx.organizationId,
+        portal.propertyId,
+        links,
+      ),
+      resolvePropertyLookMedia(
+        deps,
+        ctx.organizationId,
+        portal.propertyId,
+        experience.profile,
+      ),
+    ])
     const linktree = buildPortalLinktreeView({
       portal,
       categories,
@@ -132,6 +136,7 @@ export const getPortalPreview =
         portal,
         linktree,
         profile: experience.profile,
+        media,
         content: experience.content,
         overrides,
         timeZone: timeZone ?? 'UTC',

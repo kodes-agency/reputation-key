@@ -21,6 +21,11 @@ export default defineConfig([
     clean: true,
     esbuildOptions(options) {
       options.alias = { '#': './src' }
+      // The print kit's fonts are imported as `*.ttf?inline` (Vite's spelling of
+      // "as a data URI"). esbuild would write each as a file beside the bundle
+      // and import a path, so the worker bundle takes them as data URIs too:
+      // the module that reads them is shared with the web build.
+      options.loader = { ...options.loader, '.ttf': 'dataurl' }
     },
     // Bare package names also match their subpath imports.
     noExternal: [/^#/],

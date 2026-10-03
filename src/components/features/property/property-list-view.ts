@@ -3,6 +3,7 @@
 // without rendering (docs/plan/property-list-table.md rows 7, 11–13).
 import type { PropertySetupStep } from '#/contexts/reporting/application/public-api'
 import { countryLabel } from '#/components/features/shared/country-label'
+import { searchMatcher } from '#/components/property/property-search'
 import type {
   GoogleBindingState,
   PropertyLifecycleState,
@@ -168,16 +169,11 @@ export function propertyListSearchPatch(
 
 // ── Search and filter ─────────────────────────────────────────────────
 
-/** Case- and accent-insensitive: "cafe" finds "Café", "СТАРА" finds "Стара". */
-function searchable(text: string): string {
-  return text.normalize('NFD').replace(/\p{M}/gu, '').toLocaleLowerCase()
-}
-
-function matchesQuery(row: PropertyListRow, query: string): boolean {
-  const haystack = [row.property.name, row.property.address, row.country]
-    .filter((part): part is string => part !== null)
-    .map(searchable)
-  return haystack.some((part) => part.includes(query))
+/** The name, address and country are searched with the shared folded matcher. */
+function matchesQuery(row: PropertyListRow, matches: (text: string) => boolean): boolean {
+  return [row.property.name, row.property.address, row.country].some(
+    (part) => part !== null && matches(part),
+  )
 }
 
 function matchesShow(row: PropertyListRow, show: PropertyListShow): boolean {
@@ -196,11 +192,10 @@ export function filterPropertyListRows(
   rows: ReadonlyArray<PropertyListRow>,
   view: Readonly<{ q: string; show: PropertyListShow | null }>,
 ): PropertyListRow[] {
-  const query = searchable(view.q.trim())
+  const matches = searchMatcher(view.q)
   return rows.filter(
     (row) =>
-      (query === '' || matchesQuery(row, query)) &&
-      (view.show === null || matchesShow(row, view.show)),
+      matchesQuery(row, matches) && (view.show === null || matchesShow(row, view.show)),
   )
 }
 

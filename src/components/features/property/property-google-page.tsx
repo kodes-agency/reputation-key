@@ -18,7 +18,7 @@ import { GooglePerformanceSection } from './google-performance-section'
 import type { GooglePerformanceServerFns } from './use-google-performance'
 
 export interface PropertyGooglePageProps {
-  property: Readonly<{ id: string; name: string }> | null | undefined
+  property: Readonly<{ id: string; name: string }>
   propertyId: string
   range: DashboardRange
   onRangeChange: (range: DashboardRange) => void
@@ -32,8 +32,6 @@ export function PropertyGooglePage({
   onRangeChange,
   performanceFns,
 }: PropertyGooglePageProps) {
-  if (!property) return null
-
   return (
     <PageShell tier="dashboard">
       <PageHeader

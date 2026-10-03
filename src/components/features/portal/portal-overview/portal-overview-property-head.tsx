@@ -30,8 +30,9 @@ type Props = Readonly<{
   onToggle: () => void
 }>
 
-// The global `a` colour is unlayered, so a link used as a menu item pins its ink.
-const ITEM = 'min-h-11 text-foreground! md:min-h-8'
+// A 44 px target below `md`, 32 px from there up. A link used as a menu item
+// takes the menu's ink (`dropdown-menu-item` opts out of the link default).
+const ITEM = 'min-h-11 md:min-h-8'
 const FOCUS_RING =
   'rounded-sm underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
 

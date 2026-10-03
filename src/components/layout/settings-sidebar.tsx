@@ -113,7 +113,7 @@ export function SettingsSidebar() {
   ]
 
   return (
-    <Sidebar collapsible="offcanvas" className="border-r">
+    <Sidebar className="border-r">
       {/* BQC-6.8: nav landmark for the settings navigation (see manager-sidebar). */}
       <nav aria-label="Settings navigation" className="flex h-full w-full flex-col">
         <SidebarHeader>

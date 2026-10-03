@@ -2,6 +2,7 @@
 // Wraps TanStack Form's form.Field with shadcn's Field components.
 // Per conventions: shared form building blocks live in components/forms/.
 
+import type { ReactNode } from 'react'
 import { Field, FieldLabel, FieldError } from '#/components/ui/field'
 import { Input } from '#/components/ui/input'
 
@@ -29,6 +30,8 @@ type Props = Readonly<{
   disabled?: boolean
   maxLength?: number
   className?: string
+  /** A line under the field on what it is for; the input names it as its description. */
+  hint?: ReactNode
 }>
 
 export function FormTextField({
@@ -41,8 +44,10 @@ export function FormTextField({
   disabled,
   maxLength,
   className,
+  hint,
 }: Props) {
   const isInvalid = field.state.meta.isTouched && !field.state.meta.isValid
+  const hintId = hint === undefined ? undefined : `${id}-hint`
 
   return (
     <Field data-invalid={isInvalid}>
@@ -55,6 +60,7 @@ export function FormTextField({
         onBlur={field.handleBlur}
         onChange={(e) => field.handleChange(e.target.value)}
         aria-invalid={isInvalid}
+        aria-describedby={hintId}
         placeholder={placeholder}
         autoComplete={autoComplete}
         disabled={disabled}
@@ -62,6 +68,11 @@ export function FormTextField({
         className={className}
       />
       {isInvalid && <FieldError errors={field.state.meta.errors} />}
+      {hint === undefined ? null : (
+        <p id={hintId} className="text-sm text-muted-foreground">
+          {hint}
+        </p>
+      )}
     </Field>
   )
 }

@@ -29,7 +29,7 @@ The public portal is a **review-link touchpoint first**. Private rating/feedback
 Review destination visibility, ordering, wording, and prominence are **invariant** across guest response values and states. This is enforced by architectural test:
 `src/components/features/guest/public-portal/guest-page-view.test.ts` renders the guest page for ratings 1–5, with and without the private-note card, and in the note-writing, done, withdrawn-note and correcting states, in English and Bulgarian. It does so on both paths a guest can reach: a controlled preview state, and the live public container that binds the response session (`PublicPortalContent`). It requires the Google card to have the same markup, position, heading, copy and accessible name every time, on every path.
 
-The Immersive Hub (snapshot schema version 3) has its own response view, and `src/components/features/guest/public-portal/immersive/immersive-response.test.ts` holds it to the same rule on its own markup. It renders the receipt strip, the Google card and the note card for ratings 1–5 in English and Bulgarian, and requires the Google card to be identical and second at every rating, whether or not the note is offered, and the Google-unavailable card to take the same place. The view takes no rating comparison: the note appears only when the server sets `privateFeedbackEligible`, and the test pins that the view follows that flag (it shows the note card when the flag is set and hides it when it is not). The inclusive threshold boundary itself belongs to the server rule and is held by `src/contexts/guest/application/use-cases/guest-response-lifecycle.test.ts`.
+The Immersive Hub (snapshot schema version 3) has its own response view, and `src/components/features/guest/public-portal/immersive/immersive-response.test.ts` holds it to the same rule on its own markup. It renders the receipt strip, the Google card and the note card for ratings 1–5 in every guest language (the catalogue's six, so the suite follows the catalogue when a language is added), and requires the Google card to be identical and second at every rating, whether or not the note is offered, and the Google-unavailable card to take the same place. The view takes no rating comparison: the note appears only when the server sets `privateFeedbackEligible`, and the test pins that the view follows that flag (it shows the note card when the flag is set and hides it when it is not). The inclusive threshold boundary itself belongs to the server rule and is held by `src/contexts/guest/application/use-cases/guest-response-lifecycle.test.ts`.
 
 The Immersive Hub's "Your response" section (change the rating, remove the note, remove the rating and note, start over on a shared device) is the last card of that page and carries the same rule: `src/components/features/guest/public-portal/immersive/immersive-response-section.test.ts` requires its markup to be identical at ratings 1–5, with and without the note offered. It lists the guest's own controls and their server-set deadlines, written in the portal's time zone with a `now` that travels with the page data, and it never compares the rating with anything (the rating form only starts on the guest's current star). Removing the rating and the note is the one action that cannot be undone, so its button asks first ("Remove both" or "Keep them") and sends nothing until the guest confirms.
 
@@ -83,3 +83,19 @@ when the secondary links appear, and nothing else in this record:
   appear after the rating. The rule is pinned for them until they are republished.
 - The amendment is guest-visible on a portal only when a version 3 snapshot is published for it
   (slice 19 of the round-4 plan).
+
+## Amendment 2026-10-01 — the visit notice is one line
+
+Owner decision (round-4 owner questions 1 and 3): on the Immersive Hub guest page the footer
+shows one line in every language pack, "{name} counts visits with one essential cookie and a
+privacy-protected marker. No ads or third-party trackers." It replaces the longer text that
+separated the essential session cookie from the short-lived network marker.
+
+- The Consequences rule above is unchanged: the line names the essential cookie and the
+  privacy-protected marker and does not claim anonymity. Each language pack carries a
+  translation that names both and the absence of ads and third-party trackers, held by
+  `guest-copy-v2.test.ts`.
+- Visit recording stays independent of the acknowledgement. The notice is informational.
+- The privacy link stays the English `/privacy` page for the closed beta.
+- The printed QR kit shows only the host under the code. The token path is the code's own
+  secret, and the code and the NFC tag already carry it.

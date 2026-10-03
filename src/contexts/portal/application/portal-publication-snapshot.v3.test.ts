@@ -110,7 +110,7 @@ describe('pack generation is bound to the schema version', () => {
     }
   })
 
-  it('serves no snapshot whose locale has no generation 2 pack yet', () => {
+  it('serves a German snapshot, which has a generation 2 pack', () => {
     const german = immersiveSnapshotWith({
       guestLocale: 'de',
       languagePackVersion: 'guest-ui-de-v2',
@@ -120,6 +120,21 @@ describe('pack generation is bound to the schema version', () => {
       links: [],
     })
 
-    expect(verifyPortalPublicationSnapshot(german)).toBe(false)
+    expect(verifyPortalPublicationSnapshot(german)).toBe(true)
+  })
+
+  it('serves no German snapshot pinned to a pack that is not a German generation 2 pack', () => {
+    for (const pack of ['guest-ui-de-v1', 'guest-ui-fr-v2', 'guest-ui-en-v2']) {
+      const german = immersiveSnapshotWith({
+        guestLocale: 'de',
+        languagePackVersion: pack,
+        localeSet: ['de'],
+        languagePackVersions: { de: pack },
+        localizedContent: { de: immersiveConfiguration().localizedContent.en },
+        links: [],
+      })
+
+      expect(verifyPortalPublicationSnapshot(german)).toBe(false)
+    }
   })
 })

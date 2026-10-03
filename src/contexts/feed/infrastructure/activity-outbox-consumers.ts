@@ -7,6 +7,7 @@ import {
   type RecentActivityEntryId,
 } from '#/shared/domain/ids'
 import type { LoggerPort } from '#/shared/domain/logger.port'
+import { isOperatorActorId } from '#/shared/domain/operator-actor'
 import type { UserLookupPort } from '../ports/activity-user-lookup.port'
 import type { InboxItemLookupPort } from '../ports/activity-inbox-item-lookup.port'
 import {
@@ -100,6 +101,12 @@ export type ActivityOutboxConsumerDeps = Readonly<{
 }>
 
 type Payload = Readonly<Record<string, unknown>>
+
+/** The fact's actor when an operator (`ops:<handle>`) did it, not a person. */
+const operatorActorOf = (payload: Payload): string | null => {
+  const value = optionalString(payload, 'userId')
+  return value !== null && isOperatorActorId(value) ? value : null
+}
 
 const stringValue = (payload: Payload, key: string): string => {
   const value = payload[key]
@@ -423,7 +430,8 @@ const mapRecentActivityFact = async (
         action: 'published',
         resourceType: 'portal',
         resourceId: stringValue(payload, 'portalId'),
-        userId: actor(),
+        // An operator is not a person to look up: Recent Activity names it "System".
+        userId: operatorActorOf(payload) === null ? actor() : null,
         source: 'web',
         payload: {
           subject: 'portal_publication',
@@ -666,14 +674,16 @@ const operationalActionProjection = (
         resourceType: 'google_connection',
         resourceId: stringValue(payload, 'connectionId'),
       }
-    case 'portal.publication.published':
+    case 'portal.publication.published': {
+      const operatorId = operatorActorOf(payload)
       return {
-        actorType: 'user',
-        actorId: stringValue(payload, 'userId'),
+        actorType: operatorId === null ? 'user' : 'operator',
+        actorId: operatorId ?? stringValue(payload, 'userId'),
         action: 'portal.published',
         resourceType: 'portal',
         resourceId: stringValue(payload, 'portalId'),
       }
+    }
     case 'portal.archived':
       return {
         actorType: 'user',

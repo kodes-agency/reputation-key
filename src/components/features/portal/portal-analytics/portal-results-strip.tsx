@@ -1,5 +1,6 @@
 // The five measures as one ruled strip (board 07). Each cell says what it
 // counts, prints the figure, and gives one line under it (portal-results-cells).
+import type { ReactNode } from 'react'
 import { Star } from 'lucide-react'
 import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 import type { ResultsCell } from './portal-results-cells'
@@ -20,12 +21,22 @@ function Figure({ cell }: Readonly<{ cell: ResultsCell }>) {
 
 export function PortalResultsStrip({
   cells,
-}: Readonly<{ cells: readonly ResultsCell[] }>) {
+  notesDetail,
+}: Readonly<{
+  cells: readonly ResultsCell[]
+  /** Stands in for the Private notes cell's own detail line (the Inbox link). */
+  notesDetail?: ReactNode
+}>) {
   return (
     <MetricStrip aria-label="Portal results" variant="ruled">
       {cells.map((cell) => (
         <Metric key={cell.key} label={cell.label}>
-          <MetricValue value={<Figure cell={cell} />} detail={cell.detail ?? undefined} />
+          <MetricValue
+            value={<Figure cell={cell} />}
+            detail={
+              (cell.key === 'notes' ? notesDetail : undefined) ?? cell.detail ?? undefined
+            }
+          />
         </Metric>
       ))}
     </MetricStrip>

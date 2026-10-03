@@ -10,9 +10,14 @@ and actions supply server state.
 
 - `ui/` holds vendored shadcn primitives plus app-wide presentation primitives
   that no feature owns (Fact, OwnerDisc, MetricStrip, SegmentedControl, Timeline,
-  StarRating).
+  StarRating, ConfirmationDialog). Every confirmation goes through
+  `ConfirmationDialog`; its `tone` is `destructive` only for an action the person
+  cannot take back.
 - `forms/` contains shared TanStack Form fields, submission, and error UI.
-- `layout/` contains app-shell and navigation pieces.
+- `layout/` contains app-shell and navigation pieces. A route that renders its own
+  error component takes the guarded behaviour (sanitised message, report, 401
+  sign-in redirect, Try again) from `useGuardedRouteError`, as the router default
+  does.
 - `hooks/` contains cross-feature React behavior and action wrappers.
 - `inbox/` and `goals/` contain large cohesive manager experiences.
 - `features/<feature>/` contains feature presentation grouped by user concept;
@@ -74,6 +79,19 @@ answer.
 Use `src/components/ui/chart.tsx` for Recharts composition. Define a `ChartConfig`,
 wrap the chart in `ChartContainer`, and use generated `--color-*` variables. Choose
 bar, area, or pie geometry from the data relationship, not decoration.
+
+A plain `<a>` or `Link` is a content link: `styles.css` gives it the accent ink as
+a default in `@layer base`, so any utility on the anchor wins and nothing needs
+an `!`. A link that belongs to a component with its own ink opts out by
+`data-slot` (button, badge, sidebar entry, dropdown-menu-item, breadcrumb-link).
+Navigation-like links (nav items, tabs, whole-row links) name their ink in
+classes. `link-ink.test.ts` fails on an important modifier on colour or
+decoration. What colour a link's classes actually resolve to, in both themes, is
+read only by `e2e/storybook-metrics/link-ink.metrics.ts` (`pnpm
+test:storybook:metrics`), because the Storybook Vitest runner compiles no
+Tailwind. That spec is not wired into CI (see `playwright.storybook.config.ts`),
+so a change to link ink, `@layer base` in `styles.css` or the sidebar entry
+classes must run it by hand before merge.
 
 Use `usePermissions()` for presentation affordances rather than threading
 `canEdit` flags. These affordances never replace server authorization. Prefer one

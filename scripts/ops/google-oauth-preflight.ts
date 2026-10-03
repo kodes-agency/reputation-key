@@ -10,6 +10,7 @@ import {
   googleOAuthCallbackUrl,
 } from '../../src/contexts/integration/application/google-authorize-request'
 import type { CommandRunner } from './deploy-ci-images'
+import { readRailwayVariables } from './railway-variables'
 
 export type GoogleOAuthConfig = Readonly<{
   baseUrl: string
@@ -223,24 +224,7 @@ export function readGoogleOAuthConfig(
   runner: CommandRunner,
   targetArgs: readonly string[],
 ): GoogleOAuthConfig {
-  const args = ['variable', 'list', ...targetArgs, '--kv']
-  const result = runner('railway', args)
-  if (result.status !== 0) {
-    // stderr only: stdout of a variable listing holds secrets.
-    throw new Error(
-      `railway ${args.join(' ')} failed: ${result.stderr.trim() || 'no diagnostic output'}`,
-    )
-  }
-  const values = new Map<string, string>()
-  for (const line of result.stdout.split('\n')) {
-    const separator = line.indexOf('=')
-    if (separator > 0)
-      values.set(line.slice(0, separator), line.slice(separator + 1).trim())
-  }
-  const missing = REQUIRED_VARIABLES.filter((name) => !values.get(name))
-  if (missing.length > 0) {
-    throw new Error(`the web service is missing ${missing.join(', ')}`)
-  }
+  const values = readRailwayVariables(runner, targetArgs, REQUIRED_VARIABLES)
   return {
     baseUrl: values.get('BETTER_AUTH_URL')!,
     clientId: values.get('GOOGLE_CLIENT_ID')!,

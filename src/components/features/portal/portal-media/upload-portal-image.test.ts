@@ -3,6 +3,7 @@ import {
   PORTAL_IMAGE_ACCEPT,
   describePortalImageFile,
   uploadPortalImage,
+  messageFor,
   validatePortalImageFile,
 } from './upload-portal-image'
 
@@ -179,6 +180,27 @@ describe('uploadPortalImage', () => {
     const result = await uploadPortalImage(INPUT, file('image/jpeg'), send)
 
     expect(result.ok ? '' : result.message).toMatch(/try again/i)
+  })
+
+  it('talks about a logo, not a photo, when the image is a logo', async () => {
+    const send = async () =>
+      respond(422, { error: 'image_rejected', reason: 'too_small' })
+
+    const result = await uploadPortalImage(
+      { ...INPUT, purpose: 'logo' },
+      file('image/png'),
+      send,
+    )
+
+    expect(result.ok ? '' : result.message).toBe(
+      'That logo is too small to stay sharp on a phone. Choose a larger one.',
+    )
+    expect(
+      messageFor('logo', 'This property has reached its limit of stored photos.'),
+    ).toBe('This property has reached its limit of stored images.')
+    expect(messageFor('hero', 'That photo is too small.')).toBe(
+      'That photo is too small.',
+    )
   })
 
   it('reports an answer that is a success but names no image', async () => {

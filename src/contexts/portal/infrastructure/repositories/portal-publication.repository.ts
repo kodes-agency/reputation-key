@@ -479,6 +479,7 @@ export const createPortalPublicationRepository = (
           key: portalPendingContentChanges.changeKey,
           sourceVersion: portalPendingContentChanges.sourceVersion,
           changedAt: portalPendingContentChanges.changedAt,
+          changedBy: portalPendingContentChanges.changedBy,
         })
         .from(portalPendingContentChanges)
         .where(

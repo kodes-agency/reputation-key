@@ -314,3 +314,93 @@ export const OpenRow: Story = {
     expect(rowClickSpy).toHaveBeenCalledWith(expect.objectContaining({ id: 'rev-1' }))
   },
 }
+
+// ─── 390 px ──────────────────────────────────────────────────────────────────
+// `mobileStaff` really is a 390 px window in this runner, but Tailwind is not
+// compiled, so nothing here asserts a rectangle: the row's text start (x = 16),
+// the 78 px height and the property's 40% cap are the Playwright metrics gate's.
+// These mount the phone states that gate measures, and pin the content.
+// Fullscreen, so the list spans the window as it does on the page: a centered
+// story shrink-wraps the rows, and the gate could not read x = 16 off them.
+const PHONE = {
+  layout: 'fullscreen',
+  viewport: { defaultViewport: 'mobileStaff' },
+} as const
+
+// 158 px of 13px medium text (measured): over the 153 px a 65% cap allowed on
+// the 236 px identity line of a 320 px phone, and it still fits there beside
+// "· Spa" (158 + 14 star + 9 rating + 29 property + 12 gaps = 222).
+const NAME_FITTING_BESIDE_SHORT_PROPERTY = 'Bartholomew Featherstone'
+
+const longNameItem = makeItem({
+  id: 'rev-long',
+  sourceType: 'review',
+  reviewerName: 'Bartholomew Featherstonehaugh-Smythe',
+  propertyName: 'The Grand Riverside Hotel and Spa',
+})
+
+// A long name beside a SHORT property: name and property fit the line together,
+// so the name must not truncate (capping the name at 65% cut it at 320). The
+// metrics gate reads that off this row.
+const shortPropertyItem = makeItem({
+  id: 'rev-short-property',
+  sourceType: 'review',
+  reviewerName: NAME_FITTING_BESIDE_SHORT_PROPERTY,
+  propertyName: 'Spa',
+})
+
+// All properties: the guest name is the row's subject, so the PROPERTY is what
+// gives way first; both parts stay in the accessible row.
+export const AllPropertiesPhone: Story = {
+  args: {
+    ...baseArgs,
+    items: [longNameItem, shortPropertyItem, ...items],
+    allProperties: true,
+  },
+  parameters: PHONE,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Bartholomew Featherstonehaugh-Smythe')).toBeVisible()
+    expect(canvas.getByText(/The Grand Riverside Hotel and Spa/)).toBeVisible()
+    expect(canvas.getByText(NAME_FITTING_BESIDE_SHORT_PROPERTY)).toBeVisible()
+    expect(canvas.getByText(/· Spa/)).toBeVisible()
+    expect(canvas.getByText(/Beachside Resort/)).toBeVisible()
+  },
+}
+
+// A property name only shows when the list spans properties.
+export const SingleProperty: Story = {
+  args: { ...baseArgs, items: [longNameItem], allProperties: false },
+  parameters: PHONE,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByText('Bartholomew Featherstonehaugh-Smythe')).toBeVisible()
+    expect(canvas.queryByText(/The Grand Riverside/)).toBeNull()
+  },
+}
+
+// Unread rows carry a dot in the left gutter, announced to screen readers.
+export const NewSinceLastVisitPhone: Story = {
+  args: { ...baseArgs, viewedUpTo: new Date('2024-12-31') },
+  parameters: PHONE,
+  play: async ({ canvasElement }) => {
+    expect(within(canvasElement).getAllByText('New since your last visit')).toHaveLength(
+      items.length,
+    )
+  },
+}
+
+// Selecting on a phone: every row shows its checkbox, on the same gutter as the
+// bulk bar's select-all.
+export const SelectingPhone: Story = {
+  args: { ...baseArgs, selectionMode: true, selectedIds: ['rev-1'] },
+  parameters: PHONE,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getAllByRole('checkbox')).toHaveLength(items.length)
+    expect(
+      canvas.getByRole('checkbox', { name: 'Select item from Alice Reviewer' }),
+    ).toBeChecked()
+    expect(canvas.queryByText('New since your last visit')).toBeNull()
+  },
+}

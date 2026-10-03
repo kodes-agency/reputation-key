@@ -5,30 +5,6 @@
 import type { Portal, PortalId } from '../../domain/types'
 import type { OrganizationId, PropertyId } from '#/shared/domain/ids'
 
-export type PublicPortalRepositoryResult = Readonly<{
-  portal: Readonly<{
-    id: string
-    name: string
-    slug: string
-    description: string | null
-    heroImageUrl: string | null
-    theme: Record<string, string | number | boolean | null> | null
-
-    organizationName: string
-  }>
-  categories: ReadonlyArray<{ id: string; title: string; sortKey: string }>
-  links: ReadonlyArray<{
-    id: string
-    label: string
-    url: string
-    categoryId: string | null
-    sortKey: string
-  }>
-  privateFeedbackThreshold: number
-  organizationId: string
-  propertyId: string
-}>
-
 export type ResolvePortalContextResult = Readonly<{
   organizationId: OrganizationId
   propertyId: PropertyId
@@ -51,8 +27,4 @@ export type PortalRepository = Readonly<{
   resolvePortalContext: (
     portalIdParam: PortalId,
   ) => Promise<ResolvePortalContextResult | null>
-  findPublicPortalById: (
-    orgId: OrganizationId,
-    portalId: PortalId,
-  ) => Promise<PublicPortalRepositoryResult | null>
 }>

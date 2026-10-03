@@ -21,8 +21,15 @@ const PortalDraftAutosaveContext = createContext<PortalDraftAutosave | null>(nul
 
 export function PortalDraftAutosaveProvider({
   children,
-}: Readonly<{ children: ReactNode }>) {
-  const [autosave] = useState(() => createPortalDraftAutosave())
+  delayMs,
+}: Readonly<{
+  children: ReactNode
+  /** The debounce of every key; the editor's own default when omitted. */
+  delayMs?: number
+}>) {
+  const [autosave] = useState(() =>
+    createPortalDraftAutosave(delayMs === undefined ? {} : { delayMs }),
+  )
   // Edits still inside their debounce are written when the workspace goes away.
   // The cleanup is safe to run twice (StrictMode): with nothing waiting it does
   // nothing.

@@ -304,11 +304,23 @@ describe('createPortal languages', () => {
     expect([portal.primaryGuestLocale, portal.additionalGuestLocales]).toEqual(['en', []])
   })
 
-  it('refuses a language that is not offered yet', async () => {
+  it('creates a Portal in German with French beside it', async () => {
+    const { useCase } = setupCreatePortal()
+    const portal = await useCase(
+      { ...base, name: 'Pool', guestLocales: ['de', 'fr'] },
+      ctx,
+    )
+    expect([portal.primaryGuestLocale, portal.additionalGuestLocales]).toEqual([
+      'de',
+      ['fr'],
+    ])
+  })
+
+  it('refuses a language that is not a guest language', async () => {
     const { useCase, portalRepo } = setupCreatePortal()
     expect(
       await codeOf(
-        useCase({ ...base, name: 'Pool', guestLocales: ['en', 'de'] as never }, ctx),
+        useCase({ ...base, name: 'Pool', guestLocales: ['en', 'pt'] as never }, ctx),
       ),
     ).toBe('locale_not_offered')
     expect(portalRepo.all()).toHaveLength(0)

@@ -31,6 +31,7 @@
 // reuses) that worktree's Storybook there.
 
 import { randomBytes } from 'node:crypto'
+import { existsSync } from 'node:fs'
 import { mkdir, rm, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, sep } from 'node:path'
 import type { FullConfig } from '@playwright/test'
@@ -50,6 +51,15 @@ function portFromEnvironment(): number {
 export const STORYBOOK_PORT = portFromEnvironment()
 export const STORYBOOK_URL = `http://localhost:${STORYBOOK_PORT}`
 
+/**
+ * A built Storybook to serve instead of running the dev server
+ * (`STORYBOOK_METRICS_STATIC=storybook-static`, after `storybook build`). The
+ * guest quality gate needs it for LCP and CLS, which are only meaningful from a
+ * production bundle (`static-server.ts` says why). Unset, the dev server runs
+ * as before and nothing about the Inbox harness changes.
+ */
+export const STORYBOOK_STATIC_DIR = process.env.STORYBOOK_METRICS_STATIC?.trim() || null
+
 /** Where the identity file is written, relative to the checkout (the dev server's root). */
 const IDENTITY_DIRECTORY = join('test-results', 'storybook-metrics')
 
@@ -60,6 +70,20 @@ export default async function verifyStorybookIsThisCheckout(
   config: FullConfig,
 ): Promise<void> {
   const checkout = dirname(config.configFile ?? join(process.cwd(), 'package.json'))
+  if (STORYBOOK_STATIC_DIR !== null) {
+    // The server is this run's own (the config starts it on the directory), so
+    // no other checkout can answer. What can be wrong is the directory: a
+    // missing or half-built Storybook would fail every story with "no preview".
+    const index = join(checkout, STORYBOOK_STATIC_DIR, 'index.json')
+    if (!existsSync(index)) {
+      throw new Error(
+        `STORYBOOK_METRICS_STATIC=${STORYBOOK_STATIC_DIR} has no index.json (${index}). ` +
+          'Build it first: pnpm exec storybook build -o ' +
+          STORYBOOK_STATIC_DIR,
+      )
+    }
+    return
+  }
   const token = randomBytes(16).toString('hex')
   const file = join(checkout, IDENTITY_DIRECTORY, `server-identity-${token}.txt`)
   const urlPath = relative(checkout, file).split(sep).join('/')

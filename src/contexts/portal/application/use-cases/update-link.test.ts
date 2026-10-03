@@ -131,6 +131,29 @@ describe('updateLink', () => {
     ).toEqual([['en', 'New label', 'Open daily', 2]])
   })
 
+  it('leaves the primary-language text and the legacy label alone when no label is sent', async () => {
+    const { useCase, portalRepo, portalLinkRepo } = setup()
+    const ctx = buildTestAuthContext({ role: 'PropertyManager' })
+    portalRepo.seed([buildTestPortal({})])
+    const link = buildTestPortalLink({ label: '' })
+    portalLinkRepo.seedLinks([link])
+    portalLinkRepo.saveTexts(
+      link.id,
+      [{ locale: 'en', label: 'Current wording', line: null, provenance: null }],
+      { actorUserId: 'user-1', at: FIXED_TIME },
+    )
+
+    const updated = await useCase({ linkId: link.id, iconKey: 'info' }, ctx)
+
+    expect(
+      portalLinkRepo.storedTexts().map((text) => [text.locale, text.label, text.version]),
+    ).toEqual([['en', 'Current wording', 1]])
+    expect(updated.label).toBe('')
+    expect((await portalLinkRepo.findLinkById(link.organizationId, link.id))?.label).toBe(
+      '',
+    )
+  })
+
   it('creates the primary-language text for a link that never had one', async () => {
     const { useCase, portalRepo, portalLinkRepo } = setup()
     const ctx = buildTestAuthContext({ role: 'PropertyManager' })

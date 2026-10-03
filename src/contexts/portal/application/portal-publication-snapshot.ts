@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
+import { GUEST_LOCALE_METADATA } from '#/shared/domain/guest-locale'
 import { portalError } from '../domain/errors'
 import {
   IMMERSIVE_HUB_SCHEMA_VERSION,
@@ -7,13 +8,18 @@ import {
   PORTAL_PUBLICATION_SCHEMA_VERSION,
   LEGACY_V1_GUEST_LOCALE,
   LEGACY_V1_LANGUAGE_PACK,
+  type ImmersivePortalPublicationConfiguration,
   type LocalizedPortalPublicationConfiguration,
   type PortalPublicationConfiguration,
-  type PortalPublicationExperienceSource,
   type PortalPublicationSnapshot,
-  type PortalPublicationSource,
   type VerifiedPublicationDestination,
 } from '../domain/portal-publication-snapshot'
+import {
+  resolvePortalPublication,
+  type PortalPublicationSource,
+  type PublicationBlocker,
+  type PublicationTextKey,
+} from '../domain/portal-publication-source'
 import { assertCompletePortalPublicationExperience } from '../domain/portal-experience'
 import { isCompleteImmersiveConfiguration } from '../domain/portal-immersive-snapshot'
 
@@ -26,20 +32,34 @@ export function digestPortalPublicationConfiguration(
     .digest('hex')
 }
 
-type PublicationInput = Readonly<{
+/**
+ * The facts every publication input states about itself, whatever schema
+ * version it will write: who it is for, which version it is, and the verified
+ * Google destination pinned to it. The test builder for earlier versions shares
+ * it, so they cannot disagree about what an acceptable envelope is.
+ */
+export type PublicationEnvelope = Readonly<{
   id: string
   portalId: string
   organizationId: string
   propertyId: string
   version: number
-  source: PortalPublicationSource
+  source: Readonly<{
+    portal: Readonly<{ id: string }>
+    organizationId: string
+    propertyId: string
+    privateFeedbackThreshold: number
+  }>
   destination: VerifiedPublicationDestination
   createdBy: string
   createdAt: Date
 }>
 
+type PublicationInput = PublicationEnvelope &
+  Readonly<{ source: PortalPublicationSource }>
+
 /** Every identifier is present and the source agrees with the declared scope. */
-function hasConsistentPublicationScope(input: PublicationInput): boolean {
+function hasConsistentPublicationScope(input: PublicationEnvelope): boolean {
   return (
     input.id.length > 0 &&
     input.portalId.length > 0 &&
@@ -67,7 +87,7 @@ function isCompleteVerifiedDestination(
   )
 }
 
-function assertPublicationInput(input: PublicationInput): void {
+export function assertPublicationEnvelope(input: PublicationEnvelope): void {
   if (!hasConsistentPublicationScope(input)) {
     throw portalError(
       'publication_snapshot_unavailable',
@@ -99,34 +119,52 @@ function assertPublicationInput(input: PublicationInput): void {
       'Portal publication requires a complete verified Google destination binding',
     )
   }
-  if (input.source.experience) {
-    assertCompletePortalPublicationExperience(input.source.experience)
+}
+
+const TEXT_KEY_WORDING = {
+  title: 'title',
+  shortDescription: 'short description',
+  heroAlt: 'photo description',
+} as const
+
+const wordingNameOf = (key: PublicationTextKey): string =>
+  key.startsWith('link:')
+    ? 'link wording'
+    : TEXT_KEY_WORDING[key as keyof typeof TEXT_KEY_WORDING]
+
+/** What a manager is told about each thing that stops a publication. */
+function describeBlocker(blocker: PublicationBlocker): string {
+  switch (blocker.code) {
+    case 'primary_text_missing':
+      return `Write the ${wordingNameOf(blocker.key)} in the primary language (${GUEST_LOCALE_METADATA[blocker.locale].englishName}) before publishing`
+    case 'language_pack_missing':
+      return `The guest wording for ${GUEST_LOCALE_METADATA[blocker.locale].englishName} isn’t ready yet, so that language can’t be published`
+    case 'time_zone_invalid':
+      return 'Set a valid time zone for this Property before publishing'
   }
 }
 
-/** The pack of the primary locale; never a default, because completeness was asserted first. */
-function primaryLanguagePack(experience: PortalPublicationExperienceSource): string {
-  const pack = experience.languagePackVersions[experience.primaryGuestLocale]
-  if (pack === undefined) {
-    throw portalError(
-      'publication_snapshot_unavailable',
-      'Portal publication has no language pack for its primary locale',
-    )
-  }
-  return pack
-}
-
+/**
+ * The schema version 3 snapshot publishing `input.source` would store. Nothing
+ * else is written any more: a source with a gap in its primary language, a
+ * language without a pack or a Property without a usable time zone is refused
+ * with the first thing to fix, never published as an earlier design.
+ */
 export function buildPortalPublicationSnapshot(
   input: PublicationInput,
 ): PortalPublicationSnapshot {
-  assertPublicationInput(input)
-  const common = {
-    portal: input.source.portal,
-    categories: input.source.categories,
-    links: input.source.links,
+  assertPublicationEnvelope(input)
+  const { blockers, content } = resolvePortalPublication(input.source)
+  const [first] = blockers
+  if (first) {
+    throw portalError('publication_snapshot_unavailable', describeBlocker(first))
+  }
+  const configuration: ImmersivePortalPublicationConfiguration = {
+    schemaVersion: IMMERSIVE_HUB_SCHEMA_VERSION,
+    ...content,
     reviewGateway: {
       privateFeedbackThreshold: input.source.privateFeedbackThreshold,
-      googleReview: { status: 'available' as const, uri: input.destination.uri },
+      googleReview: { status: 'available', uri: input.destination.uri },
     },
     googleReviewBinding: {
       retrievedAt: input.destination.retrievedAt.toISOString(),
@@ -134,35 +172,8 @@ export function buildPortalPublicationSnapshot(
       profileVersion: input.destination.profileVersion,
     },
   }
-  const experience = input.source.experience
-  const configuration: PortalPublicationConfiguration = experience
-    ? {
-        ...common,
-        schemaVersion: PORTAL_PUBLICATION_SCHEMA_VERSION,
-        guestLocale: experience.primaryGuestLocale,
-        languagePackVersion: primaryLanguagePack(experience),
-        localeSet: experience.localeSet,
-        languagePackVersions: Object.fromEntries(
-          experience.localeSet.map((locale) => [
-            locale,
-            experience.languagePackVersions[locale],
-          ]),
-        ),
-        localizedContent: Object.fromEntries(
-          experience.localeSet.map((locale) => [
-            locale,
-            experience.localizedContent[locale],
-          ]),
-        ),
-        brandProfile: experience.brandProfile,
-      }
-    : {
-        ...common,
-        schemaVersion: LEGACY_PORTAL_PUBLICATION_SCHEMA_VERSION,
-        guestLocale: LEGACY_V1_GUEST_LOCALE,
-        languagePackVersion: LEGACY_V1_LANGUAGE_PACK,
-      }
-  return {
+  const snapshot: PortalPublicationSnapshot = {
+    // fallow-ignore-next-line code-duplication
     id: input.id,
     organizationId: input.organizationId,
     propertyId: input.propertyId,
@@ -177,6 +188,16 @@ export function buildPortalPublicationSnapshot(
     createdBy: input.createdBy,
     createdAt: input.createdAt,
   }
+  // A backstop for what no blocker names (a blank display name, a text past the
+  // reader's limit): a snapshot the reader would refuse is never written, and
+  // the manager hears it from here rather than from the commit's own guard.
+  if (!verifyPortalPublicationSnapshot(snapshot)) {
+    throw portalError(
+      'publication_snapshot_unavailable',
+      'The Portal’s content is incomplete or out of range, so it cannot be published',
+    )
+  }
+  return snapshot
 }
 
 /** Scope, review-gateway range and destination binding all agree with the snapshot row. */

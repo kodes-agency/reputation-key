@@ -4,7 +4,6 @@ import type { Action } from '#/components/hooks/use-action'
 import { PortalDraftAutosaveProvider } from '../portal-editor/portal-draft-autosave-context'
 import { PortalApprovedDestinationsEditor } from './portal-approved-destinations-editor'
 import { PortalLocalizedContentEditor } from './portal-localized-content-editor'
-import { PortalPropertyBrandEditor } from './portal-property-brand-editor'
 import type {
   PortalApprovedDestinationList,
   PortalExperienceActions,
@@ -25,7 +24,6 @@ function idleAction<TInput>(): Action<TInput> {
 
 function experienceActions(): PortalExperienceActions {
   return {
-    saveProfile: idleAction(),
     saveContent: idleAction(),
     saveOverride: idleAction(),
     requestDestination: idleAction(),
@@ -63,14 +61,9 @@ type ShowcaseProps = Readonly<{ actions: PortalExperienceActions }>
 function PortalExperienceFormsShowcase({ actions }: ShowcaseProps) {
   return (
     <div className="space-y-4 p-6">
-      <PortalPropertyBrandEditor
-        propertyId="property-1"
-        experience={experience}
-        action={actions.saveProfile}
-        disabled={false}
-      />
       <PortalLocalizedContentEditor
         locale="en"
+        isPrimary
         propertyId="property-1"
         portalId="portal-1"
         experience={experience}
@@ -109,26 +102,9 @@ export const CommandsUseSharedDtos: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
 
-    // The name is owned by Property settings → Profile; the brand editor
-    // shows it, links there, and saves colours with the name unchanged.
-    expect(canvas.getByText('Example Hotel')).toBeVisible()
-    expect(
-      canvas.getByRole('link', { name: /change in property profile/i }),
-    ).toHaveAttribute('href', '/properties/property-1/settings/profile')
-    await userEvent.click(canvas.getByRole('button', { name: /save brand colours/i }))
-    await waitFor(() =>
-      expect(args.actions.saveProfile).toHaveBeenCalledWith({
-        data: {
-          propertyId: 'property-1',
-          displayName: 'Example Hotel',
-          primaryColor: '#2563EB',
-          backgroundColor: '#FFFFFF',
-          textColor: '#111827',
-        },
-      }),
-    )
-
-    await userEvent.click(canvas.getByRole('button', { name: /save property fallback/i }))
+    // The property's wording is written, so its fold starts closed.
+    await userEvent.click(canvas.getByRole('button', { name: /property wording/i }))
+    await userEvent.click(canvas.getByRole('button', { name: /save property wording/i }))
     await waitFor(() =>
       expect(args.actions.saveContent).toHaveBeenCalledWith({
         data: {
@@ -145,7 +121,10 @@ export const CommandsUseSharedDtos: Story = {
     await expect(
       canvas.queryByRole('button', { name: /save portal override/i }),
     ).not.toBeInTheDocument()
-    await userEvent.type(canvas.getByLabelText('Title override'), 'Pool')
+    await userEvent.type(
+      canvas.getByLabelText('Welcome line', { selector: '#portal-override-title-en' }),
+      'Pool',
+    )
     await waitFor(
       () =>
         expect(args.actions.saveOverride).toHaveBeenCalledWith({

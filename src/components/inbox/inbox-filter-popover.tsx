@@ -11,6 +11,13 @@ import { ASPECT_OPTIONS, ASPECT_POLARITY_OPTIONS } from '#/shared/aspect-labels'
 import { Filter, X } from 'lucide-react'
 import { InboxFilterSelect } from './inbox-filter-select'
 import {
+  ATTENTION_OPTIONS,
+  ratingPatch,
+  ratingValue,
+  RATING_OPTIONS,
+  SOURCE_OPTIONS,
+} from './inbox-filter-options'
+import {
   CLEARED_INBOX_LIST_FILTERS,
   countActiveInboxFilters,
   type InboxListFilterValues,
@@ -23,32 +30,6 @@ type Props = Readonly<{
   onChange: (patch: Partial<InboxListFilterValues>) => void
 }>
 
-const SOURCE_OPTIONS = [
-  { value: 'all', label: 'All items' },
-  { value: 'review', label: 'Reviews' },
-  { value: 'feedback', label: 'Feedback' },
-] as const
-const ATTENTION_OPTIONS = [
-  { value: 'all', label: 'All priorities' },
-  { value: 'urgent', label: 'Urgent' },
-  { value: 'high', label: 'High' },
-  { value: 'medium', label: 'Medium' },
-  { value: 'low', label: 'Low' },
-] as const
-const RATING_OPTIONS = [
-  { value: 'all', label: 'All ratings' },
-  { value: '5', label: '5 stars' },
-  { value: '4-plus', label: '4 stars and up' },
-  { value: '3-minus', label: '3 stars and below' },
-] as const
-
-function ratingValue(value: InboxListFilterValues): string {
-  if (value.ratingMin === 5) return '5'
-  if (value.ratingMin === 4) return '4-plus'
-  if (value.ratingMax === 3) return '3-minus'
-  return 'all'
-}
-
 export function InboxFilterPopover({ value, onChange }: Props) {
   const activeCount = countActiveInboxFilters(value)
   return (
@@ -57,7 +38,7 @@ export function InboxFilterPopover({ value, onChange }: Props) {
         <Button
           variant="outline"
           size="icon-sm"
-          className="relative max-md:size-9"
+          className="relative"
           aria-label={activeCount > 0 ? `Filters, ${activeCount} active` : 'Filters'}
         >
           <Filter />
@@ -69,7 +50,12 @@ export function InboxFilterPopover({ value, onChange }: Props) {
       {/* role="dialog" with no accessible name fails axe (aria-dialog-name).
           PopoverTitle is not wired to the content the way DialogTitle is, so
           the association is made explicitly. */}
-      <PopoverContent align="end" className="w-72" aria-labelledby={TITLE_ID}>
+      <PopoverContent
+        align="end"
+        collisionPadding={8}
+        className="w-72"
+        aria-labelledby={TITLE_ID}
+      >
         <PopoverHeader className="mb-4 flex-row items-center justify-between">
           <PopoverTitle id={TITLE_ID}>Filters</PopoverTitle>
           <Button
@@ -142,17 +128,7 @@ export function InboxFilterPopover({ value, onChange }: Props) {
             label="Rating"
             value={ratingValue(value)}
             options={RATING_OPTIONS}
-            onChange={(rating) =>
-              onChange(
-                rating === '5'
-                  ? { ratingMin: 5, ratingMax: 5 }
-                  : rating === '4-plus'
-                    ? { ratingMin: 4, ratingMax: undefined }
-                    : rating === '3-minus'
-                      ? { ratingMin: undefined, ratingMax: 3 }
-                      : { ratingMin: undefined, ratingMax: undefined },
-              )
-            }
+            onChange={(rating) => onChange(ratingPatch(rating))}
           />
         </FieldGroup>
       </PopoverContent>

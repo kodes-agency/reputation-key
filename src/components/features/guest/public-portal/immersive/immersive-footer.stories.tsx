@@ -51,14 +51,14 @@ export default meta
 
 type Story = StoryObj<typeof ImmersiveFooterView>
 
-/** Board G01: the full disclosure, the privacy link and "Got it", inline at the page's end. */
+/** Board G01: the one-line notice, the privacy link and "Got it", inline at the page's end. */
 export const G01NoticeShowing: Story = {
   args: { copy: immersiveFooterCopy(enV2, NAME) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     const notice = canvas.getByRole('region', { name: 'Visit counting' })
-    expect(notice).toHaveTextContent('session cookie')
-    expect(notice).toHaveTextContent('network marker')
+    expect(notice).toHaveTextContent('one essential cookie')
+    expect(notice).toHaveTextContent('privacy-protected marker')
     // In the flow, not an overlay: nothing is fixed to the viewport.
     for (const element of canvasElement.querySelectorAll('footer, footer *')) {
       expect(getComputedStyle(element).position).not.toBe('fixed')

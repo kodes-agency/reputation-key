@@ -79,7 +79,7 @@ describe('isCompleteImmersiveConfiguration', () => {
       ).toBe(false)
     })
 
-    it('rejects the pack of another locale, an unknown pack and a locale with no pack', () => {
+    it('rejects the pack of another locale and an unknown pack', () => {
       expect(
         complete({
           languagePackVersions: { en: 'guest-ui-bg-v2', bg: 'guest-ui-bg-v2' },
@@ -93,9 +93,29 @@ describe('isCompleteImmersiveConfiguration', () => {
       expect(
         complete({
           localeSet: ['en', 'de'],
-          languagePackVersions: { en: 'guest-ui-en-v2', de: 'guest-ui-de-v2' },
+          languagePackVersions: { en: 'guest-ui-en-v2', de: 'guest-ui-fr-v2' },
           localizedContent: { en: content.en, de: content.bg },
           links: [],
+        }),
+      ).toBe(false)
+    })
+
+    it('accepts a locale that has a generation 2 pack, and rejects its generation 1 id', () => {
+      const german = {
+        localeSet: ['en', 'de'] as const,
+        localizedContent: { en: content.en, de: content.bg },
+        links: [],
+      }
+      expect(
+        complete({
+          ...german,
+          languagePackVersions: { en: 'guest-ui-en-v2', de: 'guest-ui-de-v2' },
+        }),
+      ).toBe(true)
+      expect(
+        complete({
+          ...german,
+          languagePackVersions: { en: 'guest-ui-en-v2', de: 'guest-ui-de-v1' },
         }),
       ).toBe(false)
     })

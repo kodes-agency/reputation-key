@@ -27,9 +27,16 @@ assignment, and governed access artifacts.
 A Portal is Property-owned and may contain ordered secondary-link categories. A
 Portal Publication Snapshot is the immutable, manager-approved rating-first
 experience. Editing the working copy never mutates an active snapshot.
+Publishing writes schema version 3 (the Immersive Hub) only, from a publication
+source that `resolvePortalPublication` turns into the snapshot's content: the
+one function that decides what a gap means (a primary-language gap blocks, any
+other language is copied from the primary and tagged `fallbackFrom`, the
+Linktree title falls back to its pack default and is never copied), shared by
+the builder, the publish transaction's comparison and the history read. Version
+1 and 2 snapshots stay servable and verify forever, on the legacy renderer.
 Activations are append-only effective-dated routes from a stable token to one
-snapshot; publish and rollback append activations, while disable/archive close
-one. Groups remain Property-scoped, and one Portal has at most one active group.
+snapshot; publish, republish and rollback append activations, while disable/archive
+close one. Groups remain Property-scoped, and one Portal has at most one active group.
 
 A Portal changes group in one commit: `movePortalToGroup` (and create-with-move,
 where a new group takes Portals that are in another group) ends the old
@@ -53,16 +60,26 @@ Portal keeps its head in the overview, so it stays reachable.
 The link section of the guest page is the **Linktree**. Its working model is
 `portal_link_texts` (one label and optional line per link and language), a title
 per language in `portal_localized_overrides.linktree_title` (null means the
-language pack's default, "Useful links") and `portals.linktree_enabled`. Until the
-legacy column is dropped, `portal_links.label` mirrors the primary-language text:
-creating or renaming a link and saving the primary text all write both, and
-readers (`listLinkTexts`) fall back to the link's own label for a link with no
-primary-language row. Changing the Portal's primary language re-establishes the
-mirror in the same transaction: a link label takes the new primary's text where
-one exists, and the new primary's text starts from the label where none does.
-Old code that runs between migration 0044 and the new web rollout can still
-rename a link without touching its text; slice 19 reconciles that window before
-the v3 writer reads texts. A Portal carries at most four links, counted under the
+language pack's default, "Useful links") and `portals.linktree_enabled`. The texts are
+the only place a link's wording is written: creating a link writes its
+primary-language text, renaming it (or saving texts) writes the text, and the
+legacy `portal_links.label` column is never written (a new link holds `''` there,
+because the column is NOT NULL until it is dropped). The column is a read-only
+fallback for a link written before the texts existed: `resolveLinkTexts` reads it
+as the primary-language text only when no such text row exists, and a stored text
+always wins over it. Changing the Portal's primary language leaves no link
+unnamed in the new one: the old primary keeps the link's wording (a link with no
+text there starts it from its legacy label, when that is not empty) and the new
+primary's text starts from it where none exists. Migration 0052 is what lets a
+stored text always win: a link renamed in the window between migration 0044 and
+the text-aware editor could have a label newer than its primary text, which every
+reader then showed, so the migration copies that label into the text (once, with a
+History row and no person) before the reader rule goes. Deploy order: the
+migration runs before this release serves, and the detection query in
+`docs/operations/operator-commands.md` (`link-labels-newer-than-primary-text`)
+returns no rows afterwards. Rolling back to a release before this one is not safe
+for links edited since: that code treated a link label newer than its text as a
+rename, so it would read the empty column as the wording. A Portal carries at most four links, counted under the
 Portal fence on create; a Portal that already has more keeps them. Icons come
 from a closed catalogue (`src/shared/domain/portal-link-icon.ts`, 27 keys, every
 icon the round-4 editor offers), enforced by a CHECK and refused in the link
@@ -71,8 +88,8 @@ constructor.
 The **Property look** is the part of the Property Brand Profile a guest sees:
 accent colour, background (`background_mode` `auto` derives the dark page field
 from the accent with `src/shared/domain/portal-field-colour.ts`, `manual` uses
-`background_color`), wordmark and, in later releases, logo and photo, plus the
-per-language hero alt text on the brand content. The profile keeps two versions
+`background_color`), wordmark, logo and photo (uploaded assets, see Media), plus
+the per-language hero alt text on the brand content. The profile keeps two versions
 on purpose. `version` moves only with the public display name, because AI reply
 drafts fence on it (`ai-reply-brand-profile-authority.ts`); `look_version` moves
 with the look. A look edit writes one `property_brand_profile` pending change
@@ -83,6 +100,25 @@ nothing only records who saved. `default_guest_locales` (ordered, one to six,
 first is the primary) only seeds new Portals, so editing it bumps no version,
 records no pending change, emits no fact and leaves `updated_by` alone (that
 column decides whether the public display name counts as confirmed).
+
+The look is edited on one page, `/properties/:propertyId/portals/look` (board 9
+of the round-4 admin), by an Account Admin; everyone who may read portals can
+open it. `savePropertyLook` writes the accent, the background mode (and the
+colour when it is manual) and the wordmark through the repository's own look
+writer, which reads and writes the profile inside the Property's publication
+lock and touches only those columns and the look version: the display name, the
+images, the text colour and `updated_by` stay as they are, so a look save never
+confirms an automatic public display name, and a name or image write beside it
+is never put back (the actor is recorded in the page-edit ledger only). It
+refuses a colour that is not `#rrggbb` and a manual background light text cannot
+be read on (AAA on the field). It does not refuse an accent that is hard to see
+on its field, because the default palette every Property starts with is one and
+the guest resolver draws the text colour in its place; the page's readout says
+so (`src/shared/domain/portal-look-readout.ts`, built on the same arithmetic the
+guest resolver uses). A Property with no Brand Profile is asked to set its
+public display name first. The page autosaves, so an edit is a draft until each
+live Portal is published again; the portal
+editor's Look section only shows the look and links there.
 
 A new Portal (`createPortal`, the New portal dialog) commits in one transaction
 with its group membership (the group is fenced like a membership change and the
@@ -109,14 +145,15 @@ The editor no longer shows categories. `getPortalLinktree` reads the whole
 section (switch, written titles, and each link in guest order with its texts,
 icon and the approval of its destination), and a link is created without a
 category: it joins the Portal's last category, and the first link starts one,
-which only the legacy guest page prints as a heading. It is titled in the
-Portal's primary language (the Linktree title written for that language, else its
-default), so a Bulgarian-primary Portal does not show an English heading. The
-category is built only after the link's label, icon, cap and destination have
+which no guest sees (publishing flattens categories). It has a fixed neutral
+title, because a category row needs one. The category is built only after the link's label, icon, cap and destination have
 passed and is committed in the link's own transaction (`startCategory` on the
 create command), so a refused link leaves neither it nor its fact behind. Re-ordering still saves one category's order, so the
 editor moves a tile only among those of its own (older) category. The category
-commands stay until the snapshot builders flatten categories (slice 19).
+management commands (create, rename, delete, reorder) are retired: nothing calls
+them, and a category is only ever the one a first link starts. Categories made
+before round 4 stay in the working copy (the editor moves a tile within its own
+category); the v3 builder flattens them.
 
 The eligible creator is the initial Portal Responsible Manager (by default; the
 dialog may name other eligible managers, or nobody). Multiple eligible
@@ -170,13 +207,43 @@ hidden in a segment do not survive, and the original is never stored.
 - **References**: the Brand Profile's `logo_asset_id`, `hero_asset_id` (with
   `hero_focal_x/y`, present exactly when there is a hero) and a link's
   `image_asset_id` are composite foreign keys to an asset of the same
-  Organization and Property. Only a link's is written so far: `updateLink` takes
-  an `imageAssetId` (or null) and checks it with
-  `canReferencePortalMediaAsset('link_image', asset)` against the Portal's own
-  Property; the hero and logo controls are a later slice. The database does
+  Organization and Property. `updateLink` takes an `imageAssetId` (or null) and
+  checks it with `canReferencePortalMediaAsset('link_image', asset)` against the
+  Portal's own Property; `savePropertyHero` and `savePropertyLogo` do the same
+  for `brand_hero` and `brand_logo` (an Account Admin, `portal.write`, the
+  Property's own asset; any other id is `media_not_found`). The database does
   not tie a reference to the asset's **purpose**: whatever writes one of these
   columns must call `canReferencePortalMediaAsset(slot, asset)`, so a link
   picture cannot stand in as the hero and skip the hero's size and byte budget.
+- **The look's photograph and logo** (Property look page, boards 9 and 14).
+  `savePropertyHero` puts an uploaded photograph on the Brand Profile, moves its
+  focal point (0 to 1 across and down, the middle when none is given; the
+  browser's circle is dragged or moved with the arrow keys and autosaves) and
+  takes it off with `assetId: null`, which clears the focal point with it.
+  Its descriptions are per language (`property_portal_brand_contents.hero_alt_text`,
+  at most 160 characters, a language left out keeps its own, null clears one). A
+  language with no wording row gets one holding the description alone: its title
+  and description are `''`. Every reader (publication, the preview, the language
+  coverage) asks `hasPropertyWording` (domain/property-wording.ts), which is
+  false for such a row, so it claims no wording and a Portal override on that
+  language still does not count until the Property writes some; the row exists
+  only because the description lives in it. The settings editor then shows the
+  fallback placeholder rather than an empty one. A page reads the primary
+  language's description for every language that has none of its own. The write
+  runs inside the Property's publication lock and moves what every look edit
+  moves: `look_version`, a `look:images` pending change for each live Portal
+  and the profile fact (a description is a `property_brand_content` change for
+  its language); the display name and `updated_by` are not touched.
+  `savePropertyLogo` is the same for `logo_asset_id`. Both answer with the media as
+  a page draws it (`resolvePropertyLookMedia`: size, focal point and the media
+  route's address, for an asset of this Property that may still be served; a
+  taken-down image reads as none), which the experience read carries as `media`.
+  The draft preview draws only those assets, so a photograph that is only an
+  address on the profile or in an override (which a v3 publication drops) is not
+  previewed; a tile's uploaded photo and the live version's photograph and logo
+  are drawn too. The browser checks a chosen file against the same size rules as
+  the policy (`PORTAL_MEDIA_SIZE_RULES` in `src/shared/domain/portal-media.ts`)
+  before sending it. Only raster logos are accepted: no SVG.
 - **A tile's photo** is chosen in the Linktree editor's "Icon or photo" picker: the
   dashed tile uploads to `POST /api/portal-media` (`purpose=link_image`, with the
   Portal and the rights confirmation) and then puts the returned asset id on the
@@ -187,10 +254,10 @@ hidden in a segment do not survive, and the original is never stored.
   end of it. The editor shows the photo from the same-origin media route, and
   `getPortalLinktree` hands it only a photo that is still servable: a taken-down
   asset leaves `portal_links.image_asset_id` in place but reads as no photo.
-  A photo reaches guests only through a v3 publication (slice 19 carries
-  `links[].imageAssetId` from the working copy into the snapshot, and must leave
-  out an id that is no longer servable, as the guest page's `mediaUrls` filter
-  does); v1 and v2 snapshots have no tile photos.
+  A photo reaches guests only through a v3 publication (the working-copy reader
+  carries `links[].imageAssetId` into the snapshot and leaves out an id that is
+  no longer servable, as the guest page's `mediaUrls` filter does); v1 and v2
+  snapshots have no tile photos.
 
 `portal.upload` is `controlled_beta`. The owner removed the SAFE-01 completion
 ceremony on 2026-09-30; the technical safeguards above stay in the build (ADR
@@ -217,10 +284,14 @@ including the token's grace end. It is scoped like
 language a Portal offers (the fallback language first) it counts the wording guests read
 that is written and names what is missing: a title and a description and one label per
 link. A title or description counts as written only when the Property has wording (a content
-row) for that language, the Portal's own override then taking the place of it: publishing
-drops a language without Property wording and refuses to publish, so an override alone does
-not count, and such a gap is flagged `blocksPublish` (its wording is written by an account
-admin in the Property Brand Profile; until the builder copies the fallback language into a gap, slice 19, it is a real block). A missing link label does not block publishing. Every
+row) for that language, the Portal's own override then taking the place of it, so an override
+alone does not count (its wording is written by an account admin in the Property Brand
+Profile). What a gap means is decided by publishing (`gapBlocksPublication`, which the
+resolver and this read share): a gap in the primary language, including a primary-language
+link label, is flagged `blocksPublish` and refuses publishing; a gap in any other language
+is a warning, because the builder copies the primary language's text into it and guests
+read that. A link with no primary text still reads its own legacy label, so a missing
+primary link label happens only when the label itself is blank. Every
 link in the tree is counted, approved destination or not, because its label is needed once the
 destination is approved. The Linktree title, a link's line and the hero description are
 optional, so they are never "missing". It carries
@@ -240,7 +311,15 @@ records a `portal_address_downloads` row, then decrypts, and its server function
 is a no-store POST behind an actor and Organization rate limit. The token status
 carries `addressRecoverable` so the page offers the download only when the
 keyring still holds the key that sealed the live code. Without a keyring the
-address is shown once, when a code is made, as before.
+address is shown once, when a code is made, as before. The same reveal, for the
+purpose `show`, backs the workspace header's "Open page", which opens the bare
+`/p/<token>` address (no scan marker) in a new tab and is offered only for a live
+portal with a recoverable live code (an address already held in the browser opens
+with no reveal); otherwise it links to Share, and it is absent for a caller
+without `portal.update` and `portal.write`, and on the Share tab itself. The token status
+also carries `madeBy`, the display name of the person `issued_by` recorded for the
+live code (an operator reads as the fixed label; null when unknown), which Share
+words as "Made 12 Mar by …". Only `getPortal` resolves it.
 
 `getPortalPreview` is the read behind the editor's live preview (A8): the guest page of one
 Portal, per language, from the saved working copy (`draft`) or the active verified snapshot
@@ -254,8 +333,9 @@ Linktree title, which reads its pack default per language). Live applies the gue
 approval cut-off (`APPROVED_DESTINATION_MAX_VALIDATION_AGE_MS`, shared with token resolution)
 but not its other admission facts (Portal Health, Property status, the public-read decision),
 and a snapshot that fails verification reads as `not_published`. A live version from the earlier
-page design is `unavailable` (`earlier_design`) until slice 19 makes publishing write the new
-one; the other reasons are `not_published` and `incomplete`.
+page design is `unavailable` (`earlier_design`): publishing writes the new one since slice 19,
+but versions published before it stay on the earlier page until they are published again; the
+other reasons are `not_published` and `incomplete`.
 
 `getPortalHistory` is the one merged, read-only timeline for a Portal: its
 creation, each publish and restore, each change of health (from
@@ -268,6 +348,38 @@ directory that returns only `user.name`. Only the page edits are stored for it
 An address entry names who made it when `portal_tokens.issued_by` recorded that (null for a code
 made before round 4), and each time a manager was handed an existing address is a
 `code_downloaded` entry from `portal_address_downloads`.
+
+The History tab also reads the Portal's versions. `getPortalVersions` lists every
+published snapshot newest first (at most 200, with the 201st read only as the version the
+oldest is compared with), each with who published it, whether it is the one guests see and
+what it added over the version before it; beside them, what the draft is based on (always
+the newest version: making an earlier one live never touches the working copy) and who
+last edited it (the newest page edit made after the newest version). `getPortalVersion`
+reads one version: what it shows guests in plain words and what making it live would
+change, compared from the live version to that one. Both come from
+`diffPublicationContent`, a pure comparison of two immutable configurations that reads
+v1, v2 and v3 into one neutral view first, so a part a schema cannot tell (a v1 has no
+brand name, a v2 no Linktree switch) is never reported as changed, and a move between the
+legacy page and the Immersive Hub is one `design_changed`, not a list of colours. The
+view carries what the guest renderer reads and nothing it does not: a tile's photo and icon,
+the hero's focal point, a v2 page's hero of each language (never the brand's default hero),
+the legacy category headings, and a v3 short description as link preview text only. The
+changes name the manager's own words (a tile's label, a language) and are a read model for
+the people who manage the Portal: nothing here is published as a fact. A snapshot that no
+longer verifies is left out of the list, because it could not be served or made live again.
+
+`getPortalVersionPreview` is what the History's "View" draws: the guest page of one published
+version, whichever is live, from that version's verified snapshot. It is the live preview's
+read with the same rules (`readPublishedPreviewInputs`: the guest edge's approval cut-off, none
+when the Linktree is off, images only while servable), so it shows what guests would be served
+if that version were made live now, and a tile whose address has since lapsed is left out. Its
+preview says `source: 'version'` with the version number, so it cannot be mistaken for the live
+page, and it carries no address, as the live one does not. A version from the earlier page
+design is `unavailable` (`earlier_design`) and the History falls back to the words of
+`getPortalVersion`; a version the Portal never had, or that no longer verifies, is refused
+(`publication_snapshot_unavailable`). Gated by `portal.read`; it writes nothing. The
+History's dialog says, under the phone, when the page draws fewer tiles than the version's
+words list (a lapsed address leaves a tile out of the page, not out of the words).
 
 `portal_page_edits` is the page-edit ledger: one row per change that can make a
 Portal's working page differ from what guests see, written in the same
@@ -315,11 +427,54 @@ starts at the deploy of migration 0050; earlier edits were never attributed and 
 not reconstructed. Rows are updated only by the fold above and never deleted while
 their Portal exists; a purge removes them first.
 
+The pending-change fence (`portal_pending_content_changes`) also records who opened
+each row (`changed_by`, migration 0051): the actor `recordPortalContentChange` was
+given, null for the system and for rows from before the column. The first record of a
+revision keeps its person (the row's unique key makes a second record a no-op). The
+publication history read returns it as `pendingChanges[].changedBy`, and
+`activatedBy` beside each activation, both as a person the directory can name or an
+unnamed placeholder.
+
+Review & publish reads through `getPortalReview` (`portal.read`, writes nothing). It
+asks the questions `publishPortalChanges` asks, in the same words: the Property is
+active, the Google destination is verified, someone is responsible, the address
+works, and the resolver's blockers and warnings (`portal-review-rules.ts` turns them
+into checks; a blocked check is exactly what publishing would refuse, a copied text
+is a warning). The change list is the page-edit ledger since the live version was
+published (the live one, which "Make live again" can make older than the newest; the
+ledger never spans an activation, so rows after it start from the live wording), each
+part folded into one change (first wording to last, put-back wording, a tile added then
+removed, and edits to a tile that is removed are dropped; an added tile reads its newest
+wording), plus any open fence kind the ledger has
+no row for, a live version of the earlier design, and a Google address the Property
+has since left; "unlisted" stands in when the draft differs and nothing nameable is
+left, and "no_visible_change" when changes were recorded but the draft says what is live.
+`canPublish` also needs `portal.update` and the `portal.write` capability, so a reader
+(Member) or a dark capability never gets a button the server would refuse. `nothingToPublish` is the question the publish use case answers `unchanged` to.
+A Portal that is not live has no change list: it has no live version to differ from.
+
+A content review (`completeContentReview`, a live Portal only) records three facts at
+once. The configuration completeness counts five fields on the working copy Publish reads,
+under the Portal lock (`portal-configuration-completeness.ts`): the Portal name; the
+primary language's welcome line, link preview and link labels (what the `primary_text`
+check asks); the Property look (a Brand Profile with a display name and an accent); a
+Linktree link guests can open (the Linktree on and an approved link); and the Property's
+verified Google review destination, which the use case looks up. The fact names the fields
+it counted (`fieldSet: 'immersive_hub'`, event version 3). Every version 1 and 2 fact
+counted the legacy settings (name, `portals.description`, the Portal theme's colour, link
+categories, link addresses), which a v3 Portal cannot complete; Metric keeps the two under
+separate versions of `portal.configuration_completeness`. The destination ratio counts every
+link: one with a Property destination when that destination is approved, a raw legacy
+address by the safe-link allowlist (ADR 0044). The ratio needs five links for a reading and
+a new Portal holds at most four, so only an older Portal with more links ever records one.
+
 The earlier issued-image implementation (presigned browser upload, issuance
 table, background job) was removed and is not coming back. The nullable
 `portals.hero_image_url` column and read path remain so published historical
 rows still render, while the shared arbitrary-key storage stack remains live
 for Identity avatar and organization-logo uploads through `container.assetStorage`.
+`confirmUpload` only confirms the object is there; Identity stores its own address
+for the image (`/api/public/identity-assets/<key>`), never a provider URL.
 
 ## Invariants
 
@@ -328,7 +483,9 @@ for Identity avatar and organization-logo uploads through `container.assetStorag
 2. Private Feedback Threshold is an integer from 1 through 5.
 3. A Portal may have no secondary links. It cannot enter `published` unless its Property has a verified, provider-derived Google review destination.
 4. Publishing atomically creates and activates an immutable snapshot. Working-copy edits are prospective and cannot change the public response until another deliberate publication.
-5. Rollback never rewrites history: it closes the current activation and appends a new activation to an older valid snapshot.
+   A live Portal can be republished (`republishPortal`, "Publish changes"): in one commit the live activation closes with reason `replaced` and a new snapshot and activation open, under the same Property publication fence as a first publication. The Portal stays Published, and it is refused for a Portal that is not (publishing, not republishing, takes it live). It does nothing when nothing is pending, and it asks the same readiness questions as a first publication.
+   An operator can republish every live v1/v2 Portal as v3 (`pnpm ops republish-legacy-portals`, run through `portalMaintenanceRuntime`): it selects by the open activation's snapshot schema version, 1 or 2 (never by history, so a draft, disabled, archived or deleted Portal is not touched), runs this same use case per Portal as the actor `ops:<operator>`, and skips a Portal that is not ready with the gate's reason. A Portal whose manager has unpublished edits is skipped too (`pending_edits`), because the upgrade would put those drafts live; `--include-pending-edits` is the operator's explicit opt-in. The operator actor is filed as an `operator` in the Operational Action History and shown to managers as "Reputation Key", never by its id.
+5. Rollback never rewrites history: it closes the current activation and appends a new activation to another valid snapshot of the same Portal, never the one already live. "Make live again" is that act, and it works in both directions (an earlier version, or a later one after an earlier was restored), so restoring a version never strands the ones after it. It does not touch the working copy or its pending changes.
 6. If that destination later becomes stale, unavailable, or temporarily unreadable, the published private rating/feedback gateway remains available in a degraded state. No stale URI is serialized and Google selection is denied with gentle guest copy.
 7. Public resolution fails closed when that Property destination is `awaiting_refresh` or `unavailable`; a stale URI is never rendered.
 8. Soft-deleting a Portal revokes its live tokens; a deleted Portal never has a live
@@ -338,7 +495,7 @@ for Identity avatar and organization-logo uploads through `container.assetStorag
 11. An image enters the Portal only through the server-side ingest, which stores a re-encoded WebP and never the upload; no Portal request issues a presigned upload or writes `portals.hero_image_url`, and a published Portal with a null value remains valid.
 12. The POR-01 report never copies names, localized content, raw URLs, token material, themes, or print-batch values and never infers creator, ownership, translation, brand, or destination provenance. Reported ambiguous Portal rows remain Disabled or Archived; raw secondary links are treated as quarantined and excluded from publication until a separately reviewed command resolves them.
 13. Closing is a **stop, not a delete**, and it is reversible: the immutable publication snapshot survives and `portals.publication_state` keeps the tenant's own published/draft intent, so explicit reactivation re-points a new activation at the same snapshot rather than guessing what each Portal used to be. Ordinary closure cancellation does not itself reactivate Portals — see `docs/operations/organization-lifecycle.md`.
-14. `portal_group_members` is purged as a **row delete only**. It is a physical-drop-blocked compatibility mirror: the rows are tenant content and must go, the table must not. No phase issues a DROP or TRUNCATE.
+14. `portal_group_members` is purged as a **row delete only**. It is a physical-drop-blocked compatibility mirror that nothing reads or writes any more (membership is `portal_group_memberships`, and the Organization Export no longer carries the mirror): the rows are tenant content and must go, the table must not. No phase issues a DROP or TRUNCATE; dropping the table is a separate expand/backfill/contract decision. The Organization Export dropped the `portalGroupMembers` collection while keeping the format id `portal-organization-export/v1`: nothing parses the id (the export is a file for people), and a mirror row is expected to have its `portal_group_memberships` row (the Staff export carries those). `portal-group-members-without-membership` in `docs/operations/operator-commands.md` is the one query that confirms it; run it in each environment before the deploy.
 15. Linktree edits (link texts, the section title, the switch) take the Portal fence like any content command and record `portal_links` pending changes under structured keys: `link:<id>:text:<locale>`, `linktree:title:<locale>` and `linktree:enabled`. Only a value that actually changed records one, and their facts carry identifiers, never the wording.
 16. A group's history starts at the deploy of migration 0046; earlier changes are not reconstructed, because earlier names were never kept. History rows are never updated or deleted while their group exists, and a purge removes them with the group.
 

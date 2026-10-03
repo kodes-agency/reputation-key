@@ -2,10 +2,10 @@ import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import { canonicalizeRfc8785 } from '#/shared/canonical-json'
 import {
-  buildPortalPublicationSnapshot,
   digestPortalPublicationConfiguration,
   verifyPortalPublicationSnapshot,
 } from '../application/portal-publication-snapshot'
+import { buildLegacyPortalPublicationSnapshot } from '../application/__fixtures__/legacy-snapshot-builder'
 import { PORTAL_LANGUAGE_PACK_VERSIONS } from '../domain/portal-publication-snapshot'
 import { snapshotMirrorColumns } from './mappers/portal-publication-snapshot.mapper'
 import {
@@ -210,15 +210,15 @@ describe('golden publication snapshots', () => {
     })
   })
 
-  it('reproduces the hand-built v1 digest with the production builder', () => {
-    const built = buildPortalPublicationSnapshot(GOLDEN_BUILDER_INPUTS.v1)
+  it('reproduces the hand-built v1 digest with the legacy test builder', () => {
+    const built = buildLegacyPortalPublicationSnapshot(GOLDEN_BUILDER_INPUTS.v1)
 
     expect(built.configurationDigest).toBe(GOLDEN_SNAPSHOT_ROWS.v1.configurationDigest)
     expect(built.configuration).toEqual(GOLDEN_SNAPSHOT_ROWS.v1.configuration)
   })
 
-  it('reproduces the hand-built Bulgarian-primary v2 digest with the production builder', () => {
-    const built = buildPortalPublicationSnapshot(GOLDEN_BUILDER_INPUTS.v2BgPrimary)
+  it('reproduces the hand-built Bulgarian-primary v2 digest with the legacy test builder', () => {
+    const built = buildLegacyPortalPublicationSnapshot(GOLDEN_BUILDER_INPUTS.v2BgPrimary)
 
     expect(built.configurationDigest).toBe(
       GOLDEN_SNAPSHOT_ROWS.v2BgPrimary.configurationDigest,

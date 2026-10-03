@@ -1,30 +1,26 @@
 import { Button } from '#/components/ui/button'
-import { Sun, Moon, Monitor } from 'lucide-react'
-import { useThemeMode, type ThemeMode } from '#/components/hooks/use-theme-mode'
+import { useThemeMode } from '#/components/hooks/use-theme-mode'
+import { THEME_MODE_DETAILS, nextThemeMode, themeModeLabel } from './theme-mode-options'
 
+/**
+ * The public header's theme button: one icon that steps through the same list
+ * the segmented `ThemeModeControl` shows (Light, Dark, System, in that order).
+ * The header has no room for a three-segment control on a phone, so this is the
+ * compact form of the same choice. It names the current mode and the one a click
+ * switches to.
+ */
 export function ThemeToggle() {
   const { mode, setMode } = useThemeMode()
-
-  const modes: ThemeMode[] = ['light', 'dark', 'auto']
-
-  function toggleMode() {
-    const nextMode = modes[(modes.indexOf(mode) + 1) % modes.length]!
-    setMode(nextMode)
-  }
-
-  const label =
-    mode === 'auto'
-      ? 'Theme mode: auto (system). Click to switch to light mode.'
-      : `Theme mode: ${mode}. Click to switch mode.`
-
-  const Icon = mode === 'light' ? Sun : mode === 'dark' ? Moon : Monitor
+  const next = nextThemeMode(mode)
+  const label = `Theme: ${themeModeLabel(mode)}. Switch to ${themeModeLabel(next)}.`
+  const Icon = THEME_MODE_DETAILS[mode].icon
 
   return (
     <Button
       type="button"
       variant="outline"
       size="icon-sm"
-      onClick={toggleMode}
+      onClick={() => setMode(next)}
       aria-label={label}
       title={label}
     >

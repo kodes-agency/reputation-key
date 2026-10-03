@@ -39,7 +39,7 @@ export function PortalGroupArchiveDialog({
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
-            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            variant="destructive"
             disabled={archiveGroupMutation.isPending}
             onClick={() => {
               void archiveGroupMutation({ data: { portalGroupId: group.id } }).catch(

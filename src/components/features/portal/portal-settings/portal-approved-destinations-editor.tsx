@@ -1,5 +1,6 @@
 import { Badge } from '#/components/ui/badge'
 import { Button } from '#/components/ui/button'
+import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import { PortalApprovedDestinationRequestForm } from './portal-approved-destination-request-form'
 import { PortalExperienceActionError } from './portal-experience-action-error'
 import type {
@@ -103,12 +104,27 @@ function DestinationActions({
         </Button>
       ) : null}
       {canApprove && active ? (
-        <Button
-          type="button"
-          size="sm"
-          variant="ghost"
-          disabled={disabled || actions.disableDestination.isPending}
-          onClick={() => {
+        // A disabled destination cannot be approved again (only a pending one
+        // can), so this one asks first.
+        <ConfirmationDialog
+          trigger={
+            <Button
+              type="button"
+              size="sm"
+              variant="ghost"
+              disabled={disabled || actions.disableDestination.isPending}
+            >
+              Disable
+            </Button>
+          }
+          title={`Disable ${destination.hostname}?`}
+          description="It stops being an approved destination for Portal links, and a disabled destination can't be approved again."
+          cancelLabel="Keep destination"
+          confirmLabel="Disable destination"
+          pendingLabel="Disabling…"
+          pending={actions.disableDestination.isPending}
+          tone="destructive"
+          onConfirm={() => {
             void actions
               .disableDestination({
                 data: {
@@ -119,9 +135,7 @@ function DestinationActions({
               })
               .catch(() => undefined)
           }}
-        >
-          Disable
-        </Button>
+        />
       ) : null}
     </div>
   )

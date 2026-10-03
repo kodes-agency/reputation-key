@@ -3,8 +3,9 @@
 //
 // Pure: no I/O, no throws. Validation returns Result. The rows live in
 // `portal_link_texts` and `portal_localized_overrides.linktree_title`; the
-// legacy `portal_links.label` is kept in step for the primary language until
-// the v3 writer has been live long enough to drop it.
+// legacy `portal_links.label` is a read-only fallback that nothing writes any
+// more (migration 0052 settled the last stale ones), kept until a migration
+// drops the column.
 
 import { GUEST_LOCALES, type GuestLocale } from '#/shared/domain/guest-locale'
 import { err, ok } from '#/shared/domain'
@@ -21,27 +22,30 @@ export const MAX_PORTAL_LINKS = 4
 /**
  * The wording a Portal's Linktree title has while a manager has not written one:
  * the language packs' `linktreeDefaultTitle`, pinned here because the portal
- * context cannot import the guest components. A language without a reviewed pack
- * yet reads English, as its guests do.
+ * context cannot import the guest components. A test holds each entry to the
+ * pack's own wording.
  */
-const LINKTREE_DEFAULT_TITLES: Readonly<Partial<Record<GuestLocale, string>>> =
-  Object.freeze({ en: 'Useful links', bg: 'Полезни връзки' })
+const LINKTREE_DEFAULT_TITLES: Readonly<Record<GuestLocale, string>> = Object.freeze({
+  en: 'Useful links',
+  es: 'Enlaces útiles',
+  it: 'Link utili',
+  fr: 'Liens utiles',
+  de: 'Nützliche Links',
+  bg: 'Полезни връзки',
+})
 
 export const linktreeDefaultTitle = (locale: GuestLocale): string =>
-  LINKTREE_DEFAULT_TITLES[locale] ?? 'Useful links'
+  LINKTREE_DEFAULT_TITLES[locale]
 
 /**
  * The title of the one category a Portal's links sit in once the editor no
- * longer shows categories. Only the legacy guest page, which still groups links
- * under their category, prints it, so it reads as that page's Linktree title
- * would: the manager's own wording for the primary language, else its default.
+ * longer shows categories. Publishing flattens categories, so no guest ever
+ * reads it and no language needs its wording; it exists because a category row
+ * must have a title.
  */
-export const startedCategoryTitle = (
-  primaryLocale: GuestLocale,
-  titles: Readonly<Partial<Record<GuestLocale, string>>>,
-): string => titles[primaryLocale] ?? linktreeDefaultTitle(primaryLocale)
+export const STARTED_CATEGORY_TITLE = 'Links'
 
-/** Equal to the legacy `portal_links.label` column, which the primary text is mirrored into. */
+/** Equal to the width of the legacy `portal_links.label` column, so a text always fits where a label did. */
 export const LINK_TEXT_LABEL_MAX_LENGTH = 100
 export const LINK_TEXT_LINE_MAX_LENGTH = 160
 export const LINKTREE_TITLE_MAX_LENGTH = 60
@@ -78,7 +82,7 @@ export type StoredPortalLinkText = Readonly<{
 /**
  * A text after the legacy fallback: `text` rows come from `portal_link_texts`,
  * `legacy_label` rows are the link's own label standing in for a primary-locale
- * row that does not exist yet (a link created by code that predates the table).
+ * row that does not exist (a link written before the table existed).
  */
 export type ResolvedPortalLinkText = Omit<StoredPortalLinkText, 'updatedBy'> &
   Readonly<{
@@ -141,7 +145,9 @@ export const validateLinktreeTitle = (
 /**
  * Every text of every link, in link order then language order (primary first).
  * A link with no primary-language row gets its legacy label as that row, so
- * nothing that reads texts ever sees a link without a name.
+ * nothing that reads texts ever sees a link without a name. The label is only a
+ * fallback for a link written before the texts existed: nothing writes it any
+ * more, so a stored text always wins over it.
  */
 export function resolveLinkTexts(
   input: Readonly<{

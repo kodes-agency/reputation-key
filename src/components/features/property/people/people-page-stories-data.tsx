@@ -74,19 +74,22 @@ export const seededArgs = {
   members: [
     {
       userId: 'u1',
-      role: 'admin',
+      role: 'AccountAdmin',
+      rawRole: 'admin',
       email: 'alice@acme.com',
       name: 'Alice Adams',
     },
     {
       userId: 'u2',
-      role: 'member',
+      role: 'Member',
+      rawRole: 'member',
       email: 'bob@acme.com',
       name: 'Bob Baker',
     },
     {
       userId: 'u3',
-      role: 'member',
+      role: 'PropertyManager',
+      rawRole: 'manager',
       email: 'chris@acme.com',
       name: 'Chris Chen',
     },

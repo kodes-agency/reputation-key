@@ -8,9 +8,9 @@ import {
   PORTAL_DETAIL_TABS,
   derivePortalDetailView,
   describePendingChanges,
+  countPendingChanges,
   canReviewAndPublish,
   describePortalStatus,
-  isThemeDraftDirty,
   normalizePortalWorkspaceSearch,
 } from './portal-detail-rules'
 
@@ -191,6 +191,7 @@ describe('describePendingChanges — the "not live" note in the header', () => {
       kind: 'portal_links' as const,
       key,
       changedAt: '2026-09-30T10:00:00.000Z',
+      changedBy: null,
     })
     expect(
       describePendingChanges({
@@ -215,30 +216,33 @@ describe('describePendingChanges — the "not live" note in the header', () => {
   })
 })
 
-describe('isThemeDraftDirty', () => {
-  const saved = {
-    primaryColor: '#112233',
-    backgroundColor: '#ffffff',
-    textColor: '#000000',
-  }
-
-  it('reports a fresh object with equal colours as clean', () => {
-    // The detail query hands back a new theme object on every refetch; an
-    // identity check here fires the unsaved-changes prompt on navigation that
-    // would lose nothing.
-    expect(isThemeDraftDirty({ ...saved }, saved)).toBe(false)
+describe('countPendingChanges — the draft line of the History rail', () => {
+  const base = { current: null, priorActivations: [], nextCursor: null } as const
+  const changed = (key: string) => ({
+    kind: 'portal_links' as const,
+    key,
+    changedAt: '2026-09-30T10:00:00.000Z',
+    changedBy: null,
   })
 
-  it('notices a change in any one of the three colours', () => {
-    expect(isThemeDraftDirty({ ...saved, primaryColor: '#000001' }, saved)).toBe(true)
-    expect(isThemeDraftDirty({ ...saved, backgroundColor: '#000001' }, saved)).toBe(true)
-    expect(isThemeDraftDirty({ ...saved, textColor: '#000001' }, saved)).toBe(true)
+  it('is zero when the draft matches what guests see', () => {
+    expect(countPendingChanges({ ...base, hasPendingChanges: false })).toBe(0)
   })
 
-  it('treats an omitted optional colour as different from a set one', () => {
-    // Portals created before theming was exposed store only a primary colour,
-    // so undefined and a value are genuinely different drafts.
-    expect(isThemeDraftDirty({ primaryColor: saved.primaryColor }, saved)).toBe(true)
-    expect(isThemeDraftDirty(saved, { primaryColor: saved.primaryColor })).toBe(true)
+  it('is the length of the list the read gives', () => {
+    expect(
+      countPendingChanges({
+        ...base,
+        hasPendingChanges: true,
+        pendingChanges: [changed('a'), changed('b')],
+      }),
+    ).toBe(2)
+  })
+
+  it('is at least one for a draft that differs but cannot list how', () => {
+    expect(countPendingChanges({ ...base, hasPendingChanges: true })).toBe(1)
+    expect(
+      countPendingChanges({ ...base, hasPendingChanges: true, pendingChanges: [] }),
+    ).toBe(1)
   })
 })

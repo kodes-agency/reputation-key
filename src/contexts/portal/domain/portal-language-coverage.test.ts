@@ -1,4 +1,6 @@
 import { describe, expect, it } from 'vitest'
+import { resolvePortalPublication } from './portal-publication-source'
+import { publicationSource } from './__fixtures__/publication-source'
 import {
   computePortalLanguageCoverage,
   type PortalLanguageCoverageInput,
@@ -70,21 +72,81 @@ describe('computePortalLanguageCoverage', () => {
     expect(bg?.present).toBe(0)
   })
 
-  it('marks a missing title or description as blocking publishing, and a link label as not', () => {
+  it('a row that only holds a photograph description is not Property wording, so an override on it does not count', () => {
     const coverage = computePortalLanguageCoverage(
       base({
         additionalLocales: ['bg'],
-        links: [{ id: 'l-1', label: 'Menu' }],
-        linkTexts: [{ linkId: 'l-1', locale: 'en', label: 'Menu' }],
+        propertyContent: [
+          { locale: 'en', title: 'Avela Resort', shortDescription: 'By the sea' },
+          { locale: 'bg', title: '', shortDescription: '' },
+        ],
+        overrides: [{ locale: 'bg', title: 'Авела', shortDescription: 'До морето' }],
       }),
     )
+    expect(coverage.languages[1]?.missing.map((text) => text.kind)).toEqual([
+      'title',
+      'description',
+    ])
+  })
+
+  it('marks a gap as blocking publishing only in the primary language', () => {
+    const coverage = computePortalLanguageCoverage(
+      base({
+        additionalLocales: ['bg'],
+        propertyContent: [],
+        links: [{ id: 'l-1', label: 'Menu' }],
+        linkTexts: [],
+      }),
+    )
+    // The builder copies the primary language into a gap elsewhere (a warning),
+    // so only the primary's own gaps stop a publication.
     expect(
-      coverage.languages[1]?.missing.map((text) => [text.kind, text.blocksPublish]),
+      coverage.languages[0]?.missing.map((text) => [text.kind, text.blocksPublish]),
     ).toEqual([
       ['title', true],
       ['description', true],
+      ['link_label', true],
+    ])
+    expect(
+      coverage.languages[1]?.missing.map((text) => [text.kind, text.blocksPublish]),
+    ).toEqual([
+      ['title', false],
+      ['description', false],
       ['link_label', false],
     ])
+  })
+
+  it('blocks on exactly the texts the publication resolver blocks on', () => {
+    const source = publicationSource({
+      wording: {},
+      links: [{ ...publicationSource().links[0]!, texts: {} }],
+    })
+    const { blockers } = resolvePortalPublication(source)
+    const [link] = source.links
+    const coverage = computePortalLanguageCoverage(
+      base({
+        primaryLocale: source.primaryGuestLocale,
+        additionalLocales: ['bg'],
+        propertyContent: [],
+        links: [{ id: link!.id, label: 'Menu' }],
+        linkTexts: [],
+      }),
+    )
+    const blocking = coverage.languages.flatMap((row) =>
+      row.missing
+        .filter((text) => text.blocksPublish)
+        .map((text) => ({
+          locale: row.locale,
+          key: text.kind === 'description' ? 'shortDescription' : text.key,
+        })),
+    )
+    expect(blocking).toEqual(
+      blockers.flatMap((blocker) =>
+        blocker.code === 'primary_text_missing'
+          ? [{ locale: blocker.locale, key: blocker.key }]
+          : [],
+      ),
+    )
   })
 
   it('falls back to the property wording when the override is blank', () => {

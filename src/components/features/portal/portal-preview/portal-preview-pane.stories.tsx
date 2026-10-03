@@ -51,8 +51,8 @@ export const DraftArrival: Story = {
     await expect(page.getByRole('heading', { name: 'Pool & Terrace' })).toBeVisible()
     await expect(page.getByText('Around the resort')).toBeVisible()
     await expect(canvas.getByText('Draft · Arrival · English')).toBeVisible()
-    // The draft is the new design; publishing writes the earlier page until it can.
-    await expect(canvas.getByText(/reaches guests in an upcoming release/)).toBeVisible()
+    // The draft is the design Publish writes, so it carries no caveat about a release.
+    await expect(canvas.queryByText(/upcoming release/)).toBeNull()
     // The four states of the board sit under the phone.
     for (const name of [
       'Arrival',
@@ -69,13 +69,21 @@ export const DraftArrival: Story = {
 export const WaitingForApprovalTile: Story = {
   play: async ({ canvasElement }) => {
     const page = within(await phone(within(canvasElement), 'Draft'))
-    const waiting = page.getByRole('button', { name: /Olive Terrace menu/ })
-    await expect(waiting).toHaveAttribute('data-preview-tile', 'awaiting_approval')
-    await expect(within(waiting).getByText('Waiting for approval')).toBeVisible()
-    await expect(page.getByRole('button', { name: /Getting here/ })).toHaveAttribute(
-      'data-preview-tile',
-      'ready',
-    )
+    const waiting = page
+      .getByText('Olive Terrace menu')
+      .closest('[data-ih-tile-placeholder]')
+    await expect(waiting).toHaveAttribute('data-ih-tile-placeholder', 'awaiting_approval')
+    await expect(
+      within(waiting as HTMLElement).getByText('Waiting for approval'),
+    ).toBeVisible()
+    // The words of the tile's line are not shown, and the tile opens nothing.
+    await expect(
+      within(waiting as HTMLElement).queryByText('Lunch and dinner'),
+    ).toBeNull()
+    await expect(page.queryByRole('link', { name: /Olive Terrace menu/ })).toBeNull()
+    // An approved tile is the real one, with no placeholder mark.
+    const ready = page.getByText('Getting here').closest('.ih-tile')
+    await expect(ready).not.toHaveAttribute('data-ih-tile-placeholder')
   },
 }
 
@@ -84,12 +92,13 @@ export const SwitchToBulgarian: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await phone(canvas, 'Draft · Arrival · English')
-    await userEvent.click(canvas.getByRole('radio', { name: /БГ/ }))
+    await userEvent.click(canvas.getByRole('radio', { name: /BG/ }))
     const page = within(await phone(canvas, 'Draft · Arrival · Bulgarian'))
     await expect(page.getByRole('heading', { name: 'Басейн и тераса' })).toBeVisible()
     await expect(page.getByText('Около курорта')).toBeVisible()
     // A tile with no Bulgarian text yet reads the primary language, tagged as such.
-    const spa = page.getByText('Spa & treatments')
+    // The tile's words share one `lang`, set on their wrapper by the real tile.
+    const spa = page.getByText('Spa & treatments').closest('[lang]')
     await expect(spa).toHaveAttribute('lang', 'en')
   },
 }
@@ -199,7 +208,7 @@ export const LiveVersion: Story = {
     await userEvent.click(canvas.getByRole('radio', { name: 'Live' }))
     const page = within(await phone(canvas, 'Live · Arrival · English'))
     await expect(page.queryByText('Waiting for approval')).toBeNull()
-    await expect(page.getByRole('button', { name: /Spa & treatments/ })).toBeVisible()
+    await expect(page.getByText('Spa & treatments')).toBeVisible()
   },
 }
 

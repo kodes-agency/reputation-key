@@ -127,9 +127,13 @@
         "linktree",
         "responsibleManagers",
         "publicationHistory",
+        "review",
         "preview",
+        "printKit",
         "previewCopy",
         "propertyExperience",
+        "lookReview",
+        "lookReviewOf",
         "experience",
         "approvedDestinations",
         "groups",
@@ -148,10 +152,15 @@
         "groupPage",
         "groupHistory",
         "analyticsRoot",
-        "analytics"
+        "analytics",
+        "history",
+        "historyFor",
+        "versions",
+        "version",
+        "versionPreview"
       ],
       "owner": "Portal query lifecycle",
-      "policy": "Property lists, groups, and goal-subject projections include propertyId. Every successful Portal Group create, rename, archive, member-add, or member-remove command goes through one named cache policy that invalidates the exact groups, goalSubjects, goalSubjectNames, and overview keys for that Property (the Portals overview names each Portal's group) and the results overview keys by prefix; failed commands do not run the policy. The Portals overview (every Portal of a Property, read in one batch) sits under the property prefix apart from the plain list, and its read is always refetched on arrival. Property-wide guest-experience data has its own propertyId prefix, and Portal-specific experience projections descend from it so a brand-profile write refreshes every affected screen. Detail descendants use globally unique portalId, while approved destinations remain Portal-scoped. The language coverage read (which wording each language has) descends from the Portal experience, so every Portal update, every Portal or Property wording write and every link edit refreshes it. What the New portal dialog reads about a Property (default languages, eligible managers) sits under the same prefix as creationOptions, is fetched only while the dialog is open, and is refreshed on each opening; a successful create invalidates the whole portals family, which includes the group keys, so a create that joins a group does not run the member-add policy. The Portals overview's results (one read per time range and comparison, under the property prefix) are a prefix invalidation in that policy: its root stands for every window, because the group a Portal is in decides which row it adds to. A group's own page (its history, under the group's id) is another: its per-Property root stands for every group of the Property, because a rename or a move shows in the group and in its ledger. The All properties page reads the same two projections for every Property the reader may use, so they have a subtree of their own (portalKeys.organizationOverview, and the results by time range and comparison under organizationResultsOverviewRoot): the group policy refreshes the overview by exact key and the results by prefix, like a Property's, and any command that invalidates the whole Portal family reaches them too. The editor's Linktree section (its switch, titles and every link with its texts) is one detail descendant, refetched with the plain link list after any link write. Analytics additionally nests propertyId, portalId, and time range so property teardown, portal teardown, and range-specific reads each have a usable prefix. The editor's live preview of the draft or the live version (`preview`, keyed by Portal and source) sits under `publicationHistory`, which every working-copy write already invalidates, so the preview follows the draft as it autosaves; `previewCopy` is the guest copy pack of one language, outside every Portal and never invalidated."
+      "policy": "Property lists, groups, and goal-subject projections include propertyId. Every successful Portal Group create, rename, archive, member-add, or member-remove command goes through one named cache policy that invalidates the exact groups, goalSubjects, goalSubjectNames, and overview keys for that Property (the Portals overview names each Portal's group) and the results overview keys by prefix; failed commands do not run the policy. The Portals overview (every Portal of a Property, read in one batch) sits under the property prefix apart from the plain list, and its read is always refetched on arrival. Property-wide guest-experience data has its own propertyId prefix, and Portal-specific experience projections descend from it so a brand-profile write refreshes every affected screen. Detail descendants use globally unique portalId, while approved destinations remain Portal-scoped. The language coverage read (which wording each language has) descends from the Portal experience, so every Portal update, every Portal or Property wording write and every link edit refreshes it. What the New portal dialog reads about a Property (default languages, eligible managers) sits under the same prefix as creationOptions, is fetched only while the dialog is open, and is refreshed on each opening; a successful create invalidates the whole portals family, which includes the group keys, so a create that joins a group does not run the member-add policy. The Portals overview's results (one read per time range and comparison, under the property prefix) are a prefix invalidation in that policy: its root stands for every window, because the group a Portal is in decides which row it adds to. A group's own page (its history, under the group's id) is another: its per-Property root stands for every group of the Property, because a rename or a move shows in the group and in its ledger. The All properties page reads the same two projections for every Property the reader may use, so they have a subtree of their own (portalKeys.organizationOverview, and the results by time range and comparison under organizationResultsOverviewRoot): the group policy refreshes the overview by exact key and the results by prefix, like a Property's, and any command that invalidates the whole Portal family reaches them too. The editor's Linktree section (its switch, titles and every link with its texts) is one detail descendant, refetched with the plain link list after any link write. Analytics additionally nests propertyId, portalId, and time range so property teardown, portal teardown, and range-specific reads each have a usable prefix. Review & publish's read (`review`: the checks, the change list and the language rows) sits under `publicationHistory` too, so every working-copy write and every publication refreshes it, and the review route fetches it afresh on each entry. The editor's live preview of the draft or the live version (`preview`, keyed by Portal and source) sits under `publicationHistory`, which every working-copy write already invalidates, so the preview follows the draft as it autosaves; The Share tab's print kit read (`printKit`: the languages, titles and look the live version carries) sits under `publicationHistory`, so every publication refreshes it, and it describes the live version, so an unpublished edit does not reach a print; the download is a mutation that changes no state the page shows. `previewCopy` is the guest copy pack of one language, outside every Portal and never invalidated. The History tab's reads (the merged ledger, one infinite read per filter, and the versions with each version opened for viewing or making live again) are detail descendants, so any Portal detail refresh reaches them. Making a version live again invalidates the detail, the property list and the overview, and a version's preview is never reused: it is read fresh on each opening, because what would change depends on what is live then. The page of a version (`versionPreview`, the History's \"View\") is a descendant of that version, so a restore or any Portal detail refresh reaches it; it is read fresh on each opening too, because it draws only the addresses and images guests would be served now. The Property look's batch \"Review & publish\" reads the review of every live portal of a Property together (`lookReview`, with `lookReviewOf` naming the portals read, under the property prefix): it is fetched only while the dialog is open, never kept (a review is a decision about what to publish, so each opening reads it afresh), and refreshed by every look save. A batch publish refreshes the overview, the experience and each portal's publication history, but not these reviews: the dialog shows what the publish answered, and the next opening reads them afresh anyway; a publish request that fails refreshes the same, since it may have published some of its portals."
     },
     {
       "id": "integrationKeys",
@@ -226,9 +235,20 @@
       "id": "src/routes/login.tsx:router.invalidate#1",
       "owner": "Authentication bootstrap",
       "rationale": "After sign-in and active-organization selection, the authenticated route context must be rebuilt before redirect; this is the sole whole-router bootstrap exception."
+    },
+    {
+      "id": "src/components/layout/use-guarded-route-error.tsx:router.invalidate#1",
+      "owner": "Route error boundaries",
+      "rationale": "Try again on a failed route re-runs that route's loaders and resets the boundary. The failed match can be a loader error or a render error under a match that loaded, so the retry cannot name the matches to refresh; the router default error component did the same before it moved into this shared hook."
     }
   ],
   "stateMirrorCandidates": [
+    {
+      "id": "src/components/features/portal/portal-review/portal-review-page.tsx:useState(view)",
+      "classification": "local_runtime",
+      "owner": "Portal Review & publish page",
+      "policy": "Which page the phones show: the 1-star and 5-star pair, one guest state chosen under \"See every guest state\", or \"Try as guest\". It is the manager's own choice of what to look at, not server state, is never written back, and a remount of the page is its reset boundary."
+    },
     {
       "id": "src/routes/_authenticated/properties/$propertyId/portals/groups/$groupId.tsx:useState(now)",
       "classification": "local_runtime",
@@ -239,7 +259,7 @@
       "id": "src/components/features/beta-feedback/beta-feedback-dialog-body.tsx:useState(panel)",
       "classification": "synchronized_prop_copy",
       "owner": "Beta feedback reporting",
-      "policy": "Seeded once from initialPanel \u2014 'reports' only when a report-outcome notification opened the dialog \u2014 and never synchronized afterwards, so the reporter's own tab choice is not overridden. The dialog body mounts per open, which is the reset boundary."
+      "policy": "Seeded once from initialPanel — 'reports' only when a report-outcome notification opened the dialog — and never synchronized afterwards, so the reporter's own tab choice is not overridden. The dialog body mounts per open, which is the reset boundary."
     },
     {
       "id": "src/components/features/beta-feedback/beta-feedback-form.tsx:useState(maskedLayout)",
@@ -258,6 +278,18 @@
       "classification": "client_persistence",
       "owner": "Beta feedback reporting",
       "policy": "Read once from this browser's seen-outcome map when the reports panel opens, so an outcome keeps its New marker for the whole visit. Per-viewer convenience only: nothing server-side reads it, and losing it can only make a marker reappear, never hide an outcome."
+    },
+    {
+      "id": "src/components/features/guest/public-portal/immersive/use-immersive-guest-response.ts:useState(csrfNonce)",
+      "classification": "server_snapshot",
+      "owner": "Guest response CSRF lifecycle",
+      "policy": "Seed from the issued nonce and rotate only from confirmed start-over results; route-token remount remains the reset boundary."
+    },
+    {
+      "id": "src/components/features/guest/public-portal/immersive/use-immersive-guest-response.ts:useState(response)",
+      "classification": "server_snapshot",
+      "owner": "Guest response journey",
+      "policy": "Seed from the loader response, then replace only with confirmed response-mutation results; route-token remount remains the reset boundary."
     },
     {
       "id": "src/components/features/guest/public-portal/use-guest-response-controller.ts:useState(activeCsrfNonce)",
@@ -332,16 +364,46 @@
       "policy": "Seeded once from the form's own default values, which are what the server held when the form mounted, and advanced only by a write the server accepted; it is a comparison baseline for skipping no-op writes, not a second copy of the form's state."
     },
     {
-      "id": "src/components/features/portal/portal-editor/use-portal-form-autosave.ts:useState(fields)",
+      "id": "src/components/features/portal/property-look/use-property-look-batch.ts:useState(leftOut)",
       "classification": "local_runtime",
-      "owner": "Portal blur-committed field values",
-      "policy": "Seeded once from the form's own default values and advanced only when a write carrying the committed value is accepted; it holds what the server was last given for fields that commit on blur, so another write does not persist a half-typed value. It is not a second copy of the form's state."
+      "owner": "Property look batch publish",
+      "policy": "The ready portals the manager unticked in the open dialog; a choice that exists only while the dialog is open, never written to the server, and reset by closing it."
     },
     {
-      "id": "src/components/features/portal/portal-settings/portal-publication-history-card.tsx:useState(continuation)",
-      "classification": "synchronized_prop_copy",
-      "owner": "Portal publication-history pagination",
-      "policy": "The local continuation stores client-loaded pages tagged with the server history source key. Rendering ignores pages when that key no longer matches, and the next load rebases onto the current source key, so stale pagination cannot cross a changed history snapshot."
+      "id": "src/components/features/portal/property-look/use-property-look-batch.ts:useState(run)",
+      "classification": "local_runtime",
+      "owner": "Property look batch publish",
+      "policy": "Whether the open dialog is reviewing, publishing or showing what a publish did, with the outcomes the server answered; those outcomes are the answer of one request, not a copy of a read, and closing the dialog discards them."
+    },
+    {
+      "id": "src/components/features/portal/property-look/use-property-look-draft.ts:useState(draft)",
+      "classification": "server_draft",
+      "owner": "Property look page",
+      "policy": "Seeded once from the Brand Profile the page opened with; later refreshes (every save invalidates the experience read) never overwrite what the manager is editing, and a write the server accepted only advances the comparison baseline. Leaving the page is the reset boundary."
+    },
+    {
+      "id": "src/components/features/portal/property-look/use-property-look-draft.ts:useState(locales)",
+      "classification": "server_draft",
+      "owner": "Property look page",
+      "policy": "Seeded once from the Property's default languages the page opened with and advanced only by the manager's own add, remove or make-fallback; a refresh never reorders them under the manager. Leaving the page is the reset boundary."
+    },
+    {
+      "id": "src/components/features/portal/property-look/use-property-look-media.ts:useState(media)",
+      "classification": "server_draft",
+      "owner": "Property look page",
+      "policy": "Seeded once from the photograph and logo the page opened with and advanced only by the answer of this page's own accepted write (a focal point moved, a photograph or logo put on or taken off), which carries the media as a page draws it; a later refresh of the experience read never overwrites a focal point still being dragged. Leaving the page is the reset boundary."
+    },
+    {
+      "id": "src/components/features/portal/property-look/use-photo-dialog.ts:useState(focal)",
+      "classification": "server_draft",
+      "owner": "Property look photograph dialog",
+      "policy": "Seeded once from the photograph's saved focal point when the dialog opens (the middle for a new file) and advanced only by the manager's own drag or arrow key; the dialog body is mounted only while it is open, so closing it is the reset boundary and nothing is written until Use photo or Save."
+    },
+    {
+      "id": "src/components/features/portal/property-look/use-photo-dialog.ts:useState(descriptions)",
+      "classification": "server_draft",
+      "owner": "Property look photograph dialog",
+      "policy": "Seeded once from the descriptions the Property has saved when the dialog opens and advanced only by the manager's typing (and emptied when a new file is chosen, because the old description was about the old photograph); a refresh of the experience read never overwrites it, and nothing is written until Use photo or Save."
     },
     {
       "id": "src/components/features/property-setup/setup-properties-step.tsx:useState(aiIdempotencyKey)",
@@ -437,7 +499,7 @@
       "id": "src/components/inbox/inbox-case-toolbar.tsx:useState(now)",
       "classification": "local_runtime",
       "owner": "Inbox case toolbar reply-due countdown",
-      "policy": "A minute-granularity wall clock: the lazy initializer reads the mounting instant and a 60 s interval advances it only while the target is active and the caller supplied no clock. It holds no server-owned record \u2014 the deadline itself comes from the response-target payload and is only formatted against this value."
+      "policy": "A minute-granularity wall clock: the lazy initializer reads the mounting instant and a 60 s interval advances it only while the target is active and the caller supplied no clock. It holds no server-owned record — the deadline itself comes from the response-target payload and is only formatted against this value."
     },
     {
       "id": "src/components/inbox/inbox-detail-content.tsx:useState(noteDraft)",
@@ -449,7 +511,7 @@
       "id": "src/components/inbox/inbox-detail-sheet.tsx:useState(lastItem)",
       "classification": "synchronized_prop_copy",
       "owner": "Inbox mobile detail sheet exit animation",
-      "policy": "A one-frame copy of the `item` prop, advanced during render whenever a non-null item differs from the copy, and read only when `item` is null. It is not a server authority and never outlives the prop: dismissal drops `itemId` from the search, so `item` goes null in the same commit `open` goes false, and returning null on `item` alone tore the Radix dialog out of the tree while it was still open \u2014 the closing sheet had nothing left to animate. This holds the last item just long enough for the exit, and a reopen overwrites it before anything renders. A ref cannot do the job (`react-hooks/refs` forbids both the write and the read, and the exit frame is a render that has to see the old item); an effect is too late, because the null render has already committed."
+      "policy": "A one-frame copy of the `item` prop, advanced during render whenever a non-null item differs from the copy, and read only when `item` is null. It is not a server authority and never outlives the prop: dismissal drops `itemId` from the search, so `item` goes null in the same commit `open` goes false, and returning null on `item` alone tore the Radix dialog out of the tree while it was still open — the closing sheet had nothing left to animate. This holds the last item just long enough for the exit, and a reopen overwrites it before anything renders. A ref cannot do the job (`react-hooks/refs` forbids both the write and the read, and the exit frame is a render that has to see the old item); an effect is too late, because the null render has already committed."
     },
     {
       "id": "src/components/inbox/reply-editor-views.tsx:useState(text)",
@@ -467,7 +529,7 @@
       "id": "src/components/inbox/use-inbox-composer-controller.ts:useState(caret)",
       "classification": "local_runtime",
       "owner": "Inbox detail pane composer caret request",
-      "policy": "A request counter \u2014 `{ itemId, mode, seq }` \u2014 meaning \"put the caret in this composer surface of this item\", raised by the `r` / `n` shortcuts and by the thread's Edit actions. It holds no server-owned record of any kind: `seq` is a monotonic tally of asks, `mode` names a client surface and `itemId` names the selection that asked. A counter rather than a flag because a latched boolean fires its effect only on the rising edge, which would let each shortcut work exactly once per mounted pane; `seq: 0` is the initial \"nobody has asked\". `itemId` is what keeps a change of selection from stealing the caret, and it is load-bearing rather than descriptive: the two consuming effects (`reply-status-view.tsx`, `inbox-notes-thread.tsx`) are keyed by item and fire on MOUNT whenever the counter they are handed is non-zero, so a `seq === 0` early-return alone does not bound them \u2014 the pane outlives the selection change, and without the fence one `r` followed by a `j` down the list handed the caret to the next item's reply box and autosaved the following keystrokes onto a review nobody had opened. The reader (`caretFor`) therefore hands a surface `seq` only while `itemId` matches the current item, and `0` otherwise."
+      "policy": "A request counter — `{ itemId, mode, seq }` — meaning \"put the caret in this composer surface of this item\", raised by the `r` / `n` shortcuts and by the thread's Edit actions. It holds no server-owned record of any kind: `seq` is a monotonic tally of asks, `mode` names a client surface and `itemId` names the selection that asked. A counter rather than a flag because a latched boolean fires its effect only on the rising edge, which would let each shortcut work exactly once per mounted pane; `seq: 0` is the initial \"nobody has asked\". `itemId` is what keeps a change of selection from stealing the caret, and it is load-bearing rather than descriptive: the two consuming effects (`reply-status-view.tsx`, `inbox-notes-thread.tsx`) are keyed by item and fire on MOUNT whenever the counter they are handed is non-zero, so a `seq === 0` early-return alone does not bound them — the pane outlives the selection change, and without the fence one `r` followed by a `j` down the list handed the caret to the next item's reply box and autosaved the following keystrokes onto a review nobody had opened. The reader (`caretFor`) therefore hands a surface `seq` only while `itemId` matches the current item, and `0` otherwise."
     },
     {
       "id": "src/components/inbox/use-inbox-composer-controller.ts:useState(replyEdit)",
@@ -536,6 +598,12 @@
       "policy": "The selection stores its originating filter scope; a changed scope renders an empty selection and the setter rebases future ids onto the current scope."
     },
     {
+      "id": "src/components/inbox/use-strip-overflow.ts:useState(edges)",
+      "classification": "local_runtime",
+      "owner": "Inbox strip scroll fade",
+      "policy": "Which edges of a horizontally scrolling inbox strip (the queue strip, the active-filters row) have pills out of reach, measured from the DOM on every render, on scroll and on resize. It only decides whether the strip draws an edge fade, holds no server-owned record, and returns the previous object while the answer is unchanged so scrolling does not re-render each frame."
+    },
+    {
       "id": "src/components/ui/sidebar.tsx:useState(_open)",
       "classification": "local_runtime",
       "owner": "Sidebar provider",
@@ -552,6 +620,36 @@
       "classification": "synchronized_prop_copy",
       "owner": "Guest portal",
       "policy": "Seeded once from the optional `yourResponse.initialOpen`, which only previews and stories pass (a live page starts \"Your response\" closed), and never synchronized afterwards, so the guest's own open and close is not overridden. The after-rating layout mounts once per rated response, which is the reset boundary. Whether the rating form is open under \"Change your rating\" is derived from the response's `correctedAt`, not stored as a copy of it."
+    },
+    {
+      "id": "src/components/features/guest/public-portal/immersive/use-guest-clock.ts:useState(now)",
+      "classification": "local_runtime",
+      "owner": "Guest portal response deadlines",
+      "policy": "The instant the page reads its deadlines against: seeded from the server's `servedAt` so the server render and the first browser render match, then advanced by the time the page has been open and re-read whenever a response arrives, so a deadline that passed while the guest read the page shows as ended. It is not server state and is never written back; unmounting the page is its reset boundary."
+    },
+    {
+      "id": "src/components/features/portal/portal-history/use-now.ts:useState(now)",
+      "classification": "local_runtime",
+      "owner": "Portal History relative times",
+      "policy": "The current instant, read once on mount and refreshed on a one-minute interval so \"2 h ago\" does not go stale on a tab left open. It is not server state and is never written back; unmounting the tab is its reset boundary."
+    },
+    {
+      "id": "src/components/features/portal/portal-preview/portal-preview-pane.tsx:useState(stateId)",
+      "classification": "synchronized_prop_copy",
+      "owner": "Portal editor preview",
+      "policy": "Seeded once from the editor's active section (the private note is only drawn after a low rating) and again, during render, when the active section changes to one the chosen guest state does not draw; otherwise it is the manager's own choice in the filmstrip. It is not server state and is never written back; a remount of the pane is its reset boundary."
+    },
+    {
+      "id": "src/components/features/portal/portal-preview/portal-preview-pane.tsx:useState(shownFor)",
+      "classification": "synchronized_prop_copy",
+      "owner": "Portal editor preview",
+      "policy": "The editor section the guest state was last aligned to, held so the alignment happens once per section change (the documented adjust-state-during-render pattern). It is never written back, and a remount of the pane is its reset boundary."
+    },
+    {
+      "id": "src/components/features/portal/portal-settings/portal-localized-content-editor.tsx:useState(open)",
+      "classification": "synchronized_prop_copy",
+      "owner": "Portal editor Welcome language card",
+      "policy": "Seeded once from startsOpen (open when the property has no wording for the language yet) and never synchronized afterwards, so the manager's own open or closed choice is not overridden when a save lands; the note above it reads the wording directly."
     }
   ],
   "classificationDefinitions": {
@@ -565,6 +663,6 @@
     "This executable inventory covers production TypeScript and TSX files under src/components, src/routes, src/hooks, and src/shared/hooks; it excludes tests, stories, context internals, workers, and external packages.",
     "The state-mirror inventory is a conservative syntax heuristic over non-literal useState initializers. It requires unique, current, owned classifications and rejects an effect that overwrites a declared server draft, but feature-owned tests must still prove each remount, conflict, synchronization, or mutation-adoption policy.",
     "The query-key check rejects direct array literals, requires every factory member to descend acyclically from its own unique family root, inventories every member against an owned lifecycle policy, requires every explicit or shorthand queryKey site to resolve to a registered factory member or a narrow documented generic delegate, and requires every useActionMutation invalidation array to resolve to owned factory keys. It still does not prove that every server read uses TanStack Query or that every mutation invalidates all semantically related sibling projections; those fan-outs need feature-owned behavioral tests such as the Portal Group to Goal cache matrix.",
-    "The invalidation check detects zero-argument .invalidate() calls in scope. The login auth-bootstrap row is the only approved whole-router exception."
+    "The invalidation check detects zero-argument .invalidate() calls in scope. The login auth-bootstrap row and the route error boundaries' Try again are the only approved whole-router exceptions."
   ]
 }

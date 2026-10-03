@@ -46,9 +46,9 @@ export function RemoveMemberDialog({
         <AlertDialogFooter>
           <AlertDialogCancel>Cancel</AlertDialogCancel>
           <AlertDialogAction
+            variant="destructive"
             onClick={onRemove}
             disabled={isPending}
-            className="bg-destructive text-white hover:bg-destructive/90"
           >
             {isPending ? 'Removing…' : 'Remove member'}
           </AlertDialogAction>

@@ -98,14 +98,8 @@ function MissingTextNote({
         When a text is missing
       </h3>
       <p className="text-sm">
-        A language needs its own title and description before the Portal can be published.
-        The title and description come from the Property&rsquo;s wording for that
-        language, which an account admin writes in the Property Brand Profile; you can
-        then change them for this Portal in Welcome.
-      </p>
-      <p className="text-sm">
-        A link with no label in a language shows its label in the fallback language,{' '}
-        {fallback}.
+        Guests whose language is missing a text read it in {fallback}, the fallback
+        language. {fallback} needs every text before the portal can be published.
       </p>
       {coverage !== undefined ? (
         <p className="text-sm text-muted-foreground">
@@ -133,7 +127,8 @@ function MissingTextNote({
         >
           Linktree
         </Link>
-        .
+        . A welcome line and a link preview start from the property&rsquo;s wording, which
+        an account admin writes.
       </p>
     </section>
   )

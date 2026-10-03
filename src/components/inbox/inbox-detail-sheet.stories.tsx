@@ -194,6 +194,28 @@ export const Open: Story = {
   },
 }
 
+// The phone grid's 16 px gutter on every surface of the sheet, a 44 px header
+// bar, and no 1 px border-l at x=0 (the sheet is full width below `sm`).
+// Tailwind is not compiled in this runner, so the geometry is the Playwright
+// metrics gate's; this pins the classes that produce it, on the real tree. The
+// real check is `inbox-phone-chrome.metrics.ts` ("detail sheet").
+export const PhoneGutters: Story = {
+  ...Open,
+  play: async () => {
+    const body = within(document.body)
+    const sheet = document.body.querySelector('[data-slot="sheet-content"]')
+    expect(sheet).toHaveClass('max-sm:border-l-0')
+    const bar = body.getByRole('button', { name: 'Back to list' }).closest('header')
+    expect(bar).toHaveClass('max-md:h-11', 'max-md:px-4')
+    expect(body.getByRole('region', { name: 'Case status' })).toHaveClass('max-md:px-4')
+    expect(
+      body.getByRole('region', { name: 'Conversation' }).firstElementChild,
+    ).toHaveClass('max-md:px-4')
+    const composer = document.body.querySelector('[class*="@container/reply-workspace"]')
+    expect(composer).toHaveClass('max-md:px-4')
+  },
+}
+
 // Open + loading → skeleton placeholders in the sheet body.
 export const Loading: Story = {
   args: {

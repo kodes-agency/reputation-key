@@ -3,9 +3,11 @@
 // tab has an address that can be shared or bookmarked. That is why this is a
 // navigation landmark with `aria-current`, not an ARIA tablist: a tablist
 // promises a panel in the same document, and the panel here is the route below.
+// Each tab names its own ink; a link utility beats the global accent default.
 
 import { Link } from '@tanstack/react-router'
 import { cn } from '#/lib/utils'
+import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import {
   PORTAL_DETAIL_TABS,
   type PortalDetailTab,
@@ -34,7 +36,10 @@ export function PortalWorkspaceTabs({
 }: Props) {
   const tabs = PORTAL_DETAIL_TABS.filter((tab) => !hiddenTabs.includes(tab))
   return (
-    <nav aria-label="Portal sections" className="overflow-x-auto border-b px-4 md:px-6">
+    <nav
+      aria-label="Portal sections"
+      className={cn('overflow-x-auto border-b', PAGE_GUTTER_X)}
+    >
       <ul className="flex min-w-max gap-1">
         {tabs.map((tab) => {
           const active = tab === activeTab

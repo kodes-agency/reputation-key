@@ -6,7 +6,7 @@ import {
   MAX_PORTAL_LINKS,
   hasRoomForAnotherLink,
   linktreeDefaultTitle,
-  startedCategoryTitle,
+  STARTED_CATEGORY_TITLE,
   resolveLinkTexts,
   validateLinkTextInput,
   validateLinktreeTitle,
@@ -143,6 +143,42 @@ describe('resolveLinkTexts', () => {
     })
   })
 
+  describe('a link whose own label differs from its text', () => {
+    // Nothing writes the label any more, so a difference is a stale column and
+    // the text, which every editor writes, is always the truth.
+    it('reads the stored primary text, with its line and provenance', () => {
+      const rows = [
+        stored('link-1', 'en', 'Menu', { line: 'Until 11', provenance: 'ai_draft' }),
+      ]
+      const [resolved] = resolveLinkTexts({
+        links: [{ id: 'link-1', label: 'Older label' }],
+        texts: rows,
+        primaryLocale: 'en',
+      })
+
+      expect(resolved).toMatchObject({
+        label: 'Menu',
+        line: 'Until 11',
+        provenance: 'ai_draft',
+        source: 'text',
+      })
+    })
+
+    it('never rewrites another language from the link label', () => {
+      const rows = [stored('link-1', 'bg', 'Меню')]
+      const resolved = resolveLinkTexts({
+        links: [{ id: 'link-1', label: 'Older label' }],
+        texts: rows,
+        primaryLocale: 'en',
+      })
+
+      expect(resolved.find((text) => text.locale === 'bg')).toMatchObject({
+        label: 'Меню',
+        source: 'text',
+      })
+    })
+  })
+
   it('never invents a text for a non-primary locale', () => {
     const rows = [stored('link-1', 'bg', 'Меню')]
     const resolved = resolveLinkTexts({ links, texts: rows, primaryLocale: 'en' })
@@ -176,23 +212,18 @@ describe('resolveLinkTexts', () => {
 })
 
 describe('linktreeDefaultTitle', () => {
-  it('words the default in the languages that have a reviewed pack', () => {
+  it('words the default in every guest language', () => {
     expect(linktreeDefaultTitle('en')).toBe('Useful links')
     expect(linktreeDefaultTitle('bg')).toBe('Полезни връзки')
-  })
-
-  it('falls back to English for a language with no pack yet', () => {
-    expect(linktreeDefaultTitle('de')).toBe('Useful links')
+    expect(linktreeDefaultTitle('es')).toBe('Enlaces útiles')
+    expect(linktreeDefaultTitle('it')).toBe('Link utili')
+    expect(linktreeDefaultTitle('fr')).toBe('Liens utiles')
+    expect(linktreeDefaultTitle('de')).toBe('Nützliche Links')
   })
 })
 
-describe('startedCategoryTitle', () => {
-  it('uses the title the manager wrote for the primary language', () => {
-    expect(startedCategoryTitle('bg', { bg: 'Още', en: 'More' })).toBe('Още')
-  })
-
-  it('uses the default of the primary language when none is written', () => {
-    expect(startedCategoryTitle('bg', { en: 'More' })).toBe('Полезни връзки')
-    expect(startedCategoryTitle('en', {})).toBe('Useful links')
+describe('STARTED_CATEGORY_TITLE', () => {
+  it('is a fixed neutral name, because no guest reads a category any more', () => {
+    expect(STARTED_CATEGORY_TITLE).toBe('Links')
   })
 })

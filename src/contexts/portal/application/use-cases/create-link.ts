@@ -6,14 +6,15 @@ import type { AuthContext } from '#/shared/domain/auth-context'
 import { portalError } from '../../domain/errors'
 import { validateLinkIconKey, validateLinkLabel } from '../../domain/rules'
 import { buildPortalLink, buildPortalLinkCategory } from '../../domain/constructors'
-import { hasRoomForAnotherLink, startedCategoryTitle } from '../../domain/portal-linktree'
+import {
+  hasRoomForAnotherLink,
+  STARTED_CATEGORY_TITLE,
+} from '../../domain/portal-linktree'
 import { generateKeyBetween } from 'fractional-indexing'
 import { portalLinkCategoryCreated, portalLinkCreated } from '../../domain/events'
 import { portalId, portalLinkCategoryId, portalLinkId } from '#/shared/domain/ids'
-import type { GuestLocale } from '#/shared/domain/guest-locale'
 
 import type { PortalRepository } from '../ports/portal.repository'
-import type { PortalExperienceRepository } from '../ports/portal-experience.repository'
 import type { StaffPublicApi } from '#/contexts/identity/application/public-api'
 import { loadPortalOrThrow } from '../load-accessible-portal'
 import type {
@@ -42,8 +43,6 @@ export type CreateLinkDeps = Readonly<{
   portalRepo: PortalRepository
   portalLinkRepo: PortalLinkRepository
   staffPublicApi: StaffPublicApi
-  /** Read for the title the Portal's first category starts with. */
-  experienceRepo: Pick<PortalExperienceRepository, 'listPortalOverrides'>
   commandStore: PortalCommandStore
   destinationRepo: Pick<PortalApprovedDestinationRepository, 'request'>
   destinationNetworkValidator: PortalDestinationNetworkValidator
@@ -74,8 +73,9 @@ type StartedCategory = NonNullable<CreatePortalLinkCommand['startCategory']>
 
 /**
  * The Portal's last category; when it has none, a new one, handed to the link
- * write to be committed with the link, never on its own. Titled in the Portal's
- * primary language, because the legacy guest page prints it.
+ * write to be committed with the link, never on its own. Its title is a fixed
+ * neutral name: the guest page no longer prints a category (a publication
+ * flattens them), so no language needs its wording.
  */
 async function lastOrStartedCategory(
   deps: CreateLinkDeps,
@@ -89,20 +89,11 @@ async function lastOrStartedCategory(
   const last = existing[existing.length - 1]
   if (last) return { category: last, started: undefined }
 
-  const overrides = await deps.experienceRepo.listPortalOverrides(
-    ctx.organizationId,
-    portal.propertyId,
-    portal.id,
-  )
-  const titles: Partial<Record<GuestLocale, string>> = {}
-  for (const entry of overrides) {
-    if (entry.linktreeTitle !== null) titles[entry.locale] = entry.linktreeTitle
-  }
   const built = buildPortalLinkCategory({
     id: portalLinkCategoryId(deps.idGen()),
     portalId: portal.id,
     organizationId: ctx.organizationId,
-    title: startedCategoryTitle(portal.primaryGuestLocale, titles),
+    title: STARTED_CATEGORY_TITLE,
     sortKey: generateKeyBetween(null, null),
     now: at.occurredAt,
   })
@@ -118,6 +109,10 @@ async function lastOrStartedCategory(
   return { category: built.value, started: { category: built.value, event } }
 }
 
+/**
+ * Creates a link. The returned link's `label` is the name that was written (as
+ * the primary-language text); the stored `portal_links.label` column holds `''`.
+ */
 export const createLink =
   (deps: CreateLinkDeps) =>
   async (input: CreateLinkInput, ctx: AuthContext): Promise<PortalLink> => {
@@ -205,6 +200,8 @@ export const createLink =
       portalId: portal.id,
       expectedPortalUpdatedAt: portal.updatedAt,
       actorUserId: ctx.userId,
+      // The label is checked above and trimmed by the constructor; the store
+      // writes it as the link's primary-language text, never to the legacy column.
       link: result.value,
       revision,
       occurredAt,

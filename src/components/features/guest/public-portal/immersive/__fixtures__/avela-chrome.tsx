@@ -1,8 +1,6 @@
 // The header and title block of boards G01, G02, G10 and G11, built from the
 // real pieces with the Avela copy of the boards, for stories only. English and
-// Bulgarian use the shipped v2 packs; German has no pack yet (it is offered
-// only after the owner's native check), so its few chrome texts are written
-// here and are a story placeholder, not a draft of the pack.
+// Bulgarian and German use the shipped v2 packs.
 
 import type { ReactNode } from 'react'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
@@ -11,25 +9,11 @@ import { GuestLanguageSwitcher } from '../guest-language-switcher'
 import { GuestTitleBlock } from '../guest-title-block'
 import type { LanguageSwitcherCopy } from '../language-options'
 import { bgV2 } from '../../language-packs/bg-v2'
+import { deV2 } from '../../language-packs/de-v2'
 import { enV2 } from '../../language-packs/en-v2'
 import { STORY_LOGO } from './story-logo'
 
 export type AvelaLocale = 'en' | 'bg' | 'de'
-
-const GERMAN_SWITCHER_COPY: LanguageSwitcherCopy = {
-  languageChipLabel: 'Sprache',
-  languageSheetTitle: 'Sprache',
-  languageSheetHint:
-    'Diese Seite öffnet sich in der Sprache Ihres Telefons, wenn sie diese anbietet.',
-  languageSheetClose: 'Schließen',
-  languageCurrent: 'Ausgewählt',
-  languageNameEn: 'Englisch',
-  languageNameBg: 'Bulgarisch',
-  languageNameEs: 'Spanisch',
-  languageNameIt: 'Italienisch',
-  languageNameFr: 'Französisch',
-  languageNameDe: 'Deutsch',
-}
 
 const PAGE: Readonly<
   Record<AvelaLocale, { copy: LanguageSwitcherCopy; title: string; logoAlt: string }>
@@ -37,9 +21,9 @@ const PAGE: Readonly<
   en: { copy: enV2.copy, title: 'Pool & Terrace', logoAlt: 'Avela Resort logo' },
   bg: { copy: bgV2.copy, title: 'Басейн и тераса', logoAlt: 'Лого на Avela Resort' },
   de: {
-    copy: GERMAN_SWITCHER_COPY,
+    copy: deV2.copy,
     title: 'Pool & Terrasse',
-    logoAlt: 'Avela Resort Logo',
+    logoAlt: 'Logo von Avela Resort',
   },
 }
 

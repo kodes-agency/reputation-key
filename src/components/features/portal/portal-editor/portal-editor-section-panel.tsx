@@ -12,29 +12,19 @@ import { ResponsibleSection } from './sections/responsible-section'
 import { WelcomeSection } from './sections/welcome-section'
 import type { PortalEditorSection } from './portal-editor-sections'
 import type { PortalGroupView } from '../portal-group/portal-group-types'
-import type {
-  PortalEditorSectionProps,
-  PortalEditorThemeControls,
-} from './portal-editor-types'
+import type { PortalEditorSectionProps } from './portal-editor-types'
 
 type Props = PortalEditorSectionProps &
-  PortalEditorThemeControls &
   Readonly<{
     section: PortalEditorSection
     /** The group the portal is in; null for none. Only read by the Group section. */
     group: PortalGroupView | null
   }>
 
-export function PortalEditorSectionPanel({
-  section,
-  group,
-  theme,
-  onThemeChange,
-  ...shared
-}: Props) {
+export function PortalEditorSectionPanel({ section, group, ...shared }: Props) {
   switch (section) {
     case 'look':
-      return <LookSection {...shared} theme={theme} onThemeChange={onThemeChange} />
+      return <LookSection {...shared} />
     case 'welcome':
       return <WelcomeSection {...shared} />
     case 'rating':

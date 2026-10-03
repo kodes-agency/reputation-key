@@ -264,10 +264,40 @@ export const portalKeys = {
    */
   preview: (portalId: string, source: 'draft' | 'live') =>
     [...portalKeys.publicationHistory(portalId), 'preview', source] as const,
+  /**
+   * Review & publish: the checks, the change list and the language rows. Under
+   * `publicationHistory` for the same reason as the preview: every write that
+   * changes the working copy already invalidates it, and so does publishing.
+   */
+  review: (portalId: string) =>
+    [...portalKeys.publicationHistory(portalId), 'review'] as const,
+  /**
+   * The Share tab's print kit: the Portal's titles, languages and the Property's
+   * look. Under `publicationHistory` for the same reason as the preview: every
+   * write that changes the working copy already invalidates it.
+   */
+  printKit: (portalId: string) =>
+    [...portalKeys.publicationHistory(portalId), 'print-kit'] as const,
   /** The guest copy pack the preview prints in one language; it never changes while the app runs. */
   previewCopy: (locale: string) => [...portalKeys.all, 'preview-copy', locale] as const,
+  /** The History tab's ledger; one entry per filter, each an infinite read. */
+  history: (portalId: string) => [...portalKeys.detail(portalId), 'history'] as const,
+  historyFor: (portalId: string, filter: string) =>
+    [...portalKeys.history(portalId), filter] as const,
+  /** The Versions rail, and under it each version opened for viewing or restoring. */
+  versions: (portalId: string) => [...portalKeys.detail(portalId), 'versions'] as const,
+  version: (portalId: string, version: number) =>
+    [...portalKeys.versions(portalId), 'version', version] as const,
+  /** The guest page of one published version, drawn for "View"; under the version, so a restore refreshes it with the rest. */
+  versionPreview: (portalId: string, version: number) =>
+    [...portalKeys.version(portalId, version), 'preview'] as const,
   propertyExperience: (propertyId: string) =>
     [...portalKeys.forProperty(propertyId), 'experience'] as const,
+  /** The Property look's batch "Review & publish": one review of each live portal, read together. */
+  lookReview: (propertyId: string) =>
+    [...portalKeys.forProperty(propertyId), 'look-review'] as const,
+  lookReviewOf: (propertyId: string, portalIds: string) =>
+    [...portalKeys.lookReview(propertyId), portalIds] as const,
   experience: (propertyId: string, portalId: string) =>
     [...portalKeys.propertyExperience(propertyId), 'portal', portalId] as const,
   /**

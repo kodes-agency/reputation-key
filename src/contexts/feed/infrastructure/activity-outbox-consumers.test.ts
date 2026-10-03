@@ -375,6 +375,27 @@ describe('Activity durable Recent Activity consumer', () => {
       resourceId: '00000000-0000-4000-8000-000000000612',
     },
     {
+      eventType: 'portal.publication.published',
+      eventVersion: 1,
+      payload: {
+        organizationId: 'org-1',
+        propertyId: '00000000-0000-4000-8000-000000000611',
+        portalId: '00000000-0000-4000-8000-000000000612',
+        publicationSnapshotId: 'snapshot-sensitive-and-excluded',
+        publicationVersion: 3,
+        publicationDigest: 'a'.repeat(64),
+        userId: 'ops:denev',
+        sourceAggregateVersion: '2026-08-28T08:55:00.000Z',
+        occurredAt: '2026-08-28T08:56:00.000Z',
+      },
+      propertyId: '00000000-0000-4000-8000-000000000611',
+      actorType: 'operator',
+      actorId: 'ops:denev',
+      action: 'portal.published',
+      resourceType: 'portal',
+      resourceId: '00000000-0000-4000-8000-000000000612',
+    },
+    {
       eventType: 'portal.archived',
       eventVersion: 1,
       payload: {
@@ -623,6 +644,37 @@ describe('Activity durable Recent Activity consumer', () => {
       expect(JSON.stringify(applyOnce.mock.calls)).not.toContain('must-not-be-retained')
     },
   )
+
+  it('attributes an operator-run publication to the system, with no actor to look up', async () => {
+    const { deps, applyOnce } = dependencies()
+    const source = event(
+      'portal.publication.published',
+      {
+        organizationId: 'org-1',
+        propertyId: '00000000-0000-4000-8000-000000000321',
+        portalId: '00000000-0000-4000-8000-000000000322',
+        publicationSnapshotId: 'snapshot-1',
+        publicationVersion: 3,
+        publicationDigest: 'a'.repeat(64),
+        userId: 'ops:denev',
+        sourceAggregateVersion: '2026-08-28T08:55:00.000Z',
+        occurredAt: '2026-08-28T08:57:00.000Z',
+      },
+      { propertyId: '00000000-0000-4000-8000-000000000321' },
+    )
+
+    await expect(handleRecentActivityFact(deps, source)).resolves.toEqual({
+      status: 'applied',
+    })
+
+    expect(applyOnce).toHaveBeenCalledWith(
+      expect.objectContaining({
+        entry: expect.objectContaining({ action: 'published', resourceType: 'portal' }),
+        replayFact: expect.objectContaining({ actorSubjectId: null }),
+      }),
+    )
+    expect(JSON.stringify(applyOnce.mock.calls)).not.toContain('ops:denev')
+  })
 
   it.each([
     {

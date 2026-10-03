@@ -629,6 +629,9 @@ export const portalLinks = pgTable(
       .references(() => portals.id, { onDelete: 'cascade' }),
     organizationId: varchar('organization_id', { length: 255 }).notNull(),
     propertyId: uuid('property_id').notNull(),
+    // Legacy, read-only fallback: a link's wording is its portal_link_texts rows.
+    // Nothing writes it ('' for a link made after round 4's contract); the column
+    // stays NOT NULL until a separate migration drops it.
     label: varchar('label', { length: 100 }).notNull(),
     destinationId: uuid('destination_id'),
     url: varchar('url', { length: 500 }),

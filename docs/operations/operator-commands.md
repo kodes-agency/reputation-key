@@ -21,6 +21,7 @@ Every `ops:*` command runs through the operator-command harness
 The commands:
 
 - `ops:bootstrap-owner <owner email> <owner name> <organization name>` — create the first Organization and its AccountAdmin (role `owner`) on an EMPTY database, initial password on stdin; refuses once any Organization or membership exists, or any user besides the lone owner an interrupted run left behind. Everything after the Better Auth sign-up commits in one transaction, so re-running the same command after a failure resumes that owner (`ownerAccount: reuse` in the dry run) instead of refusing. The one operator-authored account: every other account is invited from the app. Destructive-class confirmation. Both the dry run and the apply report `controlledBetaCapabilities`: a new Organization is dark for every controlled-beta capability unless `BETA_ALLOWLIST_ORGS` is `*` or names its ID, on web AND worker (ADR 0032, 2026-09-27).
+- `ops:storage-cors [--apply]` — check, or with `--apply` set, the object-store bucket's CORS rule that lets the app origin (`BETTER_AUTH_URL`) `PUT` a presigned avatar or logo upload from the browser. Reads the bucket and origin from the web service's Railway variables (no `--operator`; it does not touch the database), uses the pinned S3 SDK, keeps the bucket's existing rules, reads the rule back, and exits 1 unless it is in place. `deploy-ci-images` runs it after every deploy. See `backup-and-lifecycle.md` §3.
 - `ops:queue <status|pause|resume> <queue>` — pause/resume a BullMQ queue (containment; jobs preserved). §3/§7
 - `ops:quarantine <list|redrive <id>|discard <id>>` — inspect failure quarantine, redrive enabled work, or discard blocked/quarantined work without execution. §4/§7
 - `ops:refresh reviews` — enqueue one bounded Review refresh-sweep run. §3/§4
@@ -28,6 +29,72 @@ The commands:
 - `ops:rebuild-projection --org <id> [--property <id>]` — repair the inbox projection (bounded, dry-run report first). §5
 - `ops:rebuild-metric-projection <portalId> --org <id> --property <id>` — inspect or repair one anonymous Portal lifetime projection from its sealed baseline plus retained governed facts. Dry-run is the default; apply requires `--reason`. §7
 - `ops:reconcile-publication <replyId> | --all-ambiguous [--resume <token>]` — reconcile ambiguous Google reply publication (one frozen keyset page; provider re-read, never a send). §6
+- `ops:republish-legacy-portals --org <id> [--property <id>] [--batch-size <n>] [--include-pending-edits]` — republish every live Portal whose active version is a v1 or v2 page as the current design (snapshot v3, the Immersive Hub), so every guest sees it and the legacy renderer can be removed. Each Portal goes through the ordinary publish-while-live use case: the same readiness gates, a new version, the previous activation closed as `replaced`, the same facts; the actor on the snapshot, the activation and the fact is `ops:<operator>` (use a short non-personal handle: it is stored in immutable snapshots). The Operational Action History files it as an `operator` row and managers read it as "Reputation Key" in the version history. Dry-run is the default and reports per Portal what would be republished and which would be skipped, with the reason; `--reason <text> --apply` writes. A Portal whose manager has unpublished edits is skipped as `pending_edits` (the republish would put those drafts live under the operator's name; the manager should publish or discard them); `--include-pending-edits` publishes them anyway and the report says how many went live. Idempotent: a republished Portal is on v3 and is not selected again, and a skipped one reports the same reason until it is fixed. Draft-only, disabled, archived and deleted Portals are never selected. Output is identifiers, versions and reason codes only. Exits 1 only if the run stopped at a fault that is not a Portal refusal; the report shows how far it got (`processed` in the totals), the cause is logged to stderr, and a rerun is safe. To see which organisations still have live v1/v2 Portals (the question slice 44 waits on), run this read-only SQL against the database:
+
+  ```sql
+  -- live-legacy-portals-by-organization
+  SELECT p.organization_id,
+         count(*) AS live_legacy_portals,
+         count(*) FILTER (WHERE s.configuration->>'schemaVersion' = '1') AS v1,
+         count(*) FILTER (WHERE s.configuration->>'schemaVersion' = '2') AS v2
+    FROM portals p
+    JOIN portal_publication_activations a
+      ON a.organization_id = p.organization_id AND a.property_id = p.property_id
+     AND a.portal_id = p.id AND a.deactivated_at IS NULL
+    JOIN portal_publication_snapshots s
+      ON s.organization_id = a.organization_id AND s.property_id = a.property_id
+     AND s.portal_id = a.portal_id AND s.id = a.snapshot_id
+   WHERE p.publication_state = 'published' AND p.deleted_at IS NULL
+     AND s.configuration->>'schemaVersion' IN ('1', '2')
+   GROUP BY p.organization_id
+   ORDER BY p.organization_id;
+  ```
+
+  No rows means no live Portal is left on an old page.
+
+- Contract cleanup checks (round 4, slice 44) — two read-only SQL queries, run against the database of each environment. Migration 0052 settles the first one at deploy (before new code serves); run it before and after, and expect no rows after.
+
+  ```sql
+  -- link-labels-newer-than-primary-text: a link whose legacy label was renamed
+  -- after its primary-language text (the window between migration 0044 and the
+  -- text-aware editor). Readers stop letting the label win in slice 44.
+  SELECT l.organization_id, l.portal_id, l.id AS link_id
+    FROM portal_links l
+    JOIN portals p ON p.organization_id = l.organization_id AND p.id = l.portal_id
+    JOIN portal_link_texts t
+      ON t.organization_id = l.organization_id AND t.link_id = l.id
+     AND t.locale = p.primary_guest_locale
+   WHERE length(btrim(l.label)) > 0 AND btrim(l.label) <> t.label
+     AND l.updated_at > t.updated_at;
+  ```
+
+  ```sql
+  -- portal-group-members-without-membership: a row of the legacy
+  -- portal_group_members mirror with no matching active
+  -- portal_group_memberships row. The Organization Export no longer carries the
+  -- mirror, so each row must be represented in the membership table (which the
+  -- Staff export carries); no rows means nothing is dropped.
+  SELECT m.organization_id, m.portal_group_id, m.portal_id
+    FROM portal_group_members m
+    LEFT JOIN portal_group_memberships g
+      ON g.organization_id = m.organization_id
+     AND g.portal_group_id = m.portal_group_id
+     AND g.portal_id = m.portal_id AND g.effective_to IS NULL
+   WHERE g.id IS NULL;
+  ```
+
+- Legacy avatar and logo addresses (round 4, slice 47j) — one read-only SQL query, run against the database of each environment. Migration 0053 clears them at deploy (before new code serves); run it before and after, and expect no rows after. A cleared picture shows the person's initials until they upload again.
+
+  ```sql
+  -- legacy-asset-urls: an avatar or logo stored as an amazonaws.com address,
+  -- which never loaded (the bucket is private and not on AWS).
+  SELECT 'user' AS kind, id FROM "user"
+   WHERE image ~* '^https?://[^/]*\.amazonaws\.com(:[0-9]+)?/'
+  UNION ALL
+  SELECT 'organization', id FROM organization
+   WHERE logo ~* '^https?://[^/]*\.amazonaws\.com(:[0-9]+)?/';
+  ```
+
 - `ops:reparse-review-translations <report|repair> [--property <id>]` — re-split Google's `(Translated by Google) … (Original)` envelope on Review rows stored before the provider adapter split it at ingestion. A targeted column update: the text, `translated_text`, `content_hash` and AI source provenance are recomputed with the sync path's own functions, and the Review lifecycle, `source_revision` and analysis position are untouched. `report` never writes; `repair` is dry-run by default and `--apply` requires `--reason` and `--ticket`. Idempotent.
 - `ops:triage-beta-feedback --operator <id>` — list the global content-free native-feedback support queue. Applying one exact local-reference transition additionally requires all 14 reviewed positional values, `--ticket`, `--reason`, and `--apply`; it is revision/transition-ID guarded, appends immutable evidence, and never reads report text/downloads attachments or creates an engineering issue. §16
 - `ops:recover-recent-activity --operator <id> [--batch-size 100] [--apply --reason <text>] <observed-at> [<after-occurred-at> <after-replay-key>]` — report Recent Activity projection readiness or restore one bounded, cursor-resumable page from Activity-owned replay facts. Report-only is the default. See `recent-activity-recovery.md`.

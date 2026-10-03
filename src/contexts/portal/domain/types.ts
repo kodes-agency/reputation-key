@@ -95,6 +95,11 @@ export type PortalLink = Readonly<{
   propertyId: PropertyId
   destinationId: PortalApprovedDestinationId | null
   legacyDestinationState: 'unclassified' | 'quarantined' | 'migrated'
+  /**
+   * The legacy label column: a read-only fallback for a link written before
+   * per-language texts. A link's wording is its `portal_link_texts` rows, and
+   * the stored label of a link made since the contract is `''`.
+   */
   label: string
   url: string
   iconKey: string | null

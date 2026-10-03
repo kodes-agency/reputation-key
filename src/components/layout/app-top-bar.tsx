@@ -1,6 +1,6 @@
 import { useNavigate } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
-import { LogOut, Moon, Sun, Monitor } from 'lucide-react'
+import { LogOut } from 'lucide-react'
 import { SidebarTrigger } from '#/components/ui/sidebar'
 import { Button } from '#/components/ui/button'
 import {
@@ -10,10 +10,12 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
+import { cn } from '#/lib/utils'
 import { authClient } from '#/shared/auth/auth-client'
 import { NotificationPanel } from '#/components/features/notification/notification-panel'
 import type { NotificationServerFns } from '#/components/features/notification/types'
 import { useThemeMode } from '#/components/hooks/use-theme-mode'
+import { ThemeModeMenuControl } from '#/components/layout/theme-mode-menu-control'
 import { BetaFeedbackLauncher } from '#/components/features/beta-feedback/beta-feedback-launcher'
 import type {
   ListMyBetaFeedback,
@@ -40,10 +42,10 @@ export function AppTopBar({
 }: Props) {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const { mode, setMode } = useThemeMode()
-
-  const ThemeIcon = mode === 'light' ? Sun : mode === 'dark' ? Moon : Monitor
-
+  // The bar is mounted for as long as the shell is, so it keeps the document in
+  // step with the stored theme, and with the device while the mode is System.
+  // The menu's control mounts only while the menu is open.
+  useThemeMode()
   const initials = user.name
     ? user.name
         .split(' ')
@@ -54,8 +56,22 @@ export function AppTopBar({
     : 'U'
 
   return (
-    <header className="flex h-13 shrink-0 items-center gap-2 border-b px-4">
-      <SidebarTrigger className={sidebarLocked ? '-ml-1 md:hidden' : '-ml-1'} />
+    // Below md the inbox bar is 44 px like every other bar on the phone grid;
+    // other pages keep h-13. The controls are 36 px, and the two ghost buttons
+    // at the edges are pulled out by half of (36 - glyph) so the glyph, not the
+    // box, sits on the 16 px gutter: the trigger's 16 px glyph by 10 px, the
+    // account button's 28 px circle by 4 px. Non-inbox phone pages keep the
+    // 52 px bar (h-13) with the same 36 px controls on purpose; only inbox
+    // routes (`sidebarLocked`) compress to 44.
+    <header
+      className={cn(
+        'flex h-13 shrink-0 items-center gap-2 border-b px-4',
+        sidebarLocked && 'max-md:h-11',
+      )}
+    >
+      <SidebarTrigger
+        className={cn('-ml-1 max-md:size-9 max-md:-ml-2.5', sidebarLocked && 'md:hidden')}
+      />
 
       <div className="flex-1" />
 
@@ -75,7 +91,7 @@ export function AppTopBar({
           <Button
             variant="ghost"
             size="icon-sm"
-            className="rounded-full"
+            className="rounded-full max-md:size-9 max-md:-mr-1"
             aria-label="Account menu"
           >
             {user.image ? (
@@ -87,26 +103,16 @@ export function AppTopBar({
             )}
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-48">
+        <DropdownMenuContent align="end" className="w-56">
           <div className="px-2 py-1.5">
             <p className="text-sm font-medium">{user.name}</p>
             <p className="text-xs text-muted-foreground truncate">{user.email}</p>
           </div>
           <DropdownMenuSeparator />
-          <DropdownMenuItem
-            onClick={() =>
-              setMode(mode === 'dark' ? 'light' : mode === 'light' ? 'auto' : 'dark')
-            }
-          >
-            <ThemeIcon className="size-4" />
-            {mode === 'dark'
-              ? 'Light mode'
-              : mode === 'light'
-                ? 'System theme'
-                : 'Dark mode'}
-          </DropdownMenuItem>
+          <ThemeModeMenuControl />
           <DropdownMenuSeparator />
           <DropdownMenuItem
+            className="max-md:min-h-11"
             onClick={async () => {
               await clearTenantCacheAfterSessionEnd(
                 queryClient,

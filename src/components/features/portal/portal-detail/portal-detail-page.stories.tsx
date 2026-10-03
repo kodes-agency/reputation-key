@@ -1,3 +1,4 @@
+// fallow-ignore-file code-duplication
 // Portal detail page — the tab (and, on the Page tab, the editor section) is
 // driven by the owning route's typed search state. Components receive it as
 // props, so stories and SSR use the same deterministic state without reading or
@@ -7,27 +8,35 @@
 // getPortalAnalytics is a server-fn-typed prop (analytics tab fires it on mount
 // via useServerFn(getPortalAnalytics)) → mock via mockServerFn + type cast.
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { expect, userEvent, within } from 'storybook/test'
 import { previewReader } from '../portal-preview/__fixtures__/portal-preview-fixtures'
 import { PortalDetailPage } from './portal-detail-page'
-import {
-  PortalDraftAutosaveProvider,
-  usePortalDraftAutosave,
-} from '../portal-editor/portal-draft-autosave-context'
-import { PortalDraftSaveStatus } from '../portal-editor/portal-draft-save-status'
-import { Button } from '#/components/ui/button'
+import { PortalDraftAutosaveProvider } from '../portal-editor/portal-draft-autosave-context'
 import type {
   getPortalAnalyticsFn,
   PortalAnalyticsData,
 } from '#/contexts/reporting/server/portal-analytics'
 import type { Action } from '#/components/hooks/use-action'
-import type { LinkTreeCategory, LinkTreeLink } from '../link-tree/link-tree-types'
+import type { LinkTreeLink } from '../link-tree/link-tree-types'
 import type {
   CompleteReviewResult,
   CompleteReviewVariables,
   UpdatePortalVariables,
 } from '../shared/types'
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
+import type { getPortalHistory } from '#/contexts/portal/server/portals'
+import type {
+  getPortalVersion,
+  getPortalVersionPreview,
+  getPortalVersions,
+} from '#/contexts/portal/server/portal-versions'
+import { storyVersionPreview } from '../portal-history/__fixtures__/portal-version-preview-stories-data'
+import {
+  STORY_TIME_ZONE,
+  STORY_VERSIONS,
+  STORY_VERSION_DETAILS,
+  storyHistoryFor,
+} from '../portal-history/__fixtures__/portal-history-stories-data'
 import { mockServerFn } from '../../../../../.storybook/mocks/mock-action'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
 
@@ -61,10 +70,6 @@ const portal = {
   publicationState: 'published' as const,
 }
 
-const categories: readonly LinkTreeCategory[] = [
-  { id: 'cat-1', title: 'Reviews', sortKey: 'a' },
-  { id: 'cat-2', title: 'Feedback', sortKey: 'b' },
-]
 const links: readonly LinkTreeLink[] = [
   {
     id: 'l-1',
@@ -143,6 +148,7 @@ const tokenStatus: PortalTokenStatus = {
   issuedAt: null,
   graceExpiresAt: null,
   addressRecoverable: false,
+  madeBy: null,
 }
 
 // Empty analytics payload — exercises the "no data" rendering path of the
@@ -211,8 +217,36 @@ const getPortalAnalytics = mockServerFn(
   async (_input: unknown) => emptyAnalytics,
 ) as unknown as typeof getPortalAnalyticsFn
 
+// The History tab reads on mount, like the Results tab: the reads are handed in
+// as server-fn-typed props and answered here from the board 08 ledger.
+const historyReads = {
+  getHistory: mockServerFn(async (input: { data: { filter?: string } }) => ({
+    entries: storyHistoryFor(input.data.filter ?? 'all'),
+    nextCursor: null,
+  })) as unknown as typeof getPortalHistory,
+  getVersions: mockServerFn(
+    async (_input: unknown) => STORY_VERSIONS,
+  ) as unknown as typeof getPortalVersions,
+  getVersion: mockServerFn(
+    async (input: { data: { version: number } }) =>
+      STORY_VERSION_DETAILS[input.data.version],
+  ) as unknown as typeof getPortalVersion,
+  getVersionPreview: mockServerFn(async (input: { data: { version: number } }) =>
+    storyVersionPreview(input.data.version),
+  ) as unknown as typeof getPortalVersionPreview,
+}
+const makeVersionLiveMutation = Object.assign(async (_input: unknown) => ({}), {
+  isPending: false,
+  error: null as unknown,
+  isSuccess: false,
+  data: null,
+}) as Action<{ data: { portalId: string; version: number } }, unknown>
+
 const baseArgs = {
   portal,
+  historyReads,
+  makeVersionLiveMutation,
+  propertyTimeZone: STORY_TIME_ZONE,
   organizationName: 'Acme Hotels',
   propertyId: 'prop-1',
   publicationHistory: {
@@ -220,6 +254,7 @@ const baseArgs = {
       activationSequence: 1,
       version: 1,
       kind: 'publish' as const,
+      activatedBy: { userId: 'user-1', displayName: 'Georgi Ivanov' },
       activatedAt: '2026-08-20T10:00:00.000Z',
       deactivatedAt: null,
       deactivationReason: null,
@@ -232,7 +267,6 @@ const baseArgs = {
     state: 'verified' as const,
     retrievedAt: new Date('2026-08-20T10:00:00.000Z'),
   },
-  categories,
   links,
   linktree: {
     portalId: 'p-1',
@@ -292,112 +326,6 @@ export const PageTab: Story = {
   },
 }
 
-// The palette is chosen from presets and saves itself: one click, one write,
-// with no Save button. The page owns the draft, so the selector follows the click.
-const paletteSpy = fn(async (_input: UpdatePortalVariables) => ({
-  success: true as const,
-}))
-export const PaletteAutosaves: Story = {
-  args: {
-    ...baseArgs,
-    activeSection: 'look',
-    autosaveUpdateMutation: Object.assign(paletteSpy, {
-      isPending: false,
-      error: null as unknown,
-      isSuccess: false,
-      data: null,
-    }) as unknown as Action<UpdatePortalVariables, { success: true }>,
-  },
-  play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /^Dark/ }))
-    await expect(canvas.getByRole('button', { name: /^Dark/ })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
-    await waitFor(
-      () =>
-        expect(paletteSpy).toHaveBeenCalledWith({
-          data: {
-            portalId: 'p-1',
-            theme: {
-              primaryColor: '#a5b4fc',
-              backgroundColor: '#111827',
-              textColor: '#f9fafb',
-            },
-          },
-        }),
-      { timeout: 3000 },
-    )
-    await expect(paletteSpy).toHaveBeenCalledTimes(1)
-  },
-}
-
-// A palette whose write failed is a draft the person has not been able to save.
-// Choosing to leave without it (the navigation prompt's "Leave and discard" calls
-// the same `discard`) must drop it, or the selector would go on
-// showing a palette that will never be written.
-function DiscardFailedSaves() {
-  const autosave = usePortalDraftAutosave()
-  return (
-    <Button variant="outline" onClick={() => autosave.discard()}>
-      Discard failed saves
-    </Button>
-  )
-}
-
-const failingPaletteSpy = fn(async (_input: UpdatePortalVariables) => ({
-  success: true as const,
-}))
-export const PaletteDraftIsDroppedWhenItsFailedSaveIsDiscarded: Story = {
-  args: {
-    ...baseArgs,
-    activeSection: 'look',
-    autosaveUpdateMutation: Object.assign(failingPaletteSpy, {
-      isPending: false,
-      error: null as unknown,
-      isSuccess: false,
-      data: null,
-    }) as unknown as Action<UpdatePortalVariables, { success: true }>,
-  },
-  render: (args) => (
-    <>
-      <DiscardFailedSaves />
-      <PortalDraftSaveStatus />
-      <PortalDetailPage {...args} />
-    </>
-  ),
-  play: async ({ canvasElement }) => {
-    failingPaletteSpy.mockRejectedValue(new Error('offline'))
-    const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('button', { name: /^Dark/ }))
-    await waitFor(
-      () => expect(canvas.getByRole('status')).toHaveTextContent('Not saved'),
-      {
-        timeout: 3000,
-      },
-    )
-    // Not saved: the choice is still shown, so the person can retry it.
-    await expect(canvas.getByRole('button', { name: /^Dark/ })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
-
-    await userEvent.click(canvas.getByRole('button', { name: 'Discard failed saves' }))
-
-    await waitFor(() =>
-      expect(canvas.getByRole('button', { name: /^Light/ })).toHaveAttribute(
-        'aria-pressed',
-        'true',
-      ),
-    )
-    await expect(canvas.getByRole('button', { name: /^Dark/ })).toHaveAttribute(
-      'aria-pressed',
-      'false',
-    )
-  },
-}
-
 // The old Settings' Google card is the Rating & Google section now.
 export const RatingSection: Story = {
   args: { ...baseArgs, activeSection: 'rating' },
@@ -423,15 +351,18 @@ export const LinktreeSection: Story = {
   },
 }
 
-// History tab: the publication history that used to sit inside Settings.
+// History tab: the ledger and the Versions rail, read on mount (board 08).
 export const HistoryTab: Story = {
   args: { ...baseArgs, activeTab: 'history' },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
-      canvas.getByRole('heading', { name: 'Publication history' }),
+      await canvas.findByRole('list', { name: /history, newest first/i }),
     ).toBeInTheDocument()
-    await expect(canvas.getByText(/version 1 is live/i)).toBeInTheDocument()
+    await expect(canvas.getByRole('heading', { name: 'Versions' })).toBeInTheDocument()
+    await expect(
+      await canvas.findByRole('button', { name: /^Version 5, live now/ }),
+    ).toBeInTheDocument()
   },
 }
 

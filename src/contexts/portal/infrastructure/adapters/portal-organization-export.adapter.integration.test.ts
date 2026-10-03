@@ -247,9 +247,9 @@ async function seedFixture(): Promise<Fixture> {
   await q(
     `INSERT INTO portal_pending_content_changes (
        id, organization_id, property_id, portal_id, change_kind, change_key,
-       source_version, changed_at
-     ) VALUES ($1, $2, $3, $4, 'portal_links', 'all', 'portal-links-v2', now())`,
-    [randomUUID(), organizationId, fixture.propertyId, fixture.portalId],
+       source_version, changed_at, changed_by
+     ) VALUES ($1, $2, $3, $4, 'portal_links', 'all', 'portal-links-v2', now(), $5)`,
+    [randomUUID(), organizationId, fixture.propertyId, fixture.portalId, fixture.userId],
   )
   await q(
     `INSERT INTO portal_page_edits (
@@ -379,7 +379,6 @@ describe.sequential('Portal Organization Export contributor', () => {
     for (const collection of [
       'portals',
       'portalGroups',
-      'portalGroupMembers',
       'portalGroupHistory',
       'linkCategories',
       'links',
@@ -399,6 +398,17 @@ describe.sequential('Portal Organization Export contributor', () => {
     ]) {
       expect(payload[collection], collection).toHaveLength(1)
     }
+    // The compatibility mirror (a row is seeded above) has no reader left: the
+    // canonical group membership is exported with the Staff records.
+    expect(payload).not.toHaveProperty('portalGroupMembers')
+    expect(Buffer.from(first.entries[0]!.bytes).toString('utf8')).not.toContain(
+      'portal_group_member',
+    )
+    // A pending change names who opened it.
+    expect(payload.pendingContentChanges?.[0]).toMatchObject({
+      change_kind: 'portal_links',
+      changed_by: fixture.userId,
+    })
     // The ledger names who changed what and keeps the wording of a change of
     // wording; a Property-wide row has no Portal.
     expect(payload.pageEdits).toHaveLength(2)

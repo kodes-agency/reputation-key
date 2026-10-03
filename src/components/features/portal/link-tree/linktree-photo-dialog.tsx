@@ -11,8 +11,6 @@ import { useRef, useState, type ChangeEvent } from 'react'
 import { Button } from '#/components/ui/button'
 import { Checkbox } from '#/components/ui/checkbox'
 import {
-  Dialog,
-  DialogContent,
   DialogDescription,
   DialogFooter,
   DialogHeader,
@@ -26,6 +24,7 @@ import {
   validatePortalImageFile,
   type PortalImageUploader,
 } from '../portal-media/upload-portal-image'
+import { UploadDialogShell } from '../portal-media/upload-dialog-shell'
 
 const SAVE_FAILED =
   'The photo was uploaded, but it could not be put on the tile. Try again.'
@@ -49,30 +48,19 @@ export function LinktreePhotoDialog({
   onUploaded,
   upload,
 }: Props) {
-  const [isBusy, setIsBusy] = useState(false)
-  const close = () => {
-    setIsBusy(false)
-    onOpenChange(false)
-  }
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        if (next) onOpenChange(true)
-        else if (!isBusy) close()
-      }}
-    >
-      <DialogContent className="sm:max-w-md">
+    <UploadDialogShell open={open} onOpenChange={onOpenChange} className="sm:max-w-md">
+      {(guard) => (
         <PhotoDialogBody
           propertyId={propertyId}
           portalId={portalId}
           onUploaded={onUploaded}
-          onBusyChange={setIsBusy}
-          onClose={close}
+          onBusyChange={guard.onBusyChange}
+          onClose={guard.onClose}
           upload={upload}
         />
-      </DialogContent>
-    </Dialog>
+      )}
+    </UploadDialogShell>
   )
 }
 
