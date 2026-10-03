@@ -67,6 +67,12 @@ export const Directory: Story = {
     const canvas = within(canvasElement)
     await expect(canvas.getByText('Alice Adams')).toBeInTheDocument()
     await expect(canvas.getByText('bob@acme.com')).toBeInTheDocument()
+    // Roles read as they do on the Members page (RoleBadge), never as the raw token.
+    await expect(canvas.getByText('Admin')).toBeInTheDocument()
+    await expect(canvas.getByText('Member')).toBeInTheDocument()
+    await expect(canvas.getByText('Manager')).toBeInTheDocument()
+    await expect(canvas.queryByText('AccountAdmin')).toBeNull()
+    await expect(canvas.queryByText('PropertyManager')).toBeNull()
   },
 }
 
