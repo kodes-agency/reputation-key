@@ -7,6 +7,7 @@ import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, screen, userEvent, waitFor, within } from 'storybook/test'
 import { AuthedRouterDecorator } from '../../../../../.storybook/AuthedRouterDecorator'
 import { action } from '../portal-list-page-stories-data'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { overviewGroup, overviewRow } from '../portal-overview/portal-overview-fixtures'
 import {
   PortalGroupAddPortalsDialog,
@@ -117,15 +118,22 @@ export const CreatesTheGroupWithTheChosenPortals: Story = {
   },
 }
 
+const refused = new ServerFunctionError(
+  'PortalGroupError',
+  'a group with this name already exists',
+  'group_name_taken',
+  409,
+)
+
 export const ARefusalIsShownInPlace: Story = {
   args: {
     createMutation: Object.assign(
       fn(async () => {
-        throw new Error('a group with this name already exists')
+        throw refused
       }),
       {
         isPending: false,
-        error: new Error('a group with this name already exists'),
+        error: refused,
         isSuccess: false,
         data: null,
       },

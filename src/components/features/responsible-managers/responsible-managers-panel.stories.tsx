@@ -5,6 +5,7 @@
 // so a regression here is caught once instead of twice.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { ResponsibleManagersPanel } from './responsible-managers-panel'
 
 const MEMBERS = [
@@ -158,7 +159,12 @@ export const SaveFailed: Story = {
       revision: 1,
       responsibilityNeeded: false,
     },
-    error: new Error('Responsible managers could not be saved.'),
+    error: new ServerFunctionError(
+      'ResponsibleManagersError',
+      'Responsible managers could not be saved.',
+      'conflict',
+      409,
+    ),
   },
   play: async ({ canvasElement }) => {
     await expect(

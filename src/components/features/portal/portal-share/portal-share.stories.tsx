@@ -3,6 +3,7 @@ import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { PortalShare } from './portal-share'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import type { Action } from '#/components/hooks/use-action'
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
 import {
@@ -178,7 +179,12 @@ export const MutationError: Story = {
     ...baseArgs,
     issueMutation: issueAction(
       null,
-      new globalThis.Error('A public link could not be generated.'),
+      new ServerFunctionError(
+        'PortalError',
+        'A public link could not be generated.',
+        'link_unavailable',
+        409,
+      ),
     ),
   },
   play: async ({ canvasElement }) => {
@@ -388,8 +394,11 @@ export const DownloadAgainRefused: Story = {
     ...baseArgs,
     tokenStatus: recoverableToken,
     revealMutation: revealAction(
-      new globalThis.Error(
+      new ServerFunctionError(
+        'PortalError',
         'This code cannot be downloaded again. Replace the code to get a new set.',
+        'not_recoverable',
+        409,
       ),
     ),
   },

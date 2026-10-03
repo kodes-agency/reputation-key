@@ -1,15 +1,18 @@
 // Storybook stories for the shared FormErrorBanner primitive.
 // FormErrorBanner surfaces a form mutation's top-level error inside a shadcn
-// destructive Alert. It accepts any `error`: an Error instance (TanStack Start
-// re-throws serialized server Errors via seroval, preserving .message and any
-// custom `code`/`status` props), a plain object with a `message` key, or a
-// falsy value (renders nothing).
+// destructive Alert. It prints what a toast would: the server's own sentence for
+// a 4xx refusal (TanStack Start re-throws a ServerFunctionError with its `code`
+// and `status`), the issue list of a rejected schema, a sentence a dialog holds
+// as text, and one generic sentence for anything else, so a 5xx or an untagged
+// error never shows text that was not written for a reader. A falsy value
+// renders nothing.
 //
-// Stories feed it the realistic shapes a mutation surfaces: no error, a Zod
-// validation message, an auth/forbidden message, a generic server error, and a
-// non-Error object (covers the object-message fallback branch).
+// Stories feed it the realistic shapes a mutation surfaces: no error, a field
+// validation refusal, a permission refusal, an internal server error and a
+// non-Error object (both of which read as the generic sentence).
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
+import { GENERIC_ACTION_ERROR_MESSAGE } from '#/components/hooks/use-action-mutation'
 import { Button } from '#/components/ui/button'
 import {
   Card,
@@ -18,6 +21,7 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { FormErrorBanner } from './form-error-banner'
 
 const meta: Meta<typeof FormErrorBanner> = {
@@ -38,10 +42,17 @@ export const NoError: Story = {
   },
 }
 
-// A Zod validation rejection — the server throws an Error whose .message is the
-// field-level validation reason (e.g. "slug must be URL-friendly").
+// A domain refusal the context wrote for the person who pressed the button: a
+// 4xx ServerFunctionError, so its sentence is shown as written.
 export const ValidationError: Story = {
-  args: { error: new Error('Name must be at least 2 characters') },
+  args: {
+    error: new ServerFunctionError(
+      'ValidationError',
+      'Name must be at least 2 characters',
+      'invalid_name',
+      400,
+    ),
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(
@@ -53,7 +64,14 @@ export const ValidationError: Story = {
 // A tagged AuthError thrown by the context layer (throwContextError) — the
 // .message carries the human-readable authorization reason.
 export const AuthError: Story = {
-  args: { error: new Error('You do not have permission to perform this action') },
+  args: {
+    error: new ServerFunctionError(
+      'AuthError',
+      'You do not have permission to perform this action',
+      'permission_denied',
+      403,
+    ),
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(
@@ -62,24 +80,62 @@ export const AuthError: Story = {
   },
 }
 
-// A generic/untagged server error surfaced via catchUntagged.
-export const GenericServerError: Story = {
-  args: { error: new Error('Something went wrong. Please try again.') },
+// A rejected `.validator` schema reaches the client as a plain Error whose message
+// is the issue list; it is shown as lines, not as JSON.
+export const SchemaIssues: Story = {
+  args: {
+    error: new Error(
+      JSON.stringify([
+        { path: ['name'], message: 'Too short' },
+        { path: ['slug'], message: 'Use letters only' },
+      ]),
+    ),
+  },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(await canvas.findByText(/something went wrong/i)).toBeInTheDocument()
+    expect(await canvas.findByText('name: Too short')).toBeInTheDocument()
+    expect(canvas.getByText('slug: Use letters only')).toBeInTheDocument()
   },
 }
 
-// Non-Error object with a `message` key — exercises the fallback branch used
-// when an upstream layer hands the form a plain object instead of an Error.
+// An internal server error (catchUntagged masks the real cause as a 500): the
+// banner says the generic sentence and never the server's own text.
+export const GenericServerError: Story = {
+  args: {
+    error: new ServerFunctionError(
+      'InternalError',
+      'Internal server error',
+      'internal_error',
+      500,
+    ),
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(await canvas.findByText(GENERIC_ACTION_ERROR_MESSAGE)).toBeInTheDocument()
+    expect(canvas.queryByText(/internal server error/i)).toBeNull()
+  },
+}
+
+// A plain Error that is not a server-function error (a dropped connection, a
+// bug) may carry text that names internal state, so it reads as the generic
+// sentence too.
+export const UntaggedError: Story = {
+  args: { error: new Error('ECONNRESET at db-primary.internal:5432') },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(await canvas.findByText(GENERIC_ACTION_ERROR_MESSAGE)).toBeInTheDocument()
+    expect(canvas.queryByText(/ECONNRESET/)).toBeNull()
+  },
+}
+
+// Non-Error object with a `message` key — an upstream layer handed the form a
+// plain object instead of an Error; its text is not shown either.
 export const ObjectShapedError: Story = {
   args: { error: { message: 'The selected item is no longer available' } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(
-      await canvas.findByText(/the selected item is no longer available/i),
-    ).toBeInTheDocument()
+    expect(await canvas.findByText(GENERIC_ACTION_ERROR_MESSAGE)).toBeInTheDocument()
+    expect(canvas.queryByText(/no longer available/i)).toBeNull()
   },
 }
 
@@ -106,7 +162,16 @@ export const AboveTheActions: Story = {
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         <p className="text-sm text-muted-foreground">Fields of the form sit here.</p>
-        <FormErrorBanner error={new Error('That workspace name is already in use.')} />
+        <FormErrorBanner
+          error={
+            new ServerFunctionError(
+              'ConflictError',
+              'That workspace name is already in use.',
+              'name_taken',
+              409,
+            )
+          }
+        />
       </CardContent>
       <CardFooter className="justify-end border-t">
         <Button type="submit">Save profile</Button>

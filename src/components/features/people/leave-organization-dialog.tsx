@@ -25,7 +25,6 @@ import {
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
-import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
 import { Label } from '#/components/ui/label'
 import {
   Select,
@@ -224,17 +223,10 @@ export function LeaveOrganizationDialog({
 
         {/* A refusal (a stale worklist, a responsibility someone just took)
             has no toast: the leave mutation reports nothing of its own, so it
-            is said here, directly above the actions. The banner prints the
-            message it is given, so the error goes through `actionErrorMessage`
-            first: a 4xx refusal keeps its sentence, anything else (a database
-            or lock failure in the offboarding command) says the generic one. */}
-        <FormErrorBanner
-          error={
-            leaveOrganization.error
-              ? new Error(actionErrorMessage(leaveOrganization.error))
-              : null
-          }
-        />
+            is said here, directly above the actions. The banner keeps a 4xx
+            refusal's sentence and says the generic one for anything else (a
+            database or lock failure in the offboarding command). */}
+        <FormErrorBanner error={leaveOrganization.error} />
 
         <DialogFooter>
           <DialogClose asChild>

@@ -8,13 +8,16 @@ import { portalLocalizedOverrideFormInputSchema } from '#/contexts/portal/applic
 import type { OfferedGuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalExperienceActions } from './portal-experience-settings-types'
 import { usePortalFormAutosave } from '../portal-editor/use-portal-form-autosave'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
 
 /**
  * This portal's own welcome line and link preview in one language. Part of the
  * portal's draft, so they save as they are typed (unlike the property's wording
  * below them, which keeps an explicit Save). Empty, they use the property's
  * wording, which the placeholders show.
+ *
+ * A failed write is the editor header's to report (`PortalDraftSaveStatus`), not
+ * this form's: there is no button to sit a banner above, and a second report of
+ * the same failure would tell it twice.
  */
 export function PortalLocalizedOverrideForm({
   locale,
@@ -81,8 +84,6 @@ export function PortalLocalizedOverrideForm({
           )}
         </form.Field>
       </FieldGroup>
-      {/* Autosaved, so there is no button to sit above: the refusal ends the form. */}
-      <FormErrorBanner error={action.error} />
     </form>
   )
 }

@@ -4,7 +4,9 @@
 // directly above that form's actions, and does not also toast. A row or
 // immediate action (a switch, a menu item, a download, a command a dialog has
 // already closed on) reports through a toast, `errorMessage` on its
-// useActionMutation, and does not also print a banner. These checks read the
+// useActionMutation, and does not also print a banner. An autosaved form has no
+// actions to sit a banner above: the editor header's save status reports its
+// failure, so it renders no banner either. These checks read the
 // sources, so a file that does both, a hand-built red paragraph, a toast that
 // echoes an error's own text, or a success that says "successfully" fails here
 // with the file named instead of drifting back.
@@ -66,6 +68,30 @@ describe('a failure has one reporter', () => {
 
   it('lists no file that no longer does both', () => {
     expect(staleIn(both, BOTH_ALLOWED)).toEqual([])
+  })
+})
+
+describe('an autosaved form', () => {
+  /** The portal editor's forms save through the coordinator as they are typed. */
+  const autosaves = (file: { text: string }) =>
+    /\busePortalFormAutosave\(/u.test(file.text)
+  const bannersAndAutosaves = (file: { text: string }) =>
+    autosaves(file) && RENDERS_BANNER.test(file.text)
+
+  it('leaves its failure to the editor header and renders no FormErrorBanner', () => {
+    expect(offendersOf(bannersAndAutosaves)).toEqual([])
+  })
+
+  it('sees the forms that autosave, so the rule cannot pass for lack of matches', () => {
+    expect(offendersOf(autosaves).length).toBeGreaterThan(0)
+  })
+
+  it('catches the spelling that double-reported a failed write', () => {
+    expect(
+      bannersAndAutosaves({
+        text: 'usePortalFormAutosave(`override-${locale}`, defaults) <FormErrorBanner error={action.error} />',
+      }),
+    ).toBe(true)
   })
 })
 
