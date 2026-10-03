@@ -14,6 +14,7 @@ import { useState } from 'react'
 import { LogOut, TriangleAlert } from 'lucide-react'
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -23,6 +24,7 @@ import {
 } from '#/components/ui/dialog'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { Label } from '#/components/ui/label'
 import {
   Select,
@@ -221,7 +223,15 @@ export function LeaveOrganizationDialog({
           </div>
         )}
 
+        {/* A refusal (a stale worklist, a responsibility someone just took)
+            has no toast: the leave mutation reports nothing of its own, so it
+            is said here, directly above the actions. */}
+        <FormErrorBanner error={leaveOrganization.error} />
+
         <DialogFooter>
+          <DialogClose asChild>
+            <Button variant="outline">Cancel</Button>
+          </DialogClose>
           <Button
             variant="destructive"
             disabled={!canLeave || leaveOrganization.isPending}
@@ -235,7 +245,9 @@ export function LeaveOrganizationDialog({
                     toUserId: assignments.get(keyOf(item))!,
                   })),
                 },
-              })
+                // The refusal is read back from `leaveOrganization.error`; the
+                // catch only keeps the rejection from escaping the click.
+              }).catch(() => undefined)
             }
           >
             Transfer and leave
