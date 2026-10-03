@@ -62,7 +62,7 @@ const meta: Meta<typeof NotificationPopoverContent> = {
   },
   decorators: [
     (Story) => (
-      <div className="w-96 rounded-xl border bg-popover text-popover-foreground">
+      <div className="w-96 max-w-[calc(100vw-2rem)] rounded-xl border bg-popover text-popover-foreground">
         <Story />
       </div>
     ),

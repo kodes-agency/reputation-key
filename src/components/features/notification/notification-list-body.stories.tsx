@@ -56,7 +56,7 @@ const meta: Meta<typeof NotificationListBody> = {
   },
   decorators: [
     (Story) => (
-      <div className="w-96 rounded-xl border bg-popover p-1 text-popover-foreground">
+      <div className="w-96 max-w-[calc(100vw-2rem)] rounded-xl border bg-popover p-1 text-popover-foreground">
         <Story />
       </div>
     ),
