@@ -21,7 +21,7 @@ import { PHONE_SCALE } from '../portal-preview/portal-preview-stage'
 import type { PreviewStateId } from '../portal-preview/portal-preview-states'
 import { tilesLeftOutNote } from './portal-version-page-note'
 import { useFittedPhoneScale } from './use-fitted-phone-scale'
-import { isRetrying } from '#/components/hooks/is-retrying'
+import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 
 /** The read, as the route hands it in (a server function takes its input as `data`). */
 export type PortalVersionPreviewReader = (args: {
@@ -95,7 +95,7 @@ export function PortalVersionPreview({
         />
       ) : null}
       <PortalPreviewBody
-        hasError={isError || copy.isError}
+        hasError={hasFailed(query) || hasFailed(copy)}
         isRetrying={isRetrying(query, copy)}
         isPending={isPending}
         data={data}

@@ -29,7 +29,7 @@ import { PHONE_SCALE, PortalPreviewStage } from './portal-preview-stage'
 import { phoneFrameSize } from './preview-phone'
 import { PortalPreviewToolbar } from './portal-preview-toolbar'
 import { usePreviewCopy } from './use-preview-copy'
-import { isRetrying } from '#/components/hooks/is-retrying'
+import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 
 /** The highest private-feedback threshold a portal can have. */
 const MAX_THRESHOLD = 5
@@ -116,7 +116,7 @@ export function PortalPreviewPane({ portalId, getPortalPreview, selection }: Pro
         canTry={experience !== undefined && copy.data !== undefined}
       />
       <PortalPreviewBody
-        hasError={isError || copy.isError}
+        hasError={hasFailed(query) || hasFailed(copy)}
         isRetrying={isRetrying(query, copy)}
         isPending={isPending}
         data={data}

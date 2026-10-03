@@ -7,7 +7,7 @@ import type {
   SetupMember,
 } from './property-setup-contract'
 import type { SetupPropertyFacts } from './setup-plan'
-import { isRetrying } from '#/components/hooks/is-retrying'
+import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 
 export type SetupFactsState =
   | Readonly<{ status: 'loading' }>
@@ -81,9 +81,9 @@ export function useSetupFacts(
     experienceStates.some((state) => state === undefined)
   ) {
     if (
-      singles.some((read) => read.isError) ||
-      managers.some((read) => read.isError) ||
-      experiences.some((read) => read.isError)
+      singles.some((read) => hasFailed(read)) ||
+      managers.some((read) => hasFailed(read)) ||
+      experiences.some((read) => hasFailed(read))
     ) {
       return {
         status: 'error',

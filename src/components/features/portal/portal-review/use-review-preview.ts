@@ -14,7 +14,7 @@ import type {
 } from '#/contexts/portal/application/public-api'
 import type { PortalPreviewReader } from '../portal-preview/portal-preview-pane'
 import { usePreviewCopy } from '../portal-preview/use-preview-copy'
-import { isRetrying } from '#/components/hooks/is-retrying'
+import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 
 export type ReviewPreviewData =
   | Readonly<{ status: 'loading' }>
@@ -47,7 +47,7 @@ export function useReviewPreview(
       : (preview?.primaryLocale ?? 'en')
   const copy = usePreviewCopy(locale)
 
-  if (read.isError || copy.isError) {
+  if (hasFailed(read) || hasFailed(copy)) {
     return {
       status: 'error',
       retry: () => {

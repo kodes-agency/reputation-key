@@ -22,7 +22,7 @@ import {
   unseenOutcomes,
   writeSeenOutcomes,
 } from './beta-feedback-updates'
-import { isRetrying } from '#/components/hooks/is-retrying'
+import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 
 // The panel only ever renders after a click, so the viewer's own zone is safe
 // here and reads better than a pinned one.
@@ -171,16 +171,9 @@ export function BetaFeedbackReports({
     onSeen?.()
   }, [enabled, query.data, onSeen])
 
-  if (query.isPending) {
-    return (
-      <div className="space-y-3 py-2" aria-busy="true">
-        <Skeleton className="h-14 w-full" />
-        <Skeleton className="h-14 w-full" />
-      </div>
-    )
-  }
-
-  if (query.isError) {
+  // The failure comes first: a retry resets a query with no data to pending, and
+  // the panel must stay, its button busy, rather than give way to the skeleton.
+  if (hasFailed(query)) {
     return (
       <RegionError
         size="compact"
@@ -188,6 +181,15 @@ export function BetaFeedbackReports({
         onRetry={() => void query.refetch()}
         retrying={isRetrying(query)}
       />
+    )
+  }
+
+  if (query.isPending) {
+    return (
+      <div className="space-y-3 py-2" aria-busy="true">
+        <Skeleton className="h-14 w-full" />
+        <Skeleton className="h-14 w-full" />
+      </div>
     )
   }
 

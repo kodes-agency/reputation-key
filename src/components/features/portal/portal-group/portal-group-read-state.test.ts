@@ -49,6 +49,12 @@ describe('readStateOf', () => {
     ).toEqual({ status: 'failed', retrying: true })
   })
 
+  it('keeps the failure up, though the query has dropped its error, while Try again reads', () => {
+    expect(
+      readStateOf({ allowed: true, error: null, data: undefined, retrying: true }),
+    ).toEqual({ status: 'failed', retrying: true })
+  })
+
   it('keeps data it already has over an error from a refetch', () => {
     expect(readStateOf({ allowed: true, error: new Error('x'), data: ['kept'] })).toEqual(
       {

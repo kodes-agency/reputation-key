@@ -17,7 +17,7 @@ import {
   PORTAL_RESULTS_RANGE_STORAGE_KEY,
   storedResultsRange,
 } from './portal-results-window'
-import { isRetrying } from '#/components/hooks/is-retrying'
+import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 
 type Props = Readonly<{
   portalId: string
@@ -80,7 +80,11 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
   })
   const { data, isLoading: loading, error: queryError, isPlaceholderData: stale } = query
 
-  if (loading) return <PortalResultsLoading />
+  // A failed read comes before loading: a retry resets a query with no data to
+  // pending, and the panel must stay, its button busy, rather than give way to the
+  // skeleton and drop focus.
+  const failed = hasFailed(query)
+  if (loading && !failed) return <PortalResultsLoading />
 
   // getPortalAnalyticsFn authorizes on `dashboard.read`, a different capability
   // from the `portal.read` that got the reader onto this page — so a deliberate
@@ -88,7 +92,7 @@ export function PortalAnalyticsTab({ portalId, propertyId, getPortalAnalytics }:
   // Degrade those to friendly copy and keep a generic message for real
   // failures: the raw `.message` was rendering deny reasons like
   // `org_not_allowlisted` at the reader, in destructive red.
-  if (queryError) {
+  if (failed) {
     if (isDarkCapabilityDenial(queryError)) {
       return (
         <EmptyState

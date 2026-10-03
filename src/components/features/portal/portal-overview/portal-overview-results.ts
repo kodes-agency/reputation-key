@@ -313,8 +313,10 @@ export function resultsStateOf(
 ): PortalOverviewResultsState {
   if (!facts.allowed) return { status: 'off' }
   if (index) return { status: 'ready', index }
+  // A retry drops the query's error while it reads; the failure stays up until it answers.
+  if (facts.retrying === true) return { status: 'failed', retrying: true }
   if (facts.error === null) return { status: 'loading' }
   return isDarkCapabilityDenial(facts.error) || isTooManyPortals(facts.error)
     ? { status: 'off' }
-    : { status: 'failed', retrying: facts.retrying === true }
+    : { status: 'failed', retrying: false }
 }

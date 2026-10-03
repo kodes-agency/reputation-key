@@ -1,7 +1,7 @@
 // The two reads behind the Inbox detail pane, and what the pane derives from
 // them: the item with its detail, the notes, the error, and the retry.
 import { queryOptions, useQuery } from '@tanstack/react-query'
-import { isRetrying } from '#/components/hooks/is-retrying'
+import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 import type { InboxItem } from '#/contexts/inbox/application/public-api'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import { replyRefetchInterval } from './inbox-cache-policy'
@@ -47,7 +47,7 @@ export function useInboxDetailQueries(
     notesUnavailable: notesQuery.isError && notesQuery.data === undefined,
     isLoading: detailQuery.isLoading || notesQuery.isLoading,
     currentItem: detail?.item ?? fallbackItem,
-    error: detailQuery.error ? 'This item couldn’t be loaded.' : null,
+    error: hasFailed(detailQuery) ? 'This item couldn’t be loaded.' : null,
     retrying: isRetrying(detailQuery, notesQuery),
     refetch: () => {
       void detailQuery.refetch()

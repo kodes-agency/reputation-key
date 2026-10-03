@@ -18,7 +18,7 @@ import {
 } from '#/routes/-queries/route-queries'
 import { checkControlledRoute } from '#/shared/auth/controlled-route-check'
 import type { AuthRouteContext } from '#/routes/_authenticated'
-import { isRetrying } from '#/components/hooks/is-retrying'
+import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 
 const authRoute = getRouteApi('/_authenticated')
 
@@ -113,11 +113,11 @@ function NotificationSettingsPropertyScope({
   })
   // Only a settled "allowed" enables the email controls. An in-flight or failed
   // check is neither a yes nor a no, and says so instead of "not enabled".
-  const emailAvailability = emailCapability.isPending
-    ? 'checking'
-    : emailCapability.isError
-      ? 'unknown'
-      : emailCapability.data.allowed
+  const emailAvailability = hasFailed(emailCapability)
+    ? 'unknown'
+    : emailCapability.isPending
+      ? 'checking'
+      : emailCapability.data?.allowed
         ? 'allowed'
         : 'unavailable'
   const updatePreference = useActionMutation(updateNotificationPreferenceFn, {

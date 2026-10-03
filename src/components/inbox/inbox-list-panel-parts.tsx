@@ -68,7 +68,8 @@ export interface InboxListPanelProps {
 /** Picks the scroll-area content (skeleton / error / empty / list). Kept as a
  *  plain function (taking the panel props) so InboxListPanel stays a thin shell. */
 export function renderListContent(props: InboxListPanelProps): ReactNode {
-  if (props.isLoading) return <InboxListSkeleton />
+  // The failure comes first: a retry resets the query to pending, and the panel
+  // must stay, its button busy, rather than give way to the skeleton.
   if (props.error) {
     return (
       <InboxListError
@@ -78,6 +79,7 @@ export function renderListContent(props: InboxListPanelProps): ReactNode {
       />
     )
   }
+  if (props.isLoading) return <InboxListSkeleton />
   if (props.items.length === 0) {
     return (
       <InboxListEmpty

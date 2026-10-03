@@ -20,8 +20,10 @@ export function readStateOf<T>(
 ): ReadState<T> {
   if (!facts.allowed) return { status: 'off' }
   if (facts.data !== undefined) return { status: 'ready', data: facts.data }
+  // A retry drops the query's error while it reads; the failure stays up until it answers.
+  if (facts.retrying === true) return { status: 'failed', retrying: true }
   if (facts.error === null || facts.error === undefined) return { status: 'loading' }
   return isDarkCapabilityDenial(facts.error)
     ? { status: 'off' }
-    : { status: 'failed', retrying: facts.retrying === true }
+    : { status: 'failed', retrying: false }
 }
