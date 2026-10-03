@@ -5,9 +5,12 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { useAction } from '#/components/hooks/use-action'
+import { GENERIC_ACTION_ERROR_MESSAGE } from '#/components/hooks/use-action-mutation'
+import { ServerFunctionError } from '#/shared/auth/server-function-error'
 import { LeaveOrganizationDialog } from './leave-organization-dialog'
 
 const REFUSAL = 'You are still the Responsible Manager for a Property.'
+const INTERNAL_FAILURE = 'deadlock detected on relation "portal_responsibilities"'
 
 function Harness({ leave }: Readonly<{ leave: () => Promise<unknown> }>) {
   const leaveOrganization = useAction(leave)
@@ -66,11 +69,14 @@ export const CancelComesBeforeTheAction: Story = {
   },
 }
 
-/** A refused leave is reported in the dialog, above the actions, and the dialog stays open. */
+/**
+ * A refused leave (a 4xx the domain wrote for the reader) is reported in the
+ * dialog, above the actions, in the server's own words, and the dialog stays open.
+ */
 export const RefusalIsShownInTheDialog: Story = {
   args: {
     leave: fn(async () => {
-      throw new Error(REFUSAL)
+      throw new ServerFunctionError('LeaveRefused', REFUSAL, 'conflict', 409)
     }),
   },
   play: async ({ canvasElement, args }) => {
@@ -80,6 +86,27 @@ export const RefusalIsShownInTheDialog: Story = {
     expect(args.leave).toHaveBeenCalledTimes(1)
     const banner = await dialog.findByRole('alert')
     expect(banner).toHaveTextContent(REFUSAL)
+    expect(dialog.getByRole('dialog')).toBeVisible()
+  },
+}
+
+/**
+ * A failure that is not a refusal (a 5xx, or an error with no status) never
+ * prints its message: that text was not written for a reader and may name
+ * internal state. The dialog says the generic sentence instead.
+ */
+export const ServerFailureSaysSomethingGeneric: Story = {
+  args: {
+    leave: fn(async () => {
+      throw new ServerFunctionError('InternalError', INTERNAL_FAILURE, 'internal', 500)
+    }),
+  },
+  play: async ({ canvasElement }) => {
+    const dialog = await openDialog(canvasElement)
+    await userEvent.click(dialog.getByRole('button', { name: 'Transfer and leave' }))
+    const banner = await dialog.findByRole('alert')
+    expect(banner).toHaveTextContent(GENERIC_ACTION_ERROR_MESSAGE)
+    expect(banner).not.toHaveTextContent('deadlock')
     expect(dialog.getByRole('dialog')).toBeVisible()
   },
 }
