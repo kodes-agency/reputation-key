@@ -149,7 +149,7 @@ export function GoalProgramRevisionDialog(props: GoalProgramRevisionDialogProps)
         )}
       </form.Field>
       {scheduled ? (
-        <Alert variant="success" role="status">
+        <Alert variant="success">
           <AlertDescription>{goalRevisionReceipt(scheduled)}</AlertDescription>
         </Alert>
       ) : null}

@@ -68,7 +68,7 @@ export function PropertyLifecycleCard({
 
       <div className="space-y-4 p-4">
         {property.lifecycleState === 'archived' && (
-          <Alert variant="info" role="status">
+          <Alert variant="info">
             <AlertTitle>Recovery details</AlertTitle>
             <AlertDescription>
               <p>

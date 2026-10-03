@@ -4,6 +4,7 @@ import { Badge } from '#/components/ui/badge'
 import { Checkbox } from '#/components/ui/checkbox'
 import { FieldLabel } from '#/components/ui/field'
 import { Input } from '#/components/ui/input'
+import { StatusBadge } from '#/components/ui/status-badge'
 import { TableCell, TableRow } from '#/components/ui/table'
 import type { GoogleImportReviewFormApi } from './google-import-manager-contract'
 import {
@@ -94,9 +95,7 @@ export function GoogleImportReviewRow({ form, item, index, disabled }: Props) {
             {item.action === 'relink' ? (
               <Badge variant="outline">Link existing</Badge>
             ) : null}
-            {flagged ? (
-              <span className="text-xs font-medium text-negative">Needs attention</span>
-            ) : null}
+            {flagged ? <StatusBadge tone="warn" label="Needs attention" /> : null}
           </div>
         ) : null}
         {item.action === 'relink' ? (

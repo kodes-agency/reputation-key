@@ -16,6 +16,7 @@ import {
   type LinearRgb,
 } from '#/shared/testing/oklch-contrast'
 import { TOASTER_STYLE } from './toaster-theme'
+import { TONE_INK, TONE_SURFACE } from './tone'
 
 const AA = 4.5
 const TONES = ['success', 'info', 'warning', 'error'] as const
@@ -62,6 +63,31 @@ describe('TOASTER_STYLE', () => {
     for (const [name, value] of Object.entries(style)) {
       expect(value, name).not.toMatch(literal)
     }
+  })
+})
+
+describe('the information toast', () => {
+  it('is the information notice: the same fill, ink and edge as the Alert tone', () => {
+    // `bg-accent` is `--accent-muted` (styles.css: `--color-accent`).
+    expect(TONE_SURFACE.info).toContain('bg-accent')
+    expect(style['--info-bg']).toBe('var(--accent-muted)')
+    expect(TONE_INK.info).toBe('text-link')
+    expect(style['--info-text']).toBe('var(--link)')
+    expect(TONE_SURFACE.info).toContain('border-link/25')
+    expect(style['--info-border']).toBe(
+      'color-mix(in oklab, var(--link) 25%, transparent)',
+    )
+  })
+})
+
+describe('the Toaster icons', () => {
+  it('come from the tone table, one glyph per tone wherever it is drawn', () => {
+    const source = readFileSync(resolve(__dirname, 'sonner.tsx'), 'utf8')
+
+    for (const tone of ['positive', 'info', 'warn', 'negative']) {
+      expect(source).toContain(`TONE_ICON.${tone}`)
+    }
+    expect(source).not.toMatch(/Octagon/u)
   })
 })
 

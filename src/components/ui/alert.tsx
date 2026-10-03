@@ -16,8 +16,10 @@ import { TONE_ICON, TONE_INK, TONE_SURFACE } from './tone'
 // `destructive` keeps its card surface: it is the form-error recipe in dozens of
 // forms. The three tinted tones keep the quiet ink for the description so a long
 // sentence is not set in a colour, and the title and icon carry the tone.
-// Every variant is announced (`role="alert"`); pass `role="status"` for a notice
-// that is already on the page when it loads and is not news.
+// `destructive` and `warning` are announced at once (`role="alert"`): something
+// failed or needs a person. `info`, `success` and `default` are read in turn
+// (`role="status"`), so a notice that is already on the page when it loads does
+// not interrupt a screen reader. A caller can still pass `role`.
 const alertVariants = cva(
   'relative grid w-full grid-cols-[0_1fr] items-start gap-y-0.5 rounded-lg border px-4 py-3 text-sm has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] has-[>svg]:gap-x-3 [&>svg]:size-4 [&>svg]:translate-y-0.5 [&>svg]:text-current',
   {
@@ -47,6 +49,9 @@ const VARIANT_ICON: Readonly<Partial<Record<AlertVariant, React.ElementType>>> =
   info: TONE_ICON.info,
 }
 
+/** The variants that interrupt; every other one waits its turn. */
+const ASSERTIVE_VARIANTS: ReadonlySet<AlertVariant> = new Set(['destructive', 'warning'])
+
 function Alert({
   className,
   variant = 'default',
@@ -54,11 +59,12 @@ function Alert({
   ...props
 }: React.ComponentProps<'div'> & VariantProps<typeof alertVariants>) {
   const Icon = variant === null ? undefined : VARIANT_ICON[variant]
+  const assertive = variant !== null && ASSERTIVE_VARIANTS.has(variant)
   return (
     <div
       data-slot="alert"
       data-variant={variant}
-      role="alert"
+      role={assertive ? 'alert' : 'status'}
       className={cn(alertVariants({ variant }), className)}
       {...props}
     >

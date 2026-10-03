@@ -100,8 +100,11 @@ export function TopicChips({
       ))}
       {needsAttention && (
         <li>
+          {/* "Needs attention" is the warn pill wherever it appears (the Google
+              connection, the import review): a person has to act, and nothing has
+              failed. The red chips beside it name a complaint, which is a fact. */}
           <StatusBadge
-            tone="negative"
+            tone="warn"
             label="Needs attention"
             className={cn(INBOX_CHIP_STATIC_CLASS, 'font-normal')}
           />

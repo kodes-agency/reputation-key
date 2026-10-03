@@ -184,7 +184,7 @@ function PropertyLookEditor({
       <div className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_21rem] min-[90rem]:grid-cols-[minmax(0,1fr)_21rem_15rem]">
         <div className="min-w-0 space-y-4 lg:row-span-2 min-[90rem]:row-span-1">
           {canEdit ? null : (
-            <Alert variant="info" role="status">
+            <Alert variant="info">
               <AlertDescription>
                 An Account Admin manages the look shared by every portal of this Property.
               </AlertDescription>

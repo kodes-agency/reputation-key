@@ -3,8 +3,8 @@
 // tones draw the one icon they wear everywhere (destructive, warning, success,
 // info), so a caller names the tone and writes the words. Dark is the default
 // theme; the light variants render the same notices on the light surface (axe
-// runs on both). The plays check what every notice must be: announced, named,
-// and with exactly one icon the screen reader skips.
+// runs on both). The plays check what every notice must be: announced in the
+// role its tone earns, named, and with exactly one icon the screen reader skips.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import { Button } from './button'
@@ -27,9 +27,20 @@ const meta: Meta<typeof Alert> = {
 export default meta
 type Story = StoryObj<typeof Alert>
 
-/** A tone's notice is announced, names its variant, and wears exactly one icon the screen reader skips. */
-function expectTone(canvasElement: HTMLElement, variant: string): HTMLElement {
-  const alert = within(canvasElement).getByRole('alert')
+/** What a screen reader does with each tone: failures and warnings interrupt, the rest wait their turn. */
+const ROLE_OF = {
+  destructive: 'alert',
+  warning: 'alert',
+  success: 'status',
+  info: 'status',
+} as const
+
+/** A tone's notice is announced in its role, names its variant, and wears exactly one icon the screen reader skips. */
+function expectTone(
+  canvasElement: HTMLElement,
+  variant: keyof typeof ROLE_OF,
+): HTMLElement {
+  const alert = within(canvasElement).getByRole(ROLE_OF[variant])
   expect(alert).toHaveAttribute('data-variant', variant)
   expect(alert.querySelectorAll('svg[aria-hidden="true"]')).toHaveLength(1)
   return alert
@@ -95,8 +106,9 @@ export const Info: Story = {
 }
 
 /**
- * A notice that is already on the page when it loads is not news: `role="status"`
- * keeps it from interrupting a screen reader. A description can carry an action.
+ * A warning is announced at once; one that is already on the page when it loads
+ * is not news, so it passes `role="status"` to keep from interrupting a screen
+ * reader. A description can carry an action.
  */
 export const StaticNoticeWithAction: Story = {
   render: () => (
@@ -129,7 +141,7 @@ export const Plain: Story = {
     </Alert>
   ),
   play: async ({ canvasElement }) => {
-    const alert = within(canvasElement).getByRole('alert')
+    const alert = within(canvasElement).getByRole('status')
     expect(alert).toHaveAttribute('data-variant', 'default')
     expect(alert.querySelector('svg')).toBeNull()
   },

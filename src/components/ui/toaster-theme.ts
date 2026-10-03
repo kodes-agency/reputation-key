@@ -11,9 +11,10 @@ import type { CSSProperties } from 'react'
  * Each tone is a tinted surface (`-bg`), the text-grade ink that sits on it
  * (`-text`) and an edge (`-border`): success is `--success-muted` with
  * `--positive`, error `--destructive-muted` with `--negative`, warning
- * `--warn-muted` with `--warn`, info `--accent-muted` with `--accent-foreground`.
- * `toaster-theme.test.ts` reads the pairs back from this object and measures
- * them at 4.5:1 in both themes.
+ * `--warn-muted` with `--warn`, info `--accent-muted` with `--link` and the
+ * Alert's own `--link` edge at 25% (`tone.ts`), so an information toast and an
+ * information notice are one colour. `toaster-theme.test.ts` reads the pairs
+ * back from this object and measures them at 4.5:1 in both themes.
  *
  * A plain object literal, not generated: the Toaster is mounted by the root
  * route, so this is in the first-paint closure, which has bytes to spare for
@@ -31,8 +32,8 @@ export const TOASTER_STYLE = {
   '--success-text': 'var(--positive)',
   '--success-border': 'color-mix(in oklab, var(--success) 40%, transparent)',
   '--info-bg': 'var(--accent-muted)',
-  '--info-text': 'var(--accent-foreground)',
-  '--info-border': 'color-mix(in oklab, var(--accent) 40%, transparent)',
+  '--info-text': 'var(--link)',
+  '--info-border': 'color-mix(in oklab, var(--link) 25%, transparent)',
   '--warning-bg': 'var(--warn-muted)',
   '--warning-text': 'var(--warn)',
   '--warning-border': 'var(--warn-line)',

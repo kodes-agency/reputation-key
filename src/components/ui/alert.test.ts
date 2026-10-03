@@ -41,16 +41,25 @@ const TONES = [
 ] as const
 
 describe('Alert', () => {
-  it('is announced as an alert in every variant', () => {
-    for (const variant of [
-      'default',
-      'destructive',
-      'warning',
-      'success',
-      'info',
-    ] as const) {
+  it.each(['destructive', 'warning'] as const)(
+    'announces %s at once, as an alert',
+    (variant) => {
       expect(render(variant)).toContain('role="alert"')
-    }
+    },
+  )
+
+  it.each(['default', 'success', 'info'] as const)(
+    'reads %s in turn, as a status, so a notice already on the page does not interrupt',
+    (variant) => {
+      const html = render(variant)
+
+      expect(html).toContain('role="status"')
+      expect(html).not.toContain('role="alert"')
+    },
+  )
+
+  it('is a status when no variant is named', () => {
+    expect(render()).toContain('role="status"')
   })
 
   it('leaves the icon of a plain notice to the caller', () => {
@@ -118,12 +127,16 @@ describe('Alert', () => {
     expect(render()).toContain('data-variant="default"')
   })
 
-  it('lets a caller choose a politer role for a static notice', () => {
-    const html = renderToStaticMarkup(
-      createElement(Alert, { variant: 'info', role: 'status' }, 'Words'),
+  it('lets a caller choose the other role', () => {
+    const politer = renderToStaticMarkup(
+      createElement(Alert, { variant: 'warning', role: 'status' }, 'Words'),
+    )
+    const louder = renderToStaticMarkup(
+      createElement(Alert, { variant: 'info', role: 'alert' }, 'Words'),
     )
 
-    expect(html).toContain('role="status"')
-    expect(html).not.toContain('role="alert"')
+    expect(politer).toContain('role="status"')
+    expect(politer).not.toContain('role="alert"')
+    expect(louder).toContain('role="alert"')
   })
 })
