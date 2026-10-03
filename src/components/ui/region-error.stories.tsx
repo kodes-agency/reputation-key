@@ -19,12 +19,19 @@ const meta: Meta<typeof RegionError> = {
 export default meta
 type Story = StoryObj<typeof RegionError>
 
-/** The panel is announced, names the thing, and "Try again" calls the refetch. */
+/**
+ * The panel is announced, names the thing, and "Try again" calls the refetch.
+ * It never takes focus when it appears: a failed side read on a page with several
+ * regions would otherwise pull focus on load. (The ring this story's screenshot
+ * shows is the play's own click below, not the component.)
+ */
 export const Default: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('alert')).toHaveTextContent('The goal couldn’t be loaded.')
-    await userEvent.click(canvas.getByRole('button', { name: 'Try again' }))
+    const retry = canvas.getByRole('button', { name: 'Try again' })
+    expect(retry).not.toHaveFocus()
+    await userEvent.click(retry)
     expect(args.onRetry).toHaveBeenCalledTimes(1)
   },
 }
@@ -86,6 +93,7 @@ export const WithCancel: Story = {
     const canvas = within(canvasElement)
     const buttons = canvas.getAllByRole('button')
     expect(buttons.map((button) => button.textContent)).toEqual(['Try again', 'Cancel'])
+    expect(canvasElement.contains(document.activeElement)).toBe(false)
     await userEvent.click(canvas.getByRole('button', { name: 'Cancel' }))
     expect(args.onCancel).toHaveBeenCalledTimes(1)
   },
