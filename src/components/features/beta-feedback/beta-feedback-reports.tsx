@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Bug, ExternalLink, Lightbulb, MessageSquareDashed } from 'lucide-react'
+import { Badge } from '#/components/ui/badge'
 import { EmptyState } from '#/components/ui/empty-state'
 import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
@@ -89,11 +90,7 @@ function ReportRow({
         <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
           <span className="text-sm font-medium">{reporterRouteLabel(item.routeKey)}</span>
           <StatusBadge tone={status.tone} label={status.label} />
-          {isNew && (
-            <span className="rounded-full bg-primary px-1.5 py-0.5 text-xs font-medium text-primary-foreground">
-              New
-            </span>
-          )}
+          {isNew && <Badge>New</Badge>}
         </div>
         <p className="text-sm text-muted-foreground">{status.description}</p>
         <p className="text-xs text-muted-foreground">

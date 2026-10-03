@@ -116,6 +116,9 @@ export function ReviewAnalysisProgressCard({ progress }: Props) {
             </dd>
           </div>
         </dl>
+        {/* `progress` comes from a query the route does not prefetch, so this
+            card never renders data on the server and the viewer's clock cannot
+            disagree with a server-rendered line. */}
         <p className="text-xs text-muted-foreground">
           {progress.verifiedThroughEpochMillis === null
             ? 'Not analysable means the review has no text, is in an unsupported language, or its Google content has expired.'

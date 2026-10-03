@@ -10,7 +10,11 @@
  * - the zone is UTC unless a caller names one: a calendar date that is stored
  *   as a day must not move to the neighbouring day for a viewer in another
  *   zone. A property's own day passes its IANA zone. `'viewer'` is the one
- *   explicit opt-in to the reader's clock, for a live status line;
+ *   explicit opt-in to the reader's clock, for a live status line, and it is for
+ *   text that exists only in the browser: the server prints it in its own zone
+ *   and the client in the reader's, so text that server-renders with `'viewer'`
+ *   is a hydration mismatch (React #418). Print it after mount (`useHydrated`)
+ *   or from a query the page does not prefetch;
  * - an instant that is not one (null, an unparsable string, an Invalid Date,
  *   which is what a null timestamp becomes after a server-function round trip)
  *   answers `null` instead of throwing, because `Intl` throws a RangeError and

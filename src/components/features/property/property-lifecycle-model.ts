@@ -1,4 +1,3 @@
-import { formatDate } from '#/lib/format'
 // Presentation model for the Property lifecycle card — which controls a given
 // lifecycle state offers, and how the recovery deadline reads. Kept apart from
 // the card so the state rules can be tested without rendering.
@@ -6,6 +5,7 @@ import { formatDate } from '#/lib/format'
 // The lifecycle vocabulary is redeclared here rather than imported from the
 // Property domain, matching the component boundary the rest of this folder keeps.
 
+import { formatDate } from '#/lib/format'
 import type { StatusMap } from '#/components/ui/status-badge'
 
 export type PropertyLifecycleState =

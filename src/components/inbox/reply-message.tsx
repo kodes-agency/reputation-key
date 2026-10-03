@@ -52,12 +52,8 @@ const CHIP_VARIANT = {
   accent: 'secondary',
 } as const satisfies Record<ReplyMessageTone, BadgeVariant>
 
-const CHIP_CLASS: Readonly<Record<ReplyMessageTone, string>> = {
-  neutral: '',
-  positive: '',
-  negative: '',
-  accent: 'bg-foreground text-background',
-}
+/** The one chip that is not a Badge look: `secondary`, inverted (see above). */
+const INVERTED_CHIP_CLASS = 'bg-foreground text-background'
 
 /**
  * The reply's disc on the rail, toned by the SAME `ReplyMessageTone` that tones
@@ -232,7 +228,7 @@ export function ReplyMessage({
               className={cn(
                 INBOX_CHIP_STATIC_CLASS,
                 'font-normal',
-                CHIP_CLASS[view.tone],
+                view.tone === 'accent' && INVERTED_CHIP_CLASS,
               )}
             >
               {view.chip}
