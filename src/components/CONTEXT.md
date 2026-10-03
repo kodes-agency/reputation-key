@@ -16,8 +16,14 @@ and actions supply server state.
   a read that failed is `EmptyState` (`size` default or compact, `tone` neutral or
   error, `description` and `action` slots) or `RegionError`, whose only recovery is
   "Try again" wired to the region's refetch. Never hand-build a dashed box or a
-  "Retry" button; `region-states.test.ts` fails on both. The bell's could-not-load
-  body is plain markup on purpose: it sits in the first-paint closure.
+  "Retry" button; `region-states.test.ts` fails on both. A region keeps its failure
+  on screen, its button busy, while the retry reads: key the panel on
+  `hasFailed(query)` and pass `retrying` (`isRetrying(query)`) from
+  `hooks/is-retrying`, because a query with no data drops its error and goes
+  `pending` the moment it refetches. A dense workspace (the Inbox) passes
+  `density="compact"` (36px on a phone, not the 44px target). The bell's
+  could-not-load body is plain markup on purpose: it sits in the first-paint
+  closure.
 - `forms/` contains shared TanStack Form fields, submission, and error UI.
 - `layout/` contains app-shell and navigation pieces. `PageState` is the one
   page-level state (`loading`, `error`, `notFound`, `unavailable`): the router's
@@ -29,7 +35,11 @@ tier, under } }`, see `page-identity.ts`): that gives its fallbacks their frame
   `pendingComponent`, `errorComponent` or `notFoundComponent` unless it names a
   missing entity (`RouteNotFound` with `entity`). The error state takes the
   guarded behaviour (sanitised message, report, 401 sign-in redirect, Try again)
-  from `useGuardedRouteError`.
+  from `useGuardedRouteError`. A refusal is drawn by the shell route's not-found
+  boundary (`ShellNoticeBoundary`), which replaces the shell; what a person set
+  (the sidebar's open state, the focused sidebar link) is kept in
+  `shell-continuity` so the swap does not reset it, and the refusal takes the
+  frame of the page it replaces (`refusal-frame`).
 - `hooks/` contains cross-feature React behavior and action wrappers.
 - `inbox/` and `goals/` contain large cohesive manager experiences.
 - `features/<feature>/` contains feature presentation grouped by user concept;

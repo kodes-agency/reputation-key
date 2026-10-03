@@ -45,7 +45,9 @@ while it loads or fails. A route inside a page that already has a header
 (a Property settings section) names nothing.
 
 A page the signed-in person cannot use is answered in the shell, not by a
-redirect: throw `roleUnavailable(title, back)` for a role (or let
+redirect: throw `roleUnavailable(title, back)` for a role (`back` names a place:
+`'properties'`, `'profile'`, `'propertySettings'`, `'portal'`; the shell's boundary,
+which reads the address, writes the link) (or let
 `gateControlledRoute` throw the feature-off refusal), and a missing Property
 throws `routeNotice(PROPERTY_NOT_FOUND)` (`shared/auth/route-notice`). The notice
 is a router `notFound()` aimed at `_authenticated`, so the document is a 404, the
