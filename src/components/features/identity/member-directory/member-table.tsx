@@ -58,11 +58,11 @@ export function MemberTable({
 
   if (members.length === 0) {
     return (
-      <EmptyState icon={Contact} title="No members">
-        <p className="text-sm text-muted-foreground">
-          Invite members to your organization using the button above.
-        </p>
-      </EmptyState>
+      <EmptyState
+        icon={Contact}
+        title="No members"
+        description="Invite members to your organization using the button above."
+      />
     )
   }
 

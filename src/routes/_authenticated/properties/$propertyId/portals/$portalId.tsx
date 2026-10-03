@@ -1,12 +1,11 @@
 import {
   createFileRoute,
-  Link,
   notFound,
   Outlet,
-  redirect,
   useRouterState,
   type SearchSchemaInput,
 } from '@tanstack/react-router'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
@@ -21,11 +20,6 @@ import {
   type PortalDetailTab,
 } from '#/components/features/portal/portal-detail/portal-detail-rules'
 import type { PortalEditorSection } from '#/components/features/portal/portal-editor/portal-editor-sections'
-import {
-  PortalDetailError,
-  PortalDetailLoading,
-  PortalFallbackFrame,
-} from '#/components/features/portal/portal-route-fallbacks'
 import { PortalDraftAutosaveProvider } from '#/components/features/portal/portal-editor/portal-draft-autosave-context'
 import { PortalDraftSaveStatus } from '#/components/features/portal/portal-editor/portal-draft-save-status'
 import { PortalLinkIssuanceProvider } from '#/components/features/portal/portal-workspace/portal-link-issuance'
@@ -34,10 +28,7 @@ import { PortalWorkspaceHeader } from '#/components/features/portal/portal-works
 import { isWorkspaceReviewRoute } from '#/components/features/portal/portal-workspace/portal-workspace-route'
 import { PortalWorkspaceShell } from '#/components/features/portal/portal-workspace/portal-workspace-shell'
 import { PortalWorkspaceTabs } from '#/components/features/portal/portal-workspace/portal-workspace-tabs'
-import { PageHeader } from '#/components/layout/page-header'
-import { EmptyState } from '#/components/ui/empty-state'
-import { Button } from '#/components/ui/button'
-import { AlertCircle } from 'lucide-react'
+import { RouteNotFound } from '#/components/layout/route-page-state'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { membersQuery, propertyQuery } from '#/routes/-queries/route-queries'
 import { usePortalOpenPageReveal } from './-portal-detail-actions'
@@ -57,6 +48,7 @@ import {
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/portals/$portalId',
 )({
+  staticData: { page: { title: 'Portal', fullBleed: true } },
   // The input is typed so a Link can only name a current tab, and `tab` stays
   // optional (the Page tab is the default). At runtime the value can be
   // anything a bookmark carries; normalization maps the pre-workspace names.
@@ -72,7 +64,7 @@ export const Route = createFileRoute(
       },
     })
     const { role } = context as AuthRouteContext
-    if (!can(role, 'portal.read')) throw redirect({ to: '/properties' })
+    if (!can(role, 'portal.read')) throw roleUnavailable('Portal', 'properties')
   },
   staleTime: 30_000,
   loader: async ({ params, context }) => {
@@ -114,8 +106,6 @@ export const Route = createFileRoute(
     ])
   },
   component: PortalWorkspaceLayout,
-  pendingComponent: PortalDetailLoading,
-  errorComponent: PortalDetailError,
   notFoundComponent: PortalNoLongerAvailable,
 })
 
@@ -128,26 +118,13 @@ export const Route = createFileRoute(
 function PortalNoLongerAvailable() {
   const { propertyId } = Route.useParams()
   return (
-    <PortalFallbackFrame>
-      <PageHeader
-        title="Portal unavailable"
-        breadcrumbs={[
-          { label: 'Properties', to: '/properties' },
-          { label: 'Portals', to: `/properties/${propertyId}/portals` },
-          { label: 'Unavailable' },
-        ]}
-      />
-      <EmptyState icon={AlertCircle} title="This portal is no longer available">
-        <p className="text-sm text-muted-foreground">
-          It may have been removed, or it may belong to a different property.
-        </p>
-        <Button asChild variant="outline">
-          <Link to="/properties/$propertyId/portals" params={{ propertyId }}>
-            Back to Portals
-          </Link>
-        </Button>
-      </EmptyState>
-    </PortalFallbackFrame>
+    <RouteNotFound
+      entity={{
+        heading: 'This portal is no longer available',
+        reason: 'It may have been removed, or it may belong to a different property.',
+        back: { to: `/properties/${propertyId}/portals`, label: 'Back to Portals' },
+      }}
+    />
   )
 }
 

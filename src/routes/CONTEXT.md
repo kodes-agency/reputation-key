@@ -37,6 +37,23 @@ nothing there; `isFullBleedRoute` (`components/layout/full-bleed-route.ts`) is t
 one place that names those routes, and a padded body inside one wears
 `FullBleedFrame`. Width comes from `PageShell` tiers, not ad hoc `max-w` boxes.
 
+Every page route that draws a page header names itself in `staticData.page`
+(`title`, `tier`, `under`; `components/layout/page-identity.ts`). `_authenticated`
+turns that into the tab title, and the router's default pending, error and
+not-found states draw it, so a page does not lose its title, breadcrumbs or width
+while it loads or fails. A route inside a page that already has a header
+(a Property settings section) names nothing.
+
+A page the signed-in person cannot use is answered in the shell, not by a
+redirect: throw `roleUnavailable(title, back)` for a role (`back` names a place:
+`'properties'`, `'profile'`, `'propertySettings'`, `'portal'`; the shell's boundary,
+which reads the address, writes the link) (or let
+`gateControlledRoute` throw the feature-off refusal), and a missing Property
+throws `routeNotice(PROPERTY_NOT_FOUND)` (`shared/auth/route-notice`). The notice
+is a router `notFound()` aimed at `_authenticated`, so the document is a 404, the
+shell stays, and the page says what is wrong, why, and where to go.
+`/unavailable` remains only for an account with no workspace.
+
 Route `beforeLoad` checks improve navigation and availability copy; they are not
 the mutation authority. Server functions and owning contexts re-resolve current
 tenant, permission, capability, and Property scope for every protected operation.

@@ -1,4 +1,4 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { MerchantAiPropertyAuthorization } from '#/components/features/settings/merchant-ai-property-authorization'
@@ -10,6 +10,7 @@ import {
 } from '#/contexts/identity/server/merchant-ai'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { propertyQuery } from '#/routes/-queries/route-queries'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import { can } from '#/shared/domain/permissions'
 import {
   aiKeys,
@@ -25,10 +26,11 @@ import {
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/settings/ai',
 )({
-  beforeLoad: ({ context, params }) => {
+  beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     if (!can(role, 'ai.manage')) {
-      throw redirect({ to: '/properties/$propertyId/settings/profile', params })
+      // The section is hidden from a role without it, so this is a stale link.
+      throw roleUnavailable('AI settings', 'propertySettings')
     }
   },
   loader: ({ params: { propertyId }, context }) =>

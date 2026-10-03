@@ -10,6 +10,8 @@
 // that happen to include one).
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { createElement } from 'react'
+import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import {
   composite,
@@ -19,6 +21,7 @@ import {
   type LinearRgb,
 } from '#/shared/testing/oklch-contrast'
 import { buttonVariants } from './button'
+import { Skeleton } from './skeleton'
 
 const AA = 4.5
 
@@ -26,6 +29,8 @@ const css = readFileSync(resolve(__dirname, '../../styles.css'), 'utf8')
 const light = readTokenBlock(css, ':root')
 // `.dark` only overrides: a token it does not redeclare resolves from `:root`.
 const dark = readTokenBlock(css, '.dark')
+// `bg-*` utilities are named by the `@theme inline` block (`--color-border: var(--border)`).
+const themeBlock = readTokenBlock(css, '@theme inline')
 
 const THEMES = [
   { name: 'light', tokens: light, base: new Map<string, string>() },
@@ -66,6 +71,39 @@ describe.each(THEMES)('$name theme token pairs', (theme) => {
     expect(
       contrastRatio(colour(theme, surface), colour(theme, on)),
     ).toBeGreaterThanOrEqual(AA)
+  })
+})
+
+// A loading block is decoration, so it owes no 3:1, but it must not vanish: in
+// dark it drew `bg-accent` (the purple tint `--accent-muted`), which sat at
+// 1.03:1 on a card, and the whole loading state read as an empty page. 1.15:1 is
+// what the quietest light pairing (the old tint on `--background`, 1.17:1) held.
+// Read the fill from the rendered Skeleton so this follows the component.
+const SKELETON_MIN = 1.15
+const SKELETON_SURFACES = [
+  '--background',
+  '--card',
+  '--surface',
+  '--surface-elevated',
+  '--popover',
+] as const
+
+/** The `--token` a utility such as `bg-border` paints, by the stylesheet's `@theme` block. */
+const skeletonFillToken = (): string => {
+  const html = renderToStaticMarkup(createElement(Skeleton))
+  const utility = /\bbg-([\w-]+)\b/.exec(html)?.[1]
+  if (utility === undefined) throw new Error(`Skeleton paints no bg-* utility: ${html}`)
+  const mapped = themeBlock.get(`--color-${utility}`)
+  const reference = mapped === undefined ? null : /^var\((--[\w-]+)\)$/.exec(mapped)
+  if (reference === null) throw new Error(`bg-${utility} is not a mapped colour`)
+  return reference[1]!
+}
+
+describe.each(THEMES)('$name theme skeleton', (palette) => {
+  it.each(SKELETON_SURFACES)('the Skeleton fill stays visible on %s', (surface) => {
+    expect(
+      contrastRatio(colour(palette, skeletonFillToken()), colour(palette, surface)),
+    ).toBeGreaterThanOrEqual(SKELETON_MIN)
   })
 })
 

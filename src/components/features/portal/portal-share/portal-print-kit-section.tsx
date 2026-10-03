@@ -7,6 +7,7 @@ import type { ComponentType } from 'react'
 import { Button } from '#/components/ui/button'
 import { Label } from '#/components/ui/label'
 import { RadioGroup, RadioGroupItem } from '#/components/ui/radio-group'
+import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
 import {
@@ -31,6 +32,8 @@ type Props = Readonly<{
   choice: PrintKitChoice | null
   isError: boolean
   onRetry: () => void
+  /** Try again is reading; the error stays, its button busy. */
+  isRetrying?: boolean
   onChoiceChange: (choice: PrintKitChoice) => void
   /** Why the download is off, or null when it is on. */
   unavailableReason: string | null
@@ -44,6 +47,7 @@ export function PortalPrintKitSection({
   choice,
   isError,
   onRetry,
+  isRetrying = false,
   onChoiceChange,
   unavailableReason,
   isWorking,
@@ -61,12 +65,12 @@ export function PortalPrintKitSection({
         </p>
       </div>
       {isError && (
-        <p className="text-sm text-destructive" role="alert">
-          The print kit could not be loaded.{' '}
-          <Button type="button" variant="link" className="h-auto p-0" onClick={onRetry}>
-            Try again
-          </Button>
-        </p>
+        <RegionError
+          size="compact"
+          message="The print kit couldn’t be loaded."
+          onRetry={onRetry}
+          retrying={isRetrying}
+        />
       )}
       {view === null || choice === null ? (
         !isError && <Loading />

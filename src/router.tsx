@@ -1,83 +1,19 @@
 import { getGlobalStartContext } from '@tanstack/react-start'
 import { QueryClient } from '@tanstack/react-query'
-import { createRouter as createTanStackRouter, useRouter } from '@tanstack/react-router'
-import type { ErrorComponentProps } from '@tanstack/react-router'
+import { createRouter as createTanStackRouter } from '@tanstack/react-router'
 import { setupRouterSsrQueryIntegration } from '@tanstack/react-router-ssr-query'
 import { routeTree } from './routeTree.gen'
 
-import { Skeleton } from '#/components/ui/skeleton'
-import { Alert, AlertDescription } from '#/components/ui/alert'
-import { AlertCircle } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+// The router's defaults are `PageState` in the frame of the page that is pending,
+// failed or missing: the page's title, breadcrumbs and tier come from its route
+// (`staticData.page`), and a failure is sanitised, reported, retryable and sends a
+// 401 to sign-in (see `useGuardedRouteError`). They stay in first paint on
+// purpose: a failure must be able to draw while the network is gone.
 import {
-  SignedOutRedirect,
-  useGuardedRouteError,
-} from '#/components/layout/use-guarded-route-error'
-
-/** Default pending component — shown while route loaders are resolving. */
-function DefaultPendingComponent() {
-  return (
-    <div className="page-wrap px-4 pb-8 pt-14">
-      <div className="flex flex-col gap-4">
-        <Skeleton className="h-8 w-48" />
-        <Skeleton className="h-4 w-64" />
-        <Skeleton className="h-32 w-full" />
-      </div>
-    </div>
-  )
-}
-
-/**
- * Default error component — shown when route loaders throw.
- *
- * The guarded behaviour (sanitised message, capture, 401 sign-out redirect,
- * Try again) lives in `useGuardedRouteError`, shared with every route that
- * renders its own error component. A 401 here means the session ended under an
- * open page: that is the login page's job, not a failure.
- */
-function DefaultErrorComponent({ error }: ErrorComponentProps) {
-  const guarded = useGuardedRouteError(error)
-
-  if (guarded.signedOut) return <SignedOutRedirect />
-
-  return (
-    <div className="page-wrap px-4 pb-8 pt-14">
-      <Alert variant="destructive">
-        <AlertCircle />
-        <AlertDescription>
-          {/* BQC-7.6: production never renders raw error text (SQL/stack/
-              secret leakage); development keeps it for debuggability. */}
-          {guarded.message}
-        </AlertDescription>
-      </Alert>
-      <Button variant="outline" className="mt-4" onClick={guarded.retry}>
-        Try again
-      </Button>
-    </div>
-  )
-}
-/** Default 404 component — shown when no route matches or a loader throws notFound(). */
-function DefaultNotFoundComponent() {
-  const router = useRouter()
-
-  return (
-    <div className="page-wrap px-4 pb-8 pt-14">
-      <Alert>
-        <AlertCircle />
-        <AlertDescription>
-          The page you&apos;re looking for doesn&apos;t exist or may have moved.
-        </AlertDescription>
-      </Alert>
-      <Button
-        variant="outline"
-        className="mt-4"
-        onClick={() => router.navigate({ to: '/' })}
-      >
-        Go home
-      </Button>
-    </div>
-  )
-}
+  RouteError,
+  RoutePending,
+  RouteNotFound,
+} from '#/components/layout/route-page-state'
 
 export function getRouter() {
   // TanStack Query client cache. The ssr-query integration handles per-request
@@ -114,9 +50,9 @@ export function getRouter() {
     defaultPendingMs: 0,
     // Don't enforce a minimum display time for the skeleton.
     defaultPendingMinMs: 0,
-    defaultPendingComponent: DefaultPendingComponent,
-    defaultErrorComponent: DefaultErrorComponent,
-    defaultNotFoundComponent: DefaultNotFoundComponent,
+    defaultPendingComponent: RoutePending,
+    defaultErrorComponent: RouteError,
+    defaultNotFoundComponent: RouteNotFound,
   })
 
   // Wire SSR dehydration/hydration + streaming between Router and Query.

@@ -1,4 +1,5 @@
-import { createFileRoute, Outlet, redirect } from '@tanstack/react-router'
+import { createFileRoute, Outlet } from '@tanstack/react-router'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
 import { PageShell } from '#/components/layout/page-shell'
@@ -10,9 +11,13 @@ import { propertyQuery, propertySetupQuery } from '#/routes/-queries/route-queri
 import { can } from '#/shared/domain/permissions'
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/settings')({
+  staticData: {
+    page: { title: 'Property settings', crumb: 'Settings', under: 'property' },
+  },
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
-    if (!can(role, 'property.read')) throw redirect({ to: '/properties' })
+    if (!can(role, 'property.read'))
+      throw roleUnavailable('Property settings', 'properties')
   },
   loader: ({ params: { propertyId }, context }) =>
     context.queryClient.ensureQueryData(propertyQuery(propertyId)),

@@ -12,6 +12,7 @@ import {
 import { useOverviewRange } from '#/components/features/portal/portal-overview/use-overview-range'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { portalResultsQuery } from './-portal-overview-data'
+import { isRetrying } from '#/components/hooks/is-retrying'
 
 /**
  * Undefined where the results are not shown to this reader
@@ -33,7 +34,7 @@ export function usePortalResultsControls(
   const data = query.data
   const index = useMemo(() => (data ? indexOverviewResults(data) : null), [data])
   const state = resultsStateOf(
-    { allowed: canDo('dashboard.read'), error: query.error },
+    { allowed: canDo('dashboard.read'), error: query.error, retrying: isRetrying(query) },
     index,
   )
   if (state.status === 'off') return undefined

@@ -39,18 +39,20 @@ async function expectControlledUnavailable(
   feature: string,
   category: CapabilityRefusalCategory,
 ) {
-  await expect(page).toHaveURL(/\/unavailable/)
-  const search = new URL(page.url()).searchParams
-  expect(search.get('feature')).toBe(feature)
-  expect(search.get('category')).toBe(category)
+  // The refusal is drawn in the app shell, at the address that was asked for:
+  // the page keeps its name, says what is wrong and why, and offers the way back.
+  await expect(page).not.toHaveURL(/\/unavailable/)
+  const main = page.getByRole('main')
+  await expect(main.getByRole('heading', { level: 1, name: feature })).toBeVisible()
   const copy = REFUSAL_COPY[category]
-  await expect(page.getByText(copy.title(feature))).toBeVisible()
-  await expect(page.getByText(copy.description)).toBeVisible()
+  await expect(main.getByText(copy.title(feature))).toBeVisible()
+  await expect(main.getByText(copy.description)).toBeVisible()
   if (copy.next === null) {
     // No setting can lift this refusal, so none may be offered.
-    await expect(page.getByRole('link', { name: 'Open property settings' })).toHaveCount(
+    await expect(main.getByRole('link', { name: 'Open property settings' })).toHaveCount(
       0,
     )
+    await expect(main.getByRole('link', { name: 'Back to Properties' })).toBeVisible()
   }
 }
 

@@ -6,8 +6,7 @@
 // offered: a lifetime figure comes from the lifetime aggregate, not from readings).
 import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
-import { Button } from '#/components/ui/button'
-import { Metric, MetricStrip } from '#/components/ui/metric-strip'
+import { RegionError } from '#/components/ui/region-error'
 import {
   Select,
   SelectContent,
@@ -19,8 +18,10 @@ import {
 import { cn } from '#/lib/utils'
 import type { PortalResultsTimeRange } from '#/contexts/reporting/application/public-api'
 import { timeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
-import { RESULTS_LABELS } from '../portal-analytics/portal-results-cells'
-import { PortalResultsStrip } from '../portal-analytics/portal-results-strip'
+import {
+  PortalResultsLoadingStrip,
+  PortalResultsStrip,
+} from '../portal-analytics/portal-results-strip'
 import { PORTAL_OVERVIEW_RANGES } from '../portal-analytics/portal-results-window'
 import { INBOX_WAITING_QUEUE, inboxWaitingLabel } from './portal-overview-inbox'
 import type { PortalOverviewResultsState } from './portal-overview-results'
@@ -111,39 +112,6 @@ function InboxWaitingLink({
   )
 }
 
-function LoadingStrip() {
-  return (
-    <div aria-busy="true">
-      <MetricStrip aria-label="Portal results" variant="ruled">
-        {Object.values(RESULTS_LABELS).map((label) => (
-          <Metric key={label} label={label} state="loading" />
-        ))}
-      </MetricStrip>
-    </div>
-  )
-}
-
-function FailedStrip({ onRetry }: Readonly<{ onRetry: () => void }>) {
-  return (
-    <div
-      role="status"
-      className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed px-4 py-3"
-    >
-      <p className="text-sm text-muted-foreground">
-        Results couldn’t be loaded. The portals below are unaffected.
-      </p>
-      <Button
-        variant="outline"
-        size="sm"
-        className="min-h-11 sm:min-h-9"
-        onClick={onRetry}
-      >
-        Try again
-      </Button>
-    </div>
-  )
-}
-
 export function PortalOverviewResultsStrip({
   controls,
   propertyId,
@@ -183,8 +151,16 @@ export function PortalOverviewResultsStrip({
           {scopeLine(state, strip, propertyId, propertiesListed, groupId)}
         </p>
       </div>
-      {state.status === 'loading' ? <LoadingStrip /> : null}
-      {state.status === 'failed' ? <FailedStrip onRetry={onRetry} /> : null}
+      {state.status === 'loading' ? <PortalResultsLoadingStrip /> : null}
+      {state.status === 'failed' ? (
+        <RegionError
+          size="compact"
+          message="Results couldn’t be loaded."
+          description="The portals below are unaffected."
+          onRetry={onRetry}
+          retrying={state.retrying === true}
+        />
+      ) : null}
       {strip ? (
         <div className={cn('transition-opacity', busy && 'opacity-60')} aria-busy={busy}>
           <PortalResultsStrip

@@ -1,4 +1,4 @@
-import { Button } from '#/components/ui/button'
+import { RegionError } from '#/components/ui/region-error'
 
 /**
  * What is known about the selected Property's `notification.send_email`
@@ -11,7 +11,13 @@ export type EmailAvailability = 'checking' | 'allowed' | 'unavailable' | 'unknow
 export function EmailAvailabilityNotice({
   availability,
   onRetry,
-}: Readonly<{ availability: EmailAvailability; onRetry: () => void }>) {
+  retrying = false,
+}: Readonly<{
+  availability: EmailAvailability
+  onRetry: () => void
+  /** The check is running again; the notice stays, its button busy. */
+  retrying?: boolean
+}>) {
   if (availability === 'allowed') return null
   if (availability === 'checking') {
     return (
@@ -22,14 +28,14 @@ export function EmailAvailabilityNotice({
   }
   if (availability === 'unknown') {
     return (
-      <div role="alert" className="flex flex-wrap items-center gap-3 pb-5 text-sm">
-        <p className="text-muted-foreground">
-          Couldn&apos;t check whether email is available for this property. The email
-          controls stay off until it is known.
-        </p>
-        <Button type="button" variant="outline" size="sm" onClick={onRetry}>
-          Check again
-        </Button>
+      <div className="pb-5">
+        <RegionError
+          size="compact"
+          message="Email availability for this property couldn’t be checked."
+          description="The email controls stay off until it is known."
+          onRetry={onRetry}
+          retrying={retrying}
+        />
       </div>
     )
   }

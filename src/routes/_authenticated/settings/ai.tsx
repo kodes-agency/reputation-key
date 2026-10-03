@@ -1,4 +1,5 @@
 import { createFileRoute, redirect } from '@tanstack/react-router'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQueries, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import { PageHeader } from '#/components/layout/page-header'
@@ -15,10 +16,11 @@ import {
 const aiOverviewSearch = z.object({ propertyId: z.uuid().optional() })
 
 export const Route = createFileRoute('/_authenticated/settings/ai')({
+  staticData: { page: { title: 'AI overview', under: 'settings' } },
   validateSearch: aiOverviewSearch,
   beforeLoad: ({ context, search }) => {
     const { role } = context as AuthRouteContext
-    if (!can(role, 'ai.manage')) throw redirect({ to: '/settings/profile' })
+    if (!can(role, 'ai.manage')) throw roleUnavailable('AI overview', 'profile')
     if (search.propertyId) {
       throw redirect({
         to: '/properties/$propertyId/settings/ai',

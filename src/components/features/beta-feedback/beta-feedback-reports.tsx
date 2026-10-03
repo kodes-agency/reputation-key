@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { Bug, ExternalLink, Lightbulb, MessageSquareDashed } from 'lucide-react'
 import { Badge } from '#/components/ui/badge'
+import { EmptyState } from '#/components/ui/empty-state'
+import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import { formatDateTime } from '#/lib/format-date-time'
 import { cn } from '#/lib/utils'
@@ -20,6 +22,7 @@ import {
   unseenOutcomes,
   writeSeenOutcomes,
 } from './beta-feedback-updates'
+import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 
 // The panel only ever renders after a click, so the viewer's own zone is safe
 // here and reads better than a pinned one.
@@ -121,13 +124,12 @@ function ReportRow({
 
 function EmptyReports() {
   return (
-    <div className="flex flex-col items-center gap-2 py-8 text-center">
-      <MessageSquareDashed className="size-6 text-muted-foreground" aria-hidden="true" />
-      <p className="text-sm font-medium">Nothing reported yet</p>
-      <p className="max-w-xs text-sm text-muted-foreground">
-        Anything you send from this panel shows up here, with where it got to.
-      </p>
-    </div>
+    <EmptyState
+      size="compact"
+      icon={MessageSquareDashed}
+      title="Nothing reported yet"
+      description="Anything you send from this panel shows up here, with where it got to."
+    />
   )
 }
 
@@ -169,20 +171,25 @@ export function BetaFeedbackReports({
     onSeen?.()
   }, [enabled, query.data, onSeen])
 
+  // The failure comes first: a retry resets a query with no data to pending, and
+  // the panel must stay, its button busy, rather than give way to the skeleton.
+  if (hasFailed(query)) {
+    return (
+      <RegionError
+        size="compact"
+        message="Your reports couldn’t be loaded."
+        onRetry={() => void query.refetch()}
+        retrying={isRetrying(query)}
+      />
+    )
+  }
+
   if (query.isPending) {
     return (
       <div className="space-y-3 py-2" aria-busy="true">
         <Skeleton className="h-14 w-full" />
         <Skeleton className="h-14 w-full" />
       </div>
-    )
-  }
-
-  if (query.isError) {
-    return (
-      <p className="py-8 text-center text-sm text-muted-foreground">
-        Your reports could not be loaded just now.
-      </p>
     )
   }
 

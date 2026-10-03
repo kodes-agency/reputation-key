@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react'
 import type { Action } from '#/components/hooks/use-action'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { Globe } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { EmptyState } from '#/components/ui/empty-state'
 import {
   Dialog,
   DialogContent,
@@ -88,9 +90,11 @@ export function PortalResponsibilitiesModal({
         </DialogHeader>
 
         {allPortals.length === 0 ? (
-          <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-            No portals are available at this property.
-          </p>
+          <EmptyState
+            size="compact"
+            icon={Globe}
+            title="No portals are available at this property"
+          />
         ) : (
           <div className="space-y-5 py-2">
             <Field>

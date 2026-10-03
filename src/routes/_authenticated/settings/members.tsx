@@ -6,7 +6,8 @@
 
 import { useState } from 'react'
 import { toast } from 'sonner'
-import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
+import { createFileRoute, getRouteApi } from '@tanstack/react-router'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
 import type { AuthRouteContext } from '#/routes/_authenticated'
@@ -65,9 +66,10 @@ const invitationsQuery = queryOptions({
 })
 
 export const Route = createFileRoute('/_authenticated/settings/members')({
+  staticData: { page: { title: 'Members', under: 'settings' } },
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
-    if (!can(role, 'member.list')) throw redirect({ to: '/settings/profile' })
+    if (!can(role, 'member.list')) throw roleUnavailable('Members', 'profile')
   },
   loader: async ({ context }) => {
     const { role } = context as AuthRouteContext

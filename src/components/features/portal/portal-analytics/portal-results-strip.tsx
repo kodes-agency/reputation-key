@@ -3,7 +3,7 @@
 import type { ReactNode } from 'react'
 import { Star } from 'lucide-react'
 import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
-import type { ResultsCell } from './portal-results-cells'
+import { RESULTS_LABELS, type ResultsCell } from './portal-results-cells'
 
 function Figure({ cell }: Readonly<{ cell: ResultsCell }>) {
   if (cell.unit !== 'star') return cell.value
@@ -40,5 +40,18 @@ export function PortalResultsStrip({
         </Metric>
       ))}
     </MetricStrip>
+  )
+}
+
+/** The strip while its figures load: every cell keeps its name, so nothing jumps. */
+export function PortalResultsLoadingStrip() {
+  return (
+    <div aria-busy="true">
+      <MetricStrip aria-label="Portal results" variant="ruled">
+        {Object.values(RESULTS_LABELS).map((label) => (
+          <Metric key={label} label={label} state="loading" />
+        ))}
+      </MetricStrip>
+    </div>
   )
 }

@@ -12,7 +12,7 @@ import {
   UserMinus,
   UserPlus,
 } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import {
   Timeline,
@@ -90,20 +90,12 @@ export function PortalGroupHistory({ state, names, frame, onRetry }: Props) {
         </div>
       ) : null}
       {state.status === 'failed' ? (
-        <div
-          role="status"
-          className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-dashed px-4 py-3"
-        >
-          <p className="text-sm text-muted-foreground">The history couldn’t be loaded.</p>
-          <Button
-            variant="outline"
-            size="sm"
-            className="min-h-11 md:min-h-8"
-            onClick={onRetry}
-          >
-            Try again
-          </Button>
-        </div>
+        <RegionError
+          size="compact"
+          message="The history couldn’t be loaded."
+          onRetry={onRetry}
+          retrying={state.retrying}
+        />
       ) : null}
       {state.status === 'ready' && lines.length === 0 ? (
         <p className="text-sm text-muted-foreground">

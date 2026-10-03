@@ -1,6 +1,6 @@
 import { Inbox } from 'lucide-react'
-import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
+import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import type { InboxQueue } from '#/contexts/inbox/application/public-api'
 import { inboxEmptyCopy } from './inbox-queues'
@@ -28,16 +28,23 @@ export function InboxListSkeleton() {
   )
 }
 
+// Both states sit in the list pane as a compact panel: the pane is narrow, and
+// the panel needs a gutter of its own so its dashed edge does not touch the pane.
 export function InboxListError({
   error,
   onRetry,
-}: Readonly<{ error: string; onRetry: () => void }>) {
+  isRetrying = false,
+}: Readonly<{ error: string; onRetry: () => void; isRetrying?: boolean }>) {
   return (
-    <div className="flex flex-col items-center justify-center gap-3 px-4 py-16">
-      <p className="text-center text-sm text-muted-foreground">{error}</p>
-      <Button variant="outline" size="sm" onClick={onRetry}>
-        Retry
-      </Button>
+    <div className="p-4">
+      {/* Compact density: the list pane's controls are 36px on a phone. */}
+      <RegionError
+        size="compact"
+        density="compact"
+        message={error}
+        onRetry={onRetry}
+        retrying={isRetrying}
+      />
     </div>
   )
 }
@@ -48,12 +55,13 @@ export function InboxListEmpty({
 }: Readonly<{ queue: InboxQueue; isFiltered: boolean }>) {
   const copy = inboxEmptyCopy(queue, isFiltered)
   return (
-    <div className="py-12">
-      <EmptyState icon={Inbox} title={copy.title}>
-        {copy.description && (
-          <p className="text-sm text-muted-foreground">{copy.description}</p>
-        )}
-      </EmptyState>
+    <div className="p-4">
+      <EmptyState
+        size="compact"
+        icon={Inbox}
+        title={copy.title}
+        description={copy.description}
+      />
     </div>
   )
 }

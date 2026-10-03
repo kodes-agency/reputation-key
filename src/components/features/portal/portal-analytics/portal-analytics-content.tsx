@@ -4,6 +4,7 @@
 // it shows the totals and says why the weekly view is not there.
 import { useId } from 'react'
 import { BarChart3 } from 'lucide-react'
+import { EmptyState } from '#/components/ui/empty-state'
 import { cn } from '#/lib/utils'
 import type { PortalAnalyticsData } from '#/contexts/reporting/application/public-api'
 import type { TimeRangePreset } from '#/contexts/reporting/application/dto/dashboard.dto'
@@ -49,13 +50,11 @@ function hasPendingState(data: PortalAnalyticsData): boolean {
 
 function EmptyResults() {
   return (
-    <div className="rounded-lg border border-dashed p-12 text-center">
-      <BarChart3 className="mx-auto size-10 text-muted-foreground/50" />
-      <h3 className="mt-4 font-semibold">No data yet</h3>
-      <p className="mt-1 text-sm text-muted-foreground">
-        Share your portal to start collecting metrics.
-      </p>
-    </div>
+    <EmptyState
+      icon={BarChart3}
+      title="No data yet"
+      description="Share your portal to start collecting metrics."
+    />
   )
 }
 

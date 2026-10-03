@@ -22,7 +22,11 @@ import {
 } from '#/shared/auth/capability-set'
 import { propertyIdFromLocation } from '#/components/hooks/use-property-id'
 import { isFullBleedRoute } from '#/components/layout/full-bleed-route'
+import { pageHead } from '#/components/layout/page-identity'
 import { PAGE_GUTTER } from '#/components/layout/page-shell'
+import { ShellNoticeBoundary } from '#/components/layout/shell-notice-boundary'
+import { useKeepSidebarFocus, useSidebarOpen } from '#/components/layout/shell-continuity'
+import { ShellPresence } from '#/components/layout/route-page-state'
 import { httpStatus } from '#/shared/security/expected-refusal'
 import { SidebarProvider } from '#/components/ui/sidebar'
 import { ViewportHintContext } from '#/components/hooks/use-viewport-below'
@@ -39,7 +43,7 @@ import {
   listMyBetaFeedbackFn,
   submitBetaFeedbackFn,
 } from '#/contexts/identity/server/beta-feedback'
-import { useState } from 'react'
+import type { ReactNode } from 'react'
 
 export type AuthRouteContext = Readonly<{
   user: {
@@ -58,7 +62,7 @@ export type AuthRouteContext = Readonly<{
    * navigation, so switching property re-resolves it.
    *
    * UI affordance only: it exists so navigation can render an unavailable
-   * feature as disabled instead of routing into `/unavailable`. It is not a
+   * feature as disabled instead of routing into its unavailable page. It is not a
    * security boundary — every route gate and server function still asserts.
    */
   capabilities: CapabilitySet
@@ -194,10 +198,19 @@ export const Route = createFileRoute('/_authenticated')({
   // The property list rarely changes. It is cached via Query and refetched by
   // targeted invalidation after property mutations.
   staleTime: 5 * 60 * 1000, // 5 min — matches the Query staleTime
+  // The tab is titled after the deepest page in the chain, whether it rendered or
+  // was refused: a denied People page is still the People tab.
+  head: ({ matches }) => pageHead(matches),
   component: AuthenticatedLayout,
+  // The boundary for every not-found below the shell: an unknown address, a
+  // Property that is not there, and the notices of `route-notice` (a role or a
+  // feature that cannot open the page). A boundary replaces its route's own
+  // component, so the notice draws inside a shell of its own.
+  notFoundComponent: AuthenticatedNotFound,
 })
 
-function AuthenticatedLayout() {
+/** The app shell around `children`: sidebar, top bar and the one padded `<main>`. */
+function AuthenticatedShell({ children }: Readonly<{ children: ReactNode }>) {
   const ctx = Route.useRouteContext()
   const { viewportHint } = Route.useLoaderData()
   useRememberViewportWidth()
@@ -211,7 +224,10 @@ function AuthenticatedLayout() {
   // sidebar collapses to the icon rail and the surface scrolls its own panes.
   // `isFullBleedRoute` is the one place that says which routes those are.
   const isFullBleed = isFullBleedRoute(pathname)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  // Kept outside this component: a refusal replaces the shell with a new one
+  // (see `shell-continuity`), and a collapsed sidebar must not open again.
+  const [sidebarOpen, setSidebarOpen] = useSidebarOpen()
+  useKeepSidebarFocus()
 
   const content = (
     <SidebarProvider
@@ -262,7 +278,7 @@ function AuthenticatedLayout() {
             isFullBleed ? 'overflow-hidden' : `overflow-auto ${PAGE_GUTTER}`
           }`}
         >
-          <Outlet />
+          <ShellPresence value>{children}</ShellPresence>
         </main>
       </div>
     </SidebarProvider>
@@ -280,4 +296,16 @@ function AuthenticatedLayout() {
       )}
     </ViewportHintContext.Provider>
   )
+}
+
+function AuthenticatedLayout() {
+  return (
+    <AuthenticatedShell>
+      <Outlet />
+    </AuthenticatedShell>
+  )
+}
+
+function AuthenticatedNotFound({ data }: Readonly<{ data?: unknown }>) {
+  return <ShellNoticeBoundary data={data} shell={AuthenticatedShell} />
 }

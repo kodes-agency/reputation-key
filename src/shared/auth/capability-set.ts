@@ -2,7 +2,7 @@
 //
 // Navigation visibility is not a security boundary. This resolver exists so
 // navigation can render a dead end as unavailable instead of routing the user
-// into /unavailable; every route gate (controlled-route-gate.ts) and every
+// into the unavailable page; every route gate (controlled-route-gate.ts) and every
 // server function still asserts its capability independently.
 //
 // One round trip resolves the whole vocabulary rather than one call per

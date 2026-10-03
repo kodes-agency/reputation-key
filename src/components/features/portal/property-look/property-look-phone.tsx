@@ -2,7 +2,9 @@
 // 9) and, in the photograph dialog (board 14), the photograph being chosen. A
 // picture and nothing more: it reads nothing and writes nothing.
 
-import { Button } from '#/components/ui/button'
+import { Smartphone } from 'lucide-react'
+import { EmptyState } from '#/components/ui/empty-state'
+import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import { GUEST_LOCALE_METADATA } from '#/shared/domain/guest-locale'
 import { PHONE_SCALE } from '../portal-preview/portal-preview-stage'
@@ -31,28 +33,25 @@ export function PropertyLookPhone({
   media,
   scale = PHONE_SCALE,
 }: Props) {
-  const { preview, experience, copy, locale, isPending, isError, refetch } = data
+  const { preview, experience, copy, locale, isPending, isError, isRetrying, refetch } =
+    data
   if (portal === null) {
     return (
-      <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-        Make a portal to see the look on a page.
-      </p>
+      <EmptyState
+        size="compact"
+        icon={Smartphone}
+        title="Make a portal to see the look on a page"
+      />
     )
   }
   if (isError) {
     return (
-      <div role="alert" className="rounded-lg border border-dashed p-6 text-center">
-        <p className="text-sm font-medium">The preview couldn’t be loaded</p>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="mt-3"
-          onClick={() => void refetch()}
-        >
-          Try again
-        </Button>
-      </div>
+      <RegionError
+        size="compact"
+        message="The preview couldn’t be loaded."
+        onRetry={() => void refetch()}
+        retrying={isRetrying}
+      />
     )
   }
   if (isPending || !preview || !experience || !copy.data) {

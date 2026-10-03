@@ -6,9 +6,10 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Plus } from 'lucide-react'
+import { Link2, Plus } from 'lucide-react'
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
 import { Button } from '#/components/ui/button'
+import { EmptyState } from '#/components/ui/empty-state'
 import type {
   PortalLinktreeLink,
   PortalLinktreeView,
@@ -184,9 +185,12 @@ export function LinkTree({
         </p>
       )}
       {links.length === 0 ? (
-        <p className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-          No links yet. Add up to {view.maxLinks} tiles under the rating card.
-        </p>
+        <EmptyState
+          size="compact"
+          icon={Link2}
+          title="No links yet"
+          description={`Add up to ${view.maxLinks} tiles under the rating card.`}
+        />
       ) : (
         <ul className="space-y-2">
           {links.map((link) => (

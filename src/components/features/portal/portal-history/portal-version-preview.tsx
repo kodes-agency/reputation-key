@@ -21,6 +21,7 @@ import { PHONE_SCALE } from '../portal-preview/portal-preview-stage'
 import type { PreviewStateId } from '../portal-preview/portal-preview-states'
 import { tilesLeftOutNote } from './portal-version-page-note'
 import { useFittedPhoneScale } from './use-fitted-phone-scale'
+import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 
 /** The read, as the route hands it in (a server function takes its input as `data`). */
 export type PortalVersionPreviewReader = (args: {
@@ -46,12 +47,13 @@ export function PortalVersionPreview({
 }: Props) {
   const [chosenLocale, setChosenLocale] = useState<GuestLocale | null>(null)
   const [stateId, setStateId] = useState<PreviewStateId>('arrival')
-  const { data, isPending, isError, refetch } = useQuery({
+  const query = useQuery({
     queryKey: portalKeys.versionPreview(portalId, version),
     queryFn: () => getVersionPreview({ data: { portalId, version } }),
     // Which addresses and images the page draws depends on what is approved now, so it is read afresh on each opening.
     staleTime: 0,
   })
+  const { data, isPending, isError, refetch } = query
   const preview = data?.status === 'ready' ? data.preview : null
   // The chosen language may not be one this version offers: fall back to its primary.
   const locale =
@@ -93,7 +95,8 @@ export function PortalVersionPreview({
         />
       ) : null}
       <PortalPreviewBody
-        hasError={isError || copy.isError}
+        hasError={hasFailed(query) || hasFailed(copy)}
+        isRetrying={isRetrying(query, copy)}
         isPending={isPending}
         data={data}
         copyData={copy.data}

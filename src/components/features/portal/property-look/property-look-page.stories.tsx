@@ -331,7 +331,7 @@ export const NoPortalsYet: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
-      canvas.getByText('Make a portal to see the look on a page.'),
+      canvas.getByText('Make a portal to see the look on a page'),
     ).toBeVisible()
     await expect(canvas.getByText('No portals yet')).toBeVisible()
     await expect(canvas.getByText('No live portal uses this look yet')).toBeVisible()
@@ -365,7 +365,9 @@ export const FailedSaveOffersRetry: Story = {
     const accent = canvas.getByLabelText('Accent')
     await userEvent.clear(accent)
     await userEvent.type(accent, '#C8A45A')
-    await expect(await canvas.findByRole('button', { name: 'Retry' }, WAIT)).toBeVisible()
+    await expect(
+      await canvas.findByRole('button', { name: 'Try again' }, WAIT),
+    ).toBeVisible()
     await expect(canvas.getAllByText('Not saved').length).toBeGreaterThan(0)
   },
 }
@@ -391,7 +393,7 @@ export const RefusedSaveSaysWhy: Story = {
       (await canvas.findAllByText('Not saved · Portals are switched off here', {}, WAIT))
         .length,
     ).toBeGreaterThan(0)
-    await expect(canvas.queryByRole('button', { name: 'Retry' })).toBeNull()
+    await expect(canvas.queryByRole('button', { name: 'Try again' })).toBeNull()
   },
 }
 
@@ -404,7 +406,7 @@ export const LeavingAfterAFailedSaveAsks: Story = {
     const accent = canvas.getByLabelText('Accent')
     await userEvent.clear(accent)
     await userEvent.type(accent, '#C8A45A')
-    await canvas.findByRole('button', { name: 'Retry' }, WAIT)
+    await canvas.findByRole('button', { name: 'Try again' }, WAIT)
     await userEvent.click(canvas.getByRole('link', { name: 'Portals' }))
     await expect(
       await body.findByRole('alertdialog', { name: 'Leave without saving?' }),

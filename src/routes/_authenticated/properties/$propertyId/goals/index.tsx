@@ -1,4 +1,5 @@
-import { createFileRoute, Link, Navigate, redirect } from '@tanstack/react-router'
+import { createFileRoute, Link, Navigate } from '@tanstack/react-router'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import { Plus, Target } from 'lucide-react'
@@ -57,6 +58,7 @@ const metricLabel = (metric: string) => {
 }
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/goals/')({
+  staticData: { page: { title: 'Goals', tier: 'dashboard', under: 'property' } },
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     // BOTH gates, because the loader below calls a manager API that enforces
@@ -65,7 +67,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/goa
     // has already committed to rendering, so the refusal arrives as an uncaught
     // error on a half-built page instead of a redirect.
     if (!can(role, 'goal.read') || !isBetaInteractiveRole(role)) {
-      throw redirect({ to: '/properties' })
+      throw roleUnavailable('Goals', 'properties')
     }
   },
   validateSearch: goalsSearchSchema,

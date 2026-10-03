@@ -1,9 +1,10 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
 import { useSuspenseQuery } from '@tanstack/react-query'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { PrivateFeedbackTargetCard } from '#/components/features/property/private-feedback-target-card'
 import { setResponseTargetPolicyFn } from '#/contexts/inbox/server/inbox'
 import type { AuthRouteContext } from '#/routes/_authenticated'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import { can } from '#/shared/domain/permissions'
 import { inboxKeys } from '#/shared/queries/query-keys'
 import { responseTargetPolicyQuery } from '../-settings-queries'
@@ -11,10 +12,11 @@ import { responseTargetPolicyQuery } from '../-settings-queries'
 export const Route = createFileRoute(
   '/_authenticated/properties/$propertyId/settings/targets',
 )({
-  beforeLoad: ({ context, params }) => {
+  beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     if (!can(role, 'organization.update')) {
-      throw redirect({ to: '/properties/$propertyId/settings/profile', params })
+      // The section is hidden from a role without it, so this is a stale link.
+      throw roleUnavailable('Target settings', 'propertySettings')
     }
   },
   loader: ({ params: { propertyId }, context }) =>

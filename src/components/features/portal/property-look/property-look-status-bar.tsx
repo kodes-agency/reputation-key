@@ -4,7 +4,7 @@
 // save did not go through. `action` is the batch "Review & publish N portals".
 import type { ReactNode } from 'react'
 import { Check, Loader2, TriangleAlert } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { RetryButton } from '#/components/ui/region-error'
 import { cn } from '#/lib/utils'
 import type { LookStatus } from './property-look-rules'
 
@@ -38,16 +38,7 @@ export function PropertyLookStatusBar({ status, onRetry, action = null }: Props)
           />
         )}
         <span>{status.text}</span>
-        {status.canRetry ? (
-          <Button
-            type="button"
-            variant="link"
-            className="h-auto p-0 text-sm"
-            onClick={onRetry}
-          >
-            Retry
-          </Button>
-        ) : null}
+        {status.canRetry ? <RetryButton size="xs" onRetry={onRetry} /> : null}
       </p>
       {action}
     </div>

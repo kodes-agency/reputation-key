@@ -934,13 +934,11 @@ export const EmailAvailabilityCheckFailed: Story = {
     retryEmailAvailability.mockClear()
     const canvas = within(canvasElement)
     expect(
-      canvas.getByText("Couldn't check whether email is available for this property.", {
-        exact: false,
-      }),
+      canvas.getByText('Email availability for this property couldn’t be checked.'),
     ).toBeVisible()
     expect(canvas.queryByTestId('email-unavailable-notice')).toBeNull()
     expect(canvas.getByRole('switch', { name: 'Action needed: Email' })).toBeDisabled()
-    await userEvent.click(canvas.getByRole('button', { name: 'Check again' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Try again' }))
     expect(retryEmailAvailability).toHaveBeenCalledOnce()
   },
 }

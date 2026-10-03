@@ -3,7 +3,8 @@
 // /properties/$propertyId/portals; this is the same overview over the whole
 // Organization, reached from the Portals entry when no Property is chosen.
 import { useMemo } from 'react'
-import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
+import { createFileRoute, getRouteApi } from '@tanstack/react-router'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import {
   keepPreviousData,
   queryOptions,
@@ -22,16 +23,13 @@ import {
   resultsStateOf,
 } from '#/components/features/portal/portal-overview/portal-overview-results'
 import { useOverviewRange } from '#/components/features/portal/portal-overview/use-overview-range'
-import {
-  PortalAllPropertiesError,
-  PortalListLoading,
-} from '#/components/features/portal/portal-route-fallbacks'
 import { partitionWorkspaceProperties } from '#/components/features/property/property-workspace'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { membersQuery, propertiesQuery } from '#/routes/-queries/route-queries'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
+import { isRetrying } from '#/components/hooks/is-retrying'
 
 const authRoute = getRouteApi('/_authenticated')
 
@@ -58,6 +56,7 @@ const organizationResultsQuery = (timeRange: PortalResultsTimeRange) =>
   })
 
 export const Route = createFileRoute('/_authenticated/portals/')({
+  staticData: { page: { title: 'Portals', tier: 'dashboard' } },
   beforeLoad: async ({ context }) => {
     // Organization-wide: no Property is in scope, so the gate asks about the
     // Organization; the reads narrow to each Property the reader may use.
@@ -65,15 +64,13 @@ export const Route = createFileRoute('/_authenticated/portals/')({
       data: { capability: 'portal.read', featureLabel: 'Portals' },
     })
     const { role } = context as AuthRouteContext
-    if (!can(role, 'portal.read')) throw redirect({ to: '/properties' })
+    if (!can(role, 'portal.read')) throw roleUnavailable('Portals', 'properties')
   },
   validateSearch: (search) => allPropertiesSearchSchema.parse(search),
   staleTime: 30_000,
   loader: async ({ context }) => {
     await context.queryClient.ensureQueryData(organizationOverviewQuery)
   },
-  pendingComponent: PortalListLoading,
-  errorComponent: PortalAllPropertiesError,
   component: AllPropertiesRoute,
 })
 
@@ -106,7 +103,11 @@ function AllPropertiesRoute() {
     [resultsData],
   )
   const resultsState = resultsStateOf(
-    { allowed: canDo('dashboard.read'), error: resultsQuery.error },
+    {
+      allowed: canDo('dashboard.read'),
+      error: resultsQuery.error,
+      retrying: isRetrying(resultsQuery),
+    },
     resultsIndex,
   )
   const { properties } = propsData

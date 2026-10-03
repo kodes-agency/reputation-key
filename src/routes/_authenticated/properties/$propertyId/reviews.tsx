@@ -1,6 +1,7 @@
 // Property-scoped reviews = the inbox triage surface filtered by this property.
 // propertyId comes from the route param (path), NOT from search params.
-import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
+import { createFileRoute, getRouteApi } from '@tanstack/react-router'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
@@ -27,9 +28,10 @@ const reviewsSearchSchema = inboxSearchObjectSchema
   .transform((search) => inboxSearchSchema.parse(normalizeInboxRatingPreset(search)))
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/reviews')({
+  staticData: { page: { title: 'Reviews', fullBleed: true } },
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
-    if (!can(role, 'inbox.read')) throw redirect({ to: '/properties' })
+    if (!can(role, 'inbox.read')) throw roleUnavailable('Reviews', 'properties')
   },
   validateSearch: (search) => reviewsSearchSchema.parse(search),
   staleTime: 30_000,

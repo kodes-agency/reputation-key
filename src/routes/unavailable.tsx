@@ -1,6 +1,11 @@
-// Intentional out-of-shell experience for dormant beta features and accounts
-// awaiting workspace access. Dark routes redirect here instead of rendering a
-// partially live shell; access recovery arrives before tenant loaders mount.
+// Intentional out-of-shell experience for an account with no workspace to put a
+// shell on: access removed or not yet granted, or the whole workspace dark.
+// Access recovery arrives before tenant loaders mount.
+//
+// A signed-in manager whose role or feature cannot open a page is not sent here:
+// that refusal is drawn in the shell, at the address asked for (see
+// `shared/auth/route-notice`). The feature and category copy below remains for
+// links that were issued before that.
 import { createFileRoute, Link, useLoaderData, useSearch } from '@tanstack/react-router'
 import { z } from 'zod/v4'
 import { AuthCard } from '#/components/layout/auth-layout'

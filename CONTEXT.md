@@ -155,7 +155,7 @@ rather than "may this role do it?" (ADR 0049). Never merge them into `can()`.
 | API                              | When                                                      | Import                                |
 | -------------------------------- | --------------------------------------------------------- | ------------------------------------- |
 | `assertBetaCapability(ctx, cap)` | Server functions and use cases, before any effect         | `#/shared/auth/beta-capabilities`     |
-| `gateControlledRoute({ data })`  | Route `beforeLoad` — redirects to `/unavailable`          | `#/shared/auth/controlled-route-gate` |
+| `gateControlledRoute({ data })`  | Route `beforeLoad` — answers in the app shell, as a 404   | `#/shared/auth/controlled-route-gate` |
 | `useCapabilities().has(cap)`     | React components — hide/disable dead-end affordances only | `#/shared/hooks/useCapabilities`      |
 
 ### Forbidden patterns

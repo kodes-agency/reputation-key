@@ -7,9 +7,6 @@
 // Presentational, like `PortalListPage`: the route owns the reads and the URL.
 // The results arrive as a separate read and are optional: a role that may not
 // read results gets the list without them.
-import { Globe, SearchX } from 'lucide-react'
-import { Button } from '#/components/ui/button'
-import { EmptyState } from '#/components/ui/empty-state'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
@@ -25,6 +22,10 @@ import {
   describeAllProperties,
   type PortalPropertyInfo,
 } from './portal-overview/portal-all-properties-view'
+import {
+  PortalOverviewEmpty,
+  PortalOverviewNoMatch,
+} from './portal-overview/portal-overview-empty'
 import { PortalOverviewPager } from './portal-overview/portal-overview-pager'
 import {
   PortalOverviewResultsFooter,
@@ -70,16 +71,6 @@ function searchWithoutScansSort(
   return state.status === 'off' && search.sort === 'scans'
     ? { ...search, sort: undefined, dir: undefined }
     : search
-}
-
-function NoPortalsMatch({ onClear }: Readonly<{ onClear: () => void }>) {
-  return (
-    <EmptyState icon={SearchX} title="No portals match">
-      <Button variant="outline" onClick={onClear}>
-        Clear search
-      </Button>
-    </EmptyState>
-  )
 }
 
 function scansOrderOf(search: AllPropertiesSearch) {
@@ -186,12 +177,7 @@ export function PortalAllPropertiesPage({
       />
 
       {rows.length === 0 ? (
-        <EmptyState icon={Globe} title="No portals yet">
-          <p className="text-sm text-muted-foreground">
-            Create a portal to set up a guest-facing page with links.
-          </p>
-          {newPortal}
-        </EmptyState>
+        <PortalOverviewEmpty action={newPortal} />
       ) : (
         <>
           {results ? (
@@ -211,7 +197,10 @@ export function PortalAllPropertiesPage({
               onChange={update}
             />
             {overview.matched === 0 ? (
-              <NoPortalsMatch onClear={() => update({ q: undefined })} />
+              <PortalOverviewNoMatch
+                clearLabel="Clear search"
+                onClear={() => update({ q: undefined })}
+              />
             ) : (
               <PortalAllPropertiesList
                 overview={overview}

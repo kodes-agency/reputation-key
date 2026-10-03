@@ -9,7 +9,8 @@
 // Search, filter and sort live in the URL (`propertyListSearchSchema`), and the
 // default view writes nothing there, so `/properties` stays bare.
 import { useEffect } from 'react'
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import {
   infiniteQueryOptions,
   useInfiniteQuery,
@@ -61,11 +62,12 @@ const fleetQuery = (timeRange: TimeRangePreset) =>
   })
 
 export const Route = createFileRoute('/_authenticated/properties/')({
+  staticData: { page: { title: 'Properties', tier: 'dashboard' } },
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     // Properties admin list is a manager surface (property.admin).
     if (!can(role, 'property.admin')) {
-      throw redirect({ to: '/unavailable', search: { feature: 'Properties' } })
+      throw roleUnavailable('Properties', 'profile')
     }
   },
   validateSearch: (search) => propertyListSearchSchema.parse(search),

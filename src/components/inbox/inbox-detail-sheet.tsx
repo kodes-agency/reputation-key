@@ -21,7 +21,7 @@ import type { InboxAssignmentOption } from './inbox-owner-view'
 import { isCaseToolbarShown, type InboxCurrentUser } from './inbox-case-toolbar-props'
 import type { InboxDetailState } from './use-inbox-detail'
 import type { InboxDetailFns } from './types'
-import { Button } from '#/components/ui/button'
+import { RegionError } from '#/components/ui/region-error'
 
 type Props = Readonly<{
   open: boolean
@@ -126,26 +126,19 @@ export function InboxDetailSheet({
         {!isCaseToolbarShown(detailState) || !detailState.currentItem ? (
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
             {detailState.error ? (
-              <>
-                <p className="text-sm text-destructive">{detailState.error}</p>
-                {/* A CONTROL, so row 20's 36 px: `max-md:h-9` over `size="sm"`'s
-                    32. v1's row 15 had raised it to 44 (`max-md:h-11`); row 20
-                    lowered every pane control to 36 because WCAG 2.5.8 AA asks
-                    for 24 and 44 is what inflated the phone pane. This surface
-                    only ever renders below `md`, but the breakpoint is kept so
-                    the class reads the same as every other control in the pane.
-                    Measured in Chromium against Storybook dev at 390
-                    (`inbox-detail-sheet--error-state`): 44 px tall before, 36
-                    after. */}
-                <Button
-                  variant="outline"
-                  size="sm"
-                  className="max-md:h-9"
-                  onClick={detailState.refetch}
-                >
-                  Retry
-                </Button>
-              </>
+              // The pane's controls are 36px on a phone, not the 44px default
+              // (row 20: WCAG 2.5.8 AA asks for 24, and 44 is what inflated the
+              // phone pane), so Try again takes the compact density. This surface
+              // only renders below `md`. Measured in Chromium against Storybook
+              // dev at 390 (`inbox-detail-sheet--error-state`): 44px before the
+              // density, 36px after.
+              <RegionError
+                size="compact"
+                density="compact"
+                message={detailState.error}
+                onRetry={detailState.refetch}
+                retrying={detailState.retrying}
+              />
             ) : (
               <>
                 <Skeleton className="h-6 w-3/4" />

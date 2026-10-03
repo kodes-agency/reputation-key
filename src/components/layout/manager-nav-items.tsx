@@ -30,8 +30,8 @@ type Props = Readonly<{
 /**
  * `capability` is the capability the destination route already gates on
  * (see `gateControlledRoute` in each route's `beforeLoad`). Kept in lockstep
- * with those gates so the nav never offers a link that lands on
- * `/unavailable`. Dashboard and Reviews have no entry because their routes
+ * with those gates so the nav never offers a link that lands on the
+ * unavailable page. Dashboard and Reviews have no entry because their routes
  * carry no capability gate. See `nav-items-shared` for why disabling here is
  * an affordance rather than a boundary.
  */
@@ -141,7 +141,7 @@ function ManagerNavRow({
 
   // Same disabled affordance the no-property case already uses — an
   // eligible-by-role manager sees why the destination is inert instead
-  // of navigating into /unavailable.
+  // of navigating into the unavailable page.
   if (link === null || isUnavailable) {
     return (
       <InertNavItem

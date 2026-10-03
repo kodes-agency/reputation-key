@@ -1,4 +1,5 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import { PropertyGuestVoicePage } from '#/components/features/property/property-guest-voice-page'
@@ -28,10 +29,11 @@ export const propertyGuestsQuery = (propertyId: string, range: DashboardRange) =
   })
 
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/guests')({
+  staticData: { page: { title: 'Guest voice', tier: 'dashboard', under: 'property' } },
   validateSearch: propertyGuestsSearchSchema,
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
-    if (!can(role, 'dashboard.read')) throw redirect({ to: '/properties' })
+    if (!can(role, 'dashboard.read')) throw roleUnavailable('Guest voice', 'properties')
   },
   staleTime: 60_000,
   loaderDeps: ({ search }) => ({ range: search.range }),

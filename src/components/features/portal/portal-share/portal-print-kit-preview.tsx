@@ -5,7 +5,7 @@
 // memory and a sample otherwise, and the caption says which.
 
 import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
-import { Button } from '#/components/ui/button'
+import { RegionError } from '#/components/ui/region-error'
 import { SegmentedControl } from '#/components/ui/segmented-control'
 import { Skeleton } from '#/components/ui/skeleton'
 import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
@@ -35,6 +35,8 @@ type Props = Readonly<{
   qrAddress: string | null
   isError: boolean
   onRetry: () => void
+  /** Try again is reading; the error stays, its button busy. */
+  isRetrying?: boolean
 }>
 
 const SIDE_OPTIONS = [
@@ -52,6 +54,7 @@ export function PortalPrintKitPreview({
   qrAddress,
   isError,
   onRetry,
+  isRetrying = false,
 }: Props) {
   const codeUrl = usePrintKitCode(qrAddress)
   const captions = printKitCaptions(piece, side)
@@ -80,12 +83,12 @@ export function PortalPrintKitPreview({
           )}
         </div>
         {isError ? (
-          <p className="text-sm text-muted-foreground" role="status">
-            The preview could not be loaded.{' '}
-            <Button type="button" variant="link" className="h-auto p-0" onClick={onRetry}>
-              Try again
-            </Button>
-          </p>
+          <RegionError
+            size="compact"
+            message="The preview couldn’t be loaded."
+            onRetry={onRetry}
+            retrying={isRetrying}
+          />
         ) : view === null || face === null ? (
           <Skeleton className="mx-auto aspect-125/168 w-full max-w-md" />
         ) : (

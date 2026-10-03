@@ -13,7 +13,7 @@ import {
   initExecutionPolicy,
   resetExecutionPolicy,
 } from './execution-policy'
-import { redirectDeniedControlledRoute } from './controlled-route-gate'
+import { denyControlledRoute } from './controlled-route-gate'
 import { createDelayedExecutionPolicy } from './system-execution-policy'
 import {
   assertGlobalCapability,
@@ -99,37 +99,28 @@ describe('BQC-2.6 controlled-feature containment matrix', () => {
 
   describe('routes: gateControlledRoute enforces selected-property policy', () => {
     for (const { capability, label, category } of DARK) {
-      it(`${capability} (${label}) redirects to /unavailable`, async () => {
+      it(`${capability} (${label}) answers in the shell with its refusal`, async () => {
+        const propertyId = 'property-controlled-route'
+        const data = { capability, featureLabel: label, propertyId }
+        const decision = checkScopedCapability(
+          { organizationId: 'org-controlled-route', propertyId },
+          capability,
+        )
+        let thrown: unknown
         try {
-          const propertyId = 'property-controlled-route'
-          const data = { capability, featureLabel: label, propertyId }
-          const decision = checkScopedCapability(
-            { organizationId: 'org-controlled-route', propertyId },
-            capability,
-          )
-          redirectDeniedControlledRoute(decision, data)
-          expect.unreachable('gate must redirect while dark')
+          denyControlledRoute(decision, data)
         } catch (err) {
-          const redirect = err as {
-            options?: {
-              to?: string
-              search?: {
-                feature?: string
-                category?: CapabilityRefusalCategory
-                propertyId?: string
-              }
-            }
-          }
-          expect(redirect.options?.to).toBe('/unavailable')
-          expect(redirect.options?.search?.feature).toBe(label)
-          expect(redirect.options?.search?.category).toBe(category)
-          expect(redirect.options?.search?.propertyId).toBe('property-controlled-route')
+          thrown = err
         }
+        expect(thrown).toMatchObject({
+          routeId: '/_authenticated',
+          data: { cause: 'feature', title: label, category, propertyId },
+        })
       })
     }
   })
 
-  it('allows P1 and redirects P2 for the same allowlisted organization', async () => {
+  it('allows P1 and refuses P2 for the same allowlisted organization', async () => {
     initCapabilityPolicyStore({
       isCapabilityGloballyEnabled: (capability) => capability === 'goal.use',
       isOrgAllowlisted: (orgId, capability) =>
@@ -146,7 +137,7 @@ describe('BQC-2.6 controlled-feature containment matrix', () => {
       propertyId: 'property-p1',
     }
     expect(() =>
-      redirectDeniedControlledRoute(
+      denyControlledRoute(
         checkScopedCapability(
           {
             organizationId: 'org-controlled-route',
@@ -161,7 +152,7 @@ describe('BQC-2.6 controlled-feature containment matrix', () => {
     const p2Data = { ...p1Data, propertyId: 'property-p2' }
     await expect(
       Promise.resolve().then(() =>
-        redirectDeniedControlledRoute(
+        denyControlledRoute(
           checkScopedCapability(
             {
               organizationId: 'org-controlled-route',
@@ -173,13 +164,11 @@ describe('BQC-2.6 controlled-feature containment matrix', () => {
         ),
       ),
     ).rejects.toMatchObject({
-      options: {
-        to: '/unavailable',
-        search: {
-          feature: 'Goals',
-          category: 'needs_admin_enablement',
-          propertyId: 'property-p2',
-        },
+      data: {
+        cause: 'feature',
+        title: 'Goals',
+        category: 'needs_admin_enablement',
+        propertyId: 'property-p2',
       },
     })
   })

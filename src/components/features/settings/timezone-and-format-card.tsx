@@ -9,7 +9,7 @@
 // again, rather than as an error for the whole of Profile.
 
 import type { Action } from '#/components/hooks/use-action'
-import { Button } from '#/components/ui/button'
+import { RegionError } from '#/components/ui/region-error'
 import {
   Card,
   CardContent,
@@ -78,19 +78,12 @@ export function TimezoneAndFormatCard({
             updateUserSettings={updateUserSettings}
           />
         ) : failed ? (
-          <div role="alert" className="flex flex-wrap items-center gap-3 text-sm">
-            <span>Couldn't load your timezone and date format.</span>
-            <Button
-              variant="outline"
-              size="sm"
-              aria-disabled={retrying}
-              onClick={() => {
-                if (!retrying) onRetry()
-              }}
-            >
-              {retrying ? 'Trying again…' : 'Try again'}
-            </Button>
-          </div>
+          <RegionError
+            size="compact"
+            message="Your timezone and date format couldn’t be loaded."
+            onRetry={onRetry}
+            retrying={retrying}
+          />
         ) : (
           <div role="status" className="grid gap-4 sm:grid-cols-2">
             <span className="sr-only">Loading your timezone and date format…</span>

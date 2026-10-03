@@ -8,7 +8,7 @@ import type {
   PortalVersionDetail,
   PortalVersions,
 } from '#/contexts/portal/application/public-api'
-import { Button } from '#/components/ui/button'
+import { RegionError } from '#/components/ui/region-error'
 import { PortalHistoryLedger } from './portal-history-ledger'
 import type { HistoryFilterKey, HistoryRow } from './portal-history-rows'
 import { PortalRestoreConfirmation } from './portal-restore-confirmation'
@@ -26,6 +26,8 @@ export type HistoryDetailState = Readonly<{
   status: 'loading' | 'error' | 'ready'
   detail: PortalVersionDetail | null
   retry: () => void
+  /** `retry` is reading; the failure stays, its button busy. */
+  retrying?: boolean
 }>
 
 type Props = Readonly<{
@@ -40,6 +42,8 @@ type Props = Readonly<{
   loadingMore: boolean
   onLoadMore: () => void
   onRetry: () => void
+  /** `onRetry` is reading; the history failure stays, its button busy. */
+  entriesRetrying?: boolean
   onShowEarlier: (firstVersion: number) => void
   /** The first version that "Show" revealed, whose line takes focus. */
   revealedVersion: number | null
@@ -49,6 +53,9 @@ type Props = Readonly<{
   announcement: string | null
   versions: PortalVersions | null
   versionsFailed: boolean
+  onRetryVersions: () => void
+  /** `onRetryVersions` is reading; the versions failure stays, its button busy. */
+  versionsRetrying?: boolean
   pendingChangeCount: number
   canMakeLive: boolean
   note?: ReactNode
@@ -86,18 +93,18 @@ export function PortalHistoryView(props: Props) {
       <div
         id={`restore-v${version}`}
         className="my-1 rounded-lg border bg-card p-4 text-sm"
-        aria-live="polite"
+        // The checking line is announced as it appears; a failure is its own
+        // alert, and a live region around it would read it out twice.
+        aria-live={detail.status === 'error' ? undefined : 'polite'}
       >
         {detail.status === 'error' ? (
-          <p role="alert" className="text-destructive">
-            Could not check what would change.{' '}
-            <Button type="button" variant="link" size="xs" onClick={detail.retry}>
-              Try again
-            </Button>{' '}
-            <Button type="button" variant="link" size="xs" onClick={close}>
-              Cancel
-            </Button>
-          </p>
+          <RegionError
+            size="compact"
+            message="What would change couldn’t be checked."
+            onRetry={detail.retry}
+            retrying={detail.retrying === true}
+            onCancel={close}
+          />
         ) : (
           <p className="text-muted-foreground">Checking what would change…</p>
         )}
@@ -137,11 +144,14 @@ export function PortalHistoryView(props: Props) {
         loadingMore={props.loadingMore}
         onLoadMore={props.onLoadMore}
         onRetry={props.onRetry}
+        retrying={props.entriesRetrying}
         note={props.note}
       />
       <PortalVersionsRail
         versions={props.versions}
         failed={props.versionsFailed}
+        onRetry={props.onRetryVersions}
+        retrying={props.versionsRetrying}
         pendingChangeCount={props.pendingChangeCount}
         now={now}
         timeZone={timeZone}
@@ -170,6 +180,7 @@ export function PortalHistoryView(props: Props) {
             })
           }
           onRetry={detail.retry}
+          retrying={detail.retrying}
           onClose={close}
         />
       ) : null}

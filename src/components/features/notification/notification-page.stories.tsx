@@ -356,7 +356,7 @@ export const ErrorState: Story = {
   },
   play: async ({ canvasElement }) => {
     expect(
-      await within(canvasElement).findByRole('button', { name: /retry/i }),
+      await within(canvasElement).findByRole('button', { name: 'Try again' }),
     ).toBeInTheDocument()
   },
 }

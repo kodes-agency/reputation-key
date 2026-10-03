@@ -119,6 +119,7 @@ export function PortalShare(props: PortalShareProps) {
             choice={printKit.choice}
             isError={printKit.isError}
             onRetry={printKit.retry}
+            isRetrying={printKit.isRetrying}
             onChoiceChange={printKit.setChoice}
             unavailableReason={unavailableReason}
             isWorking={printKitDownload.isWorking}
@@ -142,6 +143,7 @@ export function PortalShare(props: PortalShareProps) {
           qrAddress={publicUrl}
           isError={printKit.isError}
           onRetry={printKit.retry}
+          isRetrying={printKit.isRetrying}
         />
       )}
     </div>

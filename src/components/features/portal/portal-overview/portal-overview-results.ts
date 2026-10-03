@@ -256,7 +256,8 @@ export function groupHeadCount(
 export type PortalOverviewResultsState =
   | Readonly<{ status: 'off' }>
   | Readonly<{ status: 'loading' }>
-  | Readonly<{ status: 'failed' }>
+  /** `retrying`: Try again is reading, so the failure stays with its button busy. */
+  | Readonly<{ status: 'failed'; retrying?: boolean }>
   | Readonly<{ status: 'ready'; index: OverviewResultsIndex }>
 
 /** What one row's measure cells draw. */
@@ -307,13 +308,15 @@ function isTooManyPortals(e: unknown): boolean {
  * without results, and only a real failure says so.
  */
 export function resultsStateOf(
-  facts: Readonly<{ allowed: boolean; error: unknown }>,
+  facts: Readonly<{ allowed: boolean; error: unknown; retrying?: boolean }>,
   index: OverviewResultsIndex | null,
 ): PortalOverviewResultsState {
   if (!facts.allowed) return { status: 'off' }
   if (index) return { status: 'ready', index }
+  // A retry drops the query's error while it reads; the failure stays up until it answers.
+  if (facts.retrying === true) return { status: 'failed', retrying: true }
   if (facts.error === null) return { status: 'loading' }
   return isDarkCapabilityDenial(facts.error) || isTooManyPortals(facts.error)
     ? { status: 'off' }
-    : { status: 'failed' }
+    : { status: 'failed', retrying: false }
 }

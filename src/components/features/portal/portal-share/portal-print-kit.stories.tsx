@@ -301,6 +301,34 @@ export const OneLanguageOnly: Story = {
   },
 }
 
+/** A failed read says so where the controls and the preview would be, and Try again reads once more. */
+export const ReadFailsThenRecovers: Story = {
+  args: {
+    ...baseArgs,
+    printKit: {
+      read: (() => {
+        let calls = 0
+        return async () => {
+          calls += 1
+          if (calls === 1) throw new Error('Print kit unavailable')
+          return view()
+        }
+      })(),
+      downloadMutation: downloadMutation(),
+    },
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(
+      await canvas.findByText('The print kit couldn’t be loaded.'),
+    ).toBeVisible()
+    await expect(canvas.getByText('The preview couldn’t be loaded.')).toBeVisible()
+    await userEvent.click(canvas.getAllByRole('button', { name: 'Try again' })[0]!)
+    await expect(await preview(canvasElement)).toBeInTheDocument()
+    await expect(canvas.queryByText('The print kit couldn’t be loaded.')).toBeNull()
+  },
+}
+
 export const ViewerGetsNoPrintKit: Story = {
   args: baseArgs,
   decorators: [withRole('Member')],

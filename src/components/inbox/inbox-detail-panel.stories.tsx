@@ -132,6 +132,7 @@ function makeDetailState(overrides: Partial<InboxDetailState> = {}): InboxDetail
     markFeedbackHandled: unusedFeedbackAction,
     correctFeedbackHandlingOutcome: unusedFeedbackAction,
     refetch: () => {},
+    retrying: false,
     onNoteAdded: () => {},
     onReplyMutated: () => {},
     error: null,
@@ -205,12 +206,12 @@ export const Loading: Story = {
   },
 }
 
-// detailState.error → destructive message + Retry (calls refetch).
+// detailState.error → region error + Try again (calls refetch).
 export const ErrorState: Story = {
   args: {
     selectedItem: item,
     detailState: makeDetailState({
-      error: 'Failed to load inbox detail.',
+      error: 'This item couldn’t be loaded.',
       currentItem: item,
       detail: null,
     }),

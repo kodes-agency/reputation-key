@@ -22,6 +22,7 @@ import { PortalHistoryView, type HistorySelection } from './portal-history-view'
 import { PortalVersionPreview } from './portal-version-preview'
 import { listedTileCount } from './portal-version-page-note'
 import { useNow } from './use-now'
+import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 
 /** The reads, handed in by the route (components never import server modules). */
 export type PortalHistoryReads = Readonly<{
@@ -146,11 +147,14 @@ export function PortalHistoryTab({
         select(null)
       }}
       rows={rows}
-      entriesState={history.isPending ? 'loading' : history.isError ? 'error' : 'ready'}
+      entriesState={
+        hasFailed(history) ? 'error' : history.isPending ? 'loading' : 'ready'
+      }
       hasMore={history.hasNextPage}
       loadingMore={history.isFetchingNextPage}
       onLoadMore={() => void history.fetchNextPage()}
       onRetry={() => void history.refetch()}
+      entriesRetrying={isRetrying(history)}
       onShowEarlier={(firstVersion) => {
         setRevealedVersion(firstVersion)
         setShowEarlier(true)
@@ -161,7 +165,9 @@ export function PortalHistoryTab({
         restoredVersion === null ? null : `Version ${restoredVersion} is live again.`
       }
       versions={versions.data ?? null}
-      versionsFailed={versions.isError}
+      versionsFailed={hasFailed(versions)}
+      onRetryVersions={() => void versions.refetch()}
+      versionsRetrying={isRetrying(versions)}
       pendingChangeCount={pendingChangeCount}
       canMakeLive={mayMakeLive && pageIsLive}
       note={
@@ -183,9 +189,10 @@ export function PortalHistoryTab({
         )
       }
       detail={{
-        status: detail.isError ? 'error' : detail.data ? 'ready' : 'loading',
+        status: hasFailed(detail) ? 'error' : detail.data ? 'ready' : 'loading',
         detail: detail.data ?? null,
         retry: () => void detail.refetch(),
+        retrying: isRetrying(detail),
       }}
       submitting={makeLive.isPending}
       restoreError={restoreError}

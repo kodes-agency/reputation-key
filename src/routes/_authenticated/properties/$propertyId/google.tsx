@@ -14,6 +14,14 @@ import { dashboardRangeSearch, type DashboardRange } from '#/shared/dashboard-ra
 // route loader cannot express, and a denial must degrade the section rather
 // than the page (see `use-google-performance`).
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/google')({
+  staticData: {
+    page: {
+      title: 'Google Business Profile',
+      crumb: 'Google',
+      tier: 'dashboard',
+      under: 'property',
+    },
+  },
   validateSearch: z.object({ range: dashboardRangeSearch }),
   component: PropertyGoogleRoute,
 })

@@ -11,6 +11,7 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
+import { EmptyState } from '#/components/ui/empty-state'
 import { Input } from '#/components/ui/input'
 import { GoogleImportAccountList } from './google-import-account-list'
 import { GoogleImportCandidateResults } from './google-import-candidate-results'
@@ -74,13 +75,11 @@ export function GoogleImportDiscoveryPanel(props: Props) {
         </CardHeader>
         <CardContent className="space-y-4">
           {!props.selectedAccountRef ? (
-            <div className="flex min-h-48 flex-col items-center justify-center rounded-lg border border-dashed px-6 text-center">
-              <MapPin className="mb-3 size-7 text-muted-foreground" aria-hidden="true" />
-              <p className="font-medium">Choose a business account</p>
-              <p className="mt-1 max-w-sm text-sm text-muted-foreground">
-                Its locations will appear here. Provider identifiers stay hidden.
-              </p>
-            </div>
+            <EmptyState
+              icon={MapPin}
+              title="Choose a business account"
+              description="Its locations will appear here. Provider identifiers stay hidden."
+            />
           ) : (
             <>
               <div className="relative">

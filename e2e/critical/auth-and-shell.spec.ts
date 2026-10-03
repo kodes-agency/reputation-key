@@ -19,7 +19,7 @@ function inboxChrome(page: import('@playwright/test').Page) {
     .or(page.getByText(/no message selected/i))
     .or(page.getByText(/nothing needs a reply/i))
     .or(page.getByText(/no matches/i))
-    .or(page.getByRole('button', { name: /retry/i }))
+    .or(page.getByRole('button', { name: /try again/i }))
     .first()
 }
 

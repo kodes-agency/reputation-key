@@ -341,10 +341,10 @@ describe('isCaseToolbarShown', () => {
     expect(isCaseToolbarShown({ ...ready, isLoading: true })).toBe(false)
   })
 
-  it('is not shown when the detail failed, while the pane offers Retry', () => {
-    expect(
-      isCaseToolbarShown({ ...ready, error: 'Failed to load detail. Try again.' }),
-    ).toBe(false)
+  it('is not shown when the detail failed, while the pane offers Try again', () => {
+    expect(isCaseToolbarShown({ ...ready, error: 'This item couldn’t be loaded.' })).toBe(
+      false,
+    )
   })
 
   it('is not shown without an item', () => {

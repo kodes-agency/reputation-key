@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { Link } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
-import { Button } from '#/components/ui/button'
+import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import {
   aiKeys,
@@ -239,17 +239,12 @@ export function SetupPropertiesStep({ properties, fns, viewerUserId }: Props) {
           <Skeleton className="h-11 w-full" />
         </div>
       ) : state.status === 'error' ? (
-        <Alert variant="destructive">
-          <AlertTitle>Setup questions unavailable</AlertTitle>
-          <AlertDescription className="flex flex-col gap-3">
-            <p>Each property&apos;s setup checklist still lists what is left to do.</p>
-            <div>
-              <Button type="button" variant="outline" onClick={state.retry}>
-                Try again
-              </Button>
-            </div>
-          </AlertDescription>
-        </Alert>
+        <RegionError
+          message="The setup questions couldn’t be loaded."
+          description="Each property’s setup checklist still lists what is left to do."
+          onRetry={state.retry}
+          retrying={state.retrying}
+        />
       ) : (
         <SetupStepBody ready={state} fns={fns} viewerUserId={viewerUserId} />
       )}

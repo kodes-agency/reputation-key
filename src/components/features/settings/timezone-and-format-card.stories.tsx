@@ -226,7 +226,7 @@ export const LoadFailedCanBeRetried: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('alert')).toHaveTextContent(
-      "Couldn't load your timezone and date format.",
+      'Your timezone and date format couldn’t be loaded.',
     )
     await userEvent.click(canvas.getByRole('button', { name: 'Try again' }))
     expect(onRetry).toHaveBeenCalledOnce()
@@ -261,7 +261,10 @@ export const RetryKeepsFocusOnTheButton: Story = {
     const canvas = within(canvasElement)
     await userEvent.click(canvas.getByRole('button', { name: 'Try again' }))
 
-    const busy = await canvas.findByRole('button', { name: 'Trying again…' })
+    // The accessible name stays "Try again"; the visible words change.
+    const busy = canvas.getByRole('button', { name: 'Try again' })
+    await waitFor(() => expect(busy).toHaveAttribute('aria-busy', 'true'))
+    expect(busy).toHaveTextContent('Trying again…')
     expect(busy).toHaveFocus()
     expect(busy).toHaveAttribute('aria-disabled', 'true')
     expect(canvas.getByRole('alert')).toBeInTheDocument()

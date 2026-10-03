@@ -508,6 +508,7 @@ function makeDetailState(overrides: Partial<InboxDetailState> = {}): InboxDetail
     correctFeedbackHandlingOutcome:
       refuses as unknown as InboxDetailState['correctFeedbackHandlingOutcome'],
     refetch: () => {},
+    retrying: false,
     onNoteAdded: () => {},
     onReplyMutated: () => {},
     error: null,
@@ -1108,19 +1109,19 @@ export const LoadingState: Story = {
   },
 }
 
-/** Error. Retry is reachable, and so is the way out. */
+/** Error. Try again is reachable, and so is the way out. */
 export const ErrorState: Story = {
   args: {
     detailState: makeDetailState({
-      error: 'Failed to load inbox detail.',
+      error: 'This item couldn’t be loaded.',
       detail: null,
     }),
   },
   play: async () => {
     const canvas = pane()
     await expect(canvas.getByRole('button', { name: BACK })).toBeVisible()
-    await expect(canvas.getByText('Failed to load inbox detail.')).toBeVisible()
-    await expect(canvas.getByRole('button', { name: 'Retry' })).toBeVisible()
+    await expect(canvas.getByText('This item couldn’t be loaded.')).toBeVisible()
+    await expect(canvas.getByRole('button', { name: 'Try again' })).toBeVisible()
   },
 }
 

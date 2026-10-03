@@ -283,7 +283,7 @@ export const LoadFailure: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
-      await canvas.findByText('The preview couldn’t be loaded', undefined, WAIT),
+      await canvas.findByText('The preview couldn’t be loaded.', undefined, WAIT),
     ).toBeVisible()
     await expect(canvas.getByRole('button', { name: 'Try again' })).toBeVisible()
   },

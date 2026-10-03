@@ -1,10 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
-import {
-  queryOptions,
-  useQuery,
-  useQueryClient,
-  type QueryClient,
-} from '@tanstack/react-query'
+import { useQueryClient, type QueryClient } from '@tanstack/react-query'
 import {
   actionErrorMessage,
   useActionMutation,
@@ -12,13 +7,9 @@ import {
 import type { Action } from '#/components/hooks/use-action'
 import { HTTP_STATUS } from '#/shared/http/status'
 import { inboxKeys } from '#/shared/queries/query-keys'
-import {
-  inboxCachePolicy,
-  replyRefetchInterval,
-  type InboxReplyCacheChange,
-} from './inbox-cache-policy'
+import { inboxCachePolicy, type InboxReplyCacheChange } from './inbox-cache-policy'
 import { useReplyPublicationChangeDetection } from './use-reply-publication-change'
-import { useTargetDeadlineRefresh } from './response-target-deadline-refresh'
+import { useInboxDetailQueries } from './use-inbox-detail-queries'
 import {
   createInboxItemStatusObserver,
   type InboxItemStatusObserver,
@@ -47,16 +38,6 @@ type RevisionedCommandInput = Readonly<{
 }>
 
 type SuccessfulCommandResult<T> = Exclude<Awaited<T>, InboxRevisionConflictResult>
-
-const inboxDetailQueryOptions = (
-  id: string,
-  getInboxItemDetail: InboxServerFns['getInboxItemDetail'],
-) =>
-  queryOptions({
-    queryKey: inboxKeys.detail(id),
-    queryFn: () => getInboxItemDetail({ data: { inboxItemId: id } }),
-    staleTime: 0,
-  })
 
 function applyRevisionConflict(
   qc: QueryClient,
@@ -131,6 +112,8 @@ export type UseInboxDetailOptions = Readonly<{
 export type InboxDetailState = Readonly<{
   detail: InboxItemDetailResult | null
   refetch: () => void
+  /** `refetch` is reading after a failure; the error block stays, its button busy. */
+  retrying: boolean
   notes: ReadonlyArray<InboxNoteView>
   /**
    * The notes read failed, as opposed to returning none.
@@ -245,45 +228,6 @@ function useInboxStatusMutations(
   return { updateStatus, escalate, resolveEscalation, assign }
 }
 
-function useInboxDetailQueries(
-  inboxFns: Pick<InboxServerFns, 'getInboxItemDetail' | 'getInboxNotes'>,
-  id: string,
-  enabled: boolean,
-  fallbackItem: InboxItem | null,
-) {
-  const detailQuery = useQuery({
-    ...inboxDetailQueryOptions(id, inboxFns.getInboxItemDetail),
-    enabled,
-    refetchInterval: (query) => replyRefetchInterval(query.state.data?.reply),
-  })
-  const notesQuery = useQuery({
-    queryKey: inboxKeys.notes(id),
-    queryFn: () => inboxFns.getInboxNotes({ data: { inboxItemId: id } }),
-    enabled,
-    staleTime: 0,
-  })
-  useTargetDeadlineRefresh(enabled, detailQuery.data?.responseTarget, detailQuery.refetch)
-
-  const detail = detailQuery.data ?? null
-  return {
-    detail,
-    notes: notesQuery.data ?? [],
-    // Unavailable means there is nothing to show. A background refetch that
-    // fails after an earlier success leaves the notes on screen, and saying
-    // they are unavailable beneath them would contradict what the rail shows.
-    notesUnavailable: notesQuery.isError && notesQuery.data === undefined,
-    isLoading: detailQuery.isLoading || notesQuery.isLoading,
-    currentItem: detail?.item ?? fallbackItem,
-    error: detailQuery.error ? 'Failed to load detail. Try again.' : null,
-    refetch: () => {
-      void detailQuery.refetch()
-      void notesQuery.refetch()
-    },
-    polledStatus: detailQuery.data?.item.status,
-    polledReply: detailQuery.data?.reply,
-  }
-}
-
 export function useInboxDetail(
   item: InboxItem | null,
   active: boolean,
@@ -353,6 +297,7 @@ export function useInboxDetail(
     markFeedbackHandled: feedbackMutations.markFeedbackHandled,
     correctFeedbackHandlingOutcome: feedbackMutations.correctFeedbackHandlingOutcome,
     refetch: queries.refetch,
+    retrying: queries.retrying,
     onNoteAdded: (resultingCommandRevision) =>
       inboxCachePolicy.onNoteAdded(qc, id, resultingCommandRevision),
     onReplyMutated,

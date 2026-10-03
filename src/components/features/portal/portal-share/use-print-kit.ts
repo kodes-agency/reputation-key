@@ -12,6 +12,7 @@ import {
   type PrintFaceSide,
   type PrintKitChoice,
 } from '#/shared/domain/portal-print-kit'
+import { hasFailed, isRetrying } from '#/components/hooks/is-retrying'
 import { portalKeys } from '#/shared/queries/query-keys'
 import type { PortalPrintKitReader } from './portal-print-kit-types'
 import { reconcilePrintKitChoice } from './print-kit-state'
@@ -49,7 +50,8 @@ export function usePrintKit({ portalId, read, enabled }: Input) {
     side: face?.side ?? 'front',
     setSide: setChosenSide,
     isPending: query.isPending && enabled,
-    isError: query.isError,
+    isError: hasFailed(query),
+    isRetrying: isRetrying(query),
     retry: () => void query.refetch(),
   } as const
 }
