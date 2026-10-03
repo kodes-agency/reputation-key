@@ -29,7 +29,7 @@ type Token =
   | 'muted-foreground'
   | 'popover-foreground'
   | 'primary-foreground'
-  | 'destructive'
+  | 'negative'
   | 'sidebar-foreground'
   | 'sidebar-accent'
 
@@ -114,8 +114,10 @@ for (const [theme, story] of Object.entries(STORIES)) {
       expect((await styleOf(page, 'menu-link')).color).toBe(
         await tokenColour(page, 'popover-foreground'),
       )
+      // Red TEXT is the text-grade --negative, not the fill-grade --destructive,
+      // which fails AA on a tint (UI consistency S3, SURF-11).
       expect((await styleOf(page, 'menu-link-destructive')).color).toBe(
-        await tokenColour(page, 'destructive'),
+        await tokenColour(page, 'negative'),
       )
     })
 
