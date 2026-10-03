@@ -82,12 +82,11 @@ export function PropertyReplyTemplateLibraryCard({
             Ask a property manager or account admin to manage this template library.
           </p>
         ) : templates.length === 0 ? (
-          <EmptyState icon={BookOpenText} title="No reply templates yet">
-            <p className="max-w-md text-sm text-muted-foreground">
-              Add a template for a rating band, review type, and language to make it
-              available in the reply composer.
-            </p>
-          </EmptyState>
+          <EmptyState
+            icon={BookOpenText}
+            title="No reply templates yet"
+            description="Add a template for a rating band, review type, and language to make it available in the reply composer."
+          />
         ) : (
           <Table>
             <TableCaption className="sr-only">

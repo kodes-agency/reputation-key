@@ -67,18 +67,20 @@ export function IntegrationsSettingsPage({
       </CardHeader>
       <CardContent className="space-y-4">
         {connections.length === 0 ? (
-          <EmptyState icon={Plug} title="Not connected">
-            <p className="text-sm text-muted-foreground">
-              Connect a Google account to start importing your business profile data.
-            </p>
-            <Button
-              onClick={() => void onAuthorize(NEW_GOOGLE_CONNECTION_AUTHORIZATION)}
-              disabled={connectGoogle.isPending}
-            >
-              <Plus className="size-4" />
-              {connectGoogle.isPending ? 'Connecting…' : 'Connect Google'}
-            </Button>
-          </EmptyState>
+          <EmptyState
+            icon={Plug}
+            title="Not connected"
+            description="Connect a Google account to start importing your business profile data."
+            action={
+              <Button
+                onClick={() => void onAuthorize(NEW_GOOGLE_CONNECTION_AUTHORIZATION)}
+                disabled={connectGoogle.isPending}
+              >
+                <Plus className="size-4" />
+                {connectGoogle.isPending ? 'Connecting…' : 'Connect Google'}
+              </Button>
+            }
+          />
         ) : (
           <>
             <div className="divide-y rounded-lg border">

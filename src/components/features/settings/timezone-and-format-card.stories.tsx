@@ -226,7 +226,7 @@ export const LoadFailedCanBeRetried: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.getByRole('alert')).toHaveTextContent(
-      "Couldn't load your timezone and date format.",
+      'Your timezone and date format couldn’t be loaded.',
     )
     await userEvent.click(canvas.getByRole('button', { name: 'Try again' }))
     expect(onRetry).toHaveBeenCalledOnce()

@@ -58,11 +58,11 @@ export function OrganizationAiOverviewPage({
 }: Props) {
   if (overview.properties.length === 0) {
     return (
-      <EmptyState icon={BrainCircuit} title="No properties to manage AI for">
-        <p className="max-w-md text-sm text-muted-foreground">
-          Import a property from Google, then turn on AI in its settings.
-        </p>
-      </EmptyState>
+      <EmptyState
+        icon={BrainCircuit}
+        title="No properties to manage AI for"
+        description="Import a property from Google, then turn on AI in its settings."
+      />
     )
   }
   const summary = summarizeAiOverview(overview.properties)

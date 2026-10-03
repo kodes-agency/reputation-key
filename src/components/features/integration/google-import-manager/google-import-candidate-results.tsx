@@ -1,7 +1,8 @@
-import { AlertCircle } from 'lucide-react'
+import { AlertCircle, SearchX } from 'lucide-react'
 import type { ImportCandidateDto } from '#/contexts/integration/application/public-api'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
+import { EmptyState } from '#/components/ui/empty-state'
 import { GoogleImportCandidateList } from './google-import-candidate-list'
 import { GoogleImportLoadingRows } from './google-import-loading-rows'
 
@@ -54,9 +55,12 @@ export function GoogleImportCandidateResults({
   }
   if (candidates.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-        No matching loaded locations. Clear the search or load another page.
-      </p>
+      <EmptyState
+        size="compact"
+        icon={SearchX}
+        title="No matching loaded locations"
+        description="Clear the search or load another page."
+      />
     )
   }
   return (

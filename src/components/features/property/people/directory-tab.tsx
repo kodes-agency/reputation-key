@@ -1,3 +1,5 @@
+import { Contact } from 'lucide-react'
+import { EmptyState } from '#/components/ui/empty-state'
 import { TabsContent } from '#/components/ui/tabs'
 import { RoleBadge } from '#/components/features/identity/shared/role-badge'
 import type { Role } from '#/shared/domain/roles'
@@ -25,7 +27,7 @@ export function DirectoryTab({ members }: DirectoryTabProps) {
   return (
     <TabsContent value="directory" className="mt-4">
       {members.length === 0 ? (
-        <p className="text-sm text-muted-foreground">No members found.</p>
+        <EmptyState icon={Contact} title="No members found" />
       ) : (
         <Table>
           <TableHeader>

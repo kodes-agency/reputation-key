@@ -1,7 +1,8 @@
-import { AlertCircle, ChevronRight, Loader2 } from 'lucide-react'
+import { AlertCircle, Building2, ChevronRight, Loader2 } from 'lucide-react'
 import type { ImportAccountDto } from '#/contexts/integration/application/public-api'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { Button } from '#/components/ui/button'
+import { EmptyState } from '#/components/ui/empty-state'
 import {
   Card,
   CardContent,
@@ -50,9 +51,11 @@ export function GoogleImportAccountList({
         ) : isLoading ? (
           <GoogleImportLoadingRows label="Loading Google accounts" />
         ) : accounts.length === 0 ? (
-          <p className="rounded-lg border border-dashed p-5 text-sm text-muted-foreground">
-            No accessible Business Profile accounts were found.
-          </p>
+          <EmptyState
+            size="compact"
+            icon={Building2}
+            title="No accessible Business Profile accounts"
+          />
         ) : (
           <div className="space-y-2">
             {accounts.map((account) => {

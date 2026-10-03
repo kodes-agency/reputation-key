@@ -24,11 +24,11 @@ export function StaffParticipationList({
 }: Props) {
   if (participations.length === 0) {
     return (
-      <EmptyState icon={UserRoundPlus} title="No staff participate at this property yet">
-        <p className="max-w-md text-sm text-muted-foreground">
-          Add a participant to connect their work with this property's Portals.
-        </p>
-      </EmptyState>
+      <EmptyState
+        icon={UserRoundPlus}
+        title="No staff participate at this property yet"
+        description="Add a participant to connect their work with this property's Portals."
+      />
     )
   }
 

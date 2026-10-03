@@ -9,7 +9,7 @@
 // Presentational: the route owns the reads and the URL; this page receives the
 // search and reports changes through `onSearchChange`.
 import { Link } from '@tanstack/react-router'
-import { Plus, SearchX } from 'lucide-react'
+import { Building2, Plus, SearchX } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
@@ -60,35 +60,35 @@ function EmptyPropertyList({
   allRemoved,
   canImport,
 }: Readonly<{ allRemoved: boolean; canImport: boolean }>) {
+  if (allRemoved) {
+    return (
+      <EmptyState
+        icon={Building2}
+        title="No active properties"
+        description="Every property you have is currently removed. Restore one to start working again."
+      />
+    )
+  }
   return (
-    <div className="flex flex-col items-center gap-3 rounded-lg border border-dashed px-4 py-12 text-center">
-      {allRemoved ? (
-        <>
-          <p className="text-muted-foreground">No active properties.</p>
-          <p className="text-sm text-muted-foreground">
-            Every property you have is currently removed. Restore one to start working
-            again.
-          </p>
-        </>
-      ) : (
-        <>
-          <p className="text-muted-foreground">No properties yet.</p>
-          {canImport ? (
-            // At 320 px the label is wider than the box, so it wraps, balanced.
-            <Button asChild className="h-auto min-h-9 whitespace-normal text-balance">
-              <Link to="/properties/import-google">
-                Import your first property from Google
-              </Link>
-            </Button>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Ask an account admin to import a property from Google or give you access to
-              one.
-            </p>
-          )}
-        </>
-      )}
-    </div>
+    <EmptyState
+      icon={Building2}
+      title="No properties yet"
+      description={
+        canImport
+          ? undefined
+          : 'Ask an account admin to import a property from Google or give you access to one.'
+      }
+      action={
+        canImport ? (
+          // At 320 px the label is wider than the box, so it wraps, balanced.
+          <Button asChild className="h-auto min-h-9 whitespace-normal text-balance">
+            <Link to="/properties/import-google">
+              Import your first property from Google
+            </Link>
+          </Button>
+        ) : undefined
+      }
+    />
   )
 }
 
@@ -158,14 +158,18 @@ export function PropertyListPage({
             </>
           ) : null}
           {visible.length === 0 ? (
-            <EmptyState icon={SearchX} title="No properties match">
-              <Button
-                variant="outline"
-                onClick={() => update({ q: undefined, show: undefined })}
-              >
-                Clear search and filter
-              </Button>
-            </EmptyState>
+            <EmptyState
+              icon={SearchX}
+              title="No properties match"
+              action={
+                <Button
+                  variant="outline"
+                  onClick={() => update({ q: undefined, show: undefined })}
+                >
+                  Clear search and filter
+                </Button>
+              }
+            />
           ) : (
             <PropertyListTable
               rows={visible}
