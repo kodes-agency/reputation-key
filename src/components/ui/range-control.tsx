@@ -20,7 +20,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
-import { cn } from '#/lib/utils'
 import { SegmentedControl } from './segmented-control'
 
 export type RangeOption<T extends string> = Readonly<{ value: T; label: string }>
@@ -31,7 +30,6 @@ type Props<T extends string> = Readonly<{
   options: ReadonlyArray<RangeOption<T>>
   /** The control's name, at any width. */
   label?: string
-  className?: string
 }>
 
 export const RANGE_CONTROL_LABEL = 'Time range'
@@ -41,7 +39,6 @@ export function RangeControl<T extends string>({
   onValueChange,
   options,
   label = RANGE_CONTROL_LABEL,
-  className,
 }: Props<T>) {
   // The options are the only source of a value, so a value that is not one of
   // them (a stale event) is dropped here rather than cast to T.
@@ -51,7 +48,7 @@ export function RangeControl<T extends string>({
   }
   return (
     <>
-      <div className={cn('sm:hidden', className)}>
+      <div className="sm:hidden">
         <Select value={value} onValueChange={choose}>
           <SelectTrigger aria-label={label} className="min-w-32">
             <SelectValue />
@@ -73,7 +70,7 @@ export function RangeControl<T extends string>({
         onValueChange={choose}
         options={options}
         touch
-        className={cn('hidden sm:inline-flex', className)}
+        className="hidden sm:inline-flex"
       />
     </>
   )
