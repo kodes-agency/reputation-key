@@ -15,7 +15,8 @@ and actions supply server state.
   by hand (`dialog-sources.test.ts` fails on one). Its `tone` is `destructive` only
   for an action the person cannot take back or that loses data; archive, restore,
   disable-a-public-page and turn-off-AI-features are `neutral`, and so are their
-  menu items. A destructive
+  menu items, but reversible means the app has the way back: a Portal group has no
+  restore, so its archive is `destructive`, in the menu too. A destructive
   confirm is started from a `ConfirmationTrigger` (a destructive Button). Only a
   low-blast action the person can undo on the spot skips the dialog (remove a
   language from a draft, delete an unsent reply draft, dismiss one notification);
@@ -26,7 +27,8 @@ and actions supply server state.
   confirm). The mutation behind it therefore passes no `errorMessage`, and a caller
   returns the promise rather than dropping it. A dialog that holds a confirmation as
   its body (the Portal Version dialog) is `<Dialog busy>` while the request runs. A dialog is `Dialog`: it gets its width
-  from `size` (`sm` 24rem, `md` 32rem the default, `lg` 42rem, `xl` 56rem) and its
+  from `size` (`sm` 24rem, `md` 32rem the default, `lg` 42rem, `xl` 56rem, never wider
+  than the window less 1rem a side: `dialog-width.ts`, which a confirmation shares) and its
   height bound and scroll from the primitive, so no `DialogContent` types a
   `sm:max-w-*`, a `max-h-*` or a `p-*` (a dialog that wants less padding sets
   `--dialog-pad`, which the footer reaches over). Its footer is `DialogFooter` (`note` is the line
