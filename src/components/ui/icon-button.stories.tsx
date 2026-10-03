@@ -109,8 +109,35 @@ export const Pending: Story = {
     expect(button).toBeDisabled()
     expect(button).toHaveAttribute('aria-busy', 'true')
     expect(button.querySelectorAll('svg')).toHaveLength(1)
+    // Disabled, but not faded: the spinner is the whole of what it says.
+    expect(button.className).toContain('aria-busy:disabled:opacity-100')
     await userEvent.click(button, { pointerEventsCheck: 0 })
     expect(args.onClick).not.toHaveBeenCalled()
+  },
+}
+
+/**
+ * A tooltip wider than its button, on a button against the window's edge, is
+ * pushed back inside it and keeps a gap there, rather than touching the edge.
+ */
+export const TooltipKeepsAGapFromTheWindowEdge: Story = {
+  args: { label: 'Refresh the review list' },
+  render: (args) => (
+    <div style={{ position: 'fixed', top: 48, left: 0 }}>
+      <IconButton {...args} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const button = within(canvasElement).getByRole('button', {
+      name: 'Refresh the review list',
+    })
+    await userEvent.hover(button)
+    const tooltip = await screen.findByRole('tooltip')
+    const content = tooltip.closest('[data-slot=tooltip-content]')
+    expect(content).not.toBeNull()
+    await waitFor(() =>
+      expect(content?.getBoundingClientRect().left ?? 0).toBeGreaterThanOrEqual(7.5),
+    )
   },
 }
 
