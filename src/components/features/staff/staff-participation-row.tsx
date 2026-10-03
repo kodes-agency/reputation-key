@@ -1,6 +1,7 @@
 import { Pencil, UserRoundX } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
 import { StatusBadge } from '#/components/ui/status-badge'
+import { formatDate } from '#/lib/format'
 import { Button } from '#/components/ui/button'
 import {
   AlertDialog,
@@ -26,24 +27,6 @@ type Props = Readonly<{
   onEditResponsibilities: () => void
 }>
 
-// Pinned, because the page is server-rendered in the container's zone and
-// hydrated in the viewer's: the runtime's own zone and locale printed two
-// different days, which React rejects as a hydration mismatch (#418).
-const participationDateFormat = new Intl.DateTimeFormat('en-US', {
-  dateStyle: 'medium',
-  timeZone: 'UTC',
-})
-
-/**
- * A participation boundary as a calendar date, or nothing when it is not a real
- * instant: `format` throws on an Invalid Date, and one bad row must not take the
- * People page down (the guard `formatReviewedAt` uses for the same reason).
- */
-function formatParticipationDate(value: string | Date): string | null {
-  const date = value instanceof Date ? value : new Date(value)
-  return Number.isFinite(date.getTime()) ? participationDateFormat.format(date) : null
-}
-
 export function StaffParticipationRow({
   participation,
   canManageResponsibilities,
@@ -58,10 +41,8 @@ export function StaffParticipationRow({
         <div className="min-w-40">
           <p className="font-medium">{participation.displayName}</p>
           <p className="text-xs text-muted-foreground">
-            {formatParticipationDate(participation.startedAt)} –{' '}
-            {participation.endedAt
-              ? formatParticipationDate(participation.endedAt)
-              : 'Present'}
+            {formatDate(participation.startedAt)} –{' '}
+            {participation.endedAt ? formatDate(participation.endedAt) : 'Present'}
           </p>
         </div>
       </TableCell>

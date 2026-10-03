@@ -1,4 +1,5 @@
 import type { ResponseTargetView } from '#/contexts/inbox/application/public-api'
+import { formatTimestamp } from '#/lib/format'
 
 export type ResponseTargetChipTone =
   'neutral' | 'warning' | 'negative' | 'positive' | 'muted'
@@ -43,11 +44,7 @@ function formatDistance(ms: number): string {
 
 function dueLabel(target: ResponseTargetView): string | null {
   if (!target.dueAt) return null
-  return new Intl.DateTimeFormat('en-US', {
-    dateStyle: 'medium',
-    timeStyle: 'short',
-    timeZone: target.propertyTimezone,
-  }).format(target.dueAt)
+  return formatTimestamp(target.dueAt, target.propertyTimezone)
 }
 
 function chip(target: ResponseTargetView, mood: ChipMood): ResponseTargetChip {

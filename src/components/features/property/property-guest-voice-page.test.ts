@@ -122,7 +122,7 @@ describe('TrendSupportingReviews', () => {
     const markup = renderSupportingReviews(SUPPORTING_REVIEWS)
 
     expect(markup.match(/<a /g)).toHaveLength(1)
-    expect(markup).toMatch(/<span[^>]*>Previous period · 2 Aug 2026<\/span>/)
+    expect(markup).toMatch(/<span[^>]*>Previous period · Aug 2, 2026<\/span>/)
   })
 
   it('renders nothing when the trend cites no review', () => {

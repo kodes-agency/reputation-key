@@ -1,3 +1,5 @@
+import { formatDate } from '#/lib/format'
+
 /** The part of a Goal Program version that says when it starts. */
 export type GoalVersionStart = Readonly<{ effectiveFrom: Date; propertyTimezone: string }>
 
@@ -8,10 +10,7 @@ export type GoalVersionStart = Readonly<{ effectiveFrom: Date; propertyTimezone:
  * CONTEXT.md, invariant 2), so the date is always stated, never implied.
  */
 export function goalRevisionStartDate(version: GoalVersionStart): string {
-  return new Intl.DateTimeFormat('en-US', {
-    dateStyle: 'medium',
-    timeZone: version.propertyTimezone,
-  }).format(version.effectiveFrom)
+  return formatDate(version.effectiveFrom, version.propertyTimezone) ?? 'a later date'
 }
 
 export function goalRevisionScheduledMessage(version: GoalVersionStart): string {

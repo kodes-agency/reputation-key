@@ -188,7 +188,7 @@ describe('derivePortalShareView — when the code was made', () => {
     }).madeLabel
 
   it('reads the day the code was made', () => {
-    expect(madeLabel(LIVE_TOKEN)).toBe('4 Jan 2026')
+    expect(madeLabel(LIVE_TOKEN)).toBe('Jan 4, 2026')
   })
 
   it('is empty rather than "Invalid Date" or a null', () => {
@@ -202,9 +202,9 @@ describe('derivePortalShareView — when the code was made', () => {
     // midnight UTC and must resolve to their UTC day in every runner zone.
     const cases = [
       // 01:30 the next day east of UTC.
-      { issuedAt: '2026-01-04T23:30:00Z', label: '4 Jan 2026' },
+      { issuedAt: '2026-01-04T23:30:00Z', label: 'Jan 4, 2026' },
       // 20:00 the previous day west of UTC.
-      { issuedAt: '2026-01-05T01:00:00Z', label: '5 Jan 2026' },
+      { issuedAt: '2026-01-05T01:00:00Z', label: 'Jan 5, 2026' },
     ]
 
     for (const { issuedAt, label } of cases) {
@@ -222,7 +222,7 @@ describe('derivePortalShareView — when the code was made', () => {
       }).graceLabel
 
     expect(graceLabel(null)).toBeNull()
-    expect(graceLabel('2026-02-10T09:00:00Z')).toBe('10 Feb 2026')
+    expect(graceLabel('2026-02-10T09:00:00Z')).toBe('Feb 10, 2026')
     // A malformed timestamp hides the row; it must not render "Invalid Date".
     expect(graceLabel('soon')).toBeNull()
   })
@@ -259,7 +259,7 @@ describe('derivePortalShareView — a code made in this session', () => {
       tokenStatus: LIVE_TOKEN,
       now: new Date('2026-09-30T23:30:00Z'),
     })
-    expect(view.madeLabel).toBe('30 Sept 2026')
+    expect(view.madeLabel).toBe('Sep 30, 2026')
   })
 
   it('says it was made today after a first make, when tokenStatus knows no token', () => {
@@ -270,7 +270,7 @@ describe('derivePortalShareView — a code made in this session', () => {
       tokenStatus: NO_TOKEN,
       now: new Date('2026-09-30T08:00:00Z'),
     })
-    expect(view.madeLabel).toBe('30 Sept 2026')
+    expect(view.madeLabel).toBe('Sep 30, 2026')
   })
 })
 
@@ -284,7 +284,7 @@ describe('derivePortalShareView — a code made here, once tokenStatus has caugh
       issuedVersion: 3,
       now: new Date('2026-09-30T08:00:00Z'),
     })
-    expect(view.madeLabel).toBe('4 Jan 2026')
+    expect(view.madeLabel).toBe('Jan 4, 2026')
   })
 })
 
@@ -335,14 +335,14 @@ describe('derivePortalShareView — who made the code', () => {
 })
 
 describe('describeMadeCode', () => {
-  it('reads "Made 12 Mar 2026 by Georgi Ivanov"', () => {
-    expect(describeMadeCode('12 Mar 2026', 'Georgi Ivanov')).toBe(
-      'Made 12 Mar 2026 by Georgi Ivanov',
+  it('reads "Made Mar 12, 2026 by Georgi Ivanov"', () => {
+    expect(describeMadeCode('Mar 12, 2026', 'Georgi Ivanov')).toBe(
+      'Made Mar 12, 2026 by Georgi Ivanov',
     )
   })
 
   it('reads the date alone when nobody can be named', () => {
-    expect(describeMadeCode('12 Mar 2026', null)).toBe('Made 12 Mar 2026')
+    expect(describeMadeCode('Mar 12, 2026', null)).toBe('Made Mar 12, 2026')
   })
 
   it('says nothing without a date, rather than "by" a name alone', () => {

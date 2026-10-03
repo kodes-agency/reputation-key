@@ -175,7 +175,7 @@ export const HistoryTellsWhatHappenedNewestFirst: Story = {
       history.getByText(/Spa & thermal pools moved here from Wellness/),
     ).toBeInTheDocument()
     await expect(
-      history.getByText('Its results before 12 Aug stay with Wellness'),
+      history.getByText('Its results before Aug 12 stay with Wellness'),
     ).toBeInTheDocument()
     await expect(
       history.getByText(/Elena Petrova created Pools with 3 portals/),

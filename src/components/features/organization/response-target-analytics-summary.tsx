@@ -3,6 +3,7 @@ import type {
   PrivateFeedbackTargetAnalytics,
 } from '#/contexts/inbox/application/public-api'
 import { StatCard } from '#/components/features/shared/stat-card'
+import { formatNumber } from '#/lib/format'
 
 function formatAverage(minutes: number | null): string {
   if (minutes === null) return 'Not enough measured data'
@@ -26,12 +27,12 @@ export function PrivateFeedbackTargetSummary({
   analytics,
 }: Readonly<{ analytics: PrivateFeedbackTargetAnalytics }>) {
   const rows = [
-    ['Measured cycles', analytics.measuredCycleCount.toLocaleString('en-US')],
-    ['Currently open', analytics.activeCount.toLocaleString('en-US')],
-    ['Target time passed', analytics.currentOverdueCount.toLocaleString('en-US')],
-    ['Completed within target', analytics.handledOnTimeCount.toLocaleString('en-US')],
-    ['Completed after target', analytics.handledLateCount.toLocaleString('en-US')],
-    ['Reopened cycles', analytics.reopenCount.toLocaleString('en-US')],
+    ['Measured cycles', formatNumber(analytics.measuredCycleCount)],
+    ['Currently open', formatNumber(analytics.activeCount)],
+    ['Target time passed', formatNumber(analytics.currentOverdueCount)],
+    ['Completed within target', formatNumber(analytics.handledOnTimeCount)],
+    ['Completed after target', formatNumber(analytics.handledLateCount)],
+    ['Reopened cycles', formatNumber(analytics.reopenCount)],
     [
       'Average time to first handling',
       formatAverage(analytics.averageTimeToFirstHandlingMinutes),
@@ -44,23 +45,23 @@ export function GoogleReviewTargetSummary({
   analytics,
 }: Readonly<{ analytics: GoogleReviewTargetAnalytics }>) {
   const rows = [
-    ['Measured cycles', analytics.measuredCycleCount.toLocaleString('en-US')],
-    ['Currently open', analytics.activeCount.toLocaleString('en-US')],
-    ['Target time passed', analytics.currentOverdueCount.toLocaleString('en-US')],
-    ['Responded within target', analytics.respondedOnTimeCount.toLocaleString('en-US')],
-    ['Responded after target', analytics.respondedLateCount.toLocaleString('en-US')],
-    ['Reopened cycles', analytics.reopenCount.toLocaleString('en-US')],
+    ['Measured cycles', formatNumber(analytics.measuredCycleCount)],
+    ['Currently open', formatNumber(analytics.activeCount)],
+    ['Target time passed', formatNumber(analytics.currentOverdueCount)],
+    ['Responded within target', formatNumber(analytics.respondedOnTimeCount)],
+    ['Responded after target', formatNumber(analytics.respondedLateCount)],
+    ['Reopened cycles', formatNumber(analytics.reopenCount)],
     [
       'Average time until observed live on Google',
       formatAverage(analytics.averageTimeToResponseMinutes),
     ],
     [
       'Onboarding history excluded',
-      analytics.historicalOnboardingExcludedCount.toLocaleString('en-US'),
+      formatNumber(analytics.historicalOnboardingExcludedCount),
     ],
     [
       'Older records without timing proof',
-      analytics.legacyUnknownExcludedCount.toLocaleString('en-US'),
+      formatNumber(analytics.legacyUnknownExcludedCount),
     ],
   ] as const
   return <AnalyticsGrid rows={rows} />

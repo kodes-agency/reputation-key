@@ -114,11 +114,11 @@ describe('derivePortalShareView — an address that was fetched, not made', () =
       addressRevealed: true,
       now,
     })
-    expect(fetched.madeLabel).toBe('4 Jan 2026')
+    expect(fetched.madeLabel).toBe('Jan 4, 2026')
   })
 
   it('still says today for a code made in this session', () => {
     const made = view({ publicUrl: URL_IN_MEMORY, tokenStatus: RECOVERABLE, now })
-    expect(made.madeLabel).toBe('30 Sept 2026')
+    expect(made.madeLabel).toBe('Sep 30, 2026')
   })
 })

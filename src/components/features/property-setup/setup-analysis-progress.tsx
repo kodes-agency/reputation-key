@@ -9,8 +9,7 @@ import { aiKeys } from '#/shared/queries/query-keys'
 import { reviewAnalysisProgressRefetchInterval } from '#/shared/queries/review-analysis-progress-polling'
 import type { ReviewAnalysisProgress } from '#/contexts/ai/application/public-api'
 import type { PropertySetupFns, SetupImportedProperty } from './property-setup-contract'
-
-const numberFormat = new Intl.NumberFormat('en')
+import { formatNumber } from '#/lib/format'
 
 function analysisPill(
   isError: boolean,
@@ -67,9 +66,8 @@ function AnalysisRow({
       </div>
       {counted ? (
         <p className="text-xs text-muted-foreground tabular-nums">
-          {numberFormat.format(counted.analysed)} analysed ·{' '}
-          {numberFormat.format(counted.queued)} waiting ·{' '}
-          {numberFormat.format(counted.inProgress)} running
+          {formatNumber(counted.analysed)} analysed · {formatNumber(counted.queued)}{' '}
+          waiting · {formatNumber(counted.inProgress)} running
         </p>
       ) : null}
     </li>

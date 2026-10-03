@@ -205,7 +205,7 @@ export const ViewerSeesTheCode: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
-      canvas.getByText('Made 12 Aug 2026 by Georgi Ivanov'),
+      canvas.getByText('Made Aug 12, 2026 by Georgi Ivanov'),
     ).toBeInTheDocument()
     await expect(canvas.queryByRole('button', { name: /more code actions/i })).toBeNull()
   },
@@ -217,7 +217,7 @@ export const MadeWithoutAKnownMaker: Story = {
   args: { ...baseArgs, tokenStatus: { ...activeToken, madeBy: null } },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('Made 12 Aug 2026')).toBeInTheDocument()
+    await expect(canvas.getByText('Made Aug 12, 2026')).toBeInTheDocument()
     await expect(canvas.queryByText(/ by /)).toBeNull()
   },
 }

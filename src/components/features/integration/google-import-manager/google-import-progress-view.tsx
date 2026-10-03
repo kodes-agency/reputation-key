@@ -24,6 +24,7 @@ import {
   parentStatusMessage,
 } from './google-import-progress-model'
 import { PARENT_STATUS } from './google-import-parent-status'
+import { formatClock } from '#/lib/format'
 
 type Props = Readonly<{
   progress: ImportProgressDto
@@ -168,6 +169,7 @@ function ImportProgressMeter({ progress }: Readonly<{ progress: ImportProgressDt
   // which React rejects as a mismatch (#418); so it joins the caption once
   // hydrated, and a client-side visit shows it from the first render.
   const hydrated = useHydrated()
+  const updatedAt = formatClock(progress.updatedAt, 'viewer')
   return (
     <div>
       <div
@@ -195,9 +197,7 @@ function ImportProgressMeter({ progress }: Readonly<{ progress: ImportProgressDt
         {queued
           ? 'Queued · the import worker picks this up within seconds'
           : `${percent}% complete`}
-        {hydrated
-          ? ` · Last updated ${new Date(progress.updatedAt).toLocaleTimeString()}`
-          : null}
+        {hydrated && updatedAt !== null ? ` · Last updated ${updatedAt}` : null}
       </p>
     </div>
   )

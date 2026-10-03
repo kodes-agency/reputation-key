@@ -279,9 +279,9 @@ export const ReadyWithComparison: Story = {
       'href',
       `/properties/${PROPERTY_ID}/reviews?itemId=${firstInboxItemId}`,
     )
-    expect(canvas.getByText('Previous period · 2 Aug 2026')).toBeVisible()
+    expect(canvas.getByText('Previous period · Aug 2, 2026')).toBeVisible()
     expect(
-      canvas.queryByRole('link', { name: /Open supporting review from 2 Aug 2026/ }),
+      canvas.queryByRole('link', { name: /Open supporting review from Aug 2, 2026/ }),
     ).not.toBeInTheDocument()
     expect(canvas.getByText('Based on 120 reviews · 96 analysed')).toBeVisible()
 

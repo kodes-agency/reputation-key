@@ -1,4 +1,5 @@
 import type { StatusTone } from '#/components/ui/status-badge'
+import { formatDate } from '#/lib/format'
 
 export type GoogleReviewDestinationStatus = Readonly<{
   state: 'verified' | 'awaiting_refresh' | 'unavailable'
@@ -13,13 +14,7 @@ export type GoogleReviewDestinationPresentation = Readonly<{
 }>
 
 function formatConfirmedAt(value: Date | string | null): string | null {
-  if (value === null) return null
-  const date = value instanceof Date ? value : new Date(value)
-  if (Number.isNaN(date.getTime())) return null
-  return new Intl.DateTimeFormat('en', {
-    dateStyle: 'medium',
-    timeZone: 'UTC',
-  }).format(date)
+  return formatDate(value)
 }
 
 /**

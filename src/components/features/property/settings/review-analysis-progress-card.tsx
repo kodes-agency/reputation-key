@@ -8,16 +8,11 @@ import {
   CardTitle,
 } from '#/components/ui/card'
 import type { ReviewAnalysisProgress } from '#/contexts/ai/application/public-api'
+import { formatNumber, formatTimestamp } from '#/lib/format'
 
 type Props = Readonly<{
   progress: ReviewAnalysisProgress | undefined
 }>
-
-const numberFormat = new Intl.NumberFormat('en')
-const dateFormat = new Intl.DateTimeFormat('en', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-})
 
 /** How the two counting states read as a pill; the setup flow adds its own around them. */
 export const REVIEW_ANALYSIS_STATUS: StatusMap<'analysing' | 'caught_up'> = {
@@ -74,7 +69,7 @@ export function ReviewAnalysisProgressCard({ progress }: Props) {
         <CardTitle>Review analysis</CardTitle>
         <CardDescription>
           {progress.status === 'analysing'
-            ? `Reading reviews newest first. ${numberFormat.format(waiting)} still to go.`
+            ? `Reading reviews newest first. ${formatNumber(waiting)} still to go.`
             : 'Every review this property has is analysed.'}
         </CardDescription>
         <CardAction>
@@ -99,32 +94,32 @@ export function ReviewAnalysisProgressCard({ progress }: Props) {
           <div>
             <dt className="text-muted-foreground">Analysed</dt>
             <dd className="text-lg font-medium tabular-nums">
-              {numberFormat.format(progress.analysed)}
+              {formatNumber(progress.analysed)}
             </dd>
           </div>
           <div>
             <dt className="text-muted-foreground">Waiting</dt>
             <dd className="text-lg font-medium tabular-nums">
-              {numberFormat.format(progress.queued)}
+              {formatNumber(progress.queued)}
             </dd>
           </div>
           <div>
             <dt className="text-muted-foreground">Running</dt>
             <dd className="text-lg font-medium tabular-nums">
-              {numberFormat.format(progress.inProgress)}
+              {formatNumber(progress.inProgress)}
             </dd>
           </div>
           <div>
             <dt className="text-muted-foreground">Not analysable</dt>
             <dd className="text-lg font-medium tabular-nums">
-              {numberFormat.format(progress.notAnalysable)}
+              {formatNumber(progress.notAnalysable)}
             </dd>
           </div>
         </dl>
         <p className="text-xs text-muted-foreground">
           {progress.verifiedThroughEpochMillis === null
             ? 'Not analysable means the review has no text, is in an unsupported language, or its Google content has expired.'
-            : `History verified complete ${dateFormat.format(progress.verifiedThroughEpochMillis)}.`}
+            : `History verified complete ${formatTimestamp(progress.verifiedThroughEpochMillis, 'viewer')}.`}
         </p>
       </CardContent>
     </Card>

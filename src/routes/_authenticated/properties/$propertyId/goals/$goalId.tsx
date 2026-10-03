@@ -26,6 +26,7 @@ import { GoalProgramRevisionDialog } from '#/components/goals/goal-program-revis
 import { GoalProgramAssignmentsDialog } from '#/components/goals/goal-program-assignments-dialog'
 import { GoalStatusActions } from '#/components/goals/goal-status-actions'
 import { GOAL_STATUS, goalResultStatus } from '#/components/goals/goal-status'
+import { formatDate } from '#/lib/format'
 
 const authRoute = getRouteApi('/_authenticated')
 const goalQuery = (propertyId: string, programId: string) =>
@@ -97,10 +98,8 @@ function GoalDetailRoute() {
       },
     }).catch(() => undefined)
   }
-  const dateFormatter = new Intl.DateTimeFormat('en-US', {
-    dateStyle: 'medium',
-    timeZone: version.propertyTimezone,
-  })
+  const formatDay = (date: Date): string =>
+    formatDate(date, version.propertyTimezone) ?? ''
   const subjectLabel = (subject: GoalSubject) => {
     if (subject.kind === 'property') return propData.property.name
     if (subject.kind === 'portal_group') {
@@ -182,7 +181,7 @@ function GoalDetailRoute() {
           </p>
           <p>
             <span className="text-muted-foreground">Effective from:</span>{' '}
-            {dateFormatter.format(version.effectiveFrom)}
+            {formatDay(version.effectiveFrom)}
           </p>
           <p>
             <span className="text-muted-foreground">Version:</span> {version.version}
@@ -225,8 +224,8 @@ function GoalDetailRoute() {
                         {assignment ? subjectLabel(assignment.subject) : 'Subject'}
                       </p>
                       <p className="text-muted-foreground">
-                        {dateFormatter.format(result.periodStart)} –{' '}
-                        {dateFormatter.format(new Date(result.periodEnd.getTime() - 1))}
+                        {formatDay(result.periodStart)} –{' '}
+                        {formatDay(new Date(result.periodEnd.getTime() - 1))}
                       </p>
                     </div>
                     <p>

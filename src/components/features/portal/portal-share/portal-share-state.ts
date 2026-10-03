@@ -4,21 +4,7 @@
 
 import type { PortalTokenStatus } from '#/contexts/portal/application/public-api'
 import type { PortalShareMutations, PortalShareProps } from './portal-share-types'
-
-// Fixed locale + UTC so the server and client render the same string (same
-// reason as property-dashboard-review-row.tsx): a mismatch hydrates as an error.
-const timestampFormatter = new Intl.DateTimeFormat('en-GB', {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-  timeZone: 'UTC',
-})
-
-function formatTimestamp(iso: string | null): string | null {
-  if (iso === null) return null
-  const date = new Date(iso)
-  return Number.isNaN(date.getTime()) ? null : timestampFormatter.format(date)
-}
+import { formatDate } from '#/lib/format'
 
 export type PortalShareView = Readonly<{
   showViewOnlyNotice: boolean
@@ -46,7 +32,7 @@ export type PortalShareView = Readonly<{
   showSaveWarning: boolean
   /** Replace and stop. */
   showActions: boolean
-  /** `4 Jan 2026`, the day the live code was made; null when unknown. */
+  /** `Jan 4, 2026`, the day the live code was made; null when unknown. */
   madeLabel: string | null
   /**
    * Who made the live code, by display name; null when unknown, and for a code
@@ -134,14 +120,14 @@ export function derivePortalShareView(input: ViewInput): PortalShareView {
     // today and the maker is not known to it; an address fetched again belongs
     // to the code tokenStatus describes.
     madeLabel: madeInThisSession
-      ? formatTimestamp(now.toISOString())
-      : formatTimestamp(tokenStatus.issuedAt),
+      ? formatDate(now.toISOString())
+      : formatDate(tokenStatus.issuedAt),
     madeBy: madeInThisSession || revoked ? null : tokenStatus.madeBy,
-    graceLabel: formatTimestamp(tokenStatus.graceExpiresAt),
+    graceLabel: formatDate(tokenStatus.graceExpiresAt),
   }
 }
 
-/** "Made 12 Mar 2026 by Georgi Ivanov"; the date alone when nobody can be named. */
+/** "Made Mar 12, 2026 by Georgi Ivanov"; the date alone when nobody can be named. */
 export function describeMadeCode(
   madeLabel: string | null,
   madeBy: string | null,

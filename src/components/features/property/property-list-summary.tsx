@@ -7,6 +7,7 @@ import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 import { cn } from '#/lib/utils'
 import type { PropertyListShow } from './property-list-search-schema'
 import type { DataState, PropertyListSummary } from './property-list-view'
+import { formatNumber } from '#/lib/format'
 
 type Props = Readonly<{
   summary: PropertyListSummary
@@ -61,7 +62,7 @@ export function PropertyListSummaryStrip({ summary, fleet, setup, show, onShow }
                 <span className="sr-only">stars</span>
               </span>
             }
-            detail={`across ${summary.ratedReviews.toLocaleString()} reviews, all-time`}
+            detail={`across ${formatNumber(summary.ratedReviews)} reviews, all-time`}
           />
         )}
       </Metric>

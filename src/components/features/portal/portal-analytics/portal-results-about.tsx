@@ -5,8 +5,7 @@
 import type { PortalAnalyticsData } from '#/contexts/reporting/application/public-api'
 import { PortalMetricEvidenceSummary } from './portal-metric-evidence-summary'
 import { PortalResponseIntegritySummary } from './portal-response-integrity-summary'
-
-const SINCE = new Intl.DateTimeFormat('en-US', { dateStyle: 'long', timeZone: 'UTC' })
+import { formatLongDate } from '#/lib/format'
 
 type Definition = Readonly<{ term: string; meaning: string }>
 
@@ -15,7 +14,7 @@ function definitions(data: PortalAnalyticsData): readonly Definition[] {
   return [
     {
       term: 'Qualified scans',
-      meaning: `Visits to the page that our server verified, counted once per guest session in 24 hours. Raw page opens, including bots and refreshes, are not counted. Counted from ${SINCE.format(data.qualifiedScansSince)}.`,
+      meaning: `Visits to the page that our server verified, counted once per guest session in 24 hours. Raw page opens, including bots and refreshes, are not counted. Counted from ${formatLongDate(data.qualifiedScansSince) ?? 'the first recorded day'}.`,
     },
     {
       term: 'Private ratings',

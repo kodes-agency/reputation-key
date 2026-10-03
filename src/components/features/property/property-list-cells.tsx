@@ -22,6 +22,7 @@ import {
   type PropertyListRow,
   type PropertySetupProgress,
 } from './property-list-view'
+import { formatNumber } from '#/lib/format'
 
 const FOCUS_RING =
   'rounded-sm underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
@@ -96,7 +97,7 @@ export function ReviewsValue({ comparison, fleet }: FigureProps) {
   const count = comparison.reviewCount
   return (
     <span className="tabular-nums">
-      {count.toLocaleString()}
+      {formatNumber(count)}
       {/* The column header names the figure in the table; stacked, the words do. */}
       <span className="@4xl:sr-only"> {count === 1 ? 'review' : 'reviews'}</span>
     </span>

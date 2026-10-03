@@ -7,6 +7,7 @@
 // read is not a zero, and an average too thin to show says why instead.
 import type { GoalProgress } from '#/contexts/reporting/application/public-api'
 import { goalMetricLabel } from '#/components/goals/goal-metric-label'
+import { formatNumber, formatDayKey, formatMonthDay, formatMonthName } from '#/lib/format'
 
 export type GoalCardState = 'live' | 'too_few' | 'unavailable' | 'not_started'
 
@@ -36,15 +37,6 @@ export type GoalCardContext = Readonly<{
 
 const DAY_MS = 86_400_000
 
-function localDateKey(at: Date, timezone: string): string {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: timezone,
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  }).format(at)
-}
-
 function daysBetween(fromKey: string, toKey: string): number {
   return Math.round(
     (Date.parse(`${toKey}T00:00:00Z`) - Date.parse(`${fromKey}T00:00:00Z`)) / DAY_MS,
@@ -54,10 +46,10 @@ function daysBetween(fromKey: string, toKey: string): number {
 /** Whole local days from today to the month's last day: 0 on that day, negative after it. */
 function daysLeftInMonth(goal: GoalProgress, now: Date): number {
   const lastDay = new Date(goal.period.end.getTime() - 1)
-  return daysBetween(
-    localDateKey(now, goal.timezone),
-    localDateKey(lastDay, goal.timezone),
-  )
+  const today = formatDayKey(now, goal.timezone)
+  const last = formatDayKey(lastDay, goal.timezone)
+  // A day that cannot be read counts as past, which says nothing rather than a wrong count.
+  return today === null || last === null ? -1 : daysBetween(today, last)
 }
 
 function monthEnds(daysLeft: number): string | null {
@@ -68,26 +60,7 @@ function monthEnds(daysLeft: number): string | null {
 }
 
 function formatValue(goal: GoalProgress, value: number): string {
-  return goal.metric === 'portal_rating_average'
-    ? value.toFixed(1)
-    : value.toLocaleString('en-US')
-}
-
-function monthName(at: Date, timezone: string): string {
-  return new Intl.DateTimeFormat('en-US', { timeZone: timezone, month: 'long' }).format(
-    at,
-  )
-}
-
-function startsOn(at: Date, timezone: string): string {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: timezone,
-    day: 'numeric',
-    month: 'short',
-  }).formatToParts(at)
-  const part = (type: Intl.DateTimeFormatPartTypes) =>
-    parts.find((candidate) => candidate.type === type)?.value ?? ''
-  return `${part('day')} ${part('month')}`
+  return goal.metric === 'portal_rating_average' ? value.toFixed(1) : formatNumber(value)
 }
 
 function noteOf(goal: GoalProgress, context: GoalCardContext): string {
@@ -140,7 +113,7 @@ function outcomeOf(goal: GoalProgress): Outcome {
         detail:
           goal.status === 'paused'
             ? 'Paused'
-            : `Starts on ${startsOn(goal.period.start, goal.timezone)}`,
+            : `Starts on ${formatMonthDay(goal.period.start, goal.timezone) ?? 'a later date'}`,
       }
   }
 }
@@ -150,7 +123,7 @@ export function goalCardView(goal: GoalProgress, context: GoalCardContext): Goal
   const outcome = outcomeOf(goal)
   const target = formatValue(goal, goal.targetValue)
   return {
-    title: `${monthName(goal.period.start, goal.timezone)} · ${label}`,
+    title: `${formatMonthName(goal.period.start, goal.timezone) ?? 'This month'} · ${label}`,
     ...outcome,
     target: `of ${target}`,
     note: noteOf(goal, context),

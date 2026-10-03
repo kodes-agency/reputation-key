@@ -1,11 +1,7 @@
 import { Link } from '@tanstack/react-router'
 import { Stars, ReplyStatusBadge } from './property-dashboard-helpers'
 import type { RecentReview } from '#/contexts/reporting/application/public-api'
-
-const dashboardDateFormatter = new Intl.DateTimeFormat('en-US', {
-  dateStyle: 'medium',
-  timeZone: 'UTC',
-})
+import { formatDate } from '#/lib/format'
 
 /**
  * Format a review date, or render nothing when it is not a real instant.
@@ -15,14 +11,10 @@ const dashboardDateFormatter = new Intl.DateTimeFormat('en-US', {
  * boundary as an Invalid Date, and `Intl.DateTimeFormat#format` throws
  * `RangeError: Invalid time value` on one. That threw during render, so the
  * whole property page died rather than one row losing its date — which is what
- * the e2e error gate caught on /properties/$id.
- *
- * Mirrors the guard `formatPropertyRecoveryDeadline` already uses in
- * property-lifecycle-card.tsx.
+ * the e2e error gate caught on /properties/$id. `formatDate` answers null for it.
  */
 export function formatReviewedAt(value: Date): string | null {
-  const time = value instanceof Date ? value.getTime() : Number.NaN
-  return Number.isFinite(time) ? dashboardDateFormatter.format(value) : null
+  return formatDate(value)
 }
 
 /**

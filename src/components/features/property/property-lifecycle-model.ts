@@ -1,3 +1,4 @@
+import { formatDate } from '#/lib/format'
 // Presentation model for the Property lifecycle card — which controls a given
 // lifecycle state offers, and how the recovery deadline reads. Kept apart from
 // the card so the state rules can be tested without rendering.
@@ -67,17 +68,7 @@ export const getPropertyLifecycleControls = (input: {
 
 export const formatPropertyRecoveryDeadline = (
   value: Date | string | null,
-): string | null => {
-  if (value === null) return null
-  const date = value instanceof Date ? value : new Date(value)
-  if (!Number.isFinite(date.getTime())) return null
-  return new Intl.DateTimeFormat('en', {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(date)
-}
+): string | null => formatDate(value)
 
 export const propertyLifecycleLabel = (state: PropertyLifecycleState): string =>
   PROPERTY_LIFECYCLE_STATUS[state].label

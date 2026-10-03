@@ -10,6 +10,7 @@
 // not have. The reason differs by step, so the note follows the first one.
 
 import type { PortalEngagementFunnel } from '#/contexts/reporting/application/public-api'
+import { formatDate } from '#/lib/format'
 
 export type FunnelStageKey = 'qualifiedScans' | 'ratings' | 'googleOpens'
 
@@ -35,13 +36,10 @@ const COUNTS_ONLY = 'Counts are shown without percentages.'
 
 /**
  * The registry's first day is an instant (midnight UTC); it is the calendar day
- * that matters, and a fixed zone keeps server and browser text identical.
+ * that matters, which `formatDate` reads in UTC.
  */
 function formatSince(since: Date): string {
-  return new Intl.DateTimeFormat('en-US', {
-    dateStyle: 'medium',
-    timeZone: 'UTC',
-  }).format(since)
+  return formatDate(since) ?? 'the first recorded day'
 }
 
 const scansInversionNote = (since: Date) =>
