@@ -91,7 +91,7 @@ type SwitchProps = Readonly<{
  * and then the list, and typeahead keeps working), each with `aria-current`
  * and a name that carries the source — visible `Turkish`, accessible
  * `Turkish · review language` (the visible word leads the name, WCAG 2.5.3).
- * The same row height as every menu item below `md` (`max-md:min-h-11`).
+ * The same row height as every menu item below `md` (the item's own touch height).
  *
  * `onSelect` prevents Radix's close-on-select: the point of switching is to
  * watch the list below re-scope, so the menu stays open.
@@ -105,7 +105,7 @@ function TemplateLanguageSwitch({ entries, onSwitch }: SwitchProps) {
           disabled={entry.disabledReason !== null}
           aria-current={entry.isSelected ? 'true' : undefined}
           aria-label={replyLanguageEntryText(entry)}
-          className="flex-1 justify-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground aria-[current=true]:bg-background aria-[current=true]:text-foreground aria-[current=true]:shadow-xs max-md:min-h-11"
+          className="flex-1 justify-center gap-1 px-2 py-1 text-xs font-medium text-muted-foreground aria-[current=true]:bg-background aria-[current=true]:text-foreground aria-[current=true]:shadow-xs"
           onSelect={(event) => {
             event.preventDefault()
             if (!entry.isSelected) onSwitch(entry.tag)
