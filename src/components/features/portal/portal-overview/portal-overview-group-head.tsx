@@ -4,7 +4,6 @@
 // group: it has no page and no menu.
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { ChevronDown, ChevronRight } from 'lucide-react'
 import { TableCell, TableHead, TableRow } from '#/components/ui/table'
 import { cn } from '#/lib/utils'
 import { useOverviewClasses } from './portal-overview-density'
@@ -12,6 +11,7 @@ import { PortalMeasureCells } from './portal-overview-measure-cells'
 import { groupHeadCount, type MeasureSlot } from './portal-overview-results'
 import { PORTAL_OVERVIEW_COLUMNS } from './portal-overview-table-row'
 import { describeGroupCount, type PortalOverviewSection } from './portal-overview-view'
+import { PortalOverviewToggle } from './portal-overview-toggle'
 
 type Props = Readonly<{
   propertyId: string
@@ -44,7 +44,6 @@ export function PortalOverviewGroupHead({
   const name = section.group?.name ?? NOT_IN_A_GROUP
   const { members, matched } = groupHeadCount(section, readCount)
   const summary = figures.kind === 'figures' ? figures.measures.summary : null
-  const Chevron = expanded ? ChevronDown : ChevronRight
   return (
     <TableRow
       className={cn(
@@ -60,20 +59,12 @@ export function PortalOverviewGroupHead({
         colSpan={figures.kind === 'off' ? PORTAL_OVERVIEW_COLUMNS - 1 : 1}
         className={cn(classes.groupName, nested && '@4xl:pl-8')}
       >
-        <button
-          type="button"
-          aria-expanded={expanded}
-          aria-label={`Portals in ${name}`}
-          onClick={onToggle}
-          className="-ml-1 inline-flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none md:size-8"
-        >
-          <Chevron className="size-4" aria-hidden="true" />
-        </button>
+        <PortalOverviewToggle name={name} expanded={expanded} onToggle={onToggle} />
         {section.group ? (
           <Link
             to="/properties/$propertyId/portals/groups/$groupId"
             params={{ propertyId, groupId: section.group.id }}
-            className="rounded-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            className="rounded-sm font-medium underline-offset-4 hover:underline focus-ring"
           >
             {name}
           </Link>

@@ -16,6 +16,7 @@ import {
 } from '../portal-languages/portal-languages-rules'
 import { PropertyLookSection } from './property-look-section'
 import { languageSetOf } from './property-look-rules'
+import { IconButton } from '#/components/ui/icon-button'
 
 type Props = Readonly<{
   locales: readonly OfferedGuestLocale[]
@@ -59,16 +60,16 @@ export function PropertyLookLanguagesSection({ locales, onChange, disabled }: Pr
                   >
                     Make fallback
                   </Button>
-                  <Button
+                  <IconButton
                     type="button"
                     variant="ghost"
                     size="icon-xs"
                     className="mr-1"
-                    aria-label={`Remove ${name.english}`}
+                    label={`Remove ${name.english}`}
                     onClick={() => apply({ kind: 'remove', locale })}
                   >
                     <X aria-hidden />
-                  </Button>
+                  </IconButton>
                 </>
               )}
             </li>

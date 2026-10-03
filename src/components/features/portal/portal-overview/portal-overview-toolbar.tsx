@@ -50,9 +50,6 @@ const GROUP_BY_LABEL: Readonly<Record<PortalOverviewGroupBy, string>> = {
   none: 'None',
 }
 
-const CONTROL_HEIGHT = 'h-11 md:h-9'
-const MENU_ITEM = 'min-h-11 md:min-h-8'
-
 type Props = Readonly<{
   /**
    * The All properties page lists Portals under their Properties, so a search
@@ -96,7 +93,7 @@ export function PortalOverviewToolbar({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      <InputGroup className={`${CONTROL_HEIGHT} w-full sm:w-72`}>
+      <InputGroup className="w-full sm:w-72">
         <InputGroupAddon>
           <Search aria-hidden="true" />
         </InputGroupAddon>
@@ -115,10 +112,8 @@ export function PortalOverviewToolbar({
           {offersAttentionFilter(needingAttention, search) ? (
             <Button
               variant="outline"
-              size="sm"
               aria-pressed={attentionOnly}
               className={cn(
-                CONTROL_HEIGHT,
                 attentionOnly && 'border-primary bg-primary/10 hover:bg-primary/15',
               )}
               onClick={() => onChange({ show: attentionOnly ? undefined : 'attention' })}
@@ -133,7 +128,7 @@ export function PortalOverviewToolbar({
 
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="sm" className={CONTROL_HEIGHT}>
+              <Button variant="outline">
                 <ListTree aria-hidden="true" />
                 Group by: {GROUP_BY_LABEL[groupBy]}
               </Button>
@@ -146,11 +141,7 @@ export function PortalOverviewToolbar({
                 }
               >
                 {PORTAL_OVERVIEW_GROUP_BYS.map((option) => (
-                  <DropdownMenuRadioItem
-                    key={option}
-                    value={option}
-                    className={MENU_ITEM}
-                  >
+                  <DropdownMenuRadioItem key={option} value={option}>
                     {GROUP_BY_LABEL[option]}
                   </DropdownMenuRadioItem>
                 ))}
@@ -162,7 +153,7 @@ export function PortalOverviewToolbar({
 
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm" className={CONTROL_HEIGHT}>
+          <Button variant="outline">
             <ArrowDownUp aria-hidden="true" />
             Sort: {SORT_LABEL[sort]}
           </Button>
@@ -176,7 +167,7 @@ export function PortalOverviewToolbar({
             }
           >
             {sortOptions.map((option) => (
-              <DropdownMenuRadioItem key={option} value={option} className={MENU_ITEM}>
+              <DropdownMenuRadioItem key={option} value={option}>
                 {SORT_LABEL[option]}
               </DropdownMenuRadioItem>
             ))}
@@ -187,7 +178,7 @@ export function PortalOverviewToolbar({
             onValueChange={(value) => onChange({ sort, dir: value as SortDirection })}
           >
             {directions(sort).map((option) => (
-              <DropdownMenuRadioItem key={option} value={option} className={MENU_ITEM}>
+              <DropdownMenuRadioItem key={option} value={option}>
                 {DIRECTION_LABEL[sort][option]}
               </DropdownMenuRadioItem>
             ))}
@@ -202,8 +193,6 @@ export function PortalOverviewToolbar({
       {narrowed ? (
         <Button
           variant="ghost"
-          size="sm"
-          className={CONTROL_HEIGHT}
           onClick={() => onChange({ q: undefined, show: undefined })}
         >
           Clear

@@ -1,7 +1,7 @@
 // Accept invitation route — thin route wrapping AcceptInvitationPage
 // Fixed: auto-accept now uses useEffect instead of side-effect-in-render
 
-import { createFileRoute, Link, redirect } from '@tanstack/react-router'
+import { createFileRoute, redirect } from '@tanstack/react-router'
 import { queryOptions, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
 import { getSession } from '#/shared/auth/auth.functions'
@@ -13,6 +13,7 @@ import {
 } from '#/contexts/identity/server/organizations'
 import { AcceptInvitationPage } from '#/components/features/identity'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
+import { InlineLink } from '#/components/ui/inline-link'
 
 // Shared query options — the loader (ensureQueryData) and component
 // (useSuspenseQuery) reference the SAME options object so the primed cache is
@@ -79,19 +80,13 @@ function AcceptInvitationRoute() {
       joiningNotice={
         <p className="mt-4 text-center text-xs leading-relaxed text-muted-foreground">
           By joining you accept the{' '}
-          <Link
-            to="/privacy/beta-agreement"
-            className="font-medium text-link underline underline-offset-4"
-          >
+          <InlineLink to="/privacy/beta-agreement" underline="always">
             Beta Agreement
-          </Link>{' '}
+          </InlineLink>{' '}
           and the{' '}
-          <Link
-            to="/privacy"
-            className="font-medium text-link underline underline-offset-4"
-          >
+          <InlineLink to="/privacy" underline="always">
             Privacy Notice
-          </Link>
+          </InlineLink>
           .
         </p>
       }

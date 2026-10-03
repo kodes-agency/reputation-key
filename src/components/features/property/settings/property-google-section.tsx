@@ -111,7 +111,7 @@ export function PropertyGoogleSection({ property }: Props) {
           <Button asChild variant="ghost" size="sm">
             <Link to="/settings/integrations">
               Organization Google connection
-              <ExternalLink data-icon="inline-end" aria-hidden="true" />
+              <ExternalLink aria-hidden="true" />
             </Link>
           </Button>
         ) : null}

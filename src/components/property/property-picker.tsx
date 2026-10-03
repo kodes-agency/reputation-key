@@ -183,10 +183,7 @@ export function PropertyPicker({
           role="combobox"
           aria-label={triggerAriaLabel}
           aria-expanded={open}
-          className={cn(
-            'h-11 min-h-11 w-full justify-between gap-2 font-normal',
-            className,
-          )}
+          className={cn('w-full justify-between gap-2 font-normal', className)}
         >
           <span className="min-w-0 truncate">{triggerLabel}</span>
           <ChevronsUpDown aria-hidden="true" className="opacity-50" />

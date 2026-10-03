@@ -47,7 +47,7 @@ export function DashboardRangeControl({
             if (isDashboardRange(value)) onRangeChange(value)
           }}
         >
-          <SelectTrigger aria-label={CONTROL_LABEL} className="min-h-11 min-w-32">
+          <SelectTrigger aria-label={CONTROL_LABEL} className="min-w-32">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -70,7 +70,7 @@ export function DashboardRangeControl({
           <Button
             key={option.value}
             type="button"
-            className="h-11 min-w-20"
+            className="min-w-20"
             variant={range === option.value ? 'secondary' : 'ghost'}
             aria-pressed={range === option.value}
             onClick={() => onRangeChange(option.value)}

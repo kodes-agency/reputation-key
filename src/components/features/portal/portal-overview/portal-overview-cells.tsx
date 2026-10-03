@@ -18,8 +18,7 @@ import type {
   PortalOverviewItem,
 } from './portal-overview-view'
 
-const FOCUS_RING =
-  'rounded-sm underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
+const FOCUS_RING = 'rounded-sm underline-offset-4 hover:underline focus-ring'
 
 type RowRef = Readonly<{ propertyId: string; portalId: string; name: string }>
 

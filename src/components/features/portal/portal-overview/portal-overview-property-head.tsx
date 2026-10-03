@@ -4,8 +4,7 @@
 // read through the Property's own days. A quiet notice says when its Google link
 // needs attention; nothing is said when it does not.
 import { Link } from '@tanstack/react-router'
-import { ChevronDown, ChevronRight, Ellipsis, TriangleAlert } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { Ellipsis, TriangleAlert } from 'lucide-react'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +18,8 @@ import { groupHeadCount, type MeasureSlot } from './portal-overview-results'
 import { PORTAL_OVERVIEW_COLUMNS } from './portal-overview-table-row'
 import type { PortalPropertySection } from './portal-all-properties-view'
 import { describeGroupCount } from './portal-overview-view'
+import { IconButton } from '#/components/ui/icon-button'
+import { PortalOverviewToggle } from './portal-overview-toggle'
 
 type Props = Readonly<{
   property: PortalPropertySection
@@ -30,38 +31,35 @@ type Props = Readonly<{
   onToggle: () => void
 }>
 
-// A 44 px target below `md`, 32 px from there up. A link used as a menu item
-// takes the menu's ink (`dropdown-menu-item` opts out of the link default).
-const ITEM = 'min-h-11 md:min-h-8'
-const FOCUS_RING =
-  'rounded-sm underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
+const FOCUS_RING = 'rounded-sm underline-offset-4 hover:underline focus-ring'
 
 function PropertyMenu({ property }: Readonly<{ property: PortalPropertySection }>) {
   const params = { propertyId: property.propertyId }
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
+        <IconButton
           variant="ghost"
-          size="icon"
-          className="size-11 text-muted-foreground md:size-8"
-          aria-label={`More actions for ${property.name}`}
+          size="icon-sm"
+          tooltip={false}
+          className="text-muted-foreground"
+          label={`More actions for ${property.name}`}
         >
           <Ellipsis aria-hidden="true" />
-        </Button>
+        </IconButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-48">
-        <DropdownMenuItem asChild className={ITEM}>
+        <DropdownMenuItem asChild>
           <Link to="/properties/$propertyId/portals" params={params}>
             Open portals
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild className={ITEM}>
+        <DropdownMenuItem asChild>
           <Link to="/properties/$propertyId" params={params}>
             Open dashboard
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild className={ITEM}>
+        <DropdownMenuItem asChild>
           <Link to="/properties/$propertyId/settings" params={params}>
             Property settings
           </Link>
@@ -90,7 +88,6 @@ export function PortalOverviewPropertyHead({
   const { name, googleNotice } = property
   const { members, matched } = groupHeadCount(property, readCount)
   const summary = figures.kind === 'figures' ? figures.measures.summary : null
-  const Chevron = expanded ? ChevronDown : ChevronRight
   return (
     <TableRow
       className={cn(
@@ -102,15 +99,7 @@ export function PortalOverviewPropertyHead({
         scope="rowgroup"
         className="block h-auto p-0 text-left font-normal @4xl:table-cell @4xl:px-2 @4xl:py-2.5"
       >
-        <button
-          type="button"
-          aria-expanded={expanded}
-          aria-label={`Portals in ${name}`}
-          onClick={onToggle}
-          className="-ml-1 inline-flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none md:size-8"
-        >
-          <Chevron className="size-4" aria-hidden="true" />
-        </button>
+        <PortalOverviewToggle name={name} expanded={expanded} onToggle={onToggle} />
         <Link
           to="/properties/$propertyId/portals"
           params={{ propertyId: property.propertyId }}

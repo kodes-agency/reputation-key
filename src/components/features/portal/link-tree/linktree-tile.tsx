@@ -3,7 +3,6 @@
 
 import { useState, type ReactNode } from 'react'
 import { CircleAlert, Ellipsis } from 'lucide-react'
-import { Button } from '#/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,6 +22,7 @@ import {
   type LinkMoveControl,
   type LinkMoveDirection,
 } from './linktree-rules'
+import { IconButton } from '#/components/ui/icon-button'
 
 type Props = Readonly<{
   link: PortalLinktreeLink
@@ -168,14 +168,15 @@ function LinktreeActionsMenu({ name, isOpen, canDelete, onToggle, onDelete }: Me
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
+        <IconButton
           type="button"
           variant="ghost"
           size="icon"
-          aria-label={`More actions for ${name}`}
+          tooltip={false}
+          label={`More actions for ${name}`}
         >
           <Ellipsis aria-hidden="true" />
-        </Button>
+        </IconButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end">
         <DropdownMenuItem onSelect={onToggle}>

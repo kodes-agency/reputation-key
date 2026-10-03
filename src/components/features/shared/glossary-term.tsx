@@ -21,7 +21,7 @@ export function GlossaryTerm({ term, children }: Props) {
   return (
     <Popover>
       <PopoverTrigger
-        className="cursor-help rounded underline decoration-dotted decoration-from-font underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+        className="cursor-help rounded underline decoration-dotted decoration-from-font underline-offset-4 focus-ring"
         aria-label={`What ${label.toLowerCase()} means`}
       >
         {label}

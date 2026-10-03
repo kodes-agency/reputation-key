@@ -10,12 +10,12 @@
 // used after the list re-orders.
 
 import { ChevronDown, ChevronUp, GripVertical } from 'lucide-react'
-import { Button } from '#/components/ui/button'
 import {
   moveDirectionForKey,
   type LinkMoveControl,
   type LinkMoveDirection,
 } from './linktree-rules'
+import { IconButton } from '#/components/ui/icon-button'
 
 /** The one hint every handle points at: rendered once, by the section. */
 export const LINKTREE_MOVE_HINT_ID = 'linktree-move-hint'
@@ -55,30 +55,30 @@ export function LinktreeMoveControls({
         <GripVertical aria-hidden="true" className="size-4" />
       </button>
       <div className="flex flex-col">
-        <Button
+        <IconButton
           type="button"
           variant="ghost"
-          size="icon"
-          className="size-6"
-          aria-label={`Move ${label} up`}
+          size="icon-xs"
+          tooltip={false}
+          label={`Move ${label} up`}
           data-link-move={`${linkId}:up`}
           disabled={!canMoveUp}
           onClick={() => onMove('up', 'up')}
         >
           <ChevronUp aria-hidden="true" className="size-4" />
-        </Button>
-        <Button
+        </IconButton>
+        <IconButton
           type="button"
           variant="ghost"
-          size="icon"
-          className="size-6"
-          aria-label={`Move ${label} down`}
+          size="icon-xs"
+          tooltip={false}
+          label={`Move ${label} down`}
           data-link-move={`${linkId}:down`}
           disabled={!canMoveDown}
           onClick={() => onMove('down', 'down')}
         >
           <ChevronDown aria-hidden="true" className="size-4" />
-        </Button>
+        </IconButton>
       </div>
     </div>
   )

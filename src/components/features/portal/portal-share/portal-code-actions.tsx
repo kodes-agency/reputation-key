@@ -6,7 +6,6 @@
 
 import { useRef, useState } from 'react'
 import { Ellipsis, RefreshCw, ShieldX } from 'lucide-react'
-import { Button } from '#/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,6 +16,7 @@ import {
 import { PortalReplaceCodeDialog } from './portal-replace-code-dialog'
 import { PortalStopCodesDialog } from './portal-stop-codes-dialog'
 import type { IssuedPortalLink, PortalShareMutations } from './portal-share-types'
+import { IconButton } from '#/components/ui/icon-button'
 
 type OpenDialog = 'replace' | 'stop' | null
 
@@ -40,15 +40,14 @@ export function PortalCodeActions(props: Props) {
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button
+          <IconButton
             variant="outline"
-            size="icon"
-            className="size-11 sm:size-9"
-            aria-label="More code actions"
+            label="More code actions"
+            tooltip={false}
             disabled={props.isPending}
           >
             <Ellipsis />
-          </Button>
+          </IconButton>
         </DropdownMenuTrigger>
         <DropdownMenuContent
           align="end"

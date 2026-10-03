@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { Link } from '@tanstack/react-router'
 import { useQueryClient } from '@tanstack/react-query'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { RegionError } from '#/components/ui/region-error'
@@ -33,6 +32,7 @@ import { SetupQuestionnaire, setupQuestionCount } from './setup-questionnaire'
 import { SetupResults } from './setup-results'
 import { SetupReview } from './setup-review'
 import { useSetupFacts, type SetupFactsState } from './use-setup-facts'
+import { InlineLink } from '#/components/ui/inline-link'
 
 type Props = Readonly<{
   properties: readonly SetupImportedProperty[]
@@ -189,9 +189,9 @@ function SetupStepBody({
         <AlertDescription>
           These properties already have a public display name, a reply language, a
           responsible manager and an AI decision.{' '}
-          <Link to="/properties" className="font-medium underline underline-offset-4">
+          <InlineLink to="/properties" underline="always">
             View properties
-          </Link>
+          </InlineLink>
         </AlertDescription>
       </Alert>
     )

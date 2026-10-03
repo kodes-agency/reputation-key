@@ -22,8 +22,6 @@ import {
   type PortalChosenForRemoval,
 } from './portal-group-remove-portal-dialog'
 
-const MENU_ITEM = 'min-h-11 md:min-h-8'
-
 type Props = PortalArchiveMutations &
   Readonly<{
     group: PortalGroupRef
@@ -99,7 +97,6 @@ export function PortalGroupPortals({
             canEdit
               ? (item) => (
                   <DropdownMenuItem
-                    className={MENU_ITEM}
                     disabled={removePortalMutation.isPending}
                     onSelect={() => {
                       setRemoving({ portalId: item.row.portalId, name: item.row.name })
@@ -115,12 +112,7 @@ export function PortalGroupPortals({
       )}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
         {canEdit ? (
-          <Button
-            variant="ghost"
-            size="sm"
-            className="min-h-11 md:min-h-8"
-            onClick={onAdd}
-          >
+          <Button variant="ghost" size="sm" onClick={onAdd}>
             <Plus aria-hidden="true" />
             Add portal
           </Button>

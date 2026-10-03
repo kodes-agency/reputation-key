@@ -13,7 +13,6 @@
 // The batch "Review & publish" sits in the status bar: it reads each live
 // portal's review and publishes the ones that are ready, in turn.
 import { useState } from 'react'
-import { Link } from '@tanstack/react-router'
 import { PageHeader } from '#/components/layout/page-header'
 import { PageShell } from '#/components/layout/page-shell'
 import { Alert, AlertDescription } from '#/components/ui/alert'
@@ -48,6 +47,7 @@ import {
 import { usePropertyLookMediaControls } from './use-property-look-media-controls'
 import type { PropertyLookMediaSaves } from './use-property-look-media'
 import { usePropertyLookPreview } from './use-property-look-preview'
+import { InlineLink } from '#/components/ui/inline-link'
 
 export type PropertyLookPageProps = PropertyLookSaves &
   PropertyLookMediaSaves &
@@ -106,13 +106,12 @@ export function PropertyLookPage(props: PropertyLookPageProps) {
           description={
             <>
               The look is the Property's public display name dressed in its colours.{' '}
-              <Link
+              <InlineLink
                 to="/properties/$propertyId/settings/profile"
                 params={{ propertyId }}
-                className="font-medium text-link underline-offset-4 hover:underline"
               >
                 Set it in Property settings
-              </Link>
+              </InlineLink>
             </>
           }
         />

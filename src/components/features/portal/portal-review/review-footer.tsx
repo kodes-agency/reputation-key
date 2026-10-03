@@ -53,11 +53,7 @@ export function ReviewFooter({
             </p>
           )}
         </div>
-        <Button
-          variant="outline"
-          asChild
-          className="hidden min-h-11 sm:inline-flex sm:min-h-9"
-        >
+        <Button variant="outline" asChild className="hidden sm:inline-flex">
           <Link
             to="/properties/$propertyId/portals/$portalId"
             params={{ propertyId, portalId }}
@@ -69,7 +65,6 @@ export function ReviewFooter({
         {view.primary === null ? null : (
           <Button
             type="button"
-            className="min-h-11 sm:min-h-9"
             disabled={view.primary.disabled || isPublishing}
             onClick={onPublish}
           >

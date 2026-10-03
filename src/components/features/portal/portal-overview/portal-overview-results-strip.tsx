@@ -103,7 +103,7 @@ function InboxWaitingLink({
       className={cn(
         '-my-1.5 inline-flex items-center gap-1 rounded-sm py-1.5 text-xs leading-4 font-medium',
         'underline-offset-4 hover:underline',
-        'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+        'focus-ring',
       )}
     >
       {label}
@@ -134,7 +134,7 @@ export function PortalOverviewResultsStrip({
             if (parsed.success && parsed.data !== 'all') onTimeRangeChange(parsed.data)
           }}
         >
-          <SelectTrigger aria-label="Time range" className="min-h-11 min-w-40 sm:min-h-9">
+          <SelectTrigger aria-label="Time range" className="min-w-40">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

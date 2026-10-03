@@ -78,7 +78,7 @@ export function PortalIssuesPopover({
           className={cn(
             'inline-flex w-fit items-center gap-1.5 rounded-sm text-xs font-medium text-warn',
             'underline decoration-dotted underline-offset-4 hover:decoration-solid',
-            'focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none',
+            'focus-ring',
           )}
         >
           {children}

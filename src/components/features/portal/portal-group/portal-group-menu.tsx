@@ -6,7 +6,6 @@ import { Link } from '@tanstack/react-router'
 import { Ellipsis } from 'lucide-react'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { Button } from '#/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,10 +17,7 @@ import { PortalGroupArchiveDialog } from './portal-group-archive-dialog'
 import { PortalGroupRenameDialog } from './portal-group-dialogs'
 import { groupMenu } from './portal-group-menu-rules'
 import type { PortalGroupMutations, PortalGroupRef } from './portal-group-mutations'
-
-// A 44 px target below `md`, 32 px from there up. A link used as a menu item
-// takes the menu's ink (`dropdown-menu-item` opts out of the link default).
-const ITEM = 'min-h-11 md:min-h-8'
+import { IconButton } from '#/components/ui/icon-button'
 
 type Props = Readonly<{
   group: PortalGroupRef
@@ -57,20 +53,21 @@ export function PortalGroupMenu({
     <>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button
+          <IconButton
             variant="ghost"
-            size="icon"
-            className="size-11 text-muted-foreground md:size-8"
-            aria-label={`Actions for group ${group.name}`}
+            size="icon-sm"
+            tooltip={false}
+            className="text-muted-foreground"
+            label={`Actions for group ${group.name}`}
           >
             <Ellipsis aria-hidden="true" />
-          </Button>
+          </IconButton>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-48">
           {others.map((entry) => {
             if (entry.id === 'open') {
               return (
-                <DropdownMenuItem key={entry.id} asChild className={ITEM}>
+                <DropdownMenuItem key={entry.id} asChild>
                   <Link
                     to="/properties/$propertyId/portals/groups/$groupId"
                     params={{ propertyId, groupId: group.id }}
@@ -82,7 +79,7 @@ export function PortalGroupMenu({
             }
             if (entry.id === 'goal') {
               return (
-                <DropdownMenuItem key={entry.id} asChild className={ITEM}>
+                <DropdownMenuItem key={entry.id} asChild>
                   <Link
                     to="/properties/$propertyId/goals/new"
                     params={{ propertyId }}
@@ -94,11 +91,7 @@ export function PortalGroupMenu({
               )
             }
             return (
-              <DropdownMenuItem
-                key={entry.id}
-                className={ITEM}
-                onSelect={() => setDialog('rename')}
-              >
+              <DropdownMenuItem key={entry.id} onSelect={() => setDialog('rename')}>
                 {entry.label}
               </DropdownMenuItem>
             )
@@ -108,7 +101,6 @@ export function PortalGroupMenu({
             <DropdownMenuItem
               key={entry.id}
               variant="destructive"
-              className={ITEM}
               onSelect={() => setDialog('archive')}
             >
               {entry.label}

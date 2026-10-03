@@ -2,7 +2,7 @@
 // The server-side saga consumes the invitation atomically, which verifies the
 // address, and then signs the new member in; the page lands them in the app
 // the way a sign-in does. If that sign-in failed, the card asks them to sign in.
-import { createFileRoute, Link, redirect, useNavigate } from '@tanstack/react-router'
+import { createFileRoute, redirect, useNavigate } from '@tanstack/react-router'
 import { useServerFn } from '@tanstack/react-start'
 import { useQueryClient } from '@tanstack/react-query'
 import { z } from 'zod/v4'
@@ -12,6 +12,7 @@ import { AuthCard, AuthFooterLink } from '#/components/layout/auth-layout'
 import { RegisterForm } from '#/components/features/identity'
 import { registerMember } from '#/contexts/identity/server/organizations'
 import { useAction, wrapAction } from '#/components/hooks/use-action'
+import { InlineLink } from '#/components/ui/inline-link'
 
 /**
  * The link names one invitation. Anything the router parsed into something else
@@ -57,12 +58,9 @@ function JoinPage() {
         description="Beta accounts are created from a manager invitation."
       >
         <div className="text-center">
-          <Link
-            to="/login"
-            className="text-sm font-medium text-link underline-offset-4 hover:underline"
-          >
+          <InlineLink to="/login" className="text-sm">
             Sign in to an existing account
-          </Link>
+          </InlineLink>
         </div>
       </AuthCard>
     )
@@ -78,12 +76,9 @@ function JoinPage() {
           <p className="text-sm text-muted-foreground" role="status">
             Signing you in…
           </p>
-          <Link
-            to="/properties"
-            className="text-sm font-medium text-link underline-offset-4 hover:underline"
-          >
+          <InlineLink to="/properties" className="text-sm">
             Continue to your workspace
-          </Link>
+          </InlineLink>
         </div>
       </AuthCard>
     )
@@ -96,12 +91,9 @@ function JoinPage() {
         description="Your account is ready. Sign in to get started."
       >
         <div className="text-center">
-          <Link
-            to="/login"
-            className="text-sm font-medium text-link underline-offset-4 hover:underline"
-          >
+          <InlineLink to="/login" className="text-sm">
             Sign in to your account
-          </Link>
+          </InlineLink>
         </div>
       </AuthCard>
     )
@@ -112,19 +104,13 @@ function JoinPage() {
       <RegisterForm mode="join" mutation={mutation} invitationId={invitationId} />
       <p className="mt-4 text-center text-xs leading-relaxed text-muted-foreground">
         By joining you accept the{' '}
-        <Link
-          to="/privacy/beta-agreement"
-          className="font-medium text-link underline underline-offset-4"
-        >
+        <InlineLink to="/privacy/beta-agreement" underline="always">
           Beta Agreement
-        </Link>{' '}
+        </InlineLink>{' '}
         and the{' '}
-        <Link
-          to="/privacy"
-          className="font-medium text-link underline underline-offset-4"
-        >
+        <InlineLink to="/privacy" underline="always">
           Privacy Notice
-        </Link>
+        </InlineLink>
         .
       </p>
       <AuthFooterLink message="Already have an account?" linkText="Sign in" to="/login" />

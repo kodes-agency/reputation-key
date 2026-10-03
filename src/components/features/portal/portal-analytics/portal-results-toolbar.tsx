@@ -51,7 +51,7 @@ export function PortalResultsToolbar({
             if (parsed.success) onTimeRangeChange(parsed.data)
           }}
         >
-          <SelectTrigger aria-label="Time range" className="min-h-11 min-w-40">
+          <SelectTrigger aria-label="Time range" className="min-w-40">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>

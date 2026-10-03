@@ -20,7 +20,7 @@ export function RemoveButton({
         e.stopPropagation()
         onClick(e)
       }}
-      className={`absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white transition-colors hover:bg-black/80 ${className}`}
+      className={`absolute right-2 top-2 rounded-full bg-black/60 p-1 text-white transition-colors hover:bg-black/80 focus-ring ${className}`}
       aria-label={ariaLabel}
     >
       <X className="size-4" />

@@ -90,14 +90,9 @@ function EditorTrigger({
         type="button"
         variant={editing ? 'ghost' : 'default'}
         size={editing ? 'sm' : 'default'}
-        className="min-h-11"
         aria-label={editing ? `Edit ${template.title}` : undefined}
       >
-        {editing ? (
-          <Pencil data-icon="inline-start" />
-        ) : (
-          <Plus data-icon="inline-start" />
-        )}
+        {editing ? <Pencil /> : <Plus />}
         {editing ? 'Edit' : 'Add template'}
       </Button>
     </DialogTrigger>
@@ -150,7 +145,6 @@ export function ReplyTemplateEditor({
                     id="reply-template-title"
                     label="Template title"
                     maxLength={REPLY_LIBRARY_FIELD_LIMITS.title}
-                    className="min-h-11"
                     disabled={action.isPending}
                   />
                 )}
@@ -206,7 +200,6 @@ export function ReplyTemplateEditor({
                     id="reply-template-open-label"
                     label="Open label (optional)"
                     maxLength={REPLY_LIBRARY_FIELD_LIMITS.openLabel}
-                    className="min-h-11"
                     disabled={action.isPending}
                   />
                 )}
@@ -219,7 +212,6 @@ export function ReplyTemplateEditor({
                     label="Language tag"
                     placeholder="en-Latn-US"
                     maxLength={REPLY_LIBRARY_FIELD_LIMITS.languageTag}
-                    className="min-h-11"
                     disabled={action.isPending}
                   />
                 )}
@@ -250,11 +242,11 @@ export function ReplyTemplateEditor({
           <FormErrorBanner error={action.error} />
           <DialogFooter>
             <DialogClose asChild>
-              <Button type="button" variant="outline" className="min-h-11">
+              <Button type="button" variant="outline">
                 Cancel
               </Button>
             </DialogClose>
-            <SubmitButton mutation={action} form={form} className="min-h-11">
+            <SubmitButton mutation={action} form={form}>
               {editing ? 'Save template' : 'Create template'}
             </SubmitButton>
           </DialogFooter>

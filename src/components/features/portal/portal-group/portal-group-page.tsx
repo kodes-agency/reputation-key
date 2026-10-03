@@ -91,19 +91,11 @@ export function PortalGroupPage(props: PortalGroupPageProps) {
           <>
             {canEdit ? (
               <>
-                <Button
-                  variant="ghost"
-                  className="min-h-11 sm:min-h-9"
-                  onClick={() => setDialog('rename')}
-                >
+                <Button variant="ghost" onClick={() => setDialog('rename')}>
                   <Pencil aria-hidden="true" />
                   Rename
                 </Button>
-                <Button
-                  variant="outline"
-                  className="min-h-11 sm:min-h-9"
-                  onClick={() => setDialog('add')}
-                >
+                <Button variant="outline" onClick={() => setDialog('add')}>
                   <Plus aria-hidden="true" />
                   Add portal
                 </Button>

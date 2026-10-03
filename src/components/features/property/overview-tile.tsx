@@ -90,7 +90,7 @@ export function TileCaption({
 }
 
 const TILE_CLASS =
-  'group flex min-w-0 flex-col rounded-lg border p-4 text-foreground transition-colors hover:border-border hover:bg-muted/40 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none'
+  'group flex min-w-0 flex-col rounded-lg border p-4 text-foreground transition-colors hover:border-border hover:bg-muted/40 focus-ring'
 
 export function OverviewTile({
   label,

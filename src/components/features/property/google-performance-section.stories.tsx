@@ -549,7 +549,7 @@ export const Compact320: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
   play: async ({ canvas }) => {
     const refresh = await canvas.findByRole('button', { name: 'Refresh from Google' })
-    await expect(refresh).toHaveClass('size-11')
+    await expect(refresh).toHaveClass('max-md:min-w-(--control-touch)')
     await userEvent.click(refresh)
     await waitFor(() => expect(getReadyPerformance).toHaveBeenCalled())
   },

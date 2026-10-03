@@ -64,7 +64,7 @@ export function PortalGroupGoals({
                 to="/properties/$propertyId/goals/new"
                 params={{ propertyId }}
                 search={{ subject: `portal_group:${groupId}` }}
-                className="inline-flex min-h-11 items-center rounded-sm text-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none md:min-h-8"
+                className="inline-flex min-h-11 items-center rounded-sm text-sm font-medium underline-offset-4 hover:underline focus-ring md:min-h-8"
               >
                 Set a goal
               </Link>

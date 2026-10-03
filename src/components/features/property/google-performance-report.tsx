@@ -106,7 +106,7 @@ export function GooglePerformanceSourceStatus({
         <GlossaryTerm term="updated">Updated</GlossaryTerm>
         <Popover>
           <PopoverTrigger
-            className="rounded text-left underline decoration-dotted decoration-from-font underline-offset-4 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
+            className="rounded text-left underline decoration-dotted decoration-from-font underline-offset-4 focus-ring"
             aria-label={`Google source details. ${statusLabel}. Updated ${markText}`}
           >
             {markText}

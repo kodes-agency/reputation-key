@@ -2,9 +2,9 @@
 // filled from the portals list (the group dialog and group page), so this
 // section only says where the portal is and points there.
 
-import { Link } from '@tanstack/react-router'
 import { PortalEditorSectionFrame } from '../portal-editor-section-frame'
 import type { PortalGroupView } from '../../portal-group/portal-group-types'
+import { InlineLink } from '#/components/ui/inline-link'
 
 export function GroupSection({
   propertyId,
@@ -25,13 +25,9 @@ export function GroupSection({
             'This portal is not in a group.'
           )}
         </p>
-        <Link
-          to="/properties/$propertyId/portals"
-          params={{ propertyId }}
-          className="font-medium text-link underline-offset-4 hover:underline"
-        >
+        <InlineLink to="/properties/$propertyId/portals" params={{ propertyId }}>
           Manage groups on the portals list
-        </Link>
+        </InlineLink>
       </div>
     </PortalEditorSectionFrame>
   )

@@ -20,7 +20,6 @@ export function PortalOverviewPager({ overview, onPage }: Props) {
             type="button"
             variant="outline"
             size="sm"
-            className="min-h-11 sm:min-h-8"
             disabled={page === 1}
             onClick={() => onPage(page - 1)}
           >
@@ -30,7 +29,6 @@ export function PortalOverviewPager({ overview, onPage }: Props) {
             type="button"
             variant="outline"
             size="sm"
-            className="min-h-11 sm:min-h-8"
             disabled={page === lastPage}
             onClick={() => onPage(page + 1)}
           >

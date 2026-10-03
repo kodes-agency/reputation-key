@@ -8,9 +8,9 @@ import { useAction } from '#/components/hooks/use-action'
 import { Skeleton } from '#/components/ui/skeleton'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { AuthCard, AuthFooterLink } from '#/components/layout/auth-layout'
-import { Link } from '@tanstack/react-router'
 import { InvitationListView } from './invitation-list-view'
 import type { PendingInvitation } from './shared-types'
+import { InlineLink } from '#/components/ui/inline-link'
 
 // ── Sub-views ──────────────────────────────────────────────────────────
 
@@ -21,12 +21,9 @@ function SuccessView() {
       description="You've successfully joined the organization."
     >
       <div className="text-center">
-        <Link
-          to="/dashboard"
-          className="text-sm font-medium text-link underline-offset-4 hover:underline"
-        >
+        <InlineLink to="/dashboard" className="text-sm">
           Go to dashboard
-        </Link>
+        </InlineLink>
       </div>
     </AuthCard>
   )

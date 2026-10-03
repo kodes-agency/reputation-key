@@ -50,7 +50,7 @@ export function PortalGroupGoalCard({ goal, propertyId, context }: Props) {
       <Link
         to="/properties/$propertyId/goals/$goalId"
         params={{ propertyId, goalId: goal.programId }}
-        className="mt-3 inline-flex min-h-11 items-center gap-1 rounded-sm text-sm font-medium underline-offset-4 hover:underline focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none md:min-h-8"
+        className="mt-3 inline-flex min-h-11 items-center gap-1 rounded-sm text-sm font-medium underline-offset-4 hover:underline focus-ring md:min-h-8"
       >
         Open in Goals
         <ArrowRight className="size-3.5" aria-hidden="true" />

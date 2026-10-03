@@ -65,7 +65,7 @@ export function PortalWorkspaceHeader(props: PortalWorkspaceHeaderProps) {
       )}
     >
       {reviewing ? (
-        <Button variant="ghost" size="sm" asChild className="-ml-2 min-h-11 sm:min-h-8">
+        <Button variant="ghost" size="sm" asChild className="-ml-2">
           <Link
             to="/properties/$propertyId/portals/$portalId"
             params={{ propertyId, portalId }}
@@ -79,7 +79,7 @@ export function PortalWorkspaceHeader(props: PortalWorkspaceHeaderProps) {
           variant="ghost"
           size="sm"
           asChild
-          className="-ml-2 min-h-11 min-w-11 px-0 sm:min-h-8 sm:min-w-0 sm:px-3"
+          className="-ml-2 min-w-11 px-0 sm:min-w-0 sm:px-3"
         >
           <Link to="/properties/$propertyId/portals" params={{ propertyId }}>
             <ArrowLeft aria-hidden />{' '}
@@ -143,7 +143,7 @@ function ReviewActions({
         {openPage}
       </div>
       {canReview ? (
-        <Button asChild className="min-h-11 sm:min-h-9">
+        <Button asChild>
           <Link
             to="/properties/$propertyId/portals/$portalId/review"
             params={{ propertyId, portalId }}

@@ -194,7 +194,7 @@ function MembersSettingsRoute() {
             <Dialog open={inviteOpen} onOpenChange={setInviteOpen}>
               <DialogTrigger asChild>
                 <Button>
-                  <Plus className="size-4" />
+                  <Plus />
                   Invite member
                 </Button>
               </DialogTrigger>

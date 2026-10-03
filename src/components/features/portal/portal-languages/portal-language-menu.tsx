@@ -2,7 +2,6 @@
 // it. The fallback language is never removed; another one has to take over first.
 
 import { Ellipsis } from 'lucide-react'
-import { Button } from '#/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,8 +12,7 @@ import {
 } from '#/components/ui/dropdown-menu'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalLanguageChange } from './portal-languages-rules'
-
-const ITEM = 'min-h-11 md:min-h-8'
+import { IconButton } from '#/components/ui/icon-button'
 
 type Props = Readonly<{
   locale: GuestLocale
@@ -32,14 +30,15 @@ export function PortalLanguageMenu({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
+        <IconButton
           variant="ghost"
-          size="icon"
-          className="size-11 text-muted-foreground md:size-8"
-          aria-label={`More actions for ${languageName}`}
+          size="icon-sm"
+          tooltip={false}
+          className="text-muted-foreground"
+          label={`More actions for ${languageName}`}
         >
           <Ellipsis aria-hidden="true" />
-        </Button>
+        </IconButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-56">
         {isFallback ? (
@@ -48,14 +47,11 @@ export function PortalLanguageMenu({
               Make another language the fallback to remove this one.
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
-            <DropdownMenuItem disabled className={ITEM}>
-              Remove language
-            </DropdownMenuItem>
+            <DropdownMenuItem disabled>Remove language</DropdownMenuItem>
           </>
         ) : (
           <>
             <DropdownMenuItem
-              className={ITEM}
               onSelect={() => onChange({ kind: 'make_fallback', locale })}
             >
               Make fallback language
@@ -63,7 +59,6 @@ export function PortalLanguageMenu({
             <DropdownMenuSeparator />
             <DropdownMenuItem
               variant="destructive"
-              className={ITEM}
               onSelect={() => onChange({ kind: 'remove', locale })}
             >
               Remove language

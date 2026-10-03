@@ -5,7 +5,6 @@
 import { Link } from '@tanstack/react-router'
 import { Ellipsis } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { Button } from '#/components/ui/button'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,10 +12,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '#/components/ui/dropdown-menu'
-
-// A 44 px target below `md`, 32 px from there up. A link used as a menu item
-// takes the menu's ink (`dropdown-menu-item` opts out of the link default).
-const ITEM = 'min-h-11 md:min-h-8'
+import { IconButton } from '#/components/ui/icon-button'
 
 export function PropertyRowActions({
   propertyId,
@@ -26,27 +22,28 @@ export function PropertyRowActions({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button
+        <IconButton
           variant="ghost"
-          size="icon"
-          className="size-11 text-muted-foreground md:size-8"
-          aria-label={`Actions for ${propertyName}`}
+          size="icon-sm"
+          tooltip={false}
+          className="text-muted-foreground"
+          label={`Actions for ${propertyName}`}
         >
           <Ellipsis aria-hidden="true" />
-        </Button>
+        </IconButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-52">
-        <DropdownMenuItem asChild className={ITEM}>
+        <DropdownMenuItem asChild>
           <Link to="/properties/$propertyId" params={{ propertyId }}>
             Open overview
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild className={ITEM}>
+        <DropdownMenuItem asChild>
           <Link to="/properties/$propertyId/reviews" params={{ propertyId }}>
             Reviews
           </Link>
         </DropdownMenuItem>
-        <DropdownMenuItem asChild className={ITEM}>
+        <DropdownMenuItem asChild>
           <Link to="/properties/$propertyId/settings" params={{ propertyId }}>
             Settings
           </Link>
@@ -54,7 +51,7 @@ export function PropertyRowActions({
         {can('property.archive') ? (
           <>
             <DropdownMenuSeparator />
-            <DropdownMenuItem asChild variant="destructive" className={ITEM}>
+            <DropdownMenuItem asChild variant="destructive">
               <Link to="/properties/$propertyId/settings/danger" params={{ propertyId }}>
                 Remove from workspace…
               </Link>

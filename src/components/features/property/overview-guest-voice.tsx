@@ -56,7 +56,7 @@ function Row({
 
 function ReadMore({ propertyId }: Readonly<{ propertyId: string }>) {
   return (
-    <Button asChild variant="outline" className="h-11 shrink-0">
+    <Button asChild variant="outline" className="shrink-0">
       <Link to="/properties/$propertyId/guests" params={{ propertyId }}>
         All topics
       </Link>
@@ -71,7 +71,7 @@ function AnalysisOff({ propertyId }: Readonly<{ propertyId: string }>) {
     <Row
       action={
         canManage ? (
-          <Button asChild className="h-11 shrink-0">
+          <Button asChild className="shrink-0">
             <Link to="/properties/$propertyId/settings/ai" params={{ propertyId }}>
               Turn on AI analysis
             </Link>
