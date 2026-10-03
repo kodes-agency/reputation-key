@@ -87,11 +87,19 @@ describe('Alert', () => {
     expect(html.indexOf('<svg')).toBeLessThan(html.indexOf('data-slot="alert-title"'))
   })
 
-  it('keeps destructive on the card, in the text-grade red', () => {
+  it('draws destructive on the negative tint, as a failed toast and a negative badge do', () => {
     const html = render('destructive')
 
-    expect(html).toContain('bg-card')
+    expect(html).toContain('bg-negative-muted')
+    expect(html).toContain('border-negative/30')
+    expect(html).not.toContain('bg-card')
+  })
+
+  it('sets destructive in the text-grade red, description included', () => {
+    const html = render('destructive')
+
     expect(html).toContain('text-negative')
+    expect(html).toContain('alert-description]:text-negative')
     expect(html).not.toContain(FILL_GRADE_RED_TEXT)
   })
 

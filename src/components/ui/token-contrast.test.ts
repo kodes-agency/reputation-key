@@ -169,6 +169,7 @@ function paintedWith(classes: string, prefix: 'bg' | 'text'): string[] {
 // whose ink or tint is changed to something that fails is caught in the theme
 // it fails in, and a new tone is covered by adding its row.
 const TONE_VARIANTS: ReadonlyArray<readonly [name: string, classes: string]> = [
+  ['Alert destructive', alertVariants({ variant: 'destructive' })],
   ['Alert warning', alertVariants({ variant: 'warning' })],
   ['Alert success', alertVariants({ variant: 'success' })],
   ['Alert info', alertVariants({ variant: 'info' })],

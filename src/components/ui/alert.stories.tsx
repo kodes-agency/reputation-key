@@ -46,7 +46,7 @@ function expectTone(
   return alert
 }
 
-/** Something failed or is blocked. Keeps the card surface the form errors use. */
+/** Something failed or is blocked. The red tint and edge a failed toast wears. */
 export const Destructive: Story = {
   render: () => (
     <Alert variant="destructive">

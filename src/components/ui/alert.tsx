@@ -8,13 +8,16 @@ import { TONE_ICON, TONE_INK, TONE_SURFACE } from './tone'
 // notice that carries its own icon; the other four are tones, and a tone draws
 // its icon itself (`tone.ts`), so a caller names the tone and writes the words:
 //
-//   destructive  something failed or is blocked   card, red words
+//   destructive  something failed or is blocked   red tint
 //   warning      this needs a person, or may break amber tint
 //   success      it worked                         green tint
 //   info         worth knowing, nothing to do      accent tint
 //
-// `destructive` keeps its card surface: it is the form-error recipe in dozens of
-// forms. The three tinted tones keep the quiet ink for the description so a long
+// `destructive` wears the same red tint and edge as a failed toast and the
+// negative Badge: on the card surface it was barely a box in the dark theme, so
+// the same refusal looked different depending on what showed it. It is the form
+// error recipe, so it also sets its description in the red (a refusal's own
+// words); the other three tones keep the quiet ink for the description so a long
 // sentence is not set in a colour, and the title and icon carry the tone.
 // `destructive` and `warning` are announced at once (`role="alert"`): something
 // failed or needs a person. `info`, `success` and `default` are read in turn
@@ -26,8 +29,7 @@ const alertVariants = cva(
     variants: {
       variant: {
         default: 'bg-card text-card-foreground',
-        destructive:
-          'bg-card text-negative *:data-[slot=alert-description]:text-negative [&>svg]:text-current',
+        destructive: `${TONE_SURFACE.negative} ${TONE_INK.negative} *:data-[slot=alert-description]:text-negative`,
         warning: `${TONE_SURFACE.warn} ${TONE_INK.warn}`,
         success: `${TONE_SURFACE.positive} ${TONE_INK.positive}`,
         info: `${TONE_SURFACE.info} ${TONE_INK.info}`,
