@@ -106,7 +106,7 @@ components:
 
 **Creative North Star: "The Precision Instrument"**
 
-Reputation Key's interface is built like a well-made tool — every element earns its place, every surface is purposeful. The dark-first palette uses tinted violet-graphite neutrals with a single Spectral Violet accent, eliminating visual noise so users focus on the task. No glass, no gradients, no decorative textures. Hierarchy is communicated through type scale, weight contrast, and spacing rhythm alone.
+Reputation Key's interface is built like a well-made tool — every element earns its place, every surface is purposeful. The dark-first palette uses tinted violet-graphite neutrals with a single Spectral Violet accent, eliminating visual noise so users focus on the task. No glass, no decorative textures, and no gradients (the one exception is the 8px brand dot in the public header's logo link, a two-stop violet fill). Hierarchy is communicated through type scale, weight contrast, and spacing rhythm alone.
 
 The system is designed for three distinct contexts: property managers working in focused evening sessions on desktop, managers checking the Inbox on mobile between tasks, and clients leaving reviews in brief mobile visits. Each context gets the same level of craft — responsive is not a fallback, it's the design.
 
@@ -224,7 +224,7 @@ In light mode, the same tonal stack inverts: near-white backgrounds step from pa
 ### Cards
 
 - **Shape:** Rounded at 12px (`--radius-xl`). The only component with a larger radius, justified by its role as a visual container.
-- **Background:** Graphite Surface. No shadow (the tonal step from Obsidian provides separation). 1px border at Graphite Border.
+- **Background:** Graphite Surface. A `shadow-sm` ambient hint (the shadcn default, within the Flat-By-Default blur limit) with a 1px border at Graphite Border; the tonal step from Obsidian carries the separation, the shadow does not.
 - **Internal padding:** 24px (`px-6 py-6`). Header, content, and footer sections each get horizontal padding; the card itself carries vertical.
 - **Hover:** Transitions to Graphite Elevated with Graphite Border Strong border. 150ms ease-out.
 
@@ -238,12 +238,20 @@ In light mode, the same tonal stack inverts: near-white backgrounds step from pa
 
 ### Navigation (Sidebar)
 
-- **Width:** 256px expanded, 48px collapsed. Collapses to sheet drawer below 1024px (lg breakpoint).
+- **Width:** 256px expanded, 48px collapsed (the icon rail). Below 768px (`md`) the sidebar is a sheet drawer; from 768px up it docks beside the content.
+- **One collapse mode:** the app sidebar and the Settings sidebar both collapse to the icon rail and share one open state, so collapsing on any page never leaves the other sidebar off-screen.
 - **Background:** Same as page (Graphite Obsidian). No distinction between sidebar and content area — they share the same foundation.
 - **Active item:** Spectral Violet Muted background with Spectral Violet text, font-weight 600. The muted purple fills the row, creating the Linear-style indent signal.
 - **Inactive item:** Ink Secondary text, no background. Hovered: subtle Graphite Surface background.
 - **Icons:** Spectral Violet color in both themes. Lucide icon set, 16px, 1.5px stroke width. The consistent purple icon treatment anchors the navigation hierarchy.
 - **Section groups:** Separated by 1px Graphite Border lines. Group labels use the overline style (12px, 600 weight, uppercase, wide tracking).
+
+### Page frame
+
+- **One gutter owner:** `<main>` in the authenticated layout is the only element that pads a page: 16px on the sides on a phone and 24px from `md`, 20px above and below on a phone and 32px from `md`. A Property page, a Settings page and the Properties list all sit on that edge; nothing below `<main>` adds a second gutter.
+- **Width tiers:** `PageShell` sets the content width. Dashboard 1200px for data and management lists (Properties, Portals, People, Goals, the Property dashboards), standard 1024px for other lists and flows, narrow 768px for settings and forms.
+- **Full-bleed surfaces:** the Inbox, a Property's Reviews and the portal workspace own their viewport and scroll their own panes, so `<main>` pads nothing there and the sidebar holds at the icon rail. They are named in one place (`isFullBleedRoute`). A padded body inside one (a fallback, a tab of cards) wears `FullBleedFrame`, which gives back the same gutter.
+- **Theme:** one segmented Light / Dark / System control, in that order, in Preferences and in the account menu. The public header, which has no room for three segments on a phone, keeps a single icon button that steps through the same list.
 
 ### Tables
 
