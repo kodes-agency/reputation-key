@@ -26,7 +26,7 @@
 
 import { createContext, useContext, useLayoutEffect } from 'react'
 import {
-  CheckCircle2,
+  CircleCheck,
   LoaderCircle,
   Lock,
   MessageSquare,
@@ -391,7 +391,7 @@ function SaveStateGlyph({ status }: Readonly<{ status: ReplyAutosaveStatus }>) {
       />
     )
   }
-  if (status === 'saved') return <CheckCircle2 aria-hidden="true" className="size-3.5" />
+  if (status === 'saved') return <CircleCheck aria-hidden="true" className="size-3.5" />
   if (status === 'error') return <TriangleAlert aria-hidden="true" className="size-3.5" />
   return null
 }

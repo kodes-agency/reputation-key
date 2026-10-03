@@ -10,10 +10,7 @@ function Figure({ cell }: Readonly<{ cell: ResultsCell }>) {
   return (
     <span className="inline-flex items-center gap-1">
       {cell.value}
-      <Star
-        aria-hidden="true"
-        className="size-4 fill-amber-500 text-amber-500 @3xl:size-5"
-      />
+      <Star aria-hidden="true" className="size-4 fill-current text-rating @3xl:size-5" />
       <span className="sr-only">out of 5 stars</span>
     </span>
   )

@@ -36,7 +36,7 @@ function MeasureValue({ figure }: Readonly<{ figure: MeasureFigure }>) {
           <>
             <Star
               aria-hidden="true"
-              className="ml-1 inline size-3.5 fill-amber-500 align-[-1px] text-amber-500"
+              className="ml-1 inline size-3.5 fill-current align-[-1px] text-rating"
             />
             <span className="sr-only"> out of 5 stars</span>
           </>

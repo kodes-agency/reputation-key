@@ -1,4 +1,4 @@
-import { CheckCircle2 } from 'lucide-react'
+import { CircleCheck } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { DialogClose, DialogFooter } from '#/components/ui/dialog'
 
@@ -17,7 +17,7 @@ export function BetaFeedbackReceipt({
     <div className="space-y-5 py-2" aria-live="polite">
       <div className="flex gap-3">
         <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary">
-          <CheckCircle2 className="size-5" />
+          <CircleCheck className="size-5" />
         </div>
         <div className="space-y-1">
           <h3 className="font-medium">Thanks — we received it</h3>

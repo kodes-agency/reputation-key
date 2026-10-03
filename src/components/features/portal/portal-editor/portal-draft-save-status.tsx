@@ -4,7 +4,7 @@
 // visually hidden alert, always mounted, speaks only when a save did not go
 // through.
 
-import { AlertTriangle, Check, Loader2 } from 'lucide-react'
+import { TriangleAlert, Check, Loader2 } from 'lucide-react'
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
 import { RetryButton } from '#/components/ui/region-error'
 import { cn } from '#/lib/utils'
@@ -43,7 +43,7 @@ export function PortalDraftSaveStatus() {
             ) : view.tone === 'ok' ? (
               <Check className="size-3" aria-hidden />
             ) : (
-              <AlertTriangle className="size-3" aria-hidden />
+              <TriangleAlert className="size-3" aria-hidden />
             )}
             <span>{view.label}</span>
             {problem === null ? null : <span>· {problem}</span>}

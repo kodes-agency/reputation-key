@@ -1,14 +1,9 @@
 import { Link } from '@tanstack/react-router'
-import {
-  AlertCircle,
-  ArrowRight,
-  CheckCircle2,
-  Loader2,
-  RotateCcw,
-  XCircle,
-} from 'lucide-react'
+import { ArrowRight, Loader2, RotateCcw } from 'lucide-react'
 import type { ImportProgressItemDto } from '#/contexts/integration/application/public-api'
 import { Button } from '#/components/ui/button'
+import { TONE_ICON, TONE_INK, type Tone } from '#/components/ui/tone'
+import { cn } from '#/lib/utils'
 import {
   Table,
   TableBody,
@@ -34,13 +29,16 @@ function statusIcon(item: ImportProgressItemDto) {
       <Loader2 className="size-4 animate-spin text-muted-foreground" aria-hidden="true" />
     )
   }
-  if (item.status === 'imported' || item.status === 'relinked') {
-    return <CheckCircle2 className="size-4 text-emerald-600" aria-hidden="true" />
-  }
-  if (item.status === 'failed') {
-    return <XCircle className="size-4 text-negative" aria-hidden="true" />
-  }
-  return <AlertCircle className="size-4 text-amber-600" aria-hidden="true" />
+  // Done, failed, and "settled some other way" (already there, cancelled): the
+  // tone table's three icons, so a row reads as it does everywhere else.
+  const tone: Exclude<Tone, 'neutral' | 'info'> =
+    item.status === 'imported' || item.status === 'relinked'
+      ? 'positive'
+      : item.status === 'failed'
+        ? 'negative'
+        : 'warn'
+  const Icon = TONE_ICON[tone]
+  return <Icon className={cn('size-4', TONE_INK[tone])} aria-hidden="true" />
 }
 
 function RetryButton({
