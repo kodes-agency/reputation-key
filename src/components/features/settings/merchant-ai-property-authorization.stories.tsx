@@ -184,8 +184,9 @@ export const AwaitingConsent: Story = {
   },
 }
 
-// A refused consent says why, in the server's words, leaves AI off and asks for
-// the acknowledgement again.
+// A refused consent says why, in the server's words, in the confirmation it was
+// given in, which stays open; it leaves AI off and asks for the acknowledgement
+// again.
 export const ConsentRefused: Story = {
   args: { snapshot: disabled, enable: asAction(refusedEnableAction) },
   play: async ({ canvasElement }) => {
@@ -193,12 +194,17 @@ export const ConsentRefused: Story = {
     const canvas = within(canvasElement)
     await consentToAi(canvasElement)
     await waitFor(() => expect(refusedEnableAction).toHaveBeenCalledOnce())
-    expect(await canvas.findByText(NOTICE_CHANGED)).toBeVisible()
+    const page = within(canvasElement.ownerDocument.body)
+    expect(await page.findByText(NOTICE_CHANGED)).toBeVisible()
+    expect(page.getByRole('alertdialog')).toBeVisible()
+    // The page stays behind the open dialog, hidden from the accessibility tree.
     expect(canvas.getByText('Off')).toBeInTheDocument()
     expect(
-      canvas.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT }),
+      canvas.getByRole('checkbox', { name: AI_CONSENT_ACKNOWLEDGEMENT, hidden: true }),
     ).not.toBeChecked()
-    expect(canvas.getByRole('button', { name: /^enable ai features$/i })).toBeDisabled()
+    expect(
+      canvas.getByRole('button', { name: /^enable ai features$/i, hidden: true }),
+    ).toBeDisabled()
   },
 }
 

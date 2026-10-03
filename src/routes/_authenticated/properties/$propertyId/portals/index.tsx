@@ -17,10 +17,7 @@ import {
   portalOverviewSearchSchema,
   type PortalOverviewSearch,
 } from '#/components/features/portal/portal-overview/portal-overview-search-schema'
-import {
-  actionErrorMessage,
-  useActionMutation,
-} from '#/components/hooks/use-action-mutation'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { portalKeys } from '#/shared/queries/query-keys'
 import { membersQuery, propertiesQuery } from '#/routes/-queries/route-queries'
 import { usePermissions } from '#/shared/hooks/usePermissions'
@@ -91,21 +88,18 @@ function PortalListRoute() {
 
   const archiveMutation = useActionMutation(updatePortal, {
     successMessage: 'Portal archived',
-    errorMessage: actionErrorMessage,
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
   const restoreMutation = useActionMutation(updatePortal, {
     successMessage: 'Portal restored as Disabled',
-    errorMessage: actionErrorMessage,
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
   const disableMutation = useActionMutation(updatePortal, {
     successMessage: 'Public page disabled',
-    errorMessage: actionErrorMessage,
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
-  // The dialogs show a refusal in place (a form's banner); a row action such as
-  // archiving a group reports its refusal by toast.
+  // Every dialog here (the forms and the archive confirmations) stays open and
+  // shows a refusal itself, so none of these mutations toasts one as well.
   const createMutation = useActionMutation(createPortalGroup, {
     successMessage: 'Group created',
     onSuccess: () => portalGroupCachePolicy.onGroupCreated(queryClient, propertyId),
@@ -116,7 +110,6 @@ function PortalListRoute() {
   })
   const archiveGroupMutation = useActionMutation(softDeletePortalGroup, {
     successMessage: 'Group archived',
-    errorMessage: actionErrorMessage,
     onSuccess: () => portalGroupCachePolicy.onGroupDeleted(queryClient, propertyId),
   })
 

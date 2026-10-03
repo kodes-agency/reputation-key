@@ -159,7 +159,6 @@ export function PortalRowMenu({
           {lifecycle.map((entry) => (
             <DropdownMenuItem
               key={entry.id}
-              variant={entry.destructive ? 'destructive' : 'default'}
               onSelect={() => setConfirming(lifecycleId(entry.id))}
             >
               {entry.label}

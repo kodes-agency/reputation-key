@@ -28,10 +28,7 @@ import { PortalGroupPage } from '#/components/features/portal/portal-group/porta
 import { readStateOf } from '#/components/features/portal/portal-group/portal-group-read-state'
 import { portalGroupCachePolicy } from '#/components/features/portal/portal-group-cache-policy'
 import { RouteNotFound } from '#/components/layout/route-page-state'
-import {
-  actionErrorMessage,
-  useActionMutation,
-} from '#/components/hooks/use-action-mutation'
+import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
 import { goalKeys, portalKeys } from '#/shared/queries/query-keys'
 import { usePermissions } from '#/shared/hooks/usePermissions'
@@ -135,17 +132,14 @@ function PortalGroupRoute() {
 
   const archiveMutation = useActionMutation(updatePortal, {
     successMessage: 'Portal archived',
-    errorMessage: actionErrorMessage,
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
   const restoreMutation = useActionMutation(updatePortal, {
     successMessage: 'Portal restored as Disabled',
-    errorMessage: actionErrorMessage,
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
   const disableMutation = useActionMutation(updatePortal, {
     successMessage: 'Public page disabled',
-    errorMessage: actionErrorMessage,
     invalidateKeys: [portalKeys.list(propertyId), portalKeys.all],
   })
   const renameMutation = useActionMutation(updatePortalGroup, {
@@ -157,14 +151,12 @@ function PortalGroupRoute() {
   })
   const removePortalMutation = useActionMutation(removePortalFromGroup, {
     successMessage: 'Portal removed from group',
-    errorMessage: actionErrorMessage,
     onSuccess: () => portalGroupCachePolicy.onGroupMemberRemoved(queryClient, propertyId),
   })
   // Leave the page first: once the group is gone from the list, its own page
   // would render as unavailable for the moment before the navigation lands.
   const archiveGroupMutation = useActionMutation(softDeletePortalGroup, {
     successMessage: 'Group archived',
-    errorMessage: actionErrorMessage,
     onSuccess: async () => {
       await navigate({ to: '/properties/$propertyId/portals', params: { propertyId } })
       await portalGroupCachePolicy.onGroupDeleted(queryClient, propertyId)

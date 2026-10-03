@@ -116,18 +116,23 @@ export function MerchantAiPropertyAuthorization({
     acknowledgement: { noticeVersion: notice.version, noticeDigest: notice.digest },
   })
 
-  const run = async (operation: () => Promise<MerchantAiSnapshot>) => {
+  // `inCard`: the card says a refusal. Enable and Turn off are confirmed in a
+  // dialog that stays open and says it there, so they let it through instead.
+  const run = async (operation: () => Promise<MerchantAiSnapshot>, inCard = true) => {
     setErrorMessage(null)
     try {
       const next = await operation()
       setSnapshot(next)
       setSelectedCapabilities(next.capabilities)
     } catch (error) {
+      if (!inCard) throw error
       // The server's sentence for a refusal (a changed notice, a stale state
       // version); a generic one for a failure it never wrote for a reader.
       setErrorMessage(actionErrorMessage(error))
     } finally {
       // Every consent is its own acknowledgement: the next one is asked again.
+      // Enable's dialog is held back by it, so after a refusal the manager closes
+      // the dialog, reads the notice and ticks again.
       setAcknowledged(false)
     }
   }
@@ -152,7 +157,7 @@ export function MerchantAiPropertyAuthorization({
       }
       onToggleCapability={toggleCapability}
       onAcknowledgedChange={setAcknowledged}
-      onEnable={() => void run(() => enable({ data: consentData() }))}
+      onEnable={() => run(() => enable({ data: consentData() }), false)}
       onChange={() =>
         void run(() =>
           change({
@@ -163,7 +168,7 @@ export function MerchantAiPropertyAuthorization({
           }),
         )
       }
-      onRevoke={() => void run(() => revoke({ data: commandData() }))}
+      onRevoke={() => run(() => revoke({ data: commandData() }), false)}
     />
   )
 }

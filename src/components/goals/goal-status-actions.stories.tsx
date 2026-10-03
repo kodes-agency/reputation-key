@@ -17,6 +17,7 @@ const meta: Meta<typeof GoalStatusActions> = {
     status: 'active',
     pending: false,
     onChange: fn(),
+    onEnd: fn(async () => undefined),
   },
 }
 export default meta
@@ -29,13 +30,13 @@ const openEndDialog = (canvasElement: HTMLElement) =>
 export const EndAsksFirst: Story = {
   play: async ({ canvasElement, args }) => {
     const dialog = await openEndDialog(canvasElement)
-    expect(args.onChange).not.toHaveBeenCalled()
+    expect(args.onEnd).not.toHaveBeenCalled()
     expect(
       dialog.getByRole('heading', { name: 'End “More private ratings”?' }),
     ).toBeVisible()
     await userEvent.click(dialog.getByRole('button', { name: 'End goal' }))
-    expect(args.onChange).toHaveBeenCalledTimes(1)
-    expect(args.onChange).toHaveBeenCalledWith('ended')
+    expect(args.onEnd).toHaveBeenCalledTimes(1)
+    expect(args.onChange).not.toHaveBeenCalled()
   },
 }
 
@@ -43,7 +44,7 @@ export const EndAsksFirstLight: Story = {
   parameters: { theme: 'light' },
   play: async ({ canvasElement, args }) => {
     await openEndDialog(canvasElement)
-    expect(args.onChange).not.toHaveBeenCalled()
+    expect(args.onEnd).not.toHaveBeenCalled()
   },
 }
 
@@ -52,7 +53,7 @@ export const KeepGoal: Story = {
     const dialog = await openEndDialog(canvasElement)
     await userEvent.click(dialog.getByRole('button', { name: 'Keep goal' }))
     await waitFor(() => expect(dialog.queryByRole('alertdialog')).not.toBeInTheDocument())
-    expect(args.onChange).not.toHaveBeenCalled()
+    expect(args.onEnd).not.toHaveBeenCalled()
   },
 }
 

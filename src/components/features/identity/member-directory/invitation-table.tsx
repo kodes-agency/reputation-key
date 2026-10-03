@@ -9,16 +9,9 @@ import { Button } from '#/components/ui/button'
 import { StatusBadge } from '#/components/ui/status-badge'
 import { INVITATION_STATUS } from './invitation-status'
 import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '#/components/ui/alert-dialog'
+  ConfirmationDialog,
+  ConfirmationTrigger,
+} from '#/components/ui/confirmation-dialog'
 import {
   Table,
   TableBody,
@@ -40,8 +33,10 @@ export interface InvitationRow {
 }
 
 /**
- * The route's Actions report their own outcome (toasts); a refusal still rejects
- * the call, so each click settles the promise rather than leaking it.
+ * Resend reports its own outcome (toasts); a refusal still rejects the call, so
+ * the click settles the promise rather than leaking it. Cancelling is confirmed
+ * in a dialog, which stays open and says a refusal in place: that Action's
+ * rejection goes to the dialog.
  */
 type Props = Readonly<{
   invitations: ReadonlyArray<InvitationRow>
@@ -94,44 +89,20 @@ export function InvitationTable({ invitations, resendAction, cancelAction }: Pro
                       >
                         Resend
                       </Button>
-                      <AlertDialog>
-                        <AlertDialogTrigger asChild>
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            className="text-negative hover:text-negative"
-                          >
+                      <ConfirmationDialog
+                        trigger={
+                          <ConfirmationTrigger tone="destructive" size="sm">
                             Cancel
-                          </Button>
-                        </AlertDialogTrigger>
-                        <AlertDialogContent>
-                          <AlertDialogHeader>
-                            <AlertDialogTitle>
-                              Cancel invitation to {inv.email}?
-                            </AlertDialogTitle>
-                            <AlertDialogDescription>
-                              The invitation link will no longer work. You can always send
-                              a new invitation later.
-                            </AlertDialogDescription>
-                          </AlertDialogHeader>
-                          <AlertDialogFooter>
-                            <AlertDialogCancel>Keep invitation</AlertDialogCancel>
-                            <AlertDialogAction
-                              variant="destructive"
-                              onClick={() =>
-                                void cancelAction({
-                                  data: { invitationId: inv.id },
-                                }).catch(() => undefined)
-                              }
-                              disabled={cancelAction.isPending}
-                            >
-                              {cancelAction.isPending
-                                ? 'Cancelling…'
-                                : 'Cancel invitation'}
-                            </AlertDialogAction>
-                          </AlertDialogFooter>
-                        </AlertDialogContent>
-                      </AlertDialog>
+                          </ConfirmationTrigger>
+                        }
+                        tone="destructive"
+                        title={`Cancel invitation to ${inv.email}?`}
+                        description="The invitation link will no longer work. You can always send a new invitation later."
+                        cancelLabel="Keep invitation"
+                        confirmLabel="Cancel invitation"
+                        pendingLabel="Cancelling…"
+                        onConfirm={() => cancelAction({ data: { invitationId: inv.id } })}
+                      />
                     </div>
                   ) : null}
                 </TableCell>

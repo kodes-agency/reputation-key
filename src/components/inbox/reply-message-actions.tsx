@@ -7,17 +7,7 @@
 // mounts in a different subtree at the foot of the pane's scroller.
 
 import { useEffect, useId, useRef, useState } from 'react'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '#/components/ui/alert-dialog'
+import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import { Button } from '#/components/ui/button'
 import { Label } from '#/components/ui/label'
 import { Textarea } from '#/components/ui/textarea'
@@ -197,8 +187,10 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
           focused button. */}
       <div data-reply-actions className="mt-3 flex flex-wrap items-center gap-2">
         {canApprove && (
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
+          // A portal leaves the Inbox's compact density behind, so it says so.
+          <ConfirmationDialog
+            density="compact"
+            trigger={
               <Button
                 size="sm"
                 // A natively disabled button leaves the tab order and takes its
@@ -219,30 +211,17 @@ export function ReplyMessageActions(props: ReplyMessageActionsProps): ReactNode 
               >
                 Confirm &amp; Publish
               </Button>
-            </AlertDialogTrigger>
-            {/* A portal leaves the Inbox's compact density behind, so it says so. */}
-            <AlertDialogContent data-density="compact">
-              <AlertDialogHeader>
-                <AlertDialogTitle>Confirm and publish this reply?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This records your confirmation and starts publishing the exact reply
-                  shown here to Google. RepKey keeps it pending until Google confirms that
-                  it is live.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Keep reviewing</AlertDialogCancel>
-                <AlertDialogAction
-                  disabled={isSaving || publishBlockedReason !== null}
-                  // Toasted by the approve mutation's `errorMessage`; the catch
-                  // only keeps the rejection handled.
-                  onClick={() => void onApprove().catch(() => undefined)}
-                >
-                  {isSaving ? 'Confirming…' : 'Confirm & Publish'}
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+            }
+            title="Confirm and publish this reply?"
+            description="This records your confirmation and starts publishing the exact reply shown here to Google. RepKey keeps it pending until Google confirms that it is live."
+            cancelLabel="Keep reviewing"
+            confirmLabel="Confirm & Publish"
+            pendingLabel="Confirming…"
+            confirmDisabled={isSaving || publishBlockedReason !== null}
+            // A refusal stays in the dialog (the approve mutation passes no
+            // toast), so the manager reads it where they pressed the button.
+            onConfirm={onApprove}
+          />
         )}
         {canReject && (
           <Button

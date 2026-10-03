@@ -6,16 +6,7 @@
 //
 // Controlled: the row's "more actions" menu opens it, because a dialog mounted
 // inside a menu item closes with the menu.
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '#/components/ui/alert-dialog'
+import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import type { Action } from '#/components/hooks/use-action'
 import type { PortalDisableMutation } from './portal-disable-dialog'
 
@@ -52,46 +43,26 @@ export function PortalArchiveDialog({
   archiveMutation,
   restoreMutation,
 }: Props) {
-  const mutation = restoring ? restoreMutation : archiveMutation
+  // Archiving keeps everything and is undone by Restore, which only returns the
+  // Portal as Disabled: both confirm in the neutral tone.
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>
-            {restoring ? `Restore ${portalName}?` : `Archive ${portalName}?`}
-          </AlertDialogTitle>
-          <AlertDialogDescription>
-            {restoring
-              ? 'The Portal will return as Disabled. Its saved settings remain available, but guests will not see it until you review and publish it again.'
-              : 'The Portal will become read-only and unavailable to guests. Its public address, saved settings, publication history, metrics, goals, and manager assignments are retained so it can be restored later.'}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            onClick={() => {
-              if (restoring) {
-                void restoreMutation({
-                  data: { portalId, publicationState: 'disabled' },
-                }).catch(() => undefined)
-              } else {
-                void archiveMutation({
-                  data: { portalId, publicationState: 'archived' },
-                }).catch(() => undefined)
-              }
-            }}
-            disabled={mutation.isPending}
-          >
-            {mutation.isPending
-              ? restoring
-                ? 'Restoring…'
-                : 'Archiving…'
-              : restoring
-                ? 'Restore as Disabled'
-                : 'Archive Portal'}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmationDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={restoring ? `Restore ${portalName}?` : `Archive ${portalName}?`}
+      description={
+        restoring
+          ? 'The Portal will return as Disabled. Its saved settings remain available, but guests will not see it until you review and publish it again.'
+          : 'The Portal will become read-only and unavailable to guests. Its public address, saved settings, publication history, metrics, goals, and manager assignments are retained so it can be restored later.'
+      }
+      cancelLabel="Cancel"
+      confirmLabel={restoring ? 'Restore as Disabled' : 'Archive Portal'}
+      pendingLabel={restoring ? 'Restoring…' : 'Archiving…'}
+      onConfirm={() =>
+        restoring
+          ? restoreMutation({ data: { portalId, publicationState: 'disabled' } })
+          : archiveMutation({ data: { portalId, publicationState: 'archived' } })
+      }
+    />
   )
 }

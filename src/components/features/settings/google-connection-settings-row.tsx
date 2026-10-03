@@ -1,5 +1,8 @@
 import { Button } from '#/components/ui/button'
-import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
+import {
+  ConfirmationDialog,
+  ConfirmationTrigger,
+} from '#/components/ui/confirmation-dialog'
 import { StatusBadge, type StatusMap } from '#/components/ui/status-badge'
 import type {
   GoogleAuthUrlInput,
@@ -19,7 +22,8 @@ type Props = Readonly<{
   authorizationPending: boolean
   disconnectPending: boolean
   onReauthorize: (request: ReauthorizationRequest) => void
-  onDisconnect: (connectionId: string) => void
+  /** Rejects with the refusal, which the confirmation says in place. */
+  onDisconnect: (connectionId: string) => Promise<unknown>
 }>
 
 const CONNECTION_STATUS: StatusMap<GoogleConnectionStatus> = {
@@ -87,16 +91,19 @@ export function GoogleConnectionSettingsRow({
             Property-level disconnect, which already confirms. */}
         <ConfirmationDialog
           trigger={
-            <Button variant="outline" size="sm" disabled={disconnectPending}>
+            <ConfirmationTrigger
+              tone="destructive"
+              size="sm"
+              disabled={disconnectPending}
+            >
               Disconnect
-            </Button>
+            </ConfirmationTrigger>
           }
           title="Disconnect this Google account?"
           description="RepKey stops syncing and replying through this account for every property that uses it, revokes its access, and removes the reviews and replies it imported. Nothing is deleted on Google."
           cancelLabel="Keep connected"
           confirmLabel="Disconnect account"
           pendingLabel="Disconnecting…"
-          pending={disconnectPending}
           tone="destructive"
           onConfirm={() => onDisconnect(connection.id)}
         />

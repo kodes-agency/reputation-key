@@ -17,21 +17,14 @@ export type GroupMenuAccess = Readonly<{
 
 export type GroupMenuItemId = 'open' | 'rename' | 'goal' | 'archive'
 
+// Archiving a group keeps its history and its portals, so its entry is neutral
+// like its confirmation; red is for an action that cannot be taken back.
 export type GroupMenuItem = Readonly<{
   id: GroupMenuItemId
   label: string
-  destructive: boolean
 }>
 
-const item = (
-  id: GroupMenuItemId,
-  label: string,
-  destructive = false,
-): GroupMenuItem => ({
-  id,
-  label,
-  destructive,
-})
+const item = (id: GroupMenuItemId, label: string): GroupMenuItem => ({ id, label })
 
 export function groupMenu(
   access: GroupMenuAccess,
@@ -44,7 +37,7 @@ export function groupMenu(
       : []),
     ...(access.canSetGoal ? [item('goal', 'Set a goal')] : []),
     ...(access.canArchive && access.portalWriteEnabled
-      ? [item('archive', 'Archive group…', true)]
+      ? [item('archive', 'Archive group…')]
       : []),
   ]
 }

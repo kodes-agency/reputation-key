@@ -16,17 +16,7 @@ import { useMemo, useRef } from 'react'
 import { CheckCheck, Settings2, Trash2 } from 'lucide-react'
 import { Link } from '@tanstack/react-router'
 import { Button } from '#/components/ui/button'
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '#/components/ui/alert-dialog'
+import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import { PageHeader } from '#/components/layout/page-header'
 import { PageShell } from '#/components/layout/page-shell'
 import { useNotificationFormat, useNotifications } from './notification-queries'
@@ -139,8 +129,8 @@ export function NotificationPage({
                 Mark all read
               </Button>
             )}
-            <AlertDialog>
-              <AlertDialogTrigger asChild>
+            <ConfirmationDialog
+              trigger={
                 <Button
                   variant="outline"
                   size="sm"
@@ -152,43 +142,34 @@ export function NotificationPage({
                   <Trash2 aria-hidden="true" />
                   Dismiss all
                 </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent
-                onCloseAutoFocus={(event) => {
-                  if (!dismissAllConfirmed.current) return
-                  dismissAllConfirmed.current = false
-                  // Focus goes to the emptied list — what the action changed —
-                  // rather than back to the button, and never to <body>.
-                  event.preventDefault()
-                  listRef.current?.focus()
-                }}
-              >
-                <AlertDialogHeader>
-                  <AlertDialogTitle>
-                    {property
-                      ? `Dismiss all notifications about ${property.name}?`
-                      : 'Dismiss all notifications?'}
-                  </AlertDialogTitle>
-                  <AlertDialogDescription>
-                    {property
-                      ? `This hides every notification about ${property.name} currently addressed to you. Other properties' notifications stay.`
-                      : 'This hides every notification currently addressed to you.'}{' '}
-                    It does not change the underlying reviews, feedback, or other work.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Keep notifications</AlertDialogCancel>
-                  <AlertDialogAction
-                    onClick={() => {
-                      dismissAllConfirmed.current = true
-                      mutations.dismissAll(scope)
-                    }}
-                  >
-                    Dismiss all
-                  </AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
+              }
+              onCloseAutoFocus={(event) => {
+                if (!dismissAllConfirmed.current) return
+                dismissAllConfirmed.current = false
+                // Focus goes to the emptied list — what the action changed —
+                // rather than back to the button, and never to <body>.
+                event.preventDefault()
+                listRef.current?.focus()
+              }}
+              title={
+                property
+                  ? `Dismiss all notifications about ${property.name}?`
+                  : 'Dismiss all notifications?'
+              }
+              description={`${
+                property
+                  ? `This hides every notification about ${property.name} currently addressed to you. Other properties' notifications stay.`
+                  : 'This hides every notification currently addressed to you.'
+              } It does not change the underlying reviews, feedback, or other work.`}
+              cancelLabel="Keep notifications"
+              confirmLabel="Dismiss all"
+              // Optimistic: the list empties at once and a failure is the
+              // mutation's toast, so the dialog closes as it is pressed.
+              onConfirm={() => {
+                dismissAllConfirmed.current = true
+                mutations.dismissAll(scope)
+              }}
+            />
             <Button asChild variant="ghost" size="sm">
               <Link to="/settings/notifications">
                 <Settings2 aria-hidden="true" />

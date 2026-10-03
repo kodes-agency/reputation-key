@@ -1,16 +1,21 @@
 import type { GoalProgram } from '#/contexts/reporting/application/public-api'
 import { Button } from '#/components/ui/button'
-import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
+import {
+  ConfirmationDialog,
+  ConfirmationTrigger,
+} from '#/components/ui/confirmation-dialog'
 
 type GoalStatus = GoalProgram['status']
-type ChangeableStatus = Extract<GoalStatus, 'active' | 'paused' | 'ended'>
 
 type GoalStatusActionsProps = Readonly<{
   goalName: string
   /** The goal's current status; an ended goal has no actions and is not rendered. */
   status: Exclude<GoalStatus, 'ended'>
   pending: boolean
-  onChange: (status: ChangeableStatus) => void
+  /** Pause or Resume: acts at once, and a refusal is the caller's toast. */
+  onChange: (status: 'active' | 'paused') => void
+  /** End goal, after the confirmation: a refusal rejects and the dialog says it. */
+  onEnd: () => Promise<unknown>
 }>
 
 /**
@@ -23,6 +28,7 @@ export function GoalStatusActions({
   status,
   pending,
   onChange,
+  onEnd,
 }: GoalStatusActionsProps) {
   const running = status === 'active' || status === 'paused'
   return (
@@ -38,18 +44,17 @@ export function GoalStatusActions({
       ) : null}
       <ConfirmationDialog
         trigger={
-          <Button variant="destructive" disabled={pending}>
+          <ConfirmationTrigger tone="destructive" disabled={pending}>
             End goal
-          </Button>
+          </ConfirmationTrigger>
         }
         title={`End “${goalName}”?`}
         description="Ending a goal is final. It moves to History and cannot be resumed or revised. The results it has already earned are kept."
         cancelLabel="Keep goal"
         confirmLabel="End goal"
         pendingLabel="Ending…"
-        pending={pending}
         tone="destructive"
-        onConfirm={() => onChange('ended')}
+        onConfirm={onEnd}
       />
     </>
   )

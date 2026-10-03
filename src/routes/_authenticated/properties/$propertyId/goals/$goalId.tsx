@@ -71,11 +71,16 @@ function GoalDetailRoute() {
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
   const { data } = useSuspenseQuery(goalQuery(propertyId, goalId))
   const { data: subjectNames } = useSuspenseQuery(subjectNamesQuery(propertyId))
-  // Pause, Resume and End have no inline error surface, so a refusal (an
-  // invalid transition) is reported by toast. End also confirms first.
+  // Pause and Resume act at once, so a refusal (an invalid transition) is a
+  // toast. End confirms first, in a dialog that stays open and says a refusal
+  // itself, so it is its own mutation with no toast.
   const mutation = useActionMutation(changeGoalProgramStatus, {
     successMessage: 'Goal status updated',
     errorMessage: actionErrorMessage,
+    invalidateKeys: [goalKeys.all],
+  })
+  const endMutation = useActionMutation(changeGoalProgramStatus, {
+    successMessage: 'Goal status updated',
     invalidateKeys: [goalKeys.all],
   })
   const { program, version, versions, assignments } = data
@@ -88,16 +93,20 @@ function GoalDetailRoute() {
   const canManage = can(ctx.role, 'goal.update')
   // The toast above reports a refusal; settling here keeps it from escaping the
   // click as an unhandled rejection.
-  const updateStatus = (status: 'active' | 'paused' | 'ended') => {
+  const updateStatus = (status: 'active' | 'paused') => {
     void mutation({
+      data: { propertyId, programId: goalId, status, reason: `Goal ${status}` },
+    }).catch(() => undefined)
+  }
+  const endGoal = () =>
+    endMutation({
       data: {
         propertyId,
         programId: goalId,
-        status,
-        reason: status === 'ended' ? 'Ended by manager' : `Goal ${status}`,
+        status: 'ended',
+        reason: 'Ended by manager',
       },
-    }).catch(() => undefined)
-  }
+    })
   const formatDay = (date: Date): string =>
     formatDate(date, version.propertyTimezone) ?? ''
   const subjectLabel = (subject: GoalSubject) => {
@@ -151,8 +160,9 @@ function GoalDetailRoute() {
               <GoalStatusActions
                 goalName={program.name}
                 status={program.status}
-                pending={mutation.isPending}
+                pending={mutation.isPending || endMutation.isPending}
                 onChange={updateStatus}
+                onEnd={endGoal}
               />
             </div>
           ) : undefined

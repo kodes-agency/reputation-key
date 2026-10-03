@@ -152,7 +152,6 @@ export function NotificationStackRow({
         cancelLabel="Keep notifications"
         confirmLabel="Dismiss all"
         pendingLabel="Dismissing…"
-        pending={false}
         onConfirm={() => actions.onDismissMany(allIds)}
       />
     </li>

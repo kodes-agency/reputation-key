@@ -4,16 +4,7 @@
 //
 // Controlled, like the archive confirmation: a dialog mounted inside a menu item
 // closes with the menu.
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '#/components/ui/alert-dialog'
+import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import type { Action } from '#/components/hooks/use-action'
 
 export type PortalDisableMutation = Action<{
@@ -35,32 +26,19 @@ export function PortalDisableDialog({
   onOpenChange,
   disableMutation,
 }: Props) {
+  // Reversible (Review & publish brings the page back), so neutral, like Archive.
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Disable the public page of {portalName}?</AlertDialogTitle>
-          <AlertDialogDescription>
-            Guests who scan its code or open its link will see that the page is
-            unavailable. Its codes, draft and results stay as they are. To bring the page
-            back, publish it again from Review &amp; publish.
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-        <AlertDialogFooter>
-          <AlertDialogCancel>Cancel</AlertDialogCancel>
-          <AlertDialogAction
-            variant="destructive"
-            onClick={() => {
-              void disableMutation({
-                data: { portalId, publicationState: 'disabled' },
-              }).catch(() => undefined)
-            }}
-            disabled={disableMutation.isPending}
-          >
-            {disableMutation.isPending ? 'Disabling…' : 'Disable public page'}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmationDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={`Disable the public page of ${portalName}?`}
+      description="Guests who scan its code or open its link will see that the page is unavailable. Its codes, draft and results stay as they are. To bring the page back, publish it again from Review & publish."
+      cancelLabel="Cancel"
+      confirmLabel="Disable public page"
+      pendingLabel="Disabling…"
+      onConfirm={() =>
+        disableMutation({ data: { portalId, publicationState: 'disabled' } })
+      }
+    />
   )
 }

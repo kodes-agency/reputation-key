@@ -17,17 +17,15 @@ export type PortalRowAccess = Readonly<{
 export type PortalRowMenuItemId =
   'results' | 'history' | 'review' | 'disable' | 'archive' | 'restore'
 
+// No entry is destructive: disabling a page and archiving a Portal are both undone
+// (Review & publish, Restore), so their menu items are neutral like their
+// confirmations. Red is for an action that cannot be taken back.
 export type PortalRowMenuItem = Readonly<{
   id: PortalRowMenuItemId
   label: string
-  destructive: boolean
 }>
 
-const item = (id: PortalRowMenuItemId, label: string, destructive = false) => ({
-  id,
-  label,
-  destructive,
-})
+const item = (id: PortalRowMenuItemId, label: string) => ({ id, label })
 
 export function portalRowMenu(
   row: Pick<PortalOverviewRow, 'publicationState' | 'pendingChangeCount'>,
@@ -47,12 +45,12 @@ export function portalRowMenu(
     // Taking a live page down is a Portal update, refused like one while the
     // organisation's `portal.write` capability is off.
     ...(state === 'published' && canWrite
-      ? [item('disable', 'Disable public page…', true)]
+      ? [item('disable', 'Disable public page…')]
       : []),
     // Archiving and restoring are Portal updates, which the server also
     // refuses while the organisation's `portal.write` capability is off.
     ...(state !== 'archived' && access.canArchive && access.portalWriteEnabled
-      ? [item('archive', 'Archive…', true)]
+      ? [item('archive', 'Archive…')]
       : []),
     ...(state === 'archived' && canWrite ? [item('restore', 'Restore…')] : []),
   ]

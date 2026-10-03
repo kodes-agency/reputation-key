@@ -139,9 +139,9 @@ export const MixedInvitationStatuses: Story = {
 }
 
 /**
- * A refused resend or cancellation is reported by the route's toast
- * (useActionMutation's errorMessage), so the table only settles the promise:
- * an unsettled one surfaced as an unhandled rejection.
+ * A refused resend is reported by the route's toast, so the table only settles
+ * the promise: an unsettled one surfaced as an unhandled rejection. A refused
+ * cancellation is said by its confirmation, which stays open with the refusal.
  */
 const invitationRefusals: Error[] = []
 
@@ -163,13 +163,15 @@ export const RefusedInvitationCommands: Story = {
       await userEvent.click(
         await page.findByRole('button', { name: 'Cancel invitation' }),
       )
+      await page.findByText('Unable to complete this action')
     })
     expect(invitationRefusals).toHaveLength(2)
     expect(unhandled).toEqual([])
+    expect(page.getByRole('alertdialog')).toBeVisible()
   },
 }
 
-/** The same for a refused member removal. */
+/** A refused member removal stays in its confirmation, said once. */
 const memberRefusals: Error[] = []
 
 export const RefusedMemberRemoval: Story = {
@@ -182,8 +184,10 @@ export const RefusedMemberRemoval: Story = {
     const unhandled = await unhandledRejectionsDuring(async () => {
       await userEvent.click(canvas.getByRole('button', { name: 'Remove' }))
       await userEvent.click(await page.findByRole('button', { name: 'Remove member' }))
+      await page.findByText('Unable to complete this action')
     })
     expect(memberRefusals).toHaveLength(1)
     expect(unhandled).toEqual([])
+    expect(page.getAllByRole('alert')).toHaveLength(1)
   },
 }

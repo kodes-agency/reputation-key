@@ -1,5 +1,8 @@
 import { Button } from '#/components/ui/button'
-import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
+import {
+  ConfirmationDialog,
+  ConfirmationTrigger,
+} from '#/components/ui/confirmation-dialog'
 import { StatusBadge } from '#/components/ui/status-badge'
 import { APPROVED_DESTINATION_STATUS } from './portal-approved-destination-status'
 import { PortalApprovedDestinationRequestForm } from './portal-approved-destination-request-form'
@@ -101,33 +104,29 @@ function DestinationActions({
         // can), so this one asks first.
         <ConfirmationDialog
           trigger={
-            <Button
-              type="button"
+            <ConfirmationTrigger
+              tone="destructive"
               size="sm"
-              variant="ghost"
               disabled={disabled || actions.disableDestination.isPending}
             >
               Disable
-            </Button>
+            </ConfirmationTrigger>
           }
           title={`Disable ${destination.hostname}?`}
           description="It stops being an approved destination for Portal links, and a disabled destination can't be approved again."
           cancelLabel="Keep destination"
           confirmLabel="Disable destination"
           pendingLabel="Disabling…"
-          pending={actions.disableDestination.isPending}
           tone="destructive"
-          onConfirm={() => {
-            void actions
-              .disableDestination({
-                data: {
-                  portalId,
-                  destinationId: destination.id,
-                  reason: 'Disabled by an Account Admin',
-                },
-              })
-              .catch(() => undefined)
-          }}
+          onConfirm={() =>
+            actions.disableDestination({
+              data: {
+                portalId,
+                destinationId: destination.id,
+                reason: 'Disabled by an Account Admin',
+              },
+            })
+          }
         />
       ) : null}
     </div>

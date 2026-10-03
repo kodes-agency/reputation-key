@@ -1,16 +1,9 @@
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from '#/components/ui/alert-dialog'
 import { Button } from '#/components/ui/button'
 import { CardFooter } from '#/components/ui/card'
+import {
+  ConfirmationDialog,
+  ConfirmationTrigger,
+} from '#/components/ui/confirmation-dialog'
 
 export function MerchantAiSettingsActions({
   propertyName,
@@ -32,38 +25,33 @@ export function MerchantAiSettingsActions({
   canEnable: boolean
   canSave: boolean
   pending: boolean
-  onEnable: () => void
+  /** Enable and turn off are confirmed: a refusal rejects and the dialog says it. */
+  onEnable: () => Promise<unknown>
   onChange: () => void
-  onRevoke: () => void
+  onRevoke: () => Promise<unknown>
 }>) {
   return (
     <CardFooter className="flex-col gap-3 border-t sm:flex-row sm:justify-end">
       {canRevoke ? (
         <>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="outline" className="w-full sm:w-auto" disabled={pending}>
+          <ConfirmationDialog
+            trigger={
+              <ConfirmationTrigger
+                tone="destructive"
+                className="w-full sm:w-auto"
+                disabled={pending}
+              >
                 Turn off AI features
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>
-                  Turn off AI features for {propertyName}?
-                </AlertDialogTitle>
-                <AlertDialogDescription>
-                  Future review analysis, reply drafting, and property trend processing
-                  will stop for this property. This does not disconnect Google.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Keep AI features on</AlertDialogCancel>
-                <AlertDialogAction variant="destructive" onClick={onRevoke}>
-                  Turn off
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
+              </ConfirmationTrigger>
+            }
+            tone="destructive"
+            title={`Turn off AI features for ${propertyName}?`}
+            description="Future review analysis, reply drafting, and property trend processing will stop for this property. This does not disconnect Google."
+            cancelLabel="Keep AI features on"
+            confirmLabel="Turn off"
+            pendingLabel="Turning off…"
+            onConfirm={onRevoke}
+          />
           {isEnabled ? (
             <Button
               className="w-full sm:w-auto"
@@ -76,27 +64,20 @@ export function MerchantAiSettingsActions({
           ) : null}
         </>
       ) : (
-        <AlertDialog>
-          <AlertDialogTrigger asChild>
+        <ConfirmationDialog
+          trigger={
             <Button className="w-full sm:w-auto" disabled={!canEnable}>
               Enable AI features
             </Button>
-          </AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>{enableCallToAction}?</AlertDialogTitle>
-              <AlertDialogDescription>
-                You confirm the data-handling notice above and authorize review analysis,
-                editable reply drafting, and de-identified property trends for this
-                property.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction onClick={onEnable}>Confirm and enable</AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+          }
+          title={`${enableCallToAction}?`}
+          description="You confirm the data-handling notice above and authorize review analysis, editable reply drafting, and de-identified property trends for this property."
+          cancelLabel="Cancel"
+          confirmLabel="Confirm and enable"
+          pendingLabel="Enabling…"
+          confirmDisabled={!canEnable}
+          onConfirm={onEnable}
+        />
       )}
     </CardFooter>
   )

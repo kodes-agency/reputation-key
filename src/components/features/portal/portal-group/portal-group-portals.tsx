@@ -128,12 +128,9 @@ export function PortalGroupPortals({
         groupName={group.name}
         open={removeOpen}
         onOpenChange={setRemoveOpen}
-        pending={removePortalMutation.isPending}
-        onConfirm={(portalId) => {
-          void removePortalMutation({
-            data: { portalGroupId: group.id, portalId },
-          }).catch(() => undefined)
-        }}
+        onConfirm={(portalId) =>
+          removePortalMutation({ data: { portalGroupId: group.id, portalId } })
+        }
       />
     </section>
   )

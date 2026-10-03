@@ -1,4 +1,4 @@
-import { createElement, type ReactNode } from 'react'
+import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Action } from '#/components/hooks/use-action'
@@ -6,35 +6,22 @@ import type {
   ArchiveStaffParticipationMutationInput,
   StaffParticipationView,
 } from '#/components/features/staff/types'
-import { unhandledRejectionsDuring } from '#/shared/testing/unhandled-rejections'
 import { StaffParticipationRow } from './staff-participation-row'
 
 type ArchiveInput = { data: ArchiveStaffParticipationMutationInput }
-type Recorded = Readonly<{ children?: ReactNode; onClick?: () => unknown }>
+type Recorded = Readonly<{ onConfirm?: () => Promise<unknown> }>
 
 const { recorded } = vi.hoisted(() => ({ recorded: [] as Recorded[] }))
 
-// The confirm button of the archive dialog is recorded rather than rendered:
-// there is no DOM here to click it in.
-vi.mock('#/components/ui/alert-dialog', async () => {
-  const { createElement: h, Fragment } = await import('react')
-  const Passthrough = ({ children }: { children?: ReactNode }) =>
-    h(Fragment, null, children)
-  return {
-    AlertDialog: Passthrough,
-    AlertDialogCancel: Passthrough,
-    AlertDialogContent: Passthrough,
-    AlertDialogDescription: Passthrough,
-    AlertDialogFooter: Passthrough,
-    AlertDialogHeader: Passthrough,
-    AlertDialogTitle: Passthrough,
-    AlertDialogTrigger: Passthrough,
-    AlertDialogAction: (props: Recorded) => {
-      recorded.push(props)
-      return null
-    },
-  }
-})
+// The archive confirmation is recorded rather than rendered: there is no DOM here
+// to open it in.
+vi.mock('#/components/ui/confirmation-dialog', () => ({
+  ConfirmationDialog: (props: Recorded) => {
+    recorded.push(props)
+    return null
+  },
+  ConfirmationTrigger: () => null,
+}))
 
 const idle = { isPending: false, error: null, isSuccess: false, data: null }
 const archiveAction: Action<ArchiveInput> = Object.assign(async () => undefined, idle)
@@ -103,10 +90,10 @@ describe('StaffParticipationRow dates', () => {
 })
 
 // Archiving calls the page's Action, which rejects on a refusal (a stale
-// revision). The list's banner shows the refusal from the Action's own error;
-// the row only has to settle the promise, or it escapes as an unhandled one.
+// revision). The confirmation stays open and shows the refusal itself, so the row
+// hands it the rejection.
 describe('StaffParticipationRow archive', () => {
-  it('settles a refused archive instead of leaking the rejection', async () => {
+  it('hands a refused archive to the confirmation, which shows it in place', async () => {
     const archives: ArchiveInput[] = []
     // A plain function, so the rejection is not pre-handled by a spy.
     const refusing: Action<ArchiveInput> = Object.assign(async (input: ArchiveInput) => {
@@ -114,12 +101,13 @@ describe('StaffParticipationRow archive', () => {
       throw new Error('This participation changed. Reload and try again.')
     }, idle)
     renderRow({ ...participation, status: 'active', endedAt: null }, refusing)
-    const confirm = recorded.find((props) => props.children === 'Archive participation')
-    if (!confirm?.onClick) throw new Error('no archive confirmation was rendered')
+    const confirmation = recorded[0]
+    if (!confirmation?.onConfirm) throw new Error('no archive confirmation was rendered')
 
-    const unhandled = await unhandledRejectionsDuring(() => confirm.onClick?.())
+    await expect(confirmation.onConfirm()).rejects.toThrow(
+      'This participation changed. Reload and try again.',
+    )
 
-    expect(unhandled).toEqual([])
     expect(archives).toEqual([
       {
         data: {

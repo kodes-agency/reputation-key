@@ -129,21 +129,36 @@ function AlertDialogMedia({ className, ...props }: React.ComponentProps<'div'>) 
   )
 }
 
+/**
+ * The confirm. A Button inside Radix's Action (not the other way round), so the
+ * Button can draw its pending state: `pending` is a spinner, `aria-busy` and
+ * disabled. Radix closes the dialog on this click; a caller that must wait for a
+ * request prevents the default and closes itself (`ConfirmationDialog`).
+ */
 function AlertDialogAction({
   className,
   variant = 'default',
   size = 'default',
+  pending,
+  pendingLabel,
   ...props
 }: React.ComponentProps<typeof AlertDialogPrimitive.Action> &
-  Pick<React.ComponentProps<typeof Button>, 'variant' | 'size'>) {
+  Pick<
+    React.ComponentProps<typeof Button>,
+    'variant' | 'size' | 'pending' | 'pendingLabel'
+  >) {
   return (
-    <Button variant={variant} size={size} asChild>
-      <AlertDialogPrimitive.Action
+    <AlertDialogPrimitive.Action asChild>
+      <Button
         data-slot="alert-dialog-action"
+        variant={variant}
+        size={size}
+        pending={pending}
+        pendingLabel={pendingLabel}
         className={cn(className)}
         {...props}
       />
-    </Button>
+    </AlertDialogPrimitive.Action>
   )
 }
 
