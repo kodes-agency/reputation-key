@@ -27,7 +27,7 @@ import { PAGE_GUTTER_BLEED_PHONE, PAGE_GUTTER_X } from '#/components/layout/page
 export type SectionNavFrame = 'rail' | 'inline'
 export type SectionNavPresentation = 'list' | 'strip' | 'auto'
 export type SectionNavSlot =
-  'nav' | 'scroller' | 'group' | 'heading' | 'list' | 'summary' | 'footer'
+  'nav' | 'scroller' | 'heading' | 'list' | 'summary' | 'footer'
 
 type SlotClasses = Readonly<{
   base: string
@@ -55,10 +55,9 @@ export const SECTION_NAV_STYLES: Readonly<Record<SectionNavFrame, FrameStyles>> 
     scroller: {
       base: 'relative flex scroll-px-6',
       strip: `${PAGE_GUTTER_X} gap-1 overflow-x-auto py-2 [scrollbar-width:none]`,
-      list: 'sticky top-0 flex-col gap-5 overflow-visible px-3 py-5',
-      auto: `${PAGE_GUTTER_X} gap-1 overflow-x-auto py-2 [scrollbar-width:none] @6xl:sticky @6xl:top-0 @6xl:flex-col @6xl:gap-5 @6xl:overflow-visible @6xl:px-3 @6xl:py-5`,
+      list: 'sticky top-0 flex-col gap-5 px-3 py-5',
+      auto: `${PAGE_GUTTER_X} gap-1 overflow-x-auto py-2 [scrollbar-width:none] @6xl:sticky @6xl:top-0 @6xl:flex-col @6xl:gap-5 @6xl:px-3 @6xl:py-5`,
     },
-    group: { base: '', strip: 'contents', list: 'block', auto: 'contents @6xl:block' },
     heading: {
       base: SHARED_BASE.heading,
       strip: 'hidden',
@@ -92,12 +91,11 @@ export const SECTION_NAV_STYLES: Readonly<Record<SectionNavFrame, FrameStyles>> 
       auto: '@3xl:sticky @3xl:top-4',
     },
     scroller: {
-      base: 'relative flex scroll-px-6',
-      strip: `${PAGE_GUTTER_BLEED_PHONE} gap-1 overflow-x-auto py-1 md:-mx-1 md:px-1 [scrollbar-width:none]`,
-      list: 'mx-0 flex-col gap-5 overflow-visible px-0 py-0',
-      auto: `${PAGE_GUTTER_BLEED_PHONE} gap-1 overflow-x-auto py-1 md:-mx-1 md:px-1 [scrollbar-width:none] @3xl:mx-0 @3xl:flex-col @3xl:gap-5 @3xl:overflow-visible @3xl:px-0 @3xl:py-0`,
+      base: 'relative -mx-1 flex scroll-px-6 overflow-x-auto px-1 py-1',
+      strip: `${PAGE_GUTTER_BLEED_PHONE} gap-1 [scrollbar-width:none]`,
+      list: 'flex-col gap-5',
+      auto: `${PAGE_GUTTER_BLEED_PHONE} gap-1 [scrollbar-width:none] @3xl:flex-col @3xl:gap-5`,
     },
-    group: { base: '', strip: 'contents', list: 'block', auto: 'contents @3xl:block' },
     heading: {
       base: SHARED_BASE.heading,
       strip: 'hidden',

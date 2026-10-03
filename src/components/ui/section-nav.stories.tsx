@@ -11,7 +11,8 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { Bell, Building2, Palette, Shield, User, Users } from 'lucide-react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
-import { NavCount, SectionNav } from './section-nav'
+import { NavCount } from './nav-count'
+import { SectionNav } from './section-nav'
 import { SectionNavLayout } from './section-nav-layout'
 import type { SectionNavItem } from './section-nav-types'
 
@@ -238,7 +239,7 @@ export const StripThatFits: Story = {
 export const AutoInANarrowSpace: Story = {
   args: { current: 'people' },
   render: (args) => (
-    <div className="w-[26rem]">
+    <div style={{ width: '26rem' }}>
       <SectionNavLayout frame="inline">
         <SectionNav {...args} />
         <p>Section content</p>
@@ -258,7 +259,7 @@ export const AutoInANarrowSpace: Story = {
 export const AutoInAWideSpace: Story = {
   args: { current: 'people' },
   render: (args) => (
-    <div className="w-[60rem]">
+    <div style={{ width: '60rem' }}>
       <SectionNavLayout frame="inline">
         <SectionNav {...args} />
         <p>Section content</p>

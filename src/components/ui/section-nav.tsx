@@ -1,5 +1,6 @@
 import { use, useId, useLayoutEffect, useRef, type ReactNode } from 'react'
 import { cn } from '#/lib/utils'
+import { NavCount } from './nav-count'
 import { NavLink } from './nav-link'
 import { SectionNavFrameContext } from './section-nav-layout'
 import { groupSectionNavItems, type SectionNavGroup } from './section-nav-groups'
@@ -46,29 +47,6 @@ type Props = Readonly<{
   /** Overrides the frame the surrounding `SectionNavLayout` gives. */
   frame?: SectionNavFrame
 }>
-
-/** A trailing figure: tabular, muted, red only when it is urgent. */
-export function NavCount({
-  tone = 'default',
-  className,
-  children,
-}: Readonly<{
-  tone?: 'default' | 'negative'
-  className?: string
-  children: ReactNode
-}>) {
-  return (
-    <span
-      className={cn(
-        'text-xs tabular-nums',
-        tone === 'negative' ? 'text-negative' : 'text-muted-foreground',
-        className,
-      )}
-    >
-      {children}
-    </span>
-  )
-}
 
 function Row({
   item,
@@ -124,7 +102,7 @@ function Group({
   const { current, frame, presentation } = rest
   const heading = showHeading ? group.heading : null
   return (
-    <div className={sectionNavClasses(frame, 'group', presentation)}>
+    <div>
       {heading ? (
         <p
           id={headingId}

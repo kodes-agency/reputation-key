@@ -12,7 +12,8 @@ import {
 } from '@tanstack/react-router'
 import { Lock } from 'lucide-react'
 import { describe, expect, it } from 'vitest'
-import { NavCount, SectionNav } from './section-nav'
+import { NavCount } from './nav-count'
+import { SectionNav } from './section-nav'
 import { SectionNavLayout } from './section-nav-layout'
 import type { SectionNavItem } from './section-nav-types'
 
@@ -152,7 +153,9 @@ describe('SectionNav', () => {
 
       expect(row).toContain('focus-ring')
       expect(row).toContain('max-md:min-h-(--control-touch)')
-      expect(row).not.toContain('focus-visible:ring')
+      // Joined, not spelled whole: Tailwind reads this file, and a class named here
+      // becomes a rule in the first-paint stylesheet.
+      expect(row).not.toContain(['focus-visible', 'ring'].join(':'))
     })
 
     it('keeps a rail row at the touch token on every width', () => {
@@ -253,7 +256,8 @@ describe('SectionNav', () => {
 
       expect(html).toContain('data-presentation="list"')
       expect(html).not.toContain('@')
-      expect(html).not.toContain('overflow-x-auto')
+      expect(html).not.toContain('scrollbar-width')
+      expect(html).toMatch(/flex-col gap-5/u)
     })
 
     it('never switches on the viewport', () => {
