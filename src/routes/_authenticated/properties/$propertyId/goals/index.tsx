@@ -19,6 +19,7 @@ import { EmptyState } from '#/components/ui/empty-state'
 import { StatusBadge } from '#/components/ui/status-badge'
 import { GOAL_STATUS } from '#/components/goals/goal-status'
 import { GoalResultsMatrix } from '#/components/goals/goal-results-matrix'
+import { GoalViewTabs } from '#/components/goals/goal-view-tabs'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { goalForResult } from './-goal-for-result'
 
@@ -128,62 +129,45 @@ function GoalsRoute() {
           ) : undefined
         }
       />
-      <div className="flex gap-2" aria-label="Goal views">
-        <Button variant={view === 'active' ? 'default' : 'outline'} asChild>
-          <Link
-            to="/properties/$propertyId/goals"
-            params={{ propertyId }}
-            search={{ view: 'active' }}
-          >
-            Active
-          </Link>
-        </Button>
-        <Button variant={view === 'history' ? 'default' : 'outline'} asChild>
-          <Link
-            to="/properties/$propertyId/goals"
-            params={{ propertyId }}
-            search={{ view: 'history' }}
-          >
-            History
-          </Link>
-        </Button>
-      </div>
-      {goals.length === 0 ? (
-        <EmptyState
-          icon={Target}
-          title={view === 'active' ? 'No active goals' : 'No goal history'}
-        />
-      ) : (
-        <div className="divide-y rounded-lg border">
-          {goals.map(({ program, version, assignments }) => {
-            const currentAssignmentCount = assignments.filter(
-              (assignment) => assignment.programVersionId === version.id,
-            ).length
-            return (
-              <div
-                key={program.id}
-                className="flex min-h-16 items-center justify-between gap-4 px-4 py-3"
-              >
-                <div className="min-w-0">
-                  <Link
-                    className="font-medium hover:underline"
-                    to="/properties/$propertyId/goals/$goalId"
-                    params={{ propertyId, goalId: program.id }}
-                  >
-                    {program.name}
-                  </Link>
-                  <p className="text-sm text-muted-foreground">
-                    {metricLabel(version.metric)} · target {version.targetValue} ·{' '}
-                    {currentAssignmentCount}{' '}
-                    {currentAssignmentCount === 1 ? 'subject' : 'subjects'}
-                  </p>
+      <div className="flex flex-col gap-4">
+        <GoalViewTabs propertyId={propertyId} view={view} />
+        {goals.length === 0 ? (
+          <EmptyState
+            icon={Target}
+            title={view === 'active' ? 'No active goals' : 'No goal history'}
+          />
+        ) : (
+          <div className="divide-y rounded-lg border">
+            {goals.map(({ program, version, assignments }) => {
+              const currentAssignmentCount = assignments.filter(
+                (assignment) => assignment.programVersionId === version.id,
+              ).length
+              return (
+                <div
+                  key={program.id}
+                  className="flex min-h-16 items-center justify-between gap-4 px-4 py-3"
+                >
+                  <div className="min-w-0">
+                    <Link
+                      className="font-medium hover:underline"
+                      to="/properties/$propertyId/goals/$goalId"
+                      params={{ propertyId, goalId: program.id }}
+                    >
+                      {program.name}
+                    </Link>
+                    <p className="text-sm text-muted-foreground">
+                      {metricLabel(version.metric)} · target {version.targetValue} ·{' '}
+                      {currentAssignmentCount}{' '}
+                      {currentAssignmentCount === 1 ? 'subject' : 'subjects'}
+                    </p>
+                  </div>
+                  <StatusBadge status={program.status} map={GOAL_STATUS} />
                 </div>
-                <StatusBadge status={program.status} map={GOAL_STATUS} />
-              </div>
-            )
-          })}
-        </div>
-      )}
+              )
+            })}
+          </div>
+        )}
+      </div>
       {canDo('goal.update') ? <GoalResultsMatrix matrix={matrix} /> : null}
     </PageShell>
   )

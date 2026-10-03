@@ -1,4 +1,7 @@
-// Filter tabs shared by the bell popover and the /notifications page.
+// The /notifications page's filter tabs: the same underline as every page-level
+// view switch (`Tabs variant="line"`), kept as a tablist because each option
+// swaps the feed panel below in this document and the filter replaces history
+// rather than adding to it (`LinkTabs` is for views that are a route).
 //
 // One `TabsContent` per option (the repo's Tabs precedent) so every trigger's
 // `aria-controls` resolves; Radix mounts only the active panel, so `children`
@@ -44,20 +47,10 @@ export function NotificationFilterTabs({
       <TabsList
         variant="line"
         aria-label="Filter notifications"
-        // The vendored list pins its height with a group variant, which a
-        // plain `h-auto` cannot outrank; wrapped tabs then spilled over the
-        // list below on a phone.
-        className={cn(
-          'w-full flex-wrap justify-start gap-x-1 group-data-[orientation=horizontal]/tabs:h-auto',
-          listClassName,
-        )}
+        className={listClassName}
       >
         {NOTIFICATION_FILTERS.map((option) => (
-          <TabsTrigger
-            key={option.value}
-            value={option.value}
-            className="flex-none text-xs"
-          >
+          <TabsTrigger key={option.value} value={option.value}>
             {option.label}
           </TabsTrigger>
         ))}

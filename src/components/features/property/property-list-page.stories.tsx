@@ -2,7 +2,7 @@
 // (docs/plan/property-list-table.md). The page is presentational, so each story
 // holds the URL search in state the way the route holds it in the URL.
 // Routing and permissions come from decorators.
-import { useState } from 'react'
+import { useState, type MouseEvent } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, within } from 'storybook/test'
 import { withRole } from '../../../../.storybook/AuthedRouterDecorator'
@@ -14,7 +14,10 @@ import {
   type PropertySetupProgress,
 } from './property-list-page'
 import { MAX_LIST_SEARCH_LENGTH } from '#/components/property/list-search-limit'
-import type { PropertyListSearch } from './property-list-search-schema'
+import {
+  propertyListSearchSchema,
+  type PropertyListSearch,
+} from './property-list-search-schema'
 import type { PropertyListProperty } from './property-list-view'
 
 type StoryArgs = Omit<PropertyListPageProps, 'search' | 'onSearchChange'> &
@@ -22,7 +25,22 @@ type StoryArgs = Omit<PropertyListPageProps, 'search' | 'onSearchChange'> &
 
 function ListStory({ initialSearch, ...props }: StoryArgs) {
   const [search, setSearch] = useState<PropertyListSearch>(initialSearch ?? {})
-  return <PropertyListPage {...props} search={search} onSearchChange={setSearch} />
+  // The route holds the search in the URL and a view tab is a link to it. The
+  // story router has no such route, so a click on a link to the list itself is
+  // turned into the same change of state instead of a navigation.
+  const followListLink = (event: MouseEvent<HTMLElement>) => {
+    const anchor = (event.target as Element).closest('a')
+    if (anchor === null) return
+    const url = new URL(anchor.getAttribute('href') ?? '', 'http://story.test')
+    if (url.pathname !== '/properties') return
+    event.preventDefault()
+    setSearch(propertyListSearchSchema.parse(Object.fromEntries(url.searchParams)))
+  }
+  return (
+    <div onClickCapture={followListLink}>
+      <PropertyListPage {...props} search={search} onSearchChange={setSearch} />
+    </div>
+  )
 }
 
 const meta: Meta<StoryArgs> = {
@@ -405,15 +423,26 @@ export const WithRemovedProperty: Story = {
   args: { ...ready, properties: [...properties, removedProperty] },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByRole('tab', { name: /Workspace\s*6/ })).toHaveAttribute(
-      'aria-selected',
-      'true',
+    // The views are links to the list, the current one marked, not a tablist.
+    expect(canvas.queryByRole('tablist')).toBeNull()
+    const views = within(canvas.getByRole('navigation', { name: 'Which properties' }))
+    expect(views.getByRole('link', { name: /Workspace\s*6/ })).toHaveAttribute(
+      'aria-current',
+      'page',
     )
-    // The inactive tab is not rendered, so the table holds only the workspace.
+    expect(views.getByRole('link', { name: /Removed\s*1/ })).toHaveAttribute(
+      'href',
+      '/properties?tab=removed',
+    )
+    // The other view is not rendered, so the table holds only the workspace.
     expect(canvas.queryByText(removedProperty.name)).toBeNull()
     expect(bodyRows(canvas)).toHaveLength(6)
 
-    await userEvent.click(canvas.getByRole('tab', { name: /Removed\s*1/ }))
+    await userEvent.click(canvas.getByRole('link', { name: /Removed\s*1/ }))
+    expect(canvas.getByRole('link', { name: /Removed\s*1/ })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
     expect(canvas.getByRole('link', { name: removedProperty.name })).toHaveAttribute(
       'href',
       `/properties/${removedProperty.id}`,
@@ -509,6 +538,6 @@ export const AllRemoved: Story = {
     expect(
       canvas.queryByRole('link', { name: /import your first property/i }),
     ).not.toBeInTheDocument()
-    expect(canvas.getByRole('tab', { name: /Removed\s*1/ })).toBeVisible()
+    expect(canvas.getByRole('link', { name: /Removed\s*1/ })).toBeVisible()
   },
 }

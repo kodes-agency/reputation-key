@@ -32,7 +32,9 @@ test.describe('Navigation', () => {
     await page.goto(`/properties/${seed.propertyId}/people`)
     await expect(page).toHaveURL(new RegExp(`/properties/${seed.propertyId}/people`))
     // Team is quarantined; the People surface exposes Staff and Directory only.
-    await expect(page.getByRole('tab', { name: /staff/i })).toBeVisible()
-    await expect(page.getByRole('tab', { name: /directory/i })).toBeVisible()
+    // They are views of the route (links with aria-current), not a tablist.
+    const views = page.getByRole('navigation', { name: 'People views' })
+    await expect(views.getByRole('link', { name: 'Staff' })).toBeVisible()
+    await expect(views.getByRole('link', { name: 'Directory' })).toBeVisible()
   })
 })

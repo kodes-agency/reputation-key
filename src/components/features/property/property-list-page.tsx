@@ -13,7 +13,8 @@ import { Building2, Plus, SearchX } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '#/components/ui/tabs'
+import { LinkTab, LinkTabs } from '#/components/ui/link-tabs'
+import { TabCount } from '#/components/ui/tabs'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
 import { GlossaryTerm } from '#/components/features/shared/glossary-term'
@@ -127,7 +128,7 @@ export function PropertyListPage({
     )
   const several = workspace.length > 1
 
-  // Radix unmounts the inactive tab, so each property name still renders once.
+  // Only the chosen view is rendered, so each property name still renders once.
   const tab = removed.length > 0 && search.tab === 'removed' ? 'removed' : 'workspace'
   const workspaceContent = (
     <>
@@ -209,30 +210,35 @@ export function PropertyListPage({
       />
 
       {removed.length > 0 ? (
-        <Tabs
-          value={tab}
-          onValueChange={(value) =>
-            update({ tab: value === 'removed' ? 'removed' : undefined })
-          }
-          className="gap-4"
-        >
-          <TabsList aria-label="Which properties">
-            <TabsTrigger value="workspace" className="px-3">
-              Workspace
-              <span className="tabular-nums text-muted-foreground">
-                {workspace.length}
-              </span>
-            </TabsTrigger>
-            <TabsTrigger value="removed" className="px-3">
-              Removed
-              <span className="tabular-nums text-muted-foreground">{removed.length}</span>
-            </TabsTrigger>
-          </TabsList>
-          <TabsContent value="workspace">{workspaceContent}</TabsContent>
-          <TabsContent value="removed">
+        <div className="flex flex-col gap-4">
+          <LinkTabs aria-label="Which properties">
+            <LinkTab active={tab === 'workspace'}>
+              <Link
+                to="/properties"
+                search={propertyListSearchPatch(search, { tab: undefined })}
+                activeOptions={{ exact: true }}
+              >
+                Workspace
+                <TabCount>{workspace.length}</TabCount>
+              </Link>
+            </LinkTab>
+            <LinkTab active={tab === 'removed'}>
+              <Link
+                to="/properties"
+                search={propertyListSearchPatch(search, { tab: 'removed' })}
+                activeOptions={{ exact: true }}
+              >
+                Removed
+                <TabCount>{removed.length}</TabCount>
+              </Link>
+            </LinkTab>
+          </LinkTabs>
+          {tab === 'removed' ? (
             <PropertyListRemoved properties={removed} />
-          </TabsContent>
-        </Tabs>
+          ) : (
+            workspaceContent
+          )}
+        </div>
       ) : (
         workspaceContent
       )}

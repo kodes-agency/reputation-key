@@ -59,9 +59,9 @@ describe('LinkTabs', () => {
     expect(LINE_TAB_CLASS).not.toContain('after:bg-foreground')
   })
 
-  it('is a tap target below md and keeps the desktop height from md', () => {
+  it('is the touch height at every width, the Portal strip it was lifted from', () => {
     expect(LINE_TAB_CLASS).toContain('min-h-(--control-touch)')
-    expect(LINE_TAB_CLASS).toContain('md:min-h-9')
+    expect(LINE_TAB_CLASS).not.toContain('md:min-h-')
   })
 
   it('scrolls sideways instead of wrapping when the links do not fit', () => {

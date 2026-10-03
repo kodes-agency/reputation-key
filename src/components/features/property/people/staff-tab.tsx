@@ -17,7 +17,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from '#/components/ui/dialog'
-import { TabsContent } from '#/components/ui/tabs'
 import type {
   ArchiveStaffParticipationMutationInput,
   CreateStaffParticipationMutationInput,
@@ -76,19 +75,17 @@ export function StaffTab({
 
   if (!canManageStaff) {
     return (
-      <TabsContent value="staff" className="mt-4">
-        <Alert variant="info">
-          <AlertTitle>Staff management is unavailable</AlertTitle>
-          <AlertDescription>
-            You do not have permission to manage participation at this property.
-          </AlertDescription>
-        </Alert>
-      </TabsContent>
+      <Alert variant="info">
+        <AlertTitle>Staff management is unavailable</AlertTitle>
+        <AlertDescription>
+          You do not have permission to manage participation at this property.
+        </AlertDescription>
+      </Alert>
     )
   }
 
   return (
-    <TabsContent value="staff" className="mt-4 space-y-4">
+    <div className="space-y-4">
       <div className="flex justify-end">
         <Dialog
           open={createOpen}
@@ -150,6 +147,6 @@ export function StaffTab({
           }}
         />
       )}
-    </TabsContent>
+    </div>
   )
 }

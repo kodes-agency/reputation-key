@@ -13,12 +13,13 @@
 // class string serves both elements.
 
 /**
- * A tab is a tap target below `md` (`--control-touch`: 44px, 36px in a compact
- * workspace) and the 36px desktop control from `md`. The focus outline is
- * inset: a list that scrolls sideways clips an outer ring at its top and bottom.
+ * A tab is `--control-touch` tall (44px, 36px in a compact workspace) at every
+ * width, as the Portal workspace strip it came from was: it is navigation, so it
+ * keeps the larger target on a desktop too. The focus outline is inset: a list
+ * that scrolls sideways clips an outer ring at its top and bottom.
  */
 export const LINE_TAB_CLASS =
-  "relative inline-flex min-h-(--control-touch) items-center justify-center gap-1.5 px-3 text-sm whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 md:min-h-9 data-[state=active]:font-medium data-[state=active]:text-foreground after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent data-[state=active]:after:bg-primary [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+  "relative inline-flex min-h-(--control-touch) items-center justify-center gap-1.5 px-3 text-sm whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50 data-[state=active]:font-medium data-[state=active]:text-foreground after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent data-[state=active]:after:bg-primary [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
 
 /** The list the tabs sit in: transparent, with the baseline the underline rests on. */
 export const LINE_TABS_LIST_CLASS = 'w-full justify-start gap-1 border-b bg-transparent'

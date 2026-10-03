@@ -19,10 +19,11 @@ test.describe('Staff Assignment', () => {
     await page.goto(`/properties/${seed.p1PropertyId}/people`)
     await waitForHydration(page)
 
-    const staffTab = page.getByRole('tab', { name: /staff/i })
-    await expect(staffTab).toBeVisible()
-    await expect(page.getByRole('tab', { name: /directory/i })).toBeVisible()
-    await clickWhenReady(staffTab)
+    const views = page.getByRole('navigation', { name: 'People views' })
+    const staffView = views.getByRole('link', { name: 'Staff' })
+    await expect(staffView).toBeVisible()
+    await expect(views.getByRole('link', { name: 'Directory' })).toBeVisible()
+    await clickWhenReady(staffView)
 
     await expect(page.getByText(seed.staffName, { exact: true })).toBeVisible()
     await clickWhenReady(
