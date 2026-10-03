@@ -1,4 +1,5 @@
-import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
+import { createFileRoute, getRouteApi } from '@tanstack/react-router'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
@@ -50,7 +51,7 @@ export const Route = createFileRoute(
   staticData: { page: { title: 'Goal', under: 'goals' } },
   beforeLoad: ({ context }) => {
     if (!can((context as AuthRouteContext).role, 'goal.read')) {
-      throw redirect({ to: '/properties' })
+      throw roleUnavailable('Goal', 'properties')
     }
   },
   loader: async ({ params, context }) => {

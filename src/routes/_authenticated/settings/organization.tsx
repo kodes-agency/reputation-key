@@ -1,4 +1,5 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
@@ -49,7 +50,7 @@ export const Route = createFileRoute('/_authenticated/settings/organization')({
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     if (!can(role, 'organization.update')) {
-      throw redirect({ to: '/settings/profile' })
+      throw roleUnavailable('Organization', 'profile')
     }
   },
   loader: async ({ context }) => {

@@ -1,6 +1,7 @@
 import { useForm, useStore } from '@tanstack/react-form'
 import { z } from 'zod/v4'
-import { createFileRoute, useNavigate, redirect } from '@tanstack/react-router'
+import { createFileRoute, useNavigate } from '@tanstack/react-router'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
@@ -69,9 +70,13 @@ const newGoalSearchSchema = z.object({
 export const Route = createFileRoute('/_authenticated/properties/$propertyId/goals/new')({
   staticData: { page: { title: 'New Goal', under: 'goals' } },
   validateSearch: newGoalSearchSchema,
-  beforeLoad: ({ context }) => {
+  beforeLoad: ({ context, params }) => {
     if (!can((context as AuthRouteContext).role, 'goal.create')) {
-      throw redirect({ to: '/properties' })
+      throw roleUnavailable(
+        'New Goal',
+        { to: `/properties/${params.propertyId}/goals`, label: 'Back to Goals' },
+        'this page',
+      )
     }
   },
   loader: async ({ params: { propertyId }, context }) => {

@@ -1,5 +1,6 @@
 // People route — thin wrapper around PeoplePage component
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
@@ -70,7 +71,7 @@ export const Route = createFileRoute('/_authenticated/properties/$propertyId/peo
       },
     })
     const { role } = context as AuthRouteContext
-    if (!can(role, 'staff.read')) throw redirect({ to: '/properties' })
+    if (!can(role, 'staff.read')) throw roleUnavailable('People', 'properties')
   },
   validateSearch: (search) => peopleSearchSchema.parse(search),
   staleTime: 30_000,

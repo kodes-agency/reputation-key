@@ -1,7 +1,8 @@
 // The Property look: the photo, colours, name and logo, and default languages
 // shared by every portal of a Property (round-4 admin board 9). The route owns
 // the reads and the two autosaved writes; the page draws them.
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQueryClient, useSuspenseQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
@@ -21,10 +22,6 @@ import {
 } from '#/contexts/portal/server/property-look'
 import { PropertyLookPage } from '#/components/features/portal/property-look/property-look-page'
 import { savedDescriptions } from '#/components/features/portal/property-look/property-photo-rules'
-import {
-  PortalListError,
-  PortalListLoading,
-} from '#/components/features/portal/portal-route-fallbacks'
 import { propertyQuery } from '#/routes/-queries/route-queries'
 import { propertyPortalExperienceQuery } from '../-settings-queries'
 import { portalOverviewQuery } from './-portal-overview-data'
@@ -42,7 +39,7 @@ export const Route = createFileRoute(
       },
     })
     const { role } = context as AuthRouteContext
-    if (!can(role, 'portal.read')) throw redirect({ to: '/properties' })
+    if (!can(role, 'portal.read')) throw roleUnavailable('Property look', 'properties')
   },
   staleTime: 30_000,
   loader: async ({ params, context }) => {
@@ -54,8 +51,6 @@ export const Route = createFileRoute(
       context.queryClient.ensureQueryData(propertyQuery(params.propertyId)),
     ])
   },
-  pendingComponent: PortalListLoading,
-  errorComponent: PortalListError,
   component: PropertyLookRoute,
 })
 

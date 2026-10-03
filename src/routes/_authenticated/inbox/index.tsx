@@ -1,5 +1,6 @@
 // Inbox route v2 — three-panel email-style layout
-import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
+import { createFileRoute, getRouteApi } from '@tanstack/react-router'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQuery } from '@tanstack/react-query'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
@@ -24,7 +25,7 @@ export const Route = createFileRoute('/_authenticated/inbox/')({
     const { role } = context as AuthRouteContext
     // Inbox triage is a manager surface (inbox.manage).
     // Staff have inbox.read for counts, not the triage surface.
-    if (!can(role, 'inbox.manage')) throw redirect({ to: '/properties' })
+    if (!can(role, 'inbox.manage')) throw roleUnavailable('Inbox', 'properties')
   },
   validateSearch: (search) => inboxSearchSchema.parse(search),
   staleTime: 30_000,

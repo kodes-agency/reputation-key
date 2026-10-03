@@ -1,6 +1,7 @@
 import { createFileRoute } from '@tanstack/react-router'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { z } from 'zod/v4'
+import { AlertCircle } from 'lucide-react'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { integrationKeys } from '#/shared/queries/query-keys'
 import { gateControlledRoute } from '#/shared/auth/controlled-route-gate'
@@ -8,6 +9,7 @@ import { importFns, importSetupFns } from './-import-fns'
 import { GoogleImportManager } from '#/components/features/integration/google-import-manager'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
+import { Alert, AlertDescription } from '#/components/ui/alert'
 import { requireGoogleImportRole } from './-route-access'
 
 const importSearchSchema = z.object({
@@ -69,11 +71,9 @@ function ImportPage() {
       />
 
       {search.error ? (
-        <div
-          className="rounded-lg border border-destructive/50 bg-destructive/10 p-4"
-          role="alert"
-        >
-          <p className="text-sm text-destructive">
+        <Alert variant="destructive">
+          <AlertCircle />
+          <AlertDescription>
             {search.error === 'denied'
               ? 'Google authorization was cancelled.'
               : search.error === 'account_already_connected'
@@ -81,8 +81,8 @@ function ImportPage() {
                 : search.error === 'connection_failed'
                   ? 'Google could not be connected. Try again.'
                   : 'Google authorization could not be completed.'}
-          </p>
-        </div>
+          </AlertDescription>
+        </Alert>
       ) : null}
 
       <GoogleImportManager

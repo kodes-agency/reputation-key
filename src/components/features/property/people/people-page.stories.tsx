@@ -37,32 +37,6 @@ export const Empty: Story = {
   },
 }
 
-export const Loading: Story = {
-  args: { ...seededArgs, state: 'loading' },
-}
-
-export const Error: Story = {
-  args: {
-    ...seededArgs,
-    state: 'error',
-    errorMessage: 'People are temporarily unavailable.',
-  },
-  play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement).getByText('People are temporarily unavailable.'),
-    ).toBeInTheDocument()
-  },
-}
-
-export const PermissionDenied: Story = {
-  args: { ...seededArgs, state: 'forbidden' },
-  play: async ({ canvasElement }) => {
-    await expect(
-      within(canvasElement).getByText(/do not have permission to view people/i),
-    ).toBeInTheDocument()
-  },
-}
-
 export const Directory: Story = {
   args: { ...seededArgs, tab: 'directory' },
   play: async ({ canvasElement }) => {
@@ -93,10 +67,7 @@ export const ArchiveRefused: Story = {
     // promise it returns, which would mark the rejection handled.
     archiveParticipationMutation: Object.assign(
       async () => {
-        // globalThis: in this file `Error` is the error-state story.
-        const refusal = new globalThis.Error(
-          'This participation changed. Reload and try again.',
-        )
+        const refusal = new Error('This participation changed. Reload and try again.')
         archiveRefusals.push(refusal)
         throw refusal
       },

@@ -4,14 +4,14 @@
 // history (board 13). A group is a collection of Portals inside one Property for
 // shared results and goals; guests never see it.
 import { useState } from 'react'
-import { createFileRoute, notFound, redirect } from '@tanstack/react-router'
+import { createFileRoute, notFound } from '@tanstack/react-router'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import {
   queryOptions,
   useQuery,
   useQueryClient,
   useSuspenseQuery,
 } from '@tanstack/react-query'
-import { AlertCircle } from 'lucide-react'
 import type { AuthRouteContext } from '#/routes/_authenticated'
 import { can } from '#/shared/domain/permissions'
 import { isBetaInteractiveRole } from '#/shared/domain/beta-interactive-role'
@@ -27,13 +27,7 @@ import { getGoalProgress } from '#/contexts/reporting/server/goal-programs'
 import { PortalGroupPage } from '#/components/features/portal/portal-group/portal-group-page'
 import { readStateOf } from '#/components/features/portal/portal-group/portal-group-read-state'
 import { portalGroupCachePolicy } from '#/components/features/portal/portal-group-cache-policy'
-import {
-  PortalListError,
-  PortalListLoading,
-} from '#/components/features/portal/portal-route-fallbacks'
-import { PageHeader } from '#/components/layout/page-header'
-import { PageShell } from '#/components/layout/page-shell'
-import { EmptyState } from '#/components/ui/empty-state'
+import { RouteNotFound } from '#/components/layout/route-page-state'
 import {
   actionErrorMessage,
   useActionMutation,
@@ -80,7 +74,7 @@ export const Route = createFileRoute(
       },
     })
     const { role } = context as AuthRouteContext
-    if (!can(role, 'portal.read')) throw redirect({ to: '/properties' })
+    if (!can(role, 'portal.read')) throw roleUnavailable('Portal group', 'properties')
   },
   staleTime: 30_000,
   loader: async ({ params, context }) => {
@@ -94,8 +88,6 @@ export const Route = createFileRoute(
     // archived one, which says nothing about why.
     if (!groups.groups.some((group) => group.id === params.groupId)) throw notFound()
   },
-  pendingComponent: PortalListLoading,
-  errorComponent: PortalListError,
   notFoundComponent: GroupNoLongerAvailable,
   component: PortalGroupRoute,
 })
@@ -103,21 +95,13 @@ export const Route = createFileRoute(
 function GroupNoLongerAvailable() {
   const { propertyId } = Route.useParams()
   return (
-    <PageShell>
-      <PageHeader
-        title="Group unavailable"
-        breadcrumbs={[
-          { label: 'Properties', to: '/properties' },
-          { label: 'Portals', to: `/properties/${propertyId}/portals` },
-          { label: 'Unavailable' },
-        ]}
-      />
-      <EmptyState icon={AlertCircle} title="This group is no longer available">
-        <p className="text-sm text-muted-foreground">
-          It may have been archived, or it may belong to a different property.
-        </p>
-      </EmptyState>
-    </PageShell>
+    <RouteNotFound
+      entity={{
+        heading: 'This group is no longer available',
+        reason: 'It may have been archived, or it may belong to a different property.',
+        back: { to: `/properties/${propertyId}/portals`, label: 'Back to Portals' },
+      }}
+    />
   )
 }
 

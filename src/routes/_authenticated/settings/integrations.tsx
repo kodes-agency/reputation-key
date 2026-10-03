@@ -1,4 +1,5 @@
-import { createFileRoute, redirect } from '@tanstack/react-router'
+import { createFileRoute } from '@tanstack/react-router'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import { queryOptions, useSuspenseQuery } from '@tanstack/react-query'
 import { useServerFn } from '@tanstack/react-start'
 import { useAction } from '#/components/hooks/use-action'
@@ -25,7 +26,7 @@ export const Route = createFileRoute('/_authenticated/settings/integrations')({
   beforeLoad: ({ context }) => {
     const { role } = context as AuthRouteContext
     if (!can(role, 'integration.manage')) {
-      throw redirect({ to: '/settings/profile' })
+      throw roleUnavailable('Integrations', 'profile')
     }
   },
   loader: async ({ context }) => {

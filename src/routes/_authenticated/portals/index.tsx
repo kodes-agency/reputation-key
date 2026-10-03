@@ -3,7 +3,8 @@
 // /properties/$propertyId/portals; this is the same overview over the whole
 // Organization, reached from the Portals entry when no Property is chosen.
 import { useMemo } from 'react'
-import { createFileRoute, getRouteApi, redirect } from '@tanstack/react-router'
+import { createFileRoute, getRouteApi } from '@tanstack/react-router'
+import { roleUnavailable } from '#/shared/auth/route-notice'
 import {
   keepPreviousData,
   queryOptions,
@@ -22,10 +23,6 @@ import {
   resultsStateOf,
 } from '#/components/features/portal/portal-overview/portal-overview-results'
 import { useOverviewRange } from '#/components/features/portal/portal-overview/use-overview-range'
-import {
-  PortalAllPropertiesError,
-  PortalListLoading,
-} from '#/components/features/portal/portal-route-fallbacks'
 import { partitionWorkspaceProperties } from '#/components/features/property/property-workspace'
 import { useActionMutation } from '#/components/hooks/use-action-mutation'
 import { portalKeys } from '#/shared/queries/query-keys'
@@ -66,15 +63,13 @@ export const Route = createFileRoute('/_authenticated/portals/')({
       data: { capability: 'portal.read', featureLabel: 'Portals' },
     })
     const { role } = context as AuthRouteContext
-    if (!can(role, 'portal.read')) throw redirect({ to: '/properties' })
+    if (!can(role, 'portal.read')) throw roleUnavailable('Portals', 'properties')
   },
   validateSearch: (search) => allPropertiesSearchSchema.parse(search),
   staleTime: 30_000,
   loader: async ({ context }) => {
     await context.queryClient.ensureQueryData(organizationOverviewQuery)
   },
-  pendingComponent: PortalListLoading,
-  errorComponent: PortalAllPropertiesError,
   component: AllPropertiesRoute,
 })
 
