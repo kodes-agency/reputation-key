@@ -14,10 +14,17 @@ and actions supply server state.
   `ConfirmationDialog`; its `tone` is `destructive` only for an action the person
   cannot take back.
 - `forms/` contains shared TanStack Form fields, submission, and error UI.
-- `layout/` contains app-shell and navigation pieces. A route that renders its own
-  error component takes the guarded behaviour (sanitised message, report, 401
-  sign-in redirect, Try again) from `useGuardedRouteError`, as the router default
-  does.
+- `layout/` contains app-shell and navigation pieces. `PageState` is the one
+  page-level state (`loading`, `error`, `notFound`, `unavailable`): the router's
+  defaults and every route fallback draw it through `RoutePending`, `RouteError`
+  and `RouteNotFound`, in the title, breadcrumbs and `PageShell` tier the loaded
+  page has. A page is named once, on its route (`staticData: { page: { title,
+tier, under } }`, see `page-identity.ts`): that gives its fallbacks their frame
+  and its tab title (`<Page> | Reputation Key`). A route does not write its own
+  `pendingComponent`, `errorComponent` or `notFoundComponent` unless it names a
+  missing entity (`RouteNotFound` with `entity`). The error state takes the
+  guarded behaviour (sanitised message, report, 401 sign-in redirect, Try again)
+  from `useGuardedRouteError`.
 - `hooks/` contains cross-feature React behavior and action wrappers.
 - `inbox/` and `goals/` contain large cohesive manager experiences.
 - `features/<feature>/` contains feature presentation grouped by user concept;
