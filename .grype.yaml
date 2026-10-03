@@ -160,6 +160,32 @@ ignore:
   # fixes it. expiresAt: 2026-10-15
   - vulnerability: CVE-2026-102010
 
+  # ── libgcc-s1 / libstdc++6 / gcc-14-base 14.2.0-19: second unfixed CVE ──
+  # owner: platform — reason: CVE-2026-95619 (High) appeared in grype's
+  # database 2026-10-03 against the same gcc-14 runtime libraries, with no
+  # fixed version on trixie (grype: `gcc-14-base` / `libgcc-s1` /
+  # `libstdc++6` 14.2.0-19 deb CVE-2026-95619 High, no fixed version).
+  # Nothing to pin. Same exposure as CVE-2026-102010 above: node links
+  # libstdc++/libgcc_s as runtime support only and the image has no
+  # compiler. Scoped to 14.2.0-19 so a different gcc-14 build is re-scanned.
+  # Drop at the first trixie gcc-14 update that fixes it.
+  # expiresAt: 2026-10-17
+  - vulnerability: CVE-2026-95619
+    package:
+      name: gcc-14-base
+      version: 14.2.0-19
+      type: deb
+  - vulnerability: CVE-2026-95619
+    package:
+      name: libgcc-s1
+      version: 14.2.0-19
+      type: deb
+  - vulnerability: CVE-2026-95619
+    package:
+      name: libstdc++6
+      version: 14.2.0-19
+      type: deb
+
   # ── Debian trixie base packages, misc (7 CVEs) ─────────────────────────
   # owner: platform — reason: won't-fix by Debian triage; the binaries/libs
   # are unused by the app runtime (no gzip/ncurses/libacl/sqlite/pcre2 calls
