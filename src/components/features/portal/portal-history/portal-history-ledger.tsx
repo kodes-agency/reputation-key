@@ -3,9 +3,11 @@
 // in as a render prop, because it owns its own read and write.
 
 import type { ReactNode } from 'react'
+import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import { Button } from '#/components/ui/button'
 import { Skeleton } from '#/components/ui/skeleton'
 import { Timeline } from '#/components/ui/timeline'
+import { cn } from '#/lib/utils'
 import { PortalHistoryEarlierRow } from './portal-history-earlier-row'
 import { PortalHistoryFilters } from './portal-history-filters'
 import { PortalHistoryRow } from './portal-history-row'
@@ -51,7 +53,7 @@ export function PortalHistoryLedger(props: Props) {
   return (
     <section
       aria-labelledby="portal-ledger-title"
-      className="min-w-0 flex-1 px-4 py-5 md:px-6"
+      className={cn(PAGE_GUTTER_X, 'min-w-0 flex-1 py-5')}
     >
       <h2 id="portal-ledger-title" className="sr-only">
         History of {props.portalName}

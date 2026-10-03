@@ -9,7 +9,9 @@
 // list, not here.
 
 import { useState } from 'react'
+import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import type { PortalReview } from '#/contexts/portal/application/public-api'
+import { cn } from '#/lib/utils'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import type { PortalDetailTab } from '../portal-detail/portal-detail-rules'
 import type { PortalEditorSection } from '../portal-editor/portal-editor-sections'
@@ -77,7 +79,7 @@ export function PortalReviewPage({
   return (
     <div className="flex min-h-full flex-col lg:flex-row">
       <div className="flex min-w-0 flex-col lg:min-h-full lg:w-[34rem] lg:shrink-0 lg:border-r">
-        <div className="flex-1 space-y-8 px-4 py-5 md:px-6 md:py-6">
+        <div className={cn(PAGE_GUTTER_X, 'flex-1 space-y-8 py-5 md:py-6')}>
           <ReviewChanges
             review={review}
             now={now}

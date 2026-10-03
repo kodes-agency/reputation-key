@@ -18,6 +18,7 @@ import { useEffect, useRef } from 'react'
 import { Link } from '@tanstack/react-router'
 import { CircleAlert, Lock } from 'lucide-react'
 import { cn } from '#/lib/utils'
+import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import { useStripOverflow } from '#/components/inbox/use-strip-overflow'
 import {
   STRIP_FADE_PX,
@@ -76,7 +77,10 @@ export function PortalEditorNav({
       <div className="xl:sticky xl:top-0">
         <div
           ref={stripRef}
-          className="relative flex scroll-px-6 gap-1 overflow-x-auto px-4 py-2 md:px-6 xl:flex-col xl:gap-5 xl:px-3 xl:py-5"
+          className={cn(
+            PAGE_GUTTER_X,
+            'relative flex scroll-px-6 gap-1 overflow-x-auto py-2 xl:flex-col xl:gap-5 xl:px-3 xl:py-5',
+          )}
           style={stripFadeStyle(edges)}
         >
           {PORTAL_EDITOR_SECTION_GROUPS.map((group) => {

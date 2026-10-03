@@ -4,6 +4,7 @@
 // the Property's look; the code is the live code's when its address is in
 // memory and a sample otherwise, and the caption says which.
 
+import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import { Button } from '#/components/ui/button'
 import { SegmentedControl } from '#/components/ui/segmented-control'
 import { Skeleton } from '#/components/ui/skeleton'
@@ -15,6 +16,7 @@ import {
   type PrintKitPiece,
 } from '#/shared/domain/portal-print-kit'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
+import { cn } from '#/lib/utils'
 import { PrintKitArt } from './print-kit-art'
 import { printKitCaptions } from './print-kit-state'
 import { usePrintKitCode } from './use-print-kit-code'
@@ -57,7 +59,7 @@ export function PortalPrintKitPreview({
     <div className="min-w-0 flex-1 bg-muted/40">
       <section
         aria-labelledby="print-preview-heading"
-        className="flex flex-col gap-4 px-4 py-5 md:px-6 lg:sticky lg:top-0"
+        className={cn(PAGE_GUTTER_X, 'flex flex-col gap-4 py-5 lg:sticky lg:top-0')}
       >
         {/* The guest fonts are linked here: the Share tab is not a guest route, so
           nothing else loads them. React hoists and de-duplicates the tag. */}

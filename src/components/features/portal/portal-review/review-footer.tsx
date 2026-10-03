@@ -7,7 +7,9 @@
 
 import { Link } from '@tanstack/react-router'
 import { QrCode } from 'lucide-react'
+import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import { Button } from '#/components/ui/button'
+import { cn } from '#/lib/utils'
 import type { PortalDetailTab } from '../portal-detail/portal-detail-rules'
 import type { PortalEditorSection } from '../portal-editor/portal-editor-sections'
 import type { ReviewFooterView } from './portal-review-footer'
@@ -33,7 +35,7 @@ export function ReviewFooter({
   onPublish,
 }: Props) {
   return (
-    <footer className="sticky bottom-0 border-t bg-background px-4 py-3 md:px-6">
+    <footer className={cn(PAGE_GUTTER_X, 'sticky bottom-0 border-t bg-background py-3')}>
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-card p-3">
         <div className="min-w-0 flex-1 basis-40 text-sm">
           {view.versionLine === null ? null : (

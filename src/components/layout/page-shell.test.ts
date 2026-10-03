@@ -79,17 +79,52 @@ function sourceFiles(dir: string): ReadonlyArray<string> {
   })
 }
 
+// A pane that must wear a different gutter than the page's goes here with the
+// reason, never in the pattern. Empty today: the editor strip's own `xl:px-3`
+// and the review footer's own height are written beside PAGE_GUTTER_X, not
+// instead of it.
+const DIFFERENT_ON_PURPOSE: ReadonlySet<string> = new Set<string>([])
+
+// The two ways a component spells the 16 / 24 px sides out. The wide patterns
+// allow other classes (a vertical `py-5`, a border) between the two halves but
+// stay inside one string literal, so `px-4 py-5 md:px-6` is caught while the
+// `max-md:px-4` of the phone bleed and a `md:px-8` aside are not.
+const PX_4 = String.raw`(?<![\w:-])px-4(?![\w-])`
+const MD_PX_6 = String.raw`(?<![\w:-])md:px-6(?![\w-])`
+const WITHIN_A_STRING = String.raw`[^'"\x60\n]*?`
+
+const SPELLED_OUT: ReadonlyArray<RegExp> = [
+  /px-4 py-5 md:px-6 md:py-8/u,
+  new RegExp(`${PX_4}${WITHIN_A_STRING}${MD_PX_6}`, 'u'),
+  new RegExp(`${MD_PX_6}${WITHIN_A_STRING}${PX_4}`, 'u'),
+]
+
 describe('the page gutter has one owner', () => {
-  const SPELLED_OUT = [/px-4 py-5 md:px-6 md:py-8/u, /(?<![\w:-])px-4 md:px-6(?![\w-])/u]
+  it('catches the gutter however the vertical padding is written between its halves', () => {
+    const spelledOut = (text: string) => SPELLED_OUT.some((pattern) => pattern.test(text))
+
+    expect(spelledOut('px-4 md:px-6')).toBe(true)
+    expect(spelledOut('min-w-0 flex-1 px-4 py-5 md:px-6')).toBe(true)
+    expect(spelledOut('border-t px-4 py-5 md:px-6 lg:w-[22rem]')).toBe(true)
+    expect(spelledOut('flex-1 space-y-8 px-4 py-5 md:px-6 md:py-6')).toBe(true)
+    expect(spelledOut('md:px-6 py-5 px-4')).toBe(true)
+    // Not the gutter: the phone bleed, a wider aside, a different phone side.
+    expect(spelledOut('max-md:-mx-4 max-md:px-4')).toBe(false)
+    expect(spelledOut('px-4 py-5 md:px-8')).toBe(false)
+    expect(spelledOut('px-4 py-2 md:px-5')).toBe(false)
+    // Two separate strings are two elements, not one spelled-out gutter.
+    expect(spelledOut(`'px-4 py-2', 'md:px-6'`)).toBe(false)
+  })
 
   it('is not spelled out in any component, route or style helper', () => {
     const offenders = sourceFiles(SRC)
       .filter((path) => path !== OWNER && !/\.test\.tsx?$/u.test(path))
+      .map((path) => relative(SRC, path).split(sep).join('/'))
+      .filter((path) => !DIFFERENT_ON_PURPOSE.has(path))
       .filter((path) => {
-        const text = readFileSync(path, 'utf8')
+        const text = readFileSync(join(SRC, path), 'utf8')
         return SPELLED_OUT.some((pattern) => pattern.test(text))
       })
-      .map((path) => relative(SRC, path).split(sep).join('/'))
 
     expect(offenders).toEqual([])
   })
