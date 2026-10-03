@@ -10,20 +10,18 @@ import type { ReactNode } from 'react'
 //   tone  neutral  nothing to show yet, or nothing matches
 //         error    the region failed (use RegionError, which adds "Try again")
 //
-// It sits on the first-paint path (the page error state draws it), so it stays
-// small: two flags, no lookup tables.
+// It sits on the first-paint path (a missing or unavailable page draws it), so it
+// stays small: two flags, three slots, no lookup tables.
 
 type Props = Readonly<{
   icon: LucideIcon
   title: string
   /** One or two quiet sentences under the title. A node, so a sentence can carry a link. */
   description?: ReactNode
-  /** What to do about it: a button or a link, or a few in a row. Last in the panel. */
+  /** What to do about it: a button or a link; for several, pass them already in a row. Last in the panel. */
   action?: ReactNode
   size?: 'default' | 'compact'
   tone?: 'neutral' | 'error'
-  /** Free-form content in the column under the action. Prefer `description` and `action`. */
-  children?: ReactNode
 }>
 
 export function EmptyState({
@@ -33,7 +31,6 @@ export function EmptyState({
   action,
   size = 'default',
   tone = 'neutral',
-  children,
 }: Props) {
   const compact = size === 'compact'
   const failed = tone === 'error'
@@ -54,12 +51,7 @@ export function EmptyState({
       {description ? (
         <p className="max-w-md text-sm text-muted-foreground">{description}</p>
       ) : null}
-      {action || children ? (
-        <div className="flex flex-col items-center gap-2">
-          {action}
-          {children}
-        </div>
-      ) : null}
+      {action}
     </div>
   )
 }

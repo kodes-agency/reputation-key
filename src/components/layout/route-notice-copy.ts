@@ -6,7 +6,8 @@ import { REFUSAL_COPY } from '#/shared/auth/capability-refusal-category'
 import type { RouteBack, RouteBackTarget, RouteNotice } from '#/shared/auth/route-notice'
 import type { PageStateProps } from './page-state'
 
-export type NoticeProps = Extract<PageStateProps, { kind: 'notFound' | 'unavailable' }>
+export type NoticeProps = Extract<PageStateProps, { kind: 'notFound' | 'unavailable' }> &
+  Readonly<{ title: string }>
 
 const CAUSES: readonly string[] = ['role', 'feature', 'property']
 
@@ -23,13 +24,32 @@ export function isRouteNotice(data: unknown): data is RouteNotice {
 const PROPERTIES: RouteBack = { to: '/properties', label: 'Back to Properties' }
 const PROFILE: RouteBack = { to: '/settings/profile', label: 'Back to Profile' }
 
-function backTo(target: RouteBackTarget): RouteBack {
-  if (target === 'properties') return PROPERTIES
+/** What the reader can reach, which decides where "back" can lead. */
+export type NoticeAccess = Readonly<{
+  /** The reader may open the Properties list (`property.admin`). */
+  canOpenProperties: boolean
+}>
+
+const OPEN_ACCESS: NoticeAccess = { canOpenProperties: true }
+
+/**
+ * The Properties list is the way back from most refusals, but a role that cannot
+ * open it would follow the link into a second refusal, so it goes to its profile.
+ */
+function propertiesOrProfile({ canOpenProperties }: NoticeAccess): RouteBack {
+  return canOpenProperties ? PROPERTIES : PROFILE
+}
+
+function backTo(target: RouteBackTarget, access: NoticeAccess): RouteBack {
+  if (target === 'properties') return propertiesOrProfile(access)
   return target === 'profile' ? PROFILE : target
 }
 
 /** The page, heading, reason and way back for a notice. */
-export function noticeProps(notice: RouteNotice): NoticeProps {
+export function noticeProps(
+  notice: RouteNotice,
+  access: NoticeAccess = OPEN_ACCESS,
+): NoticeProps {
   switch (notice.cause) {
     case 'property':
       return {
@@ -37,7 +57,7 @@ export function noticeProps(notice: RouteNotice): NoticeProps {
         title: 'Property',
         heading: 'Property not found',
         reason: 'It may have been removed, or it may belong to a different organization.',
-        back: PROPERTIES,
+        back: propertiesOrProfile(access),
       }
     case 'role':
       return {
@@ -45,7 +65,7 @@ export function noticeProps(notice: RouteNotice): NoticeProps {
         title: notice.title,
         heading: `You do not have access to ${notice.subject ?? notice.title}`,
         reason: 'Ask an account admin if you need it.',
-        back: backTo(notice.back),
+        back: backTo(notice.back, access),
       }
     case 'feature': {
       const copy = REFUSAL_COPY[notice.category]
@@ -57,7 +77,7 @@ export function noticeProps(notice: RouteNotice): NoticeProps {
               to: `/properties/${notice.propertyId}/settings`,
               label: 'Open property settings',
             }
-          : PROPERTIES
+          : propertiesOrProfile(access)
       return {
         kind: 'unavailable',
         title: notice.title,

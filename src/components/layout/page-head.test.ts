@@ -17,18 +17,22 @@ import {
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { describe, expect, it } from 'vitest'
 import { roleUnavailable } from '#/shared/auth/route-notice'
+import { EMPTY_CLIENT_AUTHZ } from '#/shared/domain/auth-context'
+import type { Role } from '#/shared/domain/roles'
 import { pageHead } from './page-identity'
 import { NoticeState } from './route-notice-state'
 import { RouteNotFound } from './route-page-state'
 
 const shellLoaded = { done: false }
 
-function build(url: string) {
+function build(url: string, role: Role) {
   shellLoaded.done = false
   const root = createRootRoute({ component: Outlet })
   const app = createRoute({
     getParentRoute: () => root,
     id: '_authenticated',
+    // What the real shell's `beforeLoad` hands every page below it.
+    beforeLoad: () => ({ role, authz: EMPTY_CLIENT_AUTHZ }),
     loader: async () => {
       await new Promise((resolve) => setTimeout(resolve, 5))
       shellLoaded.done = true
@@ -47,7 +51,7 @@ function build(url: string) {
   const goals = createRoute({
     getParentRoute: () => app,
     path: '/goals',
-    staticData: { page: { title: 'Goals' } },
+    staticData: { page: { title: 'Goals', tier: 'dashboard' } },
     beforeLoad: () => {
       throw roleUnavailable('Goals', 'properties')
     },
@@ -73,8 +77,8 @@ function build(url: string) {
   })
 }
 
-async function load(url: string) {
-  const router = build(url)
+async function load(url: string, role: Role = 'AccountAdmin') {
+  const router = build(url, role)
   await router.load()
   const titles = router.state.matches.flatMap((match) =>
     (match.meta ?? []).flatMap((meta) => (meta && 'title' in meta ? [meta.title] : [])),
@@ -115,6 +119,18 @@ describe('a refused page', () => {
     expect(html).toContain('href="/properties"')
     expect(html).toContain('Back to Properties')
     expect(html).not.toContain('Goals page')
+  })
+
+  it('keeps the width of the page that was refused', async () => {
+    const { html } = await load('/goals')
+    expect(html).toContain('max-w-[1200px]')
+  })
+
+  it('leads a role that cannot open Properties to its profile instead', async () => {
+    const { html } = await load('/goals', 'Member')
+    expect(html).toContain('href="/settings/profile"')
+    expect(html).toContain('Back to Profile')
+    expect(html).not.toContain('Back to Properties')
   })
 })
 

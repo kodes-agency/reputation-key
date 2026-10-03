@@ -23,8 +23,9 @@ import {
 import { propertyIdFromLocation } from '#/components/hooks/use-property-id'
 import { isFullBleedRoute } from '#/components/layout/full-bleed-route'
 import { pageHead } from '#/components/layout/page-identity'
-import { FullBleedFrame, PAGE_GUTTER } from '#/components/layout/page-shell'
-import { NoticeState } from '#/components/layout/route-notice-state'
+import { PAGE_GUTTER } from '#/components/layout/page-shell'
+import { ShellNoticeBoundary } from '#/components/layout/shell-notice-boundary'
+import { useKeepSidebarFocus, useSidebarOpen } from '#/components/layout/shell-continuity'
 import { ShellPresence } from '#/components/layout/route-page-state'
 import { httpStatus } from '#/shared/security/expected-refusal'
 import { SidebarProvider } from '#/components/ui/sidebar'
@@ -42,7 +43,7 @@ import {
   listMyBetaFeedbackFn,
   submitBetaFeedbackFn,
 } from '#/contexts/identity/server/beta-feedback'
-import { useContext, useState, type ReactNode } from 'react'
+import type { ReactNode } from 'react'
 
 export type AuthRouteContext = Readonly<{
   user: {
@@ -223,7 +224,10 @@ function AuthenticatedShell({ children }: Readonly<{ children: ReactNode }>) {
   // sidebar collapses to the icon rail and the surface scrolls its own panes.
   // `isFullBleedRoute` is the one place that says which routes those are.
   const isFullBleed = isFullBleedRoute(pathname)
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  // Kept outside this component: a refusal replaces the shell with a new one
+  // (see `shell-continuity`), and a collapsed sidebar must not open again.
+  const [sidebarOpen, setSidebarOpen] = useSidebarOpen()
+  useKeepSidebarFocus()
 
   const content = (
     <SidebarProvider
@@ -303,16 +307,5 @@ function AuthenticatedLayout() {
 }
 
 function AuthenticatedNotFound({ data }: Readonly<{ data?: unknown }>) {
-  const shellPresent = useContext(ShellPresence)
-  const pathname = useRouterState({ select: (s) => s.location.pathname })
-  const notFound = <NoticeState data={data} />
-  const state = isFullBleedRoute(pathname) ? (
-    <FullBleedFrame scroll>{notFound}</FullBleedFrame>
-  ) : (
-    notFound
-  )
-  // An address no page answers renders inside this route's own layout, so the
-  // shell is already there; a not-found a loader threw replaces the layout, so
-  // it brings one.
-  return shellPresent ? state : <AuthenticatedShell>{state}</AuthenticatedShell>
+  return <ShellNoticeBoundary data={data} shell={AuthenticatedShell} />
 }

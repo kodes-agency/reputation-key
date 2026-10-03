@@ -66,13 +66,6 @@ describe('EmptyState', () => {
     })
 
     expect(html.indexOf('Describe it.')).toBeLessThan(html.indexOf('Create one'))
-    expect(html).toContain('flex flex-col items-center gap-2')
-  })
-
-  it('keeps free-form children working for callers that have not moved to the slots', () => {
-    const html = render({ children: createElement('span', null, 'Legacy child') })
-
-    expect(html).toContain('Legacy child')
   })
 
   it('shrinks to a compact panel for a slot inside a list, a rail or a dialog', () => {

@@ -2,33 +2,39 @@
 // failed, missing or refused shows, read from the route's own name
 // (`staticData.page`) rather than from anything the fallback was told. The shell
 // here is a stand-in for `_authenticated` (a sidebar landmark and the padded
-// `<main>`); the boundary rule is the app's own.
-import { useContext, useMemo, type ReactNode } from 'react'
+// `<main>`); the boundary rule, and what the shell keeps when a refusal replaces
+// it, are the app's own.
+import { useMemo, type ReactNode } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import {
   createMemoryHistory,
-  createRootRoute,
+  createRootRouteWithContext,
   createRoute,
   createRouter,
+  Link,
   notFound,
   Outlet,
   RouterProvider,
 } from '@tanstack/react-router'
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { roleUnavailable } from '#/shared/auth/route-notice'
+import { EMPTY_CLIENT_AUTHZ, type ClientAuthz } from '#/shared/domain/auth-context'
+import type { Role } from '#/shared/domain/roles'
 import { propertyKeys } from '#/shared/queries/query-keys'
 import type { PageIdentity } from './page-identity'
 import { PAGE_GUTTER } from './page-shell'
-import { NoticeState } from './route-notice-state'
 import {
   RouteError,
   RouteNotFound,
   RoutePending,
   ShellPresence,
 } from './route-page-state'
+import { sidebarStore, useKeepSidebarFocus, useSidebarOpen } from './shell-continuity'
+import { ShellNoticeBoundary } from './shell-notice-boundary'
 
 const PEOPLE: PageIdentity = { title: 'People', tier: 'dashboard', under: 'property' }
+const GOALS: PageIdentity = { title: 'Goals', tier: 'dashboard', under: 'property' }
 const GROUP: PageIdentity = { title: 'Portal group', tier: 'dashboard', under: 'portals' }
 const NEVER = () => new Promise<void>(() => {})
 
@@ -36,10 +42,38 @@ const NEVER = () => new Promise<void>(() => {})
 const pageHeading = (canvasElement: HTMLElement, name: string) =>
   within(canvasElement).findByRole('heading', { level: 1, name })
 
+/** The sidebar as the shell has it: a collapse control and links to two pages. */
+function Sidebar() {
+  const [open, setOpen] = useSidebarOpen()
+  return (
+    <nav aria-label="Sidebar">
+      <button type="button" onClick={() => setOpen(!open)}>
+        {open ? 'Collapse sidebar' : 'Expand sidebar'}
+      </button>
+      {/* `sidebar-menu-button` is the slot the shell restores focus to. */}
+      <Link
+        data-slot="sidebar-menu-button"
+        to="/properties/$propertyId/people"
+        params={{ propertyId: 'p1' }}
+      >
+        People page
+      </Link>
+      <Link
+        data-slot="sidebar-menu-button"
+        to="/properties/$propertyId/goals"
+        params={{ propertyId: 'p1' }}
+      >
+        Goals page
+      </Link>
+    </nav>
+  )
+}
+
 function Shell({ children }: Readonly<{ children: ReactNode }>) {
+  useKeepSidebarFocus()
   return (
     <div data-testid="shell">
-      <nav aria-label="Sidebar" />
+      <Sidebar />
       <main className={PAGE_GUTTER}>
         <ShellPresence value>{children}</ShellPresence>
       </main>
@@ -47,11 +81,13 @@ function Shell({ children }: Readonly<{ children: ReactNode }>) {
   )
 }
 
-/** What `_authenticated` does: bring a shell only when the layout is not already around. */
+/** What `_authenticated` does with a not-found: the app's own boundary, around this shell. */
 function ShellNotFound({ data }: Readonly<{ data?: unknown }>) {
-  const state = <NoticeState data={data} />
-  return useContext(ShellPresence) ? state : <Shell>{state}</Shell>
+  return <ShellNoticeBoundary data={data} shell={Shell} />
 }
+
+/** What the real shell's `beforeLoad` hands every page below it, which a refusal's way back reads. */
+type ShellContext = Readonly<{ role: Role; authz: ClientAuthz }>
 
 type Scenario = Readonly<{
   url: string
@@ -63,7 +99,7 @@ type Scenario = Readonly<{
 }>
 
 function buildRouter(scenario: Scenario) {
-  const root = createRootRoute({ component: Outlet })
+  const root = createRootRouteWithContext<ShellContext>()({ component: Outlet })
   const shell = createRoute({
     getParentRoute: () => root,
     id: '_authenticated',
@@ -95,6 +131,15 @@ function buildRouter(scenario: Scenario) {
         <RouteError error={scenario.failure} reset={() => {}} />
       ),
   })
+  const goals = createRoute({
+    getParentRoute: () => property,
+    path: '/goals',
+    staticData: { page: GOALS },
+    beforeLoad: () => {
+      throw roleUnavailable('Goals', 'properties')
+    },
+    component: () => <p>The Goals page</p>,
+  })
   const group = createRoute({
     getParentRoute: () => property,
     path: '/portals/groups/$groupId',
@@ -116,9 +161,10 @@ function buildRouter(scenario: Scenario) {
   })
   return createRouter({
     routeTree: root.addChildren([
-      shell.addChildren([property.addChildren([people, group])]),
+      shell.addChildren([property.addChildren([people, goals, group])]),
     ]),
     history: createMemoryHistory({ initialEntries: [scenario.url] }),
+    context: { role: 'AccountAdmin', authz: EMPTY_CLIENT_AUTHZ },
     defaultPendingMs: 0,
     defaultPendingMinMs: 0,
     defaultPendingComponent: RoutePending,
@@ -143,6 +189,8 @@ const meta: Meta<typeof Harness> = {
   component: Harness,
   tags: ['autodocs'],
   parameters: { layout: 'fullscreen' },
+  // The sidebar's state outlives a story (it is kept outside the shell): start each from the default.
+  beforeEach: () => sidebarStore.set(true),
 }
 export default meta
 type Story = StoryObj<typeof Harness>
@@ -210,7 +258,7 @@ export const EntityGone: Story = {
   },
 }
 
-/** A role or feature that cannot open the page: the shell stays, the notice names the page and the way back. */
+/** A role or feature that cannot open the page: the shell stays, the notice names the page, its trail, and the way back. */
 export const Unavailable: Story = {
   args: {
     scenario: {
@@ -230,6 +278,44 @@ export const Unavailable: Story = {
     expect(canvas.getByRole('link', { name: 'Back to Properties' })).toHaveAttribute(
       'href',
       '/properties',
+    )
+    // It stands where the page stood: People's width and People's trail.
+    expect(canvasElement.querySelector('.max-w-\\[1200px\\]')).not.toBeNull()
+    expect(canvas.getByRole('link', { name: 'Hotel Elegance' })).toHaveAttribute(
+      'href',
+      '/properties/p1',
+    )
+  },
+}
+
+/**
+ * Drawing a refusal replaces the shell with a new one. What a person set, and
+ * where their keyboard was, go with it unless the shell keeps them outside: a
+ * collapsed sidebar stays collapsed, and the link that was focused is focused
+ * again, on the way into a refusal and on the way back out.
+ */
+export const RefusalKeepsTheSidebarAndFocus: Story = {
+  args: { scenario: { url: '/properties/p1/people' } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(await canvas.findByText('The People page')).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: 'Collapse sidebar' }))
+    expect(canvas.getByRole('button', { name: 'Expand sidebar' })).toBeVisible()
+
+    // Into a page the role cannot open.
+    await userEvent.click(canvas.getByRole('link', { name: 'Goals page' }))
+    expect(await canvas.findByText('You do not have access to Goals')).toBeVisible()
+    expect(canvas.getByRole('button', { name: 'Expand sidebar' })).toBeVisible()
+    await waitFor(() =>
+      expect(canvas.getByRole('link', { name: 'Goals page' })).toHaveFocus(),
+    )
+
+    // And back out of it.
+    await userEvent.click(canvas.getByRole('link', { name: 'People page' }))
+    expect(await canvas.findByText('The People page')).toBeVisible()
+    expect(canvas.getByRole('button', { name: 'Expand sidebar' })).toBeVisible()
+    await waitFor(() =>
+      expect(canvas.getByRole('link', { name: 'People page' })).toHaveFocus(),
     )
   },
 }

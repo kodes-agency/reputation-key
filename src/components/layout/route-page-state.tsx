@@ -7,7 +7,7 @@ import {
   type ErrorComponentProps,
 } from '@tanstack/react-router'
 import { propertyKeys } from '#/shared/queries/query-keys'
-import { fallbackIdentity, resolveCrumbs } from './page-identity'
+import { fallbackIdentity, pageTier, resolveCrumbs } from './page-identity'
 import { PageState, type PageStateBack, type PageStateFrame } from './page-state'
 import { SignedOutRedirect, useGuardedRouteError } from './use-guarded-route-error'
 
@@ -32,6 +32,19 @@ function propertyNameIn(cached: unknown): string | undefined {
   return typeof property?.name === 'string' ? property.name : undefined
 }
 
+/**
+ * What the address and the cache know about where a page sits: the Property in
+ * the address, and its name once it has been read.
+ */
+export function usePageWhere(): Readonly<{ propertyId?: string; propertyName?: string }> {
+  const { propertyId } = useParams({ strict: false }) as { propertyId?: string }
+  const queryClient = useQueryClient()
+  const cached = propertyId
+    ? queryClient.getQueryData(propertyKeys.detail(propertyId))
+    : undefined
+  return { propertyId, propertyName: propertyNameIn(cached) }
+}
+
 type RouteFrame = Readonly<{
   /** The app shell is on screen and its `<main>` already pads the state. */
   inShell: boolean
@@ -42,8 +55,7 @@ type RouteFrame = Readonly<{
 function useRouteFrame(): RouteFrame {
   const routeId: string = useMatch({ strict: false }).routeId
   const matches = useMatches()
-  const { propertyId } = useParams({ strict: false }) as { propertyId?: string }
-  const queryClient = useQueryClient()
+  const where = usePageWhere()
 
   const shell = matches.findIndex((match) => match.routeId === '/_authenticated')
   const here = matches.findIndex((match) => match.routeId === routeId)
@@ -51,18 +63,12 @@ function useRouteFrame(): RouteFrame {
   const identity = fallbackIdentity(matches, routeId)
   if (!identity) return { inShell, frame: {} }
 
-  const cached = propertyId
-    ? queryClient.getQueryData(propertyKeys.detail(propertyId))
-    : undefined
   return {
     inShell,
     frame: {
       title: identity.title,
-      breadcrumbs: resolveCrumbs(identity, {
-        propertyId,
-        propertyName: propertyNameIn(cached),
-      }),
-      tier: identity.tier,
+      breadcrumbs: resolveCrumbs(identity, where),
+      tier: pageTier(identity),
       fullBleed: identity.fullBleed,
     },
   }

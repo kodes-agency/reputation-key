@@ -51,7 +51,8 @@ export function documentTitle(title: string): string {
   return `${title} | ${DOCUMENT_TITLE_SUFFIX}`
 }
 
-function deepestPage(matches: readonly PageMatch[]): PageIdentity | undefined {
+/** The deepest page named in a chain of matches, loaded or not. */
+export function deepestPage(matches: readonly PageMatch[]): PageIdentity | undefined {
   for (let index = matches.length - 1; index >= 0; index--) {
     const page = matches[index]?.staticData?.page
     if (page) return page
@@ -89,6 +90,16 @@ export function fallbackIdentity(
   if (own) return own
   if (deepestPage(matches.slice(0, index))) return null
   return deepestPage(matches.slice(index + 1)) ?? null
+}
+
+/**
+ * The width tier a page's states use: the page's own, else the layout's. The
+ * settings layout is narrow (it wraps every settings page in
+ * `PageShell tier="narrow"`), so a state drawn without that layout, such as a
+ * refusal in the shell, must be narrow too or the page changes width.
+ */
+export function pageTier(identity: PageIdentity): PageTier | undefined {
+  return identity.tier ?? (identity.under === 'settings' ? 'narrow' : undefined)
 }
 
 type Where = Readonly<{ propertyId?: string; propertyName?: string }>
@@ -135,4 +146,21 @@ export function resolveCrumbs(
     ...parentCrumbs(identity.under, where),
     { label: identity.crumb ?? identity.title },
   ]
+}
+
+/**
+ * The frame a refusal of `title` is drawn in: the width tier and the trail of the
+ * deepest page in the chain, so a refused People page keeps People's width and
+ * its trail rather than the standard width and no trail. The notice keeps its own
+ * title and copy; its last crumb is that title.
+ */
+export function refusalFrame(
+  matches: readonly PageMatch[],
+  title: string,
+  where: Where,
+): Readonly<{ tier?: PageTier; breadcrumbs?: readonly Crumb[] }> {
+  const page = deepestPage(matches)
+  if (!page) return {}
+  const named = { ...page, title, crumb: title === page.title ? page.crumb : undefined }
+  return { tier: pageTier(page), breadcrumbs: resolveCrumbs(named, where) }
 }

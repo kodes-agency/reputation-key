@@ -102,6 +102,32 @@ describe('a feature that is switched off', () => {
   })
 })
 
+describe('a way back the reader cannot follow', () => {
+  const noProperties = { canOpenProperties: false }
+  const profile = { to: '/settings/profile', label: 'Back to Profile' }
+
+  it('leads a role that cannot open Properties to its profile, not into a second refusal', () => {
+    expect(
+      noticeProps({ cause: 'role', title: 'Inbox', back: 'properties' }, noProperties)
+        .back,
+    ).toEqual(profile)
+    expect(noticeProps(PROPERTY_NOT_FOUND, noProperties).back).toEqual(profile)
+    expect(
+      noticeProps(
+        { cause: 'feature', title: 'Goals', category: 'not_in_beta' },
+        noProperties,
+      ).back,
+    ).toEqual(profile)
+  })
+
+  it('keeps a link of the notice’s own, which the reader was already allowed to open', () => {
+    const own = { to: '/properties/p1/goals', label: 'Back to Goals' }
+    expect(
+      noticeProps({ cause: 'role', title: 'Goal', back: own }, noProperties).back,
+    ).toEqual(own)
+  })
+})
+
 describe('a Property that is not there', () => {
   it('says "not found", which is what the e2e not-found check looks for', () => {
     const copy = noticeProps(PROPERTY_NOT_FOUND)

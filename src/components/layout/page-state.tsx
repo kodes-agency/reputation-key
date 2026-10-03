@@ -77,7 +77,9 @@ function ErrorBody({
         <AlertDescription>{message}</AlertDescription>
       </Alert>
       {onRetry && (
-        <Button variant="outline" onClick={onRetry}>
+        // The same 44px phone target as a region's Try again (`RetryButton`),
+        // which this first-paint file does not import.
+        <Button variant="outline" className="max-md:min-h-11" onClick={onRetry}>
           Try again
         </Button>
       )}
@@ -91,12 +93,16 @@ function NoticeBody({
   back,
 }: Readonly<{ heading: string; reason?: string; back: PageStateBack }>) {
   return (
-    <EmptyState icon={AlertCircle} title={heading}>
-      {reason && <p className="text-sm text-muted-foreground">{reason}</p>}
-      <Button variant="outline" asChild>
-        <Link to={back.to as never}>{back.label}</Link>
-      </Button>
-    </EmptyState>
+    <EmptyState
+      icon={AlertCircle}
+      title={heading}
+      description={reason}
+      action={
+        <Button variant="outline" asChild>
+          <Link to={back.to as never}>{back.label}</Link>
+        </Button>
+      }
+    />
   )
 }
 
