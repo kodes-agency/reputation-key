@@ -7,6 +7,7 @@ import type { Preview } from '@storybook/react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { useState } from 'react'
 import '../src/styles.css'
+import { TooltipProvider } from '../src/components/ui/tooltip'
 import { APP_FONT_STYLESHEETS } from '../src/shared/font-sets'
 import '../src/shared/auth/permissions' // side-effect: initPermissionTable() for can()
 import { RouterDecorator } from './RouterDecorator'
@@ -42,6 +43,15 @@ function StoryQueryClientProvider({ children }: { children: React.ReactNode }) {
   return <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
 }
 
+/** Story titles drawn inside a compact workspace: the Inbox, and the parts of the top bar. */
+const COMPACT_STORIES = [
+  'Inbox/',
+  'Pages/Inbox',
+  'Layout/AppTopBar',
+  'Notification/NotificationPanel',
+  'Beta Feedback/Launcher',
+] as const
+
 const preview: Preview = {
   decorators: [
     // Provide QueryClient for components using TanStack Query (useSuspenseQuery, etc.).
@@ -51,9 +61,30 @@ const preview: Preview = {
         <Story />
       </StoryQueryClientProvider>
     ),
+    // The authenticated shell mounts the app's TooltipProvider; an IconButton's
+    // tooltip needs one, so every story gets the same.
+    (Story) => (
+      <TooltipProvider delayDuration={0}>
+        <Story />
+      </TooltipProvider>
+    ),
     // Provide a TanStack memory router so components using useRouter()/
     // useNavigate()/useRouterState() (anything via useMutationAction) render.
     RouterDecorator,
+    // The Inbox and the top bar are compact workspaces: their roots carry
+    // data-density="compact" (controls 36px on a phone, not the 44px target). A story
+    // that draws one part of them alone (the bell, the feedback launcher, a composer
+    // footer) gets the same attribute on the story root, which adds no box of its own.
+    // The document is left alone, as in the app: a menu, sheet or dialog that portals
+    // out of the workspace says `data-density` itself, or is the 44px default.
+    (Story, context) => {
+      const root = document.getElementById('storybook-root')
+      const compact = COMPACT_STORIES.some((prefix) => context.title.startsWith(prefix))
+      if (compact) root?.setAttribute('data-density', 'compact')
+      else root?.removeAttribute('data-density')
+      delete document.documentElement.dataset.density
+      return Story()
+    },
     // Apply the theme class + color-scheme so shadcn primitives render in the
     // right theme. Dark stays the default (the product ships dark-first per
     // PRODUCT.md, preserving every existing story's baseline); a story opts

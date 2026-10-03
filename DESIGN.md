@@ -219,7 +219,11 @@ In light mode, the same tonal stack inverts: near-white backgrounds step from pa
 - **Ghost:** Transparent background, Ink Secondary text. Hover fills with Graphite Surface and switches to Ink Primary.
 - **Outline:** Transparent background, Graphite Border ring, Ink Primary text. Hover fills with accent-muted background. Used for secondary actions that need more presence than ghost.
 - **Destructive:** Signal Red background, white text. Hover darkens slightly.
-- **All buttons:** `font-weight: 500`, `font-size: 0.875rem` (14px). Focus-visible ring at Spectral Violet with 3px offset. Disabled state at 50% opacity. Sizes: default (h-9), sm (h-8), lg (h-10), xs (h-6), plus icon-only sizes at matching heights.
+- **All buttons:** `font-weight: 500`, `font-size: 0.875rem` (14px). Focus-visible ring at Spectral Violet with 3px offset. Disabled and `aria-disabled` state at 50% opacity. Sizes: default (h-9), sm (h-8), lg (h-10), xs (h-6), plus icon-only sizes at matching heights, and `inline` (a link in a line of text: no height, no padding) and `wrap` (default height, label may wrap).
+- **Touch density:** below `md` a default, sm, lg or icon control is a tap target, 44px, read from one token (`--control-touch`). A dense workspace (the Inbox, the top bar) says `data-density="compact"` on its container and its controls are 36px there. From `md` the desktop heights above apply. A control never spells either number; Input, Select and menu items follow the same rule.
+- **Pending:** `pending` draws a spinner (stopped for reduced motion), sets `aria-busy` and disables the button; `pendingLabel` swaps the label when a word says more than the spinner. `SubmitButton` is a Button wired to a mutation.
+- **Icon-only:** `IconButton` takes a required `label` (the accessible name) and shows it as a tooltip on hover and focus; the app mounts one `TooltipProvider`. Row-action triggers go without a tooltip.
+- **Inline links:** a link set in a sentence is `InlineLink` (accent ink, medium weight, underlined on hover; always underlined inside a sentence). A control that is not a Button wears the Button's ring through `focus-ring`.
 
 ### Cards
 
@@ -230,7 +234,7 @@ In light mode, the same tonal stack inverts: near-white backgrounds step from pa
 
 ### Inputs
 
-- **Shape:** Rounded at 6px, 36px height. Transparent background lets the parent surface color show through; in dark mode, a 30% opacity Graphite Border backing provides subtle fill (Tailwind `bg-input/30`).
+- **Shape:** Rounded at 6px, 36px height (44px below `md`, 36px in a compact workspace, like a Button). Transparent background lets the parent surface color show through; in dark mode, a 30% opacity Graphite Border backing provides subtle fill (Tailwind `bg-input/30`).
 - **Border:** 1px Graphite Border. Focus shifts to Spectral Violet ring (3px, 50% opacity).
 - **Placeholder:** Ink Tertiary, matching the 4.5:1 contrast requirement.
 - **Error:** Border shifts to Signal Red with a matching red ring.

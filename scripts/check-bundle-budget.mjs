@@ -311,6 +311,24 @@
 // the alternative is to leave the success and info icons out of the Alert and let
 // those two callers draw their own.
 //
+// 2026-10-03 (UI consistency, stage S4 slice D1: Button): Button gains `pending`
+// (an inline spinner, `aria-busy`, a label swap), a touch-height token on its
+// sizes and the `inline` size, and `aria-disabled` styling; Input, Select and the
+// menu items read the same token. Fresh production builds, 82 js + 1 css each: the
+// S3 stage head (c06cb5353) 338,290 B; this slice 338,673 B, +383 B. The `button`
+// chunk 858 -> about 1,120 B (the class strings and the spinner), the entry chunk
+// +72 B (the auth routes' InlineLink), `vendor-tanstack` +27 B (`createLink`), the
+// stylesheet +25 B (the touch token's two utilities and `focus-ring` against about
+// a hundred per-file height classes deleted). Kept out of first paint on purpose:
+// `IconButton` and the tooltip primitives (the shell's lazy chunk; the public
+// header's ThemeToggle, the bell and the bell's could-not-load header stay plain
+// Buttons, each noted in `button-sources.test.ts`), the spinner is drawn inline
+// (an imported lucide icon was a 196 B chunk of its own), and `InlineLink` is a
+// bare router link wrapper. A first draft that mounted a `TooltipProvider` in the
+// root and used `IconButton` in the bell measured 342,764 B. The budget moves to
+// 338,800 B, which leaves 127 B. This is baseline growth on top of S1's, S2's and
+// S3's, so it waits for the owner's approval (plan decision 12).
+//
 // When this fails: resolve the new static importer and cut that source edge. Do
 // NOT raise the budget without recording a fresh production measurement here.
 // When a cycle fails it: the chunk group that moved a module away from the
@@ -345,7 +363,7 @@ const ASSETS_DIR = join(ROOT, '.output/public/assets')
 
 const BUDGETS = {
   mainEntryGzip: 70_100, // measured 68,725 + 2%
-  initialClosureGzip: 309_500, // lowered on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every earlier raise and its measurement is in the dated notes above
+  initialClosureGzip: 338_800, // lowered on 2026-10-03 once vendor-sentry left first paint, measured 309,364 (main 338,411); every earlier raise and its measurement is in the dated notes above; 38_800, // 319,519 + 3% (2026-09-08), raised 595 B on 2026-09-30 for the Portal editor's Group-section prefetch; measured 329,350; raised to 330,300 on 2026-09-30 for the Portal Results tab's stylesheet growth, measured 329,971; raised to 331,050 on 2026-10-01 for the Portals overview, measured 330,730; raised to 331,400 on 2026-10-01 for the Linktree editor rebased onto the Languages section, measured 331,093; raised to 332,000 on 2026-10-01 for the All properties route, measured 331,663 (main 331,230); raised to 333,300 for the group page route, measured 332,881; raised to 333,800 on 2026-10-01 for the inbox phone bars, measured 333,447 (main 333,126); raised to 334,300 on 2026-10-01 for the v3 writer and the guest mount rebased onto the inbox phone bars, measured 334,045 (main 333,447); raised to 335,700 on 2026-10-01 for the Review & publish page's loader, measured 335,082 (main 334,045); raised to 335,900 on 2026-10-01 for the Property look photo and logo controls, measured 335,517 (main 335,331); raised to 336,300 on 2026-10-02 for the click-to-edit preview, measured 335,910; raised to 336,700 on 2026-10-03 for the Portal route errors' guarded boundary (sanitised message, report, sign-in redirect, Try again, shared with the router default: UI consistency A1), measured 336,593 (main 336,222); raised to 336,800 on 2026-10-03 for the combined S1 stage (A1 + B1 + B2 + review fixes, see the 2026-10-03 entry above), measured 336,713, pending the owner's approval; raised to 337,800 on 2026-10-03 for UI consistency S2 slice C1 (PageState and page names, see the 2026-10-03 entry above), measured 337,733, pending the owner's approval, and to 338,000 on 2026-10-03 for the combined S2 stage (C1 PageState + C2 region states, the two slice deltas were +988 B and +214 B; a fresh production build of the merged stage measured 337,964), pending the owner's approval; raised to 338,400 on 2026-10-03 for the combined UI consistency S3 stage (E1 tones + E2 feedback + review fixes: the Alert draws its tone's icon from the shared tone table; a fresh production build of the merged stage measured 338,281, +289 B over the S2 stage head's 337,992), pending the owner's approval; raised to 338,800 on 2026-10-03 for UI consistency S4 slice D1 (Button pending, touch density and the inline size, see the 2026-10-03 entry above), measured 338,673, +383 B over the S3 stage head's 338,290, pending the owner's approval
   lazyChunkGzip: 125 * 1024, // 128,000 (chunks outside the closure)
 }
 

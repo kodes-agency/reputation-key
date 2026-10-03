@@ -132,6 +132,14 @@
      (oklch(0.58 0.22 25)), so every label painted with it vanished into the
      button. Near-white reads 4.78:1 on the fill. */
   --destructive-foreground: oklch(1 0.003 270);
+  /* The height of a control (Button, Input, Select) below `md`: a 44px tap
+     target. A dense workspace sets data-density="compact" on its container and
+     its controls drop to 36px. Desktop heights belong to the controls. */
+  --control-touch: 2.75rem;
+}
+
+[data-density='compact'] {
+  --control-touch: 2.25rem;
 }
 
 .dark {
@@ -348,6 +356,16 @@ pre code {
     &:hover {
       color: var(--accent-hover);
     }
+  }
+}
+
+/* The keyboard-focus ring of a control that is not a Button (a link in a cell, a
+   summary, a row that opens something): the Button's own 3px ring in the ring
+   colour at 50%, so focus looks the same on every kind of control. */
+@utility focus-ring {
+  &:focus-visible {
+    outline: none;
+    @apply ring-[3px] ring-ring/50;
   }
 }
 

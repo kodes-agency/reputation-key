@@ -21,9 +21,23 @@ and actions supply server state.
   `hasFailed(query)` and pass `retrying` (`isRetrying(query)`) from
   `hooks/is-retrying`, because a query with no data drops its error and goes
   `pending` the moment it refetches. A dense workspace (the Inbox) passes
-  `density="compact"` (36px on a phone, not the 44px target). The bell's
-  could-not-load body is plain markup on purpose: it sits in the first-paint
-  closure.
+  `data-density="compact"` on its container (36px on a phone, not the 44px target).
+  The bell's could-not-load body is plain markup on purpose: it sits in the
+  first-paint closure.
+  A control's height is not spelled by the caller. `Button`, `Input`,
+  `SelectTrigger` and the menu items are 44px below `md` (the `--control-touch`
+  token) and keep their desktop height from `md`; a dense workspace (the Inbox, the
+  top bar) sets `data-density="compact"` on its container and the same controls
+  are 36px there. A menu, sheet or dialog that portals out of the container says
+  `data-density="compact"` itself. `Button` owns `pending` / `pendingLabel` (a
+  spinner that stops for reduced motion, `aria-busy`, disabled, an optional label
+  swap) and `SubmitButton` is that Button wired to a mutation: never draw a
+  spinner beside a Button or swap its label on `isPending`. An icon-only control is
+  an `IconButton` (a required `label` that is its name and its tooltip; the root
+  mounts the one `TooltipProvider`), a link set in a sentence is `InlineLink`, and a
+  control that is not a Button wears `focus-ring`. `button-sources.test.ts` fails
+  on a per-file height, a hand-placed spinner, an icon-only Button, the old ring
+  and a hand-typed inline link.
   A notice is an `Alert`: `destructive`, `warning`, `success` and `info` each
   draw the one icon their tone wears (`ui/tone.ts`, which Alert, Badge and
   StatusBadge all read), and `default` is a plain card for a notice that brings
