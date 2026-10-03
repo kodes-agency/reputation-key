@@ -1,6 +1,7 @@
 import { useEffect, useId, useState } from 'react'
 import { ChevronDown, Clock3, RotateCcw } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { EXPLAIN_UNDERLINE } from '#/components/ui/explain-trigger'
 import { Fact } from '#/components/ui/fact'
 import { ButtonGroup } from '#/components/ui/button-group'
 import {
@@ -300,9 +301,9 @@ function ReplyDueDetail({
           WCAG 1.4.11's 3:1 for a non-text cue, at rest, with no pointer. It was
           `border-strong` at rest, measured 1.89:1 (light) and 2.00:1 (dark)
           against `--background`, and only took the text colour on hover, which
-          a phone never produces. It is now the text's own colour
-          (`decoration-current`), the precedent `features/shared/glossary-
-          term.tsx:24` set for the same dotted-underline popover: every tone of
+          a phone never produces. It is now the text's own colour (the shared
+          `EXPLAIN_UNDERLINE`, `ui/explain-trigger.tsx`, which every
+          dotted-underline explanation wears): every tone of
           this text clears 4.5:1 on the pane (review measurement — neutral
           6.19 / 7.53, warning 4.73 / 11.69, negative 5.34 / 6.13, positive
           5.14 / 8.69, light / dark), so the line clears 3:1 by construction.
@@ -314,12 +315,17 @@ function ReplyDueDetail({
       <PopoverTrigger
         aria-label={`${chip.label}. Show timing details`}
         className={cn(
-          'group/due ml-auto inline-flex min-h-8 shrink-0 cursor-help items-center gap-1.5 rounded-sm text-[13px] focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring max-md:min-h-9',
+          'group/due ml-auto inline-flex min-h-8 shrink-0 cursor-help items-center gap-1.5 rounded-sm text-[13px] focus-ring max-md:min-h-9',
           TONE_CLASS[chip.tone],
         )}
       >
         <Clock3 className="size-3.5" aria-hidden="true" />
-        <span className="underline decoration-current decoration-dotted underline-offset-4 group-hover/due:decoration-solid group-data-[state=open]/due:decoration-solid">
+        <span
+          className={cn(
+            EXPLAIN_UNDERLINE,
+            'group-hover/due:decoration-solid group-data-[state=open]/due:decoration-solid',
+          )}
+        >
           {chip.label}
         </span>
       </PopoverTrigger>

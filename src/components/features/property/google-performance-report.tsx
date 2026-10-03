@@ -13,7 +13,8 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
-import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
+import { ExplainTrigger } from '#/components/ui/explain-trigger'
+import { Popover, PopoverContent } from '#/components/ui/popover'
 import { GlossaryTerm } from '#/components/features/shared/glossary-term'
 import { formatDateTime } from '#/lib/format-date-time'
 import { formatLocalDate } from '#/lib/format'
@@ -105,12 +106,12 @@ export function GooglePerformanceSourceStatus({
       <div className="inline-flex min-w-0 flex-wrap items-baseline gap-x-1 text-sm text-muted-foreground">
         <GlossaryTerm term="updated">Updated</GlossaryTerm>
         <Popover>
-          <PopoverTrigger
-            className="rounded text-left underline decoration-dotted decoration-from-font underline-offset-4 focus-ring"
+          <ExplainTrigger
+            className="text-left"
             aria-label={`Google source details. ${statusLabel}. Updated ${markText}`}
           >
             {markText}
-          </PopoverTrigger>
+          </ExplainTrigger>
           <PopoverContent
             align="start"
             aria-label="Google source details"

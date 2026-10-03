@@ -2,6 +2,7 @@
 // list says how many; this says what each is and where to put it right.
 import type { ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
+import { EXPLAIN_UNDERLINE } from '#/components/ui/explain-trigger'
 import { Popover, PopoverContent, PopoverTrigger } from '#/components/ui/popover'
 import { cn } from '#/lib/utils'
 import type { PortalIssue, PortalIssueFix } from './portal-attention'
@@ -77,7 +78,8 @@ export function PortalIssuesPopover({
           aria-label={`${portalName}: ${label}`}
           className={cn(
             'inline-flex w-fit items-center gap-1.5 rounded-sm text-xs font-medium text-warn',
-            'underline decoration-dotted underline-offset-4 hover:decoration-solid',
+            EXPLAIN_UNDERLINE,
+            'hover:decoration-solid',
             'focus-ring',
           )}
         >

@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react'
 import { useForm, useStore } from '@tanstack/react-form'
 import { Bug, Lightbulb } from 'lucide-react'
 import { DialogErrorBanner } from '#/components/forms/dialog-error-banner'
-import { submitHandler } from '#/components/forms/form-submit'
+import { submitForm, submitHandler } from '#/components/forms/form-submit'
 import { FormTextarea } from '#/components/forms/form-textarea'
 import type { BaseFieldApiTextarea } from '#/components/forms/form-textarea'
 import { SubmitButton } from '#/components/forms/submit-button'
@@ -10,6 +10,7 @@ import { useAction } from '#/components/hooks/use-action'
 import { DialogCancel, DialogFooter } from '#/components/ui/dialog'
 import { useDialogBusy } from '#/components/ui/dialog-dismissal'
 import { Kbd } from '#/components/ui/kbd'
+import { useShortcutModifier } from '#/components/hooks/use-shortcut-modifier'
 import { betaFeedbackInputSchema } from '#/shared/beta-feedback-contract'
 import type {
   BetaFeedbackImpact,
@@ -83,10 +84,11 @@ export function BetaFeedbackForm({ submitFeedback, onSubmitted }: BetaFeedbackFo
   const isBug = kind === 'bug'
   const impactOptions = useMemo(() => impactOptionsFor(kind), [kind])
 
+  const modifier = useShortcutModifier()
   const onKeyDown = (event: React.KeyboardEvent<HTMLFormElement>): void => {
     if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
       event.preventDefault()
-      void form.handleSubmit()
+      void submitForm(form)
     }
   }
 
@@ -216,7 +218,7 @@ export function BetaFeedbackForm({ submitFeedback, onSubmitted }: BetaFeedbackFo
         noteClassName="text-xs max-sm:hidden"
         note={
           <span>
-            <Kbd>⌘</Kbd> <Kbd>↵</Kbd> to send
+            <Kbd>{modifier}</Kbd> <Kbd>↵</Kbd> to send
           </span>
         }
       >
