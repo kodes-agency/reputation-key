@@ -2,7 +2,9 @@
 // section per place a portal is now, a checkbox and the name, a small fact for a
 // draft, and under a ticked portal that is in another group the note that it
 // moves and that its results so far stay there.
+import { Globe } from 'lucide-react'
 import { Checkbox } from '#/components/ui/checkbox'
+import { EmptyState } from '#/components/ui/empty-state'
 import { cn } from '#/lib/utils'
 import {
   toggleSelection,
@@ -71,11 +73,7 @@ export function PortalGroupChecklistField({
   label,
 }: Props) {
   if (sections.length === 0) {
-    return (
-      <p className="rounded-lg border border-dashed px-3 py-4 text-sm text-muted-foreground">
-        There are no other portals at this property to add.
-      </p>
-    )
+    return <EmptyState size="compact" icon={Globe} title="No other portals to add" />
   }
   return (
     <div

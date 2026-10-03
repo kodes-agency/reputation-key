@@ -3,9 +3,10 @@
 // are shown. Under the table: a quiet "Add portal", the one-group rule, and what
 // the group's results count.
 import { useState } from 'react'
-import { Info, Plus } from 'lucide-react'
+import { Globe, Info, Plus } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { DropdownMenuItem } from '#/components/ui/dropdown-menu'
+import { EmptyState } from '#/components/ui/empty-state'
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
 import type { PortalArchiveMutations } from '../portal-overview/portal-archive-dialog'
 import type { PortalOverviewResultsControls } from '../portal-overview/portal-overview-results-strip'
@@ -80,9 +81,7 @@ export function PortalGroupPortals({
         Portals in this group
       </h2>
       {rows.length === 0 ? (
-        <p className="rounded-lg border border-dashed px-4 py-6 text-sm text-muted-foreground">
-          No portals in this group yet.
-        </p>
+        <EmptyState size="compact" icon={Globe} title="No portals in this group yet" />
       ) : (
         <PortalOverviewTable
           sections={overview.sections}

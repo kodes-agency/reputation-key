@@ -8,6 +8,8 @@
 import { useEffect, useRef } from 'react'
 import { Smartphone } from 'lucide-react'
 import { Button } from '#/components/ui/button'
+import { EmptyState } from '#/components/ui/empty-state'
+import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import { SegmentedControl } from '#/components/ui/segmented-control'
 import { GUEST_FONT_STYLESHEET } from '#/shared/font-sets'
@@ -113,27 +115,22 @@ function PreviewBody({
   if (data.status === 'loading') return <PreviewSkeleton />
   if (data.status === 'error') {
     return (
-      <div role="alert" className="rounded-lg border border-dashed p-6 text-center">
-        <p className="text-sm font-medium">The preview couldn’t be loaded</p>
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="mt-3"
-          onClick={data.retry}
-        >
-          Try again
-        </Button>
-      </div>
+      <RegionError
+        size="compact"
+        message="The preview couldn’t be loaded."
+        onRetry={data.retry}
+      />
     )
   }
   if (data.status === 'unavailable') {
     const note = describeUnavailable(data.reason)
     return (
-      <div className="rounded-lg border border-dashed p-6 text-center">
-        <p className="text-sm font-medium">{note.title}</p>
-        <p className="mt-1 text-sm text-muted-foreground">{note.body}</p>
-      </div>
+      <EmptyState
+        size="compact"
+        icon={Smartphone}
+        title={note.title}
+        description={note.body}
+      />
     )
   }
   const { preview, experience, copy, locale } = data

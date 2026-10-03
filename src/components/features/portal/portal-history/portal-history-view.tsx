@@ -9,6 +9,7 @@ import type {
   PortalVersions,
 } from '#/contexts/portal/application/public-api'
 import { Button } from '#/components/ui/button'
+import { RegionError } from '#/components/ui/region-error'
 import { PortalHistoryLedger } from './portal-history-ledger'
 import type { HistoryFilterKey, HistoryRow } from './portal-history-rows'
 import { PortalRestoreConfirmation } from './portal-restore-confirmation'
@@ -49,6 +50,7 @@ type Props = Readonly<{
   announcement: string | null
   versions: PortalVersions | null
   versionsFailed: boolean
+  onRetryVersions: () => void
   pendingChangeCount: number
   canMakeLive: boolean
   note?: ReactNode
@@ -89,15 +91,16 @@ export function PortalHistoryView(props: Props) {
         aria-live="polite"
       >
         {detail.status === 'error' ? (
-          <p role="alert" className="text-destructive">
-            Could not check what would change.{' '}
-            <Button type="button" variant="link" size="xs" onClick={detail.retry}>
-              Try again
-            </Button>{' '}
-            <Button type="button" variant="link" size="xs" onClick={close}>
-              Cancel
-            </Button>
-          </p>
+          <RegionError
+            size="compact"
+            message="What would change couldn’t be checked."
+            onRetry={detail.retry}
+            secondary={
+              <Button type="button" variant="outline" size="sm" onClick={close}>
+                Cancel
+              </Button>
+            }
+          />
         ) : (
           <p className="text-muted-foreground">Checking what would change…</p>
         )}
@@ -142,6 +145,7 @@ export function PortalHistoryView(props: Props) {
       <PortalVersionsRail
         versions={props.versions}
         failed={props.versionsFailed}
+        onRetry={props.onRetryVersions}
         pendingChangeCount={props.pendingChangeCount}
         now={now}
         timeZone={timeZone}

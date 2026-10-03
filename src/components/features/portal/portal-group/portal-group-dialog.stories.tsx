@@ -152,9 +152,7 @@ export const NoPortalsLeftToAdd: StoryObj<typeof PortalGroupAddPortalsDialog> = 
     />
   ),
   play: async () => {
-    await expect(
-      dialog().getByText('There are no other portals at this property to add.'),
-    ).toBeInTheDocument()
+    await expect(dialog().getByText('No other portals to add')).toBeInTheDocument()
     await expect(dialog().getByRole('button', { name: 'Add to group' })).toBeDisabled()
   },
 }

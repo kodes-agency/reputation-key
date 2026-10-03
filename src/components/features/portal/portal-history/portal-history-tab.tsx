@@ -162,6 +162,7 @@ export function PortalHistoryTab({
       }
       versions={versions.data ?? null}
       versionsFailed={versions.isError}
+      onRetryVersions={() => void versions.refetch()}
       pendingChangeCount={pendingChangeCount}
       canMakeLive={mayMakeLive && pageIsLive}
       note={

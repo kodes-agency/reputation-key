@@ -246,7 +246,7 @@ export const EmptyGroup: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await expect(canvas.getByText('No portals in this group yet.')).toBeInTheDocument()
+    await expect(canvas.getByText('No portals in this group yet')).toBeInTheDocument()
     await expect(
       canvas.getByText('Nothing has happened to this group yet.'),
     ).toBeInTheDocument()

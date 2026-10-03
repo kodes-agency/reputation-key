@@ -11,11 +11,10 @@
 // head of a group in the table links there and carries the group's actions.
 import { useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { FolderPlus, Globe, Palette, Plus, SearchX } from 'lucide-react'
+import { FolderPlus, Palette, Plus } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { Button } from '#/components/ui/button'
-import { EmptyState } from '#/components/ui/empty-state'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
 import { PageShell } from '#/components/layout/page-shell'
 import { PageHeader } from '#/components/layout/page-header'
@@ -26,6 +25,10 @@ import type { PortalNewData } from './portal-new/portal-new-types'
 import { PortalGroupMenu } from './portal-group/portal-group-menu'
 import type { PortalGroupMutations } from './portal-group/portal-group-mutations'
 import type { PortalArchiveMutations } from './portal-overview/portal-archive-dialog'
+import {
+  PortalOverviewEmpty,
+  PortalOverviewNoMatch,
+} from './portal-overview/portal-overview-empty'
 import { PortalOverviewPager } from './portal-overview/portal-overview-pager'
 import {
   PHONE_NEW_PORTAL_BAR_CLEARANCE,
@@ -112,12 +115,7 @@ function PortalListBody({
   onChange,
 }: PortalListBodyProps) {
   return isEmpty ? (
-    <EmptyState icon={Globe} title="No portals yet">
-      <p className="text-sm text-muted-foreground">
-        Create a portal to set up a guest-facing page with links.
-      </p>
-      {newPortalButton}
-    </EmptyState>
+    <PortalOverviewEmpty action={newPortalButton} />
   ) : (
     <>
       {results ? (
@@ -137,14 +135,10 @@ function PortalListBody({
           onChange={onChange}
         />
         {overview.matched === 0 && overview.sections.length === 0 ? (
-          <EmptyState icon={SearchX} title="No portals match">
-            <Button
-              variant="outline"
-              onClick={() => onChange({ q: undefined, show: undefined })}
-            >
-              Clear search and filter
-            </Button>
-          </EmptyState>
+          <PortalOverviewNoMatch
+            clearLabel="Clear search and filter"
+            onClear={() => onChange({ q: undefined, show: undefined })}
+          />
         ) : (
           <>
             <PortalOverviewTable

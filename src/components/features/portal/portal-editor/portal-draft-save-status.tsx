@@ -6,7 +6,7 @@
 
 import { AlertTriangle, Check, Loader2 } from 'lucide-react'
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
-import { Button } from '#/components/ui/button'
+import { RetryButton } from '#/components/ui/region-error'
 import { cn } from '#/lib/utils'
 import {
   usePortalDraftAutosave,
@@ -48,15 +48,7 @@ export function PortalDraftSaveStatus() {
             <span>{view.label}</span>
             {problem === null ? null : <span>· {problem}</span>}
             {view.canRetry ? (
-              <Button
-                type="button"
-                variant="link"
-                size="xs"
-                className="h-auto p-0 text-xs"
-                onClick={() => void autosave.retry()}
-              >
-                Retry
-              </Button>
+              <RetryButton size="xs" onRetry={() => void autosave.retry()} />
             ) : null}
           </span>
         )}

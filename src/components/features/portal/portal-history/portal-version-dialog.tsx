@@ -8,6 +8,7 @@
 import type { ReactNode } from 'react'
 import type { PortalVersionDetail } from '#/contexts/portal/application/public-api'
 import { Button } from '#/components/ui/button'
+import { RegionError } from '#/components/ui/region-error'
 import {
   Dialog,
   DialogContent,
@@ -140,12 +141,11 @@ export function PortalVersionDialog({
                   </p>
                 ) : null}
                 {status === 'error' ? (
-                  <p role="alert" className="text-sm text-destructive">
-                    This version could not be loaded.{' '}
-                    <Button type="button" variant="link" size="xs" onClick={onRetry}>
-                      Try again
-                    </Button>
-                  </p>
+                  <RegionError
+                    size="compact"
+                    message="This version couldn’t be loaded."
+                    onRetry={onRetry}
+                  />
                 ) : null}
               </div>
             </div>

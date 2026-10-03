@@ -567,7 +567,7 @@ export const FailedSaveCanBeRetried: Story = {
       () => expect(saveStatus(canvas)).toHaveTextContent('Not saved'),
       AUTOSAVE_WAIT,
     )
-    await userEvent.click(canvas.getByRole('button', { name: 'Retry' }))
+    await userEvent.click(canvas.getByRole('button', { name: 'Try again' }))
     await waitFor(
       () => expect(saveStatus(canvas)).toHaveTextContent('Draft saved'),
       AUTOSAVE_WAIT,

@@ -5,7 +5,7 @@
 // memory and a sample otherwise, and the caption says which.
 
 import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
-import { Button } from '#/components/ui/button'
+import { RegionError } from '#/components/ui/region-error'
 import { SegmentedControl } from '#/components/ui/segmented-control'
 import { Skeleton } from '#/components/ui/skeleton'
 import type { PortalPrintKitView } from '#/contexts/portal/application/public-api'
@@ -80,12 +80,11 @@ export function PortalPrintKitPreview({
           )}
         </div>
         {isError ? (
-          <p className="text-sm text-muted-foreground" role="status">
-            The preview could not be loaded.{' '}
-            <Button type="button" variant="link" className="h-auto p-0" onClick={onRetry}>
-              Try again
-            </Button>
-          </p>
+          <RegionError
+            size="compact"
+            message="The preview couldn’t be loaded."
+            onRetry={onRetry}
+          />
         ) : view === null || face === null ? (
           <Skeleton className="mx-auto aspect-125/168 w-full max-w-md" />
         ) : (

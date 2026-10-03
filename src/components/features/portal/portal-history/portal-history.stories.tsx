@@ -112,6 +112,7 @@ function Harness({
       }
       versions={versions}
       versionsFailed={versionsFailed}
+      onRetryVersions={fn()}
       pendingChangeCount={pendingChanges}
       canMakeLive={canMakeLive}
       note={note}
@@ -358,6 +359,23 @@ export const CheckingWhatWouldChange: Story = {
   },
 }
 
+/** The check failed: the same Try again as everywhere, and a way out beside it. */
+export const CheckingFailed: Story = {
+  args: {
+    initialSelection: { version: 4, mode: 'restore', host: 'row' },
+    detailStatus: 'error',
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await expect(canvas.getByRole('alert')).toHaveTextContent(
+      'What would change couldn’t be checked.',
+    )
+    await expect(canvas.getByRole('button', { name: 'Try again' })).toBeVisible()
+    await userEvent.click(canvas.getByRole('button', { name: 'Cancel' }))
+    await expect(canvas.queryByRole('alert')).toBeNull()
+  },
+}
+
 // A rail tile opens the version for reading; from there it can be made live.
 export const ViewVersionFromRail: Story = {
   play: async ({ canvasElement }) => {
@@ -459,8 +477,10 @@ export const Loading: Story = {
 export const LoadFailed: Story = {
   args: { entriesState: 'error', versionsLoaded: false, versionsFailed: true },
   play: async ({ canvasElement }) => {
-    const alerts = within(canvasElement).getAllByRole('alert')
-    await expect(alerts).toHaveLength(2)
+    const canvas = within(canvasElement)
+    await expect(canvas.getAllByRole('alert')).toHaveLength(2)
+    // The ledger and the rail each offer the one recovery.
+    await expect(canvas.getAllByRole('button', { name: 'Try again' })).toHaveLength(2)
   },
 }
 

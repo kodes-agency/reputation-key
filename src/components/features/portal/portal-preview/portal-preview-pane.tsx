@@ -9,7 +9,9 @@
 
 import { useState } from 'react'
 import { keepPreviousData, useQuery } from '@tanstack/react-query'
-import { Button } from '#/components/ui/button'
+import { Smartphone } from 'lucide-react'
+import { EmptyState } from '#/components/ui/empty-state'
+import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { portalKeys } from '#/shared/queries/query-keys'
@@ -203,26 +205,21 @@ function PreviewUnavailable({
 }>) {
   const note = describeUnavailable(reason, source)
   return (
-    <div className="rounded-lg border border-dashed p-6 text-center">
-      <p className="text-sm font-medium">{note.title}</p>
-      <p className="mt-1 text-sm text-muted-foreground">{note.body}</p>
-    </div>
+    <EmptyState
+      size="compact"
+      icon={Smartphone}
+      title={note.title}
+      description={note.body}
+    />
   )
 }
 
 function PreviewFailure({ onRetry }: Readonly<{ onRetry: () => void }>) {
   return (
-    <div role="alert" className="rounded-lg border border-dashed p-6 text-center">
-      <p className="text-sm font-medium">The preview couldn’t be loaded</p>
-      <Button
-        type="button"
-        variant="outline"
-        size="sm"
-        className="mt-3"
-        onClick={onRetry}
-      >
-        Try again
-      </Button>
-    </div>
+    <RegionError
+      size="compact"
+      message="The preview couldn’t be loaded."
+      onRetry={onRetry}
+    />
   )
 }

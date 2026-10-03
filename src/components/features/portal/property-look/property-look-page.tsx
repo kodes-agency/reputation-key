@@ -99,18 +99,22 @@ export function PropertyLookPage(props: PropertyLookPageProps) {
         breadcrumbs={breadcrumbsOf(propertyId, propertyName)}
       />
       {profile === null ? (
-        <EmptyState icon={Palette} title="Set the public display name first">
-          <p className="text-sm text-muted-foreground">
-            The look is the Property's public display name dressed in its colours.{' '}
-            <Link
-              to="/properties/$propertyId/settings/profile"
-              params={{ propertyId }}
-              className="font-medium text-link underline-offset-4 hover:underline"
-            >
-              Set it in Property settings
-            </Link>
-          </p>
-        </EmptyState>
+        <EmptyState
+          icon={Palette}
+          title="Set the public display name first"
+          description={
+            <>
+              The look is the Property's public display name dressed in its colours.{' '}
+              <Link
+                to="/properties/$propertyId/settings/profile"
+                params={{ propertyId }}
+                className="font-medium text-link underline-offset-4 hover:underline"
+              >
+                Set it in Property settings
+              </Link>
+            </>
+          }
+        />
       ) : (
         <PortalDraftAutosaveProvider delayMs={PROPERTY_LOOK_AUTOSAVE_DELAY_MS}>
           <PropertyLookEditor {...props} profile={profile} />

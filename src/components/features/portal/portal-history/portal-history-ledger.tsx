@@ -5,6 +5,7 @@
 import type { ReactNode } from 'react'
 import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import { Button } from '#/components/ui/button'
+import { RegionError } from '#/components/ui/region-error'
 import { Skeleton } from '#/components/ui/skeleton'
 import { Timeline } from '#/components/ui/timeline'
 import { cn } from '#/lib/utils'
@@ -73,18 +74,11 @@ export function PortalHistoryLedger(props: Props) {
           </div>
         ) : null}
         {state === 'error' ? (
-          <div role="alert" className="text-sm">
-            <p className="text-destructive">The history could not be loaded.</p>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              className="mt-2"
-              onClick={props.onRetry}
-            >
-              Try again
-            </Button>
-          </div>
+          <RegionError
+            size="compact"
+            message="The history couldn’t be loaded."
+            onRetry={props.onRetry}
+          />
         ) : null}
         {state === 'ready' && rows.length === 0 ? (
           <p className="text-sm text-muted-foreground">{EMPTY_TEXT[filter]}</p>

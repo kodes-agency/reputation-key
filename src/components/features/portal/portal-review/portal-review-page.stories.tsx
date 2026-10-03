@@ -273,7 +273,7 @@ export const PreviewFailure: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     await expect(
-      await canvas.findByText('The preview couldn’t be loaded', undefined, WAIT),
+      await canvas.findByText('The preview couldn’t be loaded.', undefined, WAIT),
     ).toBeVisible()
     // The lists beside it are unaffected.
     await expect(canvas.getByText('Publishes as version 6')).toBeVisible()
