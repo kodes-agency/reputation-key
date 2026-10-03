@@ -9,7 +9,16 @@ import { join, relative, sep } from 'node:path'
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
-import { Sidebar, SidebarProvider } from './sidebar'
+import {
+  Sidebar,
+  SidebarMenu,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
+  SidebarProvider,
+} from './sidebar'
 
 function render(open: boolean, collapsible?: 'offcanvas' | 'icon' | 'none'): string {
   return renderToStaticMarkup(
@@ -60,5 +69,46 @@ describe('the app sidebars', () => {
       .map((path) => relative(SRC, path).split(sep).join('/'))
 
     expect(offenders).toEqual([])
+  })
+})
+
+describe('Sidebar rows on a phone', () => {
+  // The drawer's rows were 32px and its sub-rows 28px with no phone bump, against
+  // the 44px a tap target is everywhere else (UI consistency scan: NAV-07).
+  const rows = renderToStaticMarkup(
+    createElement(
+      SidebarProvider,
+      null,
+      createElement(
+        SidebarMenu,
+        null,
+        createElement(
+          SidebarMenuItem,
+          null,
+          createElement(SidebarMenuButton, null, 'Dashboard'),
+          createElement(
+            SidebarMenuSub,
+            null,
+            createElement(
+              SidebarMenuSubItem,
+              null,
+              createElement(SidebarMenuSubButton, null, 'Ratings'),
+            ),
+          ),
+        ),
+      ),
+    ),
+  )
+
+  it('keeps a menu row at the touch height below md', () => {
+    const row = /<button [^>]*data-slot="sidebar-menu-button"[^>]*>/u.exec(rows)?.[0]
+
+    expect(row).toContain('max-md:min-h-(--control-touch)')
+  })
+
+  it('keeps a sub-row at the touch height below md', () => {
+    const row = /<a [^>]*data-slot="sidebar-menu-sub-button"[^>]*>/u.exec(rows)?.[0]
+
+    expect(row).toContain('max-md:min-h-(--control-touch)')
   })
 })
