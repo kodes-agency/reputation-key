@@ -34,6 +34,6 @@ export function publicErrorMessage(
  * The message a thrown value carries, if any. Router error components receive
  * `unknown`: a route can throw a string, a plain object, or nothing useful.
  */
-export function errorMessage(error: unknown): string {
+function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : typeof error === 'string' ? error : ''
 }

@@ -2,8 +2,9 @@
 // removes what the account imported, for every Property that uses it, so the
 // button asks first (the Property-level disconnect already did).
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor } from 'storybook/test'
 import type { GoogleConnectionDto } from '#/contexts/integration/application/public-api'
+import { openAlertDialog } from '#/components/ui/confirmation-dialog.stories.open'
 import { GoogleConnectionSettingsRow } from './google-connection-settings-row'
 
 const connection: GoogleConnectionDto = {
@@ -33,13 +34,8 @@ const meta: Meta<typeof GoogleConnectionSettingsRow> = {
 export default meta
 type Story = StoryObj<typeof GoogleConnectionSettingsRow>
 
-async function openDisconnect(canvasElement: HTMLElement) {
-  await userEvent.click(within(canvasElement).getByRole('button', { name: 'Disconnect' }))
-  const dialog = within(canvasElement.ownerDocument.body)
-  const alert = await dialog.findByRole('alertdialog')
-  await waitFor(() => expect(alert).toBeVisible())
-  return dialog
-}
+const openDisconnect = (canvasElement: HTMLElement) =>
+  openAlertDialog(canvasElement, 'Disconnect')
 
 /** Pressing Disconnect asks; nothing is disconnected until the dialog is confirmed. */
 export const AsksBeforeDisconnecting: Story = {

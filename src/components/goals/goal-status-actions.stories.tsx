@@ -4,6 +4,7 @@
 // not.
 import type { Meta, StoryObj } from '@storybook/react-vite'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { openAlertDialog } from '#/components/ui/confirmation-dialog.stories.open'
 import { GoalStatusActions } from './goal-status-actions'
 
 const meta: Meta<typeof GoalStatusActions> = {
@@ -21,13 +22,8 @@ const meta: Meta<typeof GoalStatusActions> = {
 export default meta
 type Story = StoryObj<typeof GoalStatusActions>
 
-async function openEndDialog(canvasElement: HTMLElement) {
-  await userEvent.click(within(canvasElement).getByRole('button', { name: 'End goal' }))
-  const dialog = within(canvasElement.ownerDocument.body)
-  const alert = await dialog.findByRole('alertdialog')
-  await waitFor(() => expect(alert).toBeVisible())
-  return dialog
-}
+const openEndDialog = (canvasElement: HTMLElement) =>
+  openAlertDialog(canvasElement, 'End goal')
 
 /** Ending asks first, names the goal, and runs only on confirm. */
 export const EndAsksFirst: Story = {

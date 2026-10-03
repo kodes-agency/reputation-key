@@ -7,8 +7,9 @@
 // recipe is readable is `token-contrast.test.ts`'s job, measured from the tokens.
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { expect, fn, userEvent, waitFor } from 'storybook/test'
 import { Button } from './button'
+import { openAlertDialog } from './confirmation-dialog.stories.open'
 import { ConfirmationDialog } from './confirmation-dialog'
 
 const meta: Meta<typeof ConfirmationDialog> = {
@@ -30,14 +31,7 @@ const meta: Meta<typeof ConfirmationDialog> = {
 export default meta
 type Story = StoryObj<typeof ConfirmationDialog>
 
-/** The dialog mounts through Radix's entry animation, which starts at opacity 0. */
-async function openDialog(canvasElement: HTMLElement) {
-  await userEvent.click(within(canvasElement).getByRole('button', { name: 'Open' }))
-  const dialog = within(canvasElement.ownerDocument.body)
-  const heading = await dialog.findByRole('alertdialog')
-  await waitFor(() => expect(heading).toBeVisible())
-  return dialog
-}
+const openDialog = (canvasElement: HTMLElement) => openAlertDialog(canvasElement, 'Open')
 
 const destructiveArgs = {
   tone: 'destructive',

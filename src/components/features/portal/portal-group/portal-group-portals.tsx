@@ -5,7 +5,6 @@
 import { useState } from 'react'
 import { Info, Plus } from 'lucide-react'
 import { Button } from '#/components/ui/button'
-import { ConfirmationDialog } from '#/components/ui/confirmation-dialog'
 import { DropdownMenuItem } from '#/components/ui/dropdown-menu'
 import type { PortalOverviewRow } from '#/contexts/portal/application/public-api'
 import type { PortalArchiveMutations } from '../portal-overview/portal-archive-dialog'
@@ -17,6 +16,10 @@ import {
   type PortalManagerName,
 } from '../portal-overview/portal-overview-view'
 import type { PortalGroupMutations, PortalGroupRef } from './portal-group-mutations'
+import {
+  PortalGroupRemovePortalDialog,
+  type PortalChosenForRemoval,
+} from './portal-group-remove-portal-dialog'
 
 const MENU_ITEM = 'min-h-11 md:min-h-8'
 
@@ -34,12 +37,6 @@ type Props = PortalArchiveMutations &
     onAdd: () => void
     removePortalMutation: PortalGroupMutations['removePortalMutation']
   }>
-
-type RemovalAsked = Readonly<{
-  portalId: PortalOverviewRow['portalId']
-  name: string
-  open: boolean
-}>
 
 /** What the group's results count, in the words of the board. */
 function basisLine(state: PortalOverviewResultsState, groupId: string): string | null {
@@ -63,10 +60,10 @@ export function PortalGroupPortals({
   disableMutation,
   removePortalMutation,
 }: Props) {
-  // The menu item only asks; the dialog lives out here because a dialog inside
-  // a menu unmounts with it. `name` stays after the dialog closes so its title
-  // does not change mid-exit.
-  const [removal, setRemoval] = useState<RemovalAsked | null>(null)
+  // The menu item only chooses; the dialog lives out here because a dialog
+  // inside a menu unmounts with it.
+  const [removing, setRemoving] = useState<PortalChosenForRemoval | null>(null)
+  const [removeOpen, setRemoveOpen] = useState(false)
   const resultsState: PortalOverviewResultsState = results?.state ?? { status: 'off' }
   const byScans = resultsState.status === 'ready'
   const overview = buildPortalOverview(
@@ -105,13 +102,10 @@ export function PortalGroupPortals({
                   <DropdownMenuItem
                     className={MENU_ITEM}
                     disabled={removePortalMutation.isPending}
-                    onSelect={() =>
-                      setRemoval({
-                        portalId: item.row.portalId,
-                        name: item.row.name,
-                        open: true,
-                      })
-                    }
+                    onSelect={() => {
+                      setRemoving({ portalId: item.row.portalId, name: item.row.name })
+                      setRemoveOpen(true)
+                    }}
                   >
                     Remove from group
                   </DropdownMenuItem>
@@ -138,21 +132,15 @@ export function PortalGroupPortals({
         </p>
       </div>
       {basis ? <p className="text-xs text-muted-foreground">{basis}</p> : null}
-      <ConfirmationDialog
-        open={removal?.open ?? false}
-        onOpenChange={(open) =>
-          setRemoval((asked) => (asked ? { ...asked, open } : null))
-        }
-        title={`Remove ${removal?.name ?? 'this portal'} from ${group.name}?`}
-        description="The portal stays; it only leaves this group. You can add it back from this page."
-        cancelLabel="Keep in group"
-        confirmLabel="Remove from group"
-        pendingLabel="Removing…"
+      <PortalGroupRemovePortalDialog
+        portal={removing}
+        groupName={group.name}
+        open={removeOpen}
+        onOpenChange={setRemoveOpen}
         pending={removePortalMutation.isPending}
-        onConfirm={() => {
-          if (!removal) return
+        onConfirm={(portalId) => {
           void removePortalMutation({
-            data: { portalGroupId: group.id, portalId: removal.portalId },
+            data: { portalGroupId: group.id, portalId },
           }).catch(() => undefined)
         }}
       />

@@ -54,18 +54,14 @@ export function resolveColour(
   return parseOklch(value)
 }
 
-export function parseOklch(value: string): LinearRgb {
+function parseOklch(value: string): LinearRgb {
   const match = OKLCH.exec(value)
   if (!match) throw new Error(`Not an oklch() colour: ${value}`)
   return oklchToLinearRgb(Number(match[1]), Number(match[2]), Number(match[3]))
 }
 
 /** OKLCH to linear-light sRGB (Björn Ottosson's matrices), clipped to gamut. */
-export function oklchToLinearRgb(
-  lightness: number,
-  chroma: number,
-  hue: number,
-): LinearRgb {
+function oklchToLinearRgb(lightness: number, chroma: number, hue: number): LinearRgb {
   const radians = (hue * Math.PI) / 180
   const a = chroma * Math.cos(radians)
   const b = chroma * Math.sin(radians)
@@ -101,7 +97,7 @@ export function composite(
 }
 
 /** WCAG 2.x relative luminance. */
-export function relativeLuminance([red, green, blue]: LinearRgb): number {
+function relativeLuminance([red, green, blue]: LinearRgb): number {
   return 0.2126 * red + 0.7152 * green + 0.0722 * blue
 }
 

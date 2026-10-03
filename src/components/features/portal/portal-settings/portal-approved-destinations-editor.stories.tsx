@@ -4,6 +4,7 @@
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { Action } from '#/components/hooks/use-action'
+import { openAlertDialog } from '#/components/ui/confirmation-dialog.stories.open'
 import { PortalApprovedDestinationsEditor } from './portal-approved-destinations-editor'
 import type {
   PortalApprovedDestinationList,
@@ -61,14 +62,8 @@ const meta: Meta<typeof PortalApprovedDestinationsEditor> = {
 export default meta
 type Story = StoryObj<typeof PortalApprovedDestinationsEditor>
 
-async function openDisable(canvasElement: HTMLElement) {
-  const [first] = within(canvasElement).getAllByRole('button', { name: 'Disable' })
-  await userEvent.click(first!)
-  const dialog = within(canvasElement.ownerDocument.body)
-  const alert = await dialog.findByRole('alertdialog')
-  await waitFor(() => expect(alert).toBeVisible())
-  return dialog
-}
+const openDisable = (canvasElement: HTMLElement) =>
+  openAlertDialog(canvasElement, 'Disable')
 
 /** Disable asks first, names the site, and runs only on confirm. */
 export const DisableAsksFirst: Story = {
