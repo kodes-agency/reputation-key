@@ -17,7 +17,6 @@ import {
   CardDescription,
 } from '#/components/ui/card'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
-import { toast } from 'sonner'
 import { AvatarCard } from './avatar-card'
 import type { Action } from '#/components/hooks/use-action'
 import {
@@ -71,15 +70,13 @@ export function ProfileSettingsForm({
     await putFilePresigned(uploadUrl, file, onProgress)
     const result = await finalizeAvatarUpload({ data: { key } })
 
+    // `updateUserImage` toasts the success itself; the form says nothing more.
     await updateUserImage({ data: { imageUrl: result.avatarUrl } })
-    toast.success('Avatar updated successfully')
     return result.avatarUrl
   }
 
   return (
     <div className="space-y-6">
-      <FormErrorBanner error={updateProfile.error} />
-
       <AvatarCard
         avatarUrl={avatarUrl}
         onAvatarUrlChange={setAvatarUrl}
@@ -118,6 +115,7 @@ export function ProfileSettingsForm({
               </Field>
             </div>
 
+            <FormErrorBanner error={updateProfile.error} />
             <div className="flex justify-end gap-2">
               <Button type="button" variant="outline" asChild>
                 <Link to="/settings/profile">Cancel</Link>

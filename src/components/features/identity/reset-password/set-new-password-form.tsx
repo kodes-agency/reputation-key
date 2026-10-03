@@ -37,8 +37,6 @@ export function SetNewPasswordForm({ mutation }: Props) {
       }}
       className="space-y-4"
     >
-      <FormErrorBanner error={mutation.error} />
-
       <FieldGroup>
         <form.Field name="newPassword">
           {(field: BaseFieldApi) => (
@@ -67,6 +65,7 @@ export function SetNewPasswordForm({ mutation }: Props) {
         </form.Field>
       </FieldGroup>
 
+      <FormErrorBanner error={mutation.error} />
       <SubmitButton mutation={mutation} form={form} className="w-full">
         Save new password
       </SubmitButton>

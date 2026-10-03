@@ -25,6 +25,7 @@ import {
   type PortalImageUploader,
 } from '../portal-media/upload-portal-image'
 import { UploadDialogShell } from '../portal-media/upload-dialog-shell'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
 
 const SAVE_FAILED =
   'The photo was uploaded, but it could not be put on the tile. Try again.'
@@ -166,11 +167,9 @@ function PhotoDialogBody({
             This property owns this photo or has permission to use it.
           </FieldLabel>
         </Field>
-        <p role="alert" className="min-h-5 text-sm text-negative">
-          {message}
-        </p>
       </div>
       <p className="text-sm text-muted-foreground">Live pages change when you publish.</p>
+      <FormErrorBanner error={message} />
       <DialogFooter>
         <Button type="button" variant="ghost" disabled={isUploading} onClick={onClose}>
           Cancel

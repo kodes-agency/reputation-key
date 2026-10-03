@@ -38,7 +38,6 @@ export function StaffParticipationForm({ propertyId, mutation, onSuccess }: Prop
         void submitForm(form)
       }}
     >
-      <FormErrorBanner error={mutation.error} />
       <FieldGroup>
         <form.Field name="displayName">
           {(field) => (
@@ -62,6 +61,7 @@ export function StaffParticipationForm({ propertyId, mutation, onSuccess }: Prop
           )}
         </form.Field>
       </FieldGroup>
+      <FormErrorBanner error={mutation.error} />
       <SubmitButton mutation={mutation} form={form}>
         Add staff
       </SubmitButton>

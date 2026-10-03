@@ -86,8 +86,7 @@ export function PropertyReplyLanguageCard({ property, updateProperty }: Props) {
           </CardAction>
         </CardHeader>
 
-        <CardContent>
-          <FormErrorBanner error={updateProperty.error} />
+        <CardContent className="flex flex-col gap-4">
           <FieldGroup>
             <form.Field name="defaultReplyLanguage">
               {(field) => {
@@ -137,6 +136,7 @@ export function PropertyReplyLanguageCard({ property, updateProperty }: Props) {
               }}
             </form.Field>
           </FieldGroup>
+          <FormErrorBanner error={updateProperty.error} />
         </CardContent>
 
         <CardFooter className="justify-end border-t">

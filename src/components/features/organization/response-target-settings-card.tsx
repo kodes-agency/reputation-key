@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import type { Action } from '#/components/hooks/use-action'
 import { FormErrorBanner } from '#/components/forms/form-error-banner'
@@ -98,6 +99,7 @@ const useLowRatingForm = (
   policy: OrganizationPolicy,
   updatePolicy: UpdatePolicyAction,
   offersLowRating: boolean,
+  onFailure: (error: unknown) => void,
 ) =>
   useForm({
     defaultValues: {
@@ -108,26 +110,32 @@ const useLowRatingForm = (
     },
     validators: { onSubmit: organizationResponseTargetFormDto },
     onSubmit: async ({ value }) => {
-      await updatePolicy({
-        data: {
-          scope: 'organization',
-          targetKind: policy.targetKind,
-          durationMinutes: value.durationHours * 60,
-          expectedPolicyVersion: policy.policyVersion,
-          // Only the Google card may say anything about low ratings; the
-          // private-feedback card leaves the stored value untouched.
-          ...(offersLowRating
-            ? {
-                lowRating: value.shortenForLowRatings
-                  ? {
-                      threshold: value.lowRatingThreshold,
-                      durationMinutes: value.lowRatingHours * 60,
-                    }
-                  : null,
-              }
-            : {}),
-        },
-      })
+      onFailure(null)
+      try {
+        await updatePolicy({
+          data: {
+            scope: 'organization',
+            targetKind: policy.targetKind,
+            durationMinutes: value.durationHours * 60,
+            expectedPolicyVersion: policy.policyVersion,
+            // Only the Google card may say anything about low ratings; the
+            // private-feedback card leaves the stored value untouched.
+            ...(offersLowRating
+              ? {
+                  lowRating: value.shortenForLowRatings
+                    ? {
+                        threshold: value.lowRatingThreshold,
+                        durationMinutes: value.lowRatingHours * 60,
+                      }
+                    : null,
+                }
+              : {}),
+          },
+        })
+      } catch (error) {
+        onFailure(error)
+        throw error
+      }
     },
   })
 
@@ -144,7 +152,10 @@ function TargetPolicyForm({
   updatePolicy: UpdatePolicyAction
   offersLowRating?: boolean
 }>) {
-  const form = useLowRatingForm(policy, updatePolicy, offersLowRating)
+  // Two forms share one action, so each keeps the failure of its own last
+  // attempt: the refusal shows beside the Save that was pressed, not on both.
+  const [failure, setFailure] = useState<unknown>(null)
+  const form = useLowRatingForm(policy, updatePolicy, offersLowRating, setFailure)
 
   return (
     <form
@@ -155,6 +166,11 @@ function TargetPolicyForm({
         void submitForm(form)
       }}
     >
+      {failure ? (
+        <div className="sm:col-span-3">
+          <FormErrorBanner error={failure} />
+        </div>
+      ) : null}
       <div className="space-y-1">
         <div className="flex flex-wrap items-center gap-2">
           <p className="font-medium">{label}</p>
@@ -204,7 +220,6 @@ export function ResponseTargetSettingsCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-5">
-        <FormErrorBanner error={updatePolicy.error} />
         <TargetPolicyForm
           key={`google:${settings.organization.googleReviewResponse.policyVersion ?? 'default'}`}
           label="Google review response"

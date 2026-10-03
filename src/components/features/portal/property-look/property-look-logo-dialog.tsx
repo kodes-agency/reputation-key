@@ -14,6 +14,7 @@ import { ImageRightsField } from '../portal-media/image-rights-field'
 import { UploadDialogFooter } from '../portal-media/upload-dialog-footer'
 import { UploadDialogShell } from '../portal-media/upload-dialog-shell'
 import { useLogoDialog, type LogoDialogInput } from './use-logo-dialog'
+import { FormErrorBanner } from '#/components/forms/form-error-banner'
 
 type Props = Readonly<
   Omit<LogoDialogInput, 'onBusyChange' | 'onClose'> & {
@@ -111,10 +112,8 @@ function LogoDialogBody({
             onCheckedChange={dialog.setIsConfirmed}
           />
         ) : null}
-        <p role="alert" className="min-h-5 text-sm text-negative">
-          {dialog.message}
-        </p>
       </div>
+      <FormErrorBanner error={dialog.message} />
       <UploadDialogFooter
         primaryLabel={dialog.isBusy ? 'Uploading…' : 'Use logo'}
         canSubmit={dialog.canSubmit}

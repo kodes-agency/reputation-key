@@ -96,18 +96,15 @@ export function NotificationFormattingForm({ settings, updateUserSettings }: Pro
     validators: { onSubmit: formattingDto },
     onSubmit: async ({ value }) => {
       const data = formattingDto.parse(value)
-      try {
-        await updateUserSettings({ data })
-        toast.success('Timezone and date format saved')
-      } catch {
-        toast.error("Couldn't save your timezone and date format. Try again.")
-      }
+      // A refusal is the banner above the button (the action holds it); only
+      // the success is a toast.
+      await updateUserSettings({ data })
+      toast.success('Timezone and date format saved')
     },
   })
 
   return (
     <form className="grid min-w-0 gap-4 sm:grid-cols-2" onSubmit={submitHandler(form)}>
-      <FormErrorBanner error={updateUserSettings.error} />
       <form.Field name="timezone">
         {(field) => (
           <Field className="min-w-0">
@@ -161,6 +158,11 @@ export function NotificationFormattingForm({ settings, updateUserSettings }: Pro
           </Field>
         )}
       </form.Field>
+      {updateUserSettings.error ? (
+        <div className="sm:col-span-2">
+          <FormErrorBanner error={updateUserSettings.error} />
+        </div>
+      ) : null}
       <form.Subscribe selector={(state) => state.values}>
         {(values) => (
           <SubmitButton

@@ -49,7 +49,7 @@ export const Submitting: Story = {
   },
 }
 
-// Server-rejected sign-in — top-level banner surfaces the message.
+// Server-rejected sign-in — the banner above the button surfaces the message.
 export const MutationError: Story = {
   args: {
     mutation: makeAction(

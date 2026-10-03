@@ -44,7 +44,6 @@ export function SecuritySettingsForm({ changePassword }: Props) {
   return (
     <div className="space-y-6">
       <form method="post" onSubmit={submitHandler(form)} className="space-y-6">
-        <FormErrorBanner error={changePassword.error} />
         <Card>
           <CardHeader>
             <CardTitle>Change password</CardTitle>
@@ -52,7 +51,7 @@ export function SecuritySettingsForm({ changePassword }: Props) {
               Update your password to keep your account secure.
             </CardDescription>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-6">
             <FieldGroup>
               <form.Field name="currentPassword">
                 {(field: BaseFieldApi) => (
@@ -88,6 +87,7 @@ export function SecuritySettingsForm({ changePassword }: Props) {
                 )}
               </form.Field>
             </FieldGroup>
+            <FormErrorBanner error={changePassword.error} />
           </CardContent>
           <div className="px-6 pb-2 flex gap-2">
             <Button type="button" variant="outline" asChild>

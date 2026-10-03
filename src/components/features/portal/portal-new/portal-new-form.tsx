@@ -44,7 +44,6 @@ export function PortalNewForm({
 
   return (
     <form onSubmit={submitHandler(form)} className="flex flex-col gap-5" noValidate>
-      <FormErrorBanner error={mutation.error} />
       <form.Field name="name">
         {(field) => <PortalNewNameField field={field} disabled={pending} />}
       </form.Field>
@@ -100,6 +99,7 @@ export function PortalNewForm({
           />
         )}
       </form.Field>
+      <FormErrorBanner error={mutation.error} />
       <div className="flex flex-col-reverse items-start gap-3 border-t pt-4 sm:flex-row sm:items-center sm:justify-between">
         <p className="flex items-center gap-2 text-sm text-muted-foreground">
           <EyeOff aria-hidden="true" className="size-4 shrink-0" />

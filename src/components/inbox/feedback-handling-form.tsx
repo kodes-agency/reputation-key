@@ -59,7 +59,6 @@ export function FeedbackHandlingForm(props: Props) {
         void submitForm(form)
       }}
     >
-      <FormErrorBanner error={props.mutation.error} />
       <form.Field name="outcome">
         {(field) => (
           <Field data-invalid={!field.state.meta.isValid}>
@@ -128,6 +127,7 @@ export function FeedbackHandlingForm(props: Props) {
           </Field>
         )}
       </form.Field>
+      <FormErrorBanner error={props.mutation.error} />
       <DialogFooter>
         <Button
           type="button"

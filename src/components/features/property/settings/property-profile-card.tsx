@@ -75,7 +75,6 @@ export function PropertyProfileCard({ property, canEdit, updateProperty }: Props
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-4">
-          <FormErrorBanner error={updateProperty.error} />
           <FieldGroup>
             <form.Field name="name">
               {(field: BaseFieldApi) => (
@@ -146,6 +145,7 @@ export function PropertyProfileCard({ property, canEdit, updateProperty }: Props
               Ask an account admin or a manager of this property to change these details.
             </p>
           ) : null}
+          <FormErrorBanner error={updateProperty.error} />
         </CardContent>
         {canEdit ? (
           <CardFooter className="justify-end border-t">

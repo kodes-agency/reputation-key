@@ -116,7 +116,6 @@ export function GoalProgramAssignmentsDialog(props: Props) {
       <form.Field name="reason">
         {(field) => <GoalChangeReasonField field={field} id="assignment-change-reason" />}
       </form.Field>
-      <FormErrorBanner error={mutation.error} />
       {mutation.data ? (
         <GoalAssignmentOutcomes
           outcomes={mutation.data.outcomes}
@@ -132,6 +131,7 @@ export function GoalProgramAssignmentsDialog(props: Props) {
           }
         />
       ) : null}
+      <FormErrorBanner error={mutation.error} />
       <DialogFooter>
         <SubmitButton mutation={mutation} form={form} disabled={!hasRequestedChange}>
           Review and schedule

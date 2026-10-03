@@ -98,10 +98,9 @@ export function RegisterForm({ mode, mutation, invitationId }: Props) {
       }}
       className="space-y-4"
     >
-      <FormErrorBanner error={mutation.error} />
-
       <RegisterFormFields form={form} mode={mode} />
 
+      <FormErrorBanner error={mutation.error} />
       <SubmitButton mutation={mutation} form={form} className="w-full">
         {isJoinMode ? 'Create account' : 'Create account & organization'}
       </SubmitButton>
