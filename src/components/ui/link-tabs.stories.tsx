@@ -8,7 +8,7 @@
 // A `LinkTab` is a router link, so a click would navigate the story's memory router
 // to a route it has no page for: the stories keep the view in state and stop the
 // navigation in the click handler, as a real page's view comes from its route.
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { tailwindIsCompiled } from '../../../.storybook/tailwind-compiled'
@@ -163,8 +163,7 @@ export const PhoneStrip: Story = {
 
 /**
  * A deep link to the last tab opens with that tab in view, not off the edge, and
- * the side that continues is faded. Scrolling back to the start is the person's
- * own move: the row follows the fade, and does not pull itself back to the tab.
+ * the side that continues is faded.
  */
 export const StripOpensOnTheLastTab: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
@@ -180,10 +179,25 @@ export const StripOpensOnTheLastTab: Story = {
       )
     })
     await waitFor(() => expect(nav.style.maskImage).not.toBe(''))
+  },
+}
 
-    const fadedAtTheStart = nav.style.maskImage
+/**
+ * Scrolling the row back to the start is the person's own move: the fade follows
+ * the edge (the row re-renders), and the row does not pull itself back to the
+ * current tab.
+ */
+export const StripStaysWhereItWasScrolled: Story = {
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+  render: () => <PortalStrip current="History" />,
+  play: async ({ canvasElement }) => {
+    const nav = portalStrip(canvasElement)
+    await waitFor(() => expect(nav.scrollLeft).toBeGreaterThan(0))
+    await waitFor(() => expect(nav.style.maskImage).not.toBe(''))
+
+    const fadedAtTheEnd = nav.style.maskImage
     nav.scrollLeft = 0
-    await waitFor(() => expect(nav.style.maskImage).not.toBe(fadedAtTheStart))
+    await waitFor(() => expect(nav.style.maskImage).not.toBe(fadedAtTheEnd))
     expect(nav.scrollLeft).toBe(0)
   },
 }
@@ -191,6 +205,61 @@ export const StripOpensOnTheLastTab: Story = {
 export const StripOpensOnTheLastTabLight: Story = {
   ...StripOpensOnTheLastTab,
   parameters: { viewport: { defaultViewport: 'mobileNarrow' }, theme: 'light' },
+}
+
+const GROWN_LABEL = 'History and audit trail'
+
+/**
+ * A row whose last tab widens after the first paint, as a web font arriving or a
+ * count appearing does: it fits when it mounts and overflows a moment later.
+ */
+function GrowingStrip() {
+  const [grown, setGrown] = useState(false)
+  useEffect(() => {
+    const timer = setTimeout(() => setGrown(true), 50)
+    return () => clearTimeout(timer)
+  }, [])
+  const tabs = [
+    { id: 'page', label: 'Page' },
+    { id: 'share', label: 'Share' },
+    { id: 'results', label: 'Results' },
+    { id: 'history', label: grown ? GROWN_LABEL : 'History' },
+  ]
+  return (
+    <div style={{ width: 340 }}>
+      <LinkTabs aria-label="Portal sections">
+        {tabs.map((tab) => (
+          <LinkTab
+            key={tab.id}
+            to="/portals"
+            current={tab.id === 'history'}
+            onClick={(event) => event.preventDefault()}
+          >
+            {tab.label}
+          </LinkTab>
+        ))}
+      </LinkTabs>
+    </div>
+  )
+}
+
+/**
+ * The current tab is brought into view when the row only comes to overflow after
+ * it mounted (the first reveal found nothing to scroll), as long as the person has
+ * not scrolled the row meanwhile.
+ */
+export const StripRevealsAfterTheRowGrows: Story = {
+  render: () => <GrowingStrip />,
+  play: async ({ canvasElement }) => {
+    const nav = portalStrip(canvasElement)
+    const current = await within(nav).findByRole('link', { name: GROWN_LABEL })
+    await waitFor(() => expect(nav.scrollLeft).toBeGreaterThan(0))
+    await waitFor(() => {
+      expect(current.getBoundingClientRect().right).toBeLessThanOrEqual(
+        nav.getBoundingClientRect().right,
+      )
+    })
+  },
 }
 
 /** When every tab fits there is nothing out of reach, so no fade is drawn. */

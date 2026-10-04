@@ -21,12 +21,13 @@
 // Like every strip, the row keeps one line, scrolls sideways when the tabs do not
 // fit, hides its scrollbar, fades the side that continues and scrolls the current
 // tab into view (a deep link to the last tab opens on it).
-import { useLayoutEffect, useRef, type ComponentProps, type RefObject } from 'react'
+import { useRef, type ComponentProps } from 'react'
 
 import { cn } from '#/lib/utils'
 import { NavLink } from './nav-link'
-import { revealCurrentItem, stripFadeStyle } from './strip-scroll'
+import { stripFadeStyle } from './strip-scroll'
 import { LINE_TAB_CLASS, LINE_TABS_LIST_CLASS } from './tabs-line-styles'
+import { useRevealCurrentItem } from './use-reveal-current-item'
 import { useStripOverflow } from './use-strip-overflow'
 
 type LinkTabsProps = Omit<ComponentProps<'nav'>, 'aria-label' | 'aria-labelledby'> &
@@ -36,22 +37,6 @@ type LinkTabsProps = Omit<ComponentProps<'nav'>, 'aria-label' | 'aria-labelledby
   )
 
 /**
- * Bring the current tab into the row when the current tab changes, and not when
- * the row re-renders for another reason: the person scrolling the row to an edge
- * re-renders it (the fade follows the edge), and that must not pull it back.
- */
-function useRevealCurrentTab(ref: RefObject<HTMLElement | null>) {
-  const revealed = useRef<Element | null>(null)
-  useLayoutEffect(() => {
-    const strip = ref.current
-    const current = strip?.querySelector('[aria-current="page"]') ?? null
-    if (!strip || current === revealed.current) return
-    revealed.current = current
-    revealCurrentItem(strip)
-  })
-}
-
-/**
  * The landmark and its list. Named, because a page can hold more than one
  * navigation. The list scrolls sideways rather than wrapping, so a narrow phone
  * keeps one row; a full-bleed band passes its gutter in `className`.
@@ -59,7 +44,7 @@ function useRevealCurrentTab(ref: RefObject<HTMLElement | null>) {
 function LinkTabs({ className, style, children, ...props }: LinkTabsProps) {
   const scrollerRef = useRef<HTMLElement>(null)
   const edges = useStripOverflow(scrollerRef)
-  useRevealCurrentTab(scrollerRef)
+  useRevealCurrentItem(scrollerRef)
   return (
     <nav
       ref={scrollerRef}
