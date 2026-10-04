@@ -15,7 +15,7 @@
 import { readFileSync } from 'node:fs'
 import { join, relative } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { walk } from '#/shared/testing/source-tree'
+import { stripComments, walk } from '#/shared/testing/source-tree'
 
 const ROOT = join(import.meta.dirname, '..', '..', '..')
 const SOURCES = ['src/components', 'src/routes'] as const
@@ -29,11 +29,6 @@ const FILES = SOURCES.flatMap((source) => walk(join(ROOT, source)))
       !path.includes('.stories.'),
   )
   .map((path) => ({ path, text: readFileSync(join(ROOT, path), 'utf8') }))
-
-/** The source without its comments, which are free to quote the old spellings. */
-function code(text: string): string {
-  return text.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/(^|\s)\/\/.*$/gmu, '$1')
-}
 
 /** A `<TabsList` opening tag, with its props, up to the `>` that closes it. */
 function tabsListTags(text: string): string[] {
@@ -50,6 +45,23 @@ function tabsListTags(text: string): string[] {
     tags.push(text.slice(match.index, end + 1))
   }
   return tags
+}
+
+/** Each `navigate(...)` call, whole, found by balancing its parentheses. */
+function navigateCalls(text: string): string[] {
+  const calls: string[] = []
+  for (const match of text.matchAll(/\bnavigate\(/gu)) {
+    let depth = 0
+    for (let index = match.index + match[0].length - 1; index < text.length; index += 1) {
+      if (text[index] === '(') depth += 1
+      else if (text[index] === ')') depth -= 1
+      if (depth === 0) {
+        calls.push(text.slice(match.index, index + 1))
+        break
+      }
+    }
+  }
+  return calls
 }
 
 /**
@@ -69,7 +81,9 @@ describe('page-level view switchers', () => {
       (file) =>
         file.path !== 'src/components/ui/tabs.tsx' &&
         !(file.path in IN_COMPONENT_MODES) &&
-        tabsListTags(code(file.text)).some((tag) => !/variant="line"/u.test(tag)),
+        tabsListTags(stripComments(file.text)).some(
+          (tag) => !/variant="line"/u.test(tag),
+        ),
     ).map((file) => file.path)
 
     expect(offenders).toEqual([])
@@ -81,7 +95,9 @@ describe('page-level view switchers', () => {
         !FILES.some(
           (file) =>
             file.path === path &&
-            tabsListTags(code(file.text)).some((tag) => !/variant="line"/u.test(tag)),
+            tabsListTags(stripComments(file.text)).some(
+              (tag) => !/variant="line"/u.test(tag),
+            ),
         ),
     )
 
@@ -92,7 +108,7 @@ describe('page-level view switchers', () => {
     const offenders = FILES.filter(
       (file) =>
         file.path !== 'src/components/ui/tabs-line-styles.ts' &&
-        /after:h-0\.5/u.test(code(file.text)),
+        /after:h-0\.5/u.test(stripComments(file.text)),
     ).map((file) => file.path)
 
     expect(offenders).toEqual([])
@@ -101,7 +117,7 @@ describe('page-level view switchers', () => {
   it('never switch views with Buttons: a view link is a LinkTab, not a toggled Button', () => {
     const offenders = FILES.filter((file) =>
       /variant=\{[^}]*(?:view|tab)\s*===[^}]*\?\s*'default'\s*:\s*'outline'\}/u.test(
-        code(file.text),
+        stripComments(file.text),
       ),
     ).map((file) => file.path)
 
@@ -114,7 +130,7 @@ describe('the range control', () => {
     const offenders = FILES.filter(
       (file) =>
         file.path !== 'src/components/ui/range-control.tsx' &&
-        /['"`]Time range['"`]/u.test(code(file.text)),
+        /['"`]Time range['"`]/u.test(stripComments(file.text)),
     ).map((file) => file.path)
 
     expect(offenders).toEqual([])
@@ -122,7 +138,19 @@ describe('the range control', () => {
 
   it('words every window from the one table: "30 days", never "Last 30 days"', () => {
     const offenders = FILES.filter((file) =>
-      /label:\s*['"`]Last \d+ days['"`]/u.test(code(file.text)),
+      /label:\s*['"`]Last \d+ days['"`]/u.test(stripComments(file.text)),
+    ).map((file) => file.path)
+
+    expect(offenders).toEqual([])
+  })
+
+  it('is a window on the page: a route changes it by replacing the history entry', () => {
+    // A radio group chooses as focus moves, so arrowing through the segments
+    // changes the range once per step; a pushed entry per step would fill Back.
+    const offenders = FILES.filter((file) =>
+      navigateCalls(stripComments(file.text)).some(
+        (call) => /\brange:/u.test(call) && !/\breplace:\s*true\b/u.test(call),
+      ),
     ).map((file) => file.path)
 
     expect(offenders).toEqual([])
@@ -130,7 +158,7 @@ describe('the range control', () => {
 
   it('is not drawn as pressed Buttons', () => {
     const offenders = FILES.filter((file) =>
-      /aria-pressed=\{(?:range|timeRange)\s*===/u.test(code(file.text)),
+      /aria-pressed=\{(?:range|timeRange)\s*===/u.test(stripComments(file.text)),
     ).map((file) => file.path)
 
     expect(offenders).toEqual([])
