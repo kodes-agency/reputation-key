@@ -65,7 +65,13 @@ export function GoogleImportCandidateResults({
         description="Clear the search or load another page."
         action={
           onClearSearch ? (
-            <ClearFiltersButton variant="outline" searching onClear={onClearSearch} />
+            // The loaded list has a search and no filters: it says what it takes away.
+            <ClearFiltersButton
+              variant="outline"
+              searching
+              filters={false}
+              onClear={onClearSearch}
+            />
           ) : undefined
         }
       />

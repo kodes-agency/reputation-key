@@ -157,7 +157,8 @@ export const SearchFindsNothing: Story = {
     const panel = within(
       canvasElement.querySelector<HTMLElement>('[data-slot="empty-state"]')!,
     )
-    await userEvent.click(panel.getByRole('button', { name: 'Clear search and filters' }))
+    // No filters here, so it does not promise to clear any.
+    await userEvent.click(panel.getByRole('button', { name: 'Clear search' }))
     await expect(box).toHaveValue('')
     await expect(canvas.getAllByText('Juniper Street Café')[0]).toBeVisible()
   },

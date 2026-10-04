@@ -275,7 +275,8 @@ export const NothingMatches: Story = {
     const panel = within(
       canvasElement.querySelector<HTMLElement>('[data-slot="empty-state"]')!,
     )
-    await userEvent.click(panel.getByRole('button', { name: 'Clear search and filters' }))
+    // All properties has a search and no filter, so Clear names only the search.
+    await userEvent.click(panel.getByRole('button', { name: 'Clear search' }))
     await expect(canvas.getByRole('link', { name: 'Reception' })).toBeInTheDocument()
   },
 }

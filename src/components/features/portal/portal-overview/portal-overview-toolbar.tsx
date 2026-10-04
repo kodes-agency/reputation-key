@@ -136,6 +136,8 @@ export function PortalOverviewToolbar({
       {narrowed ? (
         <ClearFiltersButton
           searching={searching}
+          // All properties has a search and nothing to filter: its Clear is "Clear search".
+          filters={scope === 'property'}
           onClear={() => onChange({ q: undefined, show: undefined })}
         />
       ) : null}

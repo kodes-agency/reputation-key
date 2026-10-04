@@ -154,7 +154,9 @@ and actions supply server state.
   which folds case and accents, never its own `includes`. The count is "N of M" while
   the list is narrowed. Clear takes away the search and the filters and never the
   sort, and reads "Clear filters" or, while a search is in force, "Clear search and
-  filters"; an empty result offers the same control (`variant="outline"`), and a list
+  filters"; a list with a search and no filter (All properties, Google import) passes
+  `filters={false}` and it reads "Clear search", so it never promises a reset that does
+  not exist. An empty result offers the same control (`variant="outline"`), and a list
   with no match for a search or a filter always does. A removed choice is a
   `RemovableChip` (one 32px button named "Remove ..."), never a Badge with a button in
   it. `SortDirection` lives in `ui/list-sort.ts` and the direction labels are the

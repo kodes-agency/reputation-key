@@ -43,7 +43,13 @@ const DIRECTION_LABELS = {
 function Harness({
   initialQuery = '',
   initialShow = null,
-}: Readonly<{ initialQuery?: string; initialShow?: Show | null }>) {
+  filters = true,
+}: Readonly<{
+  initialQuery?: string
+  initialShow?: Show | null
+  /** The list has a filter menu. A list with only a search (All properties) has none. */
+  filters?: boolean
+}>) {
   const [query, setQuery] = useState(initialQuery)
   const [show, setShow] = useState<Show | null>(initialShow)
   const [sort, setSort] = useState<Sort>('name')
@@ -68,13 +74,15 @@ function Harness({
           value={query}
           onValueChange={setQuery}
         />
-        <ListFilterMenu<Show>
-          label="Show"
-          value={show}
-          allLabel="All properties"
-          options={SHOW_OPTIONS}
-          onChange={setShow}
-        />
+        {filters ? (
+          <ListFilterMenu<Show>
+            label="Show"
+            value={show}
+            allLabel="All properties"
+            options={SHOW_OPTIONS}
+            onChange={setShow}
+          />
+        ) : null}
         <ListSortMenu<Sort>
           sort={sort}
           dir={dir}
@@ -91,6 +99,7 @@ function Harness({
         {narrowed ? (
           <ClearFiltersButton
             searching={searching}
+            filters={filters}
             onClear={() => {
               setQuery('')
               setShow(null)
@@ -149,6 +158,27 @@ export const Searching: Story = {
     expect(canvas.getByText('1 of 4')).toBeVisible()
     expect(names(canvas)).toEqual(['Rila Grand Hotel'])
     expect(canvas.getByRole('button', { name: 'Clear search and filters' })).toBeVisible()
+  },
+}
+
+/** A list with a search and no filter does not promise to clear one: Clear reads "Clear search". */
+export const SearchOnly: Story = {
+  args: { filters: false },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.queryByRole('button', { name: /^Show:/ })).toBeNull()
+    await userEvent.type(
+      canvas.getByRole('searchbox', { name: 'Search properties' }),
+      'rila',
+    )
+    expect(canvas.getByText('1 of 4')).toBeVisible()
+    expect(canvas.queryByRole('button', { name: /filters/i })).toBeNull()
+    // The toolbar's Clear is the last of the controls named so, after the field's own X.
+    const clear = canvas.getAllByRole('button', { name: 'Clear search' }).at(-1)
+    if (clear === undefined) throw new Error('expected a Clear search button')
+    await userEvent.click(clear)
+    expect(names(canvas)).toHaveLength(4)
+    expect(canvas.queryByRole('button', { name: /^Clear/ })).toBeNull()
   },
 }
 

@@ -11,6 +11,11 @@ describe('clearFiltersLabel', () => {
   it('names the search too while one is active, because Clear takes it away', () => {
     expect(clearFiltersLabel(true)).toBe('Clear search and filters')
   })
+
+  it('is "Clear search" for a list that has no filter to clear', () => {
+    expect(clearFiltersLabel(true, false)).toBe('Clear search')
+    expect(clearFiltersLabel(false, false)).toBe('Clear search')
+  })
 })
 
 describe('ClearFiltersButton', () => {
@@ -29,6 +34,13 @@ describe('ClearFiltersButton', () => {
     expect(render({ searching: true, onClear: () => undefined })).toContain(
       '>Clear search and filters<',
     )
+  })
+
+  it('says only "Clear search" on a list with a search and no filters', () => {
+    const html = render({ searching: true, filters: false, onClear: () => undefined })
+
+    expect(html).toContain('>Clear search<')
+    expect(html).not.toContain('filters')
   })
 
   it('is the outline button of an empty result', () => {

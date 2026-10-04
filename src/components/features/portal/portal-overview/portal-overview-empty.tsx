@@ -18,14 +18,25 @@ export function PortalOverviewEmpty({ action }: Readonly<{ action: ReactNode }>)
 
 export function PortalOverviewNoMatch({
   searching,
+  filters = true,
   onClear,
-}: Readonly<{ searching: boolean; onClear: () => void }>) {
+}: Readonly<{
+  searching: boolean
+  /** The list offers filters. `false` on All properties, which has only a search. */
+  filters?: boolean
+  onClear: () => void
+}>) {
   return (
     <EmptyState
       icon={SearchX}
       title="No portals match"
       action={
-        <ClearFiltersButton variant="outline" searching={searching} onClear={onClear} />
+        <ClearFiltersButton
+          variant="outline"
+          searching={searching}
+          filters={filters}
+          onClear={onClear}
+        />
       }
     />
   )
