@@ -506,7 +506,7 @@ export const MobileDrawerClosesOnNavigation: Story = {
         <Story />
       </>
     ),
-    withRoleAt('PropertyManager', `/?propertyId=${properties[0].id}`),
+    withRoleAt('PropertyManager', `/?propertyId=${acmeHotelId}`),
   ],
   parameters: { viewport: { defaultViewport: 'mobileStaff' } },
   play: async ({ canvasElement }) => {
