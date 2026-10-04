@@ -50,9 +50,10 @@ function Harness({
   const [dir, setDir] = useState<SortDirection>('asc')
   const matches = searchMatcher(query)
   const sign = dir === 'asc' ? 1 : -1
+  // `filter` makes the copy that `sort` then orders in place.
   const ordered = ROWS.filter(
     (row) => matches(row.name) && (show === null || row.show === show),
-  ).toSorted(
+  ).sort(
     (a, b) =>
       sign * (sort === 'name' ? a.name.localeCompare(b.name) : a.rating - b.rating),
   )
