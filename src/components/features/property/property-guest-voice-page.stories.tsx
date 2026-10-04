@@ -314,8 +314,8 @@ export const ReadyWithComparison: Story = {
       ),
     ).toBeVisible()
 
-    const range = canvas.getByRole('group', { name: 'Time range' })
-    await userEvent.click(within(range).getByRole('button', { name: '30 days' }))
+    const range = canvas.getByRole('radiogroup', { name: 'Time range' })
+    await userEvent.click(within(range).getByRole('radio', { name: '30 days' }))
     expect(args.onRangeChange).toHaveBeenCalledWith('30d')
   },
 }
@@ -327,10 +327,7 @@ export const ReadyAllTime: Story = {
   },
   play: async ({ canvas }) => {
     expect(await canvas.findByText('Based on 120 reviews · 96 analysed')).toBeVisible()
-    expect(canvas.getByRole('button', { name: 'All time' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    expect(canvas.getByRole('radio', { name: 'All time' })).toBeChecked()
     expect(
       within(canvas.getByRole('table', { name: 'Topics' })).queryByRole('columnheader', {
         name: 'Change',

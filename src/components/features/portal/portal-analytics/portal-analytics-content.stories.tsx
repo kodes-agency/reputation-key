@@ -97,9 +97,10 @@ export const ComparisonOff: Story = {
 
 export const ChangesTheRange: Story = {
   play: async ({ canvas, args }) => {
-    await userEvent.click(canvas.getByRole('combobox', { name: 'Time range' }))
     await userEvent.click(
-      await within(document.body).findByRole('option', { name: 'Last 7 days' }),
+      within(canvas.getByRole('radiogroup', { name: 'Time range' })).getByRole('radio', {
+        name: '7 days',
+      }),
     )
     await expect(args.onTimeRangeChange).toHaveBeenCalledWith('7d')
   },

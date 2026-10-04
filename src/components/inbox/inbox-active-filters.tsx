@@ -2,10 +2,10 @@ import { useEffect, useRef, type RefObject } from 'react'
 import { X } from 'lucide-react'
 import type { InboxSort } from '#/contexts/inbox/application/public-api'
 import { Button } from '#/components/ui/button'
+import { stripFadeStyle } from '#/components/ui/strip-scroll'
+import { useStripOverflow } from '#/components/ui/use-strip-overflow'
 import { activeInboxFilterChips, type InboxFilterChip } from './inbox-filter-options'
 import type { InboxListFilterValues } from './inbox-filters'
-import { stripFadeStyle } from './inbox-queue-strip-scroll'
-import { useStripOverflow } from './use-strip-overflow'
 
 type Props = Readonly<{
   filters: InboxListFilterValues

@@ -1,6 +1,6 @@
 import type { CSSProperties } from 'react'
 
-/** Width of the fade that hints at pills beyond an edge of the strip. */
+/** Width of the fade that hints at items beyond an edge of the strip. */
 export const STRIP_FADE_PX = 24
 
 /** The strip's own `border-b`, which the fade must not thin out. */
@@ -92,4 +92,33 @@ export function stripFadeStyle({
     WebkitMaskPosition: position,
     WebkitMaskRepeat: 'no-repeat',
   }
+}
+
+/**
+ * Scroll the strip so its current item (the `aria-current="page"` one) sits on
+ * the start edge. Sets scrollLeft on the strip itself: scrollIntoView could also
+ * scroll the page around it.
+ *
+ * The breathing room is the strip's scroll padding, never less than the edge
+ * fade's width, so the revealed item clears the 24px fade instead of sitting
+ * half under it. A strip that snaps keeps `scroll-px-6`, the same width, so this
+ * position is one the snap keeps rather than pulls to the nearest item. Measured
+ * from bounding boxes, so it holds whichever ancestor is the item's offset parent.
+ */
+export function revealCurrentItem(strip: HTMLElement) {
+  const item = strip.querySelector<HTMLElement>('[aria-current="page"]')
+  if (!item) return
+  const stripRect = strip.getBoundingClientRect()
+  const itemRect = item.getBoundingClientRect()
+  const next = stripScrollLeftFor({
+    pillLeft: itemRect.left - stripRect.left - strip.clientLeft + strip.scrollLeft,
+    pillWidth: itemRect.width,
+    scrollLeft: strip.scrollLeft,
+    clientWidth: strip.clientWidth,
+    padding: Math.max(
+      Number.parseFloat(getComputedStyle(strip).scrollPaddingLeft) || 0,
+      STRIP_FADE_PX,
+    ),
+  })
+  if (next !== null) strip.scrollLeft = next
 }

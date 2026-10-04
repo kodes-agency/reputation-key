@@ -5,7 +5,7 @@ import { DirectoryTab } from '#/components/features/property/people/directory-ta
 import { StaffTab } from '#/components/features/property/people/staff-tab'
 import { PageHeader } from '#/components/layout/page-header'
 import { PageShell } from '#/components/layout/page-shell'
-import { Tabs, TabsList, TabsTrigger } from '#/components/ui/tabs'
+import { LinkTab, LinkTabs } from '#/components/ui/link-tabs'
 import type { PortalOption } from '#/components/features/staff/portal-selector'
 import type {
   ArchiveStaffParticipationMutationInput,
@@ -23,6 +23,13 @@ type DirectoryMember = Readonly<{
   rawRole: string
 }>
 
+type PeopleView = 'staff' | 'directory'
+
+const PEOPLE_VIEWS: ReadonlyArray<Readonly<{ value: PeopleView; label: string }>> = [
+  { value: 'staff', label: 'Staff' },
+  { value: 'directory', label: 'Directory' },
+]
+
 interface PeoplePageProps {
   propertyId: string
   propertyName: string
@@ -32,8 +39,8 @@ interface PeoplePageProps {
   portals: ReadonlyArray<PortalOption>
   portalsDenied: boolean
   canManageStaff?: boolean
+  /** The view the URL names (`?tab=`); Staff when it names none. */
   tab: string | undefined
-  onTabChange: (tab: string) => void
   createParticipationMutation: Action<{
     data: CreateStaffParticipationMutationInput
   }>
@@ -55,12 +62,11 @@ export function PeoplePage({
   portalsDenied,
   canManageStaff = true,
   tab,
-  onTabChange,
   createParticipationMutation,
   archiveParticipationMutation,
   updateResponsibilitiesMutation,
 }: PeoplePageProps) {
-  const activeTab = tab ?? 'staff'
+  const activeView: PeopleView = tab === 'directory' ? 'directory' : 'staff'
   const [createParticipationOpen, setCreateParticipationOpen] = useState(false)
   return (
     <PageShell tier="dashboard">
@@ -74,27 +80,39 @@ export function PeoplePage({
         ]}
       />
 
-      <Tabs value={activeTab} onValueChange={onTabChange}>
-        <TabsList className="max-w-full overflow-x-auto">
-          <TabsTrigger value="staff">Staff</TabsTrigger>
-          <TabsTrigger value="directory">Directory</TabsTrigger>
-        </TabsList>
+      <div className="flex flex-col gap-4">
+        <LinkTabs aria-label="People views">
+          {PEOPLE_VIEWS.map((view) => (
+            <LinkTab
+              key={view.value}
+              to="/properties/$propertyId/people"
+              params={{ propertyId }}
+              search={{ tab: view.value }}
+              current={view.value === activeView}
+            >
+              {view.label}
+            </LinkTab>
+          ))}
+        </LinkTabs>
 
-        <StaffTab
-          propertyId={propertyId}
-          participations={participations}
-          responsibilities={responsibilities}
-          portalOptions={portals}
-          portalsDenied={portalsDenied}
-          canManageStaff={canManageStaff}
-          createMutation={createParticipationMutation}
-          archiveMutation={archiveParticipationMutation}
-          createOpen={createParticipationOpen}
-          onCreateOpenChange={setCreateParticipationOpen}
-          updateResponsibilitiesMutation={updateResponsibilitiesMutation}
-        />
-        <DirectoryTab members={members} />
-      </Tabs>
+        {activeView === 'staff' ? (
+          <StaffTab
+            propertyId={propertyId}
+            participations={participations}
+            responsibilities={responsibilities}
+            portalOptions={portals}
+            portalsDenied={portalsDenied}
+            canManageStaff={canManageStaff}
+            createMutation={createParticipationMutation}
+            archiveMutation={archiveParticipationMutation}
+            createOpen={createParticipationOpen}
+            onCreateOpenChange={setCreateParticipationOpen}
+            updateResponsibilitiesMutation={updateResponsibilitiesMutation}
+          />
+        ) : (
+          <DirectoryTab members={members} />
+        )}
+      </div>
     </PageShell>
   )
 }

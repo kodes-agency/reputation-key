@@ -89,6 +89,59 @@ and actions supply server state.
   box. `tone-sources.test.ts` fails on all three, and `token-contrast.test.ts`
   holds every tone's ink on its own tint to 4.5:1 in both themes. The guest
   renderer keeps its own colours.
+  A navigation link is a `NavLink`, never a router `Link` carrying its own
+  `aria-current`: the router marks a link current whenever the location is at or
+  below its path, after every prop, so a nav that draws its own active row from a
+  different test announced several current pages. `NavLink` drops the router's
+  current marks and sets `aria-current` once, from the `current` the nav passes; the
+  sidebars, every section nav and every `LinkTab` use it, and a row is styled from
+  `aria-[current=page]`, so what is drawn and what is announced are one answer. The
+  sections of one place (Property settings, the Portal editor's page parts) are a
+  `SectionNav`: items with an optional icon, summary, count and group, drawn as a
+  strip (one scrolling row that fades the side that continues, keeps the open item in
+  view and hides its scrollbar) or a list, or `auto`, a strip until the space the nav
+  shares with its content is wide enough. That is a container width, not a viewport
+  breakpoint, so an open sidebar or a preview pane counts: put the nav and its
+  content in a `SectionNavLayout` (`frame="rail"` for a full-bleed workspace,
+  `"inline"` for a page's own content), which declares the container the nav waits
+  for. The current row wears the sidebar's accent-muted fill, hover and keyboard
+  focus are shared (`focus-ring`), and rows take the touch token; no nav draws its
+  own active fill or its own ring. A group that must stay apart (Danger zone) is a
+  group of its own, never an offset that depends on which section is open. The Inbox
+  queue rail and strip keep their own composition (buttons that change a filter, a
+  bar of pills) but wear the same fill (from `aria-current`), the same ring and
+  `NavCount`, the shared trailing figure. The sidebar drawer on a phone closes when a
+  link in it is chosen and its rows are the touch height.
+  A page's sibling views are underline tabs, drawn from one recipe
+  (`tabs-line-styles.ts`): `LinkTabs` / `LinkTab` when each view is a route or a
+  search value of one (People, Properties, Goals, the Portal workspace and the
+  Notifications filters), and `Tabs variant="line"` when the views swap a panel in
+  the same document (no page does today). `LinkTabs` is a navigation landmark of
+  links, not a tablist, and a `LinkTab` is a `NavLink` in a list item: it takes the
+  router link's own `to`, `params` and `search` and the one `current` the page gives
+  it, so no tab needs `activeOptions`, and what is drawn and what is announced are
+  one answer. The row is a strip like every scroll row (one line, scrollbar hidden,
+  the side that continues fades, the current tab scrolled into view). A tab is 36px
+  from `md` and the touch token below it. Its focus outline is inset, on purpose: a
+  row that scrolls sideways clips an outer ring where a tab sits flush against the
+  baseline, while the section navs' rows have room around them for `focus-ring`.
+  The pill `Tabs` is for a mode inside a component (the composer's Reply / Note, a
+  dialog's choice) and nothing else; `TabCount` is the one count beside a label. A
+  short, always-answered value choice is `SegmentedControl` (a radio group; `touch`
+  makes its segments a tap target below `md`), and a time range is `RangeControl`:
+  segments from `sm`, a Select below, one name ("Time range"), the page's own preset
+  list worded from the one table (`RANGE_PRESET_LABELS`: "30 days" everywhere, never
+  "Last 30 days"). A range is a window on its page, so a route changes it by
+  replacing the history entry (a radio group chooses as focus moves). A dashboard
+  topic page keeps the range in `?range=` (`dashboardRangeSearch`); the Portal
+  Results window is a reader-wide preference that follows the reader from portal to
+  portal and to the overview, so it is remembered per reader. That is two mechanisms
+  for one vocabulary, and unifying them (the URL as the source of truth on the Portal
+  side, with the stored preference as its default) is an open owner decision, not
+  settled here. `view-switcher-sources.test.ts` fails on a pill on a page, a
+  hand-drawn underline, a toggled-Button view switch, a second range picker and a
+  range change that pushes history; `nav-link-sources.test.ts` fails on a router
+  `Link` that writes its own `aria-current` and on a `Link` inside a `LinkTab`.
 - `forms/` contains shared TanStack Form fields, submission, and error UI. A
   failure has one reporter. A form submit reports through `FormErrorBanner`,
   placed directly above that form's actions (the bottom of a card's body, above

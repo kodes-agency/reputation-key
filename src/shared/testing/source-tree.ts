@@ -25,3 +25,12 @@ export function walk(dir: string, out: string[] = []): string[] {
   }
   return out
 }
+
+/**
+ * The source without its comments: block comments, and `//` comments that start a
+ * line or follow whitespace (so the `//` of a URL in a string survives). For a
+ * guard that must not trip over a comment quoting the very spelling it forbids.
+ */
+export function stripComments(text: string): string {
+  return text.replace(/\/\*[\s\S]*?\*\//gu, '').replace(/(^|\s)\/\/.*$/gmu, '$1')
+}

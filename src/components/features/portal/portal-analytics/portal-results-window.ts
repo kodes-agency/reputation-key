@@ -11,19 +11,22 @@ import {
   type TimeRangePreset,
 } from '#/contexts/reporting/application/dto/dashboard.dto'
 import type { PortalResultsTimeRange } from '#/contexts/reporting/application/public-api'
+import { RANGE_PRESET_LABELS } from '#/shared/dashboard-range'
 
 type LocalDays = NonNullable<PortalAnalyticsData['localDays']>
 
+/**
+ * Portal Results' own presets (7 and 60 days are readings windows only it
+ * offers), worded from the shared table so the ones it shares with the dashboard
+ * read the same ("30 days", not "Last 30 days").
+ */
 export const PORTAL_RESULTS_RANGES: ReadonlyArray<{
   value: TimeRangePreset
   label: string
-}> = [
-  { value: '7d', label: 'Last 7 days' },
-  { value: '30d', label: 'Last 30 days' },
-  { value: '60d', label: 'Last 60 days' },
-  { value: '90d', label: 'Last 90 days' },
-  { value: 'all', label: 'All time' },
-]
+}> = (['7d', '30d', '60d', '90d', 'all'] as const).map((value) => ({
+  value,
+  label: RANGE_PRESET_LABELS[value],
+}))
 
 /** Where the range is remembered: one viewing preference for every Results surface. */
 export const PORTAL_RESULTS_RANGE_STORAGE_KEY = 'portal-analytics-time-range'

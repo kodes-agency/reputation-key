@@ -33,7 +33,12 @@ function PropertyGoogleRoute() {
   const { data: propData } = useSuspenseQuery(propertyQuery(propertyId))
 
   const onRangeChange = (value: DashboardRange) => {
-    void navigate({ search: (previous) => ({ ...previous, range: value }) })
+    // A window on the page, not a place: replace, so arrowing through the
+    // segments (a radio group chooses on focus) is no history entry per step.
+    void navigate({
+      search: (previous) => ({ ...previous, range: value }),
+      replace: true,
+    })
   }
 
   return (

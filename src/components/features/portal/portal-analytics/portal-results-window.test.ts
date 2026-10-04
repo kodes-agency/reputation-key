@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { DASHBOARD_RANGE_LABELS } from '#/shared/dashboard-range'
 import {
   PORTAL_OVERVIEW_RANGES,
   PORTAL_RESULTS_RANGES,
@@ -106,7 +107,23 @@ describe('PORTAL_RESULTS_RANGES', () => {
       '90d',
       'all',
     ])
-    expect(PORTAL_RESULTS_RANGES[1]?.label).toBe('Last 30 days')
+  })
+
+  it('words each window the way the dashboard range does: one vocabulary, a longer list', () => {
+    expect(PORTAL_RESULTS_RANGES.map((range) => range.label)).toEqual([
+      '7 days',
+      '30 days',
+      '60 days',
+      '90 days',
+      'All time',
+    ])
+    for (const range of PORTAL_RESULTS_RANGES) {
+      if (range.value in DASHBOARD_RANGE_LABELS) {
+        expect(range.label).toBe(
+          DASHBOARD_RANGE_LABELS[range.value as keyof typeof DASHBOARD_RANGE_LABELS],
+        )
+      }
+    }
   })
 })
 

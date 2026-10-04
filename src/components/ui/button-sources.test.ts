@@ -226,10 +226,7 @@ describe('a control that is not a Button still has the Button focus ring', () =>
   /** The ring the Button wears, spelled out; `focus-ring` is the shared utility. */
   const OLD_RING = /focus-visible:ring-2 focus-visible:ring-ring/u
   const hasOldRing = (file: SourceFile) => OLD_RING.test(file.text)
-  const RING_ALLOWED: Readonly<Record<string, string>> = {
-    'src/components/features/property/settings/property-settings-nav.tsx':
-      'moves to SectionNav with the other section navs (plan stage S5)',
-  }
+  const RING_ALLOWED: Readonly<Record<string, string>> = {}
 
   it('is `focus-ring`, not a 2px ring in another weight', () => {
     expect(

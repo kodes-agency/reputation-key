@@ -7,7 +7,11 @@
 // boards draw it. Not `Tabs`: nothing here swaps a panel.
 import { RadioGroup as RadioGroupPrimitive } from 'radix-ui'
 import { cn } from '#/lib/utils'
-import { SEGMENT_CLASS, SEGMENTED_CONTROL_CLASS } from './segmented-control-styles'
+import {
+  SEGMENT_CLASS,
+  SEGMENT_TOUCH_CLASS,
+  SEGMENTED_CONTROL_CLASS,
+} from './segmented-control-styles'
 
 export type SegmentedControlOption = Readonly<{
   value: string
@@ -40,6 +44,12 @@ type Props = Naming &
     onValueChange: (value: string) => void
     options: ReadonlyArray<SegmentedControlOption>
     disabled?: boolean
+    /**
+     * Segments are a tap target below `md` (the control token), for a control a
+     * person reaches by thumb: the page's range. Left off, they stay the 26px
+     * chips a dense toolbar wants.
+     */
+    touch?: boolean
     className?: string
   }>
 
@@ -48,6 +58,7 @@ export function SegmentedControl({
   onValueChange,
   options,
   disabled,
+  touch = false,
   className,
   ...props
 }: Props) {
@@ -72,7 +83,7 @@ export function SegmentedControl({
               ? undefined
               : `${option.label} ${option.accessibleLabel}`
           }
-          className={SEGMENT_CLASS}
+          className={cn(SEGMENT_CLASS, touch && SEGMENT_TOUCH_CLASS)}
         >
           {option.label}
         </RadioGroupPrimitive.Item>

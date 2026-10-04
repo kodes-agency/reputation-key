@@ -159,7 +159,7 @@ storyTests(
 
 // The active pill is scrolled in clear of the edge fade on both sides, not just
 // of the edge, and snapping must not pull it back out (it did at 320 px):
-// `STRIP_FADE_PX` in `inbox-queue-strip-scroll.ts`, restated here because the
+// `STRIP_FADE_PX` in `ui/strip-scroll.ts`, restated here because the
 // gate reads the rendered page and imports nothing from `src`.
 const EDGE_FADE_PX = 24
 

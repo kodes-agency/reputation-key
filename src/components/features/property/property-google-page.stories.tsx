@@ -149,7 +149,7 @@ export const Default: Story = {
     expect(
       canvas.getByRole('heading', { name: 'Google Business Profile', level: 1 }),
     ).toBeVisible()
-    expect(canvas.getAllByRole('group', { name: 'Time range' })).toHaveLength(1)
+    expect(canvas.getAllByRole('radiogroup', { name: 'Time range' })).toHaveLength(1)
     expect(canvas.queryByLabelText('Performance range')).toBeNull()
     expect(canvas.queryByText(/independent from the Dashboard range/i)).toBeNull()
     expect(canvas.queryByText(/provides up to/)).toBeNull()

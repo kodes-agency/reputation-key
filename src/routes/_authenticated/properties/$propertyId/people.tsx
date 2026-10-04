@@ -96,7 +96,6 @@ function PeopleRoute() {
   const { members } = membersData
   const { portals, portalsDenied } = portalsData
   const search = Route.useSearch() as { tab?: string }
-  const navigate = Route.useNavigate()
 
   const invalidateKeys = [
     staffKeys.participations(propertyId),
@@ -126,7 +125,6 @@ function PeopleRoute() {
       portalsDenied={portalsDenied}
       canManageStaff={can(role, 'staff.manage')}
       tab={search.tab}
-      onTabChange={(t) => navigate({ search: { tab: t } })}
       createParticipationMutation={createParticipationMutation}
       archiveParticipationMutation={archiveParticipationMutation}
       updateResponsibilitiesMutation={updateResponsibilitiesMutation}

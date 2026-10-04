@@ -20,7 +20,7 @@ import { usePortalDraftAutosave } from '../portal-editor/portal-draft-autosave-c
 import { LinkAddForm } from './link-add-form'
 import { iconChoiceWrite, photoChoiceWrite } from './linktree-photo-rules'
 import type { PortalImageUploader } from '../portal-media/upload-portal-image'
-import { LinktreeLocaleTabs } from './linktree-locale-tabs'
+import { LinktreeLocaleSwitch } from './linktree-locale-switch'
 import { LINKTREE_MOVE_HINT_ID } from './linktree-move-controls'
 import { LinktreeTileEditor } from './linktree-tile-editor'
 import { useRememberedPhotos } from './use-remembered-photos'
@@ -163,7 +163,7 @@ export function LinkTree({
     <div className="space-y-6">
       {titleLocale === undefined ? null : (
         <div className="space-y-2">
-          <LinktreeLocaleTabs
+          <LinktreeLocaleSwitch
             aria-label="Title language"
             locales={locales}
             active={titleLocale}

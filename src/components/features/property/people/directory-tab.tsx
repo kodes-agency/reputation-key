@@ -1,6 +1,5 @@
 import { Contact } from 'lucide-react'
 import { EmptyState } from '#/components/ui/empty-state'
-import { TabsContent } from '#/components/ui/tabs'
 import { RoleBadge } from '#/components/features/identity/shared/role-badge'
 import type { Role } from '#/shared/domain/roles'
 import {
@@ -25,7 +24,7 @@ interface DirectoryTabProps {
 
 export function DirectoryTab({ members }: DirectoryTabProps) {
   return (
-    <TabsContent value="directory" className="mt-4">
+    <>
       {members.length === 0 ? (
         <EmptyState icon={Contact} title="No members found" />
       ) : (
@@ -50,6 +49,6 @@ export function DirectoryTab({ members }: DirectoryTabProps) {
           </TableBody>
         </Table>
       )}
-    </TabsContent>
+    </>
   )
 }

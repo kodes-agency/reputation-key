@@ -3,6 +3,7 @@ import { roleUnavailable } from '#/shared/auth/route-notice'
 import { useQuery, useSuspenseQuery } from '@tanstack/react-query'
 import { PageHeader } from '#/components/layout/page-header'
 import { PageShell } from '#/components/layout/page-shell'
+import { SectionNavLayout } from '#/components/ui/section-nav-layout'
 import { PropertySettingsNav } from '#/components/features/property/settings/property-settings-nav'
 import { visiblePropertySettingsSections } from '#/components/features/property/settings/property-settings-sections'
 import { PropertySetupStrip } from '#/components/features/property/settings/property-setup-strip'
@@ -42,15 +43,13 @@ function PropertySettingsLayout() {
           { label: 'Settings' },
         ]}
       />
-      <div className="grid gap-6 md:grid-cols-[14rem_minmax(0,1fr)] md:items-start">
-        <div className="md:sticky md:top-4">
-          <PropertySettingsNav propertyId={propertyId} sections={sections} />
-        </div>
+      <SectionNavLayout frame="inline">
+        <PropertySettingsNav propertyId={propertyId} sections={sections} />
         <div className="flex min-w-0 flex-col gap-6">
           <PropertySetupStrip propertyId={propertyId} setup={setup} />
           <Outlet />
         </div>
-      </div>
+      </SectionNavLayout>
     </PageShell>
   )
 }

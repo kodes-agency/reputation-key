@@ -39,7 +39,14 @@ const meta = {
 export default meta
 type Story = StoryObj<typeof meta>
 
+/**
+ * The hub's sections, on Google: the router answers the address the nav reads, so
+ * the one `aria-current` row is the current section and wears the accent-muted fill.
+ */
 export const SectionNavigation: Story = {
+  decorators: [
+    withRole('AccountAdmin', { at: `/properties/${PROPERTY_ID}/settings/google` }),
+  ],
   render: () => (
     <div className="max-w-xs">
       <PropertySettingsNav
@@ -52,10 +59,10 @@ export const SectionNavigation: Story = {
     const nav = within(canvasElement).getByRole('navigation', {
       name: 'Property settings sections',
     })
-    const labels = within(nav)
-      .getAllByRole('link')
-      .map((link) => link.querySelector('span')?.textContent)
-    expect(labels).toEqual([
+    const labelOf = (link: HTMLElement) =>
+      link.querySelector('[data-slot="section-nav-label"]')?.textContent
+    const links = within(nav).getAllByRole('link')
+    expect(links.map(labelOf)).toEqual([
       'Profile',
       'Google',
       'Replies',
@@ -68,6 +75,9 @@ export const SectionNavigation: Story = {
       'href',
       `/properties/${PROPERTY_ID}/settings/ai`,
     )
+    // Exactly one row is the page the person is on, and it is Google.
+    const current = links.filter((link) => link.getAttribute('aria-current') === 'page')
+    expect(current.map(labelOf)).toEqual(['Google'])
   },
 }
 

@@ -3,10 +3,11 @@
 // tab has an address that can be shared or bookmarked. That is why this is a
 // navigation landmark with `aria-current`, not an ARIA tablist: a tablist
 // promises a panel in the same document, and the panel here is the route below.
-// Each tab names its own ink; a link utility beats the global accent default.
+// The strip is `LinkTabs`, the Link-backed twin of the line Tabs, so it wears
+// the same underline as every other page-level view switch; this file adds the
+// full-bleed band's gutter and the tabs' names.
 
-import { Link } from '@tanstack/react-router'
-import { cn } from '#/lib/utils'
+import { LinkTab, LinkTabs } from '#/components/ui/link-tabs'
 import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import {
   PORTAL_DETAIL_TABS,
@@ -36,35 +37,18 @@ export function PortalWorkspaceTabs({
 }: Props) {
   const tabs = PORTAL_DETAIL_TABS.filter((tab) => !hiddenTabs.includes(tab))
   return (
-    <nav
-      aria-label="Portal sections"
-      className={cn('overflow-x-auto border-b', PAGE_GUTTER_X)}
-    >
-      <ul className="flex min-w-max gap-1">
-        {tabs.map((tab) => {
-          const active = tab === activeTab
-          return (
-            <li key={tab}>
-              <Link
-                to="/properties/$propertyId/portals/$portalId"
-                params={{ propertyId, portalId }}
-                search={{ tab }}
-                aria-current={active ? 'page' : undefined}
-                className={cn(
-                  'relative flex min-h-11 items-center px-3 text-sm transition-colors',
-                  'after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:rounded-full after:bg-transparent',
-                  'hover:text-foreground focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-ring',
-                  active
-                    ? 'font-medium text-foreground after:bg-primary'
-                    : 'text-muted-foreground',
-                )}
-              >
-                {TAB_LABELS[tab]}
-              </Link>
-            </li>
-          )
-        })}
-      </ul>
-    </nav>
+    <LinkTabs aria-label="Portal sections" className={PAGE_GUTTER_X}>
+      {tabs.map((tab) => (
+        <LinkTab
+          key={tab}
+          to="/properties/$propertyId/portals/$portalId"
+          params={{ propertyId, portalId }}
+          search={{ tab }}
+          current={tab === activeTab}
+        >
+          {TAB_LABELS[tab]}
+        </LinkTab>
+      ))}
+    </LinkTabs>
   )
 }

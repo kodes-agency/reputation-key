@@ -130,13 +130,13 @@ export const ChangesTheWindow: Story = {
   args: withResults,
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement)
-    await userEvent.click(canvas.getByRole('combobox', { name: 'Time range' }))
-    const options = await within(document.body).findAllByRole('option')
+    const range = canvas.getByRole('radiogroup', { name: 'Time range' })
+    const options = within(range).getAllByRole('radio')
     await expect(options.map((option) => option.textContent)).toEqual([
-      'Last 7 days',
-      'Last 30 days',
-      'Last 60 days',
-      'Last 90 days',
+      '7 days',
+      '30 days',
+      '60 days',
+      '90 days',
     ])
     await userEvent.click(options[0]!)
     await expect(args.results?.onTimeRangeChange).toHaveBeenCalledWith('7d')

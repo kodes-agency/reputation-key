@@ -100,7 +100,6 @@ export const seededArgs = {
   ],
   portalsDenied: false,
   tab: 'staff',
-  onTabChange: () => {},
   createParticipationMutation,
   archiveParticipationMutation,
   updateResponsibilitiesMutation,

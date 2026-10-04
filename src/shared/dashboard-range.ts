@@ -17,12 +17,29 @@ export const DASHBOARD_RANGES = ['30d', '90d', '180d', 'all'] as const
 
 export type DashboardRange = (typeof DASHBOARD_RANGES)[number]
 
-/** Sentence case, spelled the way a manager reads it: "6 months", not "180 days". */
-export const DASHBOARD_RANGE_LABELS: Readonly<Record<DashboardRange, string>> = {
+/**
+ * Every window a range control offers, worded once, sentence case, the way a
+ * manager reads it: "6 months", not "180 days". The dashboard offers four of
+ * them; Portal Results offers its own five (7 and 60 days are readings windows
+ * only it needs) but words the ones they share the same way, so a control is
+ * never "30 days" on one page and "Last 30 days" on the next.
+ */
+export const RANGE_PRESET_LABELS = {
+  '7d': '7 days',
   '30d': '30 days',
+  '60d': '60 days',
   '90d': '90 days',
   '180d': '6 months',
   all: 'All time',
+} as const
+
+export type RangePreset = keyof typeof RANGE_PRESET_LABELS
+
+export const DASHBOARD_RANGE_LABELS: Readonly<Record<DashboardRange, string>> = {
+  '30d': RANGE_PRESET_LABELS['30d'],
+  '90d': RANGE_PRESET_LABELS['90d'],
+  '180d': RANGE_PRESET_LABELS['180d'],
+  all: RANGE_PRESET_LABELS.all,
 }
 
 export const DASHBOARD_RANGE_OPTIONS: ReadonlyArray<{

@@ -1,7 +1,8 @@
 // Which language a label or title is being written in. A Portal with one
 // language has nothing to choose, so it draws nothing. A language the tile has
-// no text in says so on its tab, because the guest then reads the primary
-// language there.
+// no text in says so on its segment, because the guest then reads the primary
+// language there. It is a SegmentedControl (a radio group: choosing a language
+// swaps no panel), so it is a switch, not tabs.
 
 import { SegmentedControl } from '#/components/ui/segmented-control'
 import {
@@ -20,7 +21,7 @@ type Props = Readonly<{
   disabled?: boolean
 }>
 
-export function LinktreeLocaleTabs({
+export function LinktreeLocaleSwitch({
   locales,
   active,
   onChange,

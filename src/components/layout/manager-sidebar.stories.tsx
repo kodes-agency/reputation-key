@@ -26,9 +26,9 @@ import {
   RouterProvider,
   useRouterState,
 } from '@tanstack/react-router'
-import { useRef, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import type { Role } from '#/shared/domain/roles'
-import { SidebarProvider } from '#/components/ui/sidebar'
+import { SidebarProvider, useSidebar } from '#/components/ui/sidebar'
 import { withRole } from '../../../.storybook/AuthedRouterDecorator'
 import type { getLastVisitCountFn } from '#/contexts/inbox/server/inbox'
 import { ManagerSidebar } from './manager-sidebar'
@@ -460,5 +460,64 @@ export const InboxActivePropertyKeepsTheOpenItem: Story = {
 
     expect(location.textContent).toBe(before)
     expect(location).toHaveTextContent('itemId=')
+  },
+}
+
+// The router matches a link by prefix, so every link above the open page used to
+// announce itself as the current one while one row was drawn active. One row is
+// the current page, and it is the one that is drawn.
+export const OneCurrentPage: Story = {
+  args: { properties, organizationName, getLastVisitCount: lastVisitCountZero },
+  decorators: [withRoleAt('PropertyManager', `/properties/${acmeHotelId}/reviews`)],
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const reviews = await canvas.findByRole('link', { name: /^reviews$/i })
+    const nav = canvas.getByRole('navigation', { name: 'Primary navigation' })
+    const current = within(nav)
+      .getAllByRole('link')
+      .filter((link) => link.getAttribute('aria-current') === 'page')
+
+    expect(current).toEqual([reviews])
+    expect(reviews).toHaveAttribute('data-active', 'true')
+    expect(
+      within(nav)
+        .getAllByRole('link')
+        .filter((link) => link.getAttribute('data-active') === 'true'),
+    ).toEqual([reviews])
+  },
+}
+
+/** Opens the phone drawer, which is closed until a person asks for it. */
+function OpenDrawer() {
+  const { setOpenMobile } = useSidebar()
+  useEffect(() => setOpenMobile(true), [setOpenMobile])
+  return null
+}
+
+// On a phone the sidebar is a sheet over the page. Choosing a link changes the
+// page behind it, so the sheet leaves with the click instead of hiding the page
+// the person just chose.
+export const MobileDrawerClosesOnNavigation: Story = {
+  args: { properties, organizationName, getLastVisitCount: lastVisitCountZero },
+  decorators: [
+    (Story) => (
+      <>
+        <OpenDrawer />
+        <Story />
+      </>
+    ),
+    withRoleAt('PropertyManager', `/?propertyId=${acmeHotelId}`),
+  ],
+  parameters: { viewport: { defaultViewport: 'mobileStaff' } },
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body)
+    const drawer = await page.findByRole('dialog')
+
+    await userEvent.click(within(drawer).getByRole('link', { name: /^reviews$/i }))
+
+    await waitFor(() => expect(page.queryByRole('dialog')).toBeNull())
+    await waitFor(() =>
+      expect(page.getByTestId('story-location')).toHaveTextContent(/reviews$/),
+    )
   },
 }

@@ -226,7 +226,7 @@ export const Ready: Story = {
     expect(chip.className).not.toContain('[&>svg]:size-3')
 
     // No range control: Overview is a reading, not a report you configure.
-    expect(canvas.queryByRole('group', { name: 'Time range' })).toBeNull()
+    expect(canvas.queryByRole('radiogroup', { name: 'Time range' })).toBeNull()
 
     // Identity beside pulse. The rating leads all-time; reviews lead recent.
     expect(canvas.getByText('4.3')).toBeVisible()
