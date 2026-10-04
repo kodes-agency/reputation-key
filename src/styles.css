@@ -360,11 +360,15 @@ pre code {
 }
 
 /* The keyboard-focus ring of a control that is not a Button (a link in a cell, a
-   summary, a row that opens something): the Button's own 3px ring in the ring
-   colour at 50%, so focus looks the same on every kind of control. */
+   summary, a row that opens something): the Button's own ring, so focus looks the
+   same on every kind of control. The Button's is a 3px halo in the ring colour at
+   50% around a border that turns the ring colour in full; the halo alone reads
+   1.65:1 on the dark surface and 1.92:1 on the light one, short of the 3:1 a focus
+   indicator needs, and a nav row has no border to carry it. The 1px outline is that
+   border (3.4:1 dark, 4.3:1 light, measured in `nav-contrast.test.ts`). */
 @utility focus-ring {
   &:focus-visible {
-    outline: none;
+    outline: 1px solid var(--ring);
     @apply ring-[3px] ring-ring/50;
   }
 }
