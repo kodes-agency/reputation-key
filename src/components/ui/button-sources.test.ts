@@ -246,10 +246,6 @@ describe('a link set in a sentence is an InlineLink', () => {
     'src/components/ui/inline-link.tsx': 'the primitive itself',
     'src/components/ui/button.tsx': 'the link variant',
     'src/components/ui/badge.tsx': 'the link variant',
-    'src/components/features/property/property-guest-voice-page.tsx':
-      'a bordered figure link with its own touch box (plan stage S6, figure links)',
-    'src/components/features/property/property-insights-aspect-table.tsx':
-      'a count link with its own touch box (plan stage S6, figure links)',
   }
 
   it('is not typed by hand', () => {

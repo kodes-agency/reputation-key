@@ -1,18 +1,15 @@
-// fallow-ignore-file code-duplication
-// r4 s38: the Property table and the All properties table share their container and table shell.
 // The Portals overview as one table with one `<tbody>` per group. Below a 56 rem
 // container each row is a card and the header row is not shown; from 56 rem it
 // is a table (see `portal-overview-table-row.tsx`). Groups fold away; the fold is the
 // reader's own, kept here rather than in the URL.
 import { useState, type ReactNode } from 'react'
-import { cn } from '#/lib/utils'
-import { Table, TableBody } from '#/components/ui/table'
+import { DataTable, DataTableBody } from '#/components/ui/data-table'
 import type { PortalArchiveMutations } from './portal-archive-dialog'
 import type { PortalOverviewResultsState } from './portal-overview-results'
 import { PortalOverviewSectionRows } from './portal-overview-section-rows'
 import type { SortDirection } from '#/components/ui/list-sort'
 import {
-  OVERVIEW_CLASSES,
+  OVERVIEW_FROM,
   OverviewDensityProvider,
   type OverviewDensity,
 } from './portal-overview-density'
@@ -54,7 +51,6 @@ export function PortalOverviewTable({
   showGroup,
   density = 'regular',
 }: Props) {
-  const classes = OVERVIEW_CLASSES[density]
   const [folded, setFolded] = useState<readonly string[]>([])
   const toggle = (key: string) =>
     setFolded((current) =>
@@ -62,29 +58,32 @@ export function PortalOverviewTable({
     )
 
   return (
-    <div aria-busy={busy} className={cn(classes.container, busy && 'opacity-60')}>
-      <OverviewDensityProvider value={density}>
-        <Table aria-label={`Portals at ${propertyName}`} className={classes.table}>
-          <PortalOverviewTableHead results={results} scansOrder={scansOrder} />
-          {sections.map((section) => (
-            <TableBody key={section.key} className={classes.body}>
-              <PortalOverviewSectionRows
-                section={section}
-                propertyId={propertyId}
-                results={results}
-                expanded={section.kind === 'flat' || !folded.includes(section.key)}
-                onToggle={() => toggle(section.key)}
-                groupActions={groupActions}
-                rowMenuExtra={rowMenuExtra}
-                showGroup={showGroup}
-                archiveMutation={archiveMutation}
-                restoreMutation={restoreMutation}
-                disableMutation={disableMutation}
-              />
-            </TableBody>
-          ))}
-        </Table>
-      </OverviewDensityProvider>
-    </div>
+    <OverviewDensityProvider value={density}>
+      <DataTable
+        label={`Portals at ${propertyName}`}
+        from={OVERVIEW_FROM[density]}
+        layout="cards"
+        busy={busy}
+      >
+        <PortalOverviewTableHead results={results} scansOrder={scansOrder} />
+        {sections.map((section) => (
+          <DataTableBody key={section.key}>
+            <PortalOverviewSectionRows
+              section={section}
+              propertyId={propertyId}
+              results={results}
+              expanded={section.kind === 'flat' || !folded.includes(section.key)}
+              onToggle={() => toggle(section.key)}
+              groupActions={groupActions}
+              rowMenuExtra={rowMenuExtra}
+              showGroup={showGroup}
+              archiveMutation={archiveMutation}
+              restoreMutation={restoreMutation}
+              disableMutation={disableMutation}
+            />
+          </DataTableBody>
+        ))}
+      </DataTable>
+    </OverviewDensityProvider>
   )
 }

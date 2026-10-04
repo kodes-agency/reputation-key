@@ -4,22 +4,22 @@
 // 46 rem on a laptop, so it becomes a table from 42 rem (`@2xl`) with narrower
 // columns and an icon for Share. One DOM for both: only the class names differ.
 //
-// Every class is written out in full here (never assembled), so Tailwind sees
-// each one. A table that is narrower than its breakpoint is a stack of cards in
-// either density.
+// The frame, the table, its header and its bodies are the shared `DataTable`
+// (`layout="cards"`), which takes the container width from `OVERVIEW_FROM`. Every
+// class here is written out in full (never assembled), so Tailwind sees each one.
+// A table that is narrower than its breakpoint is a stack of cards in either density.
 import { createContext, useContext } from 'react'
+import type { DataTableFrom } from '#/components/ui/data-table'
 
 export type OverviewDensity = 'regular' | 'compact'
 
+/** The container width each density becomes a table at: 56 rem, and 42 rem. */
+export const OVERVIEW_FROM: Readonly<Record<OverviewDensity, DataTableFrom>> = {
+  regular: '4xl',
+  compact: '2xl',
+}
+
 export type OverviewClasses = Readonly<{
-  /** The container that holds the table. */
-  container: string
-  table: string
-  header: string
-  /** One group's rows. */
-  body: string
-  /** A Portal's row, as a card and as a table row. */
-  card: string
   /** The Portal's name cell and the Portal's cells that follow it. */
   nameCell: string
   managersCell: string
@@ -47,14 +47,6 @@ export type OverviewClasses = Readonly<{
 
 export const OVERVIEW_CLASSES: Readonly<Record<OverviewDensity, OverviewClasses>> = {
   regular: {
-    container:
-      '@container transition-opacity @4xl:overflow-hidden @4xl:rounded-lg @4xl:border @4xl:bg-card',
-    table: 'block @4xl:table',
-    header: 'hidden @4xl:table-header-group',
-    body: 'block space-y-3 pb-3 @4xl:table-row-group @4xl:space-y-0 @4xl:pb-0',
-    card:
-      'grid grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-3 rounded-lg border bg-card p-4 ' +
-      '@4xl:table-row @4xl:rounded-none @4xl:border-0 @4xl:border-b @4xl:bg-transparent @4xl:p-0',
     nameCell:
       'col-start-1 row-start-1 h-auto min-w-0 p-0 text-left font-normal whitespace-normal @4xl:table-cell @4xl:px-4 @4xl:py-3',
     managersCell: 'hidden p-0 @4xl:table-cell @4xl:w-36 @4xl:px-4 @4xl:py-3',
@@ -68,8 +60,7 @@ export const OVERVIEW_CLASSES: Readonly<Record<OverviewDensity, OverviewClasses>
     measureCell:
       'hidden px-2 py-3 text-right text-sm tabular-nums @4xl:table-cell @4xl:w-24',
     measureSpan: 'hidden px-2 py-3 text-sm text-muted-foreground @4xl:table-cell',
-    measureHead:
-      'h-10 px-2 text-right text-xs leading-tight whitespace-normal text-muted-foreground',
+    measureHead: 'px-2 leading-tight whitespace-normal',
     groupRow:
       'relative block border-0 bg-transparent px-1 pt-2 hover:bg-transparent @4xl:table-row @4xl:border-b @4xl:bg-muted/40 @4xl:px-0 @4xl:pt-0 @4xl:hover:bg-muted/40',
     groupName:
@@ -80,14 +71,6 @@ export const OVERVIEW_CLASSES: Readonly<Record<OverviewDensity, OverviewClasses>
       'absolute top-1 right-0 p-0 @4xl:static @4xl:table-cell @4xl:w-12 @4xl:px-2 @4xl:py-2 @4xl:text-right',
   },
   compact: {
-    container:
-      '@container transition-opacity @2xl:overflow-hidden @2xl:rounded-lg @2xl:border @2xl:bg-card',
-    table: 'block @2xl:table',
-    header: 'hidden @2xl:table-header-group',
-    body: 'block space-y-3 pb-3 @2xl:table-row-group @2xl:space-y-0 @2xl:pb-0',
-    card:
-      'grid grid-cols-[minmax(0,1fr)_auto] gap-x-2 gap-y-3 rounded-lg border bg-card p-4 ' +
-      '@2xl:table-row @2xl:rounded-none @2xl:border-0 @2xl:border-b @2xl:bg-transparent @2xl:p-0',
     nameCell:
       'col-start-1 row-start-1 h-auto min-w-0 p-0 text-left font-normal whitespace-normal @2xl:table-cell @2xl:px-3 @2xl:py-3',
     managersCell: 'hidden p-0 @2xl:table-cell @2xl:w-24 @2xl:px-2 @2xl:py-3',
@@ -101,8 +84,7 @@ export const OVERVIEW_CLASSES: Readonly<Record<OverviewDensity, OverviewClasses>
     measureCell:
       'hidden px-1 py-3 text-right text-sm tabular-nums @2xl:table-cell @2xl:w-16',
     measureSpan: 'hidden px-1 py-3 text-sm text-muted-foreground @2xl:table-cell',
-    measureHead:
-      'h-10 px-1 text-right text-xs leading-tight whitespace-normal text-muted-foreground',
+    measureHead: 'px-1 leading-tight whitespace-normal',
     groupRow:
       'relative block border-0 bg-transparent px-1 pt-2 hover:bg-transparent @2xl:table-row @2xl:border-b @2xl:bg-muted/40 @2xl:px-0 @2xl:pt-0 @2xl:hover:bg-muted/40',
     groupName:

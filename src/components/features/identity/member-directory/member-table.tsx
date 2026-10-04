@@ -6,13 +6,13 @@
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { RoleBadge } from '#/components/features/identity/shared/role-badge'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '#/components/ui/table'
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeader,
+  DataTableRow,
+} from '#/components/ui/data-table'
 import type { Action } from '#/components/hooks/use-action'
 import { EmptyState } from '#/components/ui/empty-state'
 import { Contact } from 'lucide-react'
@@ -69,21 +69,23 @@ export function MemberTable({
   }
 
   return (
-    <Table>
-      <TableHeader>
-        <TableRow>
-          <TableHead>Name</TableHead>
-          <TableHead>Email</TableHead>
-          <TableHead>Role</TableHead>
-          {canManageMembers && <TableHead className="text-right">Actions</TableHead>}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
+    <DataTable label="Members" from="3xl">
+      <DataTableHeader>
+        <DataTableHead>Name</DataTableHead>
+        <DataTableHead>Email</DataTableHead>
+        <DataTableHead>Role</DataTableHead>
+        {canManageMembers ? <DataTableHead actions /> : null}
+      </DataTableHeader>
+      <DataTableBody>
         {members.map((member) => (
-          <TableRow key={member.id}>
-            <TableCell className="font-medium">{member.name}</TableCell>
-            <TableCell className="text-muted-foreground">{member.email}</TableCell>
-            <TableCell>
+          <DataTableRow key={member.id}>
+            <DataTableCell className="col-start-1 row-start-1 min-w-0 font-medium whitespace-normal">
+              {member.name}
+            </DataTableCell>
+            <DataTableCell className="col-start-1 row-start-2 min-w-0 text-muted-foreground whitespace-normal">
+              {member.email}
+            </DataTableCell>
+            <DataTableCell className="col-start-2 row-start-1 justify-self-end">
               {canChangeRoles && member.userId !== currentUserId ? (
                 <RoleSelect
                   role={member.role}
@@ -101,9 +103,9 @@ export function MemberTable({
               ) : (
                 <RoleBadge role={member.role} rawRole={member.rawRole} />
               )}
-            </TableCell>
+            </DataTableCell>
             {canManageMembers ? (
-              <TableCell className="text-right">
+              <DataTableCell className="col-start-2 row-start-2 justify-self-end @3xl:text-right">
                 {canRemove && member.userId !== currentUserId ? (
                   <RemoveMemberDialog
                     memberName={member.name}
@@ -111,11 +113,11 @@ export function MemberTable({
                     onRemove={() => removeMemberAction({ data: { memberId: member.id } })}
                   />
                 ) : null}
-              </TableCell>
+              </DataTableCell>
             ) : null}
-          </TableRow>
+          </DataTableRow>
         ))}
-      </TableBody>
-    </Table>
+      </DataTableBody>
+    </DataTable>
   )
 }

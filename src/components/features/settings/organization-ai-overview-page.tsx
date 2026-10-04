@@ -9,6 +9,7 @@ import type {
   ReviewAnalysisProgress,
 } from '#/contexts/ai/application/public-api'
 import { cn } from '#/lib/utils'
+import { ROW_LINK_SURFACE } from '#/components/ui/row-link'
 import {
   AI_OVERVIEW_STATUS,
   aiCapabilityLabel,
@@ -109,7 +110,10 @@ export function OrganizationAiOverviewPage({
                 <Link
                   to="/properties/$propertyId/settings/ai"
                   params={{ propertyId: entry.propertyId }}
-                  className="group grid gap-2 p-4 text-foreground outline-none transition-colors hover:bg-muted/50 focus-visible:bg-muted/50 focus-ring md:grid-cols-[minmax(0,1.4fr)_7rem_minmax(0,1.6fr)_minmax(0,1fr)_1rem] md:items-center md:gap-4"
+                  className={cn(
+                    'group grid gap-2 p-4 md:grid-cols-[minmax(0,1.4fr)_7rem_minmax(0,1.6fr)_minmax(0,1fr)_1rem] md:items-center md:gap-4',
+                    ROW_LINK_SURFACE,
+                  )}
                 >
                   <span className="min-w-0 truncate font-medium">
                     {entry.propertyName}

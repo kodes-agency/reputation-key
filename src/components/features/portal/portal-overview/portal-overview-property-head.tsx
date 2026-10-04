@@ -6,6 +6,7 @@
 import { Link } from '@tanstack/react-router'
 import { TriangleAlert } from 'lucide-react'
 import { RowActionsItem, RowActionsMenu } from '#/components/ui/row-actions-menu'
+import { ROW_NAME_LINK } from '#/components/ui/row-link'
 import { TableCell, TableHead, TableRow } from '#/components/ui/table'
 import { cn } from '#/lib/utils'
 import { PortalMeasureCells } from './portal-overview-measure-cells'
@@ -24,8 +25,6 @@ type Props = Readonly<{
   expanded: boolean
   onToggle: () => void
 }>
-
-const FOCUS_RING = 'rounded-sm underline-offset-4 hover:underline focus-ring'
 
 function PropertyMenu({ property }: Readonly<{ property: PortalPropertySection }>) {
   const params = { propertyId: property.propertyId }
@@ -84,7 +83,7 @@ export function PortalOverviewPropertyHead({
         <Link
           to="/properties/$propertyId/portals"
           params={{ propertyId: property.propertyId }}
-          className={cn('font-semibold', FOCUS_RING)}
+          className={cn('font-semibold', ROW_NAME_LINK)}
         >
           {name}
         </Link>

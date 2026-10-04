@@ -17,6 +17,8 @@ import { PageHeader } from '#/components/layout/page-header'
 import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
 import { StatusBadge } from '#/components/ui/status-badge'
+import { ROW_NAME_LINK } from '#/components/ui/row-link'
+import { cn } from '#/lib/utils'
 import { GOAL_STATUS } from '#/components/goals/goal-status'
 import { GoalResultsMatrix } from '#/components/goals/goal-results-matrix'
 import { GoalViewTabs } from '#/components/goals/goal-view-tabs'
@@ -149,7 +151,7 @@ function GoalsRoute() {
                 >
                   <div className="min-w-0">
                     <Link
-                      className="font-medium hover:underline"
+                      className={cn('font-medium', ROW_NAME_LINK)}
                       to="/properties/$propertyId/goals/$goalId"
                       params={{ propertyId, goalId: program.id }}
                     >

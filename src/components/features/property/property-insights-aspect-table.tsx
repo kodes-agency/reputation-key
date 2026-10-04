@@ -1,13 +1,13 @@
 import { Link } from '@tanstack/react-router'
 import {
-  Table,
-  TableBody,
-  TableCaption,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '#/components/ui/table'
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeader,
+  DataTableRow,
+} from '#/components/ui/data-table'
+import { ROW_FIGURE_LINK } from '#/components/ui/row-link'
 import { GlossaryTerm } from '#/components/features/shared/glossary-term'
 import type {
   AiPropertyInsightAspect,
@@ -84,7 +84,10 @@ function CountLink({
       to="/inbox"
       search={{ propertyId, aspect: row.aspect, polarity }}
       aria-label={`${count} ${label} ${count === 1 ? 'mention' : 'mentions'} for ${ASPECT_LABELS[row.aspect]}; open in inbox`}
-      className="inline-flex min-h-11 min-w-11 items-center justify-center rounded-md px-2 font-medium tabular-nums text-link underline-offset-4 hover:underline focus-ring"
+      className={cn(
+        'inline-flex min-h-11 min-w-11 items-center justify-center rounded-md px-2 font-medium tabular-nums',
+        ROW_FIGURE_LINK,
+      )}
     >
       {count}
     </Link>
@@ -94,7 +97,7 @@ function CountLink({
 function ImpactMeter({ value, maximum }: Readonly<{ value: number; maximum: number }>) {
   const width = `${(Math.abs(value) / maximum) * 50}%`
   return (
-    <span className="flex min-w-0 items-center gap-3 md:min-w-48">
+    <span className="flex min-w-0 items-center gap-3 @3xl:min-w-48">
       <span className="relative block h-2 min-w-24 flex-1 overflow-hidden rounded-full bg-muted">
         <span
           aria-hidden="true"
@@ -164,82 +167,64 @@ function TopicTable({
   label: string
 }>) {
   return (
-    <div className="overflow-hidden rounded-lg border">
-      <Table aria-label={label} className="block md:table">
-        <TableCaption className="sr-only">
-          Praise, complaints, impact and period change for each topic.
-        </TableCaption>
-        <TableHeader className="hidden md:table-header-group">
-          <TableRow>
-            <TableHead className="pl-4">Topic</TableHead>
-            <TableHead className="text-right">
-              <Label label="Praise" term="praise-and-complaints" define={defineTerms} />
-            </TableHead>
-            <TableHead className="text-right">
-              <Label
-                label="Complaints"
-                term="praise-and-complaints"
-                define={defineTerms}
-              />
-            </TableHead>
-            <TableHead className="min-w-60">
-              <Label label="Impact" term="impact" define={defineTerms} />
-            </TableHead>
-            {comparisonAvailable ? <TableHead>Change</TableHead> : null}
-          </TableRow>
-        </TableHeader>
-        <TableBody className="block md:table-row-group">
-          {rows.map((row, index) => (
-            <TableRow
-              key={row.aspect}
-              className="block p-4 last:border-b-0 md:table-row md:p-0"
-            >
-              <TableCell className="block p-0 pb-2 font-medium whitespace-normal md:table-cell md:p-2 md:pl-4">
-                {ASPECT_LABELS[row.aspect]}
-              </TableCell>
-              <TableCell className="flex min-h-11 items-center justify-between p-0 md:table-cell md:p-2 md:text-right">
-                <span className="text-muted-foreground md:hidden">
-                  <Label
-                    label="Praise"
-                    term="praise-and-complaints"
-                    define={defineTerms && index === 0}
-                  />
+    <DataTable label={label} from="3xl">
+      <DataTableHeader>
+        <DataTableHead>Topic</DataTableHead>
+        <DataTableHead align="end">
+          <Label label="Praise" term="praise-and-complaints" define={defineTerms} />
+        </DataTableHead>
+        <DataTableHead align="end">
+          <Label label="Complaints" term="praise-and-complaints" define={defineTerms} />
+        </DataTableHead>
+        <DataTableHead className="min-w-60">
+          <Label label="Impact" term="impact" define={defineTerms} />
+        </DataTableHead>
+        {comparisonAvailable ? <DataTableHead>Change</DataTableHead> : null}
+      </DataTableHeader>
+      <DataTableBody>
+        {rows.map((row, index) => (
+          <DataTableRow key={row.aspect} className="last:border-b-0">
+            <DataTableCell className="col-span-2 font-medium whitespace-normal">
+              {ASPECT_LABELS[row.aspect]}
+            </DataTableCell>
+            <DataTableCell className="col-span-2 flex min-h-11 items-center justify-between @3xl:text-right">
+              <span className="text-muted-foreground @3xl:hidden">
+                <Label
+                  label="Praise"
+                  term="praise-and-complaints"
+                  define={defineTerms && index === 0}
+                />
+              </span>
+              <CountLink propertyId={propertyId} row={row} polarity="positive" />
+            </DataTableCell>
+            <DataTableCell className="col-span-2 flex min-h-11 items-center justify-between @3xl:text-right">
+              <span className="text-muted-foreground @3xl:hidden">
+                <Label
+                  label="Complaints"
+                  term="praise-and-complaints"
+                  define={defineTerms && index === 0}
+                />
+              </span>
+              <CountLink propertyId={propertyId} row={row} polarity="negative" />
+            </DataTableCell>
+            <DataTableCell className="col-span-2 min-h-11">
+              <span className="mb-2 block text-muted-foreground @3xl:hidden">
+                <Label label="Impact" term="impact" define={defineTerms && index === 0} />
+              </span>
+              <ImpactMeter value={row.impact} maximum={maximum} />
+            </DataTableCell>
+            {comparisonAvailable ? (
+              <DataTableCell className="col-span-2 min-h-11 whitespace-normal">
+                <span className="mb-1 block text-muted-foreground @3xl:hidden">
+                  Change
                 </span>
-                <CountLink propertyId={propertyId} row={row} polarity="positive" />
-              </TableCell>
-              <TableCell className="flex min-h-11 items-center justify-between p-0 md:table-cell md:p-2 md:text-right">
-                <span className="text-muted-foreground md:hidden">
-                  <Label
-                    label="Complaints"
-                    term="praise-and-complaints"
-                    define={defineTerms && index === 0}
-                  />
-                </span>
-                <CountLink propertyId={propertyId} row={row} polarity="negative" />
-              </TableCell>
-              <TableCell className="block min-h-11 p-0 py-2 md:table-cell md:p-2">
-                <span className="mb-2 block text-muted-foreground md:hidden">
-                  <Label
-                    label="Impact"
-                    term="impact"
-                    define={defineTerms && index === 0}
-                  />
-                </span>
-                <ImpactMeter value={row.impact} maximum={maximum} />
-              </TableCell>
-              {comparisonAvailable ? (
-                <TableCell className="block min-h-11 p-0 pt-2 whitespace-normal md:table-cell md:p-2">
-                  <span className="mb-1 block text-muted-foreground md:hidden">
-                    Change
-                  </span>
-                  <Change row={row} />
-                </TableCell>
-              ) : null}
-            </TableRow>
-          ))}
-        </TableBody>
-      </Table>
-    </div>
+                <Change row={row} />
+              </DataTableCell>
+            ) : null}
+          </DataTableRow>
+        ))}
+      </DataTableBody>
+    </DataTable>
   )
 }
 

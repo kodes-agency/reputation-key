@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { OVERVIEW_CLASSES } from './portal-overview-density'
+import { OVERVIEW_CLASSES, OVERVIEW_FROM } from './portal-overview-density'
 
 const classesOf = (density: keyof typeof OVERVIEW_CLASSES) =>
   Object.entries(OVERVIEW_CLASSES[density])
@@ -18,8 +18,7 @@ describe('OVERVIEW_CLASSES', () => {
     for (const [part, classes] of classesOf('compact')) {
       expect(classes, part).not.toMatch(/@4xl:/)
     }
-    expect(OVERVIEW_CLASSES.regular.table).toBe('block @4xl:table')
-    expect(OVERVIEW_CLASSES.compact.table).toBe('block @2xl:table')
+    expect(OVERVIEW_FROM).toEqual({ regular: '4xl', compact: '2xl' })
   })
 
   it('lays out the same table: every part that is a table cell at one density is at the other', () => {

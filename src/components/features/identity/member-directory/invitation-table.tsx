@@ -13,13 +13,13 @@ import {
   ConfirmationTrigger,
 } from '#/components/ui/confirmation-dialog'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '#/components/ui/table'
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeader,
+  DataTableRow,
+} from '#/components/ui/data-table'
 import { Shield } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
 import type { Role } from '#/shared/domain/roles'
@@ -54,27 +54,27 @@ export function InvitationTable({ invitations, resendAction, cancelAction }: Pro
         <Shield />
         Pending Invitations
       </h3>
-      <Table>
-        <TableHeader>
-          <TableRow>
-            <TableHead>Email</TableHead>
-            <TableHead>Role</TableHead>
-            <TableHead>Status</TableHead>
-            {canManage && <TableHead className="text-right">Actions</TableHead>}
-          </TableRow>
-        </TableHeader>
-        <TableBody>
+      <DataTable label="Pending invitations" from="3xl">
+        <DataTableHeader>
+          <DataTableHead>Email</DataTableHead>
+          <DataTableHead>Role</DataTableHead>
+          <DataTableHead>Status</DataTableHead>
+          {canManage ? <DataTableHead actions /> : null}
+        </DataTableHeader>
+        <DataTableBody>
           {invitations.map((inv) => (
-            <TableRow key={inv.id}>
-              <TableCell className="font-medium">{inv.email}</TableCell>
-              <TableCell>
+            <DataTableRow key={inv.id}>
+              <DataTableCell className="col-start-1 row-start-1 min-w-0 font-medium whitespace-normal">
+                {inv.email}
+              </DataTableCell>
+              <DataTableCell className="col-start-1 row-start-2">
                 <RoleBadge role={inv.role} rawRole={inv.rawRole} />
-              </TableCell>
-              <TableCell>
+              </DataTableCell>
+              <DataTableCell className="col-start-2 row-start-1 justify-self-end">
                 <StatusBadge status={inv.status} map={INVITATION_STATUS} />
-              </TableCell>
+              </DataTableCell>
               {canManage ? (
-                <TableCell className="text-right">
+                <DataTableCell className="col-span-2 @3xl:text-right">
                   {inv.status === 'pending' ? (
                     <div className="flex justify-end gap-2">
                       <Button
@@ -105,12 +105,12 @@ export function InvitationTable({ invitations, resendAction, cancelAction }: Pro
                       />
                     </div>
                   ) : null}
-                </TableCell>
+                </DataTableCell>
               ) : null}
-            </TableRow>
+            </DataTableRow>
           ))}
-        </TableBody>
-      </Table>
+        </DataTableBody>
+      </DataTable>
     </div>
   )
 }

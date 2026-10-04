@@ -3,13 +3,13 @@ import { EmptyState } from '#/components/ui/empty-state'
 import { RoleBadge } from '#/components/features/identity/shared/role-badge'
 import type { Role } from '#/shared/domain/roles'
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from '#/components/ui/table'
+  DataTable,
+  DataTableBody,
+  DataTableCell,
+  DataTableHead,
+  DataTableHeader,
+  DataTableRow,
+} from '#/components/ui/data-table'
 
 interface DirectoryTabProps {
   members: ReadonlyArray<{
@@ -28,26 +28,28 @@ export function DirectoryTab({ members }: DirectoryTabProps) {
       {members.length === 0 ? (
         <EmptyState icon={Contact} title="No members found" />
       ) : (
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Role</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
+        <DataTable label="Directory" from="3xl">
+          <DataTableHeader>
+            <DataTableHead>Name</DataTableHead>
+            <DataTableHead>Email</DataTableHead>
+            <DataTableHead>Role</DataTableHead>
+          </DataTableHeader>
+          <DataTableBody>
             {members.map((member) => (
-              <TableRow key={member.userId}>
-                <TableCell className="font-medium">{member.name}</TableCell>
-                <TableCell className="text-muted-foreground">{member.email}</TableCell>
-                <TableCell>
+              <DataTableRow key={member.userId}>
+                <DataTableCell className="col-start-1 row-start-1 min-w-0 font-medium whitespace-normal">
+                  {member.name}
+                </DataTableCell>
+                <DataTableCell className="col-start-1 row-start-2 min-w-0 text-muted-foreground whitespace-normal">
+                  {member.email}
+                </DataTableCell>
+                <DataTableCell className="col-start-2 row-span-2 row-start-1 self-center">
                   <RoleBadge role={member.role} rawRole={member.rawRole} />
-                </TableCell>
-              </TableRow>
+                </DataTableCell>
+              </DataTableRow>
             ))}
-          </TableBody>
-        </Table>
+          </DataTableBody>
+        </DataTable>
       )}
     </>
   )
