@@ -13,7 +13,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from '#/components/ui/collapsible'
-import { StatCard } from '#/components/features/shared/stat-card'
+import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 import { useHydrated } from '#/components/hooks/use-hydrated'
 import { GoogleImportProgressItems } from './google-import-progress-items'
 import {
@@ -114,12 +114,20 @@ export function GoogleImportProgressView({
         </Alert>
       ) : null}
 
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        <StatCard label="Imported or linked" value={summary.completed} />
-        <StatCard label="Already linked" value={summary.alreadyLinked} />
-        <StatCard label="Need attention" value={summary.issues} />
-        <StatCard label="Remaining" value={summary.remaining} />
-      </div>
+      <MetricStrip aria-label="Import progress" variant="tiles">
+        <Metric label="Imported or linked">
+          <MetricValue value={summary.completed} />
+        </Metric>
+        <Metric label="Already linked">
+          <MetricValue value={summary.alreadyLinked} />
+        </Metric>
+        <Metric label="Need attention">
+          <MetricValue value={summary.issues} />
+        </Metric>
+        <Metric label="Remaining">
+          <MetricValue value={summary.remaining} />
+        </Metric>
+      </MetricStrip>
 
       {settingUp ? (
         <>

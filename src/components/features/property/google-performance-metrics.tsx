@@ -14,6 +14,7 @@ import {
 import { GlossaryTerm } from '#/components/features/shared/glossary-term'
 import { formatNumber } from '#/lib/format'
 import { MetricDelta } from '#/components/ui/metric-delta'
+import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 
 function MetricComparison({
   metric,
@@ -42,13 +43,17 @@ function MetricComparison({
   }
 
   return (
-    <div className="flex flex-col gap-1 text-xs text-muted-foreground">
+    <span className="flex flex-col gap-1">
+      {metric.availability === 'partial' ? (
+        <StatusBadge tone="warn" label="Partial" />
+      ) : null}
       {delta}
       {coverage ? <span>{coverage}</span> : null}
-    </div>
+    </span>
   )
 }
 
+/** One Google measure: its figure, the change, and how many days it rests on. Drawn inside a `MetricStrip`. */
 export function GooglePerformanceMetric({
   metric,
   label,
@@ -60,18 +65,12 @@ export function GooglePerformanceMetric({
   comparisonLabel: string
 }>) {
   return (
-    <div className="flex min-w-0 flex-col gap-2 p-4 sm:p-5">
-      <div className="flex min-w-0 items-start justify-between gap-2">
-        <p className="text-sm text-muted-foreground">{label ?? metric.label}</p>
-        {metric.availability === 'partial' ? (
-          <StatusBadge tone="warn" label="Partial" />
-        ) : null}
-      </div>
-      <p className="text-2xl font-semibold tracking-tight tabular-nums sm:text-3xl">
-        {metric.value === null ? 'Not returned' : formatNumber(metric.value)}
-      </p>
-      <MetricComparison metric={metric} comparisonLabel={comparisonLabel} />
-    </div>
+    <Metric label={label ?? metric.label}>
+      <MetricValue
+        value={metric.value === null ? 'Not returned' : formatNumber(metric.value)}
+        detail={<MetricComparison metric={metric} comparisonLabel={comparisonLabel} />}
+      />
+    </Metric>
   )
 }
 
@@ -106,7 +105,7 @@ export function GooglePerformanceHeadlines({
         </CardDescription>
       </CardHeader>
       <CardContent className="p-0">
-        <div className="grid grid-cols-1 divide-y sm:grid-cols-2 sm:[&>*:nth-child(2n)]:border-l lg:grid-cols-4 lg:divide-y-0 lg:[&>*]:border-l lg:[&>*:first-child]:border-l-0">
+        <MetricStrip aria-label="Google performance at a glance" variant="embedded">
           {metrics.map(({ metric, label }) => (
             <GooglePerformanceMetric
               key={metric.label}
@@ -115,7 +114,7 @@ export function GooglePerformanceHeadlines({
               comparisonLabel={comparisonLabel}
             />
           ))}
-        </div>
+        </MetricStrip>
       </CardContent>
     </Card>
   )

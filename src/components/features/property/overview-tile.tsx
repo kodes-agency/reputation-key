@@ -1,6 +1,9 @@
 // One tile of the Overview scorecard (redesign rows 4, 5, 8, 12).
 //
-// Differs from `StatCard` in three ways that are the point of the redesign:
+// A `MetricStrip` tile that is a link, so it wears the strip's label and figure
+// type (`METRIC_LABEL_CLASS`, `METRIC_TILE_FIGURE_CLASS`) and the one row-link
+// hover surface, and differs from a strip cell in three ways that are the point of
+// the redesign:
 //
 // 1. It is a link. Every number on Overview is the door to the page that
 //    explains it, so the tile itself is the affordance rather than carrying a
@@ -15,6 +18,11 @@ import { Link } from '@tanstack/react-router'
 import { ArrowRight } from 'lucide-react'
 import { cn } from '#/lib/utils'
 import { dashboardRangeComparisonLabel } from '#/shared/dashboard-range'
+import {
+  METRIC_LABEL_CLASS,
+  METRIC_TILE_FIGURE_CLASS,
+} from '#/components/ui/metric-strip'
+import { ROW_LINK_SURFACE } from '#/components/ui/row-link'
 
 /** The pulse is the last 30 days against the 30 before; every delta on a tile names that baseline. */
 export const PULSE_COMPARISON_LABEL =
@@ -89,8 +97,10 @@ export function TileCaption({
   )
 }
 
-const TILE_CLASS =
-  'group flex min-w-0 flex-col rounded-lg border p-4 text-foreground transition-colors hover:border-border hover:bg-muted/40 focus-ring'
+const TILE_CLASS = cn(
+  'group flex min-w-0 flex-col rounded-lg border p-4',
+  ROW_LINK_SURFACE,
+)
 
 export function OverviewTile({
   label,
@@ -103,17 +113,20 @@ export function OverviewTile({
   const body = (
     <>
       <span className="flex items-center justify-between gap-2">
-        <span className="text-sm font-medium text-muted-foreground">{label}</span>
+        <span className={METRIC_LABEL_CLASS}>{label}</span>
         <ArrowRight
           className="size-4 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100"
           aria-hidden="true"
         />
       </span>
       {value === null ? null : (
-        <span className="mt-2 text-3xl font-semibold tabular-nums">{value}</span>
+        <span className={cn('mt-1', METRIC_TILE_FIGURE_CLASS)}>{value}</span>
       )}
       <span
-        className={cn('text-sm text-muted-foreground', value === null ? 'mt-2' : 'mt-1')}
+        className={cn(
+          'text-xs text-muted-foreground',
+          value === null ? 'mt-1' : 'mt-0.5',
+        )}
       >
         {context}
       </span>

@@ -2,7 +2,7 @@ import type {
   GoogleReviewTargetAnalytics,
   PrivateFeedbackTargetAnalytics,
 } from '#/contexts/inbox/application/public-api'
-import { StatCard } from '#/components/features/shared/stat-card'
+import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 import { formatNumber } from '#/lib/format'
 
 function formatAverage(minutes: number | null): string {
@@ -12,14 +12,17 @@ function formatAverage(minutes: number | null): string {
 }
 
 function AnalyticsGrid({
+  name,
   rows,
-}: Readonly<{ rows: ReadonlyArray<readonly [string, string]> }>) {
+}: Readonly<{ name: string; rows: ReadonlyArray<readonly [string, string]> }>) {
   return (
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+    <MetricStrip aria-label={name} variant="tiles" columns={3}>
       {rows.map(([label, value]) => (
-        <StatCard key={label} label={label} value={value} />
+        <Metric key={label} label={label}>
+          <MetricValue value={value} />
+        </Metric>
       ))}
-    </div>
+    </MetricStrip>
   )
 }
 
@@ -38,7 +41,7 @@ export function PrivateFeedbackTargetSummary({
       formatAverage(analytics.averageTimeToFirstHandlingMinutes),
     ],
   ] as const
-  return <AnalyticsGrid rows={rows} />
+  return <AnalyticsGrid name="Private feedback response targets" rows={rows} />
 }
 
 export function GoogleReviewTargetSummary({
@@ -64,5 +67,5 @@ export function GoogleReviewTargetSummary({
       formatNumber(analytics.legacyUnknownExcludedCount),
     ],
   ] as const
-  return <AnalyticsGrid rows={rows} />
+  return <AnalyticsGrid name="Google review response targets" rows={rows} />
 }

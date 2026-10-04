@@ -9,6 +9,7 @@ import type {
   ReviewAnalysisProgress,
 } from '#/contexts/ai/application/public-api'
 import { cn } from '#/lib/utils'
+import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 import { ROW_LINK_SURFACE } from '#/components/ui/row-link'
 import {
   AI_OVERVIEW_STATUS,
@@ -25,20 +26,6 @@ type Props = Readonly<{
   spend: AiOrganizationMonthSpend | undefined
   progressByProperty: ReadonlyMap<string, ReviewAnalysisProgress | undefined>
 }>
-
-function Fact({
-  label,
-  value,
-  hint,
-}: Readonly<{ label: string; value: string; hint?: string }>) {
-  return (
-    <div className="min-w-0">
-      <dt className="text-xs text-muted-foreground">{label}</dt>
-      <dd className="text-2xl font-semibold tabular-nums tracking-tight">{value}</dd>
-      {hint ? <dd className="text-xs text-muted-foreground">{hint}</dd> : null}
-    </div>
-  )
-}
 
 /**
  * The organization's AI at a glance. Nothing here changes anything: each
@@ -63,21 +50,27 @@ export function OrganizationAiOverviewPage({
 
   return (
     <div className="flex w-full min-w-0 flex-col gap-6">
-      <section aria-label="AI summary" className="rounded-lg border p-4 sm:p-5">
-        <dl className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-          <Fact
-            label="AI on"
-            value={`${summary.on} of ${summary.total}`}
-            hint="properties"
-          />
-          <Fact label="Re-consent needed" value={String(summary.reconsent)} />
-          <Fact label="Not decided" value={String(summary.undecided)} />
-          <Fact
-            label="Spend this month"
-            value={spend ? formatMicros(spend.settledMicros) : '…'}
-            hint={spend ? `of ${formatMicros(spend.capMicros)} limit` : undefined}
-          />
-        </dl>
+      <section aria-label="AI summary" className="flex flex-col gap-4">
+        <MetricStrip aria-label="AI at a glance" variant="tiles">
+          <Metric label="AI on">
+            <MetricValue
+              value={`${summary.on} of ${summary.total}`}
+              detail="properties"
+            />
+          </Metric>
+          <Metric label="Re-consent needed">
+            <MetricValue value={String(summary.reconsent)} />
+          </Metric>
+          <Metric label="Not decided">
+            <MetricValue value={String(summary.undecided)} />
+          </Metric>
+          <Metric label="Spend this month">
+            <MetricValue
+              value={spend ? formatMicros(spend.settledMicros) : '…'}
+              detail={spend ? `of ${formatMicros(spend.capMicros)} limit` : undefined}
+            />
+          </Metric>
+        </MetricStrip>
         {spend ? (
           <div
             role="meter"
@@ -85,7 +78,7 @@ export function OrganizationAiOverviewPage({
             aria-valuemin={0}
             aria-valuemax={100}
             aria-valuenow={Math.round(spendShare(spend) * 100)}
-            className="mt-4 h-1.5 overflow-hidden rounded-full bg-muted"
+            className="h-1.5 overflow-hidden rounded-full bg-muted"
           >
             <div
               className={cn(
