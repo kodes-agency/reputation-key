@@ -27,6 +27,7 @@ import type { Finding } from './phone-story-tests'
 
 const BAR_PX = 44
 export const CONTROL_PX = 36
+/** A queue pill in the strip. */
 const PILL_PX = 32
 const ROW_PX = 78
 /** The checkbox column (20) and its gap (8) that the row text sits behind while selecting. */
@@ -79,7 +80,9 @@ export function activeFilterLines(
     ...found(group, 'the active-filters row'),
     ...heightIs('the active-filters row', group.box, BAR_PX),
     ...spansWindow('the active-filters row', group.box, view),
-    ...controlsAre(group.controls, PILL_PX),
+    // A removable chip is a control, so it takes the compact touch height (36px,
+    // inside the row's 44px) like the Clear that ends the row.
+    ...controlsAre(group.controls, CONTROL_PX),
     ...(first === undefined ? [] : boxStartsOnGutter('the first chip', first.box)),
   ]
 }

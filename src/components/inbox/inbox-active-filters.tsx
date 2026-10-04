@@ -76,9 +76,9 @@ function ActiveFiltersRow({
         <ClearFiltersButton
           size="sm"
           searching={searching}
-          // Chip height (32px) on a phone as well: the row is chips, and this is
-          // the last of them, not a control of its own.
-          className="shrink-0 px-2 text-xs max-md:min-h-0"
+          // The chips' height on a phone (36px in the compact Inbox) as well: the
+          // row is chips, and this is the last of them, not a control of its own.
+          className="shrink-0 px-2 text-xs"
           onClear={(event) => onClearFilters(event.currentTarget)}
         />
       )}

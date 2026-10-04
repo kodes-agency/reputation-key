@@ -34,13 +34,17 @@ describe('RemovableChip', () => {
     expect(html).toContain('aria-hidden="true"')
   })
 
-  it('is a pill with a border, a ring for the keyboard and one fixed height', () => {
+  it('is a pill with a border, a ring for the keyboard and a 32px height', () => {
     const html = render()
 
     expect(html).toContain('rounded-full')
     expect(html).toContain('border')
     expect(html).toContain('focus-ring')
     expect(html).toContain('h-8')
+  })
+
+  it('is a tap target below md: the touch height is its minimum, 36px in a compact workspace', () => {
+    expect(render()).toContain('max-md:min-h-(--control-touch)')
   })
 
   it('passes a data attribute through, so a list can find its chips to move focus', () => {

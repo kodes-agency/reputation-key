@@ -253,7 +253,7 @@ In light mode, the same tonal stack inverts: near-white backgrounds step from pa
 - **Menus read "Label: value".** An outline button with a glyph: `Show: Needs attention`, `Sort: Name`, `Group by: None`. The filter glyph is `ListFilter` and the sort glyph `ArrowDownUp`, in every list.
 - **The count is "N of M"** and only while the list is narrowed, in a live region that is always mounted.
 - **Clear is one control with one meaning.** It takes away the search and the filters and never the sort. It reads "Clear filters", or "Clear search and filters" while a search is in force, as a ghost button beside the toolbar, an outline button in an empty result, and a small one in a popover header. A list with a search and no filter (All properties, Google import) reads "Clear search": it names only what it takes away.
-- **Removable chips** are one button, 32px, with the label and an X (`RemovableChip`); a choice between exclusive options (the Inbox sheet's radio pills) is not one.
+- **Removable chips** are one button with the label and an X (`RemovableChip`): a 32px pill from `md`, and below it a tap target like every control (`--control-touch`, so 44px in a form and 36px in the compact Inbox). The search field's X is a tap target below `md` too. A choice between exclusive options (the Inbox sheet's radio pills) is not a chip.
 - **The Inbox keeps its compact composition** (an icon that opens the search, a popover on desktop and a bottom sheet on a phone) and wears the same field internals, glyphs, count and Clear words.
 
 ### Navigation (Sidebar)

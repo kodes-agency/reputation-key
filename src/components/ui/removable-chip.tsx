@@ -22,9 +22,11 @@ type Props = Omit<
  * anatomies, and the second a small target in a pill that is not one. The whole
  * chip is the button, with the X as its cue.
  *
- * It is 32px on purpose, a chip and not a control: a row of them (the Inbox's on
- * a phone) is a strip of 44px with a 32px chip in it. A mutually exclusive choice
- * (the Inbox sheet's radio pills) is a different thing and keeps its own anatomy.
+ * It is a pill 32px tall from `md`, and below it a tap target like every control:
+ * `--control-touch` is the minimum, so 44px in a form (the member invitation) and
+ * 36px in the Inbox's compact workspace, where the strip it sits in is 44px. A
+ * mutually exclusive choice (the Inbox sheet's radio pills) is a different thing and
+ * keeps its own anatomy.
  */
 export function RemovableChip({
   label,
@@ -39,7 +41,7 @@ export function RemovableChip({
       data-slot="removable-chip"
       aria-label={removeLabel}
       className={cn(
-        'inline-flex h-8 shrink-0 items-center gap-1 rounded-full border bg-background pr-2 pl-3 text-xs font-medium transition-colors hover:bg-muted focus-ring',
+        'inline-flex h-8 shrink-0 items-center gap-1 rounded-full border bg-background pr-2 pl-3 text-xs font-medium transition-colors hover:bg-muted focus-ring max-md:min-h-(--control-touch)',
         className,
       )}
       onClick={onRemove}

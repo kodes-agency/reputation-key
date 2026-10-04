@@ -60,6 +60,13 @@ describe('SearchField', () => {
     expect(html).toContain('lucide-x')
   })
 
+  it('makes the clear button a tap target below md, though its glyph is small', () => {
+    const html = render({ value: 'cafe' })
+
+    expect(html).toContain('max-md:min-h-(--control-touch)')
+    expect(html).toContain('max-md:min-w-(--control-touch)')
+  })
+
   it('names the clear button for the list when the caller says', () => {
     expect(render({ value: 'cafe', clearLabel: 'Clear the search' })).toContain(
       'aria-label="Clear the search"',

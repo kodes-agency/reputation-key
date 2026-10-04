@@ -158,8 +158,9 @@ and actions supply server state.
   `filters={false}` and it reads "Clear search", so it never promises a reset that does
   not exist. An empty result offers the same control (`variant="outline"`), and a list
   with no match for a search or a filter always does. A removed choice is a
-  `RemovableChip` (one 32px button named "Remove ..."), never a Badge with a button in
-  it. `SortDirection` lives in `ui/list-sort.ts` and the direction labels are the
+  `RemovableChip` (one button named "Remove ...", a 32px pill from `md` and a tap
+  target below it: 44px in a form, 36px in the compact Inbox), never a Badge with a
+  button in it. The field's own X is a tap target on a phone too. `SortDirection` lives in `ui/list-sort.ts` and the direction labels are the
   list's. `list-toolbar-sources.test.ts` fails on a hand-built search input, a second
   Clear wording, a filter or sort glyph of its own and a second `SortDirection`. Where a
   form asks "which property?" it is `PropertyPicker` (`property/property-picker.tsx`):

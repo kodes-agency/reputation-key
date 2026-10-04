@@ -34,7 +34,8 @@ type Props = Readonly<{
  * the InputGroup recipe with a Search glyph, the shared length limit (the URL
  * schemas drop a longer search, so the box stops typing there rather than
  * clearing itself on the 101st character), and a clear button that gives the
- * focus back to the field. It owns no matching: a list matches with
+ * focus back to the field and is a tap target on a phone (44px, 36px in a compact
+ * workspace) though the glyph is 12px. It owns no matching: a list matches with
  * `searchMatcher` (`#/components/property/property-search`), which folds case and
  * accents the same way everywhere.
  *
@@ -96,9 +97,12 @@ export function SearchField({
       </InputGroupAddon>
       <InputGroupInput ref={inputRef} {...input} className={NO_NATIVE_CANCEL} />
       {clearable && value !== '' ? (
-        <InputGroupAddon align="inline-end">
+        // The X is a tap target below `md` (`touch`), so the addon adds no padding of
+        // its own around it: the field is as tall as the button, not 12px taller.
+        <InputGroupAddon align="inline-end" className="py-0">
           <IconButton
             size="icon-xs"
+            touch
             label={clearLabel}
             tooltip={false}
             onClick={() => {
