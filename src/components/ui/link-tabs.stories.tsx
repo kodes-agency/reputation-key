@@ -8,10 +8,11 @@
 // A `LinkTab` is a router link, so a click would navigate the story's memory router
 // to a route it has no page for: the stories keep the view in state and stop the
 // navigation in the click handler, as a real page's view comes from its route.
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { tailwindIsCompiled } from '../../../.storybook/tailwind-compiled'
+import { useGrownAfterMount } from '../../../.storybook/use-grown-after-mount'
 import { LinkTab, LinkTabs } from './link-tabs'
 import { TabCount, Tabs, TabsContent, TabsList, TabsTrigger } from './tabs'
 
@@ -219,11 +220,7 @@ const GROWN_LABEL = 'History and audit trail'
  * count appearing does: it fits when it mounts and overflows a moment later.
  */
 function GrowingStrip() {
-  const [grown, setGrown] = useState(false)
-  useEffect(() => {
-    const timer = setTimeout(() => setGrown(true), 50)
-    return () => clearTimeout(timer)
-  }, [])
+  const grown = useGrownAfterMount()
   const tabs = [
     { id: 'page', label: 'Page' },
     { id: 'share', label: 'Share' },

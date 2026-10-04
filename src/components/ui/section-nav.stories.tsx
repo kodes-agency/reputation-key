@@ -8,11 +8,11 @@
 // row, focus and the strip's behaviour. `STRIP_LAYOUT` stands in for the layout
 // the strip's scrolling needs, only where Tailwind is missing; where it is compiled
 // (Storybook proper) the container-driven plays also read the real layout.
-import { useEffect, useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { Bell, Building2, Palette, Shield, User, Users } from 'lucide-react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { tailwindIsCompiled } from '../../../.storybook/tailwind-compiled'
+import { useGrownAfterMount } from '../../../.storybook/use-grown-after-mount'
 import { NavCount } from './nav-count'
 import { SectionNav } from './section-nav'
 import { SectionNavLayout } from './section-nav-layout'
@@ -220,11 +220,7 @@ const GROWN_LABEL = 'People and responsible managers'
  * a count appearing does: it fits when it mounts and overflows a moment later.
  */
 function GrowingStrip(args: Parameters<typeof SectionNav>[0]) {
-  const [grown, setGrown] = useState(false)
-  useEffect(() => {
-    const timer = setTimeout(() => setGrown(true), 50)
-    return () => clearTimeout(timer)
-  }, [])
+  const grown = useGrownAfterMount()
   const items = [
     ...HUB.slice(0, 3),
     section('people', grown ? GROWN_LABEL : 'People', 'Responsible managers'),
