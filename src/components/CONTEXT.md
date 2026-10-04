@@ -145,7 +145,8 @@ and actions supply server state.
   `Link` that writes its own `aria-current` and on a `Link` inside a `LinkTab`.
   A list's search, filter, sort, count and Clear are one set of parts in a
   `ListToolbar` row: `SearchField`, `ListFilterMenu` (a filter), `ListChoiceMenu` (how the
-  list is shown, as Group by), `ListSortMenu`, `ResultCount` and `ClearFiltersButton`; the
+  list is shown, as Group by), `ListSortMenu`, and `ResultCount` with `ClearFiltersButton`
+  inside a `ListToolbarStatus` (the two wrap together, so Clear never starts a line); the
   Properties list, the Portals overview and All properties compose them and write the
   URL, and the Inbox composes the same parts in its compact header. The field is
   `type="search"` with the one length limit (`MAX_LIST_SEARCH_LENGTH`, which the URL
@@ -174,14 +175,16 @@ and actions supply server state.
   {name}" and with no tooltip, and `RowActionsItem` items (`destructive` for an
   action that cannot be taken back, like a confirmation's tone; `opensDialog` ends
   the label in an ellipsis; a link item is `asChild` and spells its own). A row
-  keeps at most two labelled actions inline (Edit and Share, Resend and Cancel,
-  Remove) and puts the rest in the menu; the dialog an item opens is held outside
-  it. `row-actions-sources.test.ts` fails on a hand-built kebab and an off-pattern
+  keeps at most two labelled actions inline (Edit and Share, Remove) and puts the rest
+  in the menu (a pending invitation's Resend and Cancel are its menu's items); the
+  dialog an item opens is held outside it. `row-actions-sources.test.ts` fails on a hand-built kebab and an off-pattern
   name. A list of rows is a `DataTable` (frame, header cells, rows that stack as small
   grids below the container's own width: `layout="rows"`; `"cards"` for the Portals
   tables, whose rows are cards; `"scroll"` for a table wide by nature), with an
-  "Actions" column that is `actions` (named for a screen reader, no word on screen)
-  and `DataTableSortHead` for a header that orders. The raw `ui/table` stays for a
+  "Actions" column that is `actions` (named for a screen reader, no word on screen; its
+  cells are `<DataTableCell actions>`, which pulls a stacked row's menu trigger to the
+  text edge, in the corner of the first row) and `DataTableSortHead` for a header that
+  orders. The raw `ui/table` stays for a
   matrix, a wizard step and a chart's data table (`data-table-sources.test.ts` names
   each and fails on a new one). A row opens things one way (`row-link.ts`): the name
   is the accent link (`ROW_NAME_LINK`), any other link in the row is a figure or a
