@@ -19,6 +19,17 @@ import type { SectionNavItem } from './section-nav-types'
 
 const PROPERTY_ID = '10000000-0000-4000-8000-000000000101'
 
+/** Text of rendered markup: tags stripped until none is left, spaces collapsed. */
+function markupText(html: string, tagGap: string): string {
+  let text = html
+  let previous: string
+  do {
+    previous = text
+    text = text.replace(/<[^>]*>/gu, tagGap)
+  } while (text !== previous)
+  return text.replace(/\s+/gu, ' ').trim()
+}
+
 const ITEMS: ReadonlyArray<SectionNavItem> = [
   {
     key: 'profile',
@@ -83,10 +94,7 @@ describe('SectionNav', () => {
 
     expect(html).toContain('<nav aria-label="Property settings sections"')
     const labels = [...html.matchAll(/<a [^>]*>[\s\S]*?<\/a>/gu)].map((match) =>
-      match[0]
-        .replace(/<[^>]+>/gu, ' ')
-        .replace(/\s+/gu, ' ')
-        .trim(),
+      markupText(match[0], ' '),
     )
     expect(labels).toEqual([
       'Profile Name, country and timezone',

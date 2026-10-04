@@ -21,6 +21,17 @@ const COUNTS: InboxQueueCounts = {
 
 const noop = () => undefined
 
+/** Text of rendered markup: tags stripped until none is left, spaces collapsed. */
+function markupText(html: string, tagGap: string): string {
+  let text = html
+  let previous: string
+  do {
+    previous = text
+    text = text.replace(/<[^>]*>/gu, tagGap)
+  } while (text !== previous)
+  return text.replace(/\s+/gu, ' ').trim()
+}
+
 const rail = () =>
   renderToStaticMarkup(
     createElement(InboxQueueRail, {
@@ -91,12 +102,7 @@ describe('the Inbox queue strip', () => {
   })
 
   it('names a pill by its label and its count, as it did when the count was text', () => {
-    const names = queueButtons(strip()).map((button) =>
-      button
-        .replace(/<[^>]+>/gu, '')
-        .replace(/\s+/gu, ' ')
-        .trim(),
-    )
+    const names = queueButtons(strip()).map((button) => markupText(button, ''))
 
     expect(names).toContain('Needs reply 12')
     expect(names).toContain('Waiting for Google')
