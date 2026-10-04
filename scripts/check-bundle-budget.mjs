@@ -386,6 +386,18 @@
 // alternative is to leave the sidebars' links as router links and keep their
 // `aria-current` mismatch.
 //
+// 2026-10-04 (S5 visual QA fixes): the shared `focus-ring` utility gains a 1px
+// full-strength outline in the ring token, the edge a Button's border gives its
+// halo, because the halo alone reads 1.65:1 on the dark page and 1.92:1 on the
+// light one and a nav row has no border to carry it (3:1 is measured in
+// `nav-contrast.test.ts`), and SectionNav re-reveals its open section through the
+// hook LinkTabs already uses. Fresh production builds, 82 js + 1 css each: the
+// stage before these fixes 339,082 B (339,053 B when it was first measured); with
+// them 339,129 B, +47 B. The stylesheet is +10 B (the declaration) and the entry
+// chunk +46 B, which is the preload map listing the hook as a chunk SectionNav and
+// LinkTabs share, not code in the closure. Inside the 339,200 B budget, which
+// leaves 71 B; the budget does not move.
+//
 // When this fails: resolve the new static importer and cut that source edge. Do
 // NOT raise the budget without recording a fresh production measurement here.
 // When a cycle fails it: the chunk group that moved a module away from the
