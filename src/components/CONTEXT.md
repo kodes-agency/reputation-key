@@ -94,7 +94,7 @@ and actions supply server state.
   below its path, after every prop, so a nav that draws its own active row from a
   different test announced several current pages. `NavLink` drops the router's
   current marks and sets `aria-current` once, from the `current` the nav passes; the
-  sidebars and every section nav use it, and a row is styled from
+  sidebars, every section nav and every `LinkTab` use it, and a row is styled from
   `aria-[current=page]`, so what is drawn and what is announced are one answer. The
   sections of one place (Property settings, the Portal editor's page parts) are a
   `SectionNav`: items with an optional icon, summary, count and group, drawn as a
@@ -114,22 +114,34 @@ and actions supply server state.
   link in it is chosen and its rows are the touch height.
   A page's sibling views are underline tabs, drawn from one recipe
   (`tabs-line-styles.ts`): `LinkTabs` / `LinkTab` when each view is a route or a
-  search value of one (a navigation landmark of links, `aria-current`, the link
-  passed as the child; People, Properties, Goals, the Portal workspace), and
-  `Tabs variant="line"` when the views swap a panel in the same document
-  (Notifications). The pill `Tabs` is for a mode inside a component (the
-  composer's Reply / Note, a dialog's choice) and nothing else; `TabCount` is the
-  one count beside a label. A short, always-answered value choice is
-  `SegmentedControl` (a radio group; `touch` makes its segments a tap target below
-  `md`), and a time range is `RangeControl`: segments from `sm`, a Select below,
-  one name ("Time range"), the page's own preset list worded from the one table
-  (`RANGE_PRESET_LABELS`: "30 days" everywhere, never "Last 30 days"). The range
-  lives where the page keeps its other state: a dashboard topic page keeps
-  `?range=` (`dashboardRangeSearch`); the Portal Results window is a reader-wide
-  preference that follows the reader from portal to portal and to the overview, so
-  it is remembered per reader. `view-switcher-sources.test.ts` fails on a pill on a
-  page, a hand-drawn underline, a toggled-Button view switch and a second range
-  picker.
+  search value of one (People, Properties, Goals, the Portal workspace and the
+  Notifications filters), and `Tabs variant="line"` when the views swap a panel in
+  the same document (no page does today). `LinkTabs` is a navigation landmark of
+  links, not a tablist, and a `LinkTab` is a `NavLink` in a list item: it takes the
+  router link's own `to`, `params` and `search` and the one `current` the page gives
+  it, so no tab needs `activeOptions`, and what is drawn and what is announced are
+  one answer. The row is a strip like every scroll row (one line, scrollbar hidden,
+  the side that continues fades, the current tab scrolled into view). A tab is 36px
+  from `md` and the touch token below it. Its focus outline is inset, on purpose: a
+  row that scrolls sideways clips an outer ring where a tab sits flush against the
+  baseline, while the section navs' rows have room around them for `focus-ring`.
+  The pill `Tabs` is for a mode inside a component (the composer's Reply / Note, a
+  dialog's choice) and nothing else; `TabCount` is the one count beside a label. A
+  short, always-answered value choice is `SegmentedControl` (a radio group; `touch`
+  makes its segments a tap target below `md`), and a time range is `RangeControl`:
+  segments from `sm`, a Select below, one name ("Time range"), the page's own preset
+  list worded from the one table (`RANGE_PRESET_LABELS`: "30 days" everywhere, never
+  "Last 30 days"). A range is a window on its page, so a route changes it by
+  replacing the history entry (a radio group chooses as focus moves). A dashboard
+  topic page keeps the range in `?range=` (`dashboardRangeSearch`); the Portal
+  Results window is a reader-wide preference that follows the reader from portal to
+  portal and to the overview, so it is remembered per reader. That is two mechanisms
+  for one vocabulary, and unifying them (the URL as the source of truth on the Portal
+  side, with the stored preference as its default) is an open owner decision, not
+  settled here. `view-switcher-sources.test.ts` fails on a pill on a page, a
+  hand-drawn underline, a toggled-Button view switch, a second range picker and a
+  range change that pushes history; `nav-link-sources.test.ts` fails on a router
+  `Link` that writes its own `aria-current` and on a `Link` inside a `LinkTab`.
 - `forms/` contains shared TanStack Form fields, submission, and error UI. A
   failure has one reporter. A form submit reports through `FormErrorBanner`,
   placed directly above that form's actions (the bottom of a card's body, above
