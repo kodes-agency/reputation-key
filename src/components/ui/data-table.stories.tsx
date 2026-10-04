@@ -39,11 +39,17 @@ type Layout = 'rows' | 'cards' | 'scroll'
 
 function People({
   layout = 'rows',
-  from = '3xl',
   busy = false,
-}: Readonly<{ layout?: Layout; from?: '2xl' | '3xl' | '4xl'; busy?: boolean }>) {
+}: Readonly<{ layout?: Layout; busy?: boolean }>) {
+  // Rows start at 3xl; cards at 4xl here, as the Portals overview does.
+  const table =
+    layout === 'cards'
+      ? ({ layout, from: '4xl' } as const)
+      : layout === 'scroll'
+        ? ({ layout } as const)
+        : ({ layout, from: '3xl' } as const)
   return (
-    <DataTable label="Members" from={from} layout={layout} busy={busy}>
+    <DataTable label="Members" busy={busy} {...table}>
       <DataTableHeader>
         <DataTableHead>Name</DataTableHead>
         <DataTableHead>Email</DataTableHead>

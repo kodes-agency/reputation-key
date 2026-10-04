@@ -9,12 +9,12 @@
 // class here is written out in full (never assembled), so Tailwind sees each one.
 // A table that is narrower than its breakpoint is a stack of cards in either density.
 import { createContext, useContext } from 'react'
-import type { DataTableFrom } from '#/components/ui/data-table'
+import type { DataTableCardsFrom } from '#/components/ui/data-table'
 
 export type OverviewDensity = 'regular' | 'compact'
 
 /** The container width each density becomes a table at: 56 rem, and 42 rem. */
-export const OVERVIEW_FROM: Readonly<Record<OverviewDensity, DataTableFrom>> = {
+export const OVERVIEW_FROM: Readonly<Record<OverviewDensity, DataTableCardsFrom>> = {
   regular: '4xl',
   compact: '2xl',
 }

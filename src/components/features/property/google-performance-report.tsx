@@ -108,7 +108,7 @@ export function GooglePerformanceSourceStatus({
             className="w-[min(22rem,calc(100vw-2rem))]"
           >
             <p className="font-medium">Google source details</p>
-            <DescriptionList aria-label="Google source details" className="mt-3 gap-2">
+            <DescriptionList className="mt-3 gap-2">
               <DescriptionItem term="Status">{statusLabel}</DescriptionItem>
               <DescriptionItem term="Source">{report.sourceLabel}</DescriptionItem>
               <DescriptionItem term="Retrieved">

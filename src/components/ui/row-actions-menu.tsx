@@ -59,7 +59,6 @@ type Props = TriggerProps &
     variant?: 'ghost' | 'outline'
     size?: keyof typeof TRIGGER_SIZE
     width?: keyof typeof CONTENT_WIDTH
-    align?: ComponentProps<typeof DropdownMenuContent>['align']
     /** Runs after the menu has closed, to hand focus to something it opened. */
     onCloseAutoFocus?: ComponentProps<typeof DropdownMenuContent>['onCloseAutoFocus']
     children: ReactNode
@@ -70,7 +69,6 @@ export function RowActionsMenu({
   variant = 'ghost',
   size = 'default',
   width = 'default',
-  align = 'end',
   onCloseAutoFocus,
   className,
   children,
@@ -92,7 +90,7 @@ export function RowActionsMenu({
         </IconButton>
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        align={align}
+        align="end"
         onCloseAutoFocus={onCloseAutoFocus}
         className={CONTENT_WIDTH[width]}
       >

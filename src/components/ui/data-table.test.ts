@@ -42,7 +42,7 @@ describe('DataTable frame', () => {
   it('is a block, and a table only from the container width it was given', () => {
     expect(table()).toContain('block @4xl:table')
     expect(table({ from: '3xl' })).toContain('block @3xl:table')
-    expect(table({ from: '2xl' })).toContain('block @2xl:table')
+    expect(table({ layout: 'cards', from: '2xl' })).toContain('block @2xl:table')
   })
 
   it('does not frame the cards of a list that stacks as cards until it is a table', () => {
@@ -159,6 +159,31 @@ describe('DataTable parts', () => {
 
     expect(row(2)).toContain('grid-cols-[minmax(0,1fr)_auto]')
     expect(row(3)).toContain('grid-cols-[minmax(0,1fr)_auto_auto]')
+  })
+
+  it('keeps the last card its border, and drops the last row divider only as a table', () => {
+    const html = inside(h(DataTableBody, null, h(DataTableRow, null)), {
+      layout: 'cards',
+    })
+
+    // (the markup escapes the ampersand of the arbitrary variant)
+    expect(html).toContain('[&amp;_tr:last-child]:border ')
+    expect(html).toContain('@4xl:[&amp;_tr:last-child]:border-0')
+    expect(html).not.toMatch(/(^|\s)\[&amp;_tr:last-child\]:border-0/u)
+  })
+
+  it('leaves the cells of a list of cards to the caller, who sets each for its density', () => {
+    const html = inside(
+      h(
+        DataTableBody,
+        null,
+        h(DataTableRow, null, h(DataTableCell, { className: 'px-3' }, 'x')),
+      ),
+      { layout: 'cards' },
+    )
+
+    expect(html).toContain('px-3')
+    expect(html).not.toContain('@4xl:table-cell')
   })
 
   it('stacks a row as a card of its own when the list asks for cards', () => {

@@ -94,12 +94,24 @@ test.describe('a list of cards', () => {
         return { display: computed.display, border: computed.borderTopWidth }
       })
     expect(card).toEqual({ display: 'grid', border: '1px' })
+    // The last card has its border too: the divider of a last table row is dropped
+    // only when the rows are table rows.
+    const last = await table(page)
+      .locator('tbody tr')
+      .last()
+      .evaluate((row) => getComputedStyle(row).borderTopWidth)
+    expect(last).toBe('1px')
 
     await openStory(page, STORIES.cardsWide)
     const wideBorder = await frame(page).evaluate(
       (element) => getComputedStyle(element).borderTopWidth,
     )
     expect(wideBorder).toBe('1px')
+    const lastWide = await table(page)
+      .locator('tbody tr')
+      .last()
+      .evaluate((row) => getComputedStyle(row).borderBottomWidth)
+    expect(lastWide).toBe('0px')
   })
 })
 

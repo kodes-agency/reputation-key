@@ -16,8 +16,9 @@
 // - `layout="scroll"`: always a table, framed, scrolling sideways when it is wider
 //   than its column. For a table that is wide by nature (a matrix, seven columns).
 //
-// `from` is the container width the table starts at (`2xl`, `3xl` or `4xl`; each
-// class is written out in full below so Tailwind sees it). How a stacked row
+// `from` is the container width the table starts at: `3xl` or `4xl` for rows, `2xl`
+// or `4xl` for cards (each class is written out in full below so Tailwind sees it,
+// and only the widths a layout uses are spelled). How a stacked row
 // arranges its cells is the caller's: `tracks` says how many columns the stacked
 // grid has, and a cell places itself with `col-start-*` / `row-start-*`.
 import { createContext, use, type ComponentProps, type ReactNode } from 'react'
@@ -32,56 +33,68 @@ import {
 } from '#/components/ui/table'
 import { cn } from '#/lib/utils'
 
-export type DataTableFrom = '2xl' | '3xl' | '4xl'
+/** The container widths a list of rows becomes a table at, and a list of cards does. */
+export type DataTableRowsFrom = '3xl' | '4xl'
+export type DataTableCardsFrom = '2xl' | '4xl'
 export type DataTableLayout = 'rows' | 'cards' | 'scroll'
+
+// Only the combinations that are used are written out: every class here is a rule
+// in the stylesheet every page loads, so a width no table uses is not spelled.
+
+/** The table and its header row, at each width the shell can start at. */
+const SHELL = {
+  '2xl': { table: 'block @2xl:table', header: 'hidden @2xl:table-header-group' },
+  '3xl': { table: 'block @3xl:table', header: 'hidden @3xl:table-header-group' },
+  '4xl': { table: 'block @4xl:table', header: 'hidden @4xl:table-header-group' },
+} as const
 
 type Recipe = Readonly<{
   /** The frame, drawn only from the width, for a list of cards. */
   frame: string
-  table: string
-  header: string
-  rowsBody: string
-  cardsBody: string
-  rowsRow: string
-  cardsRow: string
+  body: string
+  row: string
   cell: string
 }>
 
-const RECIPE = {
+const ROWS = {
+  '3xl': {
+    frame: '',
+    body: 'block @3xl:table-row-group',
+    row: '@3xl:table-row @3xl:p-0',
+    cell: 'p-0 @3xl:table-cell @3xl:px-4 @3xl:py-3',
+  },
+  '4xl': {
+    frame: '',
+    body: 'block @4xl:table-row-group',
+    row: '@4xl:table-row @4xl:p-0',
+    cell: 'p-0 @4xl:table-cell @4xl:px-4 @4xl:py-3',
+  },
+} as const satisfies Record<DataTableRowsFrom, Recipe>
+
+// A card keeps its border while it is a card: the last row's divider is dropped only
+// when the rows are table rows, where it would double the frame's own edge.
+const CARDS = {
   '2xl': {
     frame: '@2xl:overflow-hidden @2xl:rounded-lg @2xl:border @2xl:bg-card',
-    table: 'block @2xl:table',
-    header: 'hidden @2xl:table-header-group',
-    rowsBody: 'block @2xl:table-row-group',
-    cardsBody: 'block space-y-3 pb-3 @2xl:table-row-group @2xl:space-y-0 @2xl:pb-0',
-    rowsRow: '@2xl:table-row @2xl:p-0',
-    cardsRow:
-      '@2xl:table-row @2xl:rounded-none @2xl:border-0 @2xl:border-b @2xl:bg-transparent @2xl:p-0',
-    cell: '@2xl:table-cell @2xl:px-4 @2xl:py-3',
-  },
-  '3xl': {
-    frame: '@3xl:overflow-hidden @3xl:rounded-lg @3xl:border @3xl:bg-card',
-    table: 'block @3xl:table',
-    header: 'hidden @3xl:table-header-group',
-    rowsBody: 'block @3xl:table-row-group',
-    cardsBody: 'block space-y-3 pb-3 @3xl:table-row-group @3xl:space-y-0 @3xl:pb-0',
-    rowsRow: '@3xl:table-row @3xl:p-0',
-    cardsRow:
-      '@3xl:table-row @3xl:rounded-none @3xl:border-0 @3xl:border-b @3xl:bg-transparent @3xl:p-0',
-    cell: '@3xl:table-cell @3xl:px-4 @3xl:py-3',
+    body: 'block space-y-3 pb-3 @2xl:table-row-group @2xl:space-y-0 @2xl:pb-0 [&_tr:last-child]:border @2xl:[&_tr:last-child]:border-0',
+    row: '@2xl:table-row @2xl:rounded-none @2xl:border-0 @2xl:border-b @2xl:bg-transparent @2xl:p-0',
+    cell: '',
   },
   '4xl': {
     frame: '@4xl:overflow-hidden @4xl:rounded-lg @4xl:border @4xl:bg-card',
-    table: 'block @4xl:table',
-    header: 'hidden @4xl:table-header-group',
-    rowsBody: 'block @4xl:table-row-group',
-    cardsBody: 'block space-y-3 pb-3 @4xl:table-row-group @4xl:space-y-0 @4xl:pb-0',
-    rowsRow: '@4xl:table-row @4xl:p-0',
-    cardsRow:
-      '@4xl:table-row @4xl:rounded-none @4xl:border-0 @4xl:border-b @4xl:bg-transparent @4xl:p-0',
-    cell: '@4xl:table-cell @4xl:px-4 @4xl:py-3',
+    body: 'block space-y-3 pb-3 @4xl:table-row-group @4xl:space-y-0 @4xl:pb-0 [&_tr:last-child]:border @4xl:[&_tr:last-child]:border-0',
+    row: '@4xl:table-row @4xl:rounded-none @4xl:border-0 @4xl:border-b @4xl:bg-transparent @4xl:p-0',
+    cell: '',
   },
-} as const satisfies Record<DataTableFrom, Recipe>
+} as const satisfies Record<DataTableCardsFrom, Recipe>
+
+/** A table that scrolls is always a table: nothing stacks, so nothing is conditional. */
+const SCROLL = {
+  frame: '',
+  body: '',
+  row: '',
+  cell: 'px-4 py-3',
+} as const satisfies Recipe
 
 /** The stacked grid: a flexible first column, then the rest as wide as they are. */
 const TRACKS = {
@@ -89,19 +102,44 @@ const TRACKS = {
   3: 'grid-cols-[minmax(0,1fr)_auto_auto]',
 } as const
 
-type Shell = Readonly<{ from: DataTableFrom; layout: DataTableLayout }>
+/** What the parts of one table read: resolved once by the table, so no part chooses. */
+type Shell = Readonly<{
+  layout: DataTableLayout
+  table: string
+  header: string
+  recipe: Recipe
+}>
 
-const ShellContext = createContext<Shell>({ from: '4xl', layout: 'rows' })
+const ShellContext = createContext<Shell>({
+  layout: 'rows',
+  ...SHELL['4xl'],
+  recipe: ROWS['4xl'],
+})
 
-type DataTableProps = Readonly<{
+function resolveShell(layout: DataTableLayout, from: keyof typeof SHELL): Shell {
+  if (layout === 'scroll') return { layout, table: '', header: '', recipe: SCROLL }
+  // The props allow only the widths each layout has a recipe for.
+  const recipe =
+    layout === 'cards'
+      ? CARDS[from as DataTableCardsFrom]
+      : ROWS[from as DataTableRowsFrom]
+  return { layout, ...SHELL[from], recipe }
+}
+
+type CommonProps = Readonly<{
   /** Names the table for a screen reader: "Properties", "Members". */
   label: string
-  from?: DataTableFrom
-  layout?: DataTableLayout
   /** A new window of data is loading and the figures shown are the previous one's. */
   busy?: boolean
   children: ReactNode
 }>
+
+type DataTableProps = CommonProps &
+  (
+    | Readonly<{ layout?: 'rows'; from?: DataTableRowsFrom }>
+    | Readonly<{ layout: 'cards'; from?: DataTableCardsFrom }>
+    | Readonly<{ layout: 'scroll'; from?: undefined }>
+  )
 
 export function DataTable({
   label,
@@ -110,7 +148,7 @@ export function DataTable({
   busy = false,
   children,
 }: DataTableProps) {
-  const recipe = RECIPE[from]
+  const shell = resolveShell(layout, from)
   return (
     // The container and the frame are two elements: a container cannot be queried
     // by its own classes, so a frame that appears from a width is drawn by the
@@ -121,14 +159,13 @@ export function DataTable({
     >
       <div
         className={
-          layout === 'cards' ? recipe.frame : 'overflow-hidden rounded-lg border bg-card'
+          layout === 'cards'
+            ? shell.recipe.frame
+            : 'overflow-hidden rounded-lg border bg-card'
         }
       >
-        <Table
-          aria-label={label}
-          className={layout === 'scroll' ? undefined : recipe.table}
-        >
-          <ShellContext value={{ from, layout }}>{children}</ShellContext>
+        <Table aria-label={label} className={shell.table || undefined}>
+          <ShellContext value={shell}>{children}</ShellContext>
         </Table>
       </div>
     </div>
@@ -137,9 +174,9 @@ export function DataTable({
 
 /** The header row: not shown while the rows are stacked. */
 export function DataTableHeader({ children }: Readonly<{ children?: ReactNode }>) {
-  const { from, layout } = use(ShellContext)
+  const { header } = use(ShellContext)
   return (
-    <TableHeader className={layout === 'scroll' ? undefined : RECIPE[from].header}>
+    <TableHeader className={header || undefined}>
       <TableRow className="hover:bg-transparent">{children}</TableRow>
     </TableHeader>
   )
@@ -221,15 +258,8 @@ export function DataTableSortHead({
 
 /** One `<tbody>`; a list of cards spaces its cards, and a table of sections has several. */
 export function DataTableBody({ className, ...props }: ComponentProps<typeof TableBody>) {
-  const { from, layout } = use(ShellContext)
-  const recipe = RECIPE[from]
-  const base =
-    layout === 'scroll'
-      ? undefined
-      : layout === 'cards'
-        ? recipe.cardsBody
-        : recipe.rowsBody
-  return <TableBody className={cn(base, className)} {...props} />
+  const { recipe } = use(ShellContext)
+  return <TableBody className={cn(recipe.body, className)} {...props} />
 }
 
 type RowProps = ComponentProps<typeof TableRow> &
@@ -240,35 +270,26 @@ type RowProps = ComponentProps<typeof TableRow> &
 
 /** A row: a small grid while stacked (a card, in a list of cards), a table row from the width. */
 export function DataTableRow({ tracks = 2, className, ...props }: RowProps) {
-  const { from, layout } = use(ShellContext)
-  const recipe = RECIPE[from]
+  const { layout, recipe } = use(ShellContext)
   const stacked =
     layout === 'scroll'
       ? undefined
       : layout === 'cards'
-        ? cn(
-            'grid gap-x-2 gap-y-3 rounded-lg border bg-card p-4',
-            TRACKS[2],
-            recipe.cardsRow,
-          )
+        ? cn('grid gap-x-2 gap-y-3 rounded-lg border bg-card p-4', TRACKS[2], recipe.row)
         : cn(
             'grid gap-x-3 gap-y-1.5 px-4 py-3.5 hover:bg-muted/40',
             TRACKS[tracks],
-            recipe.rowsRow,
+            recipe.row,
           )
   return <TableRow className={cn(stacked, className)} {...props} />
 }
 
-/** A cell: bare while stacked (the row's grid places it), padded as a table cell from the width. */
+/**
+ * A cell: bare while stacked (the row's grid places it), padded as a table cell from
+ * the width. In a list of cards the cells are the caller's, which sets each one's
+ * padding for its density.
+ */
 export function DataTableCell({ className, ...props }: ComponentProps<typeof TableCell>) {
-  const { from, layout } = use(ShellContext)
-  return (
-    <TableCell
-      className={cn(
-        layout === 'scroll' ? 'px-4 py-3' : `p-0 ${RECIPE[from].cell}`,
-        className,
-      )}
-      {...props}
-    />
-  )
+  const { recipe } = use(ShellContext)
+  return <TableCell className={cn(recipe.cell, className)} {...props} />
 }
