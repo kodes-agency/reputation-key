@@ -2,7 +2,8 @@
 //
 // The bell popover was previously the ENTIRE notification surface: 320px wide,
 // 320px tall, no filters, no way to look further back than the first page.
-// This route is the real one; the popover links here.
+// This route is the real one; the popover links here. The filter tabs are links
+// to it (`?filter=`), so a filtered view is linkable and survives a refresh.
 
 import { useMemo } from 'react'
 import { createFileRoute, getRouteApi } from '@tanstack/react-router'
@@ -52,11 +53,6 @@ function NotificationsRoute() {
       notificationFns={notificationFns}
       organizationId={organizationId}
       filter={parseNotificationFilter(search.filter)}
-      onFilterChange={(filter) => {
-        // Filter lives in the URL so a filtered view is linkable and survives
-        // a refresh. `replace` keeps the back button meaning "previous page".
-        void navigate({ search: (prev) => ({ ...prev, filter }), replace: true })
-      }}
       properties={workspace}
       propertyId={search.property ?? null}
       onPropertyChange={(property) => {

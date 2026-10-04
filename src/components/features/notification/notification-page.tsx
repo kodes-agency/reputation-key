@@ -42,8 +42,8 @@ const EMPTY_TITLES: Partial<Record<NotificationFilter, string>> = {
 type Props = Readonly<{
   notificationFns: NotificationServerFns
   organizationId: string
+  /** The route's `filter`; the tabs are links that change it. */
   filter: NotificationFilter
-  onFilterChange: (filter: NotificationFilter) => void
   /** The reader's Properties, for the filter; it is offered with two or more. */
   properties: ReadonlyArray<Readonly<{ id: string; name: string }>>
   /** The Property the page is filtered to, or null for all of them. */
@@ -55,7 +55,6 @@ export function NotificationPage({
   notificationFns,
   organizationId,
   filter,
-  onFilterChange,
   properties,
   propertyId,
   onPropertyChange,
@@ -187,7 +186,7 @@ export function NotificationPage({
           onChange={onPropertyChange}
         />
       </div>
-      <NotificationFilterTabs value={filter} onChange={onFilterChange} className="mt-4">
+      <NotificationFilterTabs value={filter} className="mt-4">
         <NotificationListBody
           groups={groups}
           isLoading={list.isLoading}

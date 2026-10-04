@@ -1,6 +1,6 @@
 // The /notifications page: Needs you, Updates and All; Needs you most pressing
 // first, the others by day; stacks, and the bulk actions.
-import { useState } from 'react'
+import { useState, type MouseEvent } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import {
@@ -24,8 +24,6 @@ const MINUTE = 60_000
 const unreadCount = notificationFixtures.filter((n) => n.status === 'unread').length
 const needsYouCount = notificationFixtures.filter(needsReader).length
 
-const onFilterChange = fn()
-
 const meta: Meta<typeof NotificationPage> = {
   title: 'Notification/NotificationPage',
   component: NotificationPage,
@@ -36,7 +34,6 @@ const meta: Meta<typeof NotificationPage> = {
     notificationFns: makeStatefulNotificationFns(notificationFixtures),
     organizationId: ORGANIZATION_ID,
     filter: 'all',
-    onFilterChange,
     // One Property: the filter is not offered (it needs two or more).
     properties: [],
     propertyId: null,
@@ -45,6 +42,40 @@ const meta: Meta<typeof NotificationPage> = {
 }
 export default meta
 type Story = StoryObj<typeof NotificationPage>
+
+/**
+ * The feed's rows. The filter tabs are a list of links too, so `listitem` alone
+ * would count those as well.
+ */
+const rowsIn = (canvas: ReturnType<typeof within>): HTMLElement[] =>
+  canvas
+    .queryAllByRole('listitem')
+    .filter(
+      (item: HTMLElement) =>
+        item.closest('nav[aria-label="Filter notifications"]') === null,
+    )
+
+/**
+ * The route holds the filter in the URL and a filter tab is a link to it. The story
+ * router has no `/notifications` route, so a click on one is turned into the same
+ * change of state instead of a navigation.
+ */
+function OnItsFilterLinks(args: Parameters<typeof NotificationPage>[0]) {
+  const [filter, setFilter] = useState(args.filter)
+  const followFilterLink = (event: MouseEvent<HTMLElement>) => {
+    const href = (event.target as Element).closest('a')?.getAttribute('href')
+    if (!href) return
+    const url = new URL(href, 'http://story.test')
+    if (url.pathname !== '/notifications') return
+    event.preventDefault()
+    setFilter(parseNotificationFilter(url.searchParams.get('filter')))
+  }
+  return (
+    <div onClickCapture={followFilterLink}>
+      <NotificationPage {...args} filter={filter} />
+    </div>
+  )
+}
 
 /** The ids a group lists, in order. */
 const idsIn = (group: HTMLElement) =>
@@ -59,9 +90,7 @@ const idsIn = (group: HTMLElement) =>
 export const Default: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await waitFor(() =>
-      expect(canvas.getAllByRole('listitem')).toHaveLength(notificationFixtures.length),
-    )
+    await waitFor(() => expect(rowsIn(canvas)).toHaveLength(notificationFixtures.length))
     expect(canvas.getAllByRole('heading', { level: 2 }).length).toBeGreaterThan(0)
     expect(canvas.getAllByText('Riverside Hotel')).toHaveLength(2)
     expect(canvas.getAllByText('Harbour View Suites')).toHaveLength(1)
@@ -72,35 +101,65 @@ export const Default: Story = {
   },
 }
 
-export const FilterIsLifted: Story = {
+/**
+ * The filters are links to the route's `?filter=`, in a named landmark with the
+ * current one marked: not a tablist, because the feed below is the route's, and
+ * each filter has an address.
+ */
+export const FiltersAreLinks: Story = {
+  args: { filter: 'updates' },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    onFilterChange.mockClear()
-    await userEvent.click(await canvas.findByRole('tab', { name: 'Updates' }))
-    // The page does not own the filter — the route does, so it stays in the URL.
-    expect(onFilterChange).toHaveBeenCalledWith('updates')
+    expect(canvas.queryByRole('tablist')).toBeNull()
+    const filters = within(
+      await canvas.findByRole('navigation', { name: 'Filter notifications' }),
+    )
+    expect(filters.getAllByRole('link').map((link) => link.textContent)).toEqual([
+      'Needs you',
+      'Updates',
+      'All',
+    ])
+    expect(filters.getByRole('link', { name: 'Updates' })).toHaveAttribute(
+      'aria-current',
+      'page',
+    )
+    expect(filters.getByRole('link', { name: 'Needs you' })).not.toHaveAttribute(
+      'aria-current',
+    )
+    expect(filters.getByRole('link', { name: 'All' })).toHaveAttribute(
+      'href',
+      '/notifications?filter=all',
+    )
   },
 }
 
 /**
- * Tabs activate on Enter, not on arrowing past them: each tab starts a server
- * read, so a keyboard user passing one must not fire a request (and a loading
- * flash) for it.
+ * Choosing a filter is following a link: Tab moves past one without a server read
+ * (each filter starts one), and Enter follows it.
  */
-export const TabsWaitForEnter: Story = {
+export const FiltersWaitForEnter: Story = {
   args: { filter: 'needs_you' },
+  render: OnItsFilterLinks,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    onFilterChange.mockClear()
-    const needsYou = await canvas.findByRole('tab', { name: 'Needs you' })
+    const needsYou = await canvas.findByRole('link', { name: 'Needs you' })
     needsYou.focus()
-    await userEvent.keyboard('{ArrowRight}')
-    expect(canvas.getByRole('tab', { name: 'Updates' })).toHaveFocus()
-    expect(needsYou).toHaveAttribute('aria-selected', 'true')
-    expect(onFilterChange).not.toHaveBeenCalled()
+    await userEvent.tab()
+    const updates = canvas.getByRole('link', { name: 'Updates' })
+    expect(updates).toHaveFocus()
+    expect(needsYou).toHaveAttribute('aria-current', 'page')
+    expect(updates).not.toHaveAttribute('aria-current')
 
     await userEvent.keyboard('{Enter}')
-    expect(onFilterChange).toHaveBeenCalledWith('updates')
+    await waitFor(() =>
+      expect(canvas.getByRole('link', { name: 'Updates' })).toHaveAttribute(
+        'aria-current',
+        'page',
+      ),
+    )
+    expect(canvas.getByRole('link', { name: 'Needs you' })).not.toHaveAttribute(
+      'aria-current',
+    )
   },
 }
 
@@ -151,14 +210,17 @@ export const NeedsYouByDefault: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(parseNotificationFilter('unread')).toBe('needs_you')
-    expect(canvas.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+    const filters = within(
+      await canvas.findByRole('navigation', { name: 'Filter notifications' }),
+    )
+    expect(filters.getAllByRole('link').map((link) => link.textContent)).toEqual([
       'Needs you',
       'Updates',
       'All',
     ])
-    expect(canvas.getByRole('tab', { name: 'Needs you' })).toHaveAttribute(
-      'aria-selected',
-      'true',
+    expect(filters.getByRole('link', { name: 'Needs you' })).toHaveAttribute(
+      'aria-current',
+      'page',
     )
     const group = await canvas.findByRole('region', { name: 'Most pressing first' })
     await waitFor(() =>
@@ -222,9 +284,9 @@ export const UpdatesGroupByDay: Story = {
   args: { filter: 'updates', notificationFns: makeStatefulNotificationFns(dayFeed) },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    expect(canvas.getByRole('tab', { name: 'Updates' })).toHaveAttribute(
-      'aria-selected',
-      'true',
+    expect(canvas.getByRole('link', { name: 'Updates' })).toHaveAttribute(
+      'aria-current',
+      'page',
     )
     await waitFor(() =>
       expect(
@@ -250,9 +312,9 @@ export const NothingNeedsYou: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(await canvas.findByText('Nothing needs you right now')).toBeInTheDocument()
-    expect(canvas.queryAllByRole('listitem')).toHaveLength(0)
+    expect(rowsIn(canvas)).toHaveLength(0)
     expect(canvas.queryByRole('button', { name: /mark all read/i })).toBeNull()
-    expect(canvas.getByRole('tab', { name: 'Updates' })).toBeInTheDocument()
+    expect(canvas.getByRole('link', { name: 'Updates' })).toBeInTheDocument()
   },
 }
 
@@ -278,15 +340,15 @@ export const FilterIsAppliedBeforePagination: Story = {
     }),
   },
   play: async ({ canvasElement }) => {
-    const rows = await within(canvasElement).findAllByRole('listitem')
-    expect(rows).toHaveLength(needsYouCount)
+    const canvas = within(canvasElement)
+    await waitFor(() => expect(rowsIn(canvas)).toHaveLength(needsYouCount))
   },
 }
 
 /** Presses "Dismiss all" once the rows are in, and returns its confirmation. */
 async function openDismissAllConfirmation(canvasElement: HTMLElement) {
   const canvas = within(canvasElement)
-  await canvas.findAllByRole('listitem')
+  await waitFor(() => expect(rowsIn(canvas).length).toBeGreaterThan(0))
   await userEvent.click(canvas.getByRole('button', { name: /dismiss all/i }))
   return within(await within(document.body).findByRole('alertdialog'))
 }
@@ -456,13 +518,10 @@ export const MarkAllReadFollowsTheTab: Story = {
       markAllRead: markTabRead as unknown as NotificationServerFns['markAllRead'],
     },
   },
-  render: function OnItsTabs(args) {
-    const [filter, setFilter] = useState(args.filter)
-    return <NotificationPage {...args} filter={filter} onFilterChange={setFilter} />
-  },
+  render: OnItsFilterLinks,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await waitFor(() => expect(canvas.getAllByRole('listitem')).toHaveLength(2))
+    await waitFor(() => expect(rowsIn(canvas)).toHaveLength(2))
     canvas.getByRole('button', { name: /mark all read/i }).focus()
     await userEvent.keyboard('{Enter}')
 
@@ -474,12 +533,13 @@ export const MarkAllReadFollowsTheTab: Story = {
     // Read now, they no longer wait on the reader.
     expect(await canvas.findByText('Nothing needs you right now')).toBeInTheDocument()
 
-    await userEvent.click(canvas.getByRole('tab', { name: 'Updates' }))
+    await userEvent.click(canvas.getByRole('link', { name: 'Updates' }))
     await waitFor(() =>
       expect(
-        canvas
-          .getAllByRole('listitem')
-          .map((row) => [row.dataset.notificationId, row.dataset.notificationState]),
+        rowsIn(canvas).map((row) => [
+          row.dataset.notificationId,
+          row.dataset.notificationState,
+        ]),
       ).toEqual([
         [needsYouTabFeed[0]!.id, 'read'],
         [needsYouTabFeed[1]!.id, 'read'],
@@ -511,7 +571,7 @@ export const FocusLeftElsewhereStaysThere: Story = {
   args: { notificationFns: leftAloneServer },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await waitFor(() => expect(canvas.getAllByRole('listitem')).toHaveLength(3))
+    await waitFor(() => expect(rowsIn(canvas)).toHaveLength(3))
     canvas.getAllByRole('button', { name: /^More actions for:/ })[1]!.focus()
     await userEvent.click(
       canvas.getByRole('heading', { level: 1, name: 'Notifications' }),
@@ -521,7 +581,7 @@ export const FocusLeftElsewhereStaysThere: Story = {
     // Dismissed in another tab; this tab reads the feed again when it regains focus.
     await leftAloneServer.dismiss({ data: { notificationId: leftAloneFeed[1]!.id } })
     window.dispatchEvent(new Event('visibilitychange'))
-    await waitFor(() => expect(canvas.getAllByRole('listitem')).toHaveLength(2))
+    await waitFor(() => expect(rowsIn(canvas)).toHaveLength(2))
 
     expect(document.activeElement).toBe(document.body)
   },
@@ -590,7 +650,7 @@ export const FiltersToOneProperty: Story = {
   play: async ({ canvasElement }) => {
     onPropertyChange.mockClear()
     const canvas = within(canvasElement)
-    await waitFor(() => expect(canvas.getAllByRole('listitem')).toHaveLength(1))
+    await waitFor(() => expect(rowsIn(canvas)).toHaveLength(1))
     expect(
       canvas.getByRole('link', { name: /^Escalated: .* at Riverside Hotel,/ }),
     ).toBeVisible()
@@ -603,7 +663,7 @@ export const FiltersToOneProperty: Story = {
     )
     expect(onPropertyChange).toHaveBeenCalledWith(null)
     // The whole feed again, the Organization notice included.
-    await waitFor(() => expect(canvas.getAllByRole('listitem')).toHaveLength(3))
+    await waitFor(() => expect(rowsIn(canvas)).toHaveLength(3))
   },
 }
 
@@ -620,7 +680,7 @@ export const NoFilterForOneProperty: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await waitFor(() => expect(canvas.getAllByRole('listitem')).toHaveLength(3))
+    await waitFor(() => expect(rowsIn(canvas)).toHaveLength(3))
     expect(canvas.queryByRole('combobox', { name: /^Property:/ })).toBeNull()
   },
 }
@@ -642,7 +702,7 @@ export const BulkActionsStayInTheProperty: Story = {
   },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
-    await waitFor(() => expect(canvas.getAllByRole('listitem')).toHaveLength(1))
+    await waitFor(() => expect(rowsIn(canvas)).toHaveLength(1))
 
     await userEvent.click(canvas.getByRole('button', { name: /mark all read/i }))
     expect(markPropertyRead).toHaveBeenCalledWith({
