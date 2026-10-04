@@ -77,6 +77,22 @@ function OnItsFilterLinks(args: Parameters<typeof NotificationPage>[0]) {
   )
 }
 
+/**
+ * The filter links, once the page has drawn them: the landmark holds the three
+ * filters, in this order, and nothing else.
+ */
+async function filterLinks(canvas: ReturnType<typeof within>) {
+  const filters = within(
+    await canvas.findByRole('navigation', { name: 'Filter notifications' }),
+  )
+  expect(filters.getAllByRole('link').map((link) => link.textContent)).toEqual([
+    'Needs you',
+    'Updates',
+    'All',
+  ])
+  return filters
+}
+
 /** The ids a group lists, in order. */
 const idsIn = (group: HTMLElement) =>
   within(group)
@@ -111,14 +127,7 @@ export const FiltersAreLinks: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(canvas.queryByRole('tablist')).toBeNull()
-    const filters = within(
-      await canvas.findByRole('navigation', { name: 'Filter notifications' }),
-    )
-    expect(filters.getAllByRole('link').map((link) => link.textContent)).toEqual([
-      'Needs you',
-      'Updates',
-      'All',
-    ])
+    const filters = await filterLinks(canvas)
     expect(filters.getByRole('link', { name: 'Updates' })).toHaveAttribute(
       'aria-current',
       'page',
@@ -210,14 +219,7 @@ export const NeedsYouByDefault: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement)
     expect(parseNotificationFilter('unread')).toBe('needs_you')
-    const filters = within(
-      await canvas.findByRole('navigation', { name: 'Filter notifications' }),
-    )
-    expect(filters.getAllByRole('link').map((link) => link.textContent)).toEqual([
-      'Needs you',
-      'Updates',
-      'All',
-    ])
+    const filters = await filterLinks(canvas)
     expect(filters.getByRole('link', { name: 'Needs you' })).toHaveAttribute(
       'aria-current',
       'page',

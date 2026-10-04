@@ -135,6 +135,15 @@ function PortalStrip({ current }: Readonly<{ current: (typeof PORTAL_TABS)[numbe
   )
 }
 
+/** Waits until the tab's far edge is inside the row's visible box. */
+async function waitUntilInView(nav: HTMLElement, tab: HTMLElement) {
+  await waitFor(() => {
+    expect(tab.getBoundingClientRect().right).toBeLessThanOrEqual(
+      nav.getBoundingClientRect().right,
+    )
+  })
+}
+
 function portalStrip(canvasElement: HTMLElement) {
   return within(canvasElement).getByRole('navigation', { name: 'Portal sections' })
 }
@@ -173,11 +182,7 @@ export const StripOpensOnTheLastTab: Story = {
     const current = within(nav).getByRole('link', { name: 'History' })
     expect(current).toHaveAttribute('aria-current', 'page')
     await waitFor(() => expect(nav.scrollLeft).toBeGreaterThan(0))
-    await waitFor(() => {
-      expect(current.getBoundingClientRect().right).toBeLessThanOrEqual(
-        nav.getBoundingClientRect().right,
-      )
-    })
+    await waitUntilInView(nav, current)
     await waitFor(() => expect(nav.style.maskImage).not.toBe(''))
   },
 }
@@ -254,11 +259,7 @@ export const StripRevealsAfterTheRowGrows: Story = {
     const nav = portalStrip(canvasElement)
     const current = await within(nav).findByRole('link', { name: GROWN_LABEL })
     await waitFor(() => expect(nav.scrollLeft).toBeGreaterThan(0))
-    await waitFor(() => {
-      expect(current.getBoundingClientRect().right).toBeLessThanOrEqual(
-        nav.getBoundingClientRect().right,
-      )
-    })
+    await waitUntilInView(nav, current)
   },
 }
 
