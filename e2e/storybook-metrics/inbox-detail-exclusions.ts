@@ -139,8 +139,10 @@ export const EXCLUDED_STORIES: Readonly<Record<string, string>> = {
     'no item is open, and it is a phone story: the list with its active-filter chips is measured on the grid by inbox-phone.metrics.ts at 320 and 390',
   'pages-inbox--mobile-removing-every-filter':
     'ends with every filter removed, so its last frame is pages-inbox--mobile-viewport again; that page is measured by inbox-phone.metrics.ts',
-  'pages-inbox--mobile-clear-all-filters':
+  'pages-inbox--mobile-clear-filters':
     'ends with the filters cleared, so its last frame is pages-inbox--mobile-viewport again; that page is measured by inbox-phone.metrics.ts',
+  'pages-inbox--no-matches-offer-clear-filters':
+    'no item is open: the page shows only the list panel with an empty result, and its play clears the filters, ending on the list',
   'pages-inbox--tablet-viewport':
     "its own window is 768 px, which the harness never loads (320, 390, 1440): at 320 and 390 it is pages-inbox--mobile-viewport again, and at 1440 its play (the compact layout's Select items button) throws, so the tablet composition is the page's own play",
   'inbox-escalation-shortcut--detail-loading':

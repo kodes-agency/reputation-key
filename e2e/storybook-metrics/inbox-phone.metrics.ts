@@ -358,7 +358,7 @@ storyTests(
   [
     'inbox-filter-sheet--open',
     'inbox-filter-sheet--choose-source',
-    'inbox-filter-sheet--clear-all',
+    'inbox-filter-sheet--clear-filters',
     'inbox-filter-sheet--checked-chip-does-nothing',
     'inbox-filter-sheet--one-result',
     'inbox-filter-sheet--loading',
