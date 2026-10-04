@@ -246,6 +246,16 @@ In light mode, the same tonal stack inverts: near-white backgrounds step from pa
 - **Pills are for modes.** The grey pill `Tabs` belongs inside a component (a composer's Reply / Note, a dialog's choice).
 - **Choices are segmented.** A short value or range choice is a `SegmentedControl`; a time range is a `RangeControl`, which becomes a Select below `sm`. Segments are a tap target below `md` and 26px from `md`.
 
+### List toolbars
+
+- **One row, one set of parts.** A list's search, filter, sort, count and Clear sit in a `ListToolbar` row that wraps (the search on a line of its own on a phone). The Properties list, the Portals overview and the All properties page draw the same parts: `SearchField`, `ListFilterMenu`, `ListSortMenu`, `ResultCount` and `ClearFiltersButton`.
+- **Search is one field.** `type="search"` in an `InputGroup` with a Search glyph, the shared 100-character limit (the URL schemas drop a longer search, so the box stops typing there) and an X that appears with text and keeps the focus in the field. Matching folds case and accents (`searchMatcher`).
+- **Menus read "Label: value".** An outline button with a glyph: `Show: Needs attention`, `Sort: Name`, `Group by: None`. The filter glyph is `ListFilter` and the sort glyph `ArrowDownUp`, in every list.
+- **The count is "N of M"** and only while the list is narrowed, in a live region that is always mounted.
+- **Clear is one control with one meaning.** It takes away the search and the filters and never the sort. It reads "Clear filters", or "Clear search and filters" while a search is in force, as a ghost button beside the toolbar, an outline button in an empty result, and a small one in a popover header.
+- **Removable chips** are one button, 32px, with the label and an X (`RemovableChip`); a choice between exclusive options (the Inbox sheet's radio pills) is not one.
+- **The Inbox keeps its compact composition** (an icon that opens the search, a popover on desktop and a bottom sheet on a phone) and wears the same field internals, glyphs, count and Clear words.
+
 ### Navigation (Sidebar)
 
 - **Width:** 256px expanded, 48px collapsed (the icon rail). Below 768px (`md`) the sidebar is a sheet drawer; from 768px up it docks beside the content.

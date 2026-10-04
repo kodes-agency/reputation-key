@@ -142,6 +142,27 @@ and actions supply server state.
   hand-drawn underline, a toggled-Button view switch, a second range picker and a
   range change that pushes history; `nav-link-sources.test.ts` fails on a router
   `Link` that writes its own `aria-current` and on a `Link` inside a `LinkTab`.
+  A list's search, filter, sort, count and Clear are one set of parts in a
+  `ListToolbar` row: `SearchField`, `ListFilterMenu` (a filter), `ListChoiceMenu` (how the
+  list is shown, as Group by), `ListSortMenu`, `ResultCount` and `ClearFiltersButton`; the
+  Properties list, the Portals overview and All properties compose them and write the
+  URL, and the Inbox composes the same parts in its compact header. The field is
+  `type="search"` with the one length limit (`MAX_LIST_SEARCH_LENGTH`, which the URL
+  schemas share: a longer search is dropped from the URL, so the box stops typing
+  there), and a list matches with `searchMatcher` (`property/property-search.ts`),
+  which folds case and accents, never its own `includes`. The count is "N of M" while
+  the list is narrowed. Clear takes away the search and the filters and never the
+  sort, and reads "Clear filters" or, while a search is in force, "Clear search and
+  filters"; an empty result offers the same control (`variant="outline"`), and a list
+  with no match for a search or a filter always does. A removed choice is a
+  `RemovableChip` (one 32px button named "Remove ..."), never a Badge with a button in
+  it. `SortDirection` lives in `ui/list-sort.ts` and the direction labels are the
+  list's. `list-toolbar-sources.test.ts` fails on a hand-built search input, a second
+  Clear wording, a filter or sort glyph of its own and a second `SortDirection`. Where a
+  form asks "which property?" it is `PropertyPicker` (`property/property-picker.tsx`):
+  its search field appears from eight properties and there is none below that, so a
+  plain `Select` of properties is never the answer; the sidebar's property switcher is
+  navigation, shell chrome with its own menu, and is not a form control.
 - `forms/` contains shared TanStack Form fields, submission, and error UI. A
   failure has one reporter. A form submit reports through `FormErrorBanner`,
   placed directly above that form's actions (the bottom of a card's body, above
