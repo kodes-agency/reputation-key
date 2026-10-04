@@ -135,7 +135,7 @@ function PortalListBody({
         />
         {overview.matched === 0 && overview.sections.length === 0 ? (
           <PortalOverviewNoMatch
-            clearLabel="Clear search and filter"
+            searching={(listSearch.q ?? '').trim() !== ''}
             onClear={() => onChange({ q: undefined, show: undefined })}
           />
         ) : (

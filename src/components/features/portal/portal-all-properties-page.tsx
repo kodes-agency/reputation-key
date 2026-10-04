@@ -193,7 +193,7 @@ export function PortalAllPropertiesPage({
             />
             {overview.matched === 0 ? (
               <PortalOverviewNoMatch
-                clearLabel="Clear search"
+                searching={(listSearch.q ?? '').trim() !== ''}
                 onClear={() => update({ q: undefined })}
               />
             ) : (

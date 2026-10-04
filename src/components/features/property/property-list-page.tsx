@@ -12,6 +12,7 @@ import { Link } from '@tanstack/react-router'
 import { Building2, Plus, SearchX } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { Button } from '#/components/ui/button'
+import { ClearFiltersButton } from '#/components/ui/clear-filters-button'
 import { EmptyState } from '#/components/ui/empty-state'
 import { LinkTab, LinkTabs } from '#/components/ui/link-tabs'
 import { TabCount } from '#/components/ui/tabs'
@@ -163,12 +164,11 @@ export function PropertyListPage({
               icon={SearchX}
               title="No properties match"
               action={
-                <Button
+                <ClearFiltersButton
                   variant="outline"
-                  onClick={() => update({ q: undefined, show: undefined })}
-                >
-                  Clear search and filter
-                </Button>
+                  searching={view.q.trim() !== ''}
+                  onClear={() => update({ q: undefined, show: undefined })}
+                />
               }
             />
           ) : (

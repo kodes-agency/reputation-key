@@ -11,7 +11,7 @@ import type { PortalPropertySection } from './portal-all-properties-view'
 import { PortalOverviewPropertyHead } from './portal-overview-property-head'
 import { groupSlot, type PortalOverviewResultsState } from './portal-overview-results'
 import { PortalOverviewSectionRows } from './portal-overview-section-rows'
-import type { SortDirection } from './portal-overview-search-schema'
+import type { SortDirection } from '#/components/ui/list-sort'
 import { PortalOverviewTableHead } from './portal-overview-table-head'
 import { SECTION_BODY } from './portal-overview-table-styles'
 

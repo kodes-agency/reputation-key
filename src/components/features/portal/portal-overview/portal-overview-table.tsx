@@ -10,7 +10,7 @@ import { Table, TableBody } from '#/components/ui/table'
 import type { PortalArchiveMutations } from './portal-archive-dialog'
 import type { PortalOverviewResultsState } from './portal-overview-results'
 import { PortalOverviewSectionRows } from './portal-overview-section-rows'
-import type { SortDirection } from './portal-overview-search-schema'
+import type { SortDirection } from '#/components/ui/list-sort'
 import {
   OVERVIEW_CLASSES,
   OverviewDensityProvider,

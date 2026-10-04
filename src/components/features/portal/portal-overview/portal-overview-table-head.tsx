@@ -7,7 +7,7 @@ import { TableHead, TableHeader, TableRow } from '#/components/ui/table'
 import { useOverviewClasses } from './portal-overview-density'
 import { MEASURE_COLUMNS } from './portal-overview-measure-cells'
 import type { PortalOverviewResultsState } from './portal-overview-results'
-import type { SortDirection } from './portal-overview-search-schema'
+import type { SortDirection } from '#/components/ui/list-sort'
 
 function MeasureHeader({
   label,

@@ -5,7 +5,7 @@ import {
   overviewGroup,
   overviewRow,
 } from './portal-overview/portal-overview-fixtures'
-import { MAX_SEARCH_LENGTH } from './portal-overview/portal-overview-search-schema'
+import { MAX_LIST_SEARCH_LENGTH } from '#/components/property/list-search-limit'
 import {
   ControlledPage,
   baseArgs,
@@ -389,9 +389,10 @@ export const SearchWithNoMatches: Story = {
     const canvas = within(canvasElement)
     await userEvent.type(canvas.getByLabelText(/search portals/i), 'zzzz')
     await expect(canvas.getByText(/no portals match/i)).toBeInTheDocument()
-    await userEvent.click(
-      canvas.getByRole('button', { name: /clear search and filter/i }),
+    const panel = within(
+      canvasElement.querySelector<HTMLElement>('[data-slot="empty-state"]')!,
     )
+    await userEvent.click(panel.getByRole('button', { name: 'Clear search and filters' }))
     await expect(canvas.getByRole('link', { name: 'Reception' })).toBeInTheDocument()
   },
 }
@@ -475,8 +476,8 @@ export const SearchStopsAtItsLimit: Story = {
   play: async ({ canvasElement }) => {
     const box = within(canvasElement).getByRole('searchbox', { name: 'Search portals' })
     await userEvent.click(box)
-    await userEvent.paste('a'.repeat(MAX_SEARCH_LENGTH + 20))
-    await expect(box).toHaveValue('a'.repeat(MAX_SEARCH_LENGTH))
+    await userEvent.paste('a'.repeat(MAX_LIST_SEARCH_LENGTH + 20))
+    await expect(box).toHaveValue('a'.repeat(MAX_LIST_SEARCH_LENGTH))
   },
 }
 
