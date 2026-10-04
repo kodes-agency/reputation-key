@@ -167,9 +167,39 @@ describe('DataTable parts', () => {
     })
 
     // (the markup escapes the ampersand of the arbitrary variant)
-    expect(html).toContain('[&amp;_tr:last-child]:border ')
-    expect(html).toContain('@4xl:[&amp;_tr:last-child]:border-0')
-    expect(html).not.toMatch(/(^|\s)\[&amp;_tr:last-child\]:border-0/u)
+    expect(html).toContain('[&amp;_tr[data-slot=data-table-card]:last-child]:border ')
+    expect(html).toContain(
+      '@4xl:[&amp;_tr[data-slot=data-table-card]:last-child]:border-0',
+    )
+    expect(html).not.toMatch(/(^|\s)\[&amp;_tr:last-child\]:border(?!-0)/u)
+  })
+
+  it('gives the last-card rule only to card rows: a head row that ends a body keeps no border', () => {
+    // A folded section is its head row alone in its body. The rule would box it
+    // in a square 1px border below the table width if it matched every last row.
+    const cards = inside(h(DataTableBody, null, h(DataTableRow, null)), {
+      layout: 'cards',
+    })
+    const rows = inside(h(DataTableBody, null, h(DataTableRow, null)))
+
+    expect(cards).toContain('data-slot="data-table-card"')
+    expect(cards).not.toMatch(/(^|\s)\[&amp;_tr:last-child\]:border(?!-0)/u)
+    expect(rows).not.toContain('data-table-card')
+    expect(rows).toContain('data-slot="table-row"')
+  })
+
+  it('names the card slot where the body recipe selects it', () => {
+    // The class strings are spelled out for Tailwind, so the two are held together here.
+    const html = inside(h(DataTableBody, null, h(DataTableRow, null)), {
+      layout: 'cards',
+      from: '2xl',
+    })
+
+    expect(html).toContain('[&amp;_tr[data-slot=data-table-card]:last-child]:border ')
+    expect(html).toContain(
+      '@2xl:[&amp;_tr[data-slot=data-table-card]:last-child]:border-0',
+    )
+    expect(html).toContain('data-slot="data-table-card"')
   })
 
   it('leaves the cells of a list of cards to the caller, who sets each for its density', () => {

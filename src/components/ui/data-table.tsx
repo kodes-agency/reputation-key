@@ -72,17 +72,20 @@ const ROWS = {
 } as const satisfies Record<DataTableRowsFrom, Recipe>
 
 // A card keeps its border while it is a card: the last row's divider is dropped only
-// when the rows are table rows, where it would double the frame's own edge.
+// when the rows are table rows, where it would double the frame's own edge. Both rules
+// name the card rows (`data-slot="data-table-card"`, set by `DataTableRow`), because a
+// section's head row is a plain `TableRow` that ends a folded section's body and has
+// no border of its own to restore.
 const CARDS = {
   '2xl': {
     frame: '@2xl:overflow-hidden @2xl:rounded-lg @2xl:border @2xl:bg-card',
-    body: 'block space-y-3 pb-3 @2xl:table-row-group @2xl:space-y-0 @2xl:pb-0 [&_tr:last-child]:border @2xl:[&_tr:last-child]:border-0',
+    body: 'block space-y-3 pb-3 @2xl:table-row-group @2xl:space-y-0 @2xl:pb-0 [&_tr[data-slot=data-table-card]:last-child]:border @2xl:[&_tr[data-slot=data-table-card]:last-child]:border-0',
     row: '@2xl:table-row @2xl:rounded-none @2xl:border-0 @2xl:border-b @2xl:bg-transparent @2xl:p-0',
     cell: '',
   },
   '4xl': {
     frame: '@4xl:overflow-hidden @4xl:rounded-lg @4xl:border @4xl:bg-card',
-    body: 'block space-y-3 pb-3 @4xl:table-row-group @4xl:space-y-0 @4xl:pb-0 [&_tr:last-child]:border @4xl:[&_tr:last-child]:border-0',
+    body: 'block space-y-3 pb-3 @4xl:table-row-group @4xl:space-y-0 @4xl:pb-0 [&_tr[data-slot=data-table-card]:last-child]:border @4xl:[&_tr[data-slot=data-table-card]:last-child]:border-0',
     row: '@4xl:table-row @4xl:rounded-none @4xl:border-0 @4xl:border-b @4xl:bg-transparent @4xl:p-0',
     cell: '',
   },
@@ -95,6 +98,9 @@ const SCROLL = {
   row: '',
   cell: 'px-4 py-3',
 } as const satisfies Recipe
+
+/** What marks a row of a list of cards, for the rules that treat the last card. */
+const CARD_SLOT = 'data-table-card'
 
 /** The stacked grid: a flexible first column, then the rest as wide as they are. */
 const TRACKS = {
@@ -281,7 +287,14 @@ export function DataTableRow({ tracks = 2, className, ...props }: RowProps) {
             TRACKS[tracks],
             recipe.row,
           )
-  return <TableRow className={cn(stacked, className)} {...props} />
+  return (
+    <TableRow
+      // The body's last-card rule finds a card by this, so a head row never matches it.
+      {...(layout === 'cards' ? { 'data-slot': CARD_SLOT } : {})}
+      className={cn(stacked, className)}
+      {...props}
+    />
+  )
 }
 
 /**

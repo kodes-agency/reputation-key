@@ -80,3 +80,39 @@ for (const width of CARD_WIDTHS) {
     expect(documentScrolls, 'the document scrolls sideways').toBe(false)
   })
 }
+
+// A collapsed Property is its head row alone in its body, so the head is the body's
+// last row. The cards' "last card keeps its border" rule once matched it and boxed
+// the head in a square 1px border (it is not a card and has no radius).
+for (const width of CARD_WIDTHS) {
+  test(`a ${width}px window draws a collapsed Property's head with no box around it`, async ({
+    page,
+  }) => {
+    await page.setViewportSize({ width, height: 900 })
+    await openStory(page, STORY)
+
+    const table = page.getByRole('table', TABLE)
+    await table.getByRole('button', { name: 'Portals in Forma Kitchen' }).click()
+    await expect(table.getByRole('link', { name: 'Dining room' })).toHaveCount(0)
+
+    const widths = (row: ReturnType<typeof table.locator>) =>
+      row.evaluate((element) => {
+        const style = getComputedStyle(element)
+        return [
+          style.borderTopWidth,
+          style.borderRightWidth,
+          style.borderBottomWidth,
+          style.borderLeftWidth,
+        ]
+      })
+    const head = table
+      .getByRole('button', { name: 'Portals in Forma Kitchen' })
+      .locator('xpath=ancestor::tr')
+    expect(await widths(head), 'the collapsed head row’s borders').toEqual([
+      '0px',
+      '0px',
+      '0px',
+      '0px',
+    ])
+  })
+}
