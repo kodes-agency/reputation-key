@@ -3,6 +3,7 @@
 import { useState, type MouseEvent } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
+import { PageGutterDecorator } from '../../../../.storybook/PageGutterDecorator'
 import {
   makeNotification,
   makeNotificationFns,
@@ -29,6 +30,8 @@ const meta: Meta<typeof NotificationPage> = {
   component: NotificationPage,
   tags: ['autodocs'],
   parameters: { layout: 'fullscreen' },
+  // The page pads nothing of its own: `<main>` gives it the gutter in the app.
+  decorators: [PageGutterDecorator],
   args: {
     // The fixture feed, answered by filter as the endpoint answers it.
     notificationFns: makeStatefulNotificationFns(notificationFixtures),
