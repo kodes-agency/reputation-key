@@ -202,6 +202,26 @@ describe('DataTable parts', () => {
     expect(html).toContain('data-slot="data-table-card"')
   })
 
+  it.each(['asc', 'desc'] as const)(
+    'draws the unsorted cue as the sort menu’s glyph, and an arrow once sorted %s',
+    (direction) => {
+      const head = (value: 'asc' | 'desc' | null) =>
+        inside(
+          h(
+            DataTableHeader,
+            null,
+            h(DataTableSortHead, { direction: value, onSort: () => undefined }, 'Name'),
+          ),
+        )
+
+      expect(head(null)).toContain('lucide-arrow-down-up')
+      expect(head(direction)).not.toContain('lucide-arrow-down-up')
+      expect(head(direction)).toContain(
+        direction === 'asc' ? 'lucide-arrow-up' : 'lucide-arrow-down',
+      )
+    },
+  )
+
   it('leaves the cells of a list of cards to the caller, who sets each for its density', () => {
     const html = inside(
       h(

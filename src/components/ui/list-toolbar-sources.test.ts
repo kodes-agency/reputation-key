@@ -110,22 +110,23 @@ describe('a list says "Clear filters"', () => {
 })
 
 describe('a list menu draws the one filter and sort glyphs', () => {
-  // `Filter` (a funnel) and `ArrowUpDown` were the Inbox's; the toolbars drew
-  // `ListFilter` and `ArrowDownUp`, so one control had two faces.
+  // `Filter` (a funnel) and `ArrowUpDown` were the Inbox's, and the unsorted cue of
+  // a table's column header; the toolbars drew `ListFilter` and `ArrowDownUp`, so
+  // one control had two faces.
   const OLD_GLYPH =
     /import\s*\{[^}]*\b(?:Filter|ArrowUpDown)\b[^}]*\}\s*from\s*['"]lucide-react['"]/u
-  const OLD_GLYPH_ALLOWED: Readonly<Record<string, string>> = {
-    'src/components/ui/data-table.tsx':
-      'the cue of an unsorted column header, drawn once by the DataTable',
-  }
   const importsOldGlyph = (file: SourceFile) => OLD_GLYPH.test(file.text)
 
-  it('are ListFilter and ArrowDownUp', () => {
-    expect(offendersOf(importsOldGlyph, OLD_GLYPH_ALLOWED)).toEqual([])
+  it('are ListFilter and ArrowDownUp, the unsorted cue of a column header too', () => {
+    expect(offendersOf(importsOldGlyph)).toEqual([])
   })
 
-  it('lists no file that no longer imports one', () => {
-    expect(staleIn(importsOldGlyph, OLD_GLYPH_ALLOWED)).toEqual([])
+  it('catches the old glyphs', () => {
+    expect(OLD_GLYPH.test("import { ArrowUpDown } from 'lucide-react'")).toBe(true)
+    expect(OLD_GLYPH.test("import { Filter, X } from 'lucide-react'")).toBe(true)
+    expect(OLD_GLYPH.test("import { ArrowDownUp, ListFilter } from 'lucide-react'")).toBe(
+      false,
+    )
   })
 })
 

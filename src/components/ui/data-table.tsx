@@ -22,7 +22,7 @@
 // arranges its cells is the caller's: `tracks` says how many columns the stacked
 // grid has, and a cell places itself with `col-start-*` / `row-start-*`.
 import { createContext, use, type ComponentProps, type ReactNode } from 'react'
-import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
+import { ArrowDown, ArrowDownUp, ArrowUp } from 'lucide-react'
 import {
   Table,
   TableBody,
@@ -225,6 +225,8 @@ type SortHeadProps = Readonly<{
   children: ReactNode
 }>
 
+// Sorted, the arrow says which way; unsorted, the cue is the one every list's sort
+// menu draws (`ArrowDownUp`), so a column header and the menu read as one control.
 const SORT_ICON = { asc: ArrowUp, desc: ArrowDown } as const
 const ARIA_SORT = { asc: 'ascending', desc: 'descending' } as const
 
@@ -236,7 +238,7 @@ export function DataTableSortHead({
   className,
   children,
 }: SortHeadProps) {
-  const Icon = direction === null ? ArrowUpDown : SORT_ICON[direction]
+  const Icon = direction === null ? ArrowDownUp : SORT_ICON[direction]
   return (
     <TableHead
       scope="col"
