@@ -115,8 +115,8 @@ describe('a list menu draws the one filter and sort glyphs', () => {
   const OLD_GLYPH =
     /import\s*\{[^}]*\b(?:Filter|ArrowUpDown)\b[^}]*\}\s*from\s*['"]lucide-react['"]/u
   const OLD_GLYPH_ALLOWED: Readonly<Record<string, string>> = {
-    'src/components/features/property/property-list-table.tsx':
-      'the cue of an unsorted column header, drawn by the table, which the collections slice (G2) owns',
+    'src/components/ui/data-table.tsx':
+      'the cue of an unsorted column header, drawn once by the DataTable',
   }
   const importsOldGlyph = (file: SourceFile) => OLD_GLYPH.test(file.text)
 
