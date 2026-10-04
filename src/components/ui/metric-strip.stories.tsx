@@ -125,7 +125,8 @@ export const LoadingAndUnavailable: Story = {
 /**
  * Separate bordered tiles that wrap: for a set of independent measures longer than
  * a row (an import's counts, an analytics summary). Two columns narrow, `columns`
- * from 2xl.
+ * from 2xl. A measure with nothing to average yet is a note (`value={null}`), not a
+ * sentence set in the figure's 24px type, which wraps to three lines in a tile.
  */
 export const Tiles: Story = {
   args: { variant: 'tiles', columns: 3, 'aria-label': 'Response targets' },
@@ -144,7 +145,7 @@ export const Tiles: Story = {
         <MetricValue value="104" />
       </Metric>
       <Metric label="Average time to first handling">
-        <MetricValue value="Not enough measured data" />
+        <MetricValue value={null} detail="Not enough measured data" />
       </Metric>
     </MetricStrip>
   ),

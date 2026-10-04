@@ -5,8 +5,12 @@ import type {
 import { Metric, MetricStrip, MetricValue } from '#/components/ui/metric-strip'
 import { formatNumber } from '#/lib/format'
 
-function formatAverage(minutes: number | null): string {
-  if (minutes === null) return 'Not enough measured data'
+/** What a measure with no figure says in the figure's place: a note, not a number. */
+const NO_DATA = 'Not enough measured data'
+
+/** The average in hours, or null while there is nothing measured to average. */
+function formatAverage(minutes: number | null): string | null {
+  if (minutes === null) return null
   const hours = minutes / 60
   return `${hours < 10 ? hours.toFixed(1) : Math.round(hours)} hours`
 }
@@ -14,12 +18,12 @@ function formatAverage(minutes: number | null): string {
 function AnalyticsGrid({
   name,
   rows,
-}: Readonly<{ name: string; rows: ReadonlyArray<readonly [string, string]> }>) {
+}: Readonly<{ name: string; rows: ReadonlyArray<readonly [string, string | null]> }>) {
   return (
     <MetricStrip aria-label={name} variant="tiles" columns={3}>
       {rows.map(([label, value]) => (
         <Metric key={label} label={label}>
-          <MetricValue value={value} />
+          <MetricValue value={value} detail={value === null ? NO_DATA : undefined} />
         </Metric>
       ))}
     </MetricStrip>
