@@ -15,7 +15,7 @@ import type { PortalImageUploader } from '../portal-media/upload-portal-image'
 import { LinkTextsForm } from './link-texts-form'
 import { LinktreeApprovalFact } from './linktree-approval-fact'
 import { LinktreeIconPicker } from './linktree-icon-picker'
-import { LinktreeLocaleTabs } from './linktree-locale-tabs'
+import { LinktreeLocaleSwitch } from './linktree-locale-switch'
 import { linkLocaleChips } from './linktree-rules'
 import type { LinktreeMutations } from './use-linktree-mutations'
 
@@ -73,7 +73,7 @@ export function LinktreeTileEditor({
 
   return (
     <div className="space-y-5">
-      <LinktreeLocaleTabs
+      <LinktreeLocaleSwitch
         aria-label="Label language"
         locales={locales}
         active={locale}
