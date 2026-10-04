@@ -5,19 +5,39 @@
 // pill stays for a mode inside a component. Dark is the default theme; the light
 // variants draw the same rows on the light surface (axe runs on both).
 //
-// The anchors here are plain `<a href="#…">` that a click handler intercepts: the
-// story router has no route tree to navigate in, and the primitive imports no
-// router, so a real app passes a router `Link` as the child instead.
+// A `LinkTab` is a router link, so a click would navigate the story's memory router
+// to a route it has no page for: the stories keep the view in state and stop the
+// navigation in the click handler, as a real page's view comes from its route.
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
-import { expect, userEvent, within } from 'storybook/test'
+import { expect, userEvent, waitFor, within } from 'storybook/test'
+import { tailwindIsCompiled } from '../../../.storybook/tailwind-compiled'
 import { LinkTab, LinkTabs } from './link-tabs'
 import { TabCount, Tabs, TabsContent, TabsList, TabsTrigger } from './tabs'
+
+/**
+ * The strip's layout where Tailwind is not compiled (the Vitest story runner): the
+ * classes are inert there, so the scrolling row stands in for them. Where Tailwind
+ * is compiled the classes are what is measured and nothing stands in.
+ */
+const STRIP_LAYOUT = `
+  [data-slot='link-tabs'] { display: flex; overflow-x: auto; scrollbar-width: none; }
+  [data-slot='link-tabs'] ul { display: flex; gap: 4px; min-width: max-content; }
+  [data-slot='link-tabs'] a { display: block; padding: 0 12px; white-space: nowrap; }
+`
 
 const meta: Meta = {
   title: 'Patterns/View tabs',
   tags: ['autodocs'],
   parameters: { layout: 'padded' },
+  decorators: [
+    (Story) => (
+      <>
+        {tailwindIsCompiled() ? null : <style>{STRIP_LAYOUT}</style>}
+        <Story />
+      </>
+    ),
+  ],
 }
 
 export default meta
@@ -34,17 +54,13 @@ function PageViews({ initial }: Readonly<{ initial: View }>) {
   return (
     <div className="flex max-w-3xl flex-col gap-4">
       <LinkTabs aria-label="Which reports">
-        <LinkTab active={view === 'active'}>
-          <a href="#active" onClick={go('active')}>
-            Active
-            <TabCount>6</TabCount>
-          </a>
+        <LinkTab to="/inbox" current={view === 'active'} onClick={go('active')}>
+          Active
+          <TabCount>6</TabCount>
         </LinkTab>
-        <LinkTab active={view === 'archived'}>
-          <a href="#archived" onClick={go('archived')}>
-            Archived
-            <TabCount>1</TabCount>
-          </a>
+        <LinkTab to="/portals" current={view === 'archived'} onClick={go('archived')}>
+          Archived
+          <TabCount>1</TabCount>
         </LinkTab>
       </LinkTabs>
       <p className="text-sm text-muted-foreground">
@@ -97,41 +113,92 @@ export const KeyboardOrder: Story = {
   },
 }
 
+const PORTAL_TABS = ['Page', 'Share', 'Results', 'History'] as const
+
+/** The Portal workspace's row of tabs in a space too narrow for all four. */
+function PortalStrip({ current }: Readonly<{ current: (typeof PORTAL_TABS)[number] }>) {
+  return (
+    <div style={{ width: 240 }}>
+      <LinkTabs aria-label="Portal sections">
+        {PORTAL_TABS.map((label) => (
+          <LinkTab
+            key={label}
+            to="/portals"
+            current={label === current}
+            onClick={(event) => event.preventDefault()}
+          >
+            {label}
+          </LinkTab>
+        ))}
+      </LinkTabs>
+    </div>
+  )
+}
+
+function portalStrip(canvasElement: HTMLElement) {
+  return within(canvasElement).getByRole('navigation', { name: 'Portal sections' })
+}
+
 /**
  * A narrow phone keeps the strip to one row that scrolls sideways (the list is
- * `overflow-x-auto` over a `min-w-max` row) and each link is a tap target
- * (`min-h-(--control-touch)`). The Storybook Vitest project compiles no
- * Tailwind, so this play proves the structure; the pixels are checked in the
- * browser.
+ * `overflow-x-auto` over a `min-w-max` row) with its scrollbar hidden, and each
+ * link is a tap target (`min-h-(--control-touch)`).
  */
 export const PhoneStrip: Story = {
   parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
-  render: () => (
-    <LinkTabs aria-label="Portal sections">
-      {['Page', 'Share', 'Results', 'History'].map((label) => (
-        <LinkTab key={label} active={label === 'Share'}>
-          <a href={`#${label}`}>{label}</a>
-        </LinkTab>
-      ))}
-    </LinkTabs>
-  ),
+  render: () => <PortalStrip current="Share" />,
   play: async ({ canvasElement }) => {
-    const nav = within(canvasElement).getByRole('navigation', {
-      name: 'Portal sections',
-    })
+    const nav = portalStrip(canvasElement)
     const links = within(nav).getAllByRole('link')
-    expect(links.map((link) => link.textContent)).toEqual([
-      'Page',
-      'Share',
-      'Results',
-      'History',
-    ])
+    expect(links.map((link) => link.textContent)).toEqual([...PORTAL_TABS])
     expect(within(nav).getByRole('link', { name: 'Share' })).toHaveAttribute(
       'aria-current',
       'page',
     )
     expect(nav.className).toContain('overflow-x-auto')
+    expect(nav.className).toContain('[scrollbar-width:none]')
     expect(nav.querySelector('ul')?.className).toContain('min-w-max')
+  },
+}
+
+/**
+ * A deep link to the last tab opens with that tab in view, not off the edge, and
+ * the side that continues is faded. Scrolling back to the start is the person's
+ * own move: the row follows the fade, and does not pull itself back to the tab.
+ */
+export const StripOpensOnTheLastTab: Story = {
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' } },
+  render: () => <PortalStrip current="History" />,
+  play: async ({ canvasElement }) => {
+    const nav = portalStrip(canvasElement)
+    const current = within(nav).getByRole('link', { name: 'History' })
+    expect(current).toHaveAttribute('aria-current', 'page')
+    await waitFor(() => expect(nav.scrollLeft).toBeGreaterThan(0))
+    await waitFor(() => {
+      expect(current.getBoundingClientRect().right).toBeLessThanOrEqual(
+        nav.getBoundingClientRect().right,
+      )
+    })
+    await waitFor(() => expect(nav.style.maskImage).not.toBe(''))
+
+    const fadedAtTheStart = nav.style.maskImage
+    nav.scrollLeft = 0
+    await waitFor(() => expect(nav.style.maskImage).not.toBe(fadedAtTheStart))
+    expect(nav.scrollLeft).toBe(0)
+  },
+}
+
+export const StripOpensOnTheLastTabLight: Story = {
+  ...StripOpensOnTheLastTab,
+  parameters: { viewport: { defaultViewport: 'mobileNarrow' }, theme: 'light' },
+}
+
+/** When every tab fits there is nothing out of reach, so no fade is drawn. */
+export const StripThatFits: Story = {
+  render: () => <PageViews initial="active" />,
+  play: async ({ canvasElement }) => {
+    const nav = within(canvasElement).getByRole('navigation', { name: 'Which reports' })
+    expect(nav.style.maskImage).toBe('')
   },
 }
 

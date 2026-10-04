@@ -212,25 +212,21 @@ export function PropertyListPage({
       {removed.length > 0 ? (
         <div className="flex flex-col gap-4">
           <LinkTabs aria-label="Which properties">
-            <LinkTab active={tab === 'workspace'}>
-              <Link
-                to="/properties"
-                search={propertyListSearchPatch(search, { tab: undefined })}
-                activeOptions={{ exact: true }}
-              >
-                Workspace
-                <TabCount>{workspace.length}</TabCount>
-              </Link>
+            <LinkTab
+              to="/properties"
+              search={propertyListSearchPatch(search, { tab: undefined })}
+              current={tab === 'workspace'}
+            >
+              Workspace
+              <TabCount>{workspace.length}</TabCount>
             </LinkTab>
-            <LinkTab active={tab === 'removed'}>
-              <Link
-                to="/properties"
-                search={propertyListSearchPatch(search, { tab: 'removed' })}
-                activeOptions={{ exact: true }}
-              >
-                Removed
-                <TabCount>{removed.length}</TabCount>
-              </Link>
+            <LinkTab
+              to="/properties"
+              search={propertyListSearchPatch(search, { tab: 'removed' })}
+              current={tab === 'removed'}
+            >
+              Removed
+              <TabCount>{removed.length}</TabCount>
             </LinkTab>
           </LinkTabs>
           {tab === 'removed' ? (

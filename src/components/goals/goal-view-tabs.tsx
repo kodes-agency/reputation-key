@@ -3,7 +3,6 @@
 // `LinkTabs`, a navigation landmark whose current link says `aria-current`
 // (it was two Buttons, default beside outline, that said nothing to a screen
 // reader about which view was on).
-import { Link } from '@tanstack/react-router'
 import { LinkTab, LinkTabs } from '#/components/ui/link-tabs'
 
 export type GoalView = 'active' | 'history'
@@ -20,14 +19,14 @@ export function GoalViewTabs({
   return (
     <LinkTabs aria-label="Goal views">
       {GOAL_VIEWS.map((option) => (
-        <LinkTab key={option.value} active={option.value === view}>
-          <Link
-            to="/properties/$propertyId/goals"
-            params={{ propertyId }}
-            search={{ view: option.value }}
-          >
-            {option.label}
-          </Link>
+        <LinkTab
+          key={option.value}
+          to="/properties/$propertyId/goals"
+          params={{ propertyId }}
+          search={{ view: option.value }}
+          current={option.value === view}
+        >
+          {option.label}
         </LinkTab>
       ))}
     </LinkTabs>

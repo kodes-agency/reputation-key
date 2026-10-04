@@ -1,5 +1,4 @@
 import { useState } from 'react'
-import { Link } from '@tanstack/react-router'
 import type { Action } from '#/components/hooks/use-action'
 import type { Role } from '#/shared/domain/roles'
 import { DirectoryTab } from '#/components/features/property/people/directory-tab'
@@ -84,14 +83,14 @@ export function PeoplePage({
       <div className="flex flex-col gap-4">
         <LinkTabs aria-label="People views">
           {PEOPLE_VIEWS.map((view) => (
-            <LinkTab key={view.value} active={view.value === activeView}>
-              <Link
-                to="/properties/$propertyId/people"
-                params={{ propertyId }}
-                search={{ tab: view.value }}
-              >
-                {view.label}
-              </Link>
+            <LinkTab
+              key={view.value}
+              to="/properties/$propertyId/people"
+              params={{ propertyId }}
+              search={{ tab: view.value }}
+              current={view.value === activeView}
+            >
+              {view.label}
             </LinkTab>
           ))}
         </LinkTabs>

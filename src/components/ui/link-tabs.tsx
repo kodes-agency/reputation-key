@@ -7,38 +7,69 @@
 // as the Radix line tabs (`tabs-line-styles.ts`).
 //
 //   <LinkTabs aria-label="Goal views">
-//     <LinkTab active={view === 'active'}>
-//       <Link to="/goals" search={{ view: 'active' }}>Active</Link>
+//     <LinkTab to="/goals" search={{ view: 'active' }} current={view === 'active'}>
+//       Active
 //     </LinkTab>
 //   </LinkTabs>
 //
-// `LinkTab` takes its link as the child (a router `Link` or a plain `<a>`), so
-// this file imports no router. Give a router Link `activeOptions={{ exact: true }}`
-// when one view's search is a subset of another's (a bare `/list` beside
-// `/list?tab=removed`): the router otherwise calls the bare link active too, and
-// writes `aria-current` over `active`.
-import * as React from 'react'
-import { Slot } from 'radix-ui'
+// A `LinkTab` is a `NavLink` in a list item, so it takes a router link's own props
+// (`to`, `params`, `search`) and the one answer to "is this the page": `current`.
+// The router's own test (the location is at or below the link's path and holds its
+// search) never speaks, so a bare `/list` beside `/list?tab=removed` is not also
+// announced as current, and no link needs `activeOptions` to say so.
+//
+// Like every strip, the row keeps one line, scrolls sideways when the tabs do not
+// fit, hides its scrollbar, fades the side that continues and scrolls the current
+// tab into view (a deep link to the last tab opens on it).
+import { useLayoutEffect, useRef, type ComponentProps, type RefObject } from 'react'
 
 import { cn } from '#/lib/utils'
+import { NavLink } from './nav-link'
+import { revealCurrentItem, stripFadeStyle } from './strip-scroll'
 import { LINE_TAB_CLASS, LINE_TABS_LIST_CLASS } from './tabs-line-styles'
+import { useStripOverflow } from './use-strip-overflow'
 
-type LinkTabsProps = Omit<React.ComponentProps<'nav'>, 'aria-label' | 'aria-labelledby'> &
+type LinkTabsProps = Omit<ComponentProps<'nav'>, 'aria-label' | 'aria-labelledby'> &
   (
     | { 'aria-label': string; 'aria-labelledby'?: undefined }
     | { 'aria-labelledby': string; 'aria-label'?: undefined }
   )
 
 /**
+ * Bring the current tab into the row when the current tab changes, and not when
+ * the row re-renders for another reason: the person scrolling the row to an edge
+ * re-renders it (the fade follows the edge), and that must not pull it back.
+ */
+function useRevealCurrentTab(ref: RefObject<HTMLElement | null>) {
+  const revealed = useRef<Element | null>(null)
+  useLayoutEffect(() => {
+    const strip = ref.current
+    const current = strip?.querySelector('[aria-current="page"]') ?? null
+    if (!strip || current === revealed.current) return
+    revealed.current = current
+    revealCurrentItem(strip)
+  })
+}
+
+/**
  * The landmark and its list. Named, because a page can hold more than one
  * navigation. The list scrolls sideways rather than wrapping, so a narrow phone
  * keeps one row; a full-bleed band passes its gutter in `className`.
  */
-function LinkTabs({ className, children, ...props }: LinkTabsProps) {
+function LinkTabs({ className, style, children, ...props }: LinkTabsProps) {
+  const scrollerRef = useRef<HTMLElement>(null)
+  const edges = useStripOverflow(scrollerRef)
+  useRevealCurrentTab(scrollerRef)
   return (
     <nav
+      ref={scrollerRef}
       data-slot="link-tabs"
-      className={cn('flex overflow-x-auto', LINE_TABS_LIST_CLASS, className)}
+      style={{ ...stripFadeStyle(edges), ...style }}
+      className={cn(
+        'flex scroll-px-6 overflow-x-auto [scrollbar-width:none]',
+        LINE_TABS_LIST_CLASS,
+        className,
+      )}
       {...props}
     >
       <ul className="flex min-w-max gap-1">{children}</ul>
@@ -46,27 +77,20 @@ function LinkTabs({ className, children, ...props }: LinkTabsProps) {
   )
 }
 
-type LinkTabProps = Omit<React.ComponentProps<typeof Slot.Root>, 'children'> & {
-  /** This view is the one on screen: `aria-current="page"`, the underline. */
-  active: boolean
-  /** The link itself. */
-  children: React.ReactElement
-}
-
-function LinkTab({ active, className, children, ...props }: LinkTabProps) {
-  return (
-    <li data-slot="link-tab-item">
-      <Slot.Root
-        data-slot="link-tab"
-        data-state={active ? 'active' : 'inactive'}
-        aria-current={active ? 'page' : undefined}
-        className={cn(LINE_TAB_CLASS, className)}
-        {...props}
-      >
-        {children}
-      </Slot.Root>
-    </li>
-  )
-}
+/**
+ * One view: a router link that is the current page only when `current` says so,
+ * drawn as a line tab. Typed as `NavLink` is, so `to`, `params` and `search` are
+ * checked against the route tree.
+ */
+const LinkTab = (({ className, ...props }: ComponentProps<typeof NavLink>) => (
+  <li data-slot="link-tab-item">
+    <NavLink
+      data-slot="link-tab"
+      data-state={props.current ? 'active' : 'inactive'}
+      className={cn(LINE_TAB_CLASS, className)}
+      {...props}
+    />
+  </li>
+)) as typeof NavLink
 
 export { LinkTabs, LinkTab }

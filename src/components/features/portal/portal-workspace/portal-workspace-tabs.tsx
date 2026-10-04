@@ -7,7 +7,6 @@
 // the same underline as every other page-level view switch; this file adds the
 // full-bleed band's gutter and the tabs' names.
 
-import { Link } from '@tanstack/react-router'
 import { LinkTab, LinkTabs } from '#/components/ui/link-tabs'
 import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import {
@@ -40,14 +39,14 @@ export function PortalWorkspaceTabs({
   return (
     <LinkTabs aria-label="Portal sections" className={PAGE_GUTTER_X}>
       {tabs.map((tab) => (
-        <LinkTab key={tab} active={tab === activeTab}>
-          <Link
-            to="/properties/$propertyId/portals/$portalId"
-            params={{ propertyId, portalId }}
-            search={{ tab }}
-          >
-            {TAB_LABELS[tab]}
-          </Link>
+        <LinkTab
+          key={tab}
+          to="/properties/$propertyId/portals/$portalId"
+          params={{ propertyId, portalId }}
+          search={{ tab }}
+          current={tab === activeTab}
+        >
+          {TAB_LABELS[tab]}
         </LinkTab>
       ))}
     </LinkTabs>
