@@ -59,16 +59,17 @@ function People({
       <DataTableBody>
         {PEOPLE.map((person) => (
           <DataTableRow key={person.id}>
-            <DataTableCell className="col-start-1 row-start-1 min-w-0 font-medium whitespace-normal">
+            <DataTableCell className="col-start-1 row-start-1 min-w-0 self-center font-medium whitespace-normal">
               {person.name}
             </DataTableCell>
             <DataTableCell className="col-start-1 row-start-2 min-w-0 text-muted-foreground whitespace-normal">
               {person.email}
             </DataTableCell>
-            <DataTableCell className="col-start-2 row-start-1 justify-self-end">
+            <DataTableCell className="col-start-2 row-start-2 justify-self-end">
               {person.role}
             </DataTableCell>
-            <DataTableCell className="col-start-2 row-start-2 justify-self-end @3xl:text-right">
+            {/* The menu is in the first row's corner: its touch-sized box overhangs the row padding, not the role under it. */}
+            <DataTableCell actions className="col-start-2 row-start-1">
               <RowActionsMenu name={person.name}>
                 <RowActionsItem opensDialog destructive>
                   Remove

@@ -141,7 +141,10 @@ export function PropertyListTable({ rows, view, fleet, setup, onSort }: Props) {
                   />
                 </DataTableCell>
               ) : null}
-              <DataTableCell className="col-start-3 row-span-2 row-start-1 -mt-2 -mr-3 self-start @4xl:mt-0 @4xl:mr-0 @4xl:px-2 @4xl:text-right">
+              <DataTableCell
+                actions
+                className="col-start-3 row-span-2 row-start-1 self-start"
+              >
                 <PropertyRowActions
                   propertyId={property.id}
                   propertyName={property.name}

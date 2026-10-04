@@ -21,6 +21,13 @@
 // and only the widths a layout uses are spelled). How a stacked row
 // arranges its cells is the caller's: `tracks` says how many columns the stacked
 // grid has, and a cell places itself with `col-start-*` / `row-start-*`.
+//
+// The cell that holds a row's actions menu is `<DataTableCell actions>`. A ghost trigger
+// has air around its glyph (14px at the 44px touch size below `md`, 8px at 32px from it),
+// so stacked it is pulled out by that much: the three dots meet the right edge of the
+// text beside them, sit on the line of the first row, and the control adds no height of
+// its own. The caller puts it in the corner of the first row (`col-start-N row-start-1`),
+// so its box never covers a control below it; a cell that spans rows adds `self-start`.
 import { createContext, use, type ComponentProps, type ReactNode } from 'react'
 import { ArrowDown, ArrowDownUp, ArrowUp } from 'lucide-react'
 import {
@@ -54,6 +61,8 @@ type Recipe = Readonly<{
   body: string
   row: string
   cell: string
+  /** What a cell of row actions adds to `cell`. */
+  actions: string
 }>
 
 const ROWS = {
@@ -62,12 +71,16 @@ const ROWS = {
     body: 'block @3xl:table-row-group',
     row: '@3xl:table-row @3xl:p-0',
     cell: 'p-0 @3xl:table-cell @3xl:px-4 @3xl:py-3',
+    actions:
+      '-my-2 -mr-3 self-center justify-self-end md:-mr-2 @3xl:px-2 @3xl:text-right',
   },
   '4xl': {
     frame: '',
     body: 'block @4xl:table-row-group',
     row: '@4xl:table-row @4xl:p-0',
     cell: 'p-0 @4xl:table-cell @4xl:px-4 @4xl:py-3',
+    actions:
+      '-my-2 -mr-3 self-center justify-self-end md:-mr-2 @4xl:px-2 @4xl:text-right',
   },
 } as const satisfies Record<DataTableRowsFrom, Recipe>
 
@@ -82,12 +95,14 @@ const CARDS = {
     body: 'block space-y-3 pb-3 @2xl:table-row-group @2xl:space-y-0 @2xl:pb-0 [&_tr[data-slot=data-table-card]:last-child]:border @2xl:[&_tr[data-slot=data-table-card]:last-child]:border-0',
     row: '@2xl:table-row @2xl:rounded-none @2xl:border-0 @2xl:border-b @2xl:bg-transparent @2xl:p-0',
     cell: '',
+    actions: '-my-2 -mr-3 self-center justify-self-end md:-mr-2 @2xl:text-right',
   },
   '4xl': {
     frame: '@4xl:overflow-hidden @4xl:rounded-lg @4xl:border @4xl:bg-card',
     body: 'block space-y-3 pb-3 @4xl:table-row-group @4xl:space-y-0 @4xl:pb-0 [&_tr[data-slot=data-table-card]:last-child]:border @4xl:[&_tr[data-slot=data-table-card]:last-child]:border-0',
     row: '@4xl:table-row @4xl:rounded-none @4xl:border-0 @4xl:border-b @4xl:bg-transparent @4xl:p-0',
     cell: '',
+    actions: '-my-2 -mr-3 self-center justify-self-end md:-mr-2 @4xl:text-right',
   },
 } as const satisfies Record<DataTableCardsFrom, Recipe>
 
@@ -97,6 +112,7 @@ const SCROLL = {
   body: '',
   row: '',
   cell: 'px-4 py-3',
+  actions: 'px-2 text-right',
 } as const satisfies Recipe
 
 /** What marks a row of a list of cards, for the rules that treat the last card. */
@@ -299,12 +315,23 @@ export function DataTableRow({ tracks = 2, className, ...props }: RowProps) {
   )
 }
 
+type CellProps = ComponentProps<typeof TableCell> &
+  Readonly<{
+    /** The cell holds the row's actions menu: it sits in the corner of a stacked row. */
+    actions?: boolean
+  }>
+
 /**
  * A cell: bare while stacked (the row's grid places it), padded as a table cell from
  * the width. In a list of cards the cells are the caller's, which sets each one's
  * padding for its density.
  */
-export function DataTableCell({ className, ...props }: ComponentProps<typeof TableCell>) {
+export function DataTableCell({ actions = false, className, ...props }: CellProps) {
   const { recipe } = use(ShellContext)
-  return <TableCell className={cn(recipe.cell, className)} {...props} />
+  return (
+    <TableCell
+      className={cn(recipe.cell, actions && recipe.actions, className)}
+      {...props}
+    />
+  )
 }

@@ -129,3 +129,55 @@ test.describe('a table that scrolls', () => {
     expect(scrolls).toBe(true)
   })
 })
+
+test.describe('a stacked row’s actions menu', () => {
+  // The trigger is a ghost icon button with air around its glyph (44px box below md,
+  // 32px from it). Stacked, the cell pulls it out by that much, so the three dots
+  // meet the right edge of the text beside them and sit on the first line's centre.
+  for (const [name, viewport] of [
+    ['a phone', { width: 390, height: 800 }],
+    ['a desktop window', { width: 1280, height: 800 }],
+  ] as const) {
+    test(`is flush with the row's text edge on ${name}, and adds no height`, async ({
+      page,
+    }) => {
+      await page.setViewportSize(viewport)
+      await openStory(page, STORIES.narrow)
+
+      const row = table(page).locator('tbody tr').first()
+      const cells = row.locator('td')
+      const measured = await row.evaluate((element) => {
+        const rect = (selector: string) =>
+          element.querySelector(selector)?.getBoundingClientRect()
+        const glyph = rect('button svg')
+        const role = element.children[2]?.getBoundingClientRect()
+        const first = element.children[0]?.getBoundingClientRect()
+        const second = element.children[1]?.getBoundingClientRect()
+        if (!glyph || !role || !first || !second) throw new Error('row cells not found')
+        return {
+          glyphRight: glyph.right,
+          roleRight: role.right,
+          glyphMiddle: glyph.top + glyph.height / 2,
+          nameMiddle: first.top + first.height / 2,
+          secondLineTop: second.top - element.getBoundingClientRect().top,
+        }
+      })
+
+      expect(await cells.count()).toBe(4)
+      expect(
+        Math.abs(measured.glyphRight - measured.roleRight),
+        'the dots against the text edge',
+      ).toBeLessThanOrEqual(3)
+      expect(
+        Math.abs(measured.glyphMiddle - measured.nameMiddle),
+        'the dots against the first line',
+      ).toBeLessThanOrEqual(1)
+      // The control's box overhangs the row's padding instead of growing the first
+      // line: 14px of padding, a 28px first line and a 6px gap put the second at 48
+      // (56 if the 44px trigger set the first line's height).
+      expect(measured.secondLineTop, 'where the second line starts').toBeLessThanOrEqual(
+        50,
+      )
+    })
+  }
+})
