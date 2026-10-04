@@ -4,6 +4,13 @@
 //
 // The list is the shared part. Each surface keeps its own trigger: the Inbox
 // has two placements and its own counts, settings has a labelled field.
+//
+// It is also the one in-form property chooser (UI consistency scan: COLL-17): the
+// member invitation's "Add a property" is a PropertyPicker, not a plain Select. A
+// short list needs no search, so the field appears from eight properties
+// (`offersPropertySearch`) and the same component serves both lengths; there is no
+// second, plain variant to choose between. The sidebar's switcher is navigation,
+// a menu of links in the shell, and stays its own thing.
 
 import { useId, useRef, type ReactNode } from 'react'
 import { CheckIcon, ChevronsUpDown } from 'lucide-react'
