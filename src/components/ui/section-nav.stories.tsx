@@ -8,6 +8,7 @@
 // row, focus and the strip's behaviour. `STRIP_LAYOUT` stands in for the layout
 // the strip's scrolling needs, only where Tailwind is missing; where it is compiled
 // (Storybook proper) the container-driven plays also read the real layout.
+import { useEffect, useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { Bell, Building2, Palette, Shield, User, Users } from 'lucide-react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
@@ -25,7 +26,7 @@ const STRIP_LAYOUT = `
     padding: 0 16px;
     scrollbar-width: none;
   }
-  [data-slot='section-nav-scroller'] > div { display: contents; }
+  [data-slot='section-nav-scroller'] > div { flex-shrink: 0; }
   [data-slot='section-nav-scroller'] ul { display: flex; gap: 4px; }
   [data-slot='section-nav-scroller'] li { flex-shrink: 0; }
   [data-slot='section-nav-scroller'] a { white-space: nowrap; display: block; }
@@ -210,6 +211,52 @@ export const StripOpenOnTheLastSection: Story = {
 export const StripLight: Story = {
   ...StripOpenOnTheLastSection,
   parameters: { viewport: { defaultViewport: 'mobileNarrow' }, theme: 'light' },
+}
+
+const GROWN_LABEL = 'People and responsible managers'
+
+/**
+ * A strip whose last section widens after the first paint, as a web font arriving or
+ * a count appearing does: it fits when it mounts and overflows a moment later.
+ */
+function GrowingStrip(args: Parameters<typeof SectionNav>[0]) {
+  const [grown, setGrown] = useState(false)
+  useEffect(() => {
+    const timer = setTimeout(() => setGrown(true), 50)
+    return () => clearTimeout(timer)
+  }, [])
+  const items = [
+    ...HUB.slice(0, 3),
+    section('people', grown ? GROWN_LABEL : 'People', 'Responsible managers'),
+  ]
+  return (
+    <div style={{ width: 340 }}>
+      <SectionNav {...args} items={items} />
+    </div>
+  )
+}
+
+/**
+ * The open section is brought into view when the row only comes to overflow after it
+ * mounted (the first reveal found nothing to scroll), as the view tabs are.
+ */
+export const StripRevealsAfterTheRowGrows: Story = {
+  args: { presentation: 'strip', current: 'people' },
+  render: (args) => <GrowingStrip {...args} />,
+  play: async ({ canvasElement }) => {
+    const root = nav(canvasElement)
+    const scroller = root.querySelector<HTMLElement>('[data-slot="section-nav-scroller"]')
+    const current = await within(root).findByRole('link', {
+      name: new RegExp(`^${GROWN_LABEL}`),
+    })
+    expect(scroller).not.toBeNull()
+    if (scroller === null) return
+    await waitFor(() => expect(scroller.scrollLeft).toBeGreaterThan(0))
+    await waitFor(() => {
+      const view = scroller.getBoundingClientRect()
+      expect(current.getBoundingClientRect().left).toBeGreaterThanOrEqual(view.left)
+    })
+  },
 }
 
 /** When every item fits there is nothing out of reach, so no fade is drawn. */

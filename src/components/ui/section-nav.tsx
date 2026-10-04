@@ -1,4 +1,4 @@
-import { use, useId, useLayoutEffect, useRef, type ReactNode } from 'react'
+import { use, useId, useRef, type ReactNode } from 'react'
 import { cn } from '#/lib/utils'
 import { NavCount } from './nav-count'
 import { NavLink } from './nav-link'
@@ -13,7 +13,8 @@ import {
   type SectionNavPresentation,
 } from './section-nav-styles'
 import type { SectionNavItem } from './section-nav-types'
-import { revealCurrentItem, stripFadeStyle } from './strip-scroll'
+import { stripFadeStyle } from './strip-scroll'
+import { useRevealCurrentItem } from './use-reveal-current-item'
 import { useStripOverflow } from './use-strip-overflow'
 
 // A list of the sections of one place, each a link to its own address: a Property's
@@ -25,7 +26,8 @@ import { useStripOverflow } from './use-strip-overflow'
 //   trailing count and a group; a group is a run of neighbours under a heading.
 // - It is a strip (one scrolling row: the side that continues fades, the open item
 //   scrolls into view, no scrollbar) or a list, or `auto`: a strip until the
-//   container it sits in is wide enough (see `SectionNavLayout`).
+//   container it sits in is wide enough (see `SectionNavLayout`). The side that
+//   continues fades: that is the cue, as in every strip, not a chevron.
 // - The current row wears the sidebar's accent-muted fill, drawn from the
 //   `aria-current` that `NavLink` sets from `current`, so what is drawn and what is
 //   announced are one answer. Hover and keyboard focus are shared by every row.
@@ -146,11 +148,11 @@ export function SectionNav({
   const edges = useStripOverflow(scrollerRef)
 
   // Bring the open item into the row, sideways only: scrolling the page to the strip
-  // would jump away from the content being read. In a list nothing is out of reach,
-  // so nothing moves.
-  useLayoutEffect(() => {
-    if (scrollerRef.current) revealCurrentItem(scrollerRef.current)
-  }, [current])
+  // would jump away from the content being read. It happens when the open section
+  // changes and again when the row or its content resizes (a web font arriving, the
+  // phone turning), unless the person has scrolled the row since. In a list nothing
+  // is out of reach, so nothing moves.
+  useRevealCurrentItem(scrollerRef)
 
   return (
     <nav
