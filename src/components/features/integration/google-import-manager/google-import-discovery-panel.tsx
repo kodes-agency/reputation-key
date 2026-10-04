@@ -1,4 +1,4 @@
-import { MapPin, Search } from 'lucide-react'
+import { MapPin } from 'lucide-react'
 import type {
   ImportAccountDto,
   ImportCandidateDto,
@@ -12,7 +12,7 @@ import {
   CardTitle,
 } from '#/components/ui/card'
 import { EmptyState } from '#/components/ui/empty-state'
-import { Input } from '#/components/ui/input'
+import { SearchField } from '#/components/ui/search-field'
 import { GoogleImportAccountList } from './google-import-account-list'
 import { GoogleImportCandidateResults } from './google-import-candidate-results'
 import { GoogleImportSelectionFooter } from './google-import-selection-footer'
@@ -82,19 +82,13 @@ export function GoogleImportDiscoveryPanel(props: Props) {
             />
           ) : (
             <>
-              <div className="relative">
-                <Search
-                  className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-                  aria-hidden="true"
-                />
-                <Input
-                  value={props.search}
-                  onChange={(event) => props.onSearchChange(event.currentTarget.value)}
-                  placeholder="Search loaded names, addresses, or categories"
-                  aria-label="Search loaded Google locations"
-                  className="pl-9"
-                />
-              </div>
+              <SearchField
+                label="Search loaded Google locations"
+                placeholder="Search loaded names, addresses, or categories"
+                value={props.search}
+                onValueChange={props.onSearchChange}
+                className="sm:w-full"
+              />
 
               {props.selectAllError ? (
                 <Alert variant="warning">
@@ -109,6 +103,9 @@ export function GoogleImportDiscoveryPanel(props: Props) {
                 isLoading={props.isLoadingCandidates}
                 error={props.candidatesError}
                 onRecover={props.onRecoverCandidates}
+                onClearSearch={
+                  props.search.trim() === '' ? null : () => props.onSearchChange('')
+                }
                 onToggleCandidate={props.onToggleCandidate}
                 onToggleLoaded={props.onToggleLoaded}
               />

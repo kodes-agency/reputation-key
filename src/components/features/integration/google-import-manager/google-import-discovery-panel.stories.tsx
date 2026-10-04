@@ -137,9 +137,29 @@ export const Loaded: Story = {
       canvas.getAllByRole('checkbox', { name: /select the meridian/i })[0]!,
     )
     await expect(canvas.getByRole('button', { name: /review 1 property/i })).toBeEnabled()
-    await userEvent.type(canvas.getByRole('textbox', { name: /search loaded/i }), 'café')
+    await userEvent.type(
+      canvas.getByRole('searchbox', { name: /search loaded/i }),
+      'café',
+    )
     await expect(canvas.getAllByText('Juniper Street Café')[0]).toBeVisible()
     await expect(canvasElement.scrollWidth).toBeLessThanOrEqual(canvasElement.clientWidth)
+  },
+}
+
+/** A search that finds nothing offers the way back: the one Clear control, with the field's own X beside it. */
+export const SearchFindsNothing: Story = {
+  render: () => <DiscoveryHarness />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const box = canvas.getByRole('searchbox', { name: /search loaded/i })
+    await userEvent.type(box, 'zzzz')
+    await expect(canvas.getByText('No matching loaded locations')).toBeVisible()
+    const panel = within(
+      canvasElement.querySelector<HTMLElement>('[data-slot="empty-state"]')!,
+    )
+    await userEvent.click(panel.getByRole('button', { name: 'Clear search and filters' }))
+    await expect(box).toHaveValue('')
+    await expect(canvas.getAllByText('Juniper Street Café')[0]).toBeVisible()
   },
 }
 
