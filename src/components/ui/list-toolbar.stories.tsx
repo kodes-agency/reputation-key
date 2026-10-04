@@ -15,7 +15,7 @@ import { ClearFiltersButton } from './clear-filters-button'
 import { ListFilterMenu } from './list-choice-menu'
 import { ListSortMenu } from './list-sort-menu'
 import type { SortDirection } from './list-sort'
-import { ListToolbar } from './list-toolbar'
+import { ListToolbar, ListToolbarStatus } from './list-toolbar'
 import { ResultCount } from './result-count'
 import { SearchField } from './search-field'
 
@@ -95,17 +95,19 @@ function Harness({
             setDir(next.dir ?? (next.sort === 'name' ? 'asc' : 'desc'))
           }}
         />
-        <ResultCount shown={ordered.length} total={ROWS.length} active={narrowed} />
-        {narrowed ? (
-          <ClearFiltersButton
-            searching={searching}
-            filters={filters}
-            onClear={() => {
-              setQuery('')
-              setShow(null)
-            }}
-          />
-        ) : null}
+        <ListToolbarStatus>
+          <ResultCount shown={ordered.length} total={ROWS.length} active={narrowed} />
+          {narrowed ? (
+            <ClearFiltersButton
+              searching={searching}
+              filters={filters}
+              onClear={() => {
+                setQuery('')
+                setShow(null)
+              }}
+            />
+          ) : null}
+        </ListToolbarStatus>
       </ListToolbar>
       <ul aria-label="Properties">
         {ordered.map((row) => (

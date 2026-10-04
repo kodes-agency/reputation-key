@@ -5,7 +5,7 @@
 import { ClearFiltersButton } from '#/components/ui/clear-filters-button'
 import { ListFilterMenu } from '#/components/ui/list-choice-menu'
 import { ListSortMenu } from '#/components/ui/list-sort-menu'
-import { ListToolbar } from '#/components/ui/list-toolbar'
+import { ListToolbar, ListToolbarStatus } from '#/components/ui/list-toolbar'
 import { ResultCount } from '#/components/ui/result-count'
 import { SearchField } from '#/components/ui/search-field'
 import type { SortDirection } from '#/components/ui/list-sort'
@@ -105,13 +105,15 @@ export function PropertyListToolbar({
         onChange={onChange}
       />
 
-      <ResultCount shown={shown} total={total} active={narrowed} />
-      {narrowed ? (
-        <ClearFiltersButton
-          searching={searching}
-          onClear={() => onChange({ q: undefined, show: undefined })}
-        />
-      ) : null}
+      <ListToolbarStatus>
+        <ResultCount shown={shown} total={total} active={narrowed} />
+        {narrowed ? (
+          <ClearFiltersButton
+            searching={searching}
+            onClear={() => onChange({ q: undefined, show: undefined })}
+          />
+        ) : null}
+      </ListToolbarStatus>
     </ListToolbar>
   )
 }

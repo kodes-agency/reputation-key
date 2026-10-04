@@ -8,6 +8,9 @@
 // and keeps its desktop size from `md`. The X is a 12px glyph in a 24px button and
 // the chip a 32px pill, so each needs the touch height stated, and the field around
 // the X must not grow to hold it.
+//
+// The result count and Clear wrap as one unit, so a Clear that wraps never starts a
+// line 16px in from the search field above it.
 
 import { expect, test, type Page } from '@playwright/test'
 import { openStory } from './storybook-story'
@@ -90,5 +93,29 @@ test.describe('a removable chip', () => {
 
     expect(heights.length).toBeGreaterThan(0)
     for (const height of heights) expect(height).toBe(32)
+  })
+})
+
+test.describe('the count and Clear of a narrowed list', () => {
+  test('start the line they wrap to at the gutter the search field starts at', async ({
+    page,
+  }) => {
+    await page.setViewportSize(PHONE)
+    await openStory(page, SEARCHING)
+
+    const lefts = await page.evaluate(() => {
+      const left = (selector: string) =>
+        document.querySelector(selector)?.getBoundingClientRect().left ?? Number.NaN
+      return {
+        field: left('[data-slot="input-group"]'),
+        count: left('[data-slot="result-count"]'),
+        status: left('[data-slot="list-toolbar-status"]'),
+      }
+    })
+
+    // The phone wraps the status under the menus: the count, not a padded button,
+    // is what meets the gutter.
+    expect(lefts.status, 'the status').toBeCloseTo(lefts.field, 0)
+    expect(lefts.count, 'the count').toBeCloseTo(lefts.field, 0)
   })
 })
