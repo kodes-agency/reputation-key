@@ -183,7 +183,7 @@ async function checkDetailSheet(
   const conversation = await measure(page, 'section[aria-label="Conversation"]')
   const composer = await measure(page, 'section[aria-label="Composer"]')
   const back = named(header, 'Back to list')
-  const more = named(header, 'More review actions')
+  const more = named(header, 'More actions for this review')
   const regions = [
     ['the case toolbar', toolbar],
     ['the conversation', conversation],
@@ -216,7 +216,7 @@ async function checkDetailSheet(
       // The copy menu is an OUTLINE button: its box, not its glyph, is on the gutter.
       ...(more === undefined
         ? []
-        : boxEndsOnGutter('More review actions', more.box, view)),
+        : boxEndsOnGutter('More actions for this review', more.box, view)),
       ...regions.flatMap(([what, region]) => [
         ...found(region, what),
         ...(region.content === null

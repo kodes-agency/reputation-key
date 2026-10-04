@@ -42,11 +42,11 @@ export function groupMenu(
   return [
     ...(where === 'overview' ? [item('open', 'Open group')] : []),
     ...(where === 'overview' && access.canRename && access.portalWriteEnabled
-      ? [item('rename', 'Rename…')]
+      ? [item('rename', 'Rename')]
       : []),
     ...(access.canSetGoal ? [item('goal', 'Set a goal')] : []),
     ...(access.canArchive && access.portalWriteEnabled
-      ? [item('archive', 'Archive group…', true)]
+      ? [item('archive', 'Archive group', true)]
       : []),
   ]
 }

@@ -2,13 +2,8 @@
 // written in, and a menu. Opening it shows the editor beneath.
 
 import { useState, type ReactNode } from 'react'
-import { CircleAlert, Ellipsis } from 'lucide-react'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '#/components/ui/dropdown-menu'
+import { CircleAlert } from 'lucide-react'
+import { RowActionsItem, RowActionsMenu } from '#/components/ui/row-actions-menu'
 import type { PortalLinktreeLink } from '#/contexts/portal/application/public-api'
 import type { GuestLocale } from '#/shared/domain/guest-locale'
 import { DeleteLinkDialog } from './delete-link-dialog'
@@ -22,7 +17,6 @@ import {
   type LinkMoveControl,
   type LinkMoveDirection,
 } from './linktree-rules'
-import { IconButton } from '#/components/ui/icon-button'
 
 type Props = Readonly<{
   link: PortalLinktreeLink
@@ -167,31 +161,15 @@ type MenuProps = Readonly<{
 
 function LinktreeActionsMenu({ name, isOpen, canDelete, onToggle, onDelete }: MenuProps) {
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <IconButton
-          type="button"
-          variant="ghost"
-          size="icon"
-          tooltip={false}
-          label={`More actions for ${name}`}
-        >
-          <Ellipsis aria-hidden="true" />
-        </IconButton>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        <DropdownMenuItem onSelect={onToggle}>
-          {isOpen ? 'Close editor' : 'Edit'}
-        </DropdownMenuItem>
-        {canDelete ? (
-          <DropdownMenuItem
-            className="text-negative focus:text-negative"
-            onSelect={onDelete}
-          >
-            Delete link
-          </DropdownMenuItem>
-        ) : null}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <RowActionsMenu name={name}>
+      <RowActionsItem onSelect={onToggle}>
+        {isOpen ? 'Close editor' : 'Edit'}
+      </RowActionsItem>
+      {canDelete ? (
+        <RowActionsItem destructive opensDialog onSelect={onDelete}>
+          Delete link
+        </RowActionsItem>
+      ) : null}
+    </RowActionsMenu>
   )
 }

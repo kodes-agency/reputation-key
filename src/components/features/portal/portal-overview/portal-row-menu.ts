@@ -45,13 +45,13 @@ export function portalRowMenu(
     // Taking a live page down is a Portal update, refused like one while the
     // organisation's `portal.write` capability is off.
     ...(state === 'published' && canWrite
-      ? [item('disable', 'Disable public page…')]
+      ? [item('disable', 'Disable public page')]
       : []),
     // Archiving and restoring are Portal updates, which the server also
     // refuses while the organisation's `portal.write` capability is off.
     ...(state !== 'archived' && access.canArchive && access.portalWriteEnabled
-      ? [item('archive', 'Archive…')]
+      ? [item('archive', 'Archive')]
       : []),
-    ...(state === 'archived' && canWrite ? [item('restore', 'Restore…')] : []),
+    ...(state === 'archived' && canWrite ? [item('restore', 'Restore')] : []),
   ]
 }

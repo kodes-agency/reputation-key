@@ -496,7 +496,7 @@ export const RemovedTabForPropertyManager: Story = {
 
 async function openRowActions(canvasElement: HTMLElement, name: string) {
   await userEvent.click(
-    within(canvasElement).getByRole('button', { name: `Actions for ${name}` }),
+    within(canvasElement).getByRole('button', { name: `More actions for ${name}` }),
   )
   // The menu renders in a portal, outside the story's canvas.
   return within(await within(document.body).findByRole('menu'))

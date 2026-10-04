@@ -82,7 +82,7 @@ export const GroupHeadsLinkToTheirPageAndCarryActions: Story = {
     await expect(canvas.getByRole('link', { name: 'Pool side' })).toBeInTheDocument()
     await expect(canvas.getByRole('link', { name: 'Front of house' })).toBeInTheDocument()
     await expect(
-      canvas.getByRole('button', { name: 'Actions for group Pool side' }),
+      canvas.getByRole('button', { name: 'More actions for group Pool side' }),
     ).toBeInTheDocument()
     await expect(canvas.queryByRole('link', { name: 'Not in a group' })).toBeNull()
     await expect(

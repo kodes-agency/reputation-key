@@ -1167,7 +1167,7 @@ export const HeaderAt320: Story = {
       }),
     ).toBeVisible()
     await expect(
-      canvas.getByRole('button', { name: 'More review actions' }),
+      canvas.getByRole('button', { name: 'More actions for this review' }),
     ).toBeVisible()
   },
 }

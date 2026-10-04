@@ -4,18 +4,16 @@
 // Its place stays, unseen, in a table row, so Edit sits in one column in every row.
 import { useState, type ReactNode } from 'react'
 import { Link } from '@tanstack/react-router'
-import { Ellipsis, Pencil, QrCode } from 'lucide-react'
+import { Pencil, QrCode } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { useCapabilities } from '#/shared/hooks/useCapabilities'
 import { Button, buttonVariants } from '#/components/ui/button'
 import { cn } from '#/lib/utils'
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '#/components/ui/dropdown-menu'
+  RowActionsItem,
+  RowActionsMenu,
+  RowActionsSeparator,
+} from '#/components/ui/row-actions-menu'
 import { useOverviewClasses } from './portal-overview-density'
 import { PortalArchiveDialog, type PortalArchiveMutations } from './portal-archive-dialog'
 import { PortalDisableDialog } from './portal-disable-dialog'
@@ -25,7 +23,6 @@ import {
   type PortalRowMenuItem,
   type PortalRowMenuItemId,
 } from './portal-row-menu'
-import { IconButton } from '#/components/ui/icon-button'
 
 type RowProps = Readonly<{ item: PortalOverviewItem; propertyId: string }>
 
@@ -97,11 +94,11 @@ function MenuLink({
           : 'page',
   } as const
   return (
-    <DropdownMenuItem asChild>
+    <RowActionsItem asChild>
       <Link to={to} params={params} search={search}>
         {menuItem.label}
       </Link>
-    </DropdownMenuItem>
+    </RowActionsItem>
   )
 }
 
@@ -131,41 +128,29 @@ export function PortalRowMenu({
   const lifecycle = menu.filter((entry) => isLifecycle(entry.id))
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <IconButton
-            variant="ghost"
-            size="icon-sm"
-            tooltip={false}
-            className="text-muted-foreground"
-            label={`More actions for ${row.name}`}
+      <RowActionsMenu name={row.name}>
+        {links.map((entry) => (
+          <MenuLink
+            key={entry.id}
+            menuItem={entry}
+            propertyId={propertyId}
+            portalId={row.portalId}
+          />
+        ))}
+        {extra}
+        {links.length + (extra ? 1 : 0) > 0 && lifecycle.length > 0 ? (
+          <RowActionsSeparator />
+        ) : null}
+        {lifecycle.map((entry) => (
+          <RowActionsItem
+            key={entry.id}
+            opensDialog
+            onSelect={() => setConfirming(lifecycleId(entry.id))}
           >
-            <Ellipsis aria-hidden="true" />
-          </IconButton>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-48">
-          {links.map((entry) => (
-            <MenuLink
-              key={entry.id}
-              menuItem={entry}
-              propertyId={propertyId}
-              portalId={row.portalId}
-            />
-          ))}
-          {extra}
-          {links.length + (extra ? 1 : 0) > 0 && lifecycle.length > 0 ? (
-            <DropdownMenuSeparator />
-          ) : null}
-          {lifecycle.map((entry) => (
-            <DropdownMenuItem
-              key={entry.id}
-              onSelect={() => setConfirming(lifecycleId(entry.id))}
-            >
-              {entry.label}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+            {entry.label}
+          </RowActionsItem>
+        ))}
+      </RowActionsMenu>
       {lifecycle.some((entry) => entry.id !== 'disable') ? (
         <PortalArchiveDialog
           portalId={row.portalId}

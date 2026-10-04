@@ -70,7 +70,7 @@ const rowLink = (canvasElement: HTMLElement) => within(canvasElement).getByRole(
 /** Opens the row's overflow menu. Radix portals the menu outside the story canvas. */
 async function openRowMenu(canvasElement: HTMLElement) {
   await userEvent.click(
-    within(canvasElement).getByRole('button', { name: /^More actions for:/ }),
+    within(canvasElement).getByRole('button', { name: /^More actions for/ }),
   )
   return within(canvasElement.ownerDocument.body)
 }
@@ -437,7 +437,7 @@ export const SettledRowOffersOnlyDismiss: Story = {
   ),
   play: async ({ canvasElement }) => {
     const triggers = within(canvasElement).getAllByRole('button', {
-      name: /^More actions for:/,
+      name: /^More actions for/,
     })
     expect(triggers).toHaveLength(2)
     for (const trigger of triggers) {
@@ -517,7 +517,7 @@ export const DismissIsKeyboardReachable: Story = {
     rowLink(canvasElement).focus()
     await userEvent.tab()
     const trigger = within(canvasElement).getByRole('button', {
-      name: 'More actions for: New review at Riverside Hotel',
+      name: 'More actions for New review at Riverside Hotel',
     })
     expect(trigger).toHaveFocus()
     expect(trigger).toBeVisible()

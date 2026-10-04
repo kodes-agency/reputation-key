@@ -1,13 +1,7 @@
-import { Copy, MoreHorizontal } from 'lucide-react'
+import { Copy } from 'lucide-react'
 import { toast } from 'sonner'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '#/components/ui/dropdown-menu'
+import { RowActionsItem, RowActionsMenu } from '#/components/ui/row-actions-menu'
 import type { InboxDetailState } from './use-inbox-detail'
-import { IconButton } from '#/components/ui/icon-button'
 
 async function copyText(text: string, label: string): Promise<void> {
   try {
@@ -22,8 +16,9 @@ async function copyText(text: string, label: string): Promise<void> {
  * Overflow menu for the review body. Renders nothing until the detail payload
  * has at least one copyable text, so the trigger never appears empty.
  *
- * The trigger is a CONTROL: an `IconButton`, 36 px below `md` from the Inbox's
- * compact density (row 20), the same square as the header's dismissal beside it
+ * The trigger is a CONTROL, the shared `RowActionsMenu` one (outline, among the
+ * header's other outline squares): 36 px below `md` from the Inbox's compact
+ * density (row 20), the same square as the header's dismissal beside it
  * (`Back to list` on the sheet, `Close detail` on the panel), so the row keeps
  * one target height on a phone; 32 px from `md` up.
  *
@@ -40,26 +35,23 @@ export function InboxDetailCopyMenu({
   if (!reviewText && !translation) return null
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger asChild>
-        <IconButton size="icon-sm" variant="outline" label="More review actions">
-          <MoreHorizontal />
-        </IconButton>
-      </DropdownMenuTrigger>
-      <DropdownMenuContent align="end">
-        {reviewText && (
-          <DropdownMenuItem onSelect={() => void copyText(reviewText, 'Review text')}>
-            <Copy />
-            Copy review text
-          </DropdownMenuItem>
-        )}
-        {translation && (
-          <DropdownMenuItem onSelect={() => void copyText(translation, 'Translation')}>
-            <Copy />
-            Copy translation
-          </DropdownMenuItem>
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
+    <RowActionsMenu name="this review" variant="outline">
+      {reviewText && (
+        <RowActionsItem
+          icon={Copy}
+          onSelect={() => void copyText(reviewText, 'Review text')}
+        >
+          Copy review text
+        </RowActionsItem>
+      )}
+      {translation && (
+        <RowActionsItem
+          icon={Copy}
+          onSelect={() => void copyText(translation, 'Translation')}
+        >
+          Copy translation
+        </RowActionsItem>
+      )}
+    </RowActionsMenu>
   )
 }
