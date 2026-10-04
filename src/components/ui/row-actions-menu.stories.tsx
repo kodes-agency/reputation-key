@@ -41,6 +41,13 @@ type Story = StoryObj<typeof RowActionsMenu>
 const trigger = (canvasElement: HTMLElement) =>
   within(canvasElement).getByRole('button', { name: 'More actions for Pool & Terrace' })
 
+/** Opens the menu and reads its items by name. */
+async function openMenu(canvasElement: HTMLElement) {
+  await userEvent.click(trigger(canvasElement))
+  const menu = within(await screen.findByRole('menu'))
+  return (name: string) => menu.getByRole('menuitem', { name })
+}
+
 /** Leaves the page as it found it: the menu portals out of the story and would outlive it. */
 async function closeMenu(canvasElement: HTMLElement) {
   await userEvent.keyboard('{Escape}')
@@ -72,14 +79,11 @@ export const Light: Story = {
 /** An item that opens a dialog ends in an ellipsis; one that acts at once does not. */
 export const EllipsisForItemsThatAskForMore: Story = {
   play: async ({ canvasElement }) => {
-    await userEvent.click(trigger(canvasElement))
-    const menu = await screen.findByRole('menu')
-    expect(within(menu).getByRole('menuitem', { name: 'Archive…' })).toBeInTheDocument()
-    expect(within(menu).getByRole('menuitem', { name: 'Rename' })).toBeInTheDocument()
+    const item = await openMenu(canvasElement)
+    expect(item('Archive…')).toBeInTheDocument()
+    expect(item('Rename')).toBeInTheDocument()
     // A link item writes its own label, and the primitive adds nothing to it.
-    expect(
-      within(menu).getByRole('menuitem', { name: 'Open overview' }),
-    ).toBeInTheDocument()
+    expect(item('Open overview')).toBeInTheDocument()
     await closeMenu(canvasElement)
   },
 }
@@ -87,16 +91,9 @@ export const EllipsisForItemsThatAskForMore: Story = {
 /** Only an action that cannot be taken back is the red item. */
 export const DestructiveFlag: Story = {
   play: async ({ canvasElement }) => {
-    await userEvent.click(trigger(canvasElement))
-    const menu = await screen.findByRole('menu')
-    expect(within(menu).getByRole('menuitem', { name: 'Remove…' })).toHaveAttribute(
-      'data-variant',
-      'destructive',
-    )
-    expect(within(menu).getByRole('menuitem', { name: 'Archive…' })).toHaveAttribute(
-      'data-variant',
-      'default',
-    )
+    const item = await openMenu(canvasElement)
+    expect(item('Remove…')).toHaveAttribute('data-variant', 'destructive')
+    expect(item('Archive…')).toHaveAttribute('data-variant', 'default')
     await closeMenu(canvasElement)
   },
 }
