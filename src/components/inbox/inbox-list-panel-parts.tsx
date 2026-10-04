@@ -9,7 +9,7 @@ import type {
 } from '#/contexts/inbox/application/public-api'
 import { InboxListV2 } from '#/components/inbox/inbox-list-v2'
 import { InboxBulkActions } from '#/components/inbox/inbox-bulk-actions'
-import { Button } from '#/components/ui/button'
+import { LoadMoreButton } from '#/components/ui/load-more-button'
 import type { bulkUpdateInboxStatusFn } from '#/contexts/inbox/server/inbox'
 import type { bulkAssignInboxItemsFn } from '#/contexts/inbox/server/inbox'
 import type { InboxAssignmentOption } from './inbox-owner-view'
@@ -108,7 +108,7 @@ export function renderListContent(props: InboxListPanelProps): ReactNode {
 }
 
 /** Renders nothing until there is a next page and the initial load is done. */
-export function LoadMoreButton({
+export function InboxLoadMore({
   nextCursor,
   loadedCount,
   totalCount,
@@ -129,14 +129,10 @@ export function LoadMoreButton({
       <span className="text-xs tabular-nums text-muted-foreground">
         {loadedCount} of {totalCount}
       </span>
-      <Button
-        variant="outline"
-        size="sm"
-        pending={loadAction.isPending}
-        onClick={() => onLoadMore(nextCursor)}
-      >
-        Load more
-      </Button>
+      <LoadMoreButton
+        loading={loadAction.isPending}
+        onLoadMore={() => void onLoadMore(nextCursor)}
+      />
     </div>
   )
 }

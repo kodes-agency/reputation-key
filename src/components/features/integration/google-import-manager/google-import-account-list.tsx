@@ -1,7 +1,7 @@
 import { Building2, ChevronRight } from 'lucide-react'
 import type { ImportAccountDto } from '#/contexts/integration/application/public-api'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
-import { Button } from '#/components/ui/button'
+import { LoadMoreButton } from '#/components/ui/load-more-button'
 import { EmptyState } from '#/components/ui/empty-state'
 import {
   Card,
@@ -83,15 +83,13 @@ export function GoogleImportAccountList({
           </div>
         )}
         {hasMore ? (
-          <Button
-            type="button"
-            variant="outline"
-            className="w-full"
-            pending={isLoadingMore}
-            onClick={onLoadMore}
-          >
-            Load more accounts
-          </Button>
+          <LoadMoreButton
+            size="default"
+            block
+            label="Load more accounts"
+            loading={isLoadingMore}
+            onLoadMore={onLoadMore}
+          />
         ) : null}
       </CardContent>
     </Card>

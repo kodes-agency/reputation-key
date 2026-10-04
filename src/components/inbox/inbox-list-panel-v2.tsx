@@ -7,7 +7,7 @@ import { InboxActiveFilters } from '#/components/inbox/inbox-active-filters'
 import { InboxListHeader } from '#/components/inbox/inbox-list-header'
 import {
   BulkActionBar,
-  LoadMoreButton,
+  InboxLoadMore,
   renderListContent,
   type InboxListPanelProps,
 } from './inbox-list-panel-parts'
@@ -99,7 +99,7 @@ export function InboxListPanel(props: InboxListPanelProps) {
       )}
       <div ref={listRef} className="flex-1 overflow-y-auto min-h-0">
         {renderListContent(props)}
-        <LoadMoreButton
+        <InboxLoadMore
           nextCursor={nextCursor}
           loadedCount={items.length}
           totalCount={totalCount}

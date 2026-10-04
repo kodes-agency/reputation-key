@@ -1,4 +1,5 @@
 import { Button } from '#/components/ui/button'
+import { LoadMoreButton } from '#/components/ui/load-more-button'
 
 type Props = Readonly<{
   selectedCount: number
@@ -50,14 +51,12 @@ export function GoogleImportSelectionFooter({
           Select all eligible locations
         </Button>
         {hasMoreCandidates ? (
-          <Button
-            type="button"
-            variant="outline"
-            pending={isLoadingMoreCandidates}
-            onClick={onLoadMoreCandidates}
-          >
-            Load more locations
-          </Button>
+          <LoadMoreButton
+            size="default"
+            label="Load more locations"
+            loading={isLoadingMoreCandidates}
+            onLoadMore={onLoadMoreCandidates}
+          />
         ) : null}
         <Button type="button" disabled={selectedCount === 0} onClick={onReview}>
           Review {selectedCount || ''} {selectedCount === 1 ? 'property' : 'properties'}
