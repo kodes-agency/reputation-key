@@ -142,7 +142,7 @@ export function PropertyRatingsPage({
         >
           Responding
         </h2>
-        <MetricStrip aria-label="Replying" variant="ruled">
+        <MetricStrip aria-label="Responding" variant="ruled">
           <Metric label="Reply rate">
             <MetricValue value={replyRateValue} detail={replyRateContext} />
           </Metric>

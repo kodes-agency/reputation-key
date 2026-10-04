@@ -114,6 +114,10 @@ export const Populated90d: Story = {
     for (const heading of ['Rating over time', 'Rating mix', 'Responding']) {
       expect(canvas.getByRole('heading', { name: heading, level: 2 })).toBeVisible()
     }
+    // The reply figures carry their heading's name, so a screen reader hears what is on screen.
+    expect(
+      canvasElement.querySelector('[data-slot="metric-strip"][aria-label="Responding"]'),
+    ).not.toBeNull()
 
     const range = canvas.getByRole('radiogroup', { name: 'Time range' })
     expect(within(range).getByRole('radio', { name: '90 days' })).toBeChecked()
