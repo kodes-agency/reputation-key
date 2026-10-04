@@ -1,4 +1,4 @@
-import { Button } from '#/components/ui/button'
+import { ClearFiltersButton } from '#/components/ui/clear-filters-button'
 import { FieldGroup } from '#/components/ui/field'
 import {
   Popover,
@@ -8,7 +8,7 @@ import {
   PopoverTrigger,
 } from '#/components/ui/popover'
 import { ASPECT_OPTIONS, ASPECT_POLARITY_OPTIONS } from '#/shared/aspect-labels'
-import { Filter, X } from 'lucide-react'
+import { ListFilter } from 'lucide-react'
 import { InboxFilterSelect } from './inbox-filter-select'
 import {
   ATTENTION_OPTIONS,
@@ -42,7 +42,7 @@ export function InboxFilterPopover({ value, onChange }: Props) {
           className="relative"
           label={activeCount > 0 ? `Filters, ${activeCount} active` : 'Filters'}
         >
-          <Filter />
+          <ListFilter />
           {activeCount > 0 && (
             <span className="absolute top-1 right-1 size-1.5 rounded-full bg-foreground" />
           )}
@@ -60,15 +60,13 @@ export function InboxFilterPopover({ value, onChange }: Props) {
       >
         <PopoverHeader className="mb-4 flex-row items-center justify-between">
           <PopoverTitle id={TITLE_ID}>Filters</PopoverTitle>
-          <Button
-            variant="ghost"
+          {/* No search is in force here: the header shows the search instead of this control. */}
+          <ClearFiltersButton
             size="xs"
+            searching={false}
             disabled={activeCount === 0}
-            onClick={() => onChange(CLEARED_INBOX_LIST_FILTERS)}
-          >
-            <X />
-            Clear
-          </Button>
+            onClear={() => onChange(CLEARED_INBOX_LIST_FILTERS)}
+          />
         </PopoverHeader>
         <FieldGroup className="gap-4">
           <InboxFilterSelect

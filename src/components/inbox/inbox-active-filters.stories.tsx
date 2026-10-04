@@ -10,7 +10,8 @@ type HarnessProps = Readonly<{
   sort: InboxSort
   onFiltersChange: (patch: Partial<InboxListFilterValues>) => void
   onSortChange: (sort: InboxSort) => void
-  onClearAll: () => void
+  searching: boolean
+  onClearFilters: () => void
 }>
 
 /**
@@ -24,7 +25,8 @@ function Harness({
   sort: initialSort,
   onFiltersChange,
   onSortChange,
-  onClearAll,
+  searching,
+  onClearFilters,
 }: HarnessProps) {
   const [filters, setFilters] = useState(initialFilters)
   const [sort, setSort] = useState(initialSort)
@@ -44,10 +46,11 @@ function Harness({
           setSort(next)
           onSortChange(next)
         }}
-        onClearAll={() => {
+        searching={searching}
+        onClearFilters={() => {
+          // The filters go; the sort stays, as the page's one navigation leaves it.
           setFilters(CLEARED_INBOX_LIST_FILTERS)
-          setSort('newest')
-          onClearAll()
+          onClearFilters()
         }}
       />
     </div>
@@ -65,7 +68,8 @@ const meta = {
     sort: 'newest',
     onFiltersChange: fn(),
     onSortChange: fn(),
-    onClearAll: fn(),
+    searching: false,
+    onClearFilters: fn(),
   },
   render: (args) => <Harness {...args} />,
 } satisfies Meta<typeof InboxActiveFilters>
@@ -88,9 +92,9 @@ export const OneFilter: Story = {
   args: { filters: { ...CLEARED_INBOX_LIST_FILTERS, attention: 'urgent' } },
   play: async ({ canvasElement }) => {
     const group = within(within(canvasElement).getByRole('group', { name: GROUP }))
-    // One chip is its own remedy: no "Clear all" beside it.
+    // One chip is its own remedy: no "Clear filters" beside it.
     await expect(
-      group.queryByRole('button', { name: 'Clear all' }),
+      group.queryByRole('button', { name: 'Clear filters' }),
     ).not.toBeInTheDocument()
     await expect(
       group.getByRole('button', { name: 'Remove filter: Urgent' }),
@@ -204,16 +208,15 @@ export const OldestFirst: Story = {
   },
 }
 
-export const ClearAll: Story = {
+export const ClearFilters: Story = {
   args: {
     filters: { ...CLEARED_INBOX_LIST_FILTERS, sourceType: 'feedback', attention: 'high' },
-    sort: 'oldest',
   },
   play: async ({ canvasElement, args }) => {
     const group = within(canvasElement).getByRole('group', { name: GROUP })
-    await userEvent.click(within(group).getByRole('button', { name: 'Clear all' }))
-    // One navigation, not a filters change followed by a sort change.
-    await expect(args.onClearAll).toHaveBeenCalledTimes(1)
+    await userEvent.click(within(group).getByRole('button', { name: 'Clear filters' }))
+    // One navigation, not a change per chip.
+    await expect(args.onClearFilters).toHaveBeenCalledTimes(1)
     await expect(args.onFiltersChange).not.toHaveBeenCalled()
     await expect(args.onSortChange).not.toHaveBeenCalled()
     await expect(
@@ -222,5 +225,58 @@ export const ClearAll: Story = {
     await expect(
       within(canvasElement).getByRole('button', { name: 'Filters' }),
     ).toHaveFocus()
+  },
+}
+
+// The order is not a cut of the list: Clear takes the filters away and leaves the
+// "Oldest first" chip, which has its own remedy, and focus goes to it.
+export const ClearFiltersLeavesTheSort: Story = {
+  args: {
+    filters: { ...CLEARED_INBOX_LIST_FILTERS, sourceType: 'feedback', attention: 'high' },
+    sort: 'oldest',
+  },
+  play: async ({ canvasElement, args }) => {
+    const group = within(within(canvasElement).getByRole('group', { name: GROUP }))
+    await userEvent.click(group.getByRole('button', { name: 'Clear filters' }))
+    await expect(args.onClearFilters).toHaveBeenCalledTimes(1)
+    await expect(args.onSortChange).not.toHaveBeenCalled()
+    await expect(
+      group.queryByRole('button', { name: 'Remove filter: Feedback' }),
+    ).not.toBeInTheDocument()
+    await expect(
+      group.getByRole('button', { name: 'Remove filter: Oldest first' }),
+    ).toHaveFocus()
+    // What is left is one chip, its own remedy.
+    await expect(
+      group.queryByRole('button', { name: 'Clear filters' }),
+    ).not.toBeInTheDocument()
+  },
+}
+
+// A filter and the order are two chips but one thing to clear: Clear would only
+// repeat the chip, so the row offers none.
+export const OneFilterAndTheSort: Story = {
+  args: {
+    filters: { ...CLEARED_INBOX_LIST_FILTERS, attention: 'urgent' },
+    sort: 'oldest',
+  },
+  play: async ({ canvasElement }) => {
+    const group = within(within(canvasElement).getByRole('group', { name: GROUP }))
+    await expect(group.getAllByRole('button')).toHaveLength(2)
+    await expect(group.queryByRole('button', { name: /^Clear/ })).not.toBeInTheDocument()
+  },
+}
+
+// A search in force counts as one more thing Clear takes away, so it is offered
+// beside a single filter chip and it says so.
+export const SearchAndOneFilter: Story = {
+  args: {
+    filters: { ...CLEARED_INBOX_LIST_FILTERS, attention: 'urgent' },
+    searching: true,
+  },
+  play: async ({ canvasElement, args }) => {
+    const group = within(within(canvasElement).getByRole('group', { name: GROUP }))
+    await userEvent.click(group.getByRole('button', { name: 'Clear search and filters' }))
+    await expect(args.onClearFilters).toHaveBeenCalledTimes(1)
   },
 }

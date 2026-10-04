@@ -240,7 +240,7 @@ type SheetParts = Readonly<{
   sheet: ScopeReport
   /** The scrolling body with the choice chips. */
   body: ScopeReport
-  /** The action bar at the bottom: Clear all and the results button. */
+  /** The action bar at the bottom: Clear filters and the results button. */
   footer: ScopeReport
   /** The title bar across the top. */
   bar: ScopeReport
@@ -310,7 +310,7 @@ export function sheetLines(
         ]),
     ...(actions.length < 2
       ? [
-          `the sheet footer has ${actions.length} button(s), expected Clear all and the results button`,
+          `the sheet footer has ${actions.length} button(s), expected Clear filters and the results button`,
         ]
       : []),
     // The footer is the sheet's bottom action bar: its buttons are bar height.

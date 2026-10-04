@@ -475,7 +475,7 @@ storyTests('page selecting', PAGE_STORIES, PHONES, async (page, view) => {
 storyTests('page searching', PAGE_STORIES, PHONES, async (page, view) => {
   await waitForRows(page)
   await page.getByRole('button', { name: 'Search' }).click()
-  await page.getByRole('textbox', { name: 'Search reviews' }).waitFor()
+  await page.getByRole('searchbox', { name: 'Search reviews' }).waitFor()
   const header = await measure(page, HEADER)
   return { evidence: { header }, lines: headerLines(header, view) }
 })

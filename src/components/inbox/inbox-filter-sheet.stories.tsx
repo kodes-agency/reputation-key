@@ -12,7 +12,7 @@ type HarnessProps = Readonly<{
   isLoading: boolean
   onFiltersChange: (patch: Partial<InboxListFilterValues>) => void
   onSortChange: (sort: InboxSort) => void
-  onClearAll: () => void
+  onClearFilters: () => void
 }>
 
 /** Holds the choices so a click shows up as a checked chip, as it does on the page. */
@@ -23,7 +23,7 @@ function Harness({
   isLoading,
   onFiltersChange,
   onSortChange,
-  onClearAll,
+  onClearFilters,
 }: HarnessProps) {
   const [filters, setFilters] = useState(initialFilters)
   const [sort, setSort] = useState(initialSort)
@@ -41,10 +41,10 @@ function Harness({
         setSort(next)
         onSortChange(next)
       }}
-      onClearAll={() => {
+      onClearFilters={() => {
+        // The filters go; the sort stays, as the page's one navigation leaves it.
         setFilters(CLEARED_INBOX_LIST_FILTERS)
-        setSort('newest')
-        onClearAll()
+        onClearFilters()
       }}
     />
   )
@@ -61,7 +61,7 @@ const meta = {
     isLoading: false,
     onFiltersChange: fn(),
     onSortChange: fn(),
-    onClearAll: fn(),
+    onClearFilters: fn(),
   },
   render: (args) => <Harness {...args} />,
 } satisfies Meta<typeof InboxFilterSheet>
@@ -108,7 +108,7 @@ export const Open: Story = {
       await expect(sheet.getByRole('radiogroup', { name })).toBeVisible()
     }
     await expect(sheet.getByRole('button', { name: 'Show 18 results' })).toBeVisible()
-    await expect(sheet.getByRole('button', { name: 'Clear all' })).toBeDisabled()
+    await expect(sheet.getByRole('button', { name: 'Clear filters' })).toBeDisabled()
     // Newest is the resting sort, so it is the one checked choice in its group.
     await expect(sheet.getByRole('radio', { name: 'Newest' })).toBeChecked()
   },
@@ -211,22 +211,22 @@ export const ChooseOldest: Story = {
     await userEvent.click(sort.getByRole('radio', { name: 'Oldest' }))
     await expect(args.onSortChange).toHaveBeenCalledWith('oldest')
     await expect(sort.getByRole('radio', { name: 'Oldest' })).toBeChecked()
-    // A non-default sort is something there is to clear.
-    await expect(sheet.getByRole('button', { name: 'Clear all' })).toBeEnabled()
+    // The order is not a filter: choosing it leaves nothing for Clear to take away.
+    await expect(sheet.getByRole('button', { name: 'Clear filters' })).toBeDisabled()
   },
 }
 
-export const ClearAll: Story = {
+export const ClearFilters: Story = {
   args: {
     filters: { ...CLEARED_INBOX_LIST_FILTERS, sourceType: 'review', ratingMax: 3 },
     sort: 'oldest',
   },
   play: async ({ canvasElement, args }) => {
     const sheet = await openSheet(canvasElement, 'Filters, 2 active')
-    await userEvent.click(sheet.getByRole('button', { name: 'Clear all' }))
-    // One navigation, not a filters change followed by a sort change: two
-    // history entries would leave the first Back press on a half-cleared list.
-    await expect(args.onClearAll).toHaveBeenCalledTimes(1)
+    await userEvent.click(sheet.getByRole('button', { name: 'Clear filters' }))
+    // One navigation, not a filters change per chip: several history entries
+    // would leave the first Back press on a half-cleared list.
+    await expect(args.onClearFilters).toHaveBeenCalledTimes(1)
     await expect(args.onFiltersChange).not.toHaveBeenCalled()
     await expect(args.onSortChange).not.toHaveBeenCalled()
     await expect(
@@ -234,12 +234,13 @@ export const ClearAll: Story = {
         name: 'All',
       }),
     ).toBeChecked()
+    // The order is not a filter: Clear leaves it where it was.
     await expect(
       within(sheet.getByRole('radiogroup', { name: 'Sort' })).getByRole('radio', {
-        name: 'Newest',
+        name: 'Oldest',
       }),
     ).toBeChecked()
-    const clear = sheet.getByRole('button', { name: 'Clear all' })
+    const clear = sheet.getByRole('button', { name: 'Clear filters' })
     await expect(clear).toBeDisabled()
     // Focus left the button that just went disabled for the one that closes
     // the sheet, so a keyboard user is not dropped back to the page behind it.

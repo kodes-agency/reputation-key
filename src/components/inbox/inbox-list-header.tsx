@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from 'react'
-import { ArrowUpDown, Search } from 'lucide-react'
+import { ArrowDownUp, Search } from 'lucide-react'
 import { Button } from '#/components/ui/button'
 import { ButtonGroup } from '#/components/ui/button-group'
 import {
@@ -23,6 +23,8 @@ type Props = Readonly<{
   /** Replaces the plain scope line when the scope can be changed from here. */
   scopeControl?: ReactNode
   totalCount: number
+  /** What the queue holds before any search or filter; null until its count has arrived. */
+  queueTotal: number | null
   searchQ: string | undefined
   filters: InboxListFilterValues
   sort: InboxSort
@@ -31,8 +33,8 @@ type Props = Readonly<{
   onSearchChange: (q: string | undefined) => void
   onFiltersChange: (patch: Partial<InboxListFilterValues>) => void
   onSortChange: (sort: InboxSort) => void
-  /** Drops every filter and the sort in one navigation. */
-  onClearAll: () => void
+  /** Drops the search and every filter in one navigation; the sort stays. */
+  onClearFilters: () => void
   onStartSelection?: () => void
   isCompactLayout?: boolean
   selectionToolbar?: ReactNode
@@ -81,13 +83,13 @@ function PhoneControls({
   onOpenSearch,
   onFiltersChange,
   onSortChange,
-  onClearAll,
+  onClearFilters,
   onStartSelection,
 }: ControlsProps &
   Readonly<{
     totalCount: number
     isLoading: boolean
-    onClearAll: () => void
+    onClearFilters: () => void
   }>) {
   return (
     <>
@@ -101,7 +103,7 @@ function PhoneControls({
         isLoading={isLoading}
         onFiltersChange={onFiltersChange}
         onSortChange={onSortChange}
-        onClearAll={onClearAll}
+        onClearFilters={onClearFilters}
       />
       {onStartSelection && (
         <SelectButton className="-mr-2 h-9 px-2" onClick={onStartSelection} />
@@ -128,7 +130,7 @@ function WideControls({
         <InboxFilterPopover value={filters} onChange={onFiltersChange} />
         <Select value={sort} onValueChange={(value) => onSortChange(value as InboxSort)}>
           <SelectTrigger size="sm" aria-label="Sort reviews">
-            <ArrowUpDown className="size-4" aria-hidden="true" />
+            <ArrowDownUp className="size-4" aria-hidden="true" />
             <span>{sort === 'newest' ? 'Newest' : 'Oldest'}</span>
           </SelectTrigger>
           <SelectContent position="popper">
@@ -151,6 +153,7 @@ export function InboxListHeader({
   scopeLabel,
   scopeControl,
   totalCount,
+  queueTotal,
   searchQ,
   filters,
   sort,
@@ -158,7 +161,7 @@ export function InboxListHeader({
   onSearchChange,
   onFiltersChange,
   onSortChange,
-  onClearAll,
+  onClearFilters,
   onStartSelection,
   isCompactLayout = false,
   selectionToolbar,
@@ -180,6 +183,7 @@ export function InboxListHeader({
           <InboxListSearch
             value={searchQ}
             totalCount={totalCount}
+            queueTotal={queueTotal}
             onChange={onSearchChange}
             onClose={() => setSearchOpen(false)}
           />
@@ -207,7 +211,7 @@ export function InboxListHeader({
                 onOpenSearch={openSearch}
                 onFiltersChange={onFiltersChange}
                 onSortChange={onSortChange}
-                onClearAll={onClearAll}
+                onClearFilters={onClearFilters}
                 onStartSelection={startSelection}
               />
             ) : (
