@@ -101,6 +101,57 @@ export const RemovesAChip: Story = {
   },
 }
 
+/** Removing a chip hands the focus on, so the keyboard never falls to the page. */
+export const RemovingAChipKeepsTheFocus: Story = {
+  args: { initial: ['p-1', 'p-3'] },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    canvas.getByRole('button', { name: 'Remove Sunset Apartments' }).focus()
+    await userEvent.keyboard('{Enter}')
+    // The chip that took its place.
+    await waitFor(() =>
+      expect(
+        canvas.getByRole('button', { name: 'Remove Rila Grand Hotel' }),
+      ).toHaveFocus(),
+    )
+    await userEvent.keyboard('{Enter}')
+    // No chip left: the picker, which now offers what was taken back.
+    await waitFor(() =>
+      expect(canvas.getByRole('combobox', { name: 'Add a property' })).toHaveFocus(),
+    )
+  },
+}
+
+/** Choosing the last property removes the picker; the new chip takes the focus. */
+export const ChoosingTheLastPropertyKeepsTheFocus: Story = {
+  args: { initial: ['p-1', 'p-2'] },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('combobox', { name: 'Add a property' }))
+    await userEvent.click(await body().findByRole('option', { name: 'Rila Grand Hotel' }))
+    await waitFor(() => expect(canvas.queryByRole('combobox')).toBeNull())
+    await waitFor(() =>
+      expect(
+        canvas.getByRole('button', { name: 'Remove Rila Grand Hotel' }),
+      ).toHaveFocus(),
+    )
+  },
+}
+
+/** The label names the group of chips and picker, which it does not label one by one. */
+export const LabelNamesTheGroup: Story = {
+  args: { initial: ['p-2'] },
+  play: async ({ canvasElement }) => {
+    const group = within(canvasElement).getByRole('group', {
+      name: 'Assign to properties (optional)',
+    })
+    expect(
+      within(group).getByRole('button', { name: 'Remove Harbor View' }),
+    ).toBeVisible()
+    expect(within(group).getByRole('combobox', { name: 'Add a property' })).toBeVisible()
+  },
+}
+
 /** Every property chosen: nothing is left to add, so no picker is drawn. */
 export const AllChosen: Story = {
   args: { initial: ['p-1', 'p-2', 'p-3'] },
