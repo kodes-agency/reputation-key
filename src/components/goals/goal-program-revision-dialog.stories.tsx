@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from '@storybook/react-vite'
-import { expect, fn, userEvent, waitFor } from 'storybook/test'
+import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import type { reviseGoalProgram } from '#/contexts/reporting/server/goal-programs'
 import { GoalProgramRevisionDialog } from './goal-program-revision-dialog'
 import { openGoalProgramDialog } from './goal-program.stories.dialog'
@@ -110,5 +110,46 @@ export const StatesTheStartDate: Story = {
       'This version starts May 1, 2026 (Europe/Sofia).',
     )
     expect(dialog.getByRole('button', { name: 'Schedule revision' })).toBeDisabled()
+  },
+}
+
+/**
+ * The metric is the shared Select (a combobox of three named metrics), not a browser
+ * <select>, and the chosen one is what the revision sends.
+ */
+export const MetricIsTheSharedSelect: Story = {
+  play: async ({ canvasElement }) => {
+    reviseMock.mockClear()
+    const dialog = await openGoalProgramDialog(
+      canvasElement,
+      'Revise',
+      /first full month in the Property's timezone/i,
+    )
+    const metric = dialog.getByRole('combobox', { name: 'Metric' })
+    expect(metric).toHaveTextContent('Private rating count')
+
+    await userEvent.click(metric)
+    const options = await within(document.body).findAllByRole('option')
+    expect(options.map((option) => option.textContent)).toEqual([
+      'Qualified scans',
+      'Private rating count',
+      'Private rating average',
+    ])
+    await userEvent.click(
+      within(document.body).getByRole('option', { name: 'Private rating average' }),
+    )
+    expect(metric).toHaveTextContent('Private rating average')
+
+    // An average is out of five stars, so the target comes down with it.
+    const target = dialog.getByLabelText('Monthly target')
+    await userEvent.clear(target)
+    await userEvent.type(target, '4')
+    await userEvent.type(
+      dialog.getByLabelText('Reason for the change'),
+      'Track the average',
+    )
+    await userEvent.click(dialog.getByRole('button', { name: 'Schedule revision' }))
+    await waitFor(() => expect(reviseMock).toHaveBeenCalledOnce())
+    expect(reviseMock.mock.calls[0]?.[0].data.metric).toBe('portal_rating_average')
   },
 }

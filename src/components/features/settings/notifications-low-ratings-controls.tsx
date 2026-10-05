@@ -2,17 +2,10 @@
 // channel to tell the person (ADR 0046, amended 2026-09-30). In place of the
 // on/off switch every other category has, each channel offers "Off" or a
 // star threshold, 1★ to 4★; 3★ or lower in the app and 2★ or lower by email
-// until the person chooses.
+// until the person chooses. It is the shared rating-threshold field, as the Portal's
+// private note and the Organization's low-rating target are.
 
-import { Field, FieldLabel } from '#/components/ui/field'
-import {
-  Select,
-  SelectContent,
-  SelectGroup,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '#/components/ui/select'
+import { RatingThresholdField } from '#/components/forms/rating-threshold-field'
 import {
   getDefaultEnabled,
   getDefaultMaxRating,
@@ -21,40 +14,27 @@ import {
 } from '#/contexts/feed/application/public-api'
 import type { NotificationPreferencePatch } from './notifications-settings-view'
 import type { PreferenceValues } from './notification-preference-saves'
-import { lowRatingWords, spokenLowRatingWords } from './notification-inherited-defaults'
 import { named } from './notification-default-controls'
-
-const OFF = 'off'
 
 const CHANNEL_LABELS = { in_app: 'In the app', email: 'By email' } as const
 
 type Channel = keyof typeof CHANNEL_LABELS
 
-/** What the select shows: "off", or the threshold as a string. */
-const valueOf = (values: PreferenceValues | undefined, channel: Channel): string => {
+/** What the select shows: the threshold, or `null` for Off. */
+const valueOf = (
+  values: PreferenceValues | undefined,
+  channel: Channel,
+): LowRatingThreshold | null => {
   const enabled = values?.enabled ?? getDefaultEnabled('low_ratings', channel)
-  if (!enabled) return OFF
-  return String(values?.maxRating ?? getDefaultMaxRating('low_ratings', channel))
+  if (!enabled) return null
+  return values?.maxRating ?? getDefaultMaxRating('low_ratings', channel)
 }
 
 /** The patch a choice saves: off, or on at that threshold. */
-const patchOf = (value: string): NotificationPreferencePatch =>
-  value === OFF
+const patchOf = (value: number | null): NotificationPreferencePatch =>
+  value === null
     ? { enabled: false }
-    : { enabled: true, maxRating: Number(value) as LowRatingThreshold }
-
-/**
- * "3★ or lower" on screen and "3 stars or lower" read aloud — in the list and,
- * since the select shows the chosen option's text, once chosen.
- */
-function ThresholdWords({ threshold }: Readonly<{ threshold: LowRatingThreshold }>) {
-  return (
-    <>
-      <span aria-hidden="true">{lowRatingWords(threshold)}</span>
-      <span className="sr-only">{spokenLowRatingWords(threshold)}</span>
-    </>
-  )
-}
+    : { enabled: true, maxRating: value as LowRatingThreshold }
 
 export function LowRatingSelect({
   channel,
@@ -71,37 +51,18 @@ export function LowRatingSelect({
   onChange: (patch: NotificationPreferencePatch) => void
   className?: string
 }>) {
-  const id = `low_ratings-${channel}`
   return (
-    <Field className={className ?? 'w-auto'}>
-      <FieldLabel htmlFor={id}>{CHANNEL_LABELS[channel]}</FieldLabel>
-      <Select
-        value={valueOf(values, channel)}
-        disabled={disabled}
-        onValueChange={(value) => onChange(patchOf(value))}
-      >
-        <SelectTrigger
-          id={id}
-          aria-label={named(categoryLabel, CHANNEL_LABELS[channel])}
-          className="w-40 min-w-0"
-        >
-          <SelectValue />
-        </SelectTrigger>
-        <SelectContent>
-          <SelectGroup>
-            <SelectItem value={OFF}>Off</SelectItem>
-            {LOW_RATING_THRESHOLDS.map((threshold) => (
-              <SelectItem
-                key={threshold}
-                value={String(threshold)}
-                textValue={spokenLowRatingWords(threshold)}
-              >
-                <ThresholdWords threshold={threshold} />
-              </SelectItem>
-            ))}
-          </SelectGroup>
-        </SelectContent>
-      </Select>
-    </Field>
+    <RatingThresholdField
+      id={`low_ratings-${channel}`}
+      label={CHANNEL_LABELS[channel]}
+      accessibleName={named(categoryLabel, CHANNEL_LABELS[channel])}
+      offLabel="Off"
+      thresholds={LOW_RATING_THRESHOLDS}
+      value={valueOf(values, channel)}
+      disabled={disabled}
+      onValueChange={(value) => onChange(patchOf(value))}
+      className={className ?? 'w-auto'}
+      triggerClassName="w-40"
+    />
   )
 }

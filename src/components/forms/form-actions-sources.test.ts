@@ -149,10 +149,6 @@ describe('a field is drawn by the shared anatomy', () => {
     const REBUILD_ALLOWED: Readonly<Record<string, string>> = {
       'src/components/features/portal/link-tree/linktree-title-form.tsx':
         'the Portal editor’s label-left row, a deliberate layout',
-      'src/components/goals/goal-program-revision-dialog.tsx':
-        'the metric is a native select (the controls slice), beside the shared target field',
-      'src/routes/_authenticated/properties/$propertyId/goals/new.tsx':
-        'the metric is a native select (the controls slice), beside the shared fields',
     }
 
     expect(offendersOf(rebuilds, REBUILD_ALLOWED)).toEqual([])

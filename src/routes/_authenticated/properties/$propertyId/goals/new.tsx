@@ -21,13 +21,14 @@ import {
   CardTitle,
 } from '#/components/ui/card'
 import { Input } from '#/components/ui/input'
-import { Field, FieldDescription, FieldError, FieldLabel } from '#/components/ui/field'
+import { Field, FieldError } from '#/components/ui/field'
 import { FormActions } from '#/components/forms/form-actions'
 import { describedByOf, FormFieldFrame } from '#/components/forms/form-field-frame'
 import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField } from '#/components/forms/form-text-field'
 import { FormTextarea } from '#/components/forms/form-textarea'
 import { SubmitButton } from '#/components/forms/submit-button'
+import { GoalMetricField } from '#/components/goals/goal-metric-field'
 import {
   GoalSubjectPicker,
   goalSubjectKey,
@@ -50,26 +51,6 @@ const subjectsQuery = (propertyId: string) =>
       return { groups: groups.groups, portals: portals.portals }
     },
   })
-
-const METRICS = [
-  {
-    id: 'qualified_scans' as const,
-    label: 'Qualified scans',
-    description:
-      'Counts eligible portal scans. You can configure this now; results remain scheduled until scan attribution is active.',
-  },
-  {
-    id: 'portal_rating_count' as const,
-    label: 'Private rating count',
-    description: 'Counts private 1–5 star ratings submitted through the review gateway.',
-  },
-  {
-    id: 'portal_rating_average' as const,
-    label: 'Private rating average',
-    description:
-      'Average private star rating. A monthly result needs at least 10 eligible ratings.',
-  },
-] as const
 
 // A group's page links here with the group already chosen (`?subject=portal_group:<id>`).
 const newGoalSearchSchema = z.object({
@@ -140,7 +121,6 @@ function CreateGoalPage() {
     },
   })
   const metric = useStore(form.store, (state) => state.values.metric)
-  const selectedMetric = METRICS.find((candidate) => candidate.id === metric)!
   const targetHelp = `Changes take effect from the next complete month in ${propData.property.name}’s timezone.`
 
   return (
@@ -187,29 +167,7 @@ function CreateGoalPage() {
             </form.Field>
             <form.Field name="metric">
               {(field) => (
-                <Field data-invalid={!field.state.meta.isValid}>
-                  <FieldLabel htmlFor="goal-metric">Metric</FieldLabel>
-                  <select
-                    id="goal-metric"
-                    className="h-9 w-full rounded-md border bg-background px-3 text-sm"
-                    value={field.state.value}
-                    onBlur={field.handleBlur}
-                    onChange={(event) =>
-                      field.handleChange(
-                        event.target.value as (typeof METRICS)[number]['id'],
-                      )
-                    }
-                    aria-invalid={!field.state.meta.isValid}
-                  >
-                    {METRICS.map((candidate) => (
-                      <option key={candidate.id} value={candidate.id}>
-                        {candidate.label}
-                      </option>
-                    ))}
-                  </select>
-                  <FieldDescription>{selectedMetric.description}</FieldDescription>
-                  <FieldError errors={field.state.meta.errors} />
-                </Field>
+                <GoalMetricField id="goal-metric" field={field} withDescription />
               )}
             </form.Field>
             <form.Field name="targetValue">
