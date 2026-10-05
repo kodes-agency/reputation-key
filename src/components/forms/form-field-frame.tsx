@@ -11,7 +11,7 @@ export const descriptionIdOf = (id: string): string => `${id}-description`
 
 /** What a control's `aria-describedby` says: the help, when there is one. */
 export const describedByOf = (id: string, description: ReactNode): string | undefined =>
-  description === undefined || description === null ? undefined : descriptionIdOf(id)
+  description ? descriptionIdOf(id) : undefined
 
 type Props = Readonly<{
   /** The control's id: the label is for it and the help is `<id>-description`. */

@@ -10,7 +10,7 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
 import { FormNumberField, type NumberFieldApi } from './form-number-field'
-import { FormTextField, type BaseFieldApi } from './form-text-field'
+import { blankAsNull, FormTextField, type BaseFieldApi } from './form-text-field'
 import { FormTextarea, type BaseFieldApiTextarea } from './form-textarea'
 
 const meta = { isTouched: false, isValid: true, errors: [] }
@@ -152,5 +152,39 @@ describe('the number field', () => {
 
   it('takes the width a card gives it', () => {
     expect(numberField({ className: 'max-w-40' })).toContain('max-w-40')
+  })
+})
+
+describe('blankAsNull', () => {
+  const nullable = (value: string | null) => {
+    const changes: Array<string | null> = []
+    return {
+      changes,
+      field: {
+        name: 'escalationContact',
+        state: { value, meta },
+        handleBlur: () => undefined,
+        handleChange: (next: string | null) => {
+          changes.push(next)
+        },
+      },
+    }
+  }
+
+  it('shows an absent value as an empty control', () => {
+    expect(blankAsNull(nullable(null).field).state.value).toBe('')
+    expect(blankAsNull(nullable('care@example.com').field).state.value).toBe(
+      'care@example.com',
+    )
+  })
+
+  it('makes a cleared control absent again, and keeps any text as it is typed', () => {
+    const { field, changes } = nullable('care@example.com')
+    const edited = blankAsNull(field)
+
+    edited.handleChange('')
+    edited.handleChange('care@')
+
+    expect(changes).toEqual([null, 'care@'])
   })
 })

@@ -79,6 +79,8 @@ describe('a command of the group', () => {
     )
 
     expect(html).toContain('mr-auto')
+    // On a phone it takes a line of its own, so it never splits Reset from the primary.
+    expect(html).toContain('max-sm:basis-full')
     expect(html.indexOf('>Turn off<')).toBeLessThan(html.indexOf('>Reset<'))
     expect(html.indexOf('>Reset<')).toBeLessThan(html.indexOf('>Save changes<'))
   })

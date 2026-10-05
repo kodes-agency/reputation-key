@@ -198,9 +198,40 @@ and actions supply server state.
   after a failure); the Portals numbered pager is the only other kind of paging.
 
 - `forms/` contains shared TanStack Form fields, submission, and error UI. A
-  failure has one reporter. A form submit reports through `FormErrorBanner`,
-  placed directly above that form's actions (the bottom of a card's body, above
-  its footer), and never also toasts. A row or immediate action (a switch, a menu
+  settings group that saves on a button ends in one `FormActions` row, whatever
+  its container (a `CardFooter`, the end of a card's body, a bordered panel; the
+  section's own look stays): the actions at the end of the group, right-aligned,
+  the primary last (a `SubmitButton`, or a `Button` for a group that is not a
+  `<form>`). `Reset` is the row's and shows only while the group holds edits; it
+  puts back the values the page last saved and never leaves the page, so a
+  settings group has no Cancel (a dialog or a bounded task keeps one, before its
+  primary). Pass `form` for a TanStack group (dirty while a field differs from the
+  form's defaults, Reset is `form.reset()`) or `dirty` and `onReset` for a group
+  that keeps its own state (the responsible managers, the quiet hours); a create
+  form passes neither and gets just the right-aligned primary. A command of the
+  group that is not its save (Turn off AI features) is `leading`. The saved
+  values must reach the form as its `defaultValues` and a save that changes them
+  must remount it (key the component on the saved values): TanStack keeps a
+  touched form's dirtiness from before its defaults moved, so a form that is not
+  remounted stays "dirty" after a save. Reset hands the focus to the group's first
+  field (its own button leaves with the edits) and drops the refusal of the save
+  it discarded. Save is not gated on dirty: a group whose empty or default values
+  are a valid save (the reply profile) stays savable. `form-actions-sources.test.ts`
+  fails on a Cancel `Link` in a settings group, a `SubmitButton` outside a
+  `FormActions` row or a `DialogFooter`, and a hand-spelled Reset.
+  A field is a `FormTextField`, `FormTextarea` or `FormNumberField`, or, for a
+  control of another kind, a `FormFieldFrame` (a `Field` holding the `FieldLabel`,
+  the control, the `FieldDescription` and the error, in that order); never a
+  hand-built label, control and `FieldError`. Help under a control is the
+  `description` prop (a `FieldDescription`, wired to the control by
+  `aria-describedby`) and a field the person may leave empty is `optional`, which
+  prints "Optional" inside the label so the control's name carries it; no
+  "(optional)" suffix and no `text-xs` hint. The text fields report after the field
+  has been touched; the number field reports as soon as the schema names a fault,
+  because a refused target must show its reason. A failure has one reporter. A
+  form submit reports through `FormErrorBanner`, which `FormActions` draws
+  directly above its row (a form that is not a settings group places it directly
+  above its actions), and never also toasts. A row or immediate action (a switch, a menu
   item, a download) reports through a toast,
   `errorMessage` on its `useActionMutation`, and never also a banner. A toast for
   a failure reads "Couldn't …. Try again." (`actionFailureMessage`), shows the

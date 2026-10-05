@@ -116,7 +116,9 @@ function ActionsRow({
       <FormErrorBanner error={refusal} />
       <div className="flex flex-wrap items-center justify-end gap-2">
         {leading ? (
-          <div className="mr-auto flex flex-wrap items-center gap-2">{leading}</div>
+          <div className="mr-auto flex flex-wrap items-center gap-2 max-sm:basis-full">
+            {leading}
+          </div>
         ) : null}
         {dirty && onReset ? (
           <Button type="button" variant="outline" disabled={pending} onClick={reset}>
