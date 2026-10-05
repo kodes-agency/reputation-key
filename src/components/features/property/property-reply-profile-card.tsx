@@ -13,8 +13,8 @@ import {
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
-import { Field, FieldGroup, FieldLabel } from '#/components/ui/field'
-import { Switch } from '#/components/ui/switch'
+import { FieldGroup } from '#/components/ui/field'
+import { SettingSwitchRow } from '#/components/forms/setting-switch-row'
 import {
   REPLY_LIBRARY_FIELD_LIMITS,
   replyProfileValuesSchema,
@@ -115,21 +115,14 @@ export function PropertyReplyProfileCard({ propertyId, profile, action }: Props)
             </form.Field>
             <form.Field name="emojiAllowed">
               {(field) => (
-                <Field orientation="horizontal" data-disabled={disabled}>
-                  <FieldLabel
-                    htmlFor="reply-profile-emoji"
-                    className="min-h-11 items-center"
-                  >
-                    Allow emoji in rendered templates
-                  </FieldLabel>
-                  <Switch
-                    id="reply-profile-emoji"
-                    checked={field.state.value}
-                    onCheckedChange={field.handleChange}
-                    disabled={disabled}
-                    aria-label="Allow emoji in rendered templates"
-                  />
-                </Field>
+                <SettingSwitchRow
+                  id="reply-profile-emoji"
+                  label="Allow emoji in rendered templates"
+                  commit="deferred"
+                  checked={field.state.value}
+                  onCheckedChange={field.handleChange}
+                  disabled={disabled}
+                />
               )}
             </form.Field>
           </FieldGroup>

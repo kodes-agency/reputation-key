@@ -1,6 +1,5 @@
 import type { ReactNode } from 'react'
-import { Field, FieldLabel } from '#/components/ui/field'
-import { Switch } from '#/components/ui/switch'
+import { SettingSwitchRow } from '#/components/forms/setting-switch-row'
 
 type Props = Readonly<{
   id: string
@@ -27,17 +26,14 @@ export function ApplyToAllToggle({
 }: Props) {
   return (
     <div className="flex flex-col gap-3">
-      <Field orientation="horizontal" className="items-center">
-        <Switch
-          id={id}
-          checked={checked}
-          disabled={disabled}
-          onCheckedChange={onCheckedChange}
-        />
-        <FieldLabel htmlFor={id}>
-          Same answer for all {propertyCount} properties
-        </FieldLabel>
-      </Field>
+      <SettingSwitchRow
+        id={id}
+        label={`Same answer for all ${propertyCount} properties`}
+        commit="deferred"
+        checked={checked}
+        disabled={disabled}
+        onCheckedChange={onCheckedChange}
+      />
       {checked ? null : (
         <ul
           aria-label="Answer per property"

@@ -1,5 +1,4 @@
 import { Field, FieldLabel } from '#/components/ui/field'
-import { Label } from '#/components/ui/label'
 import {
   Select,
   SelectContent,
@@ -8,7 +7,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '#/components/ui/select'
-import { Switch } from '#/components/ui/switch'
+import { SettingSwitchRow } from '#/components/forms/setting-switch-row'
 import {
   effectiveEmailCadence,
   getDefaultEnabled,
@@ -48,28 +47,18 @@ function InAppSwitch({
   inApp,
 }: CategoryControlProps & Readonly<{ inApp: PreferenceValues | undefined }>) {
   const locked = !isPreferenceDisableable(category, 'in_app')
-  const lockedNoteId = `${category}-in_app-locked`
   return (
-    <div className="flex items-center gap-2 md:col-start-2 md:row-start-1">
-      <Label className="flex items-center gap-2">
-        <Switch
-          id={`${category}-in_app`}
-          checked={inApp?.enabled ?? getDefaultEnabled(category, 'in_app')}
-          disabled={locked}
-          aria-label={named(categoryLabel, 'In-app')}
-          aria-describedby={locked ? lockedNoteId : undefined}
-          onCheckedChange={(enabled) =>
-            void savePreference(category, 'in_app', { enabled })
-          }
-        />
-        In-app
-      </Label>
-      {locked ? (
-        <span id={lockedNoteId} className="text-sm text-muted-foreground">
-          Always on
-        </span>
-      ) : null}
-    </div>
+    <SettingSwitchRow
+      id={`${category}-in_app`}
+      label="In-app"
+      accessibleName={named(categoryLabel, 'In-app')}
+      note={locked ? 'Always on' : undefined}
+      commit="immediate"
+      checked={inApp?.enabled ?? getDefaultEnabled(category, 'in_app')}
+      disabled={locked}
+      onCheckedChange={(enabled) => void savePreference(category, 'in_app', { enabled })}
+      className="md:col-start-2 md:row-start-1"
+    />
   )
 }
 
@@ -244,18 +233,18 @@ export function NotificationsCategoryRow({
       ) : (
         <>
           <InAppSwitch {...control} inApp={inApp} />
-          <Label className="flex items-center gap-2 md:col-start-3 md:row-start-1">
-            <Switch
-              id={`${category}-email`}
-              checked={emailOn}
-              disabled={emailControlsDisabled}
-              aria-label={named(label, 'Email')}
-              onCheckedChange={(enabled) =>
-                void savePreference(category, 'email', { enabled })
-              }
-            />
-            Email
-          </Label>
+          <SettingSwitchRow
+            id={`${category}-email`}
+            label="Email"
+            accessibleName={named(label, 'Email')}
+            commit="immediate"
+            checked={emailOn}
+            disabled={emailControlsDisabled}
+            onCheckedChange={(enabled) =>
+              void savePreference(category, 'email', { enabled })
+            }
+            className="md:col-start-3 md:row-start-1"
+          />
         </>
       )}
       <EmailTiming

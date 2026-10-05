@@ -106,7 +106,7 @@ export const Populated: Story = {
     expect(canvas.getByText('4–5 stars')).toBeVisible()
     expect(canvas.getByText('Rating only')).toBeVisible()
     await userEvent.click(
-      canvas.getByRole('switch', { name: 'Disable General appreciation' }),
+      canvas.getByRole('switch', { name: 'Enabled: General appreciation' }),
     )
     await waitFor(() =>
       expect(toggleSpy).toHaveBeenCalledWith({
