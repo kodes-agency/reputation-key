@@ -22,6 +22,7 @@ import {
 import type { AllPropertiesSearch } from './portal-overview/portal-overview-search-schema'
 import type { Action } from '#/components/hooks/use-action'
 import { AuthedRouterDecorator } from '../../../../.storybook/AuthedRouterDecorator'
+import { PageGutterDecorator } from '../../../../.storybook/PageGutterDecorator'
 
 const action = <TInput,>(): Action<TInput> =>
   Object.assign(async (_input: TInput) => undefined, {
@@ -44,7 +45,8 @@ const meta: Meta<typeof ControlledPage> = {
   title: 'Portal/PortalAllPropertiesPage',
   component: ControlledPage,
   parameters: { layout: 'fullscreen' },
-  decorators: [AuthedRouterDecorator],
+  // The route sits in the shell's padded `<main>`; the page pads nothing of its own.
+  decorators: [AuthedRouterDecorator, PageGutterDecorator],
 }
 export default meta
 type Story = StoryObj<typeof ControlledPage>

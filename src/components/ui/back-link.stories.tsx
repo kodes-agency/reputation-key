@@ -7,6 +7,7 @@
 // (axe runs on both).
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, screen, userEvent, waitFor, within } from 'storybook/test'
+import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
 import { BackIconButton } from './back-icon-button'
 import { BackButton, BackLink } from './back-link'
 
@@ -20,10 +21,15 @@ const meta: Meta<typeof BackLink> = {
 export default meta
 type Story = StoryObj<typeof BackLink>
 
+// Every row wears the page's own side gutter, as the real surfaces do (the workspace
+// header and `<main>` both use `PAGE_GUTTER_X`), so a row's left inset is the app's and
+// not the story's. What is left between the rows is `flush`: a header's first control
+// puts its arrow on the gutter, a control in the body puts its box there.
+
 /** A workspace header's first control: `flush` puts the arrow, not the box, on the gutter. */
 function HeaderRow({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <div className="flex items-center gap-3 border-b px-6 py-2">
+    <div className={`flex items-center gap-3 border-b py-2 ${PAGE_GUTTER_X}`}>
       {children}
       <p className="border-l pl-3 text-base font-semibold">Arrival and welcome</p>
     </div>
@@ -39,7 +45,9 @@ function Rows({ onBack }: Readonly<{ onBack: () => void }>) {
       <HeaderRow>
         <BackIconButton label="Back to list" flush onClick={onBack} />
       </HeaderRow>
-      <div className="flex items-center justify-between gap-3 border-t pt-4">
+      <div
+        className={`flex items-center justify-between gap-3 border-t pt-4 ${PAGE_GUTTER_X}`}
+      >
         <BackButton label="Back to questions" onClick={onBack} />
         <span className="text-sm text-muted-foreground">Step 2 of 2</span>
       </div>
