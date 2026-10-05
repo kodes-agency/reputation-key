@@ -101,7 +101,9 @@ describe('updateOrganization clearing the contact email', () => {
   })
 
   it('refuses a malformed address before anything is saved', async () => {
-    await expect(async () => update({ contactEmail: 'not-an-email' })).rejects.toThrow()
+    await expect(async () => update({ contactEmail: 'not-an-email' })).rejects.toThrow(
+      /invalid email/iu,
+    )
 
     expect(mocks.updateOrganization).not.toHaveBeenCalled()
   })
