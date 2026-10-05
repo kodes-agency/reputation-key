@@ -28,9 +28,17 @@ function CardHeader({ className, ...props }: React.ComponentProps<'div'>) {
   )
 }
 
-function CardTitle({ className, ...props }: React.ComponentProps<'div'>) {
+type CardTitleProps = Omit<React.ComponentProps<'div'>, 'ref'> & {
+  /**
+   * The element. A div unless the page says what level the title is: a section under
+   * the page's one h1 is `h2`, and the same type is worn at every level.
+   */
+  as?: 'div' | 'h2' | 'h3' | 'h4'
+}
+
+function CardTitle({ as: Tag = 'div', className, ...props }: CardTitleProps) {
   return (
-    <div
+    <Tag
       data-slot="card-title"
       className={cn('leading-none font-semibold', className)}
       {...props}
