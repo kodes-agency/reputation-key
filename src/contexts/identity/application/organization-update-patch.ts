@@ -1,8 +1,11 @@
 // Identity context — OrganizationUpdatePatch builder
 // Deep module: maps the beta-supported organization-update fields to Better Auth
 // payload semantics. The use case (and future callers) no longer know which
-// fields are truthy-gated vs defined-gated vs always-present, or which ones
-// normalize null → undefined.
+// fields are truthy-gated vs defined-gated vs always-present.
+//
+// Better Auth skips an `undefined` field on update, so only `null` clears a column:
+// the logo and the contact email pass a null through (a null mapped to `undefined`
+// saved nothing, and the removed value came back on reload).
 //
 // Field-inclusion table:
 //
@@ -10,7 +13,7 @@
 //   name               truthy         as-is
 //   slug               truthy         as-is
 //   logo               always         as-is: null clears it
-//   contactEmail       defined        null → undefined
+//   contactEmail       defined        as-is: null clears it
 
 export type UpdateOrganizationInput = Readonly<{
   name?: string
@@ -24,15 +27,13 @@ type Inclusion = 'truthy' | 'defined' | 'always'
 type FieldSpec = Readonly<{
   field: keyof UpdateOrganizationInput
   include: Inclusion
-  nullToUndefined: boolean
 }>
 
 const FIELD_SPECS: ReadonlyArray<FieldSpec> = [
-  { field: 'name', include: 'truthy', nullToUndefined: false },
-  { field: 'slug', include: 'truthy', nullToUndefined: false },
-  // Better Auth skips an `undefined` field on update, so only `null` removes a logo.
-  { field: 'logo', include: 'always', nullToUndefined: false },
-  { field: 'contactEmail', include: 'defined', nullToUndefined: true },
+  { field: 'name', include: 'truthy' },
+  { field: 'slug', include: 'truthy' },
+  { field: 'logo', include: 'always' },
+  { field: 'contactEmail', include: 'defined' },
 ]
 
 function shouldInclude(spec: FieldSpec, value: unknown): boolean {
@@ -54,7 +55,7 @@ export function buildOrganizationUpdatePatch(
   for (const spec of FIELD_SPECS) {
     const value = input[spec.field]
     if (!shouldInclude(spec, value)) continue
-    patch[spec.field] = spec.nullToUndefined ? (value ?? undefined) : value
+    patch[spec.field] = value
   }
   return patch
 }

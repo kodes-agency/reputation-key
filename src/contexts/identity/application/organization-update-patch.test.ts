@@ -11,7 +11,7 @@ import { buildOrganizationUpdatePatch } from './organization-update-patch'
 //   name               truthy         as-is
 //   slug               truthy         as-is
 //   logo               always         as-is (null clears it)
-//   contactEmail       defined        null → undefined
+//   contactEmail       defined        as-is (null clears it)
 
 describe('buildOrganizationUpdatePatch', () => {
   it('includes name and slug when provided', () => {
@@ -57,13 +57,15 @@ describe('buildOrganizationUpdatePatch', () => {
     )
   })
 
-  it('maps a null contact field to undefined while keeping the key', () => {
+  // Better Auth skips an `undefined` field on update, so only `null` clears the contact
+  // email. A clear mapped to `undefined` saved nothing: the email came back on reload.
+  it('passes a null contact email through, so clearing it is saved', () => {
     const patch = buildOrganizationUpdatePatch({
       contactEmail: null,
     })
 
     expect(patch).toHaveProperty('contactEmail')
-    expect(patch.contactEmail).toBeUndefined()
+    expect(patch.contactEmail).toBeNull()
   })
 
   it('passes the supported contact string through unchanged', () => {
