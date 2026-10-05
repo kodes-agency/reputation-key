@@ -1,12 +1,13 @@
 // The shared field anatomy: a label (with its Optional marker), the control, a line of
-// help and the error, in that order. The text, textarea and number fields share it, so
-// they read as one field. Dark is the default theme; the light variants render the same
+// help and the error, in that order. The text, textarea, number and select fields share
+// it, so they read as one field. Dark is the default theme; the light variants render the same
 // fields on the light surface (axe runs on both). The Storybook Vitest project compiles
 // no Tailwind, so the plays pin structure and wiring (the label names the control, the
 // help is the control's description, the error follows the help), not colours.
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, within } from 'storybook/test'
 import { FormNumberField } from './form-number-field'
+import { FormSelectField } from './form-select-field'
 import { FormTextField, type BaseFieldApi } from './form-text-field'
 import { FormTextarea, type BaseFieldApiTextarea } from './form-textarea'
 
@@ -66,6 +67,19 @@ function Fields({ invalid = false }: Readonly<{ invalid?: boolean }>) {
           handleChange: () => undefined,
         }}
       />
+      <FormSelectField
+        id="field-metric"
+        label="Metric"
+        value="scans"
+        options={[
+          { value: 'scans', label: 'Qualified scans' },
+          { value: 'ratings', label: 'Private rating count' },
+        ]}
+        description="What the goal counts."
+        invalid={invalid}
+        errors={invalid ? [{ message: 'Choose a metric' }] : undefined}
+        onValueChange={() => undefined}
+      />
     </div>
   )
 }
@@ -92,6 +106,9 @@ export const Anatomy: Story = {
     const hours = canvas.getByRole('spinbutton', { name: 'Hours Optional' })
     expect(hours).toHaveAccessibleDescription('Between 1 and 720.')
 
+    const metric = canvas.getByRole('combobox', { name: 'Metric' })
+    expect(metric).toHaveAccessibleDescription('What the goal counts.')
+
     // A field that is required says nothing: only the optional one is marked.
     expect(canvas.getAllByText('Optional')).toHaveLength(2)
   },
@@ -115,6 +132,14 @@ export const Refused: Story = {
     expect(
       help.compareDocumentPosition(alert) & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy()
+
+    // Coming back to the field reads the help and then why it is refused.
+    expect(name).toHaveAccessibleDescription(
+      'The name your team sees. Use 100 characters or fewer',
+    )
+    const metric = canvas.getByRole('combobox', { name: 'Metric' })
+    expect(metric).toHaveAttribute('aria-invalid', 'true')
+    expect(metric).toHaveAccessibleDescription('What the goal counts. Choose a metric')
   },
   render: (args) => <Fields {...args} />,
 }

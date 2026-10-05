@@ -24,8 +24,6 @@ type Props<Value extends string> = Readonly<{
   value: Value
   onValueChange: (value: Value) => void
   options: ReadonlyArray<FormSelectOption<Value>>
-  /** The person may leave it unchosen: the label says "Optional". */
-  optional?: boolean
   /** A line under the field on what it is for; the select names it as its description. */
   description?: ReactNode
   invalid?: boolean
@@ -60,7 +58,6 @@ export function FormSelectField<Value extends string>({
   value,
   onValueChange,
   options,
-  optional,
   description,
   invalid = false,
   errors,
@@ -73,7 +70,6 @@ export function FormSelectField<Value extends string>({
     <FormFieldFrame
       id={id}
       label={label}
-      optional={optional}
       description={description}
       invalid={invalid}
       errors={invalid ? errors : undefined}

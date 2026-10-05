@@ -47,8 +47,14 @@ describe('FormSelectField', () => {
     expect(html).toContain('Counts eligible portal scans.')
   })
 
-  it('marks an optional field in its label', () => {
-    expect(render({ optional: true })).toContain('data-slot="field-optional"')
+  it('names the reason as well while it is refused', () => {
+    expect(
+      render({
+        description: 'Counts eligible portal scans.',
+        invalid: true,
+        errors: [{ message: 'Choose a metric' }],
+      }),
+    ).toContain('aria-describedby="goal-metric-description goal-metric-error"')
   })
 
   it('reads as invalid, with its reason, when the schema refuses it', () => {
