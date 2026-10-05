@@ -10,7 +10,7 @@ import { buildOrganizationUpdatePatch } from './organization-update-patch'
 //   field              include when   value mapping
 //   name               truthy         as-is
 //   slug               truthy         as-is
-//   logo               always         null → undefined
+//   logo               always         as-is (null clears it)
 //   contactEmail       defined        null → undefined
 
 describe('buildOrganizationUpdatePatch', () => {
@@ -38,9 +38,20 @@ describe('buildOrganizationUpdatePatch', () => {
     expect(patch).not.toHaveProperty('slug')
   })
 
-  it('always includes the logo key, mapping null → undefined for Better Auth', () => {
+  // Better Auth skips an `undefined` field on update, so only `null` clears a column.
+  // A removal mapped to `undefined` saved nothing: the logo reappeared on reload.
+  it('leaves the logo alone when the input has none', () => {
     expect(buildOrganizationUpdatePatch({}).logo).toBeUndefined()
-    expect(buildOrganizationUpdatePatch({ logo: null }).logo).toBeUndefined()
+  })
+
+  it('passes a null logo through, so removing the logo is saved', () => {
+    const patch = buildOrganizationUpdatePatch({ logo: null })
+
+    expect(patch).toHaveProperty('logo')
+    expect(patch.logo).toBeNull()
+  })
+
+  it('passes a logo address through unchanged', () => {
     expect(buildOrganizationUpdatePatch({ logo: 'https://example.com/l.png' }).logo).toBe(
       'https://example.com/l.png',
     )

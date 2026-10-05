@@ -105,6 +105,7 @@ export const updateUserImageFn = createServerFn({ method: 'POST' })
         const previous = await identityAssetReferences.currentUserImage(ctx.userId)
 
         try {
+          // `null` removes the avatar: it is saved, so it stays removed on reload.
           await auth.api.updateUser({
             headers,
             body: { image: data.imageUrl },
@@ -119,9 +120,11 @@ export const updateUserImageFn = createServerFn({ method: 'POST' })
           )
         }
 
-        // The picture it replaces is no longer shown anywhere; free its bytes.
-        const nextKey = identityAssetKeyFromPath(data.imageUrl)
-        if (nextKey) {
+        // The picture it replaces, or the one that was removed, is no longer shown
+        // anywhere; free its bytes. An address that is not one of ours has none.
+        const nextKey =
+          data.imageUrl === null ? null : identityAssetKeyFromPath(data.imageUrl)
+        if (data.imageUrl === null || nextKey) {
           await retireReplacedIdentityAsset({ storage: assetStorage, logger })({
             previous,
             nextKey,

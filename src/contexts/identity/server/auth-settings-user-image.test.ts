@@ -41,7 +41,7 @@ vi.mock('#/composition', () => ({
 
 import { updateUserImageFn } from './auth-settings'
 
-const save = (imageUrl: string) =>
+const save = (imageUrl: string | null) =>
   withStartContext(() => updateUserImageFn({ data: { imageUrl } }))
 
 describe('updateUserImageFn', () => {
@@ -104,6 +104,48 @@ describe('updateUserImageFn', () => {
     await save('https://cdn.example.com/me.png')
 
     expect(mocks.updateUser).toHaveBeenCalledOnce()
+    expect(mocks.deleteObject).not.toHaveBeenCalled()
+  })
+
+  // Remove is the same call with no image (UI consistency scan: FORM-14). It used to be
+  // refused by the schema, so the page only cleared what it showed and the avatar came
+  // back on reload.
+  it('removes the avatar: saves no image and frees the object it was', async () => {
+    mocks.currentUserImage.mockResolvedValue(
+      `/api/public/identity-assets/avatars/user-1/${OLD}`,
+    )
+
+    await save(null)
+
+    expect(mocks.updateUser).toHaveBeenCalledWith({
+      headers: expect.any(Headers),
+      body: { image: null },
+    })
+    expect(mocks.deleteObject).toHaveBeenCalledExactlyOnceWith(`avatars/user-1/${OLD}`)
+  })
+
+  it('keeps the object when the removal could not be saved', async () => {
+    mocks.currentUserImage.mockResolvedValue(
+      `/api/public/identity-assets/avatars/user-1/${OLD}`,
+    )
+    mocks.updateUser.mockRejectedValue(
+      Object.assign(new Error('nope'), { statusCode: 500 }),
+    )
+
+    await expect(save(null)).rejects.toBeDefined()
+
+    expect(mocks.deleteObject).not.toHaveBeenCalled()
+  })
+
+  it('removes an avatar hosted elsewhere without deleting anything', async () => {
+    mocks.currentUserImage.mockResolvedValue('https://cdn.example.com/me.png')
+
+    await save(null)
+
+    expect(mocks.updateUser).toHaveBeenCalledWith({
+      headers: expect.any(Headers),
+      body: { image: null },
+    })
     expect(mocks.deleteObject).not.toHaveBeenCalled()
   })
 })

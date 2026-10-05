@@ -9,7 +9,7 @@
 //   field              include when   value mapping
 //   name               truthy         as-is
 //   slug               truthy         as-is
-//   logo               always         null → undefined
+//   logo               always         as-is: null clears it
 //   contactEmail       defined        null → undefined
 
 export type UpdateOrganizationInput = Readonly<{
@@ -30,7 +30,8 @@ type FieldSpec = Readonly<{
 const FIELD_SPECS: ReadonlyArray<FieldSpec> = [
   { field: 'name', include: 'truthy', nullToUndefined: false },
   { field: 'slug', include: 'truthy', nullToUndefined: false },
-  { field: 'logo', include: 'always', nullToUndefined: true },
+  // Better Auth skips an `undefined` field on update, so only `null` removes a logo.
+  { field: 'logo', include: 'always', nullToUndefined: false },
   { field: 'contactEmail', include: 'defined', nullToUndefined: true },
 ]
 

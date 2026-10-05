@@ -10,13 +10,17 @@ export const updateProfileInputSchema = z.object({
 
 /**
  * An avatar is a URL, or the path an uploaded one is stored at on the app
- * itself (see identity-assets.ts), which carries no host.
+ * itself (see identity-assets.ts), which carries no host. `null` removes it: the
+ * field is still required, so a call that names no image is an error and never a
+ * removal by omission.
  */
 export const updateUserImageInputSchema = z.object({
-  imageUrl: z.union([
-    z.url(),
-    z.string().refine((path) => identityAssetKeyFromPath(path)?.startsWith('avatars/')),
-  ]),
+  imageUrl: z
+    .union([
+      z.url(),
+      z.string().refine((path) => identityAssetKeyFromPath(path)?.startsWith('avatars/')),
+    ])
+    .nullable(),
 })
 
 export type UpdateProfileInput = z.infer<typeof updateProfileInputSchema>
