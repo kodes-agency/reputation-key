@@ -70,7 +70,7 @@ export function PropertyReplyLanguageCard({ property, updateProperty }: Props) {
     <form onSubmit={submitHandler(form)}>
       <Card className="min-w-0">
         <CardHeader className="border-b">
-          <CardTitle>Reply language</CardTitle>
+          <CardTitle as="h2">Reply language</CardTitle>
           <CardDescription>
             Default for public replies and AI drafts at {property.name}. Each review can
             still use the guest&apos;s language instead.

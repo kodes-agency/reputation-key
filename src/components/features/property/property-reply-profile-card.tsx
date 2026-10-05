@@ -54,7 +54,7 @@ export function PropertyReplyProfileCard({ propertyId, profile, action }: Props)
     <form onSubmit={submitHandler(form)}>
       <Card>
         <CardHeader>
-          <CardTitle>Reply profile</CardTitle>
+          <CardTitle as="h2">Reply profile</CardTitle>
           <CardDescription>
             Set the greeting, closing, emoji policy, and escalation contact applied to
             this Property&rsquo;s reply templates.

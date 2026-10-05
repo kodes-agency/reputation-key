@@ -81,7 +81,7 @@ function PrivateFeedbackTargetFormCard({
     <form onSubmit={submitHandler(form)}>
       <Card>
         <CardHeader>
-          <CardTitle>Private feedback handling target</CardTitle>
+          <CardTitle as="h2">Private feedback handling target</CardTitle>
           <CardDescription>
             Use the Organization target or save a different target for new handling cycles
             at this Property. Existing cycles keep their original target.

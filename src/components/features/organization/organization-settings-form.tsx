@@ -56,7 +56,7 @@ export function OrganizationSettingsForm({
     <form onSubmit={submitHandler(form)}>
       <Card>
         <CardHeader>
-          <CardTitle>Identity</CardTitle>
+          <CardTitle as="h2">Identity</CardTitle>
           <CardDescription>
             Organization name, slug, and contact information.
           </CardDescription>

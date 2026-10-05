@@ -16,7 +16,7 @@ export function PreferencesSettingsPage() {
     <div className="space-y-6">
       <Card>
         <CardHeader>
-          <CardTitle>Appearance</CardTitle>
+          <CardTitle as="h2">Appearance</CardTitle>
           <CardDescription>Customize how the app looks on your device.</CardDescription>
         </CardHeader>
         <CardContent>

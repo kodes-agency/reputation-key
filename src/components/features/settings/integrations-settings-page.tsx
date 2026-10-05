@@ -38,7 +38,7 @@ export function IntegrationsSettingsPage({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Google Business Profile</CardTitle>
+        <CardTitle as="h2">Google Business Profile</CardTitle>
         <CardDescription>
           Connect Google accounts to import reviews and business locations.
         </CardDescription>

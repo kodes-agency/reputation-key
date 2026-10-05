@@ -141,7 +141,7 @@ function CreateGoalPage() {
       >
         <Card>
           <CardHeader>
-            <CardTitle>Goal program</CardTitle>
+            <CardTitle as="h2">Goal program</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
             <form.Field name="name">
@@ -203,7 +203,7 @@ function CreateGoalPage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Subjects</CardTitle>
+            <CardTitle as="h2">Subjects</CardTitle>
           </CardHeader>
           <CardContent className="space-y-5">
             <form.Field name="subjects">

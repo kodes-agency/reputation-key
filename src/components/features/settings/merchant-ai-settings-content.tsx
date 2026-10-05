@@ -1,3 +1,4 @@
+import { SectionTitle } from '#/components/ui/section-title'
 import type {
   CurrentMerchantAiCapability,
   MerchantAiState,
@@ -94,7 +95,7 @@ export function MerchantAiSettingsContent({
 
       <FieldGroup data-slot="checkbox-group">
         <div>
-          <h2 className="font-semibold">AI features</h2>
+          <SectionTitle>AI features</SectionTitle>
           <p className="text-sm text-muted-foreground">
             Initial enablement turns on all three features. Afterward, each feature can be
             changed independently.

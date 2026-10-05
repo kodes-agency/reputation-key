@@ -242,7 +242,8 @@ export const GoalEmailIsDailyOnly: Story = {
 export const TitleColumnKeepsItsWidth: Story = {
   play: async ({ canvasElement }) => {
     const fieldset = canvasElement.querySelector('fieldset')
-    const heading = fieldset?.querySelector('[role="heading"]')
+    // The row's title is a real h3 now (it was a div with role="heading").
+    const heading = fieldset?.querySelector('h3')
     const description = fieldset?.querySelector('p')
     if (!(heading instanceof HTMLElement) || !(description instanceof HTMLElement)) {
       throw new Error('category row is missing its heading or description')

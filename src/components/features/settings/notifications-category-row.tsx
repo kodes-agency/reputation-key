@@ -1,3 +1,4 @@
+import { SectionTitle } from '#/components/ui/section-title'
 import { Field, FieldLabel } from '#/components/ui/field'
 import {
   Select,
@@ -205,9 +206,9 @@ export function NotificationsCategoryRow({
         col-start/row-start placements below computed against a grid it never
         joined and the category title floated away from its own controls.
       */}
-      <div id={headingId} role="heading" aria-level={3} className="min-w-0 font-medium">
+      <SectionTitle level={3} id={headingId} className="min-w-0">
         {label}
-      </div>
+      </SectionTitle>
       <p className="min-w-0 text-sm text-muted-foreground md:col-start-1">
         {description}
       </p>

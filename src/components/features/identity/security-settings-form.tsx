@@ -45,7 +45,7 @@ export function SecuritySettingsForm({ changePassword }: Props) {
       <form method="post" onSubmit={submitHandler(form)} className="space-y-6">
         <Card>
           <CardHeader>
-            <CardTitle>Change password</CardTitle>
+            <CardTitle as="h2">Change password</CardTitle>
             <CardDescription>
               Update your password to keep your account secure.
             </CardDescription>

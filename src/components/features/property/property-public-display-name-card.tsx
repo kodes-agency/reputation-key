@@ -63,7 +63,7 @@ export function PropertyPublicDisplayNameCard({
     <form onSubmit={submitHandler(form)}>
       <Card>
         <CardHeader>
-          <CardTitle>Public display name</CardTitle>
+          <CardTitle as="h2">Public display name</CardTitle>
           <CardDescription>
             Used as the business identity in AI-drafted public replies. This Property-wide
             name can be set before any Portal is created; Portal settings continue to own

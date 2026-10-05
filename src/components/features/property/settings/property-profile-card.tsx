@@ -70,7 +70,7 @@ export function PropertyProfileCard({ property, canEdit, updateProperty }: Props
     <form onSubmit={submitHandler(form)}>
       <Card>
         <CardHeader className="border-b">
-          <CardTitle>Business profile</CardTitle>
+          <CardTitle as="h2">Business profile</CardTitle>
           <CardDescription>
             The name your team sees, and where the business is. Changing the country or
             timezone moves no data.

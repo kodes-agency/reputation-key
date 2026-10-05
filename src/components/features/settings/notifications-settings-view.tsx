@@ -79,7 +79,7 @@ export function NotificationsSettingsView(props: NotificationsSettingsViewProps)
     <div className="min-w-0 space-y-6">
       <Card className="min-w-0">
         <CardHeader>
-          <CardTitle>Property</CardTitle>
+          <CardTitle as="h2">Property</CardTitle>
           <CardDescription>
             In-app and email delivery is per property; quiet hours below are yours.
           </CardDescription>
@@ -131,7 +131,7 @@ export function NotificationsSettingsView(props: NotificationsSettingsViewProps)
 
       <Card className="min-w-0">
         <CardHeader>
-          <CardTitle>Property notifications</CardTitle>
+          <CardTitle as="h2">Property notifications</CardTitle>
           <CardDescription>
             Email is evaluated again against this property, your preferences, and current
             policy before every provider call.

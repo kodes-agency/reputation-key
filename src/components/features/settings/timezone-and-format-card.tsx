@@ -58,7 +58,7 @@ export function TimezoneAndFormatCard({
           Not "Language": every word in the product is English (docs/BETA.md),
           and this control only chooses how a date and a time are written.
         */}
-        <CardTitle>Timezone and date format</CardTitle>
+        <CardTitle as="h2">Timezone and date format</CardTitle>
         <CardDescription>
           Your timezone decides when quiet hours start and end and when the daily digest
           arrives (08:00), at every property in {organizationName}. Notification times are

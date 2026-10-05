@@ -3,6 +3,7 @@
  * Displays pending invitations; a pending one has a menu to resend or cancel it.
  */
 
+import { SectionTitle } from '#/components/ui/section-title'
 import { usePermissions } from '#/shared/hooks/usePermissions'
 import { RoleBadge } from '#/components/features/identity/shared/role-badge'
 import { StatusBadge } from '#/components/ui/status-badge'
@@ -44,10 +45,10 @@ export function InvitationTable({ invitations, resendAction, cancelAction }: Pro
 
   return (
     <div className="flex flex-col gap-4">
-      <h3 className="flex items-center gap-2 text-base font-semibold">
-        <Shield />
-        Pending Invitations
-      </h3>
+      <SectionTitle className="flex items-center gap-2">
+        <Shield aria-hidden="true" />
+        Pending invitations
+      </SectionTitle>
       <DataTable label="Pending invitations" from="3xl">
         <DataTableHeader>
           <DataTableHead>Email</DataTableHead>

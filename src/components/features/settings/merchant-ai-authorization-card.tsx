@@ -45,7 +45,7 @@ export function MerchantAiAuthorizationCard(props: Props) {
   return (
     <Card className="min-w-0">
       <CardHeader className="border-b">
-        <CardTitle>{props.notice.payload.title}</CardTitle>
+        <CardTitle as="h2">{props.notice.payload.title}</CardTitle>
         <CardDescription>{props.notice.payload.summary}</CardDescription>
         <CardAction>
           <StatusBadge status={props.state} map={AI_STATE_STATUS} />

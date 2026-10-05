@@ -85,7 +85,7 @@ export function ProfileSettingsForm({
       {/* Profile information card */}
       <Card>
         <CardHeader>
-          <CardTitle>Profile</CardTitle>
+          <CardTitle as="h2">Your details</CardTitle>
           <CardDescription>Update your name and view your email.</CardDescription>
         </CardHeader>
         <CardContent>

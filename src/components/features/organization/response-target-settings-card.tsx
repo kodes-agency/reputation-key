@@ -1,3 +1,4 @@
+import { SectionTitle } from '#/components/ui/section-title'
 import { useState } from 'react'
 import { useForm } from '@tanstack/react-form'
 import type { Action } from '#/components/hooks/use-action'
@@ -209,7 +210,7 @@ export function ResponseTargetSettingsCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Response targets</CardTitle>
+        <CardTitle as="h2">Response targets</CardTitle>
         <CardDescription>
           Working targets help managers prioritize follow-up. They measure timing but do
           not close or escalate an Inbox item automatically.
@@ -226,7 +227,7 @@ export function ResponseTargetSettingsCard({
         />
         <div className="space-y-3 border-t pt-5">
           <div>
-            <h3 className="font-medium">Google review response performance</h3>
+            <SectionTitle level={3}>Google review response performance</SectionTitle>
             <p className="text-sm text-muted-foreground">
               Based only on cycles with reliable saved timing. Imported history and older
               records without timing evidence stay visible as excluded counts.
@@ -243,7 +244,7 @@ export function ResponseTargetSettingsCard({
         />
         <div className="space-y-3 border-t pt-5">
           <div>
-            <h3 className="font-medium">Private feedback performance</h3>
+            <SectionTitle level={3}>Private feedback performance</SectionTitle>
             <p className="text-sm text-muted-foreground">
               Only cycles with a reliable saved target are included.
             </p>

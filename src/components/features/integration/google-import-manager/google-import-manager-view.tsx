@@ -51,7 +51,7 @@ export function GoogleImportManagerView({
       {confirming ? null : (
         <Card className="gap-4">
           <CardHeader>
-            <CardTitle>Google Business Profile connection</CardTitle>
+            <CardTitle as="h2">Google Business Profile connection</CardTitle>
             <CardDescription>
               Location details stay on this page while it is open, including when you
               switch to another tab, for at most 24 hours. They are cleared when you leave

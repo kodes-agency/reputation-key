@@ -1,3 +1,4 @@
+import { SectionTitle } from '#/components/ui/section-title'
 import { Archive } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
 import { StatusBadge } from '#/components/ui/status-badge'
@@ -49,9 +50,7 @@ export function PropertyLifecycleCard({
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <Archive className="size-4" aria-hidden="true" />
-            <h2 id="property-lifecycle-title" className="font-semibold">
-              Property lifecycle
-            </h2>
+            <SectionTitle id="property-lifecycle-title">Property lifecycle</SectionTitle>
             <StatusBadge
               status={property.lifecycleState}
               map={PROPERTY_LIFECYCLE_STATUS}

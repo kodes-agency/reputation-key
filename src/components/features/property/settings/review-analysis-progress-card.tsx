@@ -42,7 +42,7 @@ export function ReviewAnalysisProgressCard({ progress }: Props) {
     return (
       <Card aria-busy="true">
         <CardHeader>
-          <CardTitle>Review analysis</CardTitle>
+          <CardTitle as="h2">Review analysis</CardTitle>
           <CardDescription>Checking progress…</CardDescription>
         </CardHeader>
       </Card>
@@ -52,7 +52,7 @@ export function ReviewAnalysisProgressCard({ progress }: Props) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Review analysis</CardTitle>
+          <CardTitle as="h2">Review analysis</CardTitle>
           <CardDescription>
             Off for this property. Turn on review analysis above to read sentiment and
             topics from its Google reviews.
@@ -67,7 +67,7 @@ export function ReviewAnalysisProgressCard({ progress }: Props) {
   return (
     <Card>
       <CardHeader className="border-b">
-        <CardTitle>Review analysis</CardTitle>
+        <CardTitle as="h2">Review analysis</CardTitle>
         <CardDescription>
           {progress.status === 'analysing'
             ? `Reading reviews newest first. ${formatNumber(waiting)} still to go.`

@@ -11,6 +11,7 @@ import { toast } from 'sonner'
 import type { Action } from '#/components/hooks/use-action'
 import { InheritedSetting } from '#/components/forms/inherited-setting'
 import { SettingSwitchRow } from '#/components/forms/setting-switch-row'
+import { SectionTitle } from '#/components/ui/section-title'
 import {
   Card,
   CardContent,
@@ -131,7 +132,7 @@ export function NotificationQuietHoursCard({
   return (
     <Card className="min-w-0">
       <CardHeader>
-        <CardTitle>Quiet hours</CardTitle>
+        <CardTitle as="h2">Quiet hours</CardTitle>
         <CardDescription>
           Email waits until quiet hours are over, at every property, on your own clock (
           {clockLabel}, set in{' '}
@@ -143,9 +144,9 @@ export function NotificationQuietHoursCard({
       </CardHeader>
       <CardContent className="space-y-6">
         <section aria-labelledby="quiet-hours-personal" className="space-y-3">
-          <h3 id="quiet-hours-personal" className="text-sm font-medium">
+          <SectionTitle level={3} id="quiet-hours-personal">
             Your quiet hours
-          </h3>
+          </SectionTitle>
           <QuietHoursEditor
             key={`personal:${settings.quietHoursStart}:${settings.quietHoursEnd}`}
             start={settings.quietHoursStart}
@@ -184,9 +185,9 @@ export function NotificationQuietHoursCard({
           aria-labelledby="quiet-hours-property"
           className="space-y-3 border-t pt-5"
         >
-          <h3 id="quiet-hours-property" className="text-sm font-medium">
+          <SectionTitle level={3} id="quiet-hours-property">
             {property.name}
-          </h3>
+          </SectionTitle>
           <InheritedSetting
             source={
               <InlineLink

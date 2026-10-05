@@ -2,10 +2,14 @@ import type { ComponentProps } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, fn, userEvent, waitFor, within } from 'storybook/test'
 import { withRole } from '../../../../../.storybook/AuthedRouterDecorator'
+import { PageHeader } from '#/components/layout/page-header'
 import { PropertyGoogleSection } from './property-google-section'
 import { PropertyProfileCard } from './property-profile-card'
 import { PropertySettingsNav } from './property-settings-nav'
-import { visiblePropertySettingsSections } from './property-settings-sections'
+import {
+  propertySettingsHeader,
+  visiblePropertySettingsSections,
+} from './property-settings-sections'
 import { ReviewAnalysisProgressCard } from './review-analysis-progress-card'
 import { PropertySetupStrip } from './property-setup-strip'
 import type { PropertySetup } from '#/contexts/reporting/application/public-api'
@@ -312,4 +316,51 @@ export const ProfileResetRestoresTheSavedName: Story = {
       expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull(),
     )
   },
+}
+
+/**
+ * The header names the section that is open, as an account settings page does: its title
+ * and the end of its breadcrumb are the section, under "Settings", which links back to the
+ * hub. The page has one h1, and the section's cards are h2s beneath it.
+ */
+export const HeaderNamesTheSection: Story = {
+  render: () => {
+    const header = propertySettingsHeader({
+      propertyId: PROPERTY_ID,
+      propertyName: property.name,
+      active: 'google',
+    })
+    return (
+      <div className="max-w-3xl space-y-6">
+        <PageHeader
+          title={header.title}
+          description={property.name}
+          breadcrumbs={header.breadcrumbs}
+        />
+        <PropertyGoogleSection
+          property={{ id: PROPERTY_ID, googleBindingState: 'active' }}
+        />
+      </div>
+    )
+  },
+  play: ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getAllByRole('heading', { level: 1 })).toHaveLength(1)
+    expect(canvas.getByRole('heading', { level: 1, name: 'Google' })).toBeVisible()
+    expect(canvas.getByRole('link', { name: 'Settings' })).toHaveAttribute(
+      'href',
+      `/properties/${PROPERTY_ID}/settings`,
+    )
+    expect(
+      canvas.getByText('Google', { selector: '[aria-current="page"]' }),
+    ).toBeVisible()
+    expect(
+      canvas.getByRole('heading', { level: 2, name: 'Google Business Profile' }),
+    ).toBeVisible()
+  },
+}
+
+export const HeaderNamesTheSectionLight: Story = {
+  ...HeaderNamesTheSection,
+  parameters: { theme: 'light' },
 }

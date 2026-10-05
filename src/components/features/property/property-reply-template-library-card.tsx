@@ -90,7 +90,7 @@ export function PropertyReplyTemplateLibraryCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Template library</CardTitle>
+        <CardTitle as="h2">Template library</CardTitle>
         <CardDescription>
           Author Property-specific replies by rating, review type, aspect, and language.
           Disable a template to remove it from the composer without deleting its history.

@@ -79,7 +79,7 @@ export function PropertyGoogleSection({ property }: Props) {
   return (
     <Card>
       <CardHeader className="border-b">
-        <CardTitle>Google Business Profile</CardTitle>
+        <CardTitle as="h2">Google Business Profile</CardTitle>
         <CardDescription>{binding.detail}</CardDescription>
         <CardAction>
           <StatusBadge
