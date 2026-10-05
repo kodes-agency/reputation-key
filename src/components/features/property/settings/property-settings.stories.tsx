@@ -294,3 +294,22 @@ export const SetupStripHiddenWhenDone: Story = {
     expect(within(canvasElement).getByTestId('strip-host')).toBeEmptyDOMElement()
   },
 }
+
+export const ProfileResetRestoresTheSavedName: Story = {
+  render: () => (
+    <div className="max-w-2xl">
+      <PropertyProfileCard property={property} canEdit updateProperty={saveProfile} />
+    </div>
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull()
+    const name = canvas.getByLabelText('Workspace name')
+    await userEvent.type(name, ' Varna')
+    await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
+    expect(name).toHaveValue('Harborline Suites')
+    await waitFor(() =>
+      expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull(),
+    )
+  },
+}

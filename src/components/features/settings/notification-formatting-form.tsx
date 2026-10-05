@@ -1,11 +1,11 @@
 import { useForm } from '@tanstack/react-form'
 import { toast } from 'sonner'
 import type { Action } from '#/components/hooks/use-action'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { FormActions } from '#/components/forms/form-actions'
+import { describedByOf, FormFieldFrame } from '#/components/forms/form-field-frame'
 import { submitHandler } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { TimezoneCombobox } from '#/components/forms/timezone-combobox'
-import { Field, FieldError, FieldLabel } from '#/components/ui/field'
 import {
   Select,
   SelectContent,
@@ -106,32 +106,48 @@ export function NotificationFormattingForm({ settings, updateUserSettings }: Pro
   return (
     <form className="grid min-w-0 gap-4 sm:grid-cols-2" onSubmit={submitHandler(form)}>
       <form.Field name="timezone">
-        {(field) => (
-          <Field className="min-w-0">
-            <FieldLabel htmlFor="profile-timezone">Timezone</FieldLabel>
-            <TimezoneCombobox
-              id="profile-timezone"
-              value={field.state.value}
-              onValueChange={field.handleChange}
-              onBlur={field.handleBlur}
-              disabled={pending}
-              aria-describedby="profile-timezone-source"
-            />
-            <p
-              id="profile-timezone-source"
-              data-testid="timezone-source"
-              className="text-sm text-muted-foreground"
-            >
+        {(field) => {
+          const source = (
+            <span data-testid="timezone-source">
               {TIMEZONE_SOURCE_HINT[settings.timezoneSource]}
-            </p>
-            <FieldError errors={field.state.meta.errors} />
-          </Field>
-        )}
+            </span>
+          )
+          return (
+            <FormFieldFrame
+              id="profile-timezone"
+              label="Timezone"
+              description={source}
+              invalid={field.state.meta.errors.length > 0}
+              errors={field.state.meta.errors}
+              className="min-w-0"
+            >
+              <TimezoneCombobox
+                id="profile-timezone"
+                value={field.state.value}
+                onValueChange={field.handleChange}
+                onBlur={field.handleBlur}
+                disabled={pending}
+                aria-describedby={describedByOf('profile-timezone', source)}
+              />
+            </FormFieldFrame>
+          )
+        }}
       </form.Field>
       <form.Field name="locale">
         {(field) => (
-          <Field className="min-w-0">
-            <FieldLabel htmlFor="profile-locale">Date and time format</FieldLabel>
+          <FormFieldFrame
+            id="profile-locale"
+            label="Date and time format"
+            description={
+              <span data-testid="format-sample">
+                Times are written like{' '}
+                {formatSample(field.state.value, settings.timezone)}.
+              </span>
+            }
+            invalid={field.state.meta.errors.length > 0}
+            errors={field.state.meta.errors}
+            className="min-w-0"
+          >
             <Select
               value={field.state.value}
               onValueChange={field.handleChange}
@@ -150,33 +166,25 @@ export function NotificationFormattingForm({ settings, updateUserSettings }: Pro
                 </SelectGroup>
               </SelectContent>
             </Select>
-            <p data-testid="format-sample" className="text-sm text-muted-foreground">
-              Times are written like {formatSample(field.state.value, settings.timezone)}.
-            </p>
-            <FieldError errors={field.state.meta.errors} />
-          </Field>
+          </FormFieldFrame>
         )}
       </form.Field>
-      {updateUserSettings.error ? (
-        <div className="sm:col-span-2">
-          <FormErrorBanner error={updateUserSettings.error} />
-        </div>
-      ) : null}
-      <form.Subscribe selector={(state) => state.values}>
-        {(values) => (
-          <SubmitButton
-            mutation={updateUserSettings}
-            form={form}
-            // Nothing to save until something differs from what is in effect.
-            disabled={
-              Object.keys(changedNotificationFormatting(settings, values)).length === 0
-            }
-            className="w-fit"
-          >
-            Save timezone and format
-          </SubmitButton>
-        )}
-      </form.Subscribe>
+      <FormActions form={form} error={updateUserSettings.error} className="sm:col-span-2">
+        <form.Subscribe selector={(state) => state.values}>
+          {(values) => (
+            <SubmitButton
+              mutation={updateUserSettings}
+              form={form}
+              // Nothing to save until something differs from what is in effect.
+              disabled={
+                Object.keys(changedNotificationFormatting(settings, values)).length === 0
+              }
+            >
+              Save timezone and format
+            </SubmitButton>
+          )}
+        </form.Subscribe>
+      </FormActions>
     </form>
   )
 }

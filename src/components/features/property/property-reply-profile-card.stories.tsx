@@ -151,3 +151,33 @@ export const PermissionDenied: Story = {
     ).not.toBeInTheDocument()
   },
 }
+
+// The escalation contact may be left empty, and says so; Reset puts the saved
+// profile back.
+export const ResetRestoresTheSavedProfile: Story = {
+  args: {
+    profile: {
+      greeting: 'Dear {guest_name},',
+      signOffPositive: 'Warm regards',
+      signOffNegative: 'Sincerely',
+      emojiAllowed: false,
+      escalationContact: null,
+      version: 2,
+    },
+    action: populatedSave,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.getByLabelText(/escalation contact/i)).toHaveAccessibleName(
+      'Escalation contact Optional',
+    )
+    expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull()
+    const greeting = canvas.getByLabelText('Greeting')
+    await userEvent.type(greeting, ' friend')
+    await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
+    expect(greeting).toHaveValue('Dear {guest_name},')
+    await waitFor(() =>
+      expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull(),
+    )
+  },
+}

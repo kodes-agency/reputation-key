@@ -96,3 +96,26 @@ export const Cleared: Story = {
     await expect(updatePolicy).not.toHaveBeenCalled()
   },
 }
+
+// Each target is a group of its own: Reset puts that group's saved hours back and
+// leaves the other group as it is.
+export const ResetRestoresTheSavedHours: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull()
+    const google = canvas.getByLabelText('Hours', {
+      selector: '#google_review_response-hours',
+    })
+    const feedback = canvas.getByLabelText('Hours', {
+      selector: '#private_feedback_handling-hours',
+    })
+    await userEvent.clear(feedback)
+    await userEvent.type(feedback, '48')
+    await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
+    await expect(feedback).toHaveValue(36)
+    await expect(google).toHaveValue(24)
+    // The actions end the group's panel, with the primary last.
+    const save = canvas.getAllByRole('button', { name: 'Save target' })[1]!
+    expect(save.closest('form')).toContainElement(feedback)
+  },
+}

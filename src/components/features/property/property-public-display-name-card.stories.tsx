@@ -125,3 +125,17 @@ export const PropertyManagerIsReadOnly: Story = {
     ).not.toBeInTheDocument()
   },
 }
+
+export const ResetEmptiesTheUnsavedName: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull()
+    const displayName = canvas.getByLabelText('Public display name')
+    await userEvent.type(displayName, 'Harborline')
+    await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
+    expect(displayName).toHaveValue('')
+    await waitFor(() =>
+      expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull(),
+    )
+  },
+}

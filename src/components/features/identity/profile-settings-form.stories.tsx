@@ -112,3 +112,25 @@ export const Success: Story = {
     expect(canvas.queryByRole('alert')).not.toBeInTheDocument()
   },
 }
+
+// The group has no Cancel to another page: Reset puts the saved name back, and only
+// shows once the name has been edited.
+export const ResetRestoresTheSavedName: Story = {
+  args: { ...Idle.args },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    expect(canvas.queryByRole('link', { name: 'Cancel' })).not.toBeInTheDocument()
+    expect(canvas.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument()
+    const nameField = canvas.getByLabelText(/^name$/i)
+    await userEvent.type(nameField, ' Smith')
+    await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
+    expect(nameField).toHaveValue('Jane Doe')
+    await waitFor(() =>
+      expect(canvas.queryByRole('button', { name: 'Reset' })).not.toBeInTheDocument(),
+    )
+    // Save is last in the row, in the card with the fields.
+    const save = canvas.getByRole('button', { name: /save changes/i })
+    expect(save.closest('[data-slot="form-actions"]')).not.toBeNull()
+    expect(save.closest('[data-slot="card"]')).toContainElement(nameField)
+  },
+}

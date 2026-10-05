@@ -1,5 +1,5 @@
 import { useForm } from '@tanstack/react-form'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { FormActions } from '#/components/forms/form-actions'
 import { submitHandler } from '#/components/forms/form-submit'
 import { SubmitButton } from '#/components/forms/submit-button'
 import { Checkbox } from '#/components/ui/checkbox'
@@ -9,6 +9,7 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from '#/components/ui/card'
@@ -37,6 +38,8 @@ export function PrivateFeedbackTargetCard({
   const override = settings.privateFeedbackPropertyOverride
   return override ? (
     <PrivateFeedbackTargetFormCard
+      // Mounted again on the saved target, so the form starts from it (Reset).
+      key={`${override.propertyId}:${override.policyVersion ?? 'default'}`}
       settings={settings}
       override={override}
       updatePolicy={updatePolicy}
@@ -116,17 +119,20 @@ function PrivateFeedbackTargetFormCard({
                     max={720}
                     disabled={useOrganizationTarget}
                     field={field}
-                    className="grid max-w-40 gap-1.5"
+                    className="max-w-40"
                   />
                 )}
               </form.Field>
             )}
           </form.Subscribe>
-          <FormErrorBanner error={updatePolicy.error} />
-          <SubmitButton mutation={updatePolicy} form={form}>
-            Save Property target
-          </SubmitButton>
         </CardContent>
+        <CardFooter>
+          <FormActions form={form} error={updatePolicy.error}>
+            <SubmitButton mutation={updatePolicy} form={form}>
+              Save Property target
+            </SubmitButton>
+          </FormActions>
+        </CardFooter>
       </Card>
     </form>
   )

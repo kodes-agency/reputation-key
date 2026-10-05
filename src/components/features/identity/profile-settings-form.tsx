@@ -1,10 +1,8 @@
 import { useForm } from '@tanstack/react-form'
-import { Link } from '@tanstack/react-router'
-import { Button } from '#/components/ui/button'
 import { useState } from 'react'
 import { putFilePresigned } from '#/components/forms/image-upload-field/put-file-presigned'
 import { Field, FieldLabel } from '#/components/ui/field'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { FormActions } from '#/components/forms/form-actions'
 import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField } from '#/components/forms/form-text-field'
 import { SubmitButton } from '#/components/forms/submit-button'
@@ -115,15 +113,11 @@ export function ProfileSettingsForm({
               </Field>
             </div>
 
-            <FormErrorBanner error={updateProfile.error} />
-            <div className="flex justify-end gap-2">
-              <Button type="button" variant="outline" asChild>
-                <Link to="/settings/profile">Cancel</Link>
-              </Button>
+            <FormActions form={form} error={updateProfile.error}>
               <SubmitButton mutation={updateProfile} form={form}>
                 Save Changes
               </SubmitButton>
-            </div>
+            </FormActions>
           </form>
         </CardContent>
       </Card>

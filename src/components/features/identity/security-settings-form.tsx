@@ -1,8 +1,6 @@
 import { useForm } from '@tanstack/react-form'
-import { Link } from '@tanstack/react-router'
-import { Button } from '#/components/ui/button'
 import { FieldGroup } from '#/components/ui/field'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { FormActions } from '#/components/forms/form-actions'
 import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField } from '#/components/forms/form-text-field'
 import { SubmitButton } from '#/components/forms/submit-button'
@@ -10,6 +8,7 @@ import type { BaseFieldApi } from '#/components/forms/form-text-field'
 import {
   Card,
   CardContent,
+  CardFooter,
   CardHeader,
   CardTitle,
   CardDescription,
@@ -87,16 +86,14 @@ export function SecuritySettingsForm({ changePassword }: Props) {
                 )}
               </form.Field>
             </FieldGroup>
-            <FormErrorBanner error={changePassword.error} />
           </CardContent>
-          <div className="px-6 pb-2 flex gap-2">
-            <Button type="button" variant="outline" asChild>
-              <Link to="/settings/profile">Cancel</Link>
-            </Button>
-            <SubmitButton mutation={changePassword} form={form}>
-              Update password
-            </SubmitButton>
-          </div>
+          <CardFooter>
+            <FormActions form={form} error={changePassword.error}>
+              <SubmitButton mutation={changePassword} form={form}>
+                Update password
+              </SubmitButton>
+            </FormActions>
+          </CardFooter>
         </Card>
       </form>
     </div>

@@ -39,6 +39,7 @@ export function OrgIdentityCard({ form }: Props) {
             field={field}
             label="Contact email"
             id="org-contact-email"
+            optional
             type="email"
             placeholder="contact@example.com"
             autoComplete="email"

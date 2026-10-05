@@ -1,6 +1,6 @@
 import { useForm } from '@tanstack/react-form'
 import type { Action } from '#/components/hooks/use-action'
-import { FormErrorBanner } from '#/components/forms/form-error-banner'
+import { FormActions } from '#/components/forms/form-actions'
 import { submitHandler } from '#/components/forms/form-submit'
 import { FormTextField } from '#/components/forms/form-text-field'
 import type { BaseFieldApi } from '#/components/forms/form-text-field'
@@ -89,13 +89,14 @@ export function PropertyPublicDisplayNameCard({
               Ask an account admin to set this property&rsquo;s public display name.
             </p>
           ) : null}
-          <FormErrorBanner error={action.error} />
         </CardContent>
         {canManage ? (
-          <CardFooter className="justify-end">
-            <SubmitButton mutation={action} form={form}>
-              Save public display name
-            </SubmitButton>
+          <CardFooter>
+            <FormActions form={form} error={action.error}>
+              <SubmitButton mutation={action} form={form}>
+                Save public display name
+              </SubmitButton>
+            </FormActions>
           </CardFooter>
         ) : null}
       </Card>

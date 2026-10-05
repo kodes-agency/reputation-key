@@ -271,3 +271,26 @@ export const RetryKeepsFocusOnTheButton: Story = {
     expect(onRetry).toHaveBeenCalledOnce()
   },
 }
+
+/**
+ * The card saves like the name card above it on Profile: Reset appears with an
+ * edit, puts back what delivery is using, and leaves Save waiting for a change.
+ */
+export const ResetPutsBackWhatIsInEffect: Story = {
+  args: { settings: organizationSettings },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const format = canvas.getByRole('combobox', { name: 'Date and time format' })
+    const before = format.textContent
+    expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull()
+
+    await pickFormat(canvas, 'English (UK)')
+    await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
+
+    await waitFor(() => expect(format.textContent).toBe(before))
+    expect(canvas.queryByRole('button', { name: 'Reset' })).toBeNull()
+    expect(
+      canvas.getByRole('button', { name: 'Save timezone and format' }),
+    ).toBeDisabled()
+  },
+}
