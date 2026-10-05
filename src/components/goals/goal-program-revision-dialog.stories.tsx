@@ -153,3 +153,22 @@ export const MetricIsTheSharedSelect: Story = {
     expect(reviseMock.mock.calls[0]?.[0].data.metric).toBe('portal_rating_average')
   },
 }
+
+/**
+ * The checkboxes for what the goal covers are one group with a name, so the rule under
+ * it ("Select at least one") reads as help for them and not for the Reason field above.
+ */
+export const SubjectsAreANamedGroup: Story = {
+  play: async ({ canvasElement }) => {
+    const dialog = await openGoalProgramDialog(
+      canvasElement,
+      'Revise',
+      /first full month in the Property's timezone/i,
+    )
+    const subjects = dialog.getByRole('group', { name: 'Subjects' })
+    expect(subjects).toHaveTextContent(/Select at least one/)
+    expect(
+      within(subjects).getByRole('checkbox', { name: /Riverside Hotel/ }),
+    ).toBeChecked()
+  },
+}
