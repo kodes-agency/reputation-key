@@ -23,6 +23,7 @@ const baseProps: ImageSettingViewProps = {
   dragOver: false,
   acceptedTypes: ['image/png'],
   inputRef: { current: null },
+  chooseRef: { current: null },
   onChoose: () => undefined,
   onFile: () => undefined,
   onRemove: () => undefined,

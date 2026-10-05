@@ -65,6 +65,7 @@ export function ImageSetting({
       dragOver={setting.dragOver}
       acceptedTypes={acceptedTypes}
       inputRef={setting.inputRef}
+      chooseRef={setting.chooseRef}
       onChoose={setting.choose}
       onFile={setting.upload}
       onRemove={setting.remove}

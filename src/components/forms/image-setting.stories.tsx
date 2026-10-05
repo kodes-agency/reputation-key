@@ -194,6 +194,19 @@ export const Removing: Story = {
   },
 }
 
+/** The Remove button leaves with the picture: the focus goes to Upload, not to the page. */
+export const RemoveKeepsTheFocus: Story = {
+  args: { imageUrl: PICTURE },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    await userEvent.click(canvas.getByRole('button', { name: 'Remove logo' }))
+
+    const upload = await canvas.findByRole('button', { name: 'Upload logo' })
+    expect(canvas.queryByRole('button', { name: 'Remove logo' })).not.toBeInTheDocument()
+    await waitFor(() => expect(upload).toHaveFocus())
+  },
+}
+
 /** A refused removal is a toast and the picture is put back exactly where it was. */
 export const RemoveRefused: Story = {
   args: {

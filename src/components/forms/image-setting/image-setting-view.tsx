@@ -21,6 +21,8 @@ export type ImageSettingViewProps = Readonly<{
   dragOver: boolean
   acceptedTypes: ReadonlyArray<string>
   inputRef: Ref<HTMLInputElement>
+  /** The Upload or Replace button, which takes the focus when Remove leaves with the picture. */
+  chooseRef: Ref<HTMLButtonElement>
   /** Opens the file chooser. */
   onChoose: () => void
   onFile: (file: File) => void
@@ -78,6 +80,7 @@ export function ImageSettingView({
   dragOver,
   acceptedTypes,
   inputRef,
+  chooseRef,
   onChoose,
   onFile,
   onRemove,
@@ -111,6 +114,7 @@ export function ImageSettingView({
       <div className="flex min-w-0 flex-col gap-2">
         <div className="flex flex-wrap gap-2">
           <Button
+            ref={chooseRef}
             type="button"
             variant="outline"
             size="sm"

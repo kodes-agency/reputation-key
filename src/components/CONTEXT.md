@@ -288,7 +288,8 @@ none` is not in the outline. Under it a section's title is a `CardTitle as="h2"`
   Better Auth skips an undefined field). Pending is a spinner and a word on the Button,
   with the progress on the picture; a refused upload or removal is a toast in the
   words every action uses (`Couldn't upload that logo. Try again.`) and the picture
-  stays exactly as it was, so the mutations behind it pass no `errorMessage` and only
+  stays exactly as it was (a removal that landed takes the Remove button with it, so the
+  focus moves to Upload), so the mutations behind it pass no `errorMessage` and only
   say what succeeded. The Property look logo is the exception: it crops, sets a focal
   point and checks a light version, so it keeps its dialog. `image-setting-sources.test.ts`
   fails on a second image field. One `ConnectGoogleButton`

@@ -3,7 +3,7 @@
 // no undo: it leaves the image exactly where it was, in a toast, and the person can try
 // again. The caller's `onUpload` stores the file and saves its address (and rejects if
 // either fails); `onRemove` saves the removal.
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { useDragDrop } from './use-drag-drop'
 import {
@@ -48,6 +48,16 @@ export function useImageSetting({
   const [status, setStatus] = useState<ImageSettingStatus>('idle')
   const [progress, setProgress] = useState(0)
   const inputRef = useRef<HTMLInputElement>(null)
+  const chooseRef = useRef<HTMLButtonElement>(null)
+  // The Remove button leaves with the picture, and the focus with it: it moves to the
+  // Upload button that takes its place, never to the page.
+  const handFocusToChoose = useRef(false)
+  useEffect(() => {
+    if (handFocusToChoose.current && shown === null) {
+      handFocusToChoose.current = false
+      chooseRef.current?.focus()
+    }
+  }, [shown])
 
   const upload = useCallback(
     async (file: File) => {
@@ -74,6 +84,7 @@ export function useImageSetting({
     setStatus('removing')
     try {
       await onRemove()
+      handFocusToChoose.current = true
       setShown(null)
     } catch (error: unknown) {
       toast.error(removeFailureMessage(subject)(error))
@@ -98,6 +109,7 @@ export function useImageSetting({
     progress,
     dragOver,
     inputRef,
+    chooseRef,
     choose,
     upload: (file: File) => void upload(file),
     remove: () => void remove(),
