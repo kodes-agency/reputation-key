@@ -10,7 +10,9 @@ import { readUiSources } from '#/shared/testing/source-tree'
 
 const FILES = readUiSources()
 
-const PLUS_IMPORT = /import\s*\{[^}]*\bPlus\b[^}]*\}\s*from\s*['"]lucide-react['"]/u
+/** The glyph that says "add": the bare Plus in its spellings, and the folder one of a group. */
+const PLUS_IMPORT =
+  /import\s*\{[^}]*\b(?:Plus|PlusIcon|CirclePlus|SquarePlus|FolderPlus)\b[^}]*\}\s*from\s*['"]lucide-react['"]/u
 
 const ALLOWED: Readonly<Record<string, string>> = {
   'src/components/ui/add-action.tsx': 'the primitive itself',
@@ -22,6 +24,14 @@ const ALLOWED: Readonly<Record<string, string>> = {
     'one trigger that is Add template, or Edit when a template is open',
   'src/components/layout/manager-property-switcher.tsx':
     'a menu item of the sidebar’s property menu, not a button',
+  'src/components/features/portal/portal-list-page.tsx':
+    'New group is the secondary action beside New portal: its folder glyph tells a group from a portal',
+  'src/components/inbox/history-event-node.tsx':
+    'the glyph of a "created" event in a history line, not a button',
+  'src/components/features/portal/portal-group/portal-group-history.tsx':
+    'the glyph of a "created" event in a history line, not a button',
+  'src/components/features/portal/portal-history/portal-history-glyph.tsx':
+    'the glyph of a "created" event in a history line, not a button',
 }
 
 const importsPlus = (path: string) =>
@@ -45,5 +55,13 @@ describe('an add control is AddAction', () => {
       true,
     )
     expect(PLUS_IMPORT.test("import { Plug } from 'lucide-react'")).toBe(false)
+  })
+
+  it('catches the other spellings of the glyph', () => {
+    for (const name of ['PlusIcon', 'CirclePlus', 'SquarePlus', 'FolderPlus']) {
+      expect(PLUS_IMPORT.test(`import { ${name} } from 'lucide-react'`)).toBe(true)
+    }
+    // A glyph for a thing, not for adding.
+    expect(PLUS_IMPORT.test("import { UserPlus } from 'lucide-react'")).toBe(false)
   })
 })

@@ -30,8 +30,15 @@ function AddAnchor({
   variant,
   size,
   children,
+  // The router marks a link current whenever the location is at or below its path.
+  // A link that adds is a command, not a place in a nav, so neither mark is drawn
+  // (see BackLink).
+  'aria-current': _routerCurrent,
+  'data-status': _routerStatus,
   ...props
-}: ComponentProps<'a'> & Pick<AddActionProps, 'variant' | 'size'>) {
+}: ComponentProps<'a'> &
+  Pick<AddActionProps, 'variant' | 'size'> &
+  Readonly<{ 'data-status'?: string }>) {
   return (
     <Button asChild variant={variant} size={size}>
       <a {...props}>
@@ -42,8 +49,15 @@ function AddAnchor({
   )
 }
 
+const RouterAddLink = createLink(AddAnchor)
+
+/** No router class either: an add is styled by its Button alone. */
+const NO_ROUTER_STYLE = {}
+
 /** An add that is a page of its own (New goal, Import from Google): a router link. */
-const AddActionLink = createLink(AddAnchor)
+const AddActionLink = ((props: ComponentProps<typeof RouterAddLink>) => (
+  <RouterAddLink activeProps={NO_ROUTER_STYLE} {...props} />
+)) as typeof RouterAddLink
 
 export { AddAction, AddActionLink }
 export type { AddActionProps }

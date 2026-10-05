@@ -19,10 +19,11 @@ import { AddAction, AddActionLink } from './add-action'
 function renderLink(
   props: Readonly<Record<string, unknown>>,
   label = 'New goal',
+  at = '/',
 ): string {
   const router = createRouter({
     routeTree: createRootRoute(),
-    history: createMemoryHistory({ initialEntries: ['/'] }),
+    history: createMemoryHistory({ initialEntries: [at] }),
   })
   return renderToStaticMarkup(
     createElement(RouterContextProvider, {
@@ -104,5 +105,20 @@ describe('AddActionLink', () => {
 
   it('takes the secondary variant too', () => {
     expect(renderLink({ variant: 'outline' })).toContain('data-variant="outline"')
+  })
+
+  it('is never announced as the current page, though the page it sits on is its own address', () => {
+    // The router matches by prefix, so a link to a parent is "active" on every page
+    // under it; an add is a command, not a place in a nav.
+    const html = renderLink(
+      { to: '/properties/$propertyId/goals', params: { propertyId: 'p1' } },
+      'Add goal',
+      '/properties/p1/goals/new',
+    )
+
+    expect(html).toContain('href="/properties/p1/goals"')
+    expect(html).not.toContain('aria-current')
+    expect(html).not.toContain('data-status')
+    expect(html).not.toMatch(/\bactive\b/u)
   })
 })
