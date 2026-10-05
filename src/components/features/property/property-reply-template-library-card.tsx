@@ -67,10 +67,11 @@ function TemplateEnabledSwitch({
       checked={template.enabled}
       onCheckedChange={(enabled) => {
         setSaving(true)
-        // The action reports a refusal in a toast; this only ends the busy state.
-        void toggleAction({ data: { propertyId, templateId: template.id, enabled } })
-          .catch(() => undefined)
-          .finally(() => setSaving(false))
+        // The action reports a refusal in a toast; the row reads how it went from the
+        // promise, and this ends the busy state.
+        return toggleAction({
+          data: { propertyId, templateId: template.id, enabled },
+        }).finally(() => setSaving(false))
       }}
     />
   )

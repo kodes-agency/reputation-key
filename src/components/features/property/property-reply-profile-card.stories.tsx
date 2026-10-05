@@ -181,3 +181,33 @@ export const ResetRestoresTheSavedProfile: Story = {
     )
   },
 }
+
+// The emoji switch is one field of the card, which saves on its Save: the row says
+// "Unsaved" while the switch differs from the saved profile (FORM-08), and stops
+// saying it when the switch is back where it was.
+export const EmojiSaysUnsavedUntilSaved: Story = {
+  args: {
+    profile: {
+      greeting: 'Dear {guest_name},',
+      signOffPositive: 'Warm regards',
+      signOffNegative: 'Sincerely',
+      emojiAllowed: false,
+      escalationContact: null,
+      version: 2,
+    },
+    action: populatedSave,
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const emoji = canvas.getByRole('switch', {
+      name: 'Allow emoji in rendered templates',
+    })
+    expect(canvas.queryByText('Unsaved')).toBeNull()
+
+    await userEvent.click(emoji)
+    expect(await canvas.findByText('Unsaved')).toHaveAttribute('role', 'status')
+
+    await userEvent.click(emoji)
+    await waitFor(() => expect(canvas.queryByText('Unsaved')).toBeNull())
+  },
+}

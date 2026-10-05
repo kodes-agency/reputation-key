@@ -67,7 +67,7 @@ type NotificationsSettingsViewProps = Readonly<{
     category: ConfigurableNotificationCategory,
     channel: NotificationChannel,
     patch: NotificationPreferencePatch,
-  ) => Promise<void>
+  ) => Promise<boolean>
 }>
 
 export function NotificationsSettingsView(props: NotificationsSettingsViewProps) {

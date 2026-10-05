@@ -122,6 +122,7 @@ export function PropertyReplyProfileCard({ propertyId, profile, action }: Props)
                   label="Allow emoji in rendered templates"
                   commit="deferred"
                   checked={field.state.value}
+                  unsaved={!field.state.meta.isDefaultValue}
                   onCheckedChange={field.handleChange}
                   disabled={disabled}
                 />

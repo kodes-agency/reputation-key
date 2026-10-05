@@ -4,9 +4,11 @@
 // and the switch pushed right, the label then the switch with a gap, a switch and an
 // On/Off word in a table cell, and a Checkbox standing in for a switch), and none of
 // them said whether it saves at once or waits for the group's Save. One row now: the
-// label (and its help) at the start, the switch at the end, and, for a row that saves
-// as it is flipped, a visible "Saving…" while the request runs. These checks pin the
-// markup (server-rendered, no DOM); the click runs in the Storybook project.
+// label (and its help) at the start, the switch at the end, and, once the switch moves,
+// what the row does with it: a row that saves as it is flipped says "Saving…" while the
+// request runs and "Saved" when it lands, and a row the group saves says "Unsaved"
+// while it differs from the saved value. These checks pin the markup (server-rendered,
+// no DOM); the click, and the Saving to Saved hand-over, run in the Storybook project.
 import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { describe, expect, it } from 'vitest'
@@ -103,6 +105,36 @@ describe('a row that saves as it is flipped', () => {
     expect(html).not.toContain('Saving…')
     expect(html).not.toContain('role="status"')
   })
+
+  it('says nothing about a save before the switch has moved', () => {
+    expect(render({ commit: 'immediate' })).not.toContain('role="status"')
+  })
+})
+
+describe('a row the group saves', () => {
+  it('says Unsaved while its value differs from the saved one', () => {
+    const html = render({ commit: 'deferred', unsaved: true })
+
+    expect(html).toMatch(/<span[^>]*role="status"[^>]*>Unsaved<\/span>/u)
+    expect(html).not.toContain('aria-busy')
+  })
+
+  it('says nothing once the value is the saved one', () => {
+    const html = render({ commit: 'deferred', unsaved: false })
+
+    expect(html).not.toContain('Unsaved')
+    expect(html).not.toContain('role="status"')
+  })
+
+  it('says nothing when the group has no saved value to compare with', () => {
+    // A wizard step collects answers and applies them on its last step.
+    expect(render({ commit: 'deferred' })).not.toContain('role="status"')
+  })
+
+  it('is not Unsaved on a row that saves as it is flipped', () => {
+    // `unsaved` belongs to a group's Save; an immediate row has no such thing.
+    expect(render({ commit: 'immediate', unsaved: true })).not.toContain('Unsaved')
+  })
 })
 
 describe('a disabled row', () => {
@@ -137,6 +169,13 @@ describe('the cell layout', () => {
     const html = cell({ commit: 'immediate', pending: true })
 
     expect(html).toContain('Saving…')
+    expect(html).not.toContain('>On<')
+  })
+
+  it('says Unsaved in the place of the state words while the group has not saved it', () => {
+    const html = cell({ commit: 'deferred', unsaved: true })
+
+    expect(html).toContain('Unsaved')
     expect(html).not.toContain('>On<')
   })
 

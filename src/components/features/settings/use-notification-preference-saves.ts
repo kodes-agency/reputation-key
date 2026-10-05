@@ -97,7 +97,7 @@ export function useNotificationPreferenceSaves({
     category: ConfigurableNotificationCategory,
     channel: NotificationChannel,
     patch: PreferencePatch,
-  ) => {
+  ): Promise<boolean> => {
     const key = preferenceRowKey(propertyId, category, channel)
     const current = latest.current.get(key) ?? stored(category, channel)
     const values = applyPreferencePatch(category, channel, current, patch)
@@ -109,10 +109,12 @@ export function useNotificationPreferenceSaves({
         }),
       )
       toast.success('Notification preference updated')
+      return true
     } catch (error) {
       toast.error(
         actionFailureMessage("Couldn't update that notification preference.")(error),
       )
+      return false
     } finally {
       // The row's last request has settled; the refetched row is the truth.
       if (latest.current.get(key) === values) {

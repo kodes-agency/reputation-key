@@ -58,6 +58,7 @@ function LowRatingTargetFields({
             description="A review at or below the rating you choose gets a shorter target, so its reminders come earlier."
             commit="deferred"
             checked={field.state.value === true}
+            unsaved={!field.state.meta.isDefaultValue}
             onCheckedChange={field.handleChange}
           />
         )}

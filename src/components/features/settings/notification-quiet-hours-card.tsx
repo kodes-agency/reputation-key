@@ -65,7 +65,7 @@ function UrgentBypassSwitch({
   /** Another quiet-hours save is running. */
   disabled: boolean
   accessibleName?: string
-  /** Saves and reports its own refusal (a toast), so it never rejects. */
+  /** Saves and reports its own refusal (a toast): it resolves `false` for one, and never rejects. */
   onChange: (value: boolean) => Promise<unknown>
 }>) {
   const [saving, setSaving] = useState(false)
@@ -80,7 +80,7 @@ function UrgentBypassSwitch({
       checked={checked}
       onCheckedChange={(value) => {
         setSaving(true)
-        void onChange(value).finally(() => setSaving(false))
+        return onChange(value).finally(() => setSaving(false))
       }}
     />
   )

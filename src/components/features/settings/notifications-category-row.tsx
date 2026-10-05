@@ -32,7 +32,7 @@ type SavePreference = (
   category: ConfigurableNotificationCategory,
   channel: 'in_app' | 'email',
   patch: NotificationPreferencePatch,
-) => Promise<void>
+) => Promise<boolean>
 
 /** What every control in one category's row knows about that category. */
 type CategoryControlProps = Readonly<{
@@ -57,7 +57,7 @@ function InAppSwitch({
       commit="immediate"
       checked={inApp?.enabled ?? getDefaultEnabled(category, 'in_app')}
       disabled={locked}
-      onCheckedChange={(enabled) => void savePreference(category, 'in_app', { enabled })}
+      onCheckedChange={(enabled) => savePreference(category, 'in_app', { enabled })}
       className="md:col-start-2 md:row-start-1"
     />
   )
@@ -241,9 +241,7 @@ export function NotificationsCategoryRow({
             commit="immediate"
             checked={emailOn}
             disabled={emailControlsDisabled}
-            onCheckedChange={(enabled) =>
-              void savePreference(category, 'email', { enabled })
-            }
+            onCheckedChange={(enabled) => savePreference(category, 'email', { enabled })}
             className="md:col-start-3 md:row-start-1"
           />
         </>

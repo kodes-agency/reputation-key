@@ -249,11 +249,16 @@ none` is not in the outline. Under it a section's title is a `CardTitle as="h2"`
   notification page's channels and the Organization's low-rating target are all it. A
   boolean setting is a `SettingSwitchRow`: the label (and its help and note) at the
   start, the Switch at the end, and `commit`, which is required because the row must
-  say when it saves. `immediate` saves as it is flipped, so the caller's mutation
-  reports a refusal in a toast and, while it runs, `pending` makes the row say "Saving…"
-  and keeps the Switch waiting (an optimistic row passes none); `deferred` is one field
-  of a group that saves on its Save, so the group's own button carries the pending
-  state. `layout="cell"` is the Switch in a table or list that already names it (the
+  say when it saves, and it does: the moment the Switch moves the row says what becomes of
+  it. `immediate` saves as it is flipped, so the caller's mutation reports a refusal in a
+  toast and `onCheckedChange` returns its promise: the row says "Saving…" while it runs
+  and "Saved" when it lands, and nothing more when it was refused (a rejection, or
+  `false`). `pending` also keeps the Switch waiting, and an optimistic row passes none
+  (the notification channels: the Switch has moved and a second flip queues).
+  `deferred` is one field of a group that saves on its Save, so the group's own button
+  carries the pending state and the row says "Unsaved" (`unsaved`, from the field's
+  `!isDefaultValue`) while its value is not the saved one; a group with no saved value
+  yet, a wizard step, passes none. `layout="cell"` is the Switch in a table or list that already names it (the
   label is read, not drawn, and `stateWords` print beside it). A Checkbox is not a
   setting: it stays for choosing several things from a list and for a statement the
   person agrees to. That statement ("I have read this notice and agree...", "I have

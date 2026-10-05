@@ -1,15 +1,25 @@
 // SettingSwitchRow: one row for a boolean setting. Dark is the default theme; the light
 // variants render the same rows on the light surface (axe runs on both). The Storybook
 // Vitest project compiles no Tailwind, so the plays pin behaviour and wiring (the label
-// names the switch, a row that saves as it is flipped says Saving while it runs, a row
-// the group saves says nothing), not placement.
+// names the switch, a row that saves as it is flipped says Saving while it runs and
+// Saved when it lands, a row the group saves says Unsaved until the group saves), not
+// placement.
 import { useState } from 'react'
 import type { Meta, StoryObj } from '@storybook/react'
 import { expect, userEvent, waitFor, within } from 'storybook/test'
 import { SettingSwitchRow } from './setting-switch-row'
 
-/** A row that saves as it is flipped: the request takes a moment, as a network does. */
-function ImmediateRow({ delayMs = 150 }: Readonly<{ delayMs?: number }>) {
+/**
+ * A row that saves as it is flipped: the request takes a moment, as a network does. An
+ * `optimistic` row moves its switch at once and puts it back when the save is refused
+ * (the notification channels); the other waits for the save and locks the switch while
+ * it runs (`pending`).
+ */
+function ImmediateRow({
+  delayMs = 150,
+  refuse = false,
+  optimistic = false,
+}: Readonly<{ delayMs?: number; refuse?: boolean; optimistic?: boolean }>) {
   const [checked, setChecked] = useState(false)
   const [pending, setPending] = useState(false)
   return (
@@ -22,20 +32,30 @@ function ImmediateRow({ delayMs = 150 }: Readonly<{ delayMs?: number }>) {
         checked={checked}
         pending={pending}
         onCheckedChange={(next) => {
-          setPending(true)
-          setTimeout(() => {
-            setChecked(next)
-            setPending(false)
-          }, delayMs)
+          if (optimistic) setChecked(next)
+          else setPending(true)
+          return new Promise<void>((resolve, reject) => {
+            setTimeout(() => {
+              setPending(false)
+              if (refuse) {
+                setChecked(!next)
+                reject(new Error('refused'))
+                return
+              }
+              setChecked(next)
+              resolve()
+            }, delayMs)
+          })
         }}
       />
     </div>
   )
 }
 
-/** A row that is one field of a group: the group's Save carries it. */
+/** A row that is one field of a group: the group's Save carries it, and it is Unsaved until then. */
 function DeferredRow() {
   const [checked, setChecked] = useState(false)
+  const saved = false
   return (
     <div className="max-w-xl">
       <SettingSwitchRow
@@ -43,8 +63,19 @@ function DeferredRow() {
         label="Allow emoji in rendered templates"
         commit="deferred"
         checked={checked}
+        unsaved={checked !== saved}
         onCheckedChange={setChecked}
       />
+    </div>
+  )
+}
+
+/** One row of each kind, to see that the two say different things after the same flip. */
+function BothRows() {
+  return (
+    <div className="flex max-w-xl flex-col gap-4">
+      <ImmediateRow />
+      <DeferredRow />
     </div>
   )
 }
@@ -89,7 +120,7 @@ const meta: Meta = {
 export default meta
 type Story = StoryObj
 
-/** Flipping a row that saves at once says Saving while the request runs, and the switch waits. */
+/** Flipping a row that saves at once says Saving while the request runs, then Saved, and the switch waits. */
 export const Immediate: Story = {
   render: () => <ImmediateRow />,
   play: async ({ canvasElement }) => {
@@ -104,14 +135,47 @@ export const Immediate: Story = {
     expect(urgent).toBeDisabled()
 
     await waitFor(() => expect(urgent).toBeChecked())
-    expect(canvas.queryByRole('status')).toBeNull()
+    expect(await canvas.findByRole('status')).toHaveTextContent('Saved')
     expect(urgent).toBeEnabled()
   },
 }
 
 export const ImmediateLight: Story = { ...Immediate, parameters: { theme: 'light' } }
 
-/** A row the group saves has no status of its own: it moves, and the group's Save carries it. */
+/** An optimistic row moves at once and stays usable while it says Saving, then Saved. */
+export const ImmediateOptimistic: Story = {
+  render: () => <ImmediateRow optimistic />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const urgent = canvas.getByRole('switch', { name: 'Let urgent email through anyway' })
+
+    await userEvent.click(urgent)
+    expect(urgent).toBeChecked()
+    expect(await canvas.findByRole('status')).toHaveTextContent('Saving…')
+    expect(urgent).toBeEnabled()
+
+    await waitFor(() => expect(canvas.getByRole('status')).toHaveTextContent('Saved'))
+    expect(urgent).toBeChecked()
+  },
+}
+
+/** A refused save says nothing more: the caller's toast has said it, and the switch is back where it was. */
+export const ImmediateRefused: Story = {
+  render: () => <ImmediateRow refuse />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const urgent = canvas.getByRole('switch', { name: 'Let urgent email through anyway' })
+
+    await userEvent.click(urgent)
+    expect(await canvas.findByRole('status')).toHaveTextContent('Saving…')
+
+    await waitFor(() => expect(canvas.queryByRole('status')).toBeNull())
+    expect(urgent).not.toBeChecked()
+    expect(canvas.queryByText('Saved')).toBeNull()
+  },
+}
+
+/** A row the group saves says Unsaved while it differs from the saved value, and says nothing about saving. */
 export const Deferred: Story = {
   render: () => <DeferredRow />,
   play: async ({ canvasElement }) => {
@@ -119,14 +183,43 @@ export const Deferred: Story = {
     const emoji = canvas.getByRole('switch', {
       name: 'Allow emoji in rendered templates',
     })
+    expect(canvas.queryByRole('status')).toBeNull()
 
     await userEvent.click(emoji)
     expect(emoji).toBeChecked()
+    expect(await canvas.findByRole('status')).toHaveTextContent('Unsaved')
+    expect(canvas.queryByText('Saving…')).toBeNull()
+
+    await userEvent.click(emoji)
     expect(canvas.queryByRole('status')).toBeNull()
   },
 }
 
 export const DeferredLight: Story = { ...Deferred, parameters: { theme: 'light' } }
+
+/** The same flip, told apart: the row that saves at once says Saved, the row the group saves says Unsaved. */
+export const CommitTimingIsVisible: Story = {
+  render: () => <BothRows />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement)
+    const urgent = canvas.getByRole('switch', { name: 'Let urgent email through anyway' })
+    const emoji = canvas.getByRole('switch', {
+      name: 'Allow emoji in rendered templates',
+    })
+
+    await userEvent.click(urgent)
+    await userEvent.click(emoji)
+
+    expect(await canvas.findByText('Unsaved')).toBeVisible()
+    expect(await canvas.findByText('Saved')).toBeVisible()
+    expect(canvas.queryByText('Saving…')).toBeNull()
+  },
+}
+
+export const CommitTimingIsVisibleLight: Story = {
+  ...CommitTimingIsVisible,
+  parameters: { theme: 'light' },
+}
 
 /** A setting that cannot change says why in a note, which is the switch's description. */
 export const Locked: Story = {
