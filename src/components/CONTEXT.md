@@ -219,6 +219,37 @@ and actions supply server state.
   are a valid save (the reply profile) stays savable. `form-actions-sources.test.ts`
   fails on a Cancel `Link` in a settings group, a `SubmitButton` outside a
   `FormActions` row or a `DialogFooter`, and a hand-spelled Reset.
+  A choice is drawn by the shared controls, never a native one. One of a few named
+  values is `FormSelectField` (the `ui/Select` in the field frame; no browser
+  `<select>`, no raw `<input type="checkbox">`). "How low a rating" is
+  `RatingThresholdField`, worded "3★ or lower" for the eye and "3 stars or lower" for
+  the ear (`rating-threshold.ts`), with `offLabel` where the answer may be Off and
+  `thresholds` where the rule stops short of five stars: the Portal's private note, the
+  notification page's channels and the Organization's low-rating target are all it. A
+  boolean setting is a `SettingSwitchRow`: the label (and its help and note) at the
+  start, the Switch at the end, and `commit`, which is required because the row must
+  say when it saves. `immediate` saves as it is flipped, so the caller's mutation
+  reports a refusal in a toast and, while it runs, `pending` makes the row say "Saving…"
+  and keeps the Switch waiting (an optimistic row passes none); `deferred` is one field
+  of a group that saves on its Save, so the group's own button carries the pending
+  state. `layout="cell"` is the Switch in a table or list that already names it (the
+  label is read, not drawn, and `stateWords` print beside it). A Checkbox is not a
+  setting: it stays for choosing several things from a list and for a statement the
+  person agrees to. That statement ("I have read this notice and agree...", "I have
+  checked these details", "This property owns this photo...", "Select all current
+  portals") is a `ConsentCheckbox`: one frame, the sentence, a line of help and the
+  refusal, once a person has tried to go on without ticking it. "Follow the parent, or
+  set my own" is an `InheritedSetting`: it says what the place follows (pass a link
+  where the owner has a page, as the Property's target does) and what that is worth,
+  whether the place has a value of its own, and one button that puts the inherited
+  value back ("Use inherited value"; the place may word it) or starts one of its own
+  (`onOverride`, left out where editing the value is what overrides it, as on a
+  notification row). It draws no editor: the value is the caller's field beside it,
+  enabled while `overridden`. Its `commit` is the same two modes: `immediate` buttons
+  save at once and show busy while they do, and a row that saves its own end of an
+  override keeps showing the override until the save lands. `controls-sources.test.ts`
+  fails on a native select, a raw checkbox, a Switch drawn outside the row, a consent
+  sentence in a bare Checkbox and a threshold worded anywhere but one place.
   A field is a `FormTextField`, `FormTextarea` or `FormNumberField`, or, for a
   control of another kind, a `FormFieldFrame` (a `Field` holding the `FieldLabel`,
   the control, the `FieldDescription` and the error, in that order); never a
