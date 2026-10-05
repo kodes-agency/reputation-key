@@ -129,9 +129,10 @@ export const FollowsTheOrganizationTarget: Story = {
       canvas.getByText('This remains linked to future Organization changes.'),
     ).toBeVisible()
 
-    // Reset puts the saved override back.
+    // Reset puts the saved override back, and the focus stays in the group.
     await userEvent.click(await canvas.findByRole('button', { name: 'Reset' }))
     expect(canvas.getByText(/Set here instead of/)).toBeVisible()
+    expect(canvas.getByRole('button', { name: 'Use Organization target' })).toHaveFocus()
     expect(canvas.getByLabelText('Property hours')).toBeEnabled()
 
     await userEvent.click(canvas.getByRole('button', { name: 'Use Organization target' }))

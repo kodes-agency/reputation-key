@@ -55,6 +55,9 @@ const FIRST_FIELD = [
   '[role=combobox]:not([disabled])',
   '[role=checkbox]:not([disabled])',
   '[role=switch]:not([disabled])',
+  // The button of an InheritedSetting, which is the first control of a group whose
+  // value may be inherited (the Property's target).
+  '[data-slot=inherited-setting] button:not([disabled])',
 ].join(',')
 
 export function FormActions(props: FormActionsProps) {
