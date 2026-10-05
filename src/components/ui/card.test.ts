@@ -15,7 +15,7 @@ describe('CardTitle', () => {
     expect(render()).toMatch(/^<div data-slot="card-title"/u)
   })
 
-  it.each(['h2', 'h3', 'h4'] as const)(
+  it.each(['h1', 'h2', 'h3', 'h4'] as const)(
     'is a real %s when the page gives it a level',
     (as) => {
       expect(render({ as })).toMatch(new RegExp(`^<${as} data-slot="card-title"`, 'u'))
@@ -28,6 +28,12 @@ describe('CardTitle', () => {
 
     expect(classOf('h2')).toBe(classOf())
     expect(classOf('h3')).toBe(classOf())
+  })
+
+  it('is the page’s h1 where the card is the whole page (sign in, join, reset)', () => {
+    expect(render({ as: 'h1', className: 'text-2xl' })).toMatch(
+      /^<h1 data-slot="card-title"/u,
+    )
   })
 
   it('keeps a class the card adds', () => {

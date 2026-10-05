@@ -190,9 +190,13 @@ export function InboxListHeader({
         ) : (
           <div className="flex min-w-0 flex-1 items-center gap-2">
             <div className="min-w-0 flex-1">
-              <div className="flex min-w-0 items-center gap-2 max-md:hidden">
-                <h1 className="truncate text-sm font-semibold">{queueLabel}</h1>
-                <span className="text-xs tabular-nums text-muted-foreground">
+              {/* The queue's name is the page's one h1 at every width: on a phone the
+                  queue strip above draws it, so the heading is read, not drawn. */}
+              <div className="flex min-w-0 items-center gap-2">
+                <h1 className="truncate text-sm font-semibold max-md:sr-only">
+                  {queueLabel}
+                </h1>
+                <span className="text-xs tabular-nums text-muted-foreground max-md:hidden">
                   {totalCount}
                 </span>
               </div>
