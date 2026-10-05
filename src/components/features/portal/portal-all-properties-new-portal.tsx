@@ -3,9 +3,9 @@
 // one it goes straight there. The New portal form itself is still a page of the
 // Property's own (the dialog arrives with slice 26).
 import { Link } from '@tanstack/react-router'
-import { ChevronDown, Plus } from 'lucide-react'
+import { ChevronDown } from 'lucide-react'
 import { usePermissions } from '#/shared/hooks/usePermissions'
-import { Button } from '#/components/ui/button'
+import { AddAction, AddActionLink } from '#/components/ui/add-action'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -24,22 +24,21 @@ export function PortalAllPropertiesNewPortal({
   if (!can('portal.create') || only === undefined) return null
   if (properties.length === 1) {
     return (
-      <Button asChild>
-        <Link to="/properties/$propertyId/portals/new" params={{ propertyId: only.id }}>
-          <Plus />
-          New portal
-        </Link>
-      </Button>
+      <AddActionLink
+        to="/properties/$propertyId/portals/new"
+        params={{ propertyId: only.id }}
+      >
+        New portal
+      </AddActionLink>
     )
   }
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button>
-          <Plus aria-hidden="true" />
+        <AddAction>
           New portal
           <ChevronDown aria-hidden="true" />
-        </Button>
+        </AddAction>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="min-w-56">
         <DropdownMenuLabel>Which property is it for?</DropdownMenuLabel>

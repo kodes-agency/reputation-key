@@ -1,8 +1,8 @@
 // "Add language": the launch languages whose guest copy exists and that the
 // Portal does not offer yet, then a disabled note that more come later.
 
-import { ChevronDown, Plus } from 'lucide-react'
-import { Button } from '#/components/ui/button'
+import { ChevronDown } from 'lucide-react'
+import { AddAction } from '#/components/ui/add-action'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,11 +28,10 @@ export function PortalLanguageAddMenu({ addable, hasLater, onChange }: Props) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline">
-          <Plus aria-hidden="true" />
+        <AddAction variant="outline">
           Add language
           <ChevronDown aria-hidden="true" />
-        </Button>
+        </AddAction>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start" className="min-w-60">
         {addable.map((locale) => {

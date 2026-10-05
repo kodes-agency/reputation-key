@@ -121,9 +121,9 @@ export function NotificationPage({
         title="Notifications"
         description="What needs you comes first. Dismissed notifications and categories you muted are not listed."
         actions={
-          <div className="flex flex-wrap items-center gap-2">
+          <>
             {offersMarkAllRead && (
-              <Button variant="outline" size="sm" onClick={markAllRead}>
+              <Button variant="outline" onClick={markAllRead}>
                 <CheckCheck aria-hidden="true" />
                 Mark all read
               </Button>
@@ -132,7 +132,6 @@ export function NotificationPage({
               trigger={
                 <Button
                   variant="outline"
-                  size="sm"
                   // It dismisses every notification (or the filtered
                   // Property's), not this tab's, so an empty tab (Needs you,
                   // most mornings) does not disable it.
@@ -169,13 +168,13 @@ export function NotificationPage({
                 mutations.dismissAll(scope)
               }}
             />
-            <Button asChild variant="ghost" size="sm">
+            <Button asChild variant="ghost">
               <Link to="/settings/notifications">
                 <Settings2 aria-hidden="true" />
                 Preferences
               </Link>
             </Button>
-          </div>
+          </>
         }
       />
       <NotificationAnnouncer announcement={announcement} />

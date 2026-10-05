@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { Plus } from 'lucide-react'
 import type { Action } from '#/components/hooks/use-action'
 import { PortalResponsibilitiesModal } from '#/components/features/staff/portal-responsibilities-modal'
 import {
@@ -8,7 +7,7 @@ import {
 } from '#/components/features/staff'
 import type { PortalOption } from '#/components/features/staff/portal-selector'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
-import { Button } from '#/components/ui/button'
+import { AddAction } from '#/components/ui/add-action'
 import {
   Dialog,
   DialogContent,
@@ -93,10 +92,7 @@ export function StaffTab({
           onOpenChange={onCreateOpenChange}
         >
           <DialogTrigger asChild>
-            <Button>
-              <Plus aria-hidden="true" />
-              Add staff
-            </Button>
+            <AddAction>Add staff</AddAction>
           </DialogTrigger>
           <DialogContent>
             <DialogHeader>

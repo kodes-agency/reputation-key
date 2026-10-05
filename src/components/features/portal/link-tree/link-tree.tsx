@@ -6,9 +6,9 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Link2, Plus } from 'lucide-react'
+import { Link2 } from 'lucide-react'
 import { actionErrorMessage } from '#/components/hooks/use-action-mutation'
-import { Button } from '#/components/ui/button'
+import { AddAction } from '#/components/ui/add-action'
 import { EmptyState } from '#/components/ui/empty-state'
 import type {
   PortalLinktreeLink,
@@ -251,15 +251,13 @@ export function LinkTree({
       ) : null}
       <div className="flex flex-wrap items-center gap-3">
         {canEdit && !isAdding ? (
-          <Button
-            type="button"
+          <AddAction
             variant="outline"
             disabled={cap.isFull}
             onClick={() => setIsAdding(true)}
           >
-            <Plus aria-hidden="true" />
             Add link
-          </Button>
+          </AddAction>
         ) : null}
         <p className="text-sm text-muted-foreground">{cap.text}</p>
       </div>
