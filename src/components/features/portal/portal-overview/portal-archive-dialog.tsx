@@ -52,8 +52,8 @@ export function PortalArchiveDialog({
       title={restoring ? `Restore ${portalName}?` : `Archive ${portalName}?`}
       description={
         restoring
-          ? 'The portal will return as disabled. Its saved settings remain available, but guests will not see it until you review and publish it again.'
-          : 'The portal will become read-only and unavailable to guests. Its public address, saved settings, publication history, metrics, goals, and manager assignments are retained so it can be restored later.'
+          ? 'The Portal will return as Disabled. Its saved settings remain available, but guests will not see it until you review and publish it again.'
+          : 'The Portal will become read-only and unavailable to guests. Its public address, saved settings, publication history, metrics, goals, and manager assignments are retained so it can be restored later.'
       }
       cancelLabel="Cancel"
       confirmLabel={restoring ? 'Restore as disabled' : 'Archive portal'}

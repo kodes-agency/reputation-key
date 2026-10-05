@@ -81,6 +81,8 @@ const ALLOWED_LABELS: Readonly<Record<string, string>> = {
     'names the Share tab, which is a tab of the Portal workspace, inside a hint',
   'Review language · Detect automatically':
     'two labels joined by a dot: the select’s name, then its option',
+  'the Organization target':
+    'the text of a link inside a sentence of help text, which follows the glossary',
 }
 
 function capitalisedAfterTheFirst(label: string): readonly string[] {

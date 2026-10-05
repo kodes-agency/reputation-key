@@ -24,7 +24,7 @@ export function GoalResultsMatrix({ matrix }: Props) {
       <CardHeader>
         <CardTitle as="h2">Goal results matrix</CardTitle>
         <p className="text-sm text-muted-foreground">
-          Monthly evidence for property, portal group, and portal goals. Each result keeps
+          Monthly evidence for Property, Portal Group, and Portal goals. Each result keeps
           its own measure and target.
         </p>
       </CardHeader>

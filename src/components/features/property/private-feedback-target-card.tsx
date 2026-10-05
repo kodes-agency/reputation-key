@@ -93,7 +93,7 @@ function PrivateFeedbackTargetFormCard({
               <InheritedSetting
                 source={
                   <InlineLink to="/settings/organization" underline="always">
-                    the organization target
+                    the Organization target
                   </InlineLink>
                 }
                 value={`${organizationHours} ${organizationHours === 1 ? 'hour' : 'hours'}`}

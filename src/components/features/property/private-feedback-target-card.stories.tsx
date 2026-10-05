@@ -111,9 +111,9 @@ export const FollowsTheOrganizationTarget: Story = {
     updatePolicySpy.mockClear()
     const canvas = within(canvasElement)
     expect(canvas.getByText(/Set here instead of/)).toHaveTextContent(
-      'Set here instead of the organization target (36 hours).',
+      'Set here instead of the Organization target (36 hours).',
     )
-    expect(canvas.getByRole('link', { name: 'the organization target' })).toHaveAttribute(
+    expect(canvas.getByRole('link', { name: 'the Organization target' })).toHaveAttribute(
       'href',
       '/settings/organization',
     )
@@ -122,7 +122,7 @@ export const FollowsTheOrganizationTarget: Story = {
 
     await userEvent.click(canvas.getByRole('button', { name: 'Use organization target' }))
     expect(canvas.getByText(/Follows/)).toHaveTextContent(
-      'Follows the organization target, currently 36 hours.',
+      'Follows the Organization target, currently 36 hours.',
     )
     expect(hours).toBeDisabled()
     expect(
