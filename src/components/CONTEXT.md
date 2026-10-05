@@ -583,12 +583,13 @@ One list of words for what every page repeats.
   Manager) and something a person typed keep their capitals. In a button `&` joins two
   verbs ("Review & publish", "Confirm & publish"); a title or a sentence says "and".
   Help text and descriptions are prose and follow the glossary, not this list.
-- **Save.** `Save changes` is the save of the form a page is named for (Profile,
-  Organization). Any further group on that page, and every group of a section that
-  holds several (Property settings), names what it saves, lower case after "Save":
-  "Save timezone and format", "Save target", "Save reply language", "Save feature
-  access". A form that runs a command names the command: "Update password", "Send
-  invitation", "Create goal". The pending word is the verb in -ing ("Saving…").
+- **Save.** A page with one form saves it with `Save changes`. A page that holds
+  several independent forms (Profile, Organization), and every group of a section that
+  holds several (Property settings), names what each one saves, lower case after
+  "Save": "Save profile", "Save organization", "Save timezone and format", "Save
+  target", "Save reply language", "Save feature access". A form that runs a command
+  names the command: "Update password", "Send invitation", "Create goal". The pending
+  word is the verb in -ing ("Saving…").
 - **Success.** What a Save saved is "<Thing> saved" ("Profile saved", "Responsible
   managers saved"); a command is its verb in the past tense ("Password updated",
   "Invitation sent", "Logo removed"). Say what changed: never "successfully".
