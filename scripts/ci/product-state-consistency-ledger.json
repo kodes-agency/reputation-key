@@ -304,12 +304,6 @@
       "policy": "Seed from the loader response, then replace only with confirmed response-mutation results; route-token remount remains the reset boundary."
     },
     {
-      "id": "src/components/features/identity/profile-settings-form.tsx:useState(avatarUrl)",
-      "classification": "server_snapshot",
-      "owner": "Profile avatar editor",
-      "policy": "Seed from the user image and update from the finalized upload or removal interaction; the Profile route keys the page by user id and image, so a refreshed session image remounts the local snapshot."
-    },
-    {
       "id": "src/components/features/integration/google-import-manager/google-import-manager.tsx:useState(startError)",
       "classification": "local_runtime",
       "owner": "Google import callback recovery",
@@ -326,12 +320,6 @@
       "classification": "local_runtime",
       "owner": "Notification accessibility announcer",
       "policy": "The imported EMPTY object is only the initial client live-region value; mutation announcements own subsequent values."
-    },
-    {
-      "id": "src/components/features/organization/organization-settings-page.tsx:useState(logoUrl)",
-      "classification": "server_snapshot",
-      "owner": "Organization logo editor",
-      "policy": "OrganizationLogoEditor is keyed by the persisted logo, seeds its local upload/removal snapshot from that value, and restores it after failed removal; a changed server logo remounts only this editor, not the organization form."
     },
     {
       "id": "src/components/features/people/leave-organization-dialog.tsx:useState(assignments)",
@@ -656,6 +644,18 @@
       "classification": "local_runtime",
       "owner": "Dialog error banner",
       "policy": "The error a mutation already held when a dialog body mounted, kept to tell it from a later attempt's. It is never written back and never changes after mount, and the body mounting when the dialog opens is its reset boundary."
+    },
+    {
+      "id": "src/components/forms/image-setting/use-image-setting.ts:useState(adopted)",
+      "classification": "server_snapshot",
+      "owner": "Identity image setting",
+      "policy": "The saved picture the setting shows: seeded from the page's saved image, advanced from a confirmed upload or removal result, and replaced when the page passes a new saved value. A refused upload or removal never changes it, so a failure needs no undo."
+    },
+    {
+      "id": "src/components/forms/image-setting/use-image-setting.ts:useState(seen)",
+      "classification": "synchronized_prop_copy",
+      "owner": "Identity image setting",
+      "policy": "The saved value the shown picture was last aligned to, held so it follows the page's value once per change (the documented adjust-state-during-render pattern). It is never written back, and a remount of the setting is its reset boundary."
     },
     {
       "id": "src/components/ui/dialog-dismissal.ts:useState(store)",

@@ -89,7 +89,7 @@ describe('updateOrganization', () => {
     await useCase({ logo: null }, ctx)
 
     expect(updateCalls).toHaveLength(1)
-    expect(updateCalls[0].logo).toBeNull()
+    expect(updateCalls[0]?.logo).toBeNull()
   })
 })
 
