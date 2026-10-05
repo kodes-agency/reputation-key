@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Check } from 'lucide-react'
 import { submitHandler } from '#/components/forms/form-submit'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
+import { BackButton } from '#/components/ui/back-link'
 import { Button } from '#/components/ui/button'
 import { ConsentCheckbox } from '#/components/forms/consent-checkbox'
 import { TimezoneCombobox } from '#/components/forms/timezone-combobox'
@@ -189,14 +190,11 @@ export function GoogleImportReviewForm({
               </form.Field>
 
               <div className="flex flex-col-reverse gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
-                <Button
-                  type="button"
-                  variant="outline"
+                <BackButton
+                  label="Back to locations"
                   onClick={onBack}
                   disabled={isSubmitting}
-                >
-                  Back to locations
-                </Button>
+                />
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                   {flaggedCount > 0 ? (
                     <p id={BLOCKED_REASON_ID} className="text-sm text-muted-foreground">

@@ -1,6 +1,7 @@
 import type { MerchantAiNoticeDto } from '#/contexts/identity/application/dto/merchant-ai-notice.dto'
 import { MerchantAiDataHandling } from '#/components/features/settings/merchant-ai-data-handling'
 import { Alert, AlertDescription, AlertTitle } from '#/components/ui/alert'
+import { BackButton } from '#/components/ui/back-link'
 import { Button } from '#/components/ui/button'
 import { ConsentCheckbox } from '#/components/forms/consent-checkbox'
 import {
@@ -188,9 +189,7 @@ export function SetupReview({
       ) : null}
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-between">
-        <Button type="button" variant="outline" disabled={saving} onClick={onBack}>
-          Back to questions
-        </Button>
+        <BackButton label="Back to questions" disabled={saving} onClick={onBack} />
         <Button
           type="button"
           className="h-auto min-h-9 whitespace-normal text-balance"

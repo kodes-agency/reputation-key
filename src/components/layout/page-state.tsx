@@ -1,6 +1,6 @@
-import { Link } from '@tanstack/react-router'
 import { CircleAlert } from 'lucide-react'
 import { Alert, AlertDescription } from '#/components/ui/alert'
+import { BackLink } from '#/components/ui/back-link'
 import { Button } from '#/components/ui/button'
 import { EmptyState } from '#/components/ui/empty-state'
 import { Skeleton } from '#/components/ui/skeleton'
@@ -94,11 +94,7 @@ function NoticeBody({
       icon={CircleAlert}
       title={heading}
       description={reason}
-      action={
-        <Button variant="outline" asChild>
-          <Link to={back.to as never}>{back.label}</Link>
-        </Button>
-      }
+      action={<BackLink to={back.to as never} label={back.label} />}
     />
   )
 }

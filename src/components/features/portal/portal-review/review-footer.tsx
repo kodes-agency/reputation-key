@@ -5,9 +5,9 @@
 // On a phone the way back is the header's alone, so the facts and the button
 // share one row and the footer covers less of a small screen.
 
-import { Link } from '@tanstack/react-router'
 import { QrCode } from 'lucide-react'
 import { PAGE_GUTTER_X } from '#/components/layout/page-shell'
+import { BackLink } from '#/components/ui/back-link'
 import { Button } from '#/components/ui/button'
 import { cn } from '#/lib/utils'
 import type { PortalDetailTab } from '../portal-detail/portal-detail-rules'
@@ -53,15 +53,13 @@ export function ReviewFooter({
             </p>
           )}
         </div>
-        <Button variant="outline" asChild className="hidden sm:inline-flex">
-          <Link
-            to="/properties/$propertyId/portals/$portalId"
-            params={{ propertyId, portalId }}
-            search={{ tab, section }}
-          >
-            Back to editing
-          </Link>
-        </Button>
+        <BackLink
+          to="/properties/$propertyId/portals/$portalId"
+          params={{ propertyId, portalId }}
+          search={{ tab, section }}
+          label="Back to editing"
+          className="hidden sm:inline-flex"
+        />
         {view.primary === null ? null : (
           <Button
             type="button"
