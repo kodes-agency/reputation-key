@@ -137,7 +137,7 @@ function GoalDetailRoute() {
         )}
         actions={
           canManage && program.status !== 'ended' ? (
-            <div className="flex gap-2">
+            <>
               <GoalProgramAssignmentsDialog
                 changeAssignmentsFn={changeGoalProgramAssignments}
                 property={{ id: propertyId, name: propData.property.name }}
@@ -165,7 +165,7 @@ function GoalDetailRoute() {
                 onChange={updateStatus}
                 onEnd={endGoal}
               />
-            </div>
+            </>
           ) : undefined
         }
       />
