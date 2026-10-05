@@ -87,7 +87,7 @@ export function FormSelectField<Value extends string>({
         <SelectTrigger
           id={id}
           aria-invalid={invalid || undefined}
-          aria-describedby={describedByOf(id, description)}
+          aria-describedby={describedByOf(id, description, invalid)}
           className={cn('w-full min-w-0', triggerClassName)}
           onBlur={onBlur}
         >

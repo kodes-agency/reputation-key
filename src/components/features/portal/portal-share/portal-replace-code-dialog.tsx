@@ -121,6 +121,7 @@ export function PortalReplaceCodeDialog({
                   aria-describedby={describedByOf(
                     'portal-replacement-days',
                     TRANSITION_HELP,
+                    invalid,
                   )}
                   disabled={mutation.isPending}
                 />

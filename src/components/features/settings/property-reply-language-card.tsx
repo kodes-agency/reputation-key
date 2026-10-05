@@ -110,6 +110,7 @@ export function PropertyReplyLanguageCard({ property, updateProperty }: Props) {
                         aria-describedby={describedByOf(
                           'property-reply-language',
                           DEFAULT_LANGUAGE_HELP,
+                          invalid,
                         )}
                         onBlur={field.handleBlur}
                       >

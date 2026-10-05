@@ -105,7 +105,7 @@ export function RatingThresholdField(props: Props) {
           id={id}
           aria-label={accessibleName}
           aria-invalid={invalid || undefined}
-          aria-describedby={describedByOf(id, description)}
+          aria-describedby={describedByOf(id, description, invalid)}
           className={cn('w-full min-w-0', triggerClassName)}
           onBlur={onBlur}
         >

@@ -221,6 +221,8 @@ export const WordmarkClearsAndIsBounded: Story = {
     const wordmark = canvas.getByLabelText('Wordmark')
     await userEvent.type(wordmark, 'X'.repeat(30))
     await expect(canvas.getByText('At most 24 characters')).toBeVisible()
+    // Coming back to the field reads why it is refused, not only the alert that appeared.
+    await expect(wordmark).toHaveAccessibleDescription('At most 24 characters')
     await expect(
       (await canvas.findAllByText(/Not saved · The wordmark can be at most 24/, {}, WAIT))
         .length,

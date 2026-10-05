@@ -76,7 +76,7 @@ export function FormTextarea({
         onBlur={field.handleBlur}
         onChange={(e) => field.handleChange(e.target.value)}
         aria-invalid={isInvalid}
-        aria-describedby={describedByOf(id, description)}
+        aria-describedby={describedByOf(id, description, isInvalid)}
         placeholder={placeholder}
         rows={rows}
         disabled={disabled}

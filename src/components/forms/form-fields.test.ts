@@ -121,6 +121,38 @@ describe('error and help together', () => {
   })
 })
 
+describe('the error is named by the control', () => {
+  // The alert is read once, when it appears. A person who comes back to the field
+  // hears why it is refused only if the control names the error as its description.
+  it('names the error, after the help, while the field is invalid', () => {
+    const html = textField(
+      { description: 'Shown to guests.' },
+      text({ meta: invalidMeta }),
+    )
+
+    expect(html).toMatch(
+      /<div[^>]*id="name-error"[^>]*role="alert"|role="alert"[^>]*id="name-error"/u,
+    )
+    expect(html).toContain('aria-describedby="name-description name-error"')
+  })
+
+  it('names only the error when there is no help', () => {
+    expect(textareaField({}, textarea({ meta: invalidMeta }))).toContain(
+      'aria-describedby="note-error"',
+    )
+    expect(numberField({}, number([{ message: 'Use 1 to 720 hours' }]))).toContain(
+      'aria-describedby="hours-error"',
+    )
+  })
+
+  it('names no error while the field is valid', () => {
+    expect(textField({ description: 'Shown to guests.' })).toContain(
+      'aria-describedby="name-description"',
+    )
+    expect(textField()).not.toContain('name-error')
+  })
+})
+
 describe('error timing', () => {
   it('waits for the text field to be touched', () => {
     const untouched = text({

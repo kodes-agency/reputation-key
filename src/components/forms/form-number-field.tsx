@@ -75,7 +75,7 @@ export function FormNumberField({
         onBlur={field.handleBlur}
         onChange={(event) => field.handleChange(event.target.valueAsNumber)}
         aria-invalid={invalid}
-        aria-describedby={describedByOf(id, description)}
+        aria-describedby={describedByOf(id, description, invalid)}
       />
     </FormFieldFrame>
   )

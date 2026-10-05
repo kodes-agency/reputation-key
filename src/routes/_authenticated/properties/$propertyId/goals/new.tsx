@@ -193,7 +193,11 @@ function CreateGoalPage() {
                       )
                     }
                     aria-invalid={!field.state.meta.isValid}
-                    aria-describedby={describedByOf('goal-target', targetHelp)}
+                    aria-describedby={describedByOf(
+                      'goal-target',
+                      targetHelp,
+                      !field.state.meta.isValid,
+                    )}
                   />
                 </FormFieldFrame>
               )}

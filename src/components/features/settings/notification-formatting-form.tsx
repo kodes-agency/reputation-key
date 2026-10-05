@@ -112,12 +112,13 @@ export function NotificationFormattingForm({ settings, updateUserSettings }: Pro
               {TIMEZONE_SOURCE_HINT[settings.timezoneSource]}
             </span>
           )
+          const invalid = field.state.meta.errors.length > 0
           return (
             <FormFieldFrame
               id="profile-timezone"
               label="Timezone"
               description={source}
-              invalid={field.state.meta.errors.length > 0}
+              invalid={invalid}
               errors={field.state.meta.errors}
               className="min-w-0"
             >
@@ -127,7 +128,7 @@ export function NotificationFormattingForm({ settings, updateUserSettings }: Pro
                 onValueChange={field.handleChange}
                 onBlur={field.handleBlur}
                 disabled={pending}
-                aria-describedby={describedByOf('profile-timezone', source)}
+                aria-describedby={describedByOf('profile-timezone', source, invalid)}
               />
             </FormFieldFrame>
           )

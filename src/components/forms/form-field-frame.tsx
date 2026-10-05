@@ -9,9 +9,22 @@ import { Field, FieldDescription, FieldError, FieldLabel } from '#/components/ui
 /** The id the help line takes, which the control names in `aria-describedby`. */
 export const descriptionIdOf = (id: string): string => `${id}-description`
 
-/** What a control's `aria-describedby` says: the help, when there is one. */
-export const describedByOf = (id: string, description: ReactNode): string | undefined =>
-  description ? descriptionIdOf(id) : undefined
+/** The id the error takes, which an invalid control names in `aria-describedby` too. */
+export const errorIdOf = (id: string): string => `${id}-error`
+
+/**
+ * What a control's `aria-describedby` says: the help, when there is one, then the fault
+ * while the control is `invalid`. The fault is also an alert when it appears, but a
+ * person who comes back to the field hears why it is refused only if it is named here.
+ */
+export const describedByOf = (
+  id: string,
+  description: ReactNode,
+  invalid = false,
+): string | undefined => {
+  const ids = [description ? descriptionIdOf(id) : null, invalid ? errorIdOf(id) : null]
+  return ids.filter((part) => part !== null).join(' ') || undefined
+}
 
 type Props = Readonly<{
   /** The control's id: the label is for it and the help is `<id>-description`. */
@@ -52,7 +65,7 @@ export function FormFieldFrame({
       {describedBy === undefined ? null : (
         <FieldDescription id={describedBy}>{description}</FieldDescription>
       )}
-      {errors === undefined ? null : <FieldError errors={errors} />}
+      {errors === undefined ? null : <FieldError id={errorIdOf(id)} errors={errors} />}
     </Field>
   )
 }

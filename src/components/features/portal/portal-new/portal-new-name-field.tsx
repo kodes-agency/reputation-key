@@ -30,7 +30,7 @@ export function PortalNewNameField({
         autoComplete="off"
         disabled={disabled}
         aria-invalid={invalid}
-        aria-describedby={describedByOf('portal-new-name', NAME_HINT)}
+        aria-describedby={describedByOf('portal-new-name', NAME_HINT, invalid)}
       />
     </FormFieldFrame>
   )

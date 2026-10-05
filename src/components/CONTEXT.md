@@ -304,7 +304,8 @@ none` is not in the outline. Under it a section's title is a `CardTitle as="h2"`
   the control, the `FieldDescription` and the error, in that order); never a
   hand-built label, control and `FieldError`. Help under a control is the
   `description` prop (a `FieldDescription`, wired to the control by
-  `aria-describedby`) and a field the person may leave empty is `optional`, which
+  `aria-describedby`, which names the error too while the field is invalid, through
+  `describedByOf`) and a field the person may leave empty is `optional`, which
   prints "Optional" inside the label so the control's name carries it; no
   "(optional)" suffix and no `text-xs` hint. The text fields report after the field
   has been touched; the number field reports as soon as the schema names a fault,
